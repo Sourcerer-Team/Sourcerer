@@ -28,11 +28,11 @@ class EventManager {
 public:
   static EventManager &getInstance();
 
-  void Subscribe(EventType eventType, CallbackType callback);
+  void subscribe(EventType eventType, CallbackType callback);
 
-  void SendEvent(Event event);
+  void send(Event event);
 
-  void Unsubscribe(EventType eventType, CallbackType callback);
+  void unsubscribe(EventType eventType, CallbackType callback);
 
 private:
   EventManager();

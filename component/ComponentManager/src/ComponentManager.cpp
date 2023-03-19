@@ -19,7 +19,7 @@ ComponentManager::ComponentManager() : _done(false) {
       std::bind(&ComponentManager::eventCallback, this, std::placeholders::_1);
   EventManager::EventManager &controller =
       EventManager::EventManager::getInstance();
-  controller.Subscribe(EventManager::EventType::ComponentStarted, waitFunc);
+  controller.subscribe(EventManager::EventType::ComponentStarted, waitFunc);
 }
 
 ComponentManager::~ComponentManager() {}

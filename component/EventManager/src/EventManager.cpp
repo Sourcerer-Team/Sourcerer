@@ -38,13 +38,13 @@ void EventManager::threadLoop() {
   }
 }
 
-void EventManager::Subscribe(EventType eventType, CallbackType callback) {
+void EventManager::subscribe(EventType eventType, CallbackType callback) {
   LOCKGUARD(_queueLocker);
 
   _subscribers[eventType].push_back(callback);
 }
 
-void EventManager::Unsubscribe(EventType eventType, CallbackType callback) {
+void EventManager::unsubscribe(EventType eventType, CallbackType callback) {
   LOCKGUARD(_queueLocker);
 
   _subscribers[eventType].erase(
@@ -58,7 +58,7 @@ void EventManager::Unsubscribe(EventType eventType, CallbackType callback) {
       _subscribers[eventType].end());
 }
 
-void EventManager::SendEvent(Event event) {
+void EventManager::send(Event event) {
   LOCKGUARD(_queueLocker);
   const std::vector<CallbackType> &callbacks = _subscribers[event._type];
   const size_t callbackSize = callbacks.size();
