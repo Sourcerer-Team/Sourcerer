@@ -17,8 +17,8 @@ using namespace std::chrono_literals;
 ComponentManager::ComponentManager() : _done(false) {
   const auto waitFunc =
       std::bind(&ComponentManager::eventCallback, this, std::placeholders::_1);
-  EventManager::EventController &controller =
-      EventManager::EventController::getInstance();
+  EventManager::EventManager &controller =
+      EventManager::EventManager::getInstance();
   controller.Subscribe(EventManager::EventType::ComponentStarted, waitFunc);
 }
 

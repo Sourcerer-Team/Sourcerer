@@ -9,16 +9,16 @@
 
 namespace EventManager {
 
-EventController::EventController() { start(); }
+EventManager::EventManager() { start(); }
 
-EventController::~EventController() { stop(); }
+EventManager::~EventManager() { stop(); }
 
-EventController &EventController::getInstance() {
-  static EventController instance;
+EventManager &EventManager::getInstance() {
+  static EventManager instance;
   return instance;
 }
 
-void EventController::threadLoop() {
+void EventManager::threadLoop() {
   General::setThreadName(THREAD_ID);
 
   while (true) {
@@ -38,13 +38,13 @@ void EventController::threadLoop() {
   }
 }
 
-void EventController::Subscribe(EventType eventType, CallbackType callback) {
+void EventManager::Subscribe(EventType eventType, CallbackType callback) {
   LOCKGUARD(_queueLocker);
 
   _subscribers[eventType].push_back(callback);
 }
 
-void EventController::Unsubscribe(EventType eventType, CallbackType callback) {
+void EventManager::Unsubscribe(EventType eventType, CallbackType callback) {
   LOCKGUARD(_queueLocker);
 
   _subscribers[eventType].erase(
@@ -58,7 +58,7 @@ void EventController::Unsubscribe(EventType eventType, CallbackType callback) {
       _subscribers[eventType].end());
 }
 
-void EventController::SendEvent(Event event) {
+void EventManager::SendEvent(Event event) {
   LOCKGUARD(_queueLocker);
   const std::vector<CallbackType> &callbacks = _subscribers[event._type];
   const size_t callbackSize = callbacks.size();
@@ -76,16 +76,16 @@ void EventController::SendEvent(Event event) {
     LOG_DEBUG("Event has NOT been queued: {}", static_cast<int>(event._type));
 }
 
-void EventController::start() {
+void EventManager::start() {
   if (_thread.joinable())
     return;
 
-  _thread = std::thread(&EventController::threadLoop, this);
+  _thread = std::thread(&EventManager::threadLoop, this);
 
   LOG_DEBUG("EventManager started.");
 }
 
-void EventController::stop() {
+void EventManager::stop() {
   {
     LOCKGUARD(_queueLocker);
 

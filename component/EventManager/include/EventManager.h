@@ -24,9 +24,9 @@ struct EventRecord {
   std::function<void()> _callback;
 };
 
-class EventController {
+class EventManager {
 public:
-  static EventController &getInstance();
+  static EventManager &getInstance();
 
   void Subscribe(EventType eventType, CallbackType callback);
 
@@ -35,9 +35,9 @@ public:
   void Unsubscribe(EventType eventType, CallbackType callback);
 
 private:
-  EventController();
+  EventManager();
 
-  virtual ~EventController();
+  virtual ~EventManager();
 
   void threadLoop();
 
