@@ -12,9 +12,13 @@ const char *ORGANIZATION_NAME = APPLICATION_NAME;
 const char *APPLICATION_DIR = APPLICATION_NAME;
 const char *LOGS_DIR = "Logs";
 
-QMap<ConfigKey, QString> KEYNAMES = {{ConfigKey::Unknown, ""}};
+QMap<ConfigKey, QString> KEYNAMES = {
+    {ConfigKey::Unknown, ""},
+    {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
+    {ConfigKey::TitleBarFontSize, "window/titleBarFontSize"}};
 QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {};
-QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {};
+QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {{ConfigKey::TitleBarHeight, 40},
+                                            {ConfigKey::TitleBarFontSize, 8}};
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {};
 
 ConfigManager::ConfigManager()

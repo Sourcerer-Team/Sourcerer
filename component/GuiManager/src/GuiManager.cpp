@@ -28,6 +28,7 @@ void GuiManager::start()
 {
   QGoodWindow::setup();
 
+
   int argc = 1;
   char* argv = const_cast<char*>(ConfigManager::APPLICATION_NAME);
   QApplication app(argc, &argv);
@@ -45,11 +46,13 @@ void GuiManager::start()
   MainWindow w;
   w.show();
 
-  app.exec();
+  QGoodWindow::setAppDarkTheme();
 
   EventManager::Event startedEvent(EventManager::EventType::ComponentStarted);
   EventManager::EventManager& eventManager = EventManager::EventManager::getInstance();
   eventManager.send(startedEvent);
+
+  app.exec();
 }
 
 void GuiManager::stop()

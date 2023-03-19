@@ -14,10 +14,21 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets LinguistTool
 set(TS_FILES translations/Sourcerer_en_US.ts)
 
 set(GUIMANAGER_SOURCE_FILES
+   include/ContainerWidget.h
    include/GuiManager.h
+   include/HomeContainer.h
    include/MainWindow.h
+   include/PleaseWaitContainer.h
+   include/TitlebarWidget.h
+   src/ContainerWidget.cpp
    src/GuiManager.cpp
+   src/HomeContainer.cpp
    src/MainWindow.cpp
+   src/PleaseWaitContainer.cpp
+   src/TitlebarWidget.cpp
+   src/HomeContainer.ui
+   src/PleaseWaitContainer.ui
+   src/TitlebarWidget.ui
    ${TS_FILES}
 )
 
@@ -31,6 +42,7 @@ includeComponent(GuiManager ConfigManager)
 
 includeLib(GuiManager Log)
 includeLib(GuiManager Util)
+includeLib(GuiManager QtWaitingSpinner)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../../lib/QGoodWindow/QGoodWindow.cmake)
 
