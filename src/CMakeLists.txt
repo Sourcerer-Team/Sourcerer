@@ -50,6 +50,7 @@ endif()
 
 include("../cmake/helpers.cmake")
 
+includeComponent(Sourcerer ComponentManager)
 includeComponent(Sourcerer EventManager)
 
 includeLib(Sourcerer Log)
