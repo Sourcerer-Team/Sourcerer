@@ -20,23 +20,9 @@
 #OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #SOFTWARE.
 
-#project(QGoodCentralWidget)
-
-#if(TARGET ${PROJECT_NAME})
-#    return()
-#endif()
-
-#add_library(${PROJECT_NAME} SHARED "")
-
-#include("../../cmake/helpers.cmake")
-
-#includeLib(${PROJECT_NAME} QGoodWindow)
-
 target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/src/qgoodcentralwidget.cpp ${CMAKE_CURRENT_LIST_DIR}/src/qgoodcentralwidget.h
 )
-
-set(qgoodwindow TRUE)
 
 if(qgoodwindow)
     target_sources(${PROJECT_NAME} PRIVATE
@@ -49,15 +35,11 @@ if(qgoodwindow)
     )
 
     find_package(Qt${QT_VERSION_MAJOR} REQUIRED
-        Core
         Svg
-        Widgets
     )
 
     target_link_libraries(${PROJECT_NAME} PRIVATE
-        Qt${QT_VERSION_MAJOR}::Core
         Qt${QT_VERSION_MAJOR}::Svg
-        Qt${QT_VERSION_MAJOR}::Widgets
     )
 endif()
 

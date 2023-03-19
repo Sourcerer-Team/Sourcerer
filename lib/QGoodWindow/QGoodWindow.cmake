@@ -20,16 +20,6 @@
 #OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 #SOFTWARE.
 
-#project(QGoodWindow)
-
-#if(TARGET ${PROJECT_NAME})
-#    return()
-#endif()
-
-#add_library(${PROJECT_NAME} SHARED "")
-
-cmake_policy(SET CMP0079 NEW)
-
 target_sources(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/src/qgoodwindow.cpp ${CMAKE_CURRENT_LIST_DIR}/src/qgoodwindow.h
     ${CMAKE_CURRENT_LIST_DIR}/src/darkstyle.cpp ${CMAKE_CURRENT_LIST_DIR}/src/darkstyle.h
