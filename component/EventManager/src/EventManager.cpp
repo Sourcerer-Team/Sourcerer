@@ -70,10 +70,10 @@ void EventManager::send(Event event) {
 
       _eventsQueue.push({EventDataFunction});
 
-      LOG_DEBUG("Event has been queued: {}", static_cast<int>(event._type));
+      LOG_DEBUG("Event has been queued: %1", static_cast<int>(event._type));
     }
   } else
-    LOG_DEBUG("Event has NOT been queued: {}", static_cast<int>(event._type));
+    LOG_DEBUG("Event has NOT been queued: %1", static_cast<int>(event._type));
 }
 
 void EventManager::start() {

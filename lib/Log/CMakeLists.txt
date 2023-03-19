@@ -24,6 +24,6 @@ includeComponent(Log ConfigManager)
 
 includeLib(Log Util)
 
-target_link_libraries(Log PRIVATE Qt${QT_VERSION_MAJOR}::Core)
+target_link_libraries(Log PRIVATE Qt${QT_VERSION_MAJOR}::Core stdc++fs)
 
 target_include_directories(Log PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)

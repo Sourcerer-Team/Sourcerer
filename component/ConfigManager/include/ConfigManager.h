@@ -10,8 +10,8 @@
 
 namespace ConfigManager {
 
-const char *APPLICATION_NAME = "Sourcerer";
-const char *ORGANIZATION_NAME = "Sourcerer";
+extern const char *APPLICATION_NAME;
+extern const char *ORGANIZATION_NAME;
 
 class ConfigManager {
 public:

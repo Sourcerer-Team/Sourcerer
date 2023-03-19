@@ -1,4 +1,6 @@
-#include "mainwindow.h"
+#include "MainWindow.h"
+
+namespace GuiManager {
 
 MainWindow::MainWindow(QWidget *parent)
     : QGoodWindow(parent), centralWidget(new QGoodCentralWidget(this)) {
@@ -6,3 +8,5 @@ MainWindow::MainWindow(QWidget *parent)
 }
 
 MainWindow::~MainWindow() {}
+
+} // namespace GuiManager

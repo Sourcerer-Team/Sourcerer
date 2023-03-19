@@ -34,7 +34,7 @@ Log::Log()
 
   spdlog::enable_backtrace(50);
 
-  setLogLevel(LogLevel::Error);
+  startLogging(LogLevel::Perf, _logFileMaxSize);
 }
 
 void Log::startLogging(::Log::Log::LogLevel logLevel,
@@ -449,7 +449,7 @@ void Log::addEscapeCharacters(QString &string) {
 }
 
 void Log::trimThreadId(QString &threadId) {
-  threadId = QString("{:<%1}").arg(threadId.left(10));
+  threadId = QString("{%1}").arg(threadId.left(10));
 }
 
 void Log::restart() { startLogging(); }

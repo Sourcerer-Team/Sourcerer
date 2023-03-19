@@ -1,16 +1,9 @@
-#ifndef MAINWINDOW_H
-#define MAINWINDOW_H
+#pragma once
 
 #include <QGoodCentralWidget>
 #include <QGoodWindow>
 
-#include <QMainWindow>
-
-QT_BEGIN_NAMESPACE
-namespace Ui {
-class MainWindow;
-}
-QT_END_NAMESPACE
+namespace GuiManager {
 
 class MainWindow : public QGoodWindow {
   Q_OBJECT
@@ -20,7 +13,7 @@ public:
   ~MainWindow();
 
 private:
-  Ui::MainWindow *ui;
   QGoodCentralWidget *centralWidget;
 };
-#endif // MAINWINDOW_H
+
+} // namespace GuiManager
