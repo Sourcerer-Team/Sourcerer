@@ -18,22 +18,23 @@ EventController &EventController::getInstance() {
   return instance;
 }
 
-void EventController::start() {
-  if (_thread.joinable())
-    return;
-
-  _thread = std::thread(&EventController::threadLoop, this);
-}
-
 void EventController::threadLoop() {
   General::setThreadName(THREAD_ID);
 
   while (true) {
     const EventRecord record = _eventsQueue.pop();
-    if (record._type == EventRecordType::Quit)
+    if (record._type == EventRecordType::Quit) {
+
       break;
+    }
+
+    const qint64 start = QDateTime::currentMSecsSinceEpoch();
 
     record._callback();
+
+    const qint64 end = QDateTime::currentMSecsSinceEpoch();
+
+    LOG_PERF(end - start, "Event execution duration");
   }
 }
 
@@ -59,9 +60,7 @@ void EventController::Unsubscribe(EventType eventType, CallbackType callback) {
 
 void EventController::SendEvent(Event event) {
   LOCKGUARD(_queueLocker);
-
   const std::vector<CallbackType> &callbacks = _subscribers[event._type];
-
   const size_t callbackSize = callbacks.size();
 
   if (callbackSize > 0) {
@@ -77,6 +76,15 @@ void EventController::SendEvent(Event event) {
     LOG_DEBUG("Event has NOT been queued: {}", static_cast<int>(event._type));
 }
 
+void EventController::start() {
+  if (_thread.joinable())
+    return;
+
+  _thread = std::thread(&EventController::threadLoop, this);
+
+  LOG_DEBUG("EventManager started.");
+}
+
 void EventController::stop() {
   {
     LOCKGUARD(_queueLocker);
@@ -85,6 +93,8 @@ void EventController::stop() {
   }
 
   _thread.join();
+
+  LOG_DEBUG("EventManager stopped.");
 }
 
 } // namespace EventManager
