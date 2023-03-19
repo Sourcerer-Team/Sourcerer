@@ -28,8 +28,8 @@ ConfigManager::ConfigManager()
 ConfigManager::~ConfigManager() {}
 
 ConfigManager &ConfigManager::getInstance() {
-  static ConfigManager _instance;
-  return _instance;
+  static ConfigManager instance;
+  return instance;
 }
 
 QDateTime ConfigManager::getDateTime(ConfigKey key) const {
