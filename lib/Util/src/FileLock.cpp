@@ -6,6 +6,9 @@
 
 #include <qglobal.h>
 
+namespace Util
+{
+
 #ifdef Q_OS_LINUX
 
 bool checkForAnotherInstance(const std::string& lockName)
@@ -43,3 +46,5 @@ bool checkForAnotherInstance(const std::string& lockName)
 }
 
 #endif
+
+}

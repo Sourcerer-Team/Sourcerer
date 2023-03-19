@@ -2,7 +2,7 @@
 #define LOCKGUARD_H
 
 #include <mutex>
-#include <string>
+#include <QString>
 
 using namespace std::chrono_literals;
 
@@ -22,14 +22,14 @@ public:
 class LockGuard
 {
 public:
-   LockGuard(Mutex& mutex, size_t timeout, const std::string& function, int line);
+   LockGuard(Mutex& mutex, size_t timeout, const QString& function, int line);
 
    ~LockGuard();
 
 private:
    Mutex& _mutex;
    size_t _timeout;
-   const std::string& _function;
+   const QString& _function;
    int _line;
 };
 

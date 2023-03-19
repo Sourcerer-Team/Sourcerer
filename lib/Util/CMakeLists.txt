@@ -7,9 +7,11 @@ endif()
 project(Util)
 
 set(CMAKE_CXX_STANDARD 17)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
 
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets LinguistTools)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets LinguistTools)
+find_package(Threads REQUIRED)
 
 add_library(Util STATIC
    include/FileLock.h
@@ -20,8 +22,12 @@ add_library(Util STATIC
    src/TokenString.cpp
 )
 
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
+include(../../cmake/helpers.cmake)
+
+includeComponent(Util ConfigManager)
+
+includeLib(Util Log)
+
 
 target_link_libraries(Util PRIVATE
     Threads::Threads
@@ -31,5 +37,3 @@ target_link_libraries(Util PRIVATE
 target_include_directories(Util PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-
-includeLib(Util Log)

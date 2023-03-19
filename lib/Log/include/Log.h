@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ConfigManager.h>
 #include <LockGuard.h>
 
 #include <spdlog/fmt/fmt.h>
@@ -79,90 +80,90 @@ public:
    static Log& getInstance();
 
    // Log writing
-   void info(std::string threadId, std::string function, int line, std::string message);
-   void error(std::string threadId, std::string function, int line, ErrorId idError, const std::exception* exception, std::string message);
-   void perf(std::string threadId, std::string function, int line, int duration, std::string message);
-   void warning(std::string threadId, std::string function, int line, ErrorId warningId, std::string message);
-   void debug(std::string threadId, std::string function, int line, std::string message);
-   void init(std::string threadId, std::string function, int line, std::string message);
+   void info(QString threadId, QString function, int line, QString message);
+   void error(QString threadId, QString function, int line, ErrorId idError, const std::exception* exception, QString message);
+   void perf(QString threadId, QString function, int line, int duration, QString message);
+   void warning(QString threadId, QString function, int line, ErrorId warningId, QString message);
+   void debug(QString threadId, QString function, int line, QString message);
+   void init(QString threadId, QString function, int line, QString message);
 
-   void infoCorrelation(std::string threadId, std::string function, int line, std::string message, std::string corelationId);
-   void errorCorrelation(std::string threadId, std::string function, int line, ErrorId idError, const std::exception* exception, std::string message, std::string corelationId);
-   void perfCorrelation(std::string threadId, std::string function, int line, int duration, std::string message, std::string corelationId);
-   void warningCorrelation(std::string threadId, std::string function, int line, ErrorId warningId, std::string message, std::string corelationId);
-   void debugCorrelation(std::string threadId, std::string function, int line, std::string message, std::string corelationId);
-   void initCorrelation(std::string threadId, std::string function, int line, std::string message, std::string corelationId);
+   void infoCorrelation(QString threadId, QString function, int line, QString message, QString corelationId);
+   void errorCorrelation(QString threadId, QString function, int line, ErrorId idError, const std::exception* exception, QString message, QString corelationId);
+   void perfCorrelation(QString threadId, QString function, int line, int duration, QString message, QString corelationId);
+   void warningCorrelation(QString threadId, QString function, int line, ErrorId warningId, QString message, QString corelationId);
+   void debugCorrelation(QString threadId, QString function, int line, QString message, QString corelationId);
+   void initCorrelation(QString threadId, QString function, int line, QString message, QString corelationId);
 
    template<typename... Args>
-   inline void info(std::string threadId, std::string function, int line, fmt::basic_string_view<char> message, const Args &... args)
+   inline void info(QString threadId, QString function, int line, QString message, const Args &... args)
    {
-      info(threadId, function, line, fmt::format(message, args...));
+      info(threadId, function, line, QString(message).arg(args...));
    }
 
    template<typename... Args>
-   inline void error(std::string threadId, std::string function, int line, ErrorId idError, const std::exception* exception, fmt::basic_string_view<char> message, const Args &... args)
+   inline void error(QString threadId, QString function, int line, ErrorId idError, const std::exception* exception, QString message, const Args &... args)
    {
-      error(threadId, function, line, idError, exception, fmt::format(message, args...));
+      error(threadId, function, line, idError, exception, QString(message).arg(args...));
    }
 
    template<typename... Args>
-   inline void perf(std::string threadId, std::string function, int line, int duration, fmt::basic_string_view<char> message, const Args &... args)
+   inline void perf(QString threadId, QString function, int line, int duration, QString message, const Args &... args)
    {
-      perf(threadId, function, line, duration, fmt::format(message, args...));
+      perf(threadId, function, line, duration, QString(message).arg(args...));
    }
 
    template<typename... Args>
-   inline void warning(std::string threadId, std::string function, int line, ErrorId warningId, fmt::basic_string_view<char> message, const Args &... args)
+   inline void warning(QString threadId, QString function, int line, ErrorId warningId, QString message, const Args &... args)
    {
-      warning(threadId, function, line, warningId, fmt::format(message, args...));
+      warning(threadId, function, line, warningId, QString(message).arg(args...));
    }
 
    template<typename... Args>
-   inline void debug(std::string threadId, std::string function, int line, fmt::basic_string_view<char> message, const Args &... args)
+   inline void debug(QString threadId, QString function, int line, QString message, const Args &... args)
    {
-      debug(threadId, function, line, fmt::format(message, args...));
+      debug(threadId, function, line, QString(message).arg(args...));
    }
 
    template<typename... Args>
-   inline void init(std::string threadId, std::string function, int line, fmt::basic_string_view<char> message, const Args &... args)
+   inline void init(QString threadId, QString function, int line, QString message, const Args &... args)
    {
-      init(threadId, function, line, fmt::format(message, args...));
+      init(threadId, function, line, QString(message).arg(args...));
    }
 
    template<typename... Args>
-   inline void infoCorrelationId(std::string threadId, std::string function, int line, ErrorId idError, const std::exception* exception, std::string corelationId, fmt::basic_string_view<char> message, const Args &... args)
+   inline void infoCorrelationId(QString threadId, QString function, int line, ErrorId idError, const std::exception* exception, QString corelationId, QString message, const Args &... args)
    {
-      infoCorrelation(threadId, function, line, idError, exception, fmt::format(message, args...), corelationId);
+      infoCorrelation(threadId, function, line, idError, exception, QString(message).arg(args...), corelationId);
    }
 
    template<typename... Args>
-   inline void errorCorrelationId(std::string threadId, std::string function, int line, ErrorId idError, const std::exception* exception, std::string corelationId, fmt::basic_string_view<char> message, const Args &... args)
+   inline void errorCorrelationId(QString threadId, QString function, int line, ErrorId idError, const std::exception* exception, QString corelationId, QString message, const Args &... args)
    {
-      errorCorrelation(threadId, function, line, idError, exception, fmt::format(message, args...), corelationId);
+      errorCorrelation(threadId, function, line, idError, exception, QString(message).arg(args...), corelationId);
    }
 
    template<typename... Args>
-   inline void perfCorrelationId(std::string threadId, std::string function, int line, int duration, std::string corelationId, fmt::basic_string_view<char> message, const Args &... args)
+   inline void perfCorrelationId(QString threadId, QString function, int line, int duration, QString corelationId, QString message, const Args &... args)
    {
-      perfCorrelation(threadId, function, line, duration, fmt::format(message, args...), corelationId);
+      perfCorrelation(threadId, function, line, duration, QString(message).arg(args...), corelationId);
    }
 
    template<typename... Args>
-   inline void warningCorrelationId(std::string threadId, std::string function, int line, ErrorId warningId, std::string corelationId, fmt::basic_string_view<char> message, const Args &... args)
+   inline void warningCorrelationId(QString threadId, QString function, int line, ErrorId warningId, QString corelationId, QString message, const Args &... args)
    {
-      warningCorrelation(threadId, function, line, warningId, fmt::format(message, args...), corelationId);
+      warningCorrelation(threadId, function, line, warningId, QString(message).arg(args...), corelationId);
    }
 
    template<typename... Args>
-   inline void debugCorrelationId(std::string threadId, std::string function, int line, std::string corelationId, fmt::basic_string_view<char> message, const Args &... args)
+   inline void debugCorrelationId(QString threadId, QString function, int line, QString corelationId, QString message, const Args &... args)
    {
-      debugCorrelation(threadId, function, line, fmt::format(message, args...), corelationId);
+      debugCorrelation(threadId, function, line, QString(message).arg(args...), corelationId);
    }
 
    template<typename... Args>
-   inline void initCorrelationId(std::string threadId, std::string function, int line, std::string corelationId, fmt::basic_string_view<char> message, const Args &... args)
+   inline void initCorrelationId(QString threadId, QString function, int line, QString corelationId, QString message, const Args &... args)
    {
-      initCorrelation(threadId, function, line, fmt::format(message, args...), corelationId);
+      initCorrelation(threadId, function, line, QString(message).arg(args...), corelationId);
    }
 
 
@@ -183,7 +184,7 @@ public:
    void startLogging(::Log::Log::LogLevel logLevel = ::Log::Log::LogLevel::Default, unsigned int logMaxFileSize = 0);
    void dumpBacktrace();
 
-   std::string getCurrentLogName(const std::string& logFolder);
+   QString getCurrentLogName(const QString& logFolder);
 
    void restart();
    void shutdown();
@@ -197,20 +198,18 @@ private:
 
    unsigned int _maxLogFiles;
 
-   std::string _logDirectory;
+   QString _logDirectory;
 
-   void addEscapeCharacters(std::string& string);
-   void trimThreadId(std::string& threadId);
-   void getParentProcessName(std::string& parentProcessName);
-   void getProcessId(const pid_t pid, char* name);
-
-   std::function<void(const std::string&)> _sendLogData;
+   void addEscapeCharacters(QString& string);
+   void trimThreadId(QString& threadId);
 
    bool _shutdown;
 
    Util::Mutex _timesMutex;
 
-   std::map<std::string, long long int> _times;
+   std::map<QString, long long int> _times;
+
+   ConfigManager::ConfigManager &_configManager;
 };
 
 

@@ -1,5 +1,7 @@
 #include "Log.h"
 
+#include <ConfigManager.h>
+
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/septa_file_sink.h>
 
@@ -13,9 +15,10 @@
 namespace Log
 {
 
-const size_t LOGGER_MAX_FILE_SIZE_IN_MB = 10;
+const char* ENTER_GUARD = "ENTER";
+const char* EXIT_GUARD = "EXIT";
 
-const char* APPLICATION_NAME = "Sourcerer";
+const size_t LOGGER_MAX_FILE_SIZE_IN_MB = 10;
 
 std::shared_ptr<spdlog::logger> file_logger;
 
@@ -23,19 +26,20 @@ std::shared_ptr<spdlog::logger> file_logger;
 Log& Log::getInstance()
 {
    static Log instance;
-
    return instance;
 }
 
 Log::Log()
-    : _logFileMaxSize(LOGGER_MAX_FILE_SIZE_IN_MB)
-    , _logDirectory("/data/var/log/")
+    : _configManager(ConfigManager::ConfigManager::getInstance())
+    , _logFileMaxSize(LOGGER_MAX_FILE_SIZE_IN_MB)
     , _maxLogFiles(5)
     , _shutdown(false)
 {
-   spdlog::enable_backtrace(50);
+    _logDirectory = _configManager.getLogsDir();
 
-   setLogLevel(LogLevel::Error);
+    spdlog::enable_backtrace(50);
+
+    setLogLevel(LogLevel::Error);
 }
 
 void Log::startLogging(::Log::Log::LogLevel logLevel, unsigned int logMaxFileSize)
@@ -46,39 +50,34 @@ void Log::startLogging(::Log::Log::LogLevel logLevel, unsigned int logMaxFileSiz
    std::exception lastException;
 
    if (logLevel != ::Log::Log::LogLevel::Default)
-   {
       setLogLevel(logLevel);
-   }
 
    if (logMaxFileSize != 0)
-   {
       _logFileMaxSize = logMaxFileSize;
-   }
 
-   try
-   {
+   try {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
 
-      std::string loggerName = std::to_string(std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::system_clock::now().time_since_epoch()).count());
+      const std::string loggerName = std::to_string(std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::system_clock::now().time_since_epoch()).count());
+      const std::string logDirectory = _logDirectory.toStdString();
 
-      std::experimental::filesystem::create_directories(_logDirectory);
-      file_logger = spdlog::septa_logger_mt(loggerName, _logDirectory + "/" + APPLICATION_NAME, _logFileMaxSize * 1024 * 1024, _maxLogFiles);
+      std::experimental::filesystem::create_directories(logDirectory);
+      file_logger = spdlog::septa_logger_mt(loggerName, logDirectory + "/" + ConfigManager::APPLICATION_NAME, _logFileMaxSize * 1024 * 1024, _maxLogFiles);
    }
-   catch(std::exception& e)
-   {
+   catch(std::exception& e) {
       std::this_thread::sleep_for(std::chrono::milliseconds(2));
 
-      std::string loggerName = std::to_string(std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::system_clock::now().time_since_epoch()).count());
+      const std::string loggerName = std::to_string(std::chrono::duration_cast<std::chrono::milliseconds> (std::chrono::system_clock::now().time_since_epoch()).count());
+
       lastException = e;
       exceptionOccured = true;
-      file_logger = spdlog::septa_logger_mt(loggerName, APPLICATION_NAME, _logFileMaxSize * 1024 * 1024, _maxLogFiles);
+      file_logger = spdlog::septa_logger_mt(loggerName, ConfigManager::APPLICATION_NAME, _logFileMaxSize * 1024 * 1024, _maxLogFiles);
    }
 
    spdlog::set_default_logger(file_logger);
    spdlog::flush_on(spdlog::level::trace);
 
-   if(exceptionOccured)
-   {
+   if(exceptionOccured) {
       error("Log", __PRETTY_FUNCTION__, __LINE__, ErrorId::Logic, &lastException, "Could not create default log directory " + _logDirectory);
    }
 }
@@ -88,21 +87,22 @@ void Log::dumpBacktrace()
    spdlog::dump_backtrace();
 }
 
-std::string Log::getCurrentLogName(const std::string& logFolder)
+QString Log::getCurrentLogName(const QString &logFolder)
 {
    std::string result;
+   const std::string logFolderStd = logFolder.toStdString();
 
    time_t newestTime = 0;
 
    using std::experimental::filesystem::directory_iterator;
 
-   for (const auto& entry : directory_iterator(logFolder))
+   for (const auto& entry : directory_iterator(logFolderStd))
    {
       if (entry.path().extension() == ".log")
       {
          struct stat buf;
 
-         std::string file = logFolder;
+         std::string file = logFolderStd;
          file += entry.path().filename().string();
 
          stat(file.c_str(), &buf);
@@ -115,104 +115,116 @@ std::string Log::getCurrentLogName(const std::string& logFolder)
       }
    }
 
-   return result;
+   return QString::fromStdString(result);
 }
 
-void Log::info(std::string threadId, std::string function, int line, std::string message)
+void Log::info(QString threadId, QString function, int line, QString message)
 {
    if(_shutdown)
    {
       return;
    }
 
-   std::string finalMessage;
-   std::string logMessage;
    addEscapeCharacters(message);
    trimThreadId(threadId);
 
-   logMessage = fmt::format("{0};INFO;[{1}:{2}]", threadId, function, line);
+   const QString logMessage = QString("%1;INFO;[%2:%3].%4")
+           .arg(threadId)
+           .arg(function)
+           .arg(line)
+           .arg(message);
 
-   finalMessage = fmt::format("{0} {1}", logMessage, message);
-
-   spdlog::warn(finalMessage);
+   spdlog::warn(logMessage.toStdString());
 }
 
-void Log::infoCorrelation(std::string threadId, std::string function, int line, std::string message, std::string corelationId)
+void Log::infoCorrelation(QString threadId, QString function, int line, QString message, QString corelationId)
 {
    if(_shutdown)
    {
       return;
    }
 
-   std::string finalMessage;
-   std::string logMessage;
    addEscapeCharacters(message);
    trimThreadId(threadId);
 
-   logMessage = fmt::format("{0};INFO;[{1}:{2}]", threadId, function, line);
+   const QString logMessage = QString("%1;INFO;[%2:%3] %4;%5")
+           .arg(threadId)
+           .arg(function)
+           .arg(line)
+           .arg(message)
+           .arg(corelationId);
 
-   finalMessage = fmt::format("{0} {1}", logMessage, message);
-   finalMessage = fmt::format("{0};{1}", finalMessage, corelationId);
-
-   spdlog::warn(finalMessage);
+   spdlog::warn(logMessage.toStdString());
 }
 
 
-void Log::error(std::string threadId, std::string function, int line, ErrorId idError, const std::exception* exception, std::string message)
+void Log::error(QString threadId, QString function, int line, ErrorId idError, const std::exception* exception, QString message)
 {
    if(_shutdown)
    {
       return;
    }
 
-   std::string finalMessage;
-   std::string logMessage;
    addEscapeCharacters(message);
    trimThreadId(threadId);
 
-   logMessage = fmt::format("{0};ERROR;[{1}:{2}] Err{3}:", threadId, function, line, static_cast<int>(idError));
+   if(exception) {
+        const QString logMessage = QString("%1;ERROR;[%2:%3] Err%4: %5;%6")
+                .arg(threadId)
+                .arg(function)
+                .arg(line)
+                .arg(static_cast<int>(idError))
+                .arg(message)
+                .arg(QString::fromStdString(exception->what()));
 
-   if (exception)
-   {
-      finalMessage = fmt::format("{0} {1};{2}", logMessage, message, exception->what());
-   }
-   else
-   {
-      finalMessage = fmt::format("{0} {1}", logMessage, message);
-   }
+        spdlog::error(logMessage.toStdString());
+   } else {
+       const QString logMessage = QString("%1;ERROR;[%2:%3] Err%4: %5")
+               .arg(threadId)
+               .arg(function)
+               .arg(line)
+               .arg(static_cast<int>(idError))
+               .arg(message);
 
-   spdlog::error(finalMessage);
+       spdlog::error(logMessage.toStdString());
+   }
 }
 
-void Log::errorCorrelation(std::string threadId, std::string function, int line, ErrorId idError, const std::exception* exception, std::string message, std::string corelationId)
+void Log::errorCorrelation(QString threadId, QString function, int line, ErrorId idError, const std::exception* exception, QString message, QString corelationId)
 {
    if(_shutdown)
    {
       return;
    }
 
-   std::string finalMessage;
-   std::string logMessage;
    addEscapeCharacters(message);
    trimThreadId(threadId);
 
-   logMessage = fmt::format("{0};ERROR;[{1}:{2}] Err{3}:", threadId, function, line, static_cast<int>(idError));
+   if(exception) {
+        const QString logMessage = QString("%1;ERROR;[%2:%3] Err%4: %5;%6;%7")
+                .arg(threadId)
+                .arg(function)
+                .arg(line)
+                .arg(static_cast<int>(idError))
+                .arg(message)
+                .arg(QString::fromStdString(exception->what()))
+                .arg(corelationId);
 
-   if (exception)
-   {
-      finalMessage = fmt::format("{0} {1};{2}", logMessage, message, exception->what());
+        spdlog::error(logMessage.toStdString());
+   } else {
+       const QString logMessage = QString("%1;ERROR;[%2:%3] Err%4: %5;%6")
+               .arg(threadId)
+               .arg(function)
+               .arg(line)
+               .arg(static_cast<int>(idError))
+               .arg(message)
+               .arg(corelationId);
+
+       spdlog::error(logMessage.toStdString());
    }
-   else
-   {
-      finalMessage = fmt::format("{0} {1}", logMessage, message);
-   }
-
-   finalMessage = fmt::format("{0};{1}", finalMessage, corelationId);
-
-   spdlog::error(finalMessage);
 }
 
-void Log::perf(std::string threadId, std::string function, int line, int duration, std::string message)
+void Log::perf(QString threadId, QString function, int line, int duration, QString message)
 {
    if(_shutdown)
    {
@@ -221,17 +233,17 @@ void Log::perf(std::string threadId, std::string function, int line, int duratio
 
    LOCKGUARD(_timesMutex);
 
-   std::transform(message.begin(), message.end(), message.begin(), toupper);
+   message = message.toUpper();
 
    using namespace std::chrono;
    const long long int epochTime = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
 
-   if (message == "ENTER")
+   if (message == ENTER_GUARD)
    {
       _times[function] = epochTime;
       duration = 0;
    }
-   else if(message == "EXIT")
+   else if(message == EXIT_GUARD)
    {
       const auto it = _times.find(function);
 
@@ -251,12 +263,17 @@ void Log::perf(std::string threadId, std::string function, int line, int duratio
 
    // log on warning level
 
-   std::string finalMessage = fmt::format("{0};PERF ;[{1}:{2}] {3}-{4}", threadId, function, line, duration, message);
+   const QString logMessage = QString("%1;PERF ;[%2:%3] %4-%5")
+           .arg(threadId)
+           .arg(function)
+           .arg(line)
+           .arg(duration)
+           .arg(message);
 
-   spdlog::trace(finalMessage);
+   spdlog::trace(logMessage.toStdString());
 }
 
-void Log::perfCorrelation(std::string threadId, std::string function, int line, int duration, std::string message, std::string corelationId)
+void Log::perfCorrelation(QString threadId, QString function, int line, int duration, QString message, QString corelationId)
 {
    if(_shutdown)
    {
@@ -268,12 +285,18 @@ void Log::perfCorrelation(std::string threadId, std::string function, int line, 
 
    // log on warning level
 
-   std::string finalMessage = fmt::format("{0};PREF ;[{1}:{2}] {3}-{4};{5}", threadId, function, line, duration, message, corelationId);
+   const QString logMessage = QString("%1;PREF ;[%2:%3] %4-%5;%6")
+           .arg(threadId)
+           .arg(function)
+           .arg(line)
+           .arg(duration)
+           .arg(message)
+           .arg(corelationId);
 
-   spdlog::trace(finalMessage);
+   spdlog::trace(logMessage.toStdString());
 }
 
-void Log::warning(std::string threadId, std::string function, int line, ErrorId warningId, std::string message)
+void Log::warning(QString threadId, QString function, int line, ErrorId warningId, QString message)
 {
    if(_shutdown)
    {
@@ -283,12 +306,17 @@ void Log::warning(std::string threadId, std::string function, int line, ErrorId 
    addEscapeCharacters(message);
    trimThreadId(threadId);
 
-   std::string finalMessage = fmt::format("{0};WARN ;[{1}:{2}] Warn{3}:{4}", threadId, function, line, static_cast<int>(warningId), message);
+   const QString logMessage = QString("%1;WARN ;[%2:%3] Warn%4:%5")
+           .arg(threadId)
+           .arg(function)
+           .arg(line)
+           .arg(static_cast<int>(warningId))
+           .arg(message);
 
-   spdlog::info(finalMessage);
+   spdlog::info(logMessage.toStdString());
 }
 
-void Log::warningCorrelation(std::string threadId, std::string function, int line, ErrorId warningId, std::string message, std::string corelationId)
+void Log::warningCorrelation(QString threadId, QString function, int line, ErrorId warningId, QString message, QString corelationId)
 {
    if(_shutdown)
    {
@@ -298,12 +326,18 @@ void Log::warningCorrelation(std::string threadId, std::string function, int lin
    addEscapeCharacters(message);
    trimThreadId(threadId);
 
-   std::string finalMessage = fmt::format("{0};WARN ;[{1}:{2}] Warn{3}:{4};{5}", threadId, function, line, static_cast<int>(warningId), message, corelationId);
+   const QString logMessage = QString("%1;WARN ;[%2:%3] Warn%4:%5;%6")
+           .arg(threadId)
+           .arg(function)
+           .arg(line)
+           .arg(static_cast<int>(warningId))
+           .arg(message)
+           .arg(corelationId);
 
-   spdlog::info(finalMessage);
+   spdlog::info(logMessage.toStdString());
 }
 
-void Log::debug(std::string threadId, std::string function, int line, std::string message)
+void Log::debug(QString threadId, QString function, int line, QString message)
 {
    if(_shutdown)
    {
@@ -313,12 +347,16 @@ void Log::debug(std::string threadId, std::string function, int line, std::strin
    addEscapeCharacters(message);
    trimThreadId(threadId);
 
-   std::string finalMessage = fmt::format("{0};DEBUG;[{1}:{2}] {3}", threadId, function, line, message);
+   const QString logMessage = QString("%1;DEBUG;[%2:%3] %4")
+           .arg(threadId)
+           .arg(function)
+           .arg(line)
+           .arg(message);
 
-   spdlog::debug(finalMessage);
+   spdlog::debug(logMessage.toStdString());
 }
 
-void Log::debugCorrelation(std::string threadId, std::string function, int line, std::string message, std::string corelationId)
+void Log::debugCorrelation(QString threadId, QString function, int line, QString message, QString corelationId)
 {
    if(_shutdown)
    {
@@ -328,12 +366,17 @@ void Log::debugCorrelation(std::string threadId, std::string function, int line,
    addEscapeCharacters(message);
    trimThreadId(threadId);
 
-   std::string finalMessage = fmt::format("{0};DEBUG;[{1}:{2}] {3};{4}", threadId, function, line, message, corelationId);
+   const QString logMessage = QString("%1;DEBUG;[%2:%3] %4;%5")
+           .arg(threadId)
+           .arg(function)
+           .arg(line)
+           .arg(message)
+           .arg(corelationId);
 
-   spdlog::debug(finalMessage);
+   spdlog::debug(logMessage.toStdString());
 }
 
-void Log::init(std::string threadId, std::string function, int line, std::string message)
+void Log::init(QString threadId, QString function, int line, QString message)
 {
    if(_shutdown)
    {
@@ -343,12 +386,16 @@ void Log::init(std::string threadId, std::string function, int line, std::string
    addEscapeCharacters(message);
    trimThreadId(threadId);
 
-   std::string finalMessage = fmt::format("{0};INIT;[{1}:{2}] {3}", threadId, function, line, message);
+   const QString logMessage = QString("%1;INIT;[%2:%3] %4")
+           .arg(threadId)
+           .arg(function)
+           .arg(line)
+           .arg(message);
 
-   spdlog::critical(finalMessage);
+   spdlog::critical(logMessage.toStdString());
 }
 
-void Log::initCorrelation(std::string threadId, std::string function, int line, std::string message, std::string corelationId)
+void Log::initCorrelation(QString threadId, QString function, int line, QString message, QString corelationId)
 {
    if(_shutdown)
    {
@@ -358,9 +405,14 @@ void Log::initCorrelation(std::string threadId, std::string function, int line, 
    addEscapeCharacters(message);
    trimThreadId(threadId);
 
-   std::string finalMessage = fmt::format("{0};INIT;[{1}:{2}] {3};{4}", threadId, function, line, message, corelationId);
+   const QString logMessage = QString("%1;INIT;[%2:%3] %4;%5")
+           .arg(threadId)
+           .arg(function)
+           .arg(line)
+           .arg(message)
+           .arg(corelationId);
 
-   spdlog::critical(finalMessage);
+   spdlog::critical(logMessage.toStdString());
 }
 
 
@@ -413,33 +465,21 @@ void Log::setLogLevel(LogLevel logLevel)
    spdlog::set_level(spdlogLevel);
 }
 
-void Log::addEscapeCharacters(std::string& string)
+void Log::addEscapeCharacters(QString& string)
 {
    const char escapeCharacter = '\\';
 
-   std::size_t position = string.find(";", 0);
+   std::size_t position = string.indexOf(";", 0);
 
-   while (position != std::string::npos)
-   {
-      string.insert(position, &escapeCharacter, 1);
-
-      position = string.find(";", position + 2);
+   while (position != -1) {
+      string.insert(position, &escapeCharacter);
+      position = string.indexOf(";", position + 2);
    }
 }
 
-void Log::trimThreadId(std::string& threadId)
+void Log::trimThreadId(QString &threadId)
 {
-   if (threadId.size() == 0)
-   {
-      getParentProcessName(threadId);
-   }
-
-   if (threadId.size() > 10)
-   {
-      threadId = threadId.erase(10, std::string::npos);
-   }
-
-   threadId = fmt::format("{:<{}}", threadId, 10);
+   threadId = QString("{:<%1}").arg(threadId.left(10));
 }
 
 void Log::restart()
