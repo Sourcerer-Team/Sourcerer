@@ -1,40 +1,39 @@
 #ifndef LOCKGUARD_H
 #define LOCKGUARD_H
 
-#include <mutex>
 #include <QString>
+#include <mutex>
 
 using namespace std::chrono_literals;
 
-namespace Util
-{
+namespace Util {
 
 const size_t MAX_LOCK_WAIT_TIME = 60000; // 60 secs
 
-class Mutex : public std::timed_mutex
-{
+class Mutex : public std::timed_mutex {
 public:
-   Mutex();
+  Mutex();
 
-   ~Mutex();
+  ~Mutex();
 };
 
-class LockGuard
-{
+class LockGuard {
 public:
-   LockGuard(Mutex& mutex, size_t timeout, const QString& function, int line);
+  LockGuard(Mutex &mutex, size_t timeout, const QString &function, int line);
 
-   ~LockGuard();
+  ~LockGuard();
 
 private:
-   Mutex& _mutex;
-   size_t _timeout;
-   const QString& _function;
-   int _line;
+  Mutex &_mutex;
+  size_t _timeout;
+  const QString &_function;
+  int _line;
 };
 
-#define LOCKGUARD(x) const Util::LockGuard __guard__(x, Util::MAX_LOCK_WAIT_TIME, __PRETTY_FUNCTION__, __LINE__)
+#define LOCKGUARD(x)                                                           \
+  const Util::LockGuard __guard__(x, Util::MAX_LOCK_WAIT_TIME,                 \
+                                  __PRETTY_FUNCTION__, __LINE__)
 
-}
+} // namespace Util
 
 #endif // LOCKGUARD_H

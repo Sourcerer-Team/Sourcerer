@@ -2,9 +2,8 @@
 
 #include <string>
 
-namespace Util
-{
+namespace Util {
 
-bool checkForAnotherInstance(const std::string& lockName);
+bool checkForAnotherInstance(const std::string &lockName);
 
 }

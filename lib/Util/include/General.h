@@ -2,9 +2,8 @@
 
 #include <QString>
 
-namespace General
-{
+namespace General {
 
-void setThreadName(const QString& name);
+void setThreadName(const QString &name);
 
 }

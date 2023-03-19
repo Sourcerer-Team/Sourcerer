@@ -1,11 +1,7 @@
 #pragma once
 
-namespace ConfigManager
-{
+namespace ConfigManager {
 
-enum class ConfigKey
-{
-    Unknown = 0
-};
+enum class ConfigKey { Unknown = 0 };
 
 }

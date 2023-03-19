@@ -2,25 +2,24 @@
 
 #include <string>
 
-class TokenString
-{
+class TokenString {
 public:
-   explicit TokenString(const std::string& str = "", char separator = ',');
-   virtual ~TokenString();
+  explicit TokenString(const std::string &str = "", char separator = ',');
+  virtual ~TokenString();
 
-   void add(const std::string& token);
-   void addEmpty();
+  void add(const std::string &token);
+  void addEmpty();
 
-   bool hasNext() const;
+  bool hasNext() const;
 
-   std::string getNextToken();
+  std::string getNextToken();
 
-   const std::string& getString() const;
+  const std::string &getString() const;
 
-   void reset();
+  void reset();
 
 private:
-   std::string _str;
-   char _separator;
-   size_t _currentIndex;
+  std::string _str;
+  char _separator;
+  size_t _currentIndex;
 };
