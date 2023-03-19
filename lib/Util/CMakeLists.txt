@@ -15,9 +15,11 @@ find_package(Threads REQUIRED)
 
 add_library(Util STATIC
    include/FileLock.h
+   include/General.h
    include/LockGuard.h
    include/TokenString.h
    src/FileLock.cpp
+   src/General.cpp
    src/LockGuard.cpp
    src/TokenString.cpp
 )

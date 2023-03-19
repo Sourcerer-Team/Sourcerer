@@ -51,6 +51,8 @@ endif()
 
 include("../cmake/helpers.cmake")
 
+includeComponent(Sourcerer EventManager)
+
 includeLib(Sourcerer Log)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/../lib/QGoodWindow/QGoodWindow.cmake)
