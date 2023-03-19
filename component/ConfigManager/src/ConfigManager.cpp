@@ -14,6 +14,12 @@ const char *LOGS_DIR = "Logs";
 
 static QMap<ConfigKey, QString> KEYNAMES = {{ConfigKey::Unknown, ""}};
 
+static QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {};
+
+static QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {};
+
+static QMap<ConfigKey, QString> DEFAULT_STRINGS = {};
+
 ConfigManager::ConfigManager()
     : _settings(ORGANIZATION_NAME, APPLICATION_NAME) {
   _logsDir = getWritableDir() + QDir::separator() + APPLICATION_DIR +
@@ -31,42 +37,32 @@ ConfigManager &ConfigManager::getInstance() {
 
 QDateTime ConfigManager::getDateTime(ConfigKey key) const {
   LOCKGUARD(_mutex);
-  return _settings.value(KEYNAMES[key]).toDateTime();
+  if (_settings.contains(KEYNAMES[key]))
+    return _settings.value(KEYNAMES[key]).toDateTime();
+  else
+    return DEFAULT_DATETIMES[key];
 }
 
 qlonglong ConfigManager::getLong(ConfigKey key) const {
   LOCKGUARD(_mutex);
-  return _settings.value(KEYNAMES[key]).toLongLong();
+  if (_settings.contains(KEYNAMES[key]))
+    return _settings.value(KEYNAMES[key]).toLongLong();
+  else
+    return DEFAULT_LONGS[key];
 }
 
 QString ConfigManager::getString(ConfigKey key) const {
   LOCKGUARD(_mutex);
-  return _settings.value(KEYNAMES[key]).toString();
+  if (_settings.contains(KEYNAMES[key]))
+    return _settings.value(KEYNAMES[key]).toString();
+  else
+    return DEFAULT_STRINGS[key];
 }
 
 QString ConfigManager::getLogsDir() const { return _logsDir; }
 
-#ifdef Q_OS_WIN32
-
-#define CURRENT_DIR_SHORTCUT ".\\"
-
-#else
-
-#define CURRENT_DIR_SHORTCUT "./"
-
-#endif
-
 QString ConfigManager::getWritableDir() const {
   return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-  QStringList locations =
-      QStandardPaths::standardLocations(QStandardPaths::AppDataLocation);
-  locations.removeOne(
-      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation));
-  locations.removeOne(QCoreApplication::applicationDirPath());
-  locations.removeOne(QCoreApplication::applicationDirPath() +
-                      QLatin1String("/data"));
-
-  return locations.length() > 0 ? locations[0] : CURRENT_DIR_SHORTCUT;
 }
 
 } // namespace ConfigManager
