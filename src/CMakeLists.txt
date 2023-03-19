@@ -52,6 +52,7 @@ include("../cmake/helpers.cmake")
 
 includeComponent(Sourcerer ComponentManager)
 includeComponent(Sourcerer EventManager)
+includeComponent(Sourcerer GuiManager)
 
 includeLib(Sourcerer Log)
 
