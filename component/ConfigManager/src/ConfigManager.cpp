@@ -12,13 +12,10 @@ const char *ORGANIZATION_NAME = APPLICATION_NAME;
 const char *APPLICATION_DIR = APPLICATION_NAME;
 const char *LOGS_DIR = "Logs";
 
-static QMap<ConfigKey, QString> KEYNAMES = {{ConfigKey::Unknown, ""}};
-
-static QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {};
-
-static QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {};
-
-static QMap<ConfigKey, QString> DEFAULT_STRINGS = {};
+QMap<ConfigKey, QString> KEYNAMES = {{ConfigKey::Unknown, ""}};
+QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {};
+QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {};
+QMap<ConfigKey, QString> DEFAULT_STRINGS = {};
 
 ConfigManager::ConfigManager()
     : _settings(ORGANIZATION_NAME, APPLICATION_NAME) {
