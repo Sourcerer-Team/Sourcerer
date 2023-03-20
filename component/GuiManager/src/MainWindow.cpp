@@ -21,6 +21,7 @@ MainWindow::MainWindow(QWidget *parent)
 
   LOG_INFO("TitleBar height is %1 pixels.", titleBarHeight);
 
+  _centralWidget->setIconVisible(false);
   _centralWidget->setTitleVisible(false);
   _centralWidget->setTitleBarHeight(titleBarHeight);
   _centralWidget->setUnifiedTitleBarAndCentralWidget(true);
