@@ -13,13 +13,17 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets LinguistTools)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets LinguistTools)
 find_package(Threads REQUIRED)
 
+add_compile_definitions(QT_USE_STRING_BUILDER)
+
 add_library(Util STATIC
    include/FileLock.h
    include/General.h
+   include/GitRepo.h
    include/LockGuard.h
    include/TokenString.h
    src/FileLock.cpp
    src/General.cpp
+   src/GitRepo.cpp
    src/LockGuard.cpp
    src/TokenString.cpp
 )

@@ -4,6 +4,8 @@
 
 namespace GuiManager {
 
+namespace Containers {
+
 class ContainerWidget : public QWidget {
   Q_OBJECT
 public:
@@ -13,4 +15,5 @@ public:
 signals:
 };
 
+} // namespace Containers
 } // namespace GuiManager

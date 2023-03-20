@@ -2,6 +2,11 @@
 
 namespace ConfigManager {
 
-enum class ConfigKey { Unknown = 0, TitleBarHeight, TitleBarFontSize };
+enum class ConfigKey {
+  Unknown = 0,
+  RecentlyOpenedRepos,
+  TitleBarHeight,
+  TitleBarFontSize
+};
 
 }

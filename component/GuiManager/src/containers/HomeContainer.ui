@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>HomeContainer</class>
+ <widget class="QWidget" name="HomeContainer">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>693</width>
+    <height>411</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <property name="autoFillBackground">
+   <bool>false</bool>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <layout class="QVBoxLayout" name="rightVerticalLayout">
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout0">
+         <property name="leftMargin">
+          <number>32</number>
+         </property>
+         <property name="topMargin">
+          <number>64</number>
+         </property>
+         <property name="bottomMargin">
+          <number>24</number>
+         </property>
+         <item>
+          <widget class="QLabel" name="recentLabel">
+           <property name="font">
+            <font>
+             <bold>true</bold>
+            </font>
+           </property>
+           <property name="text">
+            <string>Recently opened</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout1">
+         <property name="leftMargin">
+          <number>32</number>
+         </property>
+         <property name="rightMargin">
+          <number>32</number>
+         </property>
+         <item>
+          <widget class="QTableView" name="recentTableView">
+           <property name="styleSheet">
+            <string notr="true">QTableView {
+	background-color: #353535;
+    selection-background-color:  rgb(116, 137, 127);
+}</string>
+           </property>
+           <property name="frameShape">
+            <enum>QFrame::NoFrame</enum>
+           </property>
+           <property name="frameShadow">
+            <enum>QFrame::Plain</enum>
+           </property>
+           <property name="showGrid">
+            <bool>false</bool>
+           </property>
+           <property name="gridStyle">
+            <enum>Qt::NoPen</enum>
+           </property>
+           <attribute name="horizontalHeaderVisible">
+            <bool>false</bool>
+           </attribute>
+           <attribute name="horizontalHeaderMinimumSectionSize">
+            <number>125</number>
+           </attribute>
+           <attribute name="horizontalHeaderStretchLastSection">
+            <bool>true</bool>
+           </attribute>
+           <attribute name="verticalHeaderVisible">
+            <bool>false</bool>
+           </attribute>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout2">
+         <property name="leftMargin">
+          <number>32</number>
+         </property>
+         <property name="topMargin">
+          <number>16</number>
+         </property>
+         <property name="bottomMargin">
+          <number>64</number>
+         </property>
+         <item>
+          <widget class="QPushButton" name="openButton">
+           <property name="maximumSize">
+            <size>
+             <width>64</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">QPushButton {
+  color: rgb(255, 255, 255);
+  text-decoration: none;
+}
+ 
+QPushButton:hover {
+  color: rgb(116, 137, 127);
+  text-decoration: underline;
+}</string>
+           </property>
+           <property name="text">
+            <string>Open</string>
+           </property>
+           <property name="flat">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="cloneButton">
+           <property name="maximumSize">
+            <size>
+             <width>64</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">QPushButton {
+  color: rgb(255, 255, 255);
+  text-decoration: none;
+}
+ 
+QPushButton:hover {
+  color: rgb(116, 137, 127);
+  text-decoration: underline;
+}</string>
+           </property>
+           <property name="text">
+            <string>Clone</string>
+           </property>
+           <property name="flat">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="initButton">
+           <property name="maximumSize">
+            <size>
+             <width>64</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">QPushButton {
+  color: rgb(255, 255, 255);
+  text-decoration: none;
+}
+ 
+QPushButton:hover {
+  color: rgb(116, 137, 127);
+  text-decoration: underline;
+}</string>
+           </property>
+           <property name="text">
+            <string>Init</string>
+           </property>
+           <property name="flat">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QVBoxLayout" name="leftVerticalLayout"/>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

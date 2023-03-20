@@ -14,21 +14,23 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets LinguistTool
 set(TS_FILES translations/Sourcerer_en_US.ts)
 
 set(GUIMANAGER_SOURCE_FILES
-   include/ContainerWidget.h
    include/GuiManager.h
-   include/HomeContainer.h
    include/MainWindow.h
-   include/PleaseWaitContainer.h
    include/TitlebarWidget.h
-   src/ContainerWidget.cpp
+   include/containers/ContainerWidget.h
+   include/containers/HomeContainer.h
+   include/containers/PleaseWaitContainer.h
+   include/models/RecentlyOpenedReposModel.h
    src/GuiManager.cpp
-   src/HomeContainer.cpp
    src/MainWindow.cpp
-   src/PleaseWaitContainer.cpp
    src/TitlebarWidget.cpp
-   src/HomeContainer.ui
-   src/PleaseWaitContainer.ui
+   src/containers/ContainerWidget.cpp
+   src/containers/HomeContainer.cpp
+   src/containers/PleaseWaitContainer.cpp
+   src/models/RecentlyOpenedReposModel.cpp
    src/TitlebarWidget.ui
+   src/containers/HomeContainer.ui
+   src/containers/PleaseWaitContainer.ui
    ${TS_FILES}
 )
 

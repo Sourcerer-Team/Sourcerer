@@ -10,6 +10,8 @@ class PleaseWaitContainer;
 
 namespace GuiManager {
 
+namespace Containers {
+
 class PleaseWaitContainer : public ContainerWidget {
   Q_OBJECT
 
@@ -23,4 +25,5 @@ private:
   Ui::PleaseWaitContainer *ui;
 };
 
+} // namespace Containers
 } // namespace GuiManager

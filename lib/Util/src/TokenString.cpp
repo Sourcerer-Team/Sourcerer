@@ -2,35 +2,33 @@
 
 #include <sstream>
 
-TokenString::TokenString(const std::string &str, char separator)
+namespace Util {
+
+TokenString::TokenString(const QString &str, QChar separator)
     : _str(str), _separator(separator) {
   reset();
 }
 
 TokenString::~TokenString() {}
 
-void TokenString::add(const std::string &token) {
-  std::ostringstream oss;
-  oss << _str;
+void TokenString::add(const QString &token) {
+  QString builder = _str;
+  if (!_str.isEmpty())
+    builder += _separator;
 
-  if (!_str.empty()) {
-    oss << _separator;
-  }
+  builder += token;
 
-  oss << token;
-
-  _str = oss.str();
+  _str = builder;
 }
 
 void TokenString::addEmpty() {
-  std::ostringstream oss;
-  oss << _str << _separator;
-  _str = oss.str();
+  QString builder = _str + _separator;
+  _str = builder;
 }
 
 bool TokenString::hasNext() const { return _str.length() > _currentIndex; }
 
-std::string TokenString::getNextToken() {
+QString TokenString::getNextToken() {
   const size_t start = _currentIndex;
   size_t pos = start;
 
@@ -51,9 +49,11 @@ std::string TokenString::getNextToken() {
     _currentIndex = pos;
   }
 
-  return _str.substr(start, pos - start);
+  return _str.sliced(start, pos - start);
 }
 
-const std::string &TokenString::getString() const { return _str; }
+const QString &TokenString::getString() const { return _str; }
 
 void TokenString::reset() { _currentIndex = 0; }
+
+} // namespace Util

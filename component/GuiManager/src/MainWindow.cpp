@@ -1,7 +1,7 @@
-#include "HomeContainer.h"
 #include "MainWindow.h"
-#include "PleaseWaitContainer.h"
 #include "TitlebarWidget.h"
+#include "containers/HomeContainer.h"
+#include "containers/PleaseWaitContainer.h"
 
 #include <ConfigKey.h>
 #include <Log.h>

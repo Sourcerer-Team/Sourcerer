@@ -14,12 +14,17 @@ const char *LOGS_DIR = "Logs";
 
 QMap<ConfigKey, QString> KEYNAMES = {
     {ConfigKey::Unknown, ""},
+    {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
     {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
     {ConfigKey::TitleBarFontSize, "window/titleBarFontSize"}};
+
 QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {};
+
 QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {{ConfigKey::TitleBarHeight, 40},
                                             {ConfigKey::TitleBarFontSize, 8}};
-QMap<ConfigKey, QString> DEFAULT_STRINGS = {};
+
+QMap<ConfigKey, QString> DEFAULT_STRINGS = {
+    {ConfigKey::RecentlyOpenedRepos, "git@github.com:levi9-embedded/components.git,git@github.com:levi9-embedded/arduino-projects.git"}};
 
 ConfigManager::ConfigManager()
     : _settings(ORGANIZATION_NAME, APPLICATION_NAME) {
