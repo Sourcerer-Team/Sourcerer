@@ -6,7 +6,8 @@ namespace GuiManager {
 namespace Containers {
 
 PleaseWaitContainer::PleaseWaitContainer(QWidget *parent)
-    : ContainerWidget(parent), ui(new Ui::PleaseWaitContainer) {
+    : ContainerWidget(ContainerType::PleaseWait, parent),
+      ui(new Ui::PleaseWaitContainer) {
   ui->setupUi(this);
 }
 
