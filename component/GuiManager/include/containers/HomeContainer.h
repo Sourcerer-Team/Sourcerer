@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ContainerWidget.h"
+#include "widgets/ContainerWidget.h"
 #include "models/RecentlyOpenedReposModel.h"
 
 #include <QWidget>
@@ -14,6 +14,7 @@ namespace GuiManager {
 namespace Containers {
 
 using namespace Models;
+using namespace Widgets;
 
 class HomeContainer : public ContainerWidget {
   Q_OBJECT

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "TitlebarWidget.h"
-#include "containers/ContainerWidget.h"
+#include "widgets/ContainerWidget.h"
+#include "widgets/TitlebarWidget.h"
 
 #include <ConfigManager.h>
 
@@ -12,7 +12,7 @@
 
 namespace GuiManager {
 
-using namespace Containers;
+using namespace Widgets;
 
 class MainWindow : public QGoodWindow {
   Q_OBJECT

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ContainerWidget.h"
+#include "widgets/ContainerWidget.h"
 
 #include <QWidget>
 
@@ -11,6 +11,8 @@ class PleaseWaitContainer;
 namespace GuiManager {
 
 namespace Containers {
+
+using namespace Widgets;
 
 class PleaseWaitContainer : public ContainerWidget {
   Q_OBJECT

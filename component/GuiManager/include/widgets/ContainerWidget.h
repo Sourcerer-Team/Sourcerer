@@ -4,7 +4,7 @@
 
 namespace GuiManager {
 
-namespace Containers {
+namespace Widgets {
 
 enum class ContainerType {
   Unknown = 0,
@@ -28,5 +28,5 @@ private:
   ContainerType _type;
 };
 
-} // namespace Containers
+} // namespace Widgets
 } // namespace GuiManager

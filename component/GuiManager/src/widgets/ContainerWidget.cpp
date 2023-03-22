@@ -1,13 +1,13 @@
-#include "containers/ContainerWidget.h"
+#include "widgets/ContainerWidget.h"
 
 namespace GuiManager {
 
-namespace Containers {
+namespace Widgets {
 
 ContainerWidget::ContainerWidget(ContainerType type, QWidget *parent)
     : QWidget{parent}, _type(type) {}
 
 ContainerWidget::~ContainerWidget() {}
 
-} // namespace Containers
+} // namespace Widgets
 } // namespace GuiManager

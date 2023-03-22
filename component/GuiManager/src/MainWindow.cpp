@@ -1,7 +1,7 @@
 #include "MainWindow.h"
-#include "TitlebarWidget.h"
 #include "containers/HomeContainer.h"
 #include "containers/PleaseWaitContainer.h"
+#include "widgets/TitlebarWidget.h"
 
 #include <ConfigKey.h>
 #include <Log.h>
@@ -9,6 +9,8 @@
 #define THREAD_ID "MainWindow"
 
 namespace GuiManager {
+
+using namespace Containers;
 
 MainWindow::MainWindow(QWidget *parent)
     : QGoodWindow(parent), _current(0), _titleBarWidget(new TitlebarWidget),

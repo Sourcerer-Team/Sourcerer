@@ -1,4 +1,4 @@
-#include "TitlebarWidget.h"
+#include "widgets/TitlebarWidget.h"
 #include "ui_TitlebarWidget.h"
 
 #include <Log.h>
@@ -8,6 +8,8 @@
 #define THREAD_ID "TitleBarWidget"
 
 namespace GuiManager {
+
+namespace Widgets {
 
 TitlebarWidget::TitlebarWidget(QWidget *parent)
     : QWidget(parent), ui(new Ui::TitlebarWidget),
@@ -50,4 +52,5 @@ void TitlebarWidget::addTab(const QString &text) {
   LOG_PERF(0, "Exit");
 }
 
+} // namespace Widgets
 } // namespace GuiManager
