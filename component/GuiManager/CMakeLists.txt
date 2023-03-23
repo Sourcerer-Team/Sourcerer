@@ -12,9 +12,11 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets LinguistTools)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets LinguistTools)
 
 set(TS_FILES translations/Sourcerer_en_US.ts)
+set(QRC_FILES resources/resources.qrc)
 
 set(GUIMANAGER_SOURCE_FILES
    include/GuiManager.h
+   include/InitResources.h
    include/MainWindow.h
    include/containers/HomeContainer.h
    include/containers/PleaseWaitContainer.h
@@ -22,8 +24,10 @@ set(GUIMANAGER_SOURCE_FILES
    include/models/RecentlyOpenedReposModel.h
    include/widgets/ContainerWidget.h
    include/widgets/RecentTableView.h
+   include/widgets/TitleBarMenuButton.h
    include/widgets/TitlebarWidget.h
    src/GuiManager.cpp
+   src/InitResources.cpp
    src/MainWindow.cpp
    src/containers/HomeContainer.cpp
    src/containers/PleaseWaitContainer.cpp
@@ -31,10 +35,12 @@ set(GUIMANAGER_SOURCE_FILES
    src/models/RecentlyOpenedReposModel.cpp
    src/widgets/ContainerWidget.cpp
    src/widgets/RecentTableView.cpp
+   src/widgets/TitleBarMenuButton.cpp
    src/widgets/TitlebarWidget.cpp
    src/widgets/TitlebarWidget.ui
    src/containers/HomeContainer.ui
    src/containers/PleaseWaitContainer.ui
+   ${QRC_FILES}
    ${TS_FILES}
 )
 

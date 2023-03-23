@@ -17,6 +17,7 @@ QMap<ConfigKey, QString> KEYNAMES = {
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
     {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
     {ConfigKey::TitleBarFontSize, "window/titleBarFontSize"},
+    {ConfigKey::TitleBarMenuMinimumSize, "window/titleBarMenuMinimumWidth"},
     {ConfigKey::HomeContainerRecentTableNameFontSize,
      "workspace/home/recentTableNameFontSize"},
     {ConfigKey::HomeContainerRecentTableUrlFontSize,
@@ -33,6 +34,7 @@ QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {};
 QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::TitleBarHeight, 40},
     {ConfigKey::TitleBarFontSize, 14},
+    {ConfigKey::TitleBarMenuMinimumSize, 230},
     {ConfigKey::HomeContainerRecentTableNameFontSize, 12},
     {ConfigKey::HomeContainerRecentTableUrlFontSize, 12}};
 

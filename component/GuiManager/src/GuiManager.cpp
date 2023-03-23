@@ -8,29 +8,19 @@
 
 #include <QApplication>
 
-
 #define THREAD_ID "GuiManager"
-
 
 namespace GuiManager {
 
-GuiManager::GuiManager()
-{
+GuiManager::GuiManager() {}
 
-}
+GuiManager::~GuiManager() {}
 
-GuiManager::~GuiManager()
-{
-
-}
-
-void GuiManager::start()
-{
+void GuiManager::start() {
   QGoodWindow::setup();
 
-
   int argc = 1;
-  char* argv = const_cast<char*>(ConfigManager::APPLICATION_NAME);
+  char *argv = const_cast<char *>(ConfigManager::APPLICATION_NAME);
   QApplication app(argc, &argv);
 
   QTranslator translator;
@@ -49,14 +39,13 @@ void GuiManager::start()
   QGoodWindow::setAppDarkTheme();
 
   EventManager::Event startedEvent(EventManager::EventType::ComponentStarted);
-  EventManager::EventManager& eventManager = EventManager::EventManager::getInstance();
+  EventManager::EventManager &eventManager =
+      EventManager::EventManager::getInstance();
   eventManager.send(startedEvent);
 
   app.exec();
 }
 
-void GuiManager::stop()
-{
-}
+void GuiManager::stop() {}
 
-}
+} // namespace GuiManager
