@@ -20,8 +20,20 @@ public:
 public:
   bool eventFilter(QObject *watched, QEvent *event) override;
 
+signals:
+  void open();
+  void clone();
+  void init();
+  void settings();
+  void about();
+
 private slots:
   void onClicked();
+  void onOpen();
+  void onClone();
+  void onInit();
+  void onSettings();
+  void onAbout();
 
 private:
   QMenu* createMenu();

@@ -24,6 +24,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/models/RecentlyOpenedReposModel.h
    include/widgets/ContainerWidget.h
    include/widgets/RecentTableView.h
+   include/widgets/TitleBarHomeButton.h
    include/widgets/TitleBarMenuButton.h
    include/widgets/TitlebarWidget.h
    src/GuiManager.cpp
@@ -35,6 +36,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/models/RecentlyOpenedReposModel.cpp
    src/widgets/ContainerWidget.cpp
    src/widgets/RecentTableView.cpp
+   src/widgets/TitleBarHomeButton.cpp
    src/widgets/TitleBarMenuButton.cpp
    src/widgets/TitlebarWidget.cpp
    src/widgets/TitlebarWidget.ui

@@ -46,6 +46,16 @@ bool TitleBarMenuButton::eventFilter(QObject *watched, QEvent *event) {
 
 void TitleBarMenuButton::onClicked() { showMenu(); }
 
+void TitleBarMenuButton::onOpen() { emit open(); }
+
+void TitleBarMenuButton::onClone() { emit clone(); }
+
+void TitleBarMenuButton::onInit() { emit init(); }
+
+void TitleBarMenuButton::onSettings() { emit settings(); }
+
+void TitleBarMenuButton::onAbout() { emit about(); }
+
 QMenu *TitleBarMenuButton::createMenu() {
   QMenu *menu = new QMenu(this);
 
@@ -88,6 +98,13 @@ QMenu *TitleBarMenuButton::createMenu() {
 
   menu->setFont(font);
   menu->setMinimumWidth(250);
+
+  connect(openAction, &QAction::triggered, this, &TitleBarMenuButton::onOpen);
+  connect(cloneAction, &QAction::triggered, this, &TitleBarMenuButton::onClone);
+  connect(initAction, &QAction::triggered, this, &TitleBarMenuButton::onInit);
+  connect(settingsAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onSettings);
+  connect(aboutAction, &QAction::triggered, this, &TitleBarMenuButton::onAbout);
 
   return menu;
 }

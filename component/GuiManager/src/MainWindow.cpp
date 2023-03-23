@@ -30,6 +30,13 @@ MainWindow::MainWindow(QWidget *parent)
   _centralWidget->setLeftTitleBarWidget(_titleBarWidget);
   setCentralWidget(_centralWidget);
 
+  connect(_titleBarWidget, &TitlebarWidget::home, this, &MainWindow::onHome);
+  connect(_titleBarWidget, &TitlebarWidget::open, this, &MainWindow::onOpen);
+  connect(_titleBarWidget, &TitlebarWidget::clone, this, &MainWindow::onClone);
+  connect(_titleBarWidget, &TitlebarWidget::init, this, &MainWindow::onInit);
+  connect(_titleBarWidget, &TitlebarWidget::settings, this, &MainWindow::onSettings);
+  connect(_titleBarWidget, &TitlebarWidget::about, this, &MainWindow::onAbout);
+
   HomeContainer *homeContainer = new HomeContainer;
 
   _containers += homeContainer;
@@ -53,6 +60,36 @@ MainWindow::~MainWindow() {
   }
 
   LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onHome()
+{
+
+}
+
+void MainWindow::onOpen()
+{
+
+}
+
+void MainWindow::onClone()
+{
+
+}
+
+void MainWindow::onInit()
+{
+
+}
+
+void MainWindow::onSettings()
+{
+
+}
+
+void MainWindow::onAbout()
+{
+
 }
 
 } // namespace GuiManager

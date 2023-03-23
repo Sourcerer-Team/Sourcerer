@@ -21,6 +21,14 @@ public:
   MainWindow(QWidget *parent = nullptr);
   ~MainWindow();
 
+private slots:
+  void onHome();
+  void onOpen();
+  void onClone();
+  void onInit();
+  void onSettings();
+  void onAbout();
+
 private:
   int _current;
   TitlebarWidget *_titleBarWidget;

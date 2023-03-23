@@ -33,6 +33,13 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
 
   ui->tabWidget->setFont(font);
 
+  connect(ui->homeButton, &TitleBarHomeButton::clicked, this, &TitlebarWidget::onHome);
+  connect(ui->menuButton, &TitleBarMenuButton::open, this, &TitlebarWidget::onOpen);
+  connect(ui->menuButton, &TitleBarMenuButton::clone, this, &TitlebarWidget::onClone);
+  connect(ui->menuButton, &TitleBarMenuButton::init, this, &TitlebarWidget::onInit);
+  connect(ui->menuButton, &TitleBarMenuButton::settings, this, &TitlebarWidget::onSettings);
+  connect(ui->menuButton, &TitleBarMenuButton::about, this, &TitlebarWidget::onAbout);
+
   LOG_PERF(0, "Exit");
 }
 
@@ -50,6 +57,36 @@ void TitlebarWidget::addTab(const QString &text) {
   ui->tabWidget->addTab(new QLabel(""), text);
 
   LOG_PERF(0, "Exit");
+}
+
+void TitlebarWidget::onHome()
+{
+  emit home();
+}
+
+void TitlebarWidget::onOpen()
+{
+  emit open();
+}
+
+void TitlebarWidget::onClone()
+{
+  emit clone();
+}
+
+void TitlebarWidget::onInit()
+{
+  emit init();
+}
+
+void TitlebarWidget::onSettings()
+{
+  emit settings();
+}
+
+void TitlebarWidget::onAbout()
+{
+  emit about();
 }
 
 } // namespace Widgets

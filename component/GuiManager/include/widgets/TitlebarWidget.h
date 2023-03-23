@@ -21,6 +21,22 @@ public:
 
   void addTab(const QString &text);
 
+signals:
+  void home();
+  void open();
+  void clone();
+  void init();
+  void settings();
+  void about();
+
+private slots:
+  void onHome();
+  void onOpen();
+  void onClone();
+  void onInit();
+  void onSettings();
+  void onAbout();
+
 private:
   Ui::TitlebarWidget *ui;
   ConfigManager::ConfigManager &_configManager;
