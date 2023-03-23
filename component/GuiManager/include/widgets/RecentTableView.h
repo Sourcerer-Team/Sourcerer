@@ -1,0 +1,34 @@
+#pragma once
+
+#include <QHoverEvent>
+#include <QModelIndex>
+#include <QTableView>
+#include <QWidget>
+
+namespace GuiManager {
+
+namespace Widgets {
+
+class RecentTableView : public QTableView {
+  Q_OBJECT
+public:
+  explicit RecentTableView(QWidget *parent = nullptr);
+
+  // QObject interface
+public:
+  bool eventFilter(QObject *watched, QEvent *event) override;
+
+signals:
+  void hoverEnter(const QModelIndex& index);
+  void hoverLeave(const QModelIndex& index);
+
+private:
+  bool leave(QEvent* event);
+  bool mouseMove(QMouseEvent* event);
+
+private:
+  QModelIndex _prev;
+};
+
+} // namespace Widgets
+} // namespace GuiManager

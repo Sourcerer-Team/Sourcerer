@@ -55,7 +55,10 @@
           <number>32</number>
          </property>
          <item>
-          <widget class="QTableView" name="recentTableView">
+          <widget class="GuiManager::Widgets::RecentTableView" name="recentTableView">
+           <property name="mouseTracking">
+            <bool>true</bool>
+           </property>
            <property name="focusPolicy">
             <enum>Qt::NoFocus</enum>
            </property>
@@ -220,6 +223,13 @@ QPushButton:hover {
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>GuiManager::Widgets::RecentTableView</class>
+   <extends>QTableView</extends>
+   <header>widgets/RecentTableView.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

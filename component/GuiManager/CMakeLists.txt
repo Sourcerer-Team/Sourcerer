@@ -18,15 +18,19 @@ set(GUIMANAGER_SOURCE_FILES
    include/MainWindow.h
    include/containers/HomeContainer.h
    include/containers/PleaseWaitContainer.h
+   include/delegates/HomeRecentItemDelegate.h
    include/models/RecentlyOpenedReposModel.h
    include/widgets/ContainerWidget.h
+   include/widgets/RecentTableView.h
    include/widgets/TitlebarWidget.h
    src/GuiManager.cpp
    src/MainWindow.cpp
    src/containers/HomeContainer.cpp
    src/containers/PleaseWaitContainer.cpp
+   src/delegates/HomeRecentItemDelegate.cpp
    src/models/RecentlyOpenedReposModel.cpp
    src/widgets/ContainerWidget.cpp
+   src/widgets/RecentTableView.cpp
    src/widgets/TitlebarWidget.cpp
    src/widgets/TitlebarWidget.ui
    src/containers/HomeContainer.ui

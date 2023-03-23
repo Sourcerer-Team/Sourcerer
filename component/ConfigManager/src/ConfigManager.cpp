@@ -16,15 +16,33 @@ QMap<ConfigKey, QString> KEYNAMES = {
     {ConfigKey::Unknown, ""},
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
     {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
-    {ConfigKey::TitleBarFontSize, "window/titleBarFontSize"}};
+    {ConfigKey::TitleBarFontSize, "window/titleBarFontSize"},
+    {ConfigKey::HomeContainerRecentTableNameFontSize,
+     "workspace/home/recentTableNameFontSize"},
+    {ConfigKey::HomeContainerRecentTableUrlFontSize,
+     "workspace/home/recentTableUrlFontSize"},
+    {ConfigKey::HomeContainerRecentTableNameColor,
+     "workspace/home/recentTableNameColor"},
+    {ConfigKey::HomeContainerRecentTableSelectedNameColor,
+     "workspace/home/recentTableSelectedNameColor"},
+    {ConfigKey::HomeContainerRecentTableUrlColor,
+     "workspace/home/recentTableUrlColor"}};
 
 QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {};
 
-QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {{ConfigKey::TitleBarHeight, 40},
-                                            {ConfigKey::TitleBarFontSize, 8}};
+QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
+    {ConfigKey::TitleBarHeight, 40},
+    {ConfigKey::TitleBarFontSize, 14},
+    {ConfigKey::HomeContainerRecentTableNameFontSize, 12},
+    {ConfigKey::HomeContainerRecentTableUrlFontSize, 12}};
 
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
-    {ConfigKey::RecentlyOpenedRepos, "git@github.com:levi9-embedded/components.git,git@github.com:levi9-embedded/arduino-projects.git"}};
+    {ConfigKey::RecentlyOpenedRepos,
+     "git@github.com:levi9-embedded/"
+     "components.git,git@github.com:levi9-embedded/arduino-projects.git"},
+    {ConfigKey::HomeContainerRecentTableNameColor, "#FFFFFF"},
+    {ConfigKey::HomeContainerRecentTableSelectedNameColor, "#74897F"},
+    {ConfigKey::HomeContainerRecentTableUrlColor, "#FFFFFF"}};
 
 ConfigManager::ConfigManager()
     : _settings(ORGANIZATION_NAME, APPLICATION_NAME) {

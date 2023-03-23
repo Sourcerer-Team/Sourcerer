@@ -5,8 +5,19 @@ namespace ConfigManager {
 enum class ConfigKey {
   Unknown = 0,
   RecentlyOpenedRepos,
+
+  // Main window
   TitleBarHeight,
-  TitleBarFontSize
+  TitleBarFontSize,
+
+  // Home container
+  HomeContainerRecentTableNameFontSize,
+  HomeContainerRecentTableUrlFontSize,
+  HomeContainerRecentTableNameColor,
+  HomeContainerRecentTableSelectedNameColor,
+  HomeContainerRecentTableUrlColor,
+
+  last
 };
 
 }

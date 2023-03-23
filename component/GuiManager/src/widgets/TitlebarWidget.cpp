@@ -29,7 +29,7 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
   LOG_DEBUG("Title bar font size is %1 pixels.", titleBarFontSize);
 
   QFont font = ui->tabWidget->font();
-  font.setPointSize(titleBarFontSize);
+  font.setPixelSize(titleBarFontSize);
 
   ui->tabWidget->setFont(font);
 
