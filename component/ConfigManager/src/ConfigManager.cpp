@@ -1,4 +1,5 @@
 #include "ConfigManager.h"
+#include "../../GitVersion.h"
 
 #include <QCoreApplication>
 #include <QDir>
@@ -86,6 +87,11 @@ QString ConfigManager::getString(ConfigKey key) const {
 }
 
 QString ConfigManager::getLogsDir() const { return _logsDir; }
+
+QString ConfigManager::getAppVersion() const
+{
+  return APPLICATION_VERSION;
+}
 
 QString ConfigManager::getWritableDir() const {
   return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);

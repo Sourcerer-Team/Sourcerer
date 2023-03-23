@@ -15,6 +15,8 @@ set(CONFIGMANAGER_SOURCE_FILES
    include/ConfigKey.h
    include/ConfigManager.h
    src/ConfigManager.cpp
+   GitVersion.h
+
 )
 
 add_library(ConfigManager STATIC ${CONFIGMANAGER_SOURCE_FILES})
@@ -27,3 +29,10 @@ includeLib(ConfigManager Util)
 target_link_libraries(ConfigManager PRIVATE Qt${QT_VERSION_MAJOR}::Core)
 
 target_include_directories(ConfigManager PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+execute_process(COMMAND git describe --tags --always
+    OUTPUT_VARIABLE GIT_REPO_VERSION)
+
+string(STRIP "${GIT_REPO_VERSION}" GIT_REPO_VERSION)
+
+configure_file("GitVersion.h.in" "GitVersion.h")

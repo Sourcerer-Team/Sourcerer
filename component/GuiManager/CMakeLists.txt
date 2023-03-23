@@ -21,6 +21,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/containers/HomeContainer.h
    include/containers/PleaseWaitContainer.h
    include/delegates/HomeRecentItemDelegate.h
+   include/dialogs/AboutDialog.h
    include/models/RecentlyOpenedReposModel.h
    include/widgets/ContainerWidget.h
    include/widgets/RecentTableView.h
@@ -33,6 +34,8 @@ set(GUIMANAGER_SOURCE_FILES
    src/containers/HomeContainer.cpp
    src/containers/PleaseWaitContainer.cpp
    src/delegates/HomeRecentItemDelegate.cpp
+   src/dialogs/AboutDialog.cpp
+   src/dialogs/AboutDialog.ui
    src/models/RecentlyOpenedReposModel.cpp
    src/widgets/ContainerWidget.cpp
    src/widgets/RecentTableView.cpp

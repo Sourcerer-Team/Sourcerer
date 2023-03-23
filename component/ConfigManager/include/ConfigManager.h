@@ -25,6 +25,8 @@ public:
 
   QString getLogsDir() const;
 
+  QString getAppVersion() const;
+
 private:
   ConfigManager();
 
