@@ -3,6 +3,7 @@
 
 #include <ConfigManager.h>
 #include <EventManager.h>
+#include <Log.h>
 
 #include <QGoodWindow>
 
@@ -12,11 +13,19 @@
 
 namespace GuiManager {
 
-GuiManager::GuiManager() {}
+GuiManager::GuiManager() {
+  LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Exit");
+}
 
-GuiManager::~GuiManager() {}
+GuiManager::~GuiManager() {
+  LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Exit");
+}
 
 void GuiManager::start() {
+  LOG_PERF(0, "Enter");
+
   QGoodWindow::setup();
 
   int argc = 1;
@@ -44,8 +53,13 @@ void GuiManager::start() {
   eventManager.send(startedEvent);
 
   app.exec();
+
+  LOG_PERF(0, "Exit");
 }
 
-void GuiManager::stop() {}
+void GuiManager::stop() {
+  LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Exit");
+}
 
 } // namespace GuiManager

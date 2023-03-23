@@ -1,7 +1,23 @@
 #include "InitResources.h"
 
+#include <Log.h>
+
 #include <QApplication>
 
-InitResources::InitResources() { Q_INIT_RESOURCE(resources); }
+#define THREAD_ID "InitResources"
 
-InitResources::~InitResources() { Q_CLEANUP_RESOURCE(resources); }
+InitResources::InitResources() {
+  LOG_PERF(0, "Enter");
+
+  Q_INIT_RESOURCE(resources);
+
+  LOG_PERF(0, "Exit");
+}
+
+InitResources::~InitResources() {
+  LOG_PERF(0, "Enter");
+
+  Q_CLEANUP_RESOURCE(resources);
+
+  LOG_PERF(0, "Exit");
+}

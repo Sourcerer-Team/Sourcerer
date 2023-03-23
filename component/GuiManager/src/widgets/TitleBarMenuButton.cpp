@@ -13,6 +13,8 @@ namespace Widgets {
 TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
     : QPushButton{parent},
       _configManager(ConfigManager::ConfigManager::getInstance()) {
+  LOG_PERF(0, "Enter");
+
   setMouseTracking(true);
   setAttribute(Qt::WA_Hover, true);
   installEventFilter(this);
@@ -23,6 +25,8 @@ TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
 
   connect(this, &TitleBarMenuButton::clicked, this,
           &TitleBarMenuButton::onClicked);
+
+  LOG_PERF(0, "Exit");
 }
 
 bool TitleBarMenuButton::eventFilter(QObject *watched, QEvent *event) {
@@ -44,17 +48,53 @@ bool TitleBarMenuButton::eventFilter(QObject *watched, QEvent *event) {
   return QPushButton::eventFilter(watched, event);
 }
 
-void TitleBarMenuButton::onClicked() { showMenu(); }
+void TitleBarMenuButton::onClicked() {
+  LOG_PERF(0, "Enter");
 
-void TitleBarMenuButton::onOpen() { emit open(); }
+  showMenu();
 
-void TitleBarMenuButton::onClone() { emit clone(); }
+  LOG_PERF(0, "Exit");
+}
 
-void TitleBarMenuButton::onInit() { emit init(); }
+void TitleBarMenuButton::onOpen() {
+  LOG_PERF(0, "Enter");
 
-void TitleBarMenuButton::onSettings() { emit settings(); }
+  emit open();
 
-void TitleBarMenuButton::onAbout() { emit about(); }
+  LOG_PERF(0, "Exit");
+}
+
+void TitleBarMenuButton::onClone() {
+  LOG_PERF(0, "Enter");
+
+  emit clone();
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitleBarMenuButton::onInit() {
+  LOG_PERF(0, "Enter");
+
+  emit init();
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitleBarMenuButton::onSettings() {
+  LOG_PERF(0, "Enter");
+
+  emit settings();
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitleBarMenuButton::onAbout() {
+  LOG_PERF(0, "Enter");
+
+  emit about();
+
+  LOG_PERF(0, "Exit");
+}
 
 QMenu *TitleBarMenuButton::createMenu() {
   QMenu *menu = new QMenu(this);
@@ -110,7 +150,12 @@ QMenu *TitleBarMenuButton::createMenu() {
 }
 
 bool TitleBarMenuButton::hover(QHoverEvent *event, bool entered) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Entered is '%1'", entered);
+
   setDown(entered);
+
+  LOG_PERF(0, "Exit");
   return true;
 }
 

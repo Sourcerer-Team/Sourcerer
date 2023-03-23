@@ -64,32 +64,44 @@ MainWindow::~MainWindow() {
 
 void MainWindow::onHome()
 {
+  LOG_PERF(0, "Enter");
 
+  LOG_PERF(0, "Exit");
 }
 
 void MainWindow::onOpen()
 {
+  LOG_PERF(0, "Enter");
 
+  LOG_PERF(0, "Exit");
 }
 
 void MainWindow::onClone()
 {
+  LOG_PERF(0, "Enter");
 
+  LOG_PERF(0, "Exit");
 }
 
 void MainWindow::onInit()
 {
+  LOG_PERF(0, "Enter");
 
+  LOG_PERF(0, "Exit");
 }
 
 void MainWindow::onSettings()
 {
+  LOG_PERF(0, "Enter");
 
+  LOG_PERF(0, "Exit");
 }
 
 void MainWindow::onAbout()
 {
+  LOG_PERF(0, "Enter");
 
+  LOG_PERF(0, "Exit");
 }
 
 } // namespace GuiManager

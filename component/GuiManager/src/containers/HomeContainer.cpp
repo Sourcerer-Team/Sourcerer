@@ -3,6 +3,10 @@
 #include "delegates/HomeRecentItemDelegate.h"
 #include <widgets/RecentTableView.h>
 
+#include <Log.h>
+
+#define THREAD_ID "HomeContainer"
+
 namespace GuiManager {
 
 using namespace Delegates;
@@ -13,25 +17,44 @@ HomeContainer::HomeContainer(QWidget *parent)
     : ContainerWidget(ContainerType::Home, parent), ui(new Ui::HomeContainer),
       _recentlyOpenedModel(new RecentlyOpenedReposModel(this)),
       _itemDelegate(new HomeRecentItemDelegate(this)) {
+  LOG_PERF(0, "Enter");
+
   ui->setupUi(this);
   ui->recentTableView->setModel(_recentlyOpenedModel);
   ui->recentTableView->setItemDelegate(_itemDelegate);
 
-  connect(ui->recentTableView, &RecentTableView::hoverEnter, this, &HomeContainer::hoverEnter);
-  connect(ui->recentTableView, &RecentTableView::hoverLeave, this, &HomeContainer::hoverLeave);
+  connect(ui->recentTableView, &RecentTableView::hoverEnter, this,
+          &HomeContainer::hoverEnter);
+  connect(ui->recentTableView, &RecentTableView::hoverLeave, this,
+          &HomeContainer::hoverLeave);
+
+  LOG_PERF(0, "Exit");
 }
 
 HomeContainer::~HomeContainer() {
+  LOG_PERF(0, "Enter");
+
   delete ui;
   delete _recentlyOpenedModel;
+
+  LOG_PERF(0, "Exit");
 }
 
-void HomeContainer::reloadRecentlyOpened() { _recentlyOpenedModel->reload(); }
+void HomeContainer::reloadRecentlyOpened() {
+  LOG_PERF(0, "Enter");
 
-void HomeContainer::hoverEnter(const QModelIndex &index)
-{
-  if(index.column() != 0) {
+  _recentlyOpenedModel->reload();
+
+  LOG_PERF(0, "Exit");
+}
+
+void HomeContainer::hoverEnter(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Row: %1, Column: %2", index.row(), index.column());
+
+  if (index.column() != 0) {
     setCursor(Qt::ArrowCursor);
+    LOG_PERF(0, "Exit");
     return;
   }
 
@@ -39,14 +62,20 @@ void HomeContainer::hoverEnter(const QModelIndex &index)
   ui->recentTableView->viewport()->update();
 
   setCursor(Qt::PointingHandCursor);
+
+  LOG_PERF(0, "Exit");
 }
 
-void HomeContainer::hoverLeave(const QModelIndex &index)
-{
+void HomeContainer::hoverLeave(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Row: %1, Column: %2", index.row(), index.column());
+
   _itemDelegate->setHover(QModelIndex());
   ui->recentTableView->viewport()->update();
 
   setCursor(Qt::ArrowCursor);
+
+  LOG_PERF(0, "Exit");
 }
 
 } // namespace Containers

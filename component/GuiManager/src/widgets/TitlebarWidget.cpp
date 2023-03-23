@@ -33,12 +33,18 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
 
   ui->tabWidget->setFont(font);
 
-  connect(ui->homeButton, &TitleBarHomeButton::clicked, this, &TitlebarWidget::onHome);
-  connect(ui->menuButton, &TitleBarMenuButton::open, this, &TitlebarWidget::onOpen);
-  connect(ui->menuButton, &TitleBarMenuButton::clone, this, &TitlebarWidget::onClone);
-  connect(ui->menuButton, &TitleBarMenuButton::init, this, &TitlebarWidget::onInit);
-  connect(ui->menuButton, &TitleBarMenuButton::settings, this, &TitlebarWidget::onSettings);
-  connect(ui->menuButton, &TitleBarMenuButton::about, this, &TitlebarWidget::onAbout);
+  connect(ui->homeButton, &TitleBarHomeButton::clicked, this,
+          &TitlebarWidget::onHome);
+  connect(ui->menuButton, &TitleBarMenuButton::open, this,
+          &TitlebarWidget::onOpen);
+  connect(ui->menuButton, &TitleBarMenuButton::clone, this,
+          &TitlebarWidget::onClone);
+  connect(ui->menuButton, &TitleBarMenuButton::init, this,
+          &TitlebarWidget::onInit);
+  connect(ui->menuButton, &TitleBarMenuButton::settings, this,
+          &TitlebarWidget::onSettings);
+  connect(ui->menuButton, &TitleBarMenuButton::about, this,
+          &TitlebarWidget::onAbout);
 
   LOG_PERF(0, "Exit");
 }
@@ -59,34 +65,52 @@ void TitlebarWidget::addTab(const QString &text) {
   LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::onHome()
-{
+void TitlebarWidget::onHome() {
+  LOG_PERF(0, "Enter");
+
   emit home();
+
+  LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::onOpen()
-{
+void TitlebarWidget::onOpen() {
+  LOG_PERF(0, "Enter");
+
   emit open();
+
+  LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::onClone()
-{
+void TitlebarWidget::onClone() {
+  LOG_PERF(0, "Enter");
+
   emit clone();
+
+  LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::onInit()
-{
+void TitlebarWidget::onInit() {
+  LOG_PERF(0, "Enter");
+
   emit init();
+
+  LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::onSettings()
-{
+void TitlebarWidget::onSettings() {
+  LOG_PERF(0, "Enter");
+
   emit settings();
+
+  LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::onAbout()
-{
+void TitlebarWidget::onAbout() {
+  LOG_PERF(0, "Enter");
+
   emit about();
+
+  LOG_PERF(0, "Exit");
 }
 
 } // namespace Widgets

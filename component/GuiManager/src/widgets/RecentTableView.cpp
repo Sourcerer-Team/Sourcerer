@@ -1,17 +1,23 @@
 #include "widgets/RecentTableView.h"
 
+#include <Log.h>
+
 #include <QHeaderView>
 
-#include <iostream>
+#define THREAD_ID "RecentTableView"
 
 namespace GuiManager {
 
 namespace Widgets {
 
 RecentTableView::RecentTableView(QWidget *parent) : QTableView{parent} {
+  LOG_PERF(0, "Enter");
+
   horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
   viewport()->setMouseTracking(true);
   viewport()->installEventFilter(this);
+
+  LOG_PERF(0, "Exit");
 }
 
 bool RecentTableView::eventFilter(QObject *watched, QEvent *event) {
@@ -34,8 +40,12 @@ bool RecentTableView::eventFilter(QObject *watched, QEvent *event) {
 }
 
 bool RecentTableView::leave(QEvent *event) {
+  LOG_PERF(0, "Enter");
+
   emit hoverLeave(_prev);
   _prev = QModelIndex();
+
+  LOG_PERF(0, "Exit");
   return true;
 }
 
@@ -49,9 +59,11 @@ bool RecentTableView::mouseMove(QMouseEvent *event) {
   if (index.row() == -1 || index.column() != 0) {
     emit hoverLeave(_prev);
     _prev = QModelIndex();
+    LOG_DEBUG("emitted hoveLeave");
   } else if (index != _prev) {
     _prev = index;
     emit hoverEnter(index);
+    LOG_DEBUG("emitted hoveEnter");
   }
 
   return true;
