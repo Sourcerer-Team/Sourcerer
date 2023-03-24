@@ -1,8 +1,5 @@
 #pragma once
 
-#include <ConfigManager.h>
-
-#include <QHoverEvent>
 #include <QModelIndex>
 #include <QObject>
 #include <QStyledItemDelegate>
@@ -23,13 +20,7 @@ public:
   void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
 
 private:
-  int _nameFontSize;
-  QColor _nameColor;
-  QColor _selectedNameColor;
-  int _urlFontSize;
-  QColor _urlColor;
   QModelIndex _indexHovered;
-  ConfigManager::ConfigManager& _configManager;
 };
 
 } // namespace Delegates

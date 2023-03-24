@@ -56,6 +56,7 @@ add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES})
 include(../../cmake/helpers.cmake)
 
 includeComponent(GuiManager ConfigManager)
+includeComponent(GuiManager StylesheetManager)
 
 includeLib(GuiManager Log)
 includeLib(GuiManager Util)

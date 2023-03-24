@@ -23,16 +23,6 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
 
   setMaximumHeight(titleBarHeight);
 
-  const qlonglong titleBarFontSize =
-      _configManager.getLong(ConfigManager::ConfigKey::TitleBarFontSize);
-
-  LOG_DEBUG("Title bar font size is %1 pixels.", titleBarFontSize);
-
-  QFont font = ui->tabWidget->font();
-  font.setPixelSize(titleBarFontSize);
-
-  ui->tabWidget->setFont(font);
-
   connect(ui->homeButton, &TitleBarHomeButton::clicked, this,
           &TitlebarWidget::onHome);
   connect(ui->menuButton, &TitleBarMenuButton::open, this,

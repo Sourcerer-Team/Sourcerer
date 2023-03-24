@@ -26,6 +26,7 @@ includeComponent(Sourcerer ComponentManager)
 includeComponent(Sourcerer ConfigManager)
 includeComponent(Sourcerer EventManager)
 includeComponent(Sourcerer GuiManager)
+includeComponent(Sourcerer StylesheetManager)
 
 includeLib(Sourcerer Util)
 

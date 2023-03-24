@@ -15,13 +15,14 @@ TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
+  //setObjectName("titleBarMenuButton");
   setMouseTracking(true);
   setAttribute(Qt::WA_Hover, true);
   installEventFilter(this);
 
   setMenu(createMenu());
 
-  setStyleSheet("QPushButton::menu-indicator{width:0px;}");
+  //setStyleSheet("GuiManager--Widgets--TitleBarMenuButton::menu-indicator{width:0px;}");
 
   connect(this, &TitleBarMenuButton::clicked, this,
           &TitleBarMenuButton::onClicked);
@@ -123,21 +124,12 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addAction(settingsAction);
   menu->addAction(aboutAction);
 
-  const qlonglong menuFontSize =
-      _configManager.getLong(ConfigManager::ConfigKey::TitleBarFontSize);
-
-  LOG_DEBUG("Menu font size is %1 pixels.", menuFontSize);
-
   const qlonglong menuMinimumWidth =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarMenuMinimumSize);
 
   LOG_DEBUG("Menu minimum width is %1 pixels.", menuMinimumWidth);
 
-  QFont font = menu->font();
-  font.setPixelSize(menuFontSize);
-
-  menu->setFont(font);
-  menu->setMinimumWidth(250);
+  menu->setMinimumWidth(menuMinimumWidth);
 
   connect(openAction, &QAction::triggered, this, &TitleBarMenuButton::onOpen);
   connect(cloneAction, &QAction::triggered, this, &TitleBarMenuButton::onClone);

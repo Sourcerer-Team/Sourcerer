@@ -4,6 +4,7 @@
 #include <ConfigManager.h>
 #include <EventManager.h>
 #include <Log.h>
+#include <StylesheetManager.h>
 
 #include <QGoodWindow>
 
@@ -42,10 +43,18 @@ void GuiManager::start() {
     }
   }
 
+  QGoodWindow::setAppDarkTheme();
+
+  const StylesheetManager::StylesheetManager &stylesheetManager =
+      StylesheetManager::StylesheetManager::getInstance();
+
+  const QString& stylesheet =
+      stylesheetManager.stylesheet(StylesheetManager::StylesheetKey::Default);
+
+  app.setStyleSheet(stylesheet);
+
   MainWindow w;
   w.show();
-
-  QGoodWindow::setAppDarkTheme();
 
   EventManager::Event startedEvent(EventManager::EventType::ComponentStarted);
   EventManager::EventManager &eventManager =

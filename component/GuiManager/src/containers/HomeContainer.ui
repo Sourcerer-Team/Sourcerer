@@ -127,15 +127,7 @@ QTableView:item:hover {
             </size>
            </property>
            <property name="styleSheet">
-            <string notr="true">QPushButton {
-  color: rgb(255, 255, 255);
-  text-decoration: none;
-}
- 
-QPushButton:hover {
-  color: rgb(116, 137, 127);
-  text-decoration: underline;
-}</string>
+            <string notr="true"/>
            </property>
            <property name="text">
             <string>Open</string>
@@ -154,15 +146,7 @@ QPushButton:hover {
             </size>
            </property>
            <property name="styleSheet">
-            <string notr="true">QPushButton {
-  color: rgb(255, 255, 255);
-  text-decoration: none;
-}
- 
-QPushButton:hover {
-  color: rgb(116, 137, 127);
-  text-decoration: underline;
-}</string>
+            <string notr="true"/>
            </property>
            <property name="text">
             <string>Clone</string>
@@ -181,15 +165,7 @@ QPushButton:hover {
             </size>
            </property>
            <property name="styleSheet">
-            <string notr="true">QPushButton {
-  color: rgb(255, 255, 255);
-  text-decoration: none;
-}
- 
-QPushButton:hover {
-  color: rgb(116, 137, 127);
-  text-decoration: underline;
-}</string>
+            <string notr="true"/>
            </property>
            <property name="text">
             <string>Init</string>

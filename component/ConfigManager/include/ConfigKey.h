@@ -8,15 +8,9 @@ enum class ConfigKey {
 
   // Main window
   TitleBarHeight,
-  TitleBarFontSize,
   TitleBarMenuMinimumSize,
 
   // Home container
-  HomeContainerRecentTableNameFontSize,
-  HomeContainerRecentTableUrlFontSize,
-  HomeContainerRecentTableNameColor,
-  HomeContainerRecentTableSelectedNameColor,
-  HomeContainerRecentTableUrlColor,
 
   last
 };
