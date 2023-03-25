@@ -13,7 +13,10 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets LinguistTools)
 
 set(CONFIGMANAGER_SOURCE_FILES
    include/ConfigKey.h
+   include/ConfigKeyType.h
+   include/ConfigGroup.h
    include/ConfigManager.h
+   src/ConfigGroup.cpp
    src/ConfigManager.cpp
    GitVersion.h
 
