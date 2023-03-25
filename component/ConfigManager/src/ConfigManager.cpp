@@ -87,8 +87,8 @@ static ConfigGroup createPathGroup(const QString &path, size_t from) {
 
   if (index == lastIndex) {
     const ConfigKey key = KEY_NAMES.key(path);
-    const QString& description = KEY_DESCRIPTIONS[key];
-    if(description.isEmpty())
+    const QString &description = KEY_DESCRIPTIONS[key];
+    if (description.isEmpty())
       return ConfigGroup();
 
     ConfigItem item;
@@ -114,7 +114,7 @@ static ConfigGroup createPathGroup(const QString &path, size_t from) {
   } else {
     ConfigGroup group(path.mid(from, index - from));
     const ConfigGroup pathGroup = createPathGroup(path, index + 1);
-    if(!pathGroup.isEmpty())
+    if (!pathGroup.isEmpty())
       group.merge(pathGroup);
 
     return group;
