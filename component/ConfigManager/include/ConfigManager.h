@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ConfigGroup.h"
 #include "ConfigKey.h"
 
 #include <LockGuard.h>
@@ -26,6 +27,8 @@ public:
   QString getLogsDir() const;
 
   QString getAppVersion() const;
+
+  ConfigGroup getGroupped() const;
 
 private:
   ConfigManager();

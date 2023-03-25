@@ -13,16 +13,22 @@ const char *ORGANIZATION_NAME = APPLICATION_NAME;
 const char *APPLICATION_DIR = APPLICATION_NAME;
 const char *LOGS_DIR = "Logs";
 
-QMap<ConfigKey, QString> KEYNAMES = {
+QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::Unknown, ""},
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
     {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
     {ConfigKey::TitleBarMenuMinimumSize, "window/titleBarMenuMinimumWidth"}};
+
+QMap<ConfigKey, QString> KEY_DESCRIPTIONS = {
+    {ConfigKey::Unknown, ""},
+    {ConfigKey::RecentlyOpenedRepos, ""},
+    {ConfigKey::TitleBarHeight, ""},
+    {ConfigKey::TitleBarMenuMinimumSize, ""}};
+
 QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {};
 
 QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
-    {ConfigKey::TitleBarHeight, 40},
-    {ConfigKey::TitleBarMenuMinimumSize, 230}};
+    {ConfigKey::TitleBarHeight, 40}, {ConfigKey::TitleBarMenuMinimumSize, 230}};
 
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::RecentlyOpenedRepos,
@@ -46,33 +52,86 @@ ConfigManager &ConfigManager::getInstance() {
 
 QDateTime ConfigManager::getDateTime(ConfigKey key) const {
   LOCKGUARD(_mutex);
-  if (_settings.contains(KEYNAMES[key]))
-    return _settings.value(KEYNAMES[key]).toDateTime();
+  if (_settings.contains(KEY_NAMES[key]))
+    return _settings.value(KEY_NAMES[key]).toDateTime();
   else
     return DEFAULT_DATETIMES[key];
 }
 
 qlonglong ConfigManager::getLong(ConfigKey key) const {
   LOCKGUARD(_mutex);
-  if (_settings.contains(KEYNAMES[key]))
-    return _settings.value(KEYNAMES[key]).toLongLong();
+  if (_settings.contains(KEY_NAMES[key]))
+    return _settings.value(KEY_NAMES[key]).toLongLong();
   else
     return DEFAULT_LONGS[key];
 }
 
 QString ConfigManager::getString(ConfigKey key) const {
   LOCKGUARD(_mutex);
-  if (_settings.contains(KEYNAMES[key]))
-    return _settings.value(KEYNAMES[key]).toString();
+  if (_settings.contains(KEY_NAMES[key]))
+    return _settings.value(KEY_NAMES[key]).toString();
   else
     return DEFAULT_STRINGS[key];
 }
 
 QString ConfigManager::getLogsDir() const { return _logsDir; }
 
-QString ConfigManager::getAppVersion() const
-{
-  return APPLICATION_VERSION;
+QString ConfigManager::getAppVersion() const { return APPLICATION_VERSION; }
+
+static ConfigGroup createPathGroup(const QString &path, size_t from) {
+  const int index = path.indexOf('/', from);
+  if (index == -1)
+    return ConfigGroup();
+
+  const int lastIndex = path.lastIndexOf('/');
+
+  if (index == lastIndex) {
+    const ConfigKey key = KEY_NAMES.key(path);
+    const QString& description = KEY_DESCRIPTIONS[key];
+    if(description.isEmpty())
+      return ConfigGroup();
+
+    ConfigItem item;
+    item.setKey(path);
+    item.setDescription(description);
+
+    if (DEFAULT_STRINGS.contains(key)) {
+      item.setType(ConfigKeyType::String);
+      item.setValue(DEFAULT_STRINGS[key]);
+    } else if (DEFAULT_LONGS.contains(key)) {
+      item.setType(ConfigKeyType::Long);
+      item.setValue(DEFAULT_LONGS[key]);
+    } else if (DEFAULT_DATETIMES.contains(key)) {
+      item.setType(ConfigKeyType::DateTime);
+      item.setValue(DEFAULT_DATETIMES[key]);
+    } else
+      return ConfigGroup();
+
+    ConfigGroup group(path.mid(from, index - from));
+    group.addItem(item);
+
+    return group;
+  } else {
+    ConfigGroup group(path.mid(from, index - from));
+    const ConfigGroup pathGroup = createPathGroup(path, index + 1);
+    if(!pathGroup.isEmpty())
+      group.merge(pathGroup);
+
+    return group;
+  }
+}
+
+ConfigGroup ConfigManager::getGroupped() const {
+  ConfigGroup group;
+
+  for (int key = (int)ConfigKey::Unknown; key < (int)ConfigKey::last; ++key) {
+    const QString &path = KEY_NAMES[(ConfigKey)key];
+    const ConfigGroup pathGroup = createPathGroup(path, 0);
+    if (!pathGroup.isEmpty())
+      group.merge(pathGroup);
+  }
+
+  return group;
 }
 
 QString ConfigManager::getWritableDir() const {
