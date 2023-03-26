@@ -10,8 +10,6 @@
 
 #include <QTimer>
 
-#include <iostream>
-
 #define THREAD_ID "MainWindow"
 
 namespace GuiManager {
@@ -145,12 +143,7 @@ void MainWindow::onSelectedTab(int index) {
 void MainWindow::onTabBarResize() {
   LOG_PERF(0, "Enter");
 
-  std::cout << "OnTabBarResize() called." << std::endl;
-
-  _centralWidget->setUpdatesEnabled(false);
   _centralWidget->updateWindow();
-  _centralWidget->setUpdatesEnabled(true);
-
 
   LOG_PERF(0, "Exit");
 }

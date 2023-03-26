@@ -9,7 +9,8 @@ namespace GuiManager {
 
 namespace Widgets {
 
-TitleBarTabBar::TitleBarTabBar(QWidget *parent) : QTabBar{parent} {
+TitleBarTabBar::TitleBarTabBar(QWidget *parent)
+    : QTabBar{parent}, _resized{false} {
   LOG_PERF(0, "Enter");
 
   ConfigManager::ConfigManager &configManager =
@@ -23,10 +24,25 @@ TitleBarTabBar::TitleBarTabBar(QWidget *parent) : QTabBar{parent} {
   LOG_PERF(0, "Exit");
 }
 
+void TitleBarTabBar::paintEvent(QPaintEvent *event) {
+  LOG_PERF(0, "Enter");
+
+  QTabBar::paintEvent(event);
+
+  if (_resized) {
+    _resized = false;
+    emit resizeTabBar();
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void TitleBarTabBar::resizeEvent(QResizeEvent *event) {
   LOG_PERF(0, "Enter");
 
-  emit resizeTabBar();
+  _resized = true;
+
+  QTabBar::resizeEvent(event);
 
   LOG_PERF(0, "Exit");
 }

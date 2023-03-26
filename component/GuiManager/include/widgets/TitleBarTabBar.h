@@ -17,6 +17,7 @@ signals:
 
   // QWidget interface
 protected:
+  void paintEvent(QPaintEvent *event) override;
   void resizeEvent(QResizeEvent *event) override;
 
   // QTabBar interface
@@ -24,6 +25,7 @@ protected:
   QSize sizeHint() const override;
 
 private:
+  bool _resized;
   int _maximumTabWidth;
 };
 
