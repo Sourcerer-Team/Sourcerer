@@ -30,6 +30,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/widgets/TitleBarHomeButton.h
    include/widgets/TitleBarMenuButton.h
    include/widgets/TitleBarTabBar.h
+   include/widgets/TitleBarTabBarCloseButton.h
    include/widgets/TitlebarWidget.h
    src/GuiManager.cpp
    src/InitResources.cpp
@@ -47,6 +48,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/widgets/TitleBarHomeButton.cpp
    src/widgets/TitleBarMenuButton.cpp
    src/widgets/TitleBarTabBar.cpp
+   src/widgets/TitleBarTabBarCloseButton.cpp
    src/widgets/TitlebarWidget.cpp
    src/widgets/TitlebarWidget.ui
    src/containers/HomeContainer.ui

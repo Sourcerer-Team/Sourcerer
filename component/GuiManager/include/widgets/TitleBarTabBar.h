@@ -12,6 +12,8 @@ class TitleBarTabBar : public QTabBar {
 public:
   explicit TitleBarTabBar(QWidget *parent = nullptr);
 
+  void addTab(const QString &text);
+
 signals:
   void resizeTabBar();
 
@@ -23,6 +25,9 @@ protected:
   // QTabBar interface
 protected:
   QSize sizeHint() const override;
+
+private slots:
+  void onClickedClosed(int index);
 
 private:
   bool _resized;
