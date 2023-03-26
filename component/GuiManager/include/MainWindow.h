@@ -28,6 +28,14 @@ private slots:
   void onInit();
   void onSettings();
   void onAbout();
+  void onClosedTab(int index);
+  void onSelectedTab(int index);
+  void onTabBarResize();
+
+private:
+  void addHomeContainer();
+  void addSettingsContainer();
+  void selectContainer(int index);
 
 private:
   int _current;

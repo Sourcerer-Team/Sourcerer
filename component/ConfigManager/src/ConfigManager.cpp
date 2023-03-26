@@ -17,6 +17,7 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::Unknown, ""},
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
     {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
+    {ConfigKey::TitleBarMaxTabWidth, "window/titleBarMaxTabWidth"},
     {ConfigKey::TitleBarMenuMinimumSize, "window/titleBarMenuMinimumWidth"}};
 
 QMap<ConfigKey, QString> KEY_DESCRIPTIONS = {
@@ -28,7 +29,9 @@ QMap<ConfigKey, QString> KEY_DESCRIPTIONS = {
 QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {};
 
 QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
-    {ConfigKey::TitleBarHeight, 40}, {ConfigKey::TitleBarMenuMinimumSize, 230}};
+    {ConfigKey::TitleBarHeight, 40},
+    {ConfigKey::TitleBarMaxTabWidth, 285},
+    {ConfigKey::TitleBarMenuMinimumSize, 230}};
 
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::RecentlyOpenedRepos,

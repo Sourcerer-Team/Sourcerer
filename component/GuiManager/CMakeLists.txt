@@ -20,31 +20,38 @@ set(GUIMANAGER_SOURCE_FILES
    include/MainWindow.h
    include/containers/HomeContainer.h
    include/containers/PleaseWaitContainer.h
+   include/containers/SettingsContainer.h
    include/delegates/HomeRecentItemDelegate.h
    include/dialogs/AboutDialog.h
    include/models/RecentlyOpenedReposModel.h
    include/widgets/ContainerWidget.h
    include/widgets/RecentTableView.h
+   include/widgets/SettingsPaneWidget.h
    include/widgets/TitleBarHomeButton.h
    include/widgets/TitleBarMenuButton.h
+   include/widgets/TitleBarTabBar.h
    include/widgets/TitlebarWidget.h
    src/GuiManager.cpp
    src/InitResources.cpp
    src/MainWindow.cpp
    src/containers/HomeContainer.cpp
    src/containers/PleaseWaitContainer.cpp
+   src/containers/SettingsContainer.cpp
    src/delegates/HomeRecentItemDelegate.cpp
    src/dialogs/AboutDialog.cpp
    src/dialogs/AboutDialog.ui
    src/models/RecentlyOpenedReposModel.cpp
    src/widgets/ContainerWidget.cpp
    src/widgets/RecentTableView.cpp
+   src/widgets/SettingsPaneWidget.cpp
    src/widgets/TitleBarHomeButton.cpp
    src/widgets/TitleBarMenuButton.cpp
+   src/widgets/TitleBarTabBar.cpp
    src/widgets/TitlebarWidget.cpp
    src/widgets/TitlebarWidget.ui
    src/containers/HomeContainer.ui
    src/containers/PleaseWaitContainer.ui
+   src/containers/SettingsContainer.ui
    ${QRC_FILES}
    ${TS_FILES}
 )

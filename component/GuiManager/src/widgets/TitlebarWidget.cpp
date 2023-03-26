@@ -4,6 +4,12 @@
 #include <Log.h>
 
 #include <QLabel>
+#include <QMouseEvent>
+#include <QTabBar>
+#include <QTabWidget>
+#include <QTimer>
+
+#include <iostream>
 
 #define THREAD_ID "TitleBarWidget"
 
@@ -17,6 +23,7 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
+  ui->tabBar->setUsesScrollButtons(false);
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
@@ -36,6 +43,13 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
   connect(ui->menuButton, &TitleBarMenuButton::about, this,
           &TitlebarWidget::onAbout);
 
+  connect(ui->tabBar, &TitleBarTabBar::currentChanged, this,
+          &TitlebarWidget::onSelectedTab);
+  connect(ui->tabBar, &TitleBarTabBar::tabCloseRequested, this,
+          &TitlebarWidget::onClosedTab);
+  connect(ui->tabBar, &TitleBarTabBar::resizeTabBar, this,
+          &TitlebarWidget::onTabBarResized);
+
   LOG_PERF(0, "Exit");
 }
 
@@ -50,9 +64,44 @@ TitlebarWidget::~TitlebarWidget() {
 void TitlebarWidget::addTab(const QString &text) {
   LOG_PERF(0, "Enter");
 
-  ui->tabWidget->addTab(new QLabel(""), text);
+  ui->tabBar->addTab(text);
 
   LOG_PERF(0, "Exit");
+}
+
+void TitlebarWidget::removeTab(int index) {
+  LOG_PERF(0, "Enter");
+
+  ui->tabBar->removeTab(index);
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitlebarWidget::selectTab(int index) {
+  LOG_PERF(0, "Enter");
+
+  const int count = tabsCount();
+  if (index < 0 || index > count - 1) {
+    LOG_WARN("Tried to selected invalid tab with index %1.", index);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  ui->tabBar->setCurrentIndex(index);
+
+  LOG_PERF(0, "Exit");
+}
+
+int TitlebarWidget::tabsCount() const {
+  LOG_PERF(0, "Enter");
+
+  const int count = ui->tabBar->count();
+
+  LOG_DEBUG("Tabs count is %1.", count);
+
+  LOG_PERF(0, "Exit");
+
+  return count;
 }
 
 void TitlebarWidget::onHome() {
@@ -99,6 +148,31 @@ void TitlebarWidget::onAbout() {
   LOG_PERF(0, "Enter");
 
   emit about();
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitlebarWidget::onClosedTab(int index) {
+  LOG_PERF(0, "Enter");
+
+  emit closedTab(index);
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitlebarWidget::onSelectedTab(int index) {
+  LOG_PERF(0, "Enter");
+
+  emit selectedTab(index);
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitlebarWidget::onTabBarResized()
+{
+  LOG_PERF(0, "Enter");
+
+  emit resizeTabBar();
 
   LOG_PERF(0, "Exit");
 }

@@ -8,6 +8,7 @@ enum class ConfigKey {
 
   // Main window
   TitleBarHeight,
+  TitleBarMaxTabWidth,
   TitleBarMenuMinimumSize,
 
   // Home container

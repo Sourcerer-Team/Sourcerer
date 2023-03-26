@@ -15,14 +15,11 @@ TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
-  //setObjectName("titleBarMenuButton");
   setMouseTracking(true);
   setAttribute(Qt::WA_Hover, true);
   installEventFilter(this);
 
   setMenu(createMenu());
-
-  //setStyleSheet("GuiManager--Widgets--TitleBarMenuButton::menu-indicator{width:0px;}");
 
   connect(this, &TitleBarMenuButton::clicked, this,
           &TitleBarMenuButton::onClicked);

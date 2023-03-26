@@ -10,6 +10,7 @@ enum class ContainerType {
   Unknown = 0,
   Home,
   PleaseWait,
+  Settings,
 
   last
 };

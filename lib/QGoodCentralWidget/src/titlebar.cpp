@@ -102,7 +102,7 @@ TitleBar::TitleBar(QGoodWindow *gw, QWidget *parent) : QFrame(parent)
     stacked_layout->addWidget(m_title_widget);
 
     m_left_widget_place_holder = new QWidget(this);
-    m_left_widget_place_holder->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+    m_left_widget_place_holder->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     m_left_widget_place_holder->setVisible(false);
     m_left_widget_place_holder->setEnabled(false);
 
@@ -269,7 +269,7 @@ void TitleBar::setLeftTitleBarWidget(QWidget *widget)
 
     if (m_left_widget)
     {
-        QGridLayout *layout = new QGridLayout(m_left_widget_place_holder);
+        QHBoxLayout *layout = new QHBoxLayout(m_left_widget_place_holder);
         layout->setContentsMargins(0, 0, m_layout_spacing, 0);
         layout->setSpacing(0);
         layout->addWidget(m_left_widget);
@@ -448,9 +448,9 @@ void TitleBar::updateWindow()
     else
         right_distance = qAbs(distance);
 
-    m_center_spacer_item_left->changeSize(left_distance, 0, QSizePolicy::Preferred, QSizePolicy::Expanding);
+    //m_center_spacer_item_left->changeSize(left_distance, 0, QSizePolicy::Preferred, QSizePolicy::Expanding);
 
-    m_center_spacer_item_right->changeSize(right_distance, 0, QSizePolicy::Preferred, QSizePolicy::Expanding);
+    //m_center_spacer_item_right->changeSize(right_distance, 0, QSizePolicy::Preferred, QSizePolicy::Expanding);
 }
 
 void TitleBar::captionButtonStateChanged(const QGoodWindow::CaptionButtonState &state)

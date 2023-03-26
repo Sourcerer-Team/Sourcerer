@@ -20,6 +20,9 @@ public:
   ~TitlebarWidget();
 
   void addTab(const QString &text);
+  void removeTab(int index);
+  void selectTab(int index);
+  int tabsCount() const;
 
 signals:
   void home();
@@ -29,6 +32,10 @@ signals:
   void settings();
   void about();
 
+  void closedTab(int index);
+  void selectedTab(int index);
+  void resizeTabBar();
+
 private slots:
   void onHome();
   void onOpen();
@@ -36,6 +43,10 @@ private slots:
   void onInit();
   void onSettings();
   void onAbout();
+
+  void onClosedTab(int index);
+  void onSelectedTab(int index);
+  void onTabBarResized();
 
 private:
   Ui::TitlebarWidget *ui;
