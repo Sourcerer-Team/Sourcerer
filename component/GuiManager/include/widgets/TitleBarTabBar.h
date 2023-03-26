@@ -22,6 +22,9 @@ protected:
   // QTabBar interface
 protected:
   QSize sizeHint() const override;
+
+private:
+  int _maximumTabWidth;
 };
 
 } // namespace Widgets

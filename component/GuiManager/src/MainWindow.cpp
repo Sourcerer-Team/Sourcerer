@@ -142,21 +142,24 @@ void MainWindow::onSelectedTab(int index) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::onTabBarResize()
-{
+void MainWindow::onTabBarResize() {
   LOG_PERF(0, "Enter");
 
-  const auto func = std::bind(&QGoodCentralWidget::updateWindow, _centralWidget);
-  QTimer::singleShot(0, this, func);
+  std::cout << "OnTabBarResize() called." << std::endl;
+
+  _centralWidget->setUpdatesEnabled(false);
+  _centralWidget->updateWindow();
+  _centralWidget->setUpdatesEnabled(true);
+
 
   LOG_PERF(0, "Exit");
-
 }
 
 void MainWindow::addHomeContainer() {
   LOG_PERF(0, "Enter");
 
-  const qlonglong titleBarHeight = _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
   ContainerWidget *container = new HomeContainer(this);
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
   _containers += container;
@@ -169,7 +172,8 @@ void MainWindow::addHomeContainer() {
 void MainWindow::addSettingsContainer() {
   LOG_PERF(0, "Enter");
 
-  const qlonglong titleBarHeight = _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
   ContainerWidget *container = new SettingsContainer(this);
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
   _containers += container;

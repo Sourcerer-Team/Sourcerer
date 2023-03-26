@@ -1,12 +1,35 @@
 #include "widgets/TitleBarTabBar.h"
 
+#include <ConfigManager.h>
+#include <Log.h>
+
+#define THREAD_ID "TitleBarTabBar"
+
 namespace GuiManager {
 
 namespace Widgets {
 
-TitleBarTabBar::TitleBarTabBar(QWidget *parent) : QTabBar{parent} {}
+TitleBarTabBar::TitleBarTabBar(QWidget *parent) : QTabBar{parent} {
+  LOG_PERF(0, "Enter");
 
-void TitleBarTabBar::resizeEvent(QResizeEvent *event) { emit resizeTabBar(); }
+  ConfigManager::ConfigManager &configManager =
+      ConfigManager::ConfigManager::getInstance();
+
+  _maximumTabWidth =
+      configManager.getLong(ConfigManager::ConfigKey::TitleBarMaxTabWidth);
+
+  LOG_DEBUG("Maximum tab width is %1 pixels.", _maximumTabWidth);
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitleBarTabBar::resizeEvent(QResizeEvent *event) {
+  LOG_PERF(0, "Enter");
+
+  emit resizeTabBar();
+
+  LOG_PERF(0, "Exit");
+}
 
 QSize TitleBarTabBar::sizeHint() const {
   QSize size = QTabBar::sizeHint();
@@ -16,9 +39,9 @@ QSize TitleBarTabBar::sizeHint() const {
     return size;
 
   const int _count = count();
-  int width = 285;
+  int width = _maximumTabWidth;
   if (_count > 0)
-    width = std::min(285 * _count, rootWidget->width());
+    width = std::min(_maximumTabWidth * _count, rootWidget->width());
 
   size.setWidth(width);
 
