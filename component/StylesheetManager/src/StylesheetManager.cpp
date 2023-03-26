@@ -16,7 +16,6 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "GuiManager--Widgets--RecentTableView,GuiManager--Widgets--"
      "RecentTableView * {font-size:14px;}"
      "GuiManager--Widgets--TitleBarMenuButton::menu-indicator{width:0px;}"
-     "GuiManager--Widgets--TitleBarTabBar::close-button{padding-top:-8px;}"
      "GuiManager--Widgets--TitlebarWidget,GuiManager--Widgets--TitlebarWidget "
      "* {font-size:14px;}"}};
 
