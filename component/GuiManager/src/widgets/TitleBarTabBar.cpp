@@ -1,7 +1,5 @@
 #include "widgets/TitleBarTabBar.h"
 
-#include "widgets/TitleBarTabBarCloseButton.h"
-
 #include <ConfigManager.h>
 #include <Log.h>
 
@@ -15,6 +13,8 @@ TitleBarTabBar::TitleBarTabBar(QWidget *parent)
     : QTabBar{parent}, _resized{false} {
   LOG_PERF(0, "Enter");
 
+  setTabsClosable(true);
+
   ConfigManager::ConfigManager &configManager =
       ConfigManager::ConfigManager::getInstance();
 
@@ -22,20 +22,6 @@ TitleBarTabBar::TitleBarTabBar(QWidget *parent)
       configManager.getLong(ConfigManager::ConfigKey::TitleBarMaxTabWidth);
 
   LOG_DEBUG("Maximum tab width is %1 pixels.", _maximumTabWidth);
-
-  LOG_PERF(0, "Exit");
-}
-
-void TitleBarTabBar::addTab(const QString &text)
-{
-  LOG_PERF(0, "Enter");
-
-  const int index = QTabBar::addTab(text);
-
-  TitleBarTabBarCloseButton* button = new TitleBarTabBarCloseButton(index, this);
-  connect(button, &TitleBarTabBarCloseButton::clickedClose, this, &TitleBarTabBar::onClickedClosed);
-
-  setTabButton(index, ButtonPosition::RightSide, button);
 
   LOG_PERF(0, "Exit");
 }
@@ -78,15 +64,6 @@ QSize TitleBarTabBar::sizeHint() const {
   size.setWidth(width);
 
   return size;
-}
-
-void TitleBarTabBar::onClickedClosed(int index)
-{
-  LOG_PERF(0, "Enter");
-
-  emit tabCloseRequested(index);
-
-  LOG_PERF(0, "Exit");
 }
 
 } // namespace Widgets

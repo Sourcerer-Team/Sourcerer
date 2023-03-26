@@ -13,10 +13,10 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "QPushButton[flat=true]{color:rgb(255,255,255);text-decoration:none;}"
      "QPushButton[flat=true]:hover{color:rgb(116,137,127);text-decoration:"
      "underline;}"
-     "QTabWidget::tab-bar{min-width:5000;}"
      "GuiManager--Widgets--RecentTableView,GuiManager--Widgets--"
      "RecentTableView * {font-size:14px;}"
      "GuiManager--Widgets--TitleBarMenuButton::menu-indicator{width:0px;}"
+     "GuiManager--Widgets--TitleBarTabBar::close-button{padding-top:-8px;}"
      "GuiManager--Widgets--TitlebarWidget,GuiManager--Widgets--TitlebarWidget "
      "* {font-size:14px;}"}};
 
