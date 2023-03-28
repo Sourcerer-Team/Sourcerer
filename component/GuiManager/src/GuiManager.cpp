@@ -45,10 +45,12 @@ void GuiManager::start() {
 
   QGoodWindow::setAppDarkTheme();
 
+  app.setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles, true);
+
   const StylesheetManager::StylesheetManager &stylesheetManager =
       StylesheetManager::StylesheetManager::getInstance();
 
-  const QString& stylesheet =
+  const QString &stylesheet =
       stylesheetManager.stylesheet(StylesheetManager::StylesheetKey::Default);
 
   app.setStyleSheet(stylesheet);

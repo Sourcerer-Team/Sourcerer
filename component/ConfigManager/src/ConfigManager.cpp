@@ -13,18 +13,31 @@ const char *ORGANIZATION_NAME = APPLICATION_NAME;
 const char *APPLICATION_DIR = APPLICATION_NAME;
 const char *LOGS_DIR = "Logs";
 
+struct KeyDescription {
+  QString name;
+  QString description;
+};
+
 QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::Unknown, ""},
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
+    {ConfigKey::SettingsSplitterPos, "window/settings/splitterPos"},
     {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
     {ConfigKey::TitleBarMaxTabWidth, "window/titleBarMaxTabWidth"},
-    {ConfigKey::TitleBarMenuMinimumSize, "window/titleBarMenuMinimumWidth"}};
+    {ConfigKey::TitleBarMenuMinimumSize,
+     "window/xxx/titleBarMenuMinimumWidth"}};
 
-QMap<ConfigKey, QString> KEY_DESCRIPTIONS = {
-    {ConfigKey::Unknown, ""},
-    {ConfigKey::RecentlyOpenedRepos, ""},
-    {ConfigKey::TitleBarHeight, ""},
-    {ConfigKey::TitleBarMenuMinimumSize, ""}};
+QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
+    {ConfigKey::Unknown, {"", ""}},
+    {ConfigKey::RecentlyOpenedRepos, {"Recently opened repositories list", ""}},
+    {ConfigKey::TitleBarHeight, {"Maximum title bar height", ""}},
+    {ConfigKey::TitleBarMaxTabWidth, {"Maximum width of a title bar tab", ""}},
+    {ConfigKey::TitleBarMenuMinimumSize,
+     {"Minimum size of the title bar menu", ""}}};
+
+QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {};
+
+QMap<ConfigKey, QColor> DEFAULT_COLORS = {};
 
 QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {};
 
@@ -36,7 +49,8 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::RecentlyOpenedRepos,
      "git@github.com:levi9-embedded/"
-     "components.git,git@github.com:levi9-embedded/arduino-projects.git"}};
+     "components.git,git@github.com:levi9-embedded/arduino-projects.git"},
+    {ConfigKey::SettingsSplitterPos, ""}};
 
 ConfigManager::ConfigManager()
     : _settings(ORGANIZATION_NAME, APPLICATION_NAME) {
@@ -51,6 +65,22 @@ ConfigManager::~ConfigManager() {}
 ConfigManager &ConfigManager::getInstance() {
   static ConfigManager instance;
   return instance;
+}
+
+bool ConfigManager::getBoolean(ConfigKey key) const {
+  LOCKGUARD(_mutex);
+  if (_settings.contains(KEY_NAMES[key]))
+    return _settings.value(KEY_NAMES[key]).toBool();
+  else
+    return DEFAULT_BOOLEANS[key];
+}
+
+QColor ConfigManager::getColor(ConfigKey key) const {
+  LOCKGUARD(_mutex);
+  if (_settings.contains(KEY_NAMES[key]))
+    return QColor::fromString(_settings.value(KEY_NAMES[key]).toString());
+  else
+    return DEFAULT_COLORS[key];
 }
 
 QDateTime ConfigManager::getDateTime(ConfigKey key) const {
@@ -77,6 +107,40 @@ QString ConfigManager::getString(ConfigKey key) const {
     return DEFAULT_STRINGS[key];
 }
 
+void ConfigManager::setBoolean(ConfigKey key, bool value) {
+  LOCKGUARD(_mutex);
+  _settings.setValue(KEY_NAMES[key], value);
+}
+
+void ConfigManager::setColor(ConfigKey key, const QColor &value) {
+  LOCKGUARD(_mutex);
+  _settings.setValue(KEY_NAMES[key], value.name());
+}
+
+void ConfigManager::setDateTime(ConfigKey key, const QDateTime &value) {
+  LOCKGUARD(_mutex);
+  _settings.setValue(KEY_NAMES[key], value);
+}
+
+void ConfigManager::setLong(ConfigKey key, qlonglong value) {
+  LOCKGUARD(_mutex);
+  _settings.setValue(KEY_NAMES[key], value);
+}
+
+void ConfigManager::setString(ConfigKey key, const QString &value) {
+  LOCKGUARD(_mutex);
+  _settings.setValue(KEY_NAMES[key], value);
+}
+
+void ConfigManager::save() {
+  LOCKGUARD(_mutex);
+  _settings.sync();
+}
+
+ConfigKey ConfigManager::getKey(const QString &keyPath) const {
+  return KEY_NAMES.key(keyPath);
+}
+
 QString ConfigManager::getLogsDir() const { return _logsDir; }
 
 QString ConfigManager::getAppVersion() const { return APPLICATION_VERSION; }
@@ -90,12 +154,14 @@ static ConfigGroup createPathGroup(const QString &path, size_t from) {
 
   if (index == lastIndex) {
     const ConfigKey key = KEY_NAMES.key(path);
-    const QString &description = KEY_DESCRIPTIONS[key];
-    if (description.isEmpty())
+    const QString &name = KEY_DESCRIPTIONS[key].name;
+    const QString &description = KEY_DESCRIPTIONS[key].description;
+    if (name.isEmpty())
       return ConfigGroup();
 
     ConfigItem item;
     item.setKey(path);
+    item.setName(name);
     item.setDescription(description);
 
     if (DEFAULT_STRINGS.contains(key)) {

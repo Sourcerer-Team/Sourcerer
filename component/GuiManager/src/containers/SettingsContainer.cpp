@@ -16,6 +16,11 @@ SettingsContainer::SettingsContainer(QWidget *parent)
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
+  ui->splitter->setStretchFactor(0, 1);
+  ui->splitter->setStretchFactor(1, 10);
+  ui->groupsTreeView->header()->setVisible(false);
+  ui->groupsTreeView->header()->setSectionResizeMode(
+      QHeaderView::ResizeToContents);
 
   const ConfigManager::ConfigGroup rootGroup = _configManager.getGroupped();
 
@@ -24,6 +29,14 @@ SettingsContainer::SettingsContainer(QWidget *parent)
     ui->groupsTreeView->setModel(model);
 
   ui->groupsPaneWidget->setGroup(rootGroup);
+
+  const QByteArray splitterState = QByteArray::fromHex(
+      _configManager.getString(ConfigManager::ConfigKey::SettingsSplitterPos)
+          .toUtf8());
+  ui->splitter->restoreState(splitterState);
+
+  connect(ui->splitter, &QSplitter::splitterMoved, this,
+          &SettingsContainer::onSplitterMoved);
 
   LOG_PERF(0, "Exit");
 }
@@ -36,12 +49,28 @@ SettingsContainer::~SettingsContainer() {
   LOG_PERF(0, "Exit");
 }
 
+void SettingsContainer::onSplitterMoved(int pos, int index) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("pos = %1, index = %2", pos, index);
+
+  const QString splitterState = ui->splitter->saveState().toHex();
+  _configManager.setString(ConfigManager::ConfigKey::SettingsSplitterPos,
+                           splitterState);
+  _configManager.save();
+
+  LOG_PERF(0, "Exit");
+}
+
 static QStandardItem *
 createItemForGroup(const ConfigManager::ConfigGroup &group) {
   if (group.isEmpty())
     return nullptr;
 
-  QStandardItem *item = new QStandardItem(group.name());
+  QString groupName = group.name();
+  if(groupName.length() > 0)
+    groupName = groupName.first(1).toUpper() + groupName.mid(1);
+
+  QStandardItem *item = new QStandardItem(groupName);
   for (const auto &subgroup : group.subgroups()) {
     QStandardItem *subgroupItem = createItemForGroup(subgroup);
     item->appendRow(subgroupItem);

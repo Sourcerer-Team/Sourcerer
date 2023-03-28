@@ -8,8 +8,8 @@ project(Log)
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets LinguistTools)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets LinguistTools)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
 
 set(LOG_SOURCE_FILES
    include/Log.h
@@ -24,6 +24,11 @@ includeComponent(Log ConfigManager)
 
 includeLib(Log Util)
 
-target_link_libraries(Log PRIVATE Qt${QT_VERSION_MAJOR}::Core stdc++fs)
+target_link_libraries(Log PRIVATE
+    Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
+    Qt${QT_VERSION_MAJOR}::Widgets
+    stdc++fs
+)
 
 target_include_directories(Log PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)

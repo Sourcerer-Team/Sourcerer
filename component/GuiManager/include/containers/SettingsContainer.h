@@ -25,6 +25,9 @@ public:
   explicit SettingsContainer(QWidget *parent = nullptr);
   ~SettingsContainer();
 
+private slots:
+  void onSplitterMoved(int pos, int index);
+
 private:
   QStandardItemModel *createModel(const ConfigManager::ConfigGroup& rootGroup) const;
 

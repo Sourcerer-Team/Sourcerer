@@ -8,8 +8,8 @@ project(GuiManager)
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Widgets LinguistTools)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Widgets LinguistTools)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
 
 set(TS_FILES translations/Sourcerer_en_US.ts)
 set(QRC_FILES resources/resources.qrc)
@@ -24,13 +24,21 @@ set(GUIMANAGER_SOURCE_FILES
    include/delegates/HomeRecentItemDelegate.h
    include/dialogs/AboutDialog.h
    include/models/RecentlyOpenedReposModel.h
+   include/widgets/ColorButton.h
    include/widgets/ContainerWidget.h
    include/widgets/RecentTableView.h
    include/widgets/SettingsPaneWidget.h
+   include/widgets/SettingsPaneItemWidget.h
+   include/widgets/SettingsPaneBooleanWidget.h
+   include/widgets/SettingsPaneColorWidget.h
+   include/widgets/SettingsPaneDateTimeWidget.h
+   include/widgets/SettingsPaneLongWidget.h
+   include/widgets/SettingsPaneStringWidget.h
    include/widgets/TitleBarHomeButton.h
    include/widgets/TitleBarMenuButton.h
    include/widgets/TitleBarTabBar.h
    include/widgets/TitlebarWidget.h
+   include/widgets/factories/SettingsPaneItemWidgetFactory.h
    src/GuiManager.cpp
    src/InitResources.cpp
    src/MainWindow.cpp
@@ -41,14 +49,22 @@ set(GUIMANAGER_SOURCE_FILES
    src/dialogs/AboutDialog.cpp
    src/dialogs/AboutDialog.ui
    src/models/RecentlyOpenedReposModel.cpp
+   src/widgets/ColorButton.cpp
    src/widgets/ContainerWidget.cpp
    src/widgets/RecentTableView.cpp
    src/widgets/SettingsPaneWidget.cpp
+   src/widgets/SettingsPaneItemWidget.cpp
+   src/widgets/SettingsPaneBooleanWidget.cpp
+   src/widgets/SettingsPaneColorWidget.cpp
+   src/widgets/SettingsPaneDateTimeWidget.cpp
+   src/widgets/SettingsPaneLongWidget.cpp
+   src/widgets/SettingsPaneStringWidget.cpp
    src/widgets/TitleBarHomeButton.cpp
    src/widgets/TitleBarMenuButton.cpp
    src/widgets/TitleBarTabBar.cpp
    src/widgets/TitlebarWidget.cpp
    src/widgets/TitlebarWidget.ui
+   src/widgets/factories/SettingsPaneItemWidgetFactory.cpp
    src/containers/HomeContainer.ui
    src/containers/PleaseWaitContainer.ui
    src/containers/SettingsContainer.ui
@@ -79,6 +95,7 @@ target_include_directories(Sourcerer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../l
 
 target_link_libraries(GuiManager PRIVATE
     Qt${QT_VERSION_MAJOR}::Core
+    Qt${QT_VERSION_MAJOR}::Gui
     Qt${QT_VERSION_MAJOR}::Widgets
 )
 

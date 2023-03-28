@@ -5,6 +5,7 @@
 
 #include <LockGuard.h>
 
+#include <QColor>
 #include <QDateTime>
 #include <QSettings>
 #include <QString>
@@ -18,11 +19,29 @@ class ConfigManager {
 public:
   static ConfigManager &getInstance();
 
+  bool getBoolean(ConfigKey key) const;
+
+  QColor getColor(ConfigKey key) const;
+
   QDateTime getDateTime(ConfigKey key) const;
 
   qlonglong getLong(ConfigKey key) const;
 
   QString getString(ConfigKey key) const;
+
+  void setBoolean(ConfigKey key, bool value);
+
+  void setColor(ConfigKey key, const QColor& value);
+
+  void setDateTime(ConfigKey key, const QDateTime& value);
+
+  void setLong(ConfigKey key, qlonglong value);
+
+  void setString(ConfigKey key, const QString& value);
+
+  void save();
+
+  ConfigKey getKey(const QString& keyPath) const;
 
   QString getLogsDir() const;
 

@@ -11,7 +11,8 @@ enum class ConfigKey {
   TitleBarMaxTabWidth,
   TitleBarMenuMinimumSize,
 
-  // Home container
+  // Settings container
+  SettingsSplitterPos,
 
   last
 };

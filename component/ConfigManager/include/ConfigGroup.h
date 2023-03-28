@@ -14,17 +14,20 @@ public:
 
   const QString& description() const { return _description; }
   const QString& key() const { return _key; }
+  const QString& name() const { return _name; }
   ConfigKeyType type() const { return _type; }
   const QVariant& value() const { return _value; }
 
   void setDescription(const QString& description) { _description = description; }
   void setKey(const QString& key) { _key = key; }
+  void setName(const QString& name) { _name = name; }
   void setType(ConfigKeyType type) { _type = type; }
   void setValue(const QVariant& value) { _value = value; }
 
 private:
   ConfigKeyType _type;
   QVariant _value;
+  QString _name;
   QString _description;
   QString _key;
 };

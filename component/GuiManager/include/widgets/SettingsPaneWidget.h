@@ -1,8 +1,9 @@
 #pragma once
 
+#include "widgets/SettingsPaneItemWidget.h"
+
 #include <ConfigGroup.h>
 
-#include <QVBoxLayout>
 #include <QWidget>
 
 namespace GuiManager {
@@ -17,9 +18,9 @@ public:
   void setGroup(const ConfigManager::ConfigGroup &group);
 
 private:
-  QWidget *createItemWidget(const ConfigManager::ConfigItem& item);
+  SettingsPaneItemWidget *createItemWidget(const ConfigManager::ConfigItem& item);
   void recreate();
-  void recreateGroup(const ConfigManager::ConfigGroup& group, QVBoxLayout* layout);
+  void recreateGroup(const ConfigManager::ConfigGroup& group);
 
 private:
   ConfigManager::ConfigGroup _group;
