@@ -17,7 +17,7 @@ namespace Widgets {
 
 SettingsPaneColorWidget::SettingsPaneColorWidget(
     const ConfigManager::ConfigItem &item, QWidget *parent)
-    : SettingsPaneItemWidget(item, parent) {
+    : SettingsPaneItemWidget(item, parent), _colorButton{nullptr} {
   LOG_PERF(0, "Enter");
   LOG_PERF(0, "Exit");
 }
@@ -31,21 +31,22 @@ QWidget *SettingsPaneColorWidget::createWidget() {
   nameLabel->setObjectName("nameLabel");
   nameLabel->setWordWrap(true);
 
-  QLabel *descriptionLabel = new QLabel(item().description(), placeholderWidget);
+  QLabel *descriptionLabel =
+      new QLabel(item().description(), placeholderWidget);
   descriptionLabel->setObjectName("descriptionLabel");
   descriptionLabel->setWordWrap(true);
 
-  ColorButton *colorButton =
+  _colorButton =
       new ColorButton(item().value().value<QColor>(), placeholderWidget);
-  colorButton->setObjectName("colorButton");
+  _colorButton->setObjectName("colorButton");
 
   QVBoxLayout *layout = new QVBoxLayout(placeholderWidget);
   layout->addWidget(nameLabel);
-  if(!item().description().isEmpty())
+  if (!item().description().isEmpty())
     layout->addWidget(descriptionLabel);
-  layout->addWidget(colorButton);
+  layout->addWidget(_colorButton);
 
-  connect(colorButton, &ColorButton::clicked, this,
+  connect(_colorButton, &ColorButton::clicked, this,
           &SettingsPaneColorWidget::onClicked);
 
   LOG_PERF(0, "Exit");
@@ -79,10 +80,26 @@ void SettingsPaneColorWidget::save() const {
 void SettingsPaneColorWidget::onClicked() {
   LOG_PERF(0, "Enter");
 
-  QColorDialog *dialog = new QColorDialog(item().value().value<QColor>());
-  dialog->exec();
+  QWidget *rootWindow = window();
+  if (!rootWindow) {
+    LOG_ERROR(Log::ErrorId::Gui, "Can't get the root window.");
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
-  delete dialog;
+  QColorDialog colorDialog(item().value().value<QColor>(), rootWindow);
+  colorDialog.move(
+      rootWindow->x() + (rootWindow->width() - colorDialog.width()) / 2,
+      rootWindow->y() + (rootWindow->height() - colorDialog.height()) / 2);
+  const int ret = colorDialog.exec();
+
+  if (ret == QDialog::Accepted) {
+    const QColor& currentColor = colorDialog.currentColor();
+    if(_colorButton)
+      _colorButton->setColor(currentColor);
+    item().setValue(currentColor);
+    save();
+  }
 
   LOG_PERF(0, "Exit");
 }

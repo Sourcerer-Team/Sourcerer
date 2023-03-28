@@ -10,6 +10,7 @@ namespace StylesheetManager {
 
 QMap<StylesheetKey, QString> STYLESHEETS = {
     {StylesheetKey::Default,
+     "QColorDialog{font-size:14px;}"
      "QPushButton[flat=true]{color:white;text-decoration:none;}"
      "QPushButton[flat=true]:hover{color:#74897F;text-decoration:"
      "underline;}"
@@ -22,13 +23,9 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "GuiManager--Containers--SettingsContainer "
      "QSplitter{margin-top:30px;}"
      "GuiManager--Containers--SettingsContainer "
-     "QSplitter::handle{background-color:#black;}"
-     "GuiManager--Containers--SettingsContainer "
      "QSplitter::handle:horizontal{border:1px solid #353535;}"
      "GuiManager--Containers--SettingsContainer "
-     "QSplitter::handle:vertical{border:1px solid %353535;}"
-     "GuiManager--Containers--SettingsContainer "
-     "QScrollArea{font-size:14px;margin-top:30px;}"
+     "QScrollArea{margin-top:30px;}"
      "GuiManager--Containers--SettingsContainer "
      "QTreeView{font-size:14px;margin-top:30px;}"
      "GuiManager--Containers--SettingsContainer "
@@ -36,10 +33,12 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "GuiManager--Containers--SettingsContainer "
      "QLabel#nameLabel{font-weight:bold;}"
      "GuiManager--Containers--SettingsContainer "
-     "QSpinBox#longSpinBox{max-width:150px;}"
+     "GuiManager--Widgets--ColorButton{max-width:75px;}"
+     "GuiManager--Containers--SettingsContainer "
+     "QSpinBox#longSpinBox{max-width:75px;}"
      "GuiManager--Containers--SettingsContainer "
      "GuiManager--Widgets--SettingsPaneItemWidget{padding:0px;qproperty-"
-     "hoverColor:#black;}"}};
+     "hoverColor:black;}"}};
 
 StylesheetManager::StylesheetManager() {
   LOG_PERF(0, "Enter");

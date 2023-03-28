@@ -14,6 +14,9 @@ enum class ConfigKey {
   // Settings container
   SettingsSplitterPos,
 
+  // Testing
+  TestColor,
+
   last
 };
 

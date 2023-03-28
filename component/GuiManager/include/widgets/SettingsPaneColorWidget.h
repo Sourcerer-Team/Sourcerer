@@ -1,5 +1,6 @@
 #pragma once
 
+#include "widgets/ColorButton.h"
 #include "widgets/SettingsPaneItemWidget.h"
 
 #include <ConfigGroup.h>
@@ -24,6 +25,9 @@ protected:
 
 private slots:
   void onClicked();
+
+private:
+  ColorButton *_colorButton;
 };
 
 } // namespace Widgets

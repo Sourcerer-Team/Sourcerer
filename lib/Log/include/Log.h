@@ -202,7 +202,7 @@ enum ErrorId {
   Gui = -5,
   DateTime = -6,
   Logic = -7,
-  Config = -8
+  Config = -8,
 };
 
 class Log {

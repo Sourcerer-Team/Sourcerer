@@ -24,8 +24,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::SettingsSplitterPos, "window/settings/splitterPos"},
     {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
     {ConfigKey::TitleBarMaxTabWidth, "window/titleBarMaxTabWidth"},
-    {ConfigKey::TitleBarMenuMinimumSize,
-     "window/xxx/titleBarMenuMinimumWidth"}};
+    {ConfigKey::TitleBarMenuMinimumSize, "window/xxx/titleBarMenuMinimumWidth"},
+    {ConfigKey::TestColor, "test/testColor"}};
 
 QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::Unknown, {"", ""}},
@@ -33,11 +33,13 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::TitleBarHeight, {"Maximum title bar height", ""}},
     {ConfigKey::TitleBarMaxTabWidth, {"Maximum width of a title bar tab", ""}},
     {ConfigKey::TitleBarMenuMinimumSize,
-     {"Minimum size of the title bar menu", ""}}};
+     {"Minimum size of the title bar menu", ""}},
+    {ConfigKey::TestColor, {"Test color", "Test color description"}}};
 
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {};
 
-QMap<ConfigKey, QColor> DEFAULT_COLORS = {};
+QMap<ConfigKey, QColor> DEFAULT_COLORS = {
+    {ConfigKey::TestColor, QColor("#101010")}};
 
 QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {};
 
@@ -164,15 +166,21 @@ static ConfigGroup createPathGroup(const QString &path, size_t from) {
     item.setName(name);
     item.setDescription(description);
 
-    if (DEFAULT_STRINGS.contains(key)) {
-      item.setType(ConfigKeyType::String);
-      item.setValue(DEFAULT_STRINGS[key]);
-    } else if (DEFAULT_LONGS.contains(key)) {
-      item.setType(ConfigKeyType::Long);
-      item.setValue(DEFAULT_LONGS[key]);
+    if (DEFAULT_BOOLEANS.contains(key)) {
+      item.setType(ConfigKeyType::Boolean);
+      item.setValue(DEFAULT_BOOLEANS[key]);
+    } else if (DEFAULT_COLORS.contains(key)) {
+      item.setType(ConfigKeyType::Color);
+      item.setValue(DEFAULT_COLORS[key]);
     } else if (DEFAULT_DATETIMES.contains(key)) {
       item.setType(ConfigKeyType::DateTime);
       item.setValue(DEFAULT_DATETIMES[key]);
+    } else if (DEFAULT_LONGS.contains(key)) {
+      item.setType(ConfigKeyType::Long);
+      item.setValue(DEFAULT_LONGS[key]);
+    } else if (DEFAULT_STRINGS.contains(key)) {
+      item.setType(ConfigKeyType::String);
+      item.setValue(DEFAULT_STRINGS[key]);
     } else
       return ConfigGroup();
 
