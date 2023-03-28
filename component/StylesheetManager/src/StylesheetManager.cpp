@@ -32,7 +32,7 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "GuiManager--Containers--SettingsContainer "
      "QDateTimeEdit#dateTimeEdit{max-width:145px;}"
      "GuiManager--Containers--SettingsContainer "
-     "QLabel#groupLabel{font-size:20px;font-weight:bold;}"
+     "QLabel#groupLabel{font-size:20px;font-weight:bold;background-color:#202020;padding:8px;}"
      "GuiManager--Containers--SettingsContainer "
      "QLabel#nameLabel{font-weight:bold;}"
      "GuiManager--Containers--SettingsContainer "
