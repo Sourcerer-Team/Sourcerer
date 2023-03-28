@@ -27,6 +27,7 @@ public:
 
 private slots:
   void onSplitterMoved(int pos, int index);
+  void onTreeViewClicked(const QModelIndex& index);
 
 private:
   QStandardItemModel *createModel(const ConfigManager::ConfigGroup& rootGroup) const;

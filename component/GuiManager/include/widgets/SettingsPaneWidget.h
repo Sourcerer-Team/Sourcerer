@@ -4,6 +4,7 @@
 
 #include <ConfigGroup.h>
 
+#include <QMap>
 #include <QWidget>
 
 namespace GuiManager {
@@ -17,12 +18,15 @@ public:
 
   void setGroup(const ConfigManager::ConfigGroup &group);
 
+  QWidget* sectionWidget(const QString& sectionName) const;
+
 private:
   SettingsPaneItemWidget *createItemWidget(const ConfigManager::ConfigItem& item);
   void recreate();
   void recreateGroup(const ConfigManager::ConfigGroup& group);
 
 private:
+  QMap<QString, QWidget*> _sections;
   ConfigManager::ConfigGroup _group;
 };
 

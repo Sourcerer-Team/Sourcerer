@@ -3,6 +3,8 @@
 
 #include <Log.h>
 
+#include <QScrollBar>
+
 #define THREAD_ID "SettingsContainer"
 
 namespace GuiManager {
@@ -37,6 +39,8 @@ SettingsContainer::SettingsContainer(QWidget *parent)
 
   connect(ui->splitter, &QSplitter::splitterMoved, this,
           &SettingsContainer::onSplitterMoved);
+  connect(ui->groupsTreeView, &QTreeView::clicked, this,
+          &SettingsContainer::onTreeViewClicked);
 
   LOG_PERF(0, "Exit");
 }
@@ -61,13 +65,26 @@ void SettingsContainer::onSplitterMoved(int pos, int index) {
   LOG_PERF(0, "Exit");
 }
 
+void SettingsContainer::onTreeViewClicked(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  const QString sectionName = index.data().toString();
+  LOG_DEBUG("Clicked on section name '%1'", sectionName);
+
+  QWidget *sectionWidget = ui->groupsPaneWidget->sectionWidget(sectionName);
+  if (sectionWidget)
+    ui->groupsPaneScrollArea->verticalScrollBar()->setValue(sectionWidget->y());
+
+  LOG_PERF(0, "Exit");
+}
+
 static QStandardItem *
 createItemForGroup(const ConfigManager::ConfigGroup &group) {
   if (group.isEmpty())
     return nullptr;
 
   QString groupName = group.name();
-  if(groupName.length() > 0)
+  if (groupName.length() > 0)
     groupName = groupName.first(1).toUpper() + groupName.mid(1);
 
   QStandardItem *item = new QStandardItem(groupName);

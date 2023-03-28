@@ -31,6 +31,23 @@ void SettingsPaneWidget::setGroup(const ConfigManager::ConfigGroup &group) {
   LOG_PERF(0, "Exit");
 }
 
+QWidget* SettingsPaneWidget::sectionWidget(const QString &sectionName) const
+{
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Scroll to section '%1'", sectionName);
+
+  QWidget *widget = _sections[sectionName];
+  if(!widget) {
+    LOG_WARN("Unknown section name.");
+    LOG_PERF(0, "Exit");
+    return nullptr;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return widget;
+}
+
 SettingsPaneItemWidget *
 SettingsPaneWidget::createItemWidget(const ConfigManager::ConfigItem &item) {
   LOG_PERF(0, "Enter");
@@ -78,6 +95,9 @@ void SettingsPaneWidget::recreateGroup(const ConfigManager::ConfigGroup &group) 
 
   QLabel *groupLabel = new QLabel(groupName, this);
   groupLabel->setObjectName("groupLabel");
+
+  // Remember section starting widget
+  _sections[groupName] = groupLabel;
 
   layout()->addWidget(groupLabel);
 
