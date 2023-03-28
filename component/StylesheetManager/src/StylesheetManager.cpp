@@ -14,6 +14,7 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "QPushButton[flat=true]{color:white;text-decoration:none;}"
      "QPushButton[flat=true]:hover{color:#74897F;text-decoration:"
      "underline;}"
+     "QTabBar::tab:selected{font-weight:bold;}"
      "GuiManager--Widgets--RecentTableView,GuiManager--Widgets--"
      "RecentTableView * {font-size:14px;}"
      "GuiManager--Widgets--TitleBarMenuButton::menu-indicator{width:0px;}"
