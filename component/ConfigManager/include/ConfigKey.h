@@ -16,6 +16,7 @@ enum class ConfigKey {
 
   // Testing
   TestColor,
+  TestDateTime,
 
   last
 };

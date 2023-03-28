@@ -29,6 +29,8 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "GuiManager--Containers--SettingsContainer "
      "QTreeView{font-size:14px;margin-top:30px;}"
      "GuiManager--Containers--SettingsContainer "
+     "QDateTimeEdit#dateTimeEdit{max-width:145px;}"
+     "GuiManager--Containers--SettingsContainer "
      "QLabel#groupLabel{font-size:20px;font-weight:bold;}"
      "GuiManager--Containers--SettingsContainer "
      "QLabel#nameLabel{font-weight:bold;}"
@@ -38,7 +40,7 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "QSpinBox#longSpinBox{max-width:75px;}"
      "GuiManager--Containers--SettingsContainer "
      "GuiManager--Widgets--SettingsPaneItemWidget{padding:0px;qproperty-"
-     "hoverColor:black;}"}};
+     "hoverColor:#282828;}"}};
 
 StylesheetManager::StylesheetManager() {
   LOG_PERF(0, "Enter");

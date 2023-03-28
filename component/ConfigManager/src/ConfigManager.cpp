@@ -25,7 +25,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
     {ConfigKey::TitleBarMaxTabWidth, "window/titleBarMaxTabWidth"},
     {ConfigKey::TitleBarMenuMinimumSize, "window/xxx/titleBarMenuMinimumWidth"},
-    {ConfigKey::TestColor, "test/testColor"}};
+    {ConfigKey::TestColor, "test/testColor"},
+    {ConfigKey::TestDateTime, "test/testDateTime"}};
 
 QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::Unknown, {"", ""}},
@@ -34,14 +35,17 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::TitleBarMaxTabWidth, {"Maximum width of a title bar tab", ""}},
     {ConfigKey::TitleBarMenuMinimumSize,
      {"Minimum size of the title bar menu", ""}},
-    {ConfigKey::TestColor, {"Test color", "Test color description"}}};
+    {ConfigKey::TestColor, {"Test color", "Test color description"}},
+    {ConfigKey::TestDateTime, {"Test dateTime", "Test dateTime description"}}};
 
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {};
 
 QMap<ConfigKey, QColor> DEFAULT_COLORS = {
     {ConfigKey::TestColor, QColor("#101010")}};
 
-QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {};
+QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {
+  {ConfigKey::TestDateTime, QDateTime::currentDateTime()}
+};
 
 QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::TitleBarHeight, 40},
