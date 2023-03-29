@@ -48,7 +48,7 @@ public:
     threadData.function = function;
     threadData.name = QString::fromStdString(typeid(C).name());
 
-    _threads.append(std::move(threadData));
+    _threads.push_back(std::move(threadData));
 
     waitForComponent();
   }
@@ -73,7 +73,7 @@ public:
       processData.function = function;
       processData.name = QString::fromStdString(typeid(C).name());
 
-      _process.append(processData);
+      _process.push_back(processData);
     }
 
     processData.function();
@@ -92,8 +92,8 @@ private:
   Util::Mutex _threadsMutex;
   Util::Mutex _processMutex;
 
-  QVector<ThreadData> _threads;
-  QVector<ProcessData> _process;
+  std::vector<ThreadData> _threads;
+  std::vector<ProcessData> _process;
 
   bool _done;
   bool _started;
