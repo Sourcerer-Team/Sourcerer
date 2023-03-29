@@ -1,25 +1,21 @@
 #ifndef BLOCKING_QUEUE_H
 #define BLOCKING_QUEUE_H
 
-#include <deque>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
 #include <chrono>
+#include <condition_variable>
+#include <deque>
 #include <functional>
+#include <mutex>
+#include <thread>
 
 using namespace std::chrono_literals;
 
-template <typename T>
-class BlockingQueue
-{
+template <typename T> class BlockingQueue {
 public:
-  T pop()
-  {
+  T pop() {
     std::unique_lock<std::mutex> guard(myMutex);
 
-    while (myQueue.empty())
-    {
+    while (myQueue.empty()) {
       myCondition.wait(guard);
     }
 
@@ -29,12 +25,10 @@ public:
     return item;
   }
 
-  void pop(T& item)
-  {
+  void pop(T &item) {
     std::unique_lock<std::mutex> guard(myMutex);
 
-    while (myQueue.empty())
-    {
+    while (myQueue.empty()) {
       myCondition.wait(guard);
     }
 
@@ -42,108 +36,88 @@ public:
     myQueue.pop_front();
   }
 
-  T pop(int timeout, const T& defaultValue)
-  {
-     std::unique_lock<std::mutex> guard(myMutex);
+  T pop(int timeout, const T &defaultValue) {
+    std::unique_lock<std::mutex> guard(myMutex);
 
-     const auto start = std::chrono::system_clock::now();
-     auto current = start;
+    const auto start = std::chrono::system_clock::now();
+    auto current = start;
 
-     while (myQueue.empty() && std::chrono::duration_cast<std::chrono::milliseconds>(current - start).count() <= timeout)
-     {
-       myCondition.wait_for(guard, timeout * 1ms);
-       current = std::chrono::system_clock::now();
-     }
+    while (
+        myQueue.empty() &&
+        std::chrono::duration_cast<std::chrono::milliseconds>(current - start)
+                .count() <= timeout) {
+      myCondition.wait_for(guard, timeout * 1ms);
+      current = std::chrono::system_clock::now();
+    }
 
-     if(!myQueue.empty())
-     {
-        auto item = myQueue.front();
-        myQueue.pop_front();
+    if (!myQueue.empty()) {
+      auto item = myQueue.front();
+      myQueue.pop_front();
 
-        return item;
-     }
-     else
-     {
-        return defaultValue;
-     }
+      return item;
+    } else {
+      return defaultValue;
+    }
   }
 
-  void push(const T& item)
-  {
+  void push(const T &item) {
     std::unique_lock<std::mutex> guard(myMutex);
     myQueue.push_back(item);
     guard.unlock();
     myCondition.notify_one();
   }
 
-  void push(T&& item)
-  {
+  void push(T &&item) {
     std::unique_lock<std::mutex> guard(myMutex);
     myQueue.push_back(std::move(item));
     guard.unlock();
     myCondition.notify_one();
   }
 
-  void push_front(const T& item)
-  {
+  void push_front(const T &item) {
     std::unique_lock<std::mutex> guard(myMutex);
     myQueue.push_front(item);
     guard.unlock();
     myCondition.notify_one();
   }
 
-  void push_front(T&& item)
-  {
+  void push_front(T &&item) {
     std::unique_lock<std::mutex> guard(myMutex);
     myQueue.push_front(std::move(item));
     guard.unlock();
     myCondition.notify_one();
   }
 
-  void push(const T& item, std::function<bool(const std::deque<T>&)> pred)
-  {
-     std::unique_lock<std::mutex> guard(myMutex);
-     if(!pred(myQueue))
-     {
-        return;
-     }
+  void push(const T &item, std::function<bool(const std::deque<T> &)> pred) {
+    std::unique_lock<std::mutex> guard(myMutex);
+    if (!pred(myQueue)) {
+      return;
+    }
 
-     myQueue.push_back(item);
-     guard.unlock();
-     myCondition.notify_one();
+    myQueue.push_back(item);
+    guard.unlock();
+    myCondition.notify_one();
   }
 
-  bool empty() const
-  {
-     return myQueue.empty();
+  bool empty() const { return myQueue.empty(); }
+
+  size_t size() const { return myQueue.size(); }
+
+  T last(const T &defaultValue) {
+    std::unique_lock<std::mutex> guard(myMutex);
+
+    if (empty()) {
+      return defaultValue;
+    } else {
+      return myQueue.front();
+    }
   }
 
-  size_t size() const
-  {
-     return myQueue.size();
-  }
-
-  T last(const T& defaultValue)
-  {
-     std::unique_lock<std::mutex> guard(myMutex);
-
-     if(empty())
-     {
-        return defaultValue;
-     }
-     else
-     {
-        return myQueue.front();
-     }
-  }
-
-  void transform(std::function<void(T&)> transformFunc)
-  {
-     std::unique_lock<std::mutex> guard(myMutex);
-     for(auto& t : myQueue)
-     {
-         transformFunc(t);
-     }
+  void transform(std::function<void(T &)> transformFunc) {
+    std::unique_lock<std::mutex> guard(myMutex);
+    for (auto &t : myQueue) {
+      transformFunc(t);
+    }
   }
 
 private:
@@ -153,4 +127,3 @@ private:
 };
 
 #endif // BLOCKING_QUEUE_H
-

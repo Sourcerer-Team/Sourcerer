@@ -28,9 +28,9 @@ includeComponent(Sourcerer EventManager)
 includeComponent(Sourcerer GuiManager)
 includeComponent(Sourcerer StylesheetManager)
 
-includeLib(Sourcerer Util)
-
+includeLib(Sourcerer Fsm)
 includeLib(Sourcerer Log)
+includeLib(Sourcerer Util)
 
 target_link_libraries(Sourcerer PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
