@@ -1,24 +1,24 @@
 
-#include "Fsm.h"
+#include "FsmBase.h"
 
 #include <General.h>
 #include <Log.h>
 
 #include <QString>
 
-#define THREAD_ID "Fsm"
+#define THREAD_ID "FsmBase"
 
 const int STOP_EVENT = -1;
 const int CHANGESTATE_EVENT = 0;
 
 namespace Fsm {
 
-Fsm::Fsm() {
+FsmBase::FsmBase() {
   LOG_PERF(0, "Enter");
   LOG_PERF(0, "Exit");
 }
 
-Fsm::~Fsm() {
+FsmBase::~FsmBase() {
   LOG_PERF(0, "Enter");
 
   stop();
@@ -29,19 +29,19 @@ Fsm::~Fsm() {
   LOG_PERF(0, "Exit");
 }
 
-void Fsm::start() {
+void FsmBase::start() {
   LOG_PERF(0, "Enter");
 
   initStateTable(_stateTable);
   initChangeTable(_stateChangeTable);
 
-  std::function<void()> mainLoopFunction = std::bind(&Fsm::mainLoop, this);
+  std::function<void()> mainLoopFunction = std::bind(&FsmBase::mainLoop, this);
   _thread = std::thread{mainLoopFunction};
 
   LOG_PERF(0, "Exit");
 }
 
-void Fsm::stop() {
+void FsmBase::stop() {
   LOG_PERF(0, "Enter");
 
   if (!_thread.joinable()) {
@@ -62,7 +62,7 @@ void Fsm::stop() {
   LOG_PERF(0, "Exit");
 }
 
-void Fsm::send(const FsmEvent &event) {
+void FsmBase::send(const FsmEvent &event) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Sent event {}", eventName(event.type()));
 
@@ -71,12 +71,12 @@ void Fsm::send(const FsmEvent &event) {
   LOG_PERF(0, "Exit");
 }
 
-void Fsm::chageState(int from, int to) {
+void FsmBase::chageState(int from, int to) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Change state from {} to {}", stateName(from), stateName(to));
 
   if (from != to) {
-    if (_stateChangeTable[(int)from][(int)to] == true) {
+    if (_stateChangeTable[from][to] == true) {
       _currentState->exit();
 
       if (_stateTable.find(to) != _stateTable.end()) {
@@ -92,7 +92,7 @@ void Fsm::chageState(int from, int to) {
   LOG_PERF(0, "Exit");
 }
 
-void Fsm::mainLoop() {
+void FsmBase::mainLoop() {
   LOG_PERF(0, "Enter");
 
   General::setThreadName("Fsm thread");

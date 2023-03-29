@@ -8,6 +8,9 @@ set(CMAKE_AUTORCC ON)
 
 set(CMAKE_CXX_STANDARD 17)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
+
+find_package(libgit2 REQUIRED)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets LinguistTools)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets LinguistTools)
 
@@ -25,6 +28,7 @@ include("../cmake/helpers.cmake")
 includeComponent(Sourcerer ComponentManager)
 includeComponent(Sourcerer ConfigManager)
 includeComponent(Sourcerer EventManager)
+includeComponent(Sourcerer GitRepoManager)
 includeComponent(Sourcerer GuiManager)
 includeComponent(Sourcerer StylesheetManager)
 
@@ -32,7 +36,7 @@ includeLib(Sourcerer Fsm)
 includeLib(Sourcerer Log)
 includeLib(Sourcerer Util)
 
-target_link_libraries(Sourcerer PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
+target_link_libraries(Sourcerer PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${LIBGIT2_LIBRARIES})
 
 set_target_properties(Sourcerer PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER www.sourcerer.com

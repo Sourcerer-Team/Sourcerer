@@ -16,10 +16,10 @@ find_package(Threads REQUIRED)
 add_compile_definitions(QT_USE_STRING_BUILDER)
 
 add_library(Fsm STATIC
-    include/Fsm.h
+    include/FsmBase.h
     include/FsmEvent.h
     include/FsmState.h
-    src/Fsm.cpp
+    src/FsmBase.cpp
 )
 
 include(../../cmake/helpers.cmake)

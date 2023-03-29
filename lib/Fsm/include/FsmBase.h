@@ -12,10 +12,10 @@
 
 namespace Fsm {
 
-class Fsm {
+class FsmBase {
 public:
-  Fsm();
-  virtual ~Fsm();
+  FsmBase();
+  virtual ~FsmBase();
 
   void start();
   void stop();
