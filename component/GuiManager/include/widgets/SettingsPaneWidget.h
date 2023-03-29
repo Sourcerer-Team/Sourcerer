@@ -18,7 +18,7 @@ public:
 
   void setGroup(const ConfigManager::ConfigGroup &group);
 
-  QWidget* sectionWidget(const QString& sectionName) const;
+  int sectionPosition(const QString& sectionName) const;
 
 private:
   SettingsPaneItemWidget *createItemWidget(const ConfigManager::ConfigItem& item);
