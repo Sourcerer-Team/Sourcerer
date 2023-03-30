@@ -5,11 +5,9 @@
 #include <spdlog/sinks/septa_file_sink.h>
 #include <spdlog/spdlog.h>
 
-#include <experimental/filesystem>
-
 #include <algorithm>
 #include <chrono>
-#include <experimental/filesystem>
+#include <filesystem>
 #include <pthread.h>
 
 namespace Log {
@@ -59,7 +57,7 @@ void Log::startLogging(::Log::Log::LogLevel logLevel,
                            .count());
     const std::string logDirectory = _logDirectory.toStdString();
 
-    std::experimental::filesystem::create_directories(logDirectory);
+    std::filesystem::create_directories(logDirectory);
     file_logger = spdlog::septa_logger_mt(
         loggerName, logDirectory + "/" + ConfigManager::APPLICATION_NAME,
         _logFileMaxSize * 1024 * 1024, _maxLogFiles);
@@ -95,7 +93,7 @@ QString Log::getCurrentLogName(const QString &logFolder) {
 
   time_t newestTime = 0;
 
-  using std::experimental::filesystem::directory_iterator;
+  using std::filesystem::directory_iterator;
 
   for (const auto &entry : directory_iterator(logFolderStd)) {
     if (entry.path().extension() == ".log") {
