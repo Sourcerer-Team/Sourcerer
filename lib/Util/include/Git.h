@@ -4,13 +4,13 @@
 
 namespace Util {
 
-class GitRepo {
+class Git {
 public:
 
   static QString parseRepoName(const QString& url);
 
 private:
-  GitRepo() = delete;
+  Git() = delete;
 };
 
 } // namespace Util

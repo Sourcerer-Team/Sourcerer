@@ -1,6 +1,6 @@
 #include "models/RecentlyOpenedReposModel.h"
 
-#include <GitRepo.h>
+#include <Git.h>
 #include <Log.h>
 #include <TokenString.h>
 
@@ -57,7 +57,7 @@ void RecentlyOpenedReposModel::load() {
 
   while (tokenizer.hasNext()) {
     url = tokenizer.getNextToken();
-    name = Util::GitRepo::parseRepoName(url);
+    name = Util::Git::parseRepoName(url);
     _recentlyOpened += RecentlyOpenedRepo{url, name};
   }
 

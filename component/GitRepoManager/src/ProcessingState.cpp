@@ -1,6 +1,7 @@
 #include "GitRepoManagerEvent.h"
 #include "ProcessingState.h"
 
+#include <GitRepo.h>
 #include <Log.h>
 
 #define THREAD_ID "ProcessingState"
@@ -39,6 +40,9 @@ bool ProcessingState::process(const Fsm::FsmEvent &event) {
 
 void ProcessingState::exit() {
   LOG_PERF(0, "Enter");
+
+  GitRepo::shutdownForCurrentThread();
+
   LOG_PERF(0, "Exit");
 }
 

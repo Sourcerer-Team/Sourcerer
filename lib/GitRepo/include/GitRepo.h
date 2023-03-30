@@ -2,12 +2,7 @@
 
 namespace GitRepo {
 
-class GitRepo {
-    static void initForCurrentThread();
-    static void shutdownForCurrentThread();
-
-private:
-  GitRepo() = delete;
-};
+void initForCurrentThread();
+void shutdownForCurrentThread();
 
 } // namespace GitRepo

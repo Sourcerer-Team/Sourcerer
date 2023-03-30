@@ -28,6 +28,7 @@ include(../../cmake/helpers.cmake)
 includeComponent(GitRepo ConfigManager)
 
 includeLib(GitRepo Log)
+includeLib(GitRepo Util)
 
 
 target_link_libraries(GitRepo PRIVATE
@@ -40,4 +41,5 @@ target_link_libraries(GitRepo PRIVATE
 
 target_include_directories(GitRepo PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/include
+   ${LIBGIT2_INCLUDE_DIR}
 )

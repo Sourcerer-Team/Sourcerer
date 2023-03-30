@@ -18,12 +18,12 @@ add_compile_definitions(QT_USE_STRING_BUILDER)
 add_library(Util STATIC
    include/FileLock.h
    include/General.h
-   include/GitRepo.h
+   include/Git.h
    include/LockGuard.h
    include/TokenString.h
    src/FileLock.cpp
    src/General.cpp
-   src/GitRepo.cpp
+   src/Git.cpp
    src/LockGuard.cpp
    src/TokenString.cpp
 )

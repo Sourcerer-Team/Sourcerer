@@ -7,7 +7,7 @@
 #include "widgets/TitlebarWidget.h"
 
 #include <ConfigKey.h>
-#include <GitRepo.h>
+#include <Git.h>
 #include <Log.h>
 
 #include <QFileDialog>
@@ -172,7 +172,7 @@ void MainWindow::addGitRepoContainer(const QString &path)
   ContainerWidget *container = new GitRepoContainer(path, this);
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
   _containers += container;
-  _titleBarWidget->addTab(GitRepo::parseRepoName(path));
+  _titleBarWidget->addTab(Git::parseRepoName(path));
   _titleBarWidget->selectTab(_titleBarWidget->tabsCount() - 1);
 
   LOG_PERF(0, "Exit");
