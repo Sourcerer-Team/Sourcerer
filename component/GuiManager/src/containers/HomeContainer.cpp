@@ -27,6 +27,8 @@ HomeContainer::HomeContainer(QWidget *parent)
           &HomeContainer::hoverEnter);
   connect(ui->recentTableView, &RecentTableView::hoverLeave, this,
           &HomeContainer::hoverLeave);
+  connect(ui->openButton, &QPushButton::clicked, this,
+          &HomeContainer::onOpenClicked);
 
   LOG_PERF(0, "Exit");
 }
@@ -74,6 +76,14 @@ void HomeContainer::hoverLeave(const QModelIndex &index) {
   ui->recentTableView->viewport()->update();
 
   setCursor(Qt::ArrowCursor);
+
+  LOG_PERF(0, "Exit");
+}
+
+void HomeContainer::onOpenClicked(bool checked) {
+  LOG_PERF(0, "Enter");
+
+  emit open();
 
   LOG_PERF(0, "Exit");
 }

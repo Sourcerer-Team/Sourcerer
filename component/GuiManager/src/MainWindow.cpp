@@ -10,6 +10,8 @@
 #include <GitRepo.h>
 #include <Log.h>
 
+#include <QFileDialog>
+#include <QStandardPaths>
 #include <QTimer>
 
 #define THREAD_ID "MainWindow"
@@ -77,6 +79,16 @@ void MainWindow::onHome() {
 
 void MainWindow::onOpen() {
   LOG_PERF(0, "Enter");
+
+  const QStringList documentsPaths = QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation);
+  if(documentsPaths.length() == 0) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString path = QFileDialog::getExistingDirectory(this, tr("Open Git repository"), documentsPaths[0]);
+  if(!path.isEmpty())
+    addGitRepoContainer(path);
 
   LOG_PERF(0, "Exit");
 }
@@ -171,11 +183,13 @@ void MainWindow::addHomeContainer() {
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  ContainerWidget *container = new HomeContainer(this);
+  HomeContainer *container = new HomeContainer(this);
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
   _containers += container;
   _titleBarWidget->addTab(tr("Home"));
   _titleBarWidget->selectTab(_titleBarWidget->tabsCount() - 1);
+
+  connect(container, &HomeContainer::open, this, &MainWindow::onOpen);
 
   LOG_PERF(0, "Exit");
 }

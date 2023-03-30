@@ -28,9 +28,13 @@ public:
 
   void reloadRecentlyOpened();
 
+signals:
+  void open();
+
 private slots:
   void hoverEnter(const QModelIndex& index);
   void hoverLeave(const QModelIndex& index);
+  void onOpenClicked(bool checked = false);
 
 private:
   Ui::HomeContainer *ui;

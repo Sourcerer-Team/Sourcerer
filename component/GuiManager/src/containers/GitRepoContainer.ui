@@ -31,7 +31,7 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>345</width>
+            <width>349</width>
             <height>136</height>
            </rect>
           </property>
@@ -44,7 +44,7 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>345</width>
+            <width>349</width>
             <height>136</height>
            </rect>
           </property>
@@ -57,7 +57,7 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>345</width>
+            <width>349</width>
             <height>136</height>
            </rect>
           </property>
@@ -66,6 +66,14 @@
           </attribute>
          </widget>
          <widget class="GuiManager::Widgets::GitSubmodulesPage" name="submodulesPage">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>349</width>
+            <height>136</height>
+           </rect>
+          </property>
           <attribute name="label">
            <string>Submodules</string>
           </attribute>
@@ -75,10 +83,18 @@
       </layout>
      </widget>
      <widget class="QWidget" name="middleVerticalLayoutWidget">
-      <layout class="QVBoxLayout" name="middleVerticalLayout"/>
+      <layout class="QVBoxLayout" name="middleVerticalLayout">
+       <item>
+        <widget class="QStackedWidget" name="middleStackedWidget"/>
+       </item>
+      </layout>
      </widget>
      <widget class="QWidget" name="rightVerticalLayoutWidget">
-      <layout class="QVBoxLayout" name="rightVerticalLayout"/>
+      <layout class="QVBoxLayout" name="rightVerticalLayout">
+       <item>
+        <widget class="QStackedWidget" name="rightStackedWidget"/>
+       </item>
+      </layout>
      </widget>
     </widget>
    </item>
