@@ -8,10 +8,10 @@ namespace Widgets {
 
 enum class ContainerType {
   Unknown = 0,
+  GitRepo,
   Home,
   PleaseWait,
   Settings,
-
   last
 };
 

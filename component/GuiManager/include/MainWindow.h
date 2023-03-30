@@ -33,6 +33,7 @@ private slots:
   void onTabBarResize();
 
 private:
+  void addGitRepoContainer(const QString& path);
   void addHomeContainer();
   void addSettingsContainer();
   void selectContainer(int index);

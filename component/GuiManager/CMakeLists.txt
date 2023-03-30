@@ -18,6 +18,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/GuiManager.h
    include/InitResources.h
    include/MainWindow.h
+   include/containers/GitRepoContainer.h
    include/containers/HomeContainer.h
    include/containers/PleaseWaitContainer.h
    include/containers/SettingsContainer.h
@@ -26,7 +27,11 @@ set(GUIMANAGER_SOURCE_FILES
    include/models/RecentlyOpenedReposModel.h
    include/widgets/ColorButton.h
    include/widgets/ContainerWidget.h
+   include/widgets/GitSubmodulesPage.h
+   include/widgets/GitTagsPage.h
+   include/widgets/LocalGitBranchesPage.h
    include/widgets/RecentTableView.h
+   include/widgets/RemoteGitBranchesPage.h
    include/widgets/SettingsPaneWidget.h
    include/widgets/SettingsPaneItemWidget.h
    include/widgets/SettingsPaneBooleanWidget.h
@@ -42,6 +47,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/GuiManager.cpp
    src/InitResources.cpp
    src/MainWindow.cpp
+   src/containers/GitRepoContainer.cpp
    src/containers/HomeContainer.cpp
    src/containers/PleaseWaitContainer.cpp
    src/containers/SettingsContainer.cpp
@@ -51,7 +57,11 @@ set(GUIMANAGER_SOURCE_FILES
    src/models/RecentlyOpenedReposModel.cpp
    src/widgets/ColorButton.cpp
    src/widgets/ContainerWidget.cpp
+   src/widgets/GitSubmodulesPage.cpp
+   src/widgets/GitTagsPage.cpp
+   src/widgets/LocalGitBranchesPage.cpp
    src/widgets/RecentTableView.cpp
+   src/widgets/RemoteGitBranchesPage.cpp
    src/widgets/SettingsPaneWidget.cpp
    src/widgets/SettingsPaneItemWidget.cpp
    src/widgets/SettingsPaneBooleanWidget.cpp
@@ -63,11 +73,16 @@ set(GUIMANAGER_SOURCE_FILES
    src/widgets/TitleBarMenuButton.cpp
    src/widgets/TitleBarTabBar.cpp
    src/widgets/TitlebarWidget.cpp
-   src/widgets/TitlebarWidget.ui
    src/widgets/factories/SettingsPaneItemWidgetFactory.cpp
+   src/containers/GitRepoContainer.ui
    src/containers/HomeContainer.ui
    src/containers/PleaseWaitContainer.ui
    src/containers/SettingsContainer.ui
+   src/widgets/GitSubmodulesPage.ui
+   src/widgets/GitTagsPage.ui
+   src/widgets/LocalGitBranchesPage.ui
+   src/widgets/RemoteGitBranchesPage.ui
+   src/widgets/TitlebarWidget.ui
    ${QRC_FILES}
    ${TS_FILES}
 )

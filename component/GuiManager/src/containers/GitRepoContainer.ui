@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>GitRepoContainer</class>
+ <widget class="QWidget" name="GitRepoContainer">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>300</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Form</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QSplitter" name="splitter">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <widget class="QWidget" name="leftVerticalLayoutWidget">
+      <layout class="QVBoxLayout" name="leftVerticalLayout">
+       <item>
+        <widget class="QToolBox" name="toolBox">
+         <property name="currentIndex">
+          <number>3</number>
+         </property>
+         <widget class="GuiManager::Widgets::LocalGitBranchesPage" name="localPage">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>345</width>
+            <height>136</height>
+           </rect>
+          </property>
+          <attribute name="label">
+           <string>Local</string>
+          </attribute>
+         </widget>
+         <widget class="GuiManager::Widgets::RemoteGitBranchesPage" name="remotePage">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>345</width>
+            <height>136</height>
+           </rect>
+          </property>
+          <attribute name="label">
+           <string>Remote</string>
+          </attribute>
+         </widget>
+         <widget class="GuiManager::Widgets::GitTagsPage" name="tagsPage">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>345</width>
+            <height>136</height>
+           </rect>
+          </property>
+          <attribute name="label">
+           <string>Tags</string>
+          </attribute>
+         </widget>
+         <widget class="GuiManager::Widgets::GitSubmodulesPage" name="submodulesPage">
+          <attribute name="label">
+           <string>Submodules</string>
+          </attribute>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="middleVerticalLayoutWidget">
+      <layout class="QVBoxLayout" name="middleVerticalLayout"/>
+     </widget>
+     <widget class="QWidget" name="rightVerticalLayoutWidget">
+      <layout class="QVBoxLayout" name="rightVerticalLayout"/>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>GuiManager::Widgets::LocalGitBranchesPage</class>
+   <extends>QWidget</extends>
+   <header>widgets/LocalGitBranchesPage.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>GuiManager::Widgets::RemoteGitBranchesPage</class>
+   <extends>QWidget</extends>
+   <header>widgets/RemoteGitBranchesPage.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>GuiManager::Widgets::GitTagsPage</class>
+   <extends>QWidget</extends>
+   <header>widgets/GitTagsPage.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>GuiManager::Widgets::GitSubmodulesPage</class>
+   <extends>QWidget</extends>
+   <header>widgets/GitSubmodulesPage.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,11 +1,13 @@
 #include "MainWindow.h"
+#include <containers/GitRepoContainer.h>
 #include "containers/HomeContainer.h"
+#include <containers/PleaseWaitContainer.h>
 #include "containers/SettingsContainer.h"
 #include "dialogs/AboutDialog.h"
 #include "widgets/TitlebarWidget.h"
-#include <containers/PleaseWaitContainer.h>
 
 #include <ConfigKey.h>
+#include <GitRepo.h>
 #include <Log.h>
 
 #include <QTimer>
@@ -16,6 +18,7 @@ namespace GuiManager {
 
 using namespace Containers;
 using namespace Dialogs;
+using namespace Util;
 
 const int TOP_MARGIN_OFFSET = 10;
 
@@ -144,6 +147,21 @@ void MainWindow::onTabBarResize() {
   LOG_PERF(0, "Enter");
 
   _centralWidget->updateWindow();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addGitRepoContainer(const QString &path)
+{
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  ContainerWidget *container = new GitRepoContainer(path, this);
+  container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
+  _containers += container;
+  _titleBarWidget->addTab(GitRepo::parseRepoName(path));
+  _titleBarWidget->selectTab(_titleBarWidget->tabsCount() - 1);
 
   LOG_PERF(0, "Exit");
 }
