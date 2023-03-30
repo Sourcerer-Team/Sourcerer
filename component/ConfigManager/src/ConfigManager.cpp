@@ -41,7 +41,7 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {};
 
 QMap<ConfigKey, QColor> DEFAULT_COLORS = {
-    {ConfigKey::TestColor, QColor("#101010")}};
+    {ConfigKey::TestColor, QColor(10, 10, 10)}};
 
 QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {
   {ConfigKey::TestDateTime, QDateTime::currentDateTime()}

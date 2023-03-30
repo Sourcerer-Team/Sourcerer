@@ -11,7 +11,7 @@ namespace Widgets {
 
 class SettingsPaneItemWidget : public QWidget {
   Q_OBJECT
-  Q_PROPERTY(QColor hoverColor READ hoverColor WRITE setHoverColor)
+  Q_PROPERTY(QColor hoverColor READ hoverColor WRITE setHoverColor NOTIFY hoverColorChanged)
 public:
   explicit SettingsPaneItemWidget(const ConfigManager::ConfigItem &item,
                                   QWidget *parent = nullptr);
@@ -24,6 +24,9 @@ public:
   // QObject interface
 public:
   bool eventFilter(QObject *watched, QEvent *event) override;
+
+signals:
+  void hoverColorChanged();
 
 protected:
   virtual QWidget *createWidget() = 0;
