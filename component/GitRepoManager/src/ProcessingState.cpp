@@ -145,6 +145,8 @@ void ProcessingState::reportError(Structs::GitRepoErrorType errorType,
 void ProcessingState::workersThreadFunc(const QString &uuid) {
   LOG_PERF(0, "Enter");
 
+  GitRepo::initForCurrentThread();
+
   bool quit = false;
 
   while (!quit) {
@@ -192,6 +194,8 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
 
     delete command;
   }
+
+  GitRepo::shutdownForCurrentThread();
 
   LOG_PERF(0, "Exit");
 }

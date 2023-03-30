@@ -35,6 +35,13 @@ void FsmBase::start() {
   initStateTable(_stateTable);
   initChangeTable(_stateChangeTable);
 
+  _currentState = firstState(_stateTable);
+  if(!_currentState) {
+    LOG_ERROR(Log::ErrorId::Generic, "Internal error. First state not initialized.");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   std::function<void()> mainLoopFunction = std::bind(&FsmBase::mainLoop, this);
   _thread = std::thread{mainLoopFunction};
 

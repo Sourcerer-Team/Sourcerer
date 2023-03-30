@@ -31,6 +31,8 @@ GitRepoManager::~GitRepoManager() {
 void GitRepoManager::start() {
   LOG_PERF(0, "Enter");
 
+  _fsm.start();
+
   EventManager::Event startedEvent(EventManager::EventType::ComponentStarted);
   _eventManager.send(startedEvent);
 

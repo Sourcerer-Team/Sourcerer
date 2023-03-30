@@ -5,11 +5,27 @@
 #include "InitializationState.h"
 #include "ProcessingState.h"
 
+#include <Log.h>
+
+#define THREAD_ID "GitRepoManagerFsm"
+
 namespace GitRepoManager {
 
 GitRepoManager::GitRepoManagerFsm::GitRepoManagerFsm() : Fsm::FsmBase() {}
 
 GitRepoManagerFsm::~GitRepoManagerFsm() {}
+
+void GitRepoManagerFsm::start()
+{
+    LOG_PERF(0, "Enter");
+
+    Fsm::FsmBase::start();
+
+    GitRepoManagerEvent setupEvent(EventType::Setup);
+    send(setupEvent);
+
+    LOG_PERF(0, "Exit");
+}
 
 QString GitRepoManagerFsm::stateName(int state) const
 {
@@ -31,14 +47,36 @@ QString GitRepoManagerFsm::eventName(int event) const
 
 void GitRepoManagerFsm::initStateTable(QMap<int, Fsm::FsmState *> &table)
 {
+  LOG_PERF(0, "Enter");
+
   table[(int)StateType::Initialization] = new InitializationState(*this);
   table[(int)StateType::Processing] = new ProcessingState(*this);
+
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoManagerFsm::initChangeTable(QMap<int, QMap<int, bool> > &table)
 {
+  LOG_PERF(0, "Enter");
+
   table[(int)StateType::Initialization][(int)StateType::Processing] = true;
   table[(int)StateType::Processing][(int)StateType::Initialization] = true;
+
+  LOG_PERF(0, "Exit");
+}
+
+Fsm::FsmState *GitRepoManagerFsm::firstState(const QMap<int, Fsm::FsmState *> &table) const
+{
+  LOG_PERF(0, "Enter");
+
+  const auto it = table.constFind((int)StateType::Initialization);
+  if(it == table.constEnd()) {
+      LOG_PERF(0, "Exit");
+      return nullptr;
+  } else {
+      LOG_PERF(0, "Exit");
+      return *it;
+  }
 }
 
 } // namespace GitRepoManager

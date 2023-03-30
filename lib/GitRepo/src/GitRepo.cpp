@@ -35,17 +35,19 @@ git_repository *openRepository(const QString &path) {
 
   if (error) {
     const git_error *gitError = git_error_last();
+    LOG_ERROR(Log::ErrorId::Git,
+              "Error is {}, error klass is {}, error message is '{}'", error,
+              gitError->klass, gitError->message);
   }
 
   LOG_PERF(0, "Exit");
   return repo;
 }
 
-void closeRepository(git_repository *repo)
-{
+void closeRepository(git_repository *repo) {
   LOG_PERF(0, "Enter");
 
-  if(!repo) {
+  if (!repo) {
     LOG_PERF(0, "Exit");
     return;
   }
