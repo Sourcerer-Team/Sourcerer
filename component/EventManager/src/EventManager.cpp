@@ -60,7 +60,8 @@ void EventManager::unsubscribe(EventType eventType, CallbackType callback) {
 
 void EventManager::send(Event event) {
   LOCKGUARD(_queueLocker);
-  const std::vector<CallbackType> &callbacks = _subscribers[event._type];
+  const EventType type = event.type();
+  const std::vector<CallbackType> &callbacks = _subscribers[type];
   const size_t callbackSize = callbacks.size();
 
   if (callbackSize > 0) {
@@ -70,10 +71,10 @@ void EventManager::send(Event event) {
 
       _eventsQueue.push({EventDataFunction});
 
-      LOG_DEBUG("Event has been queued: %1", static_cast<int>(event._type));
+      LOG_DEBUG("Event has been queued: {}", static_cast<int>(type));
     }
   } else
-    LOG_DEBUG("Event has NOT been queued: %1", static_cast<int>(event._type));
+    LOG_DEBUG("Event has NOT been queued: {}", static_cast<int>(type));
 }
 
 void EventManager::start() {

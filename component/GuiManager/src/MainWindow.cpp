@@ -33,7 +33,7 @@ MainWindow::MainWindow(QWidget *parent)
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
 
-  LOG_INFO("TitleBar height is %1 pixels.", titleBarHeight);
+  LOG_DEBUG("TitleBar height is {} pixels.", titleBarHeight);
 
   _centralWidget->setIconVisible(false);
   _centralWidget->setTitleVisible(false);
@@ -127,10 +127,10 @@ void MainWindow::onAbout() {
 void MainWindow::onClosedTab(int index) {
 
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("index is %1.", index);
+  LOG_DEBUG("index is {}.", index);
 
   if (index < 0 || index >= _containers.length()) {
-    LOG_WARN("Invalid tab index %1.", index);
+    LOG_WARN("Invalid tab index {}.", index);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -210,10 +210,10 @@ void MainWindow::addSettingsContainer() {
 
 void MainWindow::selectContainer(int index) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("index is %1.", index);
+  LOG_DEBUG("index is {}.", index);
 
   if (index < 0 || index >= _containers.length()) {
-    LOG_WARN("Invalid tab index %1.", index);
+    LOG_WARN("Invalid tab index {}.", index);
     LOG_PERF(0, "Exit");
     return;
   }

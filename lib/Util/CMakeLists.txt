@@ -21,11 +21,13 @@ add_library(Util STATIC
    include/Git.h
    include/LockGuard.h
    include/TokenString.h
+   include/Uuid.h
    src/FileLock.cpp
    src/General.cpp
    src/Git.cpp
    src/LockGuard.cpp
    src/TokenString.cpp
+   src/Uuid.cpp
 )
 
 include(../../cmake/helpers.cmake)

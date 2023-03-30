@@ -11,7 +11,7 @@ public:
   // FsmState interface
 public:
   void enter() override;
-  bool process(const Fsm::FsmEvent &event) override;
+  bool process(Fsm::FsmEvent event) override;
   void exit() override;
 };
 

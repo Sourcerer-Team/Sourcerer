@@ -21,7 +21,7 @@ TitleBarTabBar::TitleBarTabBar(QWidget *parent)
   _maximumTabWidth =
       configManager.getLong(ConfigManager::ConfigKey::TitleBarMaxTabWidth);
 
-  LOG_DEBUG("Maximum tab width is %1 pixels.", _maximumTabWidth);
+  LOG_DEBUG("Maximum tab width is {} pixels.", _maximumTabWidth);
 
   LOG_PERF(0, "Exit");
 }

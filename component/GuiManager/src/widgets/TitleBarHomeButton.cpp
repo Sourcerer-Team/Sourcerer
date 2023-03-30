@@ -50,7 +50,7 @@ void TitleBarHomeButton::onClicked() {
 
 bool TitleBarHomeButton::hover(QHoverEvent *event, bool entered) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Entered is '%1'", entered);
+  LOG_DEBUG("Entered is '{}'", entered);
 
   setDown(entered);
 

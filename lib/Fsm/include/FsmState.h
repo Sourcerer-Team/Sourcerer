@@ -11,7 +11,7 @@ public:
   virtual ~FsmState() {}
 
   virtual void enter() = 0;
-  virtual bool process(const FsmEvent &event) = 0;
+  virtual bool process(FsmEvent event) = 0;
   virtual void exit() = 0;
 
   int type() { return _type; }

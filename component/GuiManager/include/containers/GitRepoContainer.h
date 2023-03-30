@@ -2,6 +2,8 @@
 
 #include "widgets/ContainerWidget.h"
 
+#include <EventManager.h>
+
 #include <QWidget>
 
 namespace Ui {
@@ -16,12 +18,17 @@ class GitRepoContainer : public Widgets::ContainerWidget {
   Q_OBJECT
 
 public:
-  explicit GitRepoContainer(const QString& path, QWidget *parent = nullptr);
+  explicit GitRepoContainer(const QString &path, QWidget *parent = nullptr);
   ~GitRepoContainer();
 
 private:
+  void refreshViews();
+
+private:
   Ui::GitRepoContainer *ui;
+  QString _uuid;
   QString _path;
+  EventManager::EventManager &_eventManager;
 };
 
 } // namespace Containers

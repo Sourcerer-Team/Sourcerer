@@ -80,7 +80,7 @@ void SettingsPaneLongWidget::save() const {
 
 void SettingsPaneLongWidget::onValueChanged(int value) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Value is %1", value);
+  LOG_DEBUG("Value is {}", value);
 
   item().setValue(value);
   save();

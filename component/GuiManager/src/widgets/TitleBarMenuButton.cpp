@@ -124,7 +124,7 @@ QMenu *TitleBarMenuButton::createMenu() {
   const qlonglong menuMinimumWidth =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarMenuMinimumSize);
 
-  LOG_DEBUG("Menu minimum width is %1 pixels.", menuMinimumWidth);
+  LOG_DEBUG("Menu minimum width is {} pixels.", menuMinimumWidth);
 
   menu->setMinimumWidth(menuMinimumWidth);
 
@@ -140,7 +140,7 @@ QMenu *TitleBarMenuButton::createMenu() {
 
 bool TitleBarMenuButton::hover(QHoverEvent *event, bool entered) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Entered is '%1'", entered);
+  LOG_DEBUG("Entered is '{}'", entered);
 
   setDown(entered);
 

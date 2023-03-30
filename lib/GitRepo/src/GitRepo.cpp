@@ -3,8 +3,6 @@
 
 #include <Log.h>
 
-#include <git2/global.h>
-
 #define THREAD_ID "GitRepo"
 
 namespace GitRepo {
@@ -14,7 +12,7 @@ void initForCurrentThread() {
 
   const int numberOfCalls = git_libgit2_init();
 
-  LOG_DEBUG("Number of initializations is %1", numberOfCalls);
+  LOG_DEBUG("Number of initializations is {}", numberOfCalls);
 
   LOG_PERF(0, "Exit");
 }
@@ -24,7 +22,33 @@ void shutdownForCurrentThread() {
 
   const int numberofRemaining = git_libgit2_shutdown();
 
-  LOG_DEBUG("Number of remaining initializations is %1", numberofRemaining);
+  LOG_DEBUG("Number of remaining initializations is {}", numberofRemaining);
+
+  LOG_PERF(0, "Exit");
+}
+
+git_repository *openRepository(const QString &path) {
+  LOG_PERF(0, "Enter");
+
+  git_repository *repo = nullptr;
+  const int error = git_repository_open(&repo, path.toStdString().c_str());
+
+  if (error) {
+    const git_error *gitError = git_error_last();
+  }
+
+  LOG_PERF(0, "Exit");
+  return repo;
+}
+
+void closeRepository(git_repository *repo)
+{
+  LOG_PERF(0, "Enter");
+
+  if(!repo) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   LOG_PERF(0, "Exit");
 }

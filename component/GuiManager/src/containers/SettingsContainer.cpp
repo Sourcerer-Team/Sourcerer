@@ -55,7 +55,7 @@ SettingsContainer::~SettingsContainer() {
 
 void SettingsContainer::onSplitterMoved(int pos, int index) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("pos = %1, index = %2", pos, index);
+  LOG_DEBUG("pos = {}, index = {}", pos, index);
 
   const QString splitterState = ui->splitter->saveState().toHex();
   _configManager.setString(ConfigManager::ConfigKey::SettingsSplitterPos,
@@ -69,7 +69,7 @@ void SettingsContainer::onTreeViewClicked(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
   const QString sectionName = index.data().toString();
-  LOG_DEBUG("Clicked on section name '%1'", sectionName);
+  LOG_DEBUG("Clicked on section name '{}'", sectionName);
 
   const int sectionPosition = ui->groupsPaneWidget->sectionPosition(sectionName);
   if (sectionPosition != -1)

@@ -19,7 +19,7 @@ ColorButton::ColorButton(const QColor &color, QWidget *parent)
 
 void ColorButton::setColor(const QColor &color) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Set button color '#%1", color.name());
+  LOG_DEBUG("Set button color '{}", color.name());
 
   _color = color;
   setStyleSheet(QString("background-color:%1").arg(_color.name()));

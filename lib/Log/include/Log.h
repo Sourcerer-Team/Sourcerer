@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Formatters.h"
+
 #include <ConfigManager.h>
 #include <LockGuard.h>
 
@@ -203,6 +205,7 @@ enum ErrorId {
   DateTime = -6,
   Logic = -7,
   Config = -8,
+  Git = -9
 };
 
 class Log {
@@ -240,7 +243,8 @@ public:
   template <typename... Args>
   inline void info(QString threadId, QString function, int line,
                    QString message, const Args &...args) {
-    info(threadId, function, line, QString(message).arg(args...));
+    info(threadId, function, line,
+         QString::fromStdString(fmt::format(message.toStdString(), args...)));
   }
 
   template <typename... Args>
@@ -248,31 +252,36 @@ public:
                     ErrorId idError, const std::exception *exception,
                     QString message, const Args &...args) {
     error(threadId, function, line, idError, exception,
-          QString(message).arg(args...));
+          QString::fromStdString(fmt::format(message.toStdString(), args...)));
   }
 
   template <typename... Args>
   inline void perf(QString threadId, QString function, int line, int duration,
                    QString message, const Args &...args) {
-    perf(threadId, function, line, duration, QString(message).arg(args...));
+    perf(threadId, function, line, duration,
+         QString::fromStdString(fmt::format(message.toStdString(), args...)));
   }
 
   template <typename... Args>
   inline void warning(QString threadId, QString function, int line,
                       ErrorId warningId, QString message, const Args &...args) {
-    warning(threadId, function, line, warningId, QString(message).arg(args...));
+    warning(
+        threadId, function, line, warningId,
+        QString::fromStdString(fmt::format(message.toStdString(), args...)));
   }
 
   template <typename... Args>
   inline void debug(QString threadId, QString function, int line,
                     QString message, const Args &...args) {
-    debug(threadId, function, line, QString(message).arg(args...));
+    debug(threadId, function, line,
+          QString::fromStdString(fmt::format(message.toStdString(), args...)));
   }
 
   template <typename... Args>
   inline void init(QString threadId, QString function, int line,
                    QString message, const Args &...args) {
-    init(threadId, function, line, QString(message).arg(args...));
+    init(threadId, function, line,
+         QString::fromStdString(fmt::format(message.toStdString(), args...)));
   }
 
   template <typename... Args>
@@ -281,8 +290,10 @@ public:
                                 const std::exception *exception,
                                 QString corelationId, QString message,
                                 const Args &...args) {
-    infoCorrelation(threadId, function, line, idError, exception,
-                    QString(message).arg(args...), corelationId);
+    infoCorrelation(
+        threadId, function, line, idError, exception,
+        QString::fromStdString(fmt::format(message.toStdString(), args...)),
+        corelationId);
   }
 
   template <typename... Args>
@@ -291,40 +302,50 @@ public:
                                  const std::exception *exception,
                                  QString corelationId, QString message,
                                  const Args &...args) {
-    errorCorrelation(threadId, function, line, idError, exception,
-                     QString(message).arg(args...), corelationId);
+    errorCorrelation(
+        threadId, function, line, idError, exception,
+        QString::fromStdString(fmt::format(message.toStdString(), args...)),
+        corelationId);
   }
 
   template <typename... Args>
   inline void perfCorrelationId(QString threadId, QString function, int line,
                                 int duration, QString corelationId,
                                 QString message, const Args &...args) {
-    perfCorrelation(threadId, function, line, duration,
-                    QString(message).arg(args...), corelationId);
+    perfCorrelation(
+        threadId, function, line, duration,
+        QString::fromStdString(fmt::format(message.toStdString(), args...)),
+        corelationId);
   }
 
   template <typename... Args>
   inline void warningCorrelationId(QString threadId, QString function, int line,
                                    ErrorId warningId, QString corelationId,
                                    QString message, const Args &...args) {
-    warningCorrelation(threadId, function, line, warningId,
-                       QString(message).arg(args...), corelationId);
+    warningCorrelation(
+        threadId, function, line, warningId,
+        QString::fromStdString(fmt::format(message.toStdString(), args...)),
+        corelationId);
   }
 
   template <typename... Args>
   inline void debugCorrelationId(QString threadId, QString function, int line,
                                  QString corelationId, QString message,
                                  const Args &...args) {
-    debugCorrelation(threadId, function, line, QString(message).arg(args...),
-                     corelationId);
+    debugCorrelation(
+        threadId, function, line,
+        QString::fromStdString(fmt::format(message.toStdString(), args...)),
+        corelationId);
   }
 
   template <typename... Args>
   inline void initCorrelationId(QString threadId, QString function, int line,
                                 QString corelationId, QString message,
                                 const Args &...args) {
-    initCorrelation(threadId, function, line, QString(message).arg(args...),
-                    corelationId);
+    initCorrelation(
+        threadId, function, line,
+        QString::fromStdString(fmt::format(message.toStdString(), args...)),
+        corelationId);
   }
 
   enum LogLevel {

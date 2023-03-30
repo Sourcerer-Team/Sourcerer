@@ -45,14 +45,14 @@ void ComponentManager::waitForComponent() {
 
   if (!_started) {
     LOG_ERROR(Log::ErrorId::Generic,
-              "Component didn't start in %1 milliseconds", end - start);
+              "Component didn't start in {} milliseconds", end - start);
   } else {
-    LOG_DEBUG("Component started in %1 milliseconds", end - start);
+    LOG_DEBUG("Component started in {} milliseconds", end - start);
   }
 }
 
 void ComponentManager::eventCallback(EventManager::Event event) {
-  switch (event._type) {
+  switch (event.type()) {
   case EventManager::EventType::ComponentStarted: {
     _started = true;
     break;

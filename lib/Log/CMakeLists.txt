@@ -12,6 +12,7 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Widgets LinguistTools
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
 
 set(LOG_SOURCE_FILES
+   include/Formatters.h
    include/Log.h
    src/Log.cpp
 )

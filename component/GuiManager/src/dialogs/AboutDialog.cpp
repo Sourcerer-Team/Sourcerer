@@ -20,7 +20,7 @@ AboutDialog::AboutDialog(QWidget *parent)
 
   const QString appVersion = _configManager.getAppVersion();
 
-  LOG_DEBUG("Application version is '%1'.", appVersion);
+  LOG_DEBUG("Application version is '{}'.", appVersion);
 
   ui->versionLabel->setText(tr("Version:") + " " + appVersion);
 

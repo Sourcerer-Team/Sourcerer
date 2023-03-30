@@ -1,7 +1,6 @@
 #include "InitializationState.h"
 #include "GitRepoManagerEvent.h"
 
-#include <GitRepo.h>
 #include <Log.h>
 
 #define THREAD_ID "InitializationState"
@@ -16,13 +15,10 @@ InitializationState::InitializationState(GitRepoManagerFsm &fsm)
 
 void InitializationState::enter() {
   LOG_PERF(0, "Enter");
-
-  GitRepo::initForCurrentThread();
-
   LOG_PERF(0, "Exit");
 }
 
-bool InitializationState::process(const Fsm::FsmEvent &event) {
+bool InitializationState::process(Fsm::FsmEvent event) {
   LOG_PERF(0, "Enter");
 
   const EventType type = static_cast<EventType>(event.type());

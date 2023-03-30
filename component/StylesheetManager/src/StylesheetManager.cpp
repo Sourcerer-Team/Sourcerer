@@ -60,7 +60,7 @@ StylesheetManager &StylesheetManager::getInstance() {
 
 const QString &StylesheetManager::stylesheet(StylesheetKey key) const {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Stylesheet %1 requested.", (int)key);
+  LOG_DEBUG("Stylesheet {} requested.", (int)key);
 
   LOG_PERF(0, "Exit");
 

@@ -34,7 +34,7 @@ void SettingsPaneWidget::setGroup(const ConfigManager::ConfigGroup &group) {
 int SettingsPaneWidget::sectionPosition(const QString &sectionName) const
 {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Scroll to section '%1'", sectionName);
+  LOG_DEBUG("Scroll to section '{}'", sectionName);
 
   QWidget *widget = _sections[sectionName];
   if(!widget) {
@@ -52,7 +52,7 @@ SettingsPaneItemWidget *
 SettingsPaneWidget::createItemWidget(const ConfigManager::ConfigItem &item) {
   LOG_PERF(0, "Enter");
 
-  LOG_DEBUG("Recreating item '%1'.", item.key());
+  LOG_DEBUG("Recreating item '{}'.", item.key());
 
   Factories::SettingsPaneItemWidgetFactory &factory =
       Factories::SettingsPaneItemWidgetFactory::getInstance();
@@ -87,7 +87,7 @@ void SettingsPaneWidget::recreate() {
 void SettingsPaneWidget::recreateGroup(const ConfigManager::ConfigGroup &group) {
   LOG_PERF(0, "Enter");
 
-  LOG_DEBUG("Recreating group '%1'.", group.name());
+  LOG_DEBUG("Recreating group '{}'.", group.name());
 
   QString groupName = group.name();
   if (groupName.length() > 0)

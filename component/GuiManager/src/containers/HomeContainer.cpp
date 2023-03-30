@@ -52,7 +52,7 @@ void HomeContainer::reloadRecentlyOpened() {
 
 void HomeContainer::hoverEnter(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Row: %1, Column: %2", index.row(), index.column());
+  LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
 
   if (index.column() != 0) {
     setCursor(Qt::ArrowCursor);
@@ -70,7 +70,7 @@ void HomeContainer::hoverEnter(const QModelIndex &index) {
 
 void HomeContainer::hoverLeave(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Row: %1, Column: %2", index.row(), index.column());
+  LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
 
   _itemDelegate->setHover(QModelIndex());
   ui->recentTableView->viewport()->update();

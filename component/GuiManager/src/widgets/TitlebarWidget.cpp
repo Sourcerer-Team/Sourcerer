@@ -82,7 +82,7 @@ void TitlebarWidget::selectTab(int index) {
 
   const int count = tabsCount();
   if (index < 0 || index > count - 1) {
-    LOG_WARN("Tried to selected invalid tab with index %1.", index);
+    LOG_WARN("Tried to selected invalid tab with index {}.", index);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -97,7 +97,7 @@ int TitlebarWidget::tabsCount() const {
 
   const int count = ui->tabBar->count();
 
-  LOG_DEBUG("Tabs count is %1.", count);
+  LOG_DEBUG("Tabs count is {}.", count);
 
   LOG_PERF(0, "Exit");
 

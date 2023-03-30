@@ -72,7 +72,7 @@ void SettingsPaneItemWidget::save() const {
 
 bool SettingsPaneItemWidget::hover(QHoverEvent *event, bool entered) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Entered is '%1'", entered);
+  LOG_DEBUG("Entered is '{}'", entered);
 
   QPalette palette;
   if(entered)
