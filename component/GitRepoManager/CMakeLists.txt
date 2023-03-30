@@ -8,9 +8,6 @@ project(GitRepoManager)
 
 set(CMAKE_CXX_STANDARD 17)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
-
-find_package(libgit2 REQUIRED)
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
 find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
 
@@ -37,6 +34,7 @@ includeComponent(GitRepoManager ConfigManager)
 includeComponent(GitRepoManager EventManager)
 
 includeLib(GitRepoManager Fsm)
+includeLib(GitRepoManager GitRepo)
 includeLib(GitRepoManager Log)
 includeLib(GitRepoManager Util)
 
@@ -44,7 +42,6 @@ target_link_libraries(GitRepoManager PRIVATE
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Gui
     Qt${QT_VERSION_MAJOR}::Widgets
-    ${LIBGIT2_LIBRARIES}
 )
 
 target_include_directories(GitRepoManager PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
