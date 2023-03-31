@@ -55,6 +55,8 @@ void GitRepoManager::start() {
 void GitRepoManager::stop() {
   LOG_PERF(0, "Enter");
 
+  _fsm.stop();
+
   EventManager::Event stoppedEvent(EventManager::EventType::ComponentStopped);
   _eventManager.send(stoppedEvent);
 

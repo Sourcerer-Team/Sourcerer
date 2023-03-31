@@ -2,17 +2,18 @@
 
 #include "GitRepoManagerFsm.h"
 
+#include <Component.h>
 #include <EventManager.h>
 
 namespace GitRepoManager {
 
-class GitRepoManager {
+class GitRepoManager : public ComponentManager::Component {
 public:
   GitRepoManager();
   virtual ~GitRepoManager();
 
-  void start();
-  void stop();
+  void start() override;
+  void stop() override;
 
 private:
   void eventCallback(const EventManager::Event &event);

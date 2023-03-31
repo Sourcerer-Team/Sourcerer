@@ -70,6 +70,12 @@ void GuiManager::start() {
 
 void GuiManager::stop() {
   LOG_PERF(0, "Enter");
+
+  EventManager::Event stoppedEvent(EventManager::EventType::ComponentStopped);
+  EventManager::EventManager &eventManager =
+      EventManager::EventManager::getInstance();
+  eventManager.send(stoppedEvent);
+
   LOG_PERF(0, "Exit");
 }
 

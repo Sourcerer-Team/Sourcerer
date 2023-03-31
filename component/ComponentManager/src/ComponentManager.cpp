@@ -14,23 +14,65 @@ namespace ComponentManager {
 
 using namespace std::chrono_literals;
 
-ComponentManager::ComponentManager() : _done(false) {
+ComponentManager::ComponentManager()
+    : _started(false), _stopped(false),
+      _eventManager(EventManager::EventManager::getInstance()) {
+  LOG_PERF(0, "Enter");
+
   const auto waitFunc =
       std::bind(&ComponentManager::eventCallback, this, std::placeholders::_1);
-  EventManager::EventManager &controller =
-      EventManager::EventManager::getInstance();
-  controller.subscribe(EventManager::EventType::ComponentStarted, waitFunc);
+
+  _eventManager.subscribe(EventManager::EventType::ComponentStarted, waitFunc);
+  _eventManager.subscribe(EventManager::EventType::ComponentStopped, waitFunc);
+
+  LOG_PERF(0, "Exit");
 }
 
-ComponentManager::~ComponentManager() {}
+ComponentManager::~ComponentManager() {
+  LOG_PERF(0, "Enter");
+
+  const auto waitFunc =
+      std::bind(&ComponentManager::eventCallback, this, std::placeholders::_1);
+
+  _eventManager.unsubscribe(EventManager::EventType::ComponentStarted, waitFunc);
+  _eventManager.unsubscribe(EventManager::EventType::ComponentStopped, waitFunc);
+
+  LOG_PERF(0, "Exit");
+}
 
 void ComponentManager::stopAll() {
-  _done = true;
+  LOG_PERF(0, "Enter");
 
-  exit(0);
+  for (int i = _process.length() - 1; i >= 0; --i) {
+    Component *component = _process[i];
+    if (component) {
+      _stopped = false;
+      component->stop();
+      waitForComponentToStop();
+      delete component;
+    }
+  }
+
+  _process.clear();
+
+  for (int i = _threads.length() - 1; i >= 0; --i) {
+    Component *component = _threads[i];
+    if (component) {
+      _stopped = false;
+      component->stop();
+      waitForComponentToStop();
+      delete component;
+    }
+  }
+
+  _threads.clear();
+
+  LOG_PERF(0, "Exit");
 }
 
-void ComponentManager::waitForComponent() {
+void ComponentManager::waitForComponentToStart() {
+  LOG_PERF(0, "Enter");
+
   using namespace std::chrono;
   const uint64_t start =
       duration_cast<milliseconds>(system_clock::now().time_since_epoch())
@@ -49,18 +91,57 @@ void ComponentManager::waitForComponent() {
   } else {
     LOG_DEBUG("Component started in {} milliseconds", end - start);
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ComponentManager::waitForComponentToStop() {
+  LOG_PERF(0, "Enter");
+
+  using namespace std::chrono;
+  const uint64_t start =
+      duration_cast<milliseconds>(system_clock::now().time_since_epoch())
+          .count();
+  uint64_t end = start;
+
+  while (!_stopped && (end - start < 30000)) {
+    std::this_thread::sleep_for(1ms);
+    end = duration_cast<milliseconds>(system_clock::now().time_since_epoch())
+              .count();
+  }
+
+  if (!_stopped) {
+    LOG_ERROR(Log::ErrorId::Generic,
+              "Component didn't start in {} milliseconds", end - start);
+  } else {
+    LOG_DEBUG("Component started in {} milliseconds", end - start);
+  }
+
+  LOG_PERF(0, "Exit");
 }
 
 void ComponentManager::eventCallback(EventManager::Event event) {
-  switch (event.type()) {
+  LOG_PERF(0, "Enter");
+
+  const EventManager::EventType eventType = event.type();
+
+  LOG_DEBUG("Received event of type {}.", (int)eventType);
+
+  switch (eventType) {
   case EventManager::EventType::ComponentStarted: {
     _started = true;
+    break;
+  }
+  case EventManager::EventType::ComponentStopped: {
+    _stopped = true;
     break;
   }
   default: {
     break;
   }
   }
+
+  LOG_PERF(0, "Exit");
 }
 
 } // namespace ComponentManager

@@ -35,6 +35,7 @@ add_library(GitRepoManager STATIC ${GITREPOMANAGER_SOURCE_FILES})
 
 include(../../cmake/helpers.cmake)
 
+includeComponent(GitRepoManager ComponentManager)
 includeComponent(GitRepoManager ConfigManager)
 includeComponent(GitRepoManager EventManager)
 

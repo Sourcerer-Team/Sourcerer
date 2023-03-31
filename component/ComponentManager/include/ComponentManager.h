@@ -1,11 +1,10 @@
 #pragma once
 
+#include "Component.h"
+
 #include <EventManager.h>
 #include <LockGuard.h>
 #include <Log.h>
-
-#include <future>
-#include <thread>
 
 #include <QString>
 #include <QVector>
@@ -15,75 +14,53 @@ namespace ComponentManager {
 class ComponentManager {
 public:
   ComponentManager();
-  ~ComponentManager();
-
-  struct ThreadData {
-    std::thread thread;
-    std::function<void()> function;
-    QString name;
-  };
-
-  struct ProcessData {
-    std::function<void()> function;
-    QString name;
-  };
+  virtual ~ComponentManager();
 
   template <typename C> void addThread() {
     const QString THREAD_ID = "ComponentManager";
 
+    LOG_PERF(0, "Enter");
     LOG_DEBUG("Component thread is starting...");
-
-    LOCKGUARD(_threadsMutex);
 
     _started = false;
 
-    std::function<void()> function = [&]() {
-      static C instance;
-      instance.start();
-    };
+    Component *component = new C();
 
-    ThreadData threadData;
+    {
+        LOCKGUARD(_threadsMutex);
+        _threads += component;
+    }
 
-    threadData.thread = std::move(std::thread(function));
-    threadData.function = function;
-    threadData.name = QString::fromStdString(typeid(C).name());
+    component->start();
+    waitForComponentToStart();
 
-    _threads.push_back(std::move(threadData));
-
-    waitForComponent();
+    LOG_PERF(0, "Exit");
   }
 
-  template <typename C> void addProcess() {
+  template <typename C> void startProcess() {
     const QString THREAD_ID = "ComponentManager";
 
+    LOG_PERF(0, "Enter");
     LOG_DEBUG("Component process is starting...");
 
     _started = false;
 
-    ProcessData processData;
+    Component *component = new C();
 
     {
-      LOCKGUARD(_processMutex);
-
-      std::function<void()> function = [&]() {
-        static C instance;
-        instance.start();
-      };
-
-      processData.function = function;
-      processData.name = QString::fromStdString(typeid(C).name());
-
-      _process.push_back(processData);
+        LOCKGUARD(_processMutex);
+        _process += component;
     }
 
-    processData.function();
+    component->start();
+    waitForComponentToStart();
 
-    waitForComponent();
+    LOG_PERF(0, "Exit");
   }
 
   void stopAll();
-
-  void waitForComponent();
+  void waitForComponentToStart();
+  void waitForComponentToStop();
 
 private:
   void eventCallback(EventManager::Event event);
@@ -92,11 +69,13 @@ private:
   Util::Mutex _threadsMutex;
   Util::Mutex _processMutex;
 
-  std::vector<ThreadData> _threads;
-  std::vector<ProcessData> _process;
+  QVector<Component*> _threads;
+  QVector<Component*> _process;
 
-  bool _done;
   bool _started;
+  bool _stopped;
+
+  EventManager::EventManager& _eventManager;
 };
 
 } // namespace ComponentManager

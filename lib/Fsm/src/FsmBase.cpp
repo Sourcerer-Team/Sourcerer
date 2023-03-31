@@ -21,8 +21,6 @@ FsmBase::FsmBase() {
 FsmBase::~FsmBase() {
   LOG_PERF(0, "Enter");
 
-  stop();
-
   for (auto item : qAsConst(_stateTable))
     delete item;
 
