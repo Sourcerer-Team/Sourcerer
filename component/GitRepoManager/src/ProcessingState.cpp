@@ -64,6 +64,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForCloseRepo(closeCommand);
     break;
   }
+  case EventType::ListLocalBranches: {
+    const GitRepoListLocalBranchesCommand listLocalCommand =
+        event.nextParam<GitRepoListLocalBranchesCommand>();
+    scheduleWorkerForListLocalBranches(listLocalCommand);
+    break;
+  }
   case EventType::OpenRepo: {
     const GitRepoOpenCommand openCommand =
         event.nextParam<GitRepoOpenCommand>();
@@ -212,6 +218,33 @@ void ProcessingState::eventCallback(const EventManager::Event event) {
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::listLocalBranchesWorker(const Structs::GitRepoListLocalBranchesCommand &command)
+{
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerListLocalBranchesError,
+                GitRepoErrorType::InternalError,
+                tr("Internal error. Context not initialized."), command.uuid);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  QStringList localBranches;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    localBranches = GitRepo::listLocalBranches(ctx->gitRepo);
+  }
+
+  EventManager::Event resultEvent(EventManager::EventType::GitRepoManagerListLocalBranchesResult);
+  resultEvent.addData(localBranches);
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForOpenRepo(
     const GitRepoOpenCommand &command) {
   LOG_PERF(0, "Enter");
@@ -331,6 +364,24 @@ void ProcessingState::scheduleWorkerForCloseRepo(
   (*it)->commandsQueue.push(new GitRepoCloseCommand(command));
 
   LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForListLocalBranches(const Structs::GitRepoListLocalBranchesCommand &command)
+{
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerListLocalBranchesError,
+                GitRepoErrorType::NotOpened,
+                tr("Git repository has not been opened."), command.uuid);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoListLocalBranchesCommand(command));
 
   LOG_PERF(0, "Exit");
 }
@@ -364,6 +415,12 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       const GitRepoCloseCommand *closeCommand =
           static_cast<const GitRepoCloseCommand *>(command);
       closeRepoWorker(*closeCommand);
+      break;
+    }
+    case GitRepoCommandType::ListLocalBranches: {
+      const GitRepoListLocalBranchesCommand *listLocalCommand =
+          static_cast<const GitRepoListLocalBranchesCommand *>(command);
+      listLocalBranchesWorker(*listLocalCommand);
       break;
     }
     case GitRepoCommandType::Quit: {

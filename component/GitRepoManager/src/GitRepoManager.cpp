@@ -21,6 +21,8 @@ GitRepoManager::GitRepoManager()
 
   _eventManager.subscribe(EventManager::EventType::GitRepoManagerCloseRepo,
                           callbackFunc);
+  _eventManager.subscribe(
+      EventManager::EventType::GitRepoManagerListLocalBranches, callbackFunc);
   _eventManager.subscribe(EventManager::EventType::GitRepoManagerOpenRepo,
                           callbackFunc);
 
@@ -35,6 +37,8 @@ GitRepoManager::~GitRepoManager() {
 
   _eventManager.unsubscribe(EventManager::EventType::GitRepoManagerCloseRepo,
                             callbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerListLocalBranches, callbackFunc);
   _eventManager.unsubscribe(EventManager::EventType::GitRepoManagerOpenRepo,
                             callbackFunc);
 
@@ -76,6 +80,14 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent closeRepoEvent(EventType::CloseRepo);
     closeRepoEvent.addParam(QVariant::fromValue(closeCommand));
     _fsm.send(closeRepoEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerListLocalBranches: {
+    const GitRepoListLocalBranchesCommand listLocalCommand =
+        event.data<GitRepoListLocalBranchesCommand>();
+    GitRepoManagerEvent listLocalEvent(EventType::ListLocalBranches);
+    listLocalEvent.addParam(QVariant::fromValue(listLocalCommand));
+    _fsm.send(listLocalEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepo: {

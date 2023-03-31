@@ -29,12 +29,15 @@ private:
   void destroyContext(const QString &uuid);
   void destroyContextsMap();
   void eventCallback(const EventManager::Event event);
+  void listLocalBranchesWorker(const Structs::GitRepoListLocalBranchesCommand& command);
   void openRepoWorker(const Structs::GitRepoOpenCommand &command);
   void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
   void reportError(EventManager::EventType eventType,
                    Structs::GitRepoErrorType errorType, const QString &message,
                    const QString &uuid) const;
   void scheduleWorkerForCloseRepo(const Structs::GitRepoCloseCommand &command);
+  void scheduleWorkerForListLocalBranches(
+      const Structs::GitRepoListLocalBranchesCommand &command);
   void scheduleWorkerForOpenRepo(const Structs::GitRepoOpenCommand &command);
   void scheduleWorkerForQuit(const Structs::GitRepoQuitCommand &command);
   void workersThreadFunc(const QString &uuid);

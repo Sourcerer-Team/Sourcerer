@@ -23,8 +23,11 @@ public:
 
 private:
   void closeRepo() const;
+  void eventCallback(EventManager::Event event);
+  void getLocalBranches() const;
   void openRepo() const;
   void refreshViews();
+  void updateLocalBranchesModel(const QStringList& localBranches);
 
 private:
   Ui::GitRepoContainer *ui;

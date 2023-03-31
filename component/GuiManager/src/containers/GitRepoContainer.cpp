@@ -5,6 +5,8 @@
 #include <Log.h>
 #include <Uuid.h>
 
+#include <functional>
+
 #define THREAD_ID "GitRepoContainer"
 
 using namespace GitRepoManager::Structs;
@@ -21,6 +23,20 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
 
   ui->setupUi(this);
 
+  const auto eventCallbackFunc =
+      std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
+
+  _eventManager.subscribe(
+      EventManager::EventType::GitRepoManagerListLocalBranchesError,
+      eventCallbackFunc);
+  _eventManager.subscribe(
+      EventManager::EventType::GitRepoManagerListLocalBranchesResult,
+      eventCallbackFunc);
+  _eventManager.subscribe(EventManager::EventType::GitRepoManagerOpenRepoError,
+                          eventCallbackFunc);
+  _eventManager.subscribe(EventManager::EventType::GitRepoManagerOpenRepoResult,
+                          eventCallbackFunc);
+
   refreshViews();
 
   LOG_PERF(0, "Exit")
@@ -31,13 +47,26 @@ GitRepoContainer::~GitRepoContainer() {
 
   closeRepo();
 
+  const auto eventCallbackFunc =
+      std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
+
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerListLocalBranchesError,
+      eventCallbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerListLocalBranchesResult,
+      eventCallbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerOpenRepoResult, eventCallbackFunc);
+
   delete ui;
 
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::closeRepo() const
-{
+void GitRepoContainer::closeRepo() const {
   LOG_PERF(0, "Enter");
 
   GitRepoCloseCommand closeCommand;
@@ -51,8 +80,54 @@ void GitRepoContainer::closeRepo() const
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::openRepo() const
-{
+void GitRepoContainer::eventCallback(EventManager::Event event) {
+  LOG_PERF(0, "Enter");
+
+  const EventManager::EventType eventType = event.type();
+  LOG_DEBUG("Processing event of type {}.", (int)eventType);
+
+  switch (eventType) {
+  case EventManager::EventType::GitRepoManagerListLocalBranchesError: {
+    // Show a toast with error
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerListLocalBranchesResult: {
+    const QStringList localBranches = event.data<QStringList>();
+    updateLocalBranchesModel(localBranches);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerOpenRepoError: {
+    // Show a toast with error
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerOpenRepoResult: {
+    getLocalBranches();
+    break;
+  }
+  default: {
+    LOG_WARN("Unhandled event.");
+    break;
+  }
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::getLocalBranches() const {
+  LOG_PERF(0, "Enter");
+
+  GitRepoListLocalBranchesCommand command;
+  command.uuid = _uuid;
+
+  EventManager::Event listLocalEvent(
+      EventManager::EventType::GitRepoManagerListLocalBranches);
+  listLocalEvent.addData(command);
+  _eventManager.send(listLocalEvent);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::openRepo() const {
   LOG_PERF(0, "Enter");
 
   GitRepoOpenCommand openCommand;
@@ -71,6 +146,15 @@ void GitRepoContainer::refreshViews() {
   LOG_PERF(0, "Enter");
 
   openRepo();
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::updateLocalBranchesModel(
+    const QStringList &localBranches) {
+  LOG_PERF(0, "Enter");
+
+  ui->localPage->updateModel(localBranches);
 
   LOG_PERF(0, "Exit")
 }

@@ -3,6 +3,10 @@
 
 #include <Log.h>
 
+#include <git2/branch.h>
+#include <git2/refs.h>
+#include <git2/types.h>
+
 #define THREAD_ID "GitRepo"
 
 namespace GitRepo {
@@ -27,6 +31,17 @@ void shutdownForCurrentThread() {
   LOG_PERF(0, "Exit");
 }
 
+void closeRepository(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 git_repository *openRepository(const QString &path) {
   LOG_PERF(0, "Enter");
 
@@ -44,15 +59,79 @@ git_repository *openRepository(const QString &path) {
   return repo;
 }
 
-void closeRepository(git_repository *repo) {
+QStringList listLocalBranches(git_repository *repo) {
   LOG_PERF(0, "Enter");
 
-  if (!repo) {
-    LOG_PERF(0, "Exit");
-    return;
+  git_branch_iterator *it = nullptr;
+
+  int error = git_branch_iterator_new(&it, repo, GIT_BRANCH_LOCAL);
+  if (error) {
+    const git_error *gitError = git_error_last();
+    LOG_ERROR(Log::ErrorId::Git, "Error: {}, klass: {}, message: '{}'.", error,
+              gitError->klass, gitError->message);
+    return {};
   }
 
+  if (!it) {
+    LOG_ERROR(Log::ErrorId::Git, "Invalid branch iterator.");
+    return {};
+  }
+
+  QStringList localBranches;
+  git_branch_t branchType;
+  git_reference *ref = nullptr;
+
+  for (;;) {
+    error = git_branch_next(&ref, &branchType, it);
+    if (error == GIT_ITEROVER)
+      break;
+
+    if (error) {
+      const git_error *gitError = git_error_last();
+      LOG_ERROR(Log::ErrorId::Git, "Error: {}, klass: {}, message: '{}'.",
+                error, gitError->klass, gitError->message);
+      break;
+    }
+
+    if (!ref) {
+      LOG_ERROR(Log::ErrorId::Git, "Invalid reference.");
+      continue;
+    }
+
+    const char *branchName = nullptr;
+
+    error = git_branch_name(&branchName, ref);
+    if (error == GIT_EINVALID) {
+      git_reference_free(ref);
+      LOG_ERROR(Log::ErrorId::Git,
+                "Reference is not a local or a remote branch.");
+      continue;
+    }
+
+    if (error) {
+      git_reference_free(ref);
+      const git_error *gitError = git_error_last();
+      LOG_ERROR(Log::ErrorId::Git, "Error: {}, klass: {}, message: '{}'.",
+                error, gitError->klass, gitError->message);
+      break;
+    }
+
+    if (!branchName) {
+      git_reference_free(ref);
+      LOG_ERROR(Log::ErrorId::Git, "Invalid branch name.");
+      continue;
+    }
+
+    localBranches += branchName;
+
+    git_reference_free(ref);
+  };
+
+  git_branch_iterator_free(it);
+
   LOG_PERF(0, "Exit");
+
+  return localBranches;
 }
 
 } // namespace GitRepo

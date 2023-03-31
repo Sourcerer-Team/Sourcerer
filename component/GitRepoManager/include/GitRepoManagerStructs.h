@@ -12,7 +12,14 @@ namespace GitRepoManager {
 
 namespace Structs {
 
-enum class GitRepoCommandType : int { Unknown = 0, Close, Open, Quit, Last };
+enum class GitRepoCommandType : int {
+  Unknown = 0,
+  Close,
+  ListLocalBranches,
+  Open,
+  Quit,
+  Last
+};
 
 enum class GitRepoErrorType : int {
   Unknown = 0,
@@ -27,25 +34,28 @@ struct GitRepoCommand {
   GitRepoCommand(GitRepoCommandType commandType) : type(commandType) {}
   virtual ~GitRepoCommand() {}
   GitRepoCommandType type;
+  QString uuid;
 };
 
 struct GitRepoCloseCommand : GitRepoCommand {
   GitRepoCloseCommand() : GitRepoCommand(GitRepoCommandType::Close) {}
   virtual ~GitRepoCloseCommand() {}
-  QString uuid;
+};
+
+struct GitRepoListLocalBranchesCommand : GitRepoCommand {
+  GitRepoListLocalBranchesCommand() : GitRepoCommand(GitRepoCommandType::ListLocalBranches) {}
+  virtual ~GitRepoListLocalBranchesCommand() {}
 };
 
 struct GitRepoOpenCommand : GitRepoCommand {
   GitRepoOpenCommand() : GitRepoCommand(GitRepoCommandType::Open) {}
   virtual ~GitRepoOpenCommand() {}
-  QString uuid;
   QString path;
 };
 
 struct GitRepoQuitCommand : GitRepoCommand {
   GitRepoQuitCommand() : GitRepoCommand(GitRepoCommandType::Quit) {}
   virtual ~GitRepoQuitCommand() {}
-  QString uuid;
 };
 
 struct GitRepoError {

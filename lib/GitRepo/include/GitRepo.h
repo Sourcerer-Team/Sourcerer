@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <QStringList>
 
 #include <git2/errors.h>
 #include <git2/global.h>
@@ -10,7 +11,8 @@ namespace GitRepo {
 
 void initForCurrentThread();
 void shutdownForCurrentThread();
-git_repository* openRepository(const QString& path);
 void closeRepository(git_repository *repo);
+QStringList listLocalBranches(git_repository *repo);
+git_repository* openRepository(const QString& path);
 
 } // namespace GitRepo
