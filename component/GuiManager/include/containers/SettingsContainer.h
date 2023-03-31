@@ -23,7 +23,7 @@ class SettingsContainer : public ContainerWidget {
 
 public:
   explicit SettingsContainer(QWidget *parent = nullptr);
-  ~SettingsContainer();
+  virtual ~SettingsContainer();
 
 private slots:
   void onSplitterMoved(int pos, int index);

@@ -7,6 +7,8 @@
 
 #define THREAD_ID "GitRepoContainer"
 
+using namespace GitRepoManager::Structs;
+
 namespace GuiManager {
 
 namespace Containers {
@@ -27,7 +29,40 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
 GitRepoContainer::~GitRepoContainer() {
   LOG_PERF(0, "Enter");
 
+  closeRepo();
+
   delete ui;
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::closeRepo() const
+{
+  LOG_PERF(0, "Enter");
+
+  GitRepoCloseCommand closeCommand;
+  closeCommand.uuid = _uuid;
+
+  EventManager::Event closeRepoEvent(
+      EventManager::EventType::GitRepoManagerCloseRepo);
+  closeRepoEvent.addData(closeCommand);
+  _eventManager.send(closeRepoEvent);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::openRepo() const
+{
+  LOG_PERF(0, "Enter");
+
+  GitRepoOpenCommand openCommand;
+  openCommand.uuid = _uuid;
+  openCommand.path = _path;
+
+  EventManager::Event openRepoEvent(
+      EventManager::EventType::GitRepoManagerOpenRepo);
+  openRepoEvent.addData(openCommand);
+  _eventManager.send(openRepoEvent);
 
   LOG_PERF(0, "Exit")
 }
@@ -35,14 +70,7 @@ GitRepoContainer::~GitRepoContainer() {
 void GitRepoContainer::refreshViews() {
   LOG_PERF(0, "Enter");
 
-  GitRepoManager::Structs::GitRepoOpenCommand command;
-  command.uuid = _uuid;
-  command.path = _path;
-
-  EventManager::Event openRepoEvent(
-      EventManager::EventType::GitRepoManagerOpenRepo);
-  openRepoEvent.addData(command);
-  _eventManager.send(openRepoEvent);
+  openRepo();
 
   LOG_PERF(0, "Exit")
 }

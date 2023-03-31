@@ -12,13 +12,14 @@ namespace GitRepoManager {
 
 namespace Structs {
 
-enum class GitRepoCommandType : int { Unknown = 0, Open, Quit, Last };
+enum class GitRepoCommandType : int { Unknown = 0, Close, Open, Quit, Last };
 
 enum class GitRepoErrorType : int {
   Unknown = 0,
   AlreadyExist,
   ErrorWhileOpening,
   InternalError,
+  NotOpened,
   Last
 };
 
@@ -28,9 +29,10 @@ struct GitRepoCommand {
   GitRepoCommandType type;
 };
 
-struct GitRepoQuitCommand : GitRepoCommand {
-  GitRepoQuitCommand() : GitRepoCommand(GitRepoCommandType::Quit) {}
-  virtual ~GitRepoQuitCommand() {}
+struct GitRepoCloseCommand : GitRepoCommand {
+  GitRepoCloseCommand() : GitRepoCommand(GitRepoCommandType::Close) {}
+  virtual ~GitRepoCloseCommand() {}
+  QString uuid;
 };
 
 struct GitRepoOpenCommand : GitRepoCommand {
@@ -38,6 +40,12 @@ struct GitRepoOpenCommand : GitRepoCommand {
   virtual ~GitRepoOpenCommand() {}
   QString uuid;
   QString path;
+};
+
+struct GitRepoQuitCommand : GitRepoCommand {
+  GitRepoQuitCommand() : GitRepoCommand(GitRepoCommandType::Quit) {}
+  virtual ~GitRepoQuitCommand() {}
+  QString uuid;
 };
 
 struct GitRepoError {

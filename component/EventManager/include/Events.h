@@ -12,9 +12,15 @@ enum EventType {
   ComponentStopped,
 
   // GitRepoManager
+  GitRepoManagerCloseRepo,
+  GitRepoManagerCloseRepoResult,
+  GitRepoManagerCloseRepoError,
   GitRepoManagerOpenRepo,
   GitRepoManagerOpenRepoResult,
   GitRepoManagerOpenRepoError,
+  GitRepoManagerQuit,
+  GitRepoManagerQuitResult,
+  GitRepoManagerQuitError,
 
   last
 };

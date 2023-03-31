@@ -32,6 +32,9 @@ FsmBase::~FsmBase() {
 void FsmBase::start() {
   LOG_PERF(0, "Enter");
 
+  _stateTable.clear();
+  _stateChangeTable.clear();
+
   initStateTable(_stateTable);
   initChangeTable(_stateChangeTable);
 

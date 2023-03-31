@@ -15,6 +15,7 @@ class ProcessingState : public GitRepoManagerState {
   Q_OBJECT
 public:
   ProcessingState(GitRepoManagerFsm &fsm);
+  virtual ~ProcessingState();
 
   // FsmState interface
 public:
@@ -23,13 +24,23 @@ public:
   void exit() override;
 
 private:
+  void closeRepoWorker(const Structs::GitRepoCloseCommand &command);
   Structs::GitRepoContext *context(const QString &uuid);
+  void destroyContext(const QString &uuid);
+  void destroyContextsMap();
+  void eventCallback(const EventManager::Event event);
   void openRepoWorker(const Structs::GitRepoOpenCommand &command);
-  void reportError(Structs::GitRepoErrorType errorType, const QString& message, const QString& uuid) const;
+  void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
+  void reportError(EventManager::EventType eventType,
+                   Structs::GitRepoErrorType errorType, const QString &message,
+                   const QString &uuid) const;
+  void scheduleWorkerForCloseRepo(const Structs::GitRepoCloseCommand &command);
   void scheduleWorkerForOpenRepo(const Structs::GitRepoOpenCommand &command);
+  void scheduleWorkerForQuit(const Structs::GitRepoQuitCommand &command);
   void workersThreadFunc(const QString &uuid);
 
 private:
+  std::atomic<bool> _quitAll;
   Util::Mutex _contextsMutex;
   QMap<QString, Structs::GitRepoContext *> _contexts;
   EventManager::EventManager &_eventManager;

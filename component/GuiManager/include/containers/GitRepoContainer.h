@@ -19,9 +19,11 @@ class GitRepoContainer : public Widgets::ContainerWidget {
 
 public:
   explicit GitRepoContainer(const QString &path, QWidget *parent = nullptr);
-  ~GitRepoContainer();
+  virtual ~GitRepoContainer();
 
 private:
+  void closeRepo() const;
+  void openRepo() const;
   void refreshViews();
 
 private:

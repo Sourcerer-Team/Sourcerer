@@ -11,6 +11,7 @@ enum class EventType : int {
   Stop = -1,
   ChangeState = 0,
   Setup,
+  CloseRepo,
   OpenRepo,
   last
 };
