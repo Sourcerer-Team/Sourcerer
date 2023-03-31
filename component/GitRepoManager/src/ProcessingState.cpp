@@ -344,11 +344,8 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
 
   while (!quit) {
     GitRepoContext *ctx = context(uuid);
-    if (!ctx) {
-      LOG_ERROR(Log::ErrorId::Git,
-                "Internal error. Context is not initialized.");
+    if (!ctx)
       break;
-    }
 
     GitRepoCommand *command = ctx->commandsQueue.pop();
     if (!command) {
