@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QStringList>
+#include <QStringListModel>
 #include <QWidget>
 
 namespace Ui {
@@ -17,7 +19,10 @@ public:
   explicit RemoteGitBranchesPage(QWidget *parent = nullptr);
   ~RemoteGitBranchesPage();
 
+  void updateModel(const QStringList &remoteBranches);
+
 private:
+  QStringListModel *_model;
   Ui::RemoteGitBranchesPage *ui;
 };
 

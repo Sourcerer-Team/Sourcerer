@@ -29,7 +29,10 @@ private:
   void destroyContext(const QString &uuid);
   void destroyContextsMap();
   void eventCallback(const EventManager::Event event);
-  void listLocalBranchesWorker(const Structs::GitRepoListLocalBranchesCommand& command);
+  void listLocalBranchesWorker(
+      const Structs::GitRepoListLocalBranchesCommand &command);
+  void listRemoteBranchesWorker(
+      const Structs::GitRepoListRemoteBranchesCommand &command);
   void openRepoWorker(const Structs::GitRepoOpenCommand &command);
   void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
   void reportError(EventManager::EventType eventType,
@@ -38,6 +41,8 @@ private:
   void scheduleWorkerForCloseRepo(const Structs::GitRepoCloseCommand &command);
   void scheduleWorkerForListLocalBranches(
       const Structs::GitRepoListLocalBranchesCommand &command);
+  void scheduleWorkerForListRemoteBranches(
+      const Structs::GitRepoListRemoteBranchesCommand &command);
   void scheduleWorkerForOpenRepo(const Structs::GitRepoOpenCommand &command);
   void scheduleWorkerForQuit(const Structs::GitRepoQuitCommand &command);
   void workersThreadFunc(const QString &uuid);

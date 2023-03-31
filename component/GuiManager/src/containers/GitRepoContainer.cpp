@@ -32,6 +32,12 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
   _eventManager.subscribe(
       EventManager::EventType::GitRepoManagerListLocalBranchesResult,
       eventCallbackFunc);
+  _eventManager.subscribe(
+      EventManager::EventType::GitRepoManagerListRemoteBranchesError,
+      eventCallbackFunc);
+  _eventManager.subscribe(
+      EventManager::EventType::GitRepoManagerListRemoteBranchesResult,
+      eventCallbackFunc);
   _eventManager.subscribe(EventManager::EventType::GitRepoManagerOpenRepoError,
                           eventCallbackFunc);
   _eventManager.subscribe(EventManager::EventType::GitRepoManagerOpenRepoResult,
@@ -55,6 +61,12 @@ GitRepoContainer::~GitRepoContainer() {
       eventCallbackFunc);
   _eventManager.unsubscribe(
       EventManager::EventType::GitRepoManagerListLocalBranchesResult,
+      eventCallbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerListRemoteBranchesError,
+      eventCallbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerListRemoteBranchesResult,
       eventCallbackFunc);
   _eventManager.unsubscribe(
       EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc);
@@ -96,12 +108,22 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
     updateLocalBranchesModel(localBranches);
     break;
   }
+  case EventManager::EventType::GitRepoManagerListRemoteBranchesError: {
+    // Show a toast with error
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerListRemoteBranchesResult: {
+    const QStringList remoteBranches = event.data<QStringList>();
+    updateRemoteBranchesModel(remoteBranches);
+    break;
+  }
   case EventManager::EventType::GitRepoManagerOpenRepoError: {
     // Show a toast with error
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepoResult: {
     getLocalBranches();
+    getRemoteBranches();
     break;
   }
   default: {
@@ -123,6 +145,20 @@ void GitRepoContainer::getLocalBranches() const {
       EventManager::EventType::GitRepoManagerListLocalBranches);
   listLocalEvent.addData(command);
   _eventManager.send(listLocalEvent);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::getRemoteBranches() const {
+  LOG_PERF(0, "Enter");
+
+  GitRepoListRemoteBranchesCommand command;
+  command.uuid = _uuid;
+
+  EventManager::Event listRemoteEvent(
+      EventManager::EventType::GitRepoManagerListRemoteBranches);
+  listRemoteEvent.addData(command);
+  _eventManager.send(listRemoteEvent);
 
   LOG_PERF(0, "Exit")
 }
@@ -155,6 +191,15 @@ void GitRepoContainer::updateLocalBranchesModel(
   LOG_PERF(0, "Enter");
 
   ui->localPage->updateModel(localBranches);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::updateRemoteBranchesModel(
+    const QStringList &remoteBranches) {
+  LOG_PERF(0, "Enter");
+
+  ui->remotePage->updateModel(remoteBranches);
 
   LOG_PERF(0, "Exit")
 }

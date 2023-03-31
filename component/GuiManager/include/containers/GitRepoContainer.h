@@ -25,9 +25,11 @@ private:
   void closeRepo() const;
   void eventCallback(EventManager::Event event);
   void getLocalBranches() const;
+  void getRemoteBranches() const;
   void openRepo() const;
   void refreshViews();
-  void updateLocalBranchesModel(const QStringList& localBranches);
+  void updateLocalBranchesModel(const QStringList &localBranches);
+  void updateRemoteBranchesModel(const QStringList &remoteBranches);
 
 private:
   Ui::GitRepoContainer *ui;

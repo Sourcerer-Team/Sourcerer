@@ -70,6 +70,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForListLocalBranches(listLocalCommand);
     break;
   }
+  case EventType::ListRemoteBranches: {
+    const GitRepoListRemoteBranchesCommand listRemoteCommand =
+        event.nextParam<GitRepoListRemoteBranchesCommand>();
+    scheduleWorkerForListRemoteBranches(listRemoteCommand);
+    break;
+  }
   case EventType::OpenRepo: {
     const GitRepoOpenCommand openCommand =
         event.nextParam<GitRepoOpenCommand>();
@@ -218,8 +224,8 @@ void ProcessingState::eventCallback(const EventManager::Event event) {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::listLocalBranchesWorker(const Structs::GitRepoListLocalBranchesCommand &command)
-{
+void ProcessingState::listLocalBranchesWorker(
+    const Structs::GitRepoListLocalBranchesCommand &command) {
   LOG_PERF(0, "Enter");
 
   GitRepoContext *ctx = context(command.uuid);
@@ -238,8 +244,37 @@ void ProcessingState::listLocalBranchesWorker(const Structs::GitRepoListLocalBra
     localBranches = GitRepo::listLocalBranches(ctx->gitRepo);
   }
 
-  EventManager::Event resultEvent(EventManager::EventType::GitRepoManagerListLocalBranchesResult);
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerListLocalBranchesResult);
   resultEvent.addData(localBranches);
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::listRemoteBranchesWorker(
+    const Structs::GitRepoListRemoteBranchesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerListRemoteBranchesError,
+                GitRepoErrorType::InternalError,
+                tr("Internal error. Context not initialized."), command.uuid);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  QStringList remoteBranches;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    remoteBranches = GitRepo::listRemoteBranches(ctx->gitRepo);
+  }
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerListRemoteBranchesResult);
+  resultEvent.addData(remoteBranches);
   _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
@@ -366,8 +401,8 @@ void ProcessingState::scheduleWorkerForCloseRepo(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForListLocalBranches(const Structs::GitRepoListLocalBranchesCommand &command)
-{
+void ProcessingState::scheduleWorkerForListLocalBranches(
+    const Structs::GitRepoListLocalBranchesCommand &command) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_contextsMutex);
@@ -382,6 +417,26 @@ void ProcessingState::scheduleWorkerForListLocalBranches(const Structs::GitRepoL
   }
 
   (*it)->commandsQueue.push(new GitRepoListLocalBranchesCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForListRemoteBranches(
+    const Structs::GitRepoListRemoteBranchesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerListRemoteBranchesError,
+                GitRepoErrorType::NotOpened,
+                tr("Git repository has not been opened."), command.uuid);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoListRemoteBranchesCommand(command));
 
   LOG_PERF(0, "Exit");
 }
@@ -421,6 +476,12 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       const GitRepoListLocalBranchesCommand *listLocalCommand =
           static_cast<const GitRepoListLocalBranchesCommand *>(command);
       listLocalBranchesWorker(*listLocalCommand);
+      break;
+    }
+    case GitRepoCommandType::ListRemoteBranches: {
+      const GitRepoListRemoteBranchesCommand *listRemoteCommand =
+          static_cast<const GitRepoListRemoteBranchesCommand *>(command);
+      listRemoteBranchesWorker(*listRemoteCommand);
       break;
     }
     case GitRepoCommandType::Quit: {
