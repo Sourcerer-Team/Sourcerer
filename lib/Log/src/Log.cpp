@@ -120,13 +120,10 @@ void Log::info(QString threadId, QString function, int line, QString message) {
   }
 
   addEscapeCharacters(message);
-  trimThreadId(threadId);
 
-  const QString logMessage = QString("%1;INFO;[%2:%3].%4")
-                                 .arg(threadId)
-                                 .arg(function)
-                                 .arg(line)
-                                 .arg(message);
+  const QString logMessage =
+      QString("%1;INFO;[%2:%3].%4")
+          .arg(threadId, function, QString::number(line), message);
 
   spdlog::warn(logMessage.toStdString());
 }
@@ -138,14 +135,10 @@ void Log::infoCorrelation(QString threadId, QString function, int line,
   }
 
   addEscapeCharacters(message);
-  trimThreadId(threadId);
 
   const QString logMessage = QString("%1;INFO;[%2:%3] %4;%5")
-                                 .arg(threadId)
-                                 .arg(function)
-                                 .arg(line)
-                                 .arg(message)
-                                 .arg(corelationId);
+                                 .arg(threadId, function, QString::number(line),
+                                      message, corelationId);
 
   spdlog::warn(logMessage.toStdString());
 }
@@ -157,26 +150,20 @@ void Log::error(QString threadId, QString function, int line, ErrorId idError,
   }
 
   addEscapeCharacters(message);
-  trimThreadId(threadId);
 
   if (exception) {
     const QString logMessage =
         QString("%1;ERROR;[%2:%3] Err%4: %5;%6")
-            .arg(threadId)
-            .arg(function)
-            .arg(line)
-            .arg(static_cast<int>(idError))
-            .arg(message)
-            .arg(QString::fromStdString(exception->what()));
+            .arg(threadId, function, QString::number(line),
+                 QString::number(static_cast<int>(idError)), message,
+                 QString::fromStdString(exception->what()));
 
     spdlog::error(logMessage.toStdString());
   } else {
-    const QString logMessage = QString("%1;ERROR;[%2:%3] Err%4: %5")
-                                   .arg(threadId)
-                                   .arg(function)
-                                   .arg(line)
-                                   .arg(static_cast<int>(idError))
-                                   .arg(message);
+    const QString logMessage =
+        QString("%1;ERROR;[%2:%3] Err%4: %5")
+            .arg(threadId, function, QString::number(line),
+                 QString::number(static_cast<int>(idError)), message);
 
     spdlog::error(logMessage.toStdString());
   }
@@ -190,28 +177,21 @@ void Log::errorCorrelation(QString threadId, QString function, int line,
   }
 
   addEscapeCharacters(message);
-  trimThreadId(threadId);
 
   if (exception) {
     const QString logMessage =
         QString("%1;ERROR;[%2:%3] Err%4: %5;%6;%7")
-            .arg(threadId)
-            .arg(function)
-            .arg(line)
-            .arg(static_cast<int>(idError))
-            .arg(message)
-            .arg(QString::fromStdString(exception->what()))
-            .arg(corelationId);
+            .arg(threadId, function, QString::number(line),
+                 QString::number(static_cast<int>(idError)), message,
+                 QString::fromStdString(exception->what()), corelationId);
 
     spdlog::error(logMessage.toStdString());
   } else {
-    const QString logMessage = QString("%1;ERROR;[%2:%3] Err%4: %5;%6")
-                                   .arg(threadId)
-                                   .arg(function)
-                                   .arg(line)
-                                   .arg(static_cast<int>(idError))
-                                   .arg(message)
-                                   .arg(corelationId);
+    const QString logMessage =
+        QString("%1;ERROR;[%2:%3] Err%4: %5;%6")
+            .arg(threadId, function, QString::number(line),
+                 QString::number(static_cast<int>(idError)), message,
+                 corelationId);
 
     spdlog::error(logMessage.toStdString());
   }
@@ -247,16 +227,12 @@ void Log::perf(QString threadId, QString function, int line, int duration,
   }
 
   addEscapeCharacters(message);
-  trimThreadId(threadId);
 
   // log on warning level
 
   const QString logMessage = QString("%1;PERF ;[%2:%3] %4-%5")
-                                 .arg(threadId)
-                                 .arg(function)
-                                 .arg(line)
-                                 .arg(duration)
-                                 .arg(message);
+                                 .arg(threadId, function, QString::number(line),
+                                      QString::number(duration), message);
 
   spdlog::trace(logMessage.toStdString());
 }
@@ -268,17 +244,13 @@ void Log::perfCorrelation(QString threadId, QString function, int line,
   }
 
   addEscapeCharacters(message);
-  trimThreadId(threadId);
 
   // log on warning level
 
-  const QString logMessage = QString("%1;PREF ;[%2:%3] %4-%5;%6")
-                                 .arg(threadId)
-                                 .arg(function)
-                                 .arg(line)
-                                 .arg(duration)
-                                 .arg(message)
-                                 .arg(corelationId);
+  const QString logMessage =
+      QString("%1;PREF ;[%2:%3] %4-%5;%6")
+          .arg(threadId, function, QString::number(line),
+               QString::number(duration), message, corelationId);
 
   spdlog::trace(logMessage.toStdString());
 }
@@ -290,14 +262,11 @@ void Log::warning(QString threadId, QString function, int line,
   }
 
   addEscapeCharacters(message);
-  trimThreadId(threadId);
 
-  const QString logMessage = QString("%1;WARN ;[%2:%3] Warn%4:%5")
-                                 .arg(threadId)
-                                 .arg(function)
-                                 .arg(line)
-                                 .arg(static_cast<int>(warningId))
-                                 .arg(message);
+  const QString logMessage =
+      QString("%1;WARN ;[%2:%3] Warn%4:%5")
+          .arg(threadId, function, QString::number(line),
+               QString::number(static_cast<int>(warningId)), message);
 
   spdlog::info(logMessage.toStdString());
 }
@@ -310,15 +279,12 @@ void Log::warningCorrelation(QString threadId, QString function, int line,
   }
 
   addEscapeCharacters(message);
-  trimThreadId(threadId);
 
-  const QString logMessage = QString("%1;WARN ;[%2:%3] Warn%4:%5;%6")
-                                 .arg(threadId)
-                                 .arg(function)
-                                 .arg(line)
-                                 .arg(static_cast<int>(warningId))
-                                 .arg(message)
-                                 .arg(corelationId);
+  const QString logMessage =
+      QString("%1;WARN ;[%2:%3] Warn%4:%5;%6")
+          .arg(threadId, function, QString::number(line),
+               QString::number(static_cast<int>(warningId)), message,
+               corelationId);
 
   spdlog::info(logMessage.toStdString());
 }
@@ -329,13 +295,10 @@ void Log::debug(QString threadId, QString function, int line, QString message) {
   }
 
   addEscapeCharacters(message);
-  trimThreadId(threadId);
 
-  const QString logMessage = QString("%1;DEBUG;[%2:%3] %4")
-                                 .arg(threadId)
-                                 .arg(function)
-                                 .arg(line)
-                                 .arg(message);
+  const QString logMessage =
+      QString("%1;DEBUG;[%2:%3] %4")
+          .arg(threadId, function, QString::number(line), message);
 
   spdlog::debug(logMessage.toStdString());
 }
@@ -347,14 +310,10 @@ void Log::debugCorrelation(QString threadId, QString function, int line,
   }
 
   addEscapeCharacters(message);
-  trimThreadId(threadId);
 
   const QString logMessage = QString("%1;DEBUG;[%2:%3] %4;%5")
-                                 .arg(threadId)
-                                 .arg(function)
-                                 .arg(line)
-                                 .arg(message)
-                                 .arg(corelationId);
+                                 .arg(threadId, function, QString::number(line),
+                                      message, corelationId);
 
   spdlog::debug(logMessage.toStdString());
 }
@@ -365,13 +324,10 @@ void Log::init(QString threadId, QString function, int line, QString message) {
   }
 
   addEscapeCharacters(message);
-  trimThreadId(threadId);
 
-  const QString logMessage = QString("%1;INIT;[%2:%3] %4")
-                                 .arg(threadId)
-                                 .arg(function)
-                                 .arg(line)
-                                 .arg(message);
+  const QString logMessage =
+      QString("%1;INIT;[%2:%3] %4")
+          .arg(threadId, function, QString::number(line), message);
 
   spdlog::critical(logMessage.toStdString());
 }
@@ -383,14 +339,10 @@ void Log::initCorrelation(QString threadId, QString function, int line,
   }
 
   addEscapeCharacters(message);
-  trimThreadId(threadId);
 
   const QString logMessage = QString("%1;INIT;[%2:%3] %4;%5")
-                                 .arg(threadId)
-                                 .arg(function)
-                                 .arg(line)
-                                 .arg(message)
-                                 .arg(corelationId);
+                                 .arg(threadId, function, QString::number(line),
+                                      message, corelationId);
 
   spdlog::critical(logMessage.toStdString());
 }
@@ -444,10 +396,6 @@ void Log::addEscapeCharacters(QString &string) {
     string.insert(position, &escapeCharacter);
     position = string.indexOf(";", position + 2);
   }
-}
-
-void Log::trimThreadId(QString &threadId) {
-  threadId = QString("{%1}").arg(threadId.left(10));
 }
 
 void Log::restart() { startLogging(); }

@@ -372,6 +372,9 @@ public:
   void shutdown();
 
 private:
+  void addEscapeCharacters(QString &string);
+
+private:
   LogLevel _currentLogLevel;
 
   // Max size of a log file in kb
@@ -380,9 +383,6 @@ private:
   unsigned int _maxLogFiles;
 
   QString _logDirectory;
-
-  void addEscapeCharacters(QString &string);
-  void trimThreadId(QString &threadId);
 
   bool _shutdown;
 
