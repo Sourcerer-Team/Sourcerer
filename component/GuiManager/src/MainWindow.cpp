@@ -1,10 +1,10 @@
 #include "MainWindow.h"
-#include <containers/GitRepoContainer.h>
 #include "containers/HomeContainer.h"
-#include <containers/PleaseWaitContainer.h>
 #include "containers/SettingsContainer.h"
 #include "dialogs/AboutDialog.h"
 #include "widgets/TitlebarWidget.h"
+#include <containers/GitRepoContainer.h>
+#include <containers/PleaseWaitContainer.h>
 
 #include <ConfigKey.h>
 #include <Git.h>
@@ -80,14 +80,16 @@ void MainWindow::onHome() {
 void MainWindow::onOpen() {
   LOG_PERF(0, "Enter");
 
-  const QStringList documentsPaths = QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation);
-  if(documentsPaths.length() == 0) {
+  const QStringList documentsPaths =
+      QStandardPaths::standardLocations(QStandardPaths::DocumentsLocation);
+  if (documentsPaths.length() == 0) {
     LOG_PERF(0, "Exit");
     return;
   }
 
-  const QString path = QFileDialog::getExistingDirectory(this, tr("Open Git repository"), documentsPaths[0]);
-  if(!path.isEmpty())
+  const QString path = QFileDialog::getExistingDirectory(
+      this, tr("Open Git repository"), documentsPaths[0]);
+  if (!path.isEmpty())
     addGitRepoContainer(path);
 
   LOG_PERF(0, "Exit");
@@ -163,8 +165,7 @@ void MainWindow::onTabBarResize() {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::addGitRepoContainer(const QString &path)
-{
+void MainWindow::addGitRepoContainer(const QString &path) {
   LOG_PERF(0, "Enter");
 
   const qlonglong titleBarHeight =

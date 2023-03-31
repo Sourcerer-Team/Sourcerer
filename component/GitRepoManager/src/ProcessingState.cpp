@@ -28,15 +28,14 @@ ProcessingState::ProcessingState(GitRepoManagerFsm &fsm)
   LOG_PERF(0, "Exit");
 }
 
-ProcessingState::~ProcessingState()
-{
+ProcessingState::~ProcessingState() {
   LOG_PERF(0, "Enter");
 
   const auto eventCallbackFunc =
       std::bind(&ProcessingState::eventCallback, this, std::placeholders::_1);
 
-  _eventManager.unsubscribe(EventManager::EventType::GitRepoManagerOpenRepoError,
-                          eventCallbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc);
 
   LOG_PERF(0, "Exit");
 }
@@ -60,12 +59,14 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     break;
   }
   case EventType::CloseRepo: {
-    const GitRepoCloseCommand closeCommand = event.nextParam<GitRepoCloseCommand>();
+    const GitRepoCloseCommand closeCommand =
+        event.nextParam<GitRepoCloseCommand>();
     scheduleWorkerForCloseRepo(closeCommand);
     break;
   }
   case EventType::OpenRepo: {
-    const GitRepoOpenCommand openCommand = event.nextParam<GitRepoOpenCommand>();
+    const GitRepoOpenCommand openCommand =
+        event.nextParam<GitRepoOpenCommand>();
     scheduleWorkerForOpenRepo(openCommand);
     break;
   }
@@ -189,15 +190,14 @@ void ProcessingState::destroyContextsMap() {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::eventCallback(const EventManager::Event event)
-{
+void ProcessingState::eventCallback(const EventManager::Event event) {
   LOG_PERF(0, "Enter");
 
   const EventManager::EventType eventType = event.type();
 
   LOG_DEBUG("Processing event {}.", (int)eventType);
 
-  switch(eventType) {
+  switch (eventType) {
   case EventManager::EventType::GitRepoManagerOpenRepoError: {
     const GitRepoError error = event.data<GitRepoError>();
     destroyContext(error.uuid);
@@ -313,8 +313,8 @@ void ProcessingState::reportError(EventManager::EventType eventType,
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForCloseRepo(const GitRepoCloseCommand &command)
-{
+void ProcessingState::scheduleWorkerForCloseRepo(
+    const GitRepoCloseCommand &command) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_contextsMutex);
