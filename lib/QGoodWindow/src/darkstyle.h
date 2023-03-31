@@ -51,6 +51,11 @@ public:
 
     void unpolish(QApplication *app);
 
+    void drawControl(ControlElement element, const QStyleOption *opt,
+                     QPainter *p, const QWidget *widget) const;
+
+
+
 private:
     //Functions
     QStyle *baseStyle() const;

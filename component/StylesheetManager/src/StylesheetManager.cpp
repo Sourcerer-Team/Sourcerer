@@ -20,6 +20,7 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "GuiManager--Widgets--TitleBarMenuButton::menu-indicator{width:0px;}"
      "GuiManager--Widgets--TitlebarWidget,GuiManager--Widgets--TitlebarWidget "
      "* {font-size:14px;}"
+     "GuiManager--Containers--GitRepoContainer{font-size:14px;background-color:#353535;}"
      "GuiManager--Containers--SettingsContainer{font-size:14px;background-color:#353535;}"
      "GuiManager--Containers--SettingsContainer "
      "QSplitter{margin-top:30px;}"
