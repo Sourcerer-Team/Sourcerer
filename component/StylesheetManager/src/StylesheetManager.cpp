@@ -15,7 +15,7 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "QPushButton[flat=true]:hover{color:#2A82DA;text-decoration:"
      "underline;}"
      "QTabBar::tab:selected{font-weight:bold;}"
-     "QToolTip{font-size:14px;background-color:#2A82DA;}"
+     "QToolTip{font-size:14px;background-color:black;color:white;border:0px;}"
      "GuiManager--Widgets--TitleBarMenuButton::menu-indicator{width:0px;}"
      "GuiManager--Widgets--TitlebarWidget,GuiManager--Widgets--TitlebarWidget "
      "* {font-size:14px;}"
