@@ -33,6 +33,7 @@ private:
       const Structs::GitRepoListLocalBranchesCommand &command);
   void listRemoteBranchesWorker(
       const Structs::GitRepoListRemoteBranchesCommand &command);
+  void listTagsWorker(const Structs::GitRepoListTagsCommand &command);
   void openRepoWorker(const Structs::GitRepoOpenCommand &command);
   void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
   void reportError(EventManager::EventType eventType,
@@ -43,6 +44,8 @@ private:
       const Structs::GitRepoListLocalBranchesCommand &command);
   void scheduleWorkerForListRemoteBranches(
       const Structs::GitRepoListRemoteBranchesCommand &command);
+  void
+  scheduleWorkerForListTags(const Structs::GitRepoListTagsCommand &command);
   void scheduleWorkerForOpenRepo(const Structs::GitRepoOpenCommand &command);
   void scheduleWorkerForQuit(const Structs::GitRepoQuitCommand &command);
   void workersThreadFunc(const QString &uuid);

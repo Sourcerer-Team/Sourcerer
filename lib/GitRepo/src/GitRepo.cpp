@@ -5,6 +5,7 @@
 
 #include <git2/branch.h>
 #include <git2/refs.h>
+#include <git2/tag.h>
 #include <git2/types.h>
 
 #define THREAD_ID "GitRepo"
@@ -154,6 +155,31 @@ QStringList listRemoteBranches(git_repository *repo)
   LOG_PERF(0, "Exit");
 
   return listBranches(repo, GIT_BRANCH_REMOTE);
+}
+
+QStringList listTags(git_repository *repo)
+{
+  LOG_PERF(0, "Enter");
+
+  git_strarray tagNames = {0};
+  const int error = git_tag_list(&tagNames, repo);
+  if(error) {
+    const git_error *gitError = git_error_last();
+    LOG_ERROR(Log::ErrorId::Git, "Error: {}, klass: {}, message: '{}'.",
+              error, gitError->klass, gitError->message);
+    return {};
+  }
+
+  QStringList tags;
+
+  for(int i = 0; i < tagNames.count; ++i)
+    tags += tagNames.strings[i];
+
+  git_strarray_dispose(&tagNames);
+
+  LOG_PERF(0, "Exit");
+
+  return tags;
 }
 
 } // namespace GitRepo

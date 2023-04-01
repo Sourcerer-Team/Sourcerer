@@ -26,10 +26,12 @@ private:
   void eventCallback(EventManager::Event event);
   void getLocalBranches() const;
   void getRemoteBranches() const;
+  void getTags() const;
   void openRepo() const;
   void refreshViews();
   void updateLocalBranchesModel(const QStringList &localBranches);
   void updateRemoteBranchesModel(const QStringList &remoteBranches);
+  void updateTagsModel(const QStringList &tags);
 
 private:
   Ui::GitRepoContainer *ui;

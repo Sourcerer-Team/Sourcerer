@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QStandardItemModel>
+#include <QStringList>
 #include <QWidget>
 
 namespace Ui {
@@ -17,7 +19,10 @@ public:
   explicit GitTagsPage(QWidget *parent = nullptr);
   ~GitTagsPage();
 
+  void updateModel(const QStringList &tags);
+
 private:
+  QStandardItemModel *_model;
   Ui::GitTagsPage *ui;
 };
 

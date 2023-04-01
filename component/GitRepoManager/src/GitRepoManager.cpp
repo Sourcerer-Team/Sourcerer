@@ -25,6 +25,8 @@ GitRepoManager::GitRepoManager()
       EventManager::EventType::GitRepoManagerListLocalBranches, callbackFunc);
   _eventManager.subscribe(
       EventManager::EventType::GitRepoManagerListRemoteBranches, callbackFunc);
+  _eventManager.subscribe(
+      EventManager::EventType::GitRepoManagerListTags, callbackFunc);
   _eventManager.subscribe(EventManager::EventType::GitRepoManagerOpenRepo,
                           callbackFunc);
 
@@ -43,6 +45,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerListLocalBranches, callbackFunc);
   _eventManager.unsubscribe(
       EventManager::EventType::GitRepoManagerListRemoteBranches, callbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerListTags, callbackFunc);
   _eventManager.unsubscribe(EventManager::EventType::GitRepoManagerOpenRepo,
                             callbackFunc);
 
@@ -100,6 +104,14 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent listRemoteEvent(EventType::ListRemoteBranches);
     listRemoteEvent.addParam(QVariant::fromValue(listRemoteCommand));
     _fsm.send(listRemoteEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerListTags: {
+    const GitRepoListTagsCommand listTagsCommand =
+        event.data<GitRepoListTagsCommand>();
+    GitRepoManagerEvent listTagsEvent(EventType::ListTags);
+    listTagsEvent.addParam(QVariant::fromValue(listTagsCommand));
+    _fsm.send(listTagsEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepo: {

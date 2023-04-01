@@ -13,6 +13,7 @@ enum class EventType : int {
   CloseRepo,
   ListLocalBranches,
   ListRemoteBranches,
+  ListTags,
   OpenRepo,
   Setup,
   last

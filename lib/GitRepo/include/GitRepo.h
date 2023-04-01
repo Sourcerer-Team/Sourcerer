@@ -14,6 +14,7 @@ void shutdownForCurrentThread();
 void closeRepository(git_repository *repo);
 QStringList listLocalBranches(git_repository *repo);
 QStringList listRemoteBranches(git_repository *repo);
+QStringList listTags(git_repository *repo);
 git_repository* openRepository(const QString& path);
 
 } // namespace GitRepo

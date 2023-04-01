@@ -76,6 +76,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForListRemoteBranches(listRemoteCommand);
     break;
   }
+  case EventType::ListTags: {
+    const GitRepoListTagsCommand listTagsCommand =
+        event.nextParam<GitRepoListTagsCommand>();
+    scheduleWorkerForListTags(listTagsCommand);
+    break;
+  }
   case EventType::OpenRepo: {
     const GitRepoOpenCommand openCommand =
         event.nextParam<GitRepoOpenCommand>();
@@ -280,6 +286,34 @@ void ProcessingState::listRemoteBranchesWorker(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::listTagsWorker(const Structs::GitRepoListTagsCommand &command)
+{
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerListTagsError,
+                GitRepoErrorType::InternalError,
+                tr("Internal error. Context not initialized."), command.uuid);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  QStringList tags;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    tags = GitRepo::listTags(ctx->gitRepo);
+  }
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerListTagsResult);
+  resultEvent.addData(tags);
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForOpenRepo(
     const GitRepoOpenCommand &command) {
   LOG_PERF(0, "Enter");
@@ -441,6 +475,26 @@ void ProcessingState::scheduleWorkerForListRemoteBranches(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForListTags(const Structs::GitRepoListTagsCommand &command)
+{
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerListTagsError,
+                GitRepoErrorType::NotOpened,
+                tr("Git repository has not been opened."), command.uuid);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoListTagsCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::workersThreadFunc(const QString &uuid) {
   LOG_PERF(0, "Enter");
 
@@ -482,6 +536,12 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       const GitRepoListRemoteBranchesCommand *listRemoteCommand =
           static_cast<const GitRepoListRemoteBranchesCommand *>(command);
       listRemoteBranchesWorker(*listRemoteCommand);
+      break;
+    }
+    case GitRepoCommandType::ListTags: {
+      const GitRepoListTagsCommand *listTagsCommand =
+          static_cast<const GitRepoListTagsCommand *>(command);
+      listTagsWorker(*listTagsCommand);
       break;
     }
     case GitRepoCommandType::Quit: {
