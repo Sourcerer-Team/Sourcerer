@@ -17,6 +17,7 @@ enum class GitRepoCommandType : int {
   Close,
   ListLocalBranches,
   ListRemoteBranches,
+  ListSubmodules,
   ListTags,
   Open,
   Quit,
@@ -54,6 +55,12 @@ struct GitRepoListRemoteBranchesCommand : GitRepoCommand {
   GitRepoListRemoteBranchesCommand()
       : GitRepoCommand(GitRepoCommandType::ListRemoteBranches) {}
   virtual ~GitRepoListRemoteBranchesCommand() {}
+};
+
+struct GitRepoListSubmodulesCommand : GitRepoCommand {
+  GitRepoListSubmodulesCommand()
+      : GitRepoCommand(GitRepoCommandType::ListSubmodules) {}
+  virtual ~GitRepoListSubmodulesCommand() {}
 };
 
 struct GitRepoListTagsCommand : GitRepoCommand {

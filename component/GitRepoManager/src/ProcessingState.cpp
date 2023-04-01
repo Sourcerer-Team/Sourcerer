@@ -76,6 +76,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForListRemoteBranches(listRemoteCommand);
     break;
   }
+  case EventType::ListSubmodules: {
+    const GitRepoListSubmodulesCommand listSubmodulesCommand =
+        event.nextParam<GitRepoListSubmodulesCommand>();
+    scheduleWorkerForListSubmodules(listSubmodulesCommand);
+    break;
+  }
   case EventType::ListTags: {
     const GitRepoListTagsCommand listTagsCommand =
         event.nextParam<GitRepoListTagsCommand>();
@@ -286,8 +292,36 @@ void ProcessingState::listRemoteBranchesWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::listTagsWorker(const Structs::GitRepoListTagsCommand &command)
-{
+void ProcessingState::listSubmodulesWorker(
+    const Structs::GitRepoListSubmodulesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerListSubmodulesError,
+                GitRepoErrorType::InternalError,
+                tr("Internal error. Context not initialized."), command.uuid);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  QStringList submodules;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    submodules = GitRepo::listSubmodules(ctx->gitRepo);
+  }
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerListSubmodulesResult);
+  resultEvent.addData(submodules);
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::listTagsWorker(
+    const Structs::GitRepoListTagsCommand &command) {
   LOG_PERF(0, "Enter");
 
   GitRepoContext *ctx = context(command.uuid);
@@ -475,8 +509,28 @@ void ProcessingState::scheduleWorkerForListRemoteBranches(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForListTags(const Structs::GitRepoListTagsCommand &command)
-{
+void ProcessingState::scheduleWorkerForListSubmodules(
+    const Structs::GitRepoListSubmodulesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerListSubmodulesError,
+                GitRepoErrorType::NotOpened,
+                tr("Git repository has not been opened."), command.uuid);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoListSubmodulesCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForListTags(
+    const Structs::GitRepoListTagsCommand &command) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_contextsMutex);
@@ -536,6 +590,12 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       const GitRepoListRemoteBranchesCommand *listRemoteCommand =
           static_cast<const GitRepoListRemoteBranchesCommand *>(command);
       listRemoteBranchesWorker(*listRemoteCommand);
+      break;
+    }
+    case GitRepoCommandType::ListSubmodules: {
+      const GitRepoListSubmodulesCommand *listSubmodulesCommand =
+          static_cast<const GitRepoListSubmodulesCommand *>(command);
+      listSubmodulesWorker(*listSubmodulesCommand);
       break;
     }
     case GitRepoCommandType::ListTags: {

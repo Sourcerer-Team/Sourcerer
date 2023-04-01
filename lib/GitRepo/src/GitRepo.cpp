@@ -5,6 +5,7 @@
 
 #include <git2/branch.h>
 #include <git2/refs.h>
+#include <git2/submodule.h>
 #include <git2/tag.h>
 #include <git2/types.h>
 
@@ -180,6 +181,35 @@ QStringList listTags(git_repository *repo)
   LOG_PERF(0, "Exit");
 
   return tags;
+}
+
+static int listSubmodulesCallback(git_submodule *sm, const char *name, void *payload) {
+  if(!payload)
+    return -1;
+
+  QStringList *submodules = static_cast<QStringList*>(payload);
+  *submodules += name;
+
+  return 0;
+}
+
+QStringList listSubmodules(git_repository *repo)
+{
+  LOG_PERF(0, "Enter");
+
+  QStringList submodules;
+
+  const int error = git_submodule_foreach(repo, &listSubmodulesCallback, &submodules);
+  if(error) {
+    const git_error *gitError = git_error_last();
+    LOG_ERROR(Log::ErrorId::Git, "Error: {}, klass: {}, message: '{}'.",
+              error, gitError->klass, gitError->message);
+    return {};
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return submodules;
 }
 
 } // namespace GitRepo

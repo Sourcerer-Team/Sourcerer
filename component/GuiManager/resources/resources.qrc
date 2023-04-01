@@ -3,5 +3,6 @@
         <file>icons/titlebar_menu.png</file>
         <file>icons/git_branch.png</file>
         <file>icons/git_tag.png</file>
+        <file>icons/git_submodule.png</file>
     </qresource>
 </RCC>

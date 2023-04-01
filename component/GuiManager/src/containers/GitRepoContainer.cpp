@@ -43,6 +43,12 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
   _eventManager.subscribe(
       EventManager::EventType::GitRepoManagerListRemoteBranchesResult,
       eventCallbackFunc);
+  _eventManager.subscribe(
+      EventManager::EventType::GitRepoManagerListSubmodulesError,
+      eventCallbackFunc);
+  _eventManager.subscribe(
+      EventManager::EventType::GitRepoManagerListSubmodulesResult,
+      eventCallbackFunc);
   _eventManager.subscribe(EventManager::EventType::GitRepoManagerListTagsError,
                           eventCallbackFunc);
   _eventManager.subscribe(EventManager::EventType::GitRepoManagerListTagsResult,
@@ -76,6 +82,12 @@ GitRepoContainer::~GitRepoContainer() {
       eventCallbackFunc);
   _eventManager.unsubscribe(
       EventManager::EventType::GitRepoManagerListRemoteBranchesResult,
+      eventCallbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerListSubmodulesError,
+      eventCallbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerListSubmodulesResult,
       eventCallbackFunc);
   _eventManager.unsubscribe(
       EventManager::EventType::GitRepoManagerListTagsError, eventCallbackFunc);
@@ -132,6 +144,15 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
         [=]() { updateRemoteBranchesModel(remoteBranches); });
     break;
   }
+  case EventManager::EventType::GitRepoManagerListSubmodulesError: {
+    // Show a toast with error
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerListSubmodulesResult: {
+    const QStringList submodules = event.data<QStringList>();
+    Dispatch::dispatchToMainThread([=]() { updateSubmodulesModel(submodules); });
+    break;
+  }
   case EventManager::EventType::GitRepoManagerListTagsError: {
     // Show a toast with error
     break;
@@ -149,6 +170,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
     getLocalBranches();
     getRemoteBranches();
     getTags();
+    getSubmodules();
     break;
   }
   default: {
@@ -184,6 +206,21 @@ void GitRepoContainer::getRemoteBranches() const {
       EventManager::EventType::GitRepoManagerListRemoteBranches);
   listRemoteEvent.addData(command);
   _eventManager.send(listRemoteEvent);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::getSubmodules() const
+{
+  LOG_PERF(0, "Enter");
+
+  GitRepoListSubmodulesCommand command;
+  command.uuid = _uuid;
+
+  EventManager::Event listSubmodulesEvent(
+      EventManager::EventType::GitRepoManagerListSubmodules);
+  listSubmodulesEvent.addData(command);
+  _eventManager.send(listSubmodulesEvent);
 
   LOG_PERF(0, "Exit")
 }
@@ -239,6 +276,15 @@ void GitRepoContainer::updateRemoteBranchesModel(
   LOG_PERF(0, "Enter");
 
   ui->remotePage->updateModel(remoteBranches);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::updateSubmodulesModel(const QStringList &tags)
+{
+  LOG_PERF(0, "Enter");
+
+  ui->submodulesPage->updateModel(tags);
 
   LOG_PERF(0, "Exit")
 }

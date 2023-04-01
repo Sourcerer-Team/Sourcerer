@@ -26,11 +26,13 @@ private:
   void eventCallback(EventManager::Event event);
   void getLocalBranches() const;
   void getRemoteBranches() const;
+  void getSubmodules() const;
   void getTags() const;
   void openRepo() const;
   void refreshViews();
   void updateLocalBranchesModel(const QStringList &localBranches);
   void updateRemoteBranchesModel(const QStringList &remoteBranches);
+  void updateSubmodulesModel(const QStringList &tags);
   void updateTagsModel(const QStringList &tags);
 
 private:

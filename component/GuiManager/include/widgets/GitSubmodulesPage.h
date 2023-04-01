@@ -1,5 +1,7 @@
 #pragma once
 
+#include <QStandardItemModel>
+#include <QStringList>
 #include <QWidget>
 
 namespace Ui {
@@ -17,7 +19,10 @@ public:
   explicit GitSubmodulesPage(QWidget *parent = nullptr);
   ~GitSubmodulesPage();
 
+  void updateModel(const QStringList &submodules);
+
 private:
+  QStandardItemModel *_model;
   Ui::GitSubmodulesPage *ui;
 };
 
