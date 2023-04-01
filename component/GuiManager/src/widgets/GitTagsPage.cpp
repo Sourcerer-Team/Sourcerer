@@ -5,12 +5,14 @@
 
 #define THREAD_ID "GitTagsPage"
 
+using namespace GuiManager::Models;
+
 namespace GuiManager {
 
 namespace Widgets {
 
 GitTagsPage::GitTagsPage(QWidget *parent)
-    : QWidget(parent), ui(new Ui::GitTagsPage), _model(nullptr) {
+    : QWidget(parent), ui(new Ui::GitTagsPage), _model(new TagsModel(this)) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -26,20 +28,27 @@ GitTagsPage::~GitTagsPage() {
   LOG_PERF(0, "Exit");
 }
 
-void GitTagsPage::updateModel(const QStringList &localBranches) {
+void GitTagsPage::updateActiveBranch(const QString &tagName) {
   LOG_PERF(0, "Enter");
 
-  delete _model;
-
-  _model = new QStandardItemModel(this);
-  auto rit = localBranches.rbegin();
-  while (rit != localBranches.rend()) {
-    QStandardItem *item =
-        new QStandardItem(QIcon(":/icons/git_tag.png"), *rit);
-    item->setToolTip(*rit);
-    _model->insertRow(0, item);
-    ++rit;
+  if (!_model) {
+    LOG_ERROR(Log::ErrorId::Gui,
+              "Internal error. Model has not been initialized.");
+    return;
   }
+
+  const int index = _model->indexForBranch(tagName);
+  _model->setActiveIndex(index);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitTagsPage::updateModel(const QStringList &tags) {
+  LOG_PERF(0, "Enter");
+
+  _model->clear();
+  _model->setActiveIndex(-1);
+  _model->updateModel(tags);
 
   ui->listView->setModel(_model);
 

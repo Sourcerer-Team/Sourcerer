@@ -12,6 +12,7 @@ namespace GitRepo {
 void initForCurrentThread();
 void shutdownForCurrentThread();
 void closeRepository(git_repository *repo);
+QString getActiveBranch(git_repository *repo);
 QStringList listLocalBranches(git_repository *repo);
 QStringList listRemoteBranches(git_repository *repo);
 QStringList listSubmodules(git_repository *repo);

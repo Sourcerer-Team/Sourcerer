@@ -1,7 +1,7 @@
 #pragma once
 
-#include <QStandardItemModel>
-#include <QStringList>
+#include "models/BranchesModel.h"
+
 #include <QWidget>
 
 namespace Ui {
@@ -19,10 +19,11 @@ public:
   explicit RemoteGitBranchesPage(QWidget *parent = nullptr);
   ~RemoteGitBranchesPage();
 
-  void updateModel(const QStringList &remoteBranches);
+  void updateActiveBranch(const QString& branchName);
+  void updateModel(const QStringList &localBranches);
 
 private:
-  QStandardItemModel *_model;
+  Models::BranchesModel *_model;
   Ui::RemoteGitBranchesPage *ui;
 };
 

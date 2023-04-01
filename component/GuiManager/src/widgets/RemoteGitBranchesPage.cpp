@@ -5,12 +5,15 @@
 
 #define THREAD_ID "RemoteGitBranchesPage"
 
+using namespace GuiManager::Models;
+
 namespace GuiManager {
 
 namespace Widgets {
 
 RemoteGitBranchesPage::RemoteGitBranchesPage(QWidget *parent)
-    : QWidget(parent), ui(new Ui::RemoteGitBranchesPage), _model(nullptr) {
+    : QWidget(parent), ui(new Ui::RemoteGitBranchesPage),
+      _model(new BranchesModel(this)) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -26,20 +29,27 @@ RemoteGitBranchesPage::~RemoteGitBranchesPage() {
   LOG_PERF(0, "Exit");
 }
 
+void RemoteGitBranchesPage::updateActiveBranch(const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  if (!_model) {
+    LOG_ERROR(Log::ErrorId::Gui,
+              "Internal error. Model has not been initialized.");
+    return;
+  }
+
+  const int index = _model->indexForBranch(branchName);
+  _model->setActiveIndex(index);
+
+  LOG_PERF(0, "Exit");
+}
+
 void RemoteGitBranchesPage::updateModel(const QStringList &remoteBranches) {
   LOG_PERF(0, "Enter");
 
-  delete _model;
-
-  _model = new QStandardItemModel(this);
-  auto rit = remoteBranches.rbegin();
-  while (rit != remoteBranches.rend()) {
-    QStandardItem *item =
-        new QStandardItem(QIcon(":/icons/git_branch.png"), *rit);
-    item->setToolTip(*rit);
-    _model->insertRow(0, item);
-    ++rit;
-  }
+  _model->clear();
+  _model->setActiveIndex(-1);
+  _model->updateModel(remoteBranches);
 
   ui->listView->setModel(_model);
 

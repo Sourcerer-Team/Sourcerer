@@ -32,6 +32,12 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
       std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
 
   _eventManager.subscribe(
+      EventManager::EventType::GitRepoManagerGetActiveBranchError,
+      eventCallbackFunc);
+  _eventManager.subscribe(
+      EventManager::EventType::GitRepoManagerGetActiveBranchResult,
+      eventCallbackFunc);
+  _eventManager.subscribe(
       EventManager::EventType::GitRepoManagerListLocalBranchesError,
       eventCallbackFunc);
   _eventManager.subscribe(
@@ -71,6 +77,12 @@ GitRepoContainer::~GitRepoContainer() {
   const auto eventCallbackFunc =
       std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
 
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerGetActiveBranchError,
+      eventCallbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerGetActiveBranchResult,
+      eventCallbackFunc);
   _eventManager.unsubscribe(
       EventManager::EventType::GitRepoManagerListLocalBranchesError,
       eventCallbackFunc);
@@ -124,6 +136,16 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   LOG_DEBUG("Processing event of type {}.", (int)eventType);
 
   switch (eventType) {
+  case EventManager::EventType::GitRepoManagerGetActiveBranchError: {
+    // Show a toast with error
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerGetActiveBranchResult: {
+    const QString activeBranch = event.data<QString>();
+    Dispatch::dispatchToMainThread(
+        [=]() { updateLocalBranchesModelActiveBranch(activeBranch); });
+    break;
+  }
   case EventManager::EventType::GitRepoManagerListLocalBranchesError: {
     // Show a toast with error
     break;
@@ -150,7 +172,8 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerListSubmodulesResult: {
     const QStringList submodules = event.data<QStringList>();
-    Dispatch::dispatchToMainThread([=]() { updateSubmodulesModel(submodules); });
+    Dispatch::dispatchToMainThread(
+        [=]() { updateSubmodulesModel(submodules); });
     break;
   }
   case EventManager::EventType::GitRepoManagerListTagsError: {
@@ -168,6 +191,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerOpenRepoResult: {
     getLocalBranches();
+    getActiveBranch();
     getRemoteBranches();
     getTags();
     getSubmodules();
@@ -178,6 +202,21 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
     break;
   }
   }
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::getActiveBranch() const
+{
+  LOG_PERF(0, "Enter");
+
+  GitRepoGetActiveBranchCommand command;
+  command.uuid = _uuid;
+
+  EventManager::Event getActiveBranchEvent(
+      EventManager::EventType::GitRepoManagerGetActiveBranch);
+  getActiveBranchEvent.addData(command);
+  _eventManager.send(getActiveBranchEvent);
 
   LOG_PERF(0, "Exit")
 }
@@ -210,8 +249,7 @@ void GitRepoContainer::getRemoteBranches() const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::getSubmodules() const
-{
+void GitRepoContainer::getSubmodules() const {
   LOG_PERF(0, "Enter");
 
   GitRepoListSubmodulesCommand command;
@@ -271,6 +309,15 @@ void GitRepoContainer::updateLocalBranchesModel(
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::updateLocalBranchesModelActiveBranch(const QString &activeBranch)
+{
+  LOG_PERF(0, "Enter");
+
+  ui->localPage->updateActiveBranch(activeBranch);
+
+  LOG_PERF(0, "Exit")
+}
+
 void GitRepoContainer::updateRemoteBranchesModel(
     const QStringList &remoteBranches) {
   LOG_PERF(0, "Enter");
@@ -280,8 +327,7 @@ void GitRepoContainer::updateRemoteBranchesModel(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateSubmodulesModel(const QStringList &tags)
-{
+void GitRepoContainer::updateSubmodulesModel(const QStringList &tags) {
   LOG_PERF(0, "Enter");
 
   ui->submodulesPage->updateModel(tags);

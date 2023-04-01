@@ -1,7 +1,7 @@
 #pragma once
 
-#include <QStandardItemModel>
-#include <QStringList>
+#include "models/SubmodulesModel.h"
+
 #include <QWidget>
 
 namespace Ui {
@@ -19,10 +19,11 @@ public:
   explicit GitSubmodulesPage(QWidget *parent = nullptr);
   ~GitSubmodulesPage();
 
+  void updateActiveBranch(const QString& submoduleName);
   void updateModel(const QStringList &submodules);
 
 private:
-  QStandardItemModel *_model;
+  Models::SubmodulesModel *_model;
   Ui::GitSubmodulesPage *ui;
 };
 

@@ -27,7 +27,10 @@ set(GUIMANAGER_SOURCE_FILES
    include/containers/SettingsContainer.h
    include/delegates/HomeRecentItemDelegate.h
    include/dialogs/AboutDialog.h
+   include/models/BranchesModel.h
    include/models/RecentlyOpenedReposModel.h
+   include/models/SubmodulesModel.h
+   include/models/TagsModel.h
    include/widgets/ColorButton.h
    include/widgets/ContainerWidget.h
    include/widgets/GitSubmodulesPage.h
@@ -58,7 +61,10 @@ set(GUIMANAGER_SOURCE_FILES
    src/delegates/HomeRecentItemDelegate.cpp
    src/dialogs/AboutDialog.cpp
    src/dialogs/AboutDialog.ui
+   src/models/BranchesModel.cpp
    src/models/RecentlyOpenedReposModel.cpp
+   src/models/SubmodulesModel.cpp
+   src/models/TagsModel.cpp
    src/widgets/ColorButton.cpp
    src/widgets/ContainerWidget.cpp
    src/widgets/GitSubmodulesPage.cpp

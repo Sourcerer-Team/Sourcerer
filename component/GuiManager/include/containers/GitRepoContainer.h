@@ -24,6 +24,7 @@ public:
 private:
   void closeRepo() const;
   void eventCallback(EventManager::Event event);
+  void getActiveBranch() const;
   void getLocalBranches() const;
   void getRemoteBranches() const;
   void getSubmodules() const;
@@ -31,6 +32,7 @@ private:
   void openRepo() const;
   void refreshViews();
   void updateLocalBranchesModel(const QStringList &localBranches);
+  void updateLocalBranchesModelActiveBranch(const QString& activeBranch);
   void updateRemoteBranchesModel(const QStringList &remoteBranches);
   void updateSubmodulesModel(const QStringList &tags);
   void updateTagsModel(const QStringList &tags);

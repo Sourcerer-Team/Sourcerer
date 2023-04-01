@@ -1,7 +1,7 @@
 #pragma once
 
-#include <QStandardItemModel>
-#include <QStringList>
+#include "models/TagsModel.h"
+
 #include <QWidget>
 
 namespace Ui {
@@ -19,10 +19,11 @@ public:
   explicit GitTagsPage(QWidget *parent = nullptr);
   ~GitTagsPage();
 
+  void updateActiveBranch(const QString& tagName);
   void updateModel(const QStringList &tags);
 
 private:
-  QStandardItemModel *_model;
+  Models::TagsModel *_model;
   Ui::GitTagsPage *ui;
 };
 
