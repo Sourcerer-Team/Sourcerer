@@ -31,8 +31,16 @@ void LocalGitBranchesPage::updateModel(const QStringList &localBranches) {
 
   delete _model;
 
-  _model = new QStringListModel(this);
-  _model->setStringList(localBranches);
+  _model = new QStandardItemModel(this);
+  auto rit = localBranches.rbegin();
+  while (rit != localBranches.rend()) {
+    QStandardItem *item =
+        new QStandardItem(QIcon(":/icons/git_branch.png"), *rit);
+    item->setToolTip(*rit);
+    _model->insertRow(0, item);
+    ++rit;
+  }
+
   ui->listView->setModel(_model);
 
   LOG_PERF(0, "Exit");

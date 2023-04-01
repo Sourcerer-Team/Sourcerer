@@ -139,20 +139,8 @@ void DarkStyle::drawControl(ControlElement element, const QStyleOption *opt, QPa
     }
 
     if (const QStyleOptionToolBox *tb = qstyleoption_cast<const QStyleOptionToolBox *>(opt)) {
-        p->setPen(tb->palette.mid().color().darker(150));
-        const QPoint points[] = {
-            QPoint(-1, tb->rect.height() + 1),
-            QPoint(-1, 1),
-            QPoint(tb->rect.width(), 1),
-            QPoint(tb->rect.width(), tb->rect.height() + 1),
-            QPoint(-1, tb->rect.height() + 1),
-        };
-        p->drawPolygon(points, sizeof points / sizeof *points);
-        p->setPen(tb->palette.light().color());
+        p->setPen(tb->palette.highlight().color());
         p->drawLine(0, 2, tb->rect.width(), 2);
-        p->drawLine(tb->rect.width(), 2, tb->rect.width(), tb->rect.height() - 1);
-        p->drawLine(tb->rect.width(), tb->rect.height() - 1,
-                    tb->rect.width(), tb->rect.height() - 1);
         p->setBrush(Qt::NoBrush);
     }
 }

@@ -16,12 +16,14 @@ find_package(Threads REQUIRED)
 add_compile_definitions(QT_USE_STRING_BUILDER)
 
 add_library(Util STATIC
+   include/Dispatch.h
    include/FileLock.h
    include/General.h
    include/Git.h
    include/LockGuard.h
    include/TokenString.h
    include/Uuid.h
+   src/Dispatch.cpp
    src/FileLock.cpp
    src/General.cpp
    src/Git.cpp

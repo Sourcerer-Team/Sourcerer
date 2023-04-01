@@ -1,7 +1,7 @@
 #pragma once
 
+#include <QStandardItemModel>
 #include <QStringList>
-#include <QStringListModel>
 #include <QWidget>
 
 namespace Ui {
@@ -22,7 +22,7 @@ public:
   void updateModel(const QStringList &localBranches);
 
 private:
-  QStringListModel *_model;
+  QStandardItemModel *_model;
   Ui::LocalGitBranchesPage *ui;
 };
 

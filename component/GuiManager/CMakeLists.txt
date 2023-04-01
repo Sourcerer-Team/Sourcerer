@@ -42,6 +42,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/widgets/SettingsPaneDateTimeWidget.h
    include/widgets/SettingsPaneLongWidget.h
    include/widgets/SettingsPaneStringWidget.h
+   include/widgets/ShadeIconToolbox.h
    include/widgets/TitleBarHomeButton.h
    include/widgets/TitleBarMenuButton.h
    include/widgets/TitleBarTabBar.h
@@ -72,6 +73,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/widgets/SettingsPaneDateTimeWidget.cpp
    src/widgets/SettingsPaneLongWidget.cpp
    src/widgets/SettingsPaneStringWidget.cpp
+   src/widgets/ShadeIconToolbox.cpp
    src/widgets/TitleBarHomeButton.cpp
    src/widgets/TitleBarMenuButton.cpp
    src/widgets/TitleBarTabBar.cpp

@@ -31,8 +31,16 @@ void RemoteGitBranchesPage::updateModel(const QStringList &remoteBranches) {
 
   delete _model;
 
-  _model = new QStringListModel(this);
-  _model->setStringList(remoteBranches);
+  _model = new QStandardItemModel(this);
+  auto rit = remoteBranches.rbegin();
+  while (rit != remoteBranches.rend()) {
+    QStandardItem *item =
+        new QStandardItem(QIcon(":/icons/git_branch.png"), *rit);
+    item->setToolTip(*rit);
+    _model->insertRow(0, item);
+    ++rit;
+  }
+
   ui->listView->setModel(_model);
 
   LOG_PERF(0, "Exit");

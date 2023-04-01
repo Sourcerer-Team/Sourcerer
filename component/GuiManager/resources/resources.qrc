@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
         <file>icons/titlebar_menu.png</file>
+        <file>icons/git_branch.png</file>
     </qresource>
 </RCC>

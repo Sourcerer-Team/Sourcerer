@@ -1,6 +1,7 @@
 #include "containers/GitRepoContainer.h"
 #include "containers/ui_GitRepoContainer.h"
 
+#include <Dispatch.h>
 #include <GitRepoManagerStructs.h>
 #include <Log.h>
 #include <Uuid.h>
@@ -22,6 +23,11 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
+  ui->localPage->setContentsMargins(0, 0, 0, 0);
+  ui->remotePage->setContentsMargins(0, 0, 0, 0);
+  ui->tagsPage->setContentsMargins(0, 0, 0, 0);
+  ui->submodulesPage->setContentsMargins(0, 0, 0, 0);
+
 
   const auto eventCallbackFunc =
       std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
@@ -105,7 +111,9 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerListLocalBranchesResult: {
     const QStringList localBranches = event.data<QStringList>();
-    updateLocalBranchesModel(localBranches);
+    Dispatch::dispatchToMainThread([=]() {
+        updateLocalBranchesModel(localBranches);
+    });
     break;
   }
   case EventManager::EventType::GitRepoManagerListRemoteBranchesError: {
@@ -114,7 +122,9 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerListRemoteBranchesResult: {
     const QStringList remoteBranches = event.data<QStringList>();
-    updateRemoteBranchesModel(remoteBranches);
+    Dispatch::dispatchToMainThread([=]() {
+        updateRemoteBranchesModel(remoteBranches);
+    });
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepoError: {
