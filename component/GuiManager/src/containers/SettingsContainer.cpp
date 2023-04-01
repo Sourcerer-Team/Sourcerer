@@ -19,7 +19,7 @@ SettingsContainer::SettingsContainer(QWidget *parent)
 
   ui->setupUi(this);
   ui->splitter->setStretchFactor(0, 1);
-  ui->splitter->setStretchFactor(1, 10);
+  ui->splitter->setStretchFactor(1, 9);
   ui->groupsTreeView->header()->setVisible(false);
   ui->groupsTreeView->header()->setSectionResizeMode(
       QHeaderView::ResizeToContents);

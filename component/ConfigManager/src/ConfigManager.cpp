@@ -20,6 +20,7 @@ struct KeyDescription {
 
 QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::Unknown, ""},
+    {ConfigKey::GitRepoSplitterPos, "window/gitrepo/splitterPos"},
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
     {ConfigKey::SettingsSplitterPos, "window/settings/splitterPos"},
     {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
@@ -53,6 +54,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::TitleBarMenuMinimumSize, 230}};
 
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
+    {ConfigKey::GitRepoSplitterPos, ""},
     {ConfigKey::RecentlyOpenedRepos,
      "git@github.com:levi9-embedded/"
      "components.git,git@github.com:levi9-embedded/arduino-projects.git"},

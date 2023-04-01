@@ -19,6 +19,7 @@ namespace Containers {
 GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
     : ContainerWidget(Widgets::ContainerType::Unknown, parent),
       ui(new Ui::GitRepoContainer), _uuid(Uuid::createUuid()), _path(path),
+      _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
@@ -26,7 +27,18 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
   ui->localPage->setContentsMargins(0, 0, 0, 0);
   ui->remotePage->setContentsMargins(0, 0, 0, 0);
   ui->tagsPage->setContentsMargins(0, 0, 0, 0);
+  ui->splitter->setStretchFactor(0, 1);
+  ui->splitter->setStretchFactor(1, 8);
+  ui->splitter->setStretchFactor(2, 1);
   ui->submodulesPage->setContentsMargins(0, 0, 0, 0);
+
+  const QByteArray splitterState = QByteArray::fromHex(
+      _configManager.getString(ConfigManager::ConfigKey::GitRepoSplitterPos)
+          .toUtf8());
+  ui->splitter->restoreState(splitterState);
+
+  connect(ui->splitter, &QSplitter::splitterMoved, this,
+          &GitRepoContainer::onSplitterMoved);
 
   const auto eventCallbackFunc =
       std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
@@ -113,6 +125,19 @@ GitRepoContainer::~GitRepoContainer() {
   delete ui;
 
   LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::onSplitterMoved(int pos, int index)
+{
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("pos = {}, index = {}", pos, index);
+
+  const QString splitterState = ui->splitter->saveState().toHex();
+  _configManager.setString(ConfigManager::ConfigKey::GitRepoSplitterPos,
+                           splitterState);
+  _configManager.save();
+
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::closeRepo() const {
@@ -206,8 +231,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::getActiveBranch() const
-{
+void GitRepoContainer::getActiveBranch() const {
   LOG_PERF(0, "Enter");
 
   GitRepoGetActiveBranchCommand command;
@@ -309,8 +333,8 @@ void GitRepoContainer::updateLocalBranchesModel(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateLocalBranchesModelActiveBranch(const QString &activeBranch)
-{
+void GitRepoContainer::updateLocalBranchesModelActiveBranch(
+    const QString &activeBranch) {
   LOG_PERF(0, "Enter");
 
   ui->localPage->updateActiveBranch(activeBranch);

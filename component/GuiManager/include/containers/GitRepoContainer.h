@@ -2,6 +2,7 @@
 
 #include "widgets/ContainerWidget.h"
 
+#include <ConfigManager.h>
 #include <EventManager.h>
 
 #include <QWidget>
@@ -21,6 +22,9 @@ public:
   explicit GitRepoContainer(const QString &path, QWidget *parent = nullptr);
   virtual ~GitRepoContainer();
 
+private slots:
+  void onSplitterMoved(int pos, int index);
+
 private:
   void closeRepo() const;
   void eventCallback(EventManager::Event event);
@@ -32,7 +36,7 @@ private:
   void openRepo() const;
   void refreshViews();
   void updateLocalBranchesModel(const QStringList &localBranches);
-  void updateLocalBranchesModelActiveBranch(const QString& activeBranch);
+  void updateLocalBranchesModelActiveBranch(const QString &activeBranch);
   void updateRemoteBranchesModel(const QStringList &remoteBranches);
   void updateSubmodulesModel(const QStringList &tags);
   void updateTagsModel(const QStringList &tags);
@@ -41,6 +45,7 @@ private:
   Ui::GitRepoContainer *ui;
   QString _uuid;
   QString _path;
+  ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
 };
 

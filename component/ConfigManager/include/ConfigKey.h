@@ -11,6 +11,9 @@ enum class ConfigKey {
   TitleBarMaxTabWidth,
   TitleBarMenuMinimumSize,
 
+  // GitRepo container
+  GitRepoSplitterPos,
+
   // Settings container
   SettingsSplitterPos,
 
