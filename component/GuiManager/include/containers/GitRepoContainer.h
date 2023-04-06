@@ -1,6 +1,7 @@
 #pragma once
 
 #include "widgets/ContainerWidget.h"
+#include "widgets/ToastHostWidget.h"
 
 #include <ConfigManager.h>
 #include <EventManager.h>
@@ -35,6 +36,7 @@ private:
   void getTags() const;
   void openRepo() const;
   void refreshViews();
+  void showToast(const QString& message);
   void updateLocalBranchesModel(const QStringList &localBranches);
   void updateLocalBranchesModelActiveBranch(const QString &activeBranch);
   void updateRemoteBranchesModel(const QStringList &remoteBranches);
@@ -47,6 +49,7 @@ private:
   QString _path;
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
+  Widgets::ToastHostWidget& _toastHost;
 };
 
 } // namespace Containers

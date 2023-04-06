@@ -19,9 +19,12 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "GuiManager--Widgets--TitleBarMenuButton::menu-indicator{width:0px;}"
      "GuiManager--Widgets--TitlebarWidget,GuiManager--Widgets--TitlebarWidget "
      "* {font-size:14px;}"
-     "GuiManager--Containers--GitRepoContainer{font-size:14px;background-color:#353535;}"
-     "GuiManager--Containers--HomeContainer{font-size:14px;background-color:#353535;}"
-     "GuiManager--Containers--SettingsContainer{font-size:14px;background-color:#353535;}"
+     "GuiManager--Containers--GitRepoContainer{font-size:14px;background-color:"
+     "#353535;}"
+     "GuiManager--Containers--HomeContainer{font-size:14px;background-color:#"
+     "353535;}"
+     "GuiManager--Containers--SettingsContainer{font-size:14px;background-"
+     "color:#353535;}"
      "GuiManager--Containers--SettingsContainer "
      "QSplitter{margin-top:30px;}"
      "GuiManager--Containers--SettingsContainer "
@@ -33,7 +36,8 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "GuiManager--Containers--SettingsContainer "
      "QDateTimeEdit#dateTimeEdit{max-width:145px;}"
      "GuiManager--Containers--SettingsContainer "
-     "QLabel#groupLabel{font-size:20px;font-weight:bold;background-color:#202020;padding:8px;}"
+     "QLabel#groupLabel{font-size:20px;font-weight:bold;background-color:#"
+     "202020;padding:8px;}"
      "GuiManager--Containers--SettingsContainer "
      "QLabel#nameLabel{font-weight:bold;}"
      "GuiManager--Containers--SettingsContainer "
@@ -42,7 +46,9 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "QSpinBox#longSpinBox{max-width:75px;}"
      "GuiManager--Containers--SettingsContainer "
      "GuiManager--Widgets--SettingsPaneItemWidget{padding:0px;qproperty-"
-     "hoverColor:#282828;}"}};
+     "hoverColor:#282828;}"
+     "GuiManager--Widgets--ToastWidget{font-size:14px;background-color:yellow;"
+     "}"}};
 
 StylesheetManager::StylesheetManager() {
   LOG_PERF(0, "Enter");

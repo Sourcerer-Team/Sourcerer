@@ -21,13 +21,16 @@ struct KeyDescription {
 QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::Unknown, ""},
     {ConfigKey::GitRepoSplitterPos, "window/gitrepo/splitterPos"},
+    {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
     {ConfigKey::SettingsSplitterPos, "window/settings/splitterPos"},
     {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
     {ConfigKey::TitleBarMaxTabWidth, "window/titleBarMaxTabWidth"},
     {ConfigKey::TitleBarMenuMinimumSize, "window/xxx/titleBarMenuMinimumWidth"},
     {ConfigKey::TestColor, "test/testColor"},
-    {ConfigKey::TestDateTime, "test/testDateTime"}};
+    {ConfigKey::TestDateTime, "test/testDateTime"},
+    {ConfigKey::ToastSpacing, "window/toasts/toastSpacing"},
+    {ConfigKey::ToastWidth, "window/toasts/toastWidth"}};
 
 QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::Unknown, {"", ""}},
@@ -45,13 +48,15 @@ QMap<ConfigKey, QColor> DEFAULT_COLORS = {
     {ConfigKey::TestColor, QColor(10, 10, 10)}};
 
 QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {
-  {ConfigKey::TestDateTime, QDateTime::currentDateTime()}
-};
+    {ConfigKey::TestDateTime, QDateTime::currentDateTime()}};
 
 QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
+    {ConfigKey::InfoToastDisplayTime, 3000},
     {ConfigKey::TitleBarHeight, 40},
     {ConfigKey::TitleBarMaxTabWidth, 285},
-    {ConfigKey::TitleBarMenuMinimumSize, 230}};
+    {ConfigKey::TitleBarMenuMinimumSize, 230},
+    {ConfigKey::ToastSpacing, 4},
+    {ConfigKey::ToastWidth, 400}};
 
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::GitRepoSplitterPos, ""},

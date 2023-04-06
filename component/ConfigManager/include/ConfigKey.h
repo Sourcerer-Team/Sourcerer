@@ -17,6 +17,11 @@ enum class ConfigKey {
   // Settings container
   SettingsSplitterPos,
 
+  // Toasts
+  ToastSpacing,
+  ToastWidth,
+  InfoToastDisplayTime,
+
   // Testing
   TestColor,
   TestDateTime,

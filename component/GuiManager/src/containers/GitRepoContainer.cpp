@@ -1,5 +1,6 @@
 #include "containers/GitRepoContainer.h"
 #include "containers/ui_GitRepoContainer.h"
+#include "widgets/InfoToast.h"
 
 #include <Dispatch.h>
 #include <GitRepoManagerStructs.h>
@@ -10,6 +11,7 @@
 
 #define THREAD_ID "GitRepoContainer"
 
+using namespace GuiManager::Widgets;
 using namespace GitRepoManager::Structs;
 
 namespace GuiManager {
@@ -20,7 +22,8 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
     : ContainerWidget(Widgets::ContainerType::Unknown, parent),
       ui(new Ui::GitRepoContainer), _uuid(Uuid::createUuid()), _path(path),
       _configManager(ConfigManager::ConfigManager::getInstance()),
-      _eventManager(EventManager::EventManager::getInstance()) {
+      _eventManager(EventManager::EventManager::getInstance()),
+      _toastHost(ToastHostWidget::getInstance()) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -127,8 +130,7 @@ GitRepoContainer::~GitRepoContainer() {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::onSplitterMoved(int pos, int index)
-{
+void GitRepoContainer::onSplitterMoved(int pos, int index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("pos = {}, index = {}", pos, index);
 
@@ -212,6 +214,13 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerOpenRepoError: {
     // Show a toast with error
+    const GitRepoError gitError = event.data<GitRepoError>();
+    //if(gitError.uuid != _uuid)
+    //    break;
+
+    Dispatch::dispatchToMainThread([=]() {
+        showToast(tr("Can't open repository\n"));
+    });
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepoResult: {
@@ -320,6 +329,16 @@ void GitRepoContainer::refreshViews() {
   LOG_PERF(0, "Enter");
 
   openRepo();
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::showToast(const QString &message)
+{
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Showing a toast with the message '{}'.", message);
+
+  _toastHost.addToast(new InfoToast(message));
 
   LOG_PERF(0, "Exit")
 }

@@ -35,6 +35,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/widgets/ContainerWidget.h
    include/widgets/GitSubmodulesPage.h
    include/widgets/GitTagsPage.h
+   include/widgets/InfoToast.h
    include/widgets/LocalGitBranchesPage.h
    include/widgets/RecentTableView.h
    include/widgets/RemoteGitBranchesPage.h
@@ -50,6 +51,9 @@ set(GUIMANAGER_SOURCE_FILES
    include/widgets/TitleBarMenuButton.h
    include/widgets/TitleBarTabBar.h
    include/widgets/TitlebarWidget.h
+   include/widgets/ToastCloseButton.h
+   include/widgets/ToastHostWidget.h
+   include/widgets/ToastWidget.h
    include/widgets/factories/SettingsPaneItemWidgetFactory.h
    src/GuiManager.cpp
    src/InitResources.cpp
@@ -69,6 +73,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/widgets/ContainerWidget.cpp
    src/widgets/GitSubmodulesPage.cpp
    src/widgets/GitTagsPage.cpp
+   src/widgets/InfoToast.cpp
    src/widgets/LocalGitBranchesPage.cpp
    src/widgets/RecentTableView.cpp
    src/widgets/RemoteGitBranchesPage.cpp
@@ -84,6 +89,9 @@ set(GUIMANAGER_SOURCE_FILES
    src/widgets/TitleBarMenuButton.cpp
    src/widgets/TitleBarTabBar.cpp
    src/widgets/TitlebarWidget.cpp
+   src/widgets/ToastCloseButton.cpp
+   src/widgets/ToastHostWidget.cpp
+   src/widgets/ToastWidget.cpp
    src/widgets/factories/SettingsPaneItemWidgetFactory.cpp
    src/containers/GitRepoContainer.ui
    src/containers/HomeContainer.ui

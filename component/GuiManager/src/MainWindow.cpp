@@ -26,6 +26,7 @@ const int TOP_MARGIN_OFFSET = 10;
 
 MainWindow::MainWindow(QWidget *parent)
     : QGoodWindow(parent), _current(-1), _titleBarWidget(new TitlebarWidget),
+      _toastHost(ToastHostWidget::getInstance()),
       _centralWidget(new QGoodCentralWidget(this)),
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
@@ -41,6 +42,9 @@ MainWindow::MainWindow(QWidget *parent)
   _centralWidget->setUnifiedTitleBarAndCentralWidget(true);
   _centralWidget->setLeftTitleBarWidget(_titleBarWidget);
   setCentralWidget(_centralWidget);
+
+  _toastHost.setParent(this);
+  _toastHost.setYOffset(titleBarHeight);
 
   connect(_titleBarWidget, &TitlebarWidget::home, this, &MainWindow::onHome);
   connect(_titleBarWidget, &TitlebarWidget::open, this, &MainWindow::onOpen);
@@ -64,9 +68,27 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow() {
   LOG_PERF(0, "Enter");
 
+  _toastHost.setParent(nullptr);
+
   for (const auto &container : _containers) {
     delete container;
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event) {
+  LOG_PERF(0, "Enter");
+
+  if (!event) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QWidget::resizeEvent(event);
+
+  QRect newGeometry(0, 0, event->size().width(), event->size().height());
+  _toastHost.setParentSize(newGeometry);
 
   LOG_PERF(0, "Exit");
 }
@@ -161,6 +183,19 @@ void MainWindow::onTabBarResize() {
   LOG_PERF(0, "Enter");
 
   _centralWidget->updateWindow();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onToastHostSizeChanged(const QSize &newSize)
+{
+  LOG_PERF(0, "Enter");
+
+  QSize adjustedSize;
+  adjustedSize.setWidth(adjustedSize.width());
+  adjustedSize.setHeight(newSize.height() + _titleBarWidget->height());
+
+  setMinimumSize(newSize);
 
   LOG_PERF(0, "Exit");
 }
