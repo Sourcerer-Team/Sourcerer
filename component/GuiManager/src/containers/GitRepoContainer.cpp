@@ -215,8 +215,8 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   case EventManager::EventType::GitRepoManagerOpenRepoError: {
     // Show a toast with error
     const GitRepoError gitError = event.data<GitRepoError>();
-    //if(gitError.uuid != _uuid)
-    //    break;
+    if(gitError.uuid != _uuid)
+        break;
 
     Dispatch::dispatchToMainThread([=]() {
         showToast(tr("Can't open repository\n"));

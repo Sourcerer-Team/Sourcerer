@@ -36,7 +36,7 @@ InfoToast::InfoToast(const QString &message, QWidget *parent)
   const qlonglong displayTime =
       _configManager.getLong(ConfigManager::ConfigKey::InfoToastDisplayTime);
 
-  _stopTimer->singleShot(100000, this, [=]() { stop(); });
+  _stopTimer->singleShot(displayTime, this, [=]() { stop(); });
 
   LOG_PERF(0, "Exit");
 }
