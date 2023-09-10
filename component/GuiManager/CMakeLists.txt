@@ -23,6 +23,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/MainWindow.h
    include/containers/GitRepoContainer.h
    include/containers/HomeContainer.h
+   include/containers/InitGitRepoContainer.h
    include/containers/PleaseWaitContainer.h
    include/containers/SettingsContainer.h
    include/delegates/HomeRecentItemDelegate.h
@@ -60,6 +61,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/MainWindow.cpp
    src/containers/GitRepoContainer.cpp
    src/containers/HomeContainer.cpp
+   src/containers/InitGitRepoContainer.cpp
    src/containers/PleaseWaitContainer.cpp
    src/containers/SettingsContainer.cpp
    src/delegates/HomeRecentItemDelegate.cpp
@@ -95,6 +97,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/widgets/factories/SettingsPaneItemWidgetFactory.cpp
    src/containers/GitRepoContainer.ui
    src/containers/HomeContainer.ui
+   src/containers/InitGitRepoContainer.ui
    src/containers/PleaseWaitContainer.ui
    src/containers/SettingsContainer.ui
    src/widgets/GitSubmodulesPage.ui

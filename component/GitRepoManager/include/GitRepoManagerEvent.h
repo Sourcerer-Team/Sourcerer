@@ -12,6 +12,7 @@ enum class EventType : int {
   ChangeState = 0,
   CloseRepo,
   GetActiveBranch,
+  Init,
   ListLocalBranches,
   ListRemoteBranches,
   ListSubmodules,

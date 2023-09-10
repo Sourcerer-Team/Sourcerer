@@ -10,6 +10,7 @@ enum class ContainerType {
   Unknown = 0,
   GitRepo,
   Home,
+  InitGitRepo,
   PleaseWait,
   Settings,
   last

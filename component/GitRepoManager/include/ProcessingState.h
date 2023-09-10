@@ -31,6 +31,7 @@ private:
   void eventCallback(const EventManager::Event event);
   void
   getActiveBranchWorker(const Structs::GitRepoGetActiveBranchCommand &command);
+  void initRepoWorker(const Structs::GitRepoInitRepoCommand &command);
   void listLocalBranchesWorker(
       const Structs::GitRepoListLocalBranchesCommand &command);
   void listRemoteBranchesWorker(
@@ -46,6 +47,8 @@ private:
   void scheduleWorkerForCloseRepo(const Structs::GitRepoCloseCommand &command);
   void scheduleWorkerForGetActiveBranch(
       const Structs::GitRepoGetActiveBranchCommand &command);
+  void
+  scheduleWorkerForInitRepo(const Structs::GitRepoInitRepoCommand &command);
   void scheduleWorkerForListLocalBranches(
       const Structs::GitRepoListLocalBranchesCommand &command);
   void scheduleWorkerForListRemoteBranches(

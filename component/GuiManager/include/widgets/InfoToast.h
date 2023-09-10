@@ -23,7 +23,6 @@ public:
   void stop() override;
 
 private:
-  QString _message;
   QTimer *_stopTimer;
   ConfigManager::ConfigManager &_configManager;
 };

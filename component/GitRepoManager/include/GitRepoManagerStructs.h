@@ -16,6 +16,7 @@ enum class GitRepoCommandType : int {
   Unknown = 0,
   Close,
   GetActiveBranch,
+  Init,
   ListLocalBranches,
   ListRemoteBranches,
   ListSubmodules,
@@ -50,6 +51,16 @@ struct GitRepoGetActiveBranchCommand : GitRepoCommand {
   GitRepoGetActiveBranchCommand()
       : GitRepoCommand(GitRepoCommandType::GetActiveBranch) {}
   virtual ~GitRepoGetActiveBranchCommand() {}
+};
+
+struct GitRepoInitRepoCommand : GitRepoCommand {
+  GitRepoInitRepoCommand()
+      : GitRepoCommand(GitRepoCommandType::Init) {}
+  virtual ~GitRepoInitRepoCommand() {}
+
+  QString repoName;
+  QString workingDir;
+  QString defaultBranch;
 };
 
 struct GitRepoListLocalBranchesCommand : GitRepoCommand {

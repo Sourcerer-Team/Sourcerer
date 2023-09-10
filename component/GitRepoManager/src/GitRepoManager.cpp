@@ -23,6 +23,8 @@ GitRepoManager::GitRepoManager()
                           callbackFunc);
   _eventManager.subscribe(
       EventManager::EventType::GitRepoManagerGetActiveBranch, callbackFunc);
+  _eventManager.subscribe(EventManager::EventType::GitRepoManagerInitRepo,
+                          callbackFunc);
   _eventManager.subscribe(
       EventManager::EventType::GitRepoManagerListLocalBranches, callbackFunc);
   _eventManager.subscribe(
@@ -104,6 +106,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent getActiveBranchEvent(EventType::GetActiveBranch);
     getActiveBranchEvent.addParam(QVariant::fromValue(getActiveBranchCommand));
     _fsm.send(getActiveBranchEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerInitRepo: {
+    const GitRepoInitRepoCommand initRepoCommand = event.data<GitRepoInitRepoCommand>();
+    GitRepoManagerEvent initRepoEvent(EventType::Init);
+    initRepoEvent.addParam(QVariant::fromValue(initRepoCommand));
+    _fsm.send(initRepoEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerListLocalBranches: {

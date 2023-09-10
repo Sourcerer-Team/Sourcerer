@@ -22,6 +22,8 @@ ProcessingState::ProcessingState(GitRepoManagerFsm &fsm)
   const auto eventCallbackFunc =
       std::bind(&ProcessingState::eventCallback, this, std::placeholders::_1);
 
+  _eventManager.subscribe(EventManager::EventType::GitRepoManagerInitRepoError,
+                          eventCallbackFunc);
   _eventManager.subscribe(EventManager::EventType::GitRepoManagerOpenRepoError,
                           eventCallbackFunc);
 
@@ -36,6 +38,8 @@ ProcessingState::~ProcessingState() {
 
   _eventManager.unsubscribe(
       EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerInitRepoError, eventCallbackFunc);
 
   LOG_PERF(0, "Exit");
 }
@@ -68,6 +72,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     const GitRepoGetActiveBranchCommand getActiveBranchCommand =
         event.nextParam<GitRepoGetActiveBranchCommand>();
     scheduleWorkerForGetActiveBranch(getActiveBranchCommand);
+    break;
+  }
+  case EventType::Init: {
+    const GitRepoInitRepoCommand initCommand =
+        event.nextParam<GitRepoInitRepoCommand>();
+    scheduleWorkerForInitRepo(initCommand);
     break;
   }
   case EventType::ListLocalBranches: {
@@ -228,6 +238,11 @@ void ProcessingState::eventCallback(const EventManager::Event event) {
   LOG_DEBUG("Processing event {}.", (int)eventType);
 
   switch (eventType) {
+  case EventManager::EventType::GitRepoManagerInitRepoError: {
+    const GitRepoError error = event.data<GitRepoError>();
+    destroyContext(error.uuid);
+    break;
+  }
   case EventManager::EventType::GitRepoManagerOpenRepoError: {
     const GitRepoError error = event.data<GitRepoError>();
     destroyContext(error.uuid);
@@ -265,6 +280,44 @@ void ProcessingState::getActiveBranchWorker(
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerGetActiveBranchResult);
   resultEvent.addData(activeBranch);
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::initRepoWorker(
+    const Structs::GitRepoInitRepoCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerInitRepoError,
+                GitRepoErrorType::InternalError,
+                tr("Internal error. Context not initialized."), command.uuid);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = GitRepo::initRepository(
+      command.repoName, command.workingDir, command.defaultBranch);
+  if (!repo) {
+    reportError(EventManager::EventType::GitRepoManagerInitRepoError,
+                GitRepoErrorType::InternalError, tr("Can't init repository."),
+                command.uuid);
+    LOG_ERROR(Log::ErrorId::Gui, "Can't init repository.");
+    return;
+  }
+
+  {
+    LOCKGUARD(_contextsMutex);
+    ctx->gitRepo = repo;
+  }
+
+  const QString repoPath = command.workingDir + "/" + command.repoName;
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerInitRepoResult);
+  resultEvent.addData(repoPath);
   _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
@@ -523,6 +576,32 @@ void ProcessingState::scheduleWorkerForGetActiveBranch(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForInitRepo(
+    const Structs::GitRepoInitRepoCommand &command) {
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it != _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerInitRepoError,
+                GitRepoErrorType::AlreadyExist,
+                tr("Git repository is already in use."), command.uuid);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto workersThreadFunc =
+      std::bind(&ProcessingState::workersThreadFunc, this, command.uuid);
+
+  GitRepoContext *newContext = new GitRepoContext();
+  _contexts[command.uuid] = newContext;
+
+  newContext->uuid = command.uuid;
+  newContext->workersThread = std::move(std::thread{workersThreadFunc});
+  newContext->commandsQueue.push(new GitRepoInitRepoCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForListLocalBranches(
     const Structs::GitRepoListLocalBranchesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -632,6 +711,12 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       const GitRepoGetActiveBranchCommand *getActiveBranchCommand =
           static_cast<const GitRepoGetActiveBranchCommand *>(command);
       getActiveBranchWorker(*getActiveBranchCommand);
+      break;
+    }
+    case GitRepoCommandType::Init: {
+      const GitRepoInitRepoCommand *initRepoCommand =
+          static_cast<const GitRepoInitRepoCommand *>(command);
+      initRepoWorker(*initRepoCommand);
       break;
     }
     case GitRepoCommandType::ListLocalBranches: {

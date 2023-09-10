@@ -1,18 +1,22 @@
 #include "MainWindow.h"
+#include "containers/GitRepoContainer.h"
 #include "containers/HomeContainer.h"
+#include "containers/InitGitRepoContainer.h"
+#include "containers/PleaseWaitContainer.h"
 #include "containers/SettingsContainer.h"
 #include "dialogs/AboutDialog.h"
 #include "widgets/TitlebarWidget.h"
-#include <containers/GitRepoContainer.h>
-#include <containers/PleaseWaitContainer.h>
 
 #include <ConfigKey.h>
+#include <Dispatch.h>
 #include <Git.h>
 #include <Log.h>
 
 #include <QFileDialog>
 #include <QStandardPaths>
 #include <QTimer>
+
+#include <functional>
 
 #define THREAD_ID "MainWindow"
 
@@ -28,7 +32,8 @@ MainWindow::MainWindow(QWidget *parent)
     : QGoodWindow(parent), _current(-1), _titleBarWidget(new TitlebarWidget),
       _toastHost(ToastHostWidget::getInstance()),
       _centralWidget(new QGoodCentralWidget(this)),
-      _configManager(ConfigManager::ConfigManager::getInstance()) {
+      _configManager(ConfigManager::ConfigManager::getInstance()),
+      _eventManager(EventManager::EventManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
   const qlonglong titleBarHeight =
@@ -62,11 +67,19 @@ MainWindow::MainWindow(QWidget *parent)
 
   addHomeContainer();
 
+  const auto callbackFunc = std::bind(&MainWindow::eventCallback, this, std::placeholders::_1);
+
+  _eventManager.subscribe(EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc);
+
   LOG_PERF(0, "Exit");
 }
 
 MainWindow::~MainWindow() {
   LOG_PERF(0, "Enter");
+
+  const auto callbackFunc = std::bind(&MainWindow::eventCallback, this, std::placeholders::_1);
+
+  _eventManager.unsubscribe(EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc);
 
   _toastHost.setParent(nullptr);
 
@@ -126,6 +139,16 @@ void MainWindow::onClone() {
 void MainWindow::onInit() {
   LOG_PERF(0, "Enter");
 
+  addInitGitRepoContainer();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onInitFinished(ContainerWidget *sender) {
+  LOG_PERF(0, "Enter");
+
+  closeContainer(sender);
+
   LOG_PERF(0, "Exit");
 }
 
@@ -159,14 +182,7 @@ void MainWindow::onClosedTab(int index) {
     return;
   }
 
-  delete _containers[index];
-  _containers.remove(index);
-  _current = -1;
-
-  if (_containers.length() == 0)
-    addHomeContainer();
-
-  _titleBarWidget->removeTab(index);
+  closeContainer(_containers[index]);
 
   LOG_PERF(0, "Exit");
 }
@@ -187,8 +203,7 @@ void MainWindow::onTabBarResize() {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::onToastHostSizeChanged(const QSize &newSize)
-{
+void MainWindow::onToastHostSizeChanged(const QSize &newSize) {
   LOG_PERF(0, "Enter");
 
   QSize adjustedSize;
@@ -225,7 +240,27 @@ void MainWindow::addHomeContainer() {
   _titleBarWidget->addTab(tr("Home"));
   _titleBarWidget->selectTab(_titleBarWidget->tabsCount() - 1);
 
+  connect(container, &HomeContainer::init, this, &MainWindow::onInit);
   connect(container, &HomeContainer::open, this, &MainWindow::onOpen);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addInitGitRepoContainer() {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  InitGitRepoContainer *container = new InitGitRepoContainer(this);
+  container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
+  _containers += container;
+  _titleBarWidget->addTab(tr("Init"));
+  _titleBarWidget->selectTab(_titleBarWidget->tabsCount() - 1);
+
+  const auto handlerFunc =
+      std::bind(&MainWindow::onInitFinished, this, container);
+
+  connect(container, &InitGitRepoContainer::initialized, this, handlerFunc);
 
   LOG_PERF(0, "Exit");
 }
@@ -240,6 +275,60 @@ void MainWindow::addSettingsContainer() {
   _containers += container;
   _titleBarWidget->addTab(tr("Settings"));
   _titleBarWidget->selectTab(_titleBarWidget->tabsCount() - 1);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::closeContainer(ContainerWidget *container) {
+  LOG_PERF(0, "Enter");
+
+  int index = -1;
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    if (_containers[i] != container)
+      continue;
+
+    index = i;
+    break;
+  }
+
+  if (index == -1) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  delete _containers[index];
+  _containers.remove(index);
+  _current = -1;
+
+  if (_containers.length() == 0)
+    addHomeContainer();
+
+  _titleBarWidget->removeTab(index);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::eventCallback(EventManager::Event event)
+{
+  LOG_PERF(0, "Enter");
+
+  const EventManager::EventType eventType = event.type();
+  LOG_DEBUG("Processing event of type {}.", (int)eventType);
+
+  switch (eventType) {
+  case EventManager::EventType::GitRepoManagerInitRepoResult: {
+    const QString repoPath = event.data<QString>();
+    Dispatch::dispatchToMainThread([=]() {
+        addGitRepoContainer(repoPath);
+    });
+    break;
+  }
+  default: {
+    LOG_WARN("Unhandled event.");
+    break;
+  }
+  }
 
   LOG_PERF(0, "Exit");
 }

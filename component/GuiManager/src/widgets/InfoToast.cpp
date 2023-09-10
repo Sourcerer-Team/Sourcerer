@@ -16,13 +16,13 @@ namespace GuiManager {
 namespace Widgets {
 
 InfoToast::InfoToast(const QString &message, QWidget *parent)
-    : ToastWidget{parent}, _message(message), _stopTimer{new QTimer},
+    : ToastWidget{parent}, _stopTimer{new QTimer},
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
   QWidget *widget = new QWidget(this);
 
-  QLabel *messageLabel = new QLabel(Uuid::createUuid(), widget);
+  QLabel *messageLabel = new QLabel(message, widget);
   messageLabel->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
   messageLabel->setWordWrap(true);
 

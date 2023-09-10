@@ -5,6 +5,7 @@
 #include "widgets/ToastHostWidget.h"
 
 #include <ConfigManager.h>
+#include <EventManager.h>
 
 #include <QGoodCentralWidget>
 #include <QGoodWindow>
@@ -31,6 +32,7 @@ private slots:
   void onOpen();
   void onClone();
   void onInit();
+  void onInitFinished(ContainerWidget *sender);
   void onSettings();
   void onAbout();
   void onClosedTab(int index);
@@ -41,7 +43,10 @@ private slots:
 private:
   void addGitRepoContainer(const QString &path);
   void addHomeContainer();
+  void addInitGitRepoContainer();
   void addSettingsContainer();
+  void closeContainer(ContainerWidget *container);
+  void eventCallback(EventManager::Event event);
   void selectContainer(int index);
 
 private:
@@ -51,6 +56,7 @@ private:
   QGoodCentralWidget *_centralWidget;
   QVector<ContainerWidget *> _containers;
   ConfigManager::ConfigManager &_configManager;
+  EventManager::EventManager &_eventManager;
 };
 
 } // namespace GuiManager
