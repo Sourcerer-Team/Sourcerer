@@ -22,7 +22,7 @@ InfoToast::InfoToast(const QString &message, QWidget *parent)
 
   QWidget *widget = new QWidget(this);
 
-  QLabel *messageLabel = new QLabel(message, widget);
+  QLabel *messageLabel = new QLabel(message + "\n", widget);
   messageLabel->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
   messageLabel->setWordWrap(true);
 

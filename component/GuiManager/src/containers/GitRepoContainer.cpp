@@ -219,7 +219,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
         break;
 
     Dispatch::dispatchToMainThread([=]() {
-        showToast(tr("Can't open repository\n"));
+        showToast(tr("Can't open repository"));
     });
     break;
   }

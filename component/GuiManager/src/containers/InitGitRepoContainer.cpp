@@ -106,7 +106,7 @@ void InitGitRepoContainer::eventCallback(EventManager::Event event) {
   switch (eventType) {
   case EventManager::EventType::GitRepoManagerInitRepoError: {
     Dispatch::dispatchToMainThread(
-        [=]() { showToast(tr("Unable to initialize Git repository\n")); });
+        [=]() { showToast(tr("Unable to initialize Git repository")); });
     break;
   }
   case EventManager::EventType::GitRepoManagerInitRepoResult: {
