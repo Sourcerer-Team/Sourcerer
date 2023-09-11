@@ -37,6 +37,7 @@ private:
   Ui::InitGitRepoContainer *ui;
   Widgets::ToastHostWidget& _toastHost;
   EventManager::EventManager &_eventManager;
+  QString _uuid;
 };
 
 } // namespace Containers

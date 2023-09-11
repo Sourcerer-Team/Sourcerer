@@ -24,7 +24,8 @@ InitGitRepoContainer::InitGitRepoContainer(QWidget *parent)
     : Widgets::ContainerWidget(Widgets::ContainerType::InitGitRepo, parent),
       ui(new Ui::InitGitRepoContainer),
       _toastHost(Widgets::ToastHostWidget::getInstance()),
-      _eventManager(EventManager::EventManager::getInstance()) {
+      _eventManager(EventManager::EventManager::getInstance()),
+      _uuid(Uuid::createUuid()) {
 
   LOG_PERF(0, "Enter");
   ui->setupUi(this);
@@ -83,7 +84,7 @@ void InitGitRepoContainer::onInitClicked() {
   LOG_PERF(0, "Enter");
 
   GitRepoInitRepoCommand command;
-  command.uuid = Uuid::createUuid();
+  command.uuid = _uuid;
   command.repoName = ui->lineEditName->text();
   command.workingDir = ui->lineEditWorkingDir->text();
   command.defaultBranch = ui->lineEditDefaultBranch->text();
@@ -105,6 +106,10 @@ void InitGitRepoContainer::eventCallback(EventManager::Event event) {
 
   switch (eventType) {
   case EventManager::EventType::GitRepoManagerInitRepoError: {
+    const GitRepoError gitError = event.data<GitRepoError>();
+    if(gitError.uuid != _uuid)
+        break;
+
     Dispatch::dispatchToMainThread(
         [=]() { showToast(tr("Unable to initialize Git repository")); });
     break;
