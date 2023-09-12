@@ -21,6 +21,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/GuiManager.h
    include/InitResources.h
    include/MainWindow.h
+   include/containers/CloneGitRepoContainer.h
    include/containers/GitRepoContainer.h
    include/containers/HomeContainer.h
    include/containers/InitGitRepoContainer.h
@@ -35,6 +36,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/widgets/ColorButton.h
    include/widgets/ContainerWidget.h
    include/widgets/GitSubmodulesPage.h
+   include/widgets/GitCredentialsToast.h
    include/widgets/GitTagsPage.h
    include/widgets/InfoToast.h
    include/widgets/LocalGitBranchesPage.h
@@ -59,6 +61,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/GuiManager.cpp
    src/InitResources.cpp
    src/MainWindow.cpp
+   src/containers/CloneGitRepoContainer.cpp
    src/containers/GitRepoContainer.cpp
    src/containers/HomeContainer.cpp
    src/containers/InitGitRepoContainer.cpp
@@ -73,6 +76,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/models/TagsModel.cpp
    src/widgets/ColorButton.cpp
    src/widgets/ContainerWidget.cpp
+   src/widgets/GitCredentialsToast.cpp
    src/widgets/GitSubmodulesPage.cpp
    src/widgets/GitTagsPage.cpp
    src/widgets/InfoToast.cpp
@@ -95,6 +99,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/widgets/ToastHostWidget.cpp
    src/widgets/ToastWidget.cpp
    src/widgets/factories/SettingsPaneItemWidgetFactory.cpp
+   src/containers/CloneGitRepoContainer.ui
    src/containers/GitRepoContainer.ui
    src/containers/HomeContainer.ui
    src/containers/InitGitRepoContainer.ui
@@ -119,6 +124,7 @@ includeComponent(GuiManager ComponentManager)
 includeComponent(GuiManager ConfigManager)
 includeComponent(GuiManager StylesheetManager)
 
+includeLib(GuiManager GitRepo)
 includeLib(GuiManager Log)
 includeLib(GuiManager Util)
 includeLib(GuiManager QtWaitingSpinner)

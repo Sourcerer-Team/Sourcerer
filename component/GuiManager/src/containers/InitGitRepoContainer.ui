@@ -19,7 +19,7 @@
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout_2">
+  <layout class="QVBoxLayout" name="verticalLayout2">
    <item>
     <spacer name="verticalSpacerTop">
      <property name="orientation">
@@ -34,9 +34,9 @@
     </spacer>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_2">
+    <layout class="QHBoxLayout" name="horizontalLayout1">
      <item>
-      <spacer name="horizontalSpacer">
+      <spacer name="horizontalSpacerLeft">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
        </property>
@@ -74,7 +74,7 @@
       </layout>
      </item>
      <item>
-      <layout class="QVBoxLayout" name="verticalLayout">
+      <layout class="QVBoxLayout" name="verticalLayout1">
        <item>
         <widget class="QLineEdit" name="lineEditName"/>
        </item>
@@ -108,7 +108,7 @@
       </layout>
      </item>
      <item>
-      <spacer name="horizontalSpacer_2">
+      <spacer name="horizontalSpacerRight">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
        </property>
@@ -136,7 +136,7 @@
     </spacer>
    </item>
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout1">
+    <layout class="QHBoxLayout" name="horizontalLayout0">
      <item>
       <spacer name="horizontalSpacerLeft">
        <property name="orientation">

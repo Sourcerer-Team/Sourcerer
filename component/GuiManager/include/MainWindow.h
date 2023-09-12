@@ -6,6 +6,7 @@
 
 #include <ConfigManager.h>
 #include <EventManager.h>
+#include <GitRepo.h>
 
 #include <QGoodCentralWidget>
 #include <QGoodWindow>
@@ -14,6 +15,7 @@
 
 namespace GuiManager {
 
+using namespace GitRepo;
 using namespace Widgets;
 
 class MainWindow : public QGoodWindow {
@@ -31,6 +33,7 @@ private slots:
   void onHome();
   void onOpen();
   void onClone();
+  void onCloneFinished(ContainerWidget *sender);
   void onInit();
   void onInitFinished(ContainerWidget *sender);
   void onSettings();
@@ -41,6 +44,7 @@ private slots:
   void onToastHostSizeChanged(const QSize& newSize);
 
 private:
+  void addCloneContainer();
   void addGitRepoContainer(const QString &path);
   void addHomeContainer();
   void addInitGitRepoContainer();
@@ -48,6 +52,8 @@ private:
   void closeContainer(ContainerWidget *container);
   void eventCallback(EventManager::Event event);
   void selectContainer(int index);
+  void showCredentialsToast(const GitCredentialsRequest &request);
+  void showToast(const QString &text);
 
 private:
   int _current;

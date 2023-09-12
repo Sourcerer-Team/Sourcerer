@@ -29,6 +29,8 @@ HomeContainer::HomeContainer(QWidget *parent)
           &HomeContainer::hoverLeave);
   connect(ui->openButton, &QPushButton::clicked, this,
           &HomeContainer::onOpenClicked);
+  connect(ui->cloneButton, &QPushButton::clicked, this,
+          &HomeContainer::onCloneClicked);
   connect(ui->initButton, &QPushButton::clicked, this,
           &HomeContainer::onInitClicked);
 
@@ -78,6 +80,15 @@ void HomeContainer::hoverLeave(const QModelIndex &index) {
   ui->recentTableView->viewport()->update();
 
   setCursor(Qt::ArrowCursor);
+
+  LOG_PERF(0, "Exit");
+}
+
+void HomeContainer::onCloneClicked()
+{
+  LOG_PERF(0, "Enter");
+
+  emit clone();
 
   LOG_PERF(0, "Exit");
 }

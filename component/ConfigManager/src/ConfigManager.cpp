@@ -21,6 +21,7 @@ struct KeyDescription {
 QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::Unknown, ""},
     {ConfigKey::GitRepoSplitterPos, "window/gitrepo/splitterPos"},
+    {ConfigKey::GitRepoGitCredentialsExpirationTime, "gitrepo/credentials/credentialsExpirationTime"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
     {ConfigKey::SettingsSplitterPos, "window/settings/splitterPos"},
@@ -34,6 +35,7 @@ QMap<ConfigKey, QString> KEY_NAMES = {
 
 QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::Unknown, {"", ""}},
+    {ConfigKey::GitRepoGitCredentialsExpirationTime, {"Credentials expiration time", ""}},
     {ConfigKey::RecentlyOpenedRepos, {"Recently opened repositories list", ""}},
     {ConfigKey::TitleBarHeight, {"Maximum title bar height", ""}},
     {ConfigKey::TitleBarMaxTabWidth, {"Maximum width of a title bar tab", ""}},
@@ -51,6 +53,7 @@ QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {
     {ConfigKey::TestDateTime, QDateTime::currentDateTime()}};
 
 QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
+    {ConfigKey::GitRepoGitCredentialsExpirationTime, 30000},
     {ConfigKey::InfoToastDisplayTime, 3000},
     {ConfigKey::TitleBarHeight, 40},
     {ConfigKey::TitleBarMaxTabWidth, 285},

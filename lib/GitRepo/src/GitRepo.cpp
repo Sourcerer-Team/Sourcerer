@@ -1,9 +1,15 @@
 
 #include "GitRepo.h"
 
+#include <ConfigManager.h>
+#include <EventManager.h>
+#include <LockGuard.h>
 #include <Log.h>
+#include <Uuid.h>
 
 #include <git2/branch.h>
+#include <git2/checkout.h>
+#include <git2/clone.h>
 #include <git2/commit.h>
 #include <git2/index.h>
 #include <git2/refs.h>
@@ -13,11 +19,29 @@
 #include <git2/tag.h>
 #include <git2/types.h>
 
+#include <QDateTime>
+#include <QDir>
+#include <QMap>
+#include <QString>
+
+#include <set>
+
 #define THREAD_ID "GitRepo"
 
 namespace GitRepo {
 
+const qint64 DEFAULT_CREDENTIALS_EXPIRATION_TIME = 30 * 60 * 1000; // 30 minutes
+
 enum class BranchType : int { Unknown, Active, All, Local, Remote, Last };
+
+struct GitPlaintextCredentials {
+  QString username;
+  QString password;
+  qint64 createdTime;
+};
+
+Util::Mutex gGitCredentialsMutex;
+QMap<QString, GitPlaintextCredentials> gGitCredentials;
 
 static void logGitError(int error) {
   const git_error *gitError = git_error_last();
@@ -152,7 +176,7 @@ static bool createInitialCommit(git_repository *repo,
   git_reference *newRef = nullptr;
 
   error = git_branch_move(&newRef, branchRef,
-                          defaultBranchName.toStdString().data(), false);
+                          defaultBranchName.toStdString().c_str(), false);
   if (error) {
     logGitError(error);
     return false;
@@ -169,7 +193,7 @@ static git_commit *getLastCommit(git_repository *repo, const QString &name) {
   git_oid oid_parent_commit;
 
   int error = git_reference_name_to_id(&oid_parent_commit, repo,
-                                       name.toStdString().data());
+                                       name.toStdString().c_str());
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
@@ -428,7 +452,7 @@ git_repository *initRepository(const QString &repoName,
 
   const QString repoPath = workingDir + "/" + repoName;
 
-  error = git_repository_init_ext(&repo, repoPath.toStdString().data(), &opts);
+  error = git_repository_init_ext(&repo, repoPath.toStdString().c_str(), &opts);
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
@@ -445,6 +469,251 @@ git_repository *initRepository(const QString &repoName,
   const bool created = createInitialCommit(repo, defaultBranch);
   if (!created) {
     LOG_ERROR(Log::ErrorId::Git, "Can't create initial commit.");
+    LOG_PERF(0, "Exit");
+    return nullptr;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return repo;
+}
+
+static void checkoutProgressCallback(const char *path, size_t cur, size_t tot,
+                                     void *payload) {
+  if (!payload)
+    return;
+
+  CloneProgress *progress = static_cast<CloneProgress *>(payload);
+  progress->completedSteps = cur;
+  progress->totalSteps = tot;
+  progress->path = path;
+
+  if (tot > 0) {
+    const size_t percentage = ((cur * 1.0f) / tot) * 100;
+    if (percentage > progress->lastStepPercentage) {
+      progress->lastStepPercentage = percentage;
+      EventManager::Event progressEvent(
+          EventManager::EventType::GitRepoManagerCloneRepoProgress);
+      progressEvent.addData(*progress);
+      EventManager::EventManager::getInstance().send(progressEvent);
+    }
+  } else {
+    EventManager::Event progressEvent(
+        EventManager::EventType::GitRepoManagerCloneRepoProgress);
+    progressEvent.addData(*progress);
+    EventManager::EventManager::getInstance().send(progressEvent);
+  }
+}
+
+static std::tuple<bool, GitPlaintextCredentials>
+acquireCredentials(const QString &url, const QString &username,
+                   int allowedTypes) {
+  LOG_PERF(0, "Enter");
+
+  EventManager::EventManager &eventManager =
+      EventManager::EventManager::getInstance();
+
+  const int token = eventManager.startWait();
+
+  GitCredentialsRequest request;
+  request.uuid = Uuid::createUuid();
+  request.url = url;
+  request.username = username;
+  request.allowedTypes = allowedTypes;
+
+  EventManager::Event credentialsEvent(
+      EventManager::EventType::GitRepoManagerGetCredentials);
+  credentialsEvent.addData(request);
+
+  eventManager.send(credentialsEvent);
+
+  const auto predicate = [&](EventManager::Event event) -> bool {
+    bool success = false;
+    switch (event.type()) {
+    case EventManager::EventType::GitRepoManagerGetCredentialsError: {
+      const GitCredentialsErrorResponse response =
+          event.data<GitCredentialsErrorResponse>();
+      success = response.uuid == request.uuid;
+      break;
+    }
+    case EventManager::EventType::GitRepoManagerGetCredentialsResult: {
+      const GitCredentialsResponse response =
+          event.data<GitCredentialsResponse>();
+      success = response.uuid == request.uuid;
+      break;
+    }
+    default: {
+      LOG_ERROR(Log::ErrorId::Git, "Internal error. Unknown event type.");
+      break;
+    }
+    }
+
+    return success;
+  };
+
+  const std::set<EventManager::EventType> types{
+      EventManager::EventType::GitRepoManagerGetCredentialsError,
+      EventManager::EventType::GitRepoManagerGetCredentialsResult};
+
+  const auto &[success, event] =
+      eventManager.waitOneOf(token, types, predicate);
+
+  if (success) {
+    if (event.type() ==
+        EventManager::EventType::GitRepoManagerGetCredentialsError) {
+      LOG_PERF(0, "Exit");
+      return std::make_tuple(false, GitPlaintextCredentials{});
+    } else if (event.type() ==
+               EventManager::EventType::GitRepoManagerGetCredentialsError) {
+      const GitCredentialsResponse response =
+          event.data<GitCredentialsResponse>();
+      LOG_PERF(0, "Exit");
+      return std::make_tuple(
+          true, GitPlaintextCredentials{response.username, response.password,
+                                        QDateTime::currentMSecsSinceEpoch()});
+    } else {
+      LOG_ERROR(Log::ErrorId::Git, "Internal error. Unknown event type.");
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+  return std::make_tuple(false, GitPlaintextCredentials{});
+}
+
+static int credentialsAquireCallback(git_credential **out, const char *url,
+                                     const char *username_from_url,
+                                     unsigned int allowed_types,
+                                     void *payload) {
+  LOG_PERF(0, "Enter");
+
+  if ((allowed_types & GIT_CREDENTIAL_USERPASS_PLAINTEXT) == 0) {
+    LOG_PERF(0, "Exit");
+    return 1;
+  }
+
+  gGitCredentialsMutex.lock();
+
+  const auto it = gGitCredentials.find(url);
+  if (it != gGitCredentials.end()) {
+
+    gGitCredentialsMutex.unlock();
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    const qlonglong expirationTimeout =
+        ConfigManager::ConfigManager::getInstance().getLong(
+            ConfigManager::ConfigKey::GitRepoGitCredentialsExpirationTime);
+    if (it->createdTime + expirationTimeout < now) {
+
+      const auto &[success, credentials] = acquireCredentials(
+          url, username_from_url ? username_from_url : "", allowed_types);
+      if (success) {
+
+        LOG_INFO("Aquired credentials for '{}'", credentials.username);
+
+        gGitCredentialsMutex.lock();
+
+        gGitCredentials[url] = credentials;
+
+        gGitCredentialsMutex.unlock();
+      } else {
+        LOG_PERF(0, "Exit");
+        return -1;
+      }
+    }
+  } else {
+
+    gGitCredentialsMutex.unlock();
+
+    const auto &[success, credentials] = acquireCredentials(
+        url, username_from_url ? username_from_url : "", allowed_types);
+    if (success) {
+
+      LOG_INFO("Aquired credentials for '{}'", credentials.username);
+
+      gGitCredentialsMutex.lock();
+
+      gGitCredentials[url] = credentials;
+
+      gGitCredentialsMutex.unlock();
+    } else {
+      LOG_PERF(0, "Exit");
+      return -1;
+    }
+  }
+
+  gGitCredentialsMutex.lock();
+
+  const auto &credentials = gGitCredentials[url];
+
+  gGitCredentialsMutex.unlock();
+
+  const int error = git_credential_userpass_plaintext_new(
+      out, credentials.username.toStdString().c_str(),
+      credentials.password.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return 0;
+}
+
+git_repository *cloneRepository(const QString &url,
+                                const QString &destinationDir) {
+  LOG_PERF(0, "Enter");
+
+  const QDir workingDir;
+  const bool workingDirExisted = workingDir.exists(destinationDir);
+  if (!workingDir.mkpath(destinationDir)) {
+    LOG_ERROR(Log::ErrorId::Git, "can't create destination dir '{}'",
+              destinationDir);
+    LOG_PERF(0, "Exit");
+    return nullptr;
+  }
+
+  git_repository *repo = nullptr;
+  git_clone_options clone_opts = GIT_CLONE_OPTIONS_INIT;
+  git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
+  git_fetch_options fetch_opts = GIT_FETCH_OPTIONS_INIT;
+
+  CloneProgress progressData;
+  progressData.hash = qHash(url + destinationDir);
+
+  checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+  checkout_opts.progress_cb = &checkoutProgressCallback;
+  checkout_opts.progress_payload = &progressData;
+  fetch_opts.callbacks.credentials = &credentialsAquireCallback;
+  clone_opts.checkout_opts = checkout_opts;
+  clone_opts.fetch_opts = fetch_opts;
+
+  const int error =
+      git_clone(&repo, url.toStdString().c_str(),
+                destinationDir.toStdString().c_str(), &clone_opts);
+  if (error) {
+    // Finish progress
+    checkoutProgressCallback(progressData.path.toStdString().c_str(), 100, 100,
+                             &progressData);
+    if (!workingDirExisted) {
+      QDir dirToRemove(destinationDir);
+      dirToRemove.removeRecursively();
+    }
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return nullptr;
+  }
+
+  if (!repo) {
+    // Finish progress
+    checkoutProgressCallback(progressData.path.toStdString().c_str(), 100, 100,
+                             &progressData);
+    if (!workingDirExisted) {
+      QDir dirToRemove(destinationDir);
+      dirToRemove.removeRecursively();
+    }
+    logGitError(error);
     LOG_PERF(0, "Exit");
     return nullptr;
   }

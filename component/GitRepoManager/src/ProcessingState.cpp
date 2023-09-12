@@ -62,6 +62,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
   case EventType::Setup: {
     break;
   }
+  case EventType::CloneRepo: {
+    const GitRepoCloneCommand cloneCommand =
+        event.nextParam<GitRepoCloneCommand>();
+    scheduleWorkerForCloneRepo(cloneCommand);
+    break;
+  }
   case EventType::CloseRepo: {
     const GitRepoCloseCommand closeCommand =
         event.nextParam<GitRepoCloseCommand>();
@@ -125,6 +131,41 @@ void ProcessingState::exit() {
   destroyContextsMap();
 
   LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::cloneRepoWorker(const GitRepoCloneCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerCloneRepoError,
+                GitRepoErrorType::InternalError,
+                tr("Internal error. Context not initialized."), command.uuid);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository* repo = GitRepo::cloneRepository(command.url, command.destinationDir);
+  if (!repo) {
+    reportError(EventManager::EventType::GitRepoManagerCloneRepoError,
+                GitRepoErrorType::NotCloned, tr("Can't clone repository."),
+                command.uuid);
+    LOG_ERROR(Log::ErrorId::Git, "Can't clone repository.");
+    return;
+  }
+
+  {
+    LOCKGUARD(_contextsMutex);
+    ctx->gitRepo = repo;
+  }
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerCloneRepoResult);
+  resultEvent.addData(command.destinationDir);
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+
 }
 
 void ProcessingState::closeRepoWorker(
@@ -294,7 +335,7 @@ void ProcessingState::initRepoWorker(
     reportError(EventManager::EventType::GitRepoManagerInitRepoError,
                 GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command.uuid);
-    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    LOG_ERROR(Log::ErrorId::Git, "Internal error. Context not initialized.");
     return;
   }
 
@@ -302,9 +343,9 @@ void ProcessingState::initRepoWorker(
       command.repoName, command.workingDir, command.defaultBranch);
   if (!repo) {
     reportError(EventManager::EventType::GitRepoManagerInitRepoError,
-                GitRepoErrorType::InternalError, tr("Can't init repository."),
+                GitRepoErrorType::NotInitialized, tr("Can't init repository."),
                 command.uuid);
-    LOG_ERROR(Log::ErrorId::Gui, "Can't init repository.");
+    LOG_ERROR(Log::ErrorId::Git, "Can't init repository.");
     return;
   }
 
@@ -536,6 +577,33 @@ void ProcessingState::reportError(EventManager::EventType eventType,
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForCloneRepo(
+    const Structs::GitRepoCloneCommand &command) {
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it != _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerCloneRepoError,
+                GitRepoErrorType::AlreadyExist,
+                tr("Git repository is already in use."), command.uuid);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto workersThreadFunc =
+      std::bind(&ProcessingState::workersThreadFunc, this, command.uuid);
+
+  GitRepoContext *newContext = new GitRepoContext();
+  _contexts[command.uuid] = newContext;
+
+  newContext->uuid = command.uuid;
+  newContext->workersThread = std::move(std::thread{workersThreadFunc});
+  newContext->commandsQueue.push(new GitRepoCloneCommand(command));
+
+  LOG_PERF(0, "Exit");
+
+}
+
 void ProcessingState::scheduleWorkerForCloseRepo(
     const GitRepoCloseCommand &command) {
   LOG_PERF(0, "Enter");
@@ -701,6 +769,12 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
     }
 
     switch (command->type) {
+    case GitRepoCommandType::Clone: {
+      const GitRepoCloneCommand *cloneCommand =
+          static_cast<const GitRepoCloneCommand *>(command);
+      cloneRepoWorker(*cloneCommand);
+      break;
+    }
     case GitRepoCommandType::Close: {
       const GitRepoCloseCommand *closeCommand =
           static_cast<const GitRepoCloseCommand *>(command);

@@ -1,10 +1,12 @@
 #include "MainWindow.h"
+#include "containers/CloneGitRepoContainer.h"
 #include "containers/GitRepoContainer.h"
 #include "containers/HomeContainer.h"
 #include "containers/InitGitRepoContainer.h"
-#include "containers/PleaseWaitContainer.h"
 #include "containers/SettingsContainer.h"
 #include "dialogs/AboutDialog.h"
+#include "widgets/GitCredentialsToast.h"
+#include "widgets/InfoToast.h"
 #include "widgets/TitlebarWidget.h"
 
 #include <ConfigKey.h>
@@ -67,9 +69,17 @@ MainWindow::MainWindow(QWidget *parent)
 
   addHomeContainer();
 
-  const auto callbackFunc = std::bind(&MainWindow::eventCallback, this, std::placeholders::_1);
+  const auto callbackFunc =
+      std::bind(&MainWindow::eventCallback, this, std::placeholders::_1);
 
-  _eventManager.subscribe(EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc);
+  _eventManager.subscribe(EventManager::EventType::GitRepoManagerInitRepoResult,
+                          callbackFunc);
+  _eventManager.subscribe(EventManager::EventType::GitRepoManagerGetCredentials,
+                          callbackFunc);
+  _eventManager.subscribe(EventManager::EventType::GitRepoManagerCloneRepoError,
+                          callbackFunc);
+  _eventManager.subscribe(
+      EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc);
 
   LOG_PERF(0, "Exit");
 }
@@ -77,9 +87,17 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow() {
   LOG_PERF(0, "Enter");
 
-  const auto callbackFunc = std::bind(&MainWindow::eventCallback, this, std::placeholders::_1);
+  const auto callbackFunc =
+      std::bind(&MainWindow::eventCallback, this, std::placeholders::_1);
 
-  _eventManager.unsubscribe(EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc);
+  _eventManager.unsubscribe(
+      EventManager::EventType::GitRepoManagerGetCredentials, callbackFunc);
 
   _toastHost.setParent(nullptr);
 
@@ -132,6 +150,16 @@ void MainWindow::onOpen() {
 
 void MainWindow::onClone() {
   LOG_PERF(0, "Enter");
+
+  addCloneContainer();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onCloneFinished(ContainerWidget *sender) {
+  LOG_PERF(0, "Enter");
+
+  closeContainer(sender);
 
   LOG_PERF(0, "Exit");
 }
@@ -215,6 +243,25 @@ void MainWindow::onToastHostSizeChanged(const QSize &newSize) {
   LOG_PERF(0, "Exit");
 }
 
+void MainWindow::addCloneContainer() {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  CloneGitRepoContainer *container = new CloneGitRepoContainer(this);
+  container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
+  _containers += container;
+  _titleBarWidget->addTab(tr("Clone"));
+  _titleBarWidget->selectTab(_titleBarWidget->tabsCount() - 1);
+
+  const auto handlerFunc =
+      std::bind(&MainWindow::onCloneFinished, this, container);
+
+  connect(container, &CloneGitRepoContainer::finished, this, handlerFunc);
+
+  LOG_PERF(0, "Exit");
+}
+
 void MainWindow::addGitRepoContainer(const QString &path) {
   LOG_PERF(0, "Enter");
 
@@ -240,6 +287,7 @@ void MainWindow::addHomeContainer() {
   _titleBarWidget->addTab(tr("Home"));
   _titleBarWidget->selectTab(_titleBarWidget->tabsCount() - 1);
 
+  connect(container, &HomeContainer::clone, this, &MainWindow::onClone);
   connect(container, &HomeContainer::init, this, &MainWindow::onInit);
   connect(container, &HomeContainer::open, this, &MainWindow::onOpen);
 
@@ -309,19 +357,31 @@ void MainWindow::closeContainer(ContainerWidget *container) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::eventCallback(EventManager::Event event)
-{
+void MainWindow::eventCallback(EventManager::Event event) {
   LOG_PERF(0, "Enter");
 
   const EventManager::EventType eventType = event.type();
   LOG_DEBUG("Processing event of type {}.", (int)eventType);
 
   switch (eventType) {
+  case EventManager::EventType::GitRepoManagerGetCredentials: {
+    const auto request = event.data<GitCredentialsRequest>();
+    Dispatch::dispatchToMainThread([=]() { showCredentialsToast(request); });
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCloneRepoError: {
+    Dispatch::dispatchToMainThread(
+        [=]() { showToast(tr("Unable to clone Git repository")); });
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCloneRepoResult: {
+    const QString repoPath = event.data<QString>();
+    Dispatch::dispatchToMainThread([=]() { addGitRepoContainer(repoPath); });
+    break;
+  }
   case EventManager::EventType::GitRepoManagerInitRepoResult: {
     const QString repoPath = event.data<QString>();
-    Dispatch::dispatchToMainThread([=]() {
-        addGitRepoContainer(repoPath);
-    });
+    Dispatch::dispatchToMainThread([=]() { addGitRepoContainer(repoPath); });
     break;
   }
   default: {
@@ -349,6 +409,22 @@ void MainWindow::selectContainer(int index) {
   _containers[index]->show();
   _centralWidget->setCentralWidget(_containers[index]);
   _current = index;
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showCredentialsToast(const GitCredentialsRequest &request) {
+  LOG_PERF(0, "Enter");
+
+  _toastHost.addToast(new GitCredentialsToast(request));
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showToast(const QString &text) {
+  LOG_PERF(0, "Enter");
+
+  _toastHost.addToast(new InfoToast(text));
 
   LOG_PERF(0, "Exit");
 }

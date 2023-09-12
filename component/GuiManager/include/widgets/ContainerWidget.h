@@ -8,6 +8,7 @@ namespace Widgets {
 
 enum class ContainerType {
   Unknown = 0,
+  Clone,
   GitRepo,
   Home,
   InitGitRepo,

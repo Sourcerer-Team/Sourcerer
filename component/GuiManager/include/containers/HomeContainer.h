@@ -29,12 +29,14 @@ public:
   void reloadRecentlyOpened();
 
 signals:
+  void clone();
   void init();
   void open();
 
 private slots:
   void hoverEnter(const QModelIndex& index);
   void hoverLeave(const QModelIndex& index);
+  void onCloneClicked();
   void onInitClicked();
   void onOpenClicked(bool checked = false);
 

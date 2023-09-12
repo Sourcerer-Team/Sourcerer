@@ -10,6 +10,7 @@ enum class EventType : int {
   Unknown = -2,
   Stop = -1,
   ChangeState = 0,
+  CloneRepo,
   CloseRepo,
   GetActiveBranch,
   Init,

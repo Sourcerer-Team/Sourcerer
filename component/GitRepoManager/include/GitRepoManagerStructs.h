@@ -14,6 +14,7 @@ namespace Structs {
 
 enum class GitRepoCommandType : int {
   Unknown = 0,
+  Clone,
   Close,
   GetActiveBranch,
   Init,
@@ -31,6 +32,8 @@ enum class GitRepoErrorType : int {
   AlreadyExist,
   ErrorWhileOpening,
   InternalError,
+  NotCloned,
+  NotInitialized,
   NotOpened,
   Last
 };
@@ -40,6 +43,14 @@ struct GitRepoCommand {
   virtual ~GitRepoCommand() {}
   GitRepoCommandType type;
   QString uuid;
+};
+
+struct GitRepoCloneCommand : GitRepoCommand {
+  GitRepoCloneCommand() : GitRepoCommand(GitRepoCommandType::Clone) {}
+  virtual ~GitRepoCloneCommand() {}
+
+  QString url;
+  QString destinationDir;
 };
 
 struct GitRepoCloseCommand : GitRepoCommand {
@@ -54,8 +65,7 @@ struct GitRepoGetActiveBranchCommand : GitRepoCommand {
 };
 
 struct GitRepoInitRepoCommand : GitRepoCommand {
-  GitRepoInitRepoCommand()
-      : GitRepoCommand(GitRepoCommandType::Init) {}
+  GitRepoInitRepoCommand() : GitRepoCommand(GitRepoCommandType::Init) {}
   virtual ~GitRepoInitRepoCommand() {}
 
   QString repoName;

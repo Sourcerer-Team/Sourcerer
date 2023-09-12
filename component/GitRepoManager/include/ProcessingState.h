@@ -24,6 +24,7 @@ public:
   void exit() override;
 
 private:
+  void cloneRepoWorker(const Structs::GitRepoCloneCommand &command);
   void closeRepoWorker(const Structs::GitRepoCloseCommand &command);
   Structs::GitRepoContext *context(const QString &uuid);
   void destroyContext(const QString &uuid);
@@ -44,6 +45,7 @@ private:
   void reportError(EventManager::EventType eventType,
                    Structs::GitRepoErrorType errorType, const QString &message,
                    const QString &uuid) const;
+  void scheduleWorkerForCloneRepo(const Structs::GitRepoCloneCommand &command);
   void scheduleWorkerForCloseRepo(const Structs::GitRepoCloseCommand &command);
   void scheduleWorkerForGetActiveBranch(
       const Structs::GitRepoGetActiveBranchCommand &command);

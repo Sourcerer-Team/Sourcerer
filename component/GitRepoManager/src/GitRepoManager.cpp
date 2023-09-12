@@ -35,6 +35,8 @@ GitRepoManager::GitRepoManager()
                           callbackFunc);
   _eventManager.subscribe(EventManager::EventType::GitRepoManagerOpenRepo,
                           callbackFunc);
+  _eventManager.subscribe(EventManager::EventType::GitRepoManagerCloneRepo,
+                          callbackFunc);
 
   LOG_PERF(0, "Exit");
 }
@@ -58,6 +60,8 @@ GitRepoManager::~GitRepoManager() {
   _eventManager.unsubscribe(EventManager::EventType::GitRepoManagerListTags,
                             callbackFunc);
   _eventManager.unsubscribe(EventManager::EventType::GitRepoManagerOpenRepo,
+                            callbackFunc);
+  _eventManager.unsubscribe(EventManager::EventType::GitRepoManagerCloneRepo,
                             callbackFunc);
 
   LOG_PERF(0, "Exit");
@@ -93,6 +97,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
   LOG_DEBUG("Received event of type {}", (int)eventType);
 
   switch (eventType) {
+  case EventManager::EventType::GitRepoManagerCloneRepo: {
+      const GitRepoCloneCommand cloneCommand = event.data<GitRepoCloneCommand>();
+      GitRepoManagerEvent cloneRepoEvent(EventType::CloneRepo);
+      cloneRepoEvent.addParam(QVariant::fromValue(cloneCommand));
+      _fsm.send(cloneRepoEvent);
+      break;
+  }
   case EventManager::EventType::GitRepoManagerCloseRepo: {
     const GitRepoCloseCommand closeCommand = event.data<GitRepoCloseCommand>();
     GitRepoManagerEvent closeRepoEvent(EventType::CloseRepo);
