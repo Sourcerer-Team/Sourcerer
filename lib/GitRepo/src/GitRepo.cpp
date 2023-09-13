@@ -53,6 +53,14 @@ static void logGitError(int error) {
             gitError->klass, gitError->message);
 }
 
+static void invalidateCredentials(const QString &url) {
+  LOCKGUARD(gGitCredentialsMutex);
+
+  const auto it = gGitCredentials.find(url);
+  if (it != gGitCredentials.end())
+    gGitCredentials.erase(it);
+}
+
 static bool createInitialCommit(git_repository *repo,
                                 const QString &defaultBranchName) {
   LOG_PERF(0, "Enter");
@@ -238,6 +246,8 @@ void closeRepository(git_repository *repo) {
     LOG_PERF(0, "Exit");
     return;
   }
+
+  git_repository_free(repo);
 
   LOG_PERF(0, "Exit");
 }
@@ -431,9 +441,8 @@ QString getActiveBranch(git_repository *repo) {
   return checkoutBranches.length() > 0 ? checkoutBranches.first() : QString();
 }
 
-git_repository *initRepository(const QString &repoName,
-                               const QString &workingDir,
-                               const QString &defaultBranch) {
+bool initRepository(const QString &repoName, const QString &workingDir,
+                    const QString &defaultBranch) {
   LOG_PERF(0, "Enter");
 
   git_repository_init_options opts{};
@@ -443,7 +452,7 @@ git_repository *initRepository(const QString &repoName,
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
-    return nullptr;
+    return false;
   }
 
   opts.flags = GIT_REPOSITORY_INIT_NO_REINIT | GIT_REPOSITORY_INIT_MKDIR;
@@ -456,40 +465,46 @@ git_repository *initRepository(const QString &repoName,
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
-    return nullptr;
+    return false;
   }
 
   if (!repo) {
     LOG_ERROR(Log::ErrorId::Git,
               "Internal error. Can't initialize git repository.");
     LOG_PERF(0, "Exit");
-    return nullptr;
+    return false;
   }
 
   const bool created = createInitialCommit(repo, defaultBranch);
   if (!created) {
+    closeRepository(repo);
     LOG_ERROR(Log::ErrorId::Git, "Can't create initial commit.");
     LOG_PERF(0, "Exit");
-    return nullptr;
+    return false;
   }
+
+  closeRepository(repo);
 
   LOG_PERF(0, "Exit");
 
-  return repo;
+  return true;
 }
 
-static void checkoutProgressCallback(const char *path, size_t cur, size_t tot,
-                                     void *payload) {
-  if (!payload)
-    return;
+static int fetchProgressCallback(const git_indexer_progress *stats,
+                                 void *payload) {
+  if (!payload || !stats)
+    return 0;
 
   CloneProgress *progress = static_cast<CloneProgress *>(payload);
-  progress->completedSteps = cur;
-  progress->totalSteps = tot;
-  progress->path = path;
+  progress->completedSteps = stats->indexed_objects;
+  progress->totalSteps = stats->total_objects;
+  progress->started = true;
+  progress->finished = false;
+  progress->stage = CloneProgressStageType::Fetch;
 
-  if (tot > 0) {
-    const size_t percentage = ((cur * 1.0f) / tot) * 100;
+  if (stats->total_objects > 0) {
+    const int percentage =
+        ((stats->indexed_objects * 1.0f) / stats->total_objects) * 100;
     if (percentage > progress->lastStepPercentage) {
       progress->lastStepPercentage = percentage;
       EventManager::Event progressEvent(
@@ -503,6 +518,50 @@ static void checkoutProgressCallback(const char *path, size_t cur, size_t tot,
     progressEvent.addData(*progress);
     EventManager::EventManager::getInstance().send(progressEvent);
   }
+
+  return 0;
+}
+
+static void checkoutProgressCallback(const char *path, size_t completed_steps,
+                                     size_t total_steps, void *payload) {
+  if (!payload)
+    return;
+
+  CloneProgress *progress = static_cast<CloneProgress *>(payload);
+  progress->completedSteps = completed_steps;
+  progress->totalSteps = total_steps;
+  progress->started = true;
+  progress->finished = false;
+  progress->stage = CloneProgressStageType::Checkout;
+
+  if (completed_steps == 0)
+    progress->lastStepPercentage = 0;
+
+  if (total_steps <= 0)
+    return;
+
+  const int percentage = ((completed_steps * 1.0f) / total_steps) * 100;
+  if (percentage > progress->lastStepPercentage) {
+    progress->lastStepPercentage = percentage;
+    EventManager::Event progressEvent(
+        EventManager::EventType::GitRepoManagerCloneRepoProgress);
+    progressEvent.addData(*progress);
+    EventManager::EventManager::getInstance().send(progressEvent);
+  }
+}
+
+static void finishFetchProgress(const QString &uuid) {
+  CloneProgress progress;
+  progress.uuid = uuid;
+  progress.completedSteps = 100;
+  progress.totalSteps = 100;
+  progress.started = true;
+  progress.finished = true;
+
+  EventManager::Event progressEvent(
+      EventManager::EventType::GitRepoManagerCloneRepoProgress);
+  progressEvent.addData(progress);
+  EventManager::EventManager::getInstance().send(progressEvent);
 }
 
 static std::tuple<bool, GitPlaintextCredentials>
@@ -564,7 +623,7 @@ acquireCredentials(const QString &url, const QString &username,
       LOG_PERF(0, "Exit");
       return std::make_tuple(false, GitPlaintextCredentials{});
     } else if (event.type() ==
-               EventManager::EventType::GitRepoManagerGetCredentialsError) {
+               EventManager::EventType::GitRepoManagerGetCredentialsResult) {
       const GitCredentialsResponse response =
           event.data<GitCredentialsResponse>();
       LOG_PERF(0, "Exit");
@@ -661,8 +720,8 @@ static int credentialsAquireCallback(git_credential **out, const char *url,
   return 0;
 }
 
-git_repository *cloneRepository(const QString &url,
-                                const QString &destinationDir) {
+bool cloneRepository(const QString &url, const QString &destinationDir,
+                     const QString &uuid) {
   LOG_PERF(0, "Enter");
 
   const QDir workingDir;
@@ -671,7 +730,7 @@ git_repository *cloneRepository(const QString &url,
     LOG_ERROR(Log::ErrorId::Git, "can't create destination dir '{}'",
               destinationDir);
     LOG_PERF(0, "Exit");
-    return nullptr;
+    return false;
   }
 
   git_repository *repo = nullptr;
@@ -680,47 +739,41 @@ git_repository *cloneRepository(const QString &url,
   git_fetch_options fetch_opts = GIT_FETCH_OPTIONS_INIT;
 
   CloneProgress progressData;
-  progressData.hash = qHash(url + destinationDir);
+  progressData.uuid = uuid;
 
   checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
-  checkout_opts.progress_cb = &checkoutProgressCallback;
   checkout_opts.progress_payload = &progressData;
+  checkout_opts.progress_cb = &checkoutProgressCallback;
   fetch_opts.callbacks.credentials = &credentialsAquireCallback;
+  fetch_opts.callbacks.transfer_progress = &fetchProgressCallback;
+  fetch_opts.callbacks.payload = &progressData;
   clone_opts.checkout_opts = checkout_opts;
   clone_opts.fetch_opts = fetch_opts;
 
   const int error =
       git_clone(&repo, url.toStdString().c_str(),
                 destinationDir.toStdString().c_str(), &clone_opts);
-  if (error) {
-    // Finish progress
-    checkoutProgressCallback(progressData.path.toStdString().c_str(), 100, 100,
-                             &progressData);
+
+  finishFetchProgress(uuid);
+
+  if (error || !repo) {
+    invalidateCredentials(url);
+
     if (!workingDirExisted) {
       QDir dirToRemove(destinationDir);
       dirToRemove.removeRecursively();
     }
+
     logGitError(error);
     LOG_PERF(0, "Exit");
-    return nullptr;
+    return false;
   }
 
-  if (!repo) {
-    // Finish progress
-    checkoutProgressCallback(progressData.path.toStdString().c_str(), 100, 100,
-                             &progressData);
-    if (!workingDirExisted) {
-      QDir dirToRemove(destinationDir);
-      dirToRemove.removeRecursively();
-    }
-    logGitError(error);
-    LOG_PERF(0, "Exit");
-    return nullptr;
-  }
+  git_repository_free(repo);
 
   LOG_PERF(0, "Exit");
 
-  return repo;
+  return true;
 }
 
 } // namespace GitRepo

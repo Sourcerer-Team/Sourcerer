@@ -13,19 +13,32 @@
 
 namespace EventManager {
 
+#define CAPTURE_CALLBACK(type, callback) { type, this, callback }
+
 const ulong DEFAULT_WAIT_TIMEOUT = 2 * 60 * 1000; // 2 minutes
 
 enum class EventRecordType { Quit = 0, Send };
 
 typedef std::function<void(Event)> CallbackType;
 
+typedef std::function<void()> EventRecordCallbackType;
+
 struct EventRecord {
-  EventRecord(std::function<void()> callback,
+  EventRecord(EventRecordCallbackType callback,
               EventRecordType type = EventRecordType::Send)
       : _callback(callback), _type(type) {}
 
   EventRecordType _type;
-  std::function<void()> _callback;
+  EventRecordCallbackType _callback;
+};
+
+struct EventCallback {
+  EventCallback(EventType type, void *receiver, CallbackType callback)
+      : _type(type), _receiver(receiver), _callback(callback) {}
+
+  EventType _type;
+  void *_receiver;
+  CallbackType _callback;
 };
 
 struct WaitEventRecord {
@@ -40,11 +53,11 @@ class EventManager {
 public:
   static EventManager &getInstance();
 
-  void subscribe(EventType eventType, CallbackType callback);
+  void subscribe(EventCallback callback);
 
   void send(Event event);
 
-  void unsubscribe(EventType eventType, CallbackType callback);
+  void unsubscribe(EventCallback callback);
 
   int startWait();
 
@@ -66,7 +79,7 @@ private:
 
 private:
   std::thread _thread;
-  std::unordered_map<EventType, std::vector<CallbackType>> _subscribers;
+    std::unordered_map<EventType, std::vector<EventCallback>> _subscribers;
   BlockingQueue<EventRecord> _eventsQueue;
   std::map<int, BlockingQueue<WaitEventRecord>> _waitEventsQueue;
   Util::Mutex _queueLocker;

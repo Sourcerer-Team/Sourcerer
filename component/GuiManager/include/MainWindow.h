@@ -11,6 +11,7 @@
 #include <QGoodCentralWidget>
 #include <QGoodWindow>
 
+#include <QSet>
 #include <QVector>
 
 namespace GuiManager {
@@ -53,6 +54,7 @@ private:
   void eventCallback(EventManager::Event event);
   void selectContainer(int index);
   void showCredentialsToast(const GitCredentialsRequest &request);
+  void showCloneProgressToast(const CloneProgress& data);
   void showToast(const QString &text);
 
 private:
@@ -63,6 +65,7 @@ private:
   QVector<ContainerWidget *> _containers;
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
+  QSet<QString> _progressing;
 };
 
 } // namespace GuiManager

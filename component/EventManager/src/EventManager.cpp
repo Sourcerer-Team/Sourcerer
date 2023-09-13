@@ -3,7 +3,9 @@
 #include <General.h>
 #include <Log.h>
 
-#include <chrono>
+#include <QDateTime>
+
+#include <functional>
 
 #define THREAD_ID "EventManager"
 
@@ -38,28 +40,29 @@ void EventManager::threadLoop() {
   }
 }
 
-void EventManager::subscribe(EventType eventType, CallbackType callback) {
+void EventManager::subscribe(EventCallback callback) {
   LOCKGUARD(_queueLocker);
 
-  _subscribers[eventType].push_back(callback);
+  _subscribers[callback._type].push_back(callback);
 }
 
-void EventManager::unsubscribe(EventType eventType, CallbackType callback) {
+void EventManager::unsubscribe(EventCallback callback) {
   LOCKGUARD(_queueLocker);
 
-  _subscribers[eventType].erase(
-      std::remove_if(_subscribers[eventType].begin(),
-                     _subscribers[eventType].end(),
-                     [=](const CallbackType &cb) {
-                       return (cb.target_type() == callback.target_type()) &&
-                              cb.target<void (*)(Event)>() ==
-                                  callback.target<void (*)(Event)>();
+  _subscribers[callback._type].erase(
+      std::remove_if(_subscribers[callback._type].begin(),
+                     _subscribers[callback._type].end(),
+                     [=](const EventCallback &cb) {
+                       return (cb._callback.target_type() ==
+                               callback._callback.target_type()) &&
+                              (cb._callback.target<void (*)(Event)>() ==
+                               callback._callback.target<void (*)(Event)>()) &&
+                                (cb._receiver == callback._receiver);
                      }),
-      _subscribers[eventType].end());
+      _subscribers[callback._type].end());
 }
 
-int EventManager::startWait()
-{
+int EventManager::startWait() {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_queueLocker);
@@ -91,9 +94,8 @@ EventManager::waitOneOf(int token, const std::set<EventType> &eventTypes,
 
   Event resultEvent(EventType::Null);
 
-  const std::chrono::high_resolution_clock::time_point start =
-      std::chrono::high_resolution_clock::now();
-  std::chrono::high_resolution_clock::time_point end = start;
+  const qint64 start = QDateTime::currentMSecsSinceEpoch();
+  qint64 end = start;
 
   bool success = false;
   bool quit = false;
@@ -105,10 +107,10 @@ EventManager::waitOneOf(int token, const std::set<EventType> &eventTypes,
     case EventRecordType::Send: {
       resultEvent = eventRecord._event;
       const bool found = eventTypes.count(resultEvent.type()) > 0;
-      if(predicate)
-          success = found && predicate(resultEvent);
+      if (predicate)
+        success = found && predicate(resultEvent);
       else
-          success = found;
+        success = found;
 
       break;
     }
@@ -123,9 +125,9 @@ EventManager::waitOneOf(int token, const std::set<EventType> &eventTypes,
     }
     }
 
-    end = std::chrono::high_resolution_clock::now();
+    end = QDateTime::currentMSecsSinceEpoch();
 
-  } while (!quit && !success && (end - start).count() < timeout);
+  } while (!quit && !success && (end - start) < timeout);
 
   _queueLocker.lock();
 
@@ -141,24 +143,25 @@ EventManager::waitOneOf(int token, const std::set<EventType> &eventTypes,
 void EventManager::send(Event event) {
   LOCKGUARD(_queueLocker);
   const EventType type = event.type();
-  const std::vector<CallbackType> &callbacks = _subscribers[type];
+  const std::vector<EventCallback> &callbacks = _subscribers[type];
   const size_t callbackSize = callbacks.size();
 
   if (callbackSize > 0) {
     for (size_t i = 0; i < callbackSize; i++) {
-      const CallbackType &callback = callbacks[i];
-      const auto EventDataFunction = [callback, event]() { callback(event); };
+      const EventCallback &callback = callbacks[i];
+      const CallbackType &callbackFunc = callback._callback;
+      const auto EventDataFunction = std::bind(callbackFunc, event);
 
       _eventsQueue.push({EventDataFunction});
-
-      for (auto &pair : _waitEventsQueue) {
-        pair.second.push({EventRecordType::Send, event});
-      }
 
       LOG_DEBUG("Event has been queued: {}", static_cast<int>(type));
     }
   } else
     LOG_DEBUG("Event has NOT been queued: {}", static_cast<int>(type));
+
+  for (auto &pair : _waitEventsQueue) {
+    pair.second.push({EventRecordType::Send, event});
+  }
 }
 
 void EventManager::start() {

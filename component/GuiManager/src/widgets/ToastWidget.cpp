@@ -13,28 +13,29 @@ namespace GuiManager {
 
 namespace Widgets {
 
-ToastWidget::ToastWidget(QWidget *parent) : QWidget{parent} {
+ToastWidget::ToastWidget(QWidget *parent)
+    : QWidget{parent}, _titleWidget{nullptr} {
   LOG_PERF(0, "Enter");
 
-  QWidget *titleWidget = new QWidget(this);
+  _titleWidget = new QWidget(this);
 
   ToastCloseButton *closeButton = new ToastCloseButton(this);
   closeButton->setMaximumSize(16, 16);
 
-  QHBoxLayout *titleLayout = new QHBoxLayout(titleWidget);
+  QHBoxLayout *titleLayout = new QHBoxLayout(_titleWidget);
   titleLayout->setSpacing(0);
   titleLayout->setContentsMargins(0, 0, 0, 0);
   titleLayout->addStretch();
   titleLayout->addWidget(closeButton);
 
   QVBoxLayout *layout = new QVBoxLayout(this);
+  layout->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
+  layout->setSizeConstraint(QLayout::SetMinimumSize);
   layout->setSpacing(0);
   layout->setContentsMargins(0, 0, 0, 0);
-  layout->addWidget(titleWidget);
+  layout->addWidget(_titleWidget);
 
-  setLayout(layout);
-
-  setStyleSheet("font-size:14px;color:white;background-color:#55aa7f;");
+  setStyleSheet("font-size:14px;color:white;background-color:#808a89;");
 
   connect(closeButton, &ToastCloseButton::clicked, this,
           &ToastWidget::onCloseButton);
@@ -51,6 +52,14 @@ void ToastWidget::stop() {
   LOG_PERF(0, "Enter");
 
   emit stopped(this);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ToastWidget::hideTitle() {
+  LOG_PERF(0, "Enter");
+
+  _titleWidget->setVisible(false);
 
   LOG_PERF(0, "Exit");
 }

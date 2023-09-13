@@ -20,13 +20,12 @@ public:
                                QWidget *parent = nullptr);
   virtual ~GitCredentialsToast();
 
-  // ToastWidget interface
-public:
-  void stop() override;
-
 private slots:
   void onCancelClicked();
   void onSubmitClicked();
+
+private:
+  void eventCallback(EventManager::Event event);
 
 private:
   GitCredentialsRequest _request;

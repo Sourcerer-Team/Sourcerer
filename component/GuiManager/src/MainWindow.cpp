@@ -6,6 +6,7 @@
 #include "containers/SettingsContainer.h"
 #include "dialogs/AboutDialog.h"
 #include "widgets/GitCredentialsToast.h"
+#include "widgets/GitProgressToast.h"
 #include "widgets/InfoToast.h"
 #include "widgets/TitlebarWidget.h"
 
@@ -72,14 +73,16 @@ MainWindow::MainWindow(QWidget *parent)
   const auto callbackFunc =
       std::bind(&MainWindow::eventCallback, this, std::placeholders::_1);
 
-  _eventManager.subscribe(EventManager::EventType::GitRepoManagerInitRepoResult,
-                          callbackFunc);
-  _eventManager.subscribe(EventManager::EventType::GitRepoManagerGetCredentials,
-                          callbackFunc);
-  _eventManager.subscribe(EventManager::EventType::GitRepoManagerCloneRepoError,
-                          callbackFunc);
-  _eventManager.subscribe(
-      EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc);
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetCredentials, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -90,14 +93,16 @@ MainWindow::~MainWindow() {
   const auto callbackFunc =
       std::bind(&MainWindow::eventCallback, this, std::placeholders::_1);
 
-  _eventManager.unsubscribe(
-      EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc);
-  _eventManager.unsubscribe(
-      EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc);
-  _eventManager.unsubscribe(
-      EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc);
-  _eventManager.unsubscribe(
-      EventManager::EventType::GitRepoManagerGetCredentials, callbackFunc);
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetCredentials, callbackFunc));
 
   _toastHost.setParent(nullptr);
 
@@ -375,12 +380,24 @@ void MainWindow::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepoResult: {
-    const QString repoPath = event.data<QString>();
+    QString uuid;
+    QString repoPath;
+    std::tie(uuid, repoPath) = event.data<std::tuple<QString, QString>>();
     Dispatch::dispatchToMainThread([=]() { addGitRepoContainer(repoPath); });
     break;
   }
+  case EventManager::EventType::GitRepoManagerCloneRepoProgress: {
+    const CloneProgress data = event.data<CloneProgress>();
+    if (!_progressing.contains(data.uuid)) {
+      _progressing += data.uuid;
+      Dispatch::dispatchToMainThread([=]() { showCloneProgressToast(data); });
+    } else if (data.finished)
+      _progressing.remove(data.uuid);
+
+    break;
+  }
   case EventManager::EventType::GitRepoManagerInitRepoResult: {
-    const QString repoPath = event.data<QString>();
+    const auto &[_, repoPath] = event.data<std::tuple<QString, QString>>();
     Dispatch::dispatchToMainThread([=]() { addGitRepoContainer(repoPath); });
     break;
   }
@@ -417,6 +434,14 @@ void MainWindow::showCredentialsToast(const GitCredentialsRequest &request) {
   LOG_PERF(0, "Enter");
 
   _toastHost.addToast(new GitCredentialsToast(request));
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showCloneProgressToast(const CloneProgress &data) {
+  LOG_PERF(0, "Enter");
+
+  _toastHost.addToast(new GitProgressToast(data));
 
   LOG_PERF(0, "Exit");
 }

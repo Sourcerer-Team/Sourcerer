@@ -37,6 +37,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/widgets/ContainerWidget.h
    include/widgets/GitSubmodulesPage.h
    include/widgets/GitCredentialsToast.h
+   include/widgets/GitProgressToast.h
    include/widgets/GitTagsPage.h
    include/widgets/InfoToast.h
    include/widgets/LocalGitBranchesPage.h
@@ -77,6 +78,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/widgets/ColorButton.cpp
    src/widgets/ContainerWidget.cpp
    src/widgets/GitCredentialsToast.cpp
+   src/widgets/GitProgressToast.cpp
    src/widgets/GitSubmodulesPage.cpp
    src/widgets/GitTagsPage.cpp
    src/widgets/InfoToast.cpp

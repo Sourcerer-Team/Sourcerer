@@ -38,10 +38,10 @@ InitGitRepoContainer::InitGitRepoContainer(QWidget *parent)
   const auto callbackFunc = std::bind(&InitGitRepoContainer::eventCallback,
                                       this, std::placeholders::_1);
 
-  _eventManager.subscribe(EventManager::EventType::GitRepoManagerInitRepoError,
-                          callbackFunc);
-  _eventManager.subscribe(EventManager::EventType::GitRepoManagerInitRepoResult,
-                          callbackFunc);
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerInitRepoError, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -52,10 +52,10 @@ InitGitRepoContainer::~InitGitRepoContainer() {
   const auto callbackFunc = std::bind(&InitGitRepoContainer::eventCallback,
                                       this, std::placeholders::_1);
 
-  _eventManager.unsubscribe(
-      EventManager::EventType::GitRepoManagerInitRepoError, callbackFunc);
-  _eventManager.unsubscribe(
-      EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc);
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerInitRepoError, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
 
   delete ui;
 
@@ -107,8 +107,8 @@ void InitGitRepoContainer::eventCallback(EventManager::Event event) {
   switch (eventType) {
   case EventManager::EventType::GitRepoManagerInitRepoError: {
     const GitRepoError gitError = event.data<GitRepoError>();
-    if(gitError.uuid != _uuid)
-        break;
+    if (gitError.uuid != _uuid)
+      break;
 
     Dispatch::dispatchToMainThread(
         [=]() { showToast(tr("Unable to initialize Git repository")); });

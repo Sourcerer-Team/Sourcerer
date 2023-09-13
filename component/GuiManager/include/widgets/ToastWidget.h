@@ -15,6 +15,8 @@ public:
 
   virtual void stop();
 
+  void hideTitle();
+
   // QWidget interface
 public:
   QSize sizeHint() const override;
@@ -24,6 +26,9 @@ public slots:
 
 signals:
   void stopped(ToastWidget *toast);
+
+private:
+  QWidget *_titleWidget;
 };
 
 } // namespace Widgets

@@ -46,38 +46,40 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
   const auto eventCallbackFunc =
       std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
 
-  _eventManager.subscribe(
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranchError,
-      eventCallbackFunc);
-  _eventManager.subscribe(
+      eventCallbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranchResult,
-      eventCallbackFunc);
-  _eventManager.subscribe(
+      eventCallbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranchesError,
-      eventCallbackFunc);
-  _eventManager.subscribe(
+      eventCallbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranchesResult,
-      eventCallbackFunc);
-  _eventManager.subscribe(
+      eventCallbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListRemoteBranchesError,
-      eventCallbackFunc);
-  _eventManager.subscribe(
+      eventCallbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListRemoteBranchesResult,
-      eventCallbackFunc);
-  _eventManager.subscribe(
+      eventCallbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListSubmodulesError,
-      eventCallbackFunc);
-  _eventManager.subscribe(
+      eventCallbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListSubmodulesResult,
-      eventCallbackFunc);
-  _eventManager.subscribe(EventManager::EventType::GitRepoManagerListTagsError,
-                          eventCallbackFunc);
-  _eventManager.subscribe(EventManager::EventType::GitRepoManagerListTagsResult,
-                          eventCallbackFunc);
-  _eventManager.subscribe(EventManager::EventType::GitRepoManagerOpenRepoError,
-                          eventCallbackFunc);
-  _eventManager.subscribe(EventManager::EventType::GitRepoManagerOpenRepoResult,
-                          eventCallbackFunc);
+      eventCallbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerListTagsError, eventCallbackFunc));
+  _eventManager.subscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerListTagsResult,
+                       eventCallbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc));
+  _eventManager.subscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerOpenRepoResult,
+                       eventCallbackFunc));
 
   refreshViews();
 
@@ -92,38 +94,40 @@ GitRepoContainer::~GitRepoContainer() {
   const auto eventCallbackFunc =
       std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
 
-  _eventManager.unsubscribe(
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranchError,
-      eventCallbackFunc);
-  _eventManager.unsubscribe(
+      eventCallbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranchResult,
-      eventCallbackFunc);
-  _eventManager.unsubscribe(
+      eventCallbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranchesError,
-      eventCallbackFunc);
-  _eventManager.unsubscribe(
+      eventCallbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranchesResult,
-      eventCallbackFunc);
-  _eventManager.unsubscribe(
+      eventCallbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListRemoteBranchesError,
-      eventCallbackFunc);
-  _eventManager.unsubscribe(
+      eventCallbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListRemoteBranchesResult,
-      eventCallbackFunc);
-  _eventManager.unsubscribe(
+      eventCallbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListSubmodulesError,
-      eventCallbackFunc);
-  _eventManager.unsubscribe(
+      eventCallbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListSubmodulesResult,
-      eventCallbackFunc);
+      eventCallbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerListTagsError, eventCallbackFunc));
   _eventManager.unsubscribe(
-      EventManager::EventType::GitRepoManagerListTagsError, eventCallbackFunc);
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerListTagsResult,
+                       eventCallbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc));
   _eventManager.unsubscribe(
-      EventManager::EventType::GitRepoManagerListTagsResult, eventCallbackFunc);
-  _eventManager.unsubscribe(
-      EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc);
-  _eventManager.unsubscribe(
-      EventManager::EventType::GitRepoManagerOpenRepoResult, eventCallbackFunc);
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerOpenRepoResult,
+                       eventCallbackFunc));
 
   delete ui;
 
@@ -215,12 +219,11 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   case EventManager::EventType::GitRepoManagerOpenRepoError: {
     // Show a toast with error
     const GitRepoError gitError = event.data<GitRepoError>();
-    if(gitError.uuid != _uuid)
-        break;
+    if (gitError.uuid != _uuid)
+      break;
 
-    Dispatch::dispatchToMainThread([=]() {
-        showToast(tr("Can't open repository"));
-    });
+    Dispatch::dispatchToMainThread(
+        [=]() { showToast(tr("Can't open repository")); });
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepoResult: {
@@ -333,8 +336,7 @@ void GitRepoContainer::refreshViews() {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showToast(const QString &message)
-{
+void GitRepoContainer::showToast(const QString &message) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 

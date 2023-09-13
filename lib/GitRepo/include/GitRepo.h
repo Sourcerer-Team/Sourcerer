@@ -9,44 +9,49 @@
 
 namespace GitRepo {
 
-struct CloneProgress
-{
-    uint hash;
-    size_t completedSteps = 0;
-    size_t totalSteps = 0;
-    size_t lastStepPercentage = 0;
-    QString path;
+enum class CloneProgressStageType : int {
+  Unknown = 0,
+  Fetch,
+  Checkout,
+
+  last
 };
 
-struct GitCredentialsRequest
-{
-    QString uuid;
-    QString url;
-    QString username;
-    int allowedTypes;
+struct CloneProgress {
+  QString uuid;
+  size_t completedSteps = 0;
+  size_t totalSteps = 0;
+  int lastStepPercentage = -1;
+  bool started = false;
+  bool finished = false;
+  CloneProgressStageType stage = CloneProgressStageType::Unknown;
 };
 
-struct GitCredentialsResponse
-{
-    QString uuid;
-    QString username;
-    QString password;
+struct GitCredentialsRequest {
+  QString uuid;
+  QString url;
+  QString username;
+  int allowedTypes;
 };
 
-struct GitCredentialsErrorResponse
-{
-    QString uuid;
+struct GitCredentialsResponse {
+  QString uuid;
+  QString username;
+  QString password;
+};
+
+struct GitCredentialsErrorResponse {
+  QString uuid;
 };
 
 void initForCurrentThread();
 void shutdownForCurrentThread();
-git_repository *cloneRepository(const QString &url,
-                                const QString &destinationDir);
+bool cloneRepository(const QString &url, const QString &destinationDir,
+                     const QString &uuid);
 void closeRepository(git_repository *repo);
 QString getActiveBranch(git_repository *repo);
-git_repository *initRepository(const QString &repoName,
-                               const QString &workingDir,
-                               const QString &defaultBranch);
+bool initRepository(const QString &repoName, const QString &workingDir,
+                    const QString &defaultBranch);
 QStringList listLocalBranches(git_repository *repo);
 QStringList listRemoteBranches(git_repository *repo);
 QStringList listSubmodules(git_repository *repo);

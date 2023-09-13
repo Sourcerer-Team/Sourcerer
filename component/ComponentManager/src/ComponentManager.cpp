@@ -22,8 +22,10 @@ ComponentManager::ComponentManager()
   const auto waitFunc =
       std::bind(&ComponentManager::eventCallback, this, std::placeholders::_1);
 
-  _eventManager.subscribe(EventManager::EventType::ComponentStarted, waitFunc);
-  _eventManager.subscribe(EventManager::EventType::ComponentStopped, waitFunc);
+  _eventManager.subscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::ComponentStarted, waitFunc));
+  _eventManager.subscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::ComponentStopped, waitFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -34,8 +36,10 @@ ComponentManager::~ComponentManager() {
   const auto waitFunc =
       std::bind(&ComponentManager::eventCallback, this, std::placeholders::_1);
 
-  _eventManager.unsubscribe(EventManager::EventType::ComponentStarted, waitFunc);
-  _eventManager.unsubscribe(EventManager::EventType::ComponentStopped, waitFunc);
+  _eventManager.unsubscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::ComponentStarted, waitFunc));
+  _eventManager.unsubscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::ComponentStopped, waitFunc));
 
   LOG_PERF(0, "Exit");
 }

@@ -15,7 +15,7 @@ namespace GuiManager {
 namespace Widgets {
 
 ToastHostWidget::ToastHostWidget()
-    : QWidget{}, _position{ToastPosition::Top},
+    : QWidget{}, _position{ToastPosition::BottomLeft},
       _configManager(ConfigManager::ConfigManager::getInstance()), _yOffset(0) {
   LOG_PERF(0, "Enter");
 
@@ -269,6 +269,17 @@ bool ToastHostWidget::toastWillFit(ToastWidget *toast) const {
   int spacing = 0;
   if (layoutCount > 0)
     spacing = toastSpacing;
+
+  /*
+  QLayout* toastLayout = toast->layout();
+  if(toastLayout) {
+    toast->show();
+    toastLayout->invalidate();
+    toast->hide();
+  }
+*/
+
+  //toast->adjustSize();
 
   const QSize toastSizeHint = toast->sizeHint();
   QRect boundingGeometry = _cachedGeometry;

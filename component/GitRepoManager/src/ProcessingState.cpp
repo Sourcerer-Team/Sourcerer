@@ -22,10 +22,19 @@ ProcessingState::ProcessingState(GitRepoManagerFsm &fsm)
   const auto eventCallbackFunc =
       std::bind(&ProcessingState::eventCallback, this, std::placeholders::_1);
 
-  _eventManager.subscribe(EventManager::EventType::GitRepoManagerInitRepoError,
-                          eventCallbackFunc);
-  _eventManager.subscribe(EventManager::EventType::GitRepoManagerOpenRepoError,
-                          eventCallbackFunc);
+  _eventManager.subscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerCloneRepoError,
+                       eventCallbackFunc));
+  _eventManager.subscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerCloneRepoResult,
+                       eventCallbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerInitRepoError, eventCallbackFunc));
+  _eventManager.subscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerInitRepoResult,
+                       eventCallbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -36,10 +45,19 @@ ProcessingState::~ProcessingState() {
   const auto eventCallbackFunc =
       std::bind(&ProcessingState::eventCallback, this, std::placeholders::_1);
 
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc));
   _eventManager.unsubscribe(
-      EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc);
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerInitRepoResult,
+                       eventCallbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerInitRepoError, eventCallbackFunc));
   _eventManager.unsubscribe(
-      EventManager::EventType::GitRepoManagerInitRepoError, eventCallbackFunc);
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerCloneRepoError,
+                       eventCallbackFunc));
+  _eventManager.unsubscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerCloneRepoResult,
+                       eventCallbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -145,8 +163,9 @@ void ProcessingState::cloneRepoWorker(const GitRepoCloneCommand &command) {
     return;
   }
 
-  git_repository* repo = GitRepo::cloneRepository(command.url, command.destinationDir);
-  if (!repo) {
+  const bool success = GitRepo::cloneRepository(
+      command.url, command.destinationDir, command.uuid);
+  if (!success) {
     reportError(EventManager::EventType::GitRepoManagerCloneRepoError,
                 GitRepoErrorType::NotCloned, tr("Can't clone repository."),
                 command.uuid);
@@ -156,16 +175,15 @@ void ProcessingState::cloneRepoWorker(const GitRepoCloneCommand &command) {
 
   {
     LOCKGUARD(_contextsMutex);
-    ctx->gitRepo = repo;
+    ctx->gitRepo = nullptr;
   }
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerCloneRepoResult);
-  resultEvent.addData(command.destinationDir);
+  resultEvent.addData(std::make_tuple(command.uuid, command.destinationDir));
   _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
-
 }
 
 void ProcessingState::closeRepoWorker(
@@ -279,9 +297,24 @@ void ProcessingState::eventCallback(const EventManager::Event event) {
   LOG_DEBUG("Processing event {}.", (int)eventType);
 
   switch (eventType) {
+  case EventManager::EventType::GitRepoManagerCloneRepoError: {
+    const GitRepoError error = event.data<GitRepoError>();
+    destroyContext(error.uuid);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCloneRepoResult: {
+    const auto &[uuid, _] = event.data<std::tuple<QString, QString>>();
+    destroyContext(uuid);
+    break;
+  }
   case EventManager::EventType::GitRepoManagerInitRepoError: {
     const GitRepoError error = event.data<GitRepoError>();
     destroyContext(error.uuid);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerInitRepoResult: {
+    const auto &[uuid, _] = event.data<std::tuple<QString, QString>>();
+    destroyContext(uuid);
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepoError: {
@@ -339,9 +372,9 @@ void ProcessingState::initRepoWorker(
     return;
   }
 
-  git_repository *repo = GitRepo::initRepository(
+  const bool success = GitRepo::initRepository(
       command.repoName, command.workingDir, command.defaultBranch);
-  if (!repo) {
+  if (!success) {
     reportError(EventManager::EventType::GitRepoManagerInitRepoError,
                 GitRepoErrorType::NotInitialized, tr("Can't init repository."),
                 command.uuid);
@@ -351,14 +384,14 @@ void ProcessingState::initRepoWorker(
 
   {
     LOCKGUARD(_contextsMutex);
-    ctx->gitRepo = repo;
+    ctx->gitRepo = nullptr;
   }
 
   const QString repoPath = command.workingDir + "/" + command.repoName;
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerInitRepoResult);
-  resultEvent.addData(repoPath);
+  resultEvent.addData(std::make_tuple(command.uuid, repoPath));
   _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
@@ -601,7 +634,6 @@ void ProcessingState::scheduleWorkerForCloneRepo(
   newContext->commandsQueue.push(new GitRepoCloneCommand(command));
 
   LOG_PERF(0, "Exit");
-
 }
 
 void ProcessingState::scheduleWorkerForCloseRepo(
