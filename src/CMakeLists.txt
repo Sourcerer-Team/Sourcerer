@@ -36,7 +36,16 @@ includeLib(Sourcerer Fsm)
 includeLib(Sourcerer Log)
 includeLib(Sourcerer Util)
 
-target_link_libraries(Sourcerer PRIVATE Qt${QT_VERSION_MAJOR}::Widgets ${LIBGIT2_LIBRARIES})
+if (WIN32)
+  set(ADDITIONAL_LIBRARIES user32.lib Dwmapi.lib)
+else()
+  set(ADDITIONAL_LIBRARIES)
+endif()
+
+target_link_libraries(Sourcerer PRIVATE
+  Qt${QT_VERSION_MAJOR}::Widgets
+  ${LIBGIT2_LIBRARIES}
+  ${ADDITIONAL_LIBRARIES})
 
 set_target_properties(Sourcerer PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER www.sourcerer.com

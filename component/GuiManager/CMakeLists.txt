@@ -18,6 +18,7 @@ set(TS_FILES translations/Sourcerer_en_US.ts)
 set(QRC_FILES resources/resources.qrc)
 
 set(GUIMANAGER_SOURCE_FILES
+   include/DarkStyle.h
    include/GuiManager.h
    include/InitResources.h
    include/MainWindow.h
@@ -33,6 +34,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/models/RecentlyOpenedReposModel.h
    include/models/SubmodulesModel.h
    include/models/TagsModel.h
+   include/widgets/CentralWidget.h
    include/widgets/ColorButton.h
    include/widgets/ContainerWidget.h
    include/widgets/GitSubmodulesPage.h
@@ -51,6 +53,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/widgets/SettingsPaneLongWidget.h
    include/widgets/SettingsPaneStringWidget.h
    include/widgets/ShadeIconToolbox.h
+   include/widgets/TitleBarButton.h
    include/widgets/TitleBarHomeButton.h
    include/widgets/TitleBarMenuButton.h
    include/widgets/TitleBarTabBar.h
@@ -58,7 +61,9 @@ set(GUIMANAGER_SOURCE_FILES
    include/widgets/ToastCloseButton.h
    include/widgets/ToastHostWidget.h
    include/widgets/ToastWidget.h
+   include/widgets/TopBarWidget.h
    include/widgets/factories/SettingsPaneItemWidgetFactory.h
+   src/DarkStyle.cpp
    src/GuiManager.cpp
    src/InitResources.cpp
    src/MainWindow.cpp
@@ -75,6 +80,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/models/RecentlyOpenedReposModel.cpp
    src/models/SubmodulesModel.cpp
    src/models/TagsModel.cpp
+   src/widgets/CentralWidget.cpp
    src/widgets/ColorButton.cpp
    src/widgets/ContainerWidget.cpp
    src/widgets/GitCredentialsToast.cpp
@@ -93,6 +99,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/widgets/SettingsPaneLongWidget.cpp
    src/widgets/SettingsPaneStringWidget.cpp
    src/widgets/ShadeIconToolbox.cpp
+   src/widgets/TitleBarButton.cpp
    src/widgets/TitleBarHomeButton.cpp
    src/widgets/TitleBarMenuButton.cpp
    src/widgets/TitleBarTabBar.cpp
@@ -100,6 +107,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/widgets/ToastCloseButton.cpp
    src/widgets/ToastHostWidget.cpp
    src/widgets/ToastWidget.cpp
+   src/widgets/TopBarWidget.cpp
    src/widgets/factories/SettingsPaneItemWidgetFactory.cpp
    src/containers/CloneGitRepoContainer.ui
    src/containers/GitRepoContainer.ui
@@ -130,14 +138,6 @@ includeLib(GuiManager GitRepo)
 includeLib(GuiManager Log)
 includeLib(GuiManager Util)
 includeLib(GuiManager QtWaitingSpinner)
-
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../lib/QGoodWindow/QGoodWindow.cmake)
-
-target_include_directories(Sourcerer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/QGoodWindow/src)
-
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../lib/QGoodCentralWidget/QGoodCentralWidget.cmake)
-
-target_include_directories(Sourcerer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/QGoodCentralWidget/src)
 
 target_link_libraries(GuiManager PRIVATE
     Qt${QT_VERSION_MAJOR}::Core

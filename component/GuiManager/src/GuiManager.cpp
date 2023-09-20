@@ -1,14 +1,15 @@
 #include "GuiManager.h"
 #include "MainWindow.h"
+#include "DarkStyle.h"
 
 #include <ConfigManager.h>
 #include <EventManager.h>
 #include <Log.h>
+#include <QStyle>
 #include <StylesheetManager.h>
 
-#include <QGoodWindow>
-
 #include <QApplication>
+#include <QTranslator>
 
 #define THREAD_ID "GuiManager"
 
@@ -27,8 +28,6 @@ GuiManager::~GuiManager() {
 void GuiManager::start() {
   LOG_PERF(0, "Enter");
 
-  QGoodWindow::setup();
-
   int argc = 1;
   char *argv = const_cast<char *>(ConfigManager::APPLICATION_NAME);
   QApplication app(argc, &argv);
@@ -43,7 +42,8 @@ void GuiManager::start() {
     }
   }
 
-  QGoodWindow::setAppDarkTheme();
+  app.setStyle(new DarkStyle());
+  app.style()->setObjectName("fusion");
 
   app.setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles, true);
 

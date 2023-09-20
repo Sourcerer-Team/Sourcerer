@@ -1,38 +1,115 @@
-/*
-The MIT License (MIT)
+#include "DarkStyle.h"
 
-Copyright © 2018, Juergen Skrotzky (https://github.com/Jorgen-VikingGod, JorgenVikingGod@gmail.com)
-Copyright © 2022-2023 Antonio Dias (https://github.com/antonypro)
+#include <QApplication>
+#include <QFile>
+#include <QFont>
+#include <QStyleFactory>
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+#ifdef Q_OS_WIN
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+#ifdef NTDDI_VERSION
+#undef NTDDI_VERSION
+#endif
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
+#ifdef _WIN32_WINNT
+#undef _WIN32_WINNT
+#endif
 
-#include "darkstyle.h"
-#include "stylecommon.h"
+#define NTDDI_VERSION NTDDI_VISTA
+#define _WIN32_WINNT _WIN32_WINNT_VISTA
+
+#include <windows.h>
+#include <shellapi.h>
+
+#include <QLibrary>
+
+namespace StyleCommon
+{
+
+QPixmap winStandardPixmap(QStyle::StandardPixmap standardPixmap)
+{
+    QPixmap pixmap;
+
+    HICON hicon = nullptr;
+
+    LPCWSTR icon_handle_xp = nullptr;
+    SHSTOCKICONID icon_handle_vista = SIID_INVALID;
+
+    switch (standardPixmap)
+    {
+    case QStyle::SP_MessageBoxInformation:
+    {
+        icon_handle_xp = IDI_INFORMATION;
+        icon_handle_vista = SIID_INFO;
+        break;
+    }
+    case QStyle::SP_MessageBoxWarning:
+    {
+        icon_handle_xp = IDI_WARNING;
+        icon_handle_vista = SIID_WARNING;
+        break;
+    }
+    case QStyle::SP_MessageBoxCritical:
+    {
+        icon_handle_xp = IDI_ERROR;
+        icon_handle_vista = SIID_ERROR;
+        break;
+    }
+    case QStyle::SP_MessageBoxQuestion:
+    {
+        icon_handle_xp = IDI_QUESTION;
+        icon_handle_vista = SIID_HELP;
+        break;
+    }
+    default:
+        break;
+    }
+
+    typedef HRESULT(STDAPICALLTYPE *tSHGetStockIconInfo)(SHSTOCKICONID siid, UINT uFlags, SHSTOCKICONINFO *psii);
+    tSHGetStockIconInfo pSHGetStockIconInfo = tSHGetStockIconInfo(QLibrary::resolve("shell32", "SHGetStockIconInfo"));
+
+    if (pSHGetStockIconInfo)
+    {
+        if (icon_handle_vista != SIID_INVALID)
+        {
+            SHSTOCKICONINFO sii;
+            memset(&sii, 0, sizeof(SHSTOCKICONINFO));
+            sii.cbSize = sizeof(sii);
+
+            if (SUCCEEDED(pSHGetStockIconInfo(icon_handle_vista, SHGSI_ICON | SHGSI_LARGEICON, &sii)))
+            {
+                hicon = sii.hIcon;
+            }
+        }
+    }
+    else
+    {
+        if (icon_handle_xp)
+        {
+            hicon = LoadIconW(nullptr, icon_handle_xp);
+        }
+    }
+
+    if (hicon)
+    {
+        pixmap = QPixmap::fromImage(QImage::fromHICON(hicon));
+        DestroyIcon(hicon);
+    }
+
+    return pixmap;
+}
+
+}
+
+#endif
 
 DarkStyle::DarkStyle() : DarkStyle(styleBase())
 {
 #ifdef Q_OS_WIN
-    m_hash_pixmap_cache[SP_MessageBoxInformation] = StyleCommon::winStandardPixmap(SP_MessageBoxInformation);
-    m_hash_pixmap_cache[SP_MessageBoxWarning] = StyleCommon::winStandardPixmap(SP_MessageBoxWarning);
-    m_hash_pixmap_cache[SP_MessageBoxCritical] = StyleCommon::winStandardPixmap(SP_MessageBoxCritical);
-    m_hash_pixmap_cache[SP_MessageBoxQuestion] = StyleCommon::winStandardPixmap(SP_MessageBoxQuestion);
+    _pixmap_cache[SP_MessageBoxInformation] = StyleCommon::winStandardPixmap(SP_MessageBoxInformation);
+    _pixmap_cache[SP_MessageBoxWarning] = StyleCommon::winStandardPixmap(SP_MessageBoxWarning);
+    _pixmap_cache[SP_MessageBoxCritical] = StyleCommon::winStandardPixmap(SP_MessageBoxCritical);
+    _pixmap_cache[SP_MessageBoxQuestion] = StyleCommon::winStandardPixmap(SP_MessageBoxQuestion);
 #endif
 }
 
@@ -62,7 +139,7 @@ QIcon DarkStyle::standardIcon(StandardPixmap standardPixmap, const QStyleOption 
     case SP_MessageBoxCritical:
     case SP_MessageBoxQuestion:
     {
-        QPixmap pixmap = m_hash_pixmap_cache.value(standardPixmap, QPixmap());
+        QPixmap pixmap = _pixmap_cache.value(standardPixmap, QPixmap());
 
         if (!pixmap.isNull())
             return QIcon(pixmap);
@@ -128,21 +205,6 @@ void DarkStyle::unpolish(QApplication *app)
     QFont defaultFont = app->font();
     defaultFont.setPointSize(defaultFont.pointSize() - 2);
     app->setFont(defaultFont);
-}
-
-void DarkStyle::drawControl(ControlElement element, const QStyleOption *opt, QPainter *p, const QWidget *widget) const
-{
-    if(element != CE_ToolBoxTabShape)
-    {
-        QProxyStyle::drawControl(element, opt, p, widget);
-        return;
-    }
-
-    if (const QStyleOptionToolBox *tb = qstyleoption_cast<const QStyleOptionToolBox *>(opt)) {
-        p->setPen(tb->palette.highlight().color());
-        p->drawLine(0, 2, tb->rect.width(), 2);
-        p->setBrush(Qt::NoBrush);
-    }
 }
 
 QStyle *DarkStyle::baseStyle() const

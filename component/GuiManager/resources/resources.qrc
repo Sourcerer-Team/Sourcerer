@@ -5,5 +5,8 @@
         <file>icons/git_tag.png</file>
         <file>icons/git_submodule.png</file>
         <file>icons/git_branch_active.png</file>
+        <file>icons/close_button.png</file>
+        <file>icons/maximize_button.png</file>
+        <file>icons/minimize_button.png</file>
     </qresource>
 </RCC>

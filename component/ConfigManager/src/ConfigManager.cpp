@@ -21,11 +21,17 @@ struct KeyDescription {
 QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::Unknown, ""},
     {ConfigKey::GitRepoSplitterPos, "window/gitrepo/splitterPos"},
-    {ConfigKey::GitRepoGitCredentialsExpirationTime, "gitrepo/credentials/credentialsExpirationTime"},
+    {ConfigKey::GitRepoGitCredentialsExpirationTime,
+     "gitrepo/credentials/credentialsExpirationTime"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
     {ConfigKey::SettingsSplitterPos, "window/settings/splitterPos"},
+    {ConfigKey::TitleBarCloseButtonColor, "window/titlebar/closeButtonColor"},
     {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
+    {ConfigKey::TitleBarMinimizeButtonColor,
+     "window/titlebar/minimizeButtonColor"},
+    {ConfigKey::TitleBarMaximizeButtonColor,
+     "window/titlebar/maximizeButtonColor"},
     {ConfigKey::TitleBarMaxTabWidth, "window/titleBarMaxTabWidth"},
     {ConfigKey::TitleBarMenuMinimumSize, "window/xxx/titleBarMenuMinimumWidth"},
     {ConfigKey::TestColor, "test/testColor"},
@@ -35,7 +41,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
 
 QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::Unknown, {"", ""}},
-    {ConfigKey::GitRepoGitCredentialsExpirationTime, {"Credentials expiration time", ""}},
+    {ConfigKey::GitRepoGitCredentialsExpirationTime,
+     {"Credentials expiration time", ""}},
     {ConfigKey::RecentlyOpenedRepos, {"Recently opened repositories list", ""}},
     {ConfigKey::TitleBarHeight, {"Maximum title bar height", ""}},
     {ConfigKey::TitleBarMaxTabWidth, {"Maximum width of a title bar tab", ""}},
@@ -47,7 +54,10 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {};
 
 QMap<ConfigKey, QColor> DEFAULT_COLORS = {
-    {ConfigKey::TestColor, QColor(10, 10, 10)}};
+    {ConfigKey::TestColor, QColor(10, 10, 10)},
+    {ConfigKey::TitleBarCloseButtonColor, QColor(0xff, 0x00, 0x00)},
+    {ConfigKey::TitleBarMinimizeButtonColor, QColor(0x4b, 0x4b, 0x4b)},
+    {ConfigKey::TitleBarMaximizeButtonColor, QColor(0x4b, 0x4b, 0x4b)}};
 
 QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {
     {ConfigKey::TestDateTime, QDateTime::currentDateTime()}};

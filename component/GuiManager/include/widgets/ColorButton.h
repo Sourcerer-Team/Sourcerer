@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QColor>
+#include <QPixmap>
 #include <QPushButton>
 #include <QWidget>
 
@@ -11,7 +12,8 @@ namespace Widgets {
 class ColorButton : public QPushButton {
   Q_OBJECT
 public:
-  ColorButton(const QColor &color, QWidget *parent = nullptr);
+  explicit ColorButton(const QColor &hoverColor, QWidget *parent = nullptr);
+  explicit ColorButton(const QPixmap& icon, const QColor &hoverColor, QWidget *parent = nullptr);
 
   const QColor& color() const { return _color; }
   void setColor(const QColor& color);

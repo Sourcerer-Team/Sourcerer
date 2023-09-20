@@ -16,10 +16,20 @@
 #include <Log.h>
 
 #include <QFileDialog>
+#include <QPushButton>
 #include <QStandardPaths>
 #include <QTimer>
 
 #include <functional>
+
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <windowsx.h>
+#include <WinUser.h>
+#include <dwmapi.h>
+#include <gdiplus.h>
+#include <objidl.h>
+#endif
 
 #define THREAD_ID "MainWindow"
 
@@ -32,41 +42,69 @@ using namespace Util;
 const int TOP_MARGIN_OFFSET = 10;
 
 MainWindow::MainWindow(QWidget *parent)
-    : QGoodWindow(parent), _current(-1), _titleBarWidget(new TitlebarWidget),
+    : QMainWindow(parent), _current(-1), _centralWidget(new CentralWidget),
+      _topBarWidget(new TopBarWidget),
       _toastHost(ToastHostWidget::getInstance()),
-      _centralWidget(new QGoodCentralWidget(this)),
       _configManager(ConfigManager::ConfigManager::getInstance()),
-      _eventManager(EventManager::EventManager::getInstance()) {
+      _eventManager(EventManager::EventManager::getInstance()),
+      _margins(0, 0, 0, 0), _maximized(false), _mousePressed(false),
+      _justMaximized(false) {
   LOG_PERF(0, "Enter");
+
+  setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
+
+#ifdef Q_OS_WIN
+  setWindowFlags(windowFlags() | Qt::WindowMaximizeButtonHint);
+
+  HWND hwnd = (HWND)this->winId();
+  DWORD style = ::GetWindowLong(hwnd, GWL_STYLE);
+  ::SetWindowLong(hwnd, GWL_STYLE,
+                  style | WS_MAXIMIZEBOX | WS_THICKFRAME | WS_CAPTION);
+
+  const MARGINS shadow = {1, 1, 1, 1};
+  DwmExtendFrameIntoClientArea(HWND(winId()), &shadow);
+#endif
+
+  QWidget *widget = new QWidget(this);
+
+  QVBoxLayout *layout = new QVBoxLayout(widget);
+  layout->setContentsMargins(2, 2, 2, 2);
+  layout->addWidget(_topBarWidget);
+  layout->addWidget(_centralWidget);
+
+  setCentralWidget(widget);
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
 
   LOG_DEBUG("TitleBar height is {} pixels.", titleBarHeight);
 
-  _centralWidget->setIconVisible(false);
-  _centralWidget->setTitleVisible(false);
-  _centralWidget->setTitleBarHeight(titleBarHeight);
-  _centralWidget->setUnifiedTitleBarAndCentralWidget(true);
-  _centralWidget->setLeftTitleBarWidget(_titleBarWidget);
-  setCentralWidget(_centralWidget);
-
   _toastHost.setParent(this);
   _toastHost.setYOffset(titleBarHeight);
 
-  connect(_titleBarWidget, &TitlebarWidget::home, this, &MainWindow::onHome);
-  connect(_titleBarWidget, &TitlebarWidget::open, this, &MainWindow::onOpen);
-  connect(_titleBarWidget, &TitlebarWidget::clone, this, &MainWindow::onClone);
-  connect(_titleBarWidget, &TitlebarWidget::init, this, &MainWindow::onInit);
-  connect(_titleBarWidget, &TitlebarWidget::settings, this,
+  connect(_topBarWidget, &TopBarWidget::home, this, &MainWindow::onHome);
+  connect(_topBarWidget, &TopBarWidget::open, this, &MainWindow::onOpen);
+  connect(_topBarWidget, &TopBarWidget::clone, this, &MainWindow::onClone);
+  connect(_topBarWidget, &TopBarWidget::init, this, &MainWindow::onInit);
+  connect(_topBarWidget, &TopBarWidget::settings, this,
           &MainWindow::onSettings);
-  connect(_titleBarWidget, &TitlebarWidget::about, this, &MainWindow::onAbout);
-  connect(_titleBarWidget, &TitlebarWidget::closedTab, this,
+  connect(_topBarWidget, &TopBarWidget::about, this, &MainWindow::onAbout);
+  connect(_topBarWidget, &TopBarWidget::closedTab, this,
           &MainWindow::onClosedTab);
-  connect(_titleBarWidget, &TitlebarWidget::selectedTab, this,
+  connect(_topBarWidget, &TopBarWidget::selectedTab, this,
           &MainWindow::onSelectedTab);
-  connect(_titleBarWidget, &TitlebarWidget::resizeTabBar, this,
+  connect(_topBarWidget, &TopBarWidget::resizeTabBar, this,
           &MainWindow::onTabBarResize);
+  connect(_topBarWidget, &TopBarWidget::minimized, this,
+          &MainWindow::onMinimizeClicked);
+  connect(_topBarWidget, &TopBarWidget::maximized, this,
+          &MainWindow::onMaximizeClicked);
+  connect(_topBarWidget, &TopBarWidget::closed, this,
+          &MainWindow::onCloseClicked);
+  connect(_topBarWidget, &TopBarWidget::doubleClicked, this,
+          &MainWindow::onMaximizeClicked);
+  connect(_topBarWidget, &TopBarWidget::dragged, this,
+          &MainWindow::onTitleBarDrag);
 
   addHomeContainer();
 
@@ -127,6 +165,129 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
   _toastHost.setParentSize(newGeometry);
 
   LOG_PERF(0, "Exit");
+}
+
+bool MainWindow::nativeEvent(const QByteArray &eventType, void *message,
+                             qintptr *result) {
+#ifdef Q_OS_WIN
+  MSG *msg = reinterpret_cast<MSG *>(message);
+
+  switch (msg->message) {
+  case WM_NCCALCSIZE: {
+    NCCALCSIZE_PARAMS &params =
+        *reinterpret_cast<NCCALCSIZE_PARAMS *>(msg->lParam);
+    if (params.rgrc[0].top != 0)
+      params.rgrc[0].top -= 1;
+
+    // this kills the window frame and title bar we added with WS_THICKFRAME and
+    // WS_CAPTION
+    *result = WVR_REDRAW;
+    return true;
+  }
+  case WM_NCHITTEST: {
+    *result = 0;
+
+    const LONG border_width = 5;
+    RECT winrect;
+    ::GetWindowRect(HWND(winId()), &winrect);
+
+    long x = GET_X_LPARAM(msg->lParam);
+    long y = GET_Y_LPARAM(msg->lParam);
+
+    bool resizeWidth = minimumWidth() != maximumWidth();
+    bool resizeHeight = minimumHeight() != maximumHeight();
+
+    if (resizeWidth) {
+      // left border
+      if (x >= winrect.left && x < winrect.left + border_width) {
+        *result = HTLEFT;
+      }
+      // right border
+      if (x < winrect.right && x >= winrect.right - border_width) {
+        *result = HTRIGHT;
+      }
+    }
+    if (resizeHeight) {
+      // bottom border
+      if (y < winrect.bottom && y >= winrect.bottom - border_width) {
+        *result = HTBOTTOM;
+      }
+      // top border
+      if (y >= winrect.top && y < winrect.top + border_width) {
+        *result = HTTOP;
+      }
+    }
+    if (resizeWidth && resizeHeight) {
+      // bottom left corner
+      if (x >= winrect.left && x < winrect.left + border_width &&
+          y < winrect.bottom && y >= winrect.bottom - border_width) {
+        *result = HTBOTTOMLEFT;
+      }
+      // bottom right corner
+      if (x < winrect.right && x >= winrect.right - border_width &&
+          y < winrect.bottom && y >= winrect.bottom - border_width) {
+        *result = HTBOTTOMRIGHT;
+      }
+      // top left corner
+      if (x >= winrect.left && x < winrect.left + border_width &&
+          y >= winrect.top && y < winrect.top + border_width) {
+        *result = HTTOPLEFT;
+      }
+      // top right corner
+      if (x < winrect.right && x >= winrect.right - border_width &&
+          y >= winrect.top && y < winrect.top + border_width) {
+        *result = HTTOPRIGHT;
+      }
+    }
+    if (0 != *result)
+      return true;
+
+    // support highdpi
+    double dpr = this->devicePixelRatioF();
+    QPoint pos = _topBarWidget->mapFromGlobal(QPoint(x / dpr, y / dpr));
+
+    if (!_topBarWidget->rect().contains(pos))
+      return false;
+
+    QWidget *child = _topBarWidget->childAt(pos);
+    if (!child) {
+      *result = HTCAPTION;
+      return true;
+    }
+
+    return false;
+  }
+  case WM_GETMINMAXINFO: {
+    if (::IsZoomed(msg->hwnd)) {
+      RECT frame = {0, 0, 0, 0};
+      ::AdjustWindowRectEx(&frame, WS_OVERLAPPEDWINDOW, FALSE, 0);
+
+      // record frame area data
+      double dpr = this->devicePixelRatioF();
+
+      _frames.setLeft(abs(frame.left) / dpr + 0.5);
+      _frames.setTop(abs(frame.bottom) / dpr + 0.5);
+      _frames.setRight(abs(frame.right) / dpr + 0.5);
+      _frames.setBottom(abs(frame.bottom) / dpr + 0.5);
+
+      QMainWindow::setContentsMargins(_frames.left() + _margins.left(),
+                                      _frames.top() + _margins.top(),
+                                      _frames.right() + _margins.right(),
+                                      _frames.bottom() + _margins.bottom());
+      _justMaximized = true;
+    } else {
+      if (_justMaximized) {
+        QMainWindow::setContentsMargins(_margins);
+        _frames = QMargins();
+        _justMaximized = false;
+      }
+    }
+    return false;
+  }
+  default:
+    return QMainWindow::nativeEvent(eventType, message, result);
+  }
+#endif
 }
 
 void MainWindow::onHome() {
@@ -231,8 +392,6 @@ void MainWindow::onSelectedTab(int index) {
 void MainWindow::onTabBarResize() {
   LOG_PERF(0, "Enter");
 
-  _centralWidget->updateWindow();
-
   LOG_PERF(0, "Exit");
 }
 
@@ -241,9 +400,53 @@ void MainWindow::onToastHostSizeChanged(const QSize &newSize) {
 
   QSize adjustedSize;
   adjustedSize.setWidth(adjustedSize.width());
-  adjustedSize.setHeight(newSize.height() + _titleBarWidget->height());
+  adjustedSize.setHeight(newSize.height() +
+                         _topBarWidget->titleBarWidget()->height());
 
   setMinimumSize(newSize);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onMinimizeClicked() {
+  LOG_PERF(0, "Enter");
+
+  showMinimized();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onMaximizeClicked() {
+  LOG_PERF(0, "Enter");
+
+  if (_maximized) {
+    _maximized = false;
+    showNormal();
+  } else {
+    _maximized = true;
+    showMaximized();
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onCloseClicked() {
+  LOG_PERF(0, "Enter");
+
+  close();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onTitleBarDrag(int xOffset, int yOffset) {
+  LOG_PERF(0, "Enter");
+
+  LOG_DEBUG("xOffset : {}, yOffset: {}", xOffset, yOffset);
+
+  const int newX = x() + xOffset;
+  const int newY = y() + yOffset;
+
+  move(newX, newY);
 
   LOG_PERF(0, "Exit");
 }
@@ -256,8 +459,9 @@ void MainWindow::addCloneContainer() {
   CloneGitRepoContainer *container = new CloneGitRepoContainer(this);
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
   _containers += container;
-  _titleBarWidget->addTab(tr("Clone"));
-  _titleBarWidget->selectTab(_titleBarWidget->tabsCount() - 1);
+  _topBarWidget->titleBarWidget()->addTab(tr("Clone"));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   const auto handlerFunc =
       std::bind(&MainWindow::onCloneFinished, this, container);
@@ -275,8 +479,9 @@ void MainWindow::addGitRepoContainer(const QString &path) {
   ContainerWidget *container = new GitRepoContainer(path, this);
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
   _containers += container;
-  _titleBarWidget->addTab(Git::parseRepoName(path));
-  _titleBarWidget->selectTab(_titleBarWidget->tabsCount() - 1);
+  _topBarWidget->titleBarWidget()->addTab(Git::parseRepoName(path));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   LOG_PERF(0, "Exit");
 }
@@ -289,8 +494,9 @@ void MainWindow::addHomeContainer() {
   HomeContainer *container = new HomeContainer(this);
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
   _containers += container;
-  _titleBarWidget->addTab(tr("Home"));
-  _titleBarWidget->selectTab(_titleBarWidget->tabsCount() - 1);
+  _topBarWidget->titleBarWidget()->addTab(tr("Home"));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   connect(container, &HomeContainer::clone, this, &MainWindow::onClone);
   connect(container, &HomeContainer::init, this, &MainWindow::onInit);
@@ -307,8 +513,9 @@ void MainWindow::addInitGitRepoContainer() {
   InitGitRepoContainer *container = new InitGitRepoContainer(this);
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
   _containers += container;
-  _titleBarWidget->addTab(tr("Init"));
-  _titleBarWidget->selectTab(_titleBarWidget->tabsCount() - 1);
+  _topBarWidget->titleBarWidget()->addTab(tr("Init"));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   const auto handlerFunc =
       std::bind(&MainWindow::onInitFinished, this, container);
@@ -326,8 +533,9 @@ void MainWindow::addSettingsContainer() {
   ContainerWidget *container = new SettingsContainer(this);
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
   _containers += container;
-  _titleBarWidget->addTab(tr("Settings"));
-  _titleBarWidget->selectTab(_titleBarWidget->tabsCount() - 1);
+  _topBarWidget->titleBarWidget()->addTab(tr("Settings"));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   LOG_PERF(0, "Exit");
 }
@@ -357,7 +565,7 @@ void MainWindow::closeContainer(ContainerWidget *container) {
   if (_containers.length() == 0)
     addHomeContainer();
 
-  _titleBarWidget->removeTab(index);
+  _topBarWidget->titleBarWidget()->removeTab(index);
 
   LOG_PERF(0, "Exit");
 }

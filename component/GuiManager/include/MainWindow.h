@@ -1,16 +1,17 @@
 #pragma once
 
+#include "widgets/CentralWidget.h"
 #include "widgets/ContainerWidget.h"
 #include "widgets/TitlebarWidget.h"
 #include "widgets/ToastHostWidget.h"
+#include "widgets/TopBarWidget.h"
 
 #include <ConfigManager.h>
 #include <EventManager.h>
 #include <GitRepo.h>
 
-#include <QGoodCentralWidget>
-#include <QGoodWindow>
-
+#include <QMainWindow>
+#include <QResizeEvent>
 #include <QSet>
 #include <QVector>
 
@@ -19,7 +20,7 @@ namespace GuiManager {
 using namespace GitRepo;
 using namespace Widgets;
 
-class MainWindow : public QGoodWindow {
+class MainWindow : public QMainWindow {
   Q_OBJECT
 
 public:
@@ -29,6 +30,8 @@ public:
   // QWidget interface
 protected:
   void resizeEvent(QResizeEvent *event) override;
+  bool nativeEvent(const QByteArray &eventType, void *message,
+                   qintptr *result) override;
 
 private slots:
   void onHome();
@@ -42,7 +45,11 @@ private slots:
   void onClosedTab(int index);
   void onSelectedTab(int index);
   void onTabBarResize();
-  void onToastHostSizeChanged(const QSize& newSize);
+  void onToastHostSizeChanged(const QSize &newSize);
+  void onMinimizeClicked();
+  void onMaximizeClicked();
+  void onCloseClicked();
+  void onTitleBarDrag(int xOffset, int yOffset);
 
 private:
   void addCloneContainer();
@@ -54,18 +61,23 @@ private:
   void eventCallback(EventManager::Event event);
   void selectContainer(int index);
   void showCredentialsToast(const GitCredentialsRequest &request);
-  void showCloneProgressToast(const CloneProgress& data);
+  void showCloneProgressToast(const CloneProgress &data);
   void showToast(const QString &text);
 
 private:
   int _current;
-  TitlebarWidget *_titleBarWidget;
+  CentralWidget *_centralWidget;
+  TopBarWidget *_topBarWidget;
   ToastHostWidget &_toastHost;
-  QGoodCentralWidget *_centralWidget;
   QVector<ContainerWidget *> _containers;
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
   QSet<QString> _progressing;
+  QMargins _margins;
+  QMargins _frames;
+  bool _maximized;
+  bool _mousePressed;
+  bool _justMaximized;
 };
 
 } // namespace GuiManager
