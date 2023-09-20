@@ -25,11 +25,17 @@ includeComponent(Log ConfigManager)
 
 includeLib(Log Util)
 
+if ((WIN32) OR (LINUX))
+  set(ADDITIONAL_LIBRARIES stdc++fs)
+else()
+  set(ADDITIONAL_LIBRARIES)
+endif()
+
 target_link_libraries(Log PRIVATE
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Gui
     Qt${QT_VERSION_MAJOR}::Widgets
-    stdc++fs
+    ${ADDITIONAL_LIBRARIES}
 )
 
 target_include_directories(Log PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)

@@ -288,6 +288,8 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message,
     return QMainWindow::nativeEvent(eventType, message, result);
   }
 #endif
+
+  return QMainWindow::nativeEvent(eventType, message, result);
 }
 
 void MainWindow::onHome() {
