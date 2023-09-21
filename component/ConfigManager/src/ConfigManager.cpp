@@ -24,6 +24,7 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::GitRepoGitCredentialsExpirationTime,
      "gitrepo/credentials/credentialsExpirationTime"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
+    {ConfigKey::MainWindowBorderWidth, "window/borderWidth"},
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
     {ConfigKey::SettingsSplitterPos, "window/settings/splitterPos"},
     {ConfigKey::TitleBarCloseButtonColor, "window/titlebar/closeButtonColor"},
@@ -65,6 +66,7 @@ QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {
 QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::GitRepoGitCredentialsExpirationTime, 30000},
     {ConfigKey::InfoToastDisplayTime, 3000},
+    {ConfigKey::MainWindowBorderWidth, 2},
     {ConfigKey::TitleBarHeight, 40},
     {ConfigKey::TitleBarMaxTabWidth, 285},
     {ConfigKey::TitleBarMenuMinimumSize, 230},

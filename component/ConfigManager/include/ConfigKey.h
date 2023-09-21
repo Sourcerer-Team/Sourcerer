@@ -13,6 +13,7 @@ enum class ConfigKey {
   TitleBarMinimizeButtonColor,
   TitleBarMaximizeButtonColor,
   TitleBarCloseButtonColor,
+  MainWindowBorderWidth,
 
   // GitRepo container
   GitRepoSplitterPos,

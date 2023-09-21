@@ -33,9 +33,14 @@ public:
 
   // QWidget interface
 protected:
-  void resizeEvent(QResizeEvent *event) override;
+  void mouseMoveEvent(QMouseEvent *event) override;
   bool nativeEvent(const QByteArray &eventType, void *message,
                    qintptr *result) override;
+  void resizeEvent(QResizeEvent *event) override;
+
+  // QObject interface
+public:
+  bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
   void onHome();

@@ -24,6 +24,8 @@
 
 #ifdef Q_OS_WIN
 #include "WindowsFrame.h"
+#elif defined(Q_OS_LINUX)
+#include "LinuxFrame.h"
 #endif
 
 #define THREAD_ID "MainWindow"
@@ -50,9 +52,16 @@ MainWindow::MainWindow(QWidget *parent)
 #ifdef Q_OS_WIN
   _frame = new WindowsFrame(this);
   _frame->init();
+#elif defined(Q_OS_LINUX)
+  _frame = new LinuxFrame(this);
+  _frame->init();
+  setMouseTracking(true);
+  installEventFilter(this);
+  _topBarWidget->installEventFilter(this);
 #endif
 
   QWidget *widget = new QWidget(this);
+  widget->setMouseTracking(true);
 
   QVBoxLayout *layout = new QVBoxLayout(widget);
   layout->setContentsMargins(2, 2, 2, 2);
@@ -140,6 +149,14 @@ MainWindow::~MainWindow() {
   LOG_PERF(0, "Exit");
 }
 
+void MainWindow::mouseMoveEvent(QMouseEvent *event)
+{
+  if(!event)
+    return;
+
+  event->ignore();
+}
+
 void MainWindow::resizeEvent(QResizeEvent *event) {
   LOG_PERF(0, "Enter");
 
@@ -168,6 +185,11 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message,
     return QMainWindow::nativeEvent(eventType, message, result);
   else
     return true;
+}
+
+bool MainWindow::eventFilter(QObject *watched, QEvent *event)
+{
+  return _frame->eventFilter(watched, event);
 }
 
 void MainWindow::onHome() {

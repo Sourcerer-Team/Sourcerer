@@ -24,6 +24,7 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
 
   ui->setupUi(this);
   ui->tabBar->setUsesScrollButtons(false);
+  ui->tabBar->setMouseTracking(true);
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);

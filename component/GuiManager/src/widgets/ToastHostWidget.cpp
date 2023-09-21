@@ -23,6 +23,7 @@ ToastHostWidget::ToastHostWidget()
   setAttribute(Qt::WA_ShowWithoutActivating, true);
   setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
                  Qt::Widget);
+  setMouseTracking(true);
 
   const int toastSpacing =
       _configManager.getLong(ConfigManager::ConfigKey::ToastSpacing);

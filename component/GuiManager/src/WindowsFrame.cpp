@@ -1,21 +1,32 @@
 #include "WindowsFrame.h"
 
-#include <windows.h>
-#include <windowsx.h>
+#include <Log.h>
+
 #include <WinUser.h>
 #include <dwmapi.h>
 #include <gdiplus.h>
 #include <objidl.h>
+#include <windows.h>
+#include <windowsx.h>
+
+#define THREAD_ID "WindowsFrame"
 
 namespace GuiManager {
 
 WindowsFrame::WindowsFrame(MainWindow *window)
     : _window(window), _margins(0, 0, 0, 0), _frames(0, 0, 0, 0),
-      _justMaximized(false) {}
+      _justMaximized(false) {
+  LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Exit");
+}
 
 void WindowsFrame::init() {
-  if (!_window)
+  LOG_PERF(0, "Enter");
+
+  if (!_window) {
+    LOG_PERF(0, "Exit");
     return;
+  }
 
   _window->setWindowFlags(_window->windowFlags() |
                           Qt::WindowMaximizeButtonHint);
@@ -27,6 +38,8 @@ void WindowsFrame::init() {
 
   const MARGINS shadow = {1, 1, 1, 1};
   DwmExtendFrameIntoClientArea(hwnd, &shadow);
+
+  LOG_PERF(0, "Exit");
 }
 
 bool WindowsFrame::nativeEvent(const QByteArray &eventType, void *message,

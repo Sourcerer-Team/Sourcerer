@@ -19,6 +19,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
       _titleBarWidget(new TitlebarWidget), _drag(false) {
   LOG_PERF(0, "Enter");
 
+  setMouseTracking(true);
+
   const QColor minimizeButtonColor = _configManager.getColor(
       ConfigManager::ConfigKey::TitleBarMinimizeButtonColor);
   const QColor maximizeButtonColor = _configManager.getColor(
@@ -63,8 +65,13 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   setMinimumHeight(titleBarHeight);
   setMaximumHeight(titleBarHeight);
 
+  const qlonglong borderWidth =
+      _configManager.getLong(ConfigManager::ConfigKey::MainWindowBorderWidth);
+
+  LOG_DEBUG("Border width is {} pixels.", borderWidth);
+
   QHBoxLayout *titleBarLayout = new QHBoxLayout(this);
-  titleBarLayout->setContentsMargins(0, 0, 0, 0);
+  titleBarLayout->setContentsMargins(borderWidth, borderWidth, borderWidth, 0);
   titleBarLayout->addWidget(_titleBarWidget);
   titleBarLayout->addSpacerItem(
       new QSpacerItem(QSizePolicy::Expanding, QSizePolicy::Fixed));
@@ -126,7 +133,7 @@ void TopBarWidget::mouseReleaseEvent(QMouseEvent *event) {
   LOG_PERF(0, "Enter");
 
   if (event->button() == Qt::LeftButton) {
-    _drag = true;
+    _drag = false;
     _previousPos = QPoint();
 
     LOG_PERF(0, "Exit");

@@ -129,6 +129,13 @@ if(WIN32)
     set(ADDITIONAL_SOURCE_FILES
         include/WindowsFrame.h
         src/WindowsFrame.cpp)
+elseif(UNIX AND NOT APPLE)
+    set(ADDITIONAL_SOURCE_FILES
+        include/LinuxFrame.h
+        src/LinuxFrame.cpp)
+    set(ADDITIONAL_LIBRARIES
+        X11
+        Qt::GuiPrivate )
 endif()
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
@@ -150,6 +157,7 @@ target_link_libraries(GuiManager PRIVATE
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Gui
     Qt${QT_VERSION_MAJOR}::Widgets
+    ${ADDITIONAL_LIBRARIES}
     ${LIBGIT2_LIBRARIES}
 )
 
