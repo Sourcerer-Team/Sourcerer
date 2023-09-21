@@ -20,9 +20,9 @@ set(QRC_FILES resources/resources.qrc)
 set(GUIMANAGER_SOURCE_FILES
    include/DarkStyle.h
    include/GuiManager.h
+   include/HitDetector.h
    include/InitResources.h
    include/MainWindow.h
-   include/WindowFrame.h
    include/containers/CloneGitRepoContainer.h
    include/containers/GitRepoContainer.h
    include/containers/HomeContainer.h
@@ -66,6 +66,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/widgets/factories/SettingsPaneItemWidgetFactory.h
    src/DarkStyle.cpp
    src/GuiManager.cpp
+   src/HitDetector.cpp
    src/InitResources.cpp
    src/MainWindow.cpp
    src/containers/CloneGitRepoContainer.cpp
@@ -125,22 +126,9 @@ set(GUIMANAGER_SOURCE_FILES
    ${TS_FILES}
 )
 
-if(WIN32)
-    set(ADDITIONAL_SOURCE_FILES
-        include/WindowsFrame.h
-        src/WindowsFrame.cpp)
-elseif(UNIX AND NOT APPLE)
-    set(ADDITIONAL_SOURCE_FILES
-        include/LinuxFrame.h
-        src/LinuxFrame.cpp)
-    set(ADDITIONAL_LIBRARIES
-        X11
-        Qt::GuiPrivate )
-endif()
-
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
 
-add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES} ${ADDITIONAL_SOURCE_FILES})
+add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES})
 
 include(../../cmake/helpers.cmake)
 
@@ -157,7 +145,6 @@ target_link_libraries(GuiManager PRIVATE
     Qt${QT_VERSION_MAJOR}::Core
     Qt${QT_VERSION_MAJOR}::Gui
     Qt${QT_VERSION_MAJOR}::Widgets
-    ${ADDITIONAL_LIBRARIES}
     ${LIBGIT2_LIBRARIES}
 )
 

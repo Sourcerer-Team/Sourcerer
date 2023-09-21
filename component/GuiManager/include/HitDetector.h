@@ -1,8 +1,5 @@
 #pragma once
 
-#include "MainWindow.h"
-#include "WindowFrame.h"
-
 #include <ConfigManager.h>
 
 #include <QObject>
@@ -11,16 +8,21 @@
 
 namespace GuiManager {
 
-class LinuxFrame : public WindowFrame {
+class MainWindow;
+
+class HitDetector : public QObject {
   Q_OBJECT
 public:
-  explicit LinuxFrame(MainWindow *window);
-  virtual ~LinuxFrame() {}
+  explicit HitDetector(MainWindow *window);
+  virtual ~HitDetector() {}
 
   // WindowFrame interface
 public:
-  void init() override;
+  void init();
   bool eventFilter(QObject *watched, QEvent *event) override;
+
+signals:
+  void edgeHit(Qt::Edges edges);
 
 private:
   enum class Margin : int {

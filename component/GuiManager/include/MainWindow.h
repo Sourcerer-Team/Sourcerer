@@ -1,9 +1,8 @@
 #pragma once
 
-#include "WindowFrame.h"
+#include "HitDetector.h"
 #include "widgets/CentralWidget.h"
 #include "widgets/ContainerWidget.h"
-#include "widgets/TitlebarWidget.h"
 #include "widgets/ToastHostWidget.h"
 #include "widgets/TopBarWidget.h"
 
@@ -28,14 +27,9 @@ public:
   MainWindow(QWidget *parent = nullptr);
   ~MainWindow();
 
-public:
-  QWidget *topBarWidget() const { return _topBarWidget; }
-
   // QWidget interface
 protected:
   void mouseMoveEvent(QMouseEvent *event) override;
-  bool nativeEvent(const QByteArray &eventType, void *message,
-                   qintptr *result) override;
   void resizeEvent(QResizeEvent *event) override;
 
   // QObject interface
@@ -85,7 +79,7 @@ private:
   QSet<QString> _progressing;
   bool _maximized;
   bool _mousePressed;
-  WindowFrame *_frame;
+  HitDetector *_hitDetector;
 };
 
 } // namespace GuiManager

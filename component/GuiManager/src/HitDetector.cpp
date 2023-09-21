@@ -1,17 +1,9 @@
-#include "LinuxFrame.h"
+#include "HitDetector.h"
+#include "MainWindow.h"
 
 #include <Log.h>
 
-#include <QApplication>
-#include <QtGui/private/qtx11extras_p.h>
-
-#include <X11/Xlib.h>
-#include <X11/cursorfont.h>
-#include <xcb/xcb.h>
-
-#include <iostream>
-
-#define THREAD_ID "LinuxFrame"
+#define THREAD_ID "HitDetector"
 
 #define FIXED_WIDTH(gw) (gw->minimumWidth() >= gw->maximumWidth())
 #define FIXED_HEIGHT(gw) (gw->minimumHeight() >= gw->maximumHeight())
@@ -19,7 +11,7 @@
 
 namespace GuiManager {
 
-LinuxFrame::LinuxFrame(MainWindow *window)
+HitDetector::HitDetector(MainWindow *window)
     : _window(window), _pixelRatio(1.0),
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
@@ -27,7 +19,7 @@ LinuxFrame::LinuxFrame(MainWindow *window)
   LOG_PERF(0, "Exit");
 }
 
-void LinuxFrame::init() {
+void HitDetector::init() {
   LOG_PERF(0, "Enter");
 
   if (!_window) {
@@ -40,7 +32,7 @@ void LinuxFrame::init() {
   LOG_PERF(0, "Exit");
 }
 
-bool LinuxFrame::eventFilter(QObject *watched, QEvent *event) {
+bool HitDetector::eventFilter(QObject *watched, QEvent *event) {
   if (watched != _window)
     return false;
 
@@ -54,52 +46,52 @@ bool LinuxFrame::eventFilter(QObject *watched, QEvent *event) {
   }
   case QEvent::MouseMove: {
     const QPoint currentPosition = QCursor::pos();
-    const LinuxFrame::Margin currentMargin = ncHitTest(
+    const HitDetector::Margin currentMargin = ncHitTest(
         _window->frameGeometry(), qFloor(currentPosition.x() * _pixelRatio),
         qFloor(currentPosition.y() * _pixelRatio));
 
     switch (currentMargin) {
-    case LinuxFrame::Margin::HTBOTTOM: {
+    case HitDetector::Margin::HTBOTTOM: {
       _window->setCursor(Qt::SizeVerCursor);
       _lastEdges = Qt::BottomEdge;
       break;
     }
-    case LinuxFrame::Margin::HTRIGHT: {
+    case HitDetector::Margin::HTRIGHT: {
       _window->setCursor(Qt::SizeHorCursor);
       _lastEdges = Qt::RightEdge;
       break;
     }
-    case LinuxFrame::Margin::HTBOTTOMRIGHT: {
+    case HitDetector::Margin::HTBOTTOMRIGHT: {
       _window->setCursor(Qt::SizeFDiagCursor);
       _lastEdges = Qt::BottomEdge | Qt::RightEdge;
       break;
     }
-    case LinuxFrame::Margin::HTBOTTOMLEFT: {
+    case HitDetector::Margin::HTBOTTOMLEFT: {
       _window->setCursor(Qt::SizeBDiagCursor);
       _lastEdges = Qt::BottomEdge | Qt::LeftEdge;
       break;
     }
-    case LinuxFrame::Margin::HTLEFT: {
+    case HitDetector::Margin::HTLEFT: {
       _window->setCursor(Qt::SizeHorCursor);
       _lastEdges = Qt::LeftEdge;
       break;
     }
-    case LinuxFrame::Margin::HTTOPLEFT: {
+    case HitDetector::Margin::HTTOPLEFT: {
       _window->setCursor(Qt::SizeFDiagCursor);
       _lastEdges = Qt::TopEdge | Qt::LeftEdge;
       break;
     }
-    case LinuxFrame::Margin::HTTOP: {
+    case HitDetector::Margin::HTTOP: {
       _window->setCursor(Qt::SizeVerCursor);
       _lastEdges = Qt::TopEdge;
       break;
     }
-    case LinuxFrame::Margin::HTTOPRIGHT: {
+    case HitDetector::Margin::HTTOPRIGHT: {
       _window->setCursor(Qt::SizeBDiagCursor);
       _lastEdges = Qt::TopEdge | Qt::RightEdge;
       break;
     }
-    case LinuxFrame::Margin::HTNOWHERE: {
+    case HitDetector::Margin::HTNOWHERE: {
       _window->unsetCursor();
       break;
     }
@@ -118,7 +110,7 @@ bool LinuxFrame::eventFilter(QObject *watched, QEvent *event) {
   return false;
 }
 
-LinuxFrame::Margin LinuxFrame::ncHitTest(const QRect &frameGeometry, int x,
+HitDetector::Margin HitDetector::ncHitTest(const QRect &frameGeometry, int x,
                                          int y) {
   if (!_window)
     return Margin::HTNOWHERE;
@@ -149,13 +141,13 @@ LinuxFrame::Margin LinuxFrame::ncHitTest(const QRect &frameGeometry, int x,
     col = 2; // right border.
 
   // Hit test (HTTOPLEFT, ... HTBOTTOMRIGHT)
-  const LinuxFrame::Margin hitTests[3][3] = {
-      {LinuxFrame::Margin::HTTOPLEFT, LinuxFrame::Margin::HTTOP,
-       LinuxFrame::Margin::HTTOPRIGHT},
-      {LinuxFrame::Margin::HTLEFT, LinuxFrame::Margin::HTNOWHERE,
-       LinuxFrame::Margin::HTRIGHT},
-      {LinuxFrame::Margin::HTBOTTOMLEFT, LinuxFrame::Margin::HTBOTTOM,
-       LinuxFrame::Margin::HTBOTTOMRIGHT},
+  const HitDetector::Margin hitTests[3][3] = {
+      {HitDetector::Margin::HTTOPLEFT, HitDetector::Margin::HTTOP,
+       HitDetector::Margin::HTTOPRIGHT},
+      {HitDetector::Margin::HTLEFT, HitDetector::Margin::HTNOWHERE,
+       HitDetector::Margin::HTRIGHT},
+      {HitDetector::Margin::HTBOTTOMLEFT, HitDetector::Margin::HTBOTTOM,
+       HitDetector::Margin::HTBOTTOMRIGHT},
   };
 
   return hitTests[row][col];

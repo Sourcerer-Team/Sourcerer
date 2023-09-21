@@ -23,12 +23,6 @@
 
 #include <functional>
 
-#ifdef Q_OS_WIN
-#include "WindowsFrame.h"
-#elif defined(Q_OS_LINUX)
-#include "LinuxFrame.h"
-#endif
-
 #define THREAD_ID "MainWindow"
 
 namespace GuiManager {
@@ -45,20 +39,17 @@ MainWindow::MainWindow(QWidget *parent)
       _toastHost(ToastHostWidget::getInstance()),
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
-      _maximized(false), _mousePressed(false), _frame(nullptr) {
+      _maximized(false), _mousePressed(false), _hitDetector(nullptr) {
   LOG_PERF(0, "Enter");
 
   setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 
-#ifdef Q_OS_WIN
-  _frame = new WindowsFrame(this);
-  _frame->init();
-#elif defined(Q_OS_LINUX)
-  _frame = new LinuxFrame(this);
-  _frame->init();
+#if defined(Q_OS_WIN) or defined(Q_OS_LINUX)
+  _hitDetector = new HitDetector(this);
+  _hitDetector->init();
   setMouseTracking(true);
   installEventFilter(this);
-  connect(_frame, &WindowFrame::edgeHit, this, &MainWindow::onEdgeHit);
+  connect(_hitDetector, &HitDetector::edgeHit, this, &MainWindow::onEdgeHit);
 #endif
 
   QWidget *widget = new QWidget(this);
@@ -145,7 +136,7 @@ MainWindow::~MainWindow() {
     delete container;
   }
 
-  delete _frame;
+  delete _hitDetector;
 
   LOG_PERF(0, "Exit");
 }
@@ -173,22 +164,8 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
   LOG_PERF(0, "Exit");
 }
 
-bool MainWindow::nativeEvent(const QByteArray &eventType, void *message,
-                             qintptr *result) {
-  bool handled = false;
-
-#ifdef Q_OS_WIN
-  handled = _frame->nativeEvent(eventType, message, result);
-#endif
-
-  if (!handled)
-    return QMainWindow::nativeEvent(eventType, message, result);
-  else
-    return true;
-}
-
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
-  return _frame->eventFilter(watched, event);
+  return _hitDetector->eventFilter(watched, event);
 }
 
 void MainWindow::onHome() {
