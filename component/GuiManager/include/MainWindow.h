@@ -1,5 +1,6 @@
 #pragma once
 
+#include "WindowFrame.h"
 #include "widgets/CentralWidget.h"
 #include "widgets/ContainerWidget.h"
 #include "widgets/TitlebarWidget.h"
@@ -73,11 +74,9 @@ private:
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
   QSet<QString> _progressing;
-  QMargins _margins;
-  QMargins _frames;
   bool _maximized;
   bool _mousePressed;
-  bool _justMaximized;
+  WindowFrame *_frame;
 };
 
 } // namespace GuiManager

@@ -22,6 +22,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/GuiManager.h
    include/InitResources.h
    include/MainWindow.h
+   include/WindowFrame.h
    include/containers/CloneGitRepoContainer.h
    include/containers/GitRepoContainer.h
    include/containers/HomeContainer.h
@@ -124,9 +125,15 @@ set(GUIMANAGER_SOURCE_FILES
    ${TS_FILES}
 )
 
+if(WIN32)
+    set(ADDITIONAL_SOURCE_FILES
+        include/WindowsFrame.h
+        src/WindowsFrame.cpp)
+endif()
+
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
 
-add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES})
+add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES} ${ADDITIONAL_SOURCE_FILES})
 
 include(../../cmake/helpers.cmake)
 
