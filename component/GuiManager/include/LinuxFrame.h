@@ -41,7 +41,7 @@ private:
 private:
   MainWindow *_window;
   qreal _pixelRatio;
-  Margin _lastClickMargin;
+  Qt::Edges _lastEdges;
   ConfigManager::ConfigManager &_configManager;
 };
 

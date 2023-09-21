@@ -21,7 +21,6 @@ namespace GuiManager {
 
 LinuxFrame::LinuxFrame(MainWindow *window)
     : _window(window), _pixelRatio(1.0),
-      _lastClickMargin(LinuxFrame::Margin::Unknown),
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
@@ -36,7 +35,6 @@ void LinuxFrame::init() {
     return;
   }
 
-  _lastClickMargin = LinuxFrame::Margin::Unknown;
   _pixelRatio = _window->devicePixelRatioF();
 
   LOG_PERF(0, "Exit");
@@ -49,19 +47,8 @@ bool LinuxFrame::eventFilter(QObject *watched, QEvent *event) {
   switch (event->type()) {
   case QEvent::MouseButtonPress: {
     QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-    if (mouseEvent->button() == Qt::LeftButton) {
-      const QPoint currentPosition = QCursor::pos();
-      _lastClickMargin = ncHitTest(_window->frameGeometry(),
-                                   qFloor(currentPosition.x() * _pixelRatio),
-                                   qFloor(currentPosition.y() * _pixelRatio));
-    }
-
-    break;
-  }
-  case QEvent::MouseButtonRelease: {
-    QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
     if (mouseEvent->button() == Qt::LeftButton)
-      _lastClickMargin = LinuxFrame::Margin::Unknown;
+      emit edgeHit(_lastEdges);
 
     break;
   }
@@ -74,34 +61,42 @@ bool LinuxFrame::eventFilter(QObject *watched, QEvent *event) {
     switch (currentMargin) {
     case LinuxFrame::Margin::HTBOTTOM: {
       _window->setCursor(Qt::SizeVerCursor);
+      _lastEdges = Qt::BottomEdge;
       break;
     }
     case LinuxFrame::Margin::HTRIGHT: {
       _window->setCursor(Qt::SizeHorCursor);
+      _lastEdges = Qt::RightEdge;
       break;
     }
     case LinuxFrame::Margin::HTBOTTOMRIGHT: {
       _window->setCursor(Qt::SizeFDiagCursor);
+      _lastEdges = Qt::BottomEdge | Qt::RightEdge;
       break;
     }
     case LinuxFrame::Margin::HTBOTTOMLEFT: {
       _window->setCursor(Qt::SizeBDiagCursor);
+      _lastEdges = Qt::BottomEdge | Qt::LeftEdge;
       break;
     }
     case LinuxFrame::Margin::HTLEFT: {
       _window->setCursor(Qt::SizeHorCursor);
+      _lastEdges = Qt::LeftEdge;
       break;
     }
     case LinuxFrame::Margin::HTTOPLEFT: {
       _window->setCursor(Qt::SizeFDiagCursor);
+      _lastEdges = Qt::TopEdge | Qt::LeftEdge;
       break;
     }
     case LinuxFrame::Margin::HTTOP: {
       _window->setCursor(Qt::SizeVerCursor);
+      _lastEdges = Qt::TopEdge;
       break;
     }
     case LinuxFrame::Margin::HTTOPRIGHT: {
       _window->setCursor(Qt::SizeBDiagCursor);
+      _lastEdges = Qt::TopEdge | Qt::RightEdge;
       break;
     }
     case LinuxFrame::Margin::HTNOWHERE: {
@@ -111,59 +106,6 @@ bool LinuxFrame::eventFilter(QObject *watched, QEvent *event) {
     default: {
       break;
     }
-    }
-
-    if (_lastClickMargin != LinuxFrame::Margin::Unknown) {
-      switch (_lastClickMargin) {
-      case LinuxFrame::Margin::HTBOTTOM: {
-        _window->setCursor(Qt::SizeVerCursor);
-        emit edgeHit(Qt::BottomEdge);
-        break;
-      }
-      case LinuxFrame::Margin::HTRIGHT: {
-        _window->setCursor(Qt::SizeHorCursor);
-        emit edgeHit(Qt::RightEdge);
-        break;
-      }
-      case LinuxFrame::Margin::HTBOTTOMRIGHT: {
-        _window->setCursor(Qt::SizeFDiagCursor);
-        emit edgeHit(Qt::BottomEdge | Qt::RightEdge);
-        break;
-      }
-      case LinuxFrame::Margin::HTBOTTOMLEFT: {
-        _window->setCursor(Qt::SizeBDiagCursor);
-        emit edgeHit(Qt::BottomEdge | Qt::LeftEdge);
-        break;
-      }
-      case LinuxFrame::Margin::HTLEFT: {
-        _window->setCursor(Qt::SizeHorCursor);
-        emit edgeHit(Qt::LeftEdge);
-        break;
-      }
-      case LinuxFrame::Margin::HTTOPLEFT: {
-        _window->setCursor(Qt::SizeFDiagCursor);
-        emit edgeHit(Qt::TopEdge | Qt::LeftEdge);
-        break;
-      }
-      case LinuxFrame::Margin::HTTOP: {
-        _window->setCursor(Qt::SizeVerCursor);
-        emit edgeHit(Qt::TopEdge);
-        break;
-      }
-      case LinuxFrame::Margin::HTTOPRIGHT: {
-        _window->setCursor(Qt::SizeBDiagCursor);
-        emit edgeHit(Qt::TopEdge | Qt::RightEdge);
-        break;
-      }
-      case LinuxFrame::Margin::HTNOWHERE: {
-        _window->unsetCursor();
-        emit edgeHit(Qt::TopEdge | Qt::RightEdge);
-        break;
-      }
-      default: {
-        break;
-      }
-      }
     }
 
     break;
