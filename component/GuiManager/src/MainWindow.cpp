@@ -42,8 +42,7 @@ MainWindow::MainWindow(QWidget *parent)
       _toastHost(ToastHostWidget::getInstance()),
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
-      __maximized(false), _mousePressed(false),
-      {
+      _maximized(false), _mousePressed(false), _frame(nullptr) {
   LOG_PERF(0, "Enter");
 
   setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
@@ -159,11 +158,16 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
 
 bool MainWindow::nativeEvent(const QByteArray &eventType, void *message,
                              qintptr *result) {
+  bool handled = false;
+
 #ifdef Q_OS_WIN
-  return _frame->nativeEvent(eventType, message, result);
-#else
-  return QMainWindow::nativeEvent(eventType, message, result);
+  handled = _frame->nativeEvent(eventType, message, result);
 #endif
+
+  if(!handled)
+    return QMainWindow::nativeEvent(eventType, message, result);
+  else
+    return true;
 }
 
 void MainWindow::onHome() {

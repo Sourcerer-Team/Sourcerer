@@ -9,24 +9,31 @@
 
 namespace GuiManager {
 
-WindowsFrame::WindowsFrame(QMainWindow *window)
+WindowsFrame::WindowsFrame(MainWindow *window)
     : _window(window), _margins(0, 0, 0, 0), _frames(0, 0, 0, 0),
       _justMaximized(false) {}
 
 void WindowsFrame::init() {
-    setWindowFlags(_window->windowFlags() | Qt::WindowMaximizeButtonHint);
+  if (!_window)
+    return;
 
-    HWND hwnd = (HWND)_window->winId();
-    DWORD style = ::GetWindowLong(hwnd, GWL_STYLE);
-    ::SetWindowLong(hwnd, GWL_STYLE,
-                    style | WS_MAXIMIZEBOX | WS_THICKFRAME | WS_CAPTION);
+  _window->setWindowFlags(_window->windowFlags() |
+                          Qt::WindowMaximizeButtonHint);
 
-    const MARGINS shadow = {1, 1, 1, 1};
-    DwmExtendFrameIntoClientArea(hwnd, &shadow);
+  HWND hwnd = (HWND)_window->winId();
+  DWORD style = ::GetWindowLong(hwnd, GWL_STYLE);
+  ::SetWindowLong(hwnd, GWL_STYLE,
+                  style | WS_MAXIMIZEBOX | WS_THICKFRAME | WS_CAPTION);
+
+  const MARGINS shadow = {1, 1, 1, 1};
+  DwmExtendFrameIntoClientArea(hwnd, &shadow);
 }
 
 bool WindowsFrame::nativeEvent(const QByteArray &eventType, void *message,
                                qintptr *result) {
+  if (!_window)
+    return false;
+
   MSG *msg = reinterpret_cast<MSG *>(message);
 
   switch (msg->message) {
@@ -46,13 +53,13 @@ bool WindowsFrame::nativeEvent(const QByteArray &eventType, void *message,
 
     const LONG border_width = 5;
     RECT winrect;
-    ::GetWindowRect(HWND(winId()), &winrect);
+    ::GetWindowRect(HWND(_window->winId()), &winrect);
 
     long x = GET_X_LPARAM(msg->lParam);
     long y = GET_Y_LPARAM(msg->lParam);
 
-    bool resizeWidth = minimumWidth() != maximumWidth();
-    bool resizeHeight = minimumHeight() != maximumHeight();
+    bool resizeWidth = _window->minimumWidth() != _window->maximumWidth();
+    bool resizeHeight = _window->minimumHeight() != _window->maximumHeight();
 
     if (resizeWidth) {
       // left border
@@ -100,13 +107,14 @@ bool WindowsFrame::nativeEvent(const QByteArray &eventType, void *message,
       return true;
 
     // support highdpi
-    double dpr = this->devicePixelRatioF();
-    QPoint pos = _topBarWidget->mapFromGlobal(QPoint(x / dpr, y / dpr));
+    double dpr = _window->devicePixelRatioF();
+    QPoint pos =
+        _window->topBarWidget()->mapFromGlobal(QPoint(x / dpr, y / dpr));
 
-    if (!_topBarWidget->rect().contains(pos))
+    if (!_window->topBarWidget()->rect().contains(pos))
       return false;
 
-    QWidget *child = _topBarWidget->childAt(pos);
+    QWidget *child = _window->topBarWidget()->childAt(pos);
     if (!child) {
       *result = HTCAPTION;
       return true;
@@ -120,21 +128,21 @@ bool WindowsFrame::nativeEvent(const QByteArray &eventType, void *message,
       ::AdjustWindowRectEx(&frame, WS_OVERLAPPEDWINDOW, FALSE, 0);
 
       // record frame area data
-      double dpr = this->devicePixelRatioF();
+      double dpr = _window->devicePixelRatioF();
 
       _frames.setLeft(abs(frame.left) / dpr + 0.5);
       _frames.setTop(abs(frame.bottom) / dpr + 0.5);
       _frames.setRight(abs(frame.right) / dpr + 0.5);
       _frames.setBottom(abs(frame.bottom) / dpr + 0.5);
 
-      QMainWindow::setContentsMargins(_frames.left() + _margins.left(),
-                                      _frames.top() + _margins.top(),
-                                      _frames.right() + _margins.right(),
-                                      _frames.bottom() + _margins.bottom());
+      _window->setContentsMargins(_frames.left() + _margins.left(),
+                                  _frames.top() + _margins.top(),
+                                  _frames.right() + _margins.right(),
+                                  _frames.bottom() + _margins.bottom());
       _justMaximized = true;
     } else {
       if (_justMaximized) {
-        QMainWindow::setContentsMargins(_margins);
+        _window->setContentsMargins(_margins);
         _frames = QMargins();
         _justMaximized = false;
       }
@@ -142,7 +150,7 @@ bool WindowsFrame::nativeEvent(const QByteArray &eventType, void *message,
     return false;
   }
   default:
-    return QMainWindow::nativeEvent(eventType, message, result);
+    return false;
   }
 }
 

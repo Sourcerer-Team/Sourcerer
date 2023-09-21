@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MainWindow.h"
 #include "WindowFrame.h"
 
 #include <QMainWindow>
@@ -9,7 +10,7 @@ namespace GuiManager {
 
 class WindowsFrame : public WindowFrame {
 public:
-  explicit WindowsFrame(QMainWindow *window);
+  explicit WindowsFrame(MainWindow *window);
   virtual ~WindowsFrame() {}
 
   // WindowFrame interface
@@ -18,7 +19,7 @@ public:
   bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result);
 
 private:
-  QMainWindow *_window;
+  MainWindow *_window;
   QMargins _margins;
   QMargins _frames;
   bool _justMaximized;

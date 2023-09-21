@@ -28,6 +28,9 @@ public:
   MainWindow(QWidget *parent = nullptr);
   ~MainWindow();
 
+public:
+  QWidget *topBarWidget() const { return _topBarWidget; }
+
   // QWidget interface
 protected:
   void resizeEvent(QResizeEvent *event) override;
