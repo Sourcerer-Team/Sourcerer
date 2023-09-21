@@ -5,16 +5,23 @@
 
 namespace GuiManager {
 
-class WindowFrame {
+class WindowFrame : public QObject {
+  Q_OBJECT
 public:
+  explicit WindowFrame() {}
   virtual ~WindowFrame() {}
 
   virtual void init(){};
 
   virtual bool nativeEvent(const QByteArray &eventType, void *message,
-                           qintptr *result){ return false; }
+                           qintptr *result) {
+    return false;
+  }
 
   virtual bool eventFilter(QObject *watched, QEvent *event) { return false; }
+
+signals:
+  void edgeHit(Qt::Edges edges);
 };
 
 } // namespace GuiManager

@@ -16,7 +16,7 @@ namespace Widgets {
 TopBarWidget::TopBarWidget(QWidget *parent)
     : QWidget{parent},
       _configManager(ConfigManager::ConfigManager::getInstance()),
-      _titleBarWidget(new TitlebarWidget), _drag(false) {
+      _titleBarWidget(new TitlebarWidget) {
   LOG_PERF(0, "Enter");
 
   setMouseTracking(true);
@@ -118,8 +118,7 @@ void TopBarWidget::mousePressEvent(QMouseEvent *event) {
   LOG_PERF(0, "Enter");
 
   if (event->button() == Qt::LeftButton) {
-    _drag = true;
-
+    emit dragged();
     LOG_PERF(0, "Exit");
     return;
   }
@@ -127,41 +126,6 @@ void TopBarWidget::mousePressEvent(QMouseEvent *event) {
   QWidget::mousePressEvent(event);
 
   LOG_PERF(0, "Exit");
-}
-
-void TopBarWidget::mouseReleaseEvent(QMouseEvent *event) {
-  LOG_PERF(0, "Enter");
-
-  if (event->button() == Qt::LeftButton) {
-    _drag = false;
-    _previousPos = QPoint();
-
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  QWidget::mouseReleaseEvent(event);
-
-  LOG_PERF(0, "Exit");
-}
-
-void TopBarWidget::mouseMoveEvent(QMouseEvent *event) {
-  if (!_drag) {
-    QWidget::mouseMoveEvent(event);
-    return;
-  }
-
-  const QPoint currentPos = event->pos();
-
-  if (_previousPos.isNull()) {
-    _previousPos = currentPos;
-    return;
-  }
-
-  const int xOffset = currentPos.x() - _previousPos.x();
-  const int yOffset = currentPos.y() - _previousPos.y();
-
-  emit dragged(xOffset, yOffset);
 }
 
 } // namespace Widgets

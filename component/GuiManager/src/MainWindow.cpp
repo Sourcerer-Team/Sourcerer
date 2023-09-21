@@ -19,6 +19,7 @@
 #include <QPushButton>
 #include <QStandardPaths>
 #include <QTimer>
+#include <QWindow>
 
 #include <functional>
 
@@ -57,7 +58,7 @@ MainWindow::MainWindow(QWidget *parent)
   _frame->init();
   setMouseTracking(true);
   installEventFilter(this);
-  _topBarWidget->installEventFilter(this);
+  connect(_frame, &WindowFrame::edgeHit, this, &MainWindow::onEdgeHit);
 #endif
 
   QWidget *widget = new QWidget(this);
@@ -149,9 +150,8 @@ MainWindow::~MainWindow() {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::mouseMoveEvent(QMouseEvent *event)
-{
-  if(!event)
+void MainWindow::mouseMoveEvent(QMouseEvent *event) {
+  if (!event)
     return;
 
   event->ignore();
@@ -181,14 +181,13 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message,
   handled = _frame->nativeEvent(eventType, message, result);
 #endif
 
-  if(!handled)
+  if (!handled)
     return QMainWindow::nativeEvent(eventType, message, result);
   else
     return true;
 }
 
-bool MainWindow::eventFilter(QObject *watched, QEvent *event)
-{
+bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
   return _frame->eventFilter(watched, event);
 }
 
@@ -340,15 +339,18 @@ void MainWindow::onCloseClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::onTitleBarDrag(int xOffset, int yOffset) {
+void MainWindow::onTitleBarDrag() {
   LOG_PERF(0, "Enter");
 
-  LOG_DEBUG("xOffset : {}, yOffset: {}", xOffset, yOffset);
+  windowHandle()->startSystemMove();
 
-  const int newX = x() + xOffset;
-  const int newY = y() + yOffset;
+  LOG_PERF(0, "Exit");
+}
 
-  move(newX, newY);
+void MainWindow::onEdgeHit(Qt::Edges edges) {
+  LOG_PERF(0, "Enter");
+
+  windowHandle()->startSystemResize(edges);
 
   LOG_PERF(0, "Exit");
 }

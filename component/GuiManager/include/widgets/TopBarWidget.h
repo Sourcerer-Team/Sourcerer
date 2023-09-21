@@ -35,20 +35,16 @@ signals:
   void selectedTab(int index);
   void resizeTabBar();
 
-  void dragged(int xOffset, int yOffset);
+  void dragged();
 
   // QWidget interface
 protected:
   void mouseDoubleClickEvent(QMouseEvent *event) override;
   void mousePressEvent(QMouseEvent *event) override;
-  void mouseReleaseEvent(QMouseEvent *event) override;
-  void mouseMoveEvent(QMouseEvent *event) override;
 
 private:
   ConfigManager::ConfigManager &_configManager;
   TitlebarWidget *_titleBarWidget;
-  QPoint _previousPos;
-  bool _drag;
 };
 
 } // namespace Widgets

@@ -11,7 +11,7 @@
 
 namespace GuiManager {
 
-class LinuxFrame : public QObject, public WindowFrame {
+class LinuxFrame : public WindowFrame {
   Q_OBJECT
 public:
   explicit LinuxFrame(MainWindow *window);
@@ -21,13 +21,6 @@ public:
 public:
   void init() override;
   bool eventFilter(QObject *watched, QEvent *event) override;
-
-private:
-  bool isX11() const;
-  bool isWayland() const;
-  void setCursorForCurrentPosition();
-  void setCursorForCurrentPositionX11();
-  void setCursorForCurrentPositionWayland();
 
 private:
   enum class Margin : int {
@@ -49,7 +42,6 @@ private:
   MainWindow *_window;
   qreal _pixelRatio;
   Margin _lastClickMargin;
-  QPoint _previousPosition;
   ConfigManager::ConfigManager &_configManager;
 };
 

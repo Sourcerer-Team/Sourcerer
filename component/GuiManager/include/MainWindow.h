@@ -58,7 +58,8 @@ private slots:
   void onMinimizeClicked();
   void onMaximizeClicked();
   void onCloseClicked();
-  void onTitleBarDrag(int xOffset, int yOffset);
+  void onTitleBarDrag();
+  void onEdgeHit(Qt::Edges edges);
 
 private:
   void addCloneContainer();

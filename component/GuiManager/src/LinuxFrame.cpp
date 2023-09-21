@@ -43,8 +43,8 @@ void LinuxFrame::init() {
 }
 
 bool LinuxFrame::eventFilter(QObject *watched, QEvent *event) {
-  // if (watched != _window)
-  //   return false;
+  if (watched != _window)
+    return false;
 
   switch (event->type()) {
   case QEvent::MouseButtonPress: {
@@ -66,135 +66,98 @@ bool LinuxFrame::eventFilter(QObject *watched, QEvent *event) {
     break;
   }
   case QEvent::MouseMove: {
-    QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
     const QPoint currentPosition = QCursor::pos();
+    const LinuxFrame::Margin currentMargin = ncHitTest(
+        _window->frameGeometry(), qFloor(currentPosition.x() * _pixelRatio),
+        qFloor(currentPosition.y() * _pixelRatio));
 
-    if (_previousPosition.isNull()) {
-      _previousPosition = currentPosition;
+    switch (currentMargin) {
+    case LinuxFrame::Margin::HTBOTTOM: {
+      _window->setCursor(Qt::SizeVerCursor);
       break;
     }
-
-    setCursorForCurrentPosition();
+    case LinuxFrame::Margin::HTRIGHT: {
+      _window->setCursor(Qt::SizeHorCursor);
+      break;
+    }
+    case LinuxFrame::Margin::HTBOTTOMRIGHT: {
+      _window->setCursor(Qt::SizeFDiagCursor);
+      break;
+    }
+    case LinuxFrame::Margin::HTBOTTOMLEFT: {
+      _window->setCursor(Qt::SizeBDiagCursor);
+      break;
+    }
+    case LinuxFrame::Margin::HTLEFT: {
+      _window->setCursor(Qt::SizeHorCursor);
+      break;
+    }
+    case LinuxFrame::Margin::HTTOPLEFT: {
+      _window->setCursor(Qt::SizeFDiagCursor);
+      break;
+    }
+    case LinuxFrame::Margin::HTTOP: {
+      _window->setCursor(Qt::SizeVerCursor);
+      break;
+    }
+    case LinuxFrame::Margin::HTTOPRIGHT: {
+      _window->setCursor(Qt::SizeBDiagCursor);
+      break;
+    }
+    case LinuxFrame::Margin::HTNOWHERE: {
+      _window->unsetCursor();
+      break;
+    }
+    default: {
+      break;
+    }
+    }
 
     if (_lastClickMargin != LinuxFrame::Margin::Unknown) {
-      const int xOffset = currentPosition.x() - _previousPosition.x();
-      const int yOffset = currentPosition.y() - _previousPosition.y();
-      const QRect windowRect = _window->frameGeometry();
-
       switch (_lastClickMargin) {
       case LinuxFrame::Margin::HTBOTTOM: {
-        const QRect newRect(windowRect.x(), windowRect.y(), windowRect.width(),
-                            windowRect.height() + yOffset);
-        const QRect availableRect = _window->screen()->availableGeometry();
-        if (!availableRect.contains(newRect))
-          break;
-
-        const QSize minimumSize = _window->minimumSize();
-        const QSize newRectSize = newRect.size();
-        if (newRectSize.width() > minimumSize.width() &&
-            newRectSize.height() > minimumSize.height())
-          _window->setGeometry(newRect);
+        _window->setCursor(Qt::SizeVerCursor);
+        emit edgeHit(Qt::BottomEdge);
         break;
       }
       case LinuxFrame::Margin::HTRIGHT: {
-        const QRect newRect(windowRect.x(), windowRect.y(), windowRect.width() + xOffset,
-                            windowRect.height());
-        const QRect availableRect = _window->screen()->availableGeometry();
-        if (!availableRect.contains(newRect))
-          break;
-
-        const QSize minimumSize = _window->minimumSize();
-        const QSize newRectSize = newRect.size();
-        if (newRectSize.width() > minimumSize.width() &&
-            newRectSize.height() > minimumSize.height())
-          _window->setGeometry(newRect);
-        break;
+        _window->setCursor(Qt::SizeHorCursor);
+        emit edgeHit(Qt::RightEdge);
         break;
       }
       case LinuxFrame::Margin::HTBOTTOMRIGHT: {
-        const QRect newRect(windowRect.x(), windowRect.y(),
-                            windowRect.width() + xOffset,
-                            windowRect.height() + yOffset);
-        const QRect availableRect = _window->screen()->availableGeometry();
-        if (!availableRect.contains(newRect))
-          break;
-
-        const QSize minimumSize = _window->minimumSize();
-        const QSize newRectSize = newRect.size();
-        if (newRectSize.width() > minimumSize.width() &&
-            newRectSize.height() > minimumSize.height())
-          _window->setGeometry(newRect);
+        _window->setCursor(Qt::SizeFDiagCursor);
+        emit edgeHit(Qt::BottomEdge | Qt::RightEdge);
         break;
       }
       case LinuxFrame::Margin::HTBOTTOMLEFT: {
-        const QRect newRect(windowRect.x() + xOffset, windowRect.y(),
-                            windowRect.width() - xOffset,
-                            windowRect.height() + yOffset);
-        const QRect availableRect = _window->screen()->availableGeometry();
-        if (!availableRect.contains(newRect))
-          break;
-
-        const QSize minimumSize = _window->minimumSize();
-        const QSize newRectSize = newRect.size();
-        if (newRectSize.width() > minimumSize.width() &&
-            newRectSize.height() > minimumSize.height())
-          _window->setGeometry(newRect);
+        _window->setCursor(Qt::SizeBDiagCursor);
+        emit edgeHit(Qt::BottomEdge | Qt::LeftEdge);
         break;
       }
       case LinuxFrame::Margin::HTLEFT: {
-        const QRect newRect(windowRect.x() + xOffset, windowRect.y(),
-                            windowRect.width() - xOffset, windowRect.height());
-        const QRect availableRect = _window->screen()->availableGeometry();
-        if (!availableRect.contains(newRect))
-          break;
-
-        const QSize minimumSize = _window->minimumSize();
-        const QSize newRectSize = newRect.size();
-        if (newRectSize.width() > minimumSize.width())
-          _window->setGeometry(newRect);
+        _window->setCursor(Qt::SizeHorCursor);
+        emit edgeHit(Qt::LeftEdge);
         break;
       }
       case LinuxFrame::Margin::HTTOPLEFT: {
-        const QRect newRect(windowRect.x() + xOffset, windowRect.y() + yOffset,
-                            windowRect.width() - xOffset,
-                            windowRect.height() - yOffset);
-        const QRect availableRect = _window->screen()->availableGeometry();
-        if (!availableRect.contains(newRect))
-          break;
-
-        const QSize minimumSize = _window->minimumSize();
-        const QSize newRectSize = newRect.size();
-        if (newRectSize.width() > minimumSize.width() &&
-            newRect.height() > minimumSize.height())
-          _window->setGeometry(newRect);
+        _window->setCursor(Qt::SizeFDiagCursor);
+        emit edgeHit(Qt::TopEdge | Qt::LeftEdge);
         break;
       }
       case LinuxFrame::Margin::HTTOP: {
-        const QRect newRect(windowRect.x(), windowRect.y() + yOffset,
-                            windowRect.width(), windowRect.height() - yOffset);
-        const QRect availableRect = _window->screen()->availableGeometry();
-        if (!availableRect.contains(newRect))
-          break;
-
-        const QSize minimumSize = _window->minimumSize();
-        const QSize newRectSize = newRect.size();
-        if (newRectSize.height() > minimumSize.height())
-          _window->setGeometry(newRect);
+        _window->setCursor(Qt::SizeVerCursor);
+        emit edgeHit(Qt::TopEdge);
         break;
       }
       case LinuxFrame::Margin::HTTOPRIGHT: {
-        const QRect newRect(windowRect.x(), windowRect.y() + yOffset,
-                            windowRect.width() + xOffset,
-                            windowRect.height() - yOffset);
-        const QRect availableRect = _window->screen()->availableGeometry();
-        if (!availableRect.contains(newRect))
-          break;
-
-        const QSize minimumSize = _window->minimumSize();
-        const QSize newRectSize = newRect.size();
-        if (newRectSize.width() > minimumSize.width() &&
-            newRect.height() > minimumSize.height())
-          _window->setGeometry(newRect);
+        _window->setCursor(Qt::SizeBDiagCursor);
+        emit edgeHit(Qt::TopEdge | Qt::RightEdge);
+        break;
+      }
+      case LinuxFrame::Margin::HTNOWHERE: {
+        _window->unsetCursor();
+        emit edgeHit(Qt::TopEdge | Qt::RightEdge);
         break;
       }
       default: {
@@ -202,8 +165,6 @@ bool LinuxFrame::eventFilter(QObject *watched, QEvent *event) {
       }
       }
     }
-
-    _previousPosition = currentPosition;
 
     break;
   }
@@ -214,179 +175,6 @@ bool LinuxFrame::eventFilter(QObject *watched, QEvent *event) {
 
   return false;
 }
-
-bool LinuxFrame::isX11() const { return true; }
-
-bool LinuxFrame::isWayland() const { return false; }
-
-void LinuxFrame::setCursorForCurrentPosition() {
-  if (isX11())
-    setCursorForCurrentPositionX11();
-  else if (isWayland())
-    setCursorForCurrentPositionWayland();
-}
-
-void LinuxFrame::setCursorForCurrentPositionX11() {
-  const QPoint cursorPos = QCursor::pos();
-  const LinuxFrame::Margin margin =
-      ncHitTest(_window->frameGeometry(), qFloor(cursorPos.x() * _pixelRatio),
-                qFloor(cursorPos.y() * _pixelRatio));
-
-  QWidget *widget = QApplication::widgetAt(cursorPos);
-
-  if (!widget)
-    return;
-
-  Display *dpy = QX11Info::display();
-
-  switch (margin) {
-  case LinuxFrame::Margin::HTTOPLEFT: {
-    Cursor cursor;
-
-    if (!FIXED_SIZE(_window))
-      cursor = XCreateFontCursor(dpy, XC_top_left_corner);
-    else
-      cursor = XCreateFontCursor(dpy, XC_arrow);
-
-    XDefineCursor(dpy, Window(widget->winId()), cursor);
-
-    XFlush(dpy);
-
-    XFreeCursor(dpy, cursor);
-
-    break;
-  }
-  case LinuxFrame::Margin::HTTOP: {
-    Cursor cursor;
-
-    if (!FIXED_HEIGHT(_window))
-      cursor = XCreateFontCursor(dpy, XC_top_side);
-    else
-      cursor = XCreateFontCursor(dpy, XC_arrow);
-
-    XDefineCursor(dpy, Window(widget->winId()), cursor);
-
-    XFlush(dpy);
-
-    XFreeCursor(dpy, cursor);
-
-    break;
-  }
-  case LinuxFrame::Margin::HTTOPRIGHT: {
-    Cursor cursor;
-
-    if (!FIXED_SIZE(_window))
-      cursor = XCreateFontCursor(dpy, XC_top_right_corner);
-    else
-      cursor = XCreateFontCursor(dpy, XC_arrow);
-
-    XDefineCursor(dpy, Window(widget->winId()), cursor);
-
-    XFlush(dpy);
-
-    XFreeCursor(dpy, cursor);
-
-    break;
-  }
-  case LinuxFrame::Margin::HTLEFT: {
-    Cursor cursor;
-
-    if (!FIXED_WIDTH(_window))
-      cursor = XCreateFontCursor(dpy, XC_left_side);
-    else
-      cursor = XCreateFontCursor(dpy, XC_arrow);
-
-    XDefineCursor(dpy, Window(widget->winId()), cursor);
-
-    XFlush(dpy);
-
-    XFreeCursor(dpy, cursor);
-
-    break;
-  }
-  case LinuxFrame::Margin::HTRIGHT: {
-    Cursor cursor;
-
-    if (!FIXED_WIDTH(_window))
-      cursor = XCreateFontCursor(dpy, XC_right_side);
-    else
-      cursor = XCreateFontCursor(dpy, XC_arrow);
-
-    XDefineCursor(dpy, Window(widget->winId()), cursor);
-
-    XFlush(dpy);
-
-    XFreeCursor(dpy, cursor);
-
-    break;
-  }
-  case LinuxFrame::Margin::HTBOTTOMLEFT: {
-    Cursor cursor;
-
-    if (!FIXED_SIZE(_window))
-      cursor = XCreateFontCursor(dpy, XC_bottom_left_corner);
-    else
-      cursor = XCreateFontCursor(dpy, XC_arrow);
-
-    XDefineCursor(dpy, Window(widget->winId()), cursor);
-
-    XFlush(dpy);
-
-    XFreeCursor(dpy, cursor);
-
-    break;
-  }
-  case LinuxFrame::Margin::HTBOTTOM: {
-    Cursor cursor;
-
-    if (!FIXED_HEIGHT(_window))
-      cursor = XCreateFontCursor(dpy, XC_bottom_side);
-    else
-      cursor = XCreateFontCursor(dpy, XC_arrow);
-
-    XDefineCursor(dpy, Window(widget->winId()), cursor);
-
-    XFlush(dpy);
-
-    XFreeCursor(dpy, cursor);
-
-    break;
-  }
-  case LinuxFrame::Margin::HTBOTTOMRIGHT: {
-    Cursor cursor;
-
-    if (!FIXED_SIZE(_window))
-      cursor = XCreateFontCursor(dpy, XC_bottom_right_corner);
-    else
-      cursor = XCreateFontCursor(dpy, XC_arrow);
-
-    XDefineCursor(dpy, Window(widget->winId()), cursor);
-
-    XFlush(dpy);
-
-    XFreeCursor(dpy, cursor);
-
-    break;
-  }
-  case LinuxFrame::Margin::HTNOWHERE: {
-    Cursor cursor;
-
-    cursor = XCreateFontCursor(dpy, XC_arrow);
-
-    XDefineCursor(dpy, Window(widget->winId()), cursor);
-
-    XFlush(dpy);
-
-    XFreeCursor(dpy, cursor);
-
-    break;
-  }
-  default:
-    break;
-  }
-}
-
-void LinuxFrame::setCursorForCurrentPositionWayland() {}
 
 LinuxFrame::Margin LinuxFrame::ncHitTest(const QRect &frameGeometry, int x,
                                          int y) {
