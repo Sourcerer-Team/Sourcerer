@@ -13,7 +13,8 @@
 
 namespace EventManager {
 
-#define CAPTURE_CALLBACK(type, callback) { type, this, callback }
+#define CAPTURE_CALLBACK(type, callback)                                       \
+  { type, this, callback }
 
 const ulong DEFAULT_WAIT_TIMEOUT = 2 * 60 * 1000; // 2 minutes
 
@@ -66,6 +67,9 @@ public:
             std::function<bool(Event)> predicate = nullptr,
             ulong timeout = DEFAULT_WAIT_TIMEOUT);
 
+  std::tuple<bool, Event> waitForAnswer(int token, const QString &uuid,
+                                        ulong timeout = DEFAULT_WAIT_TIMEOUT);
+
 private:
   EventManager();
 
@@ -79,7 +83,7 @@ private:
 
 private:
   std::thread _thread;
-    std::unordered_map<EventType, std::vector<EventCallback>> _subscribers;
+  std::unordered_map<EventType, std::vector<EventCallback>> _subscribers;
   BlockingQueue<EventRecord> _eventsQueue;
   std::map<int, BlockingQueue<WaitEventRecord>> _waitEventsQueue;
   Util::Mutex _queueLocker;

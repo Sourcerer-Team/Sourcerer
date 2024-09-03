@@ -1,11 +1,17 @@
 #pragma once
 
+#include <QString>
+
 #include <any>
 
 namespace EventManager {
 
 enum EventType {
   Null = 0,
+
+  // Error and response handling
+  Error,
+  Success,
 
   // ComponentMonitor
   ComponentStarted,
@@ -52,7 +58,8 @@ enum EventType {
 
 class Event {
 public:
-  Event(EventType eventType) : _type(eventType) {}
+  Event(EventType eventType, const QString &uuid = QString())
+      : _type(eventType), _uuid(uuid) {}
 
   void addData(std::any data) { _anyData = data; }
 
@@ -60,8 +67,11 @@ public:
 
   EventType type() const { return _type; }
 
+  const QString &uuid() const { return _uuid; }
+
 private:
   EventType _type;
+  QString _uuid;
   std::any _anyData;
 };
 

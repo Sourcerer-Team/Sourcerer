@@ -57,7 +57,7 @@ void EventManager::unsubscribe(EventCallback callback) {
                                callback._callback.target_type()) &&
                               (cb._callback.target<void (*)(Event)>() ==
                                callback._callback.target<void (*)(Event)>()) &&
-                                (cb._receiver == callback._receiver);
+                              (cb._receiver == callback._receiver);
                      }),
       _subscribers[callback._type].end());
 }
@@ -138,6 +138,19 @@ EventManager::waitOneOf(int token, const std::set<EventType> &eventTypes,
   LOG_PERF(0, "Exit");
 
   return std::make_tuple(success, resultEvent);
+}
+
+std::tuple<bool, Event>
+EventManager::waitForAnswer(int token, const QString &uuid, ulong timeout) {
+  LOG_PERF(0, "Enter");
+
+  static const std::set<EventType> types{EventType::Error, EventType::Success};
+
+  LOG_PERF(0, "Exit");
+
+  return waitOneOf(
+      token, types, [&](Event event) -> bool { return event.uuid() == uuid; },
+      timeout);
 }
 
 void EventManager::send(Event event) {
