@@ -34,6 +34,7 @@ includeComponent(Sourcerer StylesheetManager)
 
 includeLib(Sourcerer Fsm)
 includeLib(Sourcerer Log)
+includeLib(Sourcerer RecyclerView)
 includeLib(Sourcerer Util)
 
 if (WIN32)
