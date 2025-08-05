@@ -11,9 +11,11 @@
 #include <git2/checkout.h>
 #include <git2/clone.h>
 #include <git2/commit.h>
+#include <git2/graph.h>
 #include <git2/index.h>
 #include <git2/refs.h>
 #include <git2/revparse.h>
+#include <git2/revwalk.h>
 #include <git2/signature.h>
 #include <git2/submodule.h>
 #include <git2/tag.h>
@@ -774,6 +776,400 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   LOG_PERF(0, "Exit");
 
   return true;
+}
+
+GitHistory getHistory(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  GitHistory history_;
+
+  git_revwalk *walker = nullptr;
+
+  int error = git_revwalk_new(&walker, repo);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  error = git_revwalk_sorting(walker, GIT_SORT_TOPOLOGICAL | GIT_SORT_TIME |
+                                        GIT_SORT_REVERSE);
+  if (error) {
+    logGitError(error);
+    git_revwalk_free(walker);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_branch_iterator *iter = nullptr;
+
+  error = git_branch_iterator_new(&iter, repo, GIT_BRANCH_ALL);
+  if (error) {
+    logGitError(error);
+    git_revwalk_free(walker);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_branch_t type;
+  git_reference *ref = nullptr;
+
+  while (git_branch_next(&ref, &type, iter) == 0) {
+    const char *branchName = git_reference_name(ref);
+    if (!branchName) {
+      git_revwalk_free(walker);
+      git_reference_free(ref);
+      git_branch_iterator_free(iter);
+      LOG_ERROR(Log::ErrorId::Git, "Can't determine branch name.")
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    error = git_revwalk_push_ref(walker, branchName);
+    if (error) {
+      logGitError(error);
+      git_revwalk_free(walker);
+      git_reference_free(ref);
+      git_branch_iterator_free(iter);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    git_reference_free(ref);
+  }
+
+  git_branch_iterator_free(iter);
+
+  git_oid oid;
+
+  QSet<QString> processedOids;
+
+  while (git_revwalk_next(&oid, walker) == 0) {
+    const char *oidStr = git_oid_tostr_s(&oid);
+    if (!oidStr) {
+      LOG_ERROR(Log::ErrorId::Git, "Can't convert oid to string.");
+      git_revwalk_free(walker);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    git_commit *commit = nullptr;
+
+    error = git_commit_lookup(&commit, repo, &oid);
+    if (error) {
+      logGitError(error);
+      git_revwalk_free(walker);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    if (!commit) {
+      LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit with oid \"{}\"",
+                oidStr);
+      git_revwalk_free(walker);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    if (!processedOids.contains(oidStr)) {
+      processedOids.insert(oidStr);
+      history_.commits.push_back(oidStr);
+    }
+
+    std::size_t parentCount = git_commit_parentcount(commit);
+
+    for (std::size_t i = 0; i < parentCount; ++i) {
+      const git_oid *parentOid = git_commit_parent_id(commit, i);
+      if (!parentOid) {
+        LOG_ERROR(Log::ErrorId::Git,
+                  "Can't lookup parent oid at index {} for oid \"{}\"", i,
+                  oidStr);
+        git_revwalk_free(walker);
+        git_commit_free(commit);
+        LOG_PERF(0, "Exit");
+        return {};
+      }
+
+      const char *parentOidStr = git_oid_tostr_s(parentOid);
+      if (!oidStr) {
+        LOG_ERROR(
+          Log::ErrorId::Git,
+          "Can't convert parent oid at index {} for oid \"{}\" to string.", i,
+          oidStr);
+        git_revwalk_free(walker);
+        git_commit_free(commit);
+        LOG_PERF(0, "Exit");
+        return {};
+      }
+
+      history_.commitInfos[oidStr].parents.push_back(parentOidStr);
+      history_.commitInfos[parentOidStr].children.push_back(oidStr);
+    }
+
+    history_.commitInfos[oidStr].oid = oid;
+
+    const char *message = git_commit_message(commit);
+    if (message)
+      history_.commitInfos[oidStr].message = message;
+    else {
+      LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit message for oid \"{}\"",
+                oidStr);
+      git_revwalk_free(walker);
+      git_commit_free(commit);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    const char *summary = git_commit_summary(commit);
+    if (summary)
+      history_.commitInfos[oidStr].summary = summary;
+    else {
+      LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit summary for oid \"{}\"",
+                oidStr);
+      git_revwalk_free(walker);
+      git_commit_free(commit);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    const git_signature *signature = git_commit_author(commit);
+    if (signature) {
+      if (signature->name)
+        history_.commitInfos[oidStr].authorName = signature->name;
+
+      if (signature->email)
+        history_.commitInfos[oidStr].authorEmail = signature->email;
+
+      history_.commitInfos[oidStr].timeStamp =
+        signature->when.time * 1000 + signature->when.offset * 60 * 1000;
+    } else {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Can't lookup commit signature for oid \"{}\"", oidStr);
+      git_revwalk_free(walker);
+      git_commit_free(commit);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    git_commit_free(commit);
+  }
+
+  git_revwalk_free(walker);
+
+  history_.valid = true;
+
+  LOG_PERF(0, "Exit");
+
+  return history_;
+}
+
+QStringList getCommitBranches(git_repository *repo, const QString &commitOid) {
+  LOG_PERF(0, "Enter");
+
+  QStringList branches;
+
+  git_branch_iterator *iter = nullptr;
+  git_reference *ref = nullptr;
+  git_branch_t type;
+
+  int error = git_branch_iterator_new(&iter, repo, GIT_BRANCH_ALL);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  // Traverse all branches
+  while (git_branch_next(&ref, &type, iter) == 0) {
+    git_object *branchTip = nullptr;
+    error = git_reference_peel(&branchTip, ref, GIT_OBJECT_COMMIT);
+    if (error) {
+      logGitError(error);
+      git_reference_free(ref);
+      git_branch_iterator_free(iter);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    const char *branchName = nullptr;
+    error = git_branch_name(&branchName, ref);
+    if (error) {
+      logGitError(error);
+      git_reference_free(ref);
+      git_branch_iterator_free(iter);
+      git_object_free(branchTip);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    git_oid oid;
+    error = git_oid_fromstr(&oid, commitOid.toStdString().c_str());
+    if (error) {
+      logGitError(error);
+      git_reference_free(ref);
+      git_branch_iterator_free(iter);
+      git_object_free(branchTip);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    // Check if branch contains the commit
+    const int contains =
+      git_graph_descendant_of(repo, git_object_id(branchTip), &oid);
+    if (contains == 1)
+      branches += branchName;
+
+    git_object_free(branchTip);
+    git_reference_free(ref);
+  }
+
+  git_branch_iterator_free(iter);
+
+  LOG_PERF(0, "Exit");
+
+  return branches;
+}
+
+QStringList getCommitHeads(git_repository *repo, const QString &commitOid) {
+  LOG_PERF(0, "Enter");
+
+  QStringList branches;
+
+  git_branch_iterator *iter = nullptr;
+  git_reference *ref = nullptr;
+  git_branch_t type;
+
+  int error = git_branch_iterator_new(&iter, repo, GIT_BRANCH_ALL);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  // Traverse all branches
+  while (git_branch_next(&ref, &type, iter) == 0) {
+    git_object *branchTip = nullptr;
+    error = git_reference_peel(&branchTip, ref, GIT_OBJECT_COMMIT);
+    if (error) {
+      logGitError(error);
+      git_reference_free(ref);
+      git_branch_iterator_free(iter);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    const char *branchName = nullptr;
+    error = git_branch_name(&branchName, ref);
+    if (error) {
+      logGitError(error);
+      git_reference_free(ref);
+      git_branch_iterator_free(iter);
+      git_object_free(branchTip);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    git_oid oid;
+    error = git_oid_fromstr(&oid, commitOid.toStdString().c_str());
+    if (error) {
+      logGitError(error);
+      git_reference_free(ref);
+      git_branch_iterator_free(iter);
+      git_object_free(branchTip);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    git_object_free(branchTip);
+
+    // Check if this commit is the HEAD of the branch
+    const git_oid *branchHeadOid = git_reference_target(ref);
+    if (branchHeadOid) {
+      const bool head = git_oid_equal(branchHeadOid, &oid) == 0;
+      if (head)
+        branches += branchName;
+    }
+
+    git_reference_free(ref);
+  }
+
+  git_branch_iterator_free(iter);
+
+  LOG_PERF(0, "Exit");
+
+  return branches;
+}
+
+bool getCommitIsHead(git_repository *repo, const QString &commitOid) {
+  LOG_PERF(0, "Enter");
+
+  git_branch_iterator *iter = nullptr;
+  git_reference *ref = nullptr;
+  git_branch_t type;
+
+  int error = git_branch_iterator_new(&iter, repo, GIT_BRANCH_ALL);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Traverse all branches
+  while (git_branch_next(&ref, &type, iter) == 0) {
+    git_object *branchTip = nullptr;
+    error = git_reference_peel(&branchTip, ref, GIT_OBJECT_COMMIT);
+    if (error) {
+      logGitError(error);
+      git_reference_free(ref);
+      git_branch_iterator_free(iter);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    const char *branchName = nullptr;
+    error = git_branch_name(&branchName, ref);
+    if (error) {
+      logGitError(error);
+      git_reference_free(ref);
+      git_branch_iterator_free(iter);
+      git_object_free(branchTip);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_oid oid;
+    error = git_oid_fromstr(&oid, commitOid.toStdString().c_str());
+    if (error) {
+      logGitError(error);
+      git_reference_free(ref);
+      git_branch_iterator_free(iter);
+      git_object_free(branchTip);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_object_free(branchTip);
+
+    // Check if this commit is the HEAD of the branch
+    const git_oid *branchHeadOid = git_reference_target(ref);
+    if (branchHeadOid) {
+      const bool head = git_oid_equal(branchHeadOid, &oid) == 0;
+      if (head) {
+        git_reference_free(ref);
+        git_branch_iterator_free(iter);
+        LOG_PERF(0, "Exit");
+        return true;
+      }
+    }
+
+    git_reference_free(ref);
+  }
+
+  git_branch_iterator_free(iter);
+
+  LOG_PERF(0, "Exit");
+
+  return false;
 }
 
 } // namespace GitRepo

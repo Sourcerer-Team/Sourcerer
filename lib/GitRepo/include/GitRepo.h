@@ -1,7 +1,10 @@
 #pragma once
 
+#include <QMap>
+#include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QVector>
 
 #include <git2/errors.h>
 #include <git2/global.h>
@@ -44,6 +47,25 @@ struct GitCredentialsErrorResponse {
   QString uuid;
 };
 
+struct GitCommitInfo {
+  git_oid oid;
+  QString message;
+  QString summary;
+  QString authorName;
+  QString authorEmail;
+  qint64 timeStamp = -1;
+  QVector<QString> parents;
+  QVector<QString> children;
+  QVector<QString> branches;
+  QSet<QString> heads;
+};
+
+struct GitHistory {
+  bool valid = false;
+  QVector<QString> commits;
+  QMap<QString, GitCommitInfo> commitInfos;
+};
+
 void initForCurrentThread();
 void shutdownForCurrentThread();
 bool cloneRepository(const QString &url, const QString &destinationDir,
@@ -57,5 +79,9 @@ QStringList listRemoteBranches(git_repository *repo);
 QStringList listSubmodules(git_repository *repo);
 QStringList listTags(git_repository *repo);
 git_repository *openRepository(const QString &path);
+GitHistory getHistory(git_repository *repo);
+QStringList getCommitBranches(git_repository *repo, const QString &commitOid);
+QStringList getCommitHeads(git_repository *repo, const QString &commitOid);
+bool getCommitIsHead(git_repository *repo, const QString &commitOid);
 
 } // namespace GitRepo

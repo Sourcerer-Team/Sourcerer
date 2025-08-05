@@ -1,7 +1,5 @@
 #pragma once
 
-#include "GitRepoManagerFsm.h"
-
 #include <FsmEvent.h>
 
 namespace GitRepoManager {
@@ -13,6 +11,10 @@ enum class EventType : int {
   CloneRepo,
   CloseRepo,
   GetActiveBranch,
+  GetCommitBranches,
+  GetCommitHeads,
+  GetCommitIsHead,
+  GetHistory,
   Init,
   ListLocalBranches,
   ListRemoteBranches,

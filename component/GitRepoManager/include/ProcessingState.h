@@ -32,6 +32,13 @@ private:
   void eventCallback(const EventManager::Event event);
   void
   getActiveBranchWorker(const Structs::GitRepoGetActiveBranchCommand &command);
+  void getCommitBranchesWorker(
+      const Structs::GitRepoGetCommitBranchesCommand &command);
+  void getCommitHeadsWorker(const Structs::GitRepoGetCommitHeadsCommand &command);
+  void getCommitIsHeadWorker(
+      const Structs::GitRepoGetCommitIsHeadCommand &command);
+  void getHistoryWorker(
+      const Structs::GitRepoGetHistoryCommand &command);
   void initRepoWorker(const Structs::GitRepoInitRepoCommand &command);
   void listLocalBranchesWorker(
       const Structs::GitRepoListLocalBranchesCommand &command);
@@ -49,6 +56,14 @@ private:
   void scheduleWorkerForCloseRepo(const Structs::GitRepoCloseCommand &command);
   void scheduleWorkerForGetActiveBranch(
       const Structs::GitRepoGetActiveBranchCommand &command);
+  void scheduleWorkerForGetCommitBranches(
+      const Structs::GitRepoGetCommitBranchesCommand &command);
+  void scheduleWorkerForGetCommitHeads(
+      const Structs::GitRepoGetCommitHeadsCommand &command);
+  void scheduleWorkerForGetCommitIsHead(
+      const Structs::GitRepoGetCommitIsHeadCommand &command);
+  void scheduleWorkerForGetHistory(
+      const Structs::GitRepoGetHistoryCommand &command);
   void
   scheduleWorkerForInitRepo(const Structs::GitRepoInitRepoCommand &command);
   void scheduleWorkerForListLocalBranches(

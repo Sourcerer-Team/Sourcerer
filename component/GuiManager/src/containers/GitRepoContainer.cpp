@@ -52,6 +52,12 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranchResult,
       eventCallbackFunc));
+  _eventManager.subscribe(
+    CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryError,
+                     eventCallbackFunc));
+  _eventManager.subscribe(
+    CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryResult,
+                     eventCallbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranchesError,
       eventCallbackFunc));
@@ -100,6 +106,12 @@ GitRepoContainer::~GitRepoContainer() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranchResult,
       eventCallbackFunc));
+  _eventManager.unsubscribe(
+    CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryError,
+                     eventCallbackFunc));
+  _eventManager.unsubscribe(
+    CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryResult,
+                     eventCallbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranchesError,
       eventCallbackFunc));
@@ -177,6 +189,15 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
         [=]() { updateLocalBranchesModelActiveBranch(activeBranch); });
     break;
   }
+  case EventManager::EventType::GitRepoManagerGetHistoryError: {
+    // Show a toast with error
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerGetHistoryResult: {
+    const GitRepo::GitHistory history = event.data<GitRepo::GitHistory>();
+    Dispatch::dispatchToMainThread([=]() { updateHistory(history); });
+    break;
+  }
   case EventManager::EventType::GitRepoManagerListLocalBranchesError: {
     // Show a toast with error
     break;
@@ -232,6 +253,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
     getRemoteBranches();
     getTags();
     getSubmodules();
+    getHistory();
     break;
   }
   default: {
@@ -253,6 +275,20 @@ void GitRepoContainer::getActiveBranch() const {
       EventManager::EventType::GitRepoManagerGetActiveBranch);
   getActiveBranchEvent.addData(command);
   _eventManager.send(getActiveBranchEvent);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::getHistory() const {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGetHistoryCommand command;
+  command.uuid = _uuid;
+
+  EventManager::Event historyEvent(
+    EventManager::EventType::GitRepoManagerGetHistory);
+  historyEvent.addData(command);
+  _eventManager.send(historyEvent);
 
   LOG_PERF(0, "Exit")
 }
@@ -341,6 +377,12 @@ void GitRepoContainer::showToast(const QString &message) {
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 
   _toastHost.addToast(new InfoToast(message));
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::updateHistory(const GitRepo::GitHistory) {
+  LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit")
 }

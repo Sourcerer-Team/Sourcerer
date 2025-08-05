@@ -5,6 +5,7 @@
 
 #include <ConfigManager.h>
 #include <EventManager.h>
+#include <GitRepo.h>
 
 #include <QWidget>
 
@@ -30,13 +31,15 @@ private:
   void closeRepo() const;
   void eventCallback(EventManager::Event event);
   void getActiveBranch() const;
+  void getHistory() const;
   void getLocalBranches() const;
   void getRemoteBranches() const;
   void getSubmodules() const;
   void getTags() const;
   void openRepo() const;
   void refreshViews();
-  void showToast(const QString& message);
+  void showToast(const QString &message);
+  void updateHistory(const GitRepo::GitHistory);
   void updateLocalBranchesModel(const QStringList &localBranches);
   void updateLocalBranchesModelActiveBranch(const QString &activeBranch);
   void updateRemoteBranchesModel(const QStringList &remoteBranches);
@@ -49,7 +52,7 @@ private:
   QString _path;
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
-  Widgets::ToastHostWidget& _toastHost;
+  Widgets::ToastHostWidget &_toastHost;
 };
 
 } // namespace Containers
