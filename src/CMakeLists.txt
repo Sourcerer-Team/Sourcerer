@@ -62,3 +62,11 @@ install(TARGETS Sourcerer
 
 
 qt_finalize_executable(Sourcerer)
+
+if (WIN32)
+add_custom_command(TARGET Sourcerer POST_BUILD
+    COMMAND "${Qt6_DIR}/../../../bin/windeployqt.exe"
+            "$<TARGET_FILE:Sourcerer>"
+    COMMENT "Deploying Qt runtime dependencies"
+)
+endif()
