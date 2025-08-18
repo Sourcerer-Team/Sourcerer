@@ -53,11 +53,11 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
       EventManager::EventType::GitRepoManagerGetActiveBranchResult,
       eventCallbackFunc));
   _eventManager.subscribe(
-    CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryError,
-                     eventCallbackFunc));
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryError,
+                       eventCallbackFunc));
   _eventManager.subscribe(
-    CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryResult,
-                     eventCallbackFunc));
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryResult,
+                       eventCallbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranchesError,
       eventCallbackFunc));
@@ -107,11 +107,11 @@ GitRepoContainer::~GitRepoContainer() {
       EventManager::EventType::GitRepoManagerGetActiveBranchResult,
       eventCallbackFunc));
   _eventManager.unsubscribe(
-    CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryError,
-                     eventCallbackFunc));
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryError,
+                       eventCallbackFunc));
   _eventManager.unsubscribe(
-    CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryResult,
-                     eventCallbackFunc));
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryResult,
+                       eventCallbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranchesError,
       eventCallbackFunc));
@@ -286,7 +286,7 @@ void GitRepoContainer::getHistory() const {
   command.uuid = _uuid;
 
   EventManager::Event historyEvent(
-    EventManager::EventType::GitRepoManagerGetHistory);
+      EventManager::EventType::GitRepoManagerGetHistory);
   historyEvent.addData(command);
   _eventManager.send(historyEvent);
 

@@ -8,4 +8,6 @@ int main(int argc, char *argv[]) {
   componentManager.addThread<GitRepoManager::GitRepoManager>();
   componentManager.startProcess<GuiManager::GuiManager>();
   componentManager.stopAll();
+
+  return 0;
 }
