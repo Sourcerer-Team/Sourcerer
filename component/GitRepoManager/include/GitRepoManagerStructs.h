@@ -17,10 +17,10 @@ enum class GitRepoCommandType : int {
   Clone,
   Close,
   GetActiveBranch,
+  GetBranchHistory,
   GetCommitBranches,
   GetCommitHeads,
   GetCommitIsHead,
-  GetHistory,
   Init,
   ListLocalBranches,
   ListRemoteBranches,
@@ -47,6 +47,7 @@ struct GitRepoCommand {
   virtual ~GitRepoCommand() {}
   GitRepoCommandType type;
   QString uuid;
+  QString syncUuid;
 };
 
 struct GitRepoCloneCommand : GitRepoCommand {
@@ -92,9 +93,11 @@ struct GitRepoGetCommitIsHeadCommand : GitRepoCommand {
   QString commitOid;
 };
 
-struct GitRepoGetHistoryCommand : GitRepoCommand {
-  GitRepoGetHistoryCommand() : GitRepoCommand(GitRepoCommandType::GetHistory) {}
-  virtual ~GitRepoGetHistoryCommand() {}
+struct GitRepoGetBranchHistoryCommand : GitRepoCommand {
+  GitRepoGetBranchHistoryCommand() : GitRepoCommand(GitRepoCommandType::GetBranchHistory) {}
+  virtual ~GitRepoGetBranchHistoryCommand() {}
+
+  QString branchName;
 };
 
 struct GitRepoInitRepoCommand : GitRepoCommand {

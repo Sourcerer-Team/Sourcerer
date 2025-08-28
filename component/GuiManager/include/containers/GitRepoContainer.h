@@ -1,11 +1,13 @@
 #pragma once
 
+#include "models/GitHistoryModel.h"
 #include "widgets/ContainerWidget.h"
 #include "widgets/ToastHostWidget.h"
 
 #include <ConfigManager.h>
 #include <EventManager.h>
 #include <GitRepo.h>
+#include <recyclerview.h>
 
 #include <QWidget>
 
@@ -31,7 +33,7 @@ private:
   void closeRepo() const;
   void eventCallback(EventManager::Event event);
   void getActiveBranch() const;
-  void getHistory() const;
+  void getBranchHistory() const;
   void getLocalBranches() const;
   void getRemoteBranches() const;
   void getSubmodules() const;
@@ -39,7 +41,7 @@ private:
   void openRepo() const;
   void refreshViews();
   void showToast(const QString &message);
-  void updateHistory(const GitRepo::GitHistory);
+  void updateBranchHistory(const GitRepo::GitHistory& history);
   void updateLocalBranchesModel(const QStringList &localBranches);
   void updateLocalBranchesModelActiveBranch(const QString &activeBranch);
   void updateRemoteBranchesModel(const QStringList &remoteBranches);
@@ -50,9 +52,11 @@ private:
   Ui::GitRepoContainer *ui;
   QString _uuid;
   QString _path;
+  QString _activeBranch;
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
   Widgets::ToastHostWidget &_toastHost;
+  Models::GitHistoryModel *_historyModel;
 };
 
 } // namespace Containers

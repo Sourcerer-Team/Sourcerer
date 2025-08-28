@@ -148,6 +148,16 @@ EventManager::waitForAnswer(int token, const QString &uuid, ulong timeout) {
 
   LOG_PERF(0, "Exit");
 
+  return waitForAnswer(token, uuid, types, timeout);
+}
+
+std::tuple<bool, Event>
+EventManager::waitForAnswer(int token, const QString &uuid,
+                            const std::set<EventType> &types, ulong timeout) {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit");
+
   return waitOneOf(
       token, types, [&](Event event) -> bool { return event.uuid() == uuid; },
       timeout);

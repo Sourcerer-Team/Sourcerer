@@ -20,6 +20,8 @@ GitRepoManager::GitRepoManager()
       std::bind(&GitRepoManager::eventCallback, this, std::placeholders::_1);
 
   _eventManager.subscribe(CAPTURE_CALLBACK(
+    EventManager::EventType::GitRepoManagerGetBranchHistory, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloseRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranch, callbackFunc));
@@ -29,8 +31,6 @@ GitRepoManager::GitRepoManager()
     EventManager::EventType::GitRepoManagerGetCommitHeads, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
     EventManager::EventType::GitRepoManagerGetCommitIsHead, callbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
-    EventManager::EventType::GitRepoManagerGetHistory, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
@@ -56,6 +56,8 @@ GitRepoManager::~GitRepoManager() {
       std::bind(&GitRepoManager::eventCallback, this, std::placeholders::_1);
 
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
+    EventManager::EventType::GitRepoManagerGetBranchHistory, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloseRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranch, callbackFunc));
@@ -65,8 +67,6 @@ GitRepoManager::~GitRepoManager() {
     EventManager::EventType::GitRepoManagerGetCommitHeads, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
     EventManager::EventType::GitRepoManagerGetCommitIsHead, callbackFunc));
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
-    EventManager::EventType::GitRepoManagerGetHistory, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranches, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -135,6 +135,14 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     _fsm.send(getActiveBranchEvent);
     break;
   }
+  case EventManager::EventType::GitRepoManagerGetBranchHistory: {
+    const GitRepoGetBranchHistoryCommand branchHistoryCommand =
+      event.data<GitRepoGetBranchHistoryCommand>();
+    GitRepoManagerEvent historyEvent(EventType::GetBranchHistory);
+    historyEvent.addParam(QVariant::fromValue(branchHistoryCommand));
+    _fsm.send(historyEvent);
+    break;
+  }
   case EventManager::EventType::GitRepoManagerGetCommitBranches: {
     const GitRepoGetCommitBranchesCommand getCommitBranchesCommand =
         event.data<GitRepoGetCommitBranchesCommand>();
@@ -158,14 +166,6 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent getCommitIsHeadEvent(EventType::GetCommitIsHead);
     getCommitIsHeadEvent.addParam(QVariant::fromValue(getCommitIsHeadCommand));
     _fsm.send(getCommitIsHeadEvent);
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerGetHistory: {
-    const GitRepoGetHistoryCommand historyCommand =
-      event.data<GitRepoGetHistoryCommand>();
-    GitRepoManagerEvent historyEvent(EventType::GetHistory);
-    historyEvent.addParam(QVariant::fromValue(historyCommand));
-    _fsm.send(historyEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerInitRepo: {

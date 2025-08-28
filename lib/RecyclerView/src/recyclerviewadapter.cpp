@@ -1,36 +1,42 @@
 #include "recyclerviewadapter.h"
+#include "recyclerview.h"
 
-RecyclerViewAdapter::RecyclerViewAdapter(QAbstractItemModel *dataModel, QObject *parent)
-    : QObject{parent}
-{
-    Q_ASSERT(dataModel != nullptr);
-    this->dataModel = dataModel;
+#include <QScrollBar>
+
+RecyclerViewAdapter::RecyclerViewAdapter(QAbstractItemModel *dataModel,
+                                         QObject *parent)
+    : QObject{parent} {
+  Q_ASSERT(dataModel != nullptr);
+  this->_dataModel = dataModel;
+
+  connect(this->_dataModel, &QAbstractItemModel::modelReset, this,
+          &RecyclerViewAdapter::modelReset);
 }
 
-ViewHolder *RecyclerViewAdapter::recycleViewHolder(ViewHolder *vh)
-{
-    Q_ASSERT(vh != nullptr);
+ViewHolder *RecyclerViewAdapter::recycleViewHolder(ViewHolder *vh) const {
+  Q_ASSERT(vh != nullptr);
 
-    onRecycleViewHolder(vh);
-    vh->getItemView()->hide();
-    return vh;
+  onRecycleViewHolder(vh);
+  vh->getItemView()->hide();
+  return vh;
 }
 
-void RecyclerViewAdapter::bindViewHolder(ViewHolder *vh, int dataPos)
-{
-    Q_ASSERT(vh != nullptr);
+void RecyclerViewAdapter::bindViewHolder(ViewHolder *vh, const int dataPos) {
+  Q_ASSERT(vh != nullptr);
 
-    if (dataPos % 2 == 0) {
-        vh->getItemView()->setBackgroundRole(QPalette::Base);
-    } else {
-        vh->getItemView()->setBackgroundRole(QPalette::AlternateBase);
-    }
+  vh->getItemView()->setBackgroundRole(QPalette::Window);
 
-    onBindViewHolder(vh, dataPos);
-    activeViewMap.insert(dataPos, vh);
+  onBindViewHolder(vh, dataPos);
+  _activeViewMap.insert(dataPos, vh);
 }
 
-ViewHolder *RecyclerViewAdapter::findViewHolder(int dataPos) const
-{
-    return activeViewMap.value(dataPos, nullptr);
+ViewHolder *RecyclerViewAdapter::findViewHolder(const int dataPos) const {
+  return _activeViewMap.value(dataPos, nullptr);
+}
+
+void RecyclerViewAdapter::modelReset() {
+  _activeViewMap.clear();
+  if (const auto rv = qobject_cast<RecyclerView *>(parent())) {
+    rv->populateItems();
+  }
 }

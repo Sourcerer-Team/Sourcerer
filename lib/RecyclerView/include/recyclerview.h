@@ -1,36 +1,43 @@
 #ifndef RECYCLERVIEW_H
 #define RECYCLERVIEW_H
 
-#include "recyclerviewpool.h"
 #include "recyclerviewadapter.h"
+#include "recyclerviewpool.h"
 
 #include <QAbstractScrollArea>
 #include <QVector>
 
+class RecyclerView : public QAbstractScrollArea {
+  Q_OBJECT
 
-class RecyclerView : public QAbstractScrollArea
-{
 public:
-    explicit RecyclerView(RecyclerViewAdapter *adapter, int itemHeight = 100, QWidget *parent = nullptr);
+  explicit RecyclerView(QWidget *parent = nullptr);
+  explicit RecyclerView(RecyclerViewAdapter *adapter = nullptr,
+                        QWidget *parent = nullptr);
+
+  void setAdapter(RecyclerViewAdapter *adapter);
+
+  void populateItems();
 
 protected:
-    void resizeEvent(QResizeEvent *event) override;
-    void scrollContentsBy(int dx, int dy) override;
+  void resizeEvent(QResizeEvent *event) override;
+  void scrollContentsBy(int dx, int dy) override;
 
 private:
-    ViewHolder *populateItem(int dataPos, int y);
-    void populateItemsBelow(int startDataPos);
-    void populateItemsAbove(int startDataPos);
+  ViewHolder *populateItem(int dataPos, int y);
+  void populateItemsBelow(int startDataPos);
+  void populateItemsAbove(int startDataPos);
 
-    int getItemPos(int dataPos) const;
-    int totalItemHeight() const;
+  int getItemPos(int dataPos) const;
+  int totalItemHeight() const;
 
+  void calculateItemHeight();
 
-    RecyclerViewPool pool;
-    RecyclerViewAdapter *adapter;
+  RecyclerViewPool _pool;
+  RecyclerViewAdapter *_adapter;
 
-    const int numExtraActive = 0;
-    int itemHeight;
+  const int _numExtraActive = 0;
+  int _itemHeight;
 };
 
 #endif // RECYCLERVIEW_H

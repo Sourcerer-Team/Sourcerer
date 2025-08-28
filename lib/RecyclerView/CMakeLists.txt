@@ -15,10 +15,12 @@ set(RecyclerView_SOURCE_FILES
     include/recyclerview.h
     include/recyclerviewadapter.h
     include/recyclerviewpool.h
+    include/styledrecyclerlistitem.h
     include/viewholder.h
     src/recyclerview.cpp
     src/recyclerviewadapter.cpp
     src/recyclerviewpool.cpp
+    src/styledrecyclerlistitem.cpp
     src/viewholder.cpp
 )
 

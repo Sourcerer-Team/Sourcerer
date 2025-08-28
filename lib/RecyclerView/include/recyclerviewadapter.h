@@ -17,18 +17,21 @@ public:
     virtual void onBindViewHolder(ViewHolder *vh, int dataPos) = 0;
     virtual void onRecycleViewHolder(ViewHolder *vh) const {}
 
-    QAbstractItemModel *model() { return dataModel; }
+    QAbstractItemModel *model() const { return _dataModel; }
 
 protected:    
-    QAbstractItemModel *dataModel;
+    QAbstractItemModel *_dataModel;
     ViewHolder *findViewHolder(int dataPos) const;
+
+private slots:
+  void modelReset();
 
 private:
     void bindViewHolder(ViewHolder *vh, int dataPos);
-    ViewHolder *recycleViewHolder(ViewHolder *vh);
+    ViewHolder *recycleViewHolder(ViewHolder *vh) const;
 
 
-    QMap<int, ViewHolder *> activeViewMap;
+    QMap<int, ViewHolder *> _activeViewMap;
 
     friend class RecyclerView;
 };

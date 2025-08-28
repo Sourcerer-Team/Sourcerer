@@ -54,10 +54,9 @@ struct GitCommitInfo {
   QString authorName;
   QString authorEmail;
   qint64 timeStamp = -1;
+  QVector<QString> branches;
   QVector<QString> parents;
   QVector<QString> children;
-  QVector<QString> branches;
-  QSet<QString> heads;
 };
 
 struct GitHistory {
@@ -79,7 +78,7 @@ QStringList listRemoteBranches(git_repository *repo);
 QStringList listSubmodules(git_repository *repo);
 QStringList listTags(git_repository *repo);
 git_repository *openRepository(const QString &path);
-GitHistory getHistory(git_repository *repo);
+GitHistory getBranchHistory(git_repository *repo, const QString& branchName);
 QStringList getCommitBranches(git_repository *repo, const QString &commitOid);
 QStringList getCommitHeads(git_repository *repo, const QString &commitOid);
 bool getCommitIsHead(git_repository *repo, const QString &commitOid);

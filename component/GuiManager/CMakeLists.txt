@@ -32,6 +32,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/delegates/HomeRecentItemDelegate.h
    include/dialogs/AboutDialog.h
    include/models/BranchesModel.h
+   include/models/GitHistoryModel.h
    include/models/RecentlyOpenedReposModel.h
    include/models/SubmodulesModel.h
    include/models/TagsModel.h
@@ -40,6 +41,9 @@ set(GUIMANAGER_SOURCE_FILES
    include/widgets/ContainerWidget.h
    include/widgets/GitSubmodulesPage.h
    include/widgets/GitCredentialsToast.h
+   include/widgets/GitHistoryAdapter.h
+   include/widgets/GitHistoryListItem.h
+   include/widgets/GitHistoryViewHolder.h
    include/widgets/GitProgressToast.h
    include/widgets/GitTagsPage.h
    include/widgets/InfoToast.h
@@ -79,6 +83,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/dialogs/AboutDialog.cpp
    src/dialogs/AboutDialog.ui
    src/models/BranchesModel.cpp
+   src/models/GitHistoryModel.cpp
    src/models/RecentlyOpenedReposModel.cpp
    src/models/SubmodulesModel.cpp
    src/models/TagsModel.cpp
@@ -86,6 +91,9 @@ set(GUIMANAGER_SOURCE_FILES
    src/widgets/ColorButton.cpp
    src/widgets/ContainerWidget.cpp
    src/widgets/GitCredentialsToast.cpp
+   src/widgets/GitHistoryAdapter.cpp
+   src/widgets/GitHistoryListItem.cpp
+   src/widgets/GitHistoryViewHolder.cpp
    src/widgets/GitProgressToast.cpp
    src/widgets/GitSubmodulesPage.cpp
    src/widgets/GitTagsPage.cpp
@@ -140,6 +148,7 @@ includeLib(GuiManager GitRepo)
 includeLib(GuiManager Log)
 includeLib(GuiManager Util)
 includeLib(GuiManager QtWaitingSpinner)
+includeLib(GuiManager RecyclerView)
 
 target_link_libraries(GuiManager PRIVATE
     Qt${QT_VERSION_MAJOR}::Core

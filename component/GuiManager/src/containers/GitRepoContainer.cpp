@@ -1,5 +1,6 @@
 #include "containers/GitRepoContainer.h"
 #include "containers/ui_GitRepoContainer.h"
+#include "widgets/GitHistoryAdapter.h"
 #include "widgets/InfoToast.h"
 
 #include <Dispatch.h>
@@ -23,7 +24,8 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
       ui(new Ui::GitRepoContainer), _uuid(Uuid::createUuid()), _path(path),
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
-      _toastHost(ToastHostWidget::getInstance()) {
+      _toastHost(ToastHostWidget::getInstance()),
+      _historyModel(new Models::GitHistoryModel(this)) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -34,6 +36,7 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
   ui->splitter->setStretchFactor(1, 8);
   ui->splitter->setStretchFactor(2, 1);
   ui->submodulesPage->setContentsMargins(0, 0, 0, 0);
+  ui->historyView->setAdapter(new GitHistoryAdapter(_historyModel, this));
 
   const QByteArray splitterState = QByteArray::fromHex(
       _configManager.getString(ConfigManager::ConfigKey::GitRepoSplitterPos)
@@ -53,10 +56,10 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
       EventManager::EventType::GitRepoManagerGetActiveBranchResult,
       eventCallbackFunc));
   _eventManager.subscribe(
-      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryError,
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetBranchHistoryError,
                        eventCallbackFunc));
   _eventManager.subscribe(
-      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryResult,
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetBranchHistoryResult,
                        eventCallbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranchesError,
@@ -107,10 +110,10 @@ GitRepoContainer::~GitRepoContainer() {
       EventManager::EventType::GitRepoManagerGetActiveBranchResult,
       eventCallbackFunc));
   _eventManager.unsubscribe(
-      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryError,
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetBranchHistoryError,
                        eventCallbackFunc));
   _eventManager.unsubscribe(
-      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetHistoryResult,
+      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetBranchHistoryResult,
                        eventCallbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranchesError,
@@ -189,13 +192,13 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
         [=]() { updateLocalBranchesModelActiveBranch(activeBranch); });
     break;
   }
-  case EventManager::EventType::GitRepoManagerGetHistoryError: {
+  case EventManager::EventType::GitRepoManagerGetBranchHistoryError: {
     // Show a toast with error
     break;
   }
-  case EventManager::EventType::GitRepoManagerGetHistoryResult: {
+  case EventManager::EventType::GitRepoManagerGetBranchHistoryResult: {
     const GitRepo::GitHistory history = event.data<GitRepo::GitHistory>();
-    Dispatch::dispatchToMainThread([=]() { updateHistory(history); });
+    Dispatch::dispatchToMainThread([=]() { updateBranchHistory(history); });
     break;
   }
   case EventManager::EventType::GitRepoManagerListLocalBranchesError: {
@@ -253,7 +256,6 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
     getRemoteBranches();
     getTags();
     getSubmodules();
-    getHistory();
     break;
   }
   default: {
@@ -279,14 +281,17 @@ void GitRepoContainer::getActiveBranch() const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::getHistory() const {
+void GitRepoContainer::getBranchHistory() const {
   LOG_PERF(0, "Enter");
 
-  GitRepoGetHistoryCommand command;
+  _historyModel->setRepoUuid(_uuid);
+
+  GitRepoGetBranchHistoryCommand command;
   command.uuid = _uuid;
+  command.branchName = _activeBranch;
 
   EventManager::Event historyEvent(
-      EventManager::EventType::GitRepoManagerGetHistory);
+      EventManager::EventType::GitRepoManagerGetBranchHistory);
   historyEvent.addData(command);
   _eventManager.send(historyEvent);
 
@@ -381,8 +386,10 @@ void GitRepoContainer::showToast(const QString &message) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateHistory(const GitRepo::GitHistory) {
+void GitRepoContainer::updateBranchHistory(const GitRepo::GitHistory &history) {
   LOG_PERF(0, "Enter");
+
+  _historyModel->updateHistory(history);
 
   LOG_PERF(0, "Exit")
 }
@@ -400,7 +407,11 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
     const QString &activeBranch) {
   LOG_PERF(0, "Enter");
 
+  _activeBranch = activeBranch;
+
   ui->localPage->updateActiveBranch(activeBranch);
+
+  getBranchHistory();
 
   LOG_PERF(0, "Exit")
 }

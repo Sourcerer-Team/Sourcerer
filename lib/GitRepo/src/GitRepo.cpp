@@ -778,7 +778,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   return true;
 }
 
-GitHistory getHistory(git_repository *repo) {
+GitHistory getBranchHistory(git_repository *repo, const QString &branchName) {
   LOG_PERF(0, "Enter");
 
   GitHistory history_;
@@ -801,44 +801,13 @@ GitHistory getHistory(git_repository *repo) {
     return {};
   }
 
-  git_branch_iterator *iter = nullptr;
-
-  error = git_branch_iterator_new(&iter, repo, GIT_BRANCH_ALL);
+  error = git_revwalk_push_ref(walker, QString("refs/heads/%1").arg(branchName).toStdString().c_str());
   if (error) {
     logGitError(error);
     git_revwalk_free(walker);
     LOG_PERF(0, "Exit");
     return {};
   }
-
-  git_branch_t type;
-  git_reference *ref = nullptr;
-
-  while (git_branch_next(&ref, &type, iter) == 0) {
-    const char *branchName = git_reference_name(ref);
-    if (!branchName) {
-      git_revwalk_free(walker);
-      git_reference_free(ref);
-      git_branch_iterator_free(iter);
-      LOG_ERROR(Log::ErrorId::Git, "Can't determine branch name.")
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    error = git_revwalk_push_ref(walker, branchName);
-    if (error) {
-      logGitError(error);
-      git_revwalk_free(walker);
-      git_reference_free(ref);
-      git_branch_iterator_free(iter);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    git_reference_free(ref);
-  }
-
-  git_branch_iterator_free(iter);
 
   git_oid oid;
 
@@ -871,10 +840,13 @@ GitHistory getHistory(git_repository *repo) {
       return {};
     }
 
-    if (!processedOids.contains(oidStr)) {
-      processedOids.insert(oidStr);
-      history_.commits.push_back(oidStr);
+    if (processedOids.contains(oidStr)) {
+      continue;
     }
+
+    processedOids.insert(oidStr);
+
+    history_.commits.push_back(oidStr);
 
     std::size_t parentCount = git_commit_parentcount(commit);
 
@@ -950,6 +922,8 @@ GitHistory getHistory(git_repository *repo) {
       LOG_PERF(0, "Exit");
       return {};
     }
+
+    history_.commitInfos[oidStr].branches += branchName;
 
     git_commit_free(commit);
   }

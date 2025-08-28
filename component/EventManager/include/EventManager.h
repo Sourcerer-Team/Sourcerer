@@ -70,6 +70,9 @@ public:
   std::tuple<bool, Event> waitForAnswer(int token, const QString &uuid,
                                         ulong timeout = DEFAULT_WAIT_TIMEOUT);
 
+  std::tuple<bool, Event> waitForAnswer(int token, const QString &uuid, const std::set<EventType>& types,
+                                      ulong timeout = DEFAULT_WAIT_TIMEOUT);
+
 private:
   EventManager();
 
