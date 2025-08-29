@@ -8,6 +8,9 @@
 #include <Uuid.h>
 
 #include <QMovie>
+#include <QPainter>
+#include <QPixmap>
+#include <QSvgRenderer>
 
 #include <functional>
 
@@ -27,7 +30,8 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
       _eventManager(EventManager::EventManager::getInstance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel(this)),
-      _spinnerMovie(new QMovie(":/animations/transparent_spinner.gif", QByteArray(), this)) {
+      _spinnerMovie(new QMovie(":/animations/transparent_spinner.gif",
+                               QByteArray(), this)) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -45,7 +49,16 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
   ui->historyView->setModel(_historyModel);
   ui->labelSpinner->setMovie(_spinnerMovie);
 
-  showSpinner();
+  _errorPixmap = new QPixmap(QSize(128, 128));
+  _errorPixmap->fill(Qt::transparent);
+
+  QSvgRenderer svgRenderer(QStringLiteral(":/icons/error.svg"));
+  QPainter painter(_errorPixmap);
+  svgRenderer.render(&painter);
+
+  ui->labelErrorImage->setPixmap(*_errorPixmap);
+
+  showSpinnerPage();
 
   const QByteArray splitterState = QByteArray::fromHex(
       _configManager.getString(ConfigManager::ConfigKey::GitRepoSplitterPos)
@@ -154,6 +167,7 @@ GitRepoContainer::~GitRepoContainer() {
                        eventCallbackFunc));
 
   delete _spinnerMovie;
+  delete _errorPixmap;
   delete ui;
 
   LOG_PERF(0, "Exit")
@@ -210,7 +224,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetBranchHistoryError: {
-    showSpinner(false);
+    showErrorPage();
 
     // Show a toast with error
     break;
@@ -415,7 +429,17 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showSpinner(const bool spinnerEnabled) const {
+void GitRepoContainer::showErrorPage(const bool error) const {
+  LOG_PERF(0, "Enter");
+
+  ui->stackedWidget->setCurrentIndex(error ? 2 : 1);
+
+  _spinnerMovie->stop();
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::showSpinnerPage(const bool spinnerEnabled) const {
   LOG_PERF(0, "Enter");
 
   ui->stackedWidget->setCurrentIndex(spinnerEnabled ? 0 : 1);
@@ -444,7 +468,7 @@ void GitRepoContainer::updateBranchHistory(
 
   _historyModel->updateHistory(history);
 
-  showSpinner(false);
+  showSpinnerPage(false);
 
   stretchBranchHistoryTableColumns();
 

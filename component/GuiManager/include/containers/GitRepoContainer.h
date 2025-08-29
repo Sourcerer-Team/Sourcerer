@@ -9,6 +9,7 @@
 #include <GitRepo.h>
 
 #include <QMovie>
+#include <QPixmap>
 #include <QWidget>
 
 namespace Ui {
@@ -44,7 +45,8 @@ private:
   void openRepo() const;
   void refreshViews() const;
   void stretchBranchHistoryTableColumns() const;
-  void showSpinner(bool spinnerEnabled = true) const;
+  void showErrorPage(bool error = true) const;
+  void showSpinnerPage(bool spinnerEnabled = true) const;
   void showToast(const QString &message) const;
   void updateBranchHistory(const GitRepo::GitHistory& history) const;
   void updateLocalBranchesModel(const QStringList &localBranches) const;
@@ -63,6 +65,7 @@ private:
   Widgets::ToastHostWidget &_toastHost;
   Models::GitHistoryModel *_historyModel;
   QMovie *_spinnerMovie;
+  QPixmap *_errorPixmap;
 };
 
 } // namespace Containers

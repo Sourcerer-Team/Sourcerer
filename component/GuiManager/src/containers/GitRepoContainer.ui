@@ -70,12 +70,7 @@
                 </sizepolicy>
                </property>
                <property name="styleSheet">
-                <string notr="true">QToolBox::tab {&quot;
-font-size: 12px;
-padding: 2px 6px;
-margin: 0px;
-min-height: 20px;
-}</string>
+                <string notr="true"/>
                </property>
                <property name="currentIndex">
                 <number>0</number>
@@ -162,6 +157,73 @@ min-height: 20px;
             </layout>
            </widget>
           </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="pageError">
+      <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <item>
+        <layout class="QVBoxLayout" name="verticalLayout3">
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout3">
+           <item>
+            <layout class="QVBoxLayout" name="verticalLayout3_1" stretch="0,0,0,0">
+             <item>
+              <spacer name="verticalSpacer">
+               <property name="orientation">
+                <enum>Qt::Orientation::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QLabel" name="labelErrorImage">
+               <property name="text">
+                <string>TextLabel</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop</set>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="labelErrorMessage">
+               <property name="font">
+                <font>
+                 <pointsize>14</pointsize>
+                </font>
+               </property>
+               <property name="text">
+                <string>An error ocurred while loading repository</string>
+               </property>
+               <property name="alignment">
+                <set>Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop</set>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <spacer name="verticalSpacer_2">
+               <property name="orientation">
+                <enum>Qt::Orientation::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
+           </item>
+          </layout>
          </item>
         </layout>
        </item>
