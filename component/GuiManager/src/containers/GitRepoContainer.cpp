@@ -7,6 +7,8 @@
 #include <Log.h>
 #include <Uuid.h>
 
+#include <QMovie>
+
 #include <functional>
 
 #define THREAD_ID "GitRepoContainer"
@@ -24,18 +26,26 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
       _toastHost(ToastHostWidget::getInstance()),
-      _historyModel(new Models::GitHistoryModel(this)) {
+      _historyModel(new Models::GitHistoryModel(this)),
+      _spinnerMovie(new QMovie(":/animations/transparent_spinner.gif", QByteArray(), this)) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
   ui->localPage->setContentsMargins(0, 0, 0, 0);
   ui->remotePage->setContentsMargins(0, 0, 0, 0);
   ui->tagsPage->setContentsMargins(0, 0, 0, 0);
+  ui->toolBox->setItemText(0, tr("Local Branches"));
+  ui->toolBox->setItemText(1, tr("Remote Branches"));
+  ui->toolBox->setItemText(2, tr("Tags"));
+  ui->toolBox->setItemText(3, tr("Submodules"));
   ui->splitter->setStretchFactor(0, 1);
   ui->splitter->setStretchFactor(1, 8);
   ui->splitter->setStretchFactor(2, 1);
   ui->submodulesPage->setContentsMargins(0, 0, 0, 0);
   ui->historyView->setModel(_historyModel);
+  ui->labelSpinner->setMovie(_spinnerMovie);
+
+  showSpinner();
 
   const QByteArray splitterState = QByteArray::fromHex(
       _configManager.getString(ConfigManager::ConfigKey::GitRepoSplitterPos)
@@ -143,6 +153,7 @@ GitRepoContainer::~GitRepoContainer() {
       CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerOpenRepoResult,
                        eventCallbackFunc));
 
+  delete _spinnerMovie;
   delete ui;
 
   LOG_PERF(0, "Exit")
@@ -199,6 +210,8 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetBranchHistoryError: {
+    showSpinner(false);
+
     // Show a toast with error
     break;
   }
@@ -402,6 +415,20 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() const {
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::showSpinner(const bool spinnerEnabled) const {
+  LOG_PERF(0, "Enter");
+
+  ui->stackedWidget->setCurrentIndex(spinnerEnabled ? 0 : 1);
+
+  if (spinnerEnabled) {
+    _spinnerMovie->start();
+  } else {
+    _spinnerMovie->stop();
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
 void GitRepoContainer::showToast(const QString &message) const {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
@@ -416,6 +443,8 @@ void GitRepoContainer::updateBranchHistory(
   LOG_PERF(0, "Enter");
 
   _historyModel->updateHistory(history);
+
+  showSpinner(false);
 
   stretchBranchHistoryTableColumns();
 

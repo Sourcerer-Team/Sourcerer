@@ -8,5 +8,6 @@
         <file>icons/close_button.png</file>
         <file>icons/maximize_button.png</file>
         <file>icons/minimize_button.png</file>
+        <file>animations/transparent_spinner.gif</file>
     </qresource>
 </RCC>

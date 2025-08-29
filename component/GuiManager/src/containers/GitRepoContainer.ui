@@ -7,109 +7,163 @@
     <x>0</x>
     <y>0</y>
     <width>384</width>
-    <height>300</height>
+    <height>342</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
-   <item>
-    <widget class="QSplitter" name="splitter">
-     <property name="orientation">
-      <enum>Qt::Orientation::Horizontal</enum>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
+    <widget class="QStackedWidget" name="stackedWidget">
+     <property name="minimumSize">
+      <size>
+       <width>16</width>
+       <height>0</height>
+      </size>
      </property>
-     <widget class="QWidget" name="leftVerticalLayoutWidget">
-      <layout class="QVBoxLayout" name="leftVerticalLayout">
+     <widget class="QWidget" name="pageSpinner">
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>282</height>
+       </size>
+      </property>
+      <layout class="QHBoxLayout" name="horizontalLayout">
        <item>
-        <widget class="GuiManager::Widgets::ShadeIconToolbox" name="toolBox">
-         <property name="currentIndex">
-          <number>0</number>
-         </property>
-         <widget class="GuiManager::Widgets::LocalGitBranchesPage" name="localPage">
-          <property name="geometry">
-           <rect>
-            <x>0</x>
-            <y>0</y>
-            <width>286</width>
-            <height>160</height>
-           </rect>
-          </property>
-          <attribute name="label">
-           <string>Local</string>
-          </attribute>
-         </widget>
-         <widget class="GuiManager::Widgets::RemoteGitBranchesPage" name="remotePage">
-          <property name="geometry">
-           <rect>
-            <x>0</x>
-            <y>0</y>
-            <width>286</width>
-            <height>160</height>
-           </rect>
-          </property>
-          <attribute name="label">
-           <string>Remote</string>
-          </attribute>
-         </widget>
-         <widget class="GuiManager::Widgets::GitTagsPage" name="tagsPage">
-          <property name="geometry">
-           <rect>
-            <x>0</x>
-            <y>0</y>
-            <width>286</width>
-            <height>160</height>
-           </rect>
-          </property>
-          <attribute name="label">
-           <string>Tags</string>
-          </attribute>
-         </widget>
-         <widget class="GuiManager::Widgets::GitSubmodulesPage" name="submodulesPage">
-          <property name="geometry">
-           <rect>
-            <x>0</x>
-            <y>0</y>
-            <width>286</width>
-            <height>160</height>
-           </rect>
-          </property>
-          <attribute name="label">
-           <string>Submodules</string>
-          </attribute>
-         </widget>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="middleVerticalLayoutWidget">
-      <layout class="QVBoxLayout" name="middleVerticalLayout" stretch="0">
-       <item>
-        <layout class="QHBoxLayout" name="horizontalLayout">
+        <layout class="QVBoxLayout" name="verticalLayout1">
          <item>
-          <widget class="QTableView" name="historyView">
-           <property name="selectionBehavior">
-            <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
-           </property>
-           <property name="showGrid">
-            <bool>false</bool>
-           </property>
-           <attribute name="horizontalHeaderStretchLastSection">
-            <bool>false</bool>
-           </attribute>
-           <attribute name="verticalHeaderVisible">
-            <bool>false</bool>
-           </attribute>
-          </widget>
+          <layout class="QHBoxLayout" name="horizontalLayout1">
+           <item>
+            <widget class="QLabel" name="labelSpinner">
+             <property name="text">
+              <string>TextLabel</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </item>
         </layout>
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="rightVerticalLayoutWidget">
-      <layout class="QVBoxLayout" name="rightVerticalLayout">
+     <widget class="QWidget" name="pageMain">
+      <layout class="QVBoxLayout" name="verticalLayout2">
        <item>
-        <widget class="QStackedWidget" name="rightStackedWidget"/>
+        <layout class="QHBoxLayout" name="horizontalLayout2">
+         <item>
+          <widget class="QSplitter" name="splitter">
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <widget class="QWidget" name="leftVerticalLayoutWidget">
+            <layout class="QVBoxLayout" name="leftVerticalLayout">
+             <item>
+              <widget class="GuiManager::Widgets::ShadeIconToolbox" name="toolBox">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
+               <property name="styleSheet">
+                <string notr="true">QToolBox::tab {&quot;
+font-size: 12px;
+padding: 2px 6px;
+margin: 0px;
+min-height: 20px;
+}</string>
+               </property>
+               <property name="currentIndex">
+                <number>0</number>
+               </property>
+               <widget class="GuiManager::Widgets::LocalGitBranchesPage" name="localPage">
+                <property name="geometry">
+                 <rect>
+                  <x>0</x>
+                  <y>0</y>
+                  <width>185</width>
+                  <height>54</height>
+                 </rect>
+                </property>
+                <attribute name="label">
+                 <string>
+                                                                        Local
+                                                                    </string>
+                </attribute>
+               </widget>
+               <widget class="GuiManager::Widgets::RemoteGitBranchesPage" name="remotePage">
+                <property name="geometry">
+                 <rect>
+                  <x>0</x>
+                  <y>0</y>
+                  <width>185</width>
+                  <height>54</height>
+                 </rect>
+                </property>
+                <attribute name="label">
+                 <string>
+                                                                        Remote
+                                                                    </string>
+                </attribute>
+               </widget>
+               <widget class="GuiManager::Widgets::GitTagsPage" name="tagsPage">
+                <property name="geometry">
+                 <rect>
+                  <x>0</x>
+                  <y>0</y>
+                  <width>185</width>
+                  <height>54</height>
+                 </rect>
+                </property>
+                <attribute name="label">
+                 <string>
+                                                                        Tags
+                                                                    </string>
+                </attribute>
+               </widget>
+               <widget class="GuiManager::Widgets::GitSubmodulesPage" name="submodulesPage">
+                <property name="geometry">
+                 <rect>
+                  <x>0</x>
+                  <y>0</y>
+                  <width>185</width>
+                  <height>54</height>
+                 </rect>
+                </property>
+                <attribute name="label">
+                 <string>
+                                                                        Submodules
+                                                                    </string>
+                </attribute>
+               </widget>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+           <widget class="QWidget" name="middleVerticalLayoutWidget">
+            <layout class="QVBoxLayout" name="middleVerticalLayout" stretch="0">
+             <item>
+              <widget class="QTableView" name="historyView">
+               <property name="selectionBehavior">
+                <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+               </property>
+               <property name="showGrid">
+                <bool>false</bool>
+               </property>
+               <attribute name="verticalHeaderVisible">
+                <bool>false</bool>
+               </attribute>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </widget>
+         </item>
+        </layout>
        </item>
       </layout>
      </widget>
