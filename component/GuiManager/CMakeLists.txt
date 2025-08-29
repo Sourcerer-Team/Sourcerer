@@ -41,10 +41,7 @@ set(GUIMANAGER_SOURCE_FILES
    include/widgets/ContainerWidget.h
    include/widgets/GitSubmodulesPage.h
    include/widgets/GitCredentialsToast.h
-   include/widgets/GitHistoryAdapter.h
-   include/widgets/GitHistoryListItem.h
-   include/widgets/GitHistoryViewHolder.h
-   include/widgets/GitProgressToast.h
+        include/widgets/GitProgressToast.h
    include/widgets/GitTagsPage.h
    include/widgets/InfoToast.h
    include/widgets/LocalGitBranchesPage.h
@@ -91,10 +88,7 @@ set(GUIMANAGER_SOURCE_FILES
    src/widgets/ColorButton.cpp
    src/widgets/ContainerWidget.cpp
    src/widgets/GitCredentialsToast.cpp
-   src/widgets/GitHistoryAdapter.cpp
-   src/widgets/GitHistoryListItem.cpp
-   src/widgets/GitHistoryViewHolder.cpp
-   src/widgets/GitProgressToast.cpp
+        src/widgets/GitProgressToast.cpp
    src/widgets/GitSubmodulesPage.cpp
    src/widgets/GitTagsPage.cpp
    src/widgets/InfoToast.cpp
@@ -134,8 +128,6 @@ set(GUIMANAGER_SOURCE_FILES
    ${TS_FILES}
         include/widgets/ElidedLAbel.h
         src/widgets/ElidedLabel.cpp
-        include/widgets/GitHistoryRecyclerView.h
-        src/widgets/GitHistoryRecyclerView.cpp
         include/widgets/MouseTrackingSplitter.h
         src/widgets/MouseTrackingSplitter.cpp
 )
@@ -154,7 +146,6 @@ includeLib(GuiManager GitRepo)
 includeLib(GuiManager Log)
 includeLib(GuiManager Util)
 includeLib(GuiManager QtWaitingSpinner)
-includeLib(GuiManager RecyclerView)
 
 target_link_libraries(GuiManager PRIVATE
     Qt${QT_VERSION_MAJOR}::Core

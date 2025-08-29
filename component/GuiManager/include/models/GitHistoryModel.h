@@ -2,46 +2,45 @@
 
 #include <GitRepo.h>
 
-#include <QAbstractListModel>
+#include <QAbstractTableModel>
 
-#define ROLE_HISTORY_SLICE Qt::UserRole
-#define ROLE_SUMMARY Qt::UserRole + 1
-#define ROLE_AUTHOR_NAME Qt::UserRole + 2
-#define ROLE_AUTHOR_EMAIL Qt::UserRole + 3
-#define ROLE_COMMIT_DATETIME Qt::UserRole + 4
-#define ROLE_COMMIT_SHA Qt::UserRole + 5
-#define ROLE_FIRST ROLE_HISTORY_SLICE
-#define ROLE_LAST ROLE_COMMIT_SHA
+#define COLUMN_HISTORY_SLICE 0
+#define COLUMN_SUMMARY 1
+#define COLUMN_AUTHOR_NAME 2
+#define COLUMN_AUTHOR_EMAIL 3
+#define COLUMN_COMMIT_DATETIME 4
+#define COLUMN_COMMIT_SHA 5
+#define COLUMN_FIRST COLUMN_HISTORY_SLICE
+#define COLUMN_LAST COLUMN_COMMIT_SHA
 
 namespace GuiManager {
 
 namespace Models {
 
-class GitHistoryModel : public QAbstractListModel {
+class GitHistoryModel : public QAbstractTableModel {
   Q_OBJECT
 public:
   explicit GitHistoryModel(QObject *parent = nullptr);
-  virtual ~GitHistoryModel();
+  ~GitHistoryModel() override;
 
 public:
-  void setRepoUuid(const QString &uuid);
   void updateHistory(const GitRepo::GitHistory &history);
 
-  // QAbstractItemModel interface
+  // QAbstractTableModel interface
 public:
   QModelIndex index(int row, int column,
                     const QModelIndex &parent) const override;
   int rowCount(const QModelIndex &parent) const override;
   int columnCount(const QModelIndex &parent) const override;
   QVariant data(const QModelIndex &index, int role) const override;
-  QHash<int, QByteArray> roleNames() const override;
+  QVariant headerData(int section, Qt::Orientation orientation,
+                      int role) const override;
 
 private:
   GitRepo::GitHistory historySlice(const QString &commit) const;
 
 private:
   GitRepo::GitHistory _history;
-  QString _repoUuid;
 };
 
 } // namespace Models

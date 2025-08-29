@@ -1,6 +1,5 @@
 #include "containers/GitRepoContainer.h"
 #include "containers/ui_GitRepoContainer.h"
-#include "widgets/GitHistoryAdapter.h"
 #include "widgets/InfoToast.h"
 
 #include <Dispatch.h>
@@ -36,7 +35,7 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
   ui->splitter->setStretchFactor(1, 8);
   ui->splitter->setStretchFactor(2, 1);
   ui->submodulesPage->setContentsMargins(0, 0, 0, 0);
-  ui->historyView->setAdapter(new GitHistoryAdapter(_historyModel, this));
+  ui->historyView->setModel(_historyModel);
 
   const QByteArray splitterState = QByteArray::fromHex(
       _configManager.getString(ConfigManager::ConfigKey::GitRepoSplitterPos)
@@ -55,12 +54,12 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranchResult,
       eventCallbackFunc));
-  _eventManager.subscribe(
-      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetBranchHistoryError,
-                       eventCallbackFunc));
-  _eventManager.subscribe(
-      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetBranchHistoryResult,
-                       eventCallbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetBranchHistoryError,
+      eventCallbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetBranchHistoryResult,
+      eventCallbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranchesError,
       eventCallbackFunc));
@@ -109,12 +108,12 @@ GitRepoContainer::~GitRepoContainer() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranchResult,
       eventCallbackFunc));
-  _eventManager.unsubscribe(
-      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetBranchHistoryError,
-                       eventCallbackFunc));
-  _eventManager.unsubscribe(
-      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerGetBranchHistoryResult,
-                       eventCallbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetBranchHistoryError,
+      eventCallbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetBranchHistoryResult,
+      eventCallbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranchesError,
       eventCallbackFunc));
@@ -149,7 +148,12 @@ GitRepoContainer::~GitRepoContainer() {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::onSplitterMoved(int pos, int index) {
+void GitRepoContainer::resizeEvent(QResizeEvent *event) {
+  ContainerWidget::resizeEvent(event);
+  stretchBranchHistoryTableColumns();
+}
+
+void GitRepoContainer::onSplitterMoved(const int pos, const int index) const {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("pos = {}, index = {}", pos, index);
 
@@ -157,6 +161,8 @@ void GitRepoContainer::onSplitterMoved(int pos, int index) {
   _configManager.setString(ConfigManager::ConfigKey::GitRepoSplitterPos,
                            splitterState);
   _configManager.save();
+
+  stretchBranchHistoryTableColumns();
 
   LOG_PERF(0, "Exit");
 }
@@ -284,8 +290,6 @@ void GitRepoContainer::getActiveBranch() const {
 void GitRepoContainer::getBranchHistory() const {
   LOG_PERF(0, "Enter");
 
-  _historyModel->setRepoUuid(_uuid);
-
   GitRepoGetBranchHistoryCommand command;
   command.uuid = _uuid;
   command.branchName = _activeBranch;
@@ -369,7 +373,7 @@ void GitRepoContainer::openRepo() const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::refreshViews() {
+void GitRepoContainer::refreshViews() const {
   LOG_PERF(0, "Enter");
 
   openRepo();
@@ -377,7 +381,28 @@ void GitRepoContainer::refreshViews() {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showToast(const QString &message) {
+void GitRepoContainer::stretchBranchHistoryTableColumns() const {
+  LOG_PERF(0, "Enter");
+
+  const int totalWidth = ui->historyView->viewport()->width();
+  int colSummary = totalWidth / 2;
+  if (constexpr int maxSummaryWidth = 600; colSummary > maxSummaryWidth)
+    colSummary = maxSummaryWidth;
+
+  const int remaining = totalWidth - colSummary;
+  const int colOther = remaining / 5;
+
+  ui->historyView->setColumnWidth(0, colOther);
+  ui->historyView->setColumnWidth(1, colSummary);
+  ui->historyView->setColumnWidth(2, colOther);
+  ui->historyView->setColumnWidth(3, colOther);
+  ui->historyView->setColumnWidth(4, colOther);
+  ui->historyView->setColumnWidth(5, colOther);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::showToast(const QString &message) const {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 
@@ -386,16 +411,19 @@ void GitRepoContainer::showToast(const QString &message) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateBranchHistory(const GitRepo::GitHistory &history) {
+void GitRepoContainer::updateBranchHistory(
+    const GitRepo::GitHistory &history) const {
   LOG_PERF(0, "Enter");
 
   _historyModel->updateHistory(history);
+
+  stretchBranchHistoryTableColumns();
 
   LOG_PERF(0, "Exit")
 }
 
 void GitRepoContainer::updateLocalBranchesModel(
-    const QStringList &localBranches) {
+    const QStringList &localBranches) const {
   LOG_PERF(0, "Enter");
 
   ui->localPage->updateModel(localBranches);
@@ -417,7 +445,7 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
 }
 
 void GitRepoContainer::updateRemoteBranchesModel(
-    const QStringList &remoteBranches) {
+    const QStringList &remoteBranches) const {
   LOG_PERF(0, "Enter");
 
   ui->remotePage->updateModel(remoteBranches);
@@ -425,7 +453,7 @@ void GitRepoContainer::updateRemoteBranchesModel(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateSubmodulesModel(const QStringList &tags) {
+void GitRepoContainer::updateSubmodulesModel(const QStringList &tags) const {
   LOG_PERF(0, "Enter");
 
   ui->submodulesPage->updateModel(tags);
@@ -433,7 +461,7 @@ void GitRepoContainer::updateSubmodulesModel(const QStringList &tags) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateTagsModel(const QStringList &tags) {
+void GitRepoContainer::updateTagsModel(const QStringList &tags) const {
   LOG_PERF(0, "Enter");
 
   ui->tagsPage->updateModel(tags);

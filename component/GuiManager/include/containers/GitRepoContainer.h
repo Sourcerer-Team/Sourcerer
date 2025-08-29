@@ -7,7 +7,6 @@
 #include <ConfigManager.h>
 #include <EventManager.h>
 #include <GitRepo.h>
-#include <recyclerview.h>
 
 #include <QWidget>
 
@@ -24,10 +23,13 @@ class GitRepoContainer : public Widgets::ContainerWidget {
 
 public:
   explicit GitRepoContainer(const QString &path, QWidget *parent = nullptr);
-  virtual ~GitRepoContainer();
+  ~GitRepoContainer() override;
+
+protected:
+  void resizeEvent(QResizeEvent *event) override;
 
 private slots:
-  void onSplitterMoved(int pos, int index);
+  void onSplitterMoved(int pos, int index) const;
 
 private:
   void closeRepo() const;
@@ -39,14 +41,15 @@ private:
   void getSubmodules() const;
   void getTags() const;
   void openRepo() const;
-  void refreshViews();
-  void showToast(const QString &message);
-  void updateBranchHistory(const GitRepo::GitHistory& history);
-  void updateLocalBranchesModel(const QStringList &localBranches);
+  void refreshViews() const;
+  void stretchBranchHistoryTableColumns() const;
+  void showToast(const QString &message) const;
+  void updateBranchHistory(const GitRepo::GitHistory& history) const;
+  void updateLocalBranchesModel(const QStringList &localBranches) const;
   void updateLocalBranchesModelActiveBranch(const QString &activeBranch);
-  void updateRemoteBranchesModel(const QStringList &remoteBranches);
-  void updateSubmodulesModel(const QStringList &tags);
-  void updateTagsModel(const QStringList &tags);
+  void updateRemoteBranchesModel(const QStringList &remoteBranches) const;
+  void updateSubmodulesModel(const QStringList &tags) const;
+  void updateTagsModel(const QStringList &tags) const;
 
 private:
   Ui::GitRepoContainer *ui;

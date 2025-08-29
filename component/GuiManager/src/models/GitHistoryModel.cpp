@@ -12,7 +12,8 @@ namespace GuiManager {
 
 namespace Models {
 
-GitHistoryModel::GitHistoryModel(QObject *parent) : QAbstractListModel(parent) {
+GitHistoryModel::GitHistoryModel(QObject *parent)
+    : QAbstractTableModel(parent) {
   LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit");
@@ -20,14 +21,6 @@ GitHistoryModel::GitHistoryModel(QObject *parent) : QAbstractListModel(parent) {
 
 GitHistoryModel::~GitHistoryModel() {
   LOG_PERF(0, "Enter");
-
-  LOG_PERF(0, "Exit");
-}
-
-void GitHistoryModel::setRepoUuid(const QString &uuid) {
-  LOG_PERF(0, "Enter");
-
-  _repoUuid = uuid;
 
   LOG_PERF(0, "Exit");
 }
@@ -44,12 +37,11 @@ void GitHistoryModel::updateHistory(const GitRepo::GitHistory &history) {
   LOG_PERF(0, "Exit");
 }
 
-QModelIndex GitHistoryModel::index(int row, int column,
+QModelIndex GitHistoryModel::index(const int row, const int column,
                                    const QModelIndex &parent) const {
   LOG_PERF(0, "Enter");
 
-  if (parent.isValid() || column != 0 || row < 0 ||
-      row >= _history.commits.size()) {
+  if (parent.isValid() || row < 0 || row >= _history.commits.size()) {
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -76,10 +68,10 @@ int GitHistoryModel::columnCount(const QModelIndex &parent) const {
   LOG_PERF(0, "Enter");
   LOG_PERF(0, "Exit");
 
-  return ROLE_LAST - ROLE_FIRST + 1;
+  return COLUMN_LAST - COLUMN_FIRST + 1;
 }
 
-QVariant GitHistoryModel::data(const QModelIndex &index, int role) const {
+QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
   LOG_PERF(0, "Enter");
 
   if (!index.isValid()) {
@@ -97,30 +89,35 @@ QVariant GitHistoryModel::data(const QModelIndex &index, int role) const {
 
   QVariant result;
 
-  switch (role) {
-  case ROLE_HISTORY_SLICE: {
-    result = QVariant::fromValue(historySlice(commit));
+  if (role != Qt::DisplayRole) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  switch (index.column()) {
+  case COLUMN_HISTORY_SLICE: {
+    // result = QVariant::fromValue(historySlice(commit));
     break;
   }
-  case ROLE_SUMMARY: {
-    result = commitInfo.summary;
+  case COLUMN_SUMMARY: {
+    result = commitInfo.summary.trimmed();
     break;
   }
-  case ROLE_AUTHOR_NAME: {
-    result = commitInfo.authorName;
+  case COLUMN_AUTHOR_NAME: {
+    result = commitInfo.authorName.trimmed();
     break;
   }
-  case ROLE_AUTHOR_EMAIL: {
-    result = commitInfo.authorEmail;
+  case COLUMN_AUTHOR_EMAIL: {
+    result = commitInfo.authorEmail.trimmed();
     break;
   }
-  case ROLE_COMMIT_DATETIME: {
+  case COLUMN_COMMIT_DATETIME: {
     result = QDateTime::fromMSecsSinceEpoch(commitInfo.timeStamp)
-                 .toString(Qt::ISODate);
+                 .toString("yyyy-MM-dd HH:mm:ss");
     break;
   }
-  case ROLE_COMMIT_SHA: {
-    result = commit;
+  case COLUMN_COMMIT_SHA: {
+    result = commit.left(6); // Short SHA
     break;
   }
   default:
@@ -132,16 +129,31 @@ QVariant GitHistoryModel::data(const QModelIndex &index, int role) const {
   return result;
 }
 
-QHash<int, QByteArray> GitHistoryModel::roleNames() const {
-  LOG_PERF(0, "Enter");
-  LOG_PERF(0, "Exit");
-
-  return {{ROLE_HISTORY_SLICE, "historySlice"},
-          {ROLE_SUMMARY, "summary"},
-          {ROLE_AUTHOR_NAME, "authorName"},
-          {ROLE_AUTHOR_EMAIL, "authorEmail"},
-          {ROLE_COMMIT_DATETIME, "dateTime"},
-          {ROLE_COMMIT_SHA, "sha"}};
+QVariant GitHistoryModel::headerData(int section, Qt::Orientation orientation,
+                                     int role) const {
+  if (role == Qt::DisplayRole) {
+    if (orientation == Qt::Horizontal) {
+      switch (section) {
+      case COLUMN_HISTORY_SLICE:
+        return tr("Graph");
+      case COLUMN_SUMMARY:
+        return tr("Summary");
+      case COLUMN_AUTHOR_NAME:
+        return tr("Author");
+      case COLUMN_AUTHOR_EMAIL:
+        return tr("Email");
+      case COLUMN_COMMIT_DATETIME:
+        return tr("Date");
+      case COLUMN_COMMIT_SHA:
+        return tr("SHA");
+      default:
+        return QVariant();
+      }
+    }
+    if (orientation == Qt::Vertical)
+      return QVariant(); // No row names
+  }
+  return QAbstractTableModel::headerData(section, orientation, role);
 }
 
 GitRepo::GitHistory GitHistoryModel::historySlice(const QString &commit) const {
@@ -153,18 +165,20 @@ GitRepo::GitHistory GitHistoryModel::historySlice(const QString &commit) const {
 
   historySlice.commits += commit;
 
-  const auto& gitCommitInfo = _history.commitInfos.value(commit);
+  const auto &gitCommitInfo = _history.commitInfos.value(commit);
 
   historySlice.commitInfos.insert(commit, gitCommitInfo);
 
-  for (const auto& childCommit : gitCommitInfo.children) {
+  for (const auto &childCommit : gitCommitInfo.children) {
     historySlice.commits += childCommit;
-    historySlice.commitInfos.insert(childCommit, _history.commitInfos.value(childCommit));
+    historySlice.commitInfos.insert(childCommit,
+                                    _history.commitInfos.value(childCommit));
   }
 
-  for (const auto& parentCommit : gitCommitInfo.parents) {
+  for (const auto &parentCommit : gitCommitInfo.parents) {
     historySlice.commits += parentCommit;
-    historySlice.commitInfos.insert(parentCommit, _history.commitInfos.value(parentCommit));
+    historySlice.commitInfos.insert(parentCommit,
+                                    _history.commitInfos.value(parentCommit));
   }
 
   LOG_PERF(0, "Exit");
