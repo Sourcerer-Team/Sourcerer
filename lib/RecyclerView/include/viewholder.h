@@ -10,13 +10,13 @@ class ViewHolder : public QObject
     Q_OBJECT
 public:
     explicit ViewHolder(QObject *parent, QWidget *view);
-    ~ViewHolder();
+    ~ViewHolder() override;
 
-    QWidget *getItemView() const { return itemView; }
-    int dataPos;
+    QWidget *getItemView() const { return _itemView; }
+    int _dataPos;
 
 private:
-    QPointer<QWidget> itemView;
+    QPointer<QWidget> _itemView;
 };
 
 #endif // VIEWHOLDER_H

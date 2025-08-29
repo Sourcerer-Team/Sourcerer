@@ -132,6 +132,12 @@ set(GUIMANAGER_SOURCE_FILES
    src/widgets/TitlebarWidget.ui
    ${QRC_FILES}
    ${TS_FILES}
+        include/widgets/ElidedLAbel.h
+        src/widgets/ElidedLabel.cpp
+        include/widgets/GitHistoryRecyclerView.h
+        src/widgets/GitHistoryRecyclerView.cpp
+        include/widgets/MouseTrackingSplitter.h
+        src/widgets/MouseTrackingSplitter.cpp
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

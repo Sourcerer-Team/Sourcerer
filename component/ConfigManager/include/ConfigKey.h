@@ -17,6 +17,7 @@ enum class ConfigKey {
 
   // GitRepo container
   GitRepoSplitterPos,
+  GitRepoBranchRecyclerViewItemsSplitterPos,
 
   // GitRepo library
   GitRepoGitCredentialsExpirationTime,

@@ -46,6 +46,14 @@ void RecyclerView::populateItems() {
   populateItemsBelow(0);
 }
 
+void RecyclerView::transformItems(
+    const std::function<void(ViewHolder *)> &func) const {
+  for (auto it = _adapter->_activeViewMap.begin();
+       it != _adapter->_activeViewMap.end(); ++it) {
+    func(it.value());
+  }
+}
+
 int RecyclerView::totalItemHeight() const {
   return _adapter->model()->rowCount() * _itemHeight;
 }

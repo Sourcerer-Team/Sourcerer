@@ -4,6 +4,8 @@
 #include "widgets/GitHistoryListItem.h"
 #include "widgets/GitHistoryViewHolder.h"
 
+#include <recyclerview.h>
+
 #include <Log.h>
 
 #define THREAD_ID "GitHistoryAdapter"
@@ -15,10 +17,6 @@ namespace Widgets {
 GitHistoryAdapter::GitHistoryAdapter(QAbstractItemModel *model, QObject *parent)
     : RecyclerViewAdapter(model, parent) {
   LOG_PERF(0, "Enter");
-
-  connect(_dataModel, &QAbstractItemModel::dataChanged, this,
-          &GitHistoryAdapter::onDataChanged);
-
   LOG_PERF(0, "Exit");
 }
 
@@ -31,7 +29,8 @@ ViewHolder *GitHistoryAdapter::createViewHolder() {
   return new GitHistoryViewHolder(this, new GitHistoryListItem());
 }
 
-void GitHistoryAdapter::onBindViewHolder(ViewHolder *vh, int position) {
+void GitHistoryAdapter::onBindViewHolder(ViewHolder *holder,
+                                         const int position) {
   LOG_PERF(0, "Enter");
 
   if (!_dataModel->hasIndex(position, 0)) {
@@ -39,20 +38,17 @@ void GitHistoryAdapter::onBindViewHolder(ViewHolder *vh, int position) {
     return;
   }
 
-  const auto *historyViewHolder = qobject_cast<GitHistoryViewHolder *>(vh);
+  const auto *historyViewHolder = qobject_cast<GitHistoryViewHolder *>(holder);
   if (!historyViewHolder) {
     LOG_PERF(0, "Exit");
     return;
   }
 
-  const auto *view = qobject_cast<GitHistoryListItem *>(vh->getItemView());
+  const auto *view = qobject_cast<GitHistoryListItem *>(holder->getItemView());
   if (!view) {
     LOG_PERF(0, "Exit");
     return;
   }
-
-  // connect(channelViewHolder, &ChannelSliderViewHolder::valueChanged, this,
-  // &ChannelSliderAdapter::newUserChannelValue);
 
   QModelIndex index = _dataModel->index(position, 0);
   const auto &summary = _dataModel->data(index, ROLE_SUMMARY);
@@ -67,7 +63,10 @@ void GitHistoryAdapter::onBindViewHolder(ViewHolder *vh, int position) {
   const auto &sha = _dataModel->data(index, ROLE_COMMIT_SHA);
   view->setSHA(sha.toString());
 
-  vh->dataPos = position;
+  holder->_dataPos = position;
+
+  connect(historyViewHolder, &GitHistoryViewHolder::splitterMoved, this,
+          &GitHistoryAdapter::onSplitterMoved);
 
   LOG_PERF(0, "Exit");
 }
@@ -75,23 +74,30 @@ void GitHistoryAdapter::onBindViewHolder(ViewHolder *vh, int position) {
 void GitHistoryAdapter::onRecycleViewHolder(ViewHolder *vh) const {
   LOG_PERF(0, "Enter");
 
-  const auto *customViewHolder = qobject_cast<GitHistoryViewHolder *>(vh);
-  if (!customViewHolder) {
+  const auto *historyViewHolder = qobject_cast<GitHistoryViewHolder *>(vh);
+  if (!historyViewHolder) {
     LOG_PERF(0, "Exit");
     return;
   }
 
-  // Disconnect everything from valueChanged signal
-  // disconnect(customViewHolder, &GitHistoryViewHolder::valueChanged, nullptr,
-  // nullptr);
+  disconnect(historyViewHolder, &GitHistoryViewHolder::splitterMoved, this,
+             &GitHistoryAdapter::onSplitterMoved);
 
   LOG_PERF(0, "Exit");
 }
 
-void GitHistoryAdapter::onDataChanged(const QModelIndex &topLeft,
-                                      const QModelIndex &bottomRight,
-                                      const QVector<int> &roles) {
+void GitHistoryAdapter::onSplitterMoved() const {
   LOG_PERF(0, "Enter");
+
+  if (const auto rv = qobject_cast<RecyclerView *>(parent())) {
+    rv->transformItems([](const ViewHolder *vh) {
+      if (const auto view =
+              qobject_cast<GitHistoryListItem *>(vh->getItemView())) {
+        view->restoreSplitterState();
+      }
+    });
+  }
+
   LOG_PERF(0, "Exit");
 }
 

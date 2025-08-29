@@ -21,6 +21,8 @@ struct KeyDescription {
 QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::Unknown, ""},
     {ConfigKey::GitRepoSplitterPos, "window/gitrepo/splitterPos"},
+    {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos,
+     "window/gitrepo/branchRecyclerViewItemsSplitterPos"},
     {ConfigKey::GitRepoGitCredentialsExpirationTime,
      "gitrepo/credentials/credentialsExpirationTime"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
@@ -75,6 +77,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
 
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::GitRepoSplitterPos, ""},
+    {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
     {ConfigKey::RecentlyOpenedRepos,
      "git@github.com:levi9-embedded/"
      "components.git,git@github.com:levi9-embedded/arduino-projects.git"},
@@ -169,9 +172,13 @@ ConfigKey ConfigManager::getKey(const QString &keyPath) const {
   return KEY_NAMES.key(keyPath);
 }
 
-QString ConfigManager::getLogsDir() const { return _logsDir; }
+QString ConfigManager::getLogsDir() const {
+  return _logsDir;
+}
 
-QString ConfigManager::getAppVersion() const { return APPLICATION_VERSION; }
+QString ConfigManager::getAppVersion() const {
+  return APPLICATION_VERSION;
+}
 
 static ConfigGroup createPathGroup(const QString &path, size_t from) {
   const int index = path.indexOf('/', from);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ConfigManager.h>
 #include <styledrecyclerlistitem.h>
 
 #include <QWidget>
@@ -23,13 +24,18 @@ public:
   void setAuthor(const QString &author) const;
   void setSHA(const QString &sha) const;
 
-protected:
-  void paintEvent(QPaintEvent *) override;
-  void enterEvent(QEnterEvent *event) override;
-  void leaveEvent(QEvent *event) override;
+  void restoreSplitterState() const;
+  void saveSplitterState() const;
+
+signals:
+  void splitterMoved();
+
+private slots:
+  void onSplitterMoved(int pos, int index);
 
 private:
   Ui::GitHistoryListItem *ui;
+  ConfigManager::ConfigManager &_configManager;
 };
 
 } // namespace Widgets

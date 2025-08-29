@@ -7,6 +7,8 @@
 #include <QAbstractScrollArea>
 #include <QVector>
 
+#include <functional>
+
 class RecyclerView : public QAbstractScrollArea {
   Q_OBJECT
 
@@ -19,12 +21,15 @@ public:
 
   void populateItems();
 
+  void transformItems(const std::function<void(ViewHolder *)> &func) const;
+
 protected:
   void resizeEvent(QResizeEvent *event) override;
   void scrollContentsBy(int dx, int dy) override;
 
+  virtual ViewHolder *populateItem(int dataPos, int y);
+
 private:
-  ViewHolder *populateItem(int dataPos, int y);
   void populateItemsBelow(int startDataPos);
   void populateItemsAbove(int startDataPos);
 

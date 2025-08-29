@@ -37,6 +37,7 @@ ViewHolder *RecyclerViewAdapter::findViewHolder(const int dataPos) const {
 void RecyclerViewAdapter::modelReset() {
   _activeViewMap.clear();
   if (const auto rv = qobject_cast<RecyclerView *>(parent())) {
+    rv->update();
     rv->populateItems();
   }
 }

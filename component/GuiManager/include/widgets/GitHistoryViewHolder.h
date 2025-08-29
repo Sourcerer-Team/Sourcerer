@@ -18,6 +18,9 @@ class GitHistoryViewHolder : public ViewHolder
 public:
     explicit GitHistoryViewHolder(QObject *parent, GitHistoryListItem* view);
     ~GitHistoryViewHolder() override;
+
+  signals:
+    void splitterMoved();
 };
 
 

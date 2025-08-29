@@ -1,18 +1,23 @@
 #include "widgets/GitHistoryViewHolder.h"
 
-namespace GuiManager
-{
+#include "spdlog/fmt/bundled/core.h"
 
-namespace Widgets
-{
+namespace GuiManager {
 
-GitHistoryViewHolder::GitHistoryViewHolder(QObject *parent, GitHistoryListItem* view)
-    : ViewHolder(parent, view)
-{
+namespace Widgets {
 
+GitHistoryViewHolder::GitHistoryViewHolder(QObject *parent,
+                                           GitHistoryListItem *view)
+    : ViewHolder(parent, view) {
+  connect(view, &GitHistoryListItem::splitterMoved, this,
+          &GitHistoryViewHolder::splitterMoved);
 }
 
-GitHistoryViewHolder::~GitHistoryViewHolder() = default;
+GitHistoryViewHolder::~GitHistoryViewHolder() {
+  disconnect(static_cast<GitHistoryListItem *>(getItemView()),
+             &GitHistoryListItem::splitterMoved, this,
+             &GitHistoryViewHolder::splitterMoved);
+}
 
 } // namespace Widgets
 

@@ -8,17 +8,13 @@ ViewHolder::ViewHolder(QObject *parent, QWidget *view)
     : QObject(parent)
 {
     Q_ASSERT(view != nullptr);
-    itemView = view;
-    dataPos = -1;
-
-    //qDebug() << "NUM VH ALLOC: " << ++numViewHolderAlloc;
+    _itemView = view;
+    _dataPos = -1;
 }
 
 ViewHolder::~ViewHolder()
 {
-    if (itemView != nullptr) {
-        itemView->deleteLater();
+    if (_itemView != nullptr) {
+        _itemView->deleteLater();
     }
-
-    //qDebug() << "NUM VH ALLOC: " << --numViewHolderAlloc;
 }
