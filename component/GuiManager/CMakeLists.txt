@@ -130,6 +130,8 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/ElidedLabel.cpp
         include/widgets/MouseTrackingSplitter.h
         src/widgets/MouseTrackingSplitter.cpp
+        include/widgets/HistorySliceTableColumnDelegate.h
+        src/widgets/HistorySliceTableColumnDelegate.cpp
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

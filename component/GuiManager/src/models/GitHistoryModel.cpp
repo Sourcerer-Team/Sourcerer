@@ -3,14 +3,21 @@
 #include "GitRepoManagerStructs.h"
 
 #include <EventManager.h>
+#include <Graph.h>
 #include <Log.h>
-#include <Uuid.h>
+
+#include <QQueue>
+#include <QSet>
+
+#include <iostream>
 
 #define THREAD_ID "GitHistoryModel"
 
 namespace GuiManager {
 
 namespace Models {
+
+static const Slices emptySlices;
 
 GitHistoryModel::GitHistoryModel(QObject *parent)
     : QAbstractTableModel(parent) {
@@ -31,6 +38,10 @@ void GitHistoryModel::updateHistory(const GitRepo::GitHistory &history) {
   beginResetModel();
 
   _history = history;
+
+  createDrawableSlices();
+
+  printDrawableSlices(_drawableSlices);
 
   endResetModel();
 
@@ -96,7 +107,11 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
 
   switch (index.column()) {
   case COLUMN_HISTORY_SLICE: {
-    // result = QVariant::fromValue(historySlice(commit));
+    result = QVariant::fromValue(historySlices(commit));
+    break;
+  }
+  case COLUMN_HISTORY_SLICE_WIDTH: {
+    result = _drawableSlices.sizeX();
     break;
   }
   case COLUMN_SUMMARY: {
@@ -129,61 +144,268 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
   return result;
 }
 
-QVariant GitHistoryModel::headerData(int section, Qt::Orientation orientation,
-                                     int role) const {
-  if (role == Qt::DisplayRole) {
-    if (orientation == Qt::Horizontal) {
-      switch (section) {
-      case COLUMN_HISTORY_SLICE:
-        return tr("Graph");
-      case COLUMN_SUMMARY:
-        return tr("Summary");
-      case COLUMN_AUTHOR_NAME:
-        return tr("Author");
-      case COLUMN_AUTHOR_EMAIL:
-        return tr("Email");
-      case COLUMN_COMMIT_DATETIME:
-        return tr("Date");
-      case COLUMN_COMMIT_SHA:
-        return tr("SHA");
-      default:
-        return QVariant();
-      }
-    }
-    if (orientation == Qt::Vertical)
-      return QVariant(); // No row names
-  }
-  return QAbstractTableModel::headerData(section, orientation, role);
-}
-
-GitRepo::GitHistory GitHistoryModel::historySlice(const QString &commit) const {
+QVariant GitHistoryModel::headerData(const int section,
+                                     const Qt::Orientation orientation,
+                                     const int role) const {
   LOG_PERF(0, "Enter");
 
-  GitRepo::GitHistory historySlice;
+  if (role == Qt::DisplayRole) {
+    QVariant result;
 
-  historySlice.valid = true;
+    if (orientation == Qt::Horizontal) {
+      switch (section) {
+      case COLUMN_HISTORY_SLICE: {
+        result = tr("Graph");
+        break;
+      }
+      case COLUMN_SUMMARY: {
+        result = tr("Summary");
+        break;
+      }
+      case COLUMN_AUTHOR_NAME: {
+        result = tr("Author");
+        break;
+      }
+      case COLUMN_AUTHOR_EMAIL: {
+        result = tr("Email");
+        break;
+      }
+      case COLUMN_COMMIT_DATETIME: {
+        result = tr("Date");
+        break;
+      }
+      case COLUMN_COMMIT_SHA: {
+        result = tr("SHA");
+        break;
+      }
+      default: {
+        break;
+      }
+      }
 
-  historySlice.commits += commit;
+      LOG_PERF(0, "Exit");
+      return result; // No row names
+    }
 
-  const auto &gitCommitInfo = _history.commitInfos.value(commit);
-
-  historySlice.commitInfos.insert(commit, gitCommitInfo);
-
-  for (const auto &childCommit : gitCommitInfo.children) {
-    historySlice.commits += childCommit;
-    historySlice.commitInfos.insert(childCommit,
-                                    _history.commitInfos.value(childCommit));
-  }
-
-  for (const auto &parentCommit : gitCommitInfo.parents) {
-    historySlice.commits += parentCommit;
-    historySlice.commitInfos.insert(parentCommit,
-                                    _history.commitInfos.value(parentCommit));
+    LOG_PERF(0, "Exit");
+    return result; // No row names
   }
 
   LOG_PERF(0, "Exit");
 
-  return historySlice;
+  return QAbstractTableModel::headerData(section, orientation, role);
+}
+
+void GitHistoryModel::createDrawableSlices() {
+  LOG_PERF(0, "Enter");
+
+  _drawableSlices.clear();
+
+  for (int i = 0; i < _history.commits.size(); ++i) {
+    const QString &currentCommit = _history.commits.at(i);
+    const auto it = _history.commitInfos.find(currentCommit);
+    if (it == _history.commitInfos.end()) {
+      continue;
+    }
+
+    const auto &commitInfo = it.value();
+
+    if (i == 0) {
+      _drawableSlices[0][0].toCommit = currentCommit;
+      _drawableSlices[0][0].main = true;
+      continue;
+    }
+
+    QMap<QString, int> previousRowCommitToColumnMap;
+
+    for (int j = 0; j < _drawableSlices.sizeX(); ++j) {
+      const auto itParent =
+          std::find(commitInfo.parents.begin(), commitInfo.parents.end(),
+                    _drawableSlices[j][i - 1].toCommit);
+      _drawableSlices[j][i - 1].bottom = itParent != commitInfo.parents.end();
+      const int index = itParent != commitInfo.parents.end()
+                            ? itParent - commitInfo.parents.begin()
+                            : -1;
+      if (index >= 0 && index < _drawableSlices.sizeX()) {
+        _drawableSlices[index][i].top = true;
+        _drawableSlices[index][i].toCommit = currentCommit;
+        _drawableSlices[index][i].main = true;
+      } else if (_drawableSlices[j][i].toCommit.isEmpty()) {
+        _drawableSlices[j][i].top = true;
+        _drawableSlices[j][i].toCommit = _drawableSlices[j][i - 1].toCommit;
+        _drawableSlices[j][i].main = false;
+      }
+
+      if (!_drawableSlices[j][i - 1].toCommit.isEmpty()) {
+        previousRowCommitToColumnMap[_drawableSlices[j][i - 1].toCommit] = j;
+      }
+    }
+
+    int currentCommitIndex = -1;
+
+    for (int j = 0; j < _drawableSlices.sizeX(); ++j) {
+      if (_drawableSlices[j][i].toCommit == currentCommit) {
+        currentCommitIndex = j;
+        break;
+      }
+    }
+
+    if (currentCommitIndex == -1) {
+      continue;
+    }
+
+    int startLeft = std::numeric_limits<int>::max();
+    int startRight = std::numeric_limits<int>::max();
+
+    for (int j = 0; j < currentCommitIndex; ++j) {
+      const auto itParent =
+          std::find(commitInfo.parents.begin(), commitInfo.parents.end(),
+                    _drawableSlices[j][i - 1].toCommit);
+      if (itParent != commitInfo.parents.end()) {
+        startLeft = std::min(j + 1, startLeft);
+        startRight = std::min(j, startRight);
+      }
+    }
+
+    for (int j = startLeft; j <= currentCommitIndex; ++j) {
+      _drawableSlices[j][i].left = true;
+    }
+
+    for (int j = startRight; j < currentCommitIndex; ++j) {
+      _drawableSlices[j][i].right = true;
+    }
+
+    int endLeft = std::numeric_limits<int>::min();
+    int endRight = std::numeric_limits<int>::min();
+
+    for (int j = currentCommitIndex + 1; j < _drawableSlices.sizeX(); ++j) {
+      const auto itParent =
+          std::find(commitInfo.parents.begin(), commitInfo.parents.end(),
+                    _drawableSlices[j][i - 1].toCommit);
+      if (itParent != commitInfo.parents.end()) {
+        endLeft = std::max(j, endLeft);
+        endRight = std::max(j - 1, endRight);
+      }
+    }
+
+    for (int j = currentCommitIndex + 1; j < endLeft; ++j) {
+      _drawableSlices[j][i].left = true;
+    }
+
+    for (int j = currentCommitIndex; j < endRight; ++j) {
+      _drawableSlices[j][i].right = true;
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitHistoryModel::printDrawableSlices(
+    const Util::ResizableMatrix<Slice> &resizableMatrix) {
+
+  std::cout << std::endl << std::endl;
+  std::cout << "Drawable slices: " << std::endl;
+
+  for (int i = 0; i < resizableMatrix.sizeY(); ++i) {
+    QString line0;
+    QString line1;
+    QString line2;
+    for (int j = 0; j < resizableMatrix.sizeX(); ++j) {
+      const auto &[toCommit, left, right, top, bottom, main] =
+          resizableMatrix[j][i];
+      if (!toCommit.isEmpty()) {
+        if (top) {
+          line0 += ".|.";
+        } else {
+          line0 += "...";
+        }
+
+        if (left) {
+          line1 += "-";
+          if (main) {
+            line1 += "O";
+          } else {
+            line1 += ".";
+          }
+        } else {
+          line1 += ".";
+          if (main) {
+            line1 += "O";
+          } else {
+            line1 += ".";
+          }
+        }
+
+        if (right) {
+          line1 += "-";
+        } else {
+          line1 += ".";
+        }
+
+        if (bottom) {
+          line2 += ".|.";
+        } else {
+          line2 += "...";
+        }
+
+      } else {
+        line0 += "...";
+        line1 += "...";
+        line2 += "...";
+      }
+    }
+
+    std::cout << line0.toStdString() << std::endl
+              << line1.toStdString() << std::endl
+              << line2.toStdString() << std::endl;
+  }
+}
+
+const Slices &GitHistoryModel::historySlices(const QString &commit) const {
+  LOG_PERF(0, "Enter");
+
+  if (_history.commits.size() == 0) {
+    LOG_PERF(0, "Exit");
+    return emptySlices;
+  }
+
+  const int difference = indexDifference(_history.commits.first(), commit);
+
+  if (difference < 0) {
+    LOG_PERF(0, "Exit");
+    return emptySlices;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return _drawableSlices[_drawableSlices.sizeX() - difference];
+}
+
+int GitHistoryModel::indexDifference(const QString &commitA,
+                                     const QString &commitB) const {
+  LOG_PERF(0, "Enter");
+
+  const auto itA = std::find_if(
+      _history.commits.begin(), _history.commits.end(),
+      [&](const QString &historyCommit) { return historyCommit == commitA; });
+
+  if (itA == _history.commits.end()) {
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
+
+  const auto itB = std::find_if(
+      _history.commits.begin(), _history.commits.end(),
+      [&](const QString &historyCommit) { return historyCommit == commitB; });
+
+  if (itB == _history.commits.end()) {
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return itB - itA;
 }
 
 } // namespace Models

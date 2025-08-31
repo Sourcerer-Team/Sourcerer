@@ -30,6 +30,9 @@ add_library(Util STATIC
    src/LockGuard.cpp
    src/TokenString.cpp
    src/Uuid.cpp
+        include/ResizableVector.h
+        include/ResizableMatrix.h
+        include/Graph.h
 )
 
 include(../../cmake/helpers.cmake)

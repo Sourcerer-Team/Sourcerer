@@ -1,5 +1,6 @@
 #include "containers/GitRepoContainer.h"
 #include "containers/ui_GitRepoContainer.h"
+#include "widgets/HistorySliceTableColumnDelegate.h"
 #include "widgets/InfoToast.h"
 
 #include <Dispatch.h>
@@ -47,6 +48,8 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
   ui->splitter->setStretchFactor(2, 1);
   ui->submodulesPage->setContentsMargins(0, 0, 0, 0);
   ui->historyView->setModel(_historyModel);
+  ui->historyView->setItemDelegateForColumn(
+      0, new HistorySliceTableColumnDelegate(ui->historyView));
   ui->labelSpinner->setMovie(_spinnerMovie);
 
   _errorPixmap = new QPixmap(QSize(128, 128));
@@ -279,8 +282,10 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
     if (gitError.uuid != _uuid)
       break;
 
-    Dispatch::dispatchToMainThread(
-        [=]() { showToast(tr("Can't open repository")); });
+    Dispatch::dispatchToMainThread([=]() {
+      showErrorPage();
+      showToast(tr("Can't open repository"));
+    });
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepoResult: {
@@ -319,7 +324,8 @@ void GitRepoContainer::getBranchHistory() const {
 
   GitRepoGetBranchHistoryCommand command;
   command.uuid = _uuid;
-  command.branchName = _activeBranch;
+  // Get history for all branches for now
+  // command.branchName = _activeBranch;
 
   EventManager::Event historyEvent(
       EventManager::EventType::GitRepoManagerGetBranchHistory);

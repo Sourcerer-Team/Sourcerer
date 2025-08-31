@@ -792,8 +792,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName) {
     return {};
   }
 
-  error = git_revwalk_sorting(walker, GIT_SORT_TOPOLOGICAL | GIT_SORT_TIME |
-                                        GIT_SORT_REVERSE);
+  error = git_revwalk_sorting(walker, GIT_SORT_TOPOLOGICAL | GIT_SORT_TIME);
   if (error) {
     logGitError(error);
     git_revwalk_free(walker);
@@ -801,12 +800,75 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName) {
     return {};
   }
 
-  error = git_revwalk_push_ref(walker, QString("refs/heads/%1").arg(branchName).toStdString().c_str());
-  if (error) {
-    logGitError(error);
-    git_revwalk_free(walker);
-    LOG_PERF(0, "Exit");
-    return {};
+  if (!branchName.isEmpty()) {
+    error = git_revwalk_push_ref(
+        walker, QString("refs/heads/%1").arg(branchName).toStdString().c_str());
+    if (error) {
+      logGitError(error);
+      git_revwalk_free(walker);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+  } else {
+    git_branch_iterator *it = nullptr;
+    git_reference *ref = nullptr;
+    git_branch_t type;
+
+    error = git_branch_iterator_new(&it, repo, GIT_BRANCH_ALL);
+    if (error) {
+      logGitError(error);
+      git_revwalk_free(walker);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    while (git_branch_next(&ref, &type, it) == 0) {
+      const char *currentBranchName = nullptr;
+
+      error = git_branch_name(&currentBranchName, ref);
+      if (error) {
+        logGitError(error);
+        git_revwalk_free(walker);
+        git_branch_iterator_free(it);
+        LOG_PERF(0, "Exit");
+        return {};
+      }
+
+      if (!currentBranchName) {
+        git_revwalk_free(walker);
+        git_branch_iterator_free(it);
+        LOG_ERROR(Log::ErrorId::Git, "No branch name found!");
+        LOG_PERF(0, "Exit");
+        return {};
+      }
+
+      QString fullBranchName;
+
+      if (type == GIT_BRANCH_LOCAL)
+        fullBranchName = QString("refs/heads/%1").arg(currentBranchName);
+      else if (type == GIT_BRANCH_REMOTE)
+        fullBranchName = QString("refs/remotes/%1").arg(currentBranchName);
+      else {
+        git_revwalk_free(walker);
+        git_branch_iterator_free(it);
+        LOG_ERROR(Log::ErrorId::Git, "Unknown branch type!");
+        LOG_PERF(0, "Exit");
+        return {};
+      }
+
+      error = git_revwalk_push_ref(walker, fullBranchName.toStdString().c_str());
+      if (error) {
+        logGitError(error);
+        git_revwalk_free(walker);
+        git_branch_iterator_free(it);
+        LOG_PERF(0, "Exit");
+        return {};
+      }
+
+      git_reference_free(ref);
+    }
+
+    git_branch_iterator_free(it);
   }
 
   git_oid oid;
@@ -814,13 +876,15 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName) {
   QSet<QString> processedOids;
 
   while (git_revwalk_next(&oid, walker) == 0) {
-    const char *oidStr = git_oid_tostr_s(&oid);
-    if (!oidStr) {
+    const char *str = git_oid_tostr_s(&oid);
+    if (!str) {
       LOG_ERROR(Log::ErrorId::Git, "Can't convert oid to string.");
       git_revwalk_free(walker);
       LOG_PERF(0, "Exit");
       return {};
     }
+
+    const QString oidStr = str;
 
     git_commit *commit = nullptr;
 
@@ -862,16 +926,24 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName) {
         return {};
       }
 
-      const char *parentOidStr = git_oid_tostr_s(parentOid);
-      if (!oidStr) {
+      str = git_oid_tostr_s(parentOid);
+      if (!str) {
         LOG_ERROR(
-          Log::ErrorId::Git,
-          "Can't convert parent oid at index {} for oid \"{}\" to string.", i,
-          oidStr);
+            Log::ErrorId::Git,
+            "Can't convert parent oid at index {} for oid \"{}\" to string.", i,
+            oidStr);
         git_revwalk_free(walker);
         git_commit_free(commit);
         LOG_PERF(0, "Exit");
         return {};
+      }
+
+      const QString parentOidStr = str;
+
+      if (oidStr == parentOidStr) {
+        LOG_ERROR(Log::ErrorId::Git, "The commit \"{}\"is parent of itself",
+                  parentOidStr)
+        continue;
       }
 
       history_.commitInfos[oidStr].parents.push_back(parentOidStr);
@@ -880,8 +952,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName) {
 
     history_.commitInfos[oidStr].oid = oid;
 
-    const char *message = git_commit_message(commit);
-    if (message)
+    if (const char *message = git_commit_message(commit))
       history_.commitInfos[oidStr].message = message;
     else {
       LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit message for oid \"{}\"",
@@ -892,8 +963,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName) {
       return {};
     }
 
-    const char *summary = git_commit_summary(commit);
-    if (summary)
+    if (const char *summary = git_commit_summary(commit))
       history_.commitInfos[oidStr].summary = summary;
     else {
       LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit summary for oid \"{}\"",
@@ -904,8 +974,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName) {
       return {};
     }
 
-    const git_signature *signature = git_commit_author(commit);
-    if (signature) {
+    if (const git_signature *signature = git_commit_author(commit)) {
       if (signature->name)
         history_.commitInfos[oidStr].authorName = signature->name;
 
@@ -913,7 +982,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName) {
         history_.commitInfos[oidStr].authorEmail = signature->email;
 
       history_.commitInfos[oidStr].timeStamp =
-        signature->when.time * 1000 + signature->when.offset * 60 * 1000;
+          signature->when.time * 1000 + signature->when.offset * 60 * 1000;
     } else {
       LOG_ERROR(Log::ErrorId::Git,
                 "Can't lookup commit signature for oid \"{}\"", oidStr);
@@ -929,6 +998,25 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName) {
   }
 
   git_revwalk_free(walker);
+
+  std::sort(history_.commits.begin(), history_.commits.end(),
+            [&](const QString &a, const QString &b) {
+              auto it = history_.commitInfos.find(a);
+              if (it == history_.commitInfos.end()) {
+                return false;
+              }
+
+              const GitCommitInfo &commitInfoA = it.value();
+
+              it = history_.commitInfos.find(b);
+              if (it == history_.commitInfos.end()) {
+                return false;
+              }
+
+              const GitCommitInfo &commitInfoB = it.value();
+
+              return commitInfoA.timeStamp < commitInfoB.timeStamp;
+            });
 
   history_.valid = true;
 
@@ -989,7 +1077,7 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid) {
 
     // Check if branch contains the commit
     const int contains =
-      git_graph_descendant_of(repo, git_object_id(branchTip), &oid);
+        git_graph_descendant_of(repo, git_object_id(branchTip), &oid);
     if (contains == 1)
       branches += branchName;
 
