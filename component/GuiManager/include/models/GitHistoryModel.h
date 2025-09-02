@@ -61,7 +61,7 @@ private:
   printDrawableSlices(const Util::ResizableMatrix<Slice> &resizableMatrix);
 
 private:
-  const Slices &historySlices(const QString &commit) const;
+  Slices historySlices(const QString &commit) const;
 
   int indexDifference(const QString &commitA, const QString &commitB) const;
 

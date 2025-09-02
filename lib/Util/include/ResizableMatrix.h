@@ -12,7 +12,7 @@ public:
     Q_ASSERT(index >= 0);
 
     if (index < 0) {
-      return _emptyVector;
+      throw std::out_of_range("Index cannot be negative");
     }
 
     if (index >= _columns.size()) {
@@ -32,7 +32,7 @@ public:
     Q_ASSERT(index >= 0);
 
     if (index < 0) {
-      return _emptyVector;
+      throw std::out_of_range("Index cannot be negative");
     }
 
     if (index >= _columns.size()) {
@@ -52,7 +52,7 @@ public:
     Q_ASSERT(x >= 0 && y >= 0);
 
     if (x < 0 || y < 0) {
-      return _emptyElement;
+      throw std::out_of_range("Index cannot be negative");
     }
 
     if (x >= _columns.size()) {
@@ -72,7 +72,7 @@ public:
     Q_ASSERT(x >= 0 && y >= 0);
 
     if (x < 0 || y < 0) {
-      return;
+      throw std::out_of_range("Index cannot be negative");
     }
 
     _columns.resize(x + 1);
@@ -96,14 +96,6 @@ public:
 private:
   mutable qsizetype _maxSizeY = 0;
   mutable ResizableVector<ResizableVector<T>> _columns;
-
-  static T _emptyElement;
-  static ResizableVector<T> _emptyVector;
 };
-
-template <typename T> T ResizableMatrix<T>::_emptyElement = T();
-
-template <typename T>
-ResizableVector<T> ResizableMatrix<T>::_emptyVector = ResizableVector<T>();
 
 } // namespace Util

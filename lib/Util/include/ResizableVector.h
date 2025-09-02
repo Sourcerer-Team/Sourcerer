@@ -10,6 +10,12 @@ public:
   ResizableVector() : QVector<T>() {}
 
   const T& operator[](qsizetype index) const {
+    Q_ASSERT(index >= 0);
+
+    if (index < 0) {
+      throw std::out_of_range("Index cannot be negative");
+    }
+
     if (index >= QVector<T>::size()) {
       const_cast<ResizableVector *>(this)->resize(index + 1);
     }
@@ -18,6 +24,12 @@ public:
   }
 
   T& operator[](qsizetype index) {
+    Q_ASSERT(index >= 0);
+
+    if (index < 0) {
+      throw std::out_of_range("Index cannot be negative");
+    }
+
     if (index >= QVector<T>::size()) {
       QVector<T>::resize(index + 1);
     }
@@ -26,6 +38,12 @@ public:
   }
 
   const T& at(qsizetype index) const {
+    Q_ASSERT(index >= 0);
+
+    if (index < 0) {
+      throw std::out_of_range("Index cannot be negative");
+    }
+
     if (index >= QVector<T>::size()) {
       QVector<T>::resize(index + 1);
     }

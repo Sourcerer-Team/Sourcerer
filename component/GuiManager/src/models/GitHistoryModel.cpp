@@ -17,8 +17,6 @@ namespace GuiManager {
 
 namespace Models {
 
-static const Slices emptySlices;
-
 GitHistoryModel::GitHistoryModel(QObject *parent)
     : QAbstractTableModel(parent) {
   LOG_PERF(0, "Enter");
@@ -201,133 +199,139 @@ void GitHistoryModel::createDrawableSlices() {
 
   _drawableSlices.clear();
 
-  QMap<QString, QPair<int, int>> commitPositions;
+  try {
+    QMap<QString, QPair<int, int>> commitPositions;
 
-  for (int i = 0; i < _history.commits.size(); ++i) {
-    const QString &currentCommit = _history.commits.at(i);
-    const auto it = _history.commitInfos.find(currentCommit);
-    if (it == _history.commitInfos.end()) {
-      continue;
-    }
-
-    const auto &commitInfo = it.value();
-
-    if (i == 0) {
-      commitPositions[currentCommit] = qMakePair(0, 0);
-      _drawableSlices[0][0].toCommit = currentCommit;
-      _drawableSlices[0][0].main = true;
-      continue;
-    }
-
-    QSet<qsizetype> emptyColumnIndexes;
-
-    for (int j = 0; j < commitInfo.parents.size(); ++j) {
-
-      int emptyColumnIndex = -1;
-      int parentX = -1;
-      int parentY = -1;
-
-      if (commitPositions.contains(commitInfo.parents[j])) {
-        const auto &[x, y] = commitPositions[commitInfo.parents[j]];
-        parentX = x;
-        parentY = y;
+    for (int i = 0; i < _history.commits.size(); ++i) {
+      const QString &currentCommit = _history.commits.at(i);
+      const auto it = _history.commitInfos.find(currentCommit);
+      if (it == _history.commitInfos.end()) {
+        continue;
       }
 
-      if (parentX == -1 || parentY == -1) {
-        for (int k = 0; k < _drawableSlices.sizeX(); ++k) {
-          if (_drawableSlices[k][i - 1].toCommit.isEmpty()) {
-            emptyColumnIndex = k;
-            break;
-          }
+      const auto &commitInfo = it.value();
+
+      if (i == 0) {
+        commitPositions[currentCommit] = qMakePair(0, 0);
+        _drawableSlices[0][0].toCommit = currentCommit;
+        _drawableSlices[0][0].main = true;
+        continue;
+      }
+
+      QSet<qsizetype> emptyColumnIndexes;
+
+      for (int j = 0; j < commitInfo.parents.size(); ++j) {
+
+        int emptyColumnIndex = -1;
+        int parentX = -1;
+        int parentY = -1;
+
+        if (commitPositions.contains(commitInfo.parents[j])) {
+          const auto &[x, y] = commitPositions[commitInfo.parents[j]];
+          parentX = x;
+          parentY = y;
         }
 
-        if (emptyColumnIndex == -1) {
-          emptyColumnIndex = _drawableSlices.sizeX();
-        }
-
-        commitPositions[currentCommit] = qMakePair(emptyColumnIndex, i);
-        _drawableSlices[emptyColumnIndex][i].top = false;
-        _drawableSlices[emptyColumnIndex][i].toCommit = currentCommit;
-        _drawableSlices[emptyColumnIndex][i].main = true;
-
-      } else {
-        for (int k = 0; k < _drawableSlices.sizeX(); ++k) {
-          bool columnIsEmpty = true;
-          for (int l = parentY + 1; l < i; ++l) {
-            columnIsEmpty &= _drawableSlices[k][l].toCommit.isEmpty();
-            if (!columnIsEmpty) {
+        if (parentX == -1 || parentY == -1) {
+          for (int k = 0; k < _drawableSlices.sizeX(); ++k) {
+            if (_drawableSlices[k][i - 1].toCommit.isEmpty()) {
+              emptyColumnIndex = k;
               break;
             }
           }
 
-          if (columnIsEmpty) {
-            emptyColumnIndex = j;
-            break;
+          if (emptyColumnIndex == -1) {
+            emptyColumnIndex = _drawableSlices.sizeX();
           }
-        }
 
-        if (emptyColumnIndex == -1) {
-          emptyColumnIndex = _drawableSlices.sizeX();
-        }
+          commitPositions[currentCommit] = qMakePair(emptyColumnIndex, i);
+          _drawableSlices[emptyColumnIndex][i].top = false;
+          _drawableSlices[emptyColumnIndex][i].toCommit = currentCommit;
+          _drawableSlices[emptyColumnIndex][i].main = true;
 
-        const qsizetype startY = emptyColumnIndex == parentX ? parentY + 1 : parentY;
-
-        for (qsizetype k = startY; k <= i; ++k) {
-          _drawableSlices[emptyColumnIndex][k].bottom = k != i;
-          _drawableSlices[emptyColumnIndex][k].top = k != parentY;
-          _drawableSlices[emptyColumnIndex][k].toCommit =
-              _drawableSlices[emptyColumnIndex][k].toCommit.isEmpty()
-                  ? currentCommit
-                  : _drawableSlices[emptyColumnIndex][k].toCommit;
-          _drawableSlices[emptyColumnIndex][k].main = false;
-        }
-
-        if (parentX < emptyColumnIndex) {
-          for (qsizetype k = parentX; k <= emptyColumnIndex; ++k) {
-            _drawableSlices[k][parentY].right = k != emptyColumnIndex;
-            _drawableSlices[k][parentY].left = k != parentX;
-          }
-        } else if (parentX > emptyColumnIndex) {
-          for (qsizetype k = emptyColumnIndex; k <= parentX; ++k) {
-            _drawableSlices[k][parentY].right = k != parentX;
-            _drawableSlices[k][parentY].left = k != emptyColumnIndex;
-          }
         } else {
-          _drawableSlices[emptyColumnIndex][parentY].bottom = true;
+          for (qsizetype k = _drawableSlices.sizeX() - 1; k >= 0; --k) {
+            bool columnIsEmpty = true;
+            for (int l = parentY + 1; l < i; ++l) {
+              columnIsEmpty &= _drawableSlices[k][l].toCommit.isEmpty();
+              if (!columnIsEmpty) {
+                break;
+              }
+            }
+
+            if (columnIsEmpty) {
+              emptyColumnIndex = j;
+              break;
+            }
+          }
+
+          if (emptyColumnIndex == -1) {
+            emptyColumnIndex = _drawableSlices.sizeX();
+          }
+
+          const qsizetype startY =
+              emptyColumnIndex == parentX ? parentY + 1 : parentY;
+
+          for (qsizetype k = startY; k <= i; ++k) {
+            _drawableSlices[emptyColumnIndex][k].bottom = k != i;
+            _drawableSlices[emptyColumnIndex][k].top = k != parentY;
+            _drawableSlices[emptyColumnIndex][k].toCommit =
+                _drawableSlices[emptyColumnIndex][k].toCommit.isEmpty()
+                    ? currentCommit
+                    : _drawableSlices[emptyColumnIndex][k].toCommit;
+            _drawableSlices[emptyColumnIndex][k].main = false;
+          }
+
+          if (parentX < emptyColumnIndex) {
+            for (qsizetype k = parentX; k <= emptyColumnIndex; ++k) {
+              _drawableSlices[k][parentY].right = k != emptyColumnIndex;
+              _drawableSlices[k][parentY].left = k != parentX;
+            }
+          } else if (parentX > emptyColumnIndex) {
+            for (qsizetype k = emptyColumnIndex; k <= parentX; ++k) {
+              _drawableSlices[k][parentY].right = k != parentX;
+              _drawableSlices[k][parentY].left = k != emptyColumnIndex;
+            }
+          } else {
+            _drawableSlices[emptyColumnIndex][parentY].bottom = true;
+          }
         }
+
+        emptyColumnIndexes += emptyColumnIndex;
       }
 
-      emptyColumnIndexes += emptyColumnIndex;
-    }
+      QList<qsizetype> indexes = emptyColumnIndexes.values();
 
-    QList<qsizetype> indexes = emptyColumnIndexes.values();
+      std::sort(indexes.begin(), indexes.end());
 
-    std::sort(indexes.begin(), indexes.end());
+      if (indexes.isEmpty()) {
+        _drawableSlices.clear();
+        LOG_PERF(0, "Exit");
+        return;
+      }
 
-    if (indexes.isEmpty()) {
-      _drawableSlices.clear();
-      LOG_PERF(0, "Exit");
-      return;
-    }
+      const qsizetype firstIndex = indexes.first();
+      const qsizetype lastIndex = indexes.last();
 
-    const qsizetype firstIndex = indexes.first();
-    const qsizetype lastIndex = indexes.last();
-
-    commitPositions[currentCommit] = qMakePair(firstIndex, i);
-    _drawableSlices[firstIndex][i].bottom = false;
-    _drawableSlices[firstIndex][i].top = true;
-    _drawableSlices[firstIndex][i].toCommit = currentCommit;
-    _drawableSlices[firstIndex][i].main = true;
-
-    _drawableSlices[lastIndex][i].bottom = false;
-    _drawableSlices[lastIndex][i].top = true;
-
-    for (qsizetype j = firstIndex; j <= lastIndex; ++j) {
+      commitPositions[currentCommit] = qMakePair(firstIndex, i);
       _drawableSlices[firstIndex][i].bottom = false;
-      _drawableSlices[firstIndex][i].top = emptyColumnIndexes.contains(j);
-      _drawableSlices[firstIndex][i].left = j != firstIndex;
-      _drawableSlices[firstIndex][i].right = j != lastIndex;
+      _drawableSlices[firstIndex][i].top = true;
+      _drawableSlices[firstIndex][i].toCommit = currentCommit;
+      _drawableSlices[firstIndex][i].main = true;
+
+      _drawableSlices[lastIndex][i].bottom = false;
+      _drawableSlices[lastIndex][i].top = true;
+
+      for (qsizetype j = firstIndex; j <= lastIndex; ++j) {
+        _drawableSlices[firstIndex][i].bottom = false;
+        _drawableSlices[firstIndex][i].top = emptyColumnIndexes.contains(j);
+        _drawableSlices[firstIndex][i].left = j != firstIndex;
+        _drawableSlices[firstIndex][i].right = j != lastIndex;
+      }
     }
+  } catch (const std::out_of_range &e) {
+    LOG_ERROR(Log::ErrorId::Generic, "Exception: {}", e.what());
+    _drawableSlices.clear();
   }
 
   LOG_PERF(0, "Exit");
@@ -394,24 +398,32 @@ void GitHistoryModel::printDrawableSlices(
   }
 }
 
-const Slices &GitHistoryModel::historySlices(const QString &commit) const {
+Slices GitHistoryModel::historySlices(const QString &commit) const {
   LOG_PERF(0, "Enter");
 
   if (_history.commits.size() == 0) {
     LOG_PERF(0, "Exit");
-    return emptySlices;
+    return {};
   }
 
   const int difference = indexDifference(_history.commits.first(), commit);
 
   if (difference < 0) {
     LOG_PERF(0, "Exit");
-    return emptySlices;
+    return {};
+  }
+
+  Slices slices;
+
+  try {
+    slices = _drawableSlices[difference];
+  } catch (const std::out_of_range &e) {
+    LOG_ERROR(Log::ErrorId::Generic, "Exception: {}", e.what());
   }
 
   LOG_PERF(0, "Exit");
 
-  return _drawableSlices[difference];
+  return slices;
 }
 
 int GitHistoryModel::indexDifference(const QString &commitA,
