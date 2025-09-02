@@ -9,37 +9,57 @@ public:
   ResizableMatrix() {}
 
   const ResizableVector<T> &operator[](qsizetype index) const {
+    Q_ASSERT(index >= 0);
+
+    if (index < 0) {
+      return _emptyVector;
+    }
+
     if (index >= _columns.size()) {
       _columns.resize(index + 1);
     }
 
-    const auto& col = _columns[index];
+    const auto &col = _columns[index];
     if (col.size() > _maxSizeY) {
       _maxSizeY = col.size();
     }
 
-    return col;;
+    return col;
+    ;
   }
 
   ResizableVector<T> &operator[](qsizetype index) {
+    Q_ASSERT(index >= 0);
+
+    if (index < 0) {
+      return _emptyVector;
+    }
+
     if (index >= _columns.size()) {
       _columns.resize(index + 1);
     }
 
-    auto& col = _columns[index];
+    auto &col = _columns[index];
     if (col.size() > _maxSizeY) {
       _maxSizeY = col.size();
     }
 
-    return col;;
+    return col;
+    ;
   }
 
   const T &at(qsizetype x, qsizetype y) const {
+    Q_ASSERT(x >= 0 && y >= 0);
+
+    if (x < 0 || y < 0) {
+      return _emptyElement;
+    }
+
     if (x >= _columns.size()) {
       _columns.resize(x + 1);
     }
 
-    const T& element = _columns.at(x).at(y);
+    const T &element = _columns.at(x).at(y);
 
     if (_columns.at(x).size() > _maxSizeY) {
       _maxSizeY = _columns.at(x).size();
@@ -49,6 +69,12 @@ public:
   }
 
   void resize(const qsizetype x, const qsizetype y) {
+    Q_ASSERT(x >= 0 && y >= 0);
+
+    if (x < 0 || y < 0) {
+      return;
+    }
+
     _columns.resize(x + 1);
 
     _maxSizeY = y + 1;
@@ -70,6 +96,14 @@ public:
 private:
   mutable qsizetype _maxSizeY = 0;
   mutable ResizableVector<ResizableVector<T>> _columns;
+
+  static T _emptyElement;
+  static ResizableVector<T> _emptyVector;
 };
+
+template <typename T> T ResizableMatrix<T>::_emptyElement = T();
+
+template <typename T>
+ResizableVector<T> ResizableMatrix<T>::_emptyVector = ResizableVector<T>();
 
 } // namespace Util

@@ -253,7 +253,7 @@ void GitHistoryModel::createDrawableSlices() {
       } else {
         for (int k = 0; k < _drawableSlices.sizeX(); ++k) {
           bool columnIsEmpty = true;
-          for (int l = parentY; l < i; ++l) {
+          for (int l = parentY + 1; l < i; ++l) {
             columnIsEmpty &= _drawableSlices[k][l].toCommit.isEmpty();
             if (!columnIsEmpty) {
               break;
@@ -270,14 +270,16 @@ void GitHistoryModel::createDrawableSlices() {
           emptyColumnIndex = _drawableSlices.sizeX();
         }
 
-        for (int k = parentY; k <= i; ++k) {
-          _drawableSlices[parentX][k].bottom = k != i;
-          _drawableSlices[parentX][k].top = k != parentY;
-          _drawableSlices[parentX][k].toCommit =
-              _drawableSlices[parentX][k].toCommit.isEmpty()
+        const qsizetype startY = emptyColumnIndex == parentX ? parentY + 1 : parentY;
+
+        for (qsizetype k = startY; k <= i; ++k) {
+          _drawableSlices[emptyColumnIndex][k].bottom = k != i;
+          _drawableSlices[emptyColumnIndex][k].top = k != parentY;
+          _drawableSlices[emptyColumnIndex][k].toCommit =
+              _drawableSlices[emptyColumnIndex][k].toCommit.isEmpty()
                   ? currentCommit
-                  : _drawableSlices[parentX][k].toCommit;
-          _drawableSlices[parentX][k].main = false;
+                  : _drawableSlices[emptyColumnIndex][k].toCommit;
+          _drawableSlices[emptyColumnIndex][k].main = false;
         }
 
         if (parentX < emptyColumnIndex) {
@@ -409,7 +411,7 @@ const Slices &GitHistoryModel::historySlices(const QString &commit) const {
 
   LOG_PERF(0, "Exit");
 
-  return _drawableSlices[_drawableSlices.sizeX() - difference];
+  return _drawableSlices[difference];
 }
 
 int GitHistoryModel::indexDifference(const QString &commitA,
