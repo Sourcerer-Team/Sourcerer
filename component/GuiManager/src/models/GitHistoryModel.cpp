@@ -220,14 +220,14 @@ void GitHistoryModel::createDrawableSlices() {
 
       QSet<qsizetype> emptyColumnIndexes;
 
-      for (int j = 0; j < commitInfo.parents.size(); ++j) {
+      for (const auto &parent : commitInfo.parents) {
 
         qsizetype emptyColumnIndex = -1;
         qsizetype parentX = -1;
         qsizetype parentY = -1;
 
-        if (commitPositions.contains(commitInfo.parents[j])) {
-          const auto &[x, y] = commitPositions[commitInfo.parents[j]];
+        if (commitPositions.contains(parent)) {
+          const auto &[x, y] = commitPositions[parent];
           parentX = x;
           parentY = y;
         }
@@ -260,7 +260,7 @@ void GitHistoryModel::createDrawableSlices() {
 
           for (const auto &index : indexes) {
             bool columnIsEmpty = true;
-            for (int l = parentY + 1; l < i; ++l) {
+            for (qsizetype l = parentY + 1; l < i; ++l) {
               columnIsEmpty &= _drawableSlices[index][l].toCommit.isEmpty();
               if (!columnIsEmpty) {
                 break;
