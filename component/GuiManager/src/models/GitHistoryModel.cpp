@@ -245,24 +245,7 @@ void GitHistoryModel::createDrawableSlices() {
           parentY = y;
         }
 
-        if (parentX == -1 || parentY == -1) {
-          for (int k = 0; k < _drawableSlices.sizeX(); ++k) {
-            if (_drawableSlices[k][i - 1].toCommit.isEmpty()) {
-              emptyColumnIndex = k;
-              break;
-            }
-          }
-
-          if (emptyColumnIndex == -1) {
-            emptyColumnIndex = _drawableSlices.sizeX();
-          }
-
-          commitPositions[currentCommit] = qMakePair(emptyColumnIndex, i);
-          _drawableSlices[emptyColumnIndex][i].top = false;
-          _drawableSlices[emptyColumnIndex][i].toCommit = currentCommit;
-          _drawableSlices[emptyColumnIndex][i].main = true;
-
-        } else {
+        if (parentX != -1 && parentY != -1) {
           QVector<qsizetype> indexes;
 
           indexes += parentX;
@@ -327,9 +310,9 @@ void GitHistoryModel::createDrawableSlices() {
           } else {
             _drawableSlices[emptyColumnIndex][parentY].bottom = true;
           }
-        }
 
-        emptyColumnIndexes += emptyColumnIndex;
+          emptyColumnIndexes += emptyColumnIndex;
+        }
       }
 
       QList<qsizetype> indexes = emptyColumnIndexes.values();
