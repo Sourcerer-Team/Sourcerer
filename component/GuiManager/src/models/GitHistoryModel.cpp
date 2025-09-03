@@ -50,7 +50,7 @@ void GitHistoryModel::updateHistory(const GitRepo::GitHistory &history) {
   }
 
 #ifdef QT_DEBUG
-  //printDrawableSlices(_drawableSlices);
+  // printDrawableSlices(_drawableSlices);
 #endif
 
   endResetModel();
@@ -293,9 +293,13 @@ void GitHistoryModel::createDrawableSlices() {
           const qsizetype startY =
               emptyColumnIndex == parentX ? parentY + 1 : parentY;
 
-          const auto itParent =
-              std::find(commitInfo.parents.begin(), commitInfo.parents.end(),
-                        _drawableSlices[emptyColumnIndex][startY - 1].toCommit);
+          QList<QString>::const_iterator itParent;
+
+          if (startY > 0) {
+            itParent = std::find(
+                commitInfo.parents.begin(), commitInfo.parents.end(),
+                _drawableSlices[emptyColumnIndex][startY - 1].toCommit);
+          }
 
           for (qsizetype k = startY; k <= i; ++k) {
             _drawableSlices[emptyColumnIndex][k].bottom = k != i;

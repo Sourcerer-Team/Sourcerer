@@ -31,17 +31,17 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
 
   painter->save();
 
-  if (option.state & QStyle::State_Selected) {
-    painter->fillRect(option.rect, option.palette.highlight());
-  } else {
-    painter->fillRect(option.rect, option.palette.window());
-  }
+  painter->setRenderHint(QPainter::Antialiasing, true);
 
-  painter->setPen(Qt::darkGreen);
-  painter->setBrush(Qt::darkGreen);
+  QRegion clipRegion(option.rect);
+  painter->setClipRegion(clipRegion);
+
+  painter->setPen(QPen(QBrush(Qt::darkGreen), 2, Qt::SolidLine, Qt::RoundCap,
+                       Qt::RoundJoin));
+  painter->setBrush(QBrush(Qt::darkGreen));
 
   for (int i = 0; i < slices.size(); ++i) {
-    if (const GuiManager::Models::Slice &slice = slices.at(i);
+    if (const Models::Slice &slice = slices[i];
         slice.top && slice.left && !slice.right && !slice.bottom) {
       // Top-left corner
       if (slice.main) {
@@ -61,14 +61,15 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
 
         painter->drawLines(points);
       } else {
-        const QPoint topLeft(option.rect.left() + i * cellWidth,
-                             option.rect.top());
-        const QPoint bottomRight(option.rect.left() + (i + 1) * cellWidth,
-                                 option.rect.top() + cellHeight);
-        const QRect rect(topLeft, bottomRight);
+        const QPoint p0(option.rect.left() + i * cellWidth - cellWidth / 2 - 1,
+                        option.rect.top() - cellHeight / 2 - 1);
+        const QPoint p1(option.rect.left() + (i + 1) * cellWidth -
+                            cellWidth / 2 - 1,
+                        option.rect.top() + cellHeight - cellHeight / 2 - 1);
+        const QRect rect(p0, p1);
 
-        constexpr int startAngle = 180 * 16;
-        constexpr int spanAngle = -90 * 16;
+        constexpr int startAngle = 270 * 16;
+        constexpr int spanAngle = 90 * 16;
 
         painter->drawArc(rect, startAngle, spanAngle);
       }
@@ -91,14 +92,15 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
 
         painter->drawLines(points);
       } else {
-        const QPoint topLeft(option.rect.left() + i * cellWidth,
-                             option.rect.top());
-        const QPoint bottomRight(option.rect.left() + (i + 1) * cellWidth,
-                                 option.rect.top() + cellHeight);
-        const QRect rect(topLeft, bottomRight);
+        const QPoint p0(option.rect.left() + i * cellWidth + cellWidth / 2,
+                        option.rect.top() - cellHeight / 2 - 1);
+        const QPoint p1(option.rect.left() + i * cellWidth + cellWidth +
+                            cellWidth / 2,
+                        option.rect.top() + cellHeight - cellHeight / 2 - 1);
+        const QRect rect(p0, p1);
 
-        constexpr int startAngle = 90 * 16;
-        constexpr int spanAngle = -90 * 16;
+        constexpr int startAngle = 180 * 16;
+        constexpr int spanAngle = 90 * 16;
 
         painter->drawArc(rect, startAngle, spanAngle);
       }
@@ -121,14 +123,15 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
 
         painter->drawLines(points);
       } else {
-        const QPoint topLeft(option.rect.left() + i * cellWidth,
-                             option.rect.top());
-        const QPoint bottomRight(option.rect.left() + (i + 1) * cellWidth,
-                                 option.rect.top() + cellHeight);
-        const QRect rect(topLeft, bottomRight);
+        const QPoint p0(option.rect.left() + i * cellWidth - cellWidth / 2 - 1,
+                        option.rect.top() + cellHeight / 2);
+        const QPoint p1(option.rect.left() + i * cellWidth + cellWidth -
+                            cellWidth / 2 - 1,
+                        option.rect.top() + cellHeight + cellHeight / 2);
+        const QRect rect(p0, p1);
 
-        constexpr int startAngle = 180 * 16;
-        constexpr int spanAngle = 90 * 16;
+        constexpr int startAngle = 90 * 16;
+        constexpr int spanAngle = -90 * 16;
 
         painter->drawArc(rect, startAngle, spanAngle);
       }
@@ -151,14 +154,15 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
 
         painter->drawLines(points);
       } else {
-        const QPoint topLeft(option.rect.left() + i * cellWidth,
-                             option.rect.top());
-        const QPoint bottomRight(option.rect.left() + (i + 1) * cellWidth,
-                                 option.rect.top() + cellHeight);
-        const QRect rect(topLeft, bottomRight);
+        const QPoint p0(option.rect.left() + i * cellWidth + cellWidth / 2,
+                        option.rect.top() + cellHeight / 2);
+        const QPoint p1(option.rect.left() + i * cellWidth + +cellWidth +
+                            cellWidth / 2,
+                        option.rect.top() + cellHeight + cellHeight / 2);
+        const QRect rect(p0, p1);
 
-        constexpr int startAngle = 270 * 16;
-        constexpr int spanAngle = 90 * 16;
+        constexpr int startAngle = 180 * 16;
+        constexpr int spanAngle = -90 * 16;
 
         painter->drawArc(rect, startAngle, spanAngle);
       }
