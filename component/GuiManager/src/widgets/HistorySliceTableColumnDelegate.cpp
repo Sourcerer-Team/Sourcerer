@@ -6,7 +6,7 @@
 namespace GuiManager::Widgets {
 
 HistorySliceTableColumnDelegate::HistorySliceTableColumnDelegate(
-    QObject *parent)
+  QObject *parent)
     : QStyledItemDelegate(parent) {}
 
 void HistorySliceTableColumnDelegate::paint(QPainter *painter,
@@ -24,7 +24,7 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
   }
 
   const auto slices =
-      index.data(Qt::DisplayRole).value<GuiManager::Models::Slices>();
+    index.data(Qt::DisplayRole).value<GuiManager::Models::Slices>();
 
   const int cellHeight = option.rect.height();
   const int cellWidth = cellHeight /*option.rect.width() / width*/;
@@ -60,11 +60,17 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
                          option.rect.top() + cellHeight / 2);
 
         painter->drawLines(points);
+
+        // Draw commit circle
+        const int centerX = option.rect.x() + cellWidth / 2 + i * cellWidth;
+        const int centerY = option.rect.y() + cellHeight / 2;
+        const int radius = qMin(cellWidth, cellHeight) / 6;
+        painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
       } else {
         const QPoint p0(option.rect.left() + i * cellWidth - cellWidth / 2 - 1,
                         option.rect.top() - cellHeight / 2 - 1);
         const QPoint p1(option.rect.left() + (i + 1) * cellWidth -
-                            cellWidth / 2 - 1,
+                          cellWidth / 2 - 1,
                         option.rect.top() + cellHeight - cellHeight / 2 - 1);
         const QRect rect(p0, p1);
 
@@ -91,11 +97,17 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
                          option.rect.top() + cellHeight / 2);
 
         painter->drawLines(points);
+
+        // Draw commit circle
+        const int centerX = option.rect.x() + cellWidth / 2 + i * cellWidth;
+        const int centerY = option.rect.y() + cellHeight / 2;
+        const int radius = qMin(cellWidth, cellHeight) / 6;
+        painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
       } else {
         const QPoint p0(option.rect.left() + i * cellWidth + cellWidth / 2,
                         option.rect.top() - cellHeight / 2 - 1);
         const QPoint p1(option.rect.left() + i * cellWidth + cellWidth +
-                            cellWidth / 2,
+                          cellWidth / 2,
                         option.rect.top() + cellHeight - cellHeight / 2 - 1);
         const QRect rect(p0, p1);
 
@@ -122,11 +134,17 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
                          option.rect.top() + cellHeight);
 
         painter->drawLines(points);
+
+        // Draw commit circle
+        const int centerX = option.rect.x() + cellWidth / 2 + i * cellWidth;
+        const int centerY = option.rect.y() + cellHeight / 2;
+        const int radius = qMin(cellWidth, cellHeight) / 6;
+        painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
       } else {
         const QPoint p0(option.rect.left() + i * cellWidth - cellWidth / 2 - 1,
                         option.rect.top() + cellHeight / 2);
         const QPoint p1(option.rect.left() + i * cellWidth + cellWidth -
-                            cellWidth / 2 - 1,
+                          cellWidth / 2 - 1,
                         option.rect.top() + cellHeight + cellHeight / 2);
         const QRect rect(p0, p1);
 
@@ -153,11 +171,17 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
                          option.rect.top() + cellHeight / 2);
 
         painter->drawLines(points);
+
+        // Draw commit circle
+        const int centerX = option.rect.x() + cellWidth / 2 + i * cellWidth;
+        const int centerY = option.rect.y() + cellHeight / 2;
+        const int radius = qMin(cellWidth, cellHeight) / 6;
+        painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
       } else {
         const QPoint p0(option.rect.left() + i * cellWidth + cellWidth / 2,
                         option.rect.top() + cellHeight / 2);
         const QPoint p1(option.rect.left() + i * cellWidth + +cellWidth +
-                            cellWidth / 2,
+                          cellWidth / 2,
                         option.rect.top() + cellHeight + cellHeight / 2);
         const QRect rect(p0, p1);
 
@@ -229,8 +253,8 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
 }
 
 void HistorySliceTableColumnDelegate::paintDefault(
-    QPainter *painter, const QStyleOptionViewItem &option,
-    const QModelIndex &index) const {
+  QPainter *painter, const QStyleOptionViewItem &option,
+  const QModelIndex &index) const {
   QStyleOptionViewItem opt(option); // Make a copy so we can modify it
   initStyleOption(&opt, index);     // Populate with model data
 
