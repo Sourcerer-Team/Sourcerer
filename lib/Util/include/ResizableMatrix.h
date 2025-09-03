@@ -19,13 +19,7 @@ public:
       _columns.resize(index + 1);
     }
 
-    const auto &col = _columns[index];
-    if (col.size() > _maxSizeY) {
-      _maxSizeY = col.size();
-    }
-
-    return col;
-    ;
+    return _columns[index];
   }
 
   ResizableVector<T> &operator[](qsizetype index) {
@@ -39,13 +33,7 @@ public:
       _columns.resize(index + 1);
     }
 
-    auto &col = _columns[index];
-    if (col.size() > _maxSizeY) {
-      _maxSizeY = col.size();
-    }
-
-    return col;
-    ;
+    return _columns[index];
   }
 
   const T &at(qsizetype x, qsizetype y) const {
@@ -59,42 +47,56 @@ public:
       _columns.resize(x + 1);
     }
 
-    const T &element = _columns.at(x).at(y);
-
-    if (_columns.at(x).size() > _maxSizeY) {
-      _maxSizeY = _columns.at(x).size();
-    }
-
-    return element;
+    return _columns.at(x).at(y);
   }
 
-  void resize(const qsizetype x, const qsizetype y) {
-    Q_ASSERT(x >= 0 && y >= 0);
+  void resize(const qsizetype width, const qsizetype height) {
+    Q_ASSERT(width >= 0 && height >= 0);
 
-    if (x < 0 || y < 0) {
+    if (width < 0 || height < 0) {
       throw std::out_of_range("Index cannot be negative");
     }
 
-    _columns.resize(x + 1);
-
-    _maxSizeY = y + 1;
+    _columns.resize(width);
 
     for (auto &column : _columns) {
-      column.resize(y + 1);
+      column.resize(height);
     }
   }
 
   qsizetype sizeX() const { return _columns.size(); }
 
-  qsizetype sizeY() const { return _maxSizeY; }
+  qsizetype sizeY() const {
+    qsizetype maxSize = 0;
+    for (qsizetype i = 0; i < _columns.size(); ++i) {
+      if (_columns[i].size() > maxSize) {
+        maxSize = _columns[i].size();
+      }
+    }
+
+    return maxSize;
+  }
+
+  void invertHorizontaly() {
+    for (int i = 0; i < sizeX() / 2; ++i) {
+      std::swap(_columns[i], _columns[sizeX() - i - 1]);
+    }
+  }
+
+  void invertVertically() {
+    resize(sizeX(), sizeY());
+    for (int i = 0; i < sizeY() / 2; ++i) {
+        for (int j = 0; j < sizeX(); ++j) {
+          std::swap(_columns[j][i], _columns[j][sizeY() - i - 1]);
+        }
+    }
+  }
 
   void clear() {
     _columns.clear();
-    _maxSizeY = 0;
   }
 
 private:
-  mutable qsizetype _maxSizeY = 0;
   mutable ResizableVector<ResizableVector<T>> _columns;
 };
 

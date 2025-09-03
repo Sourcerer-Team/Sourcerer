@@ -1,8 +1,9 @@
 #include "widgets/HistorySliceTableColumnDelegate.h"
+#include "models/GitHistoryModel.h"
 
-namespace GuiManager {
+#include <QApplication>
 
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 HistorySliceTableColumnDelegate::HistorySliceTableColumnDelegate(
     QObject *parent)
@@ -11,7 +12,235 @@ HistorySliceTableColumnDelegate::HistorySliceTableColumnDelegate(
 void HistorySliceTableColumnDelegate::paint(QPainter *painter,
                                             const QStyleOptionViewItem &option,
                                             const QModelIndex &index) const {
-  QStyledItemDelegate::paint(painter, option, index);
+  if (index.column() != COLUMN_HISTORY_SLICE) {
+    paintDefault(painter, option, index);
+    return;
+  }
+
+  const auto width = index.data(HistorySliceWidthRole).value<qsizetype>();
+  if (width <= 0) {
+    paintDefault(painter, option, index);
+    return;
+  }
+
+  const auto slices =
+      index.data(Qt::DisplayRole).value<GuiManager::Models::Slices>();
+
+  const int cellHeight = option.rect.height();
+  const int cellWidth = cellHeight /*option.rect.width() / width*/;
+
+  painter->save();
+
+  if (option.state & QStyle::State_Selected) {
+    painter->fillRect(option.rect, option.palette.highlight());
+  } else {
+    painter->fillRect(option.rect, option.palette.window());
+  }
+
+  painter->setPen(Qt::darkGreen);
+  painter->setBrush(Qt::darkGreen);
+
+  for (int i = 0; i < slices.size(); ++i) {
+    if (const GuiManager::Models::Slice &slice = slices.at(i);
+        slice.top && slice.left && !slice.right && !slice.bottom) {
+      // Top-left corner
+      if (slice.main) {
+        QList<QPoint> points;
+
+        // Left
+        points += QPoint(option.rect.left() + i * cellWidth,
+                         option.rect.top() + cellHeight / 2);
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight / 2);
+
+        // Top
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top());
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight / 2);
+
+        painter->drawLines(points);
+      } else {
+        const QPoint topLeft(option.rect.left() + i * cellWidth,
+                             option.rect.top());
+        const QPoint bottomRight(option.rect.left() + (i + 1) * cellWidth,
+                                 option.rect.top() + cellHeight);
+        const QRect rect(topLeft, bottomRight);
+
+        constexpr int startAngle = 180 * 16;
+        constexpr int spanAngle = -90 * 16;
+
+        painter->drawArc(rect, startAngle, spanAngle);
+      }
+    } else if (slice.top && slice.right && !slice.left && !slice.bottom) {
+      // Top-right corner
+      if (slice.main) {
+        QList<QPoint> points;
+
+        // Top
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top());
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight / 2);
+
+        // Right
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight / 2);
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth,
+                         option.rect.top() + cellHeight / 2);
+
+        painter->drawLines(points);
+      } else {
+        const QPoint topLeft(option.rect.left() + i * cellWidth,
+                             option.rect.top());
+        const QPoint bottomRight(option.rect.left() + (i + 1) * cellWidth,
+                                 option.rect.top() + cellHeight);
+        const QRect rect(topLeft, bottomRight);
+
+        constexpr int startAngle = 90 * 16;
+        constexpr int spanAngle = -90 * 16;
+
+        painter->drawArc(rect, startAngle, spanAngle);
+      }
+    } else if (slice.bottom && slice.left && !slice.right && !slice.top) {
+      // Bottom-left corner
+      if (slice.main) {
+        QList<QPoint> points;
+
+        // Left
+        points += QPoint(option.rect.left() + i * cellWidth,
+                         option.rect.top() + cellHeight / 2);
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight / 2);
+
+        // Bottom
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight / 2);
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight);
+
+        painter->drawLines(points);
+      } else {
+        const QPoint topLeft(option.rect.left() + i * cellWidth,
+                             option.rect.top());
+        const QPoint bottomRight(option.rect.left() + (i + 1) * cellWidth,
+                                 option.rect.top() + cellHeight);
+        const QRect rect(topLeft, bottomRight);
+
+        constexpr int startAngle = 180 * 16;
+        constexpr int spanAngle = 90 * 16;
+
+        painter->drawArc(rect, startAngle, spanAngle);
+      }
+    } else if (slice.bottom && slice.right && !slice.left && !slice.top) {
+      // Bottom-right corner
+      if (slice.main) {
+        QList<QPoint> points;
+
+        // Bottom
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight / 2);
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight);
+
+        // Right
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight / 2);
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth,
+                         option.rect.top() + cellHeight / 2);
+
+        painter->drawLines(points);
+      } else {
+        const QPoint topLeft(option.rect.left() + i * cellWidth,
+                             option.rect.top());
+        const QPoint bottomRight(option.rect.left() + (i + 1) * cellWidth,
+                                 option.rect.top() + cellHeight);
+        const QRect rect(topLeft, bottomRight);
+
+        constexpr int startAngle = 270 * 16;
+        constexpr int spanAngle = 90 * 16;
+
+        painter->drawArc(rect, startAngle, spanAngle);
+      }
+    } else {
+      if (slice.left) {
+        // Left horizontal line
+        QList<QPoint> points;
+        points += QPoint(option.rect.left() + i * cellWidth,
+                         option.rect.top() + cellHeight / 2);
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight / 2);
+
+        painter->drawLines(points);
+      }
+
+      if (slice.right) {
+        // Right horizontal line
+        QList<QPoint> points;
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight / 2);
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth,
+                         option.rect.top() + cellHeight / 2);
+
+        painter->drawLines(points);
+      }
+
+      if (slice.top) {
+        // Top vertical line
+        QList<QPoint> points;
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top());
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight / 2);
+
+        painter->drawLines(points);
+      }
+
+      if (slice.bottom) {
+        // Bottom vertical line
+        QList<QPoint> points;
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight / 2);
+        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
+                         option.rect.top() + cellHeight);
+
+        painter->drawLines(points);
+      }
+
+      if (slice.main) {
+        // Draw commit circle
+        const int centerX = option.rect.x() + cellWidth / 2 + i * cellWidth;
+        const int centerY = option.rect.y() + cellHeight / 2;
+        const int radius = qMin(cellWidth, cellHeight) / 6;
+        painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
+      }
+    }
+  }
+
+  if (option.state & QStyle::State_Selected) {
+    painter->fillRect(option.rect, option.palette.highlight());
+  }
+
+  painter->restore();
 }
-} // namespace Widgets
-} // namespace GuiManager
+
+void HistorySliceTableColumnDelegate::paintDefault(
+    QPainter *painter, const QStyleOptionViewItem &option,
+    const QModelIndex &index) const {
+  QStyleOptionViewItem opt(option); // Make a copy so we can modify it
+  initStyleOption(&opt, index);     // Populate with model data
+
+  opt.features &= ~QStyleOptionViewItem::WrapText;
+  opt.textElideMode = Qt::ElideRight; // Optional: truncate long text
+
+  // Let the style engine handle selection, focus, etc.
+  const QWidget *widget = opt.widget;
+  const QStyle *style = widget ? widget->style() : QApplication::style();
+
+  painter->save();
+
+  style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, widget);
+
+  painter->restore();
+}
+} // namespace GuiManager::Widgets

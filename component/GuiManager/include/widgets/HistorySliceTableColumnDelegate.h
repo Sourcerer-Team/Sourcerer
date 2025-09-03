@@ -3,18 +3,20 @@
 #include <QPainter>
 #include <QStyledItemDelegate>
 
-namespace GuiManager {
+namespace GuiManager::Widgets {
 
-namespace Widgets {
-
-class HistorySliceTableColumnDelegate : public QStyledItemDelegate {
+class HistorySliceTableColumnDelegate final : public QStyledItemDelegate {
 public:
-  HistorySliceTableColumnDelegate(QObject *parent = nullptr);
+  explicit HistorySliceTableColumnDelegate(QObject *parent = nullptr);
   ~HistorySliceTableColumnDelegate() override = default;
 
   void paint(QPainter *painter, const QStyleOptionViewItem &option,
              const QModelIndex &index) const override;
+
+private:
+  void paintDefault(QPainter *painter, const QStyleOptionViewItem &option,
+                    const QModelIndex &index) const;
 };
 
-}
-}
+} // namespace GuiManager::Widgets
+

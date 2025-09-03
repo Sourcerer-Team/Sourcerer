@@ -14,13 +14,12 @@
 #define COLUMN_AUTHOR_EMAIL 3
 #define COLUMN_COMMIT_DATETIME 4
 #define COLUMN_COMMIT_SHA 5
-#define COLUMN_HISTORY_SLICE_WIDTH 6
 #define COLUMN_FIRST COLUMN_HISTORY_SLICE
 #define COLUMN_LAST COLUMN_COMMIT_SHA
 
-namespace GuiManager {
+#define HistorySliceWidthRole Qt::UserRole
 
-namespace Models {
+namespace GuiManager::Models {
 
 struct Slice {
   QString toCommit;
@@ -57,8 +56,10 @@ public:
 private:
   void createDrawableSlices();
 
+#ifdef QT_DEBUG
   static void
   printDrawableSlices(const Util::ResizableMatrix<Slice> &resizableMatrix);
+#endif
 
 private:
   Slices historySlices(const QString &commit) const;
@@ -70,6 +71,4 @@ private:
   Util::ResizableMatrix<Slice> _drawableSlices;
 };
 
-} // namespace Models
-
-} // namespace GuiManager
+} // namespace GuiManager::Models
