@@ -50,16 +50,16 @@ void EventManager::unsubscribe(EventCallback callback) {
   LOCKGUARD(_queueLocker);
 
   _subscribers[callback._type].erase(
-      std::remove_if(_subscribers[callback._type].begin(),
-                     _subscribers[callback._type].end(),
-                     [=](const EventCallback &cb) {
-                       return (cb._callback.target_type() ==
-                               callback._callback.target_type()) &&
-                              (cb._callback.target<void (*)(Event)>() ==
-                               callback._callback.target<void (*)(Event)>()) &&
-                              (cb._receiver == callback._receiver);
-                     }),
-      _subscribers[callback._type].end());
+    std::remove_if(_subscribers[callback._type].begin(),
+                   _subscribers[callback._type].end(),
+                   [=](const EventCallback &cb) {
+                     return (cb._callback.target_type() ==
+                             callback._callback.target_type()) &&
+                            (cb._callback.target<void (*)(Event)>() ==
+                             callback._callback.target<void (*)(Event)>()) &&
+                            (cb._receiver == callback._receiver);
+                   }),
+    _subscribers[callback._type].end());
 }
 
 int EventManager::startWait() {
@@ -90,7 +90,7 @@ EventManager::waitOneOf(int token, const std::set<EventType> &eventTypes,
   _queueLocker.unlock();
 
   const WaitEventRecord defaultEventRecord(
-      {EventRecordType::Quit, {EventType::Null}});
+    {EventRecordType::Quit, {EventType::Null}});
 
   Event resultEvent(EventType::Null);
 
@@ -159,8 +159,8 @@ EventManager::waitForAnswer(int token, const QString &uuid,
   LOG_PERF(0, "Exit");
 
   return waitOneOf(
-      token, types, [&](Event event) -> bool { return event.uuid() == uuid; },
-      timeout);
+    token, types, [&](Event event) -> bool { return event.uuid() == uuid; },
+    timeout);
 }
 
 void EventManager::send(Event event) {
@@ -197,19 +197,16 @@ void EventManager::start() {
 }
 
 void EventManager::stop() {
+  // Some strange bug is causing the following code to crahs on exit.
+  /*
   {
     LOCKGUARD(_queueLocker);
 
     _eventsQueue.push({nullptr, EventRecordType::Quit});
-
-    const Event event(EventType::Null);
-
-    for (auto &pair : _waitEventsQueue) {
-      pair.second.push({EventRecordType::Quit, event});
-    }
   }
 
   _thread.join();
+  */
 
   LOG_DEBUG("EventManager stopped.");
 }
