@@ -3,7 +3,7 @@
 #include "widgets/HistorySliceTableColumnDelegate.h"
 #include "widgets/InfoToast.h"
 
-#include <Dispatch.h>
+#include <Dispatcher.h>
 #include <GitRepoManagerStructs.h>
 #include <Log.h>
 #include <Uuid.h>
@@ -32,7 +32,8 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel(this)),
       _spinnerMovie(new QMovie(":/animations/transparent_spinner.gif",
-                               QByteArray(), this)) {
+                               QByteArray(), this)),
+      _dispatcher(1) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -222,7 +223,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerGetActiveBranchResult: {
     const QString activeBranch = event.data<QString>();
-    Dispatch::dispatchToMainThread(
+    Util::Dispatcher::dispatchToMainThread(
         [=]() { updateLocalBranchesModelActiveBranch(activeBranch); });
     break;
   }
@@ -234,7 +235,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerGetBranchHistoryResult: {
     const GitRepo::GitHistory history = event.data<GitRepo::GitHistory>();
-    Dispatch::dispatchToMainThread([=]() { updateBranchHistory(history); });
+    _dispatcher.dispatch([=]() { updateBranchHistory(history); });
     break;
   }
   case EventManager::EventType::GitRepoManagerListLocalBranchesError: {
@@ -243,7 +244,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerListLocalBranchesResult: {
     const QStringList localBranches = event.data<QStringList>();
-    Dispatch::dispatchToMainThread(
+    Util::Dispatcher::dispatchToMainThread(
         [=]() { updateLocalBranchesModel(localBranches); });
     break;
   }
@@ -253,7 +254,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerListRemoteBranchesResult: {
     const QStringList remoteBranches = event.data<QStringList>();
-    Dispatch::dispatchToMainThread(
+    Util::Dispatcher::dispatchToMainThread(
         [=]() { updateRemoteBranchesModel(remoteBranches); });
     break;
   }
@@ -263,7 +264,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerListSubmodulesResult: {
     const QStringList submodules = event.data<QStringList>();
-    Dispatch::dispatchToMainThread(
+    Util::Dispatcher::dispatchToMainThread(
         [=]() { updateSubmodulesModel(submodules); });
     break;
   }
@@ -273,7 +274,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerListTagsResult: {
     const QStringList tags = event.data<QStringList>();
-    Dispatch::dispatchToMainThread([=]() { updateTagsModel(tags); });
+    Util::Dispatcher::dispatchToMainThread([=]() { updateTagsModel(tags); });
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepoError: {
@@ -282,7 +283,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
     if (gitError.uuid != _uuid)
       break;
 
-    Dispatch::dispatchToMainThread([=]() {
+    Util::Dispatcher::dispatchToMainThread([=]() {
       showErrorPage();
       showToast(tr("Can't open repository"));
     });
@@ -474,9 +475,10 @@ void GitRepoContainer::updateBranchHistory(
 
   _historyModel->updateHistory(history);
 
-  showSpinnerPage(false);
-
-  stretchBranchHistoryTableColumns();
+  Util::Dispatcher::dispatchToMainThread([&]() {
+    showSpinnerPage(false);
+    stretchBranchHistoryTableColumns();
+  });
 
   LOG_PERF(0, "Exit")
 }

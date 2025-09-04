@@ -11,7 +11,7 @@
 #include "widgets/TitlebarWidget.h"
 
 #include <ConfigKey.h>
-#include <Dispatch.h>
+#include <Dispatcher.h>
 #include <Git.h>
 #include <Log.h>
 
@@ -460,11 +460,11 @@ void MainWindow::eventCallback(EventManager::Event event) {
   switch (eventType) {
   case EventManager::EventType::GitRepoManagerGetCredentials: {
     const auto request = event.data<GitCredentialsRequest>();
-    Dispatch::dispatchToMainThread([=]() { showCredentialsToast(request); });
+    Util::Dispatcher::dispatchToMainThread([=]() { showCredentialsToast(request); });
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepoError: {
-    Dispatch::dispatchToMainThread(
+    Util::Dispatcher::dispatchToMainThread(
         [=]() { showToast(tr("Unable to clone Git repository")); });
     break;
   }
@@ -472,14 +472,14 @@ void MainWindow::eventCallback(EventManager::Event event) {
     QString uuid;
     QString repoPath;
     std::tie(uuid, repoPath) = event.data<std::tuple<QString, QString>>();
-    Dispatch::dispatchToMainThread([=]() { addGitRepoContainer(repoPath); });
+    Util::Dispatcher::dispatchToMainThread([=]() { addGitRepoContainer(repoPath); });
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepoProgress: {
     const CloneProgress data = event.data<CloneProgress>();
     if (!_progressing.contains(data.uuid)) {
       _progressing += data.uuid;
-      Dispatch::dispatchToMainThread([=]() { showCloneProgressToast(data); });
+      Util::Dispatcher::dispatchToMainThread([=]() { showCloneProgressToast(data); });
     } else if (data.finished)
       _progressing.remove(data.uuid);
 
@@ -487,7 +487,7 @@ void MainWindow::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerInitRepoResult: {
     const auto &[_, repoPath] = event.data<std::tuple<QString, QString>>();
-    Dispatch::dispatchToMainThread([=]() { addGitRepoContainer(repoPath); });
+    Util::Dispatcher::dispatchToMainThread([=]() { addGitRepoContainer(repoPath); });
     break;
   }
   default: {

@@ -96,6 +96,16 @@ public:
     _columns.clear();
   }
 
+  void insertColumn(int x) {
+    _columns.insert(x, Util::ResizableVector<T>());
+  }
+
+  void insertRow(int y) {
+    for(int i = 0; i < sizeX(); ++i) {
+      _columns[i].insert(y, T());
+    }
+  }
+
 private:
   mutable ResizableVector<ResizableVector<T>> _columns;
 };

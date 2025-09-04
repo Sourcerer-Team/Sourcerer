@@ -1,6 +1,6 @@
 #include "widgets/GitCredentialsToast.h"
 
-#include <Dispatch.h>
+#include <Dispatcher.h>
 #include <Log.h>
 
 #include <QHBoxLayout>
@@ -158,7 +158,7 @@ void GitCredentialsToast::eventCallback(EventManager::Event event) {
 
   switch (eventType) {
   case EventManager::EventType::GitRepoManagerCloneRepoError: {
-    Dispatch::dispatchToMainThread([=]() { stop(); });
+    Util::Dispatcher::dispatchToMainThread([=]() { stop(); });
     break;
   }
 

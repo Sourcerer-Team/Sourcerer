@@ -1,7 +1,7 @@
 #include "containers/CloneGitRepoContainer.h"
 #include "ui_CloneGitRepoContainer.h"
 
-#include <Dispatch.h>
+#include <Dispatcher.h>
 #include <GitRepoManagerStructs.h>
 #include <Log.h>
 #include <Uuid.h>

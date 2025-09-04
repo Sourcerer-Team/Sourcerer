@@ -16,23 +16,23 @@ find_package(Threads REQUIRED)
 #add_compile_definitions(QT_USE_STRING_BUILDER)
 
 add_library(Util STATIC
-   include/Dispatch.h
+   include/Dispatcher.h
    include/FileLock.h
    include/General.h
+   include/Graph.h
    include/Git.h
    include/LockGuard.h
+   include/ResizableVector.h
+   include/ResizableMatrix.h
    include/TokenString.h
    include/Uuid.h
-   src/Dispatch.cpp
+   src/Dispatcher.cpp
    src/FileLock.cpp
    src/General.cpp
    src/Git.cpp
    src/LockGuard.cpp
    src/TokenString.cpp
    src/Uuid.cpp
-        include/ResizableVector.h
-        include/ResizableMatrix.h
-        include/Graph.h
 )
 
 include(../../cmake/helpers.cmake)

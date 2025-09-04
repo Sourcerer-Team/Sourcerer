@@ -5,6 +5,7 @@
 #include "widgets/ToastHostWidget.h"
 
 #include <ConfigManager.h>
+#include <Dispatcher.h>
 #include <EventManager.h>
 #include <GitRepo.h>
 
@@ -66,6 +67,7 @@ private:
   Models::GitHistoryModel *_historyModel;
   QMovie *_spinnerMovie;
   QPixmap *_errorPixmap;
+  Util::Dispatcher _dispatcher;
 };
 
 } // namespace Containers

@@ -2,7 +2,7 @@
 #include "containers/ui_InitGitRepoContainer.h"
 #include "widgets/InfoToast.h"
 
-#include <Dispatch.h>
+#include <Dispatcher.h>
 #include <GitRepoManagerStructs.h>
 #include <Log.h>
 #include <Uuid.h>
@@ -110,7 +110,7 @@ void InitGitRepoContainer::eventCallback(EventManager::Event event) {
     if (gitError.uuid != _uuid)
       break;
 
-    Dispatch::dispatchToMainThread(
+    Util::Dispatcher::dispatchToMainThread(
         [=]() { showToast(tr("Unable to initialize Git repository")); });
     break;
   }

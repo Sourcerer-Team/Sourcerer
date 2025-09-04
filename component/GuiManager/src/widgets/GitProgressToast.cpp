@@ -1,6 +1,6 @@
 #include "widgets/GitProgressToast.h"
 
-#include <Dispatch.h>
+#include <Dispatcher.h>
 #include <Log.h>
 
 #include <QVBoxLayout>
@@ -88,7 +88,7 @@ void GitProgressToast::eventCallback(EventManager::Event event) {
     if (data.finished)
       emit finished();
     else
-      Dispatch::dispatchToMainThread([=]() {
+      Util::Dispatcher::dispatchToMainThread([=]() {
         _progressBar->setRange(0, data.totalSteps);
         _progressBar->setValue(data.completedSteps);
         _messageLabel->setText(data.stage == CloneProgressStageType::Checkout
