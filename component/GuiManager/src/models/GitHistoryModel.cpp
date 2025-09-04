@@ -52,12 +52,12 @@ void GitHistoryModel::updateHistory(const GitRepo::GitHistory &history, const st
   });
 
   for (qsizetype i = 0; i < _drawableSlices.sizeX(); ++i) {
-    for (qsizetype j = 0; j < _drawableSlices.sizeY(); ++j) {
-      if(progressCallback) {
-        const double progress = (i * 100.0) / _drawableSlices.sizeX();
-        progressCallback(75 + (progress / 4));
-      }
+    if(progressCallback) {
+      const double progress = (i * 100.0) / _drawableSlices.sizeX();
+      progressCallback(75 + (progress / 4));
+    }
 
+    for (qsizetype j = 0; j < _drawableSlices.sizeY(); ++j) {
       std::swap(_drawableSlices[i][j].top, _drawableSlices[i][j].bottom);
     }
   }
