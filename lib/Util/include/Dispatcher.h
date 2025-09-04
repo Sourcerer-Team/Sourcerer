@@ -3,10 +3,13 @@
 #include <BlockingQueue.h>
 #include <LockGuard.h>
 
+#include <QObject>
+#include <QThread>
+
 #include <climits>
 #include <functional>
 #include <map>
-#include <thread>
+
 
 namespace Util
 {
@@ -30,11 +33,13 @@ struct DispatcherRecord
 struct DispatcherPoolElement
 {
   BlockingQueue<DispatcherRecord> _queue;
-  std::thread _thread;
+  QThread* _thread = nullptr;
 };
 
-class Dispatcher
+class Dispatcher : public QObject
 {
+  Q_OBJECT
+
   public:
   Dispatcher(int coresNum = INT_MAX);
   virtual ~Dispatcher();
@@ -49,7 +54,7 @@ class Dispatcher
   private:
   Util::Mutex _mutex;
   std::map<size_t, DispatcherPoolElement> _pool;
-  std::map<size_t, std::thread> _threads;
+  std::map<size_t, QThread*> _threads;
 };
 
 } // namespace Util

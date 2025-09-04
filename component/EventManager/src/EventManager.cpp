@@ -13,7 +13,7 @@ namespace EventManager {
 
 std::atomic<int> EventManager::_waitId = 0;
 
-EventManager::EventManager() { start(); }
+EventManager::EventManager() : _thread(nullptr) { start(); }
 
 EventManager::~EventManager() { stop(); }
 
@@ -188,25 +188,28 @@ void EventManager::send(Event event) {
 }
 
 void EventManager::start() {
-  if (_thread.joinable())
+  if (_thread)
     return;
 
-  _thread = std::thread(&EventManager::threadLoop, this);
+  _thread = QThread::create([&]() { threadLoop(); });
+
+  connect(_thread, &QThread::finished, _thread, &QObject::deleteLater);
+
+  _thread->start();
 
   LOG_DEBUG("EventManager started.");
 }
 
 void EventManager::stop() {
-  // Some strange bug is causing the following code to crahs on exit.
-  /*
   {
     LOCKGUARD(_queueLocker);
 
     _eventsQueue.push({nullptr, EventRecordType::Quit});
   }
 
-  _thread.join();
-  */
+  _thread->wait();
+
+  _thread = nullptr;
 
   LOG_DEBUG("EventManager stopped.");
 }

@@ -1,15 +1,18 @@
 #pragma once
 
+#include "Events.h"
+
+#include <BlockingQueue.h>
+#include <LockGuard.h>
+
+#include <QObject>
+#include <QThread>
+
 #include <atomic>
 #include <map>
 #include <set>
 #include <thread>
 #include <unordered_map>
-
-#include "Events.h"
-
-#include <BlockingQueue.h>
-#include <LockGuard.h>
 
 namespace EventManager {
 
@@ -50,7 +53,8 @@ struct WaitEventRecord {
   Event _event;
 };
 
-class EventManager {
+class EventManager : public QObject {
+  Q_OBJECT
 public:
   static EventManager &getInstance();
 
@@ -85,7 +89,7 @@ private:
   void stop();
 
 private:
-  std::thread _thread;
+  QThread *_thread;
   std::unordered_map<EventType, std::vector<EventCallback>> _subscribers;
   BlockingQueue<EventRecord> _eventsQueue;
   std::map<int, BlockingQueue<WaitEventRecord>> _waitEventsQueue;

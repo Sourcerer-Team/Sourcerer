@@ -25,7 +25,11 @@ Dispatcher::Dispatcher(int coresNum)
     LOG_INFO("Starting pool processor for core {}", i);
 
     auto &pool = _pool[i];
-    pool._thread = std::move(std::thread([&]() { processor(pool._queue); }));
+    pool._thread = QThread::create([&]() { processor(pool._queue); });
+
+    connect(pool._thread, &QThread::finished, pool._thread, &QObject::deleteLater);
+
+    pool._thread->start();
 
     LOG_INFO("Pool processor for core {} started.", i);
   }
@@ -48,8 +52,7 @@ Dispatcher::~Dispatcher()
 
     v._queue.push(quitRecord);
 
-    if(v._thread.joinable())
-      v._thread.join();
+    v._thread->wait();
 
     LOG_INFO("Pool processor for core {} stopped.", k);
   }
@@ -132,18 +135,25 @@ void Dispatcher::dispatch(std::function<void()> task)
 }
 
 void Dispatcher::dispatchToMainThread(std::function<void()> callback) {
-  QTimer *timer = new QTimer();
-  timer->moveToThread(qApp->thread());
-  timer->setSingleShot(true);
+  //QThread *thread = QThread::create([&]() {
+    // worker thread
+    QTimer *timer = new QTimer();
+    timer->moveToThread(qApp->thread());
+    timer->setSingleShot(true);
 
-  QObject::connect(timer, &QTimer::timeout, [=]() {
-    // main thread
-    callback();
-    timer->deleteLater();
-  });
+    QObject::connect(timer, &QTimer::timeout, [=]() {
+      // main thread
+      callback();
+      timer->deleteLater();
+    });
 
-  QMetaObject::invokeMethod(timer, "start", Qt::QueuedConnection,
-                            Q_ARG(int, 0));
+    QMetaObject::invokeMethod(timer, "start", Qt::QueuedConnection,
+                              Q_ARG(int, 0));
+  //});
+
+  //connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+
+  //thread->start();
 }
 
 } // namespace Util
