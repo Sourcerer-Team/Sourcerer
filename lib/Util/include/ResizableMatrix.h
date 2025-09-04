@@ -2,10 +2,12 @@
 
 #include "ResizableVector.h"
 
+#include <functional>
+
 namespace Util {
 
 template <typename T> class ResizableMatrix {
-public:
+  public:
   ResizableMatrix() {}
 
   const ResizableVector<T> &operator[](qsizetype index) const {
@@ -83,12 +85,17 @@ public:
     }
   }
 
-  void invertVertically() {
+  void invertVertically(const std::function<void(int)> progressCallback = nullptr) {
     resize(sizeX(), sizeY());
     for (int i = 0; i < sizeY() / 2; ++i) {
-        for (int j = 0; j < sizeX(); ++j) {
-          std::swap(_columns[j][i], _columns[j][sizeY() - i - 1]);
-        }
+      if(progressCallback) {
+        const double progress = (i * 100.0) / (sizeY() / 2);
+        progressCallback(progress);
+      }
+
+      for (int j = 0; j < sizeX(); ++j) {
+        std::swap(_columns[j][i], _columns[j][sizeY() - i - 1]);
+      }
     }
   }
 
@@ -106,7 +113,7 @@ public:
     }
   }
 
-private:
+  private:
   mutable ResizableVector<ResizableVector<T>> _columns;
 };
 

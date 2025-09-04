@@ -124,6 +124,8 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
 GitRepoContainer::~GitRepoContainer() {
   LOG_PERF(0, "Enter");
 
+  _historyModel->quitUpdate();
+
   closeRepo();
 
   const auto eventCallbackFunc =
@@ -333,6 +335,8 @@ void GitRepoContainer::getBranchHistory() const {
   historyEvent.addData(command);
   _eventManager.send(historyEvent);
 
+  ui->labelProgress->setText("0%");
+
   LOG_PERF(0, "Exit")
 }
 
@@ -455,6 +459,7 @@ void GitRepoContainer::showSpinnerPage(const bool spinnerEnabled) const {
     _spinnerMovie->start();
   } else {
     _spinnerMovie->stop();
+    ui->labelProgress->setText("");
   }
 
   LOG_PERF(0, "Exit")
@@ -473,7 +478,12 @@ void GitRepoContainer::updateBranchHistory(
     const GitRepo::GitHistory &history) const {
   LOG_PERF(0, "Enter");
 
-  _historyModel->updateHistory(history);
+  _historyModel->updateHistory(history, [&](int progress) {
+    Util::Dispatcher::dispatchToMainThread([=]() {
+      const QString progressStr = QString("%1%").arg(progress);
+      ui->labelProgress->setText(progressStr);
+    });
+  });
 
   Util::Dispatcher::dispatchToMainThread([&]() {
     showSpinnerPage(false);

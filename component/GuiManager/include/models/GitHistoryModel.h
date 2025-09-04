@@ -41,7 +41,9 @@ public:
   ~GitHistoryModel() override;
 
 public:
-  void updateHistory(const GitRepo::GitHistory &history);
+  void updateHistory(const GitRepo::GitHistory &history, const std::function<void(int)> progressCallback = nullptr);
+
+  void quitUpdate() { _quitUpdate = true; }
 
   // QAbstractTableModel interface
 public:
@@ -54,7 +56,7 @@ public:
                       int role) const override;
 
 private:
-  void createDrawableSlices();
+  void createDrawableSlices(const std::function<void(int)> progressCallback);
 
 #ifdef QT_DEBUG
   static void
@@ -69,6 +71,7 @@ private:
 private:
   GitRepo::GitHistory _history;
   Util::ResizableMatrix<Slice> _drawableSlices;
+  bool _quitUpdate;
 };
 
 } // namespace GuiManager::Models

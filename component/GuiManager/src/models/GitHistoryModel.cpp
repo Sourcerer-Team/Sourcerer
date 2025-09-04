@@ -16,7 +16,7 @@ namespace GuiManager {
 namespace Models {
 
 GitHistoryModel::GitHistoryModel(QObject *parent)
-    : QAbstractTableModel(parent) {
+    : QAbstractTableModel(parent), _quitUpdate(false) {
   LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit");
@@ -28,23 +28,42 @@ GitHistoryModel::~GitHistoryModel() {
   LOG_PERF(0, "Exit");
 }
 
-void GitHistoryModel::updateHistory(const GitRepo::GitHistory &history) {
+void GitHistoryModel::updateHistory(const GitRepo::GitHistory &history, const std::function<void(int)> progressCallback) {
   LOG_PERF(0, "Enter");
 
   beginResetModel();
 
+  _quitUpdate = false;
+
   _history = history;
 
-  createDrawableSlices();
+  createDrawableSlices([&](int progress) {
+    if(progressCallback) {
+      progressCallback(progress / 2);
+    }
+  });
 
   std::reverse(_history.commits.begin(), _history.commits.end());
 
-  _drawableSlices.invertVertically();
+  _drawableSlices.invertVertically([&](int progress) {
+    if(progressCallback) {
+      progressCallback(50 + (progress / 4));
+    }
+  });
 
   for (qsizetype i = 0; i < _drawableSlices.sizeX(); ++i) {
     for (qsizetype j = 0; j < _drawableSlices.sizeY(); ++j) {
+      if(progressCallback) {
+        const double progress = (i * 100.0) / _drawableSlices.sizeX();
+        progressCallback(75 + (progress / 4));
+      }
+
       std::swap(_drawableSlices[i][j].top, _drawableSlices[i][j].bottom);
     }
+  }
+
+  if(progressCallback) {
+    progressCallback(100);
   }
 
 #ifdef QT_DEBUG
@@ -205,7 +224,7 @@ QVariant GitHistoryModel::headerData(const int section,
   return QAbstractTableModel::headerData(section, orientation, role);
 }
 
-void GitHistoryModel::createDrawableSlices() {
+void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progressCallback) {
   LOG_PERF(0, "Enter");
 
   _drawableSlices.clear();
@@ -214,6 +233,17 @@ void GitHistoryModel::createDrawableSlices() {
     QMap<QString, QPair<int, int>> commitPositions;
 
     for (int i = 0; i < _history.commits.size(); ++i) {
+      if(_quitUpdate) {
+        _drawableSlices.clear();
+        LOG_PERF(0, "Exit");
+        return;
+      }
+
+      const double progress = (i * 100.0) / _history.commits.size();
+      if(progressCallback) {
+        progressCallback(static_cast<int>(progress));
+      }
+
       const QString &currentCommit = _history.commits.at(i);
       const auto it = _history.commitInfos.find(currentCommit);
       if (it == _history.commitInfos.end()) {
