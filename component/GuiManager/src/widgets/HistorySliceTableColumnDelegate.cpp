@@ -36,6 +36,10 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
   QRegion clipRegion(option.rect);
   painter->setClipRegion(clipRegion);
 
+  if (option.state & QStyle::State_Selected) {
+    painter->fillRect(option.rect, option.palette.highlight());
+  }
+
   painter->setPen(QPen(QBrush(Qt::darkGreen), 2, Qt::SolidLine, Qt::RoundCap,
                        Qt::RoundJoin));
   painter->setBrush(QBrush(Qt::darkGreen));
@@ -243,10 +247,6 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
         painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
       }
     }
-  }
-
-  if (option.state & QStyle::State_Selected) {
-    painter->fillRect(option.rect, option.palette.highlight());
   }
 
   painter->restore();
