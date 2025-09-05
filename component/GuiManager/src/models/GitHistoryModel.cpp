@@ -366,9 +366,13 @@ void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progre
         }
 
         for (qsizetype k = startY; k <= i; ++k) {
-          _drawableSlices[emptyColumnIndex][k].bottom = k != i;
-          _drawableSlices[emptyColumnIndex][k].top =
-              k == startY ? itParent != commitInfo.parents.end() : true;
+          if(!_drawableSlices[emptyColumnIndex][k].bottom) {
+            _drawableSlices[emptyColumnIndex][k].bottom = k != i;
+          }
+          if(!_drawableSlices[emptyColumnIndex][k].top) {
+            _drawableSlices[emptyColumnIndex][k].top =
+              k == startY ? itParent != commitInfo.parents.end() : k != i;
+          }
           _drawableSlices[emptyColumnIndex][k].toCommit =
               _drawableSlices[emptyColumnIndex][k].toCommit.isEmpty()
                   ? currentCommit
@@ -378,13 +382,21 @@ void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progre
 
         if (parentX < emptyColumnIndex) {
           for (qsizetype k = parentX; k <= emptyColumnIndex; ++k) {
-            _drawableSlices[k][parentY].right = k != emptyColumnIndex;
-            _drawableSlices[k][parentY].left = k != parentX;
+            if(!_drawableSlices[k][parentY].right) {
+              _drawableSlices[k][parentY].right = k != emptyColumnIndex;
+            }
+            if(!_drawableSlices[k][parentY].left) {
+              _drawableSlices[k][parentY].left = k != parentX;
+            }
           }
         } else if (parentX > emptyColumnIndex) {
           for (qsizetype k = emptyColumnIndex; k <= parentX; ++k) {
-            _drawableSlices[k][parentY].right = k != parentX;
-            _drawableSlices[k][parentY].left = k != emptyColumnIndex;
+            if(!_drawableSlices[k][parentY].right) {
+              _drawableSlices[k][parentY].right = k != parentX;
+            }
+            if(!_drawableSlices[k][parentY].left) {
+              _drawableSlices[k][parentY].left = k != emptyColumnIndex;
+            }
           }
         } else {
           _drawableSlices[emptyColumnIndex][parentY].bottom = true;
@@ -413,8 +425,12 @@ void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progre
       for (qsizetype j = firstIndex; j <= lastIndex; ++j) {
         _drawableSlices[j][i].bottom = false;
         _drawableSlices[j][i].top = emptyColumnIndexes.contains(j);
-        _drawableSlices[j][i].left = j != firstIndex;
-        _drawableSlices[j][i].right = j != lastIndex;
+        if(!_drawableSlices[j][i].left) {
+          _drawableSlices[j][i].left = j != firstIndex;
+        }
+        if(!_drawableSlices[j][i].right) {
+          _drawableSlices[j][i].right = j != lastIndex;
+        }
       }
     }
   } catch (const std::out_of_range &e) {
