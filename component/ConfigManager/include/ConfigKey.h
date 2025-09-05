@@ -30,6 +30,9 @@ enum class ConfigKey {
   ToastWidth,
   InfoToastDisplayTime,
 
+  // Tooltips
+  TooltipDisplayTime,
+
   // Testing
   TestColor,
   TestDateTime,

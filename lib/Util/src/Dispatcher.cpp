@@ -7,27 +7,26 @@
 
 #define THREAD_ID "Dispatcher"
 
-namespace Util
-{
+namespace Util {
 
-Dispatcher::Dispatcher(int coresNum)
-{
+Dispatcher::Dispatcher(int coresNum) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_mutex);
 
-  const size_t coresCount = coresNum == INT_MAX ? std::thread::hardware_concurrency() : coresNum;
+  const size_t coresCount =
+      coresNum == INT_MAX ? std::thread::hardware_concurrency() : coresNum;
 
   LOG_INFO("{} cores found", coresCount);
 
-  for (size_t i = 0; i < coresCount; ++i)
-  {
+  for (size_t i = 0; i < coresCount; ++i) {
     LOG_INFO("Starting pool processor for core {}", i);
 
     auto &pool = _pool[i];
     pool._thread = QThread::create([&]() { processor(pool._queue); });
 
-    connect(pool._thread, &QThread::finished, pool._thread, &QObject::deleteLater);
+    connect(pool._thread, &QThread::finished, pool._thread,
+            &QObject::deleteLater);
 
     pool._thread->start();
 
@@ -37,61 +36,37 @@ Dispatcher::Dispatcher(int coresNum)
   LOG_PERF(0, "Exit");
 }
 
-Dispatcher::~Dispatcher()
-{
+Dispatcher::~Dispatcher() {
   LOG_PERF(0, "Enter");
 
-  LOCKGUARD(_mutex);
-
-  DispatcherRecord quitRecord;
-  quitRecord._command = DispatcherCommand::Quit;
-
-  for (auto &[k, v] : _pool)
-  {
-    LOG_INFO("Stopping pool processor for core {}", k);
-
-    v._queue.push(quitRecord);
-
-    v._thread->wait();
-
-    LOG_INFO("Pool processor for core {} stopped.", k);
-  }
+  joinAll();
 
   LOG_PERF(0, "Exit");
 }
 
-void Dispatcher::processor(BlockingQueue<DispatcherRecord> &queue)
-{
+void Dispatcher::processor(BlockingQueue<DispatcherRecord> &queue) {
   LOG_PERF(0, "Enter");
 
   bool quit = false;
 
-  while (!quit)
-  {
+  while (!quit) {
     const auto record = queue.pop();
 
-    switch (record._command)
-    {
-    case DispatcherCommand::Run:
-    {
-      try
-      {
+    switch (record._command) {
+    case DispatcherCommand::Run: {
+      try {
         record._task();
-      }
-      catch (const std::exception &ex)
-      {
-        LOG_ERROR(Log::ErrorId::Generic, "Exception has been thrown: {}", ex.what());
-      }
-      catch (...)
-      {
+      } catch (const std::exception &ex) {
+        LOG_ERROR(Log::ErrorId::Generic, "Exception has been thrown: {}",
+                  ex.what());
+      } catch (...) {
         LOG_ERROR(Log::ErrorId::Generic, "Unknown exception has been thrown!");
       }
 
       break;
     }
     case DispatcherCommand::Quit:
-    default:
-    {
+    default: {
       quit = true;
       break;
     }
@@ -101,8 +76,7 @@ void Dispatcher::processor(BlockingQueue<DispatcherRecord> &queue)
   LOG_PERF(0, "Exit");
 }
 
-void Dispatcher::dispatch(std::function<void()> task)
-{
+void Dispatcher::dispatch(std::function<void()> task) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_mutex);
@@ -110,17 +84,14 @@ void Dispatcher::dispatch(std::function<void()> task)
   int minSize = INT_MAX;
   int index = -1;
 
-  for (const auto &[k, v] : _pool)
-  {
-    if (v._queue.size() < minSize)
-    {
+  for (const auto &[k, v] : _pool) {
+    if (v._queue.size() < minSize) {
       index = k;
       minSize = v._queue.size();
     }
   }
 
-  if (index == -1)
-  {
+  if (index == -1) {
     LOG_PERF(0, "Exit");
     return;
   }
@@ -135,25 +106,41 @@ void Dispatcher::dispatch(std::function<void()> task)
 }
 
 void Dispatcher::dispatchToMainThread(std::function<void()> callback) {
-  //QThread *thread = QThread::create([&]() {
-    // worker thread
-    QTimer *timer = new QTimer();
-    timer->moveToThread(qApp->thread());
-    timer->setSingleShot(true);
+  QTimer *timer = new QTimer();
+  timer->moveToThread(qApp->thread());
+  timer->setSingleShot(true);
 
-    QObject::connect(timer, &QTimer::timeout, [=]() {
-      // main thread
-      callback();
-      timer->deleteLater();
-    });
+  QObject::connect(timer, &QTimer::timeout, [=]() {
+    // main thread
+    callback();
+    timer->deleteLater();
+  });
 
-    QMetaObject::invokeMethod(timer, "start", Qt::QueuedConnection,
-                              Q_ARG(int, 0));
-  //});
+  QMetaObject::invokeMethod(timer, "start", Qt::QueuedConnection,
+                            Q_ARG(int, 0));
+}
 
-  //connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+void Dispatcher::joinAll() {
+  LOG_PERF(0, "Enter");
 
-  //thread->start();
+  LOCKGUARD(_mutex);
+
+  DispatcherRecord quitRecord;
+  quitRecord._command = DispatcherCommand::Quit;
+
+  for (auto &[k, v] : _pool) {
+    LOG_INFO("Stopping pool processor for core {}", k);
+
+    v._queue.push(quitRecord);
+
+    v._thread->wait();
+
+    LOG_INFO("Pool processor for core {} stopped.", k);
+  }
+
+  _pool.clear();
+
+  LOG_PERF(0, "Exit");
 }
 
 } // namespace Util

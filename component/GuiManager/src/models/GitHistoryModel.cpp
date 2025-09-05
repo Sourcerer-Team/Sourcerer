@@ -159,8 +159,12 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
                  .toString("yyyy-MM-dd HH:mm:ss");
     break;
   }
-  case COLUMN_COMMIT_SHA: {
+  case COLUMN_COMMIT_SHORT_SHA: {
     result = commit.left(6); // Short SHA
+    break;
+  }
+  case COLUMN_COMMIT_FULL_SHA: {
+    result = commit; // Full SHA
     break;
   }
   default:
@@ -202,7 +206,7 @@ QVariant GitHistoryModel::headerData(const int section,
         result = tr("Date");
         break;
       }
-      case COLUMN_COMMIT_SHA: {
+      case COLUMN_COMMIT_SHORT_SHA: {
         result = tr("SHA");
         break;
       }

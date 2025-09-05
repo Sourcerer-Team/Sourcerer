@@ -7,10 +7,12 @@
 #include <ConfigManager.h>
 #include <Dispatcher.h>
 #include <EventManager.h>
+#include <LockGuard.h>
 #include <GitRepo.h>
 
 #include <QMovie>
-#include <QPixmap>
+#include <QSet>
+#include <QString>
 #include <QWidget>
 
 namespace Ui {
@@ -24,21 +26,27 @@ namespace Containers {
 class GitRepoContainer : public Widgets::ContainerWidget {
   Q_OBJECT
 
-public:
+  public:
   explicit GitRepoContainer(const QString &path, QWidget *parent = nullptr);
   ~GitRepoContainer() override;
 
-protected:
+  // QObject interface
+  public:
+  bool eventFilter(QObject *watched, QEvent *event) override;
+
+  protected:
   void resizeEvent(QResizeEvent *event) override;
 
-private slots:
+  private slots:
   void onSplitterMoved(int pos, int index) const;
+  void onHistoryViewItemEntered(const QModelIndex& index);
 
-private:
+  private:
   void closeRepo() const;
   void eventCallback(EventManager::Event event);
   void getActiveBranch() const;
   void getBranchHistory() const;
+  QStringList getCommitBranches(const QString& commit) const;
   void getLocalBranches() const;
   void getRemoteBranches() const;
   void getSubmodules() const;
@@ -56,7 +64,7 @@ private:
   void updateSubmodulesModel(const QStringList &tags) const;
   void updateTagsModel(const QStringList &tags) const;
 
-private:
+  private:
   Ui::GitRepoContainer *ui;
   QString _uuid;
   QString _path;
@@ -68,6 +76,10 @@ private:
   QMovie *_spinnerMovie;
   QPixmap *_errorPixmap;
   Util::Dispatcher _dispatcher;
+
+  Util::Mutex _tooltipsMutex;
+  QPoint _mousePos;
+  QSet<QString> _tooltipsToShow;
 };
 
 } // namespace Containers

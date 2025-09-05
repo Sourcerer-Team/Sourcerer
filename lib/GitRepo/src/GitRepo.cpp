@@ -856,7 +856,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName) {
         return {};
       }
 
-      error = git_revwalk_push_ref(walker, fullBranchName.toStdString().c_str());
+      error =
+          git_revwalk_push_ref(walker, fullBranchName.toStdString().c_str());
       if (error) {
         logGitError(error);
         git_revwalk_free(walker);
@@ -1028,6 +1029,12 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName) {
 QStringList getCommitBranches(git_repository *repo, const QString &commitOid) {
   LOG_PERF(0, "Enter");
 
+  if (commitOid.isEmpty()) {
+    LOG_WARN("Commit \"{}\" is empty", commitOid);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
   QStringList branches;
 
   git_branch_iterator *iter = nullptr;
@@ -1043,8 +1050,9 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid) {
 
   // Traverse all branches
   while (git_branch_next(&ref, &type, iter) == 0) {
-    git_object *branchTip = nullptr;
-    error = git_reference_peel(&branchTip, ref, GIT_OBJECT_COMMIT);
+    const char *branchName = nullptr;
+
+    error = git_branch_name(&branchName, ref);
     if (error) {
       logGitError(error);
       git_reference_free(ref);
@@ -1053,13 +1061,50 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid) {
       return {};
     }
 
-    const char *branchName = nullptr;
-    error = git_branch_name(&branchName, ref);
-    if (error) {
-      logGitError(error);
+    if (!branchName) {
       git_reference_free(ref);
       git_branch_iterator_free(iter);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    git_commit *branchCommit = nullptr;
+    const git_oid *branchOid = nullptr;
+
+    if (git_reference_type(ref) == GIT_REFERENCE_SYMBOLIC) {
+      git_reference *symbolicRef = nullptr;
+      error = git_reference_resolve(&symbolicRef, ref);
+      if (error) {
+        logGitError(error);
+        git_reference_free(ref);
+        git_branch_iterator_free(iter);
+        LOG_PERF(0, "Exit");
+        return {};
+      }
+
+      git_object *branchTip = nullptr;
+
+      error = git_reference_peel(&branchTip, symbolicRef, GIT_OBJECT_COMMIT);
+      if (error) {
+        logGitError(error);
+        git_reference_free(symbolicRef);
+        git_reference_free(ref);
+        git_branch_iterator_free(iter);
+        LOG_PERF(0, "Exit");
+        return {};
+      }
+
+      git_reference_free(symbolicRef);
+
+      branchOid = git_object_id(branchTip);
       git_object_free(branchTip);
+    } else {
+      branchOid = git_reference_target(ref);
+    }
+
+    if (!branchOid) {
+      git_reference_free(ref);
+      git_branch_iterator_free(iter);
       LOG_PERF(0, "Exit");
       return {};
     }
@@ -1070,18 +1115,15 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid) {
       logGitError(error);
       git_reference_free(ref);
       git_branch_iterator_free(iter);
-      git_object_free(branchTip);
       LOG_PERF(0, "Exit");
       return {};
     }
 
     // Check if branch contains the commit
-    const int contains =
-        git_graph_descendant_of(repo, git_object_id(branchTip), &oid);
-    if (contains == 1)
+    if (const int contains = git_graph_descendant_of(repo, branchOid, &oid);
+        contains == 1)
       branches += branchName;
 
-    git_object_free(branchTip);
     git_reference_free(ref);
   }
 

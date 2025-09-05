@@ -48,6 +48,8 @@ class Dispatcher : public QObject
 
   static void dispatchToMainThread(std::function<void()> callback);
 
+  void joinAll();
+
   private:
   void processor(BlockingQueue<DispatcherRecord> &queue);
 

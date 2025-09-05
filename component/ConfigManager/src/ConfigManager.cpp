@@ -40,7 +40,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::TestColor, "test/testColor"},
     {ConfigKey::TestDateTime, "test/testDateTime"},
     {ConfigKey::ToastSpacing, "window/toasts/toastSpacing"},
-    {ConfigKey::ToastWidth, "window/toasts/toastWidth"}};
+    {ConfigKey::ToastWidth, "window/toasts/toastWidth"},
+    {ConfigKey::TooltipDisplayTime, "window/tooltips/tooltipDisplayTime"}};
 
 QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::Unknown, {"", ""}},
@@ -73,7 +74,8 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::TitleBarMaxTabWidth, 285},
     {ConfigKey::TitleBarMenuMinimumSize, 230},
     {ConfigKey::ToastSpacing, 4},
-    {ConfigKey::ToastWidth, 400}};
+    {ConfigKey::ToastWidth, 400},
+    {ConfigKey::TooltipDisplayTime, 5000}};
 
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::GitRepoSplitterPos, ""},

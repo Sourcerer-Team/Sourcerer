@@ -8,10 +8,12 @@
 #include <Log.h>
 #include <Uuid.h>
 
+#include <QMouseEvent>
 #include <QMovie>
 #include <QPainter>
 #include <QPixmap>
 #include <QSvgRenderer>
+#include <QToolTip>
 
 #include <functional>
 
@@ -33,7 +35,7 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
       _historyModel(new Models::GitHistoryModel(this)),
       _spinnerMovie(new QMovie(":/animations/transparent_spinner.gif",
                                QByteArray(), this)),
-      _dispatcher(1) {
+      _dispatcher(1), _mousePos(-1, -1) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -51,6 +53,9 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
   ui->historyView->setModel(_historyModel);
   ui->historyView->setItemDelegateForColumn(
       0, new HistorySliceTableColumnDelegate(ui->historyView));
+  ui->historyView->setMouseTracking(true);
+  ui->historyView->viewport()->setMouseTracking(true);
+  ui->historyView->viewport()->installEventFilter(this);
   ui->labelSpinner->setMovie(_spinnerMovie);
 
   _errorPixmap = new QPixmap(QSize(128, 128));
@@ -68,6 +73,9 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
       _configManager.getString(ConfigManager::ConfigKey::GitRepoSplitterPos)
           .toUtf8());
   ui->splitter->restoreState(splitterState);
+
+  connect(ui->historyView, &QAbstractItemView::entered, this,
+          &GitRepoContainer::onHistoryViewItemEntered);
 
   connect(ui->splitter, &QSplitter::splitterMoved, this,
           &GitRepoContainer::onSplitterMoved);
@@ -124,6 +132,8 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
 GitRepoContainer::~GitRepoContainer() {
   LOG_PERF(0, "Enter");
 
+  _dispatcher.joinAll();
+
   _historyModel->quitUpdate();
 
   closeRepo();
@@ -179,6 +189,21 @@ GitRepoContainer::~GitRepoContainer() {
   LOG_PERF(0, "Exit")
 }
 
+bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
+  if (watched == ui->historyView->viewport()) {
+    if (event->type() == QEvent::MouseMove) {
+      LOCKGUARD(_tooltipsMutex);
+      const QMouseEvent *const mouseEvent = static_cast<QMouseEvent *>(event);
+      _mousePos = mouseEvent->globalPos();
+    } else if (event->type() == QEvent::Leave) {
+      LOCKGUARD(_tooltipsMutex);
+      _mousePos = QPoint(-1, -1);
+    }
+  }
+
+  return QObject::eventFilter(watched, event);
+}
+
 void GitRepoContainer::resizeEvent(QResizeEvent *event) {
   ContainerWidget::resizeEvent(event);
   stretchBranchHistoryTableColumns();
@@ -194,6 +219,118 @@ void GitRepoContainer::onSplitterMoved(const int pos, const int index) const {
   _configManager.save();
 
   stretchBranchHistoryTableColumns();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (index.column() != COLUMN_HISTORY_SLICE) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QModelIndex shaIndex =
+      _historyModel->index(index.row(), COLUMN_COMMIT_FULL_SHA, QModelIndex());
+  if (!shaIndex.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString commit = shaIndex.data(Qt::DisplayRole).toString();
+  const QModelIndex slicesIndex =
+      _historyModel->index(index.row(), COLUMN_HISTORY_SLICE, QModelIndex());
+  if (!slicesIndex.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto slices = slicesIndex.data(Qt::DisplayRole).value<Models::Slices>();
+  const qsizetype height = ui->historyView->rowHeight(index.row());
+  int posX = 0;
+
+  for (int i = 0; i < slices.size(); ++i) {
+    if (slices[i].main) {
+      posX = i;
+      break;
+    }
+  }
+
+  const QRect viewportRect = ui->historyView->viewport()->rect();
+  const int row = (_mousePos.y() - viewportRect.top()) / height;
+
+  if (row < 0) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QPoint topLeftLocal(viewportRect.left() + posX * height,
+                            viewportRect.top() + row * height);
+  const QPoint bottomRightLocal(viewportRect.left() + (posX + 1) * height,
+                                viewportRect.top() + (row + 1) * height);
+  const QPoint topLeftGlobal =
+      ui->historyView->viewport()->mapToGlobal(topLeftLocal);
+  const QPoint bottomRightGlobal =
+      ui->historyView->viewport()->mapToGlobal(bottomRightLocal);
+
+  if (topLeftGlobal.x() < _mousePos.x() &&
+      _mousePos.x() > bottomRightGlobal.x()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  LOCKGUARD(_tooltipsMutex);
+
+  _tooltipsToShow.clear();
+  _tooltipsToShow += commit;
+
+  _dispatcher.dispatch([&, commit, index]() {
+    LOG_PERF(0, "Enter");
+
+    const QStringList commitBranches = getCommitBranches(commit);
+
+    if (commitBranches.isEmpty()) {
+      LOG_PERF(0, "Exit");
+      return;
+    }
+
+    {
+      LOCKGUARD(_tooltipsMutex);
+
+      if (!_tooltipsToShow.contains(commit)) {
+        LOG_PERF(0, "Exit");
+        return;
+      }
+
+      const QPoint viewportPos =
+          ui->historyView->viewport()->mapFromGlobal(_mousePos);
+
+      if (const QModelIndex idx = ui->historyView->indexAt(viewportPos);
+          idx != index) {
+        LOG_PERF(0, "Exit");
+        return;
+      }
+    }
+
+    const qlonglong tooltipDisplayTime =
+        _configManager.getLong(ConfigManager::ConfigKey::TooltipDisplayTime);
+
+    const QString tooltipText =
+        QString("On branches:\n\n%1").arg(commitBranches.join("\n"));
+
+    Util::Dispatcher::dispatchToMainThread([=]() {
+      QToolTip::showText(_mousePos, tooltipText, ui->historyView, {},
+                         static_cast<int>(tooltipDisplayTime));
+    });
+
+    LOG_PERF(0, "Exit");
+  });
 
   LOG_PERF(0, "Exit");
 }
@@ -338,6 +475,46 @@ void GitRepoContainer::getBranchHistory() const {
   ui->labelProgress->setText("0%");
 
   LOG_PERF(0, "Exit")
+}
+
+QStringList GitRepoContainer::getCommitBranches(const QString &commit) const {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoGetCommitBranchesCommand command;
+  command.uuid = _uuid;
+  command.commitOid = commit;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event branchesEvent(
+      EventManager::EventType::GitRepoManagerGetCommitBranches, eventUuid);
+  branchesEvent.addData(command);
+  _eventManager.send(branchesEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGetCommitBranchesError,
+      EventManager::EventType::GitRepoManagerGetCommitBranchesResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerGetCommitBranchesResult) {
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  const auto branches = event.data<QStringList>();
+  LOG_PERF(0, "Exit")
+  return branches;
 }
 
 void GitRepoContainer::getLocalBranches() const {

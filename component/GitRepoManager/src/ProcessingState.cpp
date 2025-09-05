@@ -380,7 +380,8 @@ void ProcessingState::getActiveBranchWorker(
   }
 
   EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerGetActiveBranchResult);
+      EventManager::EventType::GitRepoManagerGetActiveBranchResult,
+      command.syncUuid);
   resultEvent.addData(activeBranch);
   _eventManager.send(resultEvent);
 
@@ -409,7 +410,8 @@ void ProcessingState::getCommitBranchesWorker(
   }
 
   EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerGetCommitBranchesResult);
+      EventManager::EventType::GitRepoManagerGetCommitBranchesResult,
+      command.syncUuid);
   resultEvent.addData(branches);
   _eventManager.send(resultEvent);
 
@@ -438,7 +440,8 @@ void ProcessingState::getCommitHeadsWorker(
   }
 
   EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerGetCommitHeadsResult);
+      EventManager::EventType::GitRepoManagerGetCommitHeadsResult,
+      command.syncUuid);
   resultEvent.addData(branches);
   _eventManager.send(resultEvent);
 
@@ -467,7 +470,8 @@ void ProcessingState::getCommitIsHeadWorker(
   }
 
   EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerGetCommitIsHeadResult);
+      EventManager::EventType::GitRepoManagerGetCommitIsHeadResult,
+      command.syncUuid);
   resultEvent.addData(head);
   _eventManager.send(resultEvent);
 
@@ -496,7 +500,8 @@ void ProcessingState::getBranchHistoryWorker(
   }
 
   EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerGetBranchHistoryResult);
+      EventManager::EventType::GitRepoManagerGetBranchHistoryResult,
+      command.syncUuid);
   resultEvent.addData(history);
   _eventManager.send(resultEvent);
 
@@ -535,7 +540,7 @@ void ProcessingState::initRepoWorker(
   const QString repoPath = command.workingDir + "/" + command.repoName;
 
   EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerInitRepoResult);
+      EventManager::EventType::GitRepoManagerInitRepoResult, command.syncUuid);
   resultEvent.addData(std::make_tuple(command.uuid, repoPath));
   _eventManager.send(resultEvent);
 
@@ -564,7 +569,8 @@ void ProcessingState::listLocalBranchesWorker(
   }
 
   EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerListLocalBranchesResult);
+      EventManager::EventType::GitRepoManagerListLocalBranchesResult,
+      command.syncUuid);
   resultEvent.addData(localBranches);
   _eventManager.send(resultEvent);
 
@@ -593,7 +599,8 @@ void ProcessingState::listRemoteBranchesWorker(
   }
 
   EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerListRemoteBranchesResult);
+      EventManager::EventType::GitRepoManagerListRemoteBranchesResult,
+      command.syncUuid);
   resultEvent.addData(remoteBranches);
   _eventManager.send(resultEvent);
 
@@ -622,7 +629,8 @@ void ProcessingState::listSubmodulesWorker(
   }
 
   EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerListSubmodulesResult);
+      EventManager::EventType::GitRepoManagerListSubmodulesResult,
+      command.syncUuid);
   resultEvent.addData(submodules);
   _eventManager.send(resultEvent);
 
@@ -651,7 +659,7 @@ void ProcessingState::listTagsWorker(
   }
 
   EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerListTagsResult);
+      EventManager::EventType::GitRepoManagerListTagsResult, command.syncUuid);
   resultEvent.addData(tags);
   _eventManager.send(resultEvent);
 
