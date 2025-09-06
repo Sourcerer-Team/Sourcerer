@@ -237,8 +237,8 @@ public:
                           QString corelationId);
   void debugCorrelation(QString threadId, QString function, int line,
                         QString message, QString corelationId);
-  void initCorrelation(QString threadId, QString function, int line,
-                       QString message, QString corelationId);
+  void initCorrelation(const QString& threadId, QString function, int line,
+                       QString message, QString corelationId) const;
 
   template <typename... Args>
   inline void info(QString threadId, QString function, int line,
@@ -372,7 +372,7 @@ public:
   void shutdown();
 
 private:
-  void addEscapeCharacters(QString &string);
+  static void addEscapeCharacters(QString &string);
 
 private:
   LogLevel _currentLogLevel;

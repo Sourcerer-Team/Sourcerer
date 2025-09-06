@@ -29,31 +29,28 @@ void GuiManager::start() {
   LOG_PERF(0, "Enter");
 
   int argc = 1;
-  char *argv = const_cast<char *>(ConfigManager::APPLICATION_NAME);
+  auto argv = const_cast<char *>(ConfigManager::APPLICATION_NAME);
   QApplication app(argc, &argv);
 
   QTranslator translator;
   const QStringList uiLanguages = QLocale::system().uiLanguages();
   for (const QString &locale : uiLanguages) {
-    const QString baseName = "Sourcerer_" + QLocale(locale).name();
-    if (translator.load(":/i18n/" + baseName)) {
-      app.installTranslator(&translator);
+    if (const QString baseName = "Sourcerer_" + QLocale(locale).name();
+        translator.load(":/i18n/" + baseName)) {
+      QApplication::installTranslator(&translator);
       break;
     }
   }
 
-  app.setWindowIcon(QIcon(":/icons/sorcerer-hat.png"));
+  QApplication::setWindowIcon(QIcon(":/icons/sorcerer-hat.png"));
 
-  app.setStyle(new DarkStyle());
-  app.style()->setObjectName("fusion");
+  QApplication::setStyle(new DarkStyle());
+  QApplication::style()->setObjectName("fusion");
 
-  app.setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles, true);
-
-  const StylesheetManager::StylesheetManager &stylesheetManager =
-      StylesheetManager::StylesheetManager::getInstance();
+  QApplication::setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles, true);
 
   const QString &stylesheet =
-      stylesheetManager.stylesheet(StylesheetManager::StylesheetKey::Default);
+      StylesheetManager::StylesheetManager::stylesheet(StylesheetManager::StylesheetKey::Default);
 
   app.setStyleSheet(stylesheet);
 
@@ -65,7 +62,7 @@ void GuiManager::start() {
       EventManager::EventManager::getInstance();
   eventManager.send(startedEvent);
 
-  app.exec();
+  QApplication::exec();
 
   LOG_PERF(0, "Exit");
 }

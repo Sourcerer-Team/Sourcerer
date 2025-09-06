@@ -24,7 +24,7 @@
 namespace GuiManager::Models {
 
 struct Slice {
-  QString toCommit;
+  QStringView toCommit;
 
   bool left = false;
   bool right = false;

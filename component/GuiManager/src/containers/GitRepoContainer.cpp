@@ -397,6 +397,9 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
 void GitRepoContainer::closeRepo() const {
   LOG_PERF(0, "Enter");
 
+  // Release allocated memory
+  _historyModel->updateHistory(GitRepo::GitHistory());
+
   GitRepoCloseCommand closeCommand;
   closeCommand.uuid = _uuid;
 
@@ -589,6 +592,9 @@ void GitRepoContainer::getActiveRemoteBranch() const {
 
 void GitRepoContainer::getBranchHistory() const {
   LOG_PERF(0, "Enter");
+
+  // Release allocated memory
+  _historyModel->updateHistory(GitRepo::GitHistory());
 
   GitRepoGetBranchHistoryCommand command;
   command.uuid = _uuid;

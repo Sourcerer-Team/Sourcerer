@@ -85,7 +85,9 @@ void Log::startLogging(::Log::Log::LogLevel logLevel,
   }
 }
 
-void Log::dumpBacktrace() { spdlog::dump_backtrace(); }
+void Log::dumpBacktrace() {
+  spdlog::dump_backtrace();
+}
 
 QString Log::getCurrentLogName(const QString &logFolder) {
   std::string result;
@@ -332,8 +334,8 @@ void Log::init(QString threadId, QString function, int line, QString message) {
   spdlog::critical(logMessage.toStdString());
 }
 
-void Log::initCorrelation(QString threadId, QString function, int line,
-                          QString message, QString corelationId) {
+void Log::initCorrelation(const QString &threadId, QString function, int line,
+                          QString message, QString corelationId) const {
   if (_shutdown) {
     return;
   }
@@ -388,17 +390,19 @@ void Log::setLogLevel(LogLevel logLevel) {
 }
 
 void Log::addEscapeCharacters(QString &string) {
-  const char escapeCharacter = '\\';
+  constexpr char escapeCharacter = '\\';
 
   std::size_t position = string.indexOf(";", 0);
 
   while (position != -1) {
-    string.insert(position, &escapeCharacter);
-    position = string.indexOf(";", position + 2);
+    string.insert(static_cast<qsizetype>(position), &escapeCharacter);
+    position = string.indexOf(";", static_cast<qsizetype>(position) + 2);
   }
 }
 
-void Log::restart() { startLogging(); }
+void Log::restart() {
+  startLogging();
+}
 
 void Log::shutdown() {
   if (_shutdown) {
