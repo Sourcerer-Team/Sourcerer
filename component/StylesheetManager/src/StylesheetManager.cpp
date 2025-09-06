@@ -14,8 +14,14 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "QPushButton[flat=true]{color:white;text-decoration:none;}"
      "QPushButton[flat=true]:hover{color:#2A82DA;text-decoration:"
      "underline;}"
+     "QToolBox::tab{background: #353535;border: 1px solid "
+     "gray;border-bottom gray: 1px solid;border-radius: 5px;padding: 5px;}"
+     "QToolBox::tab:selected{background: #384D59;border-bottom: 1px solid "
+     "gray;font-weight:bold;}"
      "QTabBar::tab:selected{font-weight:bold;}"
-     "QToolTip{font-size:14px;background-color:black;color:white;border:0px;}"
+     "QToolTip{font-size:14px;background-color:#384D59;color:white;border:1px;}"
+     "QTableView::item:selected{font-weight:bold;background-color:"
+     "#384D59;}"
      "GuiManager--Widgets--TitleBarMenuButton::menu-indicator{width:0px;}"
      "GuiManager--Widgets--TitlebarWidget,GuiManager--Widgets--TitlebarWidget "
      "* {font-size:14px;}"
@@ -65,9 +71,9 @@ StylesheetManager &StylesheetManager::getInstance() {
   return instance;
 }
 
-const QString &StylesheetManager::stylesheet(StylesheetKey key) const {
+const QString &StylesheetManager::stylesheet(StylesheetKey key) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Stylesheet {} requested.", (int)key);
+  LOG_DEBUG("Stylesheet {} requested.", static_cast<int>(key));
 
   LOG_PERF(0, "Exit");
 

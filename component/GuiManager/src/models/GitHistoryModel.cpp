@@ -4,6 +4,7 @@
 #include <Graph.h>
 #include <Log.h>
 
+#include <QFont>
 #include <QQueue>
 #include <QSet>
 
@@ -11,12 +12,11 @@
 
 #define THREAD_ID "GitHistoryModel"
 
-namespace GuiManager {
-
-namespace Models {
+namespace GuiManager::Models {
 
 GitHistoryModel::GitHistoryModel(QObject *parent)
-    : QAbstractTableModel(parent), _quitUpdate(false) {
+    : QAbstractTableModel(parent), _quitUpdate(false),
+      _selectionModel(nullptr) {
   LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit");
@@ -28,7 +28,9 @@ GitHistoryModel::~GitHistoryModel() {
   LOG_PERF(0, "Exit");
 }
 
-void GitHistoryModel::updateHistory(const GitRepo::GitHistory &history, const std::function<void(int)> progressCallback) {
+void GitHistoryModel::updateHistory(
+    const GitRepo::GitHistory &history,
+    const std::function<void(int)> progressCallback) {
   LOG_PERF(0, "Enter");
 
   beginResetModel();
@@ -38,7 +40,7 @@ void GitHistoryModel::updateHistory(const GitRepo::GitHistory &history, const st
   _history = history;
 
   createDrawableSlices([&](int progress) {
-    if(progressCallback) {
+    if (progressCallback) {
       progressCallback(progress / 2);
     }
   });
@@ -46,13 +48,13 @@ void GitHistoryModel::updateHistory(const GitRepo::GitHistory &history, const st
   std::reverse(_history.commits.begin(), _history.commits.end());
 
   _drawableSlices.invertVertically([&](int progress) {
-    if(progressCallback) {
+    if (progressCallback) {
       progressCallback(50 + (progress / 4));
     }
   });
 
   for (qsizetype i = 0; i < _drawableSlices.sizeX(); ++i) {
-    if(progressCallback) {
+    if (progressCallback) {
       const double progress = (i * 100.0) / _drawableSlices.sizeX();
       progressCallback(75 + (progress / 4));
     }
@@ -62,7 +64,7 @@ void GitHistoryModel::updateHistory(const GitRepo::GitHistory &history, const st
     }
   }
 
-  if(progressCallback) {
+  if (progressCallback) {
     progressCallback(100);
   }
 
@@ -120,6 +122,13 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
   if (index.row() < 0 || index.row() >= _history.commits.size()) {
     LOG_PERF(0, "Exit");
     return {};
+  }
+
+  if (_selectionModel && role == Qt::FontRole &&
+      _selectionModel->isSelected(index)) {
+    QFont font;
+    font.setBold(true);
+    return font;
   }
 
   if (role == HistorySliceWidthRole) {
@@ -228,7 +237,8 @@ QVariant GitHistoryModel::headerData(const int section,
   return QAbstractTableModel::headerData(section, orientation, role);
 }
 
-void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progressCallback) {
+void GitHistoryModel::createDrawableSlices(
+    const std::function<void(int)> progressCallback) {
   LOG_PERF(0, "Enter");
 
   _drawableSlices.clear();
@@ -237,14 +247,14 @@ void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progre
     QMap<QString, QPair<int, int>> commitPositions;
 
     for (int i = 0; i < _history.commits.size(); ++i) {
-      if(_quitUpdate) {
+      if (_quitUpdate) {
         _drawableSlices.clear();
         LOG_PERF(0, "Exit");
         return;
       }
 
       const double progress = (i * 100.0) / _history.commits.size();
-      if(progressCallback) {
+      if (progressCallback) {
         progressCallback(static_cast<int>(progress));
       }
 
@@ -262,7 +272,7 @@ void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progre
         _drawableSlices[0][0].toCommit = currentCommit;
         _drawableSlices[0][0].main = true;
 
-        for(auto& pos : commitPositions) {
+        for (auto &pos : commitPositions) {
           pos.first += 1;
         };
 
@@ -279,15 +289,15 @@ void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progre
       for (const auto &parent : commitInfo.parents) {
         if (!commitPositions.contains(parent)) {
           int danglingParentIndex = -1;
-          for(int j = 0; j < _history.commits.size(); ++j) {
-            if(_history.commits[j] == parent) {
+          for (int j = 0; j < _history.commits.size(); ++j) {
+            if (_history.commits[j] == parent) {
               danglingParentIndex = j;
               break;
             }
           }
 
-          if(danglingParentIndex == -1) {
-            if(!missingParents.contains(parent)) {
+          if (danglingParentIndex == -1) {
+            if (!missingParents.contains(parent)) {
               missingParents += parent;
             }
           };
@@ -296,10 +306,10 @@ void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progre
         }
       }
 
-      if(!missingParents.isEmpty()) {
+      if (!missingParents.isEmpty()) {
         // Skip commits with missing parents (e.g., due to shallow clone)
         continue;
-      } else if(maxDanglingParent != -1) {
+      } else if (maxDanglingParent != -1) {
         const int newRow = std::max(i + 1, maxDanglingParent + 1);
 
         _history.commits.insert(newRow, currentCommit);
@@ -325,7 +335,7 @@ void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progre
         Q_ASSERT(parentX != -1);
         Q_ASSERT(parentY != -1);
 
-        if(parentX == -1 || parentY == -1) {
+        if (parentX == -1 || parentY == -1) {
           continue;
         }
 
@@ -334,7 +344,7 @@ void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progre
         indexes += parentX;
 
         for (qsizetype k = 0; k < _drawableSlices.sizeX(); ++k) {
-          if(!indexes.contains(k)) {
+          if (!indexes.contains(k)) {
             indexes += k;
           }
         }
@@ -364,18 +374,18 @@ void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progre
         QList<QString>::const_iterator itParent = commitInfo.parents.constEnd();
 
         if (startY > 0) {
-          itParent = std::find(
-              commitInfo.parents.begin(), commitInfo.parents.end(),
-              _drawableSlices[emptyColumnIndex][startY - 1].toCommit);
+          itParent =
+              std::find(commitInfo.parents.begin(), commitInfo.parents.end(),
+                        _drawableSlices[emptyColumnIndex][startY - 1].toCommit);
         }
 
         for (qsizetype k = startY; k <= i; ++k) {
-          if(!_drawableSlices[emptyColumnIndex][k].bottom) {
+          if (!_drawableSlices[emptyColumnIndex][k].bottom) {
             _drawableSlices[emptyColumnIndex][k].bottom = k != i;
           }
-          if(!_drawableSlices[emptyColumnIndex][k].top) {
+          if (!_drawableSlices[emptyColumnIndex][k].top) {
             _drawableSlices[emptyColumnIndex][k].top =
-              k == startY ? itParent != commitInfo.parents.end() : k != i;
+                k == startY ? itParent != commitInfo.parents.end() : k != i;
           }
           _drawableSlices[emptyColumnIndex][k].toCommit =
               _drawableSlices[emptyColumnIndex][k].toCommit.isEmpty()
@@ -386,19 +396,19 @@ void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progre
 
         if (parentX < emptyColumnIndex) {
           for (qsizetype k = parentX; k <= emptyColumnIndex; ++k) {
-            if(!_drawableSlices[k][parentY].right) {
+            if (!_drawableSlices[k][parentY].right) {
               _drawableSlices[k][parentY].right = k != emptyColumnIndex;
             }
-            if(!_drawableSlices[k][parentY].left) {
+            if (!_drawableSlices[k][parentY].left) {
               _drawableSlices[k][parentY].left = k != parentX;
             }
           }
         } else if (parentX > emptyColumnIndex) {
           for (qsizetype k = emptyColumnIndex; k <= parentX; ++k) {
-            if(!_drawableSlices[k][parentY].right) {
+            if (!_drawableSlices[k][parentY].right) {
               _drawableSlices[k][parentY].right = k != parentX;
             }
-            if(!_drawableSlices[k][parentY].left) {
+            if (!_drawableSlices[k][parentY].left) {
               _drawableSlices[k][parentY].left = k != emptyColumnIndex;
             }
           }
@@ -429,10 +439,10 @@ void GitHistoryModel::createDrawableSlices(const std::function<void(int)> progre
       for (qsizetype j = firstIndex; j <= lastIndex; ++j) {
         _drawableSlices[j][i].bottom = false;
         _drawableSlices[j][i].top = emptyColumnIndexes.contains(j);
-        if(!_drawableSlices[j][i].left) {
+        if (!_drawableSlices[j][i].left) {
           _drawableSlices[j][i].left = j != firstIndex;
         }
-        if(!_drawableSlices[j][i].right) {
+        if (!_drawableSlices[j][i].right) {
           _drawableSlices[j][i].right = j != lastIndex;
         }
       }
@@ -566,6 +576,4 @@ int GitHistoryModel::indexDifference(const QString &commitA,
   return itB - itA;
 }
 
-} // namespace Models
-
-} // namespace GuiManager
+} // namespace GuiManager::Models

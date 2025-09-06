@@ -6,13 +6,17 @@
 
 namespace GuiManager::Widgets {
 
+void enableBlur(const WId wid);
+
 class OverlayWidget : public QWidget {
 public:
   explicit OverlayWidget(QWidget *parent) : QWidget(parent) {
     setAttribute(Qt::WA_TransparentForMouseEvents, false);
 
+    enableBlur(winId());
+
     QColor defaultBackgroundColor = palette().color(QPalette::Window);
-    defaultBackgroundColor.setAlpha(128); // 50% opacity
+    defaultBackgroundColor.setAlpha(128);
 
     setBackgroundColor(defaultBackgroundColor);
 

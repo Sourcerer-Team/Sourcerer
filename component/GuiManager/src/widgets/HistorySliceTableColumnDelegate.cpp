@@ -6,7 +6,7 @@
 namespace GuiManager::Widgets {
 
 HistorySliceTableColumnDelegate::HistorySliceTableColumnDelegate(
-  QObject *parent)
+    QObject *parent)
     : QStyledItemDelegate(parent) {}
 
 void HistorySliceTableColumnDelegate::paint(QPainter *painter,
@@ -17,28 +17,35 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
     return;
   }
 
-  const auto width = index.data(HistorySliceWidthRole).value<qsizetype>();
-  if (width <= 0) {
+  if (const auto width = index.data(HistorySliceWidthRole).value<qsizetype>();
+      width <= 0) {
     paintDefault(painter, option, index);
     return;
   }
 
   const auto slices =
-    index.data(Qt::DisplayRole).value<GuiManager::Models::Slices>();
+      index.data(Qt::DisplayRole).value<GuiManager::Models::Slices>();
 
-  const int cellHeight = option.rect.height();
-  const int cellWidth = cellHeight /*option.rect.width() / width*/;
+  QStyleOptionViewItem opt(option);
+  initStyleOption(&opt, index);
+
+  const int cellHeight = opt.rect.height();
+  const int cellWidth = cellHeight;
+
+  QStyledItemDelegate::paint(painter, opt, index);
 
   painter->save();
 
   painter->setRenderHint(QPainter::Antialiasing, true);
 
-  QRegion clipRegion(option.rect);
+  QRegion clipRegion(opt.rect);
   painter->setClipRegion(clipRegion);
 
-  if (option.state & QStyle::State_Selected) {
-    painter->fillRect(option.rect, option.palette.highlight());
+  /*
+  if (opt.state & QStyle::State_Selected) {
+    painter->fillRect(opt.rect, opt.palette.highlight());
   }
+  */
 
   painter->setPen(QPen(QBrush(Qt::darkGreen), 2, Qt::SolidLine, Qt::RoundCap,
                        Qt::RoundJoin));
@@ -52,30 +59,30 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
         QList<QPoint> points;
 
         // Left
-        points += QPoint(option.rect.left() + i * cellWidth,
-                         option.rect.top() + cellHeight / 2);
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth,
+                         opt.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight / 2);
 
         // Top
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top());
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top());
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight / 2);
 
         painter->drawLines(points);
 
         // Draw commit circle
-        const int centerX = option.rect.x() + cellWidth / 2 + i * cellWidth;
-        const int centerY = option.rect.y() + cellHeight / 2;
+        const int centerX = opt.rect.x() + cellWidth / 2 + i * cellWidth;
+        const int centerY = opt.rect.y() + cellHeight / 2;
         const int radius = qMin(cellWidth, cellHeight) / 6;
         painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
       } else {
-        const QPoint p0(option.rect.left() + i * cellWidth - cellWidth / 2 - 1,
-                        option.rect.top() - cellHeight / 2 - 1);
-        const QPoint p1(option.rect.left() + (i + 1) * cellWidth -
-                          cellWidth / 2 - 1,
-                        option.rect.top() + cellHeight - cellHeight / 2 - 1);
+        const QPoint p0(opt.rect.left() + i * cellWidth - cellWidth / 2 - 1,
+                        opt.rect.top() - cellHeight / 2 - 1);
+        const QPoint p1(opt.rect.left() + (i + 1) * cellWidth - cellWidth / 2 -
+                            1,
+                        opt.rect.top() + cellHeight - cellHeight / 2 - 1);
         const QRect rect(p0, p1);
 
         constexpr int startAngle = 270 * 16;
@@ -89,30 +96,30 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
         QList<QPoint> points;
 
         // Top
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top());
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top());
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight / 2);
 
         // Right
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight / 2);
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth,
-                         option.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth,
+                         opt.rect.top() + cellHeight / 2);
 
         painter->drawLines(points);
 
         // Draw commit circle
-        const int centerX = option.rect.x() + cellWidth / 2 + i * cellWidth;
-        const int centerY = option.rect.y() + cellHeight / 2;
+        const int centerX = opt.rect.x() + cellWidth / 2 + i * cellWidth;
+        const int centerY = opt.rect.y() + cellHeight / 2;
         const int radius = qMin(cellWidth, cellHeight) / 6;
         painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
       } else {
-        const QPoint p0(option.rect.left() + i * cellWidth + cellWidth / 2,
-                        option.rect.top() - cellHeight / 2 - 1);
-        const QPoint p1(option.rect.left() + i * cellWidth + cellWidth +
-                          cellWidth / 2,
-                        option.rect.top() + cellHeight - cellHeight / 2 - 1);
+        const QPoint p0(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                        opt.rect.top() - cellHeight / 2 - 1);
+        const QPoint p1(opt.rect.left() + i * cellWidth + cellWidth +
+                            cellWidth / 2,
+                        opt.rect.top() + cellHeight - cellHeight / 2 - 1);
         const QRect rect(p0, p1);
 
         constexpr int startAngle = 180 * 16;
@@ -126,30 +133,30 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
         QList<QPoint> points;
 
         // Left
-        points += QPoint(option.rect.left() + i * cellWidth,
-                         option.rect.top() + cellHeight / 2);
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth,
+                         opt.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight / 2);
 
         // Bottom
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight / 2);
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight);
 
         painter->drawLines(points);
 
         // Draw commit circle
-        const int centerX = option.rect.x() + cellWidth / 2 + i * cellWidth;
-        const int centerY = option.rect.y() + cellHeight / 2;
+        const int centerX = opt.rect.x() + cellWidth / 2 + i * cellWidth;
+        const int centerY = opt.rect.y() + cellHeight / 2;
         const int radius = qMin(cellWidth, cellHeight) / 6;
         painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
       } else {
-        const QPoint p0(option.rect.left() + i * cellWidth - cellWidth / 2 - 1,
-                        option.rect.top() + cellHeight / 2);
-        const QPoint p1(option.rect.left() + i * cellWidth + cellWidth -
-                          cellWidth / 2 - 1,
-                        option.rect.top() + cellHeight + cellHeight / 2);
+        const QPoint p0(opt.rect.left() + i * cellWidth - cellWidth / 2 - 1,
+                        opt.rect.top() + cellHeight / 2);
+        const QPoint p1(opt.rect.left() + i * cellWidth + cellWidth -
+                            cellWidth / 2 - 1,
+                        opt.rect.top() + cellHeight + cellHeight / 2);
         const QRect rect(p0, p1);
 
         constexpr int startAngle = 90 * 16;
@@ -163,30 +170,30 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
         QList<QPoint> points;
 
         // Bottom
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight / 2);
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight);
 
         // Right
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight / 2);
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth,
-                         option.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth,
+                         opt.rect.top() + cellHeight / 2);
 
         painter->drawLines(points);
 
         // Draw commit circle
-        const int centerX = option.rect.x() + cellWidth / 2 + i * cellWidth;
-        const int centerY = option.rect.y() + cellHeight / 2;
+        const int centerX = opt.rect.x() + cellWidth / 2 + i * cellWidth;
+        const int centerY = opt.rect.y() + cellHeight / 2;
         const int radius = qMin(cellWidth, cellHeight) / 6;
         painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
       } else {
-        const QPoint p0(option.rect.left() + i * cellWidth + cellWidth / 2,
-                        option.rect.top() + cellHeight / 2);
-        const QPoint p1(option.rect.left() + i * cellWidth + +cellWidth +
-                          cellWidth / 2,
-                        option.rect.top() + cellHeight + cellHeight / 2);
+        const QPoint p0(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                        opt.rect.top() + cellHeight / 2);
+        const QPoint p1(opt.rect.left() + i * cellWidth + +cellWidth +
+                            cellWidth / 2,
+                        opt.rect.top() + cellHeight + cellHeight / 2);
         const QRect rect(p0, p1);
 
         constexpr int startAngle = 180 * 16;
@@ -198,10 +205,10 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
       if (slice.left) {
         // Left horizontal line
         QList<QPoint> points;
-        points += QPoint(option.rect.left() + i * cellWidth,
-                         option.rect.top() + cellHeight / 2);
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth,
+                         opt.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight / 2);
 
         painter->drawLines(points);
       }
@@ -209,10 +216,10 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
       if (slice.right) {
         // Right horizontal line
         QList<QPoint> points;
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight / 2);
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth,
-                         option.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth,
+                         opt.rect.top() + cellHeight / 2);
 
         painter->drawLines(points);
       }
@@ -220,10 +227,10 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
       if (slice.top) {
         // Top vertical line
         QList<QPoint> points;
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top());
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top());
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight / 2);
 
         painter->drawLines(points);
       }
@@ -231,18 +238,18 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
       if (slice.bottom) {
         // Bottom vertical line
         QList<QPoint> points;
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight / 2);
-        points += QPoint(option.rect.left() + i * cellWidth + cellWidth / 2,
-                         option.rect.top() + cellHeight);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight / 2);
+        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                         opt.rect.top() + cellHeight);
 
         painter->drawLines(points);
       }
 
       if (slice.main) {
         // Draw commit circle
-        const int centerX = option.rect.x() + cellWidth / 2 + i * cellWidth;
-        const int centerY = option.rect.y() + cellHeight / 2;
+        const int centerX = opt.rect.x() + cellWidth / 2 + i * cellWidth;
+        const int centerY = opt.rect.y() + cellHeight / 2;
         const int radius = qMin(cellWidth, cellHeight) / 6;
         painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
       }
@@ -253,13 +260,13 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
 }
 
 void HistorySliceTableColumnDelegate::paintDefault(
-  QPainter *painter, const QStyleOptionViewItem &option,
-  const QModelIndex &index) const {
+    QPainter *painter, const QStyleOptionViewItem &option,
+    const QModelIndex &index) const {
   QStyleOptionViewItem opt(option); // Make a copy so we can modify it
   initStyleOption(&opt, index);     // Populate with model data
 
   opt.features &= ~QStyleOptionViewItem::WrapText;
-  opt.textElideMode = Qt::ElideRight; // Optional: truncate long text
+  opt.textElideMode = Qt::ElideRight;
 
   // Let the style engine handle selection, focus, etc.
   const QWidget *widget = opt.widget;

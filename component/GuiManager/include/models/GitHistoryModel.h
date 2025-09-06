@@ -7,6 +7,7 @@
 #include <QAbstractTableModel>
 
 #include <functional>
+#include <qitemselectionmodel.h>
 
 #define COLUMN_HISTORY_SLICE 0
 #define COLUMN_SUMMARY 1
@@ -42,7 +43,12 @@ public:
   ~GitHistoryModel() override;
 
 public:
-  void updateHistory(const GitRepo::GitHistory &history, const std::function<void(int)> progressCallback = nullptr);
+  void setSelectionModel(QItemSelectionModel *selectionModel) {
+    _selectionModel = selectionModel;
+  }
+
+  void updateHistory(const GitRepo::GitHistory &history,
+                     const std::function<void(int)> progressCallback = nullptr);
 
   void quitUpdate() { _quitUpdate = true; }
 
@@ -73,6 +79,7 @@ private:
   GitRepo::GitHistory _history;
   Util::ResizableMatrix<Slice> _drawableSlices;
   bool _quitUpdate;
+  QItemSelectionModel *_selectionModel;
 };
 
 } // namespace GuiManager::Models

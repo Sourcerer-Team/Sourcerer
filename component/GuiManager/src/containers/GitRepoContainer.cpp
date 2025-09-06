@@ -67,6 +67,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->labelErrorImage->setPixmap(*_errorPixmap);
 
+  _historyModel->setSelectionModel(ui->historyView->selectionModel());
+
   showMainSpinnerPage(false);
   showOverlay();
 
@@ -706,8 +708,6 @@ void GitRepoContainer::showOverlay(bool spinnerEnabled) const {
   ui->historyView->setVisible(!spinnerEnabled);
 
   if (spinnerEnabled) {
-    //_overlay->move(0, 0);
-    //_overlay->resize(size());
     _overlay->show();
     _overlay->startSpinning();
     _overlay->setText("0%");

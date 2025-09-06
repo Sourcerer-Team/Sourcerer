@@ -10,7 +10,7 @@ class StylesheetManager {
 public:
   static StylesheetManager &getInstance();
 
-  const QString &stylesheet(StylesheetKey key) const;
+  static const QString &stylesheet(StylesheetKey key);
 
 private:
   StylesheetManager();
