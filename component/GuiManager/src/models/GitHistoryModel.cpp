@@ -238,7 +238,7 @@ QVariant GitHistoryModel::headerData(const int section,
 }
 
 void GitHistoryModel::createDrawableSlices(
-    const std::function<void(int)> progressCallback) {
+    const std::function<void(int)>& progressCallback) {
   LOG_PERF(0, "Enter");
 
   _drawableSlices.clear();
@@ -266,7 +266,7 @@ void GitHistoryModel::createDrawableSlices(
 
       const auto &commitInfo = it.value();
 
-      if (commitInfo.parents.size() == 0) {
+      if (commitInfo.parents.empty()) {
         _drawableSlices.insertRow(0);
         _drawableSlices.insertColumn(0);
         _drawableSlices[0][0].toCommit = currentCommit;

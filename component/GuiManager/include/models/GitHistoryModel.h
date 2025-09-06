@@ -63,7 +63,7 @@ public:
                       int role) const override;
 
 private:
-  void createDrawableSlices(const std::function<void(int)> progressCallback);
+  void createDrawableSlices(const std::function<void(int)>& progressCallback);
 
 #ifdef QT_DEBUG
   static void

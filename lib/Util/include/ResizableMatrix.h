@@ -7,7 +7,7 @@
 namespace Util {
 
 template <typename T> class ResizableMatrix {
-  public:
+public:
   ResizableMatrix() {}
 
   const ResizableVector<T> &operator[](qsizetype index) const {
@@ -85,12 +85,13 @@ template <typename T> class ResizableMatrix {
     }
   }
 
-  void invertVertically(const std::function<void(int)> progressCallback = nullptr) {
+  void
+  invertVertically(const std::function<void(int)> &progressCallback = nullptr) {
     resize(sizeX(), sizeY());
     for (int i = 0; i < sizeY() / 2; ++i) {
-      if(progressCallback) {
+      if (progressCallback) {
         const double progress = (i * 100.0) / (sizeY() / 2);
-        progressCallback(progress);
+        progressCallback(static_cast<int>(progress));
       }
 
       for (int j = 0; j < sizeX(); ++j) {
@@ -99,21 +100,17 @@ template <typename T> class ResizableMatrix {
     }
   }
 
-  void clear() {
-    _columns.clear();
-  }
+  void clear() { _columns.clear(); }
 
-  void insertColumn(int x) {
-    _columns.insert(x, Util::ResizableVector<T>());
-  }
+  void insertColumn(int x) { _columns.insert(x, Util::ResizableVector<T>()); }
 
   void insertRow(int y) {
-    for(int i = 0; i < sizeX(); ++i) {
+    for (int i = 0; i < sizeX(); ++i) {
       _columns[i].insert(y, T());
     }
   }
 
-  private:
+private:
   mutable ResizableVector<ResizableVector<T>> _columns;
 };
 
