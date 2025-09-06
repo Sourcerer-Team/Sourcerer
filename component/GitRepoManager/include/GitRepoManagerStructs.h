@@ -5,6 +5,7 @@
 #include <BlockingQueue.h>
 
 #include <QString>
+#include <QVariant>
 
 #include <git2/repository.h>
 
@@ -43,7 +44,8 @@ enum class GitRepoErrorType : int {
 };
 
 struct GitRepoCommand {
-  explicit GitRepoCommand(GitRepoCommandType commandType) : type(commandType) {}
+  explicit GitRepoCommand(const GitRepoCommandType commandType)
+      : type(commandType) {}
   virtual ~GitRepoCommand() = default;
   GitRepoCommandType type;
   QString uuid;
@@ -157,6 +159,13 @@ struct GitRepoError {
   QString message;
   GitRepoErrorType error = GitRepoErrorType::Unknown;
 };
+
+struct GitRepoResult {
+  QString uuid;
+  GitRepoCommandType type = GitRepoCommandType::Unknown;
+  QVariant value;
+};
+
 
 struct GitRepoContext {
   QString uuid;

@@ -2,9 +2,7 @@
 
 #include <QWidget>
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 enum class ContainerType {
   Unknown = 0,
@@ -21,15 +19,12 @@ class ContainerWidget : public QWidget {
   Q_OBJECT
 public:
   explicit ContainerWidget(ContainerType type, QWidget *parent = nullptr);
-  virtual ~ContainerWidget();
+  ~ContainerWidget() override;
 
   virtual ContainerType type() const { return _type; }
-
-signals:
 
 private:
   ContainerType _type;
 };
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

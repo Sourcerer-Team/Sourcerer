@@ -3,19 +3,15 @@
 #include <BlockingQueue.h>
 #include <LockGuard.h>
 
-#include <QObject>
 #include <QThread>
 
 #include <climits>
 #include <functional>
 #include <map>
 
+namespace Util {
 
-namespace Util
-{
-
-enum class DispatcherCommand
-{
+enum class DispatcherCommand {
   Unknown = 0,
 
   Run,
@@ -24,39 +20,39 @@ enum class DispatcherCommand
   last
 };
 
-struct DispatcherRecord
-{
+struct DispatcherRecord {
   DispatcherCommand _command = DispatcherCommand::Quit;
   std::function<void()> _task;
 };
 
-struct DispatcherPoolElement
-{
+struct DispatcherPoolElement {
   BlockingQueue<DispatcherRecord> _queue;
-  QThread* _thread = nullptr;
+  QThread *_thread = nullptr;
 };
 
-class Dispatcher : public QObject
-{
+class Dispatcher : public QObject {
   Q_OBJECT
 
-  public:
+public:
   Dispatcher(int coresNum = INT_MAX);
-  virtual ~Dispatcher();
+  ~Dispatcher() override;
 
-  void dispatch(std::function<void()> task);
+  bool dispatch(
+      const std::function<void()> &task,
+      const std::function<void()> &finalTask = nullptr,
+      const std::function<void(const std::exception &)> &errorTask = nullptr);
 
-  static void dispatchToMainThread(std::function<void()> callback);
+  static bool dispatchToMainThread(const std::function<void()> &callback);
 
   void joinAll();
 
-  private:
+private:
   void processor(BlockingQueue<DispatcherRecord> &queue);
 
-  private:
+private:
   Util::Mutex _mutex;
   std::map<size_t, DispatcherPoolElement> _pool;
-  std::map<size_t, QThread*> _threads;
+  std::map<size_t, QThread *> _threads;
 };
 
 } // namespace Util

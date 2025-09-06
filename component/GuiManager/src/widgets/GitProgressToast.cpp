@@ -1,5 +1,7 @@
 #include "widgets/GitProgressToast.h"
 
+#include "GitRepoManagerStructs.h"
+
 #include <Dispatcher.h>
 #include <Log.h>
 
@@ -81,7 +83,13 @@ void GitProgressToast::eventCallback(EventManager::Event event) {
 
   switch (eventType) {
   case EventManager::EventType::GitRepoManagerCloneRepoProgress: {
-    const CloneProgress data = event.data<CloneProgress>();
+    const GitRepoManager::Structs::GitRepoResult commandResult =
+        event.data<GitRepoManager::Structs::GitRepoResult>();
+    if (commandResult.uuid != _data.uuid) {
+      break;
+    }
+
+    const CloneProgress data = commandResult.value.value<CloneProgress>();
     if (data.uuid != _data.uuid)
       break;
 

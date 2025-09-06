@@ -1,6 +1,8 @@
 
 #include "GitRepo.h"
 
+#include "../../../component/GitRepoManager/include/GitRepoManagerStructs.h"
+
 #include <ConfigManager.h>
 #include <EventManager.h>
 #include <LockGuard.h>
@@ -591,7 +593,7 @@ static int fetchProgressCallback(const git_indexer_progress *stats,
   if (!payload || !stats)
     return 0;
 
-  CloneProgress *progress = static_cast<CloneProgress *>(payload);
+  const auto progress = static_cast<CloneProgress *>(payload);
   progress->completedSteps = stats->indexed_objects;
   progress->totalSteps = stats->total_objects;
   progress->started = true;
@@ -605,13 +607,17 @@ static int fetchProgressCallback(const git_indexer_progress *stats,
       progress->lastStepPercentage = percentage;
       EventManager::Event progressEvent(
           EventManager::EventType::GitRepoManagerCloneRepoProgress);
-      progressEvent.addData(*progress);
+      progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
+          progress->uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
+          QVariant::fromValue(*progress)});
       EventManager::EventManager::getInstance().send(progressEvent);
     }
   } else {
     EventManager::Event progressEvent(
         EventManager::EventType::GitRepoManagerCloneRepoProgress);
-    progressEvent.addData(*progress);
+    progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
+        progress->uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
+        QVariant::fromValue(*progress)});
     EventManager::EventManager::getInstance().send(progressEvent);
   }
 
@@ -619,11 +625,11 @@ static int fetchProgressCallback(const git_indexer_progress *stats,
 }
 
 static void checkoutProgressCallback(const char *path, size_t completed_steps,
-                                     size_t total_steps, void *payload) {
+                                     const size_t total_steps, void *payload) {
   if (!payload)
     return;
 
-  CloneProgress *progress = static_cast<CloneProgress *>(payload);
+  const auto progress = static_cast<CloneProgress *>(payload);
   progress->completedSteps = completed_steps;
   progress->totalSteps = total_steps;
   progress->started = true;
@@ -641,7 +647,9 @@ static void checkoutProgressCallback(const char *path, size_t completed_steps,
     progress->lastStepPercentage = percentage;
     EventManager::Event progressEvent(
         EventManager::EventType::GitRepoManagerCloneRepoProgress);
-    progressEvent.addData(*progress);
+    progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
+        progress->uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
+        QVariant::fromValue(*progress)});
     EventManager::EventManager::getInstance().send(progressEvent);
   }
 }
@@ -656,13 +664,15 @@ static void finishFetchProgress(const QString &uuid) {
 
   EventManager::Event progressEvent(
       EventManager::EventType::GitRepoManagerCloneRepoProgress);
-  progressEvent.addData(progress);
+  progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
+      uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
+      QVariant::fromValue(progress)});
   EventManager::EventManager::getInstance().send(progressEvent);
 }
 
 static std::tuple<bool, GitPlaintextCredentials>
 acquireCredentials(const QString &url, const QString &username,
-                   int allowedTypes) {
+                   const int allowedTypes) {
   LOG_PERF(0, "Enter");
 
   EventManager::EventManager &eventManager =
@@ -686,9 +696,9 @@ acquireCredentials(const QString &url, const QString &username,
     bool success = false;
     switch (event.type()) {
     case EventManager::EventType::GitRepoManagerGetCredentialsError: {
-      const GitCredentialsErrorResponse response =
+      const auto [uuid] =
           event.data<GitCredentialsErrorResponse>();
-      success = response.uuid == request.uuid;
+      success = uuid == request.uuid;
       break;
     }
     case EventManager::EventType::GitRepoManagerGetCredentialsResult: {

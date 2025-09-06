@@ -115,6 +115,11 @@ void InitGitRepoContainer::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerInitRepoResult: {
+    if (const auto commandResult = event.data<GitRepoResult>();
+        commandResult.uuid != _uuid) {
+      break;
+    }
+
     emit initialized();
     break;
   }

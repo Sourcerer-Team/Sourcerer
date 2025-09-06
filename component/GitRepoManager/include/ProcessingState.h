@@ -51,7 +51,7 @@ private:
   void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
   void reportError(EventManager::EventType eventType,
                    Structs::GitRepoErrorType errorType, const QString &message,
-                   const QString &commandUuid, const QString& syncUuid) const;
+                   const Structs::GitRepoCommand &command) const;
   void scheduleWorkerForCloneRepo(const Structs::GitRepoCloneCommand &command);
   void scheduleWorkerForCloseRepo(const Structs::GitRepoCloseCommand &command);
   void scheduleWorkerForGetActiveBranch(

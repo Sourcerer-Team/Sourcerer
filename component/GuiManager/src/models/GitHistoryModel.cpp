@@ -39,7 +39,7 @@ void GitHistoryModel::updateHistory(
 
   _history = history;
 
-  createDrawableSlices([&](int progress) {
+  createDrawableSlices([&](const int progress) {
     if (progressCallback) {
       progressCallback(progress / 2);
     }
@@ -47,7 +47,7 @@ void GitHistoryModel::updateHistory(
 
   std::reverse(_history.commits.begin(), _history.commits.end());
 
-  _drawableSlices.invertVertically([&](int progress) {
+  _drawableSlices.invertVertically([&](const int progress) {
     if (progressCallback) {
       progressCallback(50 + (progress / 4));
     }

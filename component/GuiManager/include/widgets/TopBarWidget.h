@@ -8,10 +8,9 @@
 #include <QPoint>
 #include <QWidget>
 
-namespace GuiManager {
-namespace Widgets {
+namespace GuiManager::Widgets {
 
-class TopBarWidget : public QWidget {
+class TopBarWidget final : public QWidget {
   Q_OBJECT
 public:
   explicit TopBarWidget(QWidget *parent = nullptr);
@@ -47,5 +46,4 @@ private:
   TitlebarWidget *_titleBarWidget;
 };
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

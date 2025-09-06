@@ -36,7 +36,7 @@ struct Slice {
 
 typedef QVector<Slice> Slices;
 
-class GitHistoryModel : public QAbstractTableModel {
+class GitHistoryModel final : public QAbstractTableModel {
   Q_OBJECT
 public:
   explicit GitHistoryModel(QObject *parent = nullptr);

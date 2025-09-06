@@ -13,19 +13,18 @@
 #include <QMainWindow>
 #include <QResizeEvent>
 #include <QSet>
-#include <QVector>
 
 namespace GuiManager {
 
 using namespace GitRepo;
 using namespace Widgets;
 
-class MainWindow : public QMainWindow {
+class MainWindow final : public QMainWindow {
   Q_OBJECT
 
 public:
-  MainWindow(QWidget *parent = nullptr);
-  ~MainWindow();
+  explicit MainWindow(QWidget *parent = nullptr);
+  ~MainWindow() override;
 
   // QWidget interface
 protected:
@@ -44,16 +43,16 @@ private slots:
   void onInit();
   void onInitFinished(ContainerWidget *sender);
   void onSettings();
-  void onAbout();
+  void onAbout() const;
   void onClosedTab(int index);
   void onSelectedTab(int index);
-  void onTabBarResize();
+  static void onTabBarResize();
   void onToastHostSizeChanged(const QSize &newSize);
   void onMinimizeClicked();
   void onMaximizeClicked();
   void onCloseClicked();
-  void onTitleBarDrag();
-  void onEdgeHit(Qt::Edges edges);
+  void onTitleBarDrag() const;
+  void onEdgeHit(Qt::Edges edges) const;
 
 private:
   void addCloneContainer();
@@ -61,12 +60,12 @@ private:
   void addHomeContainer();
   void addInitGitRepoContainer();
   void addSettingsContainer();
-  void closeContainer(ContainerWidget *container);
+  void closeContainer(const ContainerWidget *container);
   void eventCallback(EventManager::Event event);
   void selectContainer(int index);
-  void showCredentialsToast(const GitCredentialsRequest &request);
-  void showCloneProgressToast(const CloneProgress &data);
-  void showToast(const QString &text);
+  void showCredentialsToast(const GitCredentialsRequest &request) const;
+  void showCloneProgressToast(const CloneProgress &data) const;
+  void showToast(const QString &text) const;
 
 private:
   int _current;

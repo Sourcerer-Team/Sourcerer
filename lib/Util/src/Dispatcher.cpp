@@ -76,7 +76,9 @@ void Dispatcher::processor(BlockingQueue<DispatcherRecord> &queue) {
   LOG_PERF(0, "Exit");
 }
 
-void Dispatcher::dispatch(std::function<void()> task) {
+bool Dispatcher::dispatch(const std::function<void()> &task,
+                          const std::function<void()> &finalTask,
+                          const std::function<void(const std::exception &)> &errorTask) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_mutex);
@@ -93,20 +95,36 @@ void Dispatcher::dispatch(std::function<void()> task) {
 
   if (index == -1) {
     LOG_PERF(0, "Exit");
-    return;
+    return false;
   }
+
+  const auto compositeTask = [=]() {
+    if (task) {
+      try {
+        task();
+      } catch (const std::exception& ex) {
+        errorTask(ex);
+      }
+    }
+
+    if (finalTask) {
+      finalTask();
+    }
+  };
 
   DispatcherRecord runRecord;
   runRecord._command = DispatcherCommand::Run;
-  runRecord._task = task;
+  runRecord._task = compositeTask;
 
   _pool[index]._queue.push(runRecord);
 
   LOG_PERF(0, "Exit");
+
+  return true;
 }
 
-void Dispatcher::dispatchToMainThread(std::function<void()> callback) {
-  QTimer *timer = new QTimer();
+bool Dispatcher::dispatchToMainThread(const std::function<void()> &callback) {
+  const auto timer = new QTimer();
   timer->moveToThread(qApp->thread());
   timer->setSingleShot(true);
 
@@ -118,6 +136,8 @@ void Dispatcher::dispatchToMainThread(std::function<void()> callback) {
 
   QMetaObject::invokeMethod(timer, "start", Qt::QueuedConnection,
                             Q_ARG(int, 0));
+
+  return true;
 }
 
 void Dispatcher::joinAll() {

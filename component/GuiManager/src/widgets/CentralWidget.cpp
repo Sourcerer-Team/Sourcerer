@@ -6,14 +6,13 @@
 
 #define THREAD_ID "CentralWidget"
 
-namespace GuiManager {
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 CentralWidget::CentralWidget(QWidget *parent)
     : QWidget{parent}, _centralWidget{nullptr} {
   LOG_PERF(0, "Enter");
 
-  QVBoxLayout *verticalLayout = new QVBoxLayout(this);
+  new QVBoxLayout(this);
 
   LOG_PERF(0, "Exit");
 }
@@ -30,5 +29,4 @@ void CentralWidget::setCentralWidget(QWidget *widget) {
   LOG_PERF(0, "Exit");
 }
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

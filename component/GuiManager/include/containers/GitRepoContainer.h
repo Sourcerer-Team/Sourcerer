@@ -11,7 +11,6 @@
 #include <GitRepo.h>
 #include <LockGuard.h>
 
-#include <QMovie>
 #include <QSet>
 #include <QString>
 #include <QWidget>
@@ -22,7 +21,7 @@ class GitRepoContainer;
 
 namespace GuiManager::Containers {
 
-class GitRepoContainer : public Widgets::ContainerWidget {
+class GitRepoContainer final : public Widgets::ContainerWidget {
   Q_OBJECT
 
 public:
@@ -34,7 +33,9 @@ public:
   bool eventFilter(QObject *watched, QEvent *event) override;
 
 protected:
+  void hideEvent(QHideEvent *event) override;
   void resizeEvent(QResizeEvent *event) override;
+  void showEvent(QShowEvent *event) override;
 
 private slots:
   void onSplitterMoved(int pos, int index) const;
@@ -58,9 +59,9 @@ private:
   void stretchBranchHistoryTableColumns() const;
   void showErrorPage(bool error = true) const;
   void showMainSpinnerPage(bool spinnerEnabled = true) const;
-  void showOverlay(bool spinnerEnabled = true) const;
+  void showSpinnerOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message) const;
-  void updateBranchHistory(const GitRepo::GitHistory &history) const;
+  void updateBranchHistory(const GitRepo::GitHistory &history);
   void updateLocalBranchesModel(const QStringList &localBranches) const;
   void updateLocalBranchesModelActiveBranch(const QString &activeBranch,
                                             bool updatePages = true);
@@ -87,7 +88,7 @@ private:
   QPoint _mousePos;
   QSet<QString> _tooltipsToShow;
 
-  Widgets::SpinnerOverlayWidget *_overlay;
+  Widgets::SpinnerOverlayWidget *_spinnerOverlay;
 };
 
 } // namespace GuiManager::Containers

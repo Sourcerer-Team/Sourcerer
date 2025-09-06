@@ -2,21 +2,17 @@
 
 #include <QWidget>
 
-namespace GuiManager {
-namespace Widgets {
+namespace GuiManager::Widgets {
 
-class CentralWidget : public QWidget {
+class CentralWidget final : public QWidget {
   Q_OBJECT
 public:
   explicit CentralWidget(QWidget *parent = nullptr);
 
   void setCentralWidget(QWidget *widget);
 
-signals:
-
 private:
   QWidget *_centralWidget;
 };
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

@@ -135,7 +135,8 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/SpinnerDialog.h
         include/widgets/OverlayWidget.h
         include/widgets/SpinnerOverlayWidget.h
-        src/widgets/OverlayWidget.cpp
+        include/widgets/BlurredWidget.h
+        src/widgets/BlurredWidget.cpp
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

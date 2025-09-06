@@ -13,9 +13,7 @@
 
 #define THREAD_ID "TitleBarWidget"
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 TitlebarWidget::TitlebarWidget(QWidget *parent)
     : QWidget(parent), ui(new Ui::TitlebarWidget),
@@ -62,7 +60,7 @@ TitlebarWidget::~TitlebarWidget() {
   LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::addTab(const QString &text) {
+void TitlebarWidget::addTab(const QString &text) const {
   LOG_PERF(0, "Enter");
 
   ui->tabBar->addTab(text);
@@ -70,7 +68,7 @@ void TitlebarWidget::addTab(const QString &text) {
   LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::removeTab(int index) {
+void TitlebarWidget::removeTab(const int index) const {
   LOG_PERF(0, "Enter");
 
   ui->tabBar->removeTab(index);
@@ -78,7 +76,7 @@ void TitlebarWidget::removeTab(int index) {
   LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::selectTab(int index) {
+void TitlebarWidget::selectTab(const int index) const {
   LOG_PERF(0, "Enter");
 
   const int count = tabsCount();
@@ -153,7 +151,7 @@ void TitlebarWidget::onAbout() {
   LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::onClosedTab(int index) {
+void TitlebarWidget::onClosedTab(const int index) {
   LOG_PERF(0, "Enter");
 
   emit closedTab(index);
@@ -161,7 +159,7 @@ void TitlebarWidget::onClosedTab(int index) {
   LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::onSelectedTab(int index) {
+void TitlebarWidget::onSelectedTab(const int index) {
   LOG_PERF(0, "Enter");
 
   emit selectedTab(index);
@@ -169,8 +167,7 @@ void TitlebarWidget::onSelectedTab(int index) {
   LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::onTabBarResized()
-{
+void TitlebarWidget::onTabBarResized() {
   LOG_PERF(0, "Enter");
 
   emit resizeTabBar();
@@ -178,5 +175,4 @@ void TitlebarWidget::onTabBarResized()
   LOG_PERF(0, "Exit");
 }
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

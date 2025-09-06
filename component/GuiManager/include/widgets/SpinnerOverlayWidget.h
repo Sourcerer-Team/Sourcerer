@@ -8,27 +8,28 @@
 
 namespace GuiManager::Widgets {
 
-class SpinnerOverlayWidget : public OverlayWidget {
+class SpinnerOverlayWidget final : public OverlayWidget {
 public:
   explicit SpinnerOverlayWidget(QWidget *parent)
       : OverlayWidget(parent), _spinner(new WaitingSpinnerWidget(this)),
         _labelStatus(new QLabel(this)) {
-    setObjectName("spinnerOverlayWidget");
-
-    _labelStatus->setObjectName("labelStatus");
     _labelStatus->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
 
-    _spinner->setObjectName("spinner");
-    _spinner->setColor(_spinner->palette().color(QPalette::WindowText));
+    QPalette palette = _labelStatus->palette();
+    palette.setColor(QPalette::WindowText, Qt::white);
+    _labelStatus->setPalette(palette);
+
+    _spinner->setColor(Qt::white);
 
     layout()->addWidget(_spinner);
     layout()->addWidget(_labelStatus);
-
   }
 
   ~SpinnerOverlayWidget() override { _spinner->stop(); }
 
-  void setText(const QString &t) const { _labelStatus->setText(t); }
+  bool showing() const override { return _spinner->isSpinning(); }
+
+  void setText(const QString &text) const { _labelStatus->setText(text); }
 
   void startSpinning() const {
     if (_spinner && !_spinner->isSpinning())
@@ -45,4 +46,5 @@ private:
   WaitingSpinnerWidget *_spinner;
   QLabel *_labelStatus;
 };
+
 } // namespace GuiManager::Widgets

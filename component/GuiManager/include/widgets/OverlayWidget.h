@@ -3,20 +3,18 @@
 #include <QEvent>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <QWidget>
 
 namespace GuiManager::Widgets {
-
-void enableBlur(const WId wid);
 
 class OverlayWidget : public QWidget {
 public:
   explicit OverlayWidget(QWidget *parent) : QWidget(parent) {
     setAttribute(Qt::WA_TransparentForMouseEvents, false);
-
-    enableBlur(winId());
+    setAttribute(Qt::WA_NativeWindow);
 
     QColor defaultBackgroundColor = palette().color(QPalette::Window);
-    defaultBackgroundColor.setAlpha(128);
+    defaultBackgroundColor.setAlpha(160); // semi-transparent
 
     setBackgroundColor(defaultBackgroundColor);
 
@@ -39,6 +37,8 @@ public:
 
   QVBoxLayout *getLayout() const { return _layout; }
 
+  virtual bool showing() const = 0;
+
   void setBackgroundColor(const QColor &color) {
     setAttribute(Qt::WA_StyledBackground, true);
     // QColor::name(QColor::HexArgb) preserves alpha channel
@@ -47,10 +47,12 @@ public:
   }
 
 protected:
+  /*
   bool event(QEvent *e) override {
     // Eat all events
     return true;
   }
+  */
 
   void resizeEvent(QResizeEvent *) override {
     if (parentWidget()) {
@@ -59,9 +61,19 @@ protected:
   }
 
   bool eventFilter(QObject *watched, QEvent *event) override {
-    if (watched == parentWidget() &&
-        (event->type() == QEvent::Resize || event->type() == QEvent::Move)) {
+    if (watched != parentWidget()) {
+      return QWidget::eventFilter(watched, event);
+    }
+
+    if (event->type() == QEvent::Resize || event->type() == QEvent::Move) {
       adjustToParent();
+    } else if (event->type() == QEvent::Hide) {
+      hide(); // hide overlay when parent hides
+    } else if (event->type() == QEvent::Show) {
+      if (showing()) {
+        show();  // show overlay when parent shows
+        raise(); // ensure it's on top
+      }
     }
 
     return QWidget::eventFilter(watched, event);
@@ -73,6 +85,10 @@ private:
       setGeometry(p->rect()); // fills entire parent
       raise();
     }
+  }
+
+  static QRect toGlobalRect(const QWidget *w, const QRect &r) {
+    return QRect(w->mapToGlobal(r.topLeft()), w->mapToGlobal(r.bottomRight()));
   }
 
 private:

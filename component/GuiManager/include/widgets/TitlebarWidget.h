@@ -12,16 +12,16 @@ namespace GuiManager {
 
 namespace Widgets {
 
-class TitlebarWidget : public QWidget {
+class TitlebarWidget final : public QWidget {
   Q_OBJECT
 
 public:
   explicit TitlebarWidget(QWidget *parent = nullptr);
-  ~TitlebarWidget();
+  ~TitlebarWidget() override;
 
-  void addTab(const QString &text);
-  void removeTab(int index);
-  void selectTab(int index);
+  void addTab(const QString &text) const;
+  void removeTab(int index) const;
+  void selectTab(int index) const;
   int tabsCount() const;
 
 signals:

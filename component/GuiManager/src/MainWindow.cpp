@@ -1,4 +1,6 @@
 #include "MainWindow.h"
+
+#include "GitRepoManagerStructs.h"
 #include "containers/CloneGitRepoContainer.h"
 #include "containers/GitRepoContainer.h"
 #include "containers/HomeContainer.h"
@@ -16,9 +18,7 @@
 #include <Log.h>
 
 #include <QFileDialog>
-#include <QPushButton>
 #include <QStandardPaths>
-#include <QTimer>
 #include <QWindow>
 
 #include <functional>
@@ -31,7 +31,7 @@ using namespace Containers;
 using namespace Dialogs;
 using namespace Util;
 
-const int TOP_MARGIN_OFFSET = 10;
+constexpr int TOP_MARGIN_OFFSET = 10;
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), _current(-1), _centralWidget(new CentralWidget),
@@ -232,7 +232,7 @@ void MainWindow::onSettings() {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::onAbout() {
+void MainWindow::onAbout() const {
   LOG_PERF(0, "Enter");
 
   AboutDialog aboutDlg;
@@ -243,7 +243,7 @@ void MainWindow::onAbout() {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::onClosedTab(int index) {
+void MainWindow::onClosedTab(const int index) {
 
   LOG_PERF(0, "Enter");
   LOG_DEBUG("index is {}.", index);
@@ -259,7 +259,7 @@ void MainWindow::onClosedTab(int index) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::onSelectedTab(int index) {
+void MainWindow::onSelectedTab(const int index) {
   LOG_PERF(0, "Enter");
 
   selectContainer(index);
@@ -316,7 +316,7 @@ void MainWindow::onCloseClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::onTitleBarDrag() {
+void MainWindow::onTitleBarDrag() const {
   LOG_PERF(0, "Enter");
 
   windowHandle()->startSystemMove();
@@ -324,7 +324,7 @@ void MainWindow::onTitleBarDrag() {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::onEdgeHit(Qt::Edges edges) {
+void MainWindow::onEdgeHit(Qt::Edges edges) const {
   LOG_PERF(0, "Enter");
 
   windowHandle()->startSystemResize(edges);
@@ -421,7 +421,7 @@ void MainWindow::addSettingsContainer() {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::closeContainer(ContainerWidget *container) {
+void MainWindow::closeContainer(const ContainerWidget *container) {
   LOG_PERF(0, "Enter");
 
   int index = -1;
@@ -460,7 +460,8 @@ void MainWindow::eventCallback(EventManager::Event event) {
   switch (eventType) {
   case EventManager::EventType::GitRepoManagerGetCredentials: {
     const auto request = event.data<GitCredentialsRequest>();
-    Util::Dispatcher::dispatchToMainThread([=]() { showCredentialsToast(request); });
+    Util::Dispatcher::dispatchToMainThread(
+        [=]() { showCredentialsToast(request); });
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepoError: {
@@ -469,25 +470,29 @@ void MainWindow::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepoResult: {
-    QString uuid;
-    QString repoPath;
-    std::tie(uuid, repoPath) = event.data<std::tuple<QString, QString>>();
-    Util::Dispatcher::dispatchToMainThread([=]() { addGitRepoContainer(repoPath); });
+    const auto commandResult = event.data<GitRepoManager::Structs::GitRepoResult>();
+    const QString repoPath = commandResult.value.toString();
+    Util::Dispatcher::dispatchToMainThread(
+        [=]() { addGitRepoContainer(repoPath); });
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepoProgress: {
-    const CloneProgress data = event.data<CloneProgress>();
-    if (!_progressing.contains(data.uuid)) {
+    const auto commandResult = event.data<GitRepoManager::Structs::GitRepoResult>();
+    if (const CloneProgress data = commandResult.value.value<CloneProgress>();
+        !_progressing.contains(data.uuid)) {
       _progressing += data.uuid;
-      Util::Dispatcher::dispatchToMainThread([=]() { showCloneProgressToast(data); });
+      Util::Dispatcher::dispatchToMainThread(
+          [=]() { showCloneProgressToast(data); });
     } else if (data.finished)
       _progressing.remove(data.uuid);
 
     break;
   }
   case EventManager::EventType::GitRepoManagerInitRepoResult: {
-    const auto &[_, repoPath] = event.data<std::tuple<QString, QString>>();
-    Util::Dispatcher::dispatchToMainThread([=]() { addGitRepoContainer(repoPath); });
+    const auto commandResult = event.data<GitRepoManager::Structs::GitRepoResult>();
+    const auto repoPath = commandResult.value.toString();
+    Util::Dispatcher::dispatchToMainThread(
+        [=]() { addGitRepoContainer(repoPath); });
     break;
   }
   default: {
@@ -499,7 +504,7 @@ void MainWindow::eventCallback(EventManager::Event event) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::selectContainer(int index) {
+void MainWindow::selectContainer(const int index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("index is {}.", index);
 
@@ -519,7 +524,8 @@ void MainWindow::selectContainer(int index) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showCredentialsToast(const GitCredentialsRequest &request) {
+void MainWindow::showCredentialsToast(
+    const GitCredentialsRequest &request) const {
   LOG_PERF(0, "Enter");
 
   _toastHost.addToast(new GitCredentialsToast(request));
@@ -527,7 +533,7 @@ void MainWindow::showCredentialsToast(const GitCredentialsRequest &request) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showCloneProgressToast(const CloneProgress &data) {
+void MainWindow::showCloneProgressToast(const CloneProgress &data) const {
   LOG_PERF(0, "Enter");
 
   _toastHost.addToast(new GitProgressToast(data));
@@ -535,7 +541,7 @@ void MainWindow::showCloneProgressToast(const CloneProgress &data) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showToast(const QString &text) {
+void MainWindow::showToast(const QString &text) const {
   LOG_PERF(0, "Enter");
 
   _toastHost.addToast(new InfoToast(text));
