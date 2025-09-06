@@ -42,6 +42,8 @@ void GuiManager::start() {
     }
   }
 
+  app.setWindowIcon(QIcon(":/icons/sorcerer-hat.png"));
+
   app.setStyle(new DarkStyle());
   app.style()->setObjectName("fusion");
 

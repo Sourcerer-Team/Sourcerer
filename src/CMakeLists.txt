@@ -18,9 +18,13 @@ set(PROJECT_SOURCES
         main.cpp
 )
 
+if(WIN32)
+    set(APP_ICON_RES "${CMAKE_CURRENT_SOURCE_DIR}/../component/GuiManager/resources/icons/app_icon.res")
+endif()
+
 qt_add_executable(Sourcerer
-    MANUAL_FINALIZATION
-    ${PROJECT_SOURCES}
+        MANUAL_FINALIZATION
+        ${PROJECT_SOURCES}
 )
 
 include("../cmake/helpers.cmake")
@@ -38,35 +42,36 @@ includeLib(Sourcerer RecyclerView)
 includeLib(Sourcerer Util)
 
 if (WIN32)
-  set(ADDITIONAL_LIBRARIES user32.lib Dwmapi.lib)
-else()
-  set(ADDITIONAL_LIBRARIES)
-endif()
+    set(ADDITIONAL_LIBRARIES user32.lib Dwmapi.lib)
+else ()
+    set(ADDITIONAL_LIBRARIES)
+endif ()
 
 target_link_libraries(Sourcerer PRIVATE
-  Qt${QT_VERSION_MAJOR}::Widgets
-  ${LIBGIT2_LIBRARIES}
-  ${ADDITIONAL_LIBRARIES})
+        Qt${QT_VERSION_MAJOR}::Widgets
+        ${LIBGIT2_LIBRARIES}
+        ${ADDITIONAL_LIBRARIES}
+        "${APP_ICON_RES}")
 
 set_target_properties(Sourcerer PROPERTIES
-    MACOSX_BUNDLE_GUI_IDENTIFIER www.sourcerer.com
-    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-    MACOSX_BUNDLE TRUE
-    WIN32_EXECUTABLE TRUE
+        MACOSX_BUNDLE_GUI_IDENTIFIER www.sourcerer.com
+        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
+        MACOSX_BUNDLE TRUE
+        WIN32_EXECUTABLE TRUE
 )
+
+qt_finalize_target(Sourcerer)
 
 install(TARGETS Sourcerer
-    BUNDLE DESTINATION .
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
+        BUNDLE DESTINATION .
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
-
-qt_finalize_executable(Sourcerer)
 
 if (WIN32)
-add_custom_command(TARGET Sourcerer POST_BUILD
-    COMMAND "${Qt6_DIR}/../../../bin/windeployqt.exe"
+    add_custom_command(TARGET Sourcerer POST_BUILD
+            COMMAND "${Qt6_DIR}/../../../bin/windeployqt.exe"
             "$<TARGET_FILE:Sourcerer>"
-    COMMENT "Deploying Qt runtime dependencies"
-)
-endif()
+            COMMENT "Deploying Qt runtime dependencies"
+    )
+endif ()

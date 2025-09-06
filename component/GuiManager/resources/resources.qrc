@@ -10,5 +10,6 @@
         <file>icons/minimize_button.png</file>
         <file>icons/error.png</file>
         <file>icons/error.svg</file>
+        <file>icons/sorcerer-hat.png</file>
     </qresource>
 </RCC>
