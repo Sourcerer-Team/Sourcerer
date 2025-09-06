@@ -2,13 +2,14 @@
 
 #include "models/GitHistoryModel.h"
 #include "widgets/ContainerWidget.h"
+#include "widgets/SpinnerOverlayWidget.h"
 #include "widgets/ToastHostWidget.h"
 
 #include <ConfigManager.h>
 #include <Dispatcher.h>
 #include <EventManager.h>
-#include <LockGuard.h>
 #include <GitRepo.h>
+#include <LockGuard.h>
 
 #include <QMovie>
 #include <QSet>
@@ -19,34 +20,35 @@ namespace Ui {
 class GitRepoContainer;
 }
 
-namespace GuiManager {
-
-namespace Containers {
+namespace GuiManager::Containers {
 
 class GitRepoContainer : public Widgets::ContainerWidget {
   Q_OBJECT
 
-  public:
-  explicit GitRepoContainer(const QString &path, QWidget *parent = nullptr);
+public:
+  explicit GitRepoContainer(QString path, QWidget *parent = nullptr);
   ~GitRepoContainer() override;
 
   // QObject interface
-  public:
+public:
   bool eventFilter(QObject *watched, QEvent *event) override;
 
-  protected:
+protected:
   void resizeEvent(QResizeEvent *event) override;
 
-  private slots:
+private slots:
   void onSplitterMoved(int pos, int index) const;
-  void onHistoryViewItemEntered(const QModelIndex& index);
+  void onHistoryViewItemEntered(const QModelIndex &index);
+  void onLocalBranchSelected(const QString &branchName);
+  void onRemoteBranchSelected(const QString &branchName);
 
-  private:
+private:
   void closeRepo() const;
   void eventCallback(EventManager::Event event);
-  void getActiveBranch() const;
+  void getActiveLocalBranch() const;
+  void getActiveRemoteBranch() const;
   void getBranchHistory() const;
-  QStringList getCommitBranches(const QString& commit) const;
+  QStringList getCommitBranches(const QString &commit) const;
   void getLocalBranches() const;
   void getRemoteBranches() const;
   void getSubmodules() const;
@@ -55,32 +57,37 @@ class GitRepoContainer : public Widgets::ContainerWidget {
   void refreshViews() const;
   void stretchBranchHistoryTableColumns() const;
   void showErrorPage(bool error = true) const;
-  void showSpinnerPage(bool spinnerEnabled = true) const;
+  void showMainSpinnerPage(bool spinnerEnabled = true) const;
+  void showOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message) const;
-  void updateBranchHistory(const GitRepo::GitHistory& history) const;
+  void updateBranchHistory(const GitRepo::GitHistory &history) const;
   void updateLocalBranchesModel(const QStringList &localBranches) const;
-  void updateLocalBranchesModelActiveBranch(const QString &activeBranch);
+  void updateLocalBranchesModelActiveBranch(const QString &activeBranch,
+                                            bool updatePages = true);
   void updateRemoteBranchesModel(const QStringList &remoteBranches) const;
+  void updateRemoteBranchesModelActiveBranch(const QString &activeBranch,
+                                             bool updatePages = true);
   void updateSubmodulesModel(const QStringList &tags) const;
   void updateTagsModel(const QStringList &tags) const;
 
-  private:
+private:
   Ui::GitRepoContainer *ui;
   QString _uuid;
   QString _path;
   QString _activeBranch;
+  GitRepo::BranchType _activeBranchType;
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
   Widgets::ToastHostWidget &_toastHost;
   Models::GitHistoryModel *_historyModel;
-  QMovie *_spinnerMovie;
   QPixmap *_errorPixmap;
   Util::Dispatcher _dispatcher;
 
   Util::Mutex _tooltipsMutex;
   QPoint _mousePos;
   QSet<QString> _tooltipsToShow;
+
+  Widgets::SpinnerOverlayWidget *_overlay;
 };
 
-} // namespace Containers
-} // namespace GuiManager
+} // namespace GuiManager::Containers

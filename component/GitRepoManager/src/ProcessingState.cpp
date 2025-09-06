@@ -14,9 +14,8 @@ using namespace GitRepoManager::Structs;
 namespace GitRepoManager {
 
 ProcessingState::ProcessingState(GitRepoManagerFsm &fsm)
-    : GitRepoManagerState{StateType::Processing, fsm},
-      _eventManager{EventManager::EventManager::getInstance()},
-      _quitAll{false} {
+    : GitRepoManagerState{StateType::Processing, fsm}, _quitAll{false},
+      _eventManager{EventManager::EventManager::getInstance()} {
   LOG_PERF(0, "Enter");
 
   const auto eventCallbackFunc =
@@ -74,92 +73,90 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
   LOG_PERF(0, "Enter");
   LOG_PERF(0, "Exit");
 
-  const EventType type = static_cast<EventType>(event.type());
-
-  switch (type) {
+  switch (const auto type = static_cast<EventType>(event.type())) {
   case EventType::Setup: {
     break;
   }
   case EventType::CloneRepo: {
-    const GitRepoCloneCommand cloneCommand =
+    const auto cloneCommand =
         event.nextParam<GitRepoCloneCommand>();
     scheduleWorkerForCloneRepo(cloneCommand);
     break;
   }
   case EventType::CloseRepo: {
-    const GitRepoCloseCommand closeCommand =
+    const auto closeCommand =
         event.nextParam<GitRepoCloseCommand>();
     scheduleWorkerForCloseRepo(closeCommand);
     break;
   }
   case EventType::GetActiveBranch: {
-    const GitRepoGetActiveBranchCommand getActiveBranchCommand =
+    const auto getActiveBranchCommand =
         event.nextParam<GitRepoGetActiveBranchCommand>();
     scheduleWorkerForGetActiveBranch(getActiveBranchCommand);
     break;
   }
   case EventType::GetBranchHistory: {
-    const GitRepoGetBranchHistoryCommand branchHistoryCommand =
+    const auto branchHistoryCommand =
         event.nextParam<GitRepoGetBranchHistoryCommand>();
     scheduleWorkerForGetBranchHistory(branchHistoryCommand);
     break;
   }
   case EventType::GetCommitBranches: {
-    const GitRepoGetCommitBranchesCommand getCommitBranchesCommand =
+    const auto getCommitBranchesCommand =
         event.nextParam<GitRepoGetCommitBranchesCommand>();
     scheduleWorkerForGetCommitBranches(getCommitBranchesCommand);
     break;
   }
   case EventType::GetCommitHeads: {
-    const GitRepoGetCommitHeadsCommand getCommitHeadsCommand =
+    const auto getCommitHeadsCommand =
         event.nextParam<GitRepoGetCommitHeadsCommand>();
     scheduleWorkerForGetCommitHeads(getCommitHeadsCommand);
     break;
   }
   case EventType::GetCommitIsHead: {
-    const GitRepoGetCommitIsHeadCommand getCommitIsHeadCommand =
+    const auto getCommitIsHeadCommand =
         event.nextParam<GitRepoGetCommitIsHeadCommand>();
     scheduleWorkerForGetCommitIsHead(getCommitIsHeadCommand);
     break;
   }
   case EventType::Init: {
-    const GitRepoInitRepoCommand initCommand =
+    const auto initCommand =
         event.nextParam<GitRepoInitRepoCommand>();
     scheduleWorkerForInitRepo(initCommand);
     break;
   }
   case EventType::ListLocalBranches: {
-    const GitRepoListLocalBranchesCommand listLocalCommand =
+    const auto listLocalCommand =
         event.nextParam<GitRepoListLocalBranchesCommand>();
     scheduleWorkerForListLocalBranches(listLocalCommand);
     break;
   }
   case EventType::ListRemoteBranches: {
-    const GitRepoListRemoteBranchesCommand listRemoteCommand =
+    const auto listRemoteCommand =
         event.nextParam<GitRepoListRemoteBranchesCommand>();
     scheduleWorkerForListRemoteBranches(listRemoteCommand);
     break;
   }
   case EventType::ListSubmodules: {
-    const GitRepoListSubmodulesCommand listSubmodulesCommand =
+    const auto listSubmodulesCommand =
         event.nextParam<GitRepoListSubmodulesCommand>();
     scheduleWorkerForListSubmodules(listSubmodulesCommand);
     break;
   }
   case EventType::ListTags: {
-    const GitRepoListTagsCommand listTagsCommand =
+    const auto listTagsCommand =
         event.nextParam<GitRepoListTagsCommand>();
     scheduleWorkerForListTags(listTagsCommand);
     break;
   }
   case EventType::OpenRepo: {
-    const GitRepoOpenCommand openCommand =
+    const auto openCommand =
         event.nextParam<GitRepoOpenCommand>();
     scheduleWorkerForOpenRepo(openCommand);
     break;
   }
   default: {
-    LOG_WARN("Unhandled event {}", (int)type);
+    LOG_WARN("Unhandled event {}", static_cast<int>(type));
     return false;
   }
   }
@@ -242,8 +239,7 @@ void ProcessingState::quitRepoWorker(
     const Structs::GitRepoQuitCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
-  if (!ctx) {
+  if (const GitRepoContext *ctx = context(command.uuid); !ctx) {
     reportError(EventManager::EventType::GitRepoManagerQuitError,
                 GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command.uuid,
@@ -252,7 +248,7 @@ void ProcessingState::quitRepoWorker(
     return;
   }
 
-  EventManager::Event resultEvent(
+  const EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerOpenRepoResult);
   _eventManager.send(resultEvent);
 
@@ -362,7 +358,7 @@ void ProcessingState::getActiveBranchWorker(
     const Structs::GitRepoGetActiveBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerGetActiveBranchError,
                 GitRepoErrorType::InternalError,
@@ -376,13 +372,17 @@ void ProcessingState::getActiveBranchWorker(
 
   {
     LOCKGUARD(_contextsMutex);
-    activeBranch = GitRepo::getActiveBranch(ctx->gitRepo);
+    activeBranch = GitRepo::getActiveBranch(ctx->gitRepo, command.branchType);
   }
+
+  GitRepoGetActiveBranchCommandResult result;
+  result.branchName = activeBranch;
+  result.branchType = command.branchType;
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerGetActiveBranchResult,
       command.syncUuid);
-  resultEvent.addData(activeBranch);
+  resultEvent.addData(result);
   _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
@@ -392,7 +392,7 @@ void ProcessingState::getCommitBranchesWorker(
     const Structs::GitRepoGetCommitBranchesCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitBranchesError,
                 GitRepoErrorType::InternalError,
@@ -422,7 +422,7 @@ void ProcessingState::getCommitHeadsWorker(
     const Structs::GitRepoGetCommitHeadsCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitHeadsError,
                 GitRepoErrorType::InternalError,
@@ -452,7 +452,7 @@ void ProcessingState::getCommitIsHeadWorker(
     const Structs::GitRepoGetCommitIsHeadCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitIsHeadError,
                 GitRepoErrorType::InternalError,
@@ -482,7 +482,7 @@ void ProcessingState::getBranchHistoryWorker(
     const Structs::GitRepoGetBranchHistoryCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerGetBranchHistoryError,
                 GitRepoErrorType::InternalError,
@@ -496,7 +496,8 @@ void ProcessingState::getBranchHistoryWorker(
 
   {
     LOCKGUARD(_contextsMutex);
-    history = GitRepo::getBranchHistory(ctx->gitRepo, command.branchName);
+    history = GitRepo::getBranchHistory(ctx->gitRepo, command.branchName,
+                                        command.branchType);
   }
 
   EventManager::Event resultEvent(
@@ -551,7 +552,7 @@ void ProcessingState::listLocalBranchesWorker(
     const Structs::GitRepoListLocalBranchesCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerListLocalBranchesError,
                 GitRepoErrorType::InternalError,
@@ -581,7 +582,7 @@ void ProcessingState::listRemoteBranchesWorker(
     const Structs::GitRepoListRemoteBranchesCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerListRemoteBranchesError,
                 GitRepoErrorType::InternalError,
@@ -611,7 +612,7 @@ void ProcessingState::listSubmodulesWorker(
     const Structs::GitRepoListSubmodulesCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerListSubmodulesError,
                 GitRepoErrorType::InternalError,
@@ -641,7 +642,7 @@ void ProcessingState::listTagsWorker(
     const Structs::GitRepoListTagsCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerListTagsError,
                 GitRepoErrorType::InternalError,
@@ -788,7 +789,7 @@ void ProcessingState::scheduleWorkerForCloneRepo(
   const auto workersThreadFunc =
       std::bind(&ProcessingState::workersThreadFunc, this, command.uuid);
 
-  GitRepoContext *newContext = new GitRepoContext();
+  const auto newContext = new GitRepoContext();
   _contexts[command.uuid] = newContext;
 
   newContext->uuid = command.uuid;
@@ -1057,92 +1058,120 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
 
     switch (command->type) {
     case GitRepoCommandType::Clone: {
-      const GitRepoCloneCommand *cloneCommand =
-          static_cast<const GitRepoCloneCommand *>(command);
-      cloneRepoWorker(*cloneCommand);
+      const auto cloneCommand =
+          dynamic_cast<const GitRepoCloneCommand *>(command);
+      if (cloneCommand) {
+        cloneRepoWorker(*cloneCommand);
+      }
       break;
     }
     case GitRepoCommandType::Close: {
-      const GitRepoCloseCommand *closeCommand =
-          static_cast<const GitRepoCloseCommand *>(command);
-      closeRepoWorker(*closeCommand);
+      const auto closeCommand =
+          dynamic_cast<const GitRepoCloseCommand *>(command);
+      if (closeCommand) {
+        closeRepoWorker(*closeCommand);
+      }
       break;
     }
     case GitRepoCommandType::GetActiveBranch: {
-      const GitRepoGetActiveBranchCommand *getActiveBranchCommand =
-          static_cast<const GitRepoGetActiveBranchCommand *>(command);
-      getActiveBranchWorker(*getActiveBranchCommand);
+      const auto getActiveBranchCommand =
+          dynamic_cast<const GitRepoGetActiveBranchCommand *>(command);
+      if (getActiveBranchCommand) {
+        getActiveBranchWorker(*getActiveBranchCommand);
+      }
       break;
     }
     case GitRepoCommandType::GetCommitBranches: {
-      const GitRepoGetCommitBranchesCommand *getCommitBranchesCommand =
-          static_cast<const GitRepoGetCommitBranchesCommand *>(command);
-      getCommitBranchesWorker(*getCommitBranchesCommand);
+      const auto *getCommitBranchesCommand =
+          dynamic_cast<const GitRepoGetCommitBranchesCommand *>(command);
+      if (getCommitBranchesCommand) {
+        getCommitBranchesWorker(*getCommitBranchesCommand);
+      }
       break;
     }
     case GitRepoCommandType::GetCommitHeads: {
-      const GitRepoGetCommitHeadsCommand *getCommitHeadsCommand =
-          static_cast<const GitRepoGetCommitHeadsCommand *>(command);
-      getCommitHeadsWorker(*getCommitHeadsCommand);
+      const auto *getCommitHeadsCommand =
+          dynamic_cast<const GitRepoGetCommitHeadsCommand *>(command);
+      if (getCommitHeadsCommand) {
+        getCommitHeadsWorker(*getCommitHeadsCommand);
+      }
       break;
     }
     case GitRepoCommandType::GetCommitIsHead: {
-      const GitRepoGetCommitIsHeadCommand *getCommitIsHeadCommand =
-          static_cast<const GitRepoGetCommitIsHeadCommand *>(command);
-      getCommitIsHeadWorker(*getCommitIsHeadCommand);
+      const auto *getCommitIsHeadCommand =
+          dynamic_cast<const GitRepoGetCommitIsHeadCommand *>(command);
+      if (getCommitIsHeadCommand) {
+        getCommitIsHeadWorker(*getCommitIsHeadCommand);
+      }
       break;
     }
     case GitRepoCommandType::GetBranchHistory: {
-      const GitRepoGetBranchHistoryCommand *branchHistoryCommand =
-          static_cast<const GitRepoGetBranchHistoryCommand *>(command);
-      getBranchHistoryWorker(*branchHistoryCommand);
+      const auto *branchHistoryCommand =
+          dynamic_cast<const GitRepoGetBranchHistoryCommand *>(command);
+      if (branchHistoryCommand) {
+        getBranchHistoryWorker(*branchHistoryCommand);
+      }
       break;
     }
     case GitRepoCommandType::Init: {
-      const GitRepoInitRepoCommand *initRepoCommand =
-          static_cast<const GitRepoInitRepoCommand *>(command);
-      initRepoWorker(*initRepoCommand);
+      const auto *initRepoCommand =
+          dynamic_cast<const GitRepoInitRepoCommand *>(command);
+      if (initRepoCommand) {
+        initRepoWorker(*initRepoCommand);
+      }
       break;
     }
     case GitRepoCommandType::ListLocalBranches: {
-      const GitRepoListLocalBranchesCommand *listLocalCommand =
-          static_cast<const GitRepoListLocalBranchesCommand *>(command);
-      listLocalBranchesWorker(*listLocalCommand);
+      const auto *listLocalCommand =
+          dynamic_cast<const GitRepoListLocalBranchesCommand *>(command);
+      if (listLocalCommand) {
+        listLocalBranchesWorker(*listLocalCommand);
+      }
       break;
     }
     case GitRepoCommandType::ListRemoteBranches: {
-      const GitRepoListRemoteBranchesCommand *listRemoteCommand =
-          static_cast<const GitRepoListRemoteBranchesCommand *>(command);
-      listRemoteBranchesWorker(*listRemoteCommand);
+      const auto *listRemoteCommand =
+          dynamic_cast<const GitRepoListRemoteBranchesCommand *>(command);
+      if (listRemoteCommand) {
+        listRemoteBranchesWorker(*listRemoteCommand);
+      }
       break;
     }
     case GitRepoCommandType::ListSubmodules: {
-      const GitRepoListSubmodulesCommand *listSubmodulesCommand =
-          static_cast<const GitRepoListSubmodulesCommand *>(command);
-      listSubmodulesWorker(*listSubmodulesCommand);
+      const auto *listSubmodulesCommand =
+          dynamic_cast<const GitRepoListSubmodulesCommand *>(command);
+      if (listSubmodulesCommand) {
+        listSubmodulesWorker(*listSubmodulesCommand);
+      }
       break;
     }
     case GitRepoCommandType::ListTags: {
-      const GitRepoListTagsCommand *listTagsCommand =
-          static_cast<const GitRepoListTagsCommand *>(command);
-      listTagsWorker(*listTagsCommand);
+      const auto *listTagsCommand =
+          dynamic_cast<const GitRepoListTagsCommand *>(command);
+      if (listTagsCommand) {
+        listTagsWorker(*listTagsCommand);
+      }
       break;
     }
     case GitRepoCommandType::Open: {
-      const GitRepoOpenCommand *openCommand =
-          static_cast<const GitRepoOpenCommand *>(command);
-      openRepoWorker(*openCommand);
+      const auto *openCommand =
+          dynamic_cast<const GitRepoOpenCommand *>(command);
+      if (openCommand) {
+        openRepoWorker(*openCommand);
+      }
       break;
     }
     case GitRepoCommandType::Quit: {
-      const GitRepoQuitCommand *quitCommand =
-          static_cast<const GitRepoQuitCommand *>(command);
-      quitRepoWorker(*quitCommand);
+      const auto *quitCommand =
+          dynamic_cast<const GitRepoQuitCommand *>(command);
+      if (quitCommand) {
+        quitRepoWorker(*quitCommand);
+      }
       quit = true;
       break;
     }
     default: {
-      LOG_WARN("Unknown command type {}.", (int)command->type);
+      LOG_WARN("Unknown command type {}.", static_cast<int>(command->type));
       break;
     }
     }

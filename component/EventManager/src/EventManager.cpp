@@ -13,9 +13,13 @@ namespace EventManager {
 
 std::atomic<int> EventManager::_waitId = 0;
 
-EventManager::EventManager() : _thread(nullptr) { start(); }
+EventManager::EventManager() : _thread(nullptr) {
+  start();
+}
 
-EventManager::~EventManager() { stop(); }
+EventManager::~EventManager() {
+  stop();
+}
 
 EventManager &EventManager::getInstance() {
   static EventManager instance;
@@ -50,16 +54,16 @@ void EventManager::unsubscribe(EventCallback callback) {
   LOCKGUARD(_queueLocker);
 
   _subscribers[callback._type].erase(
-    std::remove_if(_subscribers[callback._type].begin(),
-                   _subscribers[callback._type].end(),
-                   [=](const EventCallback &cb) {
-                     return (cb._callback.target_type() ==
-                             callback._callback.target_type()) &&
-                            (cb._callback.target<void (*)(Event)>() ==
-                             callback._callback.target<void (*)(Event)>()) &&
-                            (cb._receiver == callback._receiver);
-                   }),
-    _subscribers[callback._type].end());
+      std::remove_if(_subscribers[callback._type].begin(),
+                     _subscribers[callback._type].end(),
+                     [=](const EventCallback &cb) {
+                       return (cb._callback.target_type() ==
+                               callback._callback.target_type()) &&
+                              (cb._callback.target<void (*)(Event)>() ==
+                               callback._callback.target<void (*)(Event)>()) &&
+                              (cb._receiver == callback._receiver);
+                     }),
+      _subscribers[callback._type].end());
 }
 
 int EventManager::startWait() {
@@ -90,7 +94,7 @@ EventManager::waitOneOf(int token, const std::set<EventType> &eventTypes,
   _queueLocker.unlock();
 
   const WaitEventRecord defaultEventRecord(
-    {EventRecordType::Quit, {EventType::Null}});
+      {EventRecordType::Quit, {EventType::Null}});
 
   Event resultEvent(EventType::Null);
 
@@ -159,8 +163,8 @@ EventManager::waitForAnswer(int token, const QString &uuid,
   LOG_PERF(0, "Exit");
 
   return waitOneOf(
-    token, types, [&](Event event) -> bool { return event.uuid() == uuid; },
-    timeout);
+      token, types, [&](Event event) -> bool { return event.uuid() == uuid; },
+      timeout);
 }
 
 void EventManager::send(Event event) {

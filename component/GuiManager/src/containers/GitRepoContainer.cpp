@@ -16,26 +16,26 @@
 #include <QToolTip>
 
 #include <functional>
+#include <utility>
 
 #define THREAD_ID "GitRepoContainer"
+
+#define ALL_BRANCHES "*"
 
 using namespace GuiManager::Widgets;
 using namespace GitRepoManager::Structs;
 
-namespace GuiManager {
+namespace GuiManager::Containers {
 
-namespace Containers {
-
-GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
+GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
     : ContainerWidget(Widgets::ContainerType::Unknown, parent),
-      ui(new Ui::GitRepoContainer), _uuid(Uuid::createUuid()), _path(path),
+      ui(new Ui::GitRepoContainer), _uuid(Uuid::createUuid()),
+      _path(std::move(path)), _activeBranchType(GitRepo::BranchType::All),
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
       _toastHost(ToastHostWidget::getInstance()),
-      _historyModel(new Models::GitHistoryModel(this)),
-      _spinnerMovie(new QMovie(":/animations/transparent_spinner.gif",
-                               QByteArray(), this)),
-      _dispatcher(1), _mousePos(-1, -1) {
+      _historyModel(new Models::GitHistoryModel(this)), _dispatcher(1),
+      _mousePos(-1, -1), _overlay(new SpinnerOverlayWidget(this)) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -56,7 +56,7 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
   ui->historyView->setMouseTracking(true);
   ui->historyView->viewport()->setMouseTracking(true);
   ui->historyView->viewport()->installEventFilter(this);
-  ui->labelSpinner->setMovie(_spinnerMovie);
+  ui->spinner->setColor(Qt::lightGray);
 
   _errorPixmap = new QPixmap(QSize(128, 128));
   _errorPixmap->fill(Qt::transparent);
@@ -67,7 +67,8 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
 
   ui->labelErrorImage->setPixmap(*_errorPixmap);
 
-  showSpinnerPage();
+  showMainSpinnerPage(false);
+  showOverlay();
 
   const QByteArray splitterState = QByteArray::fromHex(
       _configManager.getString(ConfigManager::ConfigKey::GitRepoSplitterPos)
@@ -79,6 +80,12 @@ GitRepoContainer::GitRepoContainer(const QString &path, QWidget *parent)
 
   connect(ui->splitter, &QSplitter::splitterMoved, this,
           &GitRepoContainer::onSplitterMoved);
+
+  connect(ui->localPage, &LocalGitBranchesPage::branchSelected, this,
+          &GitRepoContainer::onLocalBranchSelected);
+
+  connect(ui->remotePage, &RemoteGitBranchesPage::branchSelected, this,
+          &GitRepoContainer::onRemoteBranchSelected);
 
   const auto eventCallbackFunc =
       std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
@@ -182,7 +189,6 @@ GitRepoContainer::~GitRepoContainer() {
       CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerOpenRepoResult,
                        eventCallbackFunc));
 
-  delete _spinnerMovie;
   delete _errorPixmap;
   delete ui;
 
@@ -335,6 +341,26 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  showOverlay();
+
+  updateLocalBranchesModelActiveBranch(branchName);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  showOverlay();
+
+  updateRemoteBranchesModelActiveBranch(branchName);
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::closeRepo() const {
   LOG_PERF(0, "Enter");
 
@@ -361,9 +387,25 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetActiveBranchResult: {
-    const QString activeBranch = event.data<QString>();
-    Util::Dispatcher::dispatchToMainThread(
-        [=]() { updateLocalBranchesModelActiveBranch(activeBranch); });
+    const auto [branchName, branchType] =
+        event.data<GitRepoGetActiveBranchCommandResult>();
+    Util::Dispatcher::dispatchToMainThread([=]() {
+      switch (branchType) {
+      case GitRepo::BranchType::Local: {
+        updateLocalBranchesModelActiveBranch(branchName);
+        break;
+      }
+      case GitRepo::BranchType::Remote: {
+        updateRemoteBranchesModelActiveBranch(branchName);
+        break;
+      }
+      default: {
+        LOG_WARN("Unsupported branch type {} for branch name \"{}\"",
+                 branchType, branchName);
+        break;
+      }
+      }
+    });
     break;
   }
   case EventManager::EventType::GitRepoManagerGetBranchHistoryError: {
@@ -430,7 +472,7 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerOpenRepoResult: {
     getLocalBranches();
-    getActiveBranch();
+    getActiveLocalBranch();
     getRemoteBranches();
     getTags();
     getSubmodules();
@@ -445,11 +487,27 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::getActiveBranch() const {
+void GitRepoContainer::getActiveLocalBranch() const {
   LOG_PERF(0, "Enter");
 
   GitRepoGetActiveBranchCommand command;
   command.uuid = _uuid;
+  command.branchType = GitRepo::BranchType::Local;
+
+  EventManager::Event getActiveBranchEvent(
+      EventManager::EventType::GitRepoManagerGetActiveBranch);
+  getActiveBranchEvent.addData(command);
+  _eventManager.send(getActiveBranchEvent);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::getActiveRemoteBranch() const {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGetActiveBranchCommand command;
+  command.uuid = _uuid;
+  command.branchType = GitRepo::BranchType::Remote;
 
   EventManager::Event getActiveBranchEvent(
       EventManager::EventType::GitRepoManagerGetActiveBranch);
@@ -464,8 +522,8 @@ void GitRepoContainer::getBranchHistory() const {
 
   GitRepoGetBranchHistoryCommand command;
   command.uuid = _uuid;
-  // Get history for all branches for now
-  // command.branchName = _activeBranch;
+  command.branchName = _activeBranch;
+  command.branchType = _activeBranchType;
 
   EventManager::Event historyEvent(
       EventManager::EventType::GitRepoManagerGetBranchHistory);
@@ -620,23 +678,43 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() const {
 void GitRepoContainer::showErrorPage(const bool error) const {
   LOG_PERF(0, "Enter");
 
-  ui->stackedWidget->setCurrentIndex(error ? 2 : 1);
+  ui->stackedWidget1->setCurrentIndex(error ? 2 : 1);
 
-  _spinnerMovie->stop();
+  ui->spinner->stop();
 
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showSpinnerPage(const bool spinnerEnabled) const {
+void GitRepoContainer::showMainSpinnerPage(const bool spinnerEnabled) const {
   LOG_PERF(0, "Enter");
 
-  ui->stackedWidget->setCurrentIndex(spinnerEnabled ? 0 : 1);
+  ui->stackedWidget1->setCurrentIndex(spinnerEnabled ? 0 : 1);
 
   if (spinnerEnabled) {
-    _spinnerMovie->start();
+    ui->spinner->start();
   } else {
-    _spinnerMovie->stop();
+    ui->spinner->stop();
     ui->labelProgress->setText("");
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::showOverlay(bool spinnerEnabled) const {
+  LOG_PERF(0, "Enter");
+
+  ui->historyView->setVisible(!spinnerEnabled);
+
+  if (spinnerEnabled) {
+    //_overlay->move(0, 0);
+    //_overlay->resize(size());
+    _overlay->show();
+    _overlay->startSpinning();
+    _overlay->setText("0%");
+  } else {
+    _overlay->hide();
+    _overlay->stopSpinning();
+    _overlay->setText("");
   }
 
   LOG_PERF(0, "Exit")
@@ -658,12 +736,14 @@ void GitRepoContainer::updateBranchHistory(
   _historyModel->updateHistory(history, [&](int progress) {
     Util::Dispatcher::dispatchToMainThread([=]() {
       const QString progressStr = QString("%1%").arg(progress);
-      ui->labelProgress->setText(progressStr);
+      if (_overlay) {
+        _overlay->setText(progressStr);
+      }
     });
   });
 
   Util::Dispatcher::dispatchToMainThread([&]() {
-    showSpinnerPage(false);
+    showOverlay(false);
     stretchBranchHistoryTableColumns();
   });
 
@@ -674,18 +754,27 @@ void GitRepoContainer::updateLocalBranchesModel(
     const QStringList &localBranches) const {
   LOG_PERF(0, "Enter");
 
-  ui->localPage->updateModel(localBranches);
+  QStringList finalBranches;
+  finalBranches += ALL_BRANCHES;
+  finalBranches += localBranches;
+
+  ui->localPage->updateModel(finalBranches);
 
   LOG_PERF(0, "Exit")
 }
 
 void GitRepoContainer::updateLocalBranchesModelActiveBranch(
-    const QString &activeBranch) {
+    const QString &activeBranch, const bool updatePages) {
   LOG_PERF(0, "Enter");
 
   _activeBranch = activeBranch;
+  _activeBranchType = GitRepo::BranchType::Local;
 
-  ui->localPage->updateActiveBranch(activeBranch);
+  if (updatePages) {
+    ui->localPage->updateActiveBranch(activeBranch);
+    ui->remotePage->updateActiveBranch(
+        QString()); // deselect remote branch if any
+  }
 
   getBranchHistory();
 
@@ -696,7 +785,29 @@ void GitRepoContainer::updateRemoteBranchesModel(
     const QStringList &remoteBranches) const {
   LOG_PERF(0, "Enter");
 
-  ui->remotePage->updateModel(remoteBranches);
+  QStringList finalBranches;
+  finalBranches += ALL_BRANCHES;
+  finalBranches += remoteBranches;
+
+  ui->remotePage->updateModel(finalBranches);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
+    const QString &activeBranch, const bool updatePages) {
+  LOG_PERF(0, "Enter");
+
+  _activeBranch = activeBranch;
+  _activeBranchType = GitRepo::BranchType::Remote;
+
+  if (updatePages) {
+    ui->localPage->updateActiveBranch(
+        QString()); // deselect local branch if any
+    ui->remotePage->updateActiveBranch(activeBranch);
+  }
+
+  getBranchHistory();
 
   LOG_PERF(0, "Exit")
 }
@@ -717,5 +828,4 @@ void GitRepoContainer::updateTagsModel(const QStringList &tags) const {
   LOG_PERF(0, "Exit")
 }
 
-} // namespace Containers
-} // namespace GuiManager
+} // namespace GuiManager::Containers

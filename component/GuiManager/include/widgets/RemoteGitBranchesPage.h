@@ -8,24 +8,28 @@ namespace Ui {
 class RemoteGitBranchesPage;
 }
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 class RemoteGitBranchesPage : public QWidget {
   Q_OBJECT
 
 public:
   explicit RemoteGitBranchesPage(QWidget *parent = nullptr);
-  ~RemoteGitBranchesPage();
+  ~RemoteGitBranchesPage() override;
 
-  void updateActiveBranch(const QString& branchName);
-  void updateModel(const QStringList &localBranches);
+  void updateActiveBranch(const QString &branchName) const;
+  void updateModel(const QStringList &localBranches) const;
+
+signals:
+  void branchSelected(const QString &branchName);
+
+private slots:
+  void onListViewDoubleClicked(const QModelIndex &index);
 
 private:
   Models::BranchesModel *_model;
   Ui::RemoteGitBranchesPage *ui;
 };
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets
+

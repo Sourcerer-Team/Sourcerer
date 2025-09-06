@@ -10,6 +10,5 @@
         <file>icons/minimize_button.png</file>
         <file>icons/error.png</file>
         <file>icons/error.svg</file>
-        <file>animations/transparent_spinner.gif</file>
     </qresource>
 </RCC>

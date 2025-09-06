@@ -70,10 +70,10 @@ enum EventType {
 
 class Event {
 public:
-  Event(EventType eventType, const QString &uuid = QString())
+  Event(const EventType eventType, const QString &uuid = QString())
       : _type(eventType), _uuid(uuid) {}
 
-  void addData(std::any data) { _anyData = data; }
+  void addData(const std::any &data) { _anyData = data; }
 
   template <typename T> T data() const { return std::any_cast<T>(_anyData); }
 

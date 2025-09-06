@@ -183,13 +183,11 @@ QString ConfigManager::getAppVersion() const {
 }
 
 static ConfigGroup createPathGroup(const QString &path, size_t from) {
-  const int index = path.indexOf('/', from);
+  const qsizetype index = path.indexOf('/', from);
   if (index == -1)
     return ConfigGroup();
 
-  const int lastIndex = path.lastIndexOf('/');
-
-  if (index == lastIndex) {
+  if (const qsizetype lastIndex = path.lastIndexOf('/'); index == lastIndex) {
     const ConfigKey key = KEY_NAMES.key(path);
     const QString &name = KEY_DESCRIPTIONS[key].name;
     const QString &description = KEY_DESCRIPTIONS[key].description;
@@ -225,8 +223,8 @@ static ConfigGroup createPathGroup(const QString &path, size_t from) {
     return group;
   } else {
     ConfigGroup group(path.mid(from, index - from));
-    const ConfigGroup pathGroup = createPathGroup(path, index + 1);
-    if (!pathGroup.isEmpty())
+    if (const ConfigGroup pathGroup = createPathGroup(path, index + 1);
+        !pathGroup.isEmpty())
       group.merge(pathGroup);
 
     return group;
@@ -236,17 +234,18 @@ static ConfigGroup createPathGroup(const QString &path, size_t from) {
 ConfigGroup ConfigManager::getGroupped() const {
   ConfigGroup group;
 
-  for (int key = (int)ConfigKey::Unknown; key < (int)ConfigKey::last; ++key) {
-    const QString &path = KEY_NAMES[(ConfigKey)key];
-    const ConfigGroup pathGroup = createPathGroup(path, 0);
-    if (!pathGroup.isEmpty())
+  for (int key = static_cast<int>(ConfigKey::Unknown);
+       key < static_cast<int>(ConfigKey::last); ++key) {
+    const QString &path = KEY_NAMES[static_cast<ConfigKey>(key)];
+    if (const ConfigGroup pathGroup = createPathGroup(path, 0);
+        !pathGroup.isEmpty())
       group.merge(pathGroup);
   }
 
   return group;
 }
 
-QString ConfigManager::getWritableDir() const {
+QString ConfigManager::getWritableDir() {
   return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
 }
 

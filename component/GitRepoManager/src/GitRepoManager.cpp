@@ -114,21 +114,21 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
 
   switch (eventType) {
   case EventManager::EventType::GitRepoManagerCloneRepo: {
-    const GitRepoCloneCommand cloneCommand = event.data<GitRepoCloneCommand>();
+    const auto cloneCommand = event.data<GitRepoCloneCommand>();
     GitRepoManagerEvent cloneRepoEvent(EventType::CloneRepo);
     cloneRepoEvent.addParam(QVariant::fromValue(cloneCommand));
     _fsm.send(cloneRepoEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerCloseRepo: {
-    const GitRepoCloseCommand closeCommand = event.data<GitRepoCloseCommand>();
+    const auto closeCommand = event.data<GitRepoCloseCommand>();
     GitRepoManagerEvent closeRepoEvent(EventType::CloseRepo);
     closeRepoEvent.addParam(QVariant::fromValue(closeCommand));
     _fsm.send(closeRepoEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerGetActiveBranch: {
-    const GitRepoGetActiveBranchCommand getActiveBranchCommand =
+    const auto getActiveBranchCommand =
         event.data<GitRepoGetActiveBranchCommand>();
     GitRepoManagerEvent getActiveBranchEvent(EventType::GetActiveBranch);
     getActiveBranchEvent.addParam(QVariant::fromValue(getActiveBranchCommand));
@@ -136,7 +136,7 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetBranchHistory: {
-    const GitRepoGetBranchHistoryCommand branchHistoryCommand =
+    const auto branchHistoryCommand =
       event.data<GitRepoGetBranchHistoryCommand>();
     GitRepoManagerEvent historyEvent(EventType::GetBranchHistory);
     historyEvent.addParam(QVariant::fromValue(branchHistoryCommand));
@@ -144,7 +144,7 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCommitBranches: {
-    const GitRepoGetCommitBranchesCommand getCommitBranchesCommand =
+    const auto getCommitBranchesCommand =
         event.data<GitRepoGetCommitBranchesCommand>();
     GitRepoManagerEvent getCommitBranchesEvent(EventType::GetCommitBranches);
     getCommitBranchesEvent.addParam(
@@ -153,7 +153,7 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCommitHeads: {
-    const GitRepoGetCommitHeadsCommand getCommitHeadsCommand =
+    const auto getCommitHeadsCommand =
       event.data<GitRepoGetCommitHeadsCommand>();
     GitRepoManagerEvent getCommitHeadsEvent(EventType::GetCommitHeads);
     getCommitHeadsEvent.addParam(QVariant::fromValue(getCommitHeadsCommand));
@@ -161,7 +161,7 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCommitIsHead: {
-    const GitRepoGetCommitIsHeadCommand getCommitIsHeadCommand =
+    const auto getCommitIsHeadCommand =
       event.data<GitRepoGetCommitIsHeadCommand>();
     GitRepoManagerEvent getCommitIsHeadEvent(EventType::GetCommitIsHead);
     getCommitIsHeadEvent.addParam(QVariant::fromValue(getCommitIsHeadCommand));
@@ -169,7 +169,7 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerInitRepo: {
-    const GitRepoInitRepoCommand initRepoCommand =
+    const auto initRepoCommand =
         event.data<GitRepoInitRepoCommand>();
     GitRepoManagerEvent initRepoEvent(EventType::Init);
     initRepoEvent.addParam(QVariant::fromValue(initRepoCommand));
@@ -177,7 +177,7 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerListLocalBranches: {
-    const GitRepoListLocalBranchesCommand listLocalCommand =
+    const auto listLocalCommand =
         event.data<GitRepoListLocalBranchesCommand>();
     GitRepoManagerEvent listLocalEvent(EventType::ListLocalBranches);
     listLocalEvent.addParam(QVariant::fromValue(listLocalCommand));
@@ -185,7 +185,7 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerListRemoteBranches: {
-    const GitRepoListRemoteBranchesCommand listRemoteCommand =
+    const auto listRemoteCommand =
         event.data<GitRepoListRemoteBranchesCommand>();
     GitRepoManagerEvent listRemoteEvent(EventType::ListRemoteBranches);
     listRemoteEvent.addParam(QVariant::fromValue(listRemoteCommand));
@@ -193,7 +193,7 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerListSubmodules: {
-    const GitRepoListSubmodulesCommand listSubmodulesCommand =
+    const auto listSubmodulesCommand =
         event.data<GitRepoListSubmodulesCommand>();
     GitRepoManagerEvent listSubmodulesEvent(EventType::ListSubmodules);
     listSubmodulesEvent.addParam(QVariant::fromValue(listSubmodulesCommand));
@@ -201,7 +201,7 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerListTags: {
-    const GitRepoListTagsCommand listTagsCommand =
+    const auto listTagsCommand =
         event.data<GitRepoListTagsCommand>();
     GitRepoManagerEvent listTagsEvent(EventType::ListTags);
     listTagsEvent.addParam(QVariant::fromValue(listTagsCommand));
@@ -209,7 +209,7 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepo: {
-    const GitRepoOpenCommand openCommand = event.data<GitRepoOpenCommand>();
+    const auto openCommand = event.data<GitRepoOpenCommand>();
     GitRepoManagerEvent openRepoEvent(EventType::OpenRepo);
     openRepoEvent.addParam(QVariant::fromValue(openCommand));
     _fsm.send(openRepoEvent);

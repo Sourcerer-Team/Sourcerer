@@ -132,6 +132,9 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/MouseTrackingSplitter.cpp
         include/widgets/HistorySliceTableColumnDelegate.h
         src/widgets/HistorySliceTableColumnDelegate.cpp
+        include/widgets/SpinnerDialog.h
+        include/widgets/OverlayWidget.h
+        include/widgets/SpinnerOverlayWidget.h
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

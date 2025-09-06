@@ -7,12 +7,10 @@
 
 #define THREAD_ID "BranchesModel"
 
-namespace GuiManager {
+namespace GuiManager::Models {
 
-namespace Models {
-
-static const char *ICON_PATH = ":/icons/git_branch.png";
-static const char *ICON_ACTIVE_PATH = ":/icons/git_branch_active.png";
+static auto ICON_PATH = ":/icons/git_branch.png";
+static auto ICON_ACTIVE_PATH = ":/icons/git_branch_active.png";
 
 BranchesModel::BranchesModel(QObject *parent)
     : QStandardItemModel{parent}, _prevIndex(-1) {
@@ -20,11 +18,15 @@ BranchesModel::BranchesModel(QObject *parent)
   LOG_PERF(0, "Exit");
 }
 
-BranchesModel::~BranchesModel() {}
+BranchesModel::~BranchesModel() = default;
 
-QString BranchesModel::iconActivePath() const { return ICON_ACTIVE_PATH; }
+QString BranchesModel::iconActivePath() const {
+  return ICON_ACTIVE_PATH;
+}
 
-QString BranchesModel::iconPath() const { return ICON_PATH; }
+QString BranchesModel::iconPath() const {
+  return ICON_PATH;
+}
 
 int BranchesModel::indexForBranch(const QString &branch) const {
   LOG_PERF(0, "Enter");
@@ -42,12 +44,46 @@ int BranchesModel::indexForBranch(const QString &branch) const {
   return -1;
 }
 
-void BranchesModel::setActiveIndex(int index) {
+QString BranchesModel::branchForIndex(int index) const {
+  LOG_PERF(0, "Enter");
+
+  if (index < 0 || index >= rowCount()) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return BranchesModel::index(index, 0).data().toString();
+}
+
+void BranchesModel::setActiveIndex(const int index) {
   LOG_PERF(0, "Enter");
 
   if (index >= rowCount()) {
     LOG_PERF(0, "EXit");
     return;
+  }
+
+  if (index == -1) {
+    QStandardItem *prevItem =
+        new QStandardItem(QIcon(iconPath()),
+                          BranchesModel::index(_prevIndex, 0)
+                              .data()
+                              .toString()); // Recreate item with normal icon
+    setItem(_prevIndex, prevItem);
+    _prevIndex = -1;
+    LOG_PERF(0, "EXit");
+    return;
+  }
+
+  if (_prevIndex != -1 && _prevIndex < rowCount()) {
+    QStandardItem *prevItem =
+        new QStandardItem(QIcon(iconPath()),
+                          BranchesModel::index(_prevIndex, 0)
+                              .data()
+                              .toString()); // Recreate item with normal icon
+    setItem(_prevIndex, prevItem);
   }
 
   const QString activeIconPath = index < 0 ? iconPath() : iconActivePath();
@@ -64,7 +100,8 @@ void BranchesModel::setActiveIndex(int index) {
   LOG_PERF(0, "Exit");
 }
 
-void BranchesModel::updateModel(const QStringList &branches, int activeIndex) {
+void BranchesModel::updateModel(const QStringList &branches,
+                                const int activeIndex) {
   LOG_PERF(0, "Enter");
 
   clear();
@@ -82,5 +119,4 @@ void BranchesModel::updateModel(const QStringList &branches, int activeIndex) {
   LOG_PERF(0, "Exit");
 }
 
-} // namespace Models
-} // namespace GuiManager
+} // namespace GuiManager::Models

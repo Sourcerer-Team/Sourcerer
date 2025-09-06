@@ -1,5 +1,7 @@
 #pragma once
 
+#include "GitRepo.h"
+
 #include <BlockingQueue.h>
 
 #include <QString>
@@ -8,9 +10,7 @@
 
 #include <thread>
 
-namespace GitRepoManager {
-
-namespace Structs {
+namespace GitRepoManager::Structs {
 
 enum class GitRepoCommandType : int {
   Unknown = 0,
@@ -43,104 +43,113 @@ enum class GitRepoErrorType : int {
 };
 
 struct GitRepoCommand {
-  GitRepoCommand(GitRepoCommandType commandType) : type(commandType) {}
-  virtual ~GitRepoCommand() {}
+  explicit GitRepoCommand(GitRepoCommandType commandType) : type(commandType) {}
+  virtual ~GitRepoCommand() = default;
   GitRepoCommandType type;
   QString uuid;
   QString syncUuid;
 };
 
-struct GitRepoCloneCommand : GitRepoCommand {
+struct GitRepoCloneCommand final : GitRepoCommand {
   GitRepoCloneCommand() : GitRepoCommand(GitRepoCommandType::Clone) {}
-  virtual ~GitRepoCloneCommand() {}
+  ~GitRepoCloneCommand() override = default;
 
   QString url;
   QString destinationDir;
 };
 
-struct GitRepoCloseCommand : GitRepoCommand {
+struct GitRepoCloseCommand final : GitRepoCommand {
   GitRepoCloseCommand() : GitRepoCommand(GitRepoCommandType::Close) {}
-  virtual ~GitRepoCloseCommand() {}
+  ~GitRepoCloseCommand() override = default;
 };
 
-struct GitRepoGetActiveBranchCommand : GitRepoCommand {
+struct GitRepoGetActiveBranchCommand final : GitRepoCommand {
   GitRepoGetActiveBranchCommand()
       : GitRepoCommand(GitRepoCommandType::GetActiveBranch) {}
-  virtual ~GitRepoGetActiveBranchCommand() {}
+  ~GitRepoGetActiveBranchCommand() override = default;
+
+  GitRepo::BranchType branchType = GitRepo::BranchType::Unknown;
 };
 
-struct GitRepoGetCommitBranchesCommand : GitRepoCommand {
+struct GitRepoGetActiveBranchCommandResult {
+  QString branchName;
+  GitRepo::BranchType branchType = GitRepo::BranchType::Unknown;
+};
+
+struct GitRepoGetCommitBranchesCommand final : GitRepoCommand {
   GitRepoGetCommitBranchesCommand()
       : GitRepoCommand(GitRepoCommandType::GetCommitBranches) {}
-  virtual ~GitRepoGetCommitBranchesCommand() {}
+  ~GitRepoGetCommitBranchesCommand() override = default;
 
   QString commitOid;
 };
 
-struct GitRepoGetCommitHeadsCommand : GitRepoCommand {
+struct GitRepoGetCommitHeadsCommand final : GitRepoCommand {
   GitRepoGetCommitHeadsCommand()
       : GitRepoCommand(GitRepoCommandType::GetCommitHeads) {}
-  virtual ~GitRepoGetCommitHeadsCommand() {}
+  ~GitRepoGetCommitHeadsCommand() override = default;
 
   QString commitOid;
 };
 
-struct GitRepoGetCommitIsHeadCommand : GitRepoCommand {
+struct GitRepoGetCommitIsHeadCommand final : GitRepoCommand {
   GitRepoGetCommitIsHeadCommand()
       : GitRepoCommand(GitRepoCommandType::GetCommitIsHead) {}
-  virtual ~GitRepoGetCommitIsHeadCommand() {}
+  ~GitRepoGetCommitIsHeadCommand() override = default;
 
   QString commitOid;
 };
 
-struct GitRepoGetBranchHistoryCommand : GitRepoCommand {
-  GitRepoGetBranchHistoryCommand() : GitRepoCommand(GitRepoCommandType::GetBranchHistory) {}
-  virtual ~GitRepoGetBranchHistoryCommand() {}
+struct GitRepoGetBranchHistoryCommand final : GitRepoCommand {
+  GitRepoGetBranchHistoryCommand()
+      : GitRepoCommand(GitRepoCommandType::GetBranchHistory) {}
+  ~GitRepoGetBranchHistoryCommand() override = default;
 
   QString branchName;
+  GitRepo::BranchType branchType = GitRepo::BranchType::Unknown;
 };
 
-struct GitRepoInitRepoCommand : GitRepoCommand {
+struct GitRepoInitRepoCommand final : GitRepoCommand {
   GitRepoInitRepoCommand() : GitRepoCommand(GitRepoCommandType::Init) {}
-  virtual ~GitRepoInitRepoCommand() {}
+  ~GitRepoInitRepoCommand() override = default;
 
   QString repoName;
   QString workingDir;
   QString defaultBranch;
 };
 
-struct GitRepoListLocalBranchesCommand : GitRepoCommand {
+struct GitRepoListLocalBranchesCommand final : GitRepoCommand {
   GitRepoListLocalBranchesCommand()
       : GitRepoCommand(GitRepoCommandType::ListLocalBranches) {}
-  virtual ~GitRepoListLocalBranchesCommand() {}
+  ~GitRepoListLocalBranchesCommand() override = default;
 };
 
-struct GitRepoListRemoteBranchesCommand : GitRepoCommand {
+struct GitRepoListRemoteBranchesCommand final : GitRepoCommand {
   GitRepoListRemoteBranchesCommand()
       : GitRepoCommand(GitRepoCommandType::ListRemoteBranches) {}
-  virtual ~GitRepoListRemoteBranchesCommand() {}
+  ~GitRepoListRemoteBranchesCommand() override = default;
 };
 
-struct GitRepoListSubmodulesCommand : GitRepoCommand {
+struct GitRepoListSubmodulesCommand final : GitRepoCommand {
   GitRepoListSubmodulesCommand()
       : GitRepoCommand(GitRepoCommandType::ListSubmodules) {}
-  virtual ~GitRepoListSubmodulesCommand() {}
+  ~GitRepoListSubmodulesCommand() override = default;
 };
 
-struct GitRepoListTagsCommand : GitRepoCommand {
+struct GitRepoListTagsCommand final : GitRepoCommand {
   GitRepoListTagsCommand() : GitRepoCommand(GitRepoCommandType::ListTags) {}
-  virtual ~GitRepoListTagsCommand() {}
+  ~GitRepoListTagsCommand() override = default;
 };
 
-struct GitRepoOpenCommand : GitRepoCommand {
+struct GitRepoOpenCommand final : GitRepoCommand {
   GitRepoOpenCommand() : GitRepoCommand(GitRepoCommandType::Open) {}
-  virtual ~GitRepoOpenCommand() {}
+  ~GitRepoOpenCommand() override = default;
   QString path;
 };
 
-struct GitRepoQuitCommand : GitRepoCommand {
+struct GitRepoQuitCommand final : GitRepoCommand {
   GitRepoQuitCommand() : GitRepoCommand(GitRepoCommandType::Quit) {}
-  virtual ~GitRepoQuitCommand() {}
+  ~GitRepoQuitCommand() override = default;
 };
 
 struct GitRepoError {
@@ -156,5 +165,4 @@ struct GitRepoContext {
   git_repository *gitRepo = nullptr;
 };
 
-} // namespace Structs
-} // namespace GitRepoManager
+} // namespace GitRepoManager::Structs

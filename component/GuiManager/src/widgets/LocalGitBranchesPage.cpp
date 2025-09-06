@@ -7,16 +7,17 @@
 
 using namespace GuiManager::Models;
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 LocalGitBranchesPage::LocalGitBranchesPage(QWidget *parent)
-    : QWidget(parent), ui(new Ui::LocalGitBranchesPage),
-      _model(new BranchesModel(this)) {
+    : QWidget(parent), _model(new BranchesModel(this)),
+      ui(new Ui::LocalGitBranchesPage) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
+
+  connect(ui->listView, &QListView::doubleClicked, this,
+          &LocalGitBranchesPage::onListViewDoubleClicked);
 
   LOG_PERF(0, "Exit");
 }
@@ -29,7 +30,7 @@ LocalGitBranchesPage::~LocalGitBranchesPage() {
   LOG_PERF(0, "Exit");
 }
 
-void LocalGitBranchesPage::updateActiveBranch(const QString &branchName) {
+void LocalGitBranchesPage::updateActiveBranch(const QString &branchName) const {
   LOG_PERF(0, "Enter");
 
   if (!_model) {
@@ -38,7 +39,7 @@ void LocalGitBranchesPage::updateActiveBranch(const QString &branchName) {
     return;
   }
 
-  const int index = _model->indexForBranch(branchName);
+  const int index = !branchName.isEmpty() ?_model->indexForBranch(branchName) : -1;
   _model->setActiveIndex(index);
 
   ui->listView->scrollTo(_model->index(index, 0));
@@ -46,7 +47,7 @@ void LocalGitBranchesPage::updateActiveBranch(const QString &branchName) {
   LOG_PERF(0, "Exit");
 }
 
-void LocalGitBranchesPage::updateModel(const QStringList &localBranches) {
+void LocalGitBranchesPage::updateModel(const QStringList &localBranches) const {
   LOG_PERF(0, "Enter");
 
   _model->clear();
@@ -58,5 +59,17 @@ void LocalGitBranchesPage::updateModel(const QStringList &localBranches) {
   LOG_PERF(0, "Exit");
 }
 
-} // namespace Widgets
-} // namespace GuiManager
+void LocalGitBranchesPage::onListViewDoubleClicked(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  emit branchSelected(_model->branchForIndex(index.row()));
+}
+
+} // namespace GuiManager::Widgets

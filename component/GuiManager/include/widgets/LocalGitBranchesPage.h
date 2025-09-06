@@ -2,31 +2,33 @@
 
 #include "models/BranchesModel.h"
 
-#include <QStringList>
 #include <QWidget>
 
 namespace Ui {
 class LocalGitBranchesPage;
 }
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 class LocalGitBranchesPage : public QWidget {
   Q_OBJECT
 
 public:
   explicit LocalGitBranchesPage(QWidget *parent = nullptr);
-  ~LocalGitBranchesPage();
+  ~LocalGitBranchesPage() override;
 
-  void updateActiveBranch(const QString& branchName);
-  void updateModel(const QStringList &localBranches);
+  void updateActiveBranch(const QString &branchName) const;
+  void updateModel(const QStringList &localBranches) const;
+
+signals:
+  void branchSelected(const QString &branchName);
+
+private slots:
+  void onListViewDoubleClicked(const QModelIndex &index);
 
 private:
   Models::BranchesModel *_model;
   Ui::LocalGitBranchesPage *ui;
 };
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

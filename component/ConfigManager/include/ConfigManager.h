@@ -54,7 +54,7 @@ private:
 
   virtual ~ConfigManager();
 
-  QString getWritableDir() const;
+  static QString getWritableDir();
 
 private:
   mutable Util::Mutex _mutex;
