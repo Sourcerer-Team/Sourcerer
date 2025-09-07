@@ -298,6 +298,7 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
   }
 
   const QString commit = shaIndex.data(Qt::DisplayRole).toString();
+  /*
   const QModelIndex slicesIndex =
       _historyModel->index(index.row(), COLUMN_HISTORY_SLICE, QModelIndex());
   if (!slicesIndex.isValid()) {
@@ -338,6 +339,8 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
     LOG_PERF(0, "Exit");
     return;
   }
+
+  */
 
   LOCKGUARD(_tooltipsMutex);
 
