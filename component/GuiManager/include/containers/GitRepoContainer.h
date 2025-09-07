@@ -13,6 +13,7 @@
 
 #include <QSet>
 #include <QString>
+#include <QTimer>
 #include <QWidget>
 
 namespace Ui {
@@ -42,6 +43,7 @@ private slots:
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onLocalBranchSelected(const QString &branchName);
   void onRemoteBranchSelected(const QString &branchName);
+  void onShowSpinnerOverlay() const;
 
 private:
   void closeRepo() const;
@@ -89,6 +91,7 @@ private:
   QSet<QString> _tooltipsToShow;
 
   Widgets::SpinnerOverlayWidget *_spinnerOverlay;
+  QTimer *_spinnerOverlayTimer;
 
   bool _quitGettingHistory;
 };

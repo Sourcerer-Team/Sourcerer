@@ -37,7 +37,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel(this)), _dispatcher(1),
       _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
-      _quitGettingHistory(false) {
+      _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -91,6 +91,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   connect(ui->remotePage, &RemoteGitBranchesPage::branchSelected, this,
           &GitRepoContainer::onRemoteBranchSelected);
+
+  connect(_spinnerOverlayTimer, &QTimer::timeout, this, &GitRepoContainer::onShowSpinnerOverlay);
 
   const auto eventCallbackFunc =
       std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
@@ -378,7 +380,12 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
 void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
-  showSpinnerOverlay();
+  ui->historyView->setVisible(false);
+
+  const qlonglong spinnerOverlayTimerTimeout =
+      _configManager.getLong(ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
+
+  _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
 
   updateLocalBranchesModelActiveBranch(branchName);
 
@@ -388,9 +395,22 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
 void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
-  showSpinnerOverlay();
+  ui->historyView->setVisible(false);
+
+  const qlonglong spinnerOverlayTimerTimeout =
+    _configManager.getLong(ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
+
+  _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
 
   updateRemoteBranchesModelActiveBranch(branchName);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onShowSpinnerOverlay() const {
+  LOG_PERF(0, "Enter");
+
+  showSpinnerOverlay();
 
   LOG_PERF(0, "Exit");
 }
@@ -452,6 +472,8 @@ void GitRepoContainer::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetBranchHistoryError: {
+    _spinnerOverlayTimer->stop();
+
     showErrorPage();
 
     // Show a toast with error
@@ -806,7 +828,8 @@ void GitRepoContainer::showToast(const QString &message) const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateBranchHistory(const GitRepo::GitHistory &history) const {
+void GitRepoContainer::updateBranchHistory(
+    const GitRepo::GitHistory &history) const {
   LOG_PERF(0, "Enter");
 
   _historyModel->updateHistory(history, [&](const int progress) {
@@ -819,6 +842,7 @@ void GitRepoContainer::updateBranchHistory(const GitRepo::GitHistory &history) c
   });
 
   Util::Dispatcher::dispatchToMainThread([&]() {
+    _spinnerOverlayTimer->stop();
     showSpinnerOverlay(false);
     stretchBranchHistoryTableColumns();
   });
