@@ -36,7 +36,6 @@ public:
   bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
-  void onHome();
   void onOpen();
   void onClone();
   void onCloneFinished(ContainerWidget *sender);

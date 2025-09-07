@@ -55,7 +55,7 @@ void GuiManager::start() {
   app.setStyleSheet(stylesheet);
 
   MainWindow w;
-  w.show();
+  w.showMaximized();
 
   EventManager::Event startedEvent(EventManager::EventType::ComponentStarted);
   EventManager::EventManager &eventManager =

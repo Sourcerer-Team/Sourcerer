@@ -25,7 +25,6 @@ public:
   int tabsCount() const;
 
 signals:
-  void home();
   void open();
   void clone();
   void init();
@@ -37,7 +36,6 @@ signals:
   void resizeTabBar();
 
 private slots:
-  void onHome();
   void onOpen();
   void onClone();
   void onInit();

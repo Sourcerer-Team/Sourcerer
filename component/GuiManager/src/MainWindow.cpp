@@ -70,7 +70,6 @@ MainWindow::MainWindow(QWidget *parent)
   _toastHost.setParent(this);
   _toastHost.setYOffset(titleBarHeight);
 
-  connect(_topBarWidget, &TopBarWidget::home, this, &MainWindow::onHome);
   connect(_topBarWidget, &TopBarWidget::open, this, &MainWindow::onOpen);
   connect(_topBarWidget, &TopBarWidget::clone, this, &MainWindow::onClone);
   connect(_topBarWidget, &TopBarWidget::init, this, &MainWindow::onInit);
@@ -166,12 +165,6 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
   return _hitDetector->eventFilter(watched, event);
-}
-
-void MainWindow::onHome() {
-  LOG_PERF(0, "Enter");
-
-  LOG_PERF(0, "Exit");
 }
 
 void MainWindow::onOpen() {

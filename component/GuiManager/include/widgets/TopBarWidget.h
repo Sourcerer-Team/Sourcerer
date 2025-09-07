@@ -23,7 +23,6 @@ signals:
   void closed();
   void doubleClicked();
 
-  void home();
   void open();
   void clone();
   void init();

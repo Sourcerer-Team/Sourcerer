@@ -29,8 +29,6 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
 
   setMaximumHeight(titleBarHeight);
 
-  connect(ui->homeButton, &TitleBarHomeButton::clicked, this,
-          &TitlebarWidget::onHome);
   connect(ui->menuButton, &TitleBarMenuButton::open, this,
           &TitlebarWidget::onOpen);
   connect(ui->menuButton, &TitleBarMenuButton::clone, this,
@@ -101,14 +99,6 @@ int TitlebarWidget::tabsCount() const {
   LOG_PERF(0, "Exit");
 
   return count;
-}
-
-void TitlebarWidget::onHome() {
-  LOG_PERF(0, "Enter");
-
-  emit home();
-
-  LOG_PERF(0, "Exit");
 }
 
 void TitlebarWidget::onOpen() {

@@ -83,7 +83,6 @@ TopBarWidget::TopBarWidget(QWidget *parent)
           &TopBarWidget::maximized);
   connect(closeButton, &QPushButton::clicked, this, &TopBarWidget::closed);
 
-  connect(_titleBarWidget, &TitlebarWidget::home, this, &TopBarWidget::home);
   connect(_titleBarWidget, &TitlebarWidget::open, this, &TopBarWidget::open);
   connect(_titleBarWidget, &TitlebarWidget::clone, this, &TopBarWidget::clone);
   connect(_titleBarWidget, &TitlebarWidget::init, this, &TopBarWidget::init);

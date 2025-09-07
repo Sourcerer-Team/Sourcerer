@@ -41,7 +41,7 @@
    <item>
     <layout class="QHBoxLayout" name="leftHorizontalLayout">
      <property name="sizeConstraint">
-      <enum>QLayout::SetDefaultConstraint</enum>
+      <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
      </property>
      <item>
       <widget class="GuiManager::Widgets::TitleBarTabBar" name="tabBar" native="true"/>
@@ -51,33 +51,8 @@
    <item>
     <layout class="QHBoxLayout" name="rightHorizontalLayout">
      <property name="sizeConstraint">
-      <enum>QLayout::SetDefaultConstraint</enum>
+      <enum>QLayout::SizeConstraint::SetDefaultConstraint</enum>
      </property>
-     <item>
-      <widget class="GuiManager::Widgets::TitleBarHomeButton" name="homeButton">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="maximumSize">
-        <size>
-         <width>24</width>
-         <height>24</height>
-        </size>
-       </property>
-       <property name="mouseTracking">
-        <bool>true</bool>
-       </property>
-       <property name="text">
-        <string>+</string>
-       </property>
-       <property name="flat">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
      <item>
       <widget class="GuiManager::Widgets::TitleBarMenuButton" name="menuButton">
        <property name="sizePolicy">
@@ -112,7 +87,7 @@
    <item>
     <spacer name="horizontalSpacer">
      <property name="orientation">
-      <enum>Qt::Horizontal</enum>
+      <enum>Qt::Orientation::Horizontal</enum>
      </property>
      <property name="sizeHint" stdset="0">
       <size>
@@ -129,11 +104,6 @@
    <class>GuiManager::Widgets::TitleBarMenuButton</class>
    <extends>QPushButton</extends>
    <header>widgets/TitleBarMenuButton.h</header>
-  </customwidget>
-  <customwidget>
-   <class>GuiManager::Widgets::TitleBarHomeButton</class>
-   <extends>QPushButton</extends>
-   <header>widgets/TitleBarHomeButton.h</header>
   </customwidget>
   <customwidget>
    <class>GuiManager::Widgets::TitleBarTabBar</class>
