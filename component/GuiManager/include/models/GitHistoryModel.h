@@ -47,8 +47,9 @@ public:
     _selectionModel = selectionModel;
   }
 
-  void updateHistory(const GitRepo::GitHistory &history,
-                     const std::function<void(int)> progressCallback = nullptr);
+  void
+  updateHistory(const GitRepo::GitHistory &history,
+                const std::function<void(int)> &progressCallback = nullptr);
 
   void quitUpdate() { _quitUpdate = true; }
 
@@ -63,7 +64,7 @@ public:
                       int role) const override;
 
 private:
-  void createDrawableSlices(const std::function<void(int)>& progressCallback);
+  void createDrawableSlices(const std::function<void(int)> &progressCallback);
 
 #ifdef QT_DEBUG
   static void

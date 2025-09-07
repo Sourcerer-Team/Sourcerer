@@ -216,9 +216,17 @@ void ProcessingState::closeRepoWorker(
     return;
   }
 
+  git_repository *repo = nullptr;
+
   {
     LOCKGUARD(_contextsMutex);
-    GitRepo::closeRepository(ctx->gitRepo);
+    repo = ctx->gitRepo;
+  }
+
+  GitRepo::closeRepository(repo);
+
+  {
+    LOCKGUARD(_contextsMutex);
     ctx->gitRepo = nullptr;
   }
 
@@ -362,12 +370,17 @@ void ProcessingState::getActiveBranchWorker(
     return;
   }
 
-  QString activeBranch;
+  git_repository *repo = nullptr;
+  const bool *quit = nullptr;
 
   {
     LOCKGUARD(_contextsMutex);
-    activeBranch = GitRepo::getActiveBranch(ctx->gitRepo, command.branchType);
+    repo = ctx->gitRepo;
+    quit = &ctx->quit;
   }
+
+  const QString activeBranch =
+      GitRepo::getActiveBranch(repo, command.branchType, *quit);
 
   GitRepoGetActiveBranchCommandResult result;
   result.branchName = activeBranch;
@@ -396,12 +409,17 @@ void ProcessingState::getCommitBranchesWorker(
     return;
   }
 
-  QStringList branches;
+  git_repository *repo = nullptr;
+  const bool *quit = nullptr;
 
   {
     LOCKGUARD(_contextsMutex);
-    branches = GitRepo::getCommitBranches(ctx->gitRepo, command.commitOid);
+    repo = ctx->gitRepo;
+    quit = &ctx->quit;
   }
+
+  const QStringList branches =
+      GitRepo::getCommitBranches(repo, command.commitOid, *quit);
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerGetCommitBranchesResult,
@@ -426,12 +444,17 @@ void ProcessingState::getCommitHeadsWorker(
     return;
   }
 
-  QStringList branches;
+  git_repository *repo = nullptr;
+  const bool *quit = nullptr;
 
   {
     LOCKGUARD(_contextsMutex);
-    branches = GitRepo::getCommitHeads(ctx->gitRepo, command.commitOid);
+    repo = ctx->gitRepo;
+    quit = &ctx->quit;
   }
+
+  const QStringList branches =
+      GitRepo::getCommitHeads(repo, command.commitOid, *quit);
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerGetCommitHeadsResult,
@@ -456,12 +479,16 @@ void ProcessingState::getCommitIsHeadWorker(
     return;
   }
 
-  bool head = false;
+  git_repository *repo = nullptr;
+  const bool *quit = nullptr;
 
   {
     LOCKGUARD(_contextsMutex);
-    head = GitRepo::getCommitIsHead(ctx->gitRepo, command.commitOid);
+    repo = ctx->gitRepo;
+    quit = &ctx->quit;
   }
+
+  const bool head = GitRepo::getCommitIsHead(repo, command.commitOid, *quit);
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerGetCommitIsHeadResult,
@@ -486,13 +513,15 @@ void ProcessingState::getBranchHistoryWorker(
     return;
   }
 
-  GitRepo::GitHistory history;
+  git_repository *repo = nullptr;
 
   {
     LOCKGUARD(_contextsMutex);
-    history = GitRepo::getBranchHistory(ctx->gitRepo, command.branchName,
-                                        command.branchType);
+    repo = ctx->gitRepo;
   }
+
+  const GitRepo::GitHistory history = GitRepo::getBranchHistory(
+      repo, command.branchName, command.branchType, ctx->quit);
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerGetBranchHistoryResult,
@@ -555,12 +584,16 @@ void ProcessingState::listLocalBranchesWorker(
     return;
   }
 
-  QStringList localBranches;
+  git_repository *repo = nullptr;
+  const bool *quit = nullptr;
 
   {
     LOCKGUARD(_contextsMutex);
-    localBranches = GitRepo::listLocalBranches(ctx->gitRepo);
+    repo = ctx->gitRepo;
+    quit = &ctx->quit;
   }
+
+  const QStringList localBranches = GitRepo::listLocalBranches(repo, *quit);
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerListLocalBranchesResult,
@@ -585,12 +618,16 @@ void ProcessingState::listRemoteBranchesWorker(
     return;
   }
 
-  QStringList remoteBranches;
+  git_repository *repo = nullptr;
+  const bool *quit = nullptr;
 
   {
     LOCKGUARD(_contextsMutex);
-    remoteBranches = GitRepo::listRemoteBranches(ctx->gitRepo);
+    repo = ctx->gitRepo;
+    quit = &ctx->quit;
   }
+
+  const QStringList remoteBranches = GitRepo::listRemoteBranches(repo, *quit);
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerListRemoteBranchesResult,
@@ -615,12 +652,14 @@ void ProcessingState::listSubmodulesWorker(
     return;
   }
 
-  QStringList submodules;
+  git_repository *repo = nullptr;
 
   {
     LOCKGUARD(_contextsMutex);
-    submodules = GitRepo::listSubmodules(ctx->gitRepo);
+    repo = ctx->gitRepo;
   }
+
+  const QStringList submodules = GitRepo::listSubmodules(repo);
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerListSubmodulesResult,
@@ -645,12 +684,14 @@ void ProcessingState::listTagsWorker(
     return;
   }
 
-  QStringList tags;
+  git_repository *repo = nullptr;
 
   {
     LOCKGUARD(_contextsMutex);
-    tags = GitRepo::listTags(ctx->gitRepo);
+    repo = ctx->gitRepo;
   }
+
+  const QStringList tags = GitRepo::listTags(repo);
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerListTagsResult, command.syncUuid);
@@ -803,6 +844,7 @@ void ProcessingState::scheduleWorkerForCloseRepo(
     return;
   }
 
+  (*it)->quit = true;
   (*it)->commandsQueue.push(new GitRepoCloseCommand(command));
 
   LOG_PERF(0, "Exit");

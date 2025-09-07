@@ -34,9 +34,10 @@ private:
   getActiveBranchWorker(const Structs::GitRepoGetActiveBranchCommand &command);
   void getCommitBranchesWorker(
       const Structs::GitRepoGetCommitBranchesCommand &command);
-  void getCommitHeadsWorker(const Structs::GitRepoGetCommitHeadsCommand &command);
-  void getCommitIsHeadWorker(
-      const Structs::GitRepoGetCommitIsHeadCommand &command);
+  void
+  getCommitHeadsWorker(const Structs::GitRepoGetCommitHeadsCommand &command);
+  void
+  getCommitIsHeadWorker(const Structs::GitRepoGetCommitIsHeadCommand &command);
   void getBranchHistoryWorker(
       const Structs::GitRepoGetBranchHistoryCommand &command);
   void initRepoWorker(const Structs::GitRepoInitRepoCommand &command);

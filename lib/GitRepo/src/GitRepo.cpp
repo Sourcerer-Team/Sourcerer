@@ -268,7 +268,8 @@ git_repository *openRepository(const QString &path) {
 }
 
 static QStringList listCheckoutBranches(git_repository *repo,
-                                        const BranchType type) {
+                                        const BranchType type,
+                                        const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
   if (!repo) {
@@ -313,7 +314,7 @@ static QStringList listCheckoutBranches(git_repository *repo,
   QStringList activeBranches;
   git_reference *ref = nullptr;
 
-  for (;;) {
+  while (!quitFlag) {
     error = git_branch_next(&ref, &branchType, it);
     if (error == GIT_ITEROVER)
       break;
@@ -369,7 +370,8 @@ static QStringList listCheckoutBranches(git_repository *repo,
   return activeBranches;
 }
 
-static QStringList listBranches(git_repository *repo, const BranchType type) {
+static QStringList listBranches(git_repository *repo, const BranchType type,
+                                const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
   if (!repo) {
@@ -414,7 +416,7 @@ static QStringList listBranches(git_repository *repo, const BranchType type) {
   QStringList activeBranches;
   git_reference *ref = nullptr;
 
-  for (;;) {
+  while (!quitFlag) {
     error = git_branch_next(&ref, &branchType, it);
     if (error == GIT_ITEROVER)
       break;
@@ -463,20 +465,20 @@ static QStringList listBranches(git_repository *repo, const BranchType type) {
   return activeBranches;
 }
 
-QStringList listLocalBranches(git_repository *repo) {
+QStringList listLocalBranches(git_repository *repo, const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit");
 
-  return listBranches(repo, BranchType::Local);
+  return listBranches(repo, BranchType::Local, quitFlag);
 }
 
-QStringList listRemoteBranches(git_repository *repo) {
+QStringList listRemoteBranches(git_repository *repo, const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit");
 
-  return listBranches(repo, BranchType::Remote);
+  return listBranches(repo, BranchType::Remote, quitFlag);
 }
 
 QStringList listTags(git_repository *repo) {
@@ -529,10 +531,12 @@ QStringList listSubmodules(git_repository *repo) {
   return submodules;
 }
 
-QString getActiveBranch(git_repository *repo, const BranchType type) {
+QString getActiveBranch(git_repository *repo, const BranchType type,
+                        const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
-  const QStringList checkoutBranches = listCheckoutBranches(repo, type);
+  const QStringList checkoutBranches =
+      listCheckoutBranches(repo, type, quitFlag);
 
   LOG_PERF(0, "Exit");
 
@@ -696,8 +700,7 @@ acquireCredentials(const QString &url, const QString &username,
     bool success = false;
     switch (event.type()) {
     case EventManager::EventType::GitRepoManagerGetCredentialsError: {
-      const auto [uuid] =
-          event.data<GitCredentialsErrorResponse>();
+      const auto [uuid] = event.data<GitCredentialsErrorResponse>();
       success = uuid == request.uuid;
       break;
     }
@@ -883,7 +886,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
 }
 
 GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
-                            const BranchType type) {
+                            const BranchType type, const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
   GitHistory history_;
@@ -932,7 +935,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
       return {};
     }
 
-    while (git_branch_next(&ref, &branchType, it) == 0) {
+    while (git_branch_next(&ref, &branchType, it) == 0 && !quitFlag) {
       const char *currentBranchName = nullptr;
 
       error = git_branch_name(&currentBranchName, ref);
@@ -1036,7 +1039,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
 
   QSet<QString> processed;
 
-  while (git_revwalk_next(&oid, walker) == 0) {
+  while (git_revwalk_next(&oid, walker) == 0 && !quitFlag) {
     const char *str = git_oid_tostr_s(&oid);
     if (!str) {
       LOG_ERROR(Log::ErrorId::Git, "Can't convert oid to string.");
@@ -1073,9 +1076,9 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
 
     history_.commits.push_back(oidStr);
 
-    std::size_t parentCount = git_commit_parentcount(commit);
+    const std::size_t parentCount = git_commit_parentcount(commit);
 
-    for (std::size_t i = 0; i < parentCount; ++i) {
+    for (std::size_t i = 0; i < parentCount && !quitFlag; ++i) {
       const git_oid *parentOid = git_commit_parent_id(commit, i);
       if (!parentOid) {
         LOG_ERROR(Log::ErrorId::Git,
@@ -1160,33 +1163,36 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
 
   git_revwalk_free(walker);
 
-  std::sort(history_.commits.begin(), history_.commits.end(),
-            [&](const QString &a, const QString &b) {
-              auto it = history_.commitInfos.find(a);
-              if (it == history_.commitInfos.end()) {
-                return false;
-              }
+  if (!quitFlag) {
+    std::sort(history_.commits.begin(), history_.commits.end(),
+              [&](const QString &a, const QString &b) {
+                auto it = history_.commitInfos.find(a);
+                if (it == history_.commitInfos.end()) {
+                  return false;
+                }
 
-              const GitCommitInfo &commitInfoA = it.value();
+                const GitCommitInfo &commitInfoA = it.value();
 
-              it = history_.commitInfos.find(b);
-              if (it == history_.commitInfos.end()) {
-                return false;
-              }
+                it = history_.commitInfos.find(b);
+                if (it == history_.commitInfos.end()) {
+                  return false;
+                }
 
-              const GitCommitInfo &commitInfoB = it.value();
+                const GitCommitInfo &commitInfoB = it.value();
 
-              return commitInfoA.timeStamp < commitInfoB.timeStamp;
-            });
+                return commitInfoA.timeStamp < commitInfoB.timeStamp;
+              });
+  }
 
   history_.valid = true;
 
   LOG_PERF(0, "Exit");
 
-  return history_;
+  return quitFlag ? GitHistory{} : history_;
 }
 
-QStringList getCommitBranches(git_repository *repo, const QString &commitOid) {
+QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
+                              const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
   if (commitOid.isEmpty()) {
@@ -1209,7 +1215,7 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid) {
   }
 
   // Traverse all branches
-  while (git_branch_next(&ref, &type, iter) == 0) {
+  while (git_branch_next(&ref, &type, iter) == 0 && !quitFlag) {
     const char *branchName = nullptr;
 
     error = git_branch_name(&branchName, ref);
@@ -1294,7 +1300,8 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid) {
   return branches;
 }
 
-QStringList getCommitHeads(git_repository *repo, const QString &commitOid) {
+QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
+                           const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
   QStringList branches;
@@ -1311,7 +1318,7 @@ QStringList getCommitHeads(git_repository *repo, const QString &commitOid) {
   }
 
   // Traverse all branches
-  while (git_branch_next(&ref, &type, iter) == 0) {
+  while (git_branch_next(&ref, &type, iter) == 0 && !quitFlag) {
     git_object *branchTip = nullptr;
     error = git_reference_peel(&branchTip, ref, GIT_OBJECT_COMMIT);
     if (error) {
@@ -1364,7 +1371,8 @@ QStringList getCommitHeads(git_repository *repo, const QString &commitOid) {
   return branches;
 }
 
-bool getCommitIsHead(git_repository *repo, const QString &commitOid) {
+bool getCommitIsHead(git_repository *repo, const QString &commitOid,
+                     const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
   git_branch_iterator *iter = nullptr;
@@ -1379,7 +1387,7 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid) {
   }
 
   // Traverse all branches
-  while (git_branch_next(&ref, &type, iter) == 0) {
+  while (git_branch_next(&ref, &type, iter) == 0 && !quitFlag) {
     git_object *branchTip = nullptr;
     error = git_reference_peel(&branchTip, ref, GIT_OBJECT_COMMIT);
     if (error) {

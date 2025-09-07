@@ -36,7 +36,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _eventManager(EventManager::EventManager::getInstance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel(this)), _dispatcher(1),
-      _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)) {
+      _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
+      _quitGettingHistory(false) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -143,11 +144,11 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 GitRepoContainer::~GitRepoContainer() {
   LOG_PERF(0, "Enter");
 
-  _dispatcher.joinAll();
+  closeRepo();
 
   _historyModel->quitUpdate();
 
-  closeRepo();
+  _dispatcher.joinAll();
 
   const auto eventCallbackFunc =
       std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
@@ -805,7 +806,7 @@ void GitRepoContainer::showToast(const QString &message) const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateBranchHistory(const GitRepo::GitHistory &history) {
+void GitRepoContainer::updateBranchHistory(const GitRepo::GitHistory &history) const {
   LOG_PERF(0, "Enter");
 
   _historyModel->updateHistory(history, [&](const int progress) {

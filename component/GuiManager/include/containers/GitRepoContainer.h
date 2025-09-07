@@ -61,7 +61,7 @@ private:
   void showMainSpinnerPage(bool spinnerEnabled = true) const;
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message) const;
-  void updateBranchHistory(const GitRepo::GitHistory &history);
+  void updateBranchHistory(const GitRepo::GitHistory &history) const;
   void updateLocalBranchesModel(const QStringList &localBranches) const;
   void updateLocalBranchesModelActiveBranch(const QString &activeBranch,
                                             bool updatePages = true);
@@ -89,6 +89,8 @@ private:
   QSet<QString> _tooltipsToShow;
 
   Widgets::SpinnerOverlayWidget *_spinnerOverlay;
+
+  bool _quitGettingHistory;
 };
 
 } // namespace GuiManager::Containers

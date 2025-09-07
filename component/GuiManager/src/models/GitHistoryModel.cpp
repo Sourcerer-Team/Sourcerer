@@ -30,7 +30,7 @@ GitHistoryModel::~GitHistoryModel() {
 
 void GitHistoryModel::updateHistory(
     const GitRepo::GitHistory &history,
-    const std::function<void(int)> progressCallback) {
+    const std::function<void(int)> &progressCallback) {
   LOG_PERF(0, "Enter");
 
   beginResetModel();
@@ -47,19 +47,19 @@ void GitHistoryModel::updateHistory(
 
   std::reverse(_history.commits.begin(), _history.commits.end());
 
-  _drawableSlices.invertVertically([&](const int progress) {
+  _drawableSlices.invertVertically(_quitUpdate, [&](const int progress) {
     if (progressCallback) {
       progressCallback(50 + (progress / 4));
     }
   });
 
-  for (qsizetype i = 0; i < _drawableSlices.sizeX(); ++i) {
+  for (qsizetype i = 0; i < _drawableSlices.sizeX() && !_quitUpdate; ++i) {
     if (progressCallback) {
       const double progress = (i * 100.0) / _drawableSlices.sizeX();
       progressCallback(75 + (progress / 4));
     }
 
-    for (qsizetype j = 0; j < _drawableSlices.sizeY(); ++j) {
+    for (qsizetype j = 0; j < _drawableSlices.sizeY() && !_quitUpdate; ++j) {
       std::swap(_drawableSlices[i][j].top, _drawableSlices[i][j].bottom);
     }
   }
@@ -238,7 +238,7 @@ QVariant GitHistoryModel::headerData(const int section,
 }
 
 void GitHistoryModel::createDrawableSlices(
-    const std::function<void(int)>& progressCallback) {
+    const std::function<void(int)> &progressCallback) {
   LOG_PERF(0, "Enter");
 
   _drawableSlices.clear();
@@ -246,7 +246,7 @@ void GitHistoryModel::createDrawableSlices(
   try {
     QMap<QString, QPair<int, int>> commitPositions;
 
-    for (int i = 0; i < _history.commits.size(); ++i) {
+    for (int i = 0; i < _history.commits.size() && !_quitUpdate; ++i) {
       if (_quitUpdate) {
         _drawableSlices.clear();
         LOG_PERF(0, "Exit");
@@ -449,6 +449,10 @@ void GitHistoryModel::createDrawableSlices(
     }
   } catch (const std::out_of_range &e) {
     LOG_ERROR(Log::ErrorId::Generic, "Exception: {}", e.what());
+    _drawableSlices.clear();
+  }
+
+  if (_quitUpdate) {
     _drawableSlices.clear();
   }
 

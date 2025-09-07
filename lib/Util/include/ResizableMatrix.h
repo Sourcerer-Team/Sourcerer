@@ -86,15 +86,15 @@ public:
   }
 
   void
-  invertVertically(const std::function<void(int)> &progressCallback = nullptr) {
+  invertVertically(const bool &quitFlag, const std::function<void(int)> &progressCallback = nullptr) {
     resize(sizeX(), sizeY());
-    for (int i = 0; i < sizeY() / 2; ++i) {
+    for (int i = 0; i < sizeY() / 2 && !quitFlag; ++i) {
       if (progressCallback) {
         const double progress = (i * 100.0) / (sizeY() / 2);
         progressCallback(static_cast<int>(progress));
       }
 
-      for (int j = 0; j < sizeX(); ++j) {
+      for (int j = 0; j < sizeX() && !quitFlag; ++j) {
         std::swap(_columns[j][i], _columns[j][sizeY() - i - 1]);
       }
     }

@@ -172,6 +172,7 @@ struct GitRepoContext {
   BlockingQueue<GitRepoCommand *> commandsQueue;
   std::thread workersThread;
   git_repository *gitRepo = nullptr;
+  bool quit = false;
 };
 
 } // namespace GitRepoManager::Structs
