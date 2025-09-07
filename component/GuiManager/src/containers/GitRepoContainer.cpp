@@ -97,6 +97,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(ui->remotePage, &RemoteGitBranchesPage::branchSelected, this,
           &GitRepoContainer::onRemoteBranchSelected);
 
+  connect(ui->tagsPage, &GitTagsPage::tagSelected, this,
+        &GitRepoContainer::onTagSelected);
+
   connect(_spinnerOverlayTimer, &QTimer::timeout, this,
           &GitRepoContainer::onShowSpinnerOverlay);
 
@@ -412,6 +415,21 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
   _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
 
   updateRemoteBranchesModelActiveBranch(branchName);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onTagSelected(const QString &tagName) {
+  LOG_PERF(0, "Enter");
+
+  ui->historyView->setVisible(false);
+
+  const qlonglong spinnerOverlayTimerTimeout = _configManager.getLong(
+      ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
+
+  _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
+
+  updateTagsModelActiveTag(tagName);
 
   LOG_PERF(0, "Exit");
 }
@@ -929,6 +947,8 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
     ui->localPage->updateActiveBranch(activeBranch);
     ui->remotePage->updateActiveBranch(
         QString()); // deselect remote branch if any
+    ui->tagsPage->updateActiveTag(
+        QString()); // deselect remote branch if any
   }
 
   getBranchHistory();
@@ -960,6 +980,28 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
     ui->localPage->updateActiveBranch(
         QString()); // deselect local branch if any
     ui->remotePage->updateActiveBranch(activeBranch);
+    ui->tagsPage->updateActiveTag(
+        QString()); // deselect local branch if any
+  }
+
+  getBranchHistory();
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::updateTagsModelActiveTag(
+    const QString &activeTag, const bool updatePages) {
+  LOG_PERF(0, "Enter");
+
+  _activeBranch = activeTag;
+  _activeBranchType = GitRepo::BranchType::All;
+
+  if (updatePages) {
+    ui->localPage->updateActiveBranch(
+        QString()); // deselect local branch if any
+    ui->remotePage->updateActiveBranch(QString());
+    ui->tagsPage->updateActiveTag(
+        activeTag); // deselect local branch if any
   }
 
   getBranchHistory();

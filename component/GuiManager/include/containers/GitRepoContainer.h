@@ -43,6 +43,7 @@ private slots:
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onLocalBranchSelected(const QString &branchName);
   void onRemoteBranchSelected(const QString &branchName);
+  void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay() const;
   void onGraphColumnExpand(int section);
 
@@ -73,6 +74,8 @@ private:
   void updateRemoteBranchesModel(const QStringList &remoteBranches) const;
   void updateRemoteBranchesModelActiveBranch(const QString &activeBranch,
                                              bool updatePages = true);
+  void updateTagsModelActiveTag(const QString &activeTag,
+                                bool updatePages = true);
   void updateSubmodulesModel(const QStringList &tags) const;
   void updateTagsModel(const QStringList &tags) const;
 

@@ -30,7 +30,7 @@ GitTagsPage::~GitTagsPage() {
   LOG_PERF(0, "Exit");
 }
 
-void GitTagsPage::updateActiveBranch(const QString &tagName) {
+void GitTagsPage::updateActiveTag(const QString &tagName) {
   LOG_PERF(0, "Enter");
 
   if (!_model) {

@@ -19,7 +19,7 @@ public:
   explicit GitTagsPage(QWidget *parent = nullptr);
   ~GitTagsPage() override;
 
-  void updateActiveBranch(const QString &tagName);
+  void updateActiveTag(const QString &tagName);
   void updateModel(const QStringList &tags);
 
 signals:
