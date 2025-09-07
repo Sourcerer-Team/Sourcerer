@@ -10,15 +10,15 @@ class LocalGitBranchesPage;
 
 namespace GuiManager::Widgets {
 
-class LocalGitBranchesPage : public QWidget {
+class LocalGitBranchesPage final : public QWidget {
   Q_OBJECT
 
 public:
   explicit LocalGitBranchesPage(QWidget *parent = nullptr);
   ~LocalGitBranchesPage() override;
 
-  void updateActiveBranch(const QString &branchName) const;
-  void updateModel(const QStringList &localBranches) const;
+  void updateActiveBranch(const QString &branchName);
+  void updateModel(const QStringList &localBranches);
 
 signals:
   void branchSelected(const QString &branchName);
@@ -29,6 +29,8 @@ private slots:
 private:
   Models::BranchesModel *_model;
   Ui::LocalGitBranchesPage *ui;
+
+  int _previous;
 };
 
 } // namespace GuiManager::Widgets

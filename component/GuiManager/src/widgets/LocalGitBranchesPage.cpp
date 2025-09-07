@@ -11,7 +11,7 @@ namespace GuiManager::Widgets {
 
 LocalGitBranchesPage::LocalGitBranchesPage(QWidget *parent)
     : QWidget(parent), _model(new BranchesModel(this)),
-      ui(new Ui::LocalGitBranchesPage) {
+      ui(new Ui::LocalGitBranchesPage), _previous(-1) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -30,7 +30,7 @@ LocalGitBranchesPage::~LocalGitBranchesPage() {
   LOG_PERF(0, "Exit");
 }
 
-void LocalGitBranchesPage::updateActiveBranch(const QString &branchName) const {
+void LocalGitBranchesPage::updateActiveBranch(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
   if (!_model) {
@@ -39,15 +39,18 @@ void LocalGitBranchesPage::updateActiveBranch(const QString &branchName) const {
     return;
   }
 
-  const int index = !branchName.isEmpty() ?_model->indexForBranch(branchName) : -1;
+  const int index =
+      !branchName.isEmpty() ? _model->indexForBranch(branchName) : -1;
   _model->setActiveIndex(index);
 
   ui->listView->scrollTo(_model->index(index, 0));
 
+  _previous = index;
+
   LOG_PERF(0, "Exit");
 }
 
-void LocalGitBranchesPage::updateModel(const QStringList &localBranches) const {
+void LocalGitBranchesPage::updateModel(const QStringList &localBranches) {
   LOG_PERF(0, "Enter");
 
   _model->clear();
@@ -56,6 +59,8 @@ void LocalGitBranchesPage::updateModel(const QStringList &localBranches) const {
 
   ui->listView->setModel(_model);
 
+  _previous = -1;
+
   LOG_PERF(0, "Exit");
 }
 
@@ -63,6 +68,11 @@ void LocalGitBranchesPage::onListViewDoubleClicked(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
   if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (index.row() == _previous) {
     LOG_PERF(0, "Exit");
     return;
   }

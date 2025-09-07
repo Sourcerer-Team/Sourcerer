@@ -12,19 +12,27 @@ namespace GuiManager {
 
 namespace Widgets {
 
-class GitTagsPage : public QWidget {
+class GitTagsPage final : public QWidget {
   Q_OBJECT
 
 public:
   explicit GitTagsPage(QWidget *parent = nullptr);
-  ~GitTagsPage();
+  ~GitTagsPage() override;
 
-  void updateActiveBranch(const QString& tagName);
+  void updateActiveBranch(const QString &tagName);
   void updateModel(const QStringList &tags);
+
+signals:
+  void tagSelected(const QString &branchName);
+
+private slots:
+  void onListViewDoubleClicked(const QModelIndex &index);
 
 private:
   Models::TagsModel *_model;
   Ui::GitTagsPage *ui;
+
+  int _previous;
 };
 
 } // namespace Widgets

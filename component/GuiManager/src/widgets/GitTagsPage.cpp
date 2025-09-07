@@ -7,15 +7,17 @@
 
 using namespace GuiManager::Models;
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 GitTagsPage::GitTagsPage(QWidget *parent)
-    : QWidget(parent), ui(new Ui::GitTagsPage), _model(new TagsModel(this)) {
+    : QWidget(parent), _model(new TagsModel(this)), ui(new Ui::GitTagsPage),
+      _previous(-1) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
+
+  connect(ui->listView, &QListView::doubleClicked, this,
+          &GitTagsPage::onListViewDoubleClicked);
 
   LOG_PERF(0, "Exit");
 }
@@ -40,6 +42,8 @@ void GitTagsPage::updateActiveBranch(const QString &tagName) {
   const int index = _model->indexForBranch(tagName);
   _model->setActiveIndex(index);
 
+  _previous = index;
+
   LOG_PERF(0, "Exit")
 }
 
@@ -52,8 +56,27 @@ void GitTagsPage::updateModel(const QStringList &tags) {
 
   ui->listView->setModel(_model);
 
+  _previous = -1;
+
   LOG_PERF(0, "Exit");
 }
 
-} // namespace Widgets
-} // namespace GuiManager
+void GitTagsPage::onListViewDoubleClicked(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (index.row() == _previous) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  emit tagSelected(_model->branchForIndex(index.row()));
+}
+
+} // namespace GuiManager::Widgets

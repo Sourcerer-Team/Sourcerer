@@ -390,12 +390,12 @@ void Log::setLogLevel(LogLevel logLevel) {
 }
 
 void Log::addEscapeCharacters(QString &string) {
-  constexpr char escapeCharacter = '\\';
+  const auto escapeCharacter = "\\";
 
   std::size_t position = string.indexOf(";", 0);
 
   while (position != -1) {
-    string.insert(static_cast<qsizetype>(position), &escapeCharacter);
+    string.insert(static_cast<qsizetype>(position), &escapeCharacter[0]);
     position = string.indexOf(";", static_cast<qsizetype>(position) + 2);
   }
 }

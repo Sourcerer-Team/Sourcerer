@@ -12,11 +12,14 @@ namespace GuiManager {
 namespace Widgets {
 
 GitSubmodulesPage::GitSubmodulesPage(QWidget *parent)
-    : QWidget(parent), ui(new Ui::GitSubmodulesPage),
-      _model(new SubmodulesModel(this)) {
+    : QWidget(parent), _model(new SubmodulesModel(this)),
+      ui(new Ui::GitSubmodulesPage), _previous(-1) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
+
+  connect(ui->listView, &QListView::doubleClicked, this,
+          &GitSubmodulesPage::onListViewDoubleClicked);
 
   LOG_PERF(0, "Exit");
 }
@@ -33,13 +36,15 @@ void GitSubmodulesPage::updateActiveBranch(const QString &submoduleName) {
   LOG_PERF(0, "Enter");
 
   if (!_model) {
-      LOG_ERROR(Log::ErrorId::Gui,
-                "Internal error. Model has not been initialized.");
-      return;
+    LOG_ERROR(Log::ErrorId::Gui,
+              "Internal error. Model has not been initialized.");
+    return;
   }
 
   const int index = _model->indexForBranch(submoduleName);
   _model->setActiveIndex(index);
+
+  _previous = index;
 
   LOG_PERF(0, "Exit")
 }
@@ -53,7 +58,27 @@ void GitSubmodulesPage::updateModel(const QStringList &submodules) {
 
   ui->listView->setModel(_model);
 
+  _previous = -1;
+
   LOG_PERF(0, "Exit");
+}
+
+void GitSubmodulesPage::onListViewDoubleClicked(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (index.row() == _previous) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  emit submoduleSelected(_model->branchForIndex(index.row()));
 }
 
 } // namespace Widgets

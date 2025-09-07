@@ -11,7 +11,7 @@ namespace GuiManager::Widgets {
 
 RemoteGitBranchesPage::RemoteGitBranchesPage(QWidget *parent)
     : QWidget(parent), _model(new BranchesModel(this)),
-      ui(new Ui::RemoteGitBranchesPage) {
+      ui(new Ui::RemoteGitBranchesPage), _previous(-1) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -30,8 +30,7 @@ RemoteGitBranchesPage::~RemoteGitBranchesPage() {
   LOG_PERF(0, "Exit");
 }
 
-void RemoteGitBranchesPage::updateActiveBranch(
-    const QString &branchName) const {
+void RemoteGitBranchesPage::updateActiveBranch(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
   if (!_model) {
@@ -40,16 +39,18 @@ void RemoteGitBranchesPage::updateActiveBranch(
     return;
   }
 
-  const int index = !branchName.isEmpty() ?_model->indexForBranch(branchName) : -1;
+  const int index =
+      !branchName.isEmpty() ? _model->indexForBranch(branchName) : -1;
   _model->setActiveIndex(index);
 
   ui->listView->scrollTo(_model->index(index, 0));
 
+  _previous = index;
+
   LOG_PERF(0, "Exit");
 }
 
-void RemoteGitBranchesPage::updateModel(
-    const QStringList &remoteBranches) const {
+void RemoteGitBranchesPage::updateModel(const QStringList &remoteBranches) {
   LOG_PERF(0, "Enter");
 
   _model->clear();
@@ -58,6 +59,8 @@ void RemoteGitBranchesPage::updateModel(
 
   ui->listView->setModel(_model);
 
+  _previous = -1;
+
   LOG_PERF(0, "Exit");
 }
 
@@ -65,6 +68,11 @@ void RemoteGitBranchesPage::onListViewDoubleClicked(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
   if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (index.row() == _previous) {
     LOG_PERF(0, "Exit");
     return;
   }
