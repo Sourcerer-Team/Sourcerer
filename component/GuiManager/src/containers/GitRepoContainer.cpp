@@ -994,7 +994,7 @@ void GitRepoContainer::updateTagsModelActiveTag(
   LOG_PERF(0, "Enter");
 
   _activeBranch = activeTag;
-  _activeBranchType = GitRepo::BranchType::All;
+  _activeBranchType = GitRepo::BranchType::Tag;
 
   if (updatePages) {
     ui->localPage->updateActiveBranch(
