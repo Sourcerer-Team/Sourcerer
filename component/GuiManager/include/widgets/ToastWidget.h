@@ -3,15 +3,13 @@
 
 #include <QWidget>
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 class ToastWidget : public QWidget {
   Q_OBJECT
 public:
   explicit ToastWidget(QWidget *parent = nullptr);
-  virtual ~ToastWidget();
+  ~ToastWidget() override;
 
   virtual void stop();
 
@@ -31,5 +29,4 @@ private:
   QWidget *_titleWidget;
 };
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

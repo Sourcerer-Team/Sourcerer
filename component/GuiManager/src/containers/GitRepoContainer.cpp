@@ -1,6 +1,7 @@
 #include "containers/GitRepoContainer.h"
 #include "containers/ui_GitRepoContainer.h"
 #include "widgets/ClickableHeaderView.h"
+#include "widgets/ErrorToast.h"
 #include "widgets/HistorySliceTableColumnDelegate.h"
 #include "widgets/InfoToast.h"
 
@@ -98,57 +99,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onRemoteBranchSelected);
 
   connect(ui->tagsPage, &GitTagsPage::tagSelected, this,
-        &GitRepoContainer::onTagSelected);
+          &GitRepoContainer::onTagSelected);
 
   connect(_spinnerOverlayTimer, &QTimer::timeout, this,
           &GitRepoContainer::onShowSpinnerOverlay);
 
   connect(header, &ClickableHeaderView::headerDoubleClicked, this,
           &GitRepoContainer::onGraphColumnExpand);
-
-  const auto eventCallbackFunc =
-      std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
-
-  _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerGetActiveBranchError,
-      eventCallbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerGetActiveBranchResult,
-      eventCallbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerGetBranchHistoryError,
-      eventCallbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerGetBranchHistoryResult,
-      eventCallbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListLocalBranchesError,
-      eventCallbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListLocalBranchesResult,
-      eventCallbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListRemoteBranchesError,
-      eventCallbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListRemoteBranchesResult,
-      eventCallbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListSubmodulesError,
-      eventCallbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListSubmodulesResult,
-      eventCallbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListTagsError, eventCallbackFunc));
-  _eventManager.subscribe(
-      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerListTagsResult,
-                       eventCallbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc));
-  _eventManager.subscribe(
-      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerOpenRepoResult,
-                       eventCallbackFunc));
 
   refreshViews();
 
@@ -158,58 +115,14 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 GitRepoContainer::~GitRepoContainer() {
   LOG_PERF(0, "Enter");
 
+  // Also quit GitRepo jobs
   closeRepo();
 
   _historyModel->quitUpdate();
 
   _dispatcher.joinAll();
 
-  const auto eventCallbackFunc =
-      std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
-
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerGetActiveBranchError,
-      eventCallbackFunc));
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerGetActiveBranchResult,
-      eventCallbackFunc));
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerGetBranchHistoryError,
-      eventCallbackFunc));
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerGetBranchHistoryResult,
-      eventCallbackFunc));
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListLocalBranchesError,
-      eventCallbackFunc));
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListLocalBranchesResult,
-      eventCallbackFunc));
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListRemoteBranchesError,
-      eventCallbackFunc));
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListRemoteBranchesResult,
-      eventCallbackFunc));
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListSubmodulesError,
-      eventCallbackFunc));
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListSubmodulesResult,
-      eventCallbackFunc));
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerListTagsError, eventCallbackFunc));
-  _eventManager.unsubscribe(
-      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerListTagsResult,
-                       eventCallbackFunc));
-  _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc));
-  _eventManager.unsubscribe(
-      CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerOpenRepoResult,
-                       eventCallbackFunc));
-
   delete _errorPixmap;
-  delete ui;
 
   LOG_PERF(0, "Exit")
 }
@@ -255,11 +168,6 @@ void GitRepoContainer::showEvent(QShowEvent *event) {
 
   raise();
 
-  /*
-  _spinnerOverlay->show();
-  _spinnerOverlay->raise();
-  */
-
   LOG_PERF(0, "Exit")
 }
 
@@ -298,56 +206,15 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
   }
 
   const QString commit = shaIndex.data(Qt::DisplayRole).toString();
-  /*
-  const QModelIndex slicesIndex =
-      _historyModel->index(index.row(), COLUMN_HISTORY_SLICE, QModelIndex());
-  if (!slicesIndex.isValid()) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  const auto slices = slicesIndex.data(Qt::DisplayRole).value<Models::Slices>();
-  const qsizetype height = ui->historyView->rowHeight(index.row());
-  int posX = 0;
-
-  for (int i = 0; i < slices.size(); ++i) {
-    if (slices[i].main) {
-      posX = i;
-      break;
-    }
-  }
-
-  const QRect viewportRect = ui->historyView->viewport()->rect();
-  const int row = (_mousePos.y() - viewportRect.top()) / height;
-
-  if (row < 0) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  const QPoint topLeftLocal(viewportRect.left() + posX * height,
-                            viewportRect.top() + row * height);
-  const QPoint bottomRightLocal(viewportRect.left() + (posX + 1) * height,
-                                viewportRect.top() + (row + 1) * height);
-  const QPoint topLeftGlobal =
-      ui->historyView->viewport()->mapToGlobal(topLeftLocal);
-  const QPoint bottomRightGlobal =
-      ui->historyView->viewport()->mapToGlobal(bottomRightLocal);
-
-  if (topLeftGlobal.x() < _mousePos.x() &&
-      _mousePos.x() > bottomRightGlobal.x()) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  */
 
   LOCKGUARD(_tooltipsMutex);
 
   _tooltipsToShow.clear();
   _tooltipsToShow += commit;
 
-  _dispatcher.dispatch([&, commit, index]() {
+  const auto weakUi = ui.toWeakRef();
+
+  _dispatcher.dispatch([&, commit, index, weakUi]() {
     LOG_PERF(0, "Enter");
 
     const QStringList commitBranches = getCommitBranches(commit);
@@ -365,13 +232,15 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
         return;
       }
 
-      const QPoint viewportPos =
-          ui->historyView->viewport()->mapFromGlobal(_mousePos);
+      if (const auto locked = weakUi.lock()) {
+        const QPoint viewportPos =
+            locked->historyView->viewport()->mapFromGlobal(_mousePos);
 
-      if (const QModelIndex idx = ui->historyView->indexAt(viewportPos);
-          idx != index) {
-        LOG_PERF(0, "Exit");
-        return;
+        if (const QModelIndex idx = locked->historyView->indexAt(viewportPos);
+            idx != index) {
+          LOG_PERF(0, "Exit");
+          return;
+        }
       }
     }
 
@@ -402,7 +271,7 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
 
   _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
 
-  updateLocalBranchesModelActiveBranch(branchName);
+  checkoutBranch(branchName, GitRepo::BranchType::Local);
 
   LOG_PERF(0, "Exit");
 }
@@ -417,7 +286,7 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
 
   _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
 
-  updateRemoteBranchesModelActiveBranch(branchName);
+  checkoutBranch(branchName, GitRepo::BranchType::Remote);
 
   LOG_PERF(0, "Exit");
 }
@@ -432,7 +301,7 @@ void GitRepoContainer::onTagSelected(const QString &tagName) {
 
   _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
 
-  updateTagsModelActiveTag(tagName);
+  checkoutBranch(tagName, GitRepo::BranchType::Remote);
 
   LOG_PERF(0, "Exit");
 }
@@ -491,11 +360,110 @@ void GitRepoContainer::onGraphColumnExpand(int section) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::closeRepo() const {
+void GitRepoContainer::updateModelActiveBranch(const QString &branchName,
+                                               GitRepo::BranchType branchType) {
   LOG_PERF(0, "Enter");
 
-  // Release allocated memory
-  _historyModel->updateHistory(GitRepo::GitHistory());
+  switch (branchType) {
+  case GitRepo::BranchType::Local: {
+    updateLocalBranchesModelActiveBranch(branchName);
+    break;
+  }
+  case GitRepo::BranchType::Remote: {
+    updateRemoteBranchesModelActiveBranch(branchName);
+    break;
+  }
+  case GitRepo::BranchType::Tag: {
+    updateTagsModelActiveTag(branchName);
+    break;
+  }
+  case GitRepo::BranchType::All:
+  default: {
+    LOG_ERROR(Log::ErrorId::Logic, "Unsupported branch type {}",
+              static_cast<int>(branchType));
+    break;
+  }
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::checkoutBranch(const QString &branchName,
+                                      const GitRepo::BranchType branchType) {
+  LOG_PERF(0, "Enter");
+
+  if (branchName == ALL_BRANCHES) {
+    updateModelActiveBranch(branchName, branchType);
+  } else {
+    const QString eventUuid = Uuid::createUuid();
+
+    const int token = _eventManager.startWait();
+
+    GitRepoCheckoutBranchCommand command;
+    command.uuid = _uuid;
+    command.syncUuid = eventUuid;
+    command.branchName = branchName;
+    command.branchType = branchType;
+
+    EventManager::Event checkoutBranchEvent(
+        EventManager::EventType::GitRepoManagerCheckoutBranch, eventUuid);
+    checkoutBranchEvent.addData(command);
+    _eventManager.send(checkoutBranchEvent);
+
+    static std::set types = {
+        EventManager::EventType::GitRepoManagerCheckoutBranchError,
+        EventManager::EventType::GitRepoManagerCheckoutBranchResult};
+
+    const auto &[success, event] =
+        _eventManager.waitForAnswer(token, eventUuid, types);
+
+    if (!success) {
+      _spinnerOverlayTimer->stop();
+
+      showSpinnerOverlay(false);
+
+      Util::Dispatcher::dispatchToMainThread([&]() {
+        showErrorToast(
+            tr("Failed to checkout branch.\nPlease check if there are "
+               "some uncommited files left."));
+      });
+
+      LOG_PERF(0, "Exit")
+      return;
+    }
+
+    if (event.type() !=
+        EventManager::EventType::GitRepoManagerCheckoutBranchResult) {
+      _spinnerOverlayTimer->stop();
+
+      showSpinnerOverlay(false);
+
+      Util::Dispatcher::dispatchToMainThread([&]() {
+        showErrorToast(
+            tr("Failed to checkout branch.\nPlease check if there are "
+               "some uncommited files left."));
+      });
+
+      LOG_PERF(0, "Exit")
+      return;
+    }
+
+    (void)getLocalBranches();
+
+    const auto commandResult = event.data<GitRepoResult>();
+
+    const auto [branchName, branchType] =
+        commandResult.value.value<GitRepoCheckoutBranchCommandResult>();
+
+    Util::Dispatcher::dispatchToMainThread(
+        [=]() { updateModelActiveBranch(branchName, branchType); });
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::closeRepo() const {
+  LOG_PERF(0, "Enter");
 
   GitRepoCloseCommand closeCommand;
   closeCommand.uuid = _uuid;
@@ -508,206 +476,164 @@ void GitRepoContainer::closeRepo() const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::eventCallback(EventManager::Event event) {
+bool GitRepoContainer::getActiveBranchOrTag(
+    const GitRepo::BranchType branchType) {
   LOG_PERF(0, "Enter");
 
-  const EventManager::EventType eventType = event.type();
-  LOG_DEBUG("Processing event of type {}.", static_cast<int>(eventType));
+  const QString eventUuid = Uuid::createUuid();
 
-  switch (eventType) {
-  case EventManager::EventType::GitRepoManagerGetActiveBranchError: {
-    // Show a toast with error
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerGetActiveBranchResult: {
-    const auto commandResult = event.data<GitRepoResult>();
-    if (commandResult.uuid != _uuid) {
-      break;
-    }
-
-    const auto [branchName, branchType] =
-        commandResult.value.value<GitRepoGetActiveBranchCommandResult>();
-
-    Util::Dispatcher::dispatchToMainThread([=]() {
-      switch (branchType) {
-      case GitRepo::BranchType::Local: {
-        updateLocalBranchesModelActiveBranch(branchName);
-        break;
-      }
-      case GitRepo::BranchType::Remote: {
-        updateRemoteBranchesModelActiveBranch(branchName);
-        break;
-      }
-      default: {
-        LOG_WARN("Unsupported branch type {} for branch name \"{}\"",
-                 branchType, branchName);
-        break;
-      }
-      }
-    });
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerGetBranchHistoryError: {
-    _spinnerOverlayTimer->stop();
-
-    showErrorPage();
-
-    // Show a toast with error
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerGetBranchHistoryResult: {
-    const auto commandResult = event.data<GitRepoResult>();
-    if (commandResult.uuid != _uuid) {
-      break;
-    }
-
-    const GitRepo::GitHistory history =
-        commandResult.value.value<GitRepo::GitHistory>();
-    _dispatcher.dispatch([=]() { updateBranchHistory(history); });
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerListLocalBranchesError: {
-    // Show a toast with error
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerListLocalBranchesResult: {
-    const auto commandResult = event.data<GitRepoResult>();
-    if (commandResult.uuid != _uuid) {
-      break;
-    }
-
-    const QStringList localBranches = commandResult.value.value<QStringList>();
-    Util::Dispatcher::dispatchToMainThread(
-        [=]() { updateLocalBranchesModel(localBranches); });
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerListRemoteBranchesError: {
-    // Show a toast with error
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerListRemoteBranchesResult: {
-    const auto commandResult = event.data<GitRepoResult>();
-    if (commandResult.uuid != _uuid) {
-      break;
-    }
-
-    const QStringList remoteBranches = commandResult.value.value<QStringList>();
-    Util::Dispatcher::dispatchToMainThread(
-        [=]() { updateRemoteBranchesModel(remoteBranches); });
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerListSubmodulesError: {
-    // Show a toast with error
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerListSubmodulesResult: {
-    const auto commandResult = event.data<GitRepoResult>();
-    if (commandResult.uuid != _uuid) {
-      break;
-    }
-
-    const QStringList submodules = commandResult.value.value<QStringList>();
-    Util::Dispatcher::dispatchToMainThread(
-        [=]() { updateSubmodulesModel(submodules); });
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerListTagsError: {
-    // Show a toast with error
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerListTagsResult: {
-    const auto commandResult = event.data<GitRepoResult>();
-    if (commandResult.uuid != _uuid) {
-      break;
-    }
-
-    const QStringList tags = commandResult.value.value<QStringList>();
-    Util::Dispatcher::dispatchToMainThread([=]() { updateTagsModel(tags); });
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerOpenRepoError: {
-    // Show a toast with error
-    if (const GitRepoError gitError = event.data<GitRepoError>();
-        gitError.uuid != _uuid)
-      break;
-
-    Util::Dispatcher::dispatchToMainThread([=]() {
-      showErrorPage();
-      showToast(tr("Can't open repository"));
-    });
-    break;
-  }
-  case EventManager::EventType::GitRepoManagerOpenRepoResult: {
-    const auto commandResult = event.data<GitRepoResult>();
-    if (commandResult.uuid != _uuid) {
-      break;
-    }
-
-    getLocalBranches();
-    getActiveLocalBranch();
-    getRemoteBranches();
-    getTags();
-    getSubmodules();
-    break;
-  }
-  default: {
-    LOG_WARN("Unhandled event.");
-    break;
-  }
-  }
-
-  LOG_PERF(0, "Exit")
-}
-
-void GitRepoContainer::getActiveLocalBranch() const {
-  LOG_PERF(0, "Enter");
+  const int token = _eventManager.startWait();
 
   GitRepoGetActiveBranchCommand command;
   command.uuid = _uuid;
-  command.branchType = GitRepo::BranchType::Local;
+  command.syncUuid = eventUuid;
+  command.branchType = branchType;
 
   EventManager::Event getActiveBranchEvent(
-      EventManager::EventType::GitRepoManagerGetActiveBranch);
+      EventManager::EventType::GitRepoManagerGetActiveBranch, eventUuid);
   getActiveBranchEvent.addData(command);
   _eventManager.send(getActiveBranchEvent);
 
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGetActiveBranchError,
+      EventManager::EventType::GitRepoManagerGetActiveBranchResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread([&]() {
+      showErrorToast(tr("Failed to retrieve the active local branch."));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerGetActiveBranchResult) {
+    Util::Dispatcher::dispatchToMainThread([&]() {
+      showErrorToast(tr("Failed to retrieve the active local branch."));
+    });
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const auto [branchName, _] =
+      commandResult.value.value<GitRepoGetActiveBranchCommandResult>();
+
+  Util::Dispatcher::dispatchToMainThread(
+      [=]() { updateModelActiveBranch(branchName, branchType); });
+
   LOG_PERF(0, "Exit")
+
+  return true;
 }
 
-void GitRepoContainer::getActiveRemoteBranch() const {
+bool GitRepoContainer::getActiveLocalBranch() {
   LOG_PERF(0, "Enter");
 
-  GitRepoGetActiveBranchCommand command;
-  command.uuid = _uuid;
-  command.branchType = GitRepo::BranchType::Remote;
-
-  EventManager::Event getActiveBranchEvent(
-      EventManager::EventType::GitRepoManagerGetActiveBranch);
-  getActiveBranchEvent.addData(command);
-  _eventManager.send(getActiveBranchEvent);
-
   LOG_PERF(0, "Exit")
+
+  return getActiveBranchOrTag(GitRepo::BranchType::Local);
 }
 
-void GitRepoContainer::getBranchHistory() const {
+bool GitRepoContainer::getActiveRemoteBranch() {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit")
+
+  return getActiveBranchOrTag(GitRepo::BranchType::Remote);
+}
+
+bool GitRepoContainer::getActiveTag() {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit")
+
+  return getActiveBranchOrTag(GitRepo::BranchType::Tag);
+}
+
+bool GitRepoContainer::getBranchHistory(
+    const QWeakPointer<Ui::GitRepoContainer> &weakUi) const {
   LOG_PERF(0, "Enter");
 
   // Release allocated memory
   _historyModel->updateHistory(GitRepo::GitHistory());
 
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
   GitRepoGetBranchHistoryCommand command;
   command.uuid = _uuid;
   command.branchName = _activeBranch;
   command.branchType = _activeBranchType;
+  command.syncUuid = eventUuid;
 
   EventManager::Event historyEvent(
-      EventManager::EventType::GitRepoManagerGetBranchHistory);
+      EventManager::EventType::GitRepoManagerGetBranchHistory, eventUuid);
   historyEvent.addData(command);
   _eventManager.send(historyEvent);
 
-  ui->labelProgress->setText("0%");
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGetBranchHistoryError,
+      EventManager::EventType::GitRepoManagerGetBranchHistoryResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread([&]() {
+      _spinnerOverlayTimer->stop();
+      showSpinnerOverlay(false);
+      ui->historyView->setVisible(false);
+      showErrorToast(QString(tr("Failed to retrieve the history of branch %1."))
+                         .arg(_activeBranch));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerGetBranchHistoryResult) {
+    Util::Dispatcher::dispatchToMainThread([&]() {
+      if (const auto locked = weakUi.lock()) {
+        _spinnerOverlayTimer->stop();
+        showSpinnerOverlay(false);
+        locked->historyView->setVisible(false);
+        showErrorToast(
+            QString(tr("Failed to retrieve the history of branch %1."))
+                .arg(_activeBranch));
+      } else {
+        int a = 5;
+      }
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const auto history = commandResult.value.value<GitRepo::GitHistory>();
+
+  Util::Dispatcher::dispatchToMainThread([=]() {
+    if (const auto locked = weakUi.lock()) {
+      ui->labelProgress->setText("0%");
+    } else {
+      int b = 5;
+    }
+  });
+
+  updateBranchHistory(weakUi, history);
 
   LOG_PERF(0, "Exit")
+
+  return true;
 }
 
 QStringList GitRepoContainer::getCommitBranches(const QString &commit) const {
@@ -751,78 +677,281 @@ QStringList GitRepoContainer::getCommitBranches(const QString &commit) const {
   return branches;
 }
 
-void GitRepoContainer::getLocalBranches() const {
+bool GitRepoContainer::getLocalBranches() const {
   LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
 
   GitRepoListLocalBranchesCommand command;
   command.uuid = _uuid;
+  command.syncUuid = eventUuid;
 
   EventManager::Event listLocalEvent(
-      EventManager::EventType::GitRepoManagerListLocalBranches);
+      EventManager::EventType::GitRepoManagerListLocalBranches, eventUuid);
   listLocalEvent.addData(command);
   _eventManager.send(listLocalEvent);
 
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerListLocalBranchesError,
+      EventManager::EventType::GitRepoManagerListLocalBranchesResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread([&]() {
+      showErrorToast(tr("Failed to retrieve the list of local branches."));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerListLocalBranchesResult) {
+    Util::Dispatcher::dispatchToMainThread([&]() {
+      showErrorToast(tr("Failed to retrieve the list of local branches."));
+    });
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const auto localBranches = commandResult.value.value<QStringList>();
+
+  Util::Dispatcher::dispatchToMainThread(
+      [=]() { updateLocalBranchesModel(localBranches); });
+
   LOG_PERF(0, "Exit")
+
+  return true;
 }
 
-void GitRepoContainer::getRemoteBranches() const {
+bool GitRepoContainer::getRemoteBranches() const {
   LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
 
   GitRepoListRemoteBranchesCommand command;
   command.uuid = _uuid;
+  command.syncUuid = eventUuid;
 
   EventManager::Event listRemoteEvent(
-      EventManager::EventType::GitRepoManagerListRemoteBranches);
+      EventManager::EventType::GitRepoManagerListRemoteBranches, eventUuid);
   listRemoteEvent.addData(command);
   _eventManager.send(listRemoteEvent);
 
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerListRemoteBranchesError,
+      EventManager::EventType::GitRepoManagerListRemoteBranchesResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread([&]() {
+      showErrorToast(tr("Failed to retrieve the list of remote branches."));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerListRemoteBranchesResult) {
+    Util::Dispatcher::dispatchToMainThread([&]() {
+      showErrorToast(tr("Failed to retrieve the list of remote branches."));
+    });
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const auto localBranches = commandResult.value.value<QStringList>();
+
+  Util::Dispatcher::dispatchToMainThread(
+      [=]() { updateRemoteBranchesModel(localBranches); });
+
   LOG_PERF(0, "Exit")
+
+  return true;
 }
 
-void GitRepoContainer::getSubmodules() const {
+bool GitRepoContainer::getSubmodules() const {
   LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
 
   GitRepoListSubmodulesCommand command;
   command.uuid = _uuid;
+  command.syncUuid = eventUuid;
 
   EventManager::Event listSubmodulesEvent(
-      EventManager::EventType::GitRepoManagerListSubmodules);
+      EventManager::EventType::GitRepoManagerListSubmodules, eventUuid);
   listSubmodulesEvent.addData(command);
   _eventManager.send(listSubmodulesEvent);
 
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerListSubmodulesError,
+      EventManager::EventType::GitRepoManagerListSubmodulesResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread([&]() {
+      showErrorToast(tr("Failed to retrieve the list of submodules."));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerListSubmodulesResult) {
+    Util::Dispatcher::dispatchToMainThread([&]() {
+      showErrorToast(tr("Failed to retrieve the list of submodules."));
+    });
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const auto submodules = commandResult.value.value<QStringList>();
+
+  Util::Dispatcher::dispatchToMainThread(
+      [=]() { updateSubmodulesModel(submodules); });
+
   LOG_PERF(0, "Exit")
+
+  return true;
 }
 
-void GitRepoContainer::getTags() const {
+bool GitRepoContainer::getTags() const {
   LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
 
   GitRepoListTagsCommand command;
   command.uuid = _uuid;
+  command.syncUuid = eventUuid;
 
   EventManager::Event listTagsEvent(
-      EventManager::EventType::GitRepoManagerListTags);
+      EventManager::EventType::GitRepoManagerListTags, eventUuid);
   listTagsEvent.addData(command);
   _eventManager.send(listTagsEvent);
 
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerListTagsError,
+      EventManager::EventType::GitRepoManagerListTagsResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(
+        [&]() { showErrorToast(tr("Failed to retrieve the list of tags.")); });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerListTagsResult) {
+    Util::Dispatcher::dispatchToMainThread(
+        [&]() { showErrorToast(tr("Failed to retrieve the list of tags.")); });
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const auto tags = commandResult.value.value<QStringList>();
+
+  Util::Dispatcher::dispatchToMainThread([=]() { updateTagsModel(tags); });
+
   LOG_PERF(0, "Exit")
+
+  return true;
 }
 
-void GitRepoContainer::openRepo() const {
+bool GitRepoContainer::openRepo() {
   LOG_PERF(0, "Enter");
 
-  GitRepoOpenCommand openCommand;
-  openCommand.uuid = _uuid;
-  openCommand.path = _path;
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoOpenCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.path = _path;
 
   EventManager::Event openRepoEvent(
-      EventManager::EventType::GitRepoManagerOpenRepo);
-  openRepoEvent.addData(openCommand);
+      EventManager::EventType::GitRepoManagerOpenRepo, eventUuid);
+  openRepoEvent.addData(command);
   _eventManager.send(openRepoEvent);
 
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerOpenRepoError,
+      EventManager::EventType::GitRepoManagerOpenRepoResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread([=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerOpenRepoResult) {
+    Util::Dispatcher::dispatchToMainThread([=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  bool ok = true;
+
+  ok &= ok && getLocalBranches();
+  ok &= ok && getActiveLocalBranch();
+  ok &= ok && getRemoteBranches();
+  ok &= ok && getActiveRemoteBranch();
+  ok &= ok && getTags();
+  ok &= ok && getActiveTag();
+  ok &= ok && getSubmodules();
+
+  if (!ok) {
+    Util::Dispatcher::dispatchToMainThread([=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+  }
+
   LOG_PERF(0, "Exit")
+
+  return ok;
 }
 
-void GitRepoContainer::refreshViews() const {
+void GitRepoContainer::refreshViews() {
   LOG_PERF(0, "Enter");
 
   openRepo();
@@ -904,23 +1033,44 @@ void GitRepoContainer::showToast(const QString &message) const {
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::showErrorToast(const QString &message) const {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Showing a toast with the message '{}'.", message);
+
+  _toastHost.addToast(new ErrorToast(message));
+
+  LOG_PERF(0, "Exit")
+}
+
 void GitRepoContainer::updateBranchHistory(
-    const GitRepo::GitHistory &history) const {
+    const WeakUi &weakUi, const GitRepo::GitHistory &history) const {
   LOG_PERF(0, "Enter");
 
   _historyModel->updateHistory(history, [&](const int progress) {
     Util::Dispatcher::dispatchToMainThread([=]() {
       const QString progressStr = QString("%1%").arg(progress);
-      if (_spinnerOverlay) {
-        _spinnerOverlay->setText(progressStr);
+      if (const auto locked = weakUi.lock()) {
+        if (_spinnerOverlay) {
+          _spinnerOverlay->setText(progressStr);
+        }
+      } else {
+        int c = 5;
       }
     });
   });
 
-  Util::Dispatcher::dispatchToMainThread([&]() {
-    _spinnerOverlayTimer->stop();
-    showSpinnerOverlay(false);
-    stretchBranchHistoryTableColumns();
+  Util::Dispatcher::dispatchToMainThread([=]() {
+    if (const auto locked = weakUi.lock()) {
+      _spinnerOverlayTimer->stop();
+      showSpinnerOverlay(false);
+      stretchBranchHistoryTableColumns();
+      if (_activeBranch != "*") {
+        showToast(QString(tr("Switched to branch '%1' successfully."))
+                      .arg(_activeBranch));
+      }
+    } else {
+      int d = 5;
+    }
   });
 
   LOG_PERF(0, "Exit")
@@ -943,18 +1093,24 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
     const QString &activeBranch, const bool updatePages) {
   LOG_PERF(0, "Enter");
 
+  if (activeBranch.isEmpty()) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
   _activeBranch = activeBranch;
   _activeBranchType = GitRepo::BranchType::Local;
 
   if (updatePages) {
     ui->localPage->updateActiveBranch(activeBranch);
     ui->remotePage->updateActiveBranch(
-        QString()); // deselect remote branch if any
-    ui->tagsPage->updateActiveTag(
-        QString()); // deselect remote branch if any
+        QString());                           // deselect remote branch if any
+    ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
   }
 
-  getBranchHistory();
+  const auto weakUi = ui.toWeakRef();
+
+  _dispatcher.dispatch([=]() { (void)getBranchHistory(weakUi); });
 
   LOG_PERF(0, "Exit")
 }
@@ -976,6 +1132,11 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
     const QString &activeBranch, const bool updatePages) {
   LOG_PERF(0, "Enter");
 
+  if (activeBranch.isEmpty()) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
   _activeBranch = activeBranch;
   _activeBranchType = GitRepo::BranchType::Remote;
 
@@ -983,18 +1144,24 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
     ui->localPage->updateActiveBranch(
         QString()); // deselect local branch if any
     ui->remotePage->updateActiveBranch(activeBranch);
-    ui->tagsPage->updateActiveTag(
-        QString()); // deselect local branch if any
+    ui->tagsPage->updateActiveTag(QString()); // deselect local branch if any
   }
 
-  getBranchHistory();
+  const auto weakUi = ui.toWeakRef();
+
+  _dispatcher.dispatch([=]() { (void)getBranchHistory(weakUi); });
 
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateTagsModelActiveTag(
-    const QString &activeTag, const bool updatePages) {
+void GitRepoContainer::updateTagsModelActiveTag(const QString &activeTag,
+                                                const bool updatePages) {
   LOG_PERF(0, "Enter");
+
+  if (activeTag.isEmpty()) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
 
   _activeBranch = activeTag;
   _activeBranchType = GitRepo::BranchType::Tag;
@@ -1003,11 +1170,12 @@ void GitRepoContainer::updateTagsModelActiveTag(
     ui->localPage->updateActiveBranch(
         QString()); // deselect local branch if any
     ui->remotePage->updateActiveBranch(QString());
-    ui->tagsPage->updateActiveTag(
-        activeTag); // deselect local branch if any
+    ui->tagsPage->updateActiveTag(activeTag); // deselect local branch if any
   }
 
-  getBranchHistory();
+  const auto weakUi = ui.toWeakRef();
+
+  _dispatcher.dispatch([=]() { (void)getBranchHistory(weakUi); });
 
   LOG_PERF(0, "Exit")
 }

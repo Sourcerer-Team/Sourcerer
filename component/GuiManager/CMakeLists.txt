@@ -135,6 +135,8 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/TitlebarWidget.ui
         ${QRC_FILES}
         ${TS_FILES}
+        include/widgets/ErrorToast.h
+        src/widgets/ErrorToast.cpp
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

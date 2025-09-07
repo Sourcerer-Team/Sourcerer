@@ -78,10 +78,12 @@ enum class BranchType {
 
 void initForCurrentThread();
 void shutdownForCurrentThread();
+bool checkoutBranch(git_repository *repo, const QString &branchName,
+                    BranchType type);
 bool cloneRepository(const QString &url, const QString &destinationDir,
                      const QString &uuid);
 void closeRepository(git_repository *repo);
-QString getActiveBranch(git_repository *repo, const BranchType type,
+QString getActiveBranch(git_repository *repo, BranchType type,
                         const bool &quitFlag);
 bool initRepository(const QString &repoName, const QString &workingDir,
                     const QString &defaultBranch);

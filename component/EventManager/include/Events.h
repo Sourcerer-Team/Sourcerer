@@ -18,9 +18,12 @@ enum EventType {
   ComponentStopped,
 
   // GitRepoManager
+  GitRepoManagerCheckoutBranch,
+  GitRepoManagerCheckoutBranchResult,
+  GitRepoManagerCheckoutBranchError,
   GitRepoManagerCloneRepo,
-  GitRepoManagerCloneRepoError,
   GitRepoManagerCloneRepoResult,
+  GitRepoManagerCloneRepoError,
   GitRepoManagerCloneRepoProgress,
   GitRepoManagerCloseRepo,
   GitRepoManagerCloseRepoResult,

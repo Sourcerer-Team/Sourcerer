@@ -4,14 +4,11 @@
 #include <Log.h>
 
 #include <QApplication>
-#include <QHBoxLayout>
 #include <QVBoxLayout>
 
 #define THREAD_ID "ToastWidget"
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 ToastWidget::ToastWidget(QWidget *parent)
     : QWidget{parent}, _titleWidget{nullptr} {
@@ -86,5 +83,4 @@ void ToastWidget::onCloseButton() {
   LOG_PERF(0, "Exit");
 }
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

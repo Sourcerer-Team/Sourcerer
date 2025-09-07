@@ -25,6 +25,9 @@ namespace GuiManager::Containers {
 class GitRepoContainer final : public Widgets::ContainerWidget {
   Q_OBJECT
 
+  typedef QWeakPointer<Ui::GitRepoContainer> WeakUi;
+  typedef QSharedPointer<Ui::GitRepoContainer> SharedUi;
+
 public:
   explicit GitRepoContainer(QString path, QWidget *parent = nullptr);
   ~GitRepoContainer() override;
@@ -46,20 +49,25 @@ private slots:
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay() const;
   void onGraphColumnExpand(int section);
+  void updateModelActiveBranch(const QString &branchName,
+                               GitRepo::BranchType branchType);
 
 private:
+  void checkoutBranch(const QString &branchName,
+                      GitRepo::BranchType branchType);
   void closeRepo() const;
-  void eventCallback(EventManager::Event event);
-  void getActiveLocalBranch() const;
-  void getActiveRemoteBranch() const;
-  void getBranchHistory() const;
-  QStringList getCommitBranches(const QString &commit) const;
-  void getLocalBranches() const;
-  void getRemoteBranches() const;
-  void getSubmodules() const;
-  void getTags() const;
-  void openRepo() const;
-  void refreshViews() const;
+  bool getActiveBranchOrTag(const GitRepo::BranchType branchType);
+  bool getActiveLocalBranch();
+  bool getActiveRemoteBranch();
+  bool getActiveTag();
+  bool getBranchHistory(const WeakUi &weakUi) const;
+  [[nodiscard]] QStringList getCommitBranches(const QString &commit) const;
+  bool getLocalBranches() const;
+  bool getRemoteBranches() const;
+  bool getSubmodules() const;
+  bool getTags() const;
+  bool openRepo();
+  void refreshViews();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
   void stretchBranchHistoryTableColumns() const;
@@ -67,7 +75,9 @@ private:
   void showMainSpinnerPage(bool spinnerEnabled = true) const;
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message) const;
-  void updateBranchHistory(const GitRepo::GitHistory &history) const;
+  void showErrorToast(const QString &message) const;
+  void updateBranchHistory(const WeakUi &weakUi,
+                           const GitRepo::GitHistory &history) const;
   void updateLocalBranchesModel(const QStringList &localBranches) const;
   void updateLocalBranchesModelActiveBranch(const QString &activeBranch,
                                             bool updatePages = true);
@@ -80,7 +90,7 @@ private:
   void updateTagsModel(const QStringList &tags) const;
 
 private:
-  Ui::GitRepoContainer *ui;
+  SharedUi ui;
   QString _uuid;
   QString _path;
   QString _activeBranch;

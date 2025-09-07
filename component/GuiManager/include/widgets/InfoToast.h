@@ -8,15 +8,13 @@
 #include <QTimer>
 #include <QWidget>
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 class InfoToast : public ToastWidget {
   Q_OBJECT
 public:
   explicit InfoToast(const QString &message, QWidget *parent = nullptr);
-  virtual ~InfoToast();
+  ~InfoToast() override;
 
   // ToastWidget interface
 public:
@@ -27,5 +25,4 @@ private:
   ConfigManager::ConfigManager &_configManager;
 };
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

@@ -22,13 +22,13 @@ Dispatcher::Dispatcher(int coresNum) {
   for (size_t i = 0; i < coresCount; ++i) {
     LOG_INFO("Starting pool processor for core {}", i);
 
-    auto &pool = _pool[i];
-    pool._thread = QThread::create([&]() { processor(pool._queue); });
+    auto &[_queue, _thread] = _pool[i];
+    _thread = QThread::create([&]() { processor(_queue); });
 
-    connect(pool._thread, &QThread::finished, pool._thread,
+    connect(_thread, &QThread::finished, _thread,
             &QObject::deleteLater);
 
-    pool._thread->start();
+    _thread->start();
 
     LOG_INFO("Pool processor for core {} started.", i);
   }
@@ -50,12 +50,11 @@ void Dispatcher::processor(BlockingQueue<DispatcherRecord> &queue) {
   bool quit = false;
 
   while (!quit) {
-    const auto record = queue.pop();
 
-    switch (record._command) {
+    switch (const auto [_command, _task] = queue.pop(); _command) {
     case DispatcherCommand::Run: {
       try {
-        record._task();
+        _task();
       } catch (const std::exception &ex) {
         LOG_ERROR(Log::ErrorId::Generic, "Exception has been thrown: {}",
                   ex.what());

@@ -2,10 +2,10 @@
 
 #include <GitRepo.h>
 #include <Graph.h>
+#include <LockGuard.h>
 #include <ResizableMatrix.h>
 
-#include <QAbstractTableModel>
-
+#include <atomic>
 #include <functional>
 #include <qitemselectionmodel.h>
 
@@ -77,9 +77,10 @@ private:
   int indexDifference(const QString &commitA, const QString &commitB) const;
 
 private:
+  mutable Util::Mutex _mutex;
   GitRepo::GitHistory _history;
   Util::ResizableMatrix<Slice> _drawableSlices;
-  bool _quitUpdate;
+  std::atomic_bool _quitUpdate;
   QItemSelectionModel *_selectionModel;
 };
 

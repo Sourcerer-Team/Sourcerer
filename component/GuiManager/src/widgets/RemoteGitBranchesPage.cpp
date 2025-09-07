@@ -41,6 +41,13 @@ void RemoteGitBranchesPage::updateActiveBranch(const QString &branchName) {
 
   const int index =
       !branchName.isEmpty() ? _model->indexForBranch(branchName) : -1;
+
+  if (branchName == "*") {
+    _previous = index;
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   _model->setActiveIndex(index);
 
   ui->listView->scrollTo(_model->index(index, 0));
@@ -77,9 +84,11 @@ void RemoteGitBranchesPage::onListViewDoubleClicked(const QModelIndex &index) {
     return;
   }
 
-  LOG_PERF(0, "Exit");
+  const QString branchName = _model->branchForIndex(index.row());
 
-  emit branchSelected(_model->branchForIndex(index.row()));
+  emit branchSelected(branchName);
+
+  LOG_PERF(0, "Exit");
 }
 
 } // namespace GuiManager::Widgets

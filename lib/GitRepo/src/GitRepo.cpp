@@ -16,6 +16,7 @@
 #include <git2/graph.h>
 #include <git2/index.h>
 #include <git2/refs.h>
+#include <git2/revparse.h>
 #include <git2/revwalk.h>
 #include <git2/signature.h>
 #include <git2/submodule.h>
@@ -241,6 +242,116 @@ void shutdownForCurrentThread() {
   LOG_PERF(0, "Exit");
 }
 
+bool checkoutBranch(git_repository *repo, const QString &branchName,
+                    const BranchType type) {
+  LOG_PERF(0, "Enter");
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_tree *tree = nullptr;
+  git_reference *ref = nullptr;
+  git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
+  git_branch_t branchType = GIT_BRANCH_ALL;
+
+  QString fullBranchName;
+
+  switch (type) {
+  case BranchType::Local: {
+    fullBranchName = QString("refs/heads/%1").arg(branchName);
+    branchType = GIT_BRANCH_LOCAL;
+    break;
+  }
+  case BranchType::Remote: {
+    fullBranchName = QString("refs/remotes/%1").arg(branchName);
+    branchType = GIT_BRANCH_REMOTE;
+    break;
+  }
+  case BranchType::Tag: {
+    fullBranchName = QString("refs/tags/%1").arg(branchName);
+    break;
+  }
+  case BranchType::All:
+  default: {
+    LOG_ERROR(Log::ErrorId::Logic, "Unsupported branch type {}",
+              static_cast<int>(type));
+    break;
+  }
+  }
+
+  if (fullBranchName.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // 1. Lookup the branch reference
+  int error = git_branch_lookup(&ref, repo,
+                                type != BranchType::Tag
+                                    ? branchName.toStdString().c_str()
+                                    : fullBranchName.toStdString().c_str(),
+                                branchType);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // 2. Resolve the reference to a commit
+  git_commit *commit = nullptr;
+  error = git_reference_peel(reinterpret_cast<git_object **>(&commit), ref,
+                             GIT_OBJECT_COMMIT);
+  if (error) {
+    logGitError(error);
+    git_reference_free(ref);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // 3. Get the tree from the commit
+  error = git_commit_tree(&tree, commit);
+  if (error) {
+    logGitError(error);
+    git_reference_free(ref);
+    git_commit_free(commit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // 4. Set checkout strategy
+  opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+  // 5. Checkout the tree
+  error = git_checkout_tree(repo, reinterpret_cast<git_object *>(tree), &opts);
+  if (error) {
+    logGitError(error);
+    git_reference_free(ref);
+    git_commit_free(commit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // 6. Move HEAD to the branch
+  error = git_repository_set_head(repo, git_reference_name(ref));
+  if (error) {
+    logGitError(error);
+    git_reference_free(ref);
+    git_commit_free(commit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Cleanup
+  git_commit_free(commit);
+  git_tree_free(tree);
+  git_reference_free(ref);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
 void closeRepository(git_repository *repo) {
   LOG_PERF(0, "Enter");
 
@@ -258,9 +369,8 @@ git_repository *openRepository(const QString &path) {
   LOG_PERF(0, "Enter");
 
   git_repository *repo = nullptr;
-  const int error = git_repository_open(&repo, path.toStdString().c_str());
 
-  if (error)
+  if (const int error = git_repository_open(&repo, path.toStdString().c_str()))
     logGitError(error);
 
   LOG_PERF(0, "Exit");
@@ -277,6 +387,8 @@ static QStringList listCheckoutBranches(git_repository *repo,
     return {};
   }
 
+  bool tagRequested = false;
+
   git_branch_t branchType = GIT_BRANCH_ALL;
   switch (type) {
   case BranchType::Local: {
@@ -287,83 +399,145 @@ static QStringList listCheckoutBranches(git_repository *repo,
     branchType = GIT_BRANCH_REMOTE;
     break;
   }
+  case BranchType::Tag: {
+    tagRequested = true;
+    break;
+  }
   case BranchType::All:
   default: {
     break;
   }
   }
 
-  if (branchType == GIT_BRANCH_ALL) {
+  if (!tagRequested && branchType == GIT_BRANCH_ALL) {
     LOG_PERF(0, "Exit");
     return {};
   }
 
-  git_branch_iterator *it = nullptr;
-
-  int error = git_branch_iterator_new(&it, repo, branchType);
-  if (error) {
-    logGitError(error);
-    return {};
-  }
-
-  if (!it) {
-    LOG_ERROR(Log::ErrorId::Git, "Invalid branch iterator.");
-    return {};
-  }
-
   QStringList activeBranches;
-  git_reference *ref = nullptr;
 
-  while (!quitFlag) {
-    error = git_branch_next(&ref, &branchType, it);
-    if (error == GIT_ITEROVER)
-      break;
+  if (!tagRequested) {
+    git_branch_iterator *it = nullptr;
 
+    int error = git_branch_iterator_new(&it, repo, branchType);
     if (error) {
       logGitError(error);
-      break;
+      return {};
     }
 
-    if (!ref) {
-      LOG_ERROR(Log::ErrorId::Git, "Invalid reference.");
-      continue;
+    if (!it) {
+      LOG_ERROR(Log::ErrorId::Git, "Invalid branch iterator.");
+      return {};
     }
 
-    const char *branchName = nullptr;
+    git_reference *ref = nullptr;
 
-    error = git_branch_name(&branchName, ref);
-    if (error == GIT_EINVALID) {
+    while (!quitFlag) {
+      error = git_branch_next(&ref, &branchType, it);
+      if (error == GIT_ITEROVER)
+        break;
+
+      if (error) {
+        logGitError(error);
+        break;
+      }
+
+      if (!ref) {
+        LOG_ERROR(Log::ErrorId::Git, "Invalid reference.");
+        continue;
+      }
+
+      const char *branchName = nullptr;
+
+      error = git_branch_name(&branchName, ref);
+      if (error == GIT_EINVALID) {
+        git_reference_free(ref);
+        LOG_ERROR(Log::ErrorId::Git,
+                  "Reference is not a local or a remote branch.");
+        continue;
+      }
+
+      if (error) {
+        git_reference_free(ref);
+        logGitError(error);
+        break;
+      }
+
+      if (!branchName) {
+        git_reference_free(ref);
+        LOG_ERROR(Log::ErrorId::Git, "Invalid branch name.");
+        continue;
+      }
+
+      error = git_branch_is_checked_out(ref);
+      if (error == 1) {
+        activeBranches += branchName;
+      } else if (error != 0) {
+        git_reference_free(ref);
+        logGitError(error);
+        break;
+      }
+
       git_reference_free(ref);
-      LOG_ERROR(Log::ErrorId::Git,
-                "Reference is not a local or a remote branch.");
-      continue;
-    }
+    };
 
+    git_branch_iterator_free(it);
+  }
+
+  // Include HEAD if detached for local branches or if tag requested
+  if ((type == BranchType::Local && activeBranches.isEmpty()) || tagRequested) {
+    git_reference *headRef = nullptr;
+
+    int error = git_repository_head(&headRef, repo);
     if (error) {
-      git_reference_free(ref);
       logGitError(error);
-      break;
+      LOG_PERF(0, "Exit");
+      return {};
     }
 
-    if (!branchName) {
-      git_reference_free(ref);
-      LOG_ERROR(Log::ErrorId::Git, "Invalid branch name.");
-      continue;
+    if (git_reference_type(headRef) == GIT_REFERENCE_DIRECT) {
+      // Detached HEAD — could be tag or raw commit
+      if (tagRequested) {
+        git_strarray tags = {nullptr};
+
+        error = git_tag_list(&tags, repo);
+        if (error) {
+          logGitError(error);
+          git_reference_free(headRef);
+          LOG_PERF(0, "Exit");
+          return {};
+        }
+
+        for (size_t i = 0; i < tags.count; ++i) {
+          git_object *tagObj = nullptr;
+
+          error = git_revparse_single(&tagObj, repo, tags.strings[i]);
+          if (error) {
+            logGitError(error);
+            continue;
+          }
+
+          if (git_oid_equal(git_reference_target(headRef),
+                            git_object_id(tagObj))) {
+            // HEAD is detached at tag
+            activeBranches += tags.strings[i];
+            git_object_free(tagObj);
+            break;
+          }
+
+          git_object_free(tagObj);
+        }
+
+        git_strarray_dispose(&tags);
+      } else {
+        // Raw commit
+        if (const QString referenceName = git_reference_name(headRef);
+            referenceName == "HEAD") {
+          activeBranches += "HEAD";
+        }
+      }
     }
-
-    error = git_branch_is_checked_out(ref);
-    if (error == 1) {
-      activeBranches += branchName;
-    } else if (error != 0) {
-      git_reference_free(ref);
-      logGitError(error);
-      break;
-    }
-
-    git_reference_free(ref);
-  };
-
-  git_branch_iterator_free(it);
+  }
 
   LOG_PERF(0, "Exit");
 
@@ -400,6 +574,28 @@ static QStringList listBranches(git_repository *repo, const BranchType type,
     return {};
   }
 
+  QStringList activeBranches;
+
+  if (branchType == GIT_BRANCH_LOCAL) {
+    git_reference *headRef = nullptr;
+
+    if (const int error = git_repository_head(&headRef, repo)) {
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    if (git_reference_type(headRef) == GIT_REFERENCE_DIRECT) {
+      // Detached HEAD — could be tag or raw commit
+      if (const QString referenceName = git_reference_name(headRef);
+          referenceName == "HEAD") {
+        activeBranches += "HEAD";
+      }
+    }
+
+    git_reference_free(headRef);
+  }
+
   git_branch_iterator *it = nullptr;
 
   int error = git_branch_iterator_new(&it, repo, branchType);
@@ -413,7 +609,6 @@ static QStringList listBranches(git_repository *repo, const BranchType type,
     return {};
   }
 
-  QStringList activeBranches;
   git_reference *ref = nullptr;
 
   while (!quitFlag) {
@@ -540,7 +735,7 @@ QString getActiveBranch(git_repository *repo, const BranchType type,
 
   LOG_PERF(0, "Exit");
 
-  return checkoutBranches.length() > 0 ? checkoutBranches.first() : QString();
+  return !checkoutBranches.empty() ? checkoutBranches.first() : QString();
 }
 
 bool initRepository(const QString &repoName, const QString &workingDir,

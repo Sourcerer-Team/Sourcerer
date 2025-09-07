@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GitRepo.h"
+#include <GitRepo.h>
 
 #include <BlockingQueue.h>
 
@@ -15,6 +15,7 @@ namespace GitRepoManager::Structs {
 
 enum class GitRepoCommandType : int {
   Unknown = 0,
+  CheckoutBranch,
   Clone,
   Close,
   GetActiveBranch,
@@ -50,6 +51,20 @@ struct GitRepoCommand {
   GitRepoCommandType type;
   QString uuid;
   QString syncUuid;
+};
+
+struct GitRepoCheckoutBranchCommand final : GitRepoCommand {
+  GitRepoCheckoutBranchCommand()
+      : GitRepoCommand(GitRepoCommandType::CheckoutBranch) {}
+  ~GitRepoCheckoutBranchCommand() override = default;
+
+  QString branchName;
+  GitRepo::BranchType branchType = GitRepo::BranchType::Unknown;
+};
+
+struct GitRepoCheckoutBranchCommandResult {
+  QString branchName;
+  GitRepo::BranchType branchType = GitRepo::BranchType::Unknown;
 };
 
 struct GitRepoCloneCommand final : GitRepoCommand {

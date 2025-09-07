@@ -33,9 +33,13 @@ void GitHistoryModel::updateHistory(
     const std::function<void(int)> &progressCallback) {
   LOG_PERF(0, "Enter");
 
+  LOCKGUARD(_mutex);
+
   beginResetModel();
 
   _quitUpdate = false;
+
+  _drawableSlices.clear();
 
   _history = history;
 
@@ -72,6 +76,11 @@ void GitHistoryModel::updateHistory(
   // printDrawableSlices(_drawableSlices);
 #endif
 
+  if (_quitUpdate) {
+    _drawableSlices.clear();
+    _history = GitRepo::GitHistory();
+  }
+
   endResetModel();
 
   LOG_PERF(0, "Exit");
@@ -80,6 +89,8 @@ void GitHistoryModel::updateHistory(
 QModelIndex GitHistoryModel::index(const int row, const int column,
                                    const QModelIndex &parent) const {
   LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_mutex);
 
   if (parent.isValid() || row < 0 || row >= _history.commits.size()) {
     LOG_PERF(0, "Exit");
@@ -101,6 +112,8 @@ int GitHistoryModel::rowCount(const QModelIndex &parent) const {
 
   LOG_PERF(0, "Exit");
 
+  LOCKGUARD(_mutex);
+
   return _history.commits.size();
 }
 
@@ -118,6 +131,8 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     LOG_PERF(0, "Exit");
     return {};
   }
+
+  LOCKGUARD(_mutex);
 
   if (index.row() < 0 || index.row() >= _history.commits.size()) {
     LOG_PERF(0, "Exit");

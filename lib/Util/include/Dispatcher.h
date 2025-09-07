@@ -47,7 +47,7 @@ public:
   void joinAll();
 
 private:
-  void processor(BlockingQueue<DispatcherRecord> &queue);
+  static void processor(BlockingQueue<DispatcherRecord> &queue);
 
 private:
   Util::Mutex _mutex;

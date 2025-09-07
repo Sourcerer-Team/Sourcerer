@@ -6,12 +6,9 @@
 
 #include <QLayout>
 #include <QQueue>
-#include <QVector>
 #include <QWidget>
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 enum class ToastPosition {
   Unknown = 0,
@@ -24,13 +21,13 @@ enum class ToastPosition {
   Last
 };
 
-class ToastHostWidget : public QWidget {
+class ToastHostWidget final : public QWidget {
   Q_OBJECT
 public:
   static ToastHostWidget &getInstance();
 
   void addToast(ToastWidget *toast);
-  ToastPosition position() { return _position; }
+  [[nodiscard]] ToastPosition position() const { return _position; }
   void setParentSize(const QRect& geometry);
   void setPosition(ToastPosition position);
   void setYOffset(int offset);
@@ -40,10 +37,10 @@ private slots:
 
 private:
   ToastHostWidget();
-  virtual ~ToastHostWidget();
+  ~ToastHostWidget() override;
   ToastHostWidget &operator=(const ToastHostWidget &) = delete;
 
-  QRect calculateGeometry() const;
+  [[nodiscard]] QRect calculateGeometry() const;
   void destroyAllToasts();
   void addToLayout(ToastWidget *toast);
   bool toastWillFit(ToastWidget *toast) const;
@@ -58,5 +55,5 @@ private:
   ConfigManager::ConfigManager &_configManager;
 };
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets
+

@@ -11,9 +11,7 @@
 
 #define THREAD_ID "InfoToast"
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 InfoToast::InfoToast(const QString &message, QWidget *parent)
     : ToastWidget{parent}, _stopTimer{new QTimer},
@@ -59,5 +57,4 @@ void InfoToast::stop() {
   LOG_PERF(0, "Exit");
 }
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets
