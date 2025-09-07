@@ -1,5 +1,6 @@
 #include "containers/GitRepoContainer.h"
 #include "containers/ui_GitRepoContainer.h"
+#include "widgets/ClickableHeaderView.h"
 #include "widgets/HistorySliceTableColumnDelegate.h"
 #include "widgets/InfoToast.h"
 
@@ -13,9 +14,9 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QSvgRenderer>
-#include <QToolButton>
 #include <QToolTip>
 
+#include <QScrollBar>
 #include <functional>
 #include <utility>
 
@@ -37,7 +38,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel(this)), _dispatcher(1),
       _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
-      _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false) {
+      _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
+      _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -60,6 +62,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->viewport()->setMouseTracking(true);
   ui->historyView->viewport()->installEventFilter(this);
   ui->spinner->setColor(Qt::lightGray);
+
+  auto *header = new ClickableHeaderView(Qt::Horizontal, ui->historyView);
+  ui->historyView->setHorizontalHeader(header);
 
   _errorPixmap = new QPixmap(QSize(128, 128));
   _errorPixmap->fill(Qt::transparent);
@@ -92,7 +97,11 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(ui->remotePage, &RemoteGitBranchesPage::branchSelected, this,
           &GitRepoContainer::onRemoteBranchSelected);
 
-  connect(_spinnerOverlayTimer, &QTimer::timeout, this, &GitRepoContainer::onShowSpinnerOverlay);
+  connect(_spinnerOverlayTimer, &QTimer::timeout, this,
+          &GitRepoContainer::onShowSpinnerOverlay);
+
+  connect(header, &ClickableHeaderView::headerDoubleClicked, this,
+          &GitRepoContainer::onGraphColumnExpand);
 
   const auto eventCallbackFunc =
       std::bind(&GitRepoContainer::eventCallback, this, std::placeholders::_1);
@@ -382,8 +391,8 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
 
   ui->historyView->setVisible(false);
 
-  const qlonglong spinnerOverlayTimerTimeout =
-      _configManager.getLong(ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
+  const qlonglong spinnerOverlayTimerTimeout = _configManager.getLong(
+      ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
 
   _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
 
@@ -397,8 +406,8 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
 
   ui->historyView->setVisible(false);
 
-  const qlonglong spinnerOverlayTimerTimeout =
-    _configManager.getLong(ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
+  const qlonglong spinnerOverlayTimerTimeout = _configManager.getLong(
+      ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
 
   _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
 
@@ -411,6 +420,52 @@ void GitRepoContainer::onShowSpinnerOverlay() const {
   LOG_PERF(0, "Enter");
 
   showSpinnerOverlay();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::resizeSectionToViewport(const int section) {
+  LOG_PERF(0, "Enter");
+
+  _resizedHeaderSectionPreviousWidth =
+      ui->historyView->horizontalHeader()->sectionSize(section);
+  _resizedHeaderSection = section;
+
+  ui->historyView->setColumnWidth(section,
+                                  ui->historyView->viewport()->width());
+
+  // Ensure layout is stable
+  QTimer::singleShot(0, ui->historyView, [=]() {
+    QModelIndex index =
+        ui->historyView->model()->index(0, section); // Row 0, column N
+    ui->historyView->scrollTo(index, QAbstractItemView::PositionAtCenter);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+void GitRepoContainer::restorePreviousSectionWidth() {
+  LOG_PERF(0, "Enter");
+
+  ui->historyView->setColumnWidth(_resizedHeaderSection,
+                                  _resizedHeaderSectionPreviousWidth);
+  _resizedHeaderSection = -1;
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onGraphColumnExpand(int section) {
+  LOG_PERF(0, "Enter");
+
+  if (_resizedHeaderSection != -1 && _resizedHeaderSection != section) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (_resizedHeaderSection == -1) {
+    resizeSectionToViewport(section);
+  } else {
+    restorePreviousSectionWidth();
+  }
 
   LOG_PERF(0, "Exit");
 }

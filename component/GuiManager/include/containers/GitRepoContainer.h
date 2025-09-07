@@ -44,6 +44,7 @@ private slots:
   void onLocalBranchSelected(const QString &branchName);
   void onRemoteBranchSelected(const QString &branchName);
   void onShowSpinnerOverlay() const;
+  void onGraphColumnExpand(int section);
 
 private:
   void closeRepo() const;
@@ -58,6 +59,8 @@ private:
   void getTags() const;
   void openRepo() const;
   void refreshViews() const;
+  void resizeSectionToViewport(int section);
+  void restorePreviousSectionWidth();
   void stretchBranchHistoryTableColumns() const;
   void showErrorPage(bool error = true) const;
   void showMainSpinnerPage(bool spinnerEnabled = true) const;
@@ -94,6 +97,9 @@ private:
   QTimer *_spinnerOverlayTimer;
 
   bool _quitGettingHistory;
+
+  int _resizedHeaderSection;
+  int _resizedHeaderSectionPreviousWidth;
 };
 
 } // namespace GuiManager::Containers
