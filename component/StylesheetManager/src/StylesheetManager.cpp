@@ -19,7 +19,7 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "QToolBox::tab:selected{background: #384D59;border-bottom: 1px solid "
      "gray;font-weight:bold;}"
      "QTabBar::tab:selected{font-weight:bold;}"
-     "QToolTip{font-size:14px;background-color:#384D59;color:white;border:1px;}"
+     "QToolTip{font-size:14px;background-color:#384D59;color:white;border:1px;padding: 3px}"
      "QTableView::item:selected{font-weight:bold;background-color:"
      "#384D59;}"
      "GuiManager--Widgets--TitleBarMenuButton::menu-indicator{width:0px;}"
