@@ -12,8 +12,7 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 find_package(libgit2 REQUIRED)
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
 find_package(Threads REQUIRED)
 
 add_compile_definitions(QT_USE_STRING_BUILDER)
@@ -33,9 +32,9 @@ includeLib(GitRepo Util)
 
 target_link_libraries(GitRepo PRIVATE
     Threads::Threads
-    Qt${QT_VERSION_MAJOR}::Core
-    Qt${QT_VERSION_MAJOR}::Gui
-    Qt${QT_VERSION_MAJOR}::Widgets
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
     ${LIBGIT2_LIBRARIES}
 )
 

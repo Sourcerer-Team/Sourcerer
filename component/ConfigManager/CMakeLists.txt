@@ -8,8 +8,7 @@ project(ConfigManager)
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui LinguistTools)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui LinguistTools)
 
 set(CONFIGMANAGER_SOURCE_FILES
    include/ConfigKey.h
@@ -30,8 +29,8 @@ includeLib(ConfigManager Log)
 includeLib(ConfigManager Util)
 
 target_link_libraries(ConfigManager PRIVATE
-    Qt${QT_VERSION_MAJOR}::Core
-    Qt${QT_VERSION_MAJOR}::Gui
+    Qt6::Core
+    Qt6::Gui
 )
 
 target_include_directories(ConfigManager PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)

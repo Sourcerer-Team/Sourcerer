@@ -11,8 +11,7 @@ set(CMAKE_CXX_STANDARD 17)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 find_package(libgit2 REQUIRED)
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Gui Svg Widgets LinguistTools)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Gui Svg Widgets LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui GuiPrivate Svg Widgets LinguistTools)
 
 set(TS_FILES translations/Sourcerer_en_US.ts)
 set(QRC_FILES resources/resources.qrc)
@@ -37,14 +36,19 @@ set(GUIMANAGER_SOURCE_FILES
         include/models/SubmodulesModel.h
         include/models/TagsModel.h
         include/widgets/CentralWidget.h
+        include/widgets/ClickableHeaderView.h
         include/widgets/ColorButton.h
         include/widgets/ContainerWidget.h
+        include/widgets/ElidedLabel.h
         include/widgets/GitSubmodulesPage.h
         include/widgets/GitCredentialsToast.h
         include/widgets/GitProgressToast.h
         include/widgets/GitTagsPage.h
+        include/widgets/HistorySliceTableColumnDelegate.h
         include/widgets/InfoToast.h
         include/widgets/LocalGitBranchesPage.h
+        include/widgets/MouseTrackingSplitter.h
+        include/widgets/OverlayWidget.h
         include/widgets/RecentTableView.h
         include/widgets/RemoteGitBranchesPage.h
         include/widgets/SettingsPaneWidget.h
@@ -55,6 +59,8 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/SettingsPaneLongWidget.h
         include/widgets/SettingsPaneStringWidget.h
         include/widgets/ShadeIconToolbox.h
+        include/widgets/SpinnerDialog.h
+        include/widgets/SpinnerOverlayWidget.h
         include/widgets/TitleBarButton.h
         include/widgets/TitleBarHomeButton.h
         include/widgets/TitleBarMenuButton.h
@@ -87,12 +93,15 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/CentralWidget.cpp
         src/widgets/ColorButton.cpp
         src/widgets/ContainerWidget.cpp
+        src/widgets/ElidedLabel.cpp
         src/widgets/GitCredentialsToast.cpp
         src/widgets/GitProgressToast.cpp
         src/widgets/GitSubmodulesPage.cpp
         src/widgets/GitTagsPage.cpp
+        src/widgets/HistorySliceTableColumnDelegate.cpp
         src/widgets/InfoToast.cpp
         src/widgets/LocalGitBranchesPage.cpp
+        src/widgets/MouseTrackingSplitter.cpp
         src/widgets/RecentTableView.cpp
         src/widgets/RemoteGitBranchesPage.cpp
         src/widgets/SettingsPaneWidget.cpp
@@ -126,18 +135,6 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/TitlebarWidget.ui
         ${QRC_FILES}
         ${TS_FILES}
-        include/widgets/ElidedLAbel.h
-        src/widgets/ElidedLabel.cpp
-        include/widgets/MouseTrackingSplitter.h
-        src/widgets/MouseTrackingSplitter.cpp
-        include/widgets/HistorySliceTableColumnDelegate.h
-        src/widgets/HistorySliceTableColumnDelegate.cpp
-        include/widgets/SpinnerDialog.h
-        include/widgets/OverlayWidget.h
-        include/widgets/SpinnerOverlayWidget.h
-        include/widgets/BlurredWidget.h
-        src/widgets/BlurredWidget.cpp
-        include/widgets/ClickableHeaderView.h
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
@@ -156,10 +153,11 @@ includeLib(GuiManager Util)
 includeLib(GuiManager QtWaitingSpinner)
 
 target_link_libraries(GuiManager PRIVATE
-        Qt${QT_VERSION_MAJOR}::Core
-        Qt${QT_VERSION_MAJOR}::Gui
-        Qt${QT_VERSION_MAJOR}::Svg
-        Qt${QT_VERSION_MAJOR}::Widgets
+        Qt6::Core
+        Qt6::Gui
+        Qt6::GuiPrivate
+        Qt6::Svg
+        Qt6::Widgets
         ${LIBGIT2_LIBRARIES}
 )
 
