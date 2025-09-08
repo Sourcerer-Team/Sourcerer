@@ -30,6 +30,14 @@ RemoteGitBranchesPage::~RemoteGitBranchesPage() {
   LOG_PERF(0, "Exit");
 }
 
+void RemoteGitBranchesPage::clearCached() {
+  LOG_PERF(0, "Enter");
+
+  _previous = -1;
+
+  LOG_PERF(0, "Exit");
+}
+
 void RemoteGitBranchesPage::updateActiveBranch(const QString &branchName) {
   LOG_PERF(0, "Enter");
 

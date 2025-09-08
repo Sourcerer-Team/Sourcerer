@@ -24,6 +24,7 @@
 #define THREAD_ID "GitRepoContainer"
 
 #define ALL_BRANCHES "*"
+#define HEAD "HEAD"
 
 using namespace GuiManager::Widgets;
 using namespace GitRepoManager::Structs;
@@ -396,7 +397,7 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
                                       const GitRepo::BranchType branchType) {
   LOG_PERF(0, "Enter");
 
-  if (branchName == ALL_BRANCHES) {
+  if (branchName == ALL_BRANCHES || branchName == HEAD) {
     updateModelActiveBranch(guard, branchName, branchType);
   } else {
     const QString eventUuid = Uuid::createUuid();
@@ -1051,8 +1052,8 @@ void GitRepoContainer::showErrorToast(const QString &message) const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateBranchHistory(const WeakPtr &guard,
-                                           const GitRepo::GitHistory &history) const {
+void GitRepoContainer::updateBranchHistory(
+    const WeakPtr &guard, const GitRepo::GitHistory &history) const {
   LOG_PERF(0, "Enter");
 
   _historyModel->updateHistory(history, [&](const int progress) {
@@ -1102,9 +1103,14 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
 
   if (const auto locked = guard.lock(); locked && updatePages) {
     ui->localPage->updateActiveBranch(activeBranch);
-    ui->remotePage->updateActiveBranch(
-        QString());                           // deselect remote branch if any
-    ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
+    if (_activeBranch != ALL_BRANCHES) {
+      ui->remotePage->updateActiveBranch(
+          QString()); // deselect remote branch if any
+      ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
+    } else {
+      ui->remotePage->clearCached();
+      ui->tagsPage->clearCached();
+    }
   }
 
   _dispatcher.dispatch([=]() { (void)getBranchHistory(guard); });
@@ -1140,10 +1146,15 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
   _activeBranchType = GitRepo::BranchType::Remote;
 
   if (const auto locked = guard.lock(); locked && updatePages) {
-    ui->localPage->updateActiveBranch(
-        QString()); // deselect local branch if any
     ui->remotePage->updateActiveBranch(activeBranch);
-    ui->tagsPage->updateActiveTag(QString()); // deselect local branch if any
+    if (_activeBranch != ALL_BRANCHES) {
+      ui->localPage->updateActiveBranch(
+          QString()); // deselect remote branch if any
+      ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
+    } else {
+      ui->localPage->clearCached();
+      ui->tagsPage->clearCached();
+    }
   }
 
   _dispatcher.dispatch([=]() { (void)getBranchHistory(guard); });
@@ -1165,8 +1176,10 @@ void GitRepoContainer::updateTagsModelActiveTag(const WeakPtr &guard,
   _activeBranchType = GitRepo::BranchType::Tag;
 
   if (const auto locked = guard.lock(); locked && updatePages) {
+    ui->localPage->clearCached();
     ui->localPage->updateActiveBranch(
         QString()); // deselect local branch if any
+    ui->remotePage->clearCached();
     ui->remotePage->updateActiveBranch(QString());
     ui->tagsPage->updateActiveTag(activeTag); // deselect local branch if any
   }

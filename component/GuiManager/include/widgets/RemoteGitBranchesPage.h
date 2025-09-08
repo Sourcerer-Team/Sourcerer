@@ -17,6 +17,7 @@ public:
   explicit RemoteGitBranchesPage(QWidget *parent = nullptr);
   ~RemoteGitBranchesPage() override;
 
+  void clearCached();
   void updateActiveBranch(const QString &branchName);
   void updateModel(const QStringList &localBranches);
 

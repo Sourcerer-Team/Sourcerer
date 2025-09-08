@@ -17,6 +17,7 @@ public:
   explicit LocalGitBranchesPage(QWidget *parent = nullptr);
   ~LocalGitBranchesPage() override;
 
+  void clearCached();
   void updateActiveBranch(const QString &branchName);
   void updateModel(const QStringList &localBranches);
 

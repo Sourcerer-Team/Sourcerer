@@ -32,6 +32,9 @@
 
 #define THREAD_ID "GitRepo"
 
+#define ALL_BRANCHES "*"
+#define HEAD "HEAD"
+
 namespace GitRepo {
 
 constexpr qint64 DEFAULT_CREDENTIALS_EXPIRATION_TIME =
@@ -116,7 +119,7 @@ static bool createInitialCommit(git_repository *repo,
 
   git_oid commit_id;
 
-  error = git_commit_create_v(&commit_id, repo, "HEAD", sig, sig, NULL,
+  error = git_commit_create_v(&commit_id, repo, HEAD, sig, sig, NULL,
                               "Initial commit", tree, 0);
   if (error) {
     git_signature_free(sig);
@@ -266,8 +269,9 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     git_reference *localRef = nullptr;
     git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
 
-    int error = git_branch_lookup(
-        &localRef, repo, branchOrTagName.toStdString().c_str(), GIT_BRANCH_LOCAL);
+    int error = git_branch_lookup(&localRef, repo,
+                                  branchOrTagName.toStdString().c_str(),
+                                  GIT_BRANCH_LOCAL);
     if (error) {
       logGitError(error);
       LOG_PERF(0, "Exit");
@@ -339,7 +343,8 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
       localName = branchOrTagName;
     }
 
-    const QString fullBranchName = QString("refs/remotes/%1").arg(branchOrTagName);
+    const QString fullBranchName =
+        QString("refs/remotes/%1").arg(branchOrTagName);
 
     // 1. Lookup the branch reference
     int error = git_reference_lookup(&remoteRef, repo,
@@ -367,8 +372,8 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     if (error) {
       if (error == GIT_EEXISTS) {
         // 3.1 Branch already exists, try to lookup it
-        error = git_branch_lookup(&localRef, repo,
-                                  localName.toStdString().c_str(), GIT_BRANCH_LOCAL);
+        error = git_branch_lookup(
+            &localRef, repo, localName.toStdString().c_str(), GIT_BRANCH_LOCAL);
         if (error) {
           logGitError(error);
           git_commit_free(targetCommit);
@@ -386,7 +391,8 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     }
 
     // 4. Set up tracking
-    error = git_branch_set_upstream(localRef, branchOrTagName.toStdString().c_str());
+    error = git_branch_set_upstream(localRef,
+                                    branchOrTagName.toStdString().c_str());
     if (error) {
       logGitError(error);
       git_commit_free(targetCommit);
@@ -445,8 +451,8 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
 
     // 1. Resolve the tag to its target commit/tree
-    int error =
-        git_revparse_single(&tagTarget, repo, branchOrTagName.toStdString().c_str());
+    int error = git_revparse_single(&tagTarget, repo,
+                                    branchOrTagName.toStdString().c_str());
     if (error) {
       logGitError(error);
       LOG_PERF(0, "Exit");
@@ -667,8 +673,8 @@ static QStringList listCheckoutBranches(git_repository *repo,
       } else {
         // Raw commit
         if (const QString referenceName = git_reference_name(headRef);
-            referenceName == "HEAD") {
-          activeBranches += "HEAD";
+            referenceName == HEAD) {
+          activeBranches += HEAD;
         }
       }
     }
@@ -723,8 +729,8 @@ static QStringList listBranches(git_repository *repo, const BranchType type,
     if (git_reference_type(headRef) == GIT_REFERENCE_DIRECT) {
       // Detached HEAD — could be tag or raw commit
       if (const QString referenceName = git_reference_name(headRef);
-          referenceName == "HEAD") {
-        activeBranches += "HEAD";
+          referenceName == HEAD) {
+        activeBranches += HEAD;
       }
     }
 
@@ -1238,12 +1244,12 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
     return {};
   }
 
-  if ((type == BranchType::All || branchName == "*")) {
+  if (type == BranchType::All || branchName == ALL_BRANCHES) {
     git_branch_iterator *it = nullptr;
     git_reference *ref = nullptr;
     git_branch_t branchType;
 
-    if (branchName == "*") {
+    if (branchName == ALL_BRANCHES) {
       if (type == BranchType::Local) {
         branchType = GIT_BRANCH_LOCAL;
       } else if (type == BranchType::Remote) {
@@ -1320,8 +1326,13 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
       return {};
     }
 
-    error = git_revwalk_push_ref(
-        walker, QString("refs/heads/%1").arg(branchName).toStdString().c_str());
+    if (branchName == HEAD) {
+      error = git_revwalk_push_head(walker);
+    } else {
+      error = git_revwalk_push_ref(
+          walker,
+          QString("refs/heads/%1").arg(branchName).toStdString().c_str());
+    }
     if (error) {
       logGitError(error);
       git_revwalk_free(walker);

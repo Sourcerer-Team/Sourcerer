@@ -30,6 +30,14 @@ GitTagsPage::~GitTagsPage() {
   LOG_PERF(0, "Exit");
 }
 
+void GitTagsPage::clearCached() {
+  LOG_PERF(0, "Enter");
+
+  _previous = -1;
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitTagsPage::updateActiveTag(const QString &tagName) {
   LOG_PERF(0, "Enter");
 
