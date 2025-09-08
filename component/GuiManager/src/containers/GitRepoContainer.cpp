@@ -303,7 +303,7 @@ void GitRepoContainer::onTagSelected(const QString &tagName) {
 
   _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
 
-  checkoutBranch(getSelf().toWeakRef(), tagName, GitRepo::BranchType::Remote);
+  checkoutBranch(getSelf().toWeakRef(), tagName, GitRepo::BranchType::Tag);
 
   LOG_PERF(0, "Exit");
 }

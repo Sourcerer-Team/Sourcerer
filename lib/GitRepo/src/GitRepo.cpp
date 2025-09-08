@@ -46,10 +46,14 @@ struct GitPlaintextCredentials {
 Util::Mutex gGitCredentialsMutex;
 QMap<QString, GitPlaintextCredentials> gGitCredentials;
 
-static void logGitError(int error) {
+static int gLastError = -1;
+
+static void logGitError(const int error) {
   const git_error *gitError = git_error_last();
   if (!gitError || !gitError->message)
     return;
+
+  gLastError = (gitError->klass & 0x00ff) << 16 | (error & 0xffff);
 
   LOG_ERROR(Log::ErrorId::Git,
             "Error is {}, error klass is {}, error message is '{}'", error,
@@ -222,6 +226,12 @@ static git_commit *getLastCommit(git_repository *repo, const QString &name) {
   return commit;
 }
 
+int getLastError() {
+  LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Exit");
+  return gLastError;
+}
+
 void initForCurrentThread() {
   LOG_PERF(0, "Enter");
 
@@ -242,7 +252,7 @@ void shutdownForCurrentThread() {
   LOG_PERF(0, "Exit");
 }
 
-bool checkoutBranch(git_repository *repo, const QString &branchName,
+bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
                     const BranchType type) {
   LOG_PERF(0, "Enter");
 
@@ -251,101 +261,226 @@ bool checkoutBranch(git_repository *repo, const QString &branchName,
     return false;
   }
 
-  git_tree *tree = nullptr;
-  git_reference *ref = nullptr;
-  git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
-  git_branch_t branchType = GIT_BRANCH_ALL;
+  if (type == BranchType::Local) {
+    git_tree *tree = nullptr;
+    git_reference *localRef = nullptr;
+    git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
 
-  QString fullBranchName;
+    int error = git_branch_lookup(
+        &localRef, repo, branchOrTagName.toStdString().c_str(), GIT_BRANCH_LOCAL);
+    if (error) {
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
 
-  switch (type) {
-  case BranchType::Local: {
-    fullBranchName = QString("refs/heads/%1").arg(branchName);
-    branchType = GIT_BRANCH_LOCAL;
-    break;
-  }
-  case BranchType::Remote: {
-    fullBranchName = QString("refs/remotes/%1").arg(branchName);
-    branchType = GIT_BRANCH_REMOTE;
-    break;
-  }
-  case BranchType::Tag: {
-    fullBranchName = QString("refs/tags/%1").arg(branchName);
-    break;
-  }
-  case BranchType::All:
-  default: {
-    LOG_ERROR(Log::ErrorId::Logic, "Unsupported branch type {}",
+    // 2. Resolve the reference to a commit
+    git_commit *targetCommit = nullptr;
+    error = git_reference_peel(reinterpret_cast<git_object **>(&targetCommit),
+                               localRef, GIT_OBJECT_COMMIT);
+    if (error) {
+      logGitError(error);
+      git_reference_free(localRef);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // 3. Get the tree from the commit
+    error = git_commit_tree(&tree, targetCommit);
+    if (error) {
+      logGitError(error);
+      git_reference_free(localRef);
+      git_commit_free(targetCommit);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // 4. Set checkout strategy
+    opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+    // 5. Checkout the tree
+    error =
+        git_checkout_tree(repo, reinterpret_cast<git_object *>(tree), &opts);
+    if (error) {
+      logGitError(error);
+      git_tree_free(tree);
+      git_reference_free(localRef);
+      git_commit_free(targetCommit);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // 6. Move HEAD to the branch
+    error = git_repository_set_head(repo, git_reference_name(localRef));
+    if (error) {
+      logGitError(error);
+      git_tree_free(tree);
+      git_reference_free(localRef);
+      git_commit_free(targetCommit);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // Cleanup
+    git_tree_free(tree);
+    git_reference_free(localRef);
+    git_commit_free(targetCommit);
+
+  } else if (type == BranchType::Remote) {
+    git_tree *tree = nullptr;
+    git_reference *localRef = nullptr;
+    git_reference *remoteRef = nullptr;
+    git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
+
+    QString localName;
+    if (const auto strList = branchOrTagName.split('/'); strList.length() > 0) {
+      localName = strList.last();
+    } else {
+      localName = branchOrTagName;
+    }
+
+    const QString fullBranchName = QString("refs/remotes/%1").arg(branchOrTagName);
+
+    // 1. Lookup the branch reference
+    int error = git_reference_lookup(&remoteRef, repo,
+                                     fullBranchName.toStdString().c_str());
+    if (error) {
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // 2. Resolve the reference to a commit
+    git_commit *targetCommit = nullptr;
+    error = git_reference_peel(reinterpret_cast<git_object **>(&targetCommit),
+                               remoteRef, GIT_OBJECT_COMMIT);
+    if (error) {
+      logGitError(error);
+      git_reference_free(remoteRef);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // 3. Create local branch that tracks the remote branch
+    error = git_branch_create(&localRef, repo, localName.toStdString().c_str(),
+                              targetCommit, 0);
+    if (error) {
+      if (error == GIT_EEXISTS) {
+        // 3.1 Branch already exists, try to lookup it
+        error = git_branch_lookup(&localRef, repo,
+                                  localName.toStdString().c_str(), GIT_BRANCH_LOCAL);
+        if (error) {
+          logGitError(error);
+          git_commit_free(targetCommit);
+          git_reference_free(remoteRef);
+          LOG_PERF(0, "Exit");
+          return false;
+        }
+      } else {
+        logGitError(error);
+        git_commit_free(targetCommit);
+        git_reference_free(remoteRef);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+    }
+
+    // 4. Set up tracking
+    error = git_branch_set_upstream(localRef, branchOrTagName.toStdString().c_str());
+    if (error) {
+      logGitError(error);
+      git_commit_free(targetCommit);
+      git_reference_free(localRef);
+      git_reference_free(remoteRef);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // 5. Get the tree from the commit
+    error = git_commit_tree(&tree, targetCommit);
+    if (error) {
+      logGitError(error);
+      git_reference_free(localRef);
+      git_reference_free(remoteRef);
+      git_commit_free(targetCommit);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // 6. Set checkout strategy
+    opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+    // 7. Checkout the tree
+    error =
+        git_checkout_tree(repo, reinterpret_cast<git_object *>(tree), &opts);
+    if (error) {
+      logGitError(error);
+      git_tree_free(tree);
+      git_reference_free(localRef);
+      git_reference_free(remoteRef);
+      git_commit_free(targetCommit);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // 6. Move HEAD to the branch
+    error = git_repository_set_head(repo, git_reference_name(localRef));
+    if (error) {
+      logGitError(error);
+      git_tree_free(tree);
+      git_reference_free(localRef);
+      git_reference_free(remoteRef);
+      git_commit_free(targetCommit);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // Cleanup
+    git_tree_free(tree);
+    git_reference_free(localRef);
+    git_reference_free(remoteRef);
+    git_commit_free(targetCommit);
+  } else if (type == BranchType::Tag) {
+    git_object *tagTarget = nullptr;
+    git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
+
+    // 1. Resolve the tag to its target commit/tree
+    int error =
+        git_revparse_single(&tagTarget, repo, branchOrTagName.toStdString().c_str());
+    if (error) {
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // 2. Set checkout options
+    opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+    // 3. Checkout the tree
+    error = git_checkout_tree(repo, tagTarget, &opts);
+    if (error) {
+      logGitError(error);
+      git_object_free(tagTarget);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // 4. Detach HEAD to the tag's commit
+    error = git_repository_set_head_detached(repo, git_object_id(tagTarget));
+    if (error) {
+      logGitError(error);
+      git_object_free(tagTarget);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_object_free(tagTarget);
+  } else {
+    LOG_ERROR(Log::ErrorId::Git, "Internal error! Unsupported branch type {}",
               static_cast<int>(type));
-    break;
-  }
-  }
-
-  if (fullBranchName.isEmpty()) {
     LOG_PERF(0, "Exit");
     return false;
   }
-
-  // 1. Lookup the branch reference
-  int error = git_branch_lookup(&ref, repo,
-                                type != BranchType::Tag
-                                    ? branchName.toStdString().c_str()
-                                    : fullBranchName.toStdString().c_str(),
-                                branchType);
-  if (error) {
-    logGitError(error);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  // 2. Resolve the reference to a commit
-  git_commit *commit = nullptr;
-  error = git_reference_peel(reinterpret_cast<git_object **>(&commit), ref,
-                             GIT_OBJECT_COMMIT);
-  if (error) {
-    logGitError(error);
-    git_reference_free(ref);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  // 3. Get the tree from the commit
-  error = git_commit_tree(&tree, commit);
-  if (error) {
-    logGitError(error);
-    git_reference_free(ref);
-    git_commit_free(commit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  // 4. Set checkout strategy
-  opts.checkout_strategy = GIT_CHECKOUT_SAFE;
-
-  // 5. Checkout the tree
-  error = git_checkout_tree(repo, reinterpret_cast<git_object *>(tree), &opts);
-  if (error) {
-    logGitError(error);
-    git_reference_free(ref);
-    git_commit_free(commit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  // 6. Move HEAD to the branch
-  error = git_repository_set_head(repo, git_reference_name(ref));
-  if (error) {
-    logGitError(error);
-    git_reference_free(ref);
-    git_commit_free(commit);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  // Cleanup
-  git_commit_free(commit);
-  git_tree_free(tree);
-  git_reference_free(ref);
 
   LOG_PERF(0, "Exit");
 

@@ -180,7 +180,6 @@ void ProcessingState::checkoutBranchRepoWorker(
   GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerCheckoutBranchError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -197,8 +196,7 @@ void ProcessingState::checkoutBranchRepoWorker(
       GitRepo::checkoutBranch(repo, command.branchName, command.branchType);
   if (!success) {
     reportError(EventManager::EventType::GitRepoManagerCheckoutBranchError,
-                GitRepoErrorType::Unknown, tr("Can't checkout branch."),
-                command);
+                tr("Can't checkout branch."), command);
     LOG_ERROR(Log::ErrorId::Git, "Failed to checkout branch \"{}\".",
               command.branchName);
     return;
@@ -216,7 +214,7 @@ void ProcessingState::checkoutBranchRepoWorker(
         EventManager::EventType::GitRepoManagerCheckoutBranchError,
         command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     GitRepoCheckoutBranchCommandResult result;
@@ -240,7 +238,6 @@ void ProcessingState::cloneRepoWorker(const GitRepoCloneCommand &command) {
   GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerCloneRepoError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -250,8 +247,7 @@ void ProcessingState::cloneRepoWorker(const GitRepoCloneCommand &command) {
       command.url, command.destinationDir, command.uuid);
   if (!success) {
     reportError(EventManager::EventType::GitRepoManagerCloneRepoError,
-                GitRepoErrorType::NotCloned, tr("Can't clone repository."),
-                command);
+                tr("Can't clone repository."), command);
     LOG_ERROR(Log::ErrorId::Git, "Can't clone repository.");
     return;
   }
@@ -273,7 +269,7 @@ void ProcessingState::cloneRepoWorker(const GitRepoCloneCommand &command) {
         EventManager::EventType::GitRepoManagerCloneRepoError,
         command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -294,7 +290,6 @@ void ProcessingState::closeRepoWorker(
   GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerCloseRepoError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -326,7 +321,7 @@ void ProcessingState::closeRepoWorker(
         EventManager::EventType::GitRepoManagerCloseRepoError,
         command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -346,7 +341,6 @@ void ProcessingState::quitRepoWorker(
   const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerQuitError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -363,7 +357,7 @@ void ProcessingState::quitRepoWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerOpenRepoError, command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -482,7 +476,6 @@ void ProcessingState::getActiveBranchWorker(
   const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerGetActiveBranchError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -505,7 +498,7 @@ void ProcessingState::getActiveBranchWorker(
         EventManager::EventType::GitRepoManagerGetActiveBranchError,
         command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     GitRepoGetActiveBranchCommandResult result;
@@ -530,7 +523,6 @@ void ProcessingState::getCommitBranchesWorker(
   const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitBranchesError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -553,7 +545,7 @@ void ProcessingState::getCommitBranchesWorker(
         EventManager::EventType::GitRepoManagerGetCommitBranchesError,
         command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -574,7 +566,6 @@ void ProcessingState::getCommitHeadsWorker(
   const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitHeadsError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -597,7 +588,7 @@ void ProcessingState::getCommitHeadsWorker(
         EventManager::EventType::GitRepoManagerGetCommitHeadsError,
         command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -618,7 +609,6 @@ void ProcessingState::getCommitIsHeadWorker(
   const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitIsHeadError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -640,7 +630,7 @@ void ProcessingState::getCommitIsHeadWorker(
         EventManager::EventType::GitRepoManagerGetCommitIsHeadError,
         command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -661,7 +651,6 @@ void ProcessingState::getBranchHistoryWorker(
   const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerGetBranchHistoryError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -689,7 +678,7 @@ void ProcessingState::getBranchHistoryWorker(
         EventManager::EventType::GitRepoManagerGetBranchHistoryError,
         command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -710,7 +699,6 @@ void ProcessingState::initRepoWorker(
   GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerInitRepoError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Git, "Internal error. Context not initialized.");
     return;
@@ -720,8 +708,7 @@ void ProcessingState::initRepoWorker(
       command.repoName, command.workingDir, command.defaultBranch);
   if (!success) {
     reportError(EventManager::EventType::GitRepoManagerInitRepoError,
-                GitRepoErrorType::NotInitialized, tr("Can't init repository."),
-                command);
+                tr("Can't init repository."), command);
     LOG_ERROR(Log::ErrorId::Git, "Can't init repository.");
     return;
   }
@@ -742,7 +729,7 @@ void ProcessingState::initRepoWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerInitRepoError, command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     const QString repoPath = command.workingDir + "/" + command.repoName;
@@ -764,7 +751,6 @@ void ProcessingState::listLocalBranchesWorker(
   const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerListLocalBranchesError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -786,7 +772,7 @@ void ProcessingState::listLocalBranchesWorker(
         EventManager::EventType::GitRepoManagerListLocalBranchesError,
         command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -807,7 +793,6 @@ void ProcessingState::listRemoteBranchesWorker(
   const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerListRemoteBranchesError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -829,7 +814,7 @@ void ProcessingState::listRemoteBranchesWorker(
         EventManager::EventType::GitRepoManagerListRemoteBranchesError,
         command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -850,7 +835,6 @@ void ProcessingState::listSubmodulesWorker(
   const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerListSubmodulesError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -877,7 +861,7 @@ void ProcessingState::listSubmodulesWorker(
         EventManager::EventType::GitRepoManagerListSubmodulesError,
         command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -898,7 +882,6 @@ void ProcessingState::listTagsWorker(
   const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerListTagsError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -924,7 +907,7 @@ void ProcessingState::listTagsWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerListTagsError, command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -947,7 +930,6 @@ void ProcessingState::scheduleWorkerForOpenRepo(
   const auto it = _contexts.constFind(command.uuid);
   if (it != _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerOpenRepoError,
-                GitRepoErrorType::AlreadyExist,
                 tr("Git repository has already been opened."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -975,7 +957,6 @@ void ProcessingState::scheduleWorkerForQuit(
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerQuitError,
-                GitRepoErrorType::NotOpened,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -993,8 +974,7 @@ void ProcessingState::openRepoWorker(const GitRepoOpenCommand &command) {
   if (!repo) {
     const git_error *gitError = git_error_last();
     reportError(EventManager::EventType::GitRepoManagerOpenRepoError,
-                GitRepoErrorType::ErrorWhileOpening, gitError->message,
-                command);
+                gitError->message, command);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -1003,7 +983,6 @@ void ProcessingState::openRepoWorker(const GitRepoOpenCommand &command) {
   if (!ctx) {
     GitRepo::closeRepository(repo);
     reportError(EventManager::EventType::GitRepoManagerOpenRepoError,
-                GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
     LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
     return;
@@ -1025,7 +1004,7 @@ void ProcessingState::openRepoWorker(const GitRepoOpenCommand &command) {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerOpenRepoError, command.syncUuid);
     resultEvent.addData(
-        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1039,12 +1018,12 @@ void ProcessingState::openRepoWorker(const GitRepoOpenCommand &command) {
 }
 
 void ProcessingState::reportError(
-    const EventManager::EventType eventType, const GitRepoErrorType errorType,
-    const QString &message, const Structs::GitRepoCommand &command) const {
+    const EventManager::EventType eventType, const QString &message,
+    const Structs::GitRepoCommand &command) const {
   LOG_PERF(0, "Enter");
 
   GitRepoError error;
-  error.error = errorType;
+  error.error = GitRepo::getLastError();
   error.message = message;
   error.uuid = command.uuid;
 
@@ -1064,7 +1043,6 @@ void ProcessingState::scheduleWorkerForCheckoutBranch(
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerCheckoutBranchError,
-                GitRepoErrorType::NotOpened,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -1082,7 +1060,6 @@ void ProcessingState::scheduleWorkerForCloneRepo(
   const auto it = _contexts.constFind(command.uuid);
   if (it != _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerCloneRepoError,
-                GitRepoErrorType::AlreadyExist,
                 tr("Git repository is already in use."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -1110,7 +1087,6 @@ void ProcessingState::scheduleWorkerForCloseRepo(
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerCloseRepoError,
-                GitRepoErrorType::NotOpened,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -1131,7 +1107,6 @@ void ProcessingState::scheduleWorkerForGetActiveBranch(
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerGetActiveBranchError,
-                GitRepoErrorType::NotOpened,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -1151,7 +1126,6 @@ void ProcessingState::scheduleWorkerForGetCommitBranches(
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitBranchesError,
-                GitRepoErrorType::NotOpened,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -1171,7 +1145,6 @@ void ProcessingState::scheduleWorkerForGetCommitHeads(
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitHeadsError,
-                GitRepoErrorType::NotOpened,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -1191,7 +1164,6 @@ void ProcessingState::scheduleWorkerForGetCommitIsHead(
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerGetCommitIsHeadError,
-                GitRepoErrorType::NotOpened,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -1211,7 +1183,6 @@ void ProcessingState::scheduleWorkerForGetBranchHistory(
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerGetBranchHistoryError,
-                GitRepoErrorType::NotOpened,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -1231,7 +1202,6 @@ void ProcessingState::scheduleWorkerForInitRepo(
   const auto it = _contexts.constFind(command.uuid);
   if (it != _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerInitRepoError,
-                GitRepoErrorType::AlreadyExist,
                 tr("Git repository is already in use."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -1259,7 +1229,6 @@ void ProcessingState::scheduleWorkerForListLocalBranches(
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerListLocalBranchesError,
-                GitRepoErrorType::NotOpened,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -1279,7 +1248,6 @@ void ProcessingState::scheduleWorkerForListRemoteBranches(
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerListRemoteBranchesError,
-                GitRepoErrorType::NotOpened,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -1299,7 +1267,6 @@ void ProcessingState::scheduleWorkerForListSubmodules(
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerListSubmodulesError,
-                GitRepoErrorType::NotOpened,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
@@ -1319,7 +1286,6 @@ void ProcessingState::scheduleWorkerForListTags(
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
     reportError(EventManager::EventType::GitRepoManagerListTagsError,
-                GitRepoErrorType::NotOpened,
                 tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;

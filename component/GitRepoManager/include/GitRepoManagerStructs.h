@@ -172,7 +172,7 @@ struct GitRepoQuitCommand final : GitRepoCommand {
 struct GitRepoError {
   QString uuid;
   QString message;
-  GitRepoErrorType error = GitRepoErrorType::Unknown;
+  int error = -1;
 };
 
 struct GitRepoResult {
