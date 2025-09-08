@@ -1068,10 +1068,6 @@ void GitRepoContainer::updateBranchHistory(const WeakPtr &guard,
     _spinnerOverlayTimer->stop();
     showSpinnerOverlay(false);
     stretchBranchHistoryTableColumns();
-    if (_activeBranch != "*") {
-      showToast(QString(tr("Switched to branch '%1' successfully."))
-                    .arg(_activeBranch));
-    }
   });
 
   LOG_PERF(0, "Exit")
