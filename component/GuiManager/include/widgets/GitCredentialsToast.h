@@ -5,20 +5,28 @@
 #include <EventManager.h>
 #include <GitRepo.h>
 
+#include <QEnableSharedFromThis>
 #include <QLineEdit>
+#include <QSharedPointer>
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 using namespace GitRepo;
 
-class GitCredentialsToast : public ToastWidget {
+class GitCredentialsToast final
+    : public ToastWidget,
+      public QEnableSharedFromThis<GitCredentialsToast> {
   Q_OBJECT
+
+  typedef QSharedPointer<GitCredentialsToast> SharedPtr;
+  typedef QWeakPointer<GitCredentialsToast> WeakPtr;
+
 public:
   explicit GitCredentialsToast(const GitCredentialsRequest &request,
                                QWidget *parent = nullptr);
-  virtual ~GitCredentialsToast();
+  ~GitCredentialsToast() override;
+
+  SharedPtr getSelf() { return sharedFromThis(); }
 
 private slots:
   void onCancelClicked();
@@ -34,5 +42,4 @@ private:
   QLineEdit *_passwordLineEdit;
 };
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

@@ -5,21 +5,27 @@
 #include <EventManager.h>
 #include <GitRepo.h>
 
+#include <QEnableSharedFromThis>
 #include <QLabel>
 #include <QProgressBar>
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 using namespace GitRepo;
 
-class GitProgressToast : public ToastWidget {
+class GitProgressToast final : public ToastWidget,
+                               public QEnableSharedFromThis<GitProgressToast> {
   Q_OBJECT
+
+  typedef QSharedPointer<GitProgressToast> SharedPtr;
+  typedef QWeakPointer<GitProgressToast> WeakPtr;
+
 public:
   explicit GitProgressToast(const CloneProgress &data,
                             QWidget *parent = nullptr);
-  virtual ~GitProgressToast();
+  ~GitProgressToast() override;
+
+  SharedPtr getSelf() { return sharedFromThis(); }
 
 signals:
   void finished();
@@ -37,5 +43,4 @@ private:
   QProgressBar *_progressBar;
 };
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

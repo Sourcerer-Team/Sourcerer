@@ -23,6 +23,8 @@ public:
 
   virtual ContainerType type() const { return _type; }
 
+  virtual void init() {}
+
 private:
   ContainerType _type;
 };

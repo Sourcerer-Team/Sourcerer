@@ -5,6 +5,8 @@
 #include <LockGuard.h>
 #include <ResizableMatrix.h>
 
+#include <QEnableSharedFromThis>
+
 #include <atomic>
 #include <functional>
 #include <qitemselectionmodel.h>
@@ -36,11 +38,18 @@ struct Slice {
 
 typedef QVector<Slice> Slices;
 
-class GitHistoryModel final : public QAbstractTableModel {
+class GitHistoryModel final : public QAbstractTableModel,
+                              public QEnableSharedFromThis<GitHistoryModel> {
   Q_OBJECT
+
+  typedef QSharedPointer<GitHistoryModel> SharedPtr;
+  typedef QWeakPointer<GitHistoryModel> WeakPtr;
+
 public:
   explicit GitHistoryModel(QObject *parent = nullptr);
   ~GitHistoryModel() override;
+
+  SharedPtr getSelf() { return sharedFromThis(); }
 
 public:
   void setSelectionModel(QItemSelectionModel *selectionModel) {
@@ -66,11 +75,6 @@ public:
 private:
   void createDrawableSlices(const std::function<void(int)> &progressCallback);
 
-#ifdef QT_DEBUG
-  static void
-  printDrawableSlices(const Util::ResizableMatrix<Slice> &resizableMatrix);
-#endif
-
 private:
   Slices historySlices(const QString &commit) const;
 
@@ -79,7 +83,7 @@ private:
 private:
   mutable Util::Mutex _mutex;
   GitRepo::GitHistory _history;
-  Util::ResizableMatrix<Slice> _drawableSlices;
+  mutable Util::ResizableMatrix<Slice> _drawableSlices;
   std::atomic_bool _quitUpdate;
   QItemSelectionModel *_selectionModel;
 };

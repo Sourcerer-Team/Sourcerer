@@ -1,13 +1,17 @@
 #pragma once
 
+#include "Log.h"
+
 #include <BlockingQueue.h>
 #include <LockGuard.h>
 
 #include <QThread>
+#include <QTimer>
 
 #include <climits>
 #include <functional>
 #include <map>
+#include <qcoreapplication.h>
 
 namespace Util {
 
@@ -34,7 +38,7 @@ class Dispatcher : public QObject {
   Q_OBJECT
 
 public:
-  Dispatcher(int coresNum = INT_MAX);
+  explicit Dispatcher(int coresNum = INT_MAX);
   ~Dispatcher() override;
 
   bool dispatch(
@@ -42,17 +46,43 @@ public:
       const std::function<void()> &finalTask = nullptr,
       const std::function<void(const std::exception &)> &errorTask = nullptr);
 
-  static bool dispatchToMainThread(const std::function<void()> &callback);
+  template <class T>
+  static bool dispatchToMainThread(const T &guard,
+                                   const std::function<void()> &callback) {
+    const auto timer = new QTimer();
+    timer->moveToThread(qApp->thread());
+    timer->setSingleShot(true);
 
-  void joinAll();
+    QObject::connect(timer, &QTimer::timeout, [=]() {
+      // main thread
+      if (const auto locked = guard.lock()) {
+        const auto THREAD_ID = "dispatchToMainThread";
+        try {
+          callback();
+        } catch (const std::exception &e) {
+          LOG_ERROR(Log::ErrorId::Gui, "Exception: \"{}\"", e.what());
+        } catch (...) {
+          LOG_ERROR(Log::ErrorId::Gui, "Unknown exception thrown");
+        }
+      }
+
+      timer->deleteLater();
+    });
+
+    QMetaObject::invokeMethod(timer, "start", Qt::QueuedConnection,
+                              Q_ARG(int, 0));
+
+    return true;
+  }
+
+  void stopAll();
 
 private:
-  static void processor(BlockingQueue<DispatcherRecord> &queue);
+  static void processor(QSharedPointer<DispatcherPoolElement> poolElement);
 
 private:
   Util::Mutex _mutex;
-  std::map<size_t, DispatcherPoolElement> _pool;
-  std::map<size_t, QThread *> _threads;
+  std::map<size_t, QSharedPointer<DispatcherPoolElement>> _pool;
 };
 
 } // namespace Util

@@ -9,7 +9,7 @@
 
 namespace Util {
 
-Dispatcher::Dispatcher(int coresNum) {
+Dispatcher::Dispatcher(const int coresNum) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_mutex);
@@ -22,13 +22,16 @@ Dispatcher::Dispatcher(int coresNum) {
   for (size_t i = 0; i < coresCount; ++i) {
     LOG_INFO("Starting pool processor for core {}", i);
 
-    auto &[_queue, _thread] = _pool[i];
-    _thread = QThread::create([&]() { processor(_queue); });
+    auto poolElement = QSharedPointer<DispatcherPoolElement>::create();
 
-    connect(_thread, &QThread::finished, _thread,
+    _pool[i] = poolElement;
+
+    poolElement->_thread = QThread::create([=]() { processor(poolElement); });
+
+    connect(poolElement->_thread, &QThread::finished, poolElement->_thread,
             &QObject::deleteLater);
 
-    _thread->start();
+    poolElement->_thread->start();
 
     LOG_INFO("Pool processor for core {} started.", i);
   }
@@ -39,19 +42,26 @@ Dispatcher::Dispatcher(int coresNum) {
 Dispatcher::~Dispatcher() {
   LOG_PERF(0, "Enter");
 
-  joinAll();
+  stopAll();
 
   LOG_PERF(0, "Exit");
 }
 
-void Dispatcher::processor(BlockingQueue<DispatcherRecord> &queue) {
+void Dispatcher::processor(QSharedPointer<DispatcherPoolElement> poolElement) {
   LOG_PERF(0, "Enter");
+
+  if (!poolElement) {
+    LOG_ERROR(Log::ErrorId::Generic, "Internal error! Invalid pool element!");
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   bool quit = false;
 
   while (!quit) {
 
-    switch (const auto [_command, _task] = queue.pop(); _command) {
+    switch (const auto [_command, _task] = poolElement->_queue.pop();
+            _command) {
     case DispatcherCommand::Run: {
       try {
         _task();
@@ -75,9 +85,9 @@ void Dispatcher::processor(BlockingQueue<DispatcherRecord> &queue) {
   LOG_PERF(0, "Exit");
 }
 
-bool Dispatcher::dispatch(const std::function<void()> &task,
-                          const std::function<void()> &finalTask,
-                          const std::function<void(const std::exception &)> &errorTask) {
+bool Dispatcher::dispatch(
+    const std::function<void()> &task, const std::function<void()> &finalTask,
+    const std::function<void(const std::exception &)> &errorTask) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_mutex);
@@ -86,9 +96,14 @@ bool Dispatcher::dispatch(const std::function<void()> &task,
   int index = -1;
 
   for (const auto &[k, v] : _pool) {
-    if (v._queue.size() < minSize) {
+    if (!v) {
+      LOG_ERROR(Log::ErrorId::Generic, "Internal error! Invalid pool element!");
+      continue;
+    }
+
+    if (v->_queue.size() < minSize) {
       index = k;
-      minSize = v._queue.size();
+      minSize = v->_queue.size();
     }
   }
 
@@ -101,7 +116,7 @@ bool Dispatcher::dispatch(const std::function<void()> &task,
     if (task) {
       try {
         task();
-      } catch (const std::exception& ex) {
+      } catch (const std::exception &ex) {
         errorTask(ex);
       }
     }
@@ -115,31 +130,21 @@ bool Dispatcher::dispatch(const std::function<void()> &task,
   runRecord._command = DispatcherCommand::Run;
   runRecord._task = compositeTask;
 
-  _pool[index]._queue.push(runRecord);
+  const auto poolElement = _pool[index];
+  if (!poolElement) {
+    LOG_ERROR(Log::ErrorId::Generic, "Internal error! Invalid pool element!");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  poolElement->_queue.push(runRecord);
 
   LOG_PERF(0, "Exit");
 
   return true;
 }
 
-bool Dispatcher::dispatchToMainThread(const std::function<void()> &callback) {
-  const auto timer = new QTimer();
-  timer->moveToThread(qApp->thread());
-  timer->setSingleShot(true);
-
-  QObject::connect(timer, &QTimer::timeout, [=]() {
-    // main thread
-    callback();
-    timer->deleteLater();
-  });
-
-  QMetaObject::invokeMethod(timer, "start", Qt::QueuedConnection,
-                            Q_ARG(int, 0));
-
-  return true;
-}
-
-void Dispatcher::joinAll() {
+void Dispatcher::stopAll() {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_mutex);
@@ -150,9 +155,12 @@ void Dispatcher::joinAll() {
   for (auto &[k, v] : _pool) {
     LOG_INFO("Stopping pool processor for core {}", k);
 
-    v._queue.push(quitRecord);
+    if (!v) {
+      LOG_ERROR(Log::ErrorId::Generic, "Internal error! Invalid pool element!");
+      continue;
+    }
 
-    v._thread->wait();
+    v->_queue.push(quitRecord);
 
     LOG_INFO("Pool processor for core {} stopped.", k);
   }

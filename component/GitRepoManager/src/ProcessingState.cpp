@@ -187,6 +187,7 @@ void ProcessingState::checkoutBranchRepoWorker(
   }
 
   git_repository *repo = nullptr;
+
   {
     LOCKGUARD(_contextsMutex);
     repo = ctx->gitRepo;
@@ -203,16 +204,32 @@ void ProcessingState::checkoutBranchRepoWorker(
     return;
   }
 
-  GitRepoCheckoutBranchCommandResult result;
-  result.branchName = command.branchName;
-  result.branchType = command.branchType;
+  bool quit = false;
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerCheckoutBranchResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(result)});
-  _eventManager.send(resultEvent);
+  {
+    LOCKGUARD(_contextsMutex);
+    quit = ctx->quit;
+  }
+
+  if (quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCheckoutBranchError,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    GitRepoCheckoutBranchCommandResult result;
+    result.branchName = command.branchName;
+    result.branchType = command.branchType;
+
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCheckoutBranchResult,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type, QVariant::fromValue(result)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -244,11 +261,28 @@ void ProcessingState::cloneRepoWorker(const GitRepoCloneCommand &command) {
     ctx->gitRepo = nullptr;
   }
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerCloneRepoResult, command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, command.destinationDir});
-  _eventManager.send(resultEvent);
+  bool quit = false;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    quit = ctx->quit;
+  }
+
+  if (quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCloneRepoError,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCloneRepoResult,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type, command.destinationDir});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -280,10 +314,27 @@ void ProcessingState::closeRepoWorker(
     ctx->gitRepo = nullptr;
   }
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerCloseRepoResult, command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type, QVariant()});
-  _eventManager.send(resultEvent);
+  bool quit = false;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    quit = ctx->quit;
+  }
+
+  if (quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCloseRepoError,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCloseRepoResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type, QVariant()});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -292,7 +343,8 @@ void ProcessingState::quitRepoWorker(
     const Structs::GitRepoQuitCommand &command) {
   LOG_PERF(0, "Enter");
 
-  if (const GitRepoContext *ctx = context(command.uuid); !ctx) {
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerQuitError,
                 GitRepoErrorType::InternalError,
                 tr("Internal error. Context not initialized."), command);
@@ -300,10 +352,26 @@ void ProcessingState::quitRepoWorker(
     return;
   }
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerOpenRepoResult, command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type, QVariant()});
-  _eventManager.send(resultEvent);
+  bool quit = false;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    quit = ctx->quit;
+  }
+
+  if (quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerOpenRepoError, command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerOpenRepoResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type, QVariant()});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -432,16 +500,25 @@ void ProcessingState::getActiveBranchWorker(
   const QString activeBranch =
       GitRepo::getActiveBranch(repo, command.branchType, *quit);
 
-  GitRepoGetActiveBranchCommandResult result;
-  result.branchName = activeBranch;
-  result.branchType = command.branchType;
+  if (*quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetActiveBranchError,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    GitRepoGetActiveBranchCommandResult result;
+    result.branchName = activeBranch;
+    result.branchType = command.branchType;
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerGetActiveBranchResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(result)});
-  _eventManager.send(resultEvent);
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetActiveBranchResult,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type, QVariant::fromValue(result)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -471,12 +548,21 @@ void ProcessingState::getCommitBranchesWorker(
   const QStringList branches =
       GitRepo::getCommitBranches(repo, command.commitOid, *quit);
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerGetCommitBranchesResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(branches)});
-  _eventManager.send(resultEvent);
+  if (*quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetCommitBranchesError,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetCommitBranchesResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(branches)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -506,12 +592,21 @@ void ProcessingState::getCommitHeadsWorker(
   const QStringList branches =
       GitRepo::getCommitHeads(repo, command.commitOid, *quit);
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerGetCommitHeadsResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(branches)});
-  _eventManager.send(resultEvent);
+  if (*quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetCommitHeadsError,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetCommitHeadsResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(branches)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -540,12 +635,21 @@ void ProcessingState::getCommitIsHeadWorker(
 
   const bool head = GitRepo::getCommitIsHead(repo, command.commitOid, *quit);
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerGetCommitIsHeadResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(head)});
-  _eventManager.send(resultEvent);
+  if (*quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetCommitIsHeadError,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetCommitIsHeadResult,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type, QVariant::fromValue(head)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -573,12 +677,28 @@ void ProcessingState::getBranchHistoryWorker(
   const GitRepo::GitHistory history = GitRepo::getBranchHistory(
       repo, command.branchName, command.branchType, ctx->quit);
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerGetBranchHistoryResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(history)});
-  _eventManager.send(resultEvent);
+  bool quit = false;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    quit = ctx->quit;
+  }
+
+  if (quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetBranchHistoryError,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetBranchHistoryResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(history)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -611,12 +731,28 @@ void ProcessingState::initRepoWorker(
     ctx->gitRepo = nullptr;
   }
 
-  const QString repoPath = command.workingDir + "/" + command.repoName;
+  bool quit = false;
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerInitRepoResult, command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type, repoPath});
-  _eventManager.send(resultEvent);
+  {
+    LOCKGUARD(_contextsMutex);
+    quit = ctx->quit;
+  }
+
+  if (quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerInitRepoError, command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    const QString repoPath = command.workingDir + "/" + command.repoName;
+
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerInitRepoResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type, repoPath});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -645,12 +781,21 @@ void ProcessingState::listLocalBranchesWorker(
 
   const QStringList localBranches = GitRepo::listLocalBranches(repo, *quit);
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerListLocalBranchesResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                    QVariant::fromValue(localBranches)});
-  _eventManager.send(resultEvent);
+  if (*quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerListLocalBranchesError,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerListLocalBranchesResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(localBranches)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -679,12 +824,21 @@ void ProcessingState::listRemoteBranchesWorker(
 
   const QStringList remoteBranches = GitRepo::listRemoteBranches(repo, *quit);
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerListRemoteBranchesResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                    QVariant::fromValue(remoteBranches)});
-  _eventManager.send(resultEvent);
+  if (*quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerListRemoteBranchesError,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerListRemoteBranchesResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(remoteBranches)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -711,12 +865,28 @@ void ProcessingState::listSubmodulesWorker(
 
   const QStringList submodules = GitRepo::listSubmodules(repo);
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerListSubmodulesResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                    QVariant::fromValue(submodules)});
-  _eventManager.send(resultEvent);
+  bool quit = false;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    quit = ctx->quit;
+  }
+
+  if (quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerListSubmodulesError,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerListSubmodulesResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(submodules)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -743,11 +913,27 @@ void ProcessingState::listTagsWorker(
 
   const QStringList tags = GitRepo::listTags(repo);
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerListTagsResult, command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(tags)});
-  _eventManager.send(resultEvent);
+  bool quit = false;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    quit = ctx->quit;
+  }
+
+  if (quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerListTagsError, command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerListTagsResult,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type, QVariant::fromValue(tags)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -828,10 +1014,26 @@ void ProcessingState::openRepoWorker(const GitRepoOpenCommand &command) {
     ctx->gitRepo = repo;
   }
 
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerOpenRepoResult, command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type, QVariant()});
-  _eventManager.send(resultEvent);
+  bool quit = false;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    quit = ctx->quit;
+  }
+
+  if (quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerOpenRepoError, command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepoErrorType::Unknown});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerOpenRepoResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type, QVariant()});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }

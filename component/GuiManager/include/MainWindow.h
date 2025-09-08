@@ -10,6 +10,7 @@
 #include <EventManager.h>
 #include <GitRepo.h>
 
+#include <QEnableSharedFromThis>
 #include <QMainWindow>
 #include <QResizeEvent>
 #include <QSet>
@@ -19,12 +20,17 @@ namespace GuiManager {
 using namespace GitRepo;
 using namespace Widgets;
 
-class MainWindow final : public QMainWindow {
+class MainWindow final : public QMainWindow, public QEnableSharedFromThis<MainWindow> {
   Q_OBJECT
+
+  typedef QSharedPointer<MainWindow> SharedPtr;
+  typedef QWeakPointer<MainWindow> WeakPtr;
 
 public:
   explicit MainWindow(QWidget *parent = nullptr);
   ~MainWindow() override;
+
+  SharedPtr getSelf() { return sharedFromThis(); }
 
   // QWidget interface
 protected:
@@ -71,7 +77,7 @@ private:
   CentralWidget *_centralWidget;
   TopBarWidget *_topBarWidget;
   ToastHostWidget &_toastHost;
-  QVector<ContainerWidget *> _containers;
+  QVector<QSharedPointer<ContainerWidget>> _containers;
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
   QSet<QString> _progressing;

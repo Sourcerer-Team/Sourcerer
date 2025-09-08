@@ -11,12 +11,10 @@
 
 #define THREAD_ID "GitProgressToast"
 
-namespace GuiManager {
+namespace GuiManager::Widgets {
 
-namespace Widgets {
-
-const char *FETCHING_STR = "Fetching...";
-const char *CHECKOUT_STR = "Checking out...";
+auto FETCHING_STR = "Fetching...";
+auto CHECKOUT_STR = "Checking out...";
 
 GitProgressToast::GitProgressToast(const CloneProgress &data, QWidget *parent)
     : ToastWidget(parent), _data(data),
@@ -96,7 +94,7 @@ void GitProgressToast::eventCallback(EventManager::Event event) {
     if (data.finished)
       emit finished();
     else
-      Util::Dispatcher::dispatchToMainThread([=]() {
+      Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
         _progressBar->setRange(0, data.totalSteps);
         _progressBar->setValue(data.completedSteps);
         _messageLabel->setText(data.stage == CloneProgressStageType::Checkout
@@ -114,5 +112,4 @@ void GitProgressToast::eventCallback(EventManager::Event event) {
   LOG_PERF(0, "Exit");
 }
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

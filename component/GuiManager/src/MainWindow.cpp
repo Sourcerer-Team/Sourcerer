@@ -131,10 +131,6 @@ MainWindow::~MainWindow() {
 
   _toastHost.setParent(nullptr);
 
-  for (const auto &container : _containers) {
-    delete container;
-  }
-
   delete _hitDetector;
 
   LOG_PERF(0, "Exit");
@@ -247,7 +243,7 @@ void MainWindow::onClosedTab(const int index) {
     return;
   }
 
-  closeContainer(_containers[index]);
+  closeContainer(_containers[index].get());
 
   LOG_PERF(0, "Exit");
 }
@@ -330,17 +326,18 @@ void MainWindow::addCloneContainer() {
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  CloneGitRepoContainer *container = new CloneGitRepoContainer(this);
+  const auto container = QSharedPointer<CloneGitRepoContainer>::create(this);
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
+  container->init();
   _containers += container;
   _topBarWidget->titleBarWidget()->addTab(tr("Clone"));
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   const auto handlerFunc =
-      std::bind(&MainWindow::onCloneFinished, this, container);
+      std::bind(&MainWindow::onCloneFinished, this, container.get());
 
-  connect(container, &CloneGitRepoContainer::finished, this, handlerFunc);
+  connect(container.get(), &CloneGitRepoContainer::finished, this, handlerFunc);
 
   LOG_PERF(0, "Exit");
 }
@@ -350,7 +347,8 @@ void MainWindow::addGitRepoContainer(const QString &path) {
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  ContainerWidget *container = new GitRepoContainer(path, this);
+  const auto container = QSharedPointer<GitRepoContainer>::create(path, this);
+  container->init();
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
   _containers += container;
   _topBarWidget->titleBarWidget()->addTab(Git::parseRepoName(path));
@@ -365,16 +363,17 @@ void MainWindow::addHomeContainer() {
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  HomeContainer *container = new HomeContainer(this);
+  const auto container = QSharedPointer<HomeContainer>::create(this);
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
+  container->init();
   _containers += container;
   _topBarWidget->titleBarWidget()->addTab(tr("Home"));
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
-  connect(container, &HomeContainer::clone, this, &MainWindow::onClone);
-  connect(container, &HomeContainer::init, this, &MainWindow::onInit);
-  connect(container, &HomeContainer::open, this, &MainWindow::onOpen);
+  connect(container.get(), &HomeContainer::clone, this, &MainWindow::onClone);
+  connect(container.get(), &HomeContainer::init, this, &MainWindow::onInit);
+  connect(container.get(), &HomeContainer::open, this, &MainWindow::onOpen);
 
   LOG_PERF(0, "Exit");
 }
@@ -384,7 +383,8 @@ void MainWindow::addInitGitRepoContainer() {
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  InitGitRepoContainer *container = new InitGitRepoContainer(this);
+  const auto container = QSharedPointer<InitGitRepoContainer>::create(this);
+  container->init();
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
   _containers += container;
   _topBarWidget->titleBarWidget()->addTab(tr("Init"));
@@ -392,9 +392,10 @@ void MainWindow::addInitGitRepoContainer() {
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   const auto handlerFunc =
-      std::bind(&MainWindow::onInitFinished, this, container);
+      std::bind(&MainWindow::onInitFinished, this, container.get());
 
-  connect(container, &InitGitRepoContainer::initialized, this, handlerFunc);
+  connect(container.get(), &InitGitRepoContainer::initialized, this,
+          handlerFunc);
 
   LOG_PERF(0, "Exit");
 }
@@ -404,7 +405,8 @@ void MainWindow::addSettingsContainer() {
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  ContainerWidget *container = new SettingsContainer(this);
+  const auto container = QSharedPointer<SettingsContainer>::create(this);
+  container->init();
   container->setContentsMargins(0, titleBarHeight - TOP_MARGIN_OFFSET, 0, 0);
   _containers += container;
   _topBarWidget->titleBarWidget()->addTab(tr("Settings"));
@@ -432,7 +434,6 @@ void MainWindow::closeContainer(const ContainerWidget *container) {
     return;
   }
 
-  delete _containers[index];
   _containers.remove(index);
   _current = -1;
 
@@ -454,38 +455,42 @@ void MainWindow::eventCallback(EventManager::Event event) {
   case EventManager::EventType::GitRepoManagerGetCredentials: {
     const auto request = event.data<GitCredentialsRequest>();
     Util::Dispatcher::dispatchToMainThread(
-        [=]() { showCredentialsToast(request); });
+        getSelf().toWeakRef(), [=]() { showCredentialsToast(request); });
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepoError: {
-    Util::Dispatcher::dispatchToMainThread(
-        [=]() { showToast(tr("Unable to clone Git repository")); });
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      showToast(tr("Unable to clone Git repository"));
+    });
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepoResult: {
-    const auto commandResult = event.data<GitRepoManager::Structs::GitRepoResult>();
+    const auto commandResult =
+        event.data<GitRepoManager::Structs::GitRepoResult>();
     const QString repoPath = commandResult.value.toString();
     Util::Dispatcher::dispatchToMainThread(
-        [=]() { addGitRepoContainer(repoPath); });
+        getSelf().toWeakRef(), [=]() { addGitRepoContainer(repoPath); });
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepoProgress: {
-    const auto commandResult = event.data<GitRepoManager::Structs::GitRepoResult>();
+    const auto commandResult =
+        event.data<GitRepoManager::Structs::GitRepoResult>();
     if (const CloneProgress data = commandResult.value.value<CloneProgress>();
         !_progressing.contains(data.uuid)) {
       _progressing += data.uuid;
       Util::Dispatcher::dispatchToMainThread(
-          [=]() { showCloneProgressToast(data); });
+          getSelf().toWeakRef(), [=]() { showCloneProgressToast(data); });
     } else if (data.finished)
       _progressing.remove(data.uuid);
 
     break;
   }
   case EventManager::EventType::GitRepoManagerInitRepoResult: {
-    const auto commandResult = event.data<GitRepoManager::Structs::GitRepoResult>();
+    const auto commandResult =
+        event.data<GitRepoManager::Structs::GitRepoResult>();
     const auto repoPath = commandResult.value.toString();
     Util::Dispatcher::dispatchToMainThread(
-        [=]() { addGitRepoContainer(repoPath); });
+        getSelf().toWeakRef(), [=]() { addGitRepoContainer(repoPath); });
     break;
   }
   default: {
@@ -511,7 +516,7 @@ void MainWindow::selectContainer(const int index) {
     _containers[_current]->hide();
 
   _containers[index]->show();
-  _centralWidget->setCentralWidget(_containers[index]);
+  _centralWidget->setCentralWidget(_containers[index].get());
   _current = index;
 
   LOG_PERF(0, "Exit");

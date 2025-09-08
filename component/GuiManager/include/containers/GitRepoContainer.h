@@ -11,9 +11,9 @@
 #include <GitRepo.h>
 #include <LockGuard.h>
 
+#include <QEnableSharedFromThis>
 #include <QSet>
 #include <QString>
-#include <QTimer>
 #include <QWidget>
 
 namespace Ui {
@@ -22,15 +22,20 @@ class GitRepoContainer;
 
 namespace GuiManager::Containers {
 
-class GitRepoContainer final : public Widgets::ContainerWidget {
+class GitRepoContainer final : public Widgets::ContainerWidget,
+                               public QEnableSharedFromThis<GitRepoContainer> {
   Q_OBJECT
 
-  typedef QWeakPointer<Ui::GitRepoContainer> WeakUi;
-  typedef QSharedPointer<Ui::GitRepoContainer> SharedUi;
+  typedef QWeakPointer<GitRepoContainer> WeakPtr;
+  typedef QSharedPointer<GitRepoContainer> SharedPtr;
 
 public:
   explicit GitRepoContainer(QString path, QWidget *parent = nullptr);
   ~GitRepoContainer() override;
+
+  void init() override;
+
+  SharedPtr getSelf() { return sharedFromThis(); }
 
   // QObject interface
 public:
@@ -49,23 +54,24 @@ private slots:
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay() const;
   void onGraphColumnExpand(int section);
-  void updateModelActiveBranch(const QString &branchName,
+  void updateModelActiveBranch(const WeakPtr &guard, const QString &branchName,
                                GitRepo::BranchType branchType);
 
 private:
-  void checkoutBranch(const QString &branchName,
+  void checkoutBranch(const WeakPtr &guard, const QString &branchName,
                       GitRepo::BranchType branchType);
   void closeRepo() const;
-  bool getActiveBranchOrTag(const GitRepo::BranchType branchType);
+  bool getActiveBranchOrTag(const WeakPtr &guard,
+                            const GitRepo::BranchType branchType);
   bool getActiveLocalBranch();
   bool getActiveRemoteBranch();
   bool getActiveTag();
-  bool getBranchHistory(const WeakUi &weakUi) const;
+  bool getBranchHistory(const WeakPtr &guard) const;
   [[nodiscard]] QStringList getCommitBranches(const QString &commit) const;
-  bool getLocalBranches() const;
-  bool getRemoteBranches() const;
-  bool getSubmodules() const;
-  bool getTags() const;
+  bool getLocalBranches();
+  bool getRemoteBranches();
+  bool getSubmodules();
+  bool getTags();
   bool openRepo();
   void refreshViews();
   void resizeSectionToViewport(int section);
@@ -76,21 +82,26 @@ private:
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message) const;
   void showErrorToast(const QString &message) const;
-  void updateBranchHistory(const WeakUi &weakUi,
+  void updateBranchHistory(const WeakPtr &guard,
                            const GitRepo::GitHistory &history) const;
-  void updateLocalBranchesModel(const QStringList &localBranches) const;
-  void updateLocalBranchesModelActiveBranch(const QString &activeBranch,
+  void updateLocalBranchesModel(const WeakPtr &guard,
+                                const QStringList &localBranches) const;
+  void updateLocalBranchesModelActiveBranch(const WeakPtr &guard,
+                                            const QString &activeBranch,
                                             bool updatePages = true);
-  void updateRemoteBranchesModel(const QStringList &remoteBranches) const;
-  void updateRemoteBranchesModelActiveBranch(const QString &activeBranch,
+  void updateRemoteBranchesModel(const WeakPtr &guard,
+                                 const QStringList &remoteBranches) const;
+  void updateRemoteBranchesModelActiveBranch(const WeakPtr &guard,
+                                             const QString &activeBranch,
                                              bool updatePages = true);
-  void updateTagsModelActiveTag(const QString &activeTag,
+  void updateTagsModelActiveTag(const WeakPtr &guard, const QString &activeTag,
                                 bool updatePages = true);
-  void updateSubmodulesModel(const QStringList &tags) const;
-  void updateTagsModel(const QStringList &tags) const;
+  void updateSubmodulesModel(const WeakPtr &guard,
+                             const QStringList &tags) const;
+  void updateTagsModel(const WeakPtr &guard, const QStringList &tags) const;
 
 private:
-  SharedUi ui;
+  Ui::GitRepoContainer *ui;
   QString _uuid;
   QString _path;
   QString _activeBranch;
@@ -98,7 +109,7 @@ private:
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
   Widgets::ToastHostWidget &_toastHost;
-  Models::GitHistoryModel *_historyModel;
+  QSharedPointer<Models::GitHistoryModel> _historyModel;
   QPixmap *_errorPixmap;
   Util::Dispatcher _dispatcher;
 

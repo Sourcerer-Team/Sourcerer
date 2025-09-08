@@ -80,7 +80,7 @@ void InitGitRepoContainer::onBrowseClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void InitGitRepoContainer::onInitClicked() {
+void InitGitRepoContainer::onInitClicked() const {
   LOG_PERF(0, "Enter");
 
   GitRepoInitRepoCommand command;
@@ -106,12 +106,13 @@ void InitGitRepoContainer::eventCallback(EventManager::Event event) {
 
   switch (eventType) {
   case EventManager::EventType::GitRepoManagerInitRepoError: {
-    const GitRepoError gitError = event.data<GitRepoError>();
-    if (gitError.uuid != _uuid)
+    if (const GitRepoError gitError = event.data<GitRepoError>();
+        gitError.uuid != _uuid)
       break;
 
-    Util::Dispatcher::dispatchToMainThread(
-        [=]() { showToast(tr("Unable to initialize Git repository")); });
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      showToast(tr("Unable to initialize Git repository"));
+    });
     break;
   }
   case EventManager::EventType::GitRepoManagerInitRepoResult: {
@@ -132,7 +133,7 @@ void InitGitRepoContainer::eventCallback(EventManager::Event event) {
   LOG_PERF(0, "Exit");
 }
 
-void InitGitRepoContainer::showToast(const QString &message) {
+void InitGitRepoContainer::showToast(const QString &message) const {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 

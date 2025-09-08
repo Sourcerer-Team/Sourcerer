@@ -33,6 +33,8 @@ void GitHistoryModel::updateHistory(
     const std::function<void(int)> &progressCallback) {
   LOG_PERF(0, "Enter");
 
+  const auto self = getSelf();
+
   LOCKGUARD(_mutex);
 
   beginResetModel();
@@ -71,10 +73,6 @@ void GitHistoryModel::updateHistory(
   if (progressCallback) {
     progressCallback(100);
   }
-
-#ifdef QT_DEBUG
-  // printDrawableSlices(_drawableSlices);
-#endif
 
   if (_quitUpdate) {
     _drawableSlices.clear();
@@ -473,69 +471,6 @@ void GitHistoryModel::createDrawableSlices(
 
   LOG_PERF(0, "Exit");
 }
-
-#ifdef QT_DEBUG
-void GitHistoryModel::printDrawableSlices(
-    const Util::ResizableMatrix<Slice> &resizableMatrix) {
-
-  std::cout << std::endl << std::endl;
-  std::cout << "Drawable slices: " << std::endl;
-
-  for (int i = 0; i < resizableMatrix.sizeY(); ++i) {
-    QString line0;
-    QString line1;
-    QString line2;
-    for (int j = 0; j < resizableMatrix.sizeX(); ++j) {
-      const auto &[toCommit, left, right, top, bottom, main] =
-          resizableMatrix[j][i];
-      if (!toCommit.isEmpty()) {
-        if (top) {
-          line0 += ".|.";
-        } else {
-          line0 += "...";
-        }
-
-        if (left) {
-          line1 += "-";
-          if (main) {
-            line1 += "O";
-          } else {
-            line1 += ".";
-          }
-        } else {
-          line1 += ".";
-          if (main) {
-            line1 += "O";
-          } else {
-            line1 += ".";
-          }
-        }
-
-        if (right) {
-          line1 += "-";
-        } else {
-          line1 += ".";
-        }
-
-        if (bottom) {
-          line2 += ".|.";
-        } else {
-          line2 += "...";
-        }
-
-      } else {
-        line0 += "...";
-        line1 += "...";
-        line2 += "...";
-      }
-    }
-
-    std::cout << line0.toStdString() << std::endl
-              << line1.toStdString() << std::endl
-              << line2.toStdString() << std::endl;
-  }
-}
-#endif
 
 Slices GitHistoryModel::historySlices(const QString &commit) const {
   LOG_PERF(0, "Enter");

@@ -158,7 +158,8 @@ void GitCredentialsToast::eventCallback(EventManager::Event event) {
 
   switch (eventType) {
   case EventManager::EventType::GitRepoManagerCloneRepoError: {
-    Util::Dispatcher::dispatchToMainThread([=]() { stop(); });
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(),
+                                           [=]() { stop(); });
     break;
   }
 
