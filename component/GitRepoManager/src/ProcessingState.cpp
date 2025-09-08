@@ -355,13 +355,13 @@ void ProcessingState::quitRepoWorker(
 
   if (quit) {
     EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerOpenRepoError, command.syncUuid);
+        EventManager::EventType::GitRepoManagerQuitError, command.syncUuid);
     resultEvent.addData(
         GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerOpenRepoResult,
+        EventManager::EventType::GitRepoManagerQuitResult,
         command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type, QVariant()});
     _eventManager.send(resultEvent);
