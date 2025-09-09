@@ -1254,7 +1254,7 @@ void GitRepoContainer::updateRemoteBranchesModel(
   if (!remoteBranches.isEmpty()) {
     finalBranches += ALL_BRANCHES;
   }
-  
+
   finalBranches += remoteBranches;
 
   if (const auto locked = guard.lock()) {

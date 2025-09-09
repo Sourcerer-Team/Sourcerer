@@ -123,7 +123,7 @@ void ToastHostWidget::destroyAllToasts() {
   LOG_PERF(0, "Exit");
 }
 
-void ToastHostWidget::addToLayout(ToastWidget *toast) {
+void ToastHostWidget::addToLayout(ToastWidget *toast) const {
   LOG_PERF(0, "Enter");
 
   if (!toast) {
@@ -237,8 +237,7 @@ void ToastHostWidget::onToastStopped(ToastWidget *toast) {
   delete toast;
 
   if (!_waitingToasts.isEmpty()) {
-    ToastWidget *waitingToast = _waitingToasts.first();
-    if (waitingToast) {
+    if (ToastWidget *waitingToast = _waitingToasts.first()) {
       if (toastWillFit(waitingToast)) {
         addToLayout(waitingToast);
         _waitingToasts.dequeue();

@@ -42,7 +42,7 @@ private:
 
   [[nodiscard]] QRect calculateGeometry() const;
   void destroyAllToasts();
-  void addToLayout(ToastWidget *toast);
+  void addToLayout(ToastWidget *toast) const;
   bool toastWillFit(ToastWidget *toast) const;
 
 private:

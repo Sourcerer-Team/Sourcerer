@@ -151,10 +151,11 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     return;
   }
 
-  QWidget::resizeEvent(event);
+  QMainWindow::resizeEvent(event);
 
-  QRect newGeometry(0, 0, event->size().width(), event->size().height());
-  _toastHost.setParentSize(newGeometry);
+  QTimer::singleShot(0, [&]() {
+    _toastHost.setParentSize(geometry());
+  });
 
   LOG_PERF(0, "Exit");
 }
