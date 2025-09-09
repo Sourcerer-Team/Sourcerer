@@ -13,7 +13,7 @@ public:
 
   virtual void stop();
 
-  void hideTitle();
+  void hideTitle() const;
 
   // QWidget interface
 public:

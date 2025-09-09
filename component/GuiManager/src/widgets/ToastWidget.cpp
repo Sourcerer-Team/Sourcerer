@@ -18,6 +18,7 @@ ToastWidget::ToastWidget(QWidget *parent)
 
   const auto closeButton = new ToastCloseButton(this);
   closeButton->setMaximumSize(16, 16);
+  closeButton->setText(QString());
 
   const auto titleLayout = new QHBoxLayout(_titleWidget);
   titleLayout->setSpacing(0);
@@ -53,7 +54,7 @@ void ToastWidget::stop() {
   LOG_PERF(0, "Exit");
 }
 
-void ToastWidget::hideTitle() {
+void ToastWidget::hideTitle() const {
   LOG_PERF(0, "Enter");
 
   _titleWidget->setVisible(false);
