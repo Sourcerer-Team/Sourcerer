@@ -196,6 +196,32 @@ void ToastHostWidget::addToast(ToastWidget *toast) {
   LOG_PERF(0, "Exit");
 }
 
+void ToastHostWidget::addToast(const QSharedPointer<ToastWidget> &toast) {
+  LOG_PERF(0, "Enter");
+
+  if (!toast) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const int toastWidth =
+      _configManager.getLong(ConfigManager::ConfigKey::ToastWidth);
+
+  toast->setParent(this);
+  toast->setMinimumWidth(toastWidth);
+  toast->setMaximumWidth(toastWidth);
+
+  if (toastWillFit(toast.get())) {
+    _sharedToasts += toast;
+    addToLayout(toast.get());
+  } else
+    _waitingToasts.enqueue(toast.get());
+
+  connect(toast.get(), &ToastWidget::stopped, this, &ToastHostWidget::onToastStopped);
+
+  LOG_PERF(0, "Exit");
+}
+
 void ToastHostWidget::setPosition(ToastPosition position) {
   LOG_PERF(0, "Enter");
 
@@ -245,7 +271,7 @@ void ToastHostWidget::setPosition(ToastPosition position) {
   LOG_PERF(0, "Exit");
 }
 
-void ToastHostWidget::setYOffset(int offset) {
+void ToastHostWidget::setYOffset(const int offset) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Y offset is {}.", offset);
 
@@ -264,12 +290,18 @@ void ToastHostWidget::onToastStopped(ToastWidget *toast) {
     return;
   }
 
-  _toasts.removeAll(toast);
+  const bool toDelete = _toasts.removeAll(toast) > 0;
+  _sharedToasts.removeIf([&](const QSharedPointer<ToastWidget>& sharedToast) {
+    return sharedToast.get() == toast;
+  });
+
   _waitingToasts.removeAll(toast);
 
   layout()->removeWidget(toast);
 
-  delete toast;
+  if (toDelete) {
+    delete toast;
+  }
 
   if (!_waitingToasts.isEmpty()) {
     if (ToastWidget *waitingToast = _waitingToasts.first()) {

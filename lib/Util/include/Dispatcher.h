@@ -47,6 +47,26 @@ public:
       const std::function<void(const std::exception &)> &errorTask = nullptr);
 
   template <class T>
+  static bool dispatchToMainThreadWithOwner(T *owner, const std::function<void()> &callback) {
+    if (!owner)
+      return false;
+
+    const auto timer = new QTimer();
+    timer->moveToThread(qApp->thread());
+    timer->setSingleShot(true);
+
+    QObject::connect(timer, &QTimer::timeout, [=]() {
+      dispatchToMainThread(owner->getSelf().toWeakRef(), callback);
+      timer->deleteLater();
+    });
+
+    QMetaObject::invokeMethod(timer, "start", Qt::QueuedConnection,
+                              Q_ARG(int, 0));
+
+    return true;
+  }
+
+  template <class T>
   static bool dispatchToMainThread(const T &guard,
                                    const std::function<void()> &callback) {
     const auto timer = new QTimer();

@@ -1,6 +1,6 @@
 #include "GuiManager.h"
-#include "MainWindow.h"
 #include "DarkStyle.h"
+#include "MainWindow.h"
 
 #include <ConfigManager.h>
 #include <EventManager.h>
@@ -47,15 +47,16 @@ void GuiManager::start() {
   QApplication::setStyle(new DarkStyle());
   QApplication::style()->setObjectName("fusion");
 
-  QApplication::setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles, true);
+  QApplication::setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles,
+                             true);
 
-  const QString &stylesheet =
-      StylesheetManager::StylesheetManager::stylesheet(StylesheetManager::StylesheetKey::Default);
+  const QString &stylesheet = StylesheetManager::StylesheetManager::stylesheet(
+      StylesheetManager::StylesheetKey::Default);
 
   app.setStyleSheet(stylesheet);
 
-  MainWindow w;
-  w.showMaximized();
+  const auto w = QSharedPointer<MainWindow>::create();
+  w->showMaximized();
 
   EventManager::Event startedEvent(EventManager::EventType::ComponentStarted);
   EventManager::EventManager &eventManager =

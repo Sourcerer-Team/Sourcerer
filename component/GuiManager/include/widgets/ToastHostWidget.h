@@ -7,6 +7,7 @@
 
 #include <QLayout>
 #include <QQueue>
+#include <QSharedPointer>
 #include <QWidget>
 
 namespace GuiManager::Widgets {
@@ -28,6 +29,7 @@ public:
   static ToastHostWidget &getInstance();
 
   void addToast(ToastWidget *toast);
+  void addToast(const QSharedPointer<ToastWidget>& toast);
   [[nodiscard]] ToastPosition position() const { return _position; }
   void setPosition(ToastPosition position);
   void setYOffset(int offset);
@@ -52,6 +54,7 @@ private:
   int _yOffset;
   ToastPosition _position;
   QVector<ToastWidget *> _toasts;
+  QVector<QSharedPointer<ToastWidget>> _sharedToasts;
   QQueue<ToastWidget *> _waitingToasts;
   ConfigManager::ConfigManager &_configManager;
 };

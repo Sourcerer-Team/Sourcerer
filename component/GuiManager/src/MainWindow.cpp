@@ -510,7 +510,9 @@ void MainWindow::showCredentialsToast(
     const GitCredentialsRequest &request) const {
   LOG_PERF(0, "Enter");
 
-  _toastHost.addToast(new GitCredentialsToast(request));
+  const auto toast = QSharedPointer<GitCredentialsToast>::create(request);
+
+  _toastHost.addToast(toast);
 
   LOG_PERF(0, "Exit");
 }
@@ -518,7 +520,9 @@ void MainWindow::showCredentialsToast(
 void MainWindow::showCloneProgressToast(const CloneProgress &data) const {
   LOG_PERF(0, "Enter");
 
-  _toastHost.addToast(new GitProgressToast(data, tr("Cloning")));
+  const auto toast = QSharedPointer<GitProgressToast>::create(data, tr("Clone"));
+
+  _toastHost.addToast(toast);
 
   LOG_PERF(0, "Exit");
 }

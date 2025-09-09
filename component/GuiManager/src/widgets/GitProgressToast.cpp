@@ -40,7 +40,7 @@ GitProgressToast::GitProgressToast(const CloneProgress &data,
 
   layout()->addWidget(widget);
 
-  setStyleSheet("font-size:14px;color:white;background-color:#384846;");
+  setStyleSheet("font-size:14px;color:white;background-color:#8B4000;");
 
   connect(this, &GitProgressToast::finished, this,
           &GitProgressToast::onFinished);

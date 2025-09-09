@@ -28,18 +28,18 @@ GitCredentialsToast::GitCredentialsToast(const GitCredentialsRequest &request,
 
   QWidget *widget = new QWidget(this);
 
-  QLabel *urlLabel = new QLabel(
-      tr("Enter credentials for the following Git repository:\n") + request.url,
-      widget);
-  urlLabel->setWordWrap(true);
+  QLabel *messageLabel = new QLabel(tr("Please enter git credentials: "), widget);
+  messageLabel->setWordWrap(true);
 
   QLabel *usernameLabel = new QLabel(tr("Username:"), widget);
   _usernameLineEdit = new QLineEdit(widget);
   _usernameLineEdit->setText(request.username);
   _usernameLineEdit->setReadOnly(!request.username.isEmpty());
+  _usernameLineEdit->setEnabled(request.username.isEmpty());
 
   QLabel *passwordLabel = new QLabel(tr("Password:"), widget);
   _passwordLineEdit = new QLineEdit(widget);
+  _passwordLineEdit->setEchoMode(QLineEdit::Password);
 
   if (request.username.isEmpty())
     _usernameLineEdit->setFocus();
@@ -79,9 +79,10 @@ GitCredentialsToast::GitCredentialsToast(const GitCredentialsRequest &request,
   horizontalLayout->addLayout(lineEditsLayout);
 
   QVBoxLayout *widgetLayout = new QVBoxLayout(widget);
+  widgetLayout->setSpacing(8);
   widgetLayout->setContentsMargins(8, 8, 8, 8);
   widgetLayout->setSizeConstraint(QLayout::SetMinimumSize);
-  widgetLayout->addWidget(urlLabel);
+  widgetLayout->addWidget(messageLabel);
   widgetLayout->addLayout(horizontalLayout);
   widgetLayout->addLayout(buttonsLayout);
 
@@ -93,7 +94,7 @@ GitCredentialsToast::GitCredentialsToast(const GitCredentialsRequest &request,
 
   layout()->addWidget(widget);
 
-  setStyleSheet("font-size:14px;color:white;background-color:#384846;");
+  setStyleSheet("font-size:14px;color:white;background-color:#8B4000;");
 
   const auto callbackFunc = std::bind(&GitCredentialsToast::eventCallback, this,
                                       std::placeholders::_1);

@@ -17,14 +17,16 @@ ToastWidget::ToastWidget(QWidget *parent)
   _titleWidget = new QWidget(this);
 
   _titleLabel = new QLabel(_titleWidget);
-  _titleLabel->setStyleSheet("font-size: 16px; font-weight: bold;");
+  _titleLabel->setStyleSheet(QString("font-size: 16px; font-weight: bold; "
+                                     "background-color: %1; padding: 4")
+                                 .arg(QColor(Qt::darkYellow).name()));
 
   const auto closeButton = new ToastCloseButton(this);
   closeButton->setMaximumSize(16, 16);
   closeButton->setText(QString());
 
   const auto titleLayout = new QHBoxLayout(_titleWidget);
-  titleLayout->setSpacing(0);
+  titleLayout->setSpacing(8);
   titleLayout->setContentsMargins(8, 8, 8, 8);
   titleLayout->addWidget(_titleLabel);
   titleLayout->addStretch();
