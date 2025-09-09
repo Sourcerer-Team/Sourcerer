@@ -2,6 +2,7 @@
 #include "models/GitHistoryModel.h"
 
 #include <QApplication>
+#include <QRect>
 
 namespace GuiManager::Widgets {
 
@@ -12,16 +13,72 @@ HistorySliceTableColumnDelegate::HistorySliceTableColumnDelegate(
 void HistorySliceTableColumnDelegate::paint(QPainter *painter,
                                             const QStyleOptionViewItem &option,
                                             const QModelIndex &index) const {
+  Q_ASSERT(index.column() == COLUMN_HISTORY_SLICE);
   if (index.column() != COLUMN_HISTORY_SLICE) {
     paintDefault(painter, option, index);
     return;
   }
 
-  if (const auto width = index.data(HistorySliceWidthRole).value<qsizetype>();
-      width <= 0) {
+  const auto width = index.data(HistorySliceWidthRole).value<qsizetype>();
+  Q_ASSERT(width >= 0);
+  if (width < 0) {
     paintDefault(painter, option, index);
     return;
   }
+
+  const auto statusMap =
+      index.data(StatusRole).value<Models::StatusFieldsMap>();
+
+  if (const bool hasStatus = !statusMap.isEmpty()) {
+    paintStatus(painter, option, index);
+  } else {
+    paintSlices(painter, option, index);
+  }
+}
+
+void HistorySliceTableColumnDelegate::paintDefault(
+    QPainter *painter, const QStyleOptionViewItem &option,
+    const QModelIndex &index) const {
+  Q_ASSERT(painter != nullptr);
+  if (!painter) {
+    return;
+  }
+
+  QStyleOptionViewItem opt(option); // Make a copy so we can modify it
+  initStyleOption(&opt, index);     // Populate with model data
+
+  opt.features &= ~QStyleOptionViewItem::WrapText;
+  opt.textElideMode = Qt::ElideRight;
+
+  // Let the style engine handle selection, focus, etc.
+  const QWidget *widget = opt.widget;
+  const QStyle *style = widget ? widget->style() : QApplication::style();
+
+  painter->save();
+
+  style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, widget);
+
+  painter->restore();
+}
+
+void HistorySliceTableColumnDelegate::paintSlices(
+    QPainter *painter, const QStyleOptionViewItem &option,
+    const QModelIndex &index) const {
+  Q_ASSERT(painter != nullptr);
+  if (!painter) {
+    return;
+  }
+
+  bool hasStatus = false;
+
+  if (index.row() == 1) {
+    const auto previousIndex = index.sibling(index.row() - 1, index.column());
+    hasStatus = !previousIndex.data(StatusRole)
+                     .value<Models::StatusFieldsMap>()
+                     .isEmpty();
+  }
+
+  const auto previousIndex = index.sibling(index.row() - 1, index.column());
 
   const auto slices =
       index.data(Qt::DisplayRole).value<GuiManager::Models::Slices>();
@@ -41,17 +98,12 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
   QRegion clipRegion(opt.rect);
   painter->setClipRegion(clipRegion);
 
-  /*
-  if (opt.state & QStyle::State_Selected) {
-    painter->fillRect(opt.rect, opt.palette.highlight());
-  }
-  */
-
   painter->setPen(QPen(QBrush(Qt::darkGreen), 2, Qt::SolidLine, Qt::RoundCap,
                        Qt::RoundJoin));
   painter->setBrush(QBrush(Qt::darkGreen));
 
   for (int i = 0; i < slices.size(); ++i) {
+    bool alreadyDrawnTopEdgeForStatus = false;
     if (const Models::Slice &slice = slices[i];
         slice.top && slice.left && !slice.right && !slice.bottom) {
       // Top-left corner
@@ -129,8 +181,19 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
       }
     } else if (slice.bottom && slice.left && !slice.right && !slice.top) {
       // Bottom-left corner
-      if (slice.main) {
+      if (slice.main ||
+          (slice.main && hasStatus && !alreadyDrawnTopEdgeForStatus)) {
         QList<QPoint> points;
+
+        if (hasStatus) {
+          // Top
+          points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                           opt.rect.top());
+          points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                           opt.rect.top() + cellHeight / 2);
+
+          alreadyDrawnTopEdgeForStatus = true;
+        }
 
         // Left
         points += QPoint(opt.rect.left() + i * cellWidth,
@@ -166,8 +229,19 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
       }
     } else if (slice.bottom && slice.right && !slice.left && !slice.top) {
       // Bottom-right corner
-      if (slice.main) {
+      if (slice.main ||
+          (slice.main && hasStatus && !alreadyDrawnTopEdgeForStatus)) {
         QList<QPoint> points;
+
+        if (hasStatus) {
+          // Top
+          points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                           opt.rect.top());
+          points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
+                           opt.rect.top() + cellHeight / 2);
+
+          alreadyDrawnTopEdgeForStatus = true;
+        }
 
         // Bottom
         points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
@@ -224,7 +298,7 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
         painter->drawLines(points);
       }
 
-      if (slice.top) {
+      if (slice.top || (slice.main && hasStatus)) {
         // Top vertical line
         QList<QPoint> points;
         points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
@@ -259,23 +333,75 @@ void HistorySliceTableColumnDelegate::paint(QPainter *painter,
   painter->restore();
 }
 
-void HistorySliceTableColumnDelegate::paintDefault(
+void HistorySliceTableColumnDelegate::paintStatus(
     QPainter *painter, const QStyleOptionViewItem &option,
     const QModelIndex &index) const {
-  QStyleOptionViewItem opt(option); // Make a copy so we can modify it
-  initStyleOption(&opt, index);     // Populate with model data
+  Q_ASSERT(painter != nullptr);
+  if (!painter) {
+    return;
+  }
 
-  opt.features &= ~QStyleOptionViewItem::WrapText;
-  opt.textElideMode = Qt::ElideRight;
+  int avatarIndex = -1;
 
-  // Let the style engine handle selection, focus, etc.
-  const QWidget *widget = opt.widget;
-  const QStyle *style = widget ? widget->style() : QApplication::style();
+  const QModelIndex nextIndex = index.sibling(index.row() + 1, index.column());
+  if (nextIndex.isValid()) {
+    const QList<Models::Slice> slices =
+        nextIndex.data(Qt::DisplayRole).value<GuiManager::Models::Slices>();
+    if (!slices.isEmpty()) {
+      for (int i = 0; i < slices.size(); ++i) {
+        if (slices[i].main) {
+          avatarIndex = i;
+          break;
+        }
+      }
+    }
+  }
+
+  QStyleOptionViewItem opt(option);
+  initStyleOption(&opt, index);
+
+  const int cellHeight = opt.rect.height();
+  const int cellWidth = cellHeight;
+
+  QStyledItemDelegate::paint(painter, opt, index);
 
   painter->save();
 
-  style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, widget);
+  painter->setRenderHint(QPainter::Antialiasing, true);
+
+  // QRegion clipRegion(opt.rect);
+  // painter->setClipRegion(clipRegion);
+
+  if (avatarIndex != -1) {
+    // Bottom vertical line
+    QList<QPoint> points;
+    points += QPoint(opt.rect.left() + avatarIndex * cellWidth + cellWidth / 2,
+                     opt.rect.top() + cellHeight / 2);
+    points += QPoint(opt.rect.left() + avatarIndex * cellWidth + cellWidth / 2,
+                     opt.rect.top() + cellHeight);
+
+    painter->setPen(QPen(QBrush(Qt::darkGreen), 2, Qt::SolidLine, Qt::RoundCap,
+                         Qt::RoundJoin));
+    painter->setBrush(QBrush(Qt::darkGreen));
+
+    painter->drawLines(points);
+  }
+
+  if (avatarIndex == -1) {
+    avatarIndex = 0;
+  }
+
+  const int centerX = opt.rect.x() + cellWidth / 2 + avatarIndex * cellWidth;
+  const int centerY = opt.rect.y() + cellHeight / 2;
+  const int radius = qMin(cellWidth, cellHeight) / 6;
+
+  painter->setPen(QPen(QBrush(Qt::darkYellow), 2, Qt::SolidLine, Qt::RoundCap,
+                       Qt::RoundJoin));
+  painter->setBrush(QBrush(Qt::darkYellow));
+
+  painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
 
   painter->restore();
 }
+
 } // namespace GuiManager::Widgets

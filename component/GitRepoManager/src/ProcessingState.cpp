@@ -5,6 +5,8 @@
 #include <GitRepo.h>
 #include <Log.h>
 
+#include <git2/errors.h>
+
 #include <functional>
 
 #define THREAD_ID "ProcessingState"
@@ -154,6 +156,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
   case EventType::OpenRepo: {
     const auto openCommand = event.nextParam<GitRepoOpenCommand>();
     scheduleWorkerForOpenRepo(openCommand);
+    break;
+  }
+  case EventType::Status: {
+    const auto statusCommand = event.nextParam<GitRepoStatusCommand>();
+    scheduleWorkerForStatus(statusCommand);
     break;
   }
   default: {
@@ -361,8 +368,7 @@ void ProcessingState::quitRepoWorker(
     _eventManager.send(resultEvent);
   } else {
     EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerQuitResult,
-        command.syncUuid);
+        EventManager::EventType::GitRepoManagerQuitResult, command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type, QVariant()});
     _eventManager.send(resultEvent);
   }
@@ -938,12 +944,31 @@ void ProcessingState::scheduleWorkerForOpenRepo(
   const auto workersThreadFunc =
       std::bind(&ProcessingState::workersThreadFunc, this, command.uuid);
 
-  GitRepoContext *newContext = new GitRepoContext();
+  auto newContext = new GitRepoContext();
   _contexts[command.uuid] = newContext;
 
   newContext->uuid = command.uuid;
   newContext->workersThread = std::move(std::thread{workersThreadFunc});
   newContext->commandsQueue.push(new GitRepoOpenCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForStatus(
+    const Structs::GitRepoStatusCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerStatusError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoStatusCommand(command));
 
   LOG_PERF(0, "Exit");
 }
@@ -1011,6 +1036,51 @@ void ProcessingState::openRepoWorker(const GitRepoOpenCommand &command) {
         EventManager::EventType::GitRepoManagerOpenRepoResult,
         command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type, QVariant()});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::statusWorker(
+    const Structs::GitRepoStatusCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerStatusError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const GitRepo::GitStatus status = GitRepo::getStatus(repo);
+
+  bool quit = false;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    quit = ctx->quit;
+  }
+
+  if (quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerStatusError, command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerStatusResult, command.syncUuid);
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type, QVariant::fromValue(status)});
     _eventManager.send(resultEvent);
   }
 
@@ -1424,6 +1494,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoOpenCommand *>(command);
       if (openCommand) {
         openRepoWorker(*openCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::Status: {
+      const auto *statusCommand =
+          dynamic_cast<const GitRepoStatusCommand *>(command);
+      if (statusCommand) {
+        statusWorker(*statusCommand);
       }
       break;
     }

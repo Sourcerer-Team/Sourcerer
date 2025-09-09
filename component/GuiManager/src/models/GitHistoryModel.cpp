@@ -14,6 +14,34 @@
 
 namespace GuiManager::Models {
 
+static StatusFieldsMap createStatusFieldsMap(const GitRepo::GitStatus &status) {
+  LOG_PERF(0, "Enter");
+
+  if (!status.hasChanges()) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const StatusFieldsMap statusMap{
+      {StatusFields::New, status.newFiles.size()},
+      {StatusFields::Modified, status.modifiedFiles.size()},
+      {StatusFields::Deleted, status.deletedFiles.size()},
+      {StatusFields::TypeChanged, status.typeChangedFiles.size()},
+      {StatusFields::Renamed, status.renamedFiles.size()},
+      {StatusFields::Unreadable, status.unreadableFiles.size()},
+      {StatusFields::NewStaged, status.newStagedFiles.size()},
+      {StatusFields::ModifiedStaged, status.modifiedStagedFiles.size()},
+      {StatusFields::DeletedStaged, status.deletedStagedFiles.size()},
+      {StatusFields::TypeChangedStaged, status.typeChangedStagedFiles.size()},
+      {StatusFields::RenamedStaged, status.renamedStagedFiles.size()},
+      {StatusFields::Ignored, status.ignoredFiles.size()},
+      {StatusFields::Conflicted, status.conflictedFiles.size()}};
+
+  LOG_PERF(0, "Exit");
+
+  return statusMap;
+}
+
 GitHistoryModel::GitHistoryModel(QObject *parent)
     : QAbstractTableModel(parent), _quitUpdate(false),
       _selectionModel(nullptr) {
@@ -28,8 +56,8 @@ GitHistoryModel::~GitHistoryModel() {
   LOG_PERF(0, "Exit");
 }
 
-void GitHistoryModel::updateHistory(
-    const GitRepo::GitHistory &history,
+void GitHistoryModel::updateHistoryAndStatus(
+    const GitRepo::GitHistoryWithStatus &historyWithStatus,
     const std::function<void(int)> &progressCallback) {
   LOG_PERF(0, "Enter");
 
@@ -43,7 +71,7 @@ void GitHistoryModel::updateHistory(
 
   _drawableSlices.clear();
 
-  _history = history;
+  _historyWithStatus = historyWithStatus;
 
   createDrawableSlices([&](const int progress) {
     if (progressCallback) {
@@ -51,7 +79,8 @@ void GitHistoryModel::updateHistory(
     }
   });
 
-  std::reverse(_history.commits.begin(), _history.commits.end());
+  std::reverse(_historyWithStatus.history.commits.begin(),
+               _historyWithStatus.history.commits.end());
 
   _drawableSlices.invertVertically(_quitUpdate, [&](const int progress) {
     if (progressCallback) {
@@ -76,12 +105,21 @@ void GitHistoryModel::updateHistory(
 
   if (_quitUpdate) {
     _drawableSlices.clear();
-    _history = GitRepo::GitHistory();
+    _historyWithStatus = GitRepo::GitHistoryWithStatus();
   }
 
   endResetModel();
 
   LOG_PERF(0, "Exit");
+}
+
+bool GitHistoryModel::hasStatus() const {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_mutex);
+
+  LOG_PERF(0, "Exit");
+  return _historyWithStatus.status.hasChanges();
 }
 
 QModelIndex GitHistoryModel::index(const int row, const int column,
@@ -90,7 +128,11 @@ QModelIndex GitHistoryModel::index(const int row, const int column,
 
   LOCKGUARD(_mutex);
 
-  if (parent.isValid() || row < 0 || row >= _history.commits.size()) {
+  const int count = _historyWithStatus.status.hasChanges()
+                        ? _historyWithStatus.history.commits.size() + 1
+                        : _historyWithStatus.history.commits.size();
+
+  if (parent.isValid() || row < 0 || row >= count) {
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -108,11 +150,15 @@ int GitHistoryModel::rowCount(const QModelIndex &parent) const {
     return 0;
   }
 
-  LOG_PERF(0, "Exit");
-
   LOCKGUARD(_mutex);
 
-  return _history.commits.size();
+  const int count = _historyWithStatus.status.hasChanges()
+                        ? _historyWithStatus.history.commits.size() + 1
+                        : _historyWithStatus.history.commits.size();
+
+  LOG_PERF(0, "Exit");
+
+  return count;
 }
 
 int GitHistoryModel::columnCount(const QModelIndex &parent) const {
@@ -132,7 +178,11 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
 
   LOCKGUARD(_mutex);
 
-  if (index.row() < 0 || index.row() >= _history.commits.size()) {
+  const int maxRow = _historyWithStatus.status.hasChanges()
+                         ? _historyWithStatus.history.commits.size() + 1
+                         : _historyWithStatus.history.commits.size();
+
+  if (index.row() < 0 || index.row() >= maxRow) {
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -145,8 +195,29 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
   }
 
   if (role == HistorySliceWidthRole) {
+    if (index.row() == 0) {
+      int width = _drawableSlices.sizeX();
+      if (_historyWithStatus.status.hasChanges()) {
+        width = 0;
+      }
+
+      LOG_PERF(0, "Exit");
+      return width;
+    }
+
     LOG_PERF(0, "Exit");
     return _drawableSlices.sizeX();
+  }
+
+  if (role == StatusRole) {
+    if (index.row() == 0 && _historyWithStatus.status.hasChanges()) {
+      LOG_PERF(0, "Exit");
+      return QVariant::fromValue(
+          createStatusFieldsMap(_historyWithStatus.status));
+    }
+
+    LOG_PERF(0, "Exit");
+    return {};
   }
 
   if (role != Qt::DisplayRole) {
@@ -154,8 +225,24 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     return {};
   }
 
-  const QString &commit = _history.commits.at(index.row());
-  const GitRepo::GitCommitInfo &commitInfo = _history.commitInfos.value(commit);
+  if (_historyWithStatus.status.hasChanges() && index.row() == 0) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const int indexRow =
+      _historyWithStatus.status.hasChanges() ? index.row() - 1 : index.row();
+
+  Q_ASSERT(indexRow >= 0 &&
+           indexRow < _historyWithStatus.history.commits.count());
+  if (indexRow < 0 || indexRow >= _historyWithStatus.history.commits.count()) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QString &commit = _historyWithStatus.history.commits.at(indexRow);
+  const GitRepo::GitCommitInfo &commitInfo =
+      _historyWithStatus.history.commitInfos.value(commit);
 
   QVariant result;
 
@@ -259,21 +346,24 @@ void GitHistoryModel::createDrawableSlices(
   try {
     QMap<QString, QPair<int, int>> commitPositions;
 
-    for (int i = 0; i < _history.commits.size() && !_quitUpdate; ++i) {
+    for (int i = 0;
+         i < _historyWithStatus.history.commits.size() && !_quitUpdate; ++i) {
       if (_quitUpdate) {
         _drawableSlices.clear();
         LOG_PERF(0, "Exit");
         return;
       }
 
-      const double progress = (i * 100.0) / _history.commits.size();
+      const double progress =
+          (i * 100.0) / _historyWithStatus.history.commits.size();
       if (progressCallback) {
         progressCallback(static_cast<int>(progress));
       }
 
-      const QString &currentCommit = _history.commits.at(i);
-      const auto it = _history.commitInfos.find(currentCommit);
-      if (it == _history.commitInfos.end()) {
+      const QString &currentCommit = _historyWithStatus.history.commits.at(i);
+      const auto it =
+          _historyWithStatus.history.commitInfos.find(currentCommit);
+      if (it == _historyWithStatus.history.commitInfos.end()) {
         continue;
       }
 
@@ -302,8 +392,8 @@ void GitHistoryModel::createDrawableSlices(
       for (const auto &parent : commitInfo.parents) {
         if (!commitPositions.contains(parent)) {
           int danglingParentIndex = -1;
-          for (int j = 0; j < _history.commits.size(); ++j) {
-            if (_history.commits[j] == parent) {
+          for (int j = 0; j < _historyWithStatus.history.commits.size(); ++j) {
+            if (_historyWithStatus.history.commits[j] == parent) {
               danglingParentIndex = j;
               break;
             }
@@ -325,8 +415,8 @@ void GitHistoryModel::createDrawableSlices(
       } else if (maxDanglingParent != -1) {
         const int newRow = std::max(i + 1, maxDanglingParent + 1);
 
-        _history.commits.insert(newRow, currentCommit);
-        _history.commits.remove(i);
+        _historyWithStatus.history.commits.insert(newRow, currentCommit);
+        _historyWithStatus.history.commits.remove(i);
 
         --i;
 
@@ -475,12 +565,13 @@ void GitHistoryModel::createDrawableSlices(
 Slices GitHistoryModel::historySlices(const QString &commit) const {
   LOG_PERF(0, "Enter");
 
-  if (_history.commits.size() == 0) {
+  if (_historyWithStatus.history.commits.size() == 0) {
     LOG_PERF(0, "Exit");
     return {};
   }
 
-  const int difference = indexDifference(_history.commits.first(), commit);
+  const int difference =
+      indexDifference(_historyWithStatus.history.commits.first(), commit);
 
   if (difference < 0) {
     LOG_PERF(0, "Exit");
@@ -508,19 +599,21 @@ int GitHistoryModel::indexDifference(const QString &commitA,
   LOG_PERF(0, "Enter");
 
   const auto itA = std::find_if(
-      _history.commits.begin(), _history.commits.end(),
+      _historyWithStatus.history.commits.begin(),
+      _historyWithStatus.history.commits.end(),
       [&](const QString &historyCommit) { return historyCommit == commitA; });
 
-  if (itA == _history.commits.end()) {
+  if (itA == _historyWithStatus.history.commits.end()) {
     LOG_PERF(0, "Exit");
     return -1;
   }
 
   const auto itB = std::find_if(
-      _history.commits.begin(), _history.commits.end(),
+      _historyWithStatus.history.commits.begin(),
+      _historyWithStatus.history.commits.end(),
       [&](const QString &historyCommit) { return historyCommit == commitB; });
 
-  if (itB == _history.commits.end()) {
+  if (itB == _historyWithStatus.history.commits.end()) {
     LOG_PERF(0, "Exit");
     return -1;
   }

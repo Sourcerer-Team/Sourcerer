@@ -1,14 +1,11 @@
 #pragma once
 
 #include <QMap>
-#include <QSet>
 #include <QString>
 #include <QStringList>
-#include <QVector>
 
-#include <git2/errors.h>
-#include <git2/global.h>
 #include <git2/repository.h>
+#include <git2/status.h>
 
 namespace GitRepo {
 
@@ -65,6 +62,39 @@ struct GitHistory {
   QMap<QString, GitCommitInfo> commitInfos;
 };
 
+struct GitStatus {
+  QString path;
+  QStringList newFiles;
+  QStringList modifiedFiles;
+  QStringList deletedFiles;
+  QStringList typeChangedFiles;
+  QStringList renamedFiles;
+  QStringList unreadableFiles;
+  QStringList newStagedFiles;
+  QStringList modifiedStagedFiles;
+  QStringList deletedStagedFiles;
+  QStringList typeChangedStagedFiles;
+  QStringList renamedStagedFiles;
+  QStringList ignoredFiles;
+  QStringList conflictedFiles;
+
+  bool hasChanges() const {
+    return !newFiles.isEmpty() || !modifiedFiles.isEmpty() ||
+           !deletedFiles.isEmpty() || !typeChangedFiles.isEmpty() ||
+           !renamedFiles.isEmpty() || !unreadableFiles.isEmpty() ||
+           !newStagedFiles.isEmpty() || !modifiedStagedFiles.isEmpty() ||
+           !deletedStagedFiles.isEmpty() || !typeChangedStagedFiles.isEmpty() ||
+           !renamedStagedFiles.isEmpty() || !ignoredFiles.isEmpty() ||
+           !conflictedFiles.isEmpty();
+  }
+};
+
+struct GitHistoryWithStatus {
+  ;
+  GitHistory history;
+  GitStatus status;
+};
+
 enum class BranchType {
   Unknown = 0,
 
@@ -101,5 +131,6 @@ QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
                            const bool &quitFlag);
 bool getCommitIsHead(git_repository *repo, const QString &commitOid,
                      const bool &quitFlag);
+GitStatus getStatus(git_repository *repo);
 
 } // namespace GitRepo

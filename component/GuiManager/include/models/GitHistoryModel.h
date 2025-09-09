@@ -22,17 +22,38 @@
 #define COLUMN_LAST COLUMN_COMMIT_SHORT_SHA
 
 #define HistorySliceWidthRole Qt::UserRole
+#define StatusRole (Qt::UserRole + 1)
 
 namespace GuiManager::Models {
 
+enum class StatusFields {
+  Unknown = 0,
+
+  New,
+  Modified,
+  Deleted,
+  TypeChanged,
+  Renamed,
+  Unreadable,
+  NewStaged,
+  ModifiedStaged,
+  DeletedStaged,
+  TypeChangedStaged,
+  RenamedStaged,
+  Ignored,
+  Conflicted,
+
+  last
+};
+
+typedef QMap<StatusFields, int> StatusFieldsMap;
+
 struct Slice {
   QStringView toCommit;
-
   bool left = false;
   bool right = false;
   bool top = false;
   bool bottom = false;
-
   bool main = false;
 };
 
@@ -56,11 +77,13 @@ public:
     _selectionModel = selectionModel;
   }
 
-  void
-  updateHistory(const GitRepo::GitHistory &history,
-                const std::function<void(int)> &progressCallback = nullptr);
+  void updateHistoryAndStatus(
+      const GitRepo::GitHistoryWithStatus &historyWithStatus,
+      const std::function<void(int)> &progressCallback = nullptr);
 
   void quitUpdate() { _quitUpdate = true; }
+
+  bool hasStatus() const;
 
   // QAbstractTableModel interface
 public:
@@ -82,7 +105,7 @@ private:
 
 private:
   mutable Util::Mutex _mutex;
-  GitRepo::GitHistory _history;
+  GitRepo::GitHistoryWithStatus _historyWithStatus;
   mutable Util::ResizableMatrix<Slice> _drawableSlices;
   std::atomic_bool _quitUpdate;
   QItemSelectionModel *_selectionModel;

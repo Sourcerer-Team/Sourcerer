@@ -22,6 +22,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCheckoutBranch, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepo, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetBranchHistory, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloseRepo, callbackFunc));
@@ -46,7 +48,7 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerCloneRepo, callbackFunc));
+      EventManager::EventType::GitRepoManagerStatus, callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -61,6 +63,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerCheckoutBranch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetBranchHistory, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloseRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -82,7 +86,7 @@ GitRepoManager::~GitRepoManager() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerCloneRepo, callbackFunc));
+        EventManager::EventType::GitRepoManagerStatus, callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -217,10 +221,17 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepo: {
-    const auto openCommand = event.data<GitRepoOpenCommand>();
+    const auto openRepoCommand = event.data<GitRepoOpenCommand>();
     GitRepoManagerEvent openRepoEvent(EventType::OpenRepo);
-    openRepoEvent.addParam(QVariant::fromValue(openCommand));
+    openRepoEvent.addParam(QVariant::fromValue(openRepoCommand));
     _fsm.send(openRepoEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerStatus: {
+    const auto statusCommand = event.data<GitRepoStatusCommand>();
+    GitRepoManagerEvent statusRepoEvent(EventType::Status);
+    statusRepoEvent.addParam(QVariant::fromValue(statusCommand));
+    _fsm.send(statusRepoEvent);
     break;
   }
   default: {

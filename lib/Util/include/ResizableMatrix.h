@@ -79,7 +79,7 @@ public:
     return maxSize;
   }
 
-  void invertHorizontaly() {
+  void invertHorizontaly() const {
     for (int i = 0; i < sizeX() / 2; ++i) {
       std::swap(_columns[i], _columns[sizeX() - i - 1]);
     }

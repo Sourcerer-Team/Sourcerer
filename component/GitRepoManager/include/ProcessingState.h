@@ -11,11 +11,11 @@
 
 namespace GitRepoManager {
 
-class ProcessingState : public GitRepoManagerState {
+class ProcessingState final : public GitRepoManagerState {
   Q_OBJECT
 public:
-  ProcessingState(GitRepoManagerFsm &fsm);
-  virtual ~ProcessingState();
+  explicit ProcessingState(GitRepoManagerFsm &fsm);
+  ~ProcessingState() override;
 
   // FsmState interface
 public:
@@ -51,6 +51,7 @@ private:
   listSubmodulesWorker(const Structs::GitRepoListSubmodulesCommand &command);
   void listTagsWorker(const Structs::GitRepoListTagsCommand &command);
   void openRepoWorker(const Structs::GitRepoOpenCommand &command);
+  void statusWorker(const Structs::GitRepoStatusCommand &command);
   void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
   void reportError(EventManager::EventType eventType, const QString &message,
                    const Structs::GitRepoCommand &command) const;
@@ -79,6 +80,7 @@ private:
   void
   scheduleWorkerForListTags(const Structs::GitRepoListTagsCommand &command);
   void scheduleWorkerForOpenRepo(const Structs::GitRepoOpenCommand &command);
+  void scheduleWorkerForStatus(const Structs::GitRepoStatusCommand &command);
   void scheduleWorkerForQuit(const Structs::GitRepoQuitCommand &command);
   void workersThreadFunc(const QString &uuid);
 

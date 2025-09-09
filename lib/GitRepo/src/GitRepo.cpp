@@ -9,10 +9,12 @@
 #include <Log.h>
 #include <Uuid.h>
 
+#include <git2.h>
 #include <git2/branch.h>
 #include <git2/checkout.h>
 #include <git2/clone.h>
 #include <git2/commit.h>
+#include <git2/errors.h>
 #include <git2/graph.h>
 #include <git2/index.h>
 #include <git2/refs.h>
@@ -1783,6 +1785,74 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
   LOG_PERF(0, "Exit");
 
   return false;
+}
+
+GitStatus getStatus(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  GitStatus status = {};
+
+  git_status_options opts;
+  git_status_options_init(&opts, GIT_STATUS_OPTIONS_VERSION);
+  opts.show = GIT_STATUS_SHOW_INDEX_AND_WORKDIR;
+  opts.flags =
+      GIT_STATUS_OPT_INCLUDE_UNTRACKED | GIT_STATUS_OPT_RECURSE_UNTRACKED_DIRS |
+      GIT_STATUS_OPT_INCLUDE_IGNORED | GIT_STATUS_OPT_EXCLUDE_SUBMODULES |
+      GIT_STATUS_OPT_DISABLE_PATHSPEC_MATCH |
+      GIT_STATUS_OPT_RENAMES_HEAD_TO_INDEX |
+      GIT_STATUS_OPT_SORT_CASE_SENSITIVELY | GIT_STATUS_OPT_INCLUDE_UNREADABLE;
+
+  git_status_list *statusList = nullptr;
+
+  if (const int error = git_status_list_new(&statusList, repo, &opts)) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const size_t count = git_status_list_entrycount(statusList);
+
+  for (size_t i = 0; i < count; ++i) {
+    const git_status_entry *entry = git_status_byindex(statusList, i);
+    if (!entry) {
+      LOG_ERROR(Log::ErrorId::Git, "Can't get status entry at index {}", i);
+      continue;
+    }
+
+    if (((entry->status & GIT_STATUS_WT_NEW) != 0) && entry->index_to_workdir) {
+      status.newFiles += entry->index_to_workdir->new_file.path;
+    } else if (((entry->status & GIT_STATUS_WT_MODIFIED) != 0) && entry->index_to_workdir) {
+      status.modifiedFiles += entry->index_to_workdir->new_file.path;
+    } else if (((entry->status & GIT_STATUS_WT_DELETED) != 0) && entry->index_to_workdir) {
+      status.deletedFiles += entry->index_to_workdir->old_file.path;
+    } else if (((entry->status & GIT_STATUS_WT_TYPECHANGE) != 0) && entry->index_to_workdir) {
+      status.typeChangedFiles += entry->index_to_workdir->new_file.path;
+    } else if (((entry->status & GIT_STATUS_WT_RENAMED) != 0) && entry->index_to_workdir) {
+      status.renamedFiles += entry->index_to_workdir->new_file.path;
+    } else if (((entry->status & GIT_STATUS_WT_UNREADABLE) != 0) && entry->index_to_workdir) {
+      status.unreadableFiles += entry->index_to_workdir->new_file.path;
+    } else if (((entry->status & GIT_STATUS_INDEX_NEW) != 0) && entry->head_to_index) {
+      status.newStagedFiles += entry->head_to_index->new_file.path;
+    } else if (((entry->status & GIT_STATUS_INDEX_MODIFIED) != 0) && entry->head_to_index) {
+      status.modifiedStagedFiles += entry->head_to_index->new_file.path;
+    } else if (((entry->status & GIT_STATUS_INDEX_DELETED) != 0) && entry->head_to_index) {
+      status.modifiedStagedFiles += entry->head_to_index->old_file.path;
+    } else if (((entry->status & GIT_STATUS_INDEX_TYPECHANGE) != 0) && entry->head_to_index) {
+      status.typeChangedStagedFiles += entry->head_to_index->new_file.path;
+    } else if (((entry->status & GIT_STATUS_INDEX_RENAMED) != 0) && entry->head_to_index) {
+      status.renamedStagedFiles += entry->head_to_index->new_file.path;
+    } else if (((entry->status & GIT_STATUS_IGNORED) != 0) && entry->index_to_workdir) {
+      status.ignoredFiles += entry->index_to_workdir->new_file.path;
+    } else if (((entry->status & GIT_STATUS_CONFLICTED) != 0) && entry->index_to_workdir) {
+      status.conflictedFiles += entry->index_to_workdir->new_file.path;
+    }
+  }
+
+  git_status_list_free(statusList);
+
+  LOG_PERF(0, "Exit");
+
+  return status;
 }
 
 } // namespace GitRepo

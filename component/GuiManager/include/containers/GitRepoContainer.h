@@ -48,6 +48,8 @@ protected:
 
 private slots:
   void onSplitterMoved(int pos, int index) const;
+  void showTooltipForColumnSlice(const QModelIndex &index);
+  void showTooltipForSummaryColumn(const QModelIndex &index) const;
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onLocalBranchSelected(const QString &branchName);
   void onRemoteBranchSelected(const QString &branchName);
@@ -82,8 +84,9 @@ private:
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message) const;
   void showErrorToast(const QString &message) const;
-  void updateBranchHistory(const WeakPtr &guard,
-                           const GitRepo::GitHistory &history) const;
+  void updateBranchHistory(
+      const WeakPtr &guard,
+      const GitRepo::GitHistoryWithStatus &historyWithStatus) const;
   void updateLocalBranchesModel(const WeakPtr &guard,
                                 const QStringList &localBranches) const;
   void updateLocalBranchesModelActiveBranch(const WeakPtr &guard,

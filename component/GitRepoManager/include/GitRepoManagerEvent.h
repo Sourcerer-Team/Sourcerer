@@ -23,12 +23,13 @@ enum class EventType : int {
   ListTags,
   OpenRepo,
   Setup,
+  Status,
   last
 };
 
-class GitRepoManagerEvent : public Fsm::FsmEvent {
+class GitRepoManagerEvent final : public Fsm::FsmEvent {
 public:
-  GitRepoManagerEvent(EventType type);
+  explicit GitRepoManagerEvent(EventType type);
 };
 
 } // namespace GitRepoManager

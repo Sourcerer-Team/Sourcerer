@@ -3,6 +3,7 @@
 #include "widgets/ClickableHeaderView.h"
 #include "widgets/ErrorToast.h"
 #include "widgets/HistorySliceTableColumnDelegate.h"
+#include "widgets/HistorySummaryTableColumnDelegate.h"
 #include "widgets/InfoToast.h"
 
 #include <Dispatcher.h>
@@ -59,6 +60,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->submodulesPage->setContentsMargins(0, 0, 0, 0);
   ui->historyView->setItemDelegateForColumn(
       0, new HistorySliceTableColumnDelegate(ui->historyView));
+  ui->historyView->setItemDelegateForColumn(
+      1, new HistorySummaryTableColumnDelegate(ui->historyView));
   ui->historyView->setMouseTracking(true);
   ui->historyView->viewport()->setMouseTracking(true);
   ui->historyView->viewport()->installEventFilter(this);
@@ -187,18 +190,8 @@ void GitRepoContainer::onSplitterMoved(const int pos, const int index) const {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
+void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
-
-  if (!index.isValid()) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  if (index.column() != COLUMN_HISTORY_SLICE) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
 
   const QModelIndex shaIndex =
       _historyModel->index(index.row(), COLUMN_COMMIT_FULL_SHA, QModelIndex());
@@ -259,6 +252,75 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
 
     LOG_PERF(0, "Exit");
   });
+}
+
+void GitRepoContainer::showTooltipForSummaryColumn(
+    const QModelIndex &index) const {
+  LOG_PERF(0, "Enter");
+
+  QString tooltipText = tr("Repository status:\n\n");
+  const auto statusFieldsMap =
+      index.data(StatusRole).value<Models::StatusFieldsMap>();
+  tooltipText += "New " +
+                 QString::number(statusFieldsMap[Models::StatusFields::New]) +
+                 "\n";
+  tooltipText +=
+      "Modified " +
+      QString::number(statusFieldsMap[Models::StatusFields::Modified]) + "\n";
+  tooltipText +=
+      "Deleted " +
+      QString::number(statusFieldsMap[Models::StatusFields::Deleted]) + "\n";
+  tooltipText +=
+      "Renamed " +
+      QString::number(statusFieldsMap[Models::StatusFields::Renamed]) + "\n";
+
+  tooltipText +=
+      "Staged new " +
+      QString::number(statusFieldsMap[Models::StatusFields::NewStaged]) + "\n";
+  tooltipText +=
+      "Staged  modified " +
+      QString::number(statusFieldsMap[Models::StatusFields::ModifiedStaged]) +
+      "\n";
+  tooltipText +=
+      "Staged deleted " +
+      QString::number(statusFieldsMap[Models::StatusFields::DeletedStaged]) +
+      "\n";
+  tooltipText +=
+      "Staged renamed " +
+      QString::number(statusFieldsMap[Models::StatusFields::RenamedStaged]) +
+      "\n";
+
+  const qlonglong tooltipDisplayTime =
+      _configManager.getLong(ConfigManager::ConfigKey::TooltipDisplayTime);
+
+  QToolTip::showText(_mousePos, tooltipText, nullptr, {}, tooltipDisplayTime);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (index.column() == COLUMN_HISTORY_SLICE) {
+    showTooltipForColumnSlice(index);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (index.column() == COLUMN_SUMMARY) {
+    const auto statusFieldsMap =
+        index.data(StatusRole).value<Models::StatusFieldsMap>();
+    if (index.row() == 0 && !statusFieldsMap.isEmpty()) {
+      showTooltipForSummaryColumn(index);
+      LOG_PERF(0, "Exit");
+      return;
+    }
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -422,15 +484,21 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
     const auto &[success, event] =
         _eventManager.waitForAnswer(token, eventUuid, types);
 
+    QString additionalClarificationMessage;
+
+    if (_historyModel->hasStatus()) {
+      additionalClarificationMessage =
+          tr("\nThere are uncommited files in the working directory");
+    }
+
     if (!success) {
       _spinnerOverlayTimer->stop();
 
       showSpinnerOverlay(false);
 
-      Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-        showErrorToast(
-            tr("Failed to checkout branch.\nPlease check if there are "
-               "some uncommited files left."));
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        showErrorToast(QString(tr("Failed to checkout branch. %1"))
+                           .arg(additionalClarificationMessage));
       });
 
       LOG_PERF(0, "Exit")
@@ -443,10 +511,9 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
 
       showSpinnerOverlay(false);
 
-      Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-        showErrorToast(
-            tr("Failed to checkout branch.\nPlease check if there are "
-               "some uncommited files left."));
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        showErrorToast(QString(tr("Failed to checkout branch. %1"))
+                           .arg(additionalClarificationMessage));
       });
 
       LOG_PERF(0, "Exit")
@@ -568,31 +635,32 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) const {
   LOG_PERF(0, "Enter");
 
   // Release allocated memory
-  _historyModel->updateHistory(GitRepo::GitHistory());
+  _historyModel->updateHistoryAndStatus(GitRepo::GitHistoryWithStatus());
 
-  const QString eventUuid = Uuid::createUuid();
+  const QString historyEventUuid = Uuid::createUuid();
 
-  const int token = _eventManager.startWait();
+  const int historyToken = _eventManager.startWait();
 
-  GitRepoGetBranchHistoryCommand command;
-  command.uuid = _uuid;
-  command.branchName = _activeBranch;
-  command.branchType = _activeBranchType;
-  command.syncUuid = eventUuid;
+  GitRepoGetBranchHistoryCommand historyCommand;
+  historyCommand.uuid = _uuid;
+  historyCommand.branchName = _activeBranch;
+  historyCommand.branchType = _activeBranchType;
+  historyCommand.syncUuid = historyEventUuid;
 
   EventManager::Event historyEvent(
-      EventManager::EventType::GitRepoManagerGetBranchHistory, eventUuid);
-  historyEvent.addData(command);
+      EventManager::EventType::GitRepoManagerGetBranchHistory,
+      historyEventUuid);
+  historyEvent.addData(historyCommand);
   _eventManager.send(historyEvent);
 
-  static std::set types = {
+  static std::set historyTypes = {
       EventManager::EventType::GitRepoManagerGetBranchHistoryError,
       EventManager::EventType::GitRepoManagerGetBranchHistoryResult};
 
-  const auto &[success, event] =
-      _eventManager.waitForAnswer(token, eventUuid, types);
+  const auto &[historySuccess, historyResultEvent] =
+      _eventManager.waitForAnswer(historyToken, historyEventUuid, historyTypes);
 
-  if (!success) {
+  if (!historySuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _spinnerOverlayTimer->stop();
       showSpinnerOverlay(false);
@@ -605,7 +673,7 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) const {
     return false;
   }
 
-  if (event.type() !=
+  if (historyResultEvent.type() !=
       EventManager::EventType::GitRepoManagerGetBranchHistoryResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _spinnerOverlayTimer->stop();
@@ -619,14 +687,67 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) const {
     return false;
   }
 
-  const auto commandResult = event.data<GitRepoResult>();
+  const auto historyCommandResult = historyResultEvent.data<GitRepoResult>();
 
-  const auto history = commandResult.value.value<GitRepo::GitHistory>();
+  auto history = historyCommandResult.value.value<GitRepo::GitHistory>();
+
+  const QString statusEventUuid = Uuid::createUuid();
+
+  const int statusToken = _eventManager.startWait();
+
+  GitRepoStatusCommand statusCommand;
+  statusCommand.uuid = _uuid;
+  statusCommand.syncUuid = statusEventUuid;
+
+  EventManager::Event statusEvent(EventManager::EventType::GitRepoManagerStatus,
+                                  statusEventUuid);
+  statusEvent.addData(statusCommand);
+  _eventManager.send(statusEvent);
+
+  static std::set statusTypes = {
+      EventManager::EventType::GitRepoManagerStatusError,
+      EventManager::EventType::GitRepoManagerStatusResult};
+
+  const auto &[statusSuccess, statusResultEvent] =
+      _eventManager.waitForAnswer(statusToken, statusEventUuid, statusTypes);
+
+  if (!statusSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _spinnerOverlayTimer->stop();
+      showSpinnerOverlay(false);
+      ui->historyView->setVisible(false);
+      showErrorToast(tr("Failed to retrieve the repository status."));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (statusResultEvent.type() !=
+      EventManager::EventType::GitRepoManagerStatusResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _spinnerOverlayTimer->stop();
+      showSpinnerOverlay(false);
+      ui->historyView->setVisible(false);
+      showErrorToast(tr("Failed to retrieve the repository status."));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto statusCommandResult = statusResultEvent.data<GitRepoResult>();
+
+  const auto status = statusCommandResult.value.value<GitRepo::GitStatus>();
+
+  GitRepo::GitHistoryWithStatus historyWithStatus;
+  historyWithStatus.history = history;
+  historyWithStatus.status = status;
 
   Util::Dispatcher::dispatchToMainThread(
       guard, [=]() { ui->labelProgress->setText("0%"); });
 
-  updateBranchHistory(guard, history);
+  updateBranchHistory(guard, historyWithStatus);
 
   LOG_PERF(0, "Exit")
 
@@ -1053,17 +1174,19 @@ void GitRepoContainer::showErrorToast(const QString &message) const {
 }
 
 void GitRepoContainer::updateBranchHistory(
-    const WeakPtr &guard, const GitRepo::GitHistory &history) const {
+    const WeakPtr &guard,
+    const GitRepo::GitHistoryWithStatus &historyWithStatus) const {
   LOG_PERF(0, "Enter");
 
-  _historyModel->updateHistory(history, [&](const int progress) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      const QString progressStr = QString("%1%").arg(progress);
-      if (_spinnerOverlay) {
-        _spinnerOverlay->setText(progressStr);
-      }
-    });
-  });
+  _historyModel->updateHistoryAndStatus(
+      historyWithStatus, [&](const int progress) {
+        Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+          const QString progressStr = QString("%1%").arg(progress);
+          if (_spinnerOverlay) {
+            _spinnerOverlay->setText(progressStr);
+          }
+        });
+      });
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _spinnerOverlayTimer->stop();
@@ -1105,7 +1228,7 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
     ui->localPage->updateActiveBranch(activeBranch);
     if (_activeBranch != ALL_BRANCHES) {
       ui->remotePage->updateActiveBranch(
-          QString()); // deselect remote branch if any
+          QString());                           // deselect remote branch if any
       ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
     } else {
       ui->remotePage->clearCached();
@@ -1149,7 +1272,7 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
     ui->remotePage->updateActiveBranch(activeBranch);
     if (_activeBranch != ALL_BRANCHES) {
       ui->localPage->updateActiveBranch(
-          QString()); // deselect remote branch if any
+          QString());                           // deselect remote branch if any
       ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
     } else {
       ui->localPage->clearCached();

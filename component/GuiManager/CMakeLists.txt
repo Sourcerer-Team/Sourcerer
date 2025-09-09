@@ -137,6 +137,8 @@ set(GUIMANAGER_SOURCE_FILES
         ${TS_FILES}
         include/widgets/ErrorToast.h
         src/widgets/ErrorToast.cpp
+        include/widgets/HistorySummaryTableColumnDelegate.h
+        src/widgets/HistorySummaryTableColumnDelegate.cpp
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

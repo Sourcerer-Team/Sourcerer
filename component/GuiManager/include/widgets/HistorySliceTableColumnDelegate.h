@@ -1,5 +1,7 @@
 #pragma once
 
+#include "models/GitHistoryModel.h"
+
 #include <QPainter>
 #include <QStyledItemDelegate>
 
@@ -16,6 +18,12 @@ public:
 private:
   void paintDefault(QPainter *painter, const QStyleOptionViewItem &option,
                     const QModelIndex &index) const;
+
+  void paintSlices(QPainter *painter, const QStyleOptionViewItem &option,
+                   const QModelIndex &index) const;
+
+  void paintStatus(QPainter *painter, const QStyleOptionViewItem &option,
+                   const QModelIndex &index) const;
 };
 
 } // namespace GuiManager::Widgets
