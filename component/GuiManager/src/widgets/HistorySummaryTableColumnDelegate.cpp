@@ -40,7 +40,7 @@ void HistorySummaryTableColumnDelegate::paintStatus(
   int newCount = statusFieldsMap[Models::StatusFields::New];
   int modifiedCount = statusFieldsMap[Models::StatusFields::Modified];
   int deletedCount = statusFieldsMap[Models::StatusFields::Deleted];
-  int renamedCount = statusFieldsMap[Models::StatusFields::Modified];
+  int renamedCount = statusFieldsMap[Models::StatusFields::Renamed];
 
   newCount += statusFieldsMap[Models::StatusFields::NewStaged];
   modifiedCount += statusFieldsMap[Models::StatusFields::ModifiedStaged];
