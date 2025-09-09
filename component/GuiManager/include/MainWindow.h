@@ -70,7 +70,7 @@ private:
   void selectContainer(int index);
   void showCredentialsToast(const GitCredentialsRequest &request) const;
   void showCloneProgressToast(const CloneProgress &data) const;
-  void showToast(const QString &text) const;
+  void showToast(const QString &text, const QString &title) const;
 
 private:
   int _current;

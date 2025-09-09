@@ -83,7 +83,7 @@ private:
   void showMainSpinnerPage(bool spinnerEnabled = true) const;
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message) const;
-  void showErrorToast(const QString &message) const;
+  void showErrorToast(const QString &message, const QString &title) const;
   void updateBranchHistory(
       const WeakPtr &guard,
       const GitRepo::GitHistoryWithStatus &historyWithStatus) const;

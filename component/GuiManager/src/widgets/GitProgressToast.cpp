@@ -16,11 +16,14 @@ namespace GuiManager::Widgets {
 auto FETCHING_STR = "Fetching...";
 auto CHECKOUT_STR = "Checking out...";
 
-GitProgressToast::GitProgressToast(const CloneProgress &data, QWidget *parent)
+GitProgressToast::GitProgressToast(const CloneProgress &data,
+                                   const QString &title, QWidget *parent)
     : ToastWidget(parent), _data(data),
       _eventManager(EventManager::EventManager::getInstance()),
       _messageLabel(nullptr), _progressBar(nullptr) {
   LOG_PERF(0, "Enter");
+
+  setTitleText(title);
 
   QWidget *widget = new QWidget(this);
 

@@ -24,6 +24,8 @@ GitCredentialsToast::GitCredentialsToast(const GitCredentialsRequest &request,
       _usernameLineEdit(nullptr), _passwordLineEdit(nullptr) {
   LOG_PERF(0, "Enter");
 
+  setTitleText(tr("Git credentials"));
+
   QWidget *widget = new QWidget(this);
 
   QLabel *urlLabel = new QLabel(

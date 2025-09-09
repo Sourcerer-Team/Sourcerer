@@ -444,7 +444,7 @@ void MainWindow::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::GitRepoManagerCloneRepoError: {
     Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
-      showToast(tr("Unable to clone Git repository"));
+      showToast(tr("Unable to clone Git repository"), tr("Error"));
     });
     break;
   }
@@ -518,15 +518,15 @@ void MainWindow::showCredentialsToast(
 void MainWindow::showCloneProgressToast(const CloneProgress &data) const {
   LOG_PERF(0, "Enter");
 
-  _toastHost.addToast(new GitProgressToast(data));
+  _toastHost.addToast(new GitProgressToast(data, tr("Cloning")));
 
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showToast(const QString &text) const {
+void MainWindow::showToast(const QString &text, const QString &title) const {
   LOG_PERF(0, "Enter");
 
-  _toastHost.addToast(new InfoToast(text));
+  _toastHost.addToast(new InfoToast(text, title));
 
   LOG_PERF(0, "Exit");
 }

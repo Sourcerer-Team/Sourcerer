@@ -7,8 +7,8 @@
 namespace GuiManager::Widgets {
 
 
-ErrorToast::ErrorToast(const QString &message, QWidget *parent)
-    : InfoToast(message, parent) {
+ErrorToast::ErrorToast(const QString &message, const QString& title, QWidget *parent)
+    : InfoToast(message, title, parent) {
   LOG_PERF(0, "Enter");
 
   setStyleSheet("font-size:14px;color:white;background-color:#4a2439;");

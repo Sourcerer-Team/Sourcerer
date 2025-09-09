@@ -21,7 +21,7 @@ class GitProgressToast final : public ToastWidget,
   typedef QWeakPointer<GitProgressToast> WeakPtr;
 
 public:
-  explicit GitProgressToast(const CloneProgress &data,
+  explicit GitProgressToast(const CloneProgress &data, const QString &title,
                             QWidget *parent = nullptr);
   ~GitProgressToast() override;
 

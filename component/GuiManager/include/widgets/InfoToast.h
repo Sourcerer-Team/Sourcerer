@@ -13,7 +13,8 @@ namespace GuiManager::Widgets {
 class InfoToast : public ToastWidget {
   Q_OBJECT
 public:
-  explicit InfoToast(const QString &message, QWidget *parent = nullptr);
+  explicit InfoToast(const QString &message, const QString &title = QString(),
+                     QWidget *parent = nullptr);
   ~InfoToast() override;
 
   // ToastWidget interface

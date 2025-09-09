@@ -1,6 +1,7 @@
 
 #pragma once
 
+#include <QLabel>
 #include <QWidget>
 
 namespace GuiManager::Widgets {
@@ -12,6 +13,8 @@ public:
   ~ToastWidget() override;
 
   virtual void stop();
+
+  void setTitleText(const QString& text) const;
 
   void hideTitle() const;
 
@@ -27,6 +30,7 @@ signals:
 
 private:
   QWidget *_titleWidget;
+  QLabel *_titleLabel;
 };
 
 } // namespace GuiManager::Widgets

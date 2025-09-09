@@ -498,7 +498,8 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
 
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
         showErrorToast(QString(tr("Failed to checkout branch. %1"))
-                           .arg(additionalClarificationMessage));
+                           .arg(additionalClarificationMessage),
+                       tr("Checkout"));
       });
 
       LOG_PERF(0, "Exit")
@@ -513,7 +514,8 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
 
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
         showErrorToast(QString(tr("Failed to checkout branch. %1"))
-                           .arg(additionalClarificationMessage));
+                           .arg(additionalClarificationMessage),
+                       tr("Checkout"));
       });
 
       LOG_PERF(0, "Exit")
@@ -576,7 +578,8 @@ bool GitRepoContainer::getActiveBranchOrTag(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showErrorToast(tr("Failed to retrieve the active local branch."));
+      showErrorToast(tr("Failed to retrieve the active local branch."),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -586,7 +589,8 @@ bool GitRepoContainer::getActiveBranchOrTag(
   if (event.type() !=
       EventManager::EventType::GitRepoManagerGetActiveBranchResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showErrorToast(tr("Failed to retrieve the active local branch."));
+      showErrorToast(tr("Failed to retrieve the active local branch."),
+                     tr("Error"));
     });
     LOG_PERF(0, "Exit")
     return false;
@@ -666,7 +670,8 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) const {
       showSpinnerOverlay(false);
       ui->historyView->setVisible(false);
       showErrorToast(QString(tr("Failed to retrieve the history of branch %1."))
-                         .arg(_activeBranch));
+                         .arg(_activeBranch),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -680,7 +685,8 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) const {
       showSpinnerOverlay(false);
       ui->historyView->setVisible(false);
       showErrorToast(QString(tr("Failed to retrieve the history of branch %1."))
-                         .arg(_activeBranch));
+                         .arg(_activeBranch),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -716,7 +722,8 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) const {
       _spinnerOverlayTimer->stop();
       showSpinnerOverlay(false);
       ui->historyView->setVisible(false);
-      showErrorToast(tr("Failed to retrieve the repository status."));
+      showErrorToast(tr("Failed to retrieve the repository status."),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -729,7 +736,8 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) const {
       _spinnerOverlayTimer->stop();
       showSpinnerOverlay(false);
       ui->historyView->setVisible(false);
-      showErrorToast(tr("Failed to retrieve the repository status."));
+      showErrorToast(tr("Failed to retrieve the repository status."),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -822,7 +830,8 @@ bool GitRepoContainer::getLocalBranches() {
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showErrorToast(tr("Failed to retrieve the list of local branches."));
+      showErrorToast(tr("Failed to retrieve the list of local branches."),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -832,7 +841,8 @@ bool GitRepoContainer::getLocalBranches() {
   if (event.type() !=
       EventManager::EventType::GitRepoManagerListLocalBranchesResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showErrorToast(tr("Failed to retrieve the list of local branches."));
+      showErrorToast(tr("Failed to retrieve the list of local branches."),
+                     tr("Error"));
     });
     LOG_PERF(0, "Exit")
     return false;
@@ -877,7 +887,8 @@ bool GitRepoContainer::getRemoteBranches() {
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showErrorToast(tr("Failed to retrieve the list of remote branches."));
+      showErrorToast(tr("Failed to retrieve the list of remote branches."),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -887,7 +898,8 @@ bool GitRepoContainer::getRemoteBranches() {
   if (event.type() !=
       EventManager::EventType::GitRepoManagerListRemoteBranchesResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showErrorToast(tr("Failed to retrieve the list of remote branches."));
+      showErrorToast(tr("Failed to retrieve the list of remote branches."),
+                     tr("Error"));
     });
     LOG_PERF(0, "Exit")
     return false;
@@ -932,7 +944,8 @@ bool GitRepoContainer::getSubmodules() {
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showErrorToast(tr("Failed to retrieve the list of submodules."));
+      showErrorToast(tr("Failed to retrieve the list of submodules."),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -942,7 +955,8 @@ bool GitRepoContainer::getSubmodules() {
   if (event.type() !=
       EventManager::EventType::GitRepoManagerListSubmodulesResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showErrorToast(tr("Failed to retrieve the list of submodules."));
+      showErrorToast(tr("Failed to retrieve the list of submodules."),
+                     tr("Error"));
     });
     LOG_PERF(0, "Exit")
     return false;
@@ -987,7 +1001,7 @@ bool GitRepoContainer::getTags() {
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showErrorToast(tr("Failed to retrieve the list of tags."));
+      showErrorToast(tr("Failed to retrieve the list of tags."), tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -996,7 +1010,7 @@ bool GitRepoContainer::getTags() {
 
   if (event.type() != EventManager::EventType::GitRepoManagerListTagsResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showErrorToast(tr("Failed to retrieve the list of tags."));
+      showErrorToast(tr("Failed to retrieve the list of tags."), tr("Error"));
     });
     LOG_PERF(0, "Exit")
     return false;
@@ -1164,11 +1178,12 @@ void GitRepoContainer::showToast(const QString &message) const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showErrorToast(const QString &message) const {
+void GitRepoContainer::showErrorToast(const QString &message,
+                                      const QString &title) const {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 
-  _toastHost.addToast(new ErrorToast(message));
+  _toastHost.addToast(new ErrorToast(message, title));
 
   LOG_PERF(0, "Exit")
 }

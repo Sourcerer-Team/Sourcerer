@@ -13,20 +13,20 @@
 
 namespace GuiManager::Widgets {
 
-InfoToast::InfoToast(const QString &message, QWidget *parent)
+InfoToast::InfoToast(const QString &message, const QString& title, QWidget *parent)
     : ToastWidget{parent}, _stopTimer{new QTimer},
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
-  QWidget *widget = new QWidget(this);
+  setTitleText(title);
 
-  auto messageLabel = new QLabel(message + "\n", widget);
-  messageLabel->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
+  const auto widget = new QWidget(this);
+
+  const auto messageLabel = new QLabel(message + "\n", widget);
+  messageLabel->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
   messageLabel->setWordWrap(true);
 
-  auto widgetLayout = new QVBoxLayout(widget);
-  widgetLayout->setContentsMargins(0, 0, 0, 0);
-  widgetLayout->setSizeConstraint(QLayout::SetMinimumSize);
+  const auto widgetLayout = new QVBoxLayout(widget);
   widgetLayout->addWidget(messageLabel);
 
   layout()->addWidget(widget);
