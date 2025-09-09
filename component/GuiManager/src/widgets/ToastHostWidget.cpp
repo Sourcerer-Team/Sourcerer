@@ -3,6 +3,7 @@
 
 #include <Log.h>
 
+#include <QPropertyAnimation>
 #include <QSizePolicy>
 
 #define THREAD_ID "ToastHostWidget"
@@ -10,35 +11,34 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 ToastHostWidget::ToastHostWidget()
-    : QWidget{}, _position{ToastPosition::BottomLeft},
-      _configManager(ConfigManager::ConfigManager::getInstance()), _yOffset(0) {
+    : OverlayWidget{nullptr}, _yOffset(0),
+      _position{ToastPosition::BottomRight},
+      _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
   setAttribute(Qt::WA_TranslucentBackground, true);
-  setAttribute(Qt::WA_ShowWithoutActivating, true);
   setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
                  Qt::Widget);
+  setAttribute(Qt::WA_TransparentForMouseEvents, true);
+
   setMouseTracking(true);
+
+  setPosition(_position);
 
   const int toastSpacing =
       _configManager.getLong(ConfigManager::ConfigKey::ToastSpacing);
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
-  layout->setSpacing(toastSpacing);
-  layout->setContentsMargins(16, 16, 16, 16);
-  layout->setSizeConstraint(QLayout::SetFixedSize);
+  const auto layout_ = qobject_cast<QVBoxLayout *>(layout());
+  if (!layout_) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
-  setLayout(layout);
-
-  QTimer::singleShot(0, this, [this]() {
-    _cachedGeometry = calculateGeometry();
-    setGeometry(_cachedGeometry);
-  });
+  layout_->setSpacing(toastSpacing);
+  layout_->setContentsMargins(16, 16, 16, 16);
 
   LOG_PERF(0, "Exit");
 }
@@ -49,54 +49,6 @@ ToastHostWidget::~ToastHostWidget() {
   destroyAllToasts();
 
   LOG_PERF(0, "Exit");
-}
-
-QRect ToastHostWidget::calculateGeometry() const {
-  LOG_PERF(0, "Enter");
-
-  const QSize sizeHint = ToastHostWidget::sizeHint();
-
-  int x;
-  int y;
-  int width = sizeHint.width();
-  int height = sizeHint.height();
-
-  if (_position == ToastPosition::BottomLeft) {
-    x = _parentGeometry.x();
-    y = _parentGeometry.height() - sizeHint.height();
-  } else if (_position == ToastPosition::TopLeft) {
-    x = _parentGeometry.x();
-    y = _parentGeometry.y() + _yOffset;
-  } else if (_position == ToastPosition::TopRight) {
-    x = _parentGeometry.x() + _parentGeometry.width() - sizeHint.width();
-    y = _parentGeometry.y() + _yOffset;
-  } else if (_position == ToastPosition::BottomRight) {
-    x = _parentGeometry.x() + _parentGeometry.width() - sizeHint.width();
-    y = _parentGeometry.height() - sizeHint.height();
-  } else if (_position == ToastPosition::Top) {
-    x = _parentGeometry.x() + (_parentGeometry.width() - sizeHint.width()) / 2;
-    y = _parentGeometry.y() + _yOffset;
-  } else {
-    x = _parentGeometry.x() + (_parentGeometry.width() - sizeHint.width()) / 2;
-    y = _parentGeometry.height() - sizeHint.height();
-  }
-
-  const QSize _maximumSize = _parentGeometry.size();
-
-  x = qMax(x, 0);
-  y = qMax(y, _yOffset);
-
-  if (x + width > _maximumSize.width())
-    width = _maximumSize.width() - x;
-
-  if (y + height > _maximumSize.height())
-    height = _maximumSize.height() - y;
-
-  LOG_DEBUG("x = {}, y = {}, width = {}, height = {}.", x, y, width, height);
-
-  LOG_PERF(0, "Exit");
-
-  return QRect(x, y, width, height);
 }
 
 void ToastHostWidget::destroyAllToasts() {
@@ -131,8 +83,8 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
     return;
   }
 
-  QVBoxLayout *layout = qobject_cast<QVBoxLayout *>(ToastHostWidget::layout());
-  if (!layout) {
+  const auto layout_ = qobject_cast<QVBoxLayout *>(layout());
+  if (!layout_) {
     LOG_PERF(0, "Exit");
     return;
   }
@@ -140,13 +92,75 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
   if (_position == ToastPosition::Bottom ||
       _position == ToastPosition::BottomLeft ||
       _position == ToastPosition::BottomRight) {
-    layout->insertWidget(0, toast, 0, Qt::AlignBottom);
+    layout_->insertWidget(0, toast, 0, Qt::AlignBottom);
   } else if (_position == ToastPosition::Top ||
              _position == ToastPosition::TopLeft ||
              _position == ToastPosition::TopRight) {
-    layout->insertWidget(layout->count(), toast, 0, Qt::AlignTop);
+    layout_->insertWidget(layout_->count(), toast, 0, Qt::AlignTop);
   } else
-    layout->insertWidget(layout->count(), toast, 0, Qt::AlignCenter);
+    layout_->insertWidget(layout_->count(), toast, 0, Qt::AlignCenter);
+
+  QTimer::singleShot(0, [=]() { animateWidget(toast); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void ToastHostWidget::animateWidget(QWidget *widget) const {
+  LOG_PERF(0, "Enter");
+
+  widget->show();
+
+  const int targetX = widget->x();
+  const int targetY = widget->y();
+  const int targetWidth = widget->width();
+  const int targetHeight = widget->height();
+
+  widget->hide();
+
+  // Start position: fully outside to the left
+  if (_position == ToastPosition::TopLeft ||
+      _position == ToastPosition::BottomLeft) {
+    widget->setGeometry(-targetWidth, targetY, targetWidth, targetHeight);
+  } else if (_position == ToastPosition::TopRight ||
+             _position == ToastPosition::BottomRight) {
+    widget->setGeometry(width(), targetY, targetWidth, targetHeight);
+  } else if (_position == ToastPosition::Top) {
+    widget->setGeometry(targetX, -targetHeight, targetWidth, targetHeight);
+  } else {
+    widget->setGeometry(targetX, height(), targetWidth, targetHeight);
+  }
+
+  const qlonglong toastAnimationDuration =
+      _configManager.getLong(ConfigManager::ConfigKey::ToastAnimationDuration);
+
+  const auto animation = new QPropertyAnimation(widget, "geometry");
+  animation->setDuration(toastAnimationDuration); // ms
+
+  if (_position == ToastPosition::TopLeft ||
+      _position == ToastPosition::BottomLeft) {
+    animation->setStartValue(
+        QRect(-targetWidth, targetY, targetWidth, targetHeight));
+    animation->setEndValue(QRect(targetX, targetY, targetWidth, targetHeight));
+  } else if (_position == ToastPosition::TopRight ||
+             _position == ToastPosition::BottomRight) {
+    animation->setStartValue(
+        QRect(width(), targetY, targetWidth, targetHeight));
+    animation->setEndValue(QRect(targetX, targetY, targetWidth, targetHeight));
+  } else if (_position == ToastPosition::Top) {
+    animation->setStartValue(
+        QRect(targetX, -targetHeight, targetWidth, targetHeight));
+    animation->setEndValue(QRect(targetX, targetY, targetWidth, targetHeight));
+  } else {
+    animation->setStartValue(
+        QRect(targetX, height(), targetWidth, targetHeight));
+    animation->setEndValue(QRect(targetX, targetY, targetWidth, targetHeight));
+  }
+
+  animation->setEasingCurve(QEasingCurve::OutCubic);
+
+  widget->show();
+
+  animation->start(QAbstractAnimation::DeleteWhenStopped);
 
   LOG_PERF(0, "Exit");
 }
@@ -179,12 +193,6 @@ void ToastHostWidget::addToast(ToastWidget *toast) {
 
   connect(toast, &ToastWidget::stopped, this, &ToastHostWidget::onToastStopped);
 
-  QTimer::singleShot(0, this, [=]() {
-    _cachedGeometry = calculateGeometry();
-    setGeometry(_cachedGeometry);
-    show();
-  });
-
   LOG_PERF(0, "Exit");
 }
 
@@ -193,8 +201,46 @@ void ToastHostWidget::setPosition(ToastPosition position) {
 
   _position = position;
 
-  _cachedGeometry = calculateGeometry();
-  setGeometry(_cachedGeometry);
+  Qt::Alignment alignment = Qt::AlignHCenter | Qt::AlignVCenter;
+
+  switch (_position) {
+  case ToastPosition::BottomLeft: {
+    alignment = Qt::AlignLeft | Qt::AlignBottom;
+    break;
+  }
+  case ToastPosition::BottomRight: {
+    alignment = Qt::AlignRight | Qt::AlignBottom;
+    break;
+  }
+  case ToastPosition::TopLeft: {
+    alignment = Qt::AlignTop | Qt::AlignLeft;
+    break;
+  }
+  case ToastPosition::TopRight: {
+    alignment = Qt::AlignRight | Qt::AlignTop;
+    break;
+  }
+  case ToastPosition::Top: {
+    alignment = Qt::AlignHCenter | Qt::AlignTop;
+    break;
+  }
+  case ToastPosition::Bottom: {
+    alignment = Qt::AlignHCenter | Qt::AlignBottom;
+    break;
+  }
+  default: {
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error! Unsupported position type {}",
+              static_cast<int>(_position));
+  }
+  }
+
+  const auto layout_ = qobject_cast<QVBoxLayout *>(layout());
+  if (!layout_) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  layout_->setAlignment(alignment);
 
   LOG_PERF(0, "Exit");
 }
@@ -205,18 +251,7 @@ void ToastHostWidget::setYOffset(int offset) {
 
   _yOffset = offset;
 
-  _cachedGeometry = calculateGeometry();
-  setGeometry(_cachedGeometry);
-
-  LOG_PERF(0, "Exit");
-}
-
-void ToastHostWidget::setParentSize(const QRect &geometry) {
-  LOG_PERF(0, "Enter");
-
-  _parentGeometry = geometry;
-  _cachedGeometry = calculateGeometry();
-  setGeometry(_cachedGeometry);
+  move(x(), _yOffset);
 
   LOG_PERF(0, "Exit");
 }
@@ -247,57 +282,28 @@ void ToastHostWidget::onToastStopped(ToastWidget *toast) {
       _waitingToasts.dequeue();
   }
 
-  if (_toasts.length() == 0)
-    hide();
-
-  QTimer::singleShot(0, this, [this]() {
-    _cachedGeometry = calculateGeometry();
-    setGeometry(_cachedGeometry);
-  });
-
   LOG_PERF(0, "Exit");
 }
 
-bool ToastHostWidget::toastWillFit(ToastWidget *toast) const {
+bool ToastHostWidget::toastWillFit(const ToastWidget *toast) const {
   LOG_PERF(0, "Enter");
 
   const int toastSpacing =
       _configManager.getLong(ConfigManager::ConfigKey::ToastSpacing);
 
-  const QLayout *layout = ToastHostWidget::layout();
-  const int layoutCount = layout->count();
-  int spacing = 0;
-  if (layoutCount > 0)
-    spacing = toastSpacing;
-
-  /*
-  QLayout* toastLayout = toast->layout();
-  if(toastLayout) {
-    toast->show();
-    toastLayout->invalidate();
-    toast->hide();
-  }
-*/
-
-  //toast->adjustSize();
-
+  const auto layout_ = layout();
+  const int layoutCount = layout_->count();
   const QSize toastSizeHint = toast->sizeHint();
-  QRect boundingGeometry = _cachedGeometry;
 
-  if (_position == ToastPosition::Bottom ||
-      _position == ToastPosition::BottomLeft ||
-      _position == ToastPosition::BottomRight)
-    boundingGeometry.adjust(0, -(toastSizeHint.height() + spacing) - 100, 0, 0);
-  else
-    boundingGeometry.adjust(0, 0, 0, toastSizeHint.height() + spacing + 100);
-
-  QRect parentGeometry = _parentGeometry;
-  parentGeometry.adjust(0, _yOffset, 0, 0);
+  int totalToastHeight = 0;
+  for (int i = 0; i < layoutCount + 1; i++) {
+    totalToastHeight += toastSizeHint.height();
+    totalToastHeight += toastSpacing;
+  }
 
   LOG_PERF(0, "Exit");
 
-  return parentGeometry.contains(boundingGeometry);
+  return rect().height() >= totalToastHeight;
 }
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

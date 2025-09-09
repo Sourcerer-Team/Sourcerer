@@ -27,6 +27,8 @@ enum class ConfigKey {
   SettingsSplitterPos,
 
   // Toasts
+  ToastAnimationDuration,
+  ToastHeight,
   ToastSpacing,
   ToastWidth,
   InfoToastDisplayTime,

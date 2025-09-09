@@ -25,7 +25,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
      "window/gitrepo/branchRecyclerViewItemsSplitterPos"},
     {ConfigKey::GitRepoGitCredentialsExpirationTime,
      "gitrepo/credentials/credentialsExpirationTime"},
-    {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, "gitrepo/spinnerOverlay/timer"},
+    {ConfigKey::GitRepoSpinnerOverlayTimerTimeout,
+     "gitrepo/spinnerOverlay/timer"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
     {ConfigKey::MainWindowBorderWidth, "window/borderWidth"},
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
@@ -40,6 +41,7 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::TitleBarMenuMinimumSize, "window/xxx/titleBarMenuMinimumWidth"},
     {ConfigKey::TestColor, "test/testColor"},
     {ConfigKey::TestDateTime, "test/testDateTime"},
+    {ConfigKey::ToastAnimationDuration, "window/toasts/toastAnimationDuration"},
     {ConfigKey::ToastSpacing, "window/toasts/toastSpacing"},
     {ConfigKey::ToastWidth, "window/toasts/toastWidth"},
     {ConfigKey::TooltipDisplayTime, "window/tooltips/tooltipDisplayTime"}};
@@ -70,11 +72,13 @@ QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {
 QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::GitRepoGitCredentialsExpirationTime, 30000},
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 1000},
-    {ConfigKey::InfoToastDisplayTime, 3000},
+    {ConfigKey::InfoToastDisplayTime, 8000},
     {ConfigKey::MainWindowBorderWidth, 2},
     {ConfigKey::TitleBarHeight, 40},
     {ConfigKey::TitleBarMaxTabWidth, 285},
     {ConfigKey::TitleBarMenuMinimumSize, 230},
+    {ConfigKey::ToastAnimationDuration, 500},
+    {ConfigKey::ToastHeight, 40},
     {ConfigKey::ToastSpacing, 4},
     {ConfigKey::ToastWidth, 400},
     {ConfigKey::TooltipDisplayTime, 5000}};

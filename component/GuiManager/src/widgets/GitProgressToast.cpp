@@ -42,8 +42,6 @@ GitProgressToast::GitProgressToast(const CloneProgress &data, QWidget *parent)
   connect(this, &GitProgressToast::finished, this,
           &GitProgressToast::onFinished);
 
-  hideTitle();
-
   const auto callbackFunc =
       std::bind(&GitProgressToast::eventCallback, this, std::placeholders::_1);
 

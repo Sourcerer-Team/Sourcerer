@@ -20,7 +20,8 @@ namespace GuiManager {
 using namespace GitRepo;
 using namespace Widgets;
 
-class MainWindow final : public QMainWindow, public QEnableSharedFromThis<MainWindow> {
+class MainWindow final : public QMainWindow,
+                         public QEnableSharedFromThis<MainWindow> {
   Q_OBJECT
 
   typedef QSharedPointer<MainWindow> SharedPtr;
@@ -35,7 +36,6 @@ public:
   // QWidget interface
 protected:
   void mouseMoveEvent(QMouseEvent *event) override;
-  void resizeEvent(QResizeEvent *event) override;
 
   // QObject interface
 public:

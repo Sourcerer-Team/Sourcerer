@@ -20,11 +20,11 @@ InfoToast::InfoToast(const QString &message, QWidget *parent)
 
   QWidget *widget = new QWidget(this);
 
-  QLabel *messageLabel = new QLabel(message + "\n", widget);
+  auto messageLabel = new QLabel(message + "\n", widget);
   messageLabel->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
   messageLabel->setWordWrap(true);
 
-  QVBoxLayout *widgetLayout = new QVBoxLayout(widget);
+  auto widgetLayout = new QVBoxLayout(widget);
   widgetLayout->setContentsMargins(0, 0, 0, 0);
   widgetLayout->setSizeConstraint(QLayout::SetMinimumSize);
   widgetLayout->addWidget(messageLabel);

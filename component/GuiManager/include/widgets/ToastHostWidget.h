@@ -1,5 +1,6 @@
 #pragma once
 
+#include "OverlayWidget.h"
 #include "ToastWidget.h"
 
 #include <ConfigManager.h>
@@ -21,14 +22,13 @@ enum class ToastPosition {
   Last
 };
 
-class ToastHostWidget final : public QWidget {
+class ToastHostWidget final : public OverlayWidget {
   Q_OBJECT
 public:
   static ToastHostWidget &getInstance();
 
   void addToast(ToastWidget *toast);
   [[nodiscard]] ToastPosition position() const { return _position; }
-  void setParentSize(const QRect& geometry);
   void setPosition(ToastPosition position);
   void setYOffset(int offset);
 
@@ -40,20 +40,20 @@ private:
   ~ToastHostWidget() override;
   ToastHostWidget &operator=(const ToastHostWidget &) = delete;
 
-  [[nodiscard]] QRect calculateGeometry() const;
   void destroyAllToasts();
   void addToLayout(ToastWidget *toast) const;
-  bool toastWillFit(ToastWidget *toast) const;
+  void animateWidget(QWidget *widget) const;
+  bool toastWillFit(const ToastWidget *toast) const;
+
+public:
+  bool showing() const override { return true; };
 
 private:
   int _yOffset;
   ToastPosition _position;
-  QRect _parentGeometry;
-  QRect _cachedGeometry;
   QVector<ToastWidget *> _toasts;
   QQueue<ToastWidget *> _waitingToasts;
   ConfigManager::ConfigManager &_configManager;
 };
 
 } // namespace GuiManager::Widgets
-

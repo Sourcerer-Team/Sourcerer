@@ -52,10 +52,10 @@ MainWindow::MainWindow(QWidget *parent)
   connect(_hitDetector, &HitDetector::edgeHit, this, &MainWindow::onEdgeHit);
 #endif
 
-  QWidget *widget = new QWidget(this);
+  auto widget = new QWidget(this);
   widget->setMouseTracking(true);
 
-  QVBoxLayout *layout = new QVBoxLayout(widget);
+  auto layout = new QVBoxLayout(widget);
   layout->setContentsMargins(2, 2, 2, 2);
   layout->addWidget(_topBarWidget);
   layout->addWidget(_centralWidget);
@@ -141,23 +141,6 @@ void MainWindow::mouseMoveEvent(QMouseEvent *event) {
     return;
 
   event->ignore();
-}
-
-void MainWindow::resizeEvent(QResizeEvent *event) {
-  LOG_PERF(0, "Enter");
-
-  if (!event) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  QMainWindow::resizeEvent(event);
-
-  QTimer::singleShot(0, [&]() {
-    _toastHost.setParentSize(geometry());
-  });
-
-  LOG_PERF(0, "Exit");
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {

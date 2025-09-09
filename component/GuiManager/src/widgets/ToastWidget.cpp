@@ -16,16 +16,16 @@ ToastWidget::ToastWidget(QWidget *parent)
 
   _titleWidget = new QWidget(this);
 
-  ToastCloseButton *closeButton = new ToastCloseButton(this);
+  const auto closeButton = new ToastCloseButton(this);
   closeButton->setMaximumSize(16, 16);
 
-  QHBoxLayout *titleLayout = new QHBoxLayout(_titleWidget);
+  const auto titleLayout = new QHBoxLayout(_titleWidget);
   titleLayout->setSpacing(0);
   titleLayout->setContentsMargins(0, 0, 0, 0);
   titleLayout->addStretch();
   titleLayout->addWidget(closeButton);
 
-  QVBoxLayout *layout = new QVBoxLayout(this);
+  const auto layout = new QVBoxLayout(this);
   layout->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
   layout->setSizeConstraint(QLayout::SetMinimumSize);
   layout->setSpacing(0);

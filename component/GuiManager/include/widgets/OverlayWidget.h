@@ -20,10 +20,9 @@ public:
 
     raise();
 
-    adjustToParent();
-
     // Track parent resize/move events
     if (parent) {
+      adjustToParent();
       parent->installEventFilter(this);
     }
 
@@ -34,6 +33,16 @@ public:
   }
 
   ~OverlayWidget() override = default;
+
+  void setParent(QWidget *parent) {
+    QWidget::setParent(parent);
+
+    // Track parent resize/move events
+    if (parent) {
+      adjustToParent();
+      parent->installEventFilter(this);
+    }
+  }
 
   QVBoxLayout *getLayout() const { return _layout; }
 
