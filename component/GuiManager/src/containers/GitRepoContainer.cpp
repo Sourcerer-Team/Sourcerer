@@ -1202,7 +1202,11 @@ void GitRepoContainer::updateLocalBranchesModel(
   LOG_PERF(0, "Enter");
 
   QStringList finalBranches;
-  finalBranches += ALL_BRANCHES;
+
+  if (!localBranches.isEmpty()) {
+    finalBranches += ALL_BRANCHES;
+  }
+
   finalBranches += localBranches;
 
   if (const auto locked = guard.lock()) {
@@ -1246,7 +1250,11 @@ void GitRepoContainer::updateRemoteBranchesModel(
   LOG_PERF(0, "Enter");
 
   QStringList finalBranches;
-  finalBranches += ALL_BRANCHES;
+
+  if (!remoteBranches.isEmpty()) {
+    finalBranches += ALL_BRANCHES;
+  }
+  
   finalBranches += remoteBranches;
 
   if (const auto locked = guard.lock()) {
