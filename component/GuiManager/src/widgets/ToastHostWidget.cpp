@@ -5,16 +5,17 @@
 
 #include <QPropertyAnimation>
 #include <QSizePolicy>
+#include <QTimer>
+#include <QVBoxLayout>
 
 #define THREAD_ID "ToastHostWidget"
 
-#include <QTimer>
-#include <QVBoxLayout>
+#define ALPHA 160
 
 namespace GuiManager::Widgets {
 
 ToastHostWidget::ToastHostWidget()
-    : OverlayWidget{nullptr}, _yOffset(0),
+    : OverlayWidget{nullptr, ALPHA}, _yOffset(0),
       _position{ToastPosition::BottomRight},
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
@@ -217,7 +218,8 @@ void ToastHostWidget::addToast(const QSharedPointer<ToastWidget> &toast) {
   } else
     _waitingToasts.enqueue(toast.get());
 
-  connect(toast.get(), &ToastWidget::stopped, this, &ToastHostWidget::onToastStopped);
+  connect(toast.get(), &ToastWidget::stopped, this,
+          &ToastHostWidget::onToastStopped);
 
   LOG_PERF(0, "Exit");
 }
@@ -291,7 +293,7 @@ void ToastHostWidget::onToastStopped(ToastWidget *toast) {
   }
 
   const bool toDelete = _toasts.removeAll(toast) > 0;
-  _sharedToasts.removeIf([&](const QSharedPointer<ToastWidget>& sharedToast) {
+  _sharedToasts.removeIf([&](const QSharedPointer<ToastWidget> &sharedToast) {
     return sharedToast.get() == toast;
   });
 

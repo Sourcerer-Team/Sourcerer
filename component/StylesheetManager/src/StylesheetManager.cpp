@@ -11,6 +11,8 @@ namespace StylesheetManager {
 QMap<StylesheetKey, QString> STYLESHEETS = {
     {StylesheetKey::Default,
      "QColorDialog{font-size:14px;}"
+     "QLineEdit{color:white;}"
+     "QLineEdit::placeholder{color: #C0C0C0;}"
      "QPushButton[flat=true]{color:white;text-decoration:none;}"
      "QPushButton[flat=true]:hover{color:#2A82DA;text-decoration:"
      "underline;}"
@@ -19,7 +21,8 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
      "QToolBox::tab:selected{background: #384D59;border-bottom: 1px solid "
      "gray;font-weight:bold;}"
      "QTabBar::tab:selected{font-weight:bold;}"
-     "QToolTip{font-size:14px;background-color:#384D59;color:white;border:1px;padding: 3px}"
+     "QToolTip{font-size:14px;background-color:#384D59;color:white;border:1px;"
+     "padding: 3px}"
      "QTableView::item:selected{font-weight:bold;background-color:"
      "#384D59;}"
      "GuiManager--Widgets--TitleBarMenuButton::menu-indicator{width:0px;}"

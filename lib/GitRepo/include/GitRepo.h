@@ -24,6 +24,7 @@ struct CloneProgress {
   int lastStepPercentage = -1;
   bool started = false;
   bool finished = false;
+  bool error = false;
   CloneProgressStageType stage = CloneProgressStageType::Unknown;
 };
 

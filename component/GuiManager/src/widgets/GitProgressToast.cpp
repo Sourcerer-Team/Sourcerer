@@ -49,6 +49,8 @@ GitProgressToast::GitProgressToast(const CloneProgress &data,
       std::bind(&GitProgressToast::eventCallback, this, std::placeholders::_1);
 
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
 
   LOG_PERF(0, "Exit");
@@ -60,6 +62,8 @@ GitProgressToast::~GitProgressToast() {
   const auto callbackFunc =
       std::bind(&GitProgressToast::eventCallback, this, std::placeholders::_1);
 
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
 
@@ -81,6 +85,11 @@ void GitProgressToast::eventCallback(EventManager::Event event) {
   LOG_DEBUG("Processing event of type {}.", (int)eventType);
 
   switch (eventType) {
+  case EventManager::EventType::GitRepoManagerCloneRepoError: {
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(),
+                                           [=]() { emit finished(); });
+    break;
+  }
   case EventManager::EventType::GitRepoManagerCloneRepoProgress: {
     const GitRepoManager::Structs::GitRepoResult commandResult =
         event.data<GitRepoManager::Structs::GitRepoResult>();

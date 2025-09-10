@@ -996,13 +996,14 @@ static void checkoutProgressCallback(const char *path, size_t completed_steps,
   }
 }
 
-static void finishFetchProgress(const QString &uuid) {
+static void finishFetchProgress(const QString &uuid, const bool error) {
   CloneProgress progress;
   progress.uuid = uuid;
   progress.completedSteps = 100;
   progress.totalSteps = 100;
   progress.started = true;
   progress.finished = true;
+  progress.error = error;
 
   EventManager::Event progressEvent(
       EventManager::EventType::GitRepoManagerCloneRepoProgress);
@@ -1086,10 +1087,10 @@ acquireCredentials(const QString &url, const QString &username,
   return std::make_tuple(false, GitPlaintextCredentials{});
 }
 
-static int credentialsAquireCallback(git_credential **out, const char *url,
-                                     const char *username_from_url,
-                                     unsigned int allowed_types,
-                                     void *payload) {
+static int credentialsAcquireCallback(git_credential **out, const char *url,
+                                      const char *username_from_url,
+                                      unsigned int allowed_types,
+                                      void *payload) {
   LOG_PERF(0, "Enter");
 
   if ((allowed_types & GIT_CREDENTIAL_USERPASS_PLAINTEXT) == 0) {
@@ -1191,7 +1192,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
   checkout_opts.progress_payload = &progressData;
   checkout_opts.progress_cb = &checkoutProgressCallback;
-  fetch_opts.callbacks.credentials = &credentialsAquireCallback;
+  fetch_opts.callbacks.credentials = &credentialsAcquireCallback;
   fetch_opts.callbacks.transfer_progress = &fetchProgressCallback;
   fetch_opts.callbacks.payload = &progressData;
   clone_opts.checkout_opts = checkout_opts;
@@ -1201,7 +1202,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
       git_clone(&repo, url.toStdString().c_str(),
                 destinationDir.toStdString().c_str(), &clone_opts);
 
-  finishFetchProgress(uuid);
+  finishFetchProgress(uuid, error != 0);
 
   if (error || !repo) {
     invalidateCredentials(url);
@@ -1821,29 +1822,41 @@ GitStatus getStatus(git_repository *repo) {
 
     if (((entry->status & GIT_STATUS_WT_NEW) != 0) && entry->index_to_workdir) {
       status.newFiles += entry->index_to_workdir->new_file.path;
-    } else if (((entry->status & GIT_STATUS_WT_MODIFIED) != 0) && entry->index_to_workdir) {
+    } else if (((entry->status & GIT_STATUS_WT_MODIFIED) != 0) &&
+               entry->index_to_workdir) {
       status.modifiedFiles += entry->index_to_workdir->new_file.path;
-    } else if (((entry->status & GIT_STATUS_WT_DELETED) != 0) && entry->index_to_workdir) {
+    } else if (((entry->status & GIT_STATUS_WT_DELETED) != 0) &&
+               entry->index_to_workdir) {
       status.deletedFiles += entry->index_to_workdir->old_file.path;
-    } else if (((entry->status & GIT_STATUS_WT_TYPECHANGE) != 0) && entry->index_to_workdir) {
+    } else if (((entry->status & GIT_STATUS_WT_TYPECHANGE) != 0) &&
+               entry->index_to_workdir) {
       status.typeChangedFiles += entry->index_to_workdir->new_file.path;
-    } else if (((entry->status & GIT_STATUS_WT_RENAMED) != 0) && entry->index_to_workdir) {
+    } else if (((entry->status & GIT_STATUS_WT_RENAMED) != 0) &&
+               entry->index_to_workdir) {
       status.renamedFiles += entry->index_to_workdir->new_file.path;
-    } else if (((entry->status & GIT_STATUS_WT_UNREADABLE) != 0) && entry->index_to_workdir) {
+    } else if (((entry->status & GIT_STATUS_WT_UNREADABLE) != 0) &&
+               entry->index_to_workdir) {
       status.unreadableFiles += entry->index_to_workdir->new_file.path;
-    } else if (((entry->status & GIT_STATUS_INDEX_NEW) != 0) && entry->head_to_index) {
+    } else if (((entry->status & GIT_STATUS_INDEX_NEW) != 0) &&
+               entry->head_to_index) {
       status.newStagedFiles += entry->head_to_index->new_file.path;
-    } else if (((entry->status & GIT_STATUS_INDEX_MODIFIED) != 0) && entry->head_to_index) {
+    } else if (((entry->status & GIT_STATUS_INDEX_MODIFIED) != 0) &&
+               entry->head_to_index) {
       status.modifiedStagedFiles += entry->head_to_index->new_file.path;
-    } else if (((entry->status & GIT_STATUS_INDEX_DELETED) != 0) && entry->head_to_index) {
+    } else if (((entry->status & GIT_STATUS_INDEX_DELETED) != 0) &&
+               entry->head_to_index) {
       status.modifiedStagedFiles += entry->head_to_index->old_file.path;
-    } else if (((entry->status & GIT_STATUS_INDEX_TYPECHANGE) != 0) && entry->head_to_index) {
+    } else if (((entry->status & GIT_STATUS_INDEX_TYPECHANGE) != 0) &&
+               entry->head_to_index) {
       status.typeChangedStagedFiles += entry->head_to_index->new_file.path;
-    } else if (((entry->status & GIT_STATUS_INDEX_RENAMED) != 0) && entry->head_to_index) {
+    } else if (((entry->status & GIT_STATUS_INDEX_RENAMED) != 0) &&
+               entry->head_to_index) {
       status.renamedStagedFiles += entry->head_to_index->new_file.path;
-    } else if (((entry->status & GIT_STATUS_IGNORED) != 0) && entry->index_to_workdir) {
+    } else if (((entry->status & GIT_STATUS_IGNORED) != 0) &&
+               entry->index_to_workdir) {
       status.ignoredFiles += entry->index_to_workdir->new_file.path;
-    } else if (((entry->status & GIT_STATUS_CONFLICTED) != 0) && entry->index_to_workdir) {
+    } else if (((entry->status & GIT_STATUS_CONFLICTED) != 0) &&
+               entry->index_to_workdir) {
       status.conflictedFiles += entry->index_to_workdir->new_file.path;
     }
   }

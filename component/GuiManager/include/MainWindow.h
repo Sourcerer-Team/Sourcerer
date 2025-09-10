@@ -3,6 +3,7 @@
 #include "HitDetector.h"
 #include "widgets/CentralWidget.h"
 #include "widgets/ContainerWidget.h"
+#include "widgets/GitCredentialsOverlayWidget.h"
 #include "widgets/ToastHostWidget.h"
 #include "widgets/TopBarWidget.h"
 
@@ -58,6 +59,7 @@ private slots:
   void onCloseClicked();
   void onTitleBarDrag() const;
   void onEdgeHit(Qt::Edges edges) const;
+  void onCredentialsFinished() const;
 
 private:
   void addCloneContainer();
@@ -67,10 +69,12 @@ private:
   void addSettingsContainer();
   void closeContainer(const ContainerWidget *container);
   void eventCallback(EventManager::Event event);
+  void hideCredentialsOverlay() const;
   void selectContainer(int index);
-  void showCredentialsToast(const GitCredentialsRequest &request) const;
+  void showCredentialsOverlay(const GitCredentialsRequest &request) const;
   void showCloneProgressToast(const CloneProgress &data) const;
   void showToast(const QString &text, const QString &title) const;
+  void showErrorToast(const QString &text, const QString &title) const;
 
 private:
   int _current;
@@ -84,6 +88,7 @@ private:
   bool _maximized;
   bool _mousePressed;
   HitDetector *_hitDetector;
+  GitCredentialsOverlayWidget::SharedPtr _gitCredentialsOverlay;
 };
 
 } // namespace GuiManager

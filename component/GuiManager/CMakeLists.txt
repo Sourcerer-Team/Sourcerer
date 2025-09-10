@@ -40,11 +40,13 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/ColorButton.h
         include/widgets/ContainerWidget.h
         include/widgets/ElidedLabel.h
+        include/widgets/ErrorToast.h
+        include/widgets/GitCredentialsOverlayWidget.h
         include/widgets/GitSubmodulesPage.h
-        include/widgets/GitCredentialsToast.h
         include/widgets/GitProgressToast.h
         include/widgets/GitTagsPage.h
         include/widgets/HistorySliceTableColumnDelegate.h
+        include/widgets/HistorySummaryTableColumnDelegate.h
         include/widgets/InfoToast.h
         include/widgets/LocalGitBranchesPage.h
         include/widgets/MouseTrackingSplitter.h
@@ -94,11 +96,13 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/ColorButton.cpp
         src/widgets/ContainerWidget.cpp
         src/widgets/ElidedLabel.cpp
-        src/widgets/GitCredentialsToast.cpp
+        src/widgets/ErrorToast.cpp
+        src/widgets/GitCredentialsOverlayWidget.cpp
         src/widgets/GitProgressToast.cpp
         src/widgets/GitSubmodulesPage.cpp
         src/widgets/GitTagsPage.cpp
         src/widgets/HistorySliceTableColumnDelegate.cpp
+        src/widgets/HistorySummaryTableColumnDelegate.cpp
         src/widgets/InfoToast.cpp
         src/widgets/LocalGitBranchesPage.cpp
         src/widgets/MouseTrackingSplitter.cpp
@@ -112,6 +116,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/SettingsPaneLongWidget.cpp
         src/widgets/SettingsPaneStringWidget.cpp
         src/widgets/ShadeIconToolbox.cpp
+        src/widgets/SpinnerOverlayWidget.cpp
         src/widgets/TitleBarButton.cpp
         src/widgets/TitleBarHomeButton.cpp
         src/widgets/TitleBarMenuButton.cpp
@@ -135,10 +140,6 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/TitlebarWidget.ui
         ${QRC_FILES}
         ${TS_FILES}
-        include/widgets/ErrorToast.h
-        src/widgets/ErrorToast.cpp
-        include/widgets/HistorySummaryTableColumnDelegate.h
-        src/widgets/HistorySummaryTableColumnDelegate.cpp
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

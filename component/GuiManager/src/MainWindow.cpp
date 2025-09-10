@@ -7,7 +7,7 @@
 #include "containers/InitGitRepoContainer.h"
 #include "containers/SettingsContainer.h"
 #include "dialogs/AboutDialog.h"
-#include "widgets/GitCredentialsToast.h"
+#include "widgets/ErrorToast.h"
 #include "widgets/GitProgressToast.h"
 #include "widgets/InfoToast.h"
 #include "widgets/TitlebarWidget.h"
@@ -39,7 +39,8 @@ MainWindow::MainWindow(QWidget *parent)
       _toastHost(ToastHostWidget::getInstance()),
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
-      _maximized(false), _mousePressed(false), _hitDetector(nullptr) {
+      _maximized(false), _mousePressed(false), _hitDetector(nullptr),
+      _gitCredentialsOverlay(new GitCredentialsOverlayWidget(_centralWidget)) {
   LOG_PERF(0, "Enter");
 
   setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
@@ -52,10 +53,13 @@ MainWindow::MainWindow(QWidget *parent)
   connect(_hitDetector, &HitDetector::edgeHit, this, &MainWindow::onEdgeHit);
 #endif
 
-  auto widget = new QWidget(this);
+  _gitCredentialsOverlay->stop();
+  _gitCredentialsOverlay->hide();
+
+  const auto widget = new QWidget(this);
   widget->setMouseTracking(true);
 
-  auto layout = new QVBoxLayout(widget);
+  const auto layout = new QVBoxLayout(widget);
   layout->setContentsMargins(2, 2, 2, 2);
   layout->addWidget(_topBarWidget);
   layout->addWidget(_centralWidget);
@@ -92,6 +96,10 @@ MainWindow::MainWindow(QWidget *parent)
           &MainWindow::onMaximizeClicked);
   connect(_topBarWidget, &TopBarWidget::dragged, this,
           &MainWindow::onTitleBarDrag);
+  connect(_gitCredentialsOverlay.get(), &GitCredentialsOverlayWidget::error,
+          this, &MainWindow::onCredentialsFinished);
+  connect(_gitCredentialsOverlay.get(), &GitCredentialsOverlayWidget::finished,
+          this, &MainWindow::onCredentialsFinished);
 
   addHomeContainer();
 
@@ -305,6 +313,14 @@ void MainWindow::onEdgeHit(Qt::Edges edges) const {
   LOG_PERF(0, "Exit");
 }
 
+void MainWindow::onCredentialsFinished() const {
+  LOG_PERF(0, "Enter");
+
+  hideCredentialsOverlay();
+
+  LOG_PERF(0, "Exit");
+}
+
 void MainWindow::addCloneContainer() {
   LOG_PERF(0, "Enter");
 
@@ -439,12 +455,12 @@ void MainWindow::eventCallback(EventManager::Event event) {
   case EventManager::EventType::GitRepoManagerGetCredentials: {
     const auto request = event.data<GitCredentialsRequest>();
     Util::Dispatcher::dispatchToMainThread(
-        getSelf().toWeakRef(), [=]() { showCredentialsToast(request); });
+        getSelf().toWeakRef(), [=]() { showCredentialsOverlay(request); });
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepoError: {
     Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
-      showToast(tr("Unable to clone Git repository"), tr("Error"));
+      showErrorToast(tr("Unable to clone Git repository"), tr("Error"));
     });
     break;
   }
@@ -460,7 +476,7 @@ void MainWindow::eventCallback(EventManager::Event event) {
     const auto commandResult =
         event.data<GitRepoManager::Structs::GitRepoResult>();
     if (const CloneProgress data = commandResult.value.value<CloneProgress>();
-        !_progressing.contains(data.uuid)) {
+        !data.error && !_progressing.contains(data.uuid)) {
       _progressing += data.uuid;
       Util::Dispatcher::dispatchToMainThread(
           getSelf().toWeakRef(), [=]() { showCloneProgressToast(data); });
@@ -486,6 +502,15 @@ void MainWindow::eventCallback(EventManager::Event event) {
   LOG_PERF(0, "Exit");
 }
 
+void MainWindow::hideCredentialsOverlay() const {
+  LOG_PERF(0, "Enter");
+
+  _gitCredentialsOverlay->stop();
+  _gitCredentialsOverlay->hide();
+
+  LOG_PERF(0, "Exit");
+}
+
 void MainWindow::selectContainer(const int index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("index is {}.", index);
@@ -503,16 +528,20 @@ void MainWindow::selectContainer(const int index) {
   _centralWidget->setCentralWidget(_containers[index].get());
   _current = index;
 
+  // Set its parent to be home container
+  _gitCredentialsOverlay->setParent(_containers[0].get());
+
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showCredentialsToast(
+void MainWindow::showCredentialsOverlay(
     const GitCredentialsRequest &request) const {
   LOG_PERF(0, "Enter");
 
-  const auto toast = QSharedPointer<GitCredentialsToast>::create(request);
-
-  _toastHost.addToast(toast);
+  _gitCredentialsOverlay->setRequest(request);
+  _gitCredentialsOverlay->start();
+  _gitCredentialsOverlay->show();
+  _gitCredentialsOverlay->raise();
 
   LOG_PERF(0, "Exit");
 }
@@ -520,7 +549,8 @@ void MainWindow::showCredentialsToast(
 void MainWindow::showCloneProgressToast(const CloneProgress &data) const {
   LOG_PERF(0, "Enter");
 
-  const auto toast = QSharedPointer<GitProgressToast>::create(data, tr("Clone"));
+  const auto toast =
+      QSharedPointer<GitProgressToast>::create(data, tr("Clone"));
 
   _toastHost.addToast(toast);
 
@@ -531,6 +561,15 @@ void MainWindow::showToast(const QString &text, const QString &title) const {
   LOG_PERF(0, "Enter");
 
   _toastHost.addToast(new InfoToast(text, title));
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showErrorToast(const QString &text,
+                                const QString &title) const {
+  LOG_PERF(0, "Enter");
+
+  _toastHost.addToast(new ErrorToast(text, title));
 
   LOG_PERF(0, "Exit");
 }

@@ -9,12 +9,12 @@ namespace GuiManager::Widgets {
 
 class OverlayWidget : public QWidget {
 public:
-  explicit OverlayWidget(QWidget *parent) : QWidget(parent) {
+  explicit OverlayWidget(QWidget *parent, int alpha) : QWidget(parent) {
     setAttribute(Qt::WA_TransparentForMouseEvents, false);
     setAttribute(Qt::WA_NativeWindow);
 
     QColor defaultBackgroundColor = palette().color(QPalette::Window);
-    defaultBackgroundColor.setAlpha(160); // semi-transparent
+    defaultBackgroundColor.setAlpha(alpha); // semi-transparent
 
     setBackgroundColor(defaultBackgroundColor);
 
@@ -56,13 +56,6 @@ public:
   }
 
 protected:
-  /*
-  bool event(QEvent *e) override {
-    // Eat all events
-    return true;
-  }
-  */
-
   void resizeEvent(QResizeEvent *) override {
     if (parentWidget()) {
       resize(parentWidget()->size()); // always match parent size
@@ -88,7 +81,6 @@ protected:
     return QWidget::eventFilter(watched, event);
   }
 
-private:
   void adjustToParent() {
     if (auto *p = parentWidget()) {
       setGeometry(p->rect()); // fills entire parent
@@ -96,6 +88,7 @@ private:
     }
   }
 
+private:
   static QRect toGlobalRect(const QWidget *w, const QRect &r) {
     return QRect(w->mapToGlobal(r.topLeft()), w->mapToGlobal(r.bottomRight()));
   }
