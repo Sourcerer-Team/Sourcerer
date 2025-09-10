@@ -635,7 +635,7 @@ bool GitRepoContainer::getActiveTag() {
   return getActiveBranchOrTag(getSelf().toWeakRef(), GitRepo::BranchType::Tag);
 }
 
-bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) const {
+bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
   // Release allocated memory
@@ -1169,21 +1169,25 @@ void GitRepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showToast(const QString &message) const {
+void GitRepoContainer::showToast(const QString &message) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 
-  _toastHost.addToast(new InfoToast(message));
+  Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+    _toastHost.addToast(new InfoToast(message));
+  });
 
   LOG_PERF(0, "Exit")
 }
 
 void GitRepoContainer::showErrorToast(const QString &message,
-                                      const QString &title) const {
+                                      const QString &title) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 
-  _toastHost.addToast(new ErrorToast(message, title));
+  Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+    _toastHost.addToast(new ErrorToast(message, title));
+  });
 
   LOG_PERF(0, "Exit")
 }

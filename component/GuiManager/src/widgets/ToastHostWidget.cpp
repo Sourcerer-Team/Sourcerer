@@ -1,6 +1,8 @@
 
 #include "widgets/ToastHostWidget.h"
 
+#include "Dispatcher.h"
+
 #include <Log.h>
 
 #include <QPropertyAnimation>
@@ -39,7 +41,7 @@ ToastHostWidget::ToastHostWidget()
   }
 
   layout_->setSpacing(toastSpacing);
-  layout_->setContentsMargins(16, 16, 16, 16);
+  layout_->setContentsMargins(16, 8, 8, 16);
 
   LOG_PERF(0, "Exit");
 }
@@ -101,7 +103,7 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
   } else
     layout_->insertWidget(layout_->count(), toast, 0, Qt::AlignCenter);
 
-  QTimer::singleShot(0, [=]() { animateWidget(toast); });
+  animateWidget(toast);
 
   LOG_PERF(0, "Exit");
 }
@@ -167,8 +169,8 @@ void ToastHostWidget::animateWidget(QWidget *widget) const {
 }
 
 ToastHostWidget &ToastHostWidget::getInstance() {
-  static ToastHostWidget instance;
-  return instance;
+  static SharedPtr instance = SharedPtr::create();
+  return *instance;
 }
 
 void ToastHostWidget::addToast(ToastWidget *toast) {
@@ -181,10 +183,15 @@ void ToastHostWidget::addToast(ToastWidget *toast) {
 
   const int toastWidth =
       _configManager.getLong(ConfigManager::ConfigKey::ToastWidth);
+  const int toastHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::ToastHeight);
 
   toast->setParent(this);
   toast->setMinimumWidth(toastWidth);
   toast->setMaximumWidth(toastWidth);
+  toast->setMinimumHeight(toastHeight);
+  toast->setMaximumHeight(toastHeight);
+  toast->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
   if (toastWillFit(toast)) {
     _toasts += toast;
@@ -207,10 +214,14 @@ void ToastHostWidget::addToast(const QSharedPointer<ToastWidget> &toast) {
 
   const int toastWidth =
       _configManager.getLong(ConfigManager::ConfigKey::ToastWidth);
+  const int toastHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::ToastHeight);
 
   toast->setParent(this);
   toast->setMinimumWidth(toastWidth);
   toast->setMaximumWidth(toastWidth);
+  toast->setMinimumHeight(toastHeight);
+  toast->setMaximumHeight(toastHeight);
 
   if (toastWillFit(toast.get())) {
     _sharedToasts += toast;
@@ -322,18 +333,34 @@ void ToastHostWidget::onToastStopped(ToastWidget *toast) {
 bool ToastHostWidget::toastWillFit(const ToastWidget *toast) const {
   LOG_PERF(0, "Enter");
 
+  if (!toast) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const auto layout_ = layout();
   const int toastSpacing =
       _configManager.getLong(ConfigManager::ConfigKey::ToastSpacing);
 
-  const auto layout_ = layout();
-  const int layoutCount = layout_->count();
-  const QSize toastSizeHint = toast->sizeHint();
-
   int totalToastHeight = 0;
-  for (int i = 0; i < layoutCount + 1; i++) {
-    totalToastHeight += toastSizeHint.height();
+  for (int i = 0; i < layout_->count(); i++) {
+    const QLayoutItem *layoutitem = layout_->itemAt(i);
+    Q_ASSERT(layoutitem != nullptr);
+    if (!layoutitem) {
+      continue;
+    }
+
+    const QWidget *widget = layoutitem->widget();
+    Q_ASSERT(widget != nullptr);
+    if (!widget) {
+      continue;
+    }
+
+    totalToastHeight += widget->rect().height();
     totalToastHeight += toastSpacing;
   }
+
+  totalToastHeight += toast->rect().height();
 
   LOG_PERF(0, "Exit");
 

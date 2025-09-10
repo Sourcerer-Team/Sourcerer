@@ -133,11 +133,13 @@ void InitGitRepoContainer::eventCallback(EventManager::Event event) {
   LOG_PERF(0, "Exit");
 }
 
-void InitGitRepoContainer::showToast(const QString &message) const {
+void InitGitRepoContainer::showToast(const QString &message) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 
-  _toastHost.addToast(new InfoToast(message));
+  Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+    _toastHost.addToast(new InfoToast(message));
+  });
 
   LOG_PERF(0, "Exit")
 }

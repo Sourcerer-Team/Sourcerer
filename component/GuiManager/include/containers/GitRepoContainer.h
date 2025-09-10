@@ -68,7 +68,7 @@ private:
   bool getActiveLocalBranch();
   bool getActiveRemoteBranch();
   bool getActiveTag();
-  bool getBranchHistory(const WeakPtr &guard) const;
+  bool getBranchHistory(const WeakPtr &guard);
   [[nodiscard]] QStringList getCommitBranches(const QString &commit) const;
   bool getLocalBranches();
   bool getRemoteBranches();
@@ -82,8 +82,8 @@ private:
   void showErrorPage(bool error = true) const;
   void showMainSpinnerPage(bool spinnerEnabled = true) const;
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
-  void showToast(const QString &message) const;
-  void showErrorToast(const QString &message, const QString &title) const;
+  void showToast(const QString &message);
+  void showErrorToast(const QString &message, const QString &title);
   void updateBranchHistory(
       const WeakPtr &guard,
       const GitRepo::GitHistoryWithStatus &historyWithStatus) const;

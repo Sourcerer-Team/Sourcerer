@@ -71,10 +71,10 @@ private:
   void eventCallback(EventManager::Event event);
   void hideCredentialsOverlay() const;
   void selectContainer(int index);
-  void showCredentialsOverlay(const GitCredentialsRequest &request) const;
-  void showCloneProgressToast(const CloneProgress &data) const;
-  void showToast(const QString &text, const QString &title) const;
-  void showErrorToast(const QString &text, const QString &title) const;
+  void showCredentialsOverlay(const GitCredentialsRequest &request);
+  void showCloneProgressToast(const CloneProgress &data);
+  void showToast(const QString &text, const QString &title);
+  void showErrorToast(const QString &text, const QString &title);
 
 private:
   int _current;

@@ -26,17 +26,16 @@ ToastWidget::ToastWidget(QWidget *parent)
   closeButton->setText(QString());
 
   const auto titleLayout = new QHBoxLayout(_titleWidget);
-  titleLayout->setSpacing(8);
-  titleLayout->setContentsMargins(8, 8, 8, 8);
+  titleLayout->setSpacing(0);
+  titleLayout->setContentsMargins(0, 16, 0, 16);
   titleLayout->addWidget(_titleLabel);
   titleLayout->addStretch();
   titleLayout->addWidget(closeButton);
 
   const auto layout = new QVBoxLayout(this);
   layout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-  layout->setSizeConstraint(QLayout::SetMinimumSize);
   layout->setSpacing(0);
-  layout->setContentsMargins(8, 0, 8, 8);
+  layout->setContentsMargins(0, 0, 0, 8);
   layout->addWidget(_titleWidget);
 
   setStyleSheet("font-size:14px;color:white;background-color:#808a89;");

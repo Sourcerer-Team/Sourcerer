@@ -5,7 +5,7 @@
 
 #include <ConfigManager.h>
 
-#include <QLayout>
+#include <QEnableSharedFromThis>
 #include <QQueue>
 #include <QSharedPointer>
 #include <QWidget>
@@ -23,10 +23,19 @@ enum class ToastPosition {
   Last
 };
 
-class ToastHostWidget final : public OverlayWidget {
+class ToastHostWidget final : public OverlayWidget, public QEnableSharedFromThis<ToastHostWidget> {
   Q_OBJECT
+
+  typedef QSharedPointer<ToastHostWidget> SharedPtr;
+  typedef QWeakPointer<ToastHostWidget> WeakPtr;
+
 public:
+  ToastHostWidget();
+  ~ToastHostWidget() override;
+
   static ToastHostWidget &getInstance();
+
+  SharedPtr getSelf() { return sharedFromThis(); }
 
   void addToast(ToastWidget *toast);
   void addToast(const QSharedPointer<ToastWidget>& toast);
@@ -38,8 +47,6 @@ private slots:
   void onToastStopped(ToastWidget *toast);
 
 private:
-  ToastHostWidget();
-  ~ToastHostWidget() override;
   ToastHostWidget &operator=(const ToastHostWidget &) = delete;
 
   void destroyAllToasts();

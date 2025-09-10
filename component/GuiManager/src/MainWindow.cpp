@@ -56,6 +56,14 @@ MainWindow::MainWindow(QWidget *parent)
   _gitCredentialsOverlay->stop();
   _gitCredentialsOverlay->hide();
 
+  const qlonglong minimumWidth =
+      _configManager.getLong(ConfigManager::ConfigKey::MainWindowMinimumWidth);
+  const qlonglong minimumHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::MainWindowMinimumHeight);
+
+  setMinimumWidth(minimumWidth);
+  setMinimumHeight(minimumHeight);
+
   const auto widget = new QWidget(this);
   widget->setMouseTracking(true);
 
@@ -534,8 +542,7 @@ void MainWindow::selectContainer(const int index) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showCredentialsOverlay(
-    const GitCredentialsRequest &request) const {
+void MainWindow::showCredentialsOverlay(const GitCredentialsRequest &request) {
   LOG_PERF(0, "Enter");
 
   _gitCredentialsOverlay->setRequest(request);
@@ -546,30 +553,34 @@ void MainWindow::showCredentialsOverlay(
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showCloneProgressToast(const CloneProgress &data) const {
+void MainWindow::showCloneProgressToast(const CloneProgress &data) {
   LOG_PERF(0, "Enter");
 
   const auto toast =
       QSharedPointer<GitProgressToast>::create(data, tr("Clone"));
 
-  _toastHost.addToast(toast);
+  Dispatcher::dispatchToMainThread(getSelf().toWeakRef(),
+                                   [=]() { _toastHost.addToast(toast); });
 
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showToast(const QString &text, const QString &title) const {
+void MainWindow::showToast(const QString &text, const QString &title) {
   LOG_PERF(0, "Enter");
 
-  _toastHost.addToast(new InfoToast(text, title));
+  Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+    _toastHost.addToast(new InfoToast(text, title));
+  });
 
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showErrorToast(const QString &text,
-                                const QString &title) const {
+void MainWindow::showErrorToast(const QString &text, const QString &title) {
   LOG_PERF(0, "Enter");
 
-  _toastHost.addToast(new ErrorToast(text, title));
+  Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+    _toastHost.addToast(new ErrorToast(text, title));
+  });
 
   LOG_PERF(0, "Exit");
 }
