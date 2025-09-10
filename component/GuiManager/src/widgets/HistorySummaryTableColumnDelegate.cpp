@@ -98,8 +98,8 @@ void HistorySummaryTableColumnDelegate::paintStatus(
     prevWidth += padding; // spacing
     prevWidth += symbolRect.width();
 
-    painter->drawRect(symbolRect.x(), symbolRect.y(), symbolRect.width(),
-                      symbolRect.height());
+    painter->drawRoundedRect(symbolRect.x(), symbolRect.y(), symbolRect.width(),
+                      symbolRect.height(), 2, 2);
 
     const QString counterStr = QString::number(counter);
 
