@@ -2,6 +2,7 @@
 #include "widgets/ToastHostWidget.h"
 
 #include "Dispatcher.h"
+#include "MainWindow.h"
 
 #include <Log.h>
 
@@ -364,7 +365,7 @@ bool ToastHostWidget::toastWillFit(const ToastWidget *toast) const {
 
   LOG_PERF(0, "Exit");
 
-  return rect().height() >= totalToastHeight;
+  return rect().height() >= totalToastHeight + toast->rect().height();
 }
 
 } // namespace GuiManager::Widgets
