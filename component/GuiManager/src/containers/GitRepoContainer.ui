@@ -249,11 +249,35 @@
                      <attribute name="title">
                       <string>Flat</string>
                      </attribute>
+                     <layout class="QHBoxLayout" name="horizontalLayout_4">
+                      <item>
+                       <layout class="QVBoxLayout" name="verticalLayoutTabWidgetWorkingTreeFlatOuter">
+                        <property name="spacing">
+                         <number>0</number>
+                        </property>
+                        <item>
+                         <widget class="QListView" name="listViewTabWidgetWorkingTreeFlat"/>
+                        </item>
+                       </layout>
+                      </item>
+                     </layout>
                     </widget>
                     <widget class="QWidget" name="tabTreeWorkingTree">
                      <attribute name="title">
                       <string>Tree</string>
                      </attribute>
+                     <layout class="QHBoxLayout" name="horizontalLayout_5">
+                      <item>
+                       <layout class="QVBoxLayout" name="verticalLayoutTabWidgetWorkingTreeTreeOuter">
+                        <property name="spacing">
+                         <number>0</number>
+                        </property>
+                        <item>
+                         <widget class="QTreeView" name="treeViewTabWidgetWorkingTreeTree"/>
+                        </item>
+                       </layout>
+                      </item>
+                     </layout>
                     </widget>
                    </widget>
                    <widget class="QTabWidget" name="tabWidgetIndex">
@@ -272,16 +296,16 @@
                      </attribute>
                      <layout class="QHBoxLayout" name="horizontalLayoutTabTreeFlat">
                       <item>
-                      <layout class="QVBoxLayout" name="verticalLayoutTabWidgetIndexFlatOuter">
-                       <property name="spacing">
-                        <number>0</number>
-                       </property>
-                       <item>
-                        <widget class="QListView" name="listViewTabWidgetIndexFlat"/>
-                       </item>
-                      </layout>
+                       <layout class="QVBoxLayout" name="verticalLayoutTabWidgetIndexFlatOuter">
+                        <property name="spacing">
+                         <number>0</number>
+                        </property>
+                        <item>
+                         <widget class="QListView" name="listViewTabWidgetIndexFlat"/>
+                        </item>
+                       </layout>
                       </item>
-                      </layout>
+                     </layout>
                     </widget>
                     <widget class="QWidget" name="tabTreeIndex">
                      <property name="sizePolicy">
@@ -301,7 +325,7 @@
                      </attribute>
                      <layout class="QHBoxLayout" name="horizontalLayoutTabTreeIndex">
                       <item>
-                       <layout class="QVBoxLayout" name="verticalLayoutTabWidgetTreeOuter" stretch="0">
+                       <layout class="QVBoxLayout" name="verticalLayoutTabWidgetIndexTreeOuter" stretch="0">
                         <property name="spacing">
                          <number>0</number>
                         </property>
