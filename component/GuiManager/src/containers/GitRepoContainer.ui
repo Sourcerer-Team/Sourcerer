@@ -14,6 +14,21 @@
    <string>Form</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <property name="spacing">
+    <number>0</number>
+   </property>
    <item row="0" column="0">
     <widget class="QStackedWidget" name="stackedWidget1">
      <property name="minimumSize">
@@ -30,6 +45,12 @@
        </size>
       </property>
       <layout class="QHBoxLayout" name="horizontalLayout">
+       <item>
+        <widget class="QStackedWidget" name="stackedWidget">
+         <widget class="QWidget" name="page"/>
+         <widget class="QWidget" name="page_2"/>
+        </widget>
+       </item>
        <item>
         <layout class="QHBoxLayout" name="horizontalLayout1">
          <item>
@@ -112,8 +133,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>222</width>
-                  <height>133</height>
+                  <width>98</width>
+                  <height>28</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -127,8 +148,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>222</width>
-                  <height>133</height>
+                  <width>98</width>
+                  <height>28</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -142,8 +163,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>222</width>
-                  <height>133</height>
+                  <width>98</width>
+                  <height>28</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -157,8 +178,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>222</width>
-                  <height>133</height>
+                  <width>98</width>
+                  <height>28</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -184,6 +205,63 @@
                <attribute name="verticalHeaderVisible">
                 <bool>false</bool>
                </attribute>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+           <widget class="QWidget" name="rightVerticalLayoutWidget">
+            <layout class="QVBoxLayout" name="rightVerticalLayout" stretch="0">
+             <item>
+              <widget class="QStackedWidget" name="stackedWidgetCommitAndMerge">
+               <widget class="QWidget" name="pageCommitAndMerge">
+                <layout class="QHBoxLayout" name="horizontalLayoutCommitAndMerge">
+                 <item>
+                  <widget class="QSplitter" name="splitterCommitAndMerge">
+                   <property name="orientation">
+                    <enum>Qt::Orientation::Vertical</enum>
+                   </property>
+                   <widget class="QTabWidget" name="tabWidgetWorkingTree">
+                    <widget class="QWidget" name="tabFlatIndex">
+                     <attribute name="title">
+                      <string>Flat</string>
+                     </attribute>
+                    </widget>
+                    <widget class="QWidget" name="tabTreeIndex">
+                     <attribute name="title">
+                      <string>Tree</string>
+                     </attribute>
+                    </widget>
+                   </widget>
+                   <widget class="QTabWidget" name="tabWidgetIndex">
+                    <property name="tabShape">
+                     <enum>QTabWidget::TabShape::Rounded</enum>
+                    </property>
+                    <widget class="QWidget" name="tabFlatWorkingTree">
+                     <attribute name="title">
+                      <string>Flat</string>
+                     </attribute>
+                    </widget>
+                    <widget class="QWidget" name="tabTreeWorkingTree">
+                     <attribute name="title">
+                      <string>Tree</string>
+                     </attribute>
+                    </widget>
+                   </widget>
+                   <widget class="QTabWidget" name="tabWidgetCommit">
+                    <property name="tabShape">
+                     <enum>QTabWidget::TabShape::Rounded</enum>
+                    </property>
+                    <widget class="QWidget" name="tabCommit">
+                     <attribute name="title">
+                      <string>Commit</string>
+                     </attribute>
+                    </widget>
+                   </widget>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+               <widget class="QWidget" name="page_4"/>
               </widget>
              </item>
             </layout>

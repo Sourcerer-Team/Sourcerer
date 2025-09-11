@@ -10,8 +10,7 @@
 
 #define THREAD_ID "TopBarWidget"
 
-namespace GuiManager {
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 TopBarWidget::TopBarWidget(QWidget *parent)
     : QWidget{parent},
@@ -32,25 +31,25 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   LOG_DEBUG("Maximize button color '{}", maximizeButtonColor.name());
   LOG_DEBUG("Close button color '{}", closeButtonColor.name());
 
-  TitleBarButton *minimizeButton = new TitleBarButton(
+  auto minimizeButton = new TitleBarButton(
       QPixmap(":/icons/minimize_button.png"), minimizeButtonColor, this);
   minimizeButton->setFlat(true);
   minimizeButton->setMinimumSize(QSize(32, 32));
   minimizeButton->setMaximumSize(QSize(32, 32));
 
-  TitleBarButton *maximizeButton = new TitleBarButton(
+  auto maximizeButton = new TitleBarButton(
       QPixmap(":/icons/maximize_button.png"), maximizeButtonColor, this);
   maximizeButton->setFlat(true);
   maximizeButton->setMinimumSize(QSize(32, 32));
   maximizeButton->setMaximumSize(QSize(32, 32));
 
-  TitleBarButton *closeButton = new TitleBarButton(
+  auto closeButton = new TitleBarButton(
       QPixmap(":/icons/close_button.png"), closeButtonColor, this);
   closeButton->setFlat(true);
   closeButton->setMinimumSize(QSize(32, 32));
   closeButton->setMaximumSize(QSize(32, 32));
 
-  QHBoxLayout *systemBarLayout = new QHBoxLayout();
+  auto systemBarLayout = new QHBoxLayout();
   systemBarLayout->setContentsMargins(0, 0, 0, 0);
   systemBarLayout->setSizeConstraint(QLayout::SetFixedSize);
   systemBarLayout->addWidget(minimizeButton);
@@ -70,7 +69,7 @@ TopBarWidget::TopBarWidget(QWidget *parent)
 
   LOG_DEBUG("Border width is {} pixels.", borderWidth);
 
-  QHBoxLayout *titleBarLayout = new QHBoxLayout(this);
+  auto titleBarLayout = new QHBoxLayout(this);
   titleBarLayout->setContentsMargins(borderWidth, borderWidth, borderWidth, 0);
   titleBarLayout->addWidget(_titleBarWidget);
   titleBarLayout->addSpacerItem(
@@ -127,5 +126,4 @@ void TopBarWidget::mousePressEvent(QMouseEvent *event) {
   LOG_PERF(0, "Exit");
 }
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

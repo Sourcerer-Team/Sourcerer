@@ -54,9 +54,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->toolBox->setItemText(2, tr("Tags"));
   ui->toolBox->setItemText(3, tr("Submodules"));
   ui->toolBox->setAttribute(Qt::WA_StyledBackground, true);
-  ui->splitter->setStretchFactor(0, 1);
-  ui->splitter->setStretchFactor(1, 8);
-  ui->splitter->setStretchFactor(2, 1);
+  ui->splitter->setStretchFactor(0, 2);
+  ui->splitter->setStretchFactor(1, 6);
+  ui->splitter->setStretchFactor(2, 2);
   ui->submodulesPage->setContentsMargins(0, 0, 0, 0);
   ui->historyView->setItemDelegateForColumn(
       0, new HistorySliceTableColumnDelegate(ui->historyView));
@@ -70,6 +70,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *header = new ClickableHeaderView(Qt::Horizontal, ui->historyView);
   ui->historyView->setHorizontalHeader(header);
+
+  ui->tabWidgetCommit->tabBar()->setObjectName("tabWidgetCommitTabBar");
+  ui->tabWidgetIndex->tabBar()->setObjectName("tabWidgetIndexTabBar");
+  ui->tabWidgetWorkingTree->tabBar()->setObjectName("tabWidgetWorkingTreeTabBar");
+
+  qApp->setStyleSheet(qApp->styleSheet());
 
   _errorPixmap = new QPixmap(QSize(128, 128));
   _errorPixmap->fill(Qt::transparent);
