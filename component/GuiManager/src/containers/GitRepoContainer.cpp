@@ -508,7 +508,8 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
 
     if (_historyModel->hasStatus()) {
       additionalClarificationMessage =
-          tr("\nThere are uncommited files in the working directory");
+          tr("\nPlease "
+             "commit your changes or stash them before you switch branches.");
     }
 
     if (!success) {
