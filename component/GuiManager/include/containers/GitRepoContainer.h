@@ -10,6 +10,7 @@
 #include <EventManager.h>
 #include <GitRepo.h>
 #include <LockGuard.h>
+#include <QCheckBox>
 
 #include <QEnableSharedFromThis>
 #include <QSet>
@@ -127,6 +128,8 @@ private:
 
   int _resizedHeaderSection;
   int _resizedHeaderSectionPreviousWidth;
+
+  QCheckBox *_checkBoxAmend;
 };
 
 } // namespace GuiManager::Containers

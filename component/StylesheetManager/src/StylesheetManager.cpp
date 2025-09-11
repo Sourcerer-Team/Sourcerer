@@ -28,6 +28,12 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
         color:#2A82DA;
         text-decoration: underline;
       }
+      QTextEdit:focus {
+          border: 2px solid #53A0ED;
+      }
+      QGroupBox#groupBoxTabCommit{
+        background-color: black;
+      }
       QTabBar::tab:selected{
         font-weight:bold;
       }

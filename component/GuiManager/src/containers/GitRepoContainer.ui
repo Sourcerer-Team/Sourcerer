@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>384</width>
-    <height>421</height>
+    <width>633</width>
+    <height>469</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -104,11 +104,23 @@
       </layout>
      </widget>
      <widget class="QWidget" name="pageMain">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
       <layout class="QVBoxLayout" name="verticalLayout2">
        <item>
         <layout class="QHBoxLayout" name="horizontalLayout2">
          <item>
           <widget class="QSplitter" name="splitter">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
            <property name="orientation">
             <enum>Qt::Orientation::Horizontal</enum>
            </property>
@@ -126,15 +138,15 @@
                 <string notr="true"/>
                </property>
                <property name="currentIndex">
-                <number>0</number>
+                <number>2</number>
                </property>
                <widget class="GuiManager::Widgets::LocalGitBranchesPage" name="localPage">
                 <property name="geometry">
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>98</width>
-                  <height>28</height>
+                  <width>208</width>
+                  <height>199</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -148,8 +160,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>98</width>
-                  <height>28</height>
+                  <width>208</width>
+                  <height>199</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -163,8 +175,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>98</width>
-                  <height>28</height>
+                  <width>208</width>
+                  <height>199</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -178,8 +190,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>98</width>
-                  <height>28</height>
+                  <width>208</width>
+                  <height>199</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -213,7 +225,19 @@
             <layout class="QVBoxLayout" name="rightVerticalLayout" stretch="0">
              <item>
               <widget class="QStackedWidget" name="stackedWidgetCommitAndMerge">
+               <property name="sizePolicy">
+                <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                 <horstretch>0</horstretch>
+                 <verstretch>0</verstretch>
+                </sizepolicy>
+               </property>
                <widget class="QWidget" name="pageCommitAndMerge">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
                 <layout class="QHBoxLayout" name="horizontalLayoutCommitAndMerge">
                  <item>
                   <widget class="QSplitter" name="splitterCommitAndMerge">
@@ -247,14 +271,116 @@
                      </attribute>
                     </widget>
                    </widget>
-                   <widget class="QTabWidget" name="tabWidgetCommit">
+                   <widget class="GuiManager::Widgets::ExtendedTabWidget" name="tabWidgetCommit">
                     <property name="tabShape">
                      <enum>QTabWidget::TabShape::Rounded</enum>
                     </property>
                     <widget class="QWidget" name="tabCommit">
+                     <property name="sizePolicy">
+                      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                       <horstretch>0</horstretch>
+                       <verstretch>0</verstretch>
+                      </sizepolicy>
+                     </property>
+                     <property name="maximumSize">
+                      <size>
+                       <width>16777215</width>
+                       <height>16777215</height>
+                      </size>
+                     </property>
                      <attribute name="title">
                       <string>Commit</string>
                      </attribute>
+                     <layout class="QVBoxLayout" name="verticalLayout_2">
+                      <item>
+                       <layout class="QVBoxLayout" name="verticalLayoutTabCommitOuter" stretch="0,0">
+                        <property name="spacing">
+                         <number>8</number>
+                        </property>
+                        <property name="bottomMargin">
+                         <number>0</number>
+                        </property>
+                        <item>
+                         <widget class="QGroupBox" name="groupBoxTabCommit">
+                          <property name="sizePolicy">
+                           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                           </sizepolicy>
+                          </property>
+                          <property name="title">
+                           <string/>
+                          </property>
+                          <layout class="QHBoxLayout" name="horizontalLayout_3">
+                           <item>
+                            <layout class="QVBoxLayout" name="verticalLayoutTabCommitGroupBoxOuter">
+                             <item>
+                              <widget class="QLineEdit" name="lineEditSummary">
+                               <property name="sizePolicy">
+                                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                                 <horstretch>0</horstretch>
+                                 <verstretch>0</verstretch>
+                                </sizepolicy>
+                               </property>
+                               <property name="frame">
+                                <bool>true</bool>
+                               </property>
+                               <property name="alignment">
+                                <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+                               </property>
+                               <property name="placeholderText">
+                                <string>Summary</string>
+                               </property>
+                              </widget>
+                             </item>
+                             <item>
+                              <widget class="QTextEdit" name="textEditDescription">
+                               <property name="placeholderText">
+                                <string>Description</string>
+                               </property>
+                              </widget>
+                             </item>
+                            </layout>
+                           </item>
+                          </layout>
+                         </widget>
+                        </item>
+                        <item>
+                         <layout class="QHBoxLayout" name="horizontalLayoutTabCommitInner">
+                          <item>
+                           <widget class="QPushButton" name="pushButtonCommit">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="text">
+                             <string>Commit</string>
+                            </property>
+                            <property name="flat">
+                             <bool>false</bool>
+                            </property>
+                           </widget>
+                          </item>
+                          <item>
+                           <widget class="QPushButton" name="pushButtonAbort">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="text">
+                             <string>Abort</string>
+                            </property>
+                           </widget>
+                          </item>
+                         </layout>
+                        </item>
+                       </layout>
+                      </item>
+                     </layout>
                     </widget>
                    </widget>
                   </widget>
@@ -378,6 +504,12 @@
    <class>WaitingSpinnerWidget</class>
    <extends>QWidget</extends>
    <header>WaitingSpinnerWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>GuiManager::Widgets::ExtendedTabWidget</class>
+   <extends>QTabWidget</extends>
+   <header>widgets/ExtendedTabWidget.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

@@ -2,6 +2,7 @@
 #include "containers/ui_GitRepoContainer.h"
 #include "widgets/ClickableHeaderView.h"
 #include "widgets/ErrorToast.h"
+#include "widgets/ExtendedTabBar.h"
 #include "widgets/HistorySliceTableColumnDelegate.h"
 #include "widgets/HistorySummaryTableColumnDelegate.h"
 #include "widgets/InfoToast.h"
@@ -18,6 +19,7 @@
 #include <QSvgRenderer>
 #include <QToolTip>
 
+#include <QCheckBox>
 #include <QScrollBar>
 #include <functional>
 #include <utility>
@@ -70,12 +72,24 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *header = new ClickableHeaderView(Qt::Horizontal, ui->historyView);
   ui->historyView->setHorizontalHeader(header);
+  ui->pushButtonAbort->setVisible(false);
+  ui->pushButtonCommit->setEnabled(false);
 
+  _checkBoxAmend =
+      new QCheckBox(tr("Amend previous commit"), ui->tabWidgetCommit);
+
+  ui->tabWidgetCommit->setCornerWidget(_checkBoxAmend);
   ui->tabWidgetCommit->tabBar()->setObjectName("tabWidgetCommitTabBar");
   ui->tabWidgetIndex->tabBar()->setObjectName("tabWidgetIndexTabBar");
-  ui->tabWidgetWorkingTree->tabBar()->setObjectName("tabWidgetWorkingTreeTabBar");
+  ui->tabWidgetWorkingTree->tabBar()->setObjectName(
+      "tabWidgetWorkingTreeTabBar");
 
   qApp->setStyleSheet(qApp->styleSheet());
+
+  // Set placeholder text color via palette
+  QPalette palette = ui->textEditDescription->palette();
+  palette.setColor(QPalette::PlaceholderText, QColor("#808080")); // Bright blue
+  ui->textEditDescription->setPalette(palette);
 
   _errorPixmap = new QPixmap(QSize(128, 128));
   _errorPixmap->fill(Qt::transparent);

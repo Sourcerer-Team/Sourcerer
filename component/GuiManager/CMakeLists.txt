@@ -140,6 +140,8 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/TitlebarWidget.ui
         ${QRC_FILES}
         ${TS_FILES}
+        include/widgets/ExtendedTabBar.h
+        include/widgets/ExtendedTabWidget.h
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
