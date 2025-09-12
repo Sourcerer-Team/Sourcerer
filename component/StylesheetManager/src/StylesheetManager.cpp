@@ -20,6 +20,15 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
       QLineEdit::placeholder{
         color: #C0C0C0;
       }
+      QLineEdit#lineEditPageDisplaySummary:focus {
+        border: none;
+        outline: none;
+        background: transparent;
+      }
+      QTextEdit#textEditPageDisplayDescription:focus {
+        border: none;
+        outline: none;
+      }
       QPushButton[flat=true]{
         color:white;
         text-decoration:none;
@@ -33,6 +42,15 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
       }
       QGroupBox#groupBoxTabCommit{
         background-color: black;
+      }
+      QGroupBox#groupBoxInfo{
+        border: none;
+      }
+      QGroupBox#groupBoxSummary{
+        background-color: black;
+      }
+      QGroupBox#groupBoxFiles{
+        border: none;
       }
       QTabBar::tab:selected{
         font-weight:bold;
@@ -109,6 +127,54 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
           background-color: #384D59;
           color: white;
       }
+      QTabWidget#tabWidgetPageDisplayFiles::pane {
+          border: none;
+          padding: 0px;
+          margin: 0px;
+      }
+      QTabBar#tabWidgetPageDisplayFilesTabBar::tab {
+          background: transparent;
+          border: 1px solid #6D6E6E;
+          border-radius: 8px;
+          padding: 6px 12px;
+          margin: 4px;
+          font-weight: normal;
+          color: white;
+      }
+      QTabBar#tabWidgetPageDisplayFilesTabBar::tab:selected {
+          background-color: #384D59;
+          border: 2px solid #6D6E6E;
+          font-weight: bold;
+          color: white;
+      }
+      QTabBar#tabWidgetPageDisplayFilesTabBar::tab:hover {
+          background-color: #384D59;
+          color: white;
+      }
+      QTabWidget#tabWidgetPageDisplayFilesTabBar::pane {
+          border: none;
+          padding: 0px;
+          margin: 0px;
+      }
+      QTabBar#tabWidgetPageDisplayFilesTabBar::tab {
+          background: transparent;
+          border: 1px solid #6D6E6E;
+          border-radius: 8px;
+          padding: 6px 12px;
+          margin: 4px;
+          font-weight: normal;
+          color: white;
+      }
+      QTabBar#tabWidgetPageDisplayFilesTabBar::tab:selected {
+          background-color: #384D59;
+          border: 2px solid #6D6E6E;
+          font-weight: bold;
+          color: white;
+      }
+      QTabBar#tabWidgetPageDisplayFilesTabBar::tab:hover {
+          background-color: #384D59;
+          color: white;
+      }
       QToolBox::tab{
         background: #353535;
         border: 1px solid gray;
@@ -152,7 +218,7 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
       GuiManager--Containers--SettingsContainer QSplitter{
         margin-top:30px;
       }
-     GuiManager--Containers--SettingsContainer QSplitter::handle:horizontal{
+      GuiManager--Containers--SettingsContainer QSplitter::handle:horizontal{
         border:1px solid #353535;
       }
       GuiManager--Containers--SettingsContainer QScrollArea{

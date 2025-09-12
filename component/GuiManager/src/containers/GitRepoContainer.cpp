@@ -34,6 +34,15 @@ using namespace GitRepoManager::Structs;
 
 namespace GuiManager::Containers {
 
+enum class CommitAndMAergeStackIndexes {
+  Unknown = -1,
+
+  CommitAndMerge = 0,
+  Display = 1,
+
+  last
+};
+
 GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
     : ContainerWidget(Widgets::ContainerType::Unknown, parent),
       ui(new Ui::GitRepoContainer), _uuid(Uuid::createUuid()),
@@ -84,6 +93,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->tabWidgetWorkingTree->tabBar()->setObjectName(
       "tabWidgetWorkingTreeTabBar");
 
+  ui->tabWidgetPageDisplayFiles->tabBar()->setObjectName("tabWidgetPageDisplayFilesTabBar");
+
+  /*
+  ui->stackedWidgetCommitAndMerge->setCurrentIndex(
+      static_cast<int>(CommitAndMAergeStackIndexes::CommitAndMerge));
+*/
   qApp->setStyleSheet(qApp->styleSheet());
 
   // Set placeholder text color via palette
