@@ -36,7 +36,11 @@ public:
 
     // Elide manually
     const QString elided = fm.elidedText(fullText, _elideMode, textRect.width());
-    const QString prefix = QDir::toNativeSeparators(QFileInfo(elided).path()) + QDir::separator();
+    QString prefix = QDir::toNativeSeparators(QFileInfo(elided).path()) + QDir::separator();
+    if(prefix.startsWith(".\\") || prefix.startsWith("./")) {
+      prefix = prefix.mid(2);
+    }
+
     const QString suffix = QFileInfo(elided).fileName();
 
     // Draw prefix (normal color)

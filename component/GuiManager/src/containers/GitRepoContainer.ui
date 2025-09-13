@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>633</width>
-    <height>474</height>
+    <height>524</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -145,8 +145,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>212</width>
-                  <height>204</height>
+                  <width>205</width>
+                  <height>198</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -160,8 +160,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>212</width>
-                  <height>204</height>
+                  <width>205</width>
+                  <height>198</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -175,8 +175,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>212</width>
-                  <height>204</height>
+                  <width>205</width>
+                  <height>198</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -190,8 +190,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>212</width>
-                  <height>204</height>
+                  <width>205</width>
+                  <height>198</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -553,9 +553,9 @@
                    </property>
                    <widget class="QGroupBox" name="groupBoxInfo">
                     <property name="sizePolicy">
-                     <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
+                     <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
                       <horstretch>0</horstretch>
-                      <verstretch>8</verstretch>
+                      <verstretch>1</verstretch>
                      </sizepolicy>
                     </property>
                     <property name="title">
@@ -575,39 +575,146 @@
                       <number>0</number>
                      </property>
                      <property name="bottomMargin">
-                      <number>0</number>
+                      <number>6</number>
                      </property>
                      <item>
-                      <widget class="QLabel" name="labelPageDisplayShaLabel">
-                       <property name="sizePolicy">
-                        <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-                         <horstretch>0</horstretch>
-                         <verstretch>0</verstretch>
-                        </sizepolicy>
+                      <layout class="QVBoxLayout" name="verticalLayoutPageDisplayGroupBoxInfo">
+                       <property name="spacing">
+                        <number>0</number>
                        </property>
-                       <property name="text">
-                        <string>sha:</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item>
-                      <widget class="QLabel" name="labelPageDiaplayShaValue">
-                       <property name="sizePolicy">
-                        <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-                         <horstretch>0</horstretch>
-                         <verstretch>0</verstretch>
-                        </sizepolicy>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                      </widget>
+                       <item>
+                        <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoSha">
+                         <item>
+                          <widget class="QLabel" name="labelPageDisplayShaLabel">
+                           <property name="sizePolicy">
+                            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                             <horstretch>0</horstretch>
+                             <verstretch>0</verstretch>
+                            </sizepolicy>
+                           </property>
+                           <property name="lineWidth">
+                            <number>0</number>
+                           </property>
+                           <property name="text">
+                            <string>sha:</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QLabel" name="labelPageDiaplayShaValue">
+                           <property name="sizePolicy">
+                            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                             <horstretch>0</horstretch>
+                             <verstretch>0</verstretch>
+                            </sizepolicy>
+                           </property>
+                           <property name="lineWidth">
+                            <number>0</number>
+                           </property>
+                           <property name="text">
+                            <string/>
+                           </property>
+                           <property name="margin">
+                            <number>0</number>
+                           </property>
+                           <property name="indent">
+                            <number>4</number>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                       <item>
+                        <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoAuthor">
+                         <item>
+                          <widget class="QLabel" name="labelPageDisplayAuthorLabel">
+                           <property name="sizePolicy">
+                            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                             <horstretch>0</horstretch>
+                             <verstretch>0</verstretch>
+                            </sizepolicy>
+                           </property>
+                           <property name="lineWidth">
+                            <number>0</number>
+                           </property>
+                           <property name="text">
+                            <string>author:</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QLabel" name="labelPageDiaplayAuthorValue">
+                           <property name="sizePolicy">
+                            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                             <horstretch>0</horstretch>
+                             <verstretch>0</verstretch>
+                            </sizepolicy>
+                           </property>
+                           <property name="lineWidth">
+                            <number>0</number>
+                           </property>
+                           <property name="text">
+                            <string/>
+                           </property>
+                           <property name="margin">
+                            <number>0</number>
+                           </property>
+                           <property name="indent">
+                            <number>4</number>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                       <item>
+                        <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoParents">
+                         <item>
+                          <widget class="QLabel" name="labelPageDisplayParentsLabel">
+                           <property name="sizePolicy">
+                            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                             <horstretch>0</horstretch>
+                             <verstretch>0</verstretch>
+                            </sizepolicy>
+                           </property>
+                           <property name="lineWidth">
+                            <number>0</number>
+                           </property>
+                           <property name="text">
+                            <string>parents:</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QLabel" name="labelPageDiaplayParentsValue">
+                           <property name="sizePolicy">
+                            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                             <horstretch>0</horstretch>
+                             <verstretch>0</verstretch>
+                            </sizepolicy>
+                           </property>
+                           <property name="lineWidth">
+                            <number>0</number>
+                           </property>
+                           <property name="text">
+                            <string/>
+                           </property>
+                           <property name="margin">
+                            <number>0</number>
+                           </property>
+                           <property name="indent">
+                            <number>4</number>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                      </layout>
                      </item>
                     </layout>
                    </widget>
                    <widget class="QGroupBox" name="groupBoxSummary">
                     <property name="sizePolicy">
-                     <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                     <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
                       <horstretch>0</horstretch>
                       <verstretch>2</verstretch>
                      </sizepolicy>
@@ -629,7 +736,7 @@
                       <number>0</number>
                      </property>
                      <property name="bottomMargin">
-                      <number>0</number>
+                      <number>6</number>
                      </property>
                      <item>
                       <layout class="QVBoxLayout" name="verticalLayoutPageDisplay">
@@ -641,7 +748,7 @@
                          <item>
                           <widget class="QTextEdit" name="textEditPageDisplayDescription">
                            <property name="sizePolicy">
-                            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                            <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
                              <horstretch>0</horstretch>
                              <verstretch>2</verstretch>
                             </sizepolicy>
@@ -662,9 +769,9 @@
                    </widget>
                    <widget class="QGroupBox" name="groupBoxFiles">
                     <property name="sizePolicy">
-                     <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
+                     <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
                       <horstretch>0</horstretch>
-                      <verstretch>8</verstretch>
+                      <verstretch>7</verstretch>
                      </sizepolicy>
                     </property>
                     <property name="title">
@@ -724,6 +831,12 @@
                         </layout>
                        </widget>
                        <widget class="QWidget" name="tabPageDisplayFilesTree">
+                        <property name="sizePolicy">
+                         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                          <horstretch>0</horstretch>
+                          <verstretch>0</verstretch>
+                         </sizepolicy>
+                        </property>
                         <attribute name="title">
                          <string>Tree</string>
                         </attribute>

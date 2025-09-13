@@ -30,6 +30,9 @@
 #define ALL_BRANCHES "*"
 #define HEAD "HEAD"
 
+#define MAXIMUM_PARENTS_IN_LABEL 3
+#define MAX_COMMIT_SHA_LENGTH 6
+
 using namespace GuiManager::Widgets;
 using namespace GitRepoManager::Structs;
 
@@ -99,10 +102,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       "tabWidgetPageDisplayFilesTabBar");
 
   ui->listViewPageDisplayFilesFlat->setItemDelegate(
-      new Delegates::ElidePartialColorDelegate(Qt::ElideMiddle, ui->listViewPageDisplayFilesFlat));
+      new Delegates::ElidePartialColorDelegate(
+      Qt::ElideMiddle, ui->listViewPageDisplayFilesFlat));
 
-  ui->listViewPageDisplayFilesFlat->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-  //ui->listViewPageDisplayFilesFlat->setTextElideMode(Qt::ElideMiddle);
+  ui->listViewPageDisplayFilesFlat->setHorizontalScrollBarPolicy(
+    Qt::ScrollBarAlwaysOff);
+  // ui->listViewPageDisplayFilesFlat->setTextElideMode(Qt::ElideMiddle);
 
   qApp->setStyleSheet(qApp->styleSheet());
 
@@ -1276,8 +1281,18 @@ void GitRepoContainer::showCommit(const WeakPtr &guard,
       historyAndStatus.history.commitInfos[commit];
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    ui->labelPageDiaplayShaValue->setText(commit.left(6));
+    ui->labelPageDiaplayShaValue->setText(commit.left(MAX_COMMIT_SHA_LENGTH));
     ui->textEditPageDisplayDescription->setText(commitInfo.message);
+    ui->labelPageDiaplayAuthorValue->setText(commitInfo.authorName);
+    ui->labelPageDiaplayParentsValue->setText(
+        commitInfo.parents.isEmpty()
+            ? tr("None")
+            : commitInfo.parents
+              .mid(0, MAXIMUM_PARENTS_IN_LABEL) // Show up to 3 parents
+              .join(", ")
+              .left(MAX_COMMIT_SHA_LENGTH) +
+                  (commitInfo.parents.size() > MAXIMUM_PARENTS_IN_LABEL ? "..."
+                                                                    : ""));
 
     QTextCursor cursor = ui->textEditPageDisplayDescription->textCursor();
     QTextBlockFormat format = cursor.blockFormat();
