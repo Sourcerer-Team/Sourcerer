@@ -7,7 +7,7 @@
 #include <QPainter>
 #include <QStyledItemDelegate>
 
-namespace GuiManager::Widgets {
+namespace GuiManager::Delegates {
 
 class HistorySummaryTableColumnDelegate final : public QStyledItemDelegate {
 public:

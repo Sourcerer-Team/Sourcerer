@@ -6,7 +6,7 @@
 #include <QStyledItemDelegate>
 #include <qfileinfo.h>
 
-namespace GuiManager::Widgets {
+namespace GuiManager::Delegates {
 
 class ElidePartialColorDelegate final : public QStyledItemDelegate {
 public:

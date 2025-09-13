@@ -1,10 +1,10 @@
-#include "widgets/HistorySummaryTableColumnDelegate.h"
+#include "delegates/HistorySummaryTableColumnDelegate.h"
 #include "models/GitHistoryModel.h"
 
 #include <QApplication>
 #include <QRect>
 
-namespace GuiManager::Widgets {
+namespace GuiManager::Delegates {
 
 HistorySummaryTableColumnDelegate::HistorySummaryTableColumnDelegate(
     QObject *parent)

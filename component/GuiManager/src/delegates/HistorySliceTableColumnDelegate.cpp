@@ -1,10 +1,10 @@
-#include "widgets/HistorySliceTableColumnDelegate.h"
+#include "delegates/HistorySliceTableColumnDelegate.h"
 #include "models/GitHistoryModel.h"
 
 #include <QApplication>
 #include <QRect>
 
-namespace GuiManager::Widgets {
+namespace GuiManager::Delegates {
 
 HistorySliceTableColumnDelegate::HistorySliceTableColumnDelegate(
     QObject *parent)

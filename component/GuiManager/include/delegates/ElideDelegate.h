@@ -2,7 +2,7 @@
 
 #include <QStyledItemDelegate>
 
-namespace GuiManager::Widgets {
+namespace GuiManager::Delegates {
 
 class ElideDelegate final : public QStyledItemDelegate {
 public:

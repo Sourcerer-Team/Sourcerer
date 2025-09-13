@@ -1,12 +1,11 @@
 #include "containers/GitRepoContainer.h"
 #include "containers/ui_GitRepoContainer.h"
+#include "delegates/ElidePartialColorDelegate.h"
+#include "delegates/HistorySliceTableColumnDelegate.h"
+#include "delegates/HistorySummaryTableColumnDelegate.h"
 #include "models/GitCommitListModel.h"
 #include "widgets/ClickableHeaderView.h"
-#include "widgets/ElidePartialColorDelegate.h"
 #include "widgets/ErrorToast.h"
-#include "widgets/ExtendedTabBar.h"
-#include "widgets/HistorySliceTableColumnDelegate.h"
-#include "widgets/HistorySummaryTableColumnDelegate.h"
 #include "widgets/InfoToast.h"
 
 #include <Dispatcher.h>
@@ -72,9 +71,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->splitter->setStretchFactor(2, 2);
   ui->submodulesPage->setContentsMargins(0, 0, 0, 0);
   ui->historyView->setItemDelegateForColumn(
-      0, new HistorySliceTableColumnDelegate(ui->historyView));
+      0, new Delegates::HistorySliceTableColumnDelegate(ui->historyView));
   ui->historyView->setItemDelegateForColumn(
-      1, new HistorySummaryTableColumnDelegate(ui->historyView));
+      1, new Delegates::HistorySummaryTableColumnDelegate(ui->historyView));
   ui->historyView->setMouseTracking(true);
   ui->historyView->viewport()->setMouseTracking(true);
   ui->historyView->viewport()->installEventFilter(this);
@@ -100,7 +99,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       "tabWidgetPageDisplayFilesTabBar");
 
   ui->listViewPageDisplayFilesFlat->setItemDelegate(
-      new ElidePartialColorDelegate(Qt::ElideMiddle, ui->listViewPageDisplayFilesFlat));
+      new Delegates::ElidePartialColorDelegate(Qt::ElideMiddle, ui->listViewPageDisplayFilesFlat));
 
   ui->listViewPageDisplayFilesFlat->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   //ui->listViewPageDisplayFilesFlat->setTextElideMode(Qt::ElideMiddle);

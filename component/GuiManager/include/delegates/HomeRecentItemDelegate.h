@@ -4,9 +4,7 @@
 #include <QObject>
 #include <QStyledItemDelegate>
 
-namespace GuiManager {
-
-namespace Delegates {
+namespace GuiManager::Delegates {
 
 class HomeRecentItemDelegate : public QStyledItemDelegate {
   Q_OBJECT
@@ -23,5 +21,4 @@ private:
   QModelIndex _indexHovered;
 };
 
-} // namespace Delegates
-} // namespace GuiManager
+} // namespace GuiManager::Delegates

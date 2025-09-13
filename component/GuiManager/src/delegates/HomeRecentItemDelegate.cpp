@@ -6,9 +6,7 @@
 
 #define THREAD_ID "HomeRecentItemDelegate"
 
-namespace GuiManager {
-
-namespace Delegates {
+namespace GuiManager::Delegates {
 
 HomeRecentItemDelegate::HomeRecentItemDelegate(QObject *parent)
     : QStyledItemDelegate{parent} {
@@ -32,5 +30,4 @@ void HomeRecentItemDelegate::paint(QPainter *painter,
   QStyledItemDelegate::paint(painter, _option, index);
 }
 
-} // namespace Delegates
-} // namespace GuiManager
+} // namespace GuiManager::Delegates

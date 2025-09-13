@@ -28,9 +28,14 @@ set(GUIMANAGER_SOURCE_FILES
         include/containers/InitGitRepoContainer.h
         include/containers/PleaseWaitContainer.h
         include/containers/SettingsContainer.h
+        include/delegates/ElideDelegate.h
+        include/delegates/ElidePartialColorDelegate.h
+        include/delegates/HistorySliceTableColumnDelegate.h
+        include/delegates/HistorySummaryTableColumnDelegate.h
         include/delegates/HomeRecentItemDelegate.h
         include/dialogs/AboutDialog.h
         include/models/BranchesModel.h
+        include/models/GitCommitListModel.h
         include/models/GitHistoryModel.h
         include/models/RecentlyOpenedReposModel.h
         include/models/SubmodulesModel.h
@@ -41,12 +46,12 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/ContainerWidget.h
         include/widgets/ElidedLabel.h
         include/widgets/ErrorToast.h
+        include/widgets/ExtendedTabBar.h
+        include/widgets/ExtendedTabWidget.h
         include/widgets/GitCredentialsOverlayWidget.h
         include/widgets/GitSubmodulesPage.h
         include/widgets/GitProgressToast.h
         include/widgets/GitTagsPage.h
-        include/widgets/HistorySliceTableColumnDelegate.h
-        include/widgets/HistorySummaryTableColumnDelegate.h
         include/widgets/InfoToast.h
         include/widgets/LocalGitBranchesPage.h
         include/widgets/MouseTrackingSplitter.h
@@ -84,10 +89,13 @@ set(GUIMANAGER_SOURCE_FILES
         src/containers/InitGitRepoContainer.cpp
         src/containers/PleaseWaitContainer.cpp
         src/containers/SettingsContainer.cpp
+        src/delegates/HistorySliceTableColumnDelegate.cpp
+        src/delegates/HistorySummaryTableColumnDelegate.cpp
         src/delegates/HomeRecentItemDelegate.cpp
         src/dialogs/AboutDialog.cpp
         src/dialogs/AboutDialog.ui
         src/models/BranchesModel.cpp
+        src/models/GitCommitListModel.cpp
         src/models/GitHistoryModel.cpp
         src/models/RecentlyOpenedReposModel.cpp
         src/models/SubmodulesModel.cpp
@@ -101,8 +109,6 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/GitProgressToast.cpp
         src/widgets/GitSubmodulesPage.cpp
         src/widgets/GitTagsPage.cpp
-        src/widgets/HistorySliceTableColumnDelegate.cpp
-        src/widgets/HistorySummaryTableColumnDelegate.cpp
         src/widgets/InfoToast.cpp
         src/widgets/LocalGitBranchesPage.cpp
         src/widgets/MouseTrackingSplitter.cpp
@@ -140,12 +146,6 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/TitlebarWidget.ui
         ${QRC_FILES}
         ${TS_FILES}
-        include/widgets/ExtendedTabBar.h
-        include/widgets/ExtendedTabWidget.h
-        include/models/GitCommitListModel.h
-        src/models/GitCommitListModel.cpp
-        include/widgets/ElideDelegate.h
-        include/widgets/ElidePartialColorDelegate.h
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
