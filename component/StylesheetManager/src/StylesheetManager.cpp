@@ -20,14 +20,8 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
       QLineEdit::placeholder{
         color: #C0C0C0;
       }
-      QLineEdit#lineEditPageDisplaySummary:focus {
-        border: none;
-        outline: none;
-        background: transparent;
-      }
-      QTextEdit#textEditPageDisplayDescription:focus {
-        border: none;
-        outline: none;
+      QListView::item:selected {
+        background-color: #384D59;
       }
       QPushButton[flat=true]{
         color:white;

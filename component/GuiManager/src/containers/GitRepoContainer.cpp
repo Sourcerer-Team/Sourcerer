@@ -1,6 +1,8 @@
 #include "containers/GitRepoContainer.h"
 #include "containers/ui_GitRepoContainer.h"
+#include "models/GitCommitListModel.h"
 #include "widgets/ClickableHeaderView.h"
+#include "widgets/ElidePartialColorDelegate.h"
 #include "widgets/ErrorToast.h"
 #include "widgets/ExtendedTabBar.h"
 #include "widgets/HistorySliceTableColumnDelegate.h"
@@ -34,7 +36,7 @@ using namespace GitRepoManager::Structs;
 
 namespace GuiManager::Containers {
 
-enum class CommitAndMAergeStackIndexes {
+enum class CommitAndMergeStackIndexes {
   Unknown = -1,
 
   CommitAndMerge = 0,
@@ -77,6 +79,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->viewport()->setMouseTracking(true);
   ui->historyView->viewport()->installEventFilter(this);
   ui->historyView->setModel(_historyModel.get());
+  ui->historyView->setSelectionMode(QAbstractItemView::SingleSelection);
   ui->spinner->setColor(Qt::lightGray);
 
   auto *header = new ClickableHeaderView(Qt::Horizontal, ui->historyView);
@@ -93,12 +96,15 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->tabWidgetWorkingTree->tabBar()->setObjectName(
       "tabWidgetWorkingTreeTabBar");
 
-  ui->tabWidgetPageDisplayFiles->tabBar()->setObjectName("tabWidgetPageDisplayFilesTabBar");
+  ui->tabWidgetPageDisplayFiles->tabBar()->setObjectName(
+      "tabWidgetPageDisplayFilesTabBar");
 
-  /*
-  ui->stackedWidgetCommitAndMerge->setCurrentIndex(
-      static_cast<int>(CommitAndMAergeStackIndexes::CommitAndMerge));
-*/
+  ui->listViewPageDisplayFilesFlat->setItemDelegate(
+      new ElidePartialColorDelegate(Qt::ElideMiddle, ui->listViewPageDisplayFilesFlat));
+
+  ui->listViewPageDisplayFilesFlat->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  //ui->listViewPageDisplayFilesFlat->setTextElideMode(Qt::ElideMiddle);
+
   qApp->setStyleSheet(qApp->styleSheet());
 
   // Set placeholder text color via palette
@@ -145,6 +151,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   connect(header, &ClickableHeaderView::headerDoubleClicked, this,
           &GitRepoContainer::onGraphColumnExpand);
+
+  connect(ui->historyView->selectionModel(),
+          &QItemSelectionModel::selectionChanged, this,
+          &GitRepoContainer::onHistorySelectionChanged);
 
   LOG_PERF(0, "Exit")
 }
@@ -329,6 +339,44 @@ void GitRepoContainer::showTooltipForSummaryColumn(
       _configManager.getLong(ConfigManager::ConfigKey::TooltipDisplayTime);
 
   QToolTip::showText(_mousePos, tooltipText, nullptr, {}, tooltipDisplayTime);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onHistorySelectionChanged(
+    const QItemSelection &selected, const QItemSelection &deselected) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndexList indexes = selected.indexes();
+  if (indexes.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QModelIndex index = indexes.first();
+
+  const auto statusFieldsMap =
+      index.data(StatusRole).value<Models::StatusFieldsMap>();
+  if (statusFieldsMap.isEmpty()) {
+    const WeakPtr guard = getSelf().toWeakRef();
+
+    const QModelIndex shaColumnModelIndex = _historyModel->index(
+        index.row(), COLUMN_COMMIT_FULL_SHA, QModelIndex());
+    if (shaColumnModelIndex.isValid()) {
+      ui->stackedWidgetCommitAndMerge->setCurrentIndex(
+          static_cast<int>(CommitAndMergeStackIndexes::Display));
+
+      _dispatcher.dispatch([=]() {
+        showCommit(guard, shaColumnModelIndex.data(Qt::DisplayRole).toString());
+      });
+    } else {
+      ui->stackedWidgetCommitAndMerge->setCurrentIndex(
+          static_cast<int>(CommitAndMergeStackIndexes::CommitAndMerge));
+
+      _dispatcher.dispatch(
+          [=]() { showCommitAndMerge(guard, statusFieldsMap); });
+    }
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -835,8 +883,55 @@ QStringList GitRepoContainer::getCommitBranches(const QString &commit) const {
 
   const auto commandResult = event.data<GitRepoResult>();
   const auto branches = commandResult.value.value<QStringList>();
-  LOG_PERF(0, "Exit")
+
+  LOG_PERF(0, "Exit");
+
   return branches;
+}
+
+GitRepo::GitCommitStatus
+GitRepoContainer::getCommiStatus(const QString &commit) const {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoGetCommitStatusCommand command;
+  command.uuid = _uuid;
+  command.commitOid = commit;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event commitStatusEvent(
+      EventManager::EventType::GitRepoManagerGetCommitStatus, eventUuid);
+  commitStatusEvent.addData(command);
+  _eventManager.send(commitStatusEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGetCommitStatusError,
+      EventManager::EventType::GitRepoManagerGetCommitStatusResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerGetCommitStatusResult) {
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const auto commitStatus =
+      commandResult.value.value<GitRepo::GitCommitStatus>();
+
+  LOG_PERF(0, "Exit");
+
+  return commitStatus;
 }
 
 bool GitRepoContainer::getLocalBranches() {
@@ -1161,6 +1256,53 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() const {
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::showCommit(const WeakPtr &guard,
+                                  const QString &commit) const {
+  LOG_PERF(0, "Enter");
+
+  const GitRepo::GitHistoryWithStatus &historyAndStatus =
+      _historyModel->historyWithStatus();
+
+  Q_ASSERT(historyAndStatus.history.commits.contains(commit));
+  Q_ASSERT(historyAndStatus.history.commitInfos.contains(commit));
+
+  if (!historyAndStatus.history.commitInfos.contains(commit)) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const GitRepo::GitCommitStatus commitStatus = getCommiStatus(commit);
+
+  const GitRepo::GitCommitInfo &commitInfo =
+      historyAndStatus.history.commitInfos[commit];
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    ui->labelPageDiaplayShaValue->setText(commit.left(6));
+    ui->textEditPageDisplayDescription->setText(commitInfo.message);
+
+    QTextCursor cursor = ui->textEditPageDisplayDescription->textCursor();
+    QTextBlockFormat format = cursor.blockFormat();
+    format.setAlignment(Qt::AlignJustify); // or AlignCenter, AlignJustify, etc.
+    cursor.mergeBlockFormat(format);
+    ui->textEditPageDisplayDescription->setTextCursor(cursor);
+
+    Models::GitCommitListModel *commitListModel =
+        Models::GitCommitListModel::from(commitStatus);
+    if (commitListModel) {
+      ui->listViewPageDisplayFilesFlat->setModel(commitListModel);
+    }
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::showCommitAndMerge(
+    WeakPtr guard, const Models::StatusFieldsMap &statusMap) {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit")
+}
+
 void GitRepoContainer::showErrorPage(const bool error) const {
   LOG_PERF(0, "Enter");
 
@@ -1247,6 +1389,13 @@ void GitRepoContainer::updateBranchHistory(
     _spinnerOverlayTimer->stop();
     showSpinnerOverlay(false);
     stretchBranchHistoryTableColumns();
+
+    // Simulate click on the first row
+    const QModelIndex index =
+        ui->historyView->model()->index(0, 0); // First row, first column
+    ui->historyView->selectionModel()->select(
+        index, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    ui->historyView->setCurrentIndex(index);
   });
 
   LOG_PERF(0, "Exit")

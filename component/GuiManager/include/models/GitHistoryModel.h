@@ -81,6 +81,10 @@ public:
       const GitRepo::GitHistoryWithStatus &historyWithStatus,
       const std::function<void(int)> &progressCallback = nullptr);
 
+  const GitRepo::GitHistoryWithStatus &historyWithStatus() const {
+    return _historyWithStatus;
+  }
+
   void quitUpdate() { _quitUpdate = true; }
 
   bool hasStatus() const;

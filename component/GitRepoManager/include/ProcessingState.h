@@ -40,6 +40,8 @@ private:
   getCommitHeadsWorker(const Structs::GitRepoGetCommitHeadsCommand &command);
   void
   getCommitIsHeadWorker(const Structs::GitRepoGetCommitIsHeadCommand &command);
+  void
+  getCommitStatusWorker(const Structs::GitRepoGetCommitStatusCommand &command);
   void getBranchHistoryWorker(
       const Structs::GitRepoGetBranchHistoryCommand &command);
   void initRepoWorker(const Structs::GitRepoInitRepoCommand &command);
@@ -67,6 +69,8 @@ private:
       const Structs::GitRepoGetCommitHeadsCommand &command);
   void scheduleWorkerForGetCommitIsHead(
       const Structs::GitRepoGetCommitIsHeadCommand &command);
+  void scheduleWorkerForGetCommitStatus(
+      const Structs::GitRepoGetCommitStatusCommand &command);
   void scheduleWorkerForGetBranchHistory(
       const Structs::GitRepoGetBranchHistoryCommand &command);
   void

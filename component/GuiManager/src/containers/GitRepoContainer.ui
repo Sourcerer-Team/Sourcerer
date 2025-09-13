@@ -145,8 +145,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>98</width>
-                  <height>28</height>
+                  <width>212</width>
+                  <height>204</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -160,8 +160,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>98</width>
-                  <height>28</height>
+                  <width>212</width>
+                  <height>204</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -190,8 +190,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>98</width>
-                  <height>28</height>
+                  <width>212</width>
+                  <height>204</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -579,6 +579,12 @@
                      </property>
                      <item>
                       <widget class="QLabel" name="labelPageDisplayShaLabel">
+                       <property name="sizePolicy">
+                        <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+                         <horstretch>0</horstretch>
+                         <verstretch>0</verstretch>
+                        </sizepolicy>
+                       </property>
                        <property name="text">
                         <string>sha:</string>
                        </property>
@@ -586,6 +592,12 @@
                      </item>
                      <item>
                       <widget class="QLabel" name="labelPageDiaplayShaValue">
+                       <property name="sizePolicy">
+                        <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                         <horstretch>0</horstretch>
+                         <verstretch>0</verstretch>
+                        </sizepolicy>
+                       </property>
                        <property name="text">
                         <string/>
                        </property>
@@ -625,16 +637,18 @@
                         <number>6</number>
                        </property>
                        <item>
-                        <layout class="QVBoxLayout" name="verticalLayoutPageDisplaySummary">
-                         <item>
-                          <widget class="QLineEdit" name="lineEditPageDisplaySummary">
-                           <property name="readOnly">
-                            <bool>true</bool>
-                           </property>
-                          </widget>
-                         </item>
+                        <layout class="QVBoxLayout" name="verticalLayoutPageDisplaySummary" stretch="2">
                          <item>
                           <widget class="QTextEdit" name="textEditPageDisplayDescription">
+                           <property name="sizePolicy">
+                            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                             <horstretch>0</horstretch>
+                             <verstretch>2</verstretch>
+                            </sizepolicy>
+                           </property>
+                           <property name="focusPolicy">
+                            <enum>Qt::FocusPolicy::NoFocus</enum>
+                           </property>
                            <property name="readOnly">
                             <bool>true</bool>
                            </property>

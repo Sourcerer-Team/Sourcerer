@@ -1868,4 +1868,125 @@ GitStatus getStatus(git_repository *repo) {
   return status;
 }
 
+GitCommitStatus getCommitStatus(git_repository *repo,
+                                const QString &commitOid) {
+  LOG_PERF(0, "Enter");
+
+  GitCommitStatus status;
+
+  git_commit *commit = nullptr;
+  git_commit *parent = nullptr;
+  git_tree *tree = nullptr;
+  git_tree *parent_tree = nullptr;
+  git_diff *diff = nullptr;
+
+  // Lookup commit by SHA
+  git_oid oid;
+  git_oid_fromstr(&oid, commitOid.toStdString().c_str());
+
+  int error = git_commit_lookup(&commit, repo, &oid);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  // Get commit tree
+  error = git_commit_tree(&tree, commit);
+  if (error) {
+    logGitError(error);
+    git_commit_free(commit);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const int parentCount = git_commit_parentcount(commit);
+
+  // Get parent tree (if exists)
+  if (parentCount > 0) {
+    error = git_commit_parent(&parent, commit, 0);
+    if (error) {
+      logGitError(error);
+      git_commit_free(commit);
+      git_tree_free(tree);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    error = git_commit_tree(&parent_tree, parent);
+    if (error) {
+      logGitError(error);
+      git_commit_free(commit);
+      git_commit_free(parent);
+      git_tree_free(tree);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+  } else {
+    parent_tree = nullptr; // Initial commit
+  }
+
+  // Generate diff
+  git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
+  opts.flags |= GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_INCLUDE_TYPECHANGE |
+                GIT_DIFF_RECURSE_UNTRACKED_DIRS;
+
+  error = git_diff_tree_to_tree(&diff, repo, parent_tree, tree, &opts);
+  if (error) {
+    logGitError(error);
+    git_commit_free(commit);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  // Detect renames
+  git_diff_find_options find_opts = GIT_DIFF_FIND_OPTIONS_INIT;
+  find_opts.flags = GIT_DIFF_FIND_RENAMES;
+
+  error = git_diff_find_similar(diff, &find_opts);
+  if (error) {
+    logGitError(error);
+    git_commit_free(commit);
+    git_tree_free(tree);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  status.commit = commitOid;
+
+  // Walk the diff
+  git_diff_foreach(
+      diff,
+      [](const git_diff_delta *delta, float, void *payload) {
+        auto *status = static_cast<GitCommitStatus *>(payload);
+
+        switch (delta->status) {
+        case GIT_DELTA_ADDED:
+          status->newFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_MODIFIED:
+          status->modifiedFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_DELETED:
+          status->deletedFiles += delta->old_file.path;
+          break;
+        case GIT_DELTA_RENAMED:
+          status->renamedFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_TYPECHANGE:
+          status->typeChangedFiles += delta->new_file.path;
+          break;
+        default:
+          break;
+        }
+
+        return 0;
+      },
+      nullptr, nullptr, nullptr, &status);
+
+  LOG_PERF(0, "Exit");
+
+  return status;
+}
+
 } // namespace GitRepo

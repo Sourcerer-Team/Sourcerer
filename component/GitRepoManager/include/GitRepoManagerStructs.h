@@ -23,6 +23,7 @@ enum class GitRepoCommandType : int {
   GetCommitBranches,
   GetCommitHeads,
   GetCommitIsHead,
+  GetCommitStatus,
   Init,
   ListLocalBranches,
   ListRemoteBranches,
@@ -114,6 +115,14 @@ struct GitRepoGetCommitIsHeadCommand final : GitRepoCommand {
   GitRepoGetCommitIsHeadCommand()
       : GitRepoCommand(GitRepoCommandType::GetCommitIsHead) {}
   ~GitRepoGetCommitIsHeadCommand() override = default;
+
+  QString commitOid;
+};
+
+struct GitRepoGetCommitStatusCommand final : GitRepoCommand {
+  GitRepoGetCommitStatusCommand()
+      : GitRepoCommand(GitRepoCommandType::GetCommitStatus) {}
+  ~GitRepoGetCommitStatusCommand() override = default;
 
   QString commitOid;
 };

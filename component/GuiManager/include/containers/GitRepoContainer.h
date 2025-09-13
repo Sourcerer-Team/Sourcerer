@@ -13,6 +13,7 @@
 #include <QCheckBox>
 
 #include <QEnableSharedFromThis>
+#include <QItemSelection>
 #include <QSet>
 #include <QString>
 #include <QWidget>
@@ -51,6 +52,7 @@ private slots:
   void onSplitterMoved(int pos, int index) const;
   void showTooltipForColumnSlice(const QModelIndex &index);
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
+  void onHistorySelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onLocalBranchSelected(const QString &branchName);
   void onRemoteBranchSelected(const QString &branchName);
@@ -71,6 +73,7 @@ private:
   bool getActiveTag();
   bool getBranchHistory(const WeakPtr &guard);
   [[nodiscard]] QStringList getCommitBranches(const QString &commit) const;
+  [[nodiscard]] GitRepo::GitCommitStatus getCommiStatus(const QString &commit) const;
   bool getLocalBranches();
   bool getRemoteBranches();
   bool getSubmodules();
@@ -80,6 +83,8 @@ private:
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
   void stretchBranchHistoryTableColumns() const;
+  void showCommit(const WeakPtr &guard, const QString &commit) const;
+  void showCommitAndMerge(WeakPtr guard, const Models::StatusFieldsMap &statusMap);
   void showErrorPage(bool error = true) const;
   void showMainSpinnerPage(bool spinnerEnabled = true) const;
   void showSpinnerOverlay(bool spinnerEnabled = true) const;

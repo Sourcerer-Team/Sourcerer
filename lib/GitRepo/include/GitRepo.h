@@ -90,6 +90,15 @@ struct GitStatus {
   }
 };
 
+struct GitCommitStatus {
+  QString commit;
+  QStringList newFiles;
+  QStringList modifiedFiles;
+  QStringList deletedFiles;
+  QStringList typeChangedFiles;
+  QStringList renamedFiles;
+};
+
 struct GitHistoryWithStatus {
   ;
   GitHistory history;
@@ -133,5 +142,6 @@ QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
 bool getCommitIsHead(git_repository *repo, const QString &commitOid,
                      const bool &quitFlag);
 GitStatus getStatus(git_repository *repo);
+GitCommitStatus getCommitStatus(git_repository *repo, const QString& commitOid);
 
 } // namespace GitRepo

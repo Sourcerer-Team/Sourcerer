@@ -142,6 +142,10 @@ set(GUIMANAGER_SOURCE_FILES
         ${TS_FILES}
         include/widgets/ExtendedTabBar.h
         include/widgets/ExtendedTabWidget.h
+        include/models/GitCommitListModel.h
+        src/models/GitCommitListModel.cpp
+        include/widgets/ElideDelegate.h
+        include/widgets/ElidePartialColorDelegate.h
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

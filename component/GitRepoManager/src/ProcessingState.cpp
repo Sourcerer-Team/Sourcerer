@@ -125,6 +125,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForGetCommitIsHead(getCommitIsHeadCommand);
     break;
   }
+  case EventType::GetCommitStatus: {
+    const auto commitStatusCommand =
+        event.nextParam<GitRepoGetCommitStatusCommand>();
+    scheduleWorkerForGetCommitStatus(commitStatusCommand);
+    break;
+  }
   case EventType::Init: {
     const auto initCommand = event.nextParam<GitRepoInitRepoCommand>();
     scheduleWorkerForInitRepo(initCommand);
@@ -646,6 +652,37 @@ void ProcessingState::getCommitIsHeadWorker(
         GitRepoResult{command.uuid, command.type, QVariant::fromValue(head)});
     _eventManager.send(resultEvent);
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::getCommitStatusWorker(
+    const Structs::GitRepoGetCommitStatusCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerGetCommitStatusError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const auto commitStatus = GitRepo::getCommitStatus(repo, command.commitOid);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerGetCommitStatusResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                    QVariant::fromValue(commitStatus)});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -1244,6 +1281,25 @@ void ProcessingState::scheduleWorkerForGetCommitIsHead(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForGetCommitStatus(
+    const Structs::GitRepoGetCommitStatusCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerGetCommitStatusError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoGetCommitStatusCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForGetBranchHistory(
     const Structs::GitRepoGetBranchHistoryCommand &command) {
   LOG_PERF(0, "Enter");
@@ -1438,6 +1494,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoGetCommitIsHeadCommand *>(command);
       if (getCommitIsHeadCommand) {
         getCommitIsHeadWorker(*getCommitIsHeadCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::GetCommitStatus: {
+      const auto *getCommitStatusCommand =
+          dynamic_cast<const GitRepoGetCommitStatusCommand *>(command);
+      if (getCommitStatusCommand) {
+        getCommitStatusWorker(*getCommitStatusCommand);
       }
       break;
     }
