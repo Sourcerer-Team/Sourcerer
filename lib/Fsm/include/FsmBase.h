@@ -5,14 +5,16 @@
 #include <FsmEvent.h>
 
 #include <QMap>
+#include <QObject>
 #include <QString>
+#include <QThread>
 #include <QVector>
-
-#include <thread>
 
 namespace Fsm {
 
-class FsmBase {
+class FsmBase : public QObject {
+  Q_OBJECT
+
 public:
   FsmBase();
   virtual ~FsmBase();
@@ -34,7 +36,7 @@ private:
   void mainLoop();
 
 private:
-  std::thread _thread;
+  QThread *_thread;
   FsmState *_currentState;
   QMap<int, FsmState *> _stateTable;
   QMap<int, QMap<int, bool>> _stateChangeTable;

@@ -1488,12 +1488,14 @@ void GitRepoContainer::updateBranchHistory(
     showSpinnerOverlay(false);
     stretchBranchHistoryTableColumns();
 
-    // Simulate click on the first row
+    // Simulate click on first row
     const QModelIndex index =
         ui->historyView->model()->index(0, 0); // First row, first column
     ui->historyView->selectionModel()->select(
         index, QItemSelectionModel::Select | QItemSelectionModel::Rows);
     ui->historyView->setCurrentIndex(index);
+
+    ui->historyView->setFocus();
   });
 
   LOG_PERF(0, "Exit")

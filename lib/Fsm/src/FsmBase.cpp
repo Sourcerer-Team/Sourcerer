@@ -13,7 +13,7 @@ const int CHANGESTATE_EVENT = 0;
 
 namespace Fsm {
 
-FsmBase::FsmBase() {
+FsmBase::FsmBase() : QObject(), _thread(nullptr) {
   LOG_PERF(0, "Enter");
   LOG_PERF(0, "Exit");
 }
@@ -23,6 +23,10 @@ FsmBase::~FsmBase() {
 
   for (auto item : qAsConst(_stateTable))
     delete item;
+
+  stop();
+
+  delete _thread;
 
   LOG_PERF(0, "Exit");
 }
@@ -37,14 +41,16 @@ void FsmBase::start() {
   initChangeTable(_stateChangeTable);
 
   _currentState = firstState(_stateTable);
-  if(!_currentState) {
-    LOG_ERROR(Log::ErrorId::Generic, "Internal error. First state not initialized.");
+  if (!_currentState) {
+    LOG_ERROR(Log::ErrorId::Generic,
+              "Internal error. First state not initialized.");
     LOG_PERF(0, "Exit");
     return;
   }
 
   std::function<void()> mainLoopFunction = std::bind(&FsmBase::mainLoop, this);
-  _thread = std::thread{mainLoopFunction};
+  _thread = QThread::create(mainLoopFunction);
+  _thread->start();
 
   LOG_PERF(0, "Exit");
 }
@@ -52,7 +58,7 @@ void FsmBase::start() {
 void FsmBase::stop() {
   LOG_PERF(0, "Enter");
 
-  if (!_thread.joinable()) {
+  if (!_thread) {
     LOG_PERF(0, "Exit");
     return;
   }
@@ -60,7 +66,7 @@ void FsmBase::stop() {
   FsmEvent stopEvent(STOP_EVENT);
   _queueEvents.push(stopEvent);
 
-  _thread.join();
+  _thread->wait();
 
   while (!_queueEvents.empty())
     _queueEvents.pop();
