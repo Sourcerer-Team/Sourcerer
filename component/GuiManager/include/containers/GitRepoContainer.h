@@ -12,8 +12,10 @@
 #include <LockGuard.h>
 #include <QCheckBox>
 
+#include <QCheckBox>
 #include <QEnableSharedFromThis>
 #include <QItemSelection>
+#include <QPushButton>
 #include <QSet>
 #include <QString>
 #include <QWidget>
@@ -57,6 +59,7 @@ private slots:
   void onSplitterMoved(int pos, int index) const;
   void showTooltipForColumnSlice(const QModelIndex &index);
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
+  void onDisplayTreeExpandAllButtonClicked();
   void onHistorySelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onLocalBranchSelected(const QString &branchName);
@@ -140,6 +143,8 @@ private:
   int _resizedHeaderSectionPreviousWidth;
 
   QCheckBox *_checkBoxAmend;
+  QPushButton *_displayTreeExpandAllButton;
+  bool _displayTreeExpanded;
 
   Models::GitCommitListModel *_commitListModel;
   Models::GitCommitTreeModel *_commitTreeModel;

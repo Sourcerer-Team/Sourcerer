@@ -59,7 +59,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
     _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
-    _commitListModel(nullptr), _commitTreeModel(nullptr) {
+    _displayTreeExpanded(false), _commitListModel(nullptr),
+    _commitTreeModel(nullptr) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -100,6 +101,14 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->tabWidgetWorkingTree->tabBar()->setObjectName(
       "tabWidgetWorkingTreeTabBar");
 
+  _displayTreeExpandAllButton =
+    new QPushButton(tr("Expand all"), ui->tabWidgetPageDisplayFiles);
+  _displayTreeExpandAllButton->setCursor(Qt::PointingHandCursor);
+  _displayTreeExpandAllButton->setFlat(true);
+  _displayTreeExpandAllButton->setVisible(
+    ui->tabWidgetPageDisplayFiles->currentIndex() != 0);
+
+  ui->tabWidgetPageDisplayFiles->setCornerWidget(_displayTreeExpandAllButton);
   ui->tabWidgetPageDisplayFiles->tabBar()->setObjectName(
       "tabWidgetPageDisplayFilesTabBar");
 
@@ -163,6 +172,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(ui->historyView->selectionModel(),
           &QItemSelectionModel::selectionChanged, this,
           &GitRepoContainer::onHistorySelectionChanged);
+
+  connect(
+    ui->tabWidgetPageDisplayFiles, &QTabWidget::currentChanged, this,
+    [=](int index) { _displayTreeExpandAllButton->setVisible(index != 0); });
+
+  connect(_displayTreeExpandAllButton, &QPushButton::clicked, this,
+          &GitRepoContainer::onDisplayTreeExpandAllButtonClicked);
 
   LOG_PERF(0, "Exit")
 }
@@ -349,6 +365,23 @@ void GitRepoContainer::showTooltipForSummaryColumn(
       _configManager.getLong(ConfigManager::ConfigKey::TooltipDisplayTime);
 
   QToolTip::showText(_mousePos, tooltipText, nullptr, {}, tooltipDisplayTime);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onDisplayTreeExpandAllButtonClicked() {
+  LOG_PERF(0, "Enter");
+
+  if (_displayTreeExpanded) {
+    ui->treeViewPageDisplayFilesTree->collapseAll();
+    _displayTreeExpandAllButton->setText(tr("Expand all"));
+    _displayTreeExpanded = false;
+    return;
+  }
+
+  ui->treeViewPageDisplayFilesTree->expandAll();
+  _displayTreeExpandAllButton->setText(tr("Collapse all"));
+  _displayTreeExpanded = true;
 
   LOG_PERF(0, "Exit");
 }
@@ -1266,8 +1299,7 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showCommit(const WeakPtr &guard,
-                                  const QString &commit) {
+void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
   LOG_PERF(0, "Enter");
 
   const GitRepo::GitHistoryWithStatus &historyAndStatus =
