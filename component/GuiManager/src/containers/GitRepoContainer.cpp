@@ -412,6 +412,7 @@ void GitRepoContainer::onHistorySelectionChanged(
       ui->stackedWidgetCommitAndMerge->setCurrentIndex(
           static_cast<int>(CommitAndMergeStackIndexes::Display));
 
+      _dispatcher.clearPool();
       _dispatcher.dispatch([=]() {
         showCommit(guard, shaColumnModelIndex.data(Qt::DisplayRole).toString());
       });
@@ -419,6 +420,7 @@ void GitRepoContainer::onHistorySelectionChanged(
       ui->stackedWidgetCommitAndMerge->setCurrentIndex(
           static_cast<int>(CommitAndMergeStackIndexes::CommitAndMerge));
 
+      _dispatcher.clearPool();
       _dispatcher.dispatch(
           [=]() { showCommitAndMerge(guard, statusFieldsMap); });
     }

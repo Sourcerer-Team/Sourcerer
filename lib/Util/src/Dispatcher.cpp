@@ -217,4 +217,31 @@ void Dispatcher::stopAll() {
   LOG_PERF(0, "Exit");
 }
 
+void Dispatcher::clearPool()
+{
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_mutex);
+
+  for (auto &v : _pool.values()) {
+    Q_ASSERT(v);
+    if (!v) {
+      LOG_ERROR(Log::ErrorId::Generic, "Internal error! Invalid pool element!");
+      continue;
+    }
+
+    Q_ASSERT(v->_queue);
+
+    if (!v->_queue) {
+      LOG_ERROR(Log::ErrorId::Generic,
+                "Internal error! Invalid pool element's queue!");
+      continue;
+    }
+
+    v->_queue->clear();
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 } // namespace Util

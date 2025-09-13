@@ -124,6 +124,11 @@ public:
     }
   }
 
+  void clear() {
+    std::unique_lock<std::mutex> guard(myMutex);
+    myQueue.clear();
+  }
+
 private:
   std::deque<T> myQueue;
   std::mutex myMutex;

@@ -98,6 +98,8 @@ public:
 
   void stopAll();
 
+  void clearPool();
+
 private:
   static void processor(QSharedPointer<DispatcherPoolElement> poolElement);
 
