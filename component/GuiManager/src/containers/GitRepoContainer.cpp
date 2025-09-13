@@ -108,6 +108,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _displayTreeExpandAllButton->setVisible(
     ui->tabWidgetPageDisplayFiles->currentIndex() != 0);
 
+  resetDisplayTreeExpandedButton();
+
   ui->tabWidgetPageDisplayFiles->setCornerWidget(_displayTreeExpandAllButton);
   ui->tabWidgetPageDisplayFiles->tabBar()->setObjectName(
       "tabWidgetPageDisplayFilesTabBar");
@@ -192,11 +194,10 @@ GitRepoContainer::~GitRepoContainer() {
   _historyModel->quitUpdate();
 
   delete _errorPixmap;
-  delete _commitListModel;
-  delete _commitTreeModel;
 
   LOG_PERF(0, "Exit")
 }
+
 void GitRepoContainer::init() {
   ContainerWidget::init();
 
@@ -278,12 +279,12 @@ void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
   _tooltipsToShow.clear();
   _tooltipsToShow += commit;
 
-  const auto weak = getSelf().toWeakRef();
+  const auto guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([&, commit, index, weak]() {
+  _dispatcher.dispatch([&, commit, index, guard]() {
     LOG_PERF(0, "Enter");
 
-    const QStringList commitBranches = getCommitBranches(commit);
+    const QStringList commitBranches = getCommitBranches(guard, commit);
 
     if (commitBranches.isEmpty()) {
       LOG_PERF(0, "Exit");
@@ -298,7 +299,7 @@ void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
         return;
       }
 
-      if (const auto locked = weak.lock()) {
+      if (const auto locked = guard.lock()) {
         const QPoint viewportPos =
             ui->historyView->viewport()->mapFromGlobal(_mousePos);
 
@@ -395,6 +396,8 @@ void GitRepoContainer::onHistorySelectionChanged(
     LOG_PERF(0, "Exit");
     return;
   }
+
+  resetDisplayTreeExpandedButton();
 
   const QModelIndex index = indexes.first();
 
@@ -619,11 +622,15 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
     }
 
     if (!success) {
-      _spinnerOverlayTimer->stop();
-
-      showSpinnerOverlay(false);
+      closeRepo();
 
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        _spinnerOverlayTimer->stop();
+
+        showSpinnerOverlay(false);
+
+        showErrorPage();
+
         showErrorToast(QString(tr("Failed to checkout branch. %1"))
                            .arg(additionalClarificationMessage),
                        tr("Checkout"));
@@ -635,11 +642,11 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
 
     if (event.type() !=
         EventManager::EventType::GitRepoManagerCheckoutBranchResult) {
-      _spinnerOverlayTimer->stop();
-
-      showSpinnerOverlay(false);
-
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        _spinnerOverlayTimer->stop();
+
+        showSpinnerOverlay(false);
+
         showErrorToast(QString(tr("Failed to checkout branch. %1"))
                            .arg(additionalClarificationMessage),
                        tr("Checkout"));
@@ -704,7 +711,10 @@ bool GitRepoContainer::getActiveBranchOrTag(
       _eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
+    closeRepo();
+
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
       showErrorToast(tr("Failed to retrieve the active local branch."),
                      tr("Error"));
     });
@@ -792,10 +802,13 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
       _eventManager.waitForAnswer(historyToken, historyEventUuid, historyTypes);
 
   if (!historySuccess) {
+    closeRepo();
+
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _spinnerOverlayTimer->stop();
       showSpinnerOverlay(false);
       ui->historyView->setVisible(false);
+      showErrorPage();
       showErrorToast(QString(tr("Failed to retrieve the history of branch %1."))
                          .arg(_activeBranch),
                      tr("Error"));
@@ -845,10 +858,12 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
       _eventManager.waitForAnswer(statusToken, statusEventUuid, statusTypes);
 
   if (!statusSuccess) {
+    closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _spinnerOverlayTimer->stop();
       showSpinnerOverlay(false);
       ui->historyView->setVisible(false);
+      showErrorPage();
       showErrorToast(tr("Failed to retrieve the repository status."),
                      tr("Error"));
     });
@@ -889,7 +904,8 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
   return true;
 }
 
-QStringList GitRepoContainer::getCommitBranches(const QString &commit) const {
+QStringList GitRepoContainer::getCommitBranches(const WeakPtr &guard,
+                                                const QString &commit) const {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -914,6 +930,8 @@ QStringList GitRepoContainer::getCommitBranches(const QString &commit) const {
       _eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() { showErrorPage(); });
     LOG_PERF(0, "Exit")
     return {};
   }
@@ -933,7 +951,8 @@ QStringList GitRepoContainer::getCommitBranches(const QString &commit) const {
 }
 
 GitRepo::GitCommitStatus
-GitRepoContainer::getCommiStatus(const QString &commit) const {
+GitRepoContainer::getCommitStatus(const WeakPtr &guard,
+                                  const QString &commit) const {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -958,6 +977,9 @@ GitRepoContainer::getCommiStatus(const QString &commit) const {
       _eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
+    closeRepo();
+    ::Util::Dispatcher::dispatchToMainThread(guard, [&]() { showErrorPage(); });
+
     LOG_PERF(0, "Exit")
     return {};
   }
@@ -1003,7 +1025,9 @@ bool GitRepoContainer::getLocalBranches() {
   const WeakPtr guard = getSelf().toWeakRef();
 
   if (!success) {
+    closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
       showErrorToast(tr("Failed to retrieve the list of local branches."),
                      tr("Error"));
     });
@@ -1060,7 +1084,9 @@ bool GitRepoContainer::getRemoteBranches() {
       _eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
+    closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
       showErrorToast(tr("Failed to retrieve the list of remote branches."),
                      tr("Error"));
     });
@@ -1117,7 +1143,9 @@ bool GitRepoContainer::getSubmodules() {
   const WeakPtr guard = getSelf().toWeakRef();
 
   if (!success) {
+    closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
       showErrorToast(tr("Failed to retrieve the list of submodules."),
                      tr("Error"));
     });
@@ -1174,7 +1202,9 @@ bool GitRepoContainer::getTags() {
   const WeakPtr guard = getSelf().toWeakRef();
 
   if (!success) {
+    closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
       showErrorToast(tr("Failed to retrieve the list of tags."), tr("Error"));
     });
 
@@ -1229,6 +1259,7 @@ bool GitRepoContainer::openRepo() {
   const WeakPtr guard = getSelf().toWeakRef();
 
   if (!success) {
+    closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorPage();
@@ -1278,6 +1309,15 @@ void GitRepoContainer::refreshViews() {
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::resetDisplayTreeExpandedButton() {
+  LOG_PERF(0, "Enter");
+
+  _displayTreeExpandAllButton->setText(tr("Expand all"));
+  _displayTreeExpanded = false;
+
+  LOG_PERF(0, "Exit")
+}
+
 void GitRepoContainer::stretchBranchHistoryTableColumns() const {
   LOG_PERF(0, "Enter");
 
@@ -1313,7 +1353,7 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     return;
   }
 
-  const GitRepo::GitCommitStatus commitStatus = getCommiStatus(commit);
+  const GitRepo::GitCommitStatus commitStatus = getCommitStatus(guard, commit);
 
   const GitRepo::GitCommitInfo &commitInfo =
       historyAndStatus.history.commitInfos[commit];
@@ -1338,18 +1378,14 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     cursor.mergeBlockFormat(format);
     ui->textEditPageDisplayDescription->setTextCursor(cursor);
 
-    delete _commitListModel;
-
-    _commitListModel = Models::GitCommitListModel::from(commitStatus);
+    _commitListModel.reset(Models::GitCommitListModel::from(commitStatus));
     if (_commitListModel) {
-      ui->listViewPageDisplayFilesFlat->setModel(_commitListModel);
+      ui->listViewPageDisplayFilesFlat->setModel(_commitListModel.get());
     }
 
-    delete _commitTreeModel;
-
-    _commitTreeModel = Models::GitCommitTreeModel::from(commitStatus);
+    _commitTreeModel.reset(Models::GitCommitTreeModel::from(commitStatus));
     if (_commitTreeModel) {
-      ui->treeViewPageDisplayFilesTree->setModel(_commitTreeModel);
+      ui->treeViewPageDisplayFilesTree->setModel(_commitTreeModel.get());
     }
   });
 

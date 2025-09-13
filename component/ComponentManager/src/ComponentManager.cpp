@@ -5,8 +5,7 @@
 
 #include <chrono>
 #include <functional>
-#include <iostream>
-#include <list>
+#include <thread>
 
 #define THREAD_ID "ComponentManager"
 

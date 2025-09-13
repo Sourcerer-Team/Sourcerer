@@ -26,9 +26,12 @@ Dispatcher::Dispatcher(const int coresNum) {
 
     _pool[i] = poolElement;
 
+    poolElement->_queue = new BlockingQueue<DispatcherRecord>();
     poolElement->_thread = QThread::create([=]() { processor(poolElement); });
 
     connect(poolElement->_thread, &QThread::finished, poolElement->_thread,
+            &QObject::deleteLater);
+    connect(poolElement->_thread, &QThread::finished, poolElement->_queue,
             &QObject::deleteLater);
 
     poolElement->_thread->start();
@@ -50,8 +53,18 @@ Dispatcher::~Dispatcher() {
 void Dispatcher::processor(QSharedPointer<DispatcherPoolElement> poolElement) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(poolElement);
+  Q_ASSERT(poolElement->_queue);
+
   if (!poolElement) {
     LOG_ERROR(Log::ErrorId::Generic, "Internal error! Invalid pool element!");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!poolElement->_queue) {
+    LOG_ERROR(Log::ErrorId::Generic,
+              "Internal error! Invalid pool element queue!");
     LOG_PERF(0, "Exit");
     return;
   }
@@ -60,7 +73,14 @@ void Dispatcher::processor(QSharedPointer<DispatcherPoolElement> poolElement) {
 
   while (!quit) {
 
-    switch (const auto [_command, _task] = poolElement->_queue.pop();
+    Q_ASSERT(poolElement->_queue);
+    if (!poolElement->_queue) {
+      LOG_ERROR(Log::ErrorId::Generic, "Internal error! Queue is null!");
+      quit = true;
+      break;
+    }
+
+    switch (const auto [_command, _task] = poolElement->_queue->pop();
             _command) {
     case DispatcherCommand::Run: {
       try {
@@ -95,15 +115,25 @@ bool Dispatcher::dispatch(
   int minSize = INT_MAX;
   int index = -1;
 
-  for (const auto &[k, v] : _pool) {
+  for (const auto &k : _pool.keys()) {
+    const auto& v = _pool[k];
+    Q_ASSERT(v);
+
     if (!v) {
       LOG_ERROR(Log::ErrorId::Generic, "Internal error! Invalid pool element!");
       continue;
     }
 
-    if (v->_queue.size() < minSize) {
+    Q_ASSERT(v->_queue);
+    if (!v->_queue) {
+      LOG_ERROR(Log::ErrorId::Generic,
+                "Internal error! Invalid pool element queue!");
+      continue;
+    }
+
+    if (v->_queue->size() < minSize) {
       index = k;
-      minSize = v->_queue.size();
+      minSize = v->_queue->size();
     }
   }
 
@@ -131,13 +161,25 @@ bool Dispatcher::dispatch(
   runRecord._task = compositeTask;
 
   const auto poolElement = _pool[index];
+
+  Q_ASSERT(poolElement);
+
   if (!poolElement) {
     LOG_ERROR(Log::ErrorId::Generic, "Internal error! Invalid pool element!");
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  poolElement->_queue.push(runRecord);
+  Q_ASSERT(poolElement->_queue);
+
+  if (!poolElement->_queue) {
+    LOG_ERROR(Log::ErrorId::Generic,
+              "Internal error! Invalid pool element's queue!");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  poolElement->_queue->push(runRecord);
 
   LOG_PERF(0, "Exit");
 
@@ -152,17 +194,22 @@ void Dispatcher::stopAll() {
   DispatcherRecord quitRecord;
   quitRecord._command = DispatcherCommand::Quit;
 
-  for (auto &[k, v] : _pool) {
-    LOG_INFO("Stopping pool processor for core {}", k);
-
+  for (auto &v : _pool.values()) {
+    Q_ASSERT(v);
     if (!v) {
       LOG_ERROR(Log::ErrorId::Generic, "Internal error! Invalid pool element!");
       continue;
     }
 
-    v->_queue.push(quitRecord);
+    Q_ASSERT(v->_queue);
 
-    LOG_INFO("Pool processor for core {} stopped.", k);
+    if (!v->_queue) {
+      LOG_ERROR(Log::ErrorId::Generic,
+                "Internal error! Invalid pool element's queue!");
+      continue;
+    }
+
+    v->_queue->push(quitRecord);
   }
 
   _pool.clear();

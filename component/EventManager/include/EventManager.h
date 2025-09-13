@@ -9,17 +9,17 @@
 #include <QThread>
 
 #include <atomic>
+#include <limits>
 #include <map>
 #include <set>
-#include <thread>
 #include <unordered_map>
 
 namespace EventManager {
 
-#define CAPTURE_CALLBACK(type, callback)                                       \
-  { type, this, callback }
+#define CAPTURE_CALLBACK(type, callback) {type, this, callback}
 
-const ulong DEFAULT_WAIT_TIMEOUT = 2 * 60 * 1000; // 2 minutes
+const ulong DEFAULT_WAIT_TIMEOUT =
+  std::numeric_limits<ulong>::max(); // indefinite wait time
 
 enum class EventRecordType { Quit = 0, Send };
 
@@ -74,8 +74,9 @@ public:
   std::tuple<bool, Event> waitForAnswer(int token, const QString &uuid,
                                         ulong timeout = DEFAULT_WAIT_TIMEOUT);
 
-  std::tuple<bool, Event> waitForAnswer(int token, const QString &uuid, const std::set<EventType>& types,
-                                      ulong timeout = DEFAULT_WAIT_TIMEOUT);
+  std::tuple<bool, Event> waitForAnswer(int token, const QString &uuid,
+                                        const std::set<EventType> &types,
+                                        ulong timeout = DEFAULT_WAIT_TIMEOUT);
 
 private:
   EventManager();

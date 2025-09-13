@@ -1,17 +1,21 @@
 #ifndef BLOCKING_QUEUE_H
 #define BLOCKING_QUEUE_H
 
+#include <QObject>
+
 #include <chrono>
 #include <condition_variable>
 #include <deque>
 #include <functional>
 #include <mutex>
-#include <thread>
 
 using namespace std::chrono_literals;
 
-template <typename T> class BlockingQueue {
+template <typename T> class BlockingQueue : public QObject {
 public:
+  BlockingQueue() {}
+  ~BlockingQueue() override {}
+
   T pop() {
     std::unique_lock<std::mutex> guard(myMutex);
 
@@ -36,7 +40,7 @@ public:
     myQueue.pop_front();
   }
 
-  T pop(int timeout, const T &defaultValue) {
+  T pop(ulong timeout, const T &defaultValue) {
     std::unique_lock<std::mutex> guard(myMutex);
 
     const auto start = std::chrono::system_clock::now();

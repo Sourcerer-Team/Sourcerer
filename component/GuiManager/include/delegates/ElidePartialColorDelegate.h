@@ -47,7 +47,7 @@ public:
 
     painter->save();
 
-    QString fullText = opt.text;
+    QString fullText = QDir::toNativeSeparators(opt.text);
 
     const QWidget *widget = opt.widget;
     QStyle *style = widget ? widget->style() : QApplication::style();
@@ -86,13 +86,37 @@ public:
     // Elide manually
     const QString elided =
       fm.elidedText(fullText, _elideMode, textRect.width());
-    QString prefix =
-      QDir::toNativeSeparators(QFileInfo(elided).path()) + QDir::separator();
+
+    QString prefix;
+    int separatorIndex = elided.lastIndexOf("…");
+    if (separatorIndex != -1) {
+      int i = elided.size() - 1;
+      while (i > separatorIndex && elided[i] != QDir::separator()) {
+        --i;
+      }
+
+      if (i > separatorIndex) {
+        separatorIndex = i;
+      }
+
+      prefix = elided.left(separatorIndex + 1);
+    } else {
+      prefix = QDir::toNativeSeparators(QFileInfo(elided).path()) +
+               QDir::separator();
+    }
+
     if (prefix.startsWith(".\\") || prefix.startsWith("./")) {
       prefix = prefix.mid(2);
     }
 
-    const QString suffix = QFileInfo(elided).fileName();
+    QString suffix;
+    if (separatorIndex != -1) {
+      suffix = elided.mid(separatorIndex + 1);
+    } else {
+      suffix = QFileInfo(elided).fileName();
+    }
+
+    separatorIndex != -1 ? elided.mid(separatorIndex + 1) : QString();
 
     // Draw prefix (normal color)
     painter->setPen(opt.palette.color(QPalette::Text));

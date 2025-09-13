@@ -145,8 +145,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>205</width>
-                  <height>198</height>
+                  <width>98</width>
+                  <height>28</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -160,8 +160,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>205</width>
-                  <height>198</height>
+                  <width>98</width>
+                  <height>28</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -175,8 +175,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>205</width>
-                  <height>198</height>
+                  <width>98</width>
+                  <height>28</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -190,8 +190,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>205</width>
-                  <height>198</height>
+                  <width>98</width>
+                  <height>28</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -941,7 +941,7 @@
                 </font>
                </property>
                <property name="text">
-                <string>An error ocurred while loading repository</string>
+                <string>An error ocurred while during repository operation</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop</set>

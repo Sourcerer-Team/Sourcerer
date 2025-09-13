@@ -13,6 +13,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
 find_package(Threads REQUIRED)
 
 add_library(Util STATIC
+   include/BlockingQueue.h
    include/Dispatcher.h
    include/FileLock.h
    include/General.h

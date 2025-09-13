@@ -27,7 +27,7 @@ class GitRepoContainer;
 namespace GuiManager::Models {
 class GitCommitListModel;
 class GitCommitTreeModel;
-}
+} // namespace GuiManager::Models
 
 namespace GuiManager::Containers {
 
@@ -60,7 +60,8 @@ private slots:
   void showTooltipForColumnSlice(const QModelIndex &index);
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
   void onDisplayTreeExpandAllButtonClicked();
-  void onHistorySelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
+  void onHistorySelectionChanged(const QItemSelection &selected,
+                                 const QItemSelection &deselected);
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onLocalBranchSelected(const QString &branchName);
   void onRemoteBranchSelected(const QString &branchName);
@@ -80,19 +81,23 @@ private:
   bool getActiveRemoteBranch();
   bool getActiveTag();
   bool getBranchHistory(const WeakPtr &guard);
-  [[nodiscard]] QStringList getCommitBranches(const QString &commit) const;
-  [[nodiscard]] GitRepo::GitCommitStatus getCommiStatus(const QString &commit) const;
+  [[nodiscard]] QStringList getCommitBranches(const WeakPtr &guard,
+                                              const QString &commit) const;
+  [[nodiscard]] GitRepo::GitCommitStatus
+  getCommitStatus(const WeakPtr &guard, const QString &commit) const;
   bool getLocalBranches();
   bool getRemoteBranches();
   bool getSubmodules();
   bool getTags();
   bool openRepo();
   void refreshViews();
+  void resetDisplayTreeExpandedButton();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
   void stretchBranchHistoryTableColumns() const;
   void showCommit(const WeakPtr &guard, const QString &commit);
-  void showCommitAndMerge(WeakPtr guard, const Models::StatusFieldsMap &statusMap);
+  void showCommitAndMerge(WeakPtr guard,
+                          const Models::StatusFieldsMap &statusMap);
   void showErrorPage(bool error = true) const;
   void showMainSpinnerPage(bool spinnerEnabled = true) const;
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
@@ -146,8 +151,8 @@ private:
   QPushButton *_displayTreeExpandAllButton;
   bool _displayTreeExpanded;
 
-  Models::GitCommitListModel *_commitListModel;
-  Models::GitCommitTreeModel *_commitTreeModel;
+  QSharedPointer<Models::GitCommitListModel> _commitListModel;
+  QSharedPointer<Models::GitCommitTreeModel> _commitTreeModel;
 };
 
 } // namespace GuiManager::Containers

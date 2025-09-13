@@ -5,6 +5,7 @@
 #include <BlockingQueue.h>
 #include <LockGuard.h>
 
+#include <QMap>
 #include <QThread>
 #include <QTimer>
 
@@ -30,7 +31,7 @@ struct DispatcherRecord {
 };
 
 struct DispatcherPoolElement {
-  BlockingQueue<DispatcherRecord> _queue;
+  BlockingQueue<DispatcherRecord> *_queue = nullptr;
   QThread *_thread = nullptr;
 };
 
@@ -102,7 +103,7 @@ private:
 
 private:
   Util::Mutex _mutex;
-  std::map<size_t, QSharedPointer<DispatcherPoolElement>> _pool;
+  QMap<size_t, QSharedPointer<DispatcherPoolElement>> _pool;
 };
 
 } // namespace Util
