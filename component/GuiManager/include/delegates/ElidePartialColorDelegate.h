@@ -13,9 +13,11 @@ namespace GuiManager::Delegates {
 
 class ElidePartialColorDelegate final : public QStyledItemDelegate {
 public:
-  explicit ElidePartialColorDelegate(const Qt::TextElideMode elideMode,
-                                       QObject *parent = nullptr)
-      : QStyledItemDelegate(parent), _elideMode(elideMode) {
+  explicit ElidePartialColorDelegate(
+      const Qt::TextElideMode elideMode = Qt::TextElideMode::ElideRight,
+      bool treePainter = false, QObject *parent = nullptr)
+        : QStyledItemDelegate(parent), _elideMode(elideMode),
+        _treePainter(treePainter) {
     _modificationTypeToIcon = {
       {GuiManager::Models::GitCommitListModificationType::New,
        QPixmap(":/icons/file-add.png")},
@@ -55,21 +57,29 @@ public:
     // Let Qt draw the full item (background, focus, etc.)
     style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, widget);
 
-    const QPixmap &icon = _modificationTypeToIcon.value(modificationType);
-    Q_ASSERT(!icon.isNull());
-
-    const int left = opt.rect.left();
-    const int top = opt.rect.top();
-    const int height = opt.rect.height();
-
-    painter->drawPixmap(QRect(left + 4, top + 4,
-                              height - 8, height - 8),
-                        icon);
-
     // Get the correct text rectangle
     QRect textRect =
       style->subElementRect(QStyle::SE_ItemViewItemText, &opt, widget);
-    textRect = textRect.adjusted(height, 0, 0, 0); // Adjust for icon
+
+    const int height = opt.rect.height();
+    const QPixmap &icon = _modificationTypeToIcon.value(modificationType);
+
+    if (!icon.isNull()) {
+      const int left = opt.rect.left();
+      const int top = opt.rect.top();
+
+      if (_treePainter) {
+        if (index.model()->rowCount(index) == 0) {
+          painter->drawPixmap(QRect(left + 4, top + 4, height - 8, height - 8),
+                              icon);
+          textRect = textRect.adjusted(height, 0, 0, 0); // Adjust for icon
+        }
+      } else {
+        painter->drawPixmap(QRect(left + 4, top + 4, height - 8, height - 8),
+                            icon);
+        textRect = textRect.adjusted(height, 0, 0, 0); // Adjust for icon
+      }
+    }
 
     QFontMetrics fm(opt.font);
 
@@ -93,7 +103,14 @@ public:
     QRect suffixRect = textRect.adjusted(prefixWidth, 0, 0, 0);
 
     // Draw suffix (custom color)
-    painter->setPen(Qt::darkYellow); // Or any color you want
+    if (_treePainter) {
+      if (index.model()->rowCount(index) == 0) {
+        painter->setPen(Qt::darkYellow);
+      }
+    } else {
+      painter->setPen(Qt::darkYellow);
+    }
+
     painter->drawText(suffixRect, Qt::AlignLeft | Qt::AlignVCenter, suffix);
 
     painter->restore();
@@ -110,6 +127,7 @@ public:
   Qt::TextElideMode _elideMode;
       QMap<GuiManager::Models::GitCommitListModificationType, QPixmap>
     _modificationTypeToIcon;
+  bool _treePainter;
 };
 
 } // namespace GuiManager::Delegates

@@ -862,7 +862,23 @@
                             <number>0</number>
                            </property>
                            <item>
-                            <widget class="QTreeView" name="treeViewPageDisplayFilesTree"/>
+                            <widget class="QTreeView" name="treeViewPageDisplayFilesTree">
+                             <property name="editTriggers">
+                              <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                             </property>
+                             <property name="indentation">
+                              <number>20</number>
+                             </property>
+                             <property name="rootIsDecorated">
+                              <bool>true</bool>
+                             </property>
+                             <property name="animated">
+                              <bool>false</bool>
+                             </property>
+                             <attribute name="headerVisible">
+                              <bool>false</bool>
+                             </attribute>
+                            </widget>
                            </item>
                           </layout>
                          </item>

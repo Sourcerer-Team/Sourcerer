@@ -22,6 +22,11 @@ namespace Ui {
 class GitRepoContainer;
 }
 
+namespace GuiManager::Models {
+class GitCommitListModel;
+class GitCommitTreeModel;
+}
+
 namespace GuiManager::Containers {
 
 class GitRepoContainer final : public Widgets::ContainerWidget,
@@ -83,7 +88,7 @@ private:
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
   void stretchBranchHistoryTableColumns() const;
-  void showCommit(const WeakPtr &guard, const QString &commit) const;
+  void showCommit(const WeakPtr &guard, const QString &commit);
   void showCommitAndMerge(WeakPtr guard, const Models::StatusFieldsMap &statusMap);
   void showErrorPage(bool error = true) const;
   void showMainSpinnerPage(bool spinnerEnabled = true) const;
@@ -135,6 +140,9 @@ private:
   int _resizedHeaderSectionPreviousWidth;
 
   QCheckBox *_checkBoxAmend;
+
+  Models::GitCommitListModel *_commitListModel;
+  Models::GitCommitTreeModel *_commitTreeModel;
 };
 
 } // namespace GuiManager::Containers

@@ -34,6 +34,9 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
       QTextEdit:focus {
           border: 2px solid #53A0ED;
       }
+      QTreeView::item:selected {
+        background-color: #384D59;
+      }
       QGroupBox#groupBoxTabCommit{
         background-color: black;
       }

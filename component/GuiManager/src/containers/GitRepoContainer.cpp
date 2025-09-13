@@ -4,6 +4,7 @@
 #include "delegates/HistorySliceTableColumnDelegate.h"
 #include "delegates/HistorySummaryTableColumnDelegate.h"
 #include "models/GitCommitListModel.h"
+#include "models/GitCommitTreeModel.h"
 #include "widgets/ClickableHeaderView.h"
 #include "widgets/ErrorToast.h"
 #include "widgets/InfoToast.h"
@@ -57,7 +58,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _historyModel(new Models::GitHistoryModel()), _dispatcher(1),
       _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
-      _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1) {
+    _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
+    _commitListModel(nullptr), _commitTreeModel(nullptr) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -103,11 +105,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->listViewPageDisplayFilesFlat->setItemDelegate(
       new Delegates::ElidePartialColorDelegate(
-      Qt::ElideMiddle, ui->listViewPageDisplayFilesFlat));
+      Qt::ElideMiddle, false, ui->listViewPageDisplayFilesFlat));
+  ui->treeViewPageDisplayFilesTree->setItemDelegate(
+    new Delegates::ElidePartialColorDelegate(
+      Qt::ElideMiddle, true, ui->treeViewPageDisplayFilesTree));
 
   ui->listViewPageDisplayFilesFlat->setHorizontalScrollBarPolicy(
     Qt::ScrollBarAlwaysOff);
-  // ui->listViewPageDisplayFilesFlat->setTextElideMode(Qt::ElideMiddle);
 
   qApp->setStyleSheet(qApp->styleSheet());
 
@@ -172,6 +176,8 @@ GitRepoContainer::~GitRepoContainer() {
   _historyModel->quitUpdate();
 
   delete _errorPixmap;
+  delete _commitListModel;
+  delete _commitTreeModel;
 
   LOG_PERF(0, "Exit")
 }
@@ -1261,7 +1267,7 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() const {
 }
 
 void GitRepoContainer::showCommit(const WeakPtr &guard,
-                                  const QString &commit) const {
+                                  const QString &commit) {
   LOG_PERF(0, "Enter");
 
   const GitRepo::GitHistoryWithStatus &historyAndStatus =
@@ -1300,10 +1306,18 @@ void GitRepoContainer::showCommit(const WeakPtr &guard,
     cursor.mergeBlockFormat(format);
     ui->textEditPageDisplayDescription->setTextCursor(cursor);
 
-    Models::GitCommitListModel *commitListModel =
-        Models::GitCommitListModel::from(commitStatus);
-    if (commitListModel) {
-      ui->listViewPageDisplayFilesFlat->setModel(commitListModel);
+    delete _commitListModel;
+
+    _commitListModel = Models::GitCommitListModel::from(commitStatus);
+    if (_commitListModel) {
+      ui->listViewPageDisplayFilesFlat->setModel(_commitListModel);
+    }
+
+    delete _commitTreeModel;
+
+    _commitTreeModel = Models::GitCommitTreeModel::from(commitStatus);
+    if (_commitTreeModel) {
+      ui->treeViewPageDisplayFilesTree->setModel(_commitTreeModel);
     }
   });
 
