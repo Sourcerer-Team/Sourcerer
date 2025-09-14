@@ -28,6 +28,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloseRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCommitStaged, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranch, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitBranches, callbackFunc));
@@ -73,6 +75,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerCloneRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloseRepo, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCommitStaged, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -152,6 +156,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent closeRepoEvent(EventType::CloseRepo);
     closeRepoEvent.addParam(QVariant::fromValue(closeCommand));
     _fsm.send(closeRepoEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCommitStaged: {
+    const auto commitStagedCommand = event.data<GitRepoCommitStagedCommand>();
+    GitRepoManagerEvent commitStagedRepoEvent(EventType::CommitStaged);
+    commitStagedRepoEvent.addParam(QVariant::fromValue(commitStagedCommand));
+    _fsm.send(commitStagedRepoEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerGetActiveBranch: {

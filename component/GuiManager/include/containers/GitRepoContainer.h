@@ -10,7 +10,7 @@
 #include <EventManager.h>
 #include <GitRepo.h>
 #include <LockGuard.h>
-#include <QCheckBox>
+#include <UserProfileManager.h>
 
 #include <QCheckBox>
 #include <QEnableSharedFromThis>
@@ -59,6 +59,7 @@ private slots:
   void onSplitterMoved(int pos, int index) const;
   void showTooltipForColumnSlice(const QModelIndex &index);
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
+  void onCommitButtonClicked();
   void onCommitAndMergeIndexTreeUnstageAllButtonClicked();
   void onCommitAndMergeWorkingTreeTreeStageAllButtonClicked();
   void onDisplayTreeExpandAllButtonClicked();
@@ -76,7 +77,11 @@ private slots:
 private:
   void checkoutBranch(const WeakPtr &guard, const QString &branchName,
                       GitRepo::BranchType branchType);
+  void clearSummaryAndDescription();
   void closeRepo() const;
+  void commit(const WeakPtr &guard, const QString &summary,
+              const QString &description, const QString &author,
+              const QString &email);
   bool getActiveBranchOrTag(const WeakPtr &guard,
                             const GitRepo::BranchType branchType);
   bool getActiveLocalBranch();
@@ -92,10 +97,11 @@ private:
   bool getSubmodules();
   bool getTags();
   bool openRepo();
-  void refreshStatus(const WeakPtr& guard);
-  void refreshViews();
+  bool refreshHistory(const WeakPtr& guard);
+  void refreshStatus();
   void resetCommitAndMergeIndexTreeUnstageAllButton();
   void resetCommitAndMergeWorkingTreeTreeStageAllButton();
+  void resetCommitButton();
   void resetDisplayTreeExpandedButton();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
@@ -108,10 +114,10 @@ private:
   void showToast(const QString &message);
   void showErrorToast(const QString &message, const QString &title);
   void simulateClickOnFirstHistoryRow() const;
-  void stageAll(const WeakPtr& guard);
-  void stageFiles(const WeakPtr& guard, const QStringList& files);
-  void unstageAll(const WeakPtr& guard);
-  void unstageFiles(const WeakPtr& guard, const QStringList& files);
+  void stageAll(const WeakPtr &guard);
+  void stageFiles(const WeakPtr &guard, const QStringList &files);
+  void unstageAll(const WeakPtr &guard);
+  void unstageFiles(const WeakPtr &guard, const QStringList &files);
   void updateBranchHistory(
       const WeakPtr &guard,
       const GitRepo::GitHistoryWithStatus &historyWithStatus) const;
@@ -139,6 +145,7 @@ private:
   GitRepo::BranchType _activeBranchType;
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
+  Common::UserProfileManager &_userProfileManager;
   Widgets::ToastHostWidget &_toastHost;
   QSharedPointer<Models::GitHistoryModel> _historyModel;
   QPixmap *_errorPixmap;

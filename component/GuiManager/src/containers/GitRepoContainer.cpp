@@ -54,6 +54,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _path(std::move(path)), _activeBranchType(GitRepo::BranchType::All),
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
+      _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()), _dispatcher(1),
       _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
@@ -235,6 +236,18 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(_commitAndMergeIndexTreeUnstageAllButton, &QPushButton::clicked, this,
           &GitRepoContainer::onCommitAndMergeIndexTreeUnstageAllButtonClicked);
 
+  connect(ui->lineEditSummary, &QLineEdit::textChanged, this,
+          [=](const QString &text) { resetCommitButton(); });
+
+  connect(ui->lineEditSummary, &QLineEdit::editingFinished, this,
+          [=]() { resetCommitButton(); });
+
+  connect(ui->textEditDescription, &QTextEdit::textChanged, this,
+          [=]() { resetCommitButton(); });
+
+  connect(ui->pushButtonCommit, &QPushButton::clicked, this,
+          &GitRepoContainer::onCommitButtonClicked);
+
   LOG_PERF(0, "Exit")
 }
 
@@ -254,7 +267,7 @@ GitRepoContainer::~GitRepoContainer() {
 void GitRepoContainer::init() {
   ContainerWidget::init();
 
-  refreshViews();
+  openRepo();
 }
 
 bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
@@ -419,6 +432,24 @@ void GitRepoContainer::showTooltipForSummaryColumn(
       _configManager.getLong(ConfigManager::ConfigKey::TooltipDisplayTime);
 
   QToolTip::showText(_mousePos, tooltipText, nullptr, {}, tooltipDisplayTime);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onCommitButtonClicked() {
+  LOG_PERF(0, "Enter");
+
+  const Common::UserProfile &currentProfile =
+    _userProfileManager.currentProfile();
+  const QString summary = ui->lineEditSummary->text().trimmed();
+  const QString description = ui->textEditDescription->toPlainText().trimmed();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {
+    commit(guard, summary, description, currentProfile.author,
+           currentProfile.email);
+  });
 
   LOG_PERF(0, "Exit");
 }
@@ -747,6 +778,15 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::clearSummaryAndDescription() {
+  LOG_PERF(0, "Enter");
+
+  ui->lineEditSummary->setText(QString());
+  ui->textEditDescription->setText(QString());
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::closeRepo() const {
   LOG_PERF(0, "Enter");
 
@@ -757,6 +797,71 @@ void GitRepoContainer::closeRepo() const {
       EventManager::EventType::GitRepoManagerCloseRepo);
   closeRepoEvent.addData(closeCommand);
   _eventManager.send(closeRepoEvent);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
+                              const QString &description, const QString &author,
+                              const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoCommitStagedCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.author = author;
+  command.email = email;
+  command.summary = summary;
+  command.message = description;
+
+  EventManager::Event commitStagedEvent(
+    EventManager::EventType::GitRepoManagerCommitStaged, eventUuid);
+  commitStagedEvent.addData(command);
+  _eventManager.send(commitStagedEvent);
+
+  static std::set types = {
+                           EventManager::EventType::GitRepoManagerCommitStagedError,
+    EventManager::EventType::GitRepoManagerCommitStagedResult};
+
+  const auto &[success, event] =
+    _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
+      showErrorToast(tr("Failed to commit staged changes."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerCommitStagedResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorToast(tr("Failed to commit staged changes."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const bool commitSuccess = commandResult.value.toBool();
+
+  refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    if (commitSuccess) {
+      clearSummaryAndDescription();
+    }
+  });
 
   LOG_PERF(0, "Exit")
 }
@@ -1355,6 +1460,16 @@ bool GitRepoContainer::openRepo() {
     return false;
   }
 
+  const bool refreshHistorySuccess = refreshHistory(guard);
+
+  LOG_PERF(0, "Exit")
+
+  return refreshHistorySuccess;
+}
+
+bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
+  LOG_PERF(0, "Enter");
+
   bool ok = true;
 
   ok &= getLocalBranches();
@@ -1377,7 +1492,7 @@ bool GitRepoContainer::openRepo() {
   return ok;
 }
 
-void GitRepoContainer::refreshStatus(const WeakPtr &guard) {
+void GitRepoContainer::refreshStatus() {
   LOG_PERF(0, "Enter");
 
   const QString statusEventUuid = Uuid::createUuid();
@@ -1399,6 +1514,8 @@ void GitRepoContainer::refreshStatus(const WeakPtr &guard) {
 
   const auto &[statusSuccess, statusResultEvent] =
     _eventManager.waitForAnswer(statusToken, statusEventUuid, statusTypes);
+
+  const WeakPtr &guard = getSelf().toWeakRef();
 
   if (!statusSuccess) {
     closeRepo();
@@ -1432,14 +1549,6 @@ void GitRepoContainer::refreshStatus(const WeakPtr &guard) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::refreshViews() {
-  LOG_PERF(0, "Enter");
-
-  openRepo();
-
-  LOG_PERF(0, "Exit")
-}
-
 void GitRepoContainer::resetCommitAndMergeIndexTreeUnstageAllButton() {
   LOG_PERF(0, "Enter");
 
@@ -1456,6 +1565,17 @@ void GitRepoContainer::resetCommitAndMergeWorkingTreeTreeStageAllButton() {
   _commitAndMergeWorkingDirTreeStageAllButton->setText(tr("Stage all"));
   _commitAndMergeWorkingDirTreeStageAllButton->setVisible(
     _commitListModel && _commitListModel->rowCount() > 0);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::resetCommitButton() {
+  LOG_PERF(0, "Enter");
+
+  ui->pushButtonCommit->setEnabled(
+    _commitStagedListModel && _commitStagedListModel->rowCount() > 0 &&
+    (!ui->lineEditSummary->text().isEmpty() ||
+                                                                         !ui->textEditDescription->toPlainText().isEmpty()));
 
   LOG_PERF(0, "Exit")
 }
@@ -1574,6 +1694,7 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
       ui->treeViewTabWidgetIndexTree->setModel(_commitStagedTreeModel.get());
     }
 
+    resetCommitButton();
     resetCommitAndMergeIndexTreeUnstageAllButton();
     resetCommitAndMergeWorkingTreeTreeStageAllButton();
   });
@@ -1681,14 +1802,13 @@ void GitRepoContainer::stageAll(const WeakPtr &guard) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::stageFiles(const WeakPtr &guard, const QStringList &files)
-{
+void GitRepoContainer::stageFiles(const WeakPtr &guard,
+                                  const QStringList &files) {
   LOG_PERF(0, "Enter");
-
 
   Q_ASSERT(!files.isEmpty());
 
-  if(files.isEmpty()) {
+  if (files.isEmpty()) {
     LOG_PERF(0, "Exit")
     return;
   }
@@ -1709,7 +1829,7 @@ void GitRepoContainer::stageFiles(const WeakPtr &guard, const QStringList &files
 
   static std::set types = {
                            EventManager::EventType::GitRepoManagerStageFilesError,
-                           EventManager::EventType::GitRepoManagerStageFilesResult};
+    EventManager::EventType::GitRepoManagerStageFilesResult};
 
   const auto &[success, event] =
     _eventManager.waitForAnswer(token, eventUuid, types);
@@ -1725,8 +1845,7 @@ void GitRepoContainer::stageFiles(const WeakPtr &guard, const QStringList &files
     return;
   }
 
-  if (event.type() !=
-      EventManager::EventType::GitRepoManagerStageFilesResult) {
+  if (event.type() != EventManager::EventType::GitRepoManagerStageFilesResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showErrorToast(tr("Failed to stage files."), tr("Error"));
     });
@@ -1738,7 +1857,7 @@ void GitRepoContainer::stageFiles(const WeakPtr &guard, const QStringList &files
   const auto commandResult = event.data<GitRepoResult>();
   const bool stageAllSuccess = commandResult.value.toBool();
 
-  refreshStatus(guard);
+  refreshStatus();
 
   if (!stageAllSuccess) {
 
@@ -1776,13 +1895,13 @@ void GitRepoContainer::unstageAll(const WeakPtr &guard) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::unstageFiles(const WeakPtr &guard, const QStringList &files)
-{
+void GitRepoContainer::unstageFiles(const WeakPtr &guard,
+                                    const QStringList &files) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(!files.isEmpty());
 
-  if(files.isEmpty()) {
+  if (files.isEmpty()) {
     LOG_PERF(0, "Exit")
     return;
   }
@@ -1803,7 +1922,7 @@ void GitRepoContainer::unstageFiles(const WeakPtr &guard, const QStringList &fil
 
   static std::set types = {
                            EventManager::EventType::GitRepoManagerUnstageFilesError,
-                           EventManager::EventType::GitRepoManagerUnstageFilesResult};
+    EventManager::EventType::GitRepoManagerUnstageFilesResult};
 
   const auto &[success, event] =
     _eventManager.waitForAnswer(token, eventUuid, types);
@@ -1832,7 +1951,7 @@ void GitRepoContainer::unstageFiles(const WeakPtr &guard, const QStringList &fil
   const auto commandResult = event.data<GitRepoResult>();
   const bool unstageAllSuccess = commandResult.value.toBool();
 
-  refreshStatus(guard);
+  refreshStatus();
 
   if (!unstageAllSuccess) {
 

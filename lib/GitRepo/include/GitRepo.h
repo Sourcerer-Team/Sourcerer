@@ -142,8 +142,11 @@ QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
 bool getCommitIsHead(git_repository *repo, const QString &commitOid,
                      const bool &quitFlag);
 GitStatus getStatus(git_repository *repo);
-GitCommitStatus getCommitStatus(git_repository *repo, const QString& commitOid);
-bool stageFiles(git_repository *repo, const QStringList& files);
-bool unstageFiles(git_repository *repo, const QStringList& files);
+GitCommitStatus getCommitStatus(git_repository *repo, const QString &commitOid);
+bool stageFiles(git_repository *repo, const QStringList &files);
+bool unstageFiles(git_repository *repo, const QStringList &files);
+bool commitStaged(git_repository *repo, const QString &summary,
+                  const QString &message, const QString &author,
+                  const QString &email);
 
 } // namespace GitRepo

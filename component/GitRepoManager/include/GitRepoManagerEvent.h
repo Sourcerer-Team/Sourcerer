@@ -12,6 +12,7 @@ enum class EventType : int {
   CheckoutBranch,
   CloneRepo,
   CloseRepo,
+  CommitStaged,
   GetActiveBranch,
   GetBranchHistory,
   GetCommitBranches,

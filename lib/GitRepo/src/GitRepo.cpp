@@ -53,8 +53,8 @@ QMap<QString, GitPlaintextCredentials> gGitCredentials;
 
 static int gLastError = -1;
 
-static void git_strarray_destroy(git_strarray& arr) {
-  for(int i = 0; i < arr.count; ++i) {
+static void git_strarray_destroy(git_strarray &arr) {
+  for (int i = 0; i < arr.count; ++i) {
     free(arr.strings[i]);
   }
 
@@ -64,15 +64,15 @@ static void git_strarray_destroy(git_strarray& arr) {
   arr.count = 0;
 }
 
-static git_strarray qstringlist_to_git_strarray(const QStringList& list) {
+static git_strarray qstringlist_to_git_strarray(const QStringList &list) {
   LOG_PERF(0, "Enter");
 
   git_strarray arr;
   arr.count = static_cast<size_t>(list.length());
-  arr.strings = static_cast<char**>(malloc(arr.count * sizeof(char*)));
+  arr.strings = static_cast<char **>(malloc(arr.count * sizeof(char *)));
 
   for (size_t i = 0; i < arr.count; ++i) {
-    arr.strings[i] = strdup(list[i].toStdString().c_str());  // allocates a copy
+    arr.strings[i] = strdup(list[i].toStdString().c_str()); // allocates a copy
   }
 
   LOG_PERF(0, "Exit");
@@ -1818,77 +1818,72 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
 GitStatus getStatus(git_repository *repo) {
   LOG_PERF(0, "Enter");
 
+  auto callback = [](const char *path, unsigned int status_flags,
+                     void *payload) -> int {
+    if (status_flags & GIT_STATUS_WT_MODIFIED ||
+        status_flags & GIT_STATUS_INDEX_MODIFIED ||
+        status_flags & GIT_STATUS_WT_NEW ||
+        status_flags & GIT_STATUS_INDEX_NEW ||
+        status_flags & GIT_STATUS_WT_DELETED ||
+        status_flags & GIT_STATUS_INDEX_DELETED) {
+      auto *status = static_cast<GitStatus *>(payload);
+
+      Q_ASSERT(status != nullptr);
+
+      if (!status) {
+        return 0;
+      }
+
+      const QString filePath = QDir::toNativeSeparators(path);
+
+      if ((status_flags & GIT_STATUS_WT_NEW) != 0) {
+        status->newFiles += filePath;
+      } else if ((status_flags & GIT_STATUS_WT_MODIFIED) != 0) {
+        status->modifiedFiles += filePath;
+      } else if ((status_flags & GIT_STATUS_WT_DELETED) != 0) {
+        status->deletedFiles += filePath;
+      } else if ((status_flags & GIT_STATUS_WT_TYPECHANGE) != 0) {
+        status->typeChangedFiles += filePath;
+      } else if ((status_flags & GIT_STATUS_WT_RENAMED) != 0) {
+        status->renamedFiles += filePath;
+      } else if ((status_flags & GIT_STATUS_WT_UNREADABLE) != 0) {
+        status->unreadableFiles += filePath;
+      } else if ((status_flags & GIT_STATUS_INDEX_NEW) != 0) {
+        status->newStagedFiles += filePath;
+      } else if ((status_flags & GIT_STATUS_INDEX_MODIFIED) != 0) {
+        status->modifiedStagedFiles += filePath;
+      } else if ((status_flags & GIT_STATUS_INDEX_DELETED) != 0) {
+        status->modifiedStagedFiles += filePath;
+      } else if ((status_flags & GIT_STATUS_INDEX_TYPECHANGE) != 0) {
+        status->typeChangedStagedFiles += filePath;
+      } else if ((status_flags & GIT_STATUS_INDEX_RENAMED) != 0) {
+        status->renamedStagedFiles += filePath;
+      } else if ((status_flags & GIT_STATUS_IGNORED) != 0) {
+        status->ignoredFiles += filePath;
+      } else if ((status_flags & GIT_STATUS_CONFLICTED) != 0) {
+        status->conflictedFiles += filePath;
+      }
+
+      return 0;
+    }
+    return 0;
+  };
+
   GitStatus status = {};
 
   git_status_options opts;
   git_status_options_init(&opts, GIT_STATUS_OPTIONS_VERSION);
   opts.show = GIT_STATUS_SHOW_INDEX_AND_WORKDIR;
   opts.flags =
-      GIT_STATUS_OPT_INCLUDE_UNTRACKED | GIT_STATUS_OPT_RECURSE_UNTRACKED_DIRS |
-      GIT_STATUS_OPT_INCLUDE_IGNORED | GIT_STATUS_OPT_EXCLUDE_SUBMODULES |
-      GIT_STATUS_OPT_DISABLE_PATHSPEC_MATCH |
-      GIT_STATUS_OPT_RENAMES_HEAD_TO_INDEX |
-      GIT_STATUS_OPT_SORT_CASE_SENSITIVELY | GIT_STATUS_OPT_INCLUDE_UNREADABLE;
+    GIT_STATUS_OPT_INCLUDE_UNTRACKED | GIT_STATUS_OPT_RECURSE_UNTRACKED_DIRS |
+               GIT_STATUS_OPT_INCLUDE_IGNORED | GIT_STATUS_OPT_RENAMES_HEAD_TO_INDEX;
 
-  git_status_list *statusList = nullptr;
-
-  if (const int error = git_status_list_new(&statusList, repo, &opts)) {
+  int error = git_status_foreach_ext(repo, &opts, callback, &status);
+  if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
     return {};
   }
-
-  const size_t count = git_status_list_entrycount(statusList);
-
-  for (size_t i = 0; i < count; ++i) {
-    const git_status_entry *entry = git_status_byindex(statusList, i);
-    if (!entry) {
-      LOG_ERROR(Log::ErrorId::Git, "Can't get status entry at index {}", i);
-      continue;
-    }
-
-    if (((entry->status & GIT_STATUS_WT_NEW) != 0) && entry->index_to_workdir) {
-      status.newFiles += entry->index_to_workdir->new_file.path;
-    } else if (((entry->status & GIT_STATUS_WT_MODIFIED) != 0) &&
-               entry->index_to_workdir) {
-      status.modifiedFiles += entry->index_to_workdir->new_file.path;
-    } else if (((entry->status & GIT_STATUS_WT_DELETED) != 0) &&
-               entry->index_to_workdir) {
-      status.deletedFiles += entry->index_to_workdir->old_file.path;
-    } else if (((entry->status & GIT_STATUS_WT_TYPECHANGE) != 0) &&
-               entry->index_to_workdir) {
-      status.typeChangedFiles += entry->index_to_workdir->new_file.path;
-    } else if (((entry->status & GIT_STATUS_WT_RENAMED) != 0) &&
-               entry->index_to_workdir) {
-      status.renamedFiles += entry->index_to_workdir->new_file.path;
-    } else if (((entry->status & GIT_STATUS_WT_UNREADABLE) != 0) &&
-               entry->index_to_workdir) {
-      status.unreadableFiles += entry->index_to_workdir->new_file.path;
-    } else if (((entry->status & GIT_STATUS_INDEX_NEW) != 0) &&
-               entry->head_to_index) {
-      status.newStagedFiles += entry->head_to_index->new_file.path;
-    } else if (((entry->status & GIT_STATUS_INDEX_MODIFIED) != 0) &&
-               entry->head_to_index) {
-      status.modifiedStagedFiles += entry->head_to_index->new_file.path;
-    } else if (((entry->status & GIT_STATUS_INDEX_DELETED) != 0) &&
-               entry->head_to_index) {
-      status.modifiedStagedFiles += entry->head_to_index->old_file.path;
-    } else if (((entry->status & GIT_STATUS_INDEX_TYPECHANGE) != 0) &&
-               entry->head_to_index) {
-      status.typeChangedStagedFiles += entry->head_to_index->new_file.path;
-    } else if (((entry->status & GIT_STATUS_INDEX_RENAMED) != 0) &&
-               entry->head_to_index) {
-      status.renamedStagedFiles += entry->head_to_index->new_file.path;
-    } else if (((entry->status & GIT_STATUS_IGNORED) != 0) &&
-               entry->index_to_workdir) {
-      status.ignoredFiles += entry->index_to_workdir->new_file.path;
-    } else if (((entry->status & GIT_STATUS_CONFLICTED) != 0) &&
-               entry->index_to_workdir) {
-      status.conflictedFiles += entry->index_to_workdir->new_file.path;
-    }
-  }
-
-  git_status_list_free(statusList);
 
   LOG_PERF(0, "Exit");
 
@@ -2016,8 +2011,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   return status;
 }
 
-bool stageFiles(git_repository *repo, const QStringList &files)
-{
+bool stageFiles(git_repository *repo, const QStringList &files) {
   LOG_PERF(0, "Enter");
 
   git_index *index = nullptr;
@@ -2029,8 +2023,40 @@ bool stageFiles(git_repository *repo, const QStringList &files)
     return false;
   }
 
-  for (const QString &file : files) {
-    error = git_index_add_bypath(index, file.toStdString().c_str());
+  QStringList filesForStaging = files;
+  const QString repoPath = git_repository_workdir(repo);
+
+  for (const auto &filePath : filesForStaging) {
+    const QString unixFilePath = QDir::fromNativeSeparators(filePath);
+    const QString fullPath = repoPath + unixFilePath;
+    if (!QFileInfo(fullPath).isDir()) {
+      continue;
+    }
+
+    const QDir dir(fullPath);
+    if (!dir.exists()) {
+      continue;
+    }
+
+    const QStringList dirFiles = dir.entryList(
+      QDir::Files | QDir::NoDotAndDotDot | QDir::AllDirs, QDir::Name);
+    for (const auto &dirFile : dirFiles) {
+      QString absolutePath = dir.absoluteFilePath(dirFile);
+      if (!files.contains(absolutePath)) {
+        filesForStaging.append(absolutePath);
+      }
+    }
+  }
+
+  filesForStaging.removeIf([&](const QString &filePath) {
+    const QString unixFilePath = QDir::fromNativeSeparators(filePath);
+    const QString fullPath = repoPath + unixFilePath;
+    return QFileInfo(fullPath).isDir();
+  });
+
+  for (const auto &filePath : filesForStaging) {
+    const QString relativePath = QDir(repoPath).relativeFilePath(filePath);
+    error = git_index_add_bypath(index, relativePath.toStdString().c_str());
     if (error) {
       logGitError(error);
       git_index_free(index);
@@ -2054,8 +2080,7 @@ bool stageFiles(git_repository *repo, const QStringList &files)
   return true;
 }
 
-bool unstageFiles(git_repository *repo, const QStringList &files)
-{
+bool unstageFiles(git_repository *repo, const QStringList &files) {
   LOG_PERF(0, "Enter");
 
   git_object *headCommit = nullptr;
@@ -2068,7 +2093,13 @@ bool unstageFiles(git_repository *repo, const QStringList &files)
     return false;
   }
 
-  git_strarray arr = qstringlist_to_git_strarray(files);
+  QStringList unixFiles;
+
+  for(const auto& filePath : files) {
+    unixFiles += QDir::fromNativeSeparators(filePath);
+  }
+
+  git_strarray arr = qstringlist_to_git_strarray(unixFiles);
 
   // Reset index entries for selected paths to match HEAD
   error = git_reset_default(repo, headCommit, &arr);
@@ -2082,6 +2113,115 @@ bool unstageFiles(git_repository *repo, const QStringList &files)
 
   git_object_free(headCommit);
   git_strarray_destroy(arr);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+bool commitStaged(git_repository *repo, const QString &summary,
+                  const QString &message, const QString &author,
+                  const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  git_index *index = nullptr;
+  git_oid treeId;
+  git_oid commitId;
+  git_tree *tree = nullptr;
+  git_signature *sig = nullptr;
+  git_commit *parent = nullptr;
+
+  // Load index
+  int error = git_repository_index(&index, repo);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Write index to tree
+  error = git_index_write_tree(&treeId, index);
+  if (error) {
+    logGitError(error);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_tree_lookup(&tree, repo, &treeId);
+  if (error) {
+    logGitError(error);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Create signature
+  error = git_signature_now(&sig, author.toStdString().c_str(),
+                            email.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    git_index_free(index);
+    git_tree_free(tree);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Lookup HEAD commit (if it exists)
+  error = git_repository_head_unborn(repo);
+  if (!error) {
+    git_reference *headRef = nullptr;
+    error = git_repository_head(&headRef, repo);
+    if (error) {
+      logGitError(error);
+      git_signature_free(sig);
+      git_index_free(index);
+      git_tree_free(tree);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    error = git_commit_lookup(&parent, repo, git_reference_target(headRef));
+    if (error) {
+      logGitError(error);
+      git_signature_free(sig);
+      git_index_free(index);
+      git_tree_free(tree);
+      git_reference_free(headRef);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_reference_free(headRef);
+  }
+
+  const QString fullMessage = summary + "\n\n" + message;
+
+  // Create commit
+  error = git_commit_create_v(&commitId, repo, "HEAD", sig, sig, nullptr,
+                              fullMessage.toStdString().c_str(), tree,
+                              parent ? 1 : 0, parent);
+  if (error) {
+    logGitError(error);
+    git_signature_free(sig);
+    git_index_free(index);
+    git_tree_free(tree);
+
+    if (parent) {
+      git_commit_free(parent);
+    }
+
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_signature_free(sig);
+  git_index_free(index);
+  git_tree_free(tree);
+
+  if (parent) {
+    git_commit_free(parent);
+  }
 
   LOG_PERF(0, "Exit");
 

@@ -28,6 +28,7 @@ private:
       const Structs::GitRepoCheckoutBranchCommand &command);
   void cloneRepoWorker(const Structs::GitRepoCloneCommand &command);
   void closeRepoWorker(const Structs::GitRepoCloseCommand &command);
+  void commitStagedRepoWorker(const Structs::GitRepoCommitStagedCommand &command);
   Structs::GitRepoContext *context(const QString &uuid);
   void destroyContext(const QString &uuid);
   void destroyContextsMap();
@@ -63,6 +64,7 @@ private:
       const Structs::GitRepoCheckoutBranchCommand &command);
   void scheduleWorkerForCloneRepo(const Structs::GitRepoCloneCommand &command);
   void scheduleWorkerForCloseRepo(const Structs::GitRepoCloseCommand &command);
+  void scheduleWorkerForCommitStagedRepo(const Structs::GitRepoCommitStagedCommand &command);
   void scheduleWorkerForGetActiveBranch(
       const Structs::GitRepoGetActiveBranchCommand &command);
   void scheduleWorkerForGetCommitBranches(

@@ -160,6 +160,7 @@ includeComponent(GuiManager ComponentManager)
 includeComponent(GuiManager ConfigManager)
 includeComponent(GuiManager StylesheetManager)
 
+includeLib(GuiManager Common)
 includeLib(GuiManager GitRepo)
 includeLib(GuiManager Log)
 includeLib(GuiManager Util)

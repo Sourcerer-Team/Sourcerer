@@ -18,6 +18,7 @@ enum class GitRepoCommandType : int {
   CheckoutBranch,
   Clone,
   Close,
+  CommitStaged,
   GetActiveBranch,
   GetBranchHistory,
   GetCommitBranches,
@@ -82,6 +83,17 @@ struct GitRepoCloneCommand final : GitRepoCommand {
 struct GitRepoCloseCommand final : GitRepoCommand {
   GitRepoCloseCommand() : GitRepoCommand(GitRepoCommandType::Close) {}
   ~GitRepoCloseCommand() override = default;
+};
+
+struct GitRepoCommitStagedCommand final : GitRepoCommand {
+  GitRepoCommitStagedCommand()
+      : GitRepoCommand(GitRepoCommandType::CommitStaged) {}
+  ~GitRepoCommitStagedCommand() override = default;
+
+  QString author;
+  QString email;
+  QString summary;
+  QString message;
 };
 
 struct GitRepoGetActiveBranchCommand final : GitRepoCommand {
@@ -189,7 +201,8 @@ struct GitRepoStatusCommand final : GitRepoCommand {
 };
 
 struct GitRepoUnstageFilesCommand final : GitRepoCommand {
-  GitRepoUnstageFilesCommand() : GitRepoCommand(GitRepoCommandType::UnstageFiles) {}
+  GitRepoUnstageFilesCommand()
+      : GitRepoCommand(GitRepoCommandType::UnstageFiles) {}
   ~GitRepoUnstageFilesCommand() override = default;
 
   QStringList files;
@@ -211,7 +224,6 @@ struct GitRepoResult {
   GitRepoCommandType type = GitRepoCommandType::Unknown;
   QVariant value;
 };
-
 
 struct GitRepoContext {
   QString uuid;
