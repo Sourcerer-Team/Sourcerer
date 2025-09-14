@@ -107,6 +107,20 @@ GitCommitListModel *GitCommitListModel::from(const GitRepo::GitStatus &status)
     modifications.append(modification);
   }
 
+  for (const auto &file : status.ignoredFiles) {
+    GitCommitListModification modification;
+    modification._filePath = file;
+    modification._type = GitCommitListModificationType::Ignored;
+    modifications.append(modification);
+  }
+
+  for (const auto &file : status.conflictedFiles) {
+    GitCommitListModification modification;
+    modification._filePath = file;
+    modification._type = GitCommitListModificationType::Conflicted;
+    modifications.append(modification);
+  }
+
   QList<GitCommitListModification> transformedModifications;
   transformedModifications.resize(modifications.size());
 

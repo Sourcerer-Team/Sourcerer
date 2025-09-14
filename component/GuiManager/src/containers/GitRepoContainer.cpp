@@ -411,7 +411,6 @@ void GitRepoContainer::showTooltipForSummaryColumn(
   tooltipText +=
       "Renamed " +
       QString::number(statusFieldsMap[Models::StatusFields::Renamed]) + "\n";
-
   tooltipText +=
       "Staged new " +
       QString::number(statusFieldsMap[Models::StatusFields::NewStaged]) + "\n";
@@ -427,6 +426,12 @@ void GitRepoContainer::showTooltipForSummaryColumn(
       "Staged renamed " +
       QString::number(statusFieldsMap[Models::StatusFields::RenamedStaged]) +
       "\n";
+  tooltipText +=
+    "Ignored " +
+                 QString::number(statusFieldsMap[Models::StatusFields::Ignored]) + "\n";
+  tooltipText +=
+    "Conflicted " +
+                 QString::number(statusFieldsMap[Models::StatusFields::Conflicted]) + "\n";
 
   const qlonglong tooltipDisplayTime =
       _configManager.getLong(ConfigManager::ConfigKey::TooltipDisplayTime);
@@ -695,7 +700,7 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
                                       const GitRepo::BranchType branchType) {
   LOG_PERF(0, "Enter");
 
-  if (branchName == ALL_BRANCHES || branchName == HEAD) {
+  if (branchName == ALL_BRANCHES) {
     updateModelActiveBranch(guard, branchName, branchType);
   } else {
     const QString eventUuid = Uuid::createUuid();
@@ -1793,7 +1798,9 @@ void GitRepoContainer::stageAll(const WeakPtr &guard) {
   const QStringList modifiedFiles = historyAndStatus.status.newFiles +
                                     historyAndStatus.status.modifiedFiles +
                                     historyAndStatus.status.deletedFiles +
-                                    historyAndStatus.status.renamedFiles;
+                                    historyAndStatus.status.renamedFiles +
+                                    historyAndStatus.status.ignoredFiles +
+                                    historyAndStatus.status.conflictedFiles;
 
   if (!modifiedFiles.isEmpty()) {
     stageFiles(guard, modifiedFiles);

@@ -33,6 +33,8 @@ public:
        QPixmap(":/icons/file-unreadable.png")},
       {GuiManager::Models::GitCommitListModificationType::Conflicted,
        QPixmap(":/icons/file-conflict.png")},
+      {GuiManager::Models::GitCommitListModificationType::Ignored,
+       QPixmap(":/icons/file-add.png")},
       };
   }
 

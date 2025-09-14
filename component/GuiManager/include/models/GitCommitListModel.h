@@ -12,6 +12,7 @@ enum class GitCommitListModificationType {
 
   Conflicted,
   Deleted,
+  Ignored,
   Modified,
   New,
   Renamed,
