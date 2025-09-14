@@ -53,7 +53,9 @@ private:
   listSubmodulesWorker(const Structs::GitRepoListSubmodulesCommand &command);
   void listTagsWorker(const Structs::GitRepoListTagsCommand &command);
   void openRepoWorker(const Structs::GitRepoOpenCommand &command);
+  void stageFilesWorker(const Structs::GitRepoStageFilesCommand &command);
   void statusWorker(const Structs::GitRepoStatusCommand &command);
+  void unstageFilesWorker(const Structs::GitRepoUnstageFilesCommand &command);
   void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
   void reportError(EventManager::EventType eventType, const QString &message,
                    const Structs::GitRepoCommand &command) const;
@@ -84,7 +86,9 @@ private:
   void
   scheduleWorkerForListTags(const Structs::GitRepoListTagsCommand &command);
   void scheduleWorkerForOpenRepo(const Structs::GitRepoOpenCommand &command);
+  void scheduleWorkerForStageFiles(const Structs::GitRepoStageFilesCommand &command);
   void scheduleWorkerForStatus(const Structs::GitRepoStatusCommand &command);
+  void scheduleWorkerForUnstageFiles(const Structs::GitRepoUnstageFilesCommand &command);
   void scheduleWorkerForQuit(const Structs::GitRepoQuitCommand &command);
   void workersThreadFunc(const QString &uuid);
 

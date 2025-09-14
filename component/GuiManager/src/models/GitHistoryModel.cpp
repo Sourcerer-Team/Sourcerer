@@ -56,6 +56,21 @@ GitHistoryModel::~GitHistoryModel() {
   LOG_PERF(0, "Exit");
 }
 
+void GitHistoryModel::updateStatus(const GitRepo::GitStatus &status)
+{
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_mutex);
+
+  beginResetModel();
+
+  _historyWithStatus.status = status;
+
+  endResetModel();
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitHistoryModel::updateHistoryAndStatus(
     const GitRepo::GitHistoryWithStatus &historyWithStatus,
     const std::function<void(int)> &progressCallback) {

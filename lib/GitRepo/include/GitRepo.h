@@ -143,5 +143,7 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
                      const bool &quitFlag);
 GitStatus getStatus(git_repository *repo);
 GitCommitStatus getCommitStatus(git_repository *repo, const QString& commitOid);
+bool stageFiles(git_repository *repo, const QStringList& files);
+bool unstageFiles(git_repository *repo, const QStringList& files);
 
 } // namespace GitRepo

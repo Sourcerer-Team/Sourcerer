@@ -88,32 +88,38 @@ public:
       fm.elidedText(fullText, _elideMode, textRect.width());
 
     QString prefix;
-    int separatorIndex = elided.lastIndexOf("…");
-    if (separatorIndex != -1) {
-      int i = elided.size() - 1;
-      while (i > separatorIndex && elided[i] != QDir::separator()) {
-        --i;
-      }
+    int separatorIndex = -1;
 
-      if (i > separatorIndex) {
-        separatorIndex = i;
-      }
+    if (!_treePainter) {
+      separatorIndex = elided.lastIndexOf("…");
+      if (separatorIndex != -1) {
+        int i = elided.size() - 1;
+        while (i > separatorIndex && elided[i] != QDir::separator()) {
+          --i;
+        }
 
-      prefix = elided.left(separatorIndex + 1);
-    } else {
-      prefix = QDir::toNativeSeparators(QFileInfo(elided).path()) +
-               QDir::separator();
+        if (i > separatorIndex) {
+          separatorIndex = i;
+        }
+
+        prefix = elided.left(separatorIndex + 1);
+      } else {
+        prefix = QDir::toNativeSeparators(QFileInfo(elided).path()) +
+                 QDir::separator();
+      }
     }
 
     if (prefix.startsWith(".\\") || prefix.startsWith("./")) {
       prefix = prefix.mid(2);
     }
 
-    QString suffix;
-    if (separatorIndex != -1) {
-      suffix = elided.mid(separatorIndex + 1);
-    } else {
-      suffix = QFileInfo(elided).fileName();
+    QString suffix = elided;
+    if (!_treePainter) {
+      if (separatorIndex != -1) {
+        suffix = elided.mid(separatorIndex + 1);
+      } else {
+        suffix = QFileInfo(elided).fileName();
+      }
     }
 
     separatorIndex != -1 ? elided.mid(separatorIndex + 1) : QString();

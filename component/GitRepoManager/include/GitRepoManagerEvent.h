@@ -6,6 +6,7 @@ namespace GitRepoManager {
 
 enum class EventType : int {
   Unknown = -2,
+
   Stop = -1,
   ChangeState = 0,
   CheckoutBranch,
@@ -24,7 +25,10 @@ enum class EventType : int {
   ListTags,
   OpenRepo,
   Setup,
+  StageFiles,
   Status,
+  UnstageFiles,
+
   last
 };
 

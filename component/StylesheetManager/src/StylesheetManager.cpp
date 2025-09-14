@@ -31,6 +31,30 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
         color:#2A82DA;
         text-decoration: underline;
       }
+      QPushButton#commitAndMergeIndexTreeUnstageAllButton{
+        background-color: #006400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#commitAndMergeIndexTreeUnstageAllButton:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#commitAndMergeWorkingDirTreeStageAllButton{
+        background-color: #006400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#commitAndMergeWorkingDirTreeStageAllButton:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
       QTextEdit:focus {
           border: 2px solid #53A0ED;
       }

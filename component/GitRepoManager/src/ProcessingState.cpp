@@ -164,9 +164,19 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForOpenRepo(openCommand);
     break;
   }
+  case EventType::StageFiles: {
+    const auto stageFilesCommand = event.nextParam<GitRepoStageFilesCommand>();
+    scheduleWorkerForStageFiles(stageFilesCommand);
+    break;
+  }
   case EventType::Status: {
     const auto statusCommand = event.nextParam<GitRepoStatusCommand>();
     scheduleWorkerForStatus(statusCommand);
+    break;
+  }
+  case EventType::UnstageFiles: {
+    const auto unstageFilesCommand = event.nextParam<GitRepoUnstageFilesCommand>();
+    scheduleWorkerForUnstageFiles(unstageFilesCommand);
     break;
   }
   default: {
@@ -991,6 +1001,25 @@ void ProcessingState::scheduleWorkerForOpenRepo(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForStageFiles(const Structs::GitRepoStageFilesCommand &command)
+{
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerStageFilesError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoStageFilesCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForStatus(
     const Structs::GitRepoStatusCommand &command) {
   LOG_PERF(0, "Enter");
@@ -1006,6 +1035,25 @@ void ProcessingState::scheduleWorkerForStatus(
   }
 
   (*it)->commandsQueue.push(new GitRepoStatusCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForUnstageFiles(const Structs::GitRepoUnstageFilesCommand &command)
+{
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerUnstageFilesError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoUnstageFilesCommand(command));
 
   LOG_PERF(0, "Exit");
 }
@@ -1079,6 +1127,36 @@ void ProcessingState::openRepoWorker(const GitRepoOpenCommand &command) {
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::stageFilesWorker(const Structs::GitRepoStageFilesCommand &command)
+{
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerStageFilesError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::stageFiles(repo, command.files);
+
+  EventManager::Event resultEvent(
+    EventManager::EventType::GitRepoManagerStageFilesResult, command.syncUuid);
+  resultEvent.addData(
+    GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::statusWorker(
     const Structs::GitRepoStatusCommand &command) {
   LOG_PERF(0, "Enter");
@@ -1120,6 +1198,36 @@ void ProcessingState::statusWorker(
         GitRepoResult{command.uuid, command.type, QVariant::fromValue(status)});
     _eventManager.send(resultEvent);
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::unstageFilesWorker(const Structs::GitRepoUnstageFilesCommand &command)
+{
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerUnstageFilesError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::unstageFiles(repo, command.files);
+
+  EventManager::Event resultEvent(
+    EventManager::EventType::GitRepoManagerUnstageFilesResult, command.syncUuid);
+  resultEvent.addData(
+    GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -1561,11 +1669,27 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       }
       break;
     }
+    case GitRepoCommandType::StageFiles: {
+      const auto *stageFilesCommand =
+        dynamic_cast<const GitRepoStageFilesCommand *>(command);
+      if (stageFilesCommand) {
+        stageFilesWorker(*stageFilesCommand);
+      }
+      break;
+    }
     case GitRepoCommandType::Status: {
       const auto *statusCommand =
           dynamic_cast<const GitRepoStatusCommand *>(command);
       if (statusCommand) {
         statusWorker(*statusCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::UnstageFiles: {
+      const auto *unstageFilesCommand =
+        dynamic_cast<const GitRepoUnstageFilesCommand *>(command);
+      if (unstageFilesCommand) {
+        unstageFilesWorker(*unstageFilesCommand);
       }
       break;
     }

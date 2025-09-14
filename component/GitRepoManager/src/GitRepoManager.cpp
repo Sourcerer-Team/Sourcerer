@@ -50,7 +50,11 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerStageFiles, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStatus, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerUnstageFiles, callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -90,7 +94,11 @@ GitRepoManager::~GitRepoManager() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
-        EventManager::EventType::GitRepoManagerStatus, callbackFunc));
+      EventManager::EventType::GitRepoManagerStageFiles, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerStatus, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerUnstageFiles, callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -239,11 +247,25 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     _fsm.send(openRepoEvent);
     break;
   }
+  case EventManager::EventType::GitRepoManagerStageFiles: {
+    const auto stageFilesCommand = event.data<GitRepoStageFilesCommand>();
+    GitRepoManagerEvent stageFilesRepoEvent(EventType::StageFiles);
+    stageFilesRepoEvent.addParam(QVariant::fromValue(stageFilesCommand));
+    _fsm.send(stageFilesRepoEvent);
+    break;
+  }
   case EventManager::EventType::GitRepoManagerStatus: {
     const auto statusCommand = event.data<GitRepoStatusCommand>();
     GitRepoManagerEvent statusRepoEvent(EventType::Status);
     statusRepoEvent.addParam(QVariant::fromValue(statusCommand));
     _fsm.send(statusRepoEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerUnstageFiles: {
+    const auto unstageFilesCommand = event.data<GitRepoUnstageFilesCommand>();
+    GitRepoManagerEvent unstageFilesRepoEvent(EventType::UnstageFiles);
+    unstageFilesRepoEvent.addParam(QVariant::fromValue(unstageFilesCommand));
+    _fsm.send(unstageFilesRepoEvent);
     break;
   }
   default: {

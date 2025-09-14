@@ -73,6 +73,126 @@ GitCommitListModel::from(const GitRepo::GitCommitStatus &commitStatus) {
   return model.take();
 }
 
+GitCommitListModel *GitCommitListModel::from(const GitRepo::GitStatus &status)
+{
+  LOG_PERF(0, "Enter");
+
+  QList<GitCommitListModification> modifications;
+
+  for (const auto &file : status.newFiles) {
+    GitCommitListModification modification;
+    modification._filePath = file;
+    modification._type = GitCommitListModificationType::New;
+    modifications.append(modification);
+  }
+
+  for (const auto &file : status.modifiedFiles) {
+    GitCommitListModification modification;
+    modification._filePath = file;
+    modification._type = GitCommitListModificationType::Modified;
+    modifications.append(modification);
+  }
+
+  for (const auto &file : status.deletedFiles) {
+    GitCommitListModification modification;
+    modification._filePath = file;
+    modification._type = GitCommitListModificationType::Deleted;
+    modifications.append(modification);
+  }
+
+  for (const auto &file : status.renamedFiles) {
+    GitCommitListModification modification;
+    modification._filePath = file;
+    modification._type = GitCommitListModificationType::Renamed;
+    modifications.append(modification);
+  }
+
+  QList<GitCommitListModification> transformedModifications;
+  transformedModifications.resize(modifications.size());
+
+  std::transform(modifications.begin(), modifications.end(),
+                 transformedModifications.begin(),
+                 [](const GitCommitListModification &modification) {
+                   GitCommitListModification normalized(modification);
+                   normalized._filePath =
+                     QDir::toNativeSeparators(modification._filePath);
+                   return normalized;
+                 });
+
+  std::sort(transformedModifications.begin(), transformedModifications.end(),
+            [](const GitCommitListModification &x,
+               const GitCommitListModification &y) {
+              return x._filePath < y._filePath;
+            });
+
+  QScopedPointer<GitCommitListModel> model(new GitCommitListModel());
+  model->_modifications = transformedModifications;
+
+  LOG_PERF(0, "Exit");
+
+  return model.take();
+}
+
+GitCommitListModel *GitCommitListModel::fromStaged(const GitRepo::GitStatus &status)
+{
+  LOG_PERF(0, "Enter");
+
+  QList<GitCommitListModification> modifications;
+
+  for (const auto &file : status.newStagedFiles) {
+    GitCommitListModification modification;
+    modification._filePath = file;
+    modification._type = GitCommitListModificationType::New;
+    modifications.append(modification);
+  }
+
+  for (const auto &file : status.modifiedStagedFiles) {
+    GitCommitListModification modification;
+    modification._filePath = file;
+    modification._type = GitCommitListModificationType::Modified;
+    modifications.append(modification);
+  }
+
+  for (const auto &file : status.deletedStagedFiles) {
+    GitCommitListModification modification;
+    modification._filePath = file;
+    modification._type = GitCommitListModificationType::Deleted;
+    modifications.append(modification);
+  }
+
+  for (const auto &file : status.renamedStagedFiles) {
+    GitCommitListModification modification;
+    modification._filePath = file;
+    modification._type = GitCommitListModificationType::Renamed;
+    modifications.append(modification);
+  }
+
+  QList<GitCommitListModification> transformedModifications;
+  transformedModifications.resize(modifications.size());
+
+  std::transform(modifications.begin(), modifications.end(),
+                 transformedModifications.begin(),
+                 [](const GitCommitListModification &modification) {
+                   GitCommitListModification normalized(modification);
+                   normalized._filePath =
+                     QDir::toNativeSeparators(modification._filePath);
+                   return normalized;
+                 });
+
+  std::sort(transformedModifications.begin(), transformedModifications.end(),
+            [](const GitCommitListModification &x,
+               const GitCommitListModification &y) {
+              return x._filePath < y._filePath;
+            });
+
+  QScopedPointer<GitCommitListModel> model(new GitCommitListModel());
+  model->_modifications = transformedModifications;
+
+  LOG_PERF(0, "Exit");
+
+  return model.take();
+}
+
 int GitCommitListModel::rowCount(const QModelIndex &parent) const {
   LOG_PERF(0, "Enter");
 

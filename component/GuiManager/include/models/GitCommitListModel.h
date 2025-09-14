@@ -34,6 +34,10 @@ public:
 
   static GitCommitListModel *from(const GitRepo::GitCommitStatus &commitStatus);
 
+  static GitCommitListModel *from(const GitRepo::GitStatus &status);
+
+  static GitCommitListModel *fromStaged(const GitRepo::GitStatus &status);
+
 public:
   explicit GitCommitListModel(QObject *parent = nullptr);
 

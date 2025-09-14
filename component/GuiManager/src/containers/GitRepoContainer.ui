@@ -145,8 +145,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>98</width>
-                  <height>28</height>
+                  <width>218</width>
+                  <height>198</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -160,8 +160,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>98</width>
-                  <height>28</height>
+                  <width>218</width>
+                  <height>198</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -175,8 +175,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>98</width>
-                  <height>28</height>
+                  <width>218</width>
+                  <height>198</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -190,8 +190,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>98</width>
-                  <height>28</height>
+                  <width>218</width>
+                  <height>198</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -232,7 +232,7 @@
                 </sizepolicy>
                </property>
                <property name="currentIndex">
-                <number>1</number>
+                <number>0</number>
                </property>
                <widget class="QWidget" name="pageCommitAndMerge">
                 <property name="sizePolicy">
@@ -258,7 +258,7 @@
                      </sizepolicy>
                     </property>
                     <property name="currentIndex">
-                     <number>1</number>
+                     <number>0</number>
                     </property>
                     <widget class="QWidget" name="tabFlatWorkingTree">
                      <property name="sizePolicy">
@@ -271,6 +271,21 @@
                       <string>Flat</string>
                      </attribute>
                      <layout class="QHBoxLayout" name="horizontalLayout_4">
+                      <property name="spacing">
+                       <number>0</number>
+                      </property>
+                      <property name="leftMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="topMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="rightMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="bottomMargin">
+                       <number>0</number>
+                      </property>
                       <item>
                        <layout class="QVBoxLayout" name="verticalLayoutTabWidgetWorkingTreeFlatOuter">
                         <property name="spacing">
@@ -294,13 +309,35 @@
                       <string>Tree</string>
                      </attribute>
                      <layout class="QHBoxLayout" name="horizontalLayout_5">
+                      <property name="spacing">
+                       <number>0</number>
+                      </property>
+                      <property name="leftMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="topMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="rightMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="bottomMargin">
+                       <number>0</number>
+                      </property>
                       <item>
                        <layout class="QVBoxLayout" name="verticalLayoutTabWidgetWorkingTreeTreeOuter">
                         <property name="spacing">
                          <number>0</number>
                         </property>
                         <item>
-                         <widget class="QTreeView" name="treeViewTabWidgetWorkingTreeTree"/>
+                         <widget class="QTreeView" name="treeViewTabWidgetWorkingTreeTree">
+                          <property name="indentation">
+                           <number>20</number>
+                          </property>
+                          <property name="headerHidden">
+                           <bool>true</bool>
+                          </property>
+                         </widget>
                         </item>
                        </layout>
                       </item>
@@ -317,6 +354,9 @@
                     <property name="tabShape">
                      <enum>QTabWidget::TabShape::Rounded</enum>
                     </property>
+                    <property name="currentIndex">
+                     <number>0</number>
+                    </property>
                     <widget class="QWidget" name="tabFlatIndex">
                      <property name="sizePolicy">
                       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
@@ -328,6 +368,21 @@
                       <string>Flat</string>
                      </attribute>
                      <layout class="QHBoxLayout" name="horizontalLayoutTabTreeFlat">
+                      <property name="spacing">
+                       <number>0</number>
+                      </property>
+                      <property name="leftMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="topMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="rightMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="bottomMargin">
+                       <number>0</number>
+                      </property>
                       <item>
                        <layout class="QVBoxLayout" name="verticalLayoutTabWidgetIndexFlatOuter">
                         <property name="spacing">
@@ -354,9 +409,24 @@
                       </size>
                      </property>
                      <attribute name="title">
-                      <string>Commit</string>
+                      <string>Tree</string>
                      </attribute>
                      <layout class="QHBoxLayout" name="horizontalLayoutTabTreeIndex">
+                      <property name="spacing">
+                       <number>0</number>
+                      </property>
+                      <property name="leftMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="topMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="rightMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="bottomMargin">
+                       <number>0</number>
+                      </property>
                       <item>
                        <layout class="QVBoxLayout" name="verticalLayoutTabWidgetIndexTreeOuter" stretch="0">
                         <property name="spacing">
@@ -367,8 +437,11 @@
                         </property>
                         <item>
                          <widget class="QTreeView" name="treeViewTabWidgetIndexTree">
-                          <attribute name="headerVisible">
+                          <property name="headerHidden">
                            <bool>true</bool>
+                          </property>
+                          <attribute name="headerVisible">
+                           <bool>false</bool>
                           </attribute>
                          </widget>
                         </item>
@@ -410,6 +483,21 @@
                       <string>Commit</string>
                      </attribute>
                      <layout class="QVBoxLayout" name="verticalLayout_2">
+                      <property name="spacing">
+                       <number>0</number>
+                      </property>
+                      <property name="leftMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="topMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="rightMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="bottomMargin">
+                       <number>0</number>
+                      </property>
                       <item>
                        <layout class="QVBoxLayout" name="verticalLayoutTabCommitOuter" stretch="0,0">
                         <property name="spacing">

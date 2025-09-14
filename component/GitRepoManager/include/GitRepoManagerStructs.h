@@ -30,7 +30,9 @@ enum class GitRepoCommandType : int {
   ListSubmodules,
   ListTags,
   Open,
+  StageFiles,
   Status,
+  UnstageFiles,
   Quit,
   Last
 };
@@ -174,9 +176,23 @@ struct GitRepoOpenCommand final : GitRepoCommand {
   QString path;
 };
 
+struct GitRepoStageFilesCommand final : GitRepoCommand {
+  GitRepoStageFilesCommand() : GitRepoCommand(GitRepoCommandType::StageFiles) {}
+  ~GitRepoStageFilesCommand() override = default;
+
+  QStringList files;
+};
+
 struct GitRepoStatusCommand final : GitRepoCommand {
   GitRepoStatusCommand() : GitRepoCommand(GitRepoCommandType::Status) {}
   ~GitRepoStatusCommand() override = default;
+};
+
+struct GitRepoUnstageFilesCommand final : GitRepoCommand {
+  GitRepoUnstageFilesCommand() : GitRepoCommand(GitRepoCommandType::UnstageFiles) {}
+  ~GitRepoUnstageFilesCommand() override = default;
+
+  QStringList files;
 };
 
 struct GitRepoQuitCommand final : GitRepoCommand {

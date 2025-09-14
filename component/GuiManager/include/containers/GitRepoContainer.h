@@ -59,6 +59,8 @@ private slots:
   void onSplitterMoved(int pos, int index) const;
   void showTooltipForColumnSlice(const QModelIndex &index);
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
+  void onCommitAndMergeIndexTreeUnstageAllButtonClicked();
+  void onCommitAndMergeWorkingTreeTreeStageAllButtonClicked();
   void onDisplayTreeExpandAllButtonClicked();
   void onHistorySelectionChanged(const QItemSelection &selected,
                                  const QItemSelection &deselected);
@@ -90,19 +92,26 @@ private:
   bool getSubmodules();
   bool getTags();
   bool openRepo();
+  void refreshStatus(const WeakPtr& guard);
   void refreshViews();
+  void resetCommitAndMergeIndexTreeUnstageAllButton();
+  void resetCommitAndMergeWorkingTreeTreeStageAllButton();
   void resetDisplayTreeExpandedButton();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
   void stretchBranchHistoryTableColumns() const;
   void showCommit(const WeakPtr &guard, const QString &commit);
-  void showCommitAndMerge(WeakPtr guard,
-                          const Models::StatusFieldsMap &statusMap);
+  void showCommitAndMerge(WeakPtr guard);
   void showErrorPage(bool error = true) const;
   void showMainSpinnerPage(bool spinnerEnabled = true) const;
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message);
   void showErrorToast(const QString &message, const QString &title);
+  void simulateClickOnFirstHistoryRow() const;
+  void stageAll(const WeakPtr& guard);
+  void stageFiles(const WeakPtr& guard, const QStringList& files);
+  void unstageAll(const WeakPtr& guard);
+  void unstageFiles(const WeakPtr& guard, const QStringList& files);
   void updateBranchHistory(
       const WeakPtr &guard,
       const GitRepo::GitHistoryWithStatus &historyWithStatus) const;
@@ -148,11 +157,15 @@ private:
   int _resizedHeaderSectionPreviousWidth;
 
   QCheckBox *_checkBoxAmend;
+  QPushButton *_commitAndMergeWorkingDirTreeStageAllButton;
+  QPushButton *_commitAndMergeIndexTreeUnstageAllButton;
   QPushButton *_displayTreeExpandAllButton;
   bool _displayTreeExpanded;
 
   QSharedPointer<Models::GitCommitListModel> _commitListModel;
   QSharedPointer<Models::GitCommitTreeModel> _commitTreeModel;
+  QSharedPointer<Models::GitCommitListModel> _commitStagedListModel;
+  QSharedPointer<Models::GitCommitTreeModel> _commitStagedTreeModel;
 };
 
 } // namespace GuiManager::Containers

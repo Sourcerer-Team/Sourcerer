@@ -53,6 +53,33 @@ QMap<QString, GitPlaintextCredentials> gGitCredentials;
 
 static int gLastError = -1;
 
+static void git_strarray_destroy(git_strarray& arr) {
+  for(int i = 0; i < arr.count; ++i) {
+    free(arr.strings[i]);
+  }
+
+  free(arr.strings);
+
+  arr.strings = nullptr;
+  arr.count = 0;
+}
+
+static git_strarray qstringlist_to_git_strarray(const QStringList& list) {
+  LOG_PERF(0, "Enter");
+
+  git_strarray arr;
+  arr.count = static_cast<size_t>(list.length());
+  arr.strings = static_cast<char**>(malloc(arr.count * sizeof(char*)));
+
+  for (size_t i = 0; i < arr.count; ++i) {
+    arr.strings[i] = strdup(list[i].toStdString().c_str());  // allocates a copy
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return arr;
+}
+
 static void logGitError(const int error) {
   const git_error *gitError = git_error_last();
   if (!gitError || !gitError->message)
@@ -1987,6 +2014,78 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   LOG_PERF(0, "Exit");
 
   return status;
+}
+
+bool stageFiles(git_repository *repo, const QStringList &files)
+{
+  LOG_PERF(0, "Enter");
+
+  git_index *index = nullptr;
+
+  int error = git_repository_index(&index, repo);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  for (const QString &file : files) {
+    error = git_index_add_bypath(index, file.toStdString().c_str());
+    if (error) {
+      logGitError(error);
+      git_index_free(index);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  error = git_index_write(index);
+  if (error) {
+    logGitError(error);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_index_free(index);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+bool unstageFiles(git_repository *repo, const QStringList &files)
+{
+  LOG_PERF(0, "Enter");
+
+  git_object *headCommit = nullptr;
+
+  // Lookup HEAD commit
+  int error = git_revparse_single(&headCommit, repo, "HEAD");
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_strarray arr = qstringlist_to_git_strarray(files);
+
+  // Reset index entries for selected paths to match HEAD
+  error = git_reset_default(repo, headCommit, &arr);
+  if (error) {
+    logGitError(error);
+    git_object_free(headCommit);
+    git_strarray_destroy(arr);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_object_free(headCommit);
+  git_strarray_destroy(arr);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
 }
 
 } // namespace GitRepo
