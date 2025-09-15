@@ -37,7 +37,8 @@ private slots:
 
 private:
   void eventCallback(EventManager::Event event);
-  void showToast(const QString &message);
+  void showToast(const QString &message, const QString& title);
+  void showErrorToast(const QString &message, const QString& title);
 
 private:
   Ui::InitGitRepoContainer *ui;

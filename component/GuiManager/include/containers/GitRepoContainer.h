@@ -71,6 +71,10 @@ private slots:
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay() const;
   void onGraphColumnExpand(int section);
+  void onWorkingTreeFlatListViewContextMenuRequested(const QPoint &pos);
+  void onWorkingTreeFlatListViewStageSelected(bool checked = false);
+  void onWorkingTreeFlatListViewIgnoreSelected(bool checked = false);
+  void onWorkingTreeFlatListViewCreateFilePatchSelected(bool checked = false);
   void updateModelActiveBranch(const WeakPtr &guard, const QString &branchName,
                                GitRepo::BranchType branchType);
 
@@ -82,6 +86,7 @@ private:
   void commit(const WeakPtr &guard, const QString &summary,
               const QString &description, const QString &author,
               const QString &email);
+  void diffFiles(const WeakPtr &guard, const QStringList &files);
   bool getActiveBranchOrTag(const WeakPtr &guard,
                             const GitRepo::BranchType branchType);
   bool getActiveLocalBranch();
@@ -96,8 +101,9 @@ private:
   bool getRemoteBranches();
   bool getSubmodules();
   bool getTags();
+  void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   bool openRepo();
-  bool refreshHistory(const WeakPtr& guard);
+  bool refreshHistory(const WeakPtr &guard);
   void refreshStatus();
   void resetCommitAndMergeIndexTreeUnstageAllButton();
   void resetCommitAndMergeWorkingTreeTreeStageAllButton();
@@ -111,7 +117,7 @@ private:
   void showErrorPage(bool error = true) const;
   void showMainSpinnerPage(bool spinnerEnabled = true) const;
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
-  void showToast(const QString &message);
+  void showToast(const QString &message, const QString &title);
   void showErrorToast(const QString &message, const QString &title);
   void simulateClickOnFirstHistoryRow() const;
   void stageAll(const WeakPtr &guard);

@@ -24,14 +24,15 @@ public:
   void exit() override;
 
 private:
-  void checkoutBranchRepoWorker(
-      const Structs::GitRepoCheckoutBranchCommand &command);
+  void
+    checkoutBranchWorker(const Structs::GitRepoCheckoutBranchCommand &command);
   void cloneRepoWorker(const Structs::GitRepoCloneCommand &command);
   void closeRepoWorker(const Structs::GitRepoCloseCommand &command);
-  void commitStagedRepoWorker(const Structs::GitRepoCommitStagedCommand &command);
+  void commitStagedWorker(const Structs::GitRepoCommitStagedCommand &command);
   Structs::GitRepoContext *context(const QString &uuid);
   void destroyContext(const QString &uuid);
   void destroyContextsMap();
+  void diffFilesWorker(const Structs::GitRepoDiffFilesCommand &command);
   void eventCallback(const EventManager::Event event);
   void
   getActiveBranchWorker(const Structs::GitRepoGetActiveBranchCommand &command);
@@ -64,7 +65,8 @@ private:
       const Structs::GitRepoCheckoutBranchCommand &command);
   void scheduleWorkerForCloneRepo(const Structs::GitRepoCloneCommand &command);
   void scheduleWorkerForCloseRepo(const Structs::GitRepoCloseCommand &command);
-  void scheduleWorkerForCommitStagedRepo(const Structs::GitRepoCommitStagedCommand &command);
+  void scheduleWorkerForCommitStagedRepo(
+    const Structs::GitRepoCommitStagedCommand &command);
   void scheduleWorkerForGetActiveBranch(
       const Structs::GitRepoGetActiveBranchCommand &command);
   void scheduleWorkerForGetCommitBranches(
@@ -75,6 +77,8 @@ private:
       const Structs::GitRepoGetCommitIsHeadCommand &command);
   void scheduleWorkerForGetCommitStatus(
       const Structs::GitRepoGetCommitStatusCommand &command);
+  void
+  scheduleWorkerForDiffFiles(const Structs::GitRepoDiffFilesCommand &command);
   void scheduleWorkerForGetBranchHistory(
       const Structs::GitRepoGetBranchHistoryCommand &command);
   void
@@ -88,9 +92,11 @@ private:
   void
   scheduleWorkerForListTags(const Structs::GitRepoListTagsCommand &command);
   void scheduleWorkerForOpenRepo(const Structs::GitRepoOpenCommand &command);
-  void scheduleWorkerForStageFiles(const Structs::GitRepoStageFilesCommand &command);
+  void
+  scheduleWorkerForStageFiles(const Structs::GitRepoStageFilesCommand &command);
   void scheduleWorkerForStatus(const Structs::GitRepoStatusCommand &command);
-  void scheduleWorkerForUnstageFiles(const Structs::GitRepoUnstageFilesCommand &command);
+  void scheduleWorkerForUnstageFiles(
+    const Structs::GitRepoUnstageFilesCommand &command);
   void scheduleWorkerForQuit(const Structs::GitRepoQuitCommand &command);
   void workersThreadFunc(const QString &uuid);
 

@@ -1,5 +1,6 @@
 #include "containers/InitGitRepoContainer.h"
 #include "containers/ui_InitGitRepoContainer.h"
+#include "widgets/ErrorToast.h"
 #include "widgets/InfoToast.h"
 
 #include <Dispatcher.h>
@@ -111,7 +112,7 @@ void InitGitRepoContainer::eventCallback(EventManager::Event event) {
       break;
 
     Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
-      showToast(tr("Unable to initialize Git repository"));
+      showErrorToast(tr("Unable to initialize Git repository"), tr("Error"));
     });
     break;
   }
@@ -133,12 +134,25 @@ void InitGitRepoContainer::eventCallback(EventManager::Event event) {
   LOG_PERF(0, "Exit");
 }
 
-void InitGitRepoContainer::showToast(const QString &message) {
+void InitGitRepoContainer::showToast(const QString &message,
+                                     const QString &title) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 
   Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
-    _toastHost.addToast(new InfoToast(message));
+    _toastHost.addToast(new InfoToast(message, title));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void InitGitRepoContainer::showErrorToast(const QString &message, const QString &title)
+{
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Showing a toast with the message '{}'.", message);
+
+  Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+    _toastHost.addToast(new ErrorToast(message, title));
   });
 
   LOG_PERF(0, "Exit")

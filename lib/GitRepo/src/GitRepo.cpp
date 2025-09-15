@@ -2243,4 +2243,93 @@ bool commitStaged(git_repository *repo, const QString &summary,
   return true;
 }
 
+QString diffFiles(git_repository *repo, const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  git_object *headCommit = nullptr;
+  git_commit *commit = nullptr;
+  git_tree *headTree = nullptr;
+
+  int error = git_revparse_single(&headCommit, repo, "HEAD");
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  error = git_commit_lookup(&commit, repo, git_object_id(headCommit));
+  if (error) {
+    logGitError(error);
+    git_object_free(headCommit);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  error = git_commit_tree(&headTree, commit);
+  if (error) {
+    logGitError(error);
+    git_object_free(headCommit);
+    git_commit_free(commit);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_object_free(headCommit);
+  git_commit_free(commit);
+
+  git_strarray arr = qstringlist_to_git_strarray(files);
+
+  git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
+  opts.pathspec = arr;
+
+  git_diff *diff = nullptr;
+  error = git_diff_tree_to_workdir(&diff, repo, headTree, &opts);
+  if (error) {
+    logGitError(error);
+    git_tree_free(headTree);
+    git_strarray_destroy(arr);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_tree_free(headTree);
+  git_strarray_destroy(arr);
+
+  const auto callback = [](const git_diff_delta *, const git_diff_hunk *hunk,
+                           const git_diff_line *line, void *payload) -> int {
+    QString *output = static_cast<QString *>(payload);
+
+    Q_ASSERT(output != nullptr);
+
+    if (!output) {
+      return 0;
+    }
+
+    if (line->origin == GIT_DIFF_LINE_FILE_HDR) {
+      // Skip file header lines
+      return 0;
+    }
+
+    output->append(QString::fromUtf8(line->content, line->content_len));
+
+    return 0;
+  };
+
+  QString diffOutput;
+
+  error = git_diff_print(diff, GIT_DIFF_FORMAT_PATCH, callback, &diffOutput);
+  if (error) {
+    logGitError(error);
+    git_diff_free(diff);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_diff_free(diff);
+
+  LOG_PERF(0, "Exit");
+
+  return diffOutput;
+}
+
 } // namespace GitRepo

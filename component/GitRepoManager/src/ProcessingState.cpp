@@ -137,6 +137,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForGetCommitStatus(commitStatusCommand);
     break;
   }
+  case EventType::DiffFiles: {
+    const auto diffFilesCommand = event.nextParam<GitRepoDiffFilesCommand>();
+    scheduleWorkerForDiffFiles(diffFilesCommand);
+    break;
+  }
   case EventType::Init: {
     const auto initCommand = event.nextParam<GitRepoInitRepoCommand>();
     scheduleWorkerForInitRepo(initCommand);
@@ -203,7 +208,7 @@ void ProcessingState::exit() {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::checkoutBranchRepoWorker(
+void ProcessingState::checkoutBranchWorker(
     const Structs::GitRepoCheckoutBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -364,7 +369,7 @@ void ProcessingState::closeRepoWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::commitStagedRepoWorker(
+void ProcessingState::commitStagedWorker(
   const Structs::GitRepoCommitStagedCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -483,6 +488,35 @@ void ProcessingState::destroyContextsMap() {
 
   for (const auto &uuid : uuids)
     destroyContext(uuid);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::diffFilesWorker(
+  const Structs::GitRepoDiffFilesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerDiffFilesError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const QString diff = GitRepo::diffFiles(repo, command.files);
+
+  EventManager::Event resultEvent(
+    EventManager::EventType::GitRepoManagerDiffFilesResult, command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type, diff});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -1467,6 +1501,25 @@ void ProcessingState::scheduleWorkerForGetCommitStatus(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForDiffFiles(
+  const Structs::GitRepoDiffFilesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerDiffFilesError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoDiffFilesCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForGetBranchHistory(
     const Structs::GitRepoGetBranchHistoryCommand &command) {
   LOG_PERF(0, "Enter");
@@ -1612,7 +1665,7 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       const auto checkoutCommand =
           dynamic_cast<const GitRepoCheckoutBranchCommand *>(command);
       if (checkoutCommand) {
-        checkoutBranchRepoWorker(*checkoutCommand);
+        checkoutBranchWorker(*checkoutCommand);
       }
       break;
     }
@@ -1636,7 +1689,15 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       const auto commitStagedCommand =
         dynamic_cast<const GitRepoCommitStagedCommand *>(command);
       if (commitStagedCommand) {
-        commitStagedRepoWorker(*commitStagedCommand);
+        commitStagedWorker(*commitStagedCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::DiffFiles: {
+      const auto diffFilesCommand =
+        dynamic_cast<const GitRepoDiffFilesCommand *>(command);
+      if (diffFilesCommand) {
+        diffFilesWorker(*diffFilesCommand);
       }
       break;
     }

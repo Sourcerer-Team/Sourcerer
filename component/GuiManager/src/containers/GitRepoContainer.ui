@@ -292,7 +292,14 @@
                          <number>0</number>
                         </property>
                         <item>
-                         <widget class="QListView" name="listViewTabWidgetWorkingTreeFlat"/>
+                         <widget class="QListView" name="listViewTabWidgetWorkingTreeFlat">
+                          <property name="editTriggers">
+                           <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                          </property>
+                          <property name="selectionMode">
+                           <enum>QAbstractItemView::SelectionMode::MultiSelection</enum>
+                          </property>
+                         </widget>
                         </item>
                        </layout>
                       </item>
@@ -1060,6 +1067,30 @@
     </widget>
    </item>
   </layout>
+  <action name="actionWorkingTreeFlatStage">
+   <property name="text">
+    <string>Stage</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionWorkingTreeFlatIgnore">
+   <property name="text">
+    <string>Ignore</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionWorkingTreeFlatCreateFilePatch">
+   <property name="text">
+    <string>Create file patch</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>

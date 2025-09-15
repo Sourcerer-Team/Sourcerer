@@ -14,15 +14,19 @@
 #include <Log.h>
 #include <Uuid.h>
 
+#include <QCheckBox>
+#include <QFile>
+#include <QFileDialog>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QMovie>
 #include <QPainter>
 #include <QPixmap>
+#include <QScrollBar>
 #include <QSvgRenderer>
+#include <QTextStream>
 #include <QToolTip>
 
-#include <QCheckBox>
-#include <QScrollBar>
 #include <functional>
 #include <utility>
 
@@ -33,6 +37,8 @@
 
 #define MAXIMUM_PARENTS_IN_LABEL 3
 #define MAX_COMMIT_SHA_LENGTH 6
+
+#define IGNORE_FILENAME ".gitignore"
 
 using namespace GuiManager::Widgets;
 using namespace GitRepoManager::Structs;
@@ -125,6 +131,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->listViewTabWidgetWorkingTreeFlat->setHorizontalScrollBarPolicy(
     Qt::ScrollBarAlwaysOff);
+
+  ui->listViewTabWidgetWorkingTreeFlat->setContextMenuPolicy(
+    Qt::CustomContextMenu);
 
   _commitAndMergeIndexTreeUnstageAllButton =
     new QPushButton(tr("Unstage all"), ui->tabWidgetIndex);
@@ -247,6 +256,17 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   connect(ui->pushButtonCommit, &QPushButton::clicked, this,
           &GitRepoContainer::onCommitButtonClicked);
+
+  connect(ui->listViewTabWidgetWorkingTreeFlat,
+          &QListView::customContextMenuRequested, this,
+          &GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested);
+
+  connect(ui->actionWorkingTreeFlatStage, &QAction::triggered, this,
+          &GitRepoContainer::onWorkingTreeFlatListViewStageSelected);
+  connect(ui->actionWorkingTreeFlatIgnore, &QAction::triggered, this,
+          &GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected);
+  connect(ui->actionWorkingTreeFlatCreateFilePatch, &QAction::triggered, this,
+          &GitRepoContainer::onWorkingTreeFlatListViewCreateFilePatchSelected);
 
   LOG_PERF(0, "Exit")
 }
@@ -666,6 +686,85 @@ void GitRepoContainer::onGraphColumnExpand(int section) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
+  const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndex index = ui->listViewTabWidgetWorkingTreeFlat->indexAt(pos);
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QMenu contextMenu;
+  contextMenu.addAction(ui->actionWorkingTreeFlatStage);
+  contextMenu.addAction(ui->actionWorkingTreeFlatIgnore);
+  contextMenu.addSeparator();
+  contextMenu.addAction(ui->actionWorkingTreeFlatCreateFilePatch);
+
+  contextMenu.exec(ui->listViewTabWidgetWorkingTreeFlat->mapToGlobal(pos));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onWorkingTreeFlatListViewStageSelected(bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndexList listIndexes =
+    ui->listViewTabWidgetWorkingTreeFlat->selectionModel()->selectedIndexes();
+
+  QStringList files;
+
+  for (const auto &index : listIndexes) {
+    files += index.data().toString();
+  }
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { stageFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected(bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndexList listIndexes =
+    ui->listViewTabWidgetWorkingTreeFlat->selectionModel()->selectedIndexes();
+
+  QStringList files;
+
+  for (const auto &index : listIndexes) {
+    files += index.data().toString();
+  }
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { ignoreFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onWorkingTreeFlatListViewCreateFilePatchSelected(
+  bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndexList listIndexes =
+    ui->listViewTabWidgetWorkingTreeFlat->selectionModel()->selectedIndexes();
+
+  QStringList files;
+
+  for (const auto &index : listIndexes) {
+    files += index.data().toString();
+  }
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { diffFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::updateModelActiveBranch(const WeakPtr &guard,
                                                const QString &branchName,
                                                GitRepo::BranchType branchType) {
@@ -866,6 +965,85 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
     if (commitSuccess) {
       clearSummaryAndDescription();
     }
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::diffFiles(const WeakPtr &guard,
+                                 const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoDiffFilesCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.files = files;
+
+  EventManager::Event diffFilesEvent(
+    EventManager::EventType::GitRepoManagerDiffFiles, eventUuid);
+  diffFilesEvent.addData(command);
+  _eventManager.send(diffFilesEvent);
+
+  static std::set types = {
+                           EventManager::EventType::GitRepoManagerDiffFilesError,
+    EventManager::EventType::GitRepoManagerDiffFilesResult};
+
+  const auto &[success, event] =
+    _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
+      showErrorToast(tr("Failed to create diff file."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerDiffFilesResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorToast(tr("Failed to create diff file."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const QString diff = commandResult.value.toString();
+
+  if (diff.isEmpty()) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showToast(tr("No difference compared to the HEAD commit."), tr("Info"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    const QString filePath = QFileDialog::getSaveFileName(
+      nullptr, tr("Save Diff File"), QString(), tr("Patch Files (*.patch)"));
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate |
+                   QIODevice::Text)) {
+      showErrorToast(tr("Failed to create diff file %1.").arg(filePath),
+                     tr("Error"));
+      LOG_PERF(0, "Exit")
+      return;
+    }
+
+    QTextStream out(&file);
+    out << diff;
+    out.flush();
+
+    file.close();
   });
 
   LOG_PERF(0, "Exit")
@@ -1418,6 +1596,44 @@ bool GitRepoContainer::getTags() {
   return true;
 }
 
+void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
+                                   const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  const QString ignoreFilePath =
+    QDir::toNativeSeparators(_path + QDir::separator() + IGNORE_FILENAME);
+
+  QFile file(ignoreFilePath);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showErrorToast(
+        QString(tr("Failed to open %1 for writing.")).arg(IGNORE_FILENAME),
+        tr("Error"));
+    });
+    LOG_PERF(0, "Exit");
+    return;
+  };
+
+  QTextStream out(&file);
+
+  out << Qt::endl;
+
+  for (const QString &file : files) {
+    out << QDir::fromNativeSeparators(file) << Qt::endl;
+  }
+
+  out.flush();
+
+  file.close();
+
+  refreshStatus();
+
+  Util::Dispatcher::dispatchToMainThread(
+    guard, [&]() { simulateClickOnFirstHistoryRow(); });
+
+  LOG_PERF(0, "Exit")
+}
+
 bool GitRepoContainer::openRepo() {
   LOG_PERF(0, "Enter");
 
@@ -1751,12 +1967,12 @@ void GitRepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showToast(const QString &message) {
+void GitRepoContainer::showToast(const QString &message, const QString &title) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 
   Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
-    _toastHost.addToast(new InfoToast(message));
+    _toastHost.addToast(new InfoToast(message, title));
   });
 
   LOG_PERF(0, "Exit")
