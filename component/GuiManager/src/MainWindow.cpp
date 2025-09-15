@@ -32,6 +32,7 @@ using namespace Dialogs;
 using namespace Util;
 
 constexpr int TOP_MARGIN_OFFSET = -35;
+constexpr int PROFILE_WIDGET_ARROW_OFFSET = 30;
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), _current(-1), _centralWidget(new CentralWidget),
@@ -40,7 +41,9 @@ MainWindow::MainWindow(QWidget *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
       _maximized(false), _mousePressed(false), _hitDetector(nullptr),
-      _gitCredentialsOverlay(new GitCredentialsOverlayWidget(_centralWidget)) {
+      _gitCredentialsOverlay(new GitCredentialsOverlayWidget(_centralWidget)),
+    _profileBoardWidget(new ProfileBoardWidget(this)),
+    _profileBoardActive(false) {
   LOG_PERF(0, "Enter");
 
   setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
@@ -52,6 +55,8 @@ MainWindow::MainWindow(QWidget *parent)
   installEventFilter(this);
   connect(_hitDetector, &HitDetector::edgeHit, this, &MainWindow::onEdgeHit);
 #endif
+
+  _profileBoardWidget->hide();
 
   _gitCredentialsOverlay->stop();
   _gitCredentialsOverlay->hide();
@@ -111,6 +116,7 @@ MainWindow::MainWindow(QWidget *parent)
           this, &MainWindow::onCredentialsFinished);
   connect(_gitCredentialsOverlay.get(), &GitCredentialsOverlayWidget::finished,
           this, &MainWindow::onCredentialsFinished);
+  connect(_topBarWidget, &TopBarWidget::profile, this, &MainWindow::onProfile);
 
   addHomeContainer();
 
@@ -332,6 +338,32 @@ void MainWindow::onCredentialsFinished() const {
   LOG_PERF(0, "Exit");
 }
 
+void MainWindow::onProfile(int middleX) {
+  LOG_PERF(0, "Enter");
+
+  qDebug() << "onProfile called";
+
+  /*
+  if (_profileBoardActive) {
+    _profileBoardWidget->hide();
+    _profileBoardActive = false;
+    LOG_PERF(0, "Exit");
+    return;
+  };
+*/
+
+  _profileBoardWidget->setArrowTargetX(_profileBoardWidget->width() -
+                                       PROFILE_WIDGET_ARROW_OFFSET);
+  _profileBoardWidget->show();
+  _profileBoardWidget->raise();
+  _profileBoardWidget->move(
+    middleX - (_profileBoardWidget->width() - PROFILE_WIDGET_ARROW_OFFSET),
+    y() + _topBarWidget->height());
+  _profileBoardActive = true;
+
+  LOG_PERF(0, "Exit");
+}
+
 void MainWindow::addCloneContainer() {
   LOG_PERF(0, "Enter");
 
@@ -546,7 +578,8 @@ void MainWindow::selectContainer(const int index) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showCredentialsOverlay(const GitCredentialsRequest &request) const {
+void MainWindow::showCredentialsOverlay(
+  const GitCredentialsRequest &request) const {
   LOG_PERF(0, "Enter");
 
   _gitCredentialsOverlay->setRequest(request);

@@ -29,6 +29,8 @@ public:
 
   QString getString(ConfigKey key) const;
 
+  QString getString(const QString& key) const;
+
   void setBoolean(ConfigKey key, bool value);
 
   void setColor(ConfigKey key, const QColor& value);
@@ -38,6 +40,10 @@ public:
   void setLong(ConfigKey key, qlonglong value);
 
   void setString(ConfigKey key, const QString& value);
+
+  void setString(const QString& key, const QString& value);
+
+  void removeString(const QString& key);
 
   void save();
 

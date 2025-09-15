@@ -6,6 +6,7 @@
 
 #include <QMouseEvent>
 #include <QPoint>
+#include <QPushButton>
 #include <QWidget>
 
 namespace GuiManager::Widgets {
@@ -22,6 +23,7 @@ signals:
   void maximized();
   void closed();
   void doubleClicked();
+  void profile(int middleX);
 
   void open();
   void clone();
@@ -35,6 +37,9 @@ signals:
 
   void dragged();
 
+private slots:
+  void onProfileClicked();
+
   // QWidget interface
 protected:
   void mouseDoubleClickEvent(QMouseEvent *event) override;
@@ -43,6 +48,7 @@ protected:
 private:
   ConfigManager::ConfigManager &_configManager;
   TitlebarWidget *_titleBarWidget;
+  QPushButton *_profileButton;
 };
 
 } // namespace GuiManager::Widgets

@@ -73,6 +73,10 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
       QGroupBox#groupBoxFiles{
         border: none;
       }
+      QListView#listViewProfiles {
+        background-color: #505050;
+        border: none;
+      }
       QTabBar::tab:selected{
         font-weight:bold;
       }

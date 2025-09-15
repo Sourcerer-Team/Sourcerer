@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ConfigManager.h>
+
 #include <QString>
 #include <QVector>
 
@@ -30,16 +32,20 @@ class UserProfileManager {
              : _emptyProfile;
   }
 
+  void load();
+  void save();
+
   private:
   UserProfileManager();
-      ~UserProfileManager() = default;
+  ~UserProfileManager() = default;
   UserProfileManager(const UserProfileManager &) = delete;
       UserProfileManager &operator=(const UserProfileManager &) = delete;
 
   private:
-      int _currentIndex;
-      QVector<UserProfile> _profiles;
-      static UserProfile _emptyProfile;
+  int _currentIndex;
+  QVector<UserProfile> _profiles;
+  ConfigManager::ConfigManager &_configManager;
+  static UserProfile _emptyProfile;
 };
 
 } // namespace Common

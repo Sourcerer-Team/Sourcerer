@@ -152,7 +152,10 @@ qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
 
 add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES}
         include/models/GitCommitTreeModel.h
-        src/models/GitCommitTreeModel.cpp)
+        src/models/GitCommitTreeModel.cpp
+        src/widgets/ProfileBoardWidget.ui
+        include/widgets/ProfileBoardWidget.h
+        src/widgets/ProfileBoardWidget.cpp)
 
 include(../../cmake/helpers.cmake)
 

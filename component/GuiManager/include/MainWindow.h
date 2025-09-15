@@ -4,6 +4,7 @@
 #include "widgets/CentralWidget.h"
 #include "widgets/ContainerWidget.h"
 #include "widgets/GitCredentialsOverlayWidget.h"
+#include "widgets/ProfileBoardWidget.h"
 #include "widgets/ToastHostWidget.h"
 #include "widgets/TopBarWidget.h"
 
@@ -60,6 +61,7 @@ private slots:
   void onTitleBarDrag() const;
   void onEdgeHit(Qt::Edges edges) const;
   void onCredentialsFinished() const;
+  void onProfile(int middleX);
 
 private:
   void addCloneContainer();
@@ -89,6 +91,8 @@ private:
   bool _mousePressed;
   HitDetector *_hitDetector;
   GitCredentialsOverlayWidget::SharedPtr _gitCredentialsOverlay;
+  ProfileBoardWidget *_profileBoardWidget;
+  bool _profileBoardActive;
 };
 
 } // namespace GuiManager

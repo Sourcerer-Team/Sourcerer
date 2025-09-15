@@ -150,6 +150,15 @@ QString ConfigManager::getString(ConfigKey key) const {
     return DEFAULT_STRINGS[key];
 }
 
+QString ConfigManager::getString(const QString &key) const
+{
+  LOCKGUARD(_mutex);
+  if (_settings.contains(key))
+    return _settings.value(key).toString();
+  else
+    return QString();
+}
+
 void ConfigManager::setBoolean(ConfigKey key, bool value) {
   LOCKGUARD(_mutex);
   _settings.setValue(KEY_NAMES[key], value);
@@ -173,6 +182,18 @@ void ConfigManager::setLong(ConfigKey key, qlonglong value) {
 void ConfigManager::setString(ConfigKey key, const QString &value) {
   LOCKGUARD(_mutex);
   _settings.setValue(KEY_NAMES[key], value);
+}
+
+void ConfigManager::setString(const QString &key, const QString &value)
+{
+  LOCKGUARD(_mutex);
+  _settings.setValue(key, value);
+}
+
+void ConfigManager::removeString(const QString &key)
+{
+  LOCKGUARD(_mutex);
+  _settings.remove(key);
 }
 
 void ConfigManager::save() {

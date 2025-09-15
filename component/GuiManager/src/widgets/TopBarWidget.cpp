@@ -6,7 +6,6 @@
 
 #include <QEvent>
 #include <QHBoxLayout>
-#include <QPushButton>
 
 #define THREAD_ID "TopBarWidget"
 
@@ -15,7 +14,7 @@ namespace GuiManager::Widgets {
 TopBarWidget::TopBarWidget(QWidget *parent)
     : QWidget{parent},
       _configManager(ConfigManager::ConfigManager::getInstance()),
-      _titleBarWidget(new TitlebarWidget) {
+    _titleBarWidget(new TitlebarWidget), _profileButton(nullptr) {
   LOG_PERF(0, "Enter");
 
   setMouseTracking(true);
@@ -31,6 +30,12 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   LOG_DEBUG("Maximize button color '{}", maximizeButtonColor.name());
   LOG_DEBUG("Close button color '{}", closeButtonColor.name());
 
+  _profileButton = new TitleBarButton(QPixmap(":/icons/profile.png"),
+                                      minimizeButtonColor, this);
+  _profileButton->setFlat(true);
+  _profileButton->setMinimumSize(QSize(32, 32));
+  _profileButton->setMaximumSize(QSize(32, 32));
+
   auto minimizeButton = new TitleBarButton(
       QPixmap(":/icons/minimize_button.png"), minimizeButtonColor, this);
   minimizeButton->setFlat(true);
@@ -43,8 +48,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   maximizeButton->setMinimumSize(QSize(32, 32));
   maximizeButton->setMaximumSize(QSize(32, 32));
 
-  auto closeButton = new TitleBarButton(
-      QPixmap(":/icons/close_button.png"), closeButtonColor, this);
+  auto closeButton = new TitleBarButton(QPixmap(":/icons/close_button.png"),
+                                        closeButtonColor, this);
   closeButton->setFlat(true);
   closeButton->setMinimumSize(QSize(32, 32));
   closeButton->setMaximumSize(QSize(32, 32));
@@ -52,6 +57,7 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   auto systemBarLayout = new QHBoxLayout();
   systemBarLayout->setContentsMargins(0, 0, 0, 0);
   systemBarLayout->setSizeConstraint(QLayout::SetFixedSize);
+  systemBarLayout->addWidget(_profileButton);
   systemBarLayout->addWidget(minimizeButton);
   systemBarLayout->addWidget(maximizeButton);
   systemBarLayout->addWidget(closeButton);
@@ -76,6 +82,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
       new QSpacerItem(QSizePolicy::Expanding, QSizePolicy::Fixed));
   titleBarLayout->addLayout(systemBarLayout);
 
+  connect(_profileButton, &QPushButton::clicked, this,
+          &TopBarWidget::onProfileClicked);
   connect(minimizeButton, &QPushButton::clicked, this,
           &TopBarWidget::minimized);
   connect(maximizeButton, &QPushButton::clicked, this,
@@ -94,6 +102,14 @@ TopBarWidget::TopBarWidget(QWidget *parent)
           &TopBarWidget::selectedTab);
   connect(_titleBarWidget, &TitlebarWidget::resizeTabBar, this,
           &TopBarWidget::resizeTabBar);
+
+  LOG_PERF(0, "Exit");
+}
+
+void TopBarWidget::onProfileClicked() {
+  LOG_PERF(0, "Enter");
+
+  emit profile(_profileButton->x() + _profileButton->width() / 2);
 
   LOG_PERF(0, "Exit");
 }
