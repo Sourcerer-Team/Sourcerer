@@ -75,6 +75,10 @@ private slots:
   void onWorkingTreeFlatListViewStageSelected(bool checked = false);
   void onWorkingTreeFlatListViewIgnoreSelected(bool checked = false);
   void onWorkingTreeFlatListViewCreateFilePatchSelected(bool checked = false);
+  void onWorkingTreeTreeTreeViewContextMenuRequested(const QPoint &pos);
+  void onWorkingTreeTreeTreeViewStageSelected(bool checked = false);
+  void onWorkingTreeTreeTreeViewIgnoreSelected(bool checked = false);
+  void onWorkingTreeTreeTreeViewCreateFilePatchSelected(bool checked = false);
   void updateModelActiveBranch(const WeakPtr &guard, const QString &branchName,
                                GitRepo::BranchType branchType);
 

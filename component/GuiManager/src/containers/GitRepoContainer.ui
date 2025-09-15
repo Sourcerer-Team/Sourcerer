@@ -338,6 +338,9 @@
                         </property>
                         <item>
                          <widget class="QTreeView" name="treeViewTabWidgetWorkingTreeTree">
+                          <property name="editTriggers">
+                           <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                          </property>
                           <property name="indentation">
                            <number>20</number>
                           </property>
@@ -1086,6 +1089,30 @@
   <action name="actionWorkingTreeFlatCreateFilePatch">
    <property name="text">
     <string>Create file patch</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionWorkingTreeTreeStage">
+   <property name="text">
+    <string>Stage</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionWorkingTreeTreeIgnore">
+   <property name="text">
+    <string>Ignore</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionWorkingTreeTreeCreateFilePatch">
+   <property name="text">
+    <string>Createfile  patch</string>
    </property>
    <property name="menuRole">
     <enum>QAction::MenuRole::NoRole</enum>

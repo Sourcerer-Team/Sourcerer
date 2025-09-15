@@ -85,7 +85,7 @@ struct GitStatus {
            !renamedFiles.isEmpty() || !unreadableFiles.isEmpty() ||
            !newStagedFiles.isEmpty() || !modifiedStagedFiles.isEmpty() ||
            !deletedStagedFiles.isEmpty() || !typeChangedStagedFiles.isEmpty() ||
-           !renamedStagedFiles.isEmpty() || !ignoredFiles.isEmpty() ||
+           !renamedStagedFiles.isEmpty() /*|| !ignoredFiles.isEmpty()*/ ||
            !conflictedFiles.isEmpty();
   }
 };

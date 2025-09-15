@@ -2061,13 +2061,11 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
     }
   }
 
-  /*
   filesForStaging.removeIf([&](const QString &filePath) {
     const QString unixFilePath = QDir::fromNativeSeparators(filePath);
     const QString fullPath = repoPath + unixFilePath;
     return QFileInfo(fullPath).isDir();
   });
-*/
 
   for (const auto &filePath : filesForStaging) {
     const QString relativePath = QDir(repoPath).relativeFilePath(filePath);

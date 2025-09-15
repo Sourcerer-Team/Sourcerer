@@ -369,9 +369,6 @@ void HistorySliceTableColumnDelegate::paintStatus(
 
   painter->setRenderHint(QPainter::Antialiasing, true);
 
-  // QRegion clipRegion(opt.rect);
-  // painter->setClipRegion(clipRegion);
-
   if (avatarIndex != -1) {
     // Bottom vertical line
     QList<QPoint> points;
