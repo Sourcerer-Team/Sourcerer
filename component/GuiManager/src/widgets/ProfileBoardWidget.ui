@@ -60,6 +60,9 @@
          <property name="editTriggers">
           <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
          </property>
+         <property name="spacing">
+          <number>4</number>
+         </property>
         </widget>
        </item>
        <item>

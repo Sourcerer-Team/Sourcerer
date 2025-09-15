@@ -155,7 +155,8 @@ add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES}
         src/models/GitCommitTreeModel.cpp
         src/widgets/ProfileBoardWidget.ui
         include/widgets/ProfileBoardWidget.h
-        src/widgets/ProfileBoardWidget.cpp)
+        src/widgets/ProfileBoardWidget.cpp
+        include/delegates/FixedHeightDelegate.h)
 
 include(../../cmake/helpers.cmake)
 

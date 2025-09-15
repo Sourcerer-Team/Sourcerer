@@ -1,4 +1,5 @@
 #include "widgets/ProfileBoardWidget.h"
+#include "delegates/FixedHeightDelegate.h"
 #include "widgets/ui_ProfileBoardWidget.h"
 
 #include <Log.h>
@@ -23,6 +24,8 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
   setMouseTracking(true);
 
   ui->setupUi(this);
+  ui->listViewProfiles->setItemDelegate(
+    new Delegates::FixedHeightDelegate(ui->listViewProfiles));
 
   layout()->setContentsMargins(15, 25, 15, 15); // Leave space for arrow
 
