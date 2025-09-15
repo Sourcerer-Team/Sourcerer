@@ -156,7 +156,9 @@ add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES}
         src/widgets/ProfileBoardWidget.ui
         include/widgets/ProfileBoardWidget.h
         src/widgets/ProfileBoardWidget.cpp
-        include/delegates/FixedHeightDelegate.h)
+        include/delegates/FixedHeightDelegate.h
+        include/widgets/RightClickSelectListView.h
+        include/widgets/RightClickSelectTreeView.h)
 
 include(../../cmake/helpers.cmake)
 

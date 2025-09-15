@@ -292,7 +292,7 @@
                          <number>0</number>
                         </property>
                         <item>
-                         <widget class="QListView" name="listViewTabWidgetWorkingTreeFlat">
+                         <widget class="GuiManager::Widgets::RightClickSelectListView" name="listViewTabWidgetWorkingTreeFlat">
                           <property name="editTriggers">
                            <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
                           </property>
@@ -337,7 +337,7 @@
                          <number>0</number>
                         </property>
                         <item>
-                         <widget class="QTreeView" name="treeViewTabWidgetWorkingTreeTree">
+                         <widget class="GuiManager::Widgets::RightClickSelectTreeView" name="treeViewTabWidgetWorkingTreeTree">
                           <property name="editTriggers">
                            <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
                           </property>
@@ -399,7 +399,7 @@
                          <number>0</number>
                         </property>
                         <item>
-                         <widget class="QListView" name="listViewTabWidgetIndexFlat"/>
+                         <widget class="GuiManager::Widgets::RightClickSelectListView" name="listViewTabWidgetIndexFlat"/>
                         </item>
                        </layout>
                       </item>
@@ -446,7 +446,7 @@
                          <number>0</number>
                         </property>
                         <item>
-                         <widget class="QTreeView" name="treeViewTabWidgetIndexTree">
+                         <widget class="GuiManager::Widgets::RightClickSelectTreeView" name="treeViewTabWidgetIndexTree">
                           <property name="headerHidden">
                            <bool>true</bool>
                           </property>
@@ -1118,6 +1118,54 @@
     <enum>QAction::MenuRole::NoRole</enum>
    </property>
   </action>
+  <action name="actionIndexFlatUnstage">
+   <property name="text">
+    <string>Unstage</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionIndexFlatIgnore">
+   <property name="text">
+    <string>Ignore</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionIndexFlatCreateFilePatch">
+   <property name="text">
+    <string>Create file patch</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionIndexTreeUnstage">
+   <property name="text">
+    <string>Unstage</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionIndexTreeIgnore">
+   <property name="text">
+    <string>Ignore</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionIndexTreeCreateFilePatch">
+   <property name="text">
+    <string>Create file patch</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>
@@ -1161,6 +1209,16 @@
    <extends>QTabWidget</extends>
    <header>widgets/ExtendedTabWidget.h</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>GuiManager::Widgets::RightClickSelectListView</class>
+   <extends>QListView</extends>
+   <header>widgets/RightClickSelectListView.h</header>
+  </customwidget>
+  <customwidget>
+   <class>GuiManager::Widgets::RightClickSelectTreeView</class>
+   <extends>QTreeView</extends>
+   <header>widgets/RightClickSelectTreeView.h</header>
   </customwidget>
  </customwidgets>
  <resources/>
