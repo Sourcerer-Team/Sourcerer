@@ -170,7 +170,7 @@ void ProfileBoardWidget::onButtonRemoveClicked() {
   Q_ASSERT(profileIndex >= 0);
   Q_ASSERT(profileIndex < profiles.size());
 
-  if(profileIndex < 0 || profileIndex >= profiles.size()) {
+  if (profileIndex < 0 || profileIndex >= profiles.size()) {
     LOG_PERF(0, "Exit");
     return;
   };
@@ -178,15 +178,15 @@ void ProfileBoardWidget::onButtonRemoveClicked() {
   const Common::UserProfile &profile = profiles.at(profileIndex);
 
   ui->labelRemoveQuestion->setText(
-    tr("Are you sure you want to remove the profile \"%1\"?").arg(profile.author));
+    tr("Are you sure you want to remove the profile \"%1\"?")
+      .arg(profile.author));
 
   ui->stackedWidget->setCurrentIndex(static_cast<int>(ScreenType::Remove));
 
   LOG_PERF(0, "Exit");
 }
 
-void ProfileBoardWidget::onButtonRemoveYesClicked()
-{
+void ProfileBoardWidget::onButtonRemoveYesClicked() {
   LOG_PERF(0, "Enter");
 
   const int profileIndex =
@@ -202,7 +202,14 @@ void ProfileBoardWidget::onButtonRemoveYesClicked()
     return;
   }
 
+  const bool currentProfileRemoval = profiles.at(profileIndex).email ==
+                                     _userProfileManager.currentProfile().email;
+
   profiles.removeAt(profileIndex);
+
+  if (currentProfileRemoval) {
+    _userProfileManager.setCurrentIndex(profiles.size() > 0 ? 0 : -1);
+  }
 
   _userProfileManager.setProfiles(profiles);
   _userProfileManager.save();
@@ -270,6 +277,7 @@ void ProfileBoardWidget::onListItemClicked(const QModelIndex &index) {
   const int profileIndex = index.row();
 
   _userProfileManager.setCurrentIndex(profileIndex);
+  _userProfileManager.save();
 
   fillProfiles();
 

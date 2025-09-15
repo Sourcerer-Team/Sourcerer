@@ -4,6 +4,11 @@
 
 #define THREAD_ID "UserProfileManager"
 
+#define USERPROFILEMANAGER_COUNT "userprofilemanager/count"
+#define USERPROFILEMANAGER_CURRENTINDEX "userprofilemanager/currentindex"
+#define USERPROFILEMANAGER_PROFILEAUTHOR "userprofilemanager/profile_author_%1"
+#define USERPROFILEMANAGER_PROFILEEMAIL "userprofilemanager/profile_email_%1"
+
 namespace Common {
 
 UserProfile UserProfileManager::_emptyProfile{"Default", ""};
@@ -26,19 +31,18 @@ UserProfileManager &UserProfileManager::instance() {
 void UserProfileManager::load() {
   LOG_PERF(0, "Enter");
 
-  const int count =
-    _configManager.getString("userprofilemanager/count").toInt();
+  const int count = _configManager.getString(USERPROFILEMANAGER_COUNT).toInt();
   const int currentIndex =
-    _configManager.getString("userprofilemanager/currentIndex").toInt();
+    _configManager.getString(USERPROFILEMANAGER_CURRENTINDEX).toInt();
 
   _currentIndex = currentIndex;
 
   _profiles.clear();
 
   for (int i = 0; i < count; ++i) {
-    QString key = QString("userprofilemanager/profile_author_%1").arg(i);
+    QString key = QString(USERPROFILEMANAGER_PROFILEAUTHOR).arg(i);
     const QString author = _configManager.getString(key);
-    key = QString("userprofilemanager/profile_email_%1").arg(i);
+    key = QString(USERPROFILEMANAGER_PROFILEEMAIL).arg(i);
     const QString email = _configManager.getString(key);
     _profiles += Common::UserProfile{author, email};
   }
@@ -53,25 +57,24 @@ void UserProfileManager::load() {
 void UserProfileManager::save() {
   LOG_PERF(0, "Enter");
 
-  const int count =
-    _configManager.getString("userprofilemanager/count").toInt();
+  const int count = _configManager.getString(USERPROFILEMANAGER_COUNT).toInt();
 
   for (int i = 0; i < count; ++i) {
-    QString key = QString("userprofilemanager/profile_author_%1").arg(i);
+    QString key = QString(USERPROFILEMANAGER_PROFILEAUTHOR).arg(i);
     _configManager.removeString(key);
-    key = QString("userprofilemanager/profile_email_%1").arg(i);
+    key = QString(USERPROFILEMANAGER_PROFILEEMAIL).arg(i);
     _configManager.removeString(key);
   }
 
-  _configManager.setString("userprofilemanager/count",
+  _configManager.setString(USERPROFILEMANAGER_COUNT,
                            QString::number(_profiles.size()));
-  _configManager.setString("userprofilemanager/currentindex",
+  _configManager.setString(USERPROFILEMANAGER_CURRENTINDEX,
                            QString::number(_currentIndex));
 
   for (int i = 0; i < _profiles.size(); ++i) {
-    QString key = QString("userprofilemanager/profile_author_%1").arg(i);
+    QString key = QString(USERPROFILEMANAGER_PROFILEAUTHOR).arg(i);
     _configManager.setString(key, _profiles[i].author);
-    key = QString("userprofilemanager/profile_email_%1").arg(i);
+    key = QString(USERPROFILEMANAGER_PROFILEEMAIL).arg(i);
     _configManager.setString(key, _profiles[i].email);
   }
 
