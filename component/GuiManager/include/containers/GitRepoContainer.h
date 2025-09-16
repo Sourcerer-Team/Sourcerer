@@ -15,9 +15,11 @@
 #include <QCheckBox>
 #include <QEnableSharedFromThis>
 #include <QItemSelection>
+#include <QListView>
 #include <QPushButton>
 #include <QSet>
 #include <QString>
+#include <QTreeView>
 #include <QWidget>
 
 namespace Ui {
@@ -75,18 +77,22 @@ private slots:
   void onWorkingTreeFlatListViewStageSelected(bool checked = false);
   void onWorkingTreeFlatListViewIgnoreSelected(bool checked = false);
   void onWorkingTreeFlatListViewCreateFilePatchSelected(bool checked = false);
+  void onWorkingTreeFlatListViewDeleteSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewContextMenuRequested(const QPoint &pos);
   void onWorkingTreeTreeTreeViewStageSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewIgnoreSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewCreateFilePatchSelected(bool checked = false);
+  void onWorkingTreeTreeTreeViewDeleteSelected(bool checked = false);
   void onIndexFlatListViewContextMenuRequested(const QPoint &pos);
   void onIndexFlatListViewUnstageSelected(bool checked = false);
   void onIndexFlatListViewIgnoreSelected(bool checked = false);
   void onIndexFlatListViewCreateFilePatchSelected(bool checked = false);
+  void onIndexFlatListViewDeleteSelected(bool checked = false);
   void onIndexTreeTreeViewContextMenuRequested(const QPoint &pos);
   void onIndexTreeTreeViewUnstageSelected(bool checked = false);
   void onIndexTreeTreeViewIgnoreSelected(bool checked = false);
   void onIndexTreeTreeViewCreateFilePatchSelected(bool checked = false);
+  void onIndexTreeTreeViewDeleteSelected(bool checked = false);
   void updateModelActiveBranch(const WeakPtr &guard, const QString &branchName,
                                GitRepo::BranchType branchType);
 
@@ -98,6 +104,7 @@ private:
   void commit(const WeakPtr &guard, const QString &summary,
               const QString &description, const QString &author,
               const QString &email);
+  void deleteFiles(const WeakPtr &guard, const QStringList &files);
   void diffFiles(const WeakPtr &guard, const QStringList &files);
   bool getActiveBranchOrTag(const WeakPtr &guard,
                             const GitRepo::BranchType branchType);
@@ -109,6 +116,10 @@ private:
                                               const QString &commit) const;
   [[nodiscard]] GitRepo::GitCommitStatus
   getCommitStatus(const WeakPtr &guard, const QString &commit) const;
+  QStringList getSelectedFiles(QListView *listView);
+  QStringList getSelectedFilesWhichExist(QListView *listView);
+  QStringList getSelectedFiles(QTreeView *treeView);
+  QStringList getSelectedFilesWhichExist(QTreeView *treeView);
   bool getLocalBranches();
   bool getRemoteBranches();
   bool getSubmodules();

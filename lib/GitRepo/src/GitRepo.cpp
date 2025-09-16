@@ -2042,6 +2042,12 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
   for (const auto &filePath : filesForStaging) {
     const QString unixFilePath = QDir::fromNativeSeparators(filePath);
     const QString fullPath = repoPath + unixFilePath;
+
+    if (!QFileInfo::exists(fullPath)) {
+      // Stage deleted files
+      continue;
+    }
+
     if (!QFileInfo(fullPath).isDir()) {
       continue;
     }
@@ -2055,7 +2061,7 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
       QDir::Files | QDir::NoDotAndDotDot | QDir::AllDirs, QDir::Name);
     for (const auto &dirFile : dirFiles) {
       QString absolutePath = dir.absoluteFilePath(dirFile);
-      if (!files.contains(absolutePath)) {
+      if (!filesForStaging.contains(absolutePath)) {
         filesForStaging.append(absolutePath);
       }
     }
@@ -2068,7 +2074,22 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
   });
 
   for (const auto &filePath : filesForStaging) {
-    const QString relativePath = QDir(repoPath).relativeFilePath(filePath);
+    const QString unixFilePath = QDir::fromNativeSeparators(filePath);
+    const QString fullPath = repoPath + unixFilePath;
+    const QString relativePath = QDir(repoPath).relativeFilePath(fullPath);
+    if (!QFileInfo::exists(fullPath)) {
+      error =
+        git_index_remove_bypath(index, relativePath.toStdString().c_str());
+      if (error) {
+        logGitError(error);
+        git_index_free(index);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      continue;
+    }
+
     error = git_index_add_bypath(index, relativePath.toStdString().c_str());
     if (error) {
       logGitError(error);

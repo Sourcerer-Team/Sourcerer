@@ -18,6 +18,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QMovie>
 #include <QPainter>
@@ -53,6 +54,38 @@ enum class CommitAndMergeStackIndexes {
 
   last
 };
+
+QStringList traverseModelIndexSubtree(const QModelIndex &parent,
+                                      const QAbstractItemModel *model) {
+  if (!parent.isValid()) {
+    return {};
+  }
+
+  QStringList files;
+
+  int rowCount = model->rowCount(parent);
+
+  if (rowCount == 0) {
+    QModelIndex current = parent;
+    QString fullPath = current.data().toString();
+    while (current.parent().isValid()) {
+      fullPath =
+          current.parent().data().toString() + QDir::separator() + fullPath;
+      current = current.parent();
+    };
+
+    files += fullPath;
+
+    return files;
+  }
+
+  for (int i = 0; i < rowCount; ++i) {
+    QModelIndex child = model->index(i, 0, parent);
+    files += traverseModelIndexSubtree(child, model);
+  }
+
+  return files;
+}
 
 GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
     : ContainerWidget(Widgets::ContainerType::Unknown, parent),
@@ -272,6 +305,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected);
   connect(ui->actionWorkingTreeFlatCreateFilePatch, &QAction::triggered, this,
           &GitRepoContainer::onWorkingTreeFlatListViewCreateFilePatchSelected);
+  connect(ui->actionWorkingTreeFlatDelete, &QAction::triggered, this,
+          &GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected);
 
   connect(ui->treeViewTabWidgetWorkingTreeTree,
           &QTreeView::customContextMenuRequested, this,
@@ -283,6 +318,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected);
   connect(ui->actionWorkingTreeTreeCreateFilePatch, &QAction::triggered, this,
           &GitRepoContainer::onWorkingTreeTreeTreeViewCreateFilePatchSelected);
+  connect(ui->actionWorkingTreeTreeDelete, &QAction::triggered, this,
+          &GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected);
 
   connect(ui->listViewTabWidgetIndexFlat,
           &QListView::customContextMenuRequested, this,
@@ -294,6 +331,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onIndexFlatListViewIgnoreSelected);
   connect(ui->actionIndexFlatCreateFilePatch, &QAction::triggered, this,
           &GitRepoContainer::onIndexFlatListViewCreateFilePatchSelected);
+  connect(ui->actionIndexFlatDelete, &QAction::triggered, this,
+          &GitRepoContainer::onIndexFlatListViewDeleteSelected);
 
   connect(ui->treeViewTabWidgetIndexTree,
           &QTreeView::customContextMenuRequested, this,
@@ -305,6 +344,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onIndexTreeTreeViewIgnoreSelected);
   connect(ui->actionIndexTreeCreateFilePatch, &QAction::triggered, this,
           &GitRepoContainer::onIndexTreeTreeViewCreateFilePatchSelected);
+  connect(ui->actionIndexTreeDelete, &QAction::triggered, this,
+          &GitRepoContainer::onIndexTreeTreeViewDeleteSelected);
 
   LOG_PERF(0, "Exit")
 }
@@ -734,11 +775,19 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
     return;
   }
 
+  const QStringList files =
+    getSelectedFilesWhichExist(ui->listViewTabWidgetWorkingTreeFlat);
+
   QMenu contextMenu;
   contextMenu.addAction(ui->actionWorkingTreeFlatStage);
-  contextMenu.addAction(ui->actionWorkingTreeFlatIgnore);
-  contextMenu.addSeparator();
-  contextMenu.addAction(ui->actionWorkingTreeFlatCreateFilePatch);
+
+  if (!files.isEmpty()) {
+    contextMenu.addAction(ui->actionWorkingTreeFlatIgnore);
+    contextMenu.addSeparator();
+    contextMenu.addAction(ui->actionWorkingTreeFlatCreateFilePatch);
+    contextMenu.addSeparator();
+    contextMenu.addAction(ui->actionWorkingTreeFlatDelete);
+  }
 
   contextMenu.exec(ui->listViewTabWidgetWorkingTreeFlat->mapToGlobal(pos));
 
@@ -748,14 +797,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
 void GitRepoContainer::onWorkingTreeFlatListViewStageSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
-  const QModelIndexList listIndexes =
-    ui->listViewTabWidgetWorkingTreeFlat->selectionModel()->selectedIndexes();
-
-  QStringList files;
-
-  for (const auto &index : listIndexes) {
-    files += index.data().toString();
-  }
+  const QStringList files =
+    getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -767,14 +810,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewStageSelected(bool checked) {
 void GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
-  const QModelIndexList listIndexes =
-    ui->listViewTabWidgetWorkingTreeFlat->selectionModel()->selectedIndexes();
-
-  QStringList files;
-
-  for (const auto &index : listIndexes) {
-    files += index.data().toString();
-  }
+  const QStringList files =
+    getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -787,18 +824,46 @@ void GitRepoContainer::onWorkingTreeFlatListViewCreateFilePatchSelected(
   bool checked) {
   LOG_PERF(0, "Enter");
 
-  const QModelIndexList listIndexes =
-    ui->listViewTabWidgetWorkingTreeFlat->selectionModel()->selectedIndexes();
-
-  QStringList files;
-
-  for (const auto &index : listIndexes) {
-    files += index.data().toString();
-  }
+  const QStringList files =
+    getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { diffFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected(bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files =
+    getSelectedFilesWhichExist(ui->listViewTabWidgetWorkingTreeFlat);
+
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString question;
+
+  if (files.length() == 1) {
+    question = tr("Are you sure you want to delete the selected file?");
+  } else {
+    question = tr("Are you sure you want to delete the %1 selected files?")
+                 .arg(files.length());
+  }
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { deleteFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -813,11 +878,19 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
     return;
   }
 
+  const QStringList files =
+    getSelectedFilesWhichExist(ui->treeViewTabWidgetWorkingTreeTree);
+
   QMenu contextMenu;
   contextMenu.addAction(ui->actionWorkingTreeTreeStage);
-  contextMenu.addAction(ui->actionWorkingTreeTreeIgnore);
-  contextMenu.addSeparator();
-  contextMenu.addAction(ui->actionWorkingTreeTreeCreateFilePatch);
+
+  if (!files.isEmpty()) {
+    contextMenu.addAction(ui->actionWorkingTreeTreeIgnore);
+    contextMenu.addSeparator();
+    contextMenu.addAction(ui->actionWorkingTreeTreeCreateFilePatch);
+    contextMenu.addSeparator();
+    contextMenu.addAction(ui->actionWorkingTreeTreeDelete);
+  }
 
   contextMenu.exec(ui->treeViewTabWidgetWorkingTreeTree->mapToGlobal(pos));
 
@@ -827,22 +900,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
 void GitRepoContainer::onWorkingTreeTreeTreeViewStageSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
-  const QModelIndexList listIndexes =
-    ui->treeViewTabWidgetWorkingTreeTree->selectionModel()->selectedIndexes();
-
-  QStringList files;
-
-  for (const auto &index : listIndexes) {
-    QModelIndex current = index;
-    QString fullPath = current.data().toString();
-    while (current.parent().isValid()) {
-      fullPath =
-        current.parent().data().toString() + QDir::separator() + fullPath;
-      current = current.parent();
-    };
-
-    files += QDir::fromNativeSeparators(fullPath);
-  }
+  const QStringList files =
+    getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -854,22 +913,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewStageSelected(bool checked) {
 void GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
-  const QModelIndexList listIndexes =
-    ui->treeViewTabWidgetWorkingTreeTree->selectionModel()->selectedIndexes();
-
-  QStringList files;
-
-  for (const auto &index : listIndexes) {
-    QModelIndex current = index;
-    QString fullPath = current.data().toString();
-    while (current.parent().isValid()) {
-      fullPath =
-        current.parent().data().toString() + QDir::separator() + fullPath;
-      current = current.parent();
-    };
-
-    files += QDir::fromNativeSeparators(fullPath);
-  }
+  const QStringList files =
+    getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -882,26 +927,46 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewCreateFilePatchSelected(
   bool checked) {
   LOG_PERF(0, "Enter");
 
-  const QModelIndexList listIndexes =
-    ui->treeViewTabWidgetWorkingTreeTree->selectionModel()->selectedIndexes();
-
-  QStringList files;
-
-  for (const auto &index : listIndexes) {
-    QModelIndex current = index;
-    QString fullPath = current.data().toString();
-    while (current.parent().isValid()) {
-      fullPath =
-        current.parent().data().toString() + QDir::separator() + fullPath;
-      current = current.parent();
-    };
-
-    files += QDir::fromNativeSeparators(fullPath);
-  }
+  const QStringList files =
+    getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { diffFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected(bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files =
+    getSelectedFilesWhichExist(ui->treeViewTabWidgetWorkingTreeTree);
+
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString question;
+
+  if (files.length() == 1) {
+    question = tr("Are you sure you want to delete the selected file?");
+  } else {
+    question = tr("Are you sure you want to delete the %1 selected files?")
+                 .arg(files.length());
+  }
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { deleteFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -916,11 +981,19 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
     return;
   }
 
+  const QStringList files =
+    getSelectedFilesWhichExist(ui->listViewTabWidgetIndexFlat);
+
   QMenu contextMenu;
   contextMenu.addAction(ui->actionIndexFlatUnstage);
-  contextMenu.addAction(ui->actionIndexFlatIgnore);
-  contextMenu.addSeparator();
-  contextMenu.addAction(ui->actionIndexFlatCreateFilePatch);
+
+  if (!files.isEmpty()) {
+    contextMenu.addAction(ui->actionIndexFlatIgnore);
+    contextMenu.addSeparator();
+    contextMenu.addAction(ui->actionIndexFlatCreateFilePatch);
+    contextMenu.addSeparator();
+    contextMenu.addAction(ui->actionIndexFlatDelete);
+  }
 
   contextMenu.exec(ui->listViewTabWidgetIndexFlat->mapToGlobal(pos));
 
@@ -930,14 +1003,7 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
 void GitRepoContainer::onIndexFlatListViewUnstageSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
-  const QModelIndexList listIndexes =
-    ui->listViewTabWidgetIndexFlat->selectionModel()->selectedIndexes();
-
-  QStringList files;
-
-  for (const auto &index : listIndexes) {
-    files += index.data().toString();
-  }
+  const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -949,14 +1015,7 @@ void GitRepoContainer::onIndexFlatListViewUnstageSelected(bool checked) {
 void GitRepoContainer::onIndexFlatListViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
-  const QModelIndexList listIndexes =
-    ui->listViewTabWidgetIndexFlat->selectionModel()->selectedIndexes();
-
-  QStringList files;
-
-  for (const auto &index : listIndexes) {
-    files += index.data().toString();
-  }
+  const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -969,18 +1028,45 @@ void GitRepoContainer::onIndexFlatListViewCreateFilePatchSelected(
   bool checked) {
   LOG_PERF(0, "Enter");
 
-  const QModelIndexList listIndexes =
-    ui->listViewTabWidgetIndexFlat->selectionModel()->selectedIndexes();
-
-  QStringList files;
-
-  for (const auto &index : listIndexes) {
-    files += index.data().toString();
-  }
+  const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { diffFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onIndexFlatListViewDeleteSelected(bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files =
+    getSelectedFilesWhichExist(ui->listViewTabWidgetIndexFlat);
+
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString question;
+
+  if (files.length() == 1) {
+    question = tr("Are you sure you want to delete the selected file?");
+  } else {
+    question = tr("Are you sure you want to delete the %1 selected files?")
+                 .arg(files.length());
+  }
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { deleteFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -995,11 +1081,19 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
     return;
   }
 
+  const QStringList files =
+    getSelectedFilesWhichExist(ui->treeViewTabWidgetIndexTree);
+
   QMenu contextMenu;
   contextMenu.addAction(ui->actionIndexTreeUnstage);
-  contextMenu.addAction(ui->actionIndexTreeIgnore);
-  contextMenu.addSeparator();
-  contextMenu.addAction(ui->actionIndexTreeCreateFilePatch);
+
+  if (!files.isEmpty()) {
+    contextMenu.addAction(ui->actionIndexTreeIgnore);
+    contextMenu.addSeparator();
+    contextMenu.addAction(ui->actionIndexTreeCreateFilePatch);
+    contextMenu.addSeparator();
+    contextMenu.addAction(ui->actionIndexTreeDelete);
+  }
 
   contextMenu.exec(ui->treeViewTabWidgetIndexTree->mapToGlobal(pos));
 
@@ -1009,22 +1103,7 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
 void GitRepoContainer::onIndexTreeTreeViewUnstageSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
-  const QModelIndexList listIndexes =
-    ui->treeViewTabWidgetIndexTree->selectionModel()->selectedIndexes();
-
-  QStringList files;
-
-  for (const auto &index : listIndexes) {
-    QModelIndex current = index;
-    QString fullPath = current.data().toString();
-    while (current.parent().isValid()) {
-      fullPath =
-        current.parent().data().toString() + QDir::separator() + fullPath;
-      current = current.parent();
-    };
-
-    files += QDir::fromNativeSeparators(fullPath);
-  }
+  const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -1036,22 +1115,7 @@ void GitRepoContainer::onIndexTreeTreeViewUnstageSelected(bool checked) {
 void GitRepoContainer::onIndexTreeTreeViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
-  const QModelIndexList listIndexes =
-    ui->treeViewTabWidgetIndexTree->selectionModel()->selectedIndexes();
-
-  QStringList files;
-
-  for (const auto &index : listIndexes) {
-    QModelIndex current = index;
-    QString fullPath = current.data().toString();
-    while (current.parent().isValid()) {
-      fullPath =
-        current.parent().data().toString() + QDir::separator() + fullPath;
-      current = current.parent();
-    };
-
-    files += QDir::fromNativeSeparators(fullPath);
-  }
+  const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -1064,26 +1128,45 @@ void GitRepoContainer::onIndexTreeTreeViewCreateFilePatchSelected(
   bool checked) {
   LOG_PERF(0, "Enter");
 
-  const QModelIndexList listIndexes =
-    ui->treeViewTabWidgetIndexTree->selectionModel()->selectedIndexes();
-
-  QStringList files;
-
-  for (const auto &index : listIndexes) {
-    QModelIndex current = index;
-    QString fullPath = current.data().toString();
-    while (current.parent().isValid()) {
-      fullPath =
-        current.parent().data().toString() + QDir::separator() + fullPath;
-      current = current.parent();
-    };
-
-    files += QDir::fromNativeSeparators(fullPath);
-  }
+  const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { diffFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onIndexTreeTreeViewDeleteSelected(bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files =
+    getSelectedFilesWhichExist(ui->treeViewTabWidgetIndexTree);
+
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString question;
+
+  if (files.length() == 1) {
+    question = tr("Are you sure you want to delete the selected file?");
+  } else {
+    question = tr("Are you sure you want to delete the %1 selected files?")
+                 .arg(files.length());
+  }
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { deleteFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -1289,6 +1372,46 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
       clearSummaryAndDescription();
     }
   });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::deleteFiles(const WeakPtr &guard,
+                                   const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  bool failed = false;
+
+  for (const auto &file : files) {
+    const QString fullPath = QDir(_path).filePath(file);
+    if (QFileInfo(fullPath).isDir()) {
+      QDir dir(fullPath);
+      if (dir.exists()) {
+        if (!dir.removeRecursively()) {
+          failed = true;
+        }
+      }
+
+      continue;
+    }
+
+    if (QFile::exists(fullPath)) {
+      if (!QFile::remove(fullPath)) {
+        failed = true;
+      }
+    }
+  }
+
+  if (failed) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showErrorToast(tr("Failed to delete some files."), tr("Error"));
+    });
+  }
+
+  refreshStatus();
+
+  Util::Dispatcher::dispatchToMainThread(
+    guard, [&]() { simulateClickOnFirstHistoryRow(); });
 
   LOG_PERF(0, "Exit")
 }
@@ -1684,6 +1807,111 @@ GitRepoContainer::getCommitStatus(const WeakPtr &guard,
   LOG_PERF(0, "Exit");
 
   return commitStatus;
+}
+
+QStringList GitRepoContainer::getSelectedFiles(QListView *listView) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(listView != nullptr);
+
+  if (!listView) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QModelIndexList listIndexes =
+    listView->selectionModel()->selectedIndexes();
+
+  QStringList files;
+
+  for (const auto &index : listIndexes) {
+    files += QDir::fromNativeSeparators(index.data().toString());
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return files;
+}
+
+QStringList GitRepoContainer::getSelectedFilesWhichExist(QListView *listView) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(listView != nullptr);
+
+  if (!listView) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QStringList files = getSelectedFiles(listView);
+
+  QStringList filesThatExist;
+
+  for (const auto &file : files) {
+    const QString fullPath = QDir(_path).filePath(file);
+    if (QFileInfo::exists(fullPath)) {
+      filesThatExist += fullPath;
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return filesThatExist;
+}
+
+QStringList GitRepoContainer::getSelectedFiles(QTreeView *treeView) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(treeView != nullptr);
+
+  if (!treeView) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QModelIndexList listIndexes =
+    treeView->selectionModel()->selectedIndexes();
+
+  QStringList files;
+
+  for (const auto &index : listIndexes) {
+    const QStringList traversedFiles =
+      traverseModelIndexSubtree(index, treeView->model());
+
+    for (const auto &traversedFile : traversedFiles) {
+      files += QDir::fromNativeSeparators(traversedFile);
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return files;
+}
+
+QStringList GitRepoContainer::getSelectedFilesWhichExist(QTreeView *treeView) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(treeView != nullptr);
+
+  if (!treeView) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QStringList files = getSelectedFiles(treeView);
+
+  QStringList filesThatExist;
+
+  for (const auto &file : files) {
+    const QString fullPath = QDir(_path).filePath(file);
+    if (QFileInfo::exists(fullPath)) {
+      filesThatExist += fullPath;
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return filesThatExist;
 }
 
 bool GitRepoContainer::getLocalBranches() {
