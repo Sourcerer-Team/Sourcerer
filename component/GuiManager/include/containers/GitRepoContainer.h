@@ -71,7 +71,7 @@ private slots:
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onLocalBranchSelected(const QString &branchName);
   void onRemoteBranchSelected(const QString &branchName);
-  void onRepoDirChanged(const QString& path);
+  void onRepoDirChanged(const QString &path);
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay() const;
   void onGraphColumnExpand(int section);
@@ -131,8 +131,12 @@ private:
   bool getRemoteBranches();
   bool getSubmodules();
   bool getTags();
+  QStringList getSubdirectories(const QString &path,
+                                const QStringList &excluded) const;
+  void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   bool openRepo();
+  void prepareWatcher();
   void prepareWatcher(const WeakPtr &guard);
   bool refreshHistory(const WeakPtr &guard);
   void refreshStatus(const WeakPtr &guard);
@@ -142,7 +146,10 @@ private:
   void resetDisplayTreeExpandedButton();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
+  void stopWatcher();
+  void stopWatcher(const WeakPtr &guard);
   void stretchBranchHistoryTableColumns() const;
+  void showAllWidgets() const;
   void showCommit(const WeakPtr &guard, const QString &commit);
   void showCommitAndMerge(WeakPtr guard);
   void showErrorPage(bool error = true) const;

@@ -132,6 +132,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *header = new ClickableHeaderView(Qt::Horizontal, ui->historyView);
   ui->historyView->setHorizontalHeader(header);
+  ui->historyView->horizontalHeader()->setSectionResizeMode(
+    QHeaderView::Stretch);
   ui->pushButtonAbort->setVisible(false);
   ui->pushButtonCommit->setEnabled(false);
 
@@ -578,6 +580,8 @@ void GitRepoContainer::onCommitButtonClicked() {
 void GitRepoContainer::onCommitAndMergeIndexTreeUnstageAllButtonClicked() {
   LOG_PERF(0, "Enter");
 
+  _commitAndMergeIndexTreeUnstageAllButton->setVisible(false);
+
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { unstageAll(guard); });
@@ -587,6 +591,8 @@ void GitRepoContainer::onCommitAndMergeIndexTreeUnstageAllButtonClicked() {
 
 void GitRepoContainer::onCommitAndMergeWorkingTreeTreeStageAllButtonClicked() {
   LOG_PERF(0, "Enter");
+
+  _commitAndMergeWorkingDirTreeStageAllButton->setVisible(false);
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -685,14 +691,15 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
 void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
-  ui->historyView->setVisible(false);
-
   const qlonglong spinnerOverlayTimerTimeout = _configManager.getLong(
       ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
 
   _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
 
-  checkoutBranch(getSelf().toWeakRef(), branchName, GitRepo::BranchType::Local);
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch(
+    [=]() { checkoutBranch(guard, branchName, GitRepo::BranchType::Local); });
 
   LOG_PERF(0, "Exit");
 }
@@ -700,15 +707,16 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
 void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
-  ui->historyView->setVisible(false);
-
   const qlonglong spinnerOverlayTimerTimeout = _configManager.getLong(
       ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
 
   _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
 
-  checkoutBranch(getSelf().toWeakRef(), branchName,
-                 GitRepo::BranchType::Remote);
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {
+    checkoutBranch(guard, branchName, GitRepo::BranchType::Remote);
+  });
 
   LOG_PERF(0, "Exit");
 }
@@ -733,14 +741,15 @@ void GitRepoContainer::onRepoDirChanged(const QString &path) {
 void GitRepoContainer::onTagSelected(const QString &tagName) {
   LOG_PERF(0, "Enter");
 
-  ui->historyView->setVisible(false);
-
   const qlonglong spinnerOverlayTimerTimeout = _configManager.getLong(
       ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
 
   _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
 
-  checkoutBranch(getSelf().toWeakRef(), tagName, GitRepo::BranchType::Tag);
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch(
+    [=]() { checkoutBranch(guard, tagName, GitRepo::BranchType::Tag); });
 
   LOG_PERF(0, "Exit");
 }
@@ -778,6 +787,25 @@ void GitRepoContainer::restorePreviousSectionWidth() {
   ui->historyView->setColumnWidth(_resizedHeaderSection,
                                   _resizedHeaderSectionPreviousWidth);
   _resizedHeaderSection = -1;
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::stopWatcher()
+{
+  LOG_PERF(0, "Enter");
+
+  _repoDirWatcher->removePaths(_repoDirWatcher->directories());
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::stopWatcher(const WeakPtr &guard) {
+  LOG_PERF(0, "Enter");
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _repoDirWatcher->removePaths(_repoDirWatcher->directories());
+  });
 
   LOG_PERF(0, "Exit");
 }
@@ -1380,6 +1408,8 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
   if (branchName == ALL_BRANCHES) {
     updateModelActiveBranch(guard, branchName, branchType);
   } else {
+    stopWatcher();
+
     const QString eventUuid = Uuid::createUuid();
 
     const int token = _eventManager.startWait();
@@ -1455,6 +1485,8 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       updateModelActiveBranch(guard, branchName, branchType);
     });
+
+    prepareWatcher();
   }
 
   LOG_PERF(0, "Exit");
@@ -1852,7 +1884,6 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _spinnerOverlayTimer->stop();
       showSpinnerOverlay(false);
-      ui->historyView->setVisible(false);
       showErrorPage();
       showErrorToast(QString(tr("Failed to retrieve the history of branch %1."))
                          .arg(_activeBranch),
@@ -1868,7 +1899,6 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _spinnerOverlayTimer->stop();
       showSpinnerOverlay(false);
-      ui->historyView->setVisible(false);
       showErrorToast(QString(tr("Failed to retrieve the history of branch %1."))
                          .arg(_activeBranch),
                      tr("Error"));
@@ -1907,7 +1937,6 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _spinnerOverlayTimer->stop();
       showSpinnerOverlay(false);
-      ui->historyView->setVisible(false);
       showErrorPage();
       showErrorToast(tr("Failed to retrieve the repository status."),
                      tr("Error"));
@@ -1922,7 +1951,6 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _spinnerOverlayTimer->stop();
       showSpinnerOverlay(false);
-      ui->historyView->setVisible(false);
       showErrorToast(tr("Failed to retrieve the repository status."),
                      tr("Error"));
     });
@@ -2382,6 +2410,40 @@ bool GitRepoContainer::getTags() {
   return true;
 }
 
+QStringList GitRepoContainer::getSubdirectories(const QString &path, const QStringList& excluded) const
+{
+  LOG_PERF(0, "Enter");
+
+  QStringList paths;
+
+  paths += path;
+
+  QDirIterator it(path, QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks,
+                  QDirIterator::Subdirectories);
+
+  while (it.hasNext()) {
+    const QString filePath = it.next();
+    const QString relativePath = QDir(_path).relativeFilePath(filePath);
+    if (excluded.contains(relativePath)) {
+      continue;
+    }
+
+    paths += filePath;
+  }
+
+  LOG_PERF(0, "Exit")
+
+  return paths;
+}
+
+void GitRepoContainer::hideAllWidgets() const {
+  LOG_PERF(0, "Enter");
+
+  ui->splitter->hide();
+
+  LOG_PERF(0, "Exit")
+}
+
 void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
                                    const QStringList &files) {
   LOG_PERF(0, "Enter");
@@ -2481,24 +2543,22 @@ bool GitRepoContainer::openRepo() {
   return refreshHistorySuccess;
 }
 
+void GitRepoContainer::prepareWatcher()
+{
+  LOG_PERF(0, "Enter");
+
+  const QStringList paths = getSubdirectories(_path, QStringList() << GIT_SUBDIR);
+
+  _repoDirWatcher->removePaths(_repoDirWatcher->directories());
+  _repoDirWatcher->addPaths(paths);
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
-  QStringList paths;
-  paths += _path;
-
-  QDirIterator it(_path, QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks,
-                  QDirIterator::Subdirectories);
-
-  while (it.hasNext()) {
-    const QString filePath = it.next();
-    const QString relativePath = QDir(_path).relativeFilePath(filePath);
-    if (relativePath == GIT_SUBDIR) {
-      continue;
-    }
-
-    paths += filePath;
-  }
+  const QStringList paths = getSubdirectories(_path, QStringList() << GIT_SUBDIR);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _repoDirWatcher->removePaths(_repoDirWatcher->directories());
@@ -2631,6 +2691,9 @@ void GitRepoContainer::resetDisplayTreeExpandedButton() {
 void GitRepoContainer::stretchBranchHistoryTableColumns() const {
   LOG_PERF(0, "Enter");
 
+  ui->historyView->horizontalHeader()->setSectionResizeMode(
+    QHeaderView::Interactive);
+
   const int totalWidth = ui->historyView->viewport()->width();
   int colSummary = totalWidth / 2;
   if (constexpr int maxSummaryWidth = 600; colSummary > maxSummaryWidth)
@@ -2645,6 +2708,14 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() const {
   ui->historyView->setColumnWidth(3, colOther);
   ui->historyView->setColumnWidth(4, colOther);
   ui->historyView->setColumnWidth(5, colOther);
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::showAllWidgets() const {
+  LOG_PERF(0, "Enter");
+
+  ui->splitter->show();
 
   LOG_PERF(0, "Exit")
 }
@@ -2769,9 +2840,8 @@ void GitRepoContainer::showMainSpinnerPage(const bool spinnerEnabled) const {
 void GitRepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {
   LOG_PERF(0, "Enter");
 
-  ui->historyView->setVisible(!spinnerEnabled);
-
   if (spinnerEnabled) {
+    hideAllWidgets();
     _spinnerOverlay->startSpinning();
     _spinnerOverlay->setText("0%");
     _spinnerOverlay->raise();
@@ -2780,6 +2850,7 @@ void GitRepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {
     _spinnerOverlay->hide();
     _spinnerOverlay->stopSpinning();
     _spinnerOverlay->setText("");
+    showAllWidgets();
   }
 
   LOG_PERF(0, "Exit")
