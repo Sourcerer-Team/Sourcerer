@@ -385,7 +385,7 @@ void GitRepoContainer::init() {
 
   openRepo();
 
-  prepareWatcher(getSelf().toWeakRef());
+  prepareWatcher();
 }
 
 bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
@@ -727,7 +727,7 @@ void GitRepoContainer::onRepoDirChanged(const QString &path) {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    prepareWatcher(guard);
+    prepareWatcher();
 
     refreshStatus(guard);
 
@@ -791,21 +791,13 @@ void GitRepoContainer::restorePreviousSectionWidth() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::stopWatcher()
-{
+void GitRepoContainer::stopWatcher() {
   LOG_PERF(0, "Enter");
 
-  _repoDirWatcher->removePaths(_repoDirWatcher->directories());
-
-  LOG_PERF(0, "Exit");
-}
-
-void GitRepoContainer::stopWatcher(const WeakPtr &guard) {
-  LOG_PERF(0, "Enter");
-
-  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _repoDirWatcher->removePaths(_repoDirWatcher->directories());
-  });
+  const QStringList paths = _repoDirWatcher->directories();
+  if (!paths.isEmpty()) {
+    _repoDirWatcher->removePaths(paths);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2410,8 +2402,9 @@ bool GitRepoContainer::getTags() {
   return true;
 }
 
-QStringList GitRepoContainer::getSubdirectories(const QString &path, const QStringList& excluded) const
-{
+QStringList
+GitRepoContainer::getSubdirectories(const QString &path,
+                                    const QStringList &excluded) const {
   LOG_PERF(0, "Enter");
 
   QStringList paths;
@@ -2543,27 +2536,18 @@ bool GitRepoContainer::openRepo() {
   return refreshHistorySuccess;
 }
 
-void GitRepoContainer::prepareWatcher()
-{
+void GitRepoContainer::prepareWatcher() {
   LOG_PERF(0, "Enter");
 
-  const QStringList paths = getSubdirectories(_path, QStringList() << GIT_SUBDIR);
-
-  _repoDirWatcher->removePaths(_repoDirWatcher->directories());
-  _repoDirWatcher->addPaths(paths);
-
-  LOG_PERF(0, "Exit");
-}
-
-void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
-  LOG_PERF(0, "Enter");
-
-  const QStringList paths = getSubdirectories(_path, QStringList() << GIT_SUBDIR);
-
-  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+  const QStringList watchedPaths = _repoDirWatcher->directories();
+  if (!watchedPaths.isEmpty()) {
     _repoDirWatcher->removePaths(_repoDirWatcher->directories());
-    _repoDirWatcher->addPaths(paths);
-  });
+  }
+
+  const QStringList paths =
+    getSubdirectories(_path, QStringList() << GIT_SUBDIR);
+
+  _repoDirWatcher->addPaths(paths);
 
   LOG_PERF(0, "Exit");
 }

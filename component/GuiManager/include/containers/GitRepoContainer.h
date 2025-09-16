@@ -137,7 +137,6 @@ private:
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   bool openRepo();
   void prepareWatcher();
-  void prepareWatcher(const WeakPtr &guard);
   bool refreshHistory(const WeakPtr &guard);
   void refreshStatus(const WeakPtr &guard);
   void resetCommitAndMergeIndexTreeUnstageAllButton();
@@ -147,7 +146,6 @@ private:
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
   void stopWatcher();
-  void stopWatcher(const WeakPtr &guard);
   void stretchBranchHistoryTableColumns() const;
   void showAllWidgets() const;
   void showCommit(const WeakPtr &guard, const QString &commit);
