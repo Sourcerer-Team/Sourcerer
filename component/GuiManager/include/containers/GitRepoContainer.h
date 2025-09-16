@@ -14,6 +14,7 @@
 
 #include <QCheckBox>
 #include <QEnableSharedFromThis>
+#include <QFileSystemWatcher>
 #include <QItemSelection>
 #include <QListView>
 #include <QPushButton>
@@ -70,6 +71,7 @@ private slots:
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onLocalBranchSelected(const QString &branchName);
   void onRemoteBranchSelected(const QString &branchName);
+  void onRepoDirChanged(const QString& path);
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay() const;
   void onGraphColumnExpand(int section);
@@ -131,8 +133,9 @@ private:
   bool getTags();
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   bool openRepo();
+  void prepareWatcher(const WeakPtr &guard);
   bool refreshHistory(const WeakPtr &guard);
-  void refreshStatus();
+  void refreshStatus(const WeakPtr &guard);
   void resetCommitAndMergeIndexTreeUnstageAllButton();
   void resetCommitAndMergeWorkingTreeTreeStageAllButton();
   void resetCommitButton();
@@ -147,6 +150,7 @@ private:
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message, const QString &title);
   void showErrorToast(const QString &message, const QString &title);
+  void simulateClickOnCurrentHistoryRow() const;
   void simulateClickOnFirstHistoryRow() const;
   void stageAll(const WeakPtr &guard);
   void stageFiles(const WeakPtr &guard, const QStringList &files);
@@ -207,6 +211,8 @@ private:
   QSharedPointer<Models::GitCommitTreeModel> _commitTreeModel;
   QSharedPointer<Models::GitCommitListModel> _commitStagedListModel;
   QSharedPointer<Models::GitCommitTreeModel> _commitStagedTreeModel;
+
+  QFileSystemWatcher *_repoDirWatcher;
 };
 
 } // namespace GuiManager::Containers

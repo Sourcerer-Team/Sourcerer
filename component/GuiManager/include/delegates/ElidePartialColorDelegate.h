@@ -102,6 +102,24 @@ public:
 
         if (i > separatorIndex) {
           separatorIndex = i;
+        } else {
+          int i = separatorIndex;
+
+          while (i >= 0 && elided[i] != QDir::separator()) {
+            --i;
+          };
+
+          const QString leftOfElideSymbol = elided.mid(i < 0    ? 0
+                                                        : i == 0 ? 0
+                                                           : i + 1,
+                                                  separatorIndex - i - 1);
+          const QString rightOfElideSymbol = elided.mid(separatorIndex + 1);
+          const QString fileName = QFileInfo(fullText).fileName();
+
+          if (fileName.startsWith(leftOfElideSymbol) &&
+              fileName.endsWith(rightOfElideSymbol)) {
+            separatorIndex = i;
+          }
         }
 
         prefix = elided.left(separatorIndex + 1);

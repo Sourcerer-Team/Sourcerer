@@ -15,6 +15,7 @@
 #include <Uuid.h>
 
 #include <QCheckBox>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileDialog>
 #include <QMenu>
@@ -40,6 +41,8 @@
 #define MAX_COMMIT_SHA_LENGTH 6
 
 #define IGNORE_FILENAME ".gitignore"
+
+#define GIT_SUBDIR ".git"
 
 using namespace GuiManager::Widgets;
 using namespace GitRepoManager::Structs;
@@ -100,7 +103,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
     _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
     _displayTreeExpanded(false), _commitListModel(nullptr),
-    _commitTreeModel(nullptr) {
+    _commitTreeModel(nullptr), _repoDirWatcher(new QFileSystemWatcher(this)) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -355,6 +358,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(ui->actionIndexTreeDiscard, &QAction::triggered, this,
           &GitRepoContainer::onIndexTreeTreeViewDiscardSelected);
 
+  connect(_repoDirWatcher, &QFileSystemWatcher::directoryChanged, this,
+          &GitRepoContainer::onRepoDirChanged);
+
   LOG_PERF(0, "Exit")
 }
 
@@ -367,6 +373,7 @@ GitRepoContainer::~GitRepoContainer() {
   _historyModel->quitUpdate();
 
   delete _errorPixmap;
+  delete _repoDirWatcher;
 
   LOG_PERF(0, "Exit")
 }
@@ -375,6 +382,8 @@ void GitRepoContainer::init() {
   ContainerWidget::init();
 
   openRepo();
+
+  prepareWatcher(getSelf().toWeakRef());
 }
 
 bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
@@ -700,6 +709,23 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
 
   checkoutBranch(getSelf().toWeakRef(), branchName,
                  GitRepo::BranchType::Remote);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onRepoDirChanged(const QString &path) {
+  LOG_PERF(0, "Enter");
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {
+    prepareWatcher(guard);
+
+    refreshStatus(guard);
+
+    Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() { simulateClickOnFirstHistoryRow(); });
+  });
 
   LOG_PERF(0, "Exit");
 }
@@ -1554,7 +1580,7 @@ void GitRepoContainer::deleteFiles(const WeakPtr &guard,
     });
   }
 
-  refreshStatus();
+  refreshStatus(guard);
 
   Util::Dispatcher::dispatchToMainThread(
     guard, [&]() { simulateClickOnFirstHistoryRow(); });
@@ -2393,7 +2419,7 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
 
   file.close();
 
-  refreshStatus();
+  refreshStatus(guard);
 
   Util::Dispatcher::dispatchToMainThread(
     guard, [&]() { simulateClickOnFirstHistoryRow(); });
@@ -2455,6 +2481,33 @@ bool GitRepoContainer::openRepo() {
   return refreshHistorySuccess;
 }
 
+void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
+  LOG_PERF(0, "Enter");
+
+  QStringList paths;
+  paths += _path;
+
+  QDirIterator it(_path, QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks,
+                  QDirIterator::Subdirectories);
+
+  while (it.hasNext()) {
+    const QString filePath = it.next();
+    const QString relativePath = QDir(_path).relativeFilePath(filePath);
+    if (relativePath == GIT_SUBDIR) {
+      continue;
+    }
+
+    paths += filePath;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _repoDirWatcher->removePaths(_repoDirWatcher->directories());
+    _repoDirWatcher->addPaths(paths);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
 bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
@@ -2480,7 +2533,7 @@ bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
   return ok;
 }
 
-void GitRepoContainer::refreshStatus() {
+void GitRepoContainer::refreshStatus(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
   const QString statusEventUuid = Uuid::createUuid();
@@ -2502,8 +2555,6 @@ void GitRepoContainer::refreshStatus() {
 
   const auto &[statusSuccess, statusResultEvent] =
     _eventManager.waitForAnswer(statusToken, statusEventUuid, statusTypes);
-
-  const WeakPtr &guard = getSelf().toWeakRef();
 
   if (!statusSuccess) {
     closeRepo();
@@ -2757,6 +2808,19 @@ void GitRepoContainer::showErrorToast(const QString &message,
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::simulateClickOnCurrentHistoryRow() const {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndex index = ui->historyView->currentIndex();
+  ui->historyView->selectionModel()->select(
+    index, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+  ui->historyView->setCurrentIndex(index);
+
+  ui->historyView->setFocus();
+
+  LOG_PERF(0, "Exit")
+}
+
 void GuiManager::Containers::GitRepoContainer::simulateClickOnFirstHistoryRow()
   const {
   LOG_PERF(0, "Enter");
@@ -2846,7 +2910,7 @@ void GitRepoContainer::stageFiles(const WeakPtr &guard,
   const auto commandResult = event.data<GitRepoResult>();
   const bool stageAllSuccess = commandResult.value.toBool();
 
-  refreshStatus();
+  refreshStatus(guard);
 
   if (!stageAllSuccess) {
 
@@ -2940,7 +3004,7 @@ void GitRepoContainer::unstageFiles(const WeakPtr &guard,
   const auto commandResult = event.data<GitRepoResult>();
   const bool unstageAllSuccess = commandResult.value.toBool();
 
-  refreshStatus();
+  refreshStatus(guard);
 
   if (!unstageAllSuccess) {
 
