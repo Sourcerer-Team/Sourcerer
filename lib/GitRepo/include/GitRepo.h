@@ -149,5 +149,6 @@ bool commitStaged(git_repository *repo, const QString &summary,
                   const QString &message, const QString &author,
                   const QString &email);
 QString diffFiles(git_repository *repo, const QStringList &files);
+bool discardFiles(git_repository *repo, const QStringList &files);
 
 } // namespace GitRepo

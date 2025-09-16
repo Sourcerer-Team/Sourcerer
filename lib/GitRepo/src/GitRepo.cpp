@@ -1818,68 +1818,10 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
 GitStatus getStatus(git_repository *repo) {
   LOG_PERF(0, "Enter");
 
-  struct Payload {
-    GitStatus status;
-    QString repoPath;
-  };
+  GitStatus status;
 
   const QString repoPath =
     QDir::fromNativeSeparators(git_repository_workdir(repo));
-
-  const auto callback = [](const char *path, unsigned int status_flags,
-                           void *payload) -> int {
-    auto *payload_ = static_cast<Payload *>(payload);
-
-    Q_ASSERT(payload_ != nullptr);
-
-    if (!payload_) {
-      return 0;
-    }
-
-    const QString filePath = QDir::fromNativeSeparators(path);
-    const QString fullPath = payload_->repoPath + filePath;
-
-    if (QFileInfo(fullPath).isDir()) {
-      if (QDir(fullPath)
-            .entryList(QDir::Files | QDir::AllDirs | QDir::NoDotAndDotDot)
-            .isEmpty()) {
-        // Skip empty directories
-        return 0;
-      }
-    }
-
-    if ((status_flags & GIT_STATUS_WT_NEW) != 0) {
-      payload_->status.newFiles += filePath;
-    } else if ((status_flags & GIT_STATUS_WT_MODIFIED) != 0) {
-      payload_->status.modifiedFiles += filePath;
-    } else if ((status_flags & GIT_STATUS_WT_DELETED) != 0) {
-      payload_->status.deletedFiles += filePath;
-    } else if ((status_flags & GIT_STATUS_WT_TYPECHANGE) != 0) {
-      payload_->status.typeChangedFiles += filePath;
-    } else if ((status_flags & GIT_STATUS_WT_RENAMED) != 0) {
-      payload_->status.renamedFiles += filePath;
-    } else if ((status_flags & GIT_STATUS_WT_UNREADABLE) != 0) {
-      payload_->status.unreadableFiles += filePath;
-    } else if ((status_flags & GIT_STATUS_INDEX_NEW) != 0) {
-      payload_->status.newStagedFiles += filePath;
-    } else if ((status_flags & GIT_STATUS_INDEX_MODIFIED) != 0) {
-      payload_->status.modifiedStagedFiles += filePath;
-    } else if ((status_flags & GIT_STATUS_INDEX_DELETED) != 0) {
-      payload_->status.modifiedStagedFiles += filePath;
-    } else if ((status_flags & GIT_STATUS_INDEX_TYPECHANGE) != 0) {
-      payload_->status.typeChangedStagedFiles += filePath;
-    } else if ((status_flags & GIT_STATUS_INDEX_RENAMED) != 0) {
-      payload_->status.renamedStagedFiles += filePath;
-    } else if ((status_flags & GIT_STATUS_IGNORED) != 0) {
-      payload_->status.ignoredFiles += filePath;
-    } else if ((status_flags & GIT_STATUS_CONFLICTED) != 0) {
-      payload_->status.conflictedFiles += filePath;
-    }
-
-    return 0;
-  };
-
-  Payload payload{{}, repoPath};
 
   git_status_options opts;
   git_status_options_init(&opts, GIT_STATUS_OPTIONS_VERSION);
@@ -1887,20 +1829,115 @@ GitStatus getStatus(git_repository *repo) {
   opts.flags =
     GIT_STATUS_OPT_INCLUDE_UNTRACKED | GIT_STATUS_OPT_RECURSE_UNTRACKED_DIRS |
                GIT_STATUS_OPT_INCLUDE_IGNORED | GIT_STATUS_OPT_RENAMES_HEAD_TO_INDEX |
-               GIT_STATUS_OPT_EXCLUDE_SUBMODULES |
-               GIT_STATUS_OPT_DISABLE_PATHSPEC_MATCH |
                GIT_STATUS_OPT_SORT_CASE_SENSITIVELY | GIT_STATUS_OPT_INCLUDE_UNREADABLE;
 
-  int error = git_status_foreach_ext(repo, &opts, callback, &payload);
+  git_status_list *statusList = nullptr;
+
+  int error = git_status_list_new(&statusList, repo, &opts);
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
     return {};
   }
 
+  size_t count = git_status_list_entrycount(statusList);
+
+  for (size_t i = 0; i < count; ++i) {
+    const git_status_entry *entry = git_status_byindex(statusList, i);
+
+    Q_ASSERT(entry != nullptr);
+
+    if (!entry) {
+      continue;
+    }
+
+    const char *filePath =
+      entry->head_to_index      ? entry->head_to_index->new_file.path
+                           : entry->index_to_workdir ? entry->index_to_workdir->new_file.path
+                                                     : nullptr;
+
+    Q_ASSERT(filePath != nullptr);
+
+    if (!filePath) {
+      continue;
+    }
+
+    QString unixFilePath = QDir::fromNativeSeparators(filePath);
+    const QString fullPath = repoPath + unixFilePath;
+
+    if (QFileInfo(fullPath).isDir()) {
+      if (QDir(fullPath)
+            .entryList(QDir::Files | QDir::AllDirs | QDir::NoDotAndDotDot)
+            .isEmpty()) {
+        // Skip empty directories
+        continue;
+      }
+    }
+
+    if (unixFilePath.endsWith('/')) {
+      unixFilePath = unixFilePath.left(unixFilePath.length() - 1);
+    }
+
+    const unsigned int status_flags = entry->status;
+
+    if ((status_flags & GIT_STATUS_WT_NEW) != 0) {
+      status.newFiles += unixFilePath;
+    }
+
+    if ((status_flags & GIT_STATUS_WT_MODIFIED) != 0) {
+      status.modifiedFiles += unixFilePath;
+    }
+
+    if ((status_flags & GIT_STATUS_WT_DELETED) != 0) {
+      status.deletedFiles += unixFilePath;
+    }
+
+    if ((status_flags & GIT_STATUS_WT_TYPECHANGE) != 0) {
+      status.typeChangedFiles += unixFilePath;
+    }
+
+    if ((status_flags & GIT_STATUS_WT_RENAMED) != 0) {
+      status.renamedFiles += unixFilePath;
+    }
+
+    if ((status_flags & GIT_STATUS_WT_UNREADABLE) != 0) {
+      status.unreadableFiles += unixFilePath;
+    }
+
+    if ((status_flags & GIT_STATUS_INDEX_NEW) != 0) {
+      status.newStagedFiles += unixFilePath;
+    }
+
+    if ((status_flags & GIT_STATUS_INDEX_MODIFIED) != 0) {
+      status.modifiedStagedFiles += unixFilePath;
+    }
+
+    if ((status_flags & GIT_STATUS_INDEX_DELETED) != 0) {
+      status.modifiedStagedFiles += unixFilePath;
+    }
+
+    if ((status_flags & GIT_STATUS_INDEX_TYPECHANGE) != 0) {
+      status.typeChangedStagedFiles += unixFilePath;
+    }
+
+    if ((status_flags & GIT_STATUS_INDEX_RENAMED) != 0) {
+      status.renamedStagedFiles += unixFilePath;
+    }
+
+    if ((status_flags & GIT_STATUS_IGNORED) != 0) {
+      status.ignoredFiles += unixFilePath;
+    }
+
+    if ((status_flags & GIT_STATUS_CONFLICTED) != 0) {
+      status.conflictedFiles += unixFilePath;
+    }
+  }
+
+  git_status_list_free(statusList);
+
   LOG_PERF(0, "Exit");
 
-  return payload.status;
+  return status;
 }
 
 GitCommitStatus getCommitStatus(git_repository *repo,
@@ -2036,44 +2073,8 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
     return false;
   }
 
-  QStringList filesForStaging = files;
   const QString repoPath = git_repository_workdir(repo);
-
-  for (const auto &filePath : filesForStaging) {
-    const QString unixFilePath = QDir::fromNativeSeparators(filePath);
-    const QString fullPath = repoPath + unixFilePath;
-
-    if (!QFileInfo::exists(fullPath)) {
-      // Stage deleted files
-      continue;
-    }
-
-    if (!QFileInfo(fullPath).isDir()) {
-      continue;
-    }
-
-    const QDir dir(fullPath);
-    if (!dir.exists()) {
-      continue;
-    }
-
-    const QStringList dirFiles = dir.entryList(
-      QDir::Files | QDir::NoDotAndDotDot | QDir::AllDirs, QDir::Name);
-    for (const auto &dirFile : dirFiles) {
-      QString absolutePath = dir.absoluteFilePath(dirFile);
-      if (!filesForStaging.contains(absolutePath)) {
-        filesForStaging.append(absolutePath);
-      }
-    }
-  }
-
-  filesForStaging.removeIf([&](const QString &filePath) {
-    const QString unixFilePath = QDir::fromNativeSeparators(filePath);
-    const QString fullPath = repoPath + unixFilePath;
-    return QFileInfo(fullPath).isDir();
-  });
-
-  for (const auto &filePath : filesForStaging) {
+  for (const auto &filePath : files) {
     const QString unixFilePath = QDir::fromNativeSeparators(filePath);
     const QString fullPath = repoPath + unixFilePath;
     const QString relativePath = QDir(repoPath).relativeFilePath(fullPath);
@@ -2349,6 +2350,117 @@ QString diffFiles(git_repository *repo, const QStringList &files) {
   LOG_PERF(0, "Exit");
 
   return diffOutput;
+}
+
+bool discardFiles(git_repository *repo, const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  for (const auto &file : files) {
+    git_object *headTree = nullptr;
+    git_tree *tree = nullptr;
+    git_index *index = nullptr;
+    git_tree_entry *entry = nullptr;
+    git_blob *blob = nullptr;
+
+    int error = git_revparse_single(&headTree, repo, "HEAD^{tree}");
+    if (error) {
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    error = git_tree_lookup(&tree, repo, git_object_id(headTree));
+    if (error) {
+      logGitError(error);
+      git_object_free(headTree);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_object_free(headTree);
+
+    error = git_tree_entry_bypath(&entry, tree, file.toStdString().c_str());
+    if (error) {
+      // File might be untracked, continue
+      git_tree_free(tree);
+      continue;
+    }
+
+    error = git_blob_lookup(&blob, repo, git_tree_entry_id(entry));
+    if (error) {
+      logGitError(error);
+      git_tree_free(tree);
+      git_tree_entry_free(entry);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    error = git_repository_index(&index, repo);
+    if (error) {
+      logGitError(error);
+      git_tree_free(tree);
+      git_tree_entry_free(entry);
+      git_blob_free(blob);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    const std::string filePath = file.toStdString();
+
+    git_index_entry newEntry = {};
+    newEntry.mode = git_tree_entry_filemode(entry);
+    newEntry.id = *git_tree_entry_id(entry);
+    newEntry.path = filePath.c_str();
+
+    error = git_index_add(index, &newEntry);
+    if (error) {
+      logGitError(error);
+      git_tree_free(tree);
+      git_tree_entry_free(entry);
+      git_blob_free(blob);
+      git_index_free(index);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    error = git_index_write(index);
+    if (error) {
+      logGitError(error);
+      git_tree_free(tree);
+      git_tree_entry_free(entry);
+      git_blob_free(blob);
+      git_index_free(index);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_blob_free(blob);
+    git_index_free(index);
+    git_tree_free(tree);
+    git_tree_entry_free(entry);
+    git_object_free(headTree);
+
+    git_strarray arr = qstringlist_to_git_strarray(QStringList() << file);
+
+    git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
+    opts.checkout_strategy =
+      GIT_CHECKOUT_FORCE | GIT_CHECKOUT_DISABLE_PATHSPEC_MATCH;
+    opts.paths = arr;
+
+    error = git_checkout_index(repo, nullptr, &opts);
+    if (error) {
+      logGitError(error);
+      git_strarray_destroy(arr);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_strarray_destroy(arr);
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return true;
 }
 
 } // namespace GitRepo

@@ -307,6 +307,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onWorkingTreeFlatListViewCreateFilePatchSelected);
   connect(ui->actionWorkingTreeFlatDelete, &QAction::triggered, this,
           &GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected);
+  connect(ui->actionWorkingTreeFlatDiscard, &QAction::triggered, this,
+          &GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected);
 
   connect(ui->treeViewTabWidgetWorkingTreeTree,
           &QTreeView::customContextMenuRequested, this,
@@ -320,6 +322,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onWorkingTreeTreeTreeViewCreateFilePatchSelected);
   connect(ui->actionWorkingTreeTreeDelete, &QAction::triggered, this,
           &GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected);
+  connect(ui->actionWorkingTreeTreeDiscard, &QAction::triggered, this,
+          &GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected);
 
   connect(ui->listViewTabWidgetIndexFlat,
           &QListView::customContextMenuRequested, this,
@@ -333,6 +337,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onIndexFlatListViewCreateFilePatchSelected);
   connect(ui->actionIndexFlatDelete, &QAction::triggered, this,
           &GitRepoContainer::onIndexFlatListViewDeleteSelected);
+  connect(ui->actionIndexFlatDiscard, &QAction::triggered, this,
+          &GitRepoContainer::onIndexFlatListViewDiscardSelected);
 
   connect(ui->treeViewTabWidgetIndexTree,
           &QTreeView::customContextMenuRequested, this,
@@ -346,6 +352,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onIndexTreeTreeViewCreateFilePatchSelected);
   connect(ui->actionIndexTreeDelete, &QAction::triggered, this,
           &GitRepoContainer::onIndexTreeTreeViewDeleteSelected);
+  connect(ui->actionIndexTreeDiscard, &QAction::triggered, this,
+          &GitRepoContainer::onIndexTreeTreeViewDiscardSelected);
 
   LOG_PERF(0, "Exit")
 }
@@ -780,6 +788,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
 
   QMenu contextMenu;
   contextMenu.addAction(ui->actionWorkingTreeFlatStage);
+  contextMenu.addAction(ui->actionWorkingTreeFlatDiscard);
 
   if (!files.isEmpty()) {
     contextMenu.addAction(ui->actionWorkingTreeFlatIgnore);
@@ -868,6 +877,40 @@ void GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected(bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files =
+    getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
+
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString question;
+
+  if (files.length() == 1) {
+    question = tr("Are you sure you want to discard the selected file?");
+  } else {
+    question = tr("Are you sure you want to discard the %1 selected files?")
+                 .arg(files.length());
+  }
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { discardFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
   const QPoint &pos) {
   LOG_PERF(0, "Enter");
@@ -883,6 +926,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
 
   QMenu contextMenu;
   contextMenu.addAction(ui->actionWorkingTreeTreeStage);
+  contextMenu.addAction(ui->actionWorkingTreeTreeDiscard);
 
   if (!files.isEmpty()) {
     contextMenu.addAction(ui->actionWorkingTreeTreeIgnore);
@@ -971,6 +1015,40 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected(bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files =
+    getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
+
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString question;
+
+  if (files.length() == 1) {
+    question = tr("Are you sure you want to discard the selected file?");
+  } else {
+    question = tr("Are you sure you want to discard the %1 selected files?")
+                 .arg(files.length());
+  }
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { discardFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
   const QPoint &pos) {
   LOG_PERF(0, "Enter");
@@ -986,6 +1064,7 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
 
   QMenu contextMenu;
   contextMenu.addAction(ui->actionIndexFlatUnstage);
+  contextMenu.addAction(ui->actionIndexFlatDiscard);
 
   if (!files.isEmpty()) {
     contextMenu.addAction(ui->actionIndexFlatIgnore);
@@ -1071,6 +1150,39 @@ void GitRepoContainer::onIndexFlatListViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onIndexFlatListViewDiscardSelected(bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
+
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString question;
+
+  if (files.length() == 1) {
+    question = tr("Are you sure you want to discard the selected file?");
+  } else {
+    question = tr("Are you sure you want to discard the %1 selected files?")
+                 .arg(files.length());
+  }
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { discardFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
   const QPoint &pos) {
   LOG_PERF(0, "Enter");
@@ -1086,6 +1198,7 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
 
   QMenu contextMenu;
   contextMenu.addAction(ui->actionIndexTreeUnstage);
+  contextMenu.addAction(ui->actionIndexTreeDiscard);
 
   if (!files.isEmpty()) {
     contextMenu.addAction(ui->actionIndexTreeIgnore);
@@ -1167,6 +1280,39 @@ void GitRepoContainer::onIndexTreeTreeViewDeleteSelected(bool checked) {
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { deleteFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
+
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString question;
+
+  if (files.length() == 1) {
+    question = tr("Are you sure you want to discard the selected file?");
+  } else {
+    question = tr("Are you sure you want to discard the %1 selected files?")
+                 .arg(files.length());
+  }
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { discardFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -1491,6 +1637,71 @@ void GitRepoContainer::diffFiles(const WeakPtr &guard,
 
     file.close();
   });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::discardFiles(const WeakPtr &guard,
+                                    const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoDiscardFilesCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.files = files;
+
+  EventManager::Event discardFilesEvent(
+    EventManager::EventType::GitRepoManagerDiscardFiles, eventUuid);
+  discardFilesEvent.addData(command);
+  _eventManager.send(discardFilesEvent);
+
+  static std::set types = {
+                           EventManager::EventType::GitRepoManagerDiscardFilesError,
+    EventManager::EventType::GitRepoManagerDiscardFilesResult};
+
+  const auto &[success, event] =
+    _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
+      showErrorToast(tr("Failed to discard file."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerDiscardFilesResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorToast(tr("Failed to discard file."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool discarded = commandResult.value.toBool();
+
+  if (!discarded) {
+    Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { showToast(tr("Failed to discard file."), tr("Info")); });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshStatus();
+
+  Util::Dispatcher::dispatchToMainThread(
+    guard, [&]() { simulateClickOnFirstHistoryRow(); });
 
   LOG_PERF(0, "Exit")
 }

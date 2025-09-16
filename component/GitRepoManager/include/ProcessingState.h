@@ -33,6 +33,7 @@ private:
   void destroyContext(const QString &uuid);
   void destroyContextsMap();
   void diffFilesWorker(const Structs::GitRepoDiffFilesCommand &command);
+  void discardFilesWorker(const Structs::GitRepoDiscardFilesCommand &command);
   void eventCallback(const EventManager::Event event);
   void
   getActiveBranchWorker(const Structs::GitRepoGetActiveBranchCommand &command);
@@ -79,6 +80,8 @@ private:
       const Structs::GitRepoGetCommitStatusCommand &command);
   void
   scheduleWorkerForDiffFiles(const Structs::GitRepoDiffFilesCommand &command);
+  void scheduleWorkerForDiscardFiles(
+    const Structs::GitRepoDiscardFilesCommand &command);
   void scheduleWorkerForGetBranchHistory(
       const Structs::GitRepoGetBranchHistoryCommand &command);
   void

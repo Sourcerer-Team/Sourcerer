@@ -104,8 +104,7 @@ GitCommitTreeModel::from(const GitRepo::GitCommitStatus &commitStatus) {
   return model.take();
 }
 
-GitCommitTreeModel *GitCommitTreeModel::from(const GitRepo::GitStatus &status)
-{
+GitCommitTreeModel *GitCommitTreeModel::from(const GitRepo::GitStatus &status) {
   LOG_PERF(0, "Enter");
 
   QList<GitCommitListModification> modifications;
@@ -169,6 +168,9 @@ GitCommitTreeModel *GitCommitTreeModel::from(const GitRepo::GitStatus &status)
     QStandardItem *parent = model->invisibleRootItem();
     const auto parts = modification._filePath.split(QDir::separator());
     for (const QString &part : parts) {
+      if (part.isEmpty()) {
+        continue;
+      }
       // Check if child already exists
       bool found = false;
       for (int i = 0; i < parent->rowCount(); ++i) {
@@ -194,8 +196,8 @@ GitCommitTreeModel *GitCommitTreeModel::from(const GitRepo::GitStatus &status)
   return model.take();
 }
 
-GitCommitTreeModel *GitCommitTreeModel::fromStaged(const GitRepo::GitStatus &status)
-{
+GitCommitTreeModel *
+GitCommitTreeModel::fromStaged(const GitRepo::GitStatus &status) {
   LOG_PERF(0, "Enter");
 
   QList<GitCommitListModification> modifications;
@@ -252,6 +254,9 @@ GitCommitTreeModel *GitCommitTreeModel::fromStaged(const GitRepo::GitStatus &sta
     QStandardItem *parent = model->invisibleRootItem();
     const auto parts = modification._filePath.split(QDir::separator());
     for (const QString &part : parts) {
+      if (part.isEmpty()) {
+        continue;
+      }
       // Check if child already exists
       bool found = false;
       for (int i = 0; i < parent->rowCount(); ++i) {

@@ -101,6 +101,17 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForCommitStagedRepo(commitStagedCommand);
     break;
   }
+  case EventType::DiffFiles: {
+    const auto diffFilesCommand = event.nextParam<GitRepoDiffFilesCommand>();
+    scheduleWorkerForDiffFiles(diffFilesCommand);
+    break;
+  }
+  case EventType::DiscardFiles: {
+    const auto discardFilesCommand =
+      event.nextParam<GitRepoDiscardFilesCommand>();
+    scheduleWorkerForDiscardFiles(discardFilesCommand);
+    break;
+  }
   case EventType::GetActiveBranch: {
     const auto getActiveBranchCommand =
         event.nextParam<GitRepoGetActiveBranchCommand>();
@@ -135,11 +146,6 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     const auto commitStatusCommand =
         event.nextParam<GitRepoGetCommitStatusCommand>();
     scheduleWorkerForGetCommitStatus(commitStatusCommand);
-    break;
-  }
-  case EventType::DiffFiles: {
-    const auto diffFilesCommand = event.nextParam<GitRepoDiffFilesCommand>();
-    scheduleWorkerForDiffFiles(diffFilesCommand);
     break;
   }
   case EventType::Init: {
@@ -516,6 +522,36 @@ void ProcessingState::diffFilesWorker(
   EventManager::Event resultEvent(
     EventManager::EventType::GitRepoManagerDiffFilesResult, command.syncUuid);
   resultEvent.addData(GitRepoResult{command.uuid, command.type, diff});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::discardFilesWorker(
+  const Structs::GitRepoDiscardFilesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerDiscardFilesError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::discardFiles(repo, command.files);
+
+  EventManager::Event resultEvent(
+    EventManager::EventType::GitRepoManagerDiscardFilesResult,
+    command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
   _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
@@ -1520,6 +1556,25 @@ void ProcessingState::scheduleWorkerForDiffFiles(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForDiscardFiles(
+  const Structs::GitRepoDiscardFilesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerDiscardFilesError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoDiscardFilesCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForGetBranchHistory(
     const Structs::GitRepoGetBranchHistoryCommand &command) {
   LOG_PERF(0, "Enter");
@@ -1698,6 +1753,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
         dynamic_cast<const GitRepoDiffFilesCommand *>(command);
       if (diffFilesCommand) {
         diffFilesWorker(*diffFilesCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::DiscardFiles: {
+      const auto discardFilesCommand =
+        dynamic_cast<const GitRepoDiscardFilesCommand *>(command);
+      if (discardFilesCommand) {
+        discardFilesWorker(*discardFilesCommand);
       }
       break;
     }

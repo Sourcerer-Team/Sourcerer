@@ -20,6 +20,7 @@ enum class GitRepoCommandType : int {
   Close,
   CommitStaged,
   DiffFiles,
+  DiscardFiles,
   GetActiveBranch,
   GetBranchHistory,
   GetCommitBranches,
@@ -98,9 +99,16 @@ struct GitRepoCommitStagedCommand final : GitRepoCommand {
 };
 
 struct GitRepoDiffFilesCommand final : GitRepoCommand {
-  GitRepoDiffFilesCommand()
-      : GitRepoCommand(GitRepoCommandType::DiffFiles) {}
+  GitRepoDiffFilesCommand() : GitRepoCommand(GitRepoCommandType::DiffFiles) {}
   ~GitRepoDiffFilesCommand() override = default;
+
+  QStringList files;
+};
+
+struct GitRepoDiscardFilesCommand final : GitRepoCommand {
+  GitRepoDiscardFilesCommand()
+      : GitRepoCommand(GitRepoCommandType::DiscardFiles) {}
+  ~GitRepoDiscardFilesCommand() override = default;
 
   QStringList files;
 };

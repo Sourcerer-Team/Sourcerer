@@ -14,6 +14,7 @@ enum class EventType : int {
   CloseRepo,
   CommitStaged,
   DiffFiles,
+  DiscardFiles,
   GetActiveBranch,
   GetBranchHistory,
   GetCommitBranches,

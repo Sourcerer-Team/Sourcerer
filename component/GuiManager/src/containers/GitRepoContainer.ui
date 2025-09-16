@@ -145,8 +145,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>218</width>
-                  <height>198</height>
+                  <width>98</width>
+                  <height>28</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -160,8 +160,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>218</width>
-                  <height>198</height>
+                  <width>98</width>
+                  <height>28</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -175,8 +175,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>218</width>
-                  <height>198</height>
+                  <width>98</width>
+                  <height>28</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -190,8 +190,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>218</width>
-                  <height>198</height>
+                  <width>98</width>
+                  <height>28</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -1203,6 +1203,38 @@
   <action name="actionIndexTreeDelete">
    <property name="text">
     <string>Delete</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionWorkingTreeFlatDiscard">
+   <property name="text">
+    <string>Discard</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionWorkingTreeTreeDiscard">
+   <property name="text">
+    <string>Discard</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionIndexFlatDiscard">
+   <property name="text">
+    <string>Discard</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionIndexTreeDiscard">
+   <property name="text">
+    <string>Discard</string>
    </property>
    <property name="menuRole">
     <enum>QAction::MenuRole::NoRole</enum>
