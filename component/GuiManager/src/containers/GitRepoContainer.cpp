@@ -1671,7 +1671,7 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showErrorPage();
-      showErrorToast(tr("Failed to discard file."), tr("Error"));
+      showErrorToast(tr("Failed to discard file(s)."), tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -1681,7 +1681,7 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
   if (event.type() !=
       EventManager::EventType::GitRepoManagerDiscardFilesResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showErrorToast(tr("Failed to discard file."), tr("Error"));
+      showErrorToast(tr("Failed to discard file(s)."), tr("Error"));
     });
     LOG_PERF(0, "Exit")
     return;
@@ -1691,17 +1691,15 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
   const bool discarded = commandResult.value.toBool();
 
   if (!discarded) {
-    Util::Dispatcher::dispatchToMainThread(
-      guard, [&]() { showToast(tr("Failed to discard file."), tr("Info")); });
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showToast(tr("Failed to discard file(s)."), tr("Info"));
+    });
 
     LOG_PERF(0, "Exit")
     return;
   }
 
-  refreshStatus();
-
-  Util::Dispatcher::dispatchToMainThread(
-    guard, [&]() { simulateClickOnFirstHistoryRow(); });
+  deleteFiles(guard, files);
 
   LOG_PERF(0, "Exit")
 }

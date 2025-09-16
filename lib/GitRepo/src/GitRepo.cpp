@@ -2357,11 +2357,6 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
 
   for (const auto &file : files) {
     git_object *headTree = nullptr;
-    git_tree *tree = nullptr;
-    git_index *index = nullptr;
-    git_tree_entry *entry = nullptr;
-    git_blob *blob = nullptr;
-
     int error = git_revparse_single(&headTree, repo, "HEAD^{tree}");
     if (error) {
       logGitError(error);
@@ -2369,93 +2364,112 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
       return false;
     }
 
-    error = git_tree_lookup(&tree, repo, git_object_id(headTree));
+    git_strarray arr = qstringlist_to_git_strarray(QStringList() << file);
+
+    // 1. Reset working directory to HEAD
+    git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+    checkoutOpts.checkout_strategy =
+      GIT_CHECKOUT_FORCE | GIT_CHECKOUT_DISABLE_PATHSPEC_MATCH;
+    checkoutOpts.paths = arr;
+
+    error = git_checkout_tree(repo, headTree, &checkoutOpts);
     if (error) {
       logGitError(error);
+      git_strarray_destroy(arr);
       git_object_free(headTree);
       LOG_PERF(0, "Exit");
       return false;
     }
 
     git_object_free(headTree);
+    git_strarray_destroy(arr);
 
-    error = git_tree_entry_bypath(&entry, tree, file.toStdString().c_str());
-    if (error) {
-      // File might be untracked, continue
-      git_tree_free(tree);
-      continue;
-    }
-
-    error = git_blob_lookup(&blob, repo, git_tree_entry_id(entry));
-    if (error) {
-      logGitError(error);
-      git_tree_free(tree);
-      git_tree_entry_free(entry);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
+    // 2. Reset index entry to HEAD
+    git_index *index = nullptr;
     error = git_repository_index(&index, repo);
     if (error) {
       logGitError(error);
-      git_tree_free(tree);
-      git_tree_entry_free(entry);
-      git_blob_free(blob);
       LOG_PERF(0, "Exit");
       return false;
     }
 
-    const std::string filePath = file.toStdString();
-
-    git_index_entry newEntry = {};
-    newEntry.mode = git_tree_entry_filemode(entry);
-    newEntry.id = *git_tree_entry_id(entry);
-    newEntry.path = filePath.c_str();
-
-    error = git_index_add(index, &newEntry);
+    git_object *headTree2 = nullptr;
+    error = git_revparse_single(&headTree2, repo, "HEAD^{tree}");
     if (error) {
       logGitError(error);
-      git_tree_free(tree);
-      git_tree_entry_free(entry);
-      git_blob_free(blob);
       git_index_free(index);
       LOG_PERF(0, "Exit");
       return false;
     }
+
+    git_tree *tree = nullptr;
+    error = git_tree_lookup(&tree, repo, git_object_id(headTree2));
+    if (error) {
+      logGitError(error);
+      git_index_free(index);
+      git_object_free(headTree2);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    const std::string path = file.toStdString();
+
+    git_tree_entry *entry = nullptr;
+    error = git_tree_entry_bypath(&entry, tree, path.c_str());
+    if (error) {
+      logGitError(error);
+      continue;
+    }
+
+    if (entry) {
+      git_index_entry newEntry = {};
+      newEntry.mode = git_tree_entry_filemode(entry);
+      newEntry.id = *git_tree_entry_id(entry);
+      newEntry.path = path.c_str();
+
+      error = git_index_remove(index, path.c_str(), 0); // Remove old entry
+      if (error) {
+        logGitError(error);
+        git_tree_free(tree);
+        git_object_free(headTree2);
+        git_index_free(index);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      error = git_index_add(index, &newEntry); // Add fresh entry
+      if (error) {
+        logGitError(error);
+        git_tree_free(tree);
+        git_object_free(headTree2);
+        git_index_free(index);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+    } else {
+      error = git_index_remove(index, path.c_str(), 0); // Remove if not in HEAD
+      if (error) {
+        logGitError(error);
+        git_tree_free(tree);
+        git_object_free(headTree2);
+        git_index_free(index);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+    }
+
+    git_tree_free(tree);
+    git_object_free(headTree2);
 
     error = git_index_write(index);
     if (error) {
       logGitError(error);
-      git_tree_free(tree);
-      git_tree_entry_free(entry);
-      git_blob_free(blob);
       git_index_free(index);
       LOG_PERF(0, "Exit");
       return false;
     }
 
-    git_blob_free(blob);
     git_index_free(index);
-    git_tree_free(tree);
-    git_tree_entry_free(entry);
-    git_object_free(headTree);
-
-    git_strarray arr = qstringlist_to_git_strarray(QStringList() << file);
-
-    git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
-    opts.checkout_strategy =
-      GIT_CHECKOUT_FORCE | GIT_CHECKOUT_DISABLE_PATHSPEC_MATCH;
-    opts.paths = arr;
-
-    error = git_checkout_index(repo, nullptr, &opts);
-    if (error) {
-      logGitError(error);
-      git_strarray_destroy(arr);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
-    git_strarray_destroy(arr);
   }
 
   LOG_PERF(0, "Exit");
