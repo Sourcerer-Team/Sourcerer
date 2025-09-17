@@ -1818,7 +1818,12 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
     return;
   }
 
-  deleteFiles(guard, files);
+  refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
+    simulateClickOnFirstHistoryRow();
+  });
 
   LOG_PERF(0, "Exit")
 }
@@ -2513,9 +2518,9 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
   if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(
-        QString(tr("Failed to open %1 for writing.")).arg(GIT_IGNORE_FILENAME),
-        tr("Error"));
+      showErrorToast(QString(tr("Failed to open %1 for writing."))
+                       .arg(GIT_IGNORE_FILENAME),
+                     tr("Error"));
     });
     LOG_PERF(0, "Exit");
     return;

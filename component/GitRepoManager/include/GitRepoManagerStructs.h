@@ -5,11 +5,10 @@
 #include <BlockingQueue.h>
 
 #include <QString>
+#include <QThread>
 #include <QVariant>
 
 #include <git2/repository.h>
-
-#include <thread>
 
 namespace GitRepoManager::Structs {
 
@@ -245,7 +244,7 @@ struct GitRepoResult {
 struct GitRepoContext {
   QString uuid;
   BlockingQueue<GitRepoCommand *> commandsQueue;
-  std::thread workersThread;
+  QThread *workersThread = nullptr;;
   git_repository *gitRepo = nullptr;
   bool quit = false;
 };

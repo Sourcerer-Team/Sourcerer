@@ -464,8 +464,7 @@ void ProcessingState::destroyContext(const QString &uuid) {
   GitRepoQuitCommand quitCommand;
   quitCommand.uuid = uuid;
   scheduleWorkerForQuit(quitCommand);
-  if (ctx->workersThread.joinable())
-    ctx->workersThread.join();
+  ctx->workersThread->wait();
 
   LOCKGUARD(_contextsMutex);
 
@@ -1103,8 +1102,13 @@ void ProcessingState::scheduleWorkerForOpenRepo(
   _contexts[command.uuid] = newContext;
 
   newContext->uuid = command.uuid;
-  newContext->workersThread = std::move(std::thread{workersThreadFunc});
+  newContext->workersThread = QThread::create(workersThreadFunc);
   newContext->commandsQueue.push(new GitRepoOpenCommand(command));
+
+  connect(newContext->workersThread, &QThread::finished,
+          newContext->workersThread, &QObject::deleteLater);
+
+  newContext->workersThread->start();
 
   LOG_PERF(0, "Exit");
 }
@@ -1397,8 +1401,13 @@ void ProcessingState::scheduleWorkerForCloneRepo(
   _contexts[command.uuid] = newContext;
 
   newContext->uuid = command.uuid;
-  newContext->workersThread = std::move(std::thread{workersThreadFunc});
+  newContext->workersThread = QThread::create(workersThreadFunc);
   newContext->commandsQueue.push(new GitRepoCloneCommand(command));
+
+  connect(newContext->workersThread, &QThread::finished,
+          newContext->workersThread, &QObject::deleteLater);
+
+  newContext->workersThread->start();
 
   LOG_PERF(0, "Exit");
 }
@@ -1615,8 +1624,13 @@ void ProcessingState::scheduleWorkerForInitRepo(
   _contexts[command.uuid] = newContext;
 
   newContext->uuid = command.uuid;
-  newContext->workersThread = std::move(std::thread{workersThreadFunc});
+  newContext->workersThread = QThread::create(workersThreadFunc);
   newContext->commandsQueue.push(new GitRepoInitRepoCommand(command));
+
+  connect(newContext->workersThread, &QThread::finished,
+          newContext->workersThread, &QObject::deleteLater);
+
+  newContext->workersThread->start();
 
   LOG_PERF(0, "Exit");
 }

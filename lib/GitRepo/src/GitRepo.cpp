@@ -2418,10 +2418,52 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
     error = git_tree_entry_bypath(&entry, tree, path.c_str());
     if (error) {
       logGitError(error);
+      git_index_free(index);
+      git_object_free(headTree2);
       continue;
     }
 
     if (entry) {
+      git_blob *blob = nullptr;
+      error = git_blob_lookup(&blob, repo, git_tree_entry_id(entry));
+      if (error) {
+        logGitError(error);
+        git_tree_free(tree);
+        git_object_free(headTree2);
+        git_index_free(index);
+        git_tree_entry_free(entry);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      const QString repoPath = git_repository_workdir(repo);
+      const QString fullPath = QDir::fromNativeSeparators(
+        repoPath + QString::fromStdString(path));
+
+      const QString directoryPath = QFileInfo(fullPath).path();
+
+      QDir fileDir;
+      fileDir.mkpath(directoryPath);
+
+      QFile file(fullPath);
+      if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        LOG_ERROR(Log::ErrorId::Git, "Can't open file \"{}\" for writing",
+                  file.fileName());
+        git_blob_free(blob);
+        git_tree_free(tree);
+        git_object_free(headTree2);
+        git_index_free(index);
+        git_tree_entry_free(entry);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      file.write(static_cast<const char *>(git_blob_rawcontent(blob)),
+                 git_blob_rawsize(blob));
+      file.close();
+
+      git_blob_free(blob);
+
       git_index_entry newEntry = {};
       newEntry.mode = git_tree_entry_filemode(entry);
       newEntry.id = *git_tree_entry_id(entry);
