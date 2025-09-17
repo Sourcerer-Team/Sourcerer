@@ -8,6 +8,7 @@ namespace EventManager {
 
 enum EventType {
   Null = 0,
+  Quit,
 
   // Error and response handling
   Error,

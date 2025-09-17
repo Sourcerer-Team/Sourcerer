@@ -118,8 +118,6 @@ HitDetector::Margin HitDetector::ncHitTest(const QRect &frameGeometry, int x,
   const qlonglong borderWidth =
       _configManager.getLong(ConfigManager::ConfigKey::MainWindowBorderWidth);
 
-  LOG_DEBUG("Border width is {} pixels.", borderWidth);
-
   // Get the point coordinates for the hit test.
   const QPoint cursorPos =
       QPoint(qFloor(x / _pixelRatio), qFloor(y / _pixelRatio));

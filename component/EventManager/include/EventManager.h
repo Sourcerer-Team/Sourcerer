@@ -29,11 +29,12 @@ typedef std::function<void()> EventRecordCallbackType;
 
 struct EventRecord {
   EventRecord(EventRecordCallbackType callback,
-              EventRecordType type = EventRecordType::Send)
-      : _callback(callback), _type(type) {}
+              EventRecordType type, EventType eventType)
+      : _callback(callback), _type(type), _eventType(eventType) {}
 
   EventRecordType _type;
   EventRecordCallbackType _callback;
+  EventType _eventType;
 };
 
 struct EventCallback {
@@ -78,6 +79,7 @@ public:
                                         const std::set<EventType> &types,
                                         ulong timeout = DEFAULT_WAIT_TIMEOUT);
 
+  QString eventName(EventType type) const;
 private:
   EventManager();
 

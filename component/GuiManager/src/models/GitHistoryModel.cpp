@@ -139,8 +139,6 @@ bool GitHistoryModel::hasStatus() const {
 
 QModelIndex GitHistoryModel::index(const int row, const int column,
                                    const QModelIndex &parent) const {
-  LOG_PERF(0, "Enter");
-
   LOCKGUARD(_mutex);
 
   const int count = _historyWithStatus.status.hasChanges()
@@ -148,11 +146,8 @@ QModelIndex GitHistoryModel::index(const int row, const int column,
                         : _historyWithStatus.history.commits.size();
 
   if (parent.isValid() || row < 0 || row >= count) {
-    LOG_PERF(0, "Exit");
     return {};
   }
-
-  LOG_PERF(0, "Exit");
 
   return createIndex(row, column);
 }
@@ -184,10 +179,7 @@ int GitHistoryModel::columnCount(const QModelIndex &parent) const {
 }
 
 QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
-  LOG_PERF(0, "Enter");
-
   if (!index.isValid()) {
-    LOG_PERF(0, "Exit");
     return {};
   }
 
@@ -198,7 +190,6 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
                          : _historyWithStatus.history.commits.size();
 
   if (index.row() < 0 || index.row() >= maxRow) {
-    LOG_PERF(0, "Exit");
     return {};
   }
 
@@ -216,32 +207,26 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
         width = 0;
       }
 
-      LOG_PERF(0, "Exit");
       return width;
     }
 
-    LOG_PERF(0, "Exit");
     return _drawableSlices.sizeX();
   }
 
   if (role == StatusRole) {
     if (index.row() == 0 && _historyWithStatus.status.hasChanges()) {
-      LOG_PERF(0, "Exit");
       return QVariant::fromValue(
           createStatusFieldsMap(_historyWithStatus.status));
     }
 
-    LOG_PERF(0, "Exit");
     return {};
   }
 
   if (role != Qt::DisplayRole) {
-    LOG_PERF(0, "Exit");
     return {};
   }
 
   if (_historyWithStatus.status.hasChanges() && index.row() == 0) {
-    LOG_PERF(0, "Exit");
     return {};
   }
 
@@ -251,7 +236,6 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
   Q_ASSERT(indexRow >= 0 &&
            indexRow < _historyWithStatus.history.commits.count());
   if (indexRow < 0 || indexRow >= _historyWithStatus.history.commits.count()) {
-    LOG_PERF(0, "Exit");
     return {};
   }
 
@@ -295,16 +279,12 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     break;
   }
 
-  LOG_PERF(0, "Exit");
-
   return result;
 }
 
 QVariant GitHistoryModel::headerData(const int section,
                                      const Qt::Orientation orientation,
                                      const int role) const {
-  LOG_PERF(0, "Enter");
-
   if (role == Qt::DisplayRole) {
     QVariant result;
 
@@ -339,15 +319,11 @@ QVariant GitHistoryModel::headerData(const int section,
       }
       }
 
-      LOG_PERF(0, "Exit");
       return result; // No row names
     }
 
-    LOG_PERF(0, "Exit");
     return result; // No row names
   }
-
-  LOG_PERF(0, "Exit");
 
   return QAbstractTableModel::headerData(section, orientation, role);
 }
@@ -578,10 +554,7 @@ void GitHistoryModel::createDrawableSlices(
 }
 
 Slices GitHistoryModel::historySlices(const QString &commit) const {
-  LOG_PERF(0, "Enter");
-
   if (_historyWithStatus.history.commits.size() == 0) {
-    LOG_PERF(0, "Exit");
     return {};
   }
 
@@ -589,7 +562,6 @@ Slices GitHistoryModel::historySlices(const QString &commit) const {
       indexDifference(_historyWithStatus.history.commits.first(), commit);
 
   if (difference < 0) {
-    LOG_PERF(0, "Exit");
     return {};
   }
 
@@ -604,22 +576,17 @@ Slices GitHistoryModel::historySlices(const QString &commit) const {
     LOG_ERROR(Log::ErrorId::Generic, "Exception: {}", e.what());
   }
 
-  LOG_PERF(0, "Exit");
-
   return slices;
 }
 
 int GitHistoryModel::indexDifference(const QString &commitA,
                                      const QString &commitB) const {
-  LOG_PERF(0, "Enter");
-
   const auto itA = std::find_if(
       _historyWithStatus.history.commits.begin(),
       _historyWithStatus.history.commits.end(),
       [&](const QString &historyCommit) { return historyCommit == commitA; });
 
   if (itA == _historyWithStatus.history.commits.end()) {
-    LOG_PERF(0, "Exit");
     return -1;
   }
 
@@ -629,11 +596,8 @@ int GitHistoryModel::indexDifference(const QString &commitA,
       [&](const QString &historyCommit) { return historyCommit == commitB; });
 
   if (itB == _historyWithStatus.history.commits.end()) {
-    LOG_PERF(0, "Exit");
     return -1;
   }
-
-  LOG_PERF(0, "Exit");
 
   return itB - itA;
 }

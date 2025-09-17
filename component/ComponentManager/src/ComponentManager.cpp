@@ -128,7 +128,7 @@ void ComponentManager::eventCallback(EventManager::Event event) {
 
   const EventManager::EventType eventType = event.type();
 
-  LOG_DEBUG("Received event of type {}.", (int)eventType);
+  LOG_DEBUG("Received event  {}.", _eventManager.eventName(eventType));
 
   switch (eventType) {
   case EventManager::EventType::ComponentStarted: {

@@ -73,7 +73,7 @@ private slots:
   void onRemoteBranchSelected(const QString &branchName);
   void onRepoDirChanged(const QString &path);
   void onTagSelected(const QString &tagName);
-  void onShowSpinnerOverlay() const;
+  void onShowSpinnerOverlay();
   void onGraphColumnExpand(int section);
   void onWorkingTreeFlatListViewContextMenuRequested(const QPoint &pos);
   void onWorkingTreeFlatListViewStageSelected(bool checked = false);
@@ -136,7 +136,7 @@ private:
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   bool openRepo();
-  void prepareWatcher();
+  void prepareWatcher(const WeakPtr &guard);
   bool refreshHistory(const WeakPtr &guard);
   void refreshStatus(const WeakPtr &guard);
   void resetCommitAndMergeIndexTreeUnstageAllButton();
@@ -145,7 +145,9 @@ private:
   void resetDisplayTreeExpandedButton();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
-  void stopWatcher();
+  void startOverlayTimer() const;
+  void stopOverlayTimer() const;
+  void stopWatcher(const WeakPtr &guard);
   void stretchBranchHistoryTableColumns() const;
   void showAllWidgets() const;
   void showCommit(const WeakPtr &guard, const QString &commit);
@@ -161,9 +163,9 @@ private:
   void stageFiles(const WeakPtr &guard, const QStringList &files);
   void unstageAll(const WeakPtr &guard);
   void unstageFiles(const WeakPtr &guard, const QStringList &files);
-  void updateBranchHistory(
-      const WeakPtr &guard,
-      const GitRepo::GitHistoryWithStatus &historyWithStatus) const;
+  void
+  updateBranchHistory(const WeakPtr &guard,
+                      const GitRepo::GitHistoryWithStatus &historyWithStatus);
   void updateLocalBranchesModel(const WeakPtr &guard,
                                 const QStringList &localBranches) const;
   void updateLocalBranchesModelActiveBranch(const WeakPtr &guard,

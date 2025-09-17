@@ -28,6 +28,7 @@ enum class DispatcherCommand {
 struct DispatcherRecord {
   DispatcherCommand _command = DispatcherCommand::Quit;
   std::function<void()> _task;
+  int _taskId = -1;
 };
 
 struct DispatcherPoolElement {

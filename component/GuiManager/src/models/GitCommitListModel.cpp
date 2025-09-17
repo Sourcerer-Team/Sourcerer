@@ -201,19 +201,12 @@ GitCommitListModel *GitCommitListModel::fromStaged(const GitRepo::GitStatus &sta
 }
 
 int GitCommitListModel::rowCount(const QModelIndex &parent) const {
-  LOG_PERF(0, "Enter");
-
-  LOG_PERF(0, "Exit");
-
   return _modifications.count();
 }
 
 QVariant GitCommitListModel::data(const QModelIndex &index, int role) const {
-  LOG_PERF(0, "Enter");
-
   if (!index.isValid() || index.row() < 0 ||
       index.row() >= static_cast<int>(_modifications.count())) {
-    LOG_PERF(0, "Exit");
     return QVariant();
   }
 
@@ -222,11 +215,9 @@ QVariant GitCommitListModel::data(const QModelIndex &index, int role) const {
 
   switch (role) {
   case Qt::DisplayRole: {
-    LOG_PERF(0, "Exit");
     return modification._filePath;
   }
   case Qt::UserRole: {
-    LOG_PERF(0, "Exit");
     return static_cast<int>(modification._type);
   }
   default: {
@@ -234,7 +225,6 @@ QVariant GitCommitListModel::data(const QModelIndex &index, int role) const {
   }
   }
 
-  LOG_PERF(0, "Exit");
   return QVariant();
 }
 QHash<int, QByteArray> GitCommitListModel::roleNames() const {

@@ -36,6 +36,8 @@ void EventManager::threadLoop() {
 
     const qint64 start = QDateTime::currentMSecsSinceEpoch();
 
+    LOG_DEBUG("Dispatching event {}", eventName(record._eventType));
+
     record._callback();
 
     const qint64 end = QDateTime::currentMSecsSinceEpoch();
@@ -167,6 +169,166 @@ EventManager::waitForAnswer(int token, const QString &uuid,
       timeout);
 }
 
+QString EventManager::eventName(EventType type) const
+{
+  switch(type) {
+  case EventType::Null:
+    return "Null";
+  case EventType::Quit:
+    return "Quit";
+  case EventType::Error:
+    return "Error";
+  case EventType::Success:
+    return "Success";
+  case EventType::ComponentStarted:
+    return "ComponentStarted";
+  case EventType::ComponentStopped:
+    return "ComponentStopped";
+  case EventType::GitRepoManagerCheckoutBranch:
+    return "GitRepoManagerCheckoutBranch";
+  case EventType::GitRepoManagerCheckoutBranchResult:
+    return "GitRepoManagerCheckoutBranchResult";
+  case EventType::GitRepoManagerCheckoutBranchError:
+    return "GitRepoManagerCheckoutBranchError";
+  case EventType::GitRepoManagerCloneRepo:
+    return "GitRepoManagerCloneRepo";
+  case EventType::GitRepoManagerCloneRepoResult:
+    return "GitRepoManagerCloneRepoResult";
+  case EventType::GitRepoManagerCloneRepoError:
+    return "GitRepoManagerCloneRepoError";
+  case EventType::GitRepoManagerCloneRepoProgress:
+    return "GitRepoManagerCloneRepoProgress";
+  case EventType::GitRepoManagerCloseRepo:
+    return "GitRepoManagerCloseRepo";
+  case EventType::GitRepoManagerCloseRepoResult:
+    return "GitRepoManagerCloseRepoResult";
+  case EventType::GitRepoManagerCloseRepoError:
+    return "GitRepoManagerCloseRepoError";
+  case EventType::GitRepoManagerCommitStaged:
+    return "GitRepoManagerCommitStaged";
+  case EventType::GitRepoManagerCommitStagedResult:
+    return "GitRepoManagerCommitStagedResult";
+  case EventType::GitRepoManagerCommitStagedError:
+    return "GitRepoManagerCommitStagedError";
+  case EventType::GitRepoManagerDiffFiles:
+    return "GitRepoManagerDiffFiles";
+  case EventType::GitRepoManagerDiffFilesResult:
+    return "GitRepoManagerDiffFilesResult";
+  case EventType::GitRepoManagerDiffFilesError:
+    return "GitRepoManagerDiffFilesError";
+  case EventType::GitRepoManagerDiscardFiles:
+    return "GitRepoManagerDiscardFiles";
+  case EventType::GitRepoManagerDiscardFilesResult:
+    return "GitRepoManagerDiscardFilesResult";
+  case EventType::GitRepoManagerDiscardFilesError:
+    return "GitRepoManagerDiscardFilesError";
+  case EventType::GitRepoManagerGetActiveBranch:
+    return "GitRepoManagerGetActiveBranch";
+  case EventType::GitRepoManagerGetActiveBranchResult:
+    return "GitRepoManagerGetActiveBranchResult";
+  case EventType::GitRepoManagerGetActiveBranchError:
+    return "GitRepoManagerGetActiveBranchError";
+  case EventType::GitRepoManagerGetBranchHistory:
+    return "GitRepoManagerGetBranchHistory";
+  case EventType::GitRepoManagerGetBranchHistoryResult:
+    return "GitRepoManagerGetBranchHistoryResult";
+  case EventType::GitRepoManagerGetBranchHistoryError:
+    return "GitRepoManagerGetBranchHistoryError";
+  case EventType::GitRepoManagerGetCommitBranches:
+    return "GitRepoManagerGetCommitBranches";
+  case EventType::GitRepoManagerGetCommitBranchesResult:
+    return "GitRepoManagerGetCommitBranchesResult";
+  case EventType::GitRepoManagerGetCommitBranchesError:
+    return "GitRepoManagerGetCommitBranchesError";
+  case EventType::GitRepoManagerGetCommitHeads:
+    return "GitRepoManagerGetCommitHeads";
+  case EventType::GitRepoManagerGetCommitHeadsResult:
+    return "GitRepoManagerGetCommitHeadsResult";
+  case EventType::GitRepoManagerGetCommitHeadsError:
+    return "GitRepoManagerGetCommitHeadsError";
+  case EventType::GitRepoManagerGetCommitIsHead:
+    return "GitRepoManagerGetCommitIsHead";
+  case EventType::GitRepoManagerGetCommitIsHeadResult:
+    return "GitRepoManagerGetCommitIsHeadResult";
+  case EventType::GitRepoManagerGetCommitIsHeadError:
+    return "GitRepoManagerGetCommitIsHeadError";
+  case EventType::GitRepoManagerGetCommitStatus:
+    return "GitRepoManagerGetCommitStatus";
+  case EventType::GitRepoManagerGetCommitStatusResult:
+    return "GitRepoManagerGetCommitStatusResult";
+  case EventType::GitRepoManagerGetCommitStatusError:
+    return "GitRepoManagerGetCommitStatusError";
+  case EventType::GitRepoManagerGetCredentials:
+    return "GitRepoManagerGetCredentials";
+  case EventType::GitRepoManagerGetCredentialsResult:
+    return "GitRepoManagerGetCredentialsResult";
+  case EventType::GitRepoManagerGetCredentialsError:
+    return "GitRepoManagerGetCredentialsError";
+  case EventType::GitRepoManagerInitRepo:
+    return "GitRepoManagerInitRepo";
+  case EventType::GitRepoManagerInitRepoResult:
+    return "GitRepoManagerInitRepoResult";
+  case EventType::GitRepoManagerInitRepoError:
+    return "GitRepoManagerInitRepoError";
+  case EventType::GitRepoManagerListLocalBranches:
+    return "GitRepoManagerListLocalBranches";
+  case EventType::GitRepoManagerListLocalBranchesResult:
+    return "GitRepoManagerListLocalBranchesResult";
+  case EventType::GitRepoManagerListLocalBranchesError:
+    return "GitRepoManagerListLocalBranchesError";
+  case EventType::GitRepoManagerListRemoteBranches:
+    return "GitRepoManagerListRemoteBranches";
+  case EventType::GitRepoManagerListRemoteBranchesResult:
+    return "GitRepoManagerListRemoteBranchesResult";
+  case EventType::GitRepoManagerListRemoteBranchesError:
+    return "GitRepoManagerListRemoteBranchesError";
+  case EventType::GitRepoManagerListSubmodules:
+    return "GitRepoManagerListSubmodules";
+  case EventType::GitRepoManagerListSubmodulesResult:
+    return "GitRepoManagerListSubmodulesResult";
+  case EventType::GitRepoManagerListSubmodulesError:
+    return "GitRepoManagerListSubmodulesError";
+  case EventType::GitRepoManagerListTags:
+    return "GitRepoManagerListTags";
+  case EventType::GitRepoManagerListTagsResult:
+    return "GitRepoManagerListTagsResult";
+  case EventType::GitRepoManagerListTagsError:
+    return "GitRepoManagerListTagsError";
+  case EventType::GitRepoManagerOpenRepo:
+    return "GitRepoManagerOpenRepo";
+  case EventType::GitRepoManagerOpenRepoResult:
+    return "GitRepoManagerOpenRepoResult";
+  case EventType::GitRepoManagerOpenRepoError:
+    return "GitRepoManagerOpenRepoError";
+  case EventType::GitRepoManagerStageFiles:
+    return "GitRepoManagerStageFiles";
+  case EventType::GitRepoManagerStageFilesResult:
+    return "GitRepoManagerStageFilesResult";
+  case EventType::GitRepoManagerStageFilesError:
+    return "GitRepoManagerStageFilesError";
+  case EventType::GitRepoManagerStatus:
+    return "GitRepoManagerStatus";
+  case EventType::GitRepoManagerStatusResult:
+    return "GitRepoManagerStatusResult";
+  case EventType::GitRepoManagerStatusError:
+    return "GitRepoManagerStatusError";
+  case EventType::GitRepoManagerUnstageFiles:
+    return "GitRepoManagerUnstageFiles";
+  case EventType::GitRepoManagerUnstageFilesResult:
+    return "GitRepoManagerUnstageFilesResult";
+  case EventType::GitRepoManagerUnstageFilesError:
+    return "GitRepoManagerUnstageFilesError";
+  case EventType::GitRepoManagerQuit:
+    return "GitRepoManagerQuit";
+  case EventType::GitRepoManagerQuitResult:
+    return "GitRepoManagerQuitResult";
+  case EventType::GitRepoManagerQuitError:
+    return "GitRepoManagerQuitError";
+  default:
+    return QString("Unknown(%1)").arg(static_cast<int>(type));
+  }
+}
+
 void EventManager::send(Event event) {
   LOCKGUARD(_queueLocker);
   const EventType type = event.type();
@@ -179,12 +341,12 @@ void EventManager::send(Event event) {
       const CallbackType &callbackFunc = callback._callback;
       const auto EventDataFunction = std::bind(callbackFunc, event);
 
-      _eventsQueue.push({EventDataFunction});
+      _eventsQueue.push({EventDataFunction, EventRecordType::Send, event.type()});
 
-      LOG_DEBUG("Event has been queued: {}", static_cast<int>(type));
+      LOG_DEBUG("Event has been queued: {}", eventName(type));
     }
   } else
-    LOG_DEBUG("Event has NOT been queued: {}", static_cast<int>(type));
+    LOG_DEBUG("Event has NOT been queued: {}", eventName(type));
 
   for (auto &pair : _waitEventsQueue) {
     pair.second.push({EventRecordType::Send, event});
@@ -208,7 +370,7 @@ void EventManager::stop() {
   {
     LOCKGUARD(_queueLocker);
 
-    _eventsQueue.push({nullptr, EventRecordType::Quit});
+    _eventsQueue.push({nullptr, EventRecordType::Quit, EventType::Quit});
   }
 
   _thread->wait();

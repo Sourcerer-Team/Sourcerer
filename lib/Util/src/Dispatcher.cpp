@@ -80,9 +80,11 @@ void Dispatcher::processor(QSharedPointer<DispatcherPoolElement> poolElement) {
       break;
     }
 
-    switch (const auto [_command, _task] = poolElement->_queue->pop();
+    switch (const auto [_command, _task, _taskId] = poolElement->_queue->pop();
             _command) {
     case DispatcherCommand::Run: {
+      LOG_DEBUG("Dispatching task with id of {}", _taskId);
+
       try {
         _task();
       } catch (const std::exception &ex) {
@@ -91,6 +93,8 @@ void Dispatcher::processor(QSharedPointer<DispatcherPoolElement> poolElement) {
       } catch (...) {
         LOG_ERROR(Log::ErrorId::Generic, "Unknown exception has been thrown!");
       }
+
+      LOG_DEBUG("Task with id of {} finished.", _taskId);
 
       break;
     }
@@ -116,7 +120,9 @@ bool Dispatcher::dispatch(
   int index = -1;
 
   for (const auto &k : _pool.keys()) {
-    const auto& v = _pool[k];
+    LOG_DEBUG("Checking pool with key {}", k);
+
+    const auto &v = _pool[k];
     Q_ASSERT(v);
 
     if (!v) {
@@ -137,16 +143,34 @@ bool Dispatcher::dispatch(
     }
   }
 
+  LOG_DEBUG("Pool size is {}", _pool.size());
+  LOG_DEBUG("Choosen pool key is {}", index);
+  LOG_DEBUG("Minimal pool with previous key is of size {}", minSize);
+
   if (index == -1) {
     LOG_PERF(0, "Exit");
     return false;
   }
 
+  for (int i = 0; i < _pool[index]->_queue->size(); ++i) {
+    const auto *queue = _pool[index]->_queue;
+    Q_ASSERT(queue != nullptr);
+    if (!queue) {
+      LOG_ERROR(Log::ErrorId::Generic,
+                "Internal error! Invalid pool element queue!");
+      continue;
+    }
+    LOG_DEBUG("Task with id of {} is in the choosen pool queue {}",
+              (*queue)[i]._taskId, index);
+  }
+
   const auto compositeTask = [=]() {
+    LOG_PERF(0, "Enter");
     if (task) {
       try {
         task();
       } catch (const std::exception &ex) {
+        LOG_ERROR(Log::ErrorId::Generic, "Exception: \"{}\"", ex.what());
         errorTask(ex);
       }
     }
@@ -154,11 +178,15 @@ bool Dispatcher::dispatch(
     if (finalTask) {
       finalTask();
     }
+    LOG_PERF(0, "Exit");
   };
+
+  static int taskIdCounter = 0;
 
   DispatcherRecord runRecord;
   runRecord._command = DispatcherCommand::Run;
   runRecord._task = compositeTask;
+  runRecord._taskId = taskIdCounter++;
 
   const auto poolElement = _pool[index];
 
@@ -178,6 +206,8 @@ bool Dispatcher::dispatch(
     LOG_PERF(0, "Exit");
     return false;
   }
+
+  LOG_DEBUG("Enqueing task with id {}", runRecord._taskId);
 
   poolElement->_queue->push(runRecord);
 
@@ -217,8 +247,7 @@ void Dispatcher::stopAll() {
   LOG_PERF(0, "Exit");
 }
 
-void Dispatcher::clearPool()
-{
+void Dispatcher::clearPool() {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_mutex);

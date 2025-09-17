@@ -43,6 +43,50 @@ QString GitRepoManagerFsm::eventName(int event) const {
     return "ChangeState";
   case EventType::Stop:
     return "Stop";
+  case EventType::CheckoutBranch:
+    return "CheckoutBranch";
+  case EventType::CloneRepo:
+    return "CloneRepo";
+  case EventType::CloseRepo:
+    return "CloseRepo";
+  case EventType::CommitStaged:
+    return "CommitStaged";
+  case EventType::DiffFiles:
+    return "DiffFiles";
+  case EventType::DiscardFiles:
+    return "DiscardFiles";
+  case EventType::GetActiveBranch:
+    return "GetActiveBranch";
+  case EventType::GetBranchHistory:
+    return "GetBranchHistory";
+  case EventType::GetCommitBranches:
+    return "GetCommitBranches";
+  case EventType::GetCommitHeads:
+    return "GetCommitHeads";
+  case EventType::GetCommitIsHead:
+    return "GetCommitIsHead";
+  case EventType::GetCommitStatus:
+    return "GetCommitStatus";
+  case EventType::Init:
+    return "Init";
+  case EventType::ListLocalBranches:
+    return "ListLocalBranches";
+  case EventType::ListRemoteBranches:
+    return "ListRemoteBranches";
+  case EventType::ListSubmodules:
+    return "ListSubmodules";
+  case EventType::ListTags:
+    return "ListTags";
+  case EventType::OpenRepo:
+    return "OpenRepo";
+  case EventType::Setup:
+    return "Setup";
+  case EventType::StageFiles:
+    return "StageFiles";
+  case EventType::Status:
+    return "Status";
+  case EventType::UnstageFiles:
+    return "UnstageFiles";
   default:
     return "Unknown";
   }

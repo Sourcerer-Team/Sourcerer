@@ -40,8 +40,7 @@
 #define MAXIMUM_PARENTS_IN_LABEL 3
 #define MAX_COMMIT_SHA_LENGTH 6
 
-#define IGNORE_FILENAME ".gitignore"
-
+#define GIT_IGNORE_FILENAME ".gitignore"
 #define GIT_SUBDIR ".git"
 
 using namespace GuiManager::Widgets;
@@ -103,7 +102,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
     _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
     _displayTreeExpanded(false), _commitListModel(nullptr),
-    _commitTreeModel(nullptr), _repoDirWatcher(new QFileSystemWatcher(this)) {
+    _commitTreeModel(nullptr), _repoDirWatcher(nullptr) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -241,6 +240,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _historyModel->setSelectionModel(ui->historyView->selectionModel());
 
+  _spinnerOverlayTimer->setSingleShot(true);
+
   showMainSpinnerPage(false);
   showSpinnerOverlay();
 
@@ -360,9 +361,6 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(ui->actionIndexTreeDiscard, &QAction::triggered, this,
           &GitRepoContainer::onIndexTreeTreeViewDiscardSelected);
 
-  connect(_repoDirWatcher, &QFileSystemWatcher::directoryChanged, this,
-          &GitRepoContainer::onRepoDirChanged);
-
   LOG_PERF(0, "Exit")
 }
 
@@ -385,7 +383,7 @@ void GitRepoContainer::init() {
 
   openRepo();
 
-  prepareWatcher();
+  prepareWatcher(getSelf().toWeakRef());
 }
 
 bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
@@ -449,6 +447,7 @@ void GitRepoContainer::onSplitterMoved(const int pos, const int index) const {
 void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
+  /*
   const QModelIndex shaIndex =
       _historyModel->index(index.row(), COLUMN_COMMIT_FULL_SHA, QModelIndex());
   if (!shaIndex.isValid()) {
@@ -458,10 +457,11 @@ void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
 
   const QString commit = shaIndex.data(Qt::DisplayRole).toString();
 
-  LOCKGUARD(_tooltipsMutex);
-
-  _tooltipsToShow.clear();
-  _tooltipsToShow += commit;
+  {
+    LOCKGUARD(_tooltipsMutex);
+    _tooltipsToShow.clear();
+    _tooltipsToShow += commit;
+  }
 
   const auto guard = getSelf().toWeakRef();
 
@@ -475,6 +475,8 @@ void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
       return;
     }
 
+    LOG_DEBUG("dezelin0");
+
     {
       LOCKGUARD(_tooltipsMutex);
 
@@ -482,16 +484,18 @@ void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
         LOG_PERF(0, "Exit");
         return;
       }
+    }
 
-      if (const auto locked = guard.lock()) {
-        const QPoint viewportPos =
-            ui->historyView->viewport()->mapFromGlobal(_mousePos);
+    LOG_DEBUG("dezelin1");
 
-        if (const QModelIndex idx = ui->historyView->indexAt(viewportPos);
-            idx != index) {
-          LOG_PERF(0, "Exit");
-          return;
-        }
+    if (const auto locked = guard.lock()) {
+      const QPoint viewportPos =
+          ui->historyView->viewport()->mapFromGlobal(_mousePos);
+
+      if (const QModelIndex idx = ui->historyView->indexAt(viewportPos);
+          idx != index) {
+        LOG_PERF(0, "Exit");
+        return;
       }
     }
 
@@ -501,13 +505,16 @@ void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
     const QString tooltipText =
         QString("On branches:\n\n%1").arg(commitBranches.join("\n"));
 
-    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       QToolTip::showText(_mousePos, tooltipText, ui->historyView, {},
                          static_cast<int>(tooltipDisplayTime));
     });
 
     LOG_PERF(0, "Exit");
   });
+*/
+
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::showTooltipForSummaryColumn(
@@ -569,6 +576,8 @@ void GitRepoContainer::onCommitButtonClicked() {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
+  startOverlayTimer();
+
   _dispatcher.dispatch([=]() {
     commit(guard, summary, description, currentProfile.author,
            currentProfile.email);
@@ -582,6 +591,8 @@ void GitRepoContainer::onCommitAndMergeIndexTreeUnstageAllButtonClicked() {
 
   _commitAndMergeIndexTreeUnstageAllButton->setVisible(false);
 
+  startOverlayTimer();
+
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { unstageAll(guard); });
@@ -593,6 +604,8 @@ void GitRepoContainer::onCommitAndMergeWorkingTreeTreeStageAllButtonClicked() {
   LOG_PERF(0, "Enter");
 
   _commitAndMergeWorkingDirTreeStageAllButton->setVisible(false);
+
+  startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -691,10 +704,7 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
 void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
-  const qlonglong spinnerOverlayTimerTimeout = _configManager.getLong(
-      ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
-
-  _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
+  startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -707,10 +717,7 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
 void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
-  const qlonglong spinnerOverlayTimerTimeout = _configManager.getLong(
-      ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
-
-  _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
+  startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -727,7 +734,7 @@ void GitRepoContainer::onRepoDirChanged(const QString &path) {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    prepareWatcher();
+    prepareWatcher(guard);
 
     refreshStatus(guard);
 
@@ -741,10 +748,7 @@ void GitRepoContainer::onRepoDirChanged(const QString &path) {
 void GitRepoContainer::onTagSelected(const QString &tagName) {
   LOG_PERF(0, "Enter");
 
-  const qlonglong spinnerOverlayTimerTimeout = _configManager.getLong(
-      ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
-
-  _spinnerOverlayTimer->start(spinnerOverlayTimerTimeout);
+  startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -754,7 +758,7 @@ void GitRepoContainer::onTagSelected(const QString &tagName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onShowSpinnerOverlay() const {
+void GitRepoContainer::onShowSpinnerOverlay() {
   LOG_PERF(0, "Enter");
 
   showSpinnerOverlay();
@@ -791,13 +795,32 @@ void GitRepoContainer::restorePreviousSectionWidth() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::stopWatcher() {
+void GitRepoContainer::startOverlayTimer() const {
   LOG_PERF(0, "Enter");
 
-  const QStringList paths = _repoDirWatcher->directories();
-  if (!paths.isEmpty()) {
-    _repoDirWatcher->removePaths(paths);
-  }
+  const qlonglong timerTimeout = _configManager.getLong(
+    ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
+
+  _spinnerOverlayTimer->start(timerTimeout);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::stopOverlayTimer() const {
+  LOG_PERF(0, "Enter");
+
+  _spinnerOverlayTimer->stop();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::stopWatcher(const WeakPtr &guard) {
+  LOG_PERF(0, "Enter");
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    delete _repoDirWatcher;
+    _repoDirWatcher = nullptr;
+  });
 
   LOG_PERF(0, "Exit");
 }
@@ -855,6 +878,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewStageSelected(bool checked) {
   const QStringList files =
     getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
 
+  startOverlayTimer();
+
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { stageFiles(guard, files); });
@@ -867,6 +892,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected(bool checked) {
 
   const QStringList files =
     getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
+
+  startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -881,6 +908,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewCreateFilePatchSelected(
 
   const QStringList files =
     getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
+
+  startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -916,6 +945,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected(bool checked) {
     return;
   }
 
+  startOverlayTimer();
+
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { deleteFiles(guard, files); });
@@ -949,6 +980,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected(bool checked) {
     LOG_PERF(0, "Exit");
     return;
   }
+
+  startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -993,6 +1026,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewStageSelected(bool checked) {
   const QStringList files =
     getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
 
+  startOverlayTimer();
+
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { stageFiles(guard, files); });
@@ -1008,6 +1043,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected(bool checked) {
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
+  startOverlayTimer();
+
   _dispatcher.dispatch([=]() { ignoreFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
@@ -1019,6 +1056,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewCreateFilePatchSelected(
 
   const QStringList files =
     getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
+
+  startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -1054,6 +1093,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected(bool checked) {
     return;
   }
 
+  startOverlayTimer();
+
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { deleteFiles(guard, files); });
@@ -1087,6 +1128,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected(bool checked) {
     LOG_PERF(0, "Exit");
     return;
   }
+
+  startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -1130,6 +1173,8 @@ void GitRepoContainer::onIndexFlatListViewUnstageSelected(bool checked) {
 
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
 
+  startOverlayTimer();
+
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { unstageFiles(guard, files); });
@@ -1141,6 +1186,8 @@ void GitRepoContainer::onIndexFlatListViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
+
+  startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -1154,6 +1201,8 @@ void GitRepoContainer::onIndexFlatListViewCreateFilePatchSelected(
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
+
+  startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -1189,6 +1238,8 @@ void GitRepoContainer::onIndexFlatListViewDeleteSelected(bool checked) {
     return;
   }
 
+  startOverlayTimer();
+
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { deleteFiles(guard, files); });
@@ -1221,6 +1272,8 @@ void GitRepoContainer::onIndexFlatListViewDiscardSelected(bool checked) {
     LOG_PERF(0, "Exit");
     return;
   }
+
+  startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -1264,6 +1317,8 @@ void GitRepoContainer::onIndexTreeTreeViewUnstageSelected(bool checked) {
 
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
 
+  startOverlayTimer();
+
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { unstageFiles(guard, files); });
@@ -1275,6 +1330,8 @@ void GitRepoContainer::onIndexTreeTreeViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
+
+  startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -1288,6 +1345,8 @@ void GitRepoContainer::onIndexTreeTreeViewCreateFilePatchSelected(
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
+
+  startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -1323,6 +1382,8 @@ void GitRepoContainer::onIndexTreeTreeViewDeleteSelected(bool checked) {
     return;
   }
 
+  startOverlayTimer();
+
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { deleteFiles(guard, files); });
@@ -1355,6 +1416,8 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
     LOG_PERF(0, "Exit");
     return;
   }
+
+  startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -1400,7 +1463,7 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
   if (branchName == ALL_BRANCHES) {
     updateModelActiveBranch(guard, branchName, branchType);
   } else {
-    stopWatcher();
+    stopWatcher(guard);
 
     const QString eventUuid = Uuid::createUuid();
 
@@ -1436,12 +1499,8 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
       closeRepo();
 
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        _spinnerOverlayTimer->stop();
-
         showSpinnerOverlay(false);
-
         showErrorPage();
-
         showErrorToast(QString(tr("Failed to checkout branch. %1"))
                            .arg(additionalClarificationMessage),
                        tr("Checkout"));
@@ -1454,10 +1513,7 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
     if (event.type() !=
         EventManager::EventType::GitRepoManagerCheckoutBranchResult) {
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        _spinnerOverlayTimer->stop();
-
         showSpinnerOverlay(false);
-
         showErrorToast(QString(tr("Failed to checkout branch. %1"))
                            .arg(additionalClarificationMessage),
                        tr("Checkout"));
@@ -1478,7 +1534,7 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
       updateModelActiveBranch(guard, branchName, branchType);
     });
 
-    prepareWatcher();
+    prepareWatcher(guard);
   }
 
   LOG_PERF(0, "Exit");
@@ -1551,6 +1607,7 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
   if (event.type() !=
       EventManager::EventType::GitRepoManagerCommitStagedResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
       showErrorToast(tr("Failed to commit staged changes."), tr("Error"));
     });
     LOG_PERF(0, "Exit")
@@ -1567,6 +1624,7 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
     if (commitSuccess) {
       clearSummaryAndDescription();
     }
+    showSpinnerOverlay(false);
   });
 
   LOG_PERF(0, "Exit")
@@ -1600,14 +1658,17 @@ void GitRepoContainer::deleteFiles(const WeakPtr &guard,
 
   if (failed) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
       showErrorToast(tr("Failed to delete some files."), tr("Error"));
     });
   }
 
   refreshStatus(guard);
 
-  Util::Dispatcher::dispatchToMainThread(
-    guard, [&]() { simulateClickOnFirstHistoryRow(); });
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
+    simulateClickOnFirstHistoryRow();
+  });
 
   LOG_PERF(0, "Exit")
 }
@@ -1641,6 +1702,7 @@ void GitRepoContainer::diffFiles(const WeakPtr &guard,
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
       showErrorPage();
       showErrorToast(tr("Failed to create diff file."), tr("Error"));
     });
@@ -1651,6 +1713,7 @@ void GitRepoContainer::diffFiles(const WeakPtr &guard,
 
   if (event.type() != EventManager::EventType::GitRepoManagerDiffFilesResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
       showErrorToast(tr("Failed to create diff file."), tr("Error"));
     });
     LOG_PERF(0, "Exit")
@@ -1662,6 +1725,7 @@ void GitRepoContainer::diffFiles(const WeakPtr &guard,
 
   if (diff.isEmpty()) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
       showToast(tr("No difference compared to the HEAD commit."), tr("Info"));
     });
 
@@ -1670,6 +1734,8 @@ void GitRepoContainer::diffFiles(const WeakPtr &guard,
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+
     const QString filePath = QFileDialog::getSaveFileName(
       nullptr, tr("Save Diff File"), QString(), tr("Patch Files (*.patch)"));
     QFile file(filePath);
@@ -1720,6 +1786,7 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
       showErrorPage();
       showErrorToast(tr("Failed to discard file(s)."), tr("Error"));
     });
@@ -1731,6 +1798,7 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
   if (event.type() !=
       EventManager::EventType::GitRepoManagerDiscardFilesResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
       showErrorToast(tr("Failed to discard file(s)."), tr("Error"));
     });
     LOG_PERF(0, "Exit")
@@ -1742,6 +1810,7 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
 
   if (!discarded) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
       showToast(tr("Failed to discard file(s)."), tr("Info"));
     });
 
@@ -1874,7 +1943,6 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _spinnerOverlayTimer->stop();
       showSpinnerOverlay(false);
       showErrorPage();
       showErrorToast(QString(tr("Failed to retrieve the history of branch %1."))
@@ -1889,7 +1957,6 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
   if (historyResultEvent.type() !=
       EventManager::EventType::GitRepoManagerGetBranchHistoryResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _spinnerOverlayTimer->stop();
       showSpinnerOverlay(false);
       showErrorToast(QString(tr("Failed to retrieve the history of branch %1."))
                          .arg(_activeBranch),
@@ -1927,7 +1994,6 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
   if (!statusSuccess) {
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _spinnerOverlayTimer->stop();
       showSpinnerOverlay(false);
       showErrorPage();
       showErrorToast(tr("Failed to retrieve the repository status."),
@@ -1941,7 +2007,6 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
   if (statusResultEvent.type() !=
       EventManager::EventType::GitRepoManagerStatusResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _spinnerOverlayTimer->stop();
       showSpinnerOverlay(false);
       showErrorToast(tr("Failed to retrieve the repository status."),
                      tr("Error"));
@@ -2442,13 +2507,14 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
   LOG_PERF(0, "Enter");
 
   const QString ignoreFilePath =
-    QDir::toNativeSeparators(_path + QDir::separator() + IGNORE_FILENAME);
+    QDir::toNativeSeparators(_path + QDir::separator() + GIT_IGNORE_FILENAME);
 
   QFile file(ignoreFilePath);
   if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
       showErrorToast(
-        QString(tr("Failed to open %1 for writing.")).arg(IGNORE_FILENAME),
+        QString(tr("Failed to open %1 for writing.")).arg(GIT_IGNORE_FILENAME),
         tr("Error"));
     });
     LOG_PERF(0, "Exit");
@@ -2476,8 +2542,10 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
 
   refreshStatus(guard);
 
-  Util::Dispatcher::dispatchToMainThread(
-    guard, [&]() { simulateClickOnFirstHistoryRow(); });
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
+    simulateClickOnFirstHistoryRow();
+  });
 
   LOG_PERF(0, "Exit")
 }
@@ -2536,18 +2604,21 @@ bool GitRepoContainer::openRepo() {
   return refreshHistorySuccess;
 }
 
-void GitRepoContainer::prepareWatcher() {
+void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
-  const QStringList watchedPaths = _repoDirWatcher->directories();
-  if (!watchedPaths.isEmpty()) {
-    _repoDirWatcher->removePaths(_repoDirWatcher->directories());
-  }
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    delete _repoDirWatcher;
+    _repoDirWatcher = new QFileSystemWatcher(this);
 
-  const QStringList paths =
-    getSubdirectories(_path, QStringList() << GIT_SUBDIR);
+    connect(_repoDirWatcher, &QFileSystemWatcher::directoryChanged, this,
+            &GitRepoContainer::onRepoDirChanged);
 
-  _repoDirWatcher->addPaths(paths);
+    const QStringList paths =
+      getSubdirectories(_path, QStringList() << GIT_SUBDIR);
+
+    _repoDirWatcher->addPaths(paths);
+  });
 
   LOG_PERF(0, "Exit");
 }
@@ -2831,6 +2902,7 @@ void GitRepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {
     _spinnerOverlay->raise();
     _spinnerOverlay->show();
   } else {
+    stopOverlayTimer();
     _spinnerOverlay->hide();
     _spinnerOverlay->stopSpinning();
     _spinnerOverlay->setText("");
@@ -2917,6 +2989,7 @@ void GitRepoContainer::stageFiles(const WeakPtr &guard,
   Q_ASSERT(!files.isEmpty());
 
   if (files.isEmpty()) {
+    showSpinnerOverlay(false);
     LOG_PERF(0, "Exit")
     return;
   }
@@ -2945,6 +3018,7 @@ void GitRepoContainer::stageFiles(const WeakPtr &guard,
   if (!success) {
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
       showErrorPage();
       showErrorToast(tr("Failed to stage files."), tr("Error"));
     });
@@ -2955,6 +3029,7 @@ void GitRepoContainer::stageFiles(const WeakPtr &guard,
 
   if (event.type() != EventManager::EventType::GitRepoManagerStageFilesResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
       showErrorToast(tr("Failed to stage files."), tr("Error"));
     });
 
@@ -2970,6 +3045,7 @@ void GitRepoContainer::stageFiles(const WeakPtr &guard,
   if (!stageAllSuccess) {
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
       showErrorToast(tr("Failed to stage files."), tr("Error"));
     });
 
@@ -2978,6 +3054,7 @@ void GitRepoContainer::stageFiles(const WeakPtr &guard,
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
     simulateClickOnFirstHistoryRow();
     resetCommitAndMergeWorkingTreeTreeStageAllButton();
   });
@@ -3010,6 +3087,7 @@ void GitRepoContainer::unstageFiles(const WeakPtr &guard,
   Q_ASSERT(!files.isEmpty());
 
   if (files.isEmpty()) {
+    showSpinnerOverlay(false);
     LOG_PERF(0, "Exit")
     return;
   }
@@ -3038,6 +3116,7 @@ void GitRepoContainer::unstageFiles(const WeakPtr &guard,
   if (!success) {
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
       showErrorPage();
       showErrorToast(tr("Failed to unstage files."), tr("Error"));
     });
@@ -3049,6 +3128,7 @@ void GitRepoContainer::unstageFiles(const WeakPtr &guard,
   if (event.type() !=
       EventManager::EventType::GitRepoManagerUnstageFilesResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
       showErrorToast(tr("Failed to unstage files."), tr("Error"));
     });
 
@@ -3064,6 +3144,7 @@ void GitRepoContainer::unstageFiles(const WeakPtr &guard,
   if (!unstageAllSuccess) {
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
       showErrorToast(tr("Failed to unstage files."), tr("Error"));
     });
 
@@ -3072,6 +3153,7 @@ void GitRepoContainer::unstageFiles(const WeakPtr &guard,
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
     simulateClickOnFirstHistoryRow();
     resetCommitAndMergeIndexTreeUnstageAllButton();
   });
@@ -3081,7 +3163,7 @@ void GitRepoContainer::unstageFiles(const WeakPtr &guard,
 
 void GitRepoContainer::updateBranchHistory(
     const WeakPtr &guard,
-    const GitRepo::GitHistoryWithStatus &historyWithStatus) const {
+    const GitRepo::GitHistoryWithStatus &historyWithStatus) {
   LOG_PERF(0, "Enter");
 
   _historyModel->updateHistoryAndStatus(
@@ -3095,11 +3177,8 @@ void GitRepoContainer::updateBranchHistory(
       });
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _spinnerOverlayTimer->stop();
     showSpinnerOverlay(false);
     stretchBranchHistoryTableColumns();
-
-    // Simulate click on first row
     simulateClickOnFirstHistoryRow();
   });
 
