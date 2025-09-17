@@ -14,7 +14,11 @@
 
 #include <QCheckBox>
 #include <QEnableSharedFromThis>
+#ifdef Q_OS_WIN32
+#include <win32/DirectoryWatcher.h>
+#else
 #include <QFileSystemWatcher>
+#endif
 #include <QItemSelection>
 #include <QListView>
 #include <QPushButton>
@@ -72,6 +76,7 @@ private slots:
   void onLocalBranchSelected(const QString &branchName);
   void onRemoteBranchSelected(const QString &branchName);
   void onRepoDirChanged(const QString &path);
+  void onRepoDirChangedTimeout();
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay();
   void onGraphColumnExpand(int section);
@@ -219,7 +224,12 @@ private:
   QSharedPointer<Models::GitCommitListModel> _commitStagedListModel;
   QSharedPointer<Models::GitCommitTreeModel> _commitStagedTreeModel;
 
+#ifdef Q_OS_WIN32
+  Util::DirectoryWatcher *_repoDirWatcher;
+#else
   QFileSystemWatcher *_repoDirWatcher;
+#endif
+  QTimer *_repoDirWatcherTimer;
 };
 
 } // namespace GuiManager::Containers

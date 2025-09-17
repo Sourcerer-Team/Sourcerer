@@ -21,6 +21,7 @@ enum class ConfigKey {
   GitRepoSplitterPos,
   GitRepoBranchRecyclerViewItemsSplitterPos,
   GitRepoSpinnerOverlayTimerTimeout,
+  GitRepoDirWatcherHoldbackTimeout,
 
   // GitRepo library
   GitRepoGitCredentialsExpirationTime,

@@ -12,6 +12,10 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
 find_package(Threads REQUIRED)
 
+if(WIN32)
+set(PLATFORM_SOURCES include/win32/DirectoryWatcher.h src/win32/DirectoryWatcher.cpp)
+endif()
+
 add_library(Util STATIC
    include/BlockingQueue.h
    include/Dispatcher.h
@@ -31,6 +35,7 @@ add_library(Util STATIC
    src/LockGuard.cpp
    src/TokenString.cpp
    src/Uuid.cpp
+   ${PLATFORM_SOURCES}
 )
 
 include(../../cmake/helpers.cmake)

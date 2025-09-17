@@ -102,7 +102,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
     _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
     _displayTreeExpanded(false), _commitListModel(nullptr),
-    _commitTreeModel(nullptr), _repoDirWatcher(nullptr) {
+    _commitTreeModel(nullptr), _repoDirWatcher(nullptr),
+    _repoDirWatcherTimer(new QTimer(this)) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -241,6 +242,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _historyModel->setSelectionModel(ui->historyView->selectionModel());
 
   _spinnerOverlayTimer->setSingleShot(true);
+  _repoDirWatcherTimer->setSingleShot(true);
 
   showMainSpinnerPage(false);
   showSpinnerOverlay();
@@ -361,6 +363,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(ui->actionIndexTreeDiscard, &QAction::triggered, this,
           &GitRepoContainer::onIndexTreeTreeViewDiscardSelected);
 
+  connect(_repoDirWatcherTimer, &QTimer::timeout, this,
+          &GitRepoContainer::onRepoDirChangedTimeout);
+
   LOG_PERF(0, "Exit")
 }
 
@@ -374,6 +379,7 @@ GitRepoContainer::~GitRepoContainer() {
 
   delete _errorPixmap;
   delete _repoDirWatcher;
+  delete _repoDirWatcherTimer;
 
   LOG_PERF(0, "Exit")
 }
@@ -731,6 +737,18 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
 void GitRepoContainer::onRepoDirChanged(const QString &path) {
   LOG_PERF(0, "Enter");
 
+  const qlonglong holdbackTimeout = _configManager.getLong(
+    ConfigManager::ConfigKey::GitRepoDirWatcherHoldbackTimeout);
+
+  _repoDirWatcherTimer->stop();
+  _repoDirWatcherTimer->start(holdbackTimeout);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onRepoDirChangedTimeout() {
+  LOG_PERF(0, "Enter");
+
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
@@ -818,6 +836,12 @@ void GitRepoContainer::stopWatcher(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    Q_ASSERT(_repoDirWatcher != nullptr);
+#ifdef Q_OS_WIN32
+    if (_repoDirWatcher) {
+      _repoDirWatcher->stopWatching();
+    }
+#endif
     delete _repoDirWatcher;
     _repoDirWatcher = nullptr;
   });
@@ -2612,17 +2636,22 @@ bool GitRepoContainer::openRepo() {
 void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     delete _repoDirWatcher;
+#ifdef Q_OS_WIN32
+    _repoDirWatcher = new Util::DirectoryWatcher(_path, this);
+    connect(_repoDirWatcher, &Util::DirectoryWatcher::directoryChanged, this,
+            &GitRepoContainer::onRepoDirChanged, Qt::QueuedConnection);
+    _repoDirWatcher->startWatching();
+#else
     _repoDirWatcher = new QFileSystemWatcher(this);
-
     connect(_repoDirWatcher, &QFileSystemWatcher::directoryChanged, this,
             &GitRepoContainer::onRepoDirChanged);
-
     const QStringList paths =
       getSubdirectories(_path, QStringList() << GIT_SUBDIR);
 
     _repoDirWatcher->addPaths(paths);
+#endif
   });
 
   LOG_PERF(0, "Exit");

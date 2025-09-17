@@ -27,6 +27,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
      "gitrepo/credentials/credentialsExpirationTime"},
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout,
      "gitrepo/spinnerOverlay/timer"},
+    {ConfigKey::GitRepoDirWatcherHoldbackTimeout,
+     "gitrepo/dirWatcher/holdbackTimeout"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
     {ConfigKey::MainWindowBorderWidth, "window/borderWidth"},
     {ConfigKey::MainWindowMinimumWidth, "window/minimumWidth"},
@@ -74,6 +76,7 @@ QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {
 QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::GitRepoGitCredentialsExpirationTime, 30000},
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 1000},
+    {ConfigKey::GitRepoDirWatcherHoldbackTimeout, 2000},
     {ConfigKey::InfoToastDisplayTime, 8000},
     {ConfigKey::MainWindowBorderWidth, 2},
     {ConfigKey::MainWindowMinimumWidth, 800},
@@ -150,8 +153,7 @@ QString ConfigManager::getString(ConfigKey key) const {
     return DEFAULT_STRINGS[key];
 }
 
-QString ConfigManager::getString(const QString &key) const
-{
+QString ConfigManager::getString(const QString &key) const {
   LOCKGUARD(_mutex);
   if (_settings.contains(key))
     return _settings.value(key).toString();
@@ -184,14 +186,12 @@ void ConfigManager::setString(ConfigKey key, const QString &value) {
   _settings.setValue(KEY_NAMES[key], value);
 }
 
-void ConfigManager::setString(const QString &key, const QString &value)
-{
+void ConfigManager::setString(const QString &key, const QString &value) {
   LOCKGUARD(_mutex);
   _settings.setValue(key, value);
 }
 
-void ConfigManager::removeString(const QString &key)
-{
+void ConfigManager::removeString(const QString &key) {
   LOCKGUARD(_mutex);
   _settings.remove(key);
 }
