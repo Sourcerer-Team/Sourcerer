@@ -146,6 +146,8 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/TitlebarWidget.ui
         ${QRC_FILES}
         ${TS_FILES}
+        include/layouts/FlowLayout.h
+        src/layouts/FlowLayout.cpp
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
@@ -158,7 +160,9 @@ add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES}
         src/widgets/ProfileBoardWidget.cpp
         include/delegates/FixedHeightDelegate.h
         include/widgets/RightClickSelectListView.h
-        include/widgets/RightClickSelectTreeView.h)
+        include/widgets/RightClickSelectTreeView.h
+        include/widgets/ShortcutsToolbarWidget.h
+        src/widgets/ShortcutsToolbarWidget.cpp)
 
 include(../../cmake/helpers.cmake)
 

@@ -25,6 +25,8 @@ public:
 
   virtual void init() {}
 
+  virtual void setupShortcuts() {}
+
 private:
   ContainerType _type;
 };

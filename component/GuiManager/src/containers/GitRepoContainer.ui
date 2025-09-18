@@ -129,7 +129,7 @@
              <item>
               <widget class="GuiManager::Widgets::ShadeIconToolbox" name="toolBox">
                <property name="sizePolicy">
-                <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+                <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
                  <horstretch>0</horstretch>
                  <verstretch>0</verstretch>
                 </sizepolicy>
@@ -145,8 +145,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>218</width>
-                  <height>198</height>
+                  <width>217</width>
+                  <height>254</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -160,8 +160,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>218</width>
-                  <height>198</height>
+                  <width>217</width>
+                  <height>254</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -175,8 +175,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>218</width>
-                  <height>198</height>
+                  <width>217</width>
+                  <height>254</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -190,8 +190,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>218</width>
-                  <height>198</height>
+                  <width>217</width>
+                  <height>254</height>
                  </rect>
                 </property>
                 <attribute name="label">

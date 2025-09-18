@@ -8,6 +8,7 @@
 #include "widgets/ClickableHeaderView.h"
 #include "widgets/ErrorToast.h"
 #include "widgets/InfoToast.h"
+#include "widgets/ShortcutsToolbarWidget.h"
 
 #include <Dispatcher.h>
 #include <GitRepoManagerStructs.h>
@@ -65,7 +66,7 @@ QStringList traverseModelIndexSubtree(const QModelIndex &parent,
 
   QStringList files;
 
-  int rowCount = model->rowCount(parent);
+  const int rowCount = model->rowCount(parent);
 
   if (rowCount == 0) {
     QModelIndex current = parent;
@@ -100,10 +101,11 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _historyModel(new Models::GitHistoryModel()), _dispatcher(1),
       _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
-    _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
-    _displayTreeExpanded(false), _commitListModel(nullptr),
-    _commitTreeModel(nullptr), _repoDirWatcher(nullptr),
-    _repoDirWatcherTimer(new QTimer(this)) {
+      _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
+      _displayTreeExpanded(false), _commitListModel(nullptr),
+      _commitTreeModel(nullptr), _repoDirWatcher(nullptr),
+      _repoDirWatcherTimer(new QTimer(this)),
+      _shortcutsWidget(new GuiManager::Widgets::ShortcutsToolbarWidget(this)) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -133,7 +135,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   auto *header = new ClickableHeaderView(Qt::Horizontal, ui->historyView);
   ui->historyView->setHorizontalHeader(header);
   ui->historyView->horizontalHeader()->setSectionResizeMode(
-    QHeaderView::Stretch);
+      QHeaderView::Stretch);
   ui->pushButtonAbort->setVisible(false);
   ui->pushButtonCommit->setEnabled(false);
 
@@ -147,38 +149,38 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       "tabWidgetWorkingTreeTabBar");
 
   _commitAndMergeWorkingDirTreeStageAllButton =
-    new QPushButton(tr("Stage all"), ui->tabWidgetWorkingTree);
+      new QPushButton(tr("Stage all"), ui->tabWidgetWorkingTree);
   _commitAndMergeWorkingDirTreeStageAllButton->setObjectName(
-    "commitAndMergeWorkingDirTreeStageAllButton");
+      "commitAndMergeWorkingDirTreeStageAllButton");
   _commitAndMergeWorkingDirTreeStageAllButton->setCursor(
-    Qt::PointingHandCursor);
+      Qt::PointingHandCursor);
   _commitAndMergeWorkingDirTreeStageAllButton->setFlat(false);
   _commitAndMergeWorkingDirTreeStageAllButton->setVisible(true);
 
   resetCommitAndMergeWorkingTreeTreeStageAllButton();
 
   ui->tabWidgetWorkingTree->setCornerWidget(
-    _commitAndMergeWorkingDirTreeStageAllButton);
+      _commitAndMergeWorkingDirTreeStageAllButton);
 
   ui->listViewTabWidgetWorkingTreeFlat->setItemDelegate(
-    new Delegates::ElidePartialColorDelegate(
-      Qt::ElideMiddle, false, ui->listViewTabWidgetWorkingTreeFlat));
+      new Delegates::ElidePartialColorDelegate(
+          Qt::ElideMiddle, false, ui->listViewTabWidgetWorkingTreeFlat));
   ui->treeViewTabWidgetWorkingTreeTree->setItemDelegate(
-    new Delegates::ElidePartialColorDelegate(
-      Qt::ElideMiddle, true, ui->treeViewTabWidgetWorkingTreeTree));
+      new Delegates::ElidePartialColorDelegate(
+          Qt::ElideMiddle, true, ui->treeViewTabWidgetWorkingTreeTree));
 
   ui->listViewTabWidgetWorkingTreeFlat->setHorizontalScrollBarPolicy(
-    Qt::ScrollBarAlwaysOff);
+      Qt::ScrollBarAlwaysOff);
 
   ui->listViewTabWidgetWorkingTreeFlat->setContextMenuPolicy(
-    Qt::CustomContextMenu);
+      Qt::CustomContextMenu);
   ui->treeViewTabWidgetWorkingTreeTree->setContextMenuPolicy(
-    Qt::CustomContextMenu);
+      Qt::CustomContextMenu);
 
   _commitAndMergeIndexTreeUnstageAllButton =
-    new QPushButton(tr("Unstage all"), ui->tabWidgetIndex);
+      new QPushButton(tr("Unstage all"), ui->tabWidgetIndex);
   _commitAndMergeIndexTreeUnstageAllButton->setObjectName(
-    "commitAndMergeIndexTreeUnstageAllButton");
+      "commitAndMergeIndexTreeUnstageAllButton");
   _commitAndMergeIndexTreeUnstageAllButton->setCursor(Qt::PointingHandCursor);
   _commitAndMergeIndexTreeUnstageAllButton->setFlat(false);
   _commitAndMergeIndexTreeUnstageAllButton->setVisible(true);
@@ -188,24 +190,24 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->tabWidgetIndex->setCornerWidget(_commitAndMergeIndexTreeUnstageAllButton);
 
   ui->listViewTabWidgetIndexFlat->setItemDelegate(
-    new Delegates::ElidePartialColorDelegate(Qt::ElideMiddle, false,
-                                             ui->listViewTabWidgetIndexFlat));
+      new Delegates::ElidePartialColorDelegate(Qt::ElideMiddle, false,
+                                               ui->listViewTabWidgetIndexFlat));
   ui->treeViewTabWidgetIndexTree->setItemDelegate(
-    new Delegates::ElidePartialColorDelegate(Qt::ElideMiddle, true,
-                                             ui->treeViewTabWidgetIndexTree));
+      new Delegates::ElidePartialColorDelegate(Qt::ElideMiddle, true,
+                                               ui->treeViewTabWidgetIndexTree));
 
   ui->listViewTabWidgetIndexFlat->setHorizontalScrollBarPolicy(
-    Qt::ScrollBarAlwaysOff);
+      Qt::ScrollBarAlwaysOff);
 
   ui->listViewTabWidgetIndexFlat->setContextMenuPolicy(Qt::CustomContextMenu);
   ui->treeViewTabWidgetIndexTree->setContextMenuPolicy(Qt::CustomContextMenu);
 
   _displayTreeExpandAllButton =
-    new QPushButton(tr("Expand all"), ui->tabWidgetPageDisplayFiles);
+      new QPushButton(tr("Expand all"), ui->tabWidgetPageDisplayFiles);
   _displayTreeExpandAllButton->setCursor(Qt::PointingHandCursor);
   _displayTreeExpandAllButton->setFlat(true);
   _displayTreeExpandAllButton->setVisible(
-    ui->tabWidgetPageDisplayFiles->currentIndex() != 0);
+      ui->tabWidgetPageDisplayFiles->currentIndex() != 0);
 
   resetDisplayTreeExpandedButton();
 
@@ -215,13 +217,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->listViewPageDisplayFilesFlat->setItemDelegate(
       new Delegates::ElidePartialColorDelegate(
-      Qt::ElideMiddle, false, ui->listViewPageDisplayFilesFlat));
+          Qt::ElideMiddle, false, ui->listViewPageDisplayFilesFlat));
   ui->treeViewPageDisplayFilesTree->setItemDelegate(
-    new Delegates::ElidePartialColorDelegate(
-      Qt::ElideMiddle, true, ui->treeViewPageDisplayFilesTree));
+      new Delegates::ElidePartialColorDelegate(
+          Qt::ElideMiddle, true, ui->treeViewPageDisplayFilesTree));
 
   ui->listViewPageDisplayFilesFlat->setHorizontalScrollBarPolicy(
-    Qt::ScrollBarAlwaysOff);
+      Qt::ScrollBarAlwaysOff);
 
   qApp->setStyleSheet(qApp->styleSheet());
 
@@ -243,6 +245,46 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _spinnerOverlayTimer->setSingleShot(true);
   _repoDirWatcherTimer->setSingleShot(true);
+
+  const QIcon pullIcon(QPixmap(":icons/pull"));
+  const QIcon pushIcon(QPixmap(":icons/push"));
+  const QIcon popIcon(QPixmap(":icons/pop"));
+  const QIcon stashIcon(QPixmap(":icons/stash"));
+
+  auto *pushButtonPull = new QPushButton();
+  pushButtonPull->setObjectName("pushButtonPull");
+  pushButtonPull->setIcon(pullIcon);
+  pushButtonPull->setToolTip(tr("Pull"));
+  pushButtonPull->setMinimumSize(32, 32);
+  pushButtonPull->setMaximumSize(32, 32);
+
+  auto *pushButtonPush = new QPushButton();
+  pushButtonPush->setObjectName("pushButtonPush");
+  pushButtonPush->setIcon(pushIcon);
+  pushButtonPush->setToolTip(tr("Push"));
+  pushButtonPush->setMinimumSize(32, 32);
+  pushButtonPush->setMaximumSize(32, 32);
+
+  auto *pushButtonPop = new QPushButton();
+  pushButtonPop->setObjectName("pushButtonPop");
+  pushButtonPop->setIcon(popIcon);
+  pushButtonPop->setToolTip(tr("Pop"));
+  pushButtonPop->setMinimumSize(32, 32);
+  pushButtonPop->setMaximumSize(32, 32);
+
+  auto *pushButtonStash = new QPushButton();
+  pushButtonStash->setObjectName("pushButtonStash");
+  pushButtonStash->setIcon(stashIcon);
+  pushButtonStash->setToolTip(tr("Stash"));
+  pushButtonStash->setMinimumSize(32, 32);
+  pushButtonStash->setMaximumSize(32, 32);
+
+  _shortcutsWidget->addShortcutWidget(pushButtonPull);
+  _shortcutsWidget->addShortcutWidget(pushButtonPush);
+  _shortcutsWidget->addShortcutWidget(pushButtonStash);
+  _shortcutsWidget->addShortcutWidget(pushButtonPop);
+
+  ui->leftVerticalLayout->insertWidget(0, _shortcutsWidget);
 
   showMainSpinnerPage(false);
   showSpinnerOverlay();
@@ -278,8 +320,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onHistorySelectionChanged);
 
   connect(
-    ui->tabWidgetPageDisplayFiles, &QTabWidget::currentChanged, this,
-    [=](int index) { _displayTreeExpandAllButton->setVisible(index != 0); });
+      ui->tabWidgetPageDisplayFiles, &QTabWidget::currentChanged, this,
+      [=](int index) { _displayTreeExpandAllButton->setVisible(index != 0); });
 
   connect(_displayTreeExpandAllButton, &QPushButton::clicked, this,
           &GitRepoContainer::onDisplayTreeExpandAllButtonClicked);
@@ -385,11 +427,15 @@ GitRepoContainer::~GitRepoContainer() {
 }
 
 void GitRepoContainer::init() {
+  LOG_PERF(0, "Enter");
+
   ContainerWidget::init();
 
   openRepo();
 
   prepareWatcher(getSelf().toWeakRef());
+
+  LOG_PERF(0, "Exit")
 }
 
 bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
@@ -558,11 +604,11 @@ void GitRepoContainer::showTooltipForSummaryColumn(
       QString::number(statusFieldsMap[Models::StatusFields::RenamedStaged]) +
       "\n";
   tooltipText +=
-    "Ignored " +
-                 QString::number(statusFieldsMap[Models::StatusFields::Ignored]) + "\n";
+      "Ignored " +
+      QString::number(statusFieldsMap[Models::StatusFields::Ignored]) + "\n";
   tooltipText +=
-    "Conflicted " +
-                 QString::number(statusFieldsMap[Models::StatusFields::Conflicted]) + "\n";
+      "Conflicted " +
+      QString::number(statusFieldsMap[Models::StatusFields::Conflicted]) + "\n";
 
   const qlonglong tooltipDisplayTime =
       _configManager.getLong(ConfigManager::ConfigKey::TooltipDisplayTime);
@@ -576,7 +622,7 @@ void GitRepoContainer::onCommitButtonClicked() {
   LOG_PERF(0, "Enter");
 
   const Common::UserProfile &currentProfile =
-    _userProfileManager.currentProfile();
+      _userProfileManager.currentProfile();
   const QString summary = ui->lineEditSummary->text().trimmed();
   const QString description = ui->textEditDescription->toPlainText().trimmed();
 
@@ -671,7 +717,7 @@ void GitRepoContainer::onHistorySelectionChanged(
     }
   } else {
     ui->stackedWidgetCommitAndMerge->setCurrentIndex(
-      static_cast<int>(CommitAndMergeStackIndexes::CommitAndMerge));
+        static_cast<int>(CommitAndMergeStackIndexes::CommitAndMerge));
 
     _dispatcher.clearPool();
     _dispatcher.dispatch([=]() { showCommitAndMerge(guard); });
@@ -715,7 +761,7 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch(
-    [=]() { checkoutBranch(guard, branchName, GitRepo::BranchType::Local); });
+      [=]() { checkoutBranch(guard, branchName, GitRepo::BranchType::Local); });
 
   LOG_PERF(0, "Exit");
 }
@@ -738,7 +784,7 @@ void GitRepoContainer::onRepoDirChanged(const QString &path) {
   LOG_PERF(0, "Enter");
 
   const qlonglong holdbackTimeout = _configManager.getLong(
-    ConfigManager::ConfigKey::GitRepoDirWatcherHoldbackTimeout);
+      ConfigManager::ConfigKey::GitRepoDirWatcherHoldbackTimeout);
 
   _repoDirWatcherTimer->stop();
   _repoDirWatcherTimer->start(holdbackTimeout);
@@ -757,7 +803,7 @@ void GitRepoContainer::onRepoDirChangedTimeout() {
     refreshStatus(guard);
 
     Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { simulateClickOnFirstHistoryRow(); });
+        guard, [=]() { simulateClickOnFirstHistoryRow(); });
   });
 
   LOG_PERF(0, "Exit");
@@ -771,7 +817,7 @@ void GitRepoContainer::onTagSelected(const QString &tagName) {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch(
-    [=]() { checkoutBranch(guard, tagName, GitRepo::BranchType::Tag); });
+      [=]() { checkoutBranch(guard, tagName, GitRepo::BranchType::Tag); });
 
   LOG_PERF(0, "Exit");
 }
@@ -817,7 +863,7 @@ void GitRepoContainer::startOverlayTimer() const {
   LOG_PERF(0, "Enter");
 
   const qlonglong timerTimeout = _configManager.getLong(
-    ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
+      ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
 
   _spinnerOverlayTimer->start(timerTimeout);
 
@@ -867,7 +913,7 @@ void GitRepoContainer::onGraphColumnExpand(int section) {
 }
 
 void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
-  const QPoint &pos) {
+    const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
   const QModelIndex index = ui->listViewTabWidgetWorkingTreeFlat->indexAt(pos);
@@ -877,7 +923,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
   }
 
   const QStringList files =
-    getSelectedFilesWhichExist(ui->listViewTabWidgetWorkingTreeFlat);
+      getSelectedFilesWhichExist(ui->listViewTabWidgetWorkingTreeFlat);
 
   QMenu contextMenu;
   contextMenu.addAction(ui->actionWorkingTreeFlatStage);
@@ -900,7 +946,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewStageSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
-    getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
+      getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
 
   startOverlayTimer();
 
@@ -915,7 +961,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
-    getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
+      getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
 
   startOverlayTimer();
 
@@ -927,11 +973,11 @@ void GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected(bool checked) {
 }
 
 void GitRepoContainer::onWorkingTreeFlatListViewCreateFilePatchSelected(
-  bool checked) {
+    bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
-    getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
+      getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
 
   startOverlayTimer();
 
@@ -946,7 +992,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
-    getSelectedFilesWhichExist(ui->listViewTabWidgetWorkingTreeFlat);
+      getSelectedFilesWhichExist(ui->listViewTabWidgetWorkingTreeFlat);
 
   if (files.isEmpty()) {
     LOG_PERF(0, "Exit");
@@ -959,7 +1005,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected(bool checked) {
     question = tr("Are you sure you want to delete the selected file?");
   } else {
     question = tr("Are you sure you want to delete the %1 selected files?")
-                 .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -982,7 +1028,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
-    getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
+      getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
 
   if (files.isEmpty()) {
     LOG_PERF(0, "Exit");
@@ -995,7 +1041,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected(bool checked) {
     question = tr("Are you sure you want to discard the selected file?");
   } else {
     question = tr("Are you sure you want to discard the %1 selected files?")
-                 .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -1015,7 +1061,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected(bool checked) {
 }
 
 void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
-  const QPoint &pos) {
+    const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
   const QModelIndex index = ui->treeViewTabWidgetWorkingTreeTree->indexAt(pos);
@@ -1025,7 +1071,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
   }
 
   const QStringList files =
-    getSelectedFilesWhichExist(ui->treeViewTabWidgetWorkingTreeTree);
+      getSelectedFilesWhichExist(ui->treeViewTabWidgetWorkingTreeTree);
 
   QMenu contextMenu;
   contextMenu.addAction(ui->actionWorkingTreeTreeStage);
@@ -1048,7 +1094,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewStageSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
-    getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
+      getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
 
   startOverlayTimer();
 
@@ -1063,7 +1109,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
-    getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
+      getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
@@ -1075,11 +1121,11 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected(bool checked) {
 }
 
 void GitRepoContainer::onWorkingTreeTreeTreeViewCreateFilePatchSelected(
-  bool checked) {
+    bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
-    getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
+      getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
 
   startOverlayTimer();
 
@@ -1094,7 +1140,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
-    getSelectedFilesWhichExist(ui->treeViewTabWidgetWorkingTreeTree);
+      getSelectedFilesWhichExist(ui->treeViewTabWidgetWorkingTreeTree);
 
   if (files.isEmpty()) {
     LOG_PERF(0, "Exit");
@@ -1107,7 +1153,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected(bool checked) {
     question = tr("Are you sure you want to delete the selected file?");
   } else {
     question = tr("Are you sure you want to delete the %1 selected files?")
-                 .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -1130,7 +1176,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
-    getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
+      getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
 
   if (files.isEmpty()) {
     LOG_PERF(0, "Exit");
@@ -1143,7 +1189,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected(bool checked) {
     question = tr("Are you sure you want to discard the selected file?");
   } else {
     question = tr("Are you sure you want to discard the %1 selected files?")
-                 .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -1163,7 +1209,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected(bool checked) {
 }
 
 void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
-  const QPoint &pos) {
+    const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
   const QModelIndex index = ui->listViewTabWidgetIndexFlat->indexAt(pos);
@@ -1173,7 +1219,7 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
   }
 
   const QStringList files =
-    getSelectedFilesWhichExist(ui->listViewTabWidgetIndexFlat);
+      getSelectedFilesWhichExist(ui->listViewTabWidgetIndexFlat);
 
   QMenu contextMenu;
   contextMenu.addAction(ui->actionIndexFlatUnstage);
@@ -1221,7 +1267,7 @@ void GitRepoContainer::onIndexFlatListViewIgnoreSelected(bool checked) {
 }
 
 void GitRepoContainer::onIndexFlatListViewCreateFilePatchSelected(
-  bool checked) {
+    bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
@@ -1239,7 +1285,7 @@ void GitRepoContainer::onIndexFlatListViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
-    getSelectedFilesWhichExist(ui->listViewTabWidgetIndexFlat);
+      getSelectedFilesWhichExist(ui->listViewTabWidgetIndexFlat);
 
   if (files.isEmpty()) {
     LOG_PERF(0, "Exit");
@@ -1252,7 +1298,7 @@ void GitRepoContainer::onIndexFlatListViewDeleteSelected(bool checked) {
     question = tr("Are you sure you want to delete the selected file?");
   } else {
     question = tr("Are you sure you want to delete the %1 selected files?")
-                 .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -1287,7 +1333,7 @@ void GitRepoContainer::onIndexFlatListViewDiscardSelected(bool checked) {
     question = tr("Are you sure you want to discard the selected file?");
   } else {
     question = tr("Are you sure you want to discard the %1 selected files?")
-                 .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -1307,7 +1353,7 @@ void GitRepoContainer::onIndexFlatListViewDiscardSelected(bool checked) {
 }
 
 void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
-  const QPoint &pos) {
+    const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
   const QModelIndex index = ui->treeViewTabWidgetIndexTree->indexAt(pos);
@@ -1317,7 +1363,7 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
   }
 
   const QStringList files =
-    getSelectedFilesWhichExist(ui->treeViewTabWidgetIndexTree);
+      getSelectedFilesWhichExist(ui->treeViewTabWidgetIndexTree);
 
   QMenu contextMenu;
   contextMenu.addAction(ui->actionIndexTreeUnstage);
@@ -1365,7 +1411,7 @@ void GitRepoContainer::onIndexTreeTreeViewIgnoreSelected(bool checked) {
 }
 
 void GitRepoContainer::onIndexTreeTreeViewCreateFilePatchSelected(
-  bool checked) {
+    bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
@@ -1383,7 +1429,7 @@ void GitRepoContainer::onIndexTreeTreeViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
-    getSelectedFilesWhichExist(ui->treeViewTabWidgetIndexTree);
+      getSelectedFilesWhichExist(ui->treeViewTabWidgetIndexTree);
 
   if (files.isEmpty()) {
     LOG_PERF(0, "Exit");
@@ -1396,7 +1442,7 @@ void GitRepoContainer::onIndexTreeTreeViewDeleteSelected(bool checked) {
     question = tr("Are you sure you want to delete the selected file?");
   } else {
     question = tr("Are you sure you want to delete the %1 selected files?")
-                 .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -1431,7 +1477,7 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
     question = tr("Are you sure you want to discard the selected file?");
   } else {
     question = tr("Are you sure you want to discard the %1 selected files?")
-                 .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -1605,16 +1651,16 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
   command.message = description;
 
   EventManager::Event commitStagedEvent(
-    EventManager::EventType::GitRepoManagerCommitStaged, eventUuid);
+      EventManager::EventType::GitRepoManagerCommitStaged, eventUuid);
   commitStagedEvent.addData(command);
   _eventManager.send(commitStagedEvent);
 
   static std::set types = {
-                           EventManager::EventType::GitRepoManagerCommitStagedError,
-    EventManager::EventType::GitRepoManagerCommitStagedResult};
+      EventManager::EventType::GitRepoManagerCommitStagedError,
+      EventManager::EventType::GitRepoManagerCommitStagedResult};
 
   const auto &[success, event] =
-    _eventManager.waitForAnswer(token, eventUuid, types);
+      _eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
     closeRepo();
@@ -1711,16 +1757,16 @@ void GitRepoContainer::diffFiles(const WeakPtr &guard,
   command.files = files;
 
   EventManager::Event diffFilesEvent(
-    EventManager::EventType::GitRepoManagerDiffFiles, eventUuid);
+      EventManager::EventType::GitRepoManagerDiffFiles, eventUuid);
   diffFilesEvent.addData(command);
   _eventManager.send(diffFilesEvent);
 
   static std::set types = {
-                           EventManager::EventType::GitRepoManagerDiffFilesError,
-    EventManager::EventType::GitRepoManagerDiffFilesResult};
+      EventManager::EventType::GitRepoManagerDiffFilesError,
+      EventManager::EventType::GitRepoManagerDiffFilesResult};
 
   const auto &[success, event] =
-    _eventManager.waitForAnswer(token, eventUuid, types);
+      _eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
     closeRepo();
@@ -1761,7 +1807,7 @@ void GitRepoContainer::diffFiles(const WeakPtr &guard,
     showSpinnerOverlay(false);
 
     const QString filePath = QFileDialog::getSaveFileName(
-      nullptr, tr("Save Diff File"), QString(), tr("Patch Files (*.patch)"));
+        nullptr, tr("Save Diff File"), QString(), tr("Patch Files (*.patch)"));
     QFile file(filePath);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate |
                    QIODevice::Text)) {
@@ -1795,16 +1841,16 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
   command.files = files;
 
   EventManager::Event discardFilesEvent(
-    EventManager::EventType::GitRepoManagerDiscardFiles, eventUuid);
+      EventManager::EventType::GitRepoManagerDiscardFiles, eventUuid);
   discardFilesEvent.addData(command);
   _eventManager.send(discardFilesEvent);
 
   static std::set types = {
-                           EventManager::EventType::GitRepoManagerDiscardFilesError,
-    EventManager::EventType::GitRepoManagerDiscardFilesResult};
+      EventManager::EventType::GitRepoManagerDiscardFilesError,
+      EventManager::EventType::GitRepoManagerDiscardFilesResult};
 
   const auto &[success, event] =
-    _eventManager.waitForAnswer(token, eventUuid, types);
+      _eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
     closeRepo();
@@ -2169,7 +2215,7 @@ QStringList GitRepoContainer::getSelectedFiles(QListView *listView) {
   }
 
   const QModelIndexList listIndexes =
-    listView->selectionModel()->selectedIndexes();
+      listView->selectionModel()->selectedIndexes();
 
   QStringList files;
 
@@ -2219,13 +2265,13 @@ QStringList GitRepoContainer::getSelectedFiles(QTreeView *treeView) {
   }
 
   const QModelIndexList listIndexes =
-    treeView->selectionModel()->selectedIndexes();
+      treeView->selectionModel()->selectedIndexes();
 
   QStringList files;
 
   for (const auto &index : listIndexes) {
     const QStringList traversedFiles =
-      traverseModelIndexSubtree(index, treeView->model());
+        traverseModelIndexSubtree(index, treeView->model());
 
     for (const auto &traversedFile : traversedFiles) {
       files += QDir::fromNativeSeparators(traversedFile);
@@ -2536,14 +2582,14 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
   LOG_PERF(0, "Enter");
 
   const QString ignoreFilePath =
-    QDir::toNativeSeparators(_path + QDir::separator() + GIT_IGNORE_FILENAME);
+      QDir::toNativeSeparators(_path + QDir::separator() + GIT_IGNORE_FILENAME);
 
   QFile file(ignoreFilePath);
   if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString(tr("Failed to open %1 for writing."))
-                       .arg(GIT_IGNORE_FILENAME),
+                         .arg(GIT_IGNORE_FILENAME),
                      tr("Error"));
     });
     LOG_PERF(0, "Exit");
@@ -2557,7 +2603,7 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
   for (const QString &file : files) {
     QString ignoreFile = file;
     const QString fullPath =
-      QDir::toNativeSeparators(_path + QDir::separator() + ignoreFile);
+        QDir::toNativeSeparators(_path + QDir::separator() + ignoreFile);
     if (QFileInfo(fullPath).isDir()) {
       ignoreFile += "/";
     }
@@ -2699,11 +2745,11 @@ void GitRepoContainer::refreshStatus(const WeakPtr &guard) {
   _eventManager.send(statusEvent);
 
   static std::set statusTypes = {
-                                 EventManager::EventType::GitRepoManagerStatusError,
-    EventManager::EventType::GitRepoManagerStatusResult};
+      EventManager::EventType::GitRepoManagerStatusError,
+      EventManager::EventType::GitRepoManagerStatusResult};
 
   const auto &[statusSuccess, statusResultEvent] =
-    _eventManager.waitForAnswer(statusToken, statusEventUuid, statusTypes);
+      _eventManager.waitForAnswer(statusToken, statusEventUuid, statusTypes);
 
   if (!statusSuccess) {
     closeRepo();
@@ -2742,7 +2788,7 @@ void GitRepoContainer::resetCommitAndMergeIndexTreeUnstageAllButton() {
 
   _commitAndMergeIndexTreeUnstageAllButton->setText(tr("Unstage all"));
   _commitAndMergeIndexTreeUnstageAllButton->setVisible(
-    _commitStagedListModel && _commitStagedListModel->rowCount() > 0);
+      _commitStagedListModel && _commitStagedListModel->rowCount() > 0);
 
   LOG_PERF(0, "Exit")
 }
@@ -2752,7 +2798,7 @@ void GitRepoContainer::resetCommitAndMergeWorkingTreeTreeStageAllButton() {
 
   _commitAndMergeWorkingDirTreeStageAllButton->setText(tr("Stage all"));
   _commitAndMergeWorkingDirTreeStageAllButton->setVisible(
-    _commitListModel && _commitListModel->rowCount() > 0);
+      _commitListModel && _commitListModel->rowCount() > 0);
 
   LOG_PERF(0, "Exit")
 }
@@ -2761,9 +2807,9 @@ void GitRepoContainer::resetCommitButton() {
   LOG_PERF(0, "Enter");
 
   ui->pushButtonCommit->setEnabled(
-    _commitStagedListModel && _commitStagedListModel->rowCount() > 0 &&
-    (!ui->lineEditSummary->text().isEmpty() ||
-                                                                         !ui->textEditDescription->toPlainText().isEmpty()));
+      _commitStagedListModel && _commitStagedListModel->rowCount() > 0 &&
+      (!ui->lineEditSummary->text().isEmpty() ||
+       !ui->textEditDescription->toPlainText().isEmpty()));
 
   LOG_PERF(0, "Exit")
 }
@@ -2781,7 +2827,7 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() const {
   LOG_PERF(0, "Enter");
 
   ui->historyView->horizontalHeader()->setSectionResizeMode(
-    QHeaderView::Interactive);
+      QHeaderView::Interactive);
 
   const int totalWidth = ui->historyView->viewport()->width();
   int colSummary = totalWidth / 2;
@@ -2836,11 +2882,11 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
         commitInfo.parents.isEmpty()
             ? tr("None")
             : commitInfo.parents
-              .mid(0, MAXIMUM_PARENTS_IN_LABEL) // Show up to 3 parents
-              .join(", ")
-              .left(MAX_COMMIT_SHA_LENGTH) +
+                      .mid(0, MAXIMUM_PARENTS_IN_LABEL) // Show up to 3 parents
+                      .join(", ")
+                      .left(MAX_COMMIT_SHA_LENGTH) +
                   (commitInfo.parents.size() > MAXIMUM_PARENTS_IN_LABEL ? "..."
-                                                                    : ""));
+                                                                        : ""));
 
     QTextCursor cursor = ui->textEditPageDisplayDescription->textCursor();
     QTextBlockFormat format = cursor.blockFormat();
@@ -2866,29 +2912,29 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
   LOG_PERF(0, "Enter");
 
   const GitRepo::GitHistoryWithStatus &historyAndStatus =
-    _historyModel->historyWithStatus();
+      _historyModel->historyWithStatus();
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _commitListModel.reset(
-      Models::GitCommitListModel::from(historyAndStatus.status));
+        Models::GitCommitListModel::from(historyAndStatus.status));
     if (_commitListModel) {
       ui->listViewTabWidgetWorkingTreeFlat->setModel(_commitListModel.get());
     }
 
     _commitTreeModel.reset(
-      Models::GitCommitTreeModel::from(historyAndStatus.status));
+        Models::GitCommitTreeModel::from(historyAndStatus.status));
     if (_commitTreeModel) {
       ui->treeViewTabWidgetWorkingTreeTree->setModel(_commitTreeModel.get());
     }
 
     _commitStagedListModel.reset(
-      Models::GitCommitListModel::fromStaged(historyAndStatus.status));
+        Models::GitCommitListModel::fromStaged(historyAndStatus.status));
     if (_commitStagedListModel) {
       ui->listViewTabWidgetIndexFlat->setModel(_commitStagedListModel.get());
     }
 
     _commitStagedTreeModel.reset(
-      Models::GitCommitTreeModel::fromStaged(historyAndStatus.status));
+        Models::GitCommitTreeModel::fromStaged(historyAndStatus.status));
     if (_commitStagedTreeModel) {
       ui->treeViewTabWidgetIndexTree->setModel(_commitStagedTreeModel.get());
     }
@@ -2974,7 +3020,7 @@ void GitRepoContainer::simulateClickOnCurrentHistoryRow() const {
 
   const QModelIndex index = ui->historyView->currentIndex();
   ui->historyView->selectionModel()->select(
-    index, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+      index, QItemSelectionModel::Select | QItemSelectionModel::Rows);
   ui->historyView->setCurrentIndex(index);
 
   ui->historyView->setFocus();
@@ -2982,14 +3028,13 @@ void GitRepoContainer::simulateClickOnCurrentHistoryRow() const {
   LOG_PERF(0, "Exit")
 }
 
-void GuiManager::Containers::GitRepoContainer::simulateClickOnFirstHistoryRow()
-  const {
+void GitRepoContainer::simulateClickOnFirstHistoryRow() const {
   LOG_PERF(0, "Enter");
 
   const QModelIndex index =
-    ui->historyView->model()->index(0, 0); // First row, first column
+      ui->historyView->model()->index(0, 0); // First row, first column
   ui->historyView->selectionModel()->select(
-    index, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+      index, QItemSelectionModel::Select | QItemSelectionModel::Rows);
   ui->historyView->setCurrentIndex(index);
 
   ui->historyView->setFocus();
@@ -3001,7 +3046,7 @@ void GitRepoContainer::stageAll(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
   const GitRepo::GitHistoryWithStatus &historyAndStatus =
-    _historyModel->historyWithStatus();
+      _historyModel->historyWithStatus();
 
   const QStringList modifiedFiles = historyAndStatus.status.newFiles +
                                     historyAndStatus.status.modifiedFiles +
@@ -3038,16 +3083,16 @@ void GitRepoContainer::stageFiles(const WeakPtr &guard,
   command.files = files;
 
   EventManager::Event stageFilesEvent(
-    EventManager::EventType::GitRepoManagerStageFiles, eventUuid);
+      EventManager::EventType::GitRepoManagerStageFiles, eventUuid);
   stageFilesEvent.addData(command);
   _eventManager.send(stageFilesEvent);
 
   static std::set types = {
-                           EventManager::EventType::GitRepoManagerStageFilesError,
-    EventManager::EventType::GitRepoManagerStageFilesResult};
+      EventManager::EventType::GitRepoManagerStageFilesError,
+      EventManager::EventType::GitRepoManagerStageFilesResult};
 
   const auto &[success, event] =
-    _eventManager.waitForAnswer(token, eventUuid, types);
+      _eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
     closeRepo();
@@ -3100,7 +3145,7 @@ void GitRepoContainer::unstageAll(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
   const GitRepo::GitHistoryWithStatus &historyAndStatus =
-    _historyModel->historyWithStatus();
+      _historyModel->historyWithStatus();
 
   const QStringList stagedFiles = historyAndStatus.status.newStagedFiles +
                                   historyAndStatus.status.modifiedStagedFiles +
@@ -3136,16 +3181,16 @@ void GitRepoContainer::unstageFiles(const WeakPtr &guard,
   command.files = files;
 
   EventManager::Event unstageFilesEvent(
-    EventManager::EventType::GitRepoManagerUnstageFiles, eventUuid);
+      EventManager::EventType::GitRepoManagerUnstageFiles, eventUuid);
   unstageFilesEvent.addData(command);
   _eventManager.send(unstageFilesEvent);
 
   static std::set types = {
-                           EventManager::EventType::GitRepoManagerUnstageFilesError,
-    EventManager::EventType::GitRepoManagerUnstageFilesResult};
+      EventManager::EventType::GitRepoManagerUnstageFilesError,
+      EventManager::EventType::GitRepoManagerUnstageFilesResult};
 
   const auto &[success, event] =
-    _eventManager.waitForAnswer(token, eventUuid, types);
+      _eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
     closeRepo();

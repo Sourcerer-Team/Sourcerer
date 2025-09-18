@@ -2,6 +2,7 @@
 
 #include "models/GitHistoryModel.h"
 #include "widgets/ContainerWidget.h"
+#include "widgets/ShortcutsToolbarWidget.h"
 #include "widgets/SpinnerOverlayWidget.h"
 #include "widgets/ToastHostWidget.h"
 
@@ -230,6 +231,8 @@ private:
   QFileSystemWatcher *_repoDirWatcher;
 #endif
   QTimer *_repoDirWatcherTimer;
+
+  GuiManager::Widgets::ShortcutsToolbarWidget *_shortcutsWidget;
 };
 
 } // namespace GuiManager::Containers

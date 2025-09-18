@@ -74,11 +74,16 @@ MainWindow::MainWindow(QWidget *parent)
 
   _centralWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-  const auto layout = new QVBoxLayout(widget);
-  layout->setContentsMargins(0, 0, 0, 0);
-  layout->setSpacing(0);
-  layout->addWidget(_topBarWidget);
-  layout->addWidget(_centralWidget);
+  const auto verticalLayout = new QVBoxLayout();
+  verticalLayout->setContentsMargins(0, 0, 0, 0);
+  verticalLayout->setSpacing(0);
+  verticalLayout->addWidget(_topBarWidget);
+  verticalLayout->addWidget(_centralWidget);
+
+  const auto horizontalLyout = new QHBoxLayout(widget);
+  horizontalLyout->setContentsMargins(0, 0, 0, 0);
+  horizontalLyout->setSpacing(0);
+  horizontalLyout->addLayout(verticalLayout);
 
   setCentralWidget(widget);
 
@@ -372,6 +377,7 @@ void MainWindow::addCloneContainer() {
   const auto container = QSharedPointer<CloneGitRepoContainer>::create(this);
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
   container->init();
+  container->setupShortcuts();
   _containers += container;
   _topBarWidget->titleBarWidget()->addTab(tr("Clone"));
   _topBarWidget->titleBarWidget()->selectTab(
@@ -391,8 +397,9 @@ void MainWindow::addGitRepoContainer(const QString &path) {
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
   const auto container = QSharedPointer<GitRepoContainer>::create(path, this);
-  container->init();
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->setupShortcuts();
   _containers += container;
   _topBarWidget->titleBarWidget()->addTab(Git::parseRepoName(path));
   _topBarWidget->titleBarWidget()->selectTab(
@@ -410,6 +417,7 @@ void MainWindow::addHomeContainer() {
   container->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
   container->init();
+  container->setupShortcuts();
   _containers += container;
   _topBarWidget->titleBarWidget()->addTab(tr("Home"));
   _topBarWidget->titleBarWidget()->selectTab(
@@ -428,8 +436,9 @@ void MainWindow::addInitGitRepoContainer() {
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
   const auto container = QSharedPointer<InitGitRepoContainer>::create(this);
-  container->init();
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->setupShortcuts();
   _containers += container;
   _topBarWidget->titleBarWidget()->addTab(tr("Init"));
   _topBarWidget->titleBarWidget()->selectTab(
@@ -450,8 +459,9 @@ void MainWindow::addSettingsContainer() {
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
   const auto container = QSharedPointer<SettingsContainer>::create(this);
-  container->init();
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->setupShortcuts();
   _containers += container;
   _topBarWidget->titleBarWidget()->addTab(tr("Settings"));
   _topBarWidget->titleBarWidget()->selectTab(
@@ -569,6 +579,7 @@ void MainWindow::selectContainer(const int index) {
     _containers[_current]->hide();
 
   _containers[index]->show();
+  _containers[index]->setupShortcuts();
   _centralWidget->setCentralWidget(_containers[index].get());
   _current = index;
 

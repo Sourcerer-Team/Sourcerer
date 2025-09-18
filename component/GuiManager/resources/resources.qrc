@@ -20,5 +20,9 @@
         <file>icons/file-unreadable.png</file>
         <file>icons/profile.png</file>
         <file>icons/profile-default.png</file>
+        <file>icons/pull.png</file>
+        <file>icons/push.png</file>
+        <file>icons/pop.png</file>
+        <file>icons/stash.png</file>
     </qresource>
 </RCC>
