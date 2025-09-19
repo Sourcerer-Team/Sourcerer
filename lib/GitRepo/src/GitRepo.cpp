@@ -102,6 +102,16 @@ static void invalidateCredentials(const QString &url) {
     gGitCredentials.erase(it);
 }
 
+static void sendInvalidCredentialsSignal() {
+  EventManager::EventManager &eventManager =
+      EventManager::EventManager::getInstance();
+
+  EventManager::Event event(
+      EventManager::EventType::GitRepoManagerGetCredentialsInvalid);
+
+  eventManager.send(event);
+}
+
 static bool createInitialCommit(git_repository *repo,
                                 const QString &defaultBranchName) {
   LOG_PERF(0, "Enter");
@@ -1063,7 +1073,7 @@ acquireCredentials(const QString &url, const QString &username,
   const int token = eventManager.startWait();
 
   GitCredentialsRequest request;
-  request.uuid = Uuid::createUuid();
+  request.id = qt_hash(url);
   request.url = url;
   request.username = username;
   request.allowedTypes = allowedTypes;
@@ -1078,14 +1088,14 @@ acquireCredentials(const QString &url, const QString &username,
     bool success = false;
     switch (event.type()) {
     case EventManager::EventType::GitRepoManagerGetCredentialsCancel: {
-      const auto [uuid] = event.data<GitCredentialsErrorResponse>();
-      success = uuid == request.uuid;
+      const auto [id] = event.data<GitCredentialsErrorResponse>();
+      success = id == request.id;
       break;
     }
     case EventManager::EventType::GitRepoManagerGetCredentialsSubmit: {
       const GitCredentialsResponse response =
           event.data<GitCredentialsResponse>();
-      success = response.uuid == request.uuid;
+      success = response.id == request.id;
       break;
     }
     default: {
@@ -1128,7 +1138,7 @@ acquireCredentials(const QString &url, const QString &username,
 
 static int credentialsAcquireCallback(git_credential **out, const char *url,
                                       const char *username_from_url,
-                                      unsigned int allowed_types,
+                                      const unsigned int allowed_types,
                                       void *payload) {
   LOG_PERF(0, "Enter");
 
@@ -1139,8 +1149,7 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
 
   gGitCredentialsMutex.lock();
 
-  const auto it = gGitCredentials.find(url);
-  if (it != gGitCredentials.end()) {
+  if (const auto it = gGitCredentials.find(url); it != gGitCredentials.end()) {
 
     gGitCredentialsMutex.unlock();
 
@@ -2589,6 +2598,8 @@ bool pull(git_repository *repo) {
       gGitCredentialsMutex.lock();
       gGitCredentials.remove(url);
       gGitCredentialsMutex.unlock();
+
+      sendInvalidCredentialsSignal();
     }
 
     ++retries;

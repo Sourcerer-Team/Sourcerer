@@ -57,6 +57,7 @@ enum EventType {
   GitRepoManagerGetCommitStatusResult,
   GitRepoManagerGetCommitStatusError,
   GitRepoManagerGetCredentials,
+  GitRepoManagerGetCredentialsInvalid,
   GitRepoManagerGetCredentialsFinished,
   GitRepoManagerGetCredentialsSubmit,
   GitRepoManagerGetCredentialsCancel,

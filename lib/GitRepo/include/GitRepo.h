@@ -29,20 +29,20 @@ struct CloneProgress {
 };
 
 struct GitCredentialsRequest {
-  QString uuid;
+  uint id = -1;
   QString url;
   QString username;
   int allowedTypes;
 };
 
 struct GitCredentialsResponse {
-  QString uuid;
+  uint id = -1;
   QString username;
   QString password;
 };
 
 struct GitCredentialsErrorResponse {
-  QString uuid;
+  uint id = -1;
 };
 
 struct GitCommitInfo {

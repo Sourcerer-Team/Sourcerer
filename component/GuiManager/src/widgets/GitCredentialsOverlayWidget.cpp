@@ -11,52 +11,62 @@ namespace GuiManager::Widgets {
 GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(QWidget *parent)
     : OverlayWidget(parent, ALPHA),
       _eventManager(::EventManager::EventManager::getInstance()),
-      _showing(false) {
+      _showing(false), _holder(QSharedPointer<bool>::create(false)) {
   LOG_PERF(0, "Enter");
 
-  const auto titleLabel = new QLabel(tr("Git Credentials"), this);
+  const auto titleLabel = new QLabel(tr("Credentials"), this);
   titleLabel->setAlignment(Qt::AlignLeft);
-  titleLabel->setMinimumWidth(400);
-  titleLabel->setMaximumWidth(400);
   titleLabel->setStyleSheet(QString("font-size: 16px; font-weight: bold; "
                                     "background-color: %1; padding: 4")
                                 .arg(QColor(Qt::darkYellow).name()));
 
   const auto widget = new QWidget(this);
 
-  const auto messageLabel =
-      new QLabel(tr("Please enter git credentials:"), this);
-  messageLabel->setAlignment(Qt::AlignHCenter);
-  messageLabel->setWordWrap(true);
+  _message = new QLabel(widget);
 
   _usernameLineEdit = new QLineEdit(widget);
   _usernameLineEdit->setAlignment(Qt::AlignLeft);
   _usernameLineEdit->setFocus();
-  _usernameLineEdit->setMinimumWidth(400);
-  _usernameLineEdit->setMaximumWidth(400);
+  _usernameLineEdit->setMinimumWidth(250);
+  _usernameLineEdit->setMaximumWidth(250);
   _usernameLineEdit->setPlaceholderText(tr("Enter username"));
 
   _passwordLineEdit = new QLineEdit(widget);
   _passwordLineEdit->setEchoMode(QLineEdit::Password);
   _passwordLineEdit->setAlignment(Qt::AlignLeft);
-  _passwordLineEdit->setMinimumWidth(400);
-  _passwordLineEdit->setMaximumWidth(400);
+  _passwordLineEdit->setMinimumWidth(250);
+  _passwordLineEdit->setMaximumWidth(250);
   _passwordLineEdit->setPlaceholderText(tr("Enter password"));
 
-  const auto submitButton = new QPushButton(tr("Submit"), this);
-  submitButton->setFlat(true);
-  submitButton->setCursor(Qt::PointingHandCursor);
+  _submitButton = new QPushButton(tr("Submit"), this);
+  _submitButton->setFlat(true);
+  _submitButton->setCursor(Qt::PointingHandCursor);
+  _submitButton->setDefault(true);
 
   const auto cancelButton = new QPushButton(tr("Cancel"), this);
   cancelButton->setFlat(true);
   cancelButton->setCursor(Qt::PointingHandCursor);
 
+  const auto idCardLabel = new QLabel(this);
+  idCardLabel->setPixmap(QPixmap(":icons/id-card.png"));
+
+  const auto usernameLayout = new QHBoxLayout();
+  usernameLayout->addWidget(idCardLabel);
+  usernameLayout->addWidget(_usernameLineEdit);
+
+  const auto padlockLabel = new QLabel(this);
+  padlockLabel->setPixmap(QPixmap(":icons/padlock.png"));
+
+  const auto passwordLayout = new QHBoxLayout();
+  passwordLayout->addWidget(padlockLabel);
+  passwordLayout->addWidget(_passwordLineEdit);
+
   const auto editsLayout = new QVBoxLayout();
-  editsLayout->addWidget(_usernameLineEdit);
-  editsLayout->addWidget(_passwordLineEdit);
+  editsLayout->addLayout(usernameLayout);
+  editsLayout->addLayout(passwordLayout);
 
   const auto buttonsLayout = new QHBoxLayout();
-  buttonsLayout->addWidget(submitButton);
+  buttonsLayout->addWidget(_submitButton);
   buttonsLayout->addSpacing(16);
   buttonsLayout->addWidget(cancelButton);
 
@@ -69,8 +79,8 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(QWidget *parent)
   const auto composedLayout2 = new QVBoxLayout();
   composedLayout2->addWidget(titleLabel);
   composedLayout2->addSpacing(16);
-  composedLayout2->addWidget(messageLabel);
-  composedLayout2->addSpacing(16);
+  composedLayout2->addWidget(_message);
+  composedLayout2->addSpacing(8);
   composedLayout2->addLayout(composedLayout3);
   composedLayout2->addLayout(composedLayout4);
 
@@ -96,12 +106,15 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(QWidget *parent)
   connect(cancelButton, &QPushButton::clicked, this,
           &GitCredentialsOverlayWidget::onCancelClicked);
 
-  connect(submitButton, &QPushButton::clicked, this,
+  connect(_submitButton, &QPushButton::clicked, this,
           &GitCredentialsOverlayWidget::onSubmitClicked);
 
   const auto callbackFunc = std::bind(
       &GitCredentialsOverlayWidget::eventCallback, this, std::placeholders::_1);
 
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetCredentialsInvalid,
+      callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCredentialsFinished,
       callbackFunc));
@@ -117,6 +130,9 @@ GitCredentialsOverlayWidget::~GitCredentialsOverlayWidget() {
   const auto callbackFunc = std::bind(
       &GitCredentialsOverlayWidget::eventCallback, this, std::placeholders::_1);
 
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetCredentialsInvalid,
+      callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCredentialsFinished,
       callbackFunc));
@@ -165,7 +181,7 @@ void GitCredentialsOverlayWidget::onCancelClicked() const {
   LOG_PERF(0, "Enter");
 
   GitRepo::GitCredentialsErrorResponse response;
-  response.uuid = _request.uuid;
+  response.id = _request.id;
 
   EventManager::Event cancelEvent(
       EventManager::EventType::GitRepoManagerGetCredentialsCancel);
@@ -180,7 +196,7 @@ void GitCredentialsOverlayWidget::onSubmitClicked() const {
   LOG_PERF(0, "Enter");
 
   GitRepo::GitCredentialsResponse response;
-  response.uuid = _request.uuid;
+  response.id = _request.id;
   response.username = _usernameLineEdit->text();
   response.password = _passwordLineEdit->text();
 
@@ -198,21 +214,50 @@ void GitCredentialsOverlayWidget::eventCallback(EventManager::Event event) {
 
   switch (const EventManager::EventType eventType = event.type()) {
   case EventManager::EventType::GitRepoManagerCloneRepoError: {
-    const auto guard = getSelf().toWeakRef();
+    const auto guard = _holder.toWeakRef();
     Q_ASSERT(!guard.isNull());
     Util::Dispatcher::dispatchToMainThread(guard, [=]() { emit error(); });
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCredentialsFinished: {
-    const auto guard = getSelf().toWeakRef();
+    const auto guard = _holder.toWeakRef();
     Q_ASSERT(!guard.isNull());
     Util::Dispatcher::dispatchToMainThread(guard, [=]() { emit finished(); });
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerGetCredentialsInvalid: {
+    const auto guard = _holder.toWeakRef();
+    Q_ASSERT(!guard.isNull());
+    Util::Dispatcher::dispatchToMainThread(guard,
+                                           [=]() { invalidCredentials(); });
     break;
   }
   default: {
     break;
   }
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitCredentialsOverlayWidget::keyPressEvent(QKeyEvent *event) {
+  if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+    if (_submitButton) {
+      _submitButton->click();
+      return;
+    }
+  }
+
+  OverlayWidget::keyPressEvent(event);
+}
+
+void GitCredentialsOverlayWidget::invalidCredentials() const {
+  LOG_PERF(0, "Enter");
+
+  _message->setText(tr("Invalid credentials."));
+
+  _passwordLineEdit->setFocus();
+  _passwordLineEdit->selectAll();
 
   LOG_PERF(0, "Exit");
 }

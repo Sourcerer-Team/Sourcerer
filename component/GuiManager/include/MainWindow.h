@@ -16,8 +16,7 @@
 #include <QMainWindow>
 #include <QResizeEvent>
 #include <QSet>
-#include <QSharedPointer>
-#include <QVector>
+#include <QMap>
 
 namespace GuiManager {
 
@@ -94,7 +93,7 @@ private:
   HitDetector *_hitDetector;
   ProfileBoardWidget *_profileBoardWidget;
   bool _profileBoardActive;
-  QVector<QSharedPointer<GitCredentialsOverlayWidget>> _credentialsWidgets;
+  QMap<uint, GitCredentialsOverlayWidget*> _credentialsWidgets;
 };
 
 } // namespace GuiManager

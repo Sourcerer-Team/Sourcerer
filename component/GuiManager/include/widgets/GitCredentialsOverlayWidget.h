@@ -6,8 +6,7 @@
 #include "OverlayWidget.h"
 
 #include <QEnableSharedFromThis>
-#include <QHBoxLayout>
-#include <QLabel>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QWidget>
@@ -39,16 +38,25 @@ public:
 
   void eventCallback(EventManager::Event event);
 
+protected:
+  void keyPressEvent(QKeyEvent *event) override;
+
 signals:
   void error();
   void finished();
 
 private:
+  void invalidCredentials() const;
+
+private:
   ::EventManager::EventManager &_eventManager;
   QLineEdit *_usernameLineEdit;
   QLineEdit *_passwordLineEdit;
+  QPushButton *_submitButton;
+  QLabel *_message;
   GitRepo::GitCredentialsRequest _request;
   bool _showing;
+  QSharedPointer<bool> _holder;
 };
 
 } // namespace GuiManager::Widgets

@@ -24,5 +24,7 @@
         <file>icons/push.png</file>
         <file>icons/pop.png</file>
         <file>icons/stash.png</file>
+        <file>icons/padlock.png</file>
+        <file>icons/id-card.png</file>
     </qresource>
 </RCC>

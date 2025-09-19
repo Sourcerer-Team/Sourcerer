@@ -496,22 +496,26 @@ void MainWindow::eventCallback(EventManager::Event event) {
         LOG_WARN("Parent widget is null.");
         return;
       }
-      const auto credentialsWidget =
-          QSharedPointer<GitCredentialsOverlayWidget>::create(parent);
-      _credentialsWidgets += credentialsWidget;
-      connect(credentialsWidget.get(), &GitCredentialsOverlayWidget::error,
-              this, [=]() {
-                hideCredentialsOverlay(credentialsWidget.get());
-                credentialsWidget->setParent(nullptr);
-                _credentialsWidgets.removeAll(credentialsWidget);
+      GitCredentialsOverlayWidget *overlayWidget = nullptr;
+      if (_credentialsWidgets.contains(request.id)) {
+        overlayWidget = _credentialsWidgets[request.id];
+      } else {
+        overlayWidget = new GitCredentialsOverlayWidget(parent);
+        _credentialsWidgets[request.id] = overlayWidget;
+      }
+      connect(overlayWidget, &GitCredentialsOverlayWidget::error, this,
+              [=]() {
+                hideCredentialsOverlay(overlayWidget);
+                _credentialsWidgets.remove(request.id);
+                delete overlayWidget;
+      });
+      connect(overlayWidget, &GitCredentialsOverlayWidget::finished, this,
+              [=]() {
+                hideCredentialsOverlay(overlayWidget);
+                _credentialsWidgets.remove(request.id);
+                delete overlayWidget;
               });
-      connect(credentialsWidget.get(), &GitCredentialsOverlayWidget::finished,
-              this, [=]() {
-                hideCredentialsOverlay(credentialsWidget.get());
-                credentialsWidget->setParent(nullptr);
-                _credentialsWidgets.removeAll(credentialsWidget);
-              });
-      showCredentialsOverlay(request, credentialsWidget.get());
+      showCredentialsOverlay(request, overlayWidget);
     });
     break;
   }
