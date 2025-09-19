@@ -260,10 +260,12 @@ QString EventManager::eventName(EventType type) const
     return "GitRepoManagerGetCommitStatusError";
   case EventType::GitRepoManagerGetCredentials:
     return "GitRepoManagerGetCredentials";
-  case EventType::GitRepoManagerGetCredentialsResult:
-    return "GitRepoManagerGetCredentialsResult";
-  case EventType::GitRepoManagerGetCredentialsError:
-    return "GitRepoManagerGetCredentialsError";
+  case EventType::GitRepoManagerGetCredentialsFinished:
+    return "GitRepoManagerGetCredentialsFinished";
+  case EventType::GitRepoManagerGetCredentialsSubmit:
+    return "GitRepoManagerGetCredentialsSubmit";
+  case EventType::GitRepoManagerGetCredentialsCancel:
+    return "GitRepoManagerGetCredentialsCancel";
   case EventType::GitRepoManagerInitRepo:
     return "GitRepoManagerInitRepo";
   case EventType::GitRepoManagerInitRepoResult:

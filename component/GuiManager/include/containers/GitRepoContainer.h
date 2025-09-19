@@ -75,9 +75,13 @@ private slots:
                                  const QItemSelection &deselected);
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onLocalBranchSelected(const QString &branchName);
+  void onPop();
+  void onPull();
+  void onPush();
   void onRemoteBranchSelected(const QString &branchName);
   void onRepoDirChanged(const QString &path);
   void onRepoDirChangedTimeout();
+  void onStash();
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay();
   void onGraphColumnExpand(int section);
@@ -142,6 +146,7 @@ private:
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   bool openRepo();
+  void pull(const WeakPtr &guard);
   void prepareWatcher(const WeakPtr &guard);
   bool refreshHistory(const WeakPtr &guard);
   void refreshStatus(const WeakPtr &guard);

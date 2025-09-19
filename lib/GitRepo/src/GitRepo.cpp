@@ -42,6 +42,8 @@ namespace GitRepo {
 constexpr qint64 DEFAULT_CREDENTIALS_EXPIRATION_TIME =
     30 * 60 * 1000; // 30 minutes
 
+constexpr int MAX_RETRIES = 3;
+
 struct GitPlaintextCredentials {
   QString username;
   QString password;
@@ -1040,6 +1042,16 @@ static void finishFetchProgress(const QString &uuid, const bool error) {
   EventManager::EventManager::getInstance().send(progressEvent);
 }
 
+static void finishCredentialsAquaring() {
+  EventManager::EventManager &eventManager =
+      EventManager::EventManager::getInstance();
+
+  const EventManager::Event credentialsFinishedEvent(
+      EventManager::EventType::GitRepoManagerGetCredentialsFinished);
+
+  eventManager.send(credentialsFinishedEvent);
+}
+
 static std::tuple<bool, GitPlaintextCredentials>
 acquireCredentials(const QString &url, const QString &username,
                    const int allowedTypes) {
@@ -1065,12 +1077,12 @@ acquireCredentials(const QString &url, const QString &username,
   const auto predicate = [&](EventManager::Event event) -> bool {
     bool success = false;
     switch (event.type()) {
-    case EventManager::EventType::GitRepoManagerGetCredentialsError: {
+    case EventManager::EventType::GitRepoManagerGetCredentialsCancel: {
       const auto [uuid] = event.data<GitCredentialsErrorResponse>();
       success = uuid == request.uuid;
       break;
     }
-    case EventManager::EventType::GitRepoManagerGetCredentialsResult: {
+    case EventManager::EventType::GitRepoManagerGetCredentialsSubmit: {
       const GitCredentialsResponse response =
           event.data<GitCredentialsResponse>();
       success = response.uuid == request.uuid;
@@ -1086,19 +1098,19 @@ acquireCredentials(const QString &url, const QString &username,
   };
 
   const std::set<EventManager::EventType> types{
-      EventManager::EventType::GitRepoManagerGetCredentialsError,
-      EventManager::EventType::GitRepoManagerGetCredentialsResult};
+      EventManager::EventType::GitRepoManagerGetCredentialsCancel,
+      EventManager::EventType::GitRepoManagerGetCredentialsSubmit};
 
   const auto &[success, event] =
       eventManager.waitOneOf(token, types, predicate);
 
   if (success) {
     if (event.type() ==
-        EventManager::EventType::GitRepoManagerGetCredentialsError) {
+        EventManager::EventType::GitRepoManagerGetCredentialsCancel) {
       LOG_PERF(0, "Exit");
       return std::make_tuple(false, GitPlaintextCredentials{});
     } else if (event.type() ==
-               EventManager::EventType::GitRepoManagerGetCredentialsResult) {
+               EventManager::EventType::GitRepoManagerGetCredentialsSubmit) {
       const GitCredentialsResponse response =
           event.data<GitCredentialsResponse>();
       LOG_PERF(0, "Exit");
@@ -1142,7 +1154,7 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
           url, username_from_url ? username_from_url : "", allowed_types);
       if (success) {
 
-        LOG_INFO("Aquired credentials for '{}'", credentials.username);
+        LOG_INFO("Acquired credentials for '{}'", credentials.username);
 
         gGitCredentialsMutex.lock();
 
@@ -1162,7 +1174,7 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
         url, username_from_url ? username_from_url : "", allowed_types);
     if (success) {
 
-      LOG_INFO("Aquired credentials for '{}'", credentials.username);
+      LOG_INFO("Acquired credentials for '{}'", credentials.username);
 
       gGitCredentialsMutex.lock();
 
@@ -1171,7 +1183,7 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
       gGitCredentialsMutex.unlock();
     } else {
       LOG_PERF(0, "Exit");
-      return -1;
+      return GIT_EUSER;
     }
   }
 
@@ -1187,7 +1199,7 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
-    return -1;
+    return error;
   }
 
   LOG_PERF(0, "Exit");
@@ -1230,6 +1242,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
                 destinationDir.toStdString().c_str(), &clone_opts);
 
   finishFetchProgress(uuid, error != 0);
+  finishCredentialsAquaring();
 
   if (error || !repo) {
     invalidateCredentials(url);
@@ -1821,15 +1834,15 @@ GitStatus getStatus(git_repository *repo) {
   GitStatus status;
 
   const QString repoPath =
-    QDir::fromNativeSeparators(git_repository_workdir(repo));
+      QDir::fromNativeSeparators(git_repository_workdir(repo));
 
   git_status_options opts;
   git_status_options_init(&opts, GIT_STATUS_OPTIONS_VERSION);
   opts.show = GIT_STATUS_SHOW_INDEX_AND_WORKDIR;
   opts.flags =
-    GIT_STATUS_OPT_INCLUDE_UNTRACKED | GIT_STATUS_OPT_RECURSE_UNTRACKED_DIRS |
-               GIT_STATUS_OPT_INCLUDE_IGNORED | GIT_STATUS_OPT_RENAMES_HEAD_TO_INDEX |
-               GIT_STATUS_OPT_SORT_CASE_SENSITIVELY | GIT_STATUS_OPT_INCLUDE_UNREADABLE;
+      GIT_STATUS_OPT_INCLUDE_UNTRACKED | GIT_STATUS_OPT_RECURSE_UNTRACKED_DIRS |
+      GIT_STATUS_OPT_INCLUDE_IGNORED | GIT_STATUS_OPT_RENAMES_HEAD_TO_INDEX |
+      GIT_STATUS_OPT_SORT_CASE_SENSITIVELY | GIT_STATUS_OPT_INCLUDE_UNREADABLE;
 
   git_status_list *statusList = nullptr;
 
@@ -1852,9 +1865,9 @@ GitStatus getStatus(git_repository *repo) {
     }
 
     const char *filePath =
-      entry->head_to_index      ? entry->head_to_index->new_file.path
-                           : entry->index_to_workdir ? entry->index_to_workdir->new_file.path
-                                                     : nullptr;
+        entry->head_to_index      ? entry->head_to_index->new_file.path
+        : entry->index_to_workdir ? entry->index_to_workdir->new_file.path
+                                  : nullptr;
 
     Q_ASSERT(filePath != nullptr);
 
@@ -1867,8 +1880,8 @@ GitStatus getStatus(git_repository *repo) {
 
     if (QFileInfo(fullPath).isDir()) {
       if (QDir(fullPath)
-            .entryList(QDir::Files | QDir::AllDirs | QDir::NoDotAndDotDot)
-            .isEmpty()) {
+              .entryList(QDir::Files | QDir::AllDirs | QDir::NoDotAndDotDot)
+              .isEmpty()) {
         // Skip empty directories
         continue;
       }
@@ -2080,7 +2093,7 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
     const QString relativePath = QDir(repoPath).relativeFilePath(fullPath);
     if (!QFileInfo::exists(fullPath)) {
       error =
-        git_index_remove_bypath(index, relativePath.toStdString().c_str());
+          git_index_remove_bypath(index, relativePath.toStdString().c_str());
       if (error) {
         logGitError(error);
         git_index_free(index);
@@ -2369,7 +2382,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
     // 1. Reset working directory to HEAD
     git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
     checkoutOpts.checkout_strategy =
-      GIT_CHECKOUT_FORCE | GIT_CHECKOUT_DISABLE_PATHSPEC_MATCH;
+        GIT_CHECKOUT_FORCE | GIT_CHECKOUT_DISABLE_PATHSPEC_MATCH;
     checkoutOpts.paths = arr;
 
     error = git_checkout_tree(repo, headTree, &checkoutOpts);
@@ -2437,8 +2450,8 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
       }
 
       const QString repoPath = git_repository_workdir(repo);
-      const QString fullPath = QDir::fromNativeSeparators(
-        repoPath + QString::fromStdString(path));
+      const QString fullPath =
+          QDir::fromNativeSeparators(repoPath + QString::fromStdString(path));
 
       const QString directoryPath = QFileInfo(fullPath).path();
 
@@ -2513,6 +2526,200 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
 
     git_index_free(index);
   }
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+bool pull(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  // Step 1: Get current branch
+  git_reference *head = nullptr;
+
+  int error = git_repository_head(&head, repo);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (const char *localBranchName = git_reference_shorthand(head);
+      !localBranchName) {
+    git_reference_free(head);
+    LOG_ERROR(Log::ErrorId::Git, "Can't get local branch name");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Step 2: Get upstream tracking branch
+  git_reference *upstream = nullptr;
+
+  error = git_branch_upstream(&upstream, head);
+  if (error != 0) {
+    git_reference_free(head);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Step 3: Fetch from remote
+  git_remote *remote = nullptr;
+  error = git_remote_lookup(&remote, repo, "origin");
+  if (error != 0) {
+    git_reference_free(upstream);
+    git_reference_free(head);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  int retries = 0;
+
+  do {
+    git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
+    fetchOpts.callbacks.credentials = &credentialsAcquireCallback;
+    fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
+
+    error = git_remote_fetch(remote, nullptr, &fetchOpts, nullptr);
+
+    if (error) {
+      const char *url = git_remote_url(remote);
+      gGitCredentialsMutex.lock();
+      gGitCredentials.remove(url);
+      gGitCredentialsMutex.unlock();
+    }
+
+    ++retries;
+  } while (error != 0 && error != GIT_EUSER && retries < MAX_RETRIES);
+
+  finishCredentialsAquaring();
+
+  if (error) {
+    git_remote_free(remote);
+    git_reference_free(upstream);
+    git_reference_free(head);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Step 4: Get annotated commit from upstream
+  git_annotated_commit *upstreamCommit = nullptr;
+
+  error = git_annotated_commit_from_ref(&upstreamCommit, repo, upstream);
+  if (error) {
+    git_remote_free(remote);
+    git_reference_free(upstream);
+    git_reference_free(head);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Step 5: Analyze merge
+  git_merge_analysis_t analysis;
+  git_merge_preference_t preference;
+
+  error = git_merge_analysis(
+      &analysis, &preference, repo,
+      const_cast<const git_annotated_commit **>(&upstreamCommit), 1);
+  if (error) {
+    git_annotated_commit_free(upstreamCommit);
+    git_remote_free(remote);
+    git_reference_free(upstream);
+    git_reference_free(head);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (analysis & GIT_MERGE_ANALYSIS_FASTFORWARD) {
+    // Fast-forward
+    const git_oid *targetOid = git_annotated_commit_id(upstreamCommit);
+    if (!targetOid) {
+      git_annotated_commit_free(upstreamCommit);
+      git_remote_free(remote);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      LOG_ERROR(Log::ErrorId::Git, "Can't get target OID for fast-forward");
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_commit *targetCommit = nullptr;
+
+    error = git_commit_lookup(&targetCommit, repo, targetOid);
+    if (error) {
+      git_annotated_commit_free(upstreamCommit);
+      git_remote_free(remote);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
+    checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+    error = git_checkout_tree(repo, (git_object *)targetCommit, &checkout_opts);
+    if (error) {
+      git_commit_free(targetCommit);
+      git_annotated_commit_free(upstreamCommit);
+      git_remote_free(remote);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_reference *newHead = nullptr;
+
+    error = git_reference_set_target(&newHead, head, targetOid, "Fast-forward");
+    if (error) {
+      git_commit_free(targetCommit);
+      git_annotated_commit_free(upstreamCommit);
+      git_remote_free(remote);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_commit_free(targetCommit);
+    git_reference_free(newHead);
+  } else if (analysis & GIT_MERGE_ANALYSIS_NORMAL) {
+    // Normal merge
+    git_merge_options merge_opts = GIT_MERGE_OPTIONS_INIT;
+    git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
+    checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+    error = git_merge(
+        repo, const_cast<const git_annotated_commit **>(&upstreamCommit), 1,
+        &merge_opts, &checkout_opts);
+    if (error) {
+      git_annotated_commit_free(upstreamCommit);
+      git_remote_free(remote);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // You must commit manually after resolving conflicts
+    // Or use git_commit_create() if no conflicts
+  }
+
+  // Cleanup
+  git_annotated_commit_free(upstreamCommit);
+  git_reference_free(upstream);
+  git_reference_free(head);
+  git_remote_free(remote);
 
   LOG_PERF(0, "Exit");
 

@@ -16,6 +16,8 @@
 #include <QMainWindow>
 #include <QResizeEvent>
 #include <QSet>
+#include <QSharedPointer>
+#include <QVector>
 
 namespace GuiManager {
 
@@ -60,7 +62,6 @@ private slots:
   void onCloseClicked();
   void onTitleBarDrag() const;
   void onEdgeHit(Qt::Edges edges) const;
-  void onCredentialsFinished() const;
   void onProfile(int middleX);
 
 private:
@@ -71,9 +72,10 @@ private:
   void addSettingsContainer();
   void closeContainer(const ContainerWidget *container);
   void eventCallback(EventManager::Event event);
-  void hideCredentialsOverlay() const;
   void selectContainer(int index);
-  void showCredentialsOverlay(const GitCredentialsRequest &request) const;
+  static void hideCredentialsOverlay(GitCredentialsOverlayWidget *widget);
+  static void showCredentialsOverlay(const GitCredentialsRequest &request,
+                                     GitCredentialsOverlayWidget *widget);
   void showCloneProgressToast(const CloneProgress &data);
   void showToast(const QString &text, const QString &title);
   void showErrorToast(const QString &text, const QString &title);
@@ -90,9 +92,9 @@ private:
   bool _maximized;
   bool _mousePressed;
   HitDetector *_hitDetector;
-  GitCredentialsOverlayWidget::SharedPtr _gitCredentialsOverlay;
   ProfileBoardWidget *_profileBoardWidget;
   bool _profileBoardActive;
+  QVector<QSharedPointer<GitCredentialsOverlayWidget>> _credentialsWidgets;
 };
 
 } // namespace GuiManager

@@ -41,9 +41,8 @@ MainWindow::MainWindow(QWidget *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
       _maximized(false), _mousePressed(false), _hitDetector(nullptr),
-      _gitCredentialsOverlay(new GitCredentialsOverlayWidget(_centralWidget)),
-    _profileBoardWidget(new ProfileBoardWidget(this)),
-    _profileBoardActive(false) {
+      _profileBoardWidget(new ProfileBoardWidget(this)),
+      _profileBoardActive(false) {
   LOG_PERF(0, "Enter");
 
   setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
@@ -58,9 +57,6 @@ MainWindow::MainWindow(QWidget *parent)
 
   _profileBoardWidget->hide();
 
-  _gitCredentialsOverlay->stop();
-  _gitCredentialsOverlay->hide();
-
   const qlonglong minimumWidth =
       _configManager.getLong(ConfigManager::ConfigKey::MainWindowMinimumWidth);
   const qlonglong minimumHeight =
@@ -74,16 +70,11 @@ MainWindow::MainWindow(QWidget *parent)
 
   _centralWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-  const auto verticalLayout = new QVBoxLayout();
+  const auto verticalLayout = new QVBoxLayout(widget);
   verticalLayout->setContentsMargins(0, 0, 0, 0);
   verticalLayout->setSpacing(0);
   verticalLayout->addWidget(_topBarWidget);
   verticalLayout->addWidget(_centralWidget);
-
-  const auto horizontalLyout = new QHBoxLayout(widget);
-  horizontalLyout->setContentsMargins(0, 0, 0, 0);
-  horizontalLyout->setSpacing(0);
-  horizontalLyout->addLayout(verticalLayout);
 
   setCentralWidget(widget);
 
@@ -117,10 +108,6 @@ MainWindow::MainWindow(QWidget *parent)
           &MainWindow::onMaximizeClicked);
   connect(_topBarWidget, &TopBarWidget::dragged, this,
           &MainWindow::onTitleBarDrag);
-  connect(_gitCredentialsOverlay.get(), &GitCredentialsOverlayWidget::error,
-          this, &MainWindow::onCredentialsFinished);
-  connect(_gitCredentialsOverlay.get(), &GitCredentialsOverlayWidget::finished,
-          this, &MainWindow::onCredentialsFinished);
   connect(_topBarWidget, &TopBarWidget::profile, this, &MainWindow::onProfile);
 
   addHomeContainer();
@@ -247,7 +234,6 @@ void MainWindow::onAbout() const {
 }
 
 void MainWindow::onClosedTab(const int index) {
-
   LOG_PERF(0, "Enter");
   LOG_DEBUG("index is {}.", index);
 
@@ -335,14 +321,6 @@ void MainWindow::onEdgeHit(Qt::Edges edges) const {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::onCredentialsFinished() const {
-  LOG_PERF(0, "Enter");
-
-  hideCredentialsOverlay();
-
-  LOG_PERF(0, "Exit");
-}
-
 void MainWindow::onProfile(int middleX) {
   LOG_PERF(0, "Enter");
 
@@ -362,8 +340,8 @@ void MainWindow::onProfile(int middleX) {
   _profileBoardWidget->show();
   _profileBoardWidget->raise();
   _profileBoardWidget->move(
-    middleX - (_profileBoardWidget->width() - PROFILE_WIDGET_ARROW_OFFSET),
-    y() + _topBarWidget->height());
+      middleX - (_profileBoardWidget->width() - PROFILE_WIDGET_ARROW_OFFSET),
+      y() + _topBarWidget->height());
   _profileBoardActive = true;
 
   LOG_PERF(0, "Exit");
@@ -508,8 +486,33 @@ void MainWindow::eventCallback(EventManager::Event event) {
   switch (eventType) {
   case EventManager::EventType::GitRepoManagerGetCredentials: {
     const auto request = event.data<GitCredentialsRequest>();
-    Util::Dispatcher::dispatchToMainThread(
-        getSelf().toWeakRef(), [=]() { showCredentialsOverlay(request); });
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      Q_ASSERT(_current != -1);
+      QWidget *parent =
+          _current != -1 ? qobject_cast<QWidget *>(_containers[_current].get())
+                         : qobject_cast<QWidget *>(this);
+      Q_ASSERT(parent != nullptr);
+      if (!parent) {
+        LOG_WARN("Parent widget is null.");
+        return;
+      }
+      const auto credentialsWidget =
+          QSharedPointer<GitCredentialsOverlayWidget>::create(parent);
+      _credentialsWidgets += credentialsWidget;
+      connect(credentialsWidget.get(), &GitCredentialsOverlayWidget::error,
+              this, [=]() {
+                hideCredentialsOverlay(credentialsWidget.get());
+                credentialsWidget->setParent(nullptr);
+                _credentialsWidgets.removeAll(credentialsWidget);
+              });
+      connect(credentialsWidget.get(), &GitCredentialsOverlayWidget::finished,
+              this, [=]() {
+                hideCredentialsOverlay(credentialsWidget.get());
+                credentialsWidget->setParent(nullptr);
+                _credentialsWidgets.removeAll(credentialsWidget);
+              });
+      showCredentialsOverlay(request, credentialsWidget.get());
+    });
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepoError: {
@@ -556,11 +559,21 @@ void MainWindow::eventCallback(EventManager::Event event) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::hideCredentialsOverlay() const {
+void MainWindow::showCredentialsOverlay(const GitCredentialsRequest &request,
+                                        GitCredentialsOverlayWidget *widget) {
   LOG_PERF(0, "Enter");
 
-  _gitCredentialsOverlay->stop();
-  _gitCredentialsOverlay->hide();
+  Q_ASSERT(widget != nullptr);
+
+  if (!widget) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  widget->setRequest(request);
+  widget->start();
+  widget->show();
+  widget->raise();
 
   LOG_PERF(0, "Exit");
 }
@@ -583,20 +596,21 @@ void MainWindow::selectContainer(const int index) {
   _centralWidget->setCentralWidget(_containers[index].get());
   _current = index;
 
-  // Set its parent to be home container
-  _gitCredentialsOverlay->setParent(_containers[0].get());
-
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showCredentialsOverlay(
-  const GitCredentialsRequest &request) const {
+void MainWindow::hideCredentialsOverlay(GitCredentialsOverlayWidget *widget) {
   LOG_PERF(0, "Enter");
 
-  _gitCredentialsOverlay->setRequest(request);
-  _gitCredentialsOverlay->start();
-  _gitCredentialsOverlay->show();
-  _gitCredentialsOverlay->raise();
+  Q_ASSERT(widget != nullptr);
+
+  if (!widget) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  widget->stop();
+  widget->hide();
 
   LOG_PERF(0, "Exit");
 }

@@ -56,6 +56,7 @@ private:
   listSubmodulesWorker(const Structs::GitRepoListSubmodulesCommand &command);
   void listTagsWorker(const Structs::GitRepoListTagsCommand &command);
   void openRepoWorker(const Structs::GitRepoOpenCommand &command);
+  void pullWorker(const Structs::GitRepoPullCommand &command);
   void stageFilesWorker(const Structs::GitRepoStageFilesCommand &command);
   void statusWorker(const Structs::GitRepoStatusCommand &command);
   void unstageFilesWorker(const Structs::GitRepoUnstageFilesCommand &command);
@@ -95,6 +96,7 @@ private:
   void
   scheduleWorkerForListTags(const Structs::GitRepoListTagsCommand &command);
   void scheduleWorkerForOpenRepo(const Structs::GitRepoOpenCommand &command);
+  void scheduleWorkerForPull(const Structs::GitRepoPullCommand &command);
   void
   scheduleWorkerForStageFiles(const Structs::GitRepoStageFilesCommand &command);
   void scheduleWorkerForStatus(const Structs::GitRepoStatusCommand &command);

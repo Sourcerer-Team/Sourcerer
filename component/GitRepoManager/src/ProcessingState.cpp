@@ -97,7 +97,7 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
   }
   case EventType::CommitStaged: {
     const auto commitStagedCommand =
-      event.nextParam<GitRepoCommitStagedCommand>();
+        event.nextParam<GitRepoCommitStagedCommand>();
     scheduleWorkerForCommitStagedRepo(commitStagedCommand);
     break;
   }
@@ -108,7 +108,7 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
   }
   case EventType::DiscardFiles: {
     const auto discardFilesCommand =
-      event.nextParam<GitRepoDiscardFilesCommand>();
+        event.nextParam<GitRepoDiscardFilesCommand>();
     scheduleWorkerForDiscardFiles(discardFilesCommand);
     break;
   }
@@ -181,6 +181,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForOpenRepo(openCommand);
     break;
   }
+  case EventType::Pull: {
+    const auto pullCommand = event.nextParam<GitRepoPullCommand>();
+    scheduleWorkerForPull(pullCommand);
+    break;
+  }
   case EventType::StageFiles: {
     const auto stageFilesCommand = event.nextParam<GitRepoStageFilesCommand>();
     scheduleWorkerForStageFiles(stageFilesCommand);
@@ -193,7 +198,7 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
   }
   case EventType::UnstageFiles: {
     const auto unstageFilesCommand =
-      event.nextParam<GitRepoUnstageFilesCommand>();
+        event.nextParam<GitRepoUnstageFilesCommand>();
     scheduleWorkerForUnstageFiles(unstageFilesCommand);
     break;
   }
@@ -376,7 +381,7 @@ void ProcessingState::closeRepoWorker(
 }
 
 void ProcessingState::commitStagedWorker(
-  const Structs::GitRepoCommitStagedCommand &command) {
+    const Structs::GitRepoCommitStagedCommand &command) {
   LOG_PERF(0, "Enter");
 
   GitRepoContext *ctx = context(command.uuid);
@@ -395,11 +400,11 @@ void ProcessingState::commitStagedWorker(
   }
 
   const bool success = GitRepo::commitStaged(
-    repo, command.summary, command.message, command.author, command.email);
+      repo, command.summary, command.message, command.author, command.email);
 
   EventManager::Event resultEvent(
-    EventManager::EventType::GitRepoManagerCommitStagedResult,
-    command.syncUuid);
+      EventManager::EventType::GitRepoManagerCommitStagedResult,
+      command.syncUuid);
   resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
   _eventManager.send(resultEvent);
 
@@ -498,7 +503,7 @@ void ProcessingState::destroyContextsMap() {
 }
 
 void ProcessingState::diffFilesWorker(
-  const Structs::GitRepoDiffFilesCommand &command) {
+    const Structs::GitRepoDiffFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
   GitRepoContext *ctx = context(command.uuid);
@@ -519,7 +524,7 @@ void ProcessingState::diffFilesWorker(
   const QString diff = GitRepo::diffFiles(repo, command.files);
 
   EventManager::Event resultEvent(
-    EventManager::EventType::GitRepoManagerDiffFilesResult, command.syncUuid);
+      EventManager::EventType::GitRepoManagerDiffFilesResult, command.syncUuid);
   resultEvent.addData(GitRepoResult{command.uuid, command.type, diff});
   _eventManager.send(resultEvent);
 
@@ -527,7 +532,7 @@ void ProcessingState::diffFilesWorker(
 }
 
 void ProcessingState::discardFilesWorker(
-  const Structs::GitRepoDiscardFilesCommand &command) {
+    const Structs::GitRepoDiscardFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
   GitRepoContext *ctx = context(command.uuid);
@@ -548,8 +553,8 @@ void ProcessingState::discardFilesWorker(
   const bool success = GitRepo::discardFiles(repo, command.files);
 
   EventManager::Event resultEvent(
-    EventManager::EventType::GitRepoManagerDiscardFilesResult,
-    command.syncUuid);
+      EventManager::EventType::GitRepoManagerDiscardFilesResult,
+      command.syncUuid);
   resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
   _eventManager.send(resultEvent);
 
@@ -1113,8 +1118,27 @@ void ProcessingState::scheduleWorkerForOpenRepo(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForPull(
+    const Structs::GitRepoPullCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerPullError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoPullCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForStageFiles(
-  const Structs::GitRepoStageFilesCommand &command) {
+    const Structs::GitRepoStageFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_contextsMutex);
@@ -1152,7 +1176,7 @@ void ProcessingState::scheduleWorkerForStatus(
 }
 
 void ProcessingState::scheduleWorkerForUnstageFiles(
-  const Structs::GitRepoUnstageFilesCommand &command) {
+    const Structs::GitRepoUnstageFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_contextsMutex);
@@ -1239,8 +1263,37 @@ void ProcessingState::openRepoWorker(const GitRepoOpenCommand &command) {
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::pullWorker(const Structs::GitRepoPullCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerPullError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::pull(repo);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerPullResult, command.syncUuid);
+  resultEvent.addData(
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::stageFilesWorker(
-  const Structs::GitRepoStageFilesCommand &command) {
+    const Structs::GitRepoStageFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
   const GitRepoContext *ctx = context(command.uuid);
@@ -1261,10 +1314,10 @@ void ProcessingState::stageFilesWorker(
   const bool success = GitRepo::stageFiles(repo, command.files);
 
   EventManager::Event resultEvent(
-    EventManager::EventType::GitRepoManagerStageFilesResult,
-    command.syncUuid);
+      EventManager::EventType::GitRepoManagerStageFilesResult,
+      command.syncUuid);
   resultEvent.addData(
-    GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
   _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
@@ -1316,7 +1369,7 @@ void ProcessingState::statusWorker(
 }
 
 void ProcessingState::unstageFilesWorker(
-  const Structs::GitRepoUnstageFilesCommand &command) {
+    const Structs::GitRepoUnstageFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
   const GitRepoContext *ctx = context(command.uuid);
@@ -1337,10 +1390,10 @@ void ProcessingState::unstageFilesWorker(
   const bool success = GitRepo::unstageFiles(repo, command.files);
 
   EventManager::Event resultEvent(
-    EventManager::EventType::GitRepoManagerUnstageFilesResult,
-    command.syncUuid);
+      EventManager::EventType::GitRepoManagerUnstageFilesResult,
+      command.syncUuid);
   resultEvent.addData(
-    GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
   _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
@@ -1433,7 +1486,7 @@ void ProcessingState::scheduleWorkerForCloseRepo(
 }
 
 void ProcessingState::scheduleWorkerForCommitStagedRepo(
-  const Structs::GitRepoCommitStagedCommand &command) {
+    const Structs::GitRepoCommitStagedCommand &command) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_contextsMutex);
@@ -1547,7 +1600,7 @@ void ProcessingState::scheduleWorkerForGetCommitStatus(
 }
 
 void ProcessingState::scheduleWorkerForDiffFiles(
-  const Structs::GitRepoDiffFilesCommand &command) {
+    const Structs::GitRepoDiffFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_contextsMutex);
@@ -1566,7 +1619,7 @@ void ProcessingState::scheduleWorkerForDiffFiles(
 }
 
 void ProcessingState::scheduleWorkerForDiscardFiles(
-  const Structs::GitRepoDiscardFilesCommand &command) {
+    const Structs::GitRepoDiscardFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_contextsMutex);
@@ -1756,7 +1809,7 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
     }
     case GitRepoCommandType::CommitStaged: {
       const auto commitStagedCommand =
-        dynamic_cast<const GitRepoCommitStagedCommand *>(command);
+          dynamic_cast<const GitRepoCommitStagedCommand *>(command);
       if (commitStagedCommand) {
         commitStagedWorker(*commitStagedCommand);
       }
@@ -1764,7 +1817,7 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
     }
     case GitRepoCommandType::DiffFiles: {
       const auto diffFilesCommand =
-        dynamic_cast<const GitRepoDiffFilesCommand *>(command);
+          dynamic_cast<const GitRepoDiffFilesCommand *>(command);
       if (diffFilesCommand) {
         diffFilesWorker(*diffFilesCommand);
       }
@@ -1772,7 +1825,7 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
     }
     case GitRepoCommandType::DiscardFiles: {
       const auto discardFilesCommand =
-        dynamic_cast<const GitRepoDiscardFilesCommand *>(command);
+          dynamic_cast<const GitRepoDiscardFilesCommand *>(command);
       if (discardFilesCommand) {
         discardFilesWorker(*discardFilesCommand);
       }
@@ -1874,9 +1927,17 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       }
       break;
     }
+    case GitRepoCommandType::Pull: {
+      const auto *pullCommand =
+          dynamic_cast<const GitRepoPullCommand *>(command);
+      if (pullCommand) {
+        pullWorker(*pullCommand);
+      }
+      break;
+    }
     case GitRepoCommandType::StageFiles: {
       const auto *stageFilesCommand =
-        dynamic_cast<const GitRepoStageFilesCommand *>(command);
+          dynamic_cast<const GitRepoStageFilesCommand *>(command);
       if (stageFilesCommand) {
         stageFilesWorker(*stageFilesCommand);
       }
@@ -1892,7 +1953,7 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
     }
     case GitRepoCommandType::UnstageFiles: {
       const auto *unstageFilesCommand =
-        dynamic_cast<const GitRepoUnstageFilesCommand *>(command);
+          dynamic_cast<const GitRepoUnstageFilesCommand *>(command);
       if (unstageFilesCommand) {
         unstageFilesWorker(*unstageFilesCommand);
       }

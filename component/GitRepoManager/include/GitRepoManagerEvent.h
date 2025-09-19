@@ -27,6 +27,7 @@ enum class EventType : int {
   ListSubmodules,
   ListTags,
   OpenRepo,
+  Pull,
   Setup,
   StageFiles,
   Status,

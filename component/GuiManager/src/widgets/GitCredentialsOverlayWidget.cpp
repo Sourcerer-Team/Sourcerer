@@ -103,6 +103,9 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(QWidget *parent)
       &GitCredentialsOverlayWidget::eventCallback, this, std::placeholders::_1);
 
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetCredentialsFinished,
+      callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
 
   LOG_PERF(0, "Exit");
@@ -114,6 +117,9 @@ GitCredentialsOverlayWidget::~GitCredentialsOverlayWidget() {
   const auto callbackFunc = std::bind(
       &GitCredentialsOverlayWidget::eventCallback, this, std::placeholders::_1);
 
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetCredentialsFinished,
+      callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
 
@@ -155,24 +161,22 @@ void GitCredentialsOverlayWidget::stop() {
   LOG_PERF(0, "Exit");
 }
 
-void GitCredentialsOverlayWidget::onCancelClicked() {
+void GitCredentialsOverlayWidget::onCancelClicked() const {
   LOG_PERF(0, "Enter");
 
   GitRepo::GitCredentialsErrorResponse response;
   response.uuid = _request.uuid;
 
   EventManager::Event cancelEvent(
-      EventManager::EventType::GitRepoManagerGetCredentialsError);
+      EventManager::EventType::GitRepoManagerGetCredentialsCancel);
   cancelEvent.addData(response);
 
   _eventManager.send(cancelEvent);
 
-  emit finished();
-
   LOG_PERF(0, "Exit");
 }
 
-void GitCredentialsOverlayWidget::onSubmitClicked() {
+void GitCredentialsOverlayWidget::onSubmitClicked() const {
   LOG_PERF(0, "Enter");
 
   GitRepo::GitCredentialsResponse response;
@@ -181,12 +185,10 @@ void GitCredentialsOverlayWidget::onSubmitClicked() {
   response.password = _passwordLineEdit->text();
 
   EventManager::Event submitEvent(
-      EventManager::EventType::GitRepoManagerGetCredentialsResult);
+      EventManager::EventType::GitRepoManagerGetCredentialsSubmit);
   submitEvent.addData(response);
 
   _eventManager.send(submitEvent);
-
-  emit finished();
 
   LOG_PERF(0, "Exit");
 }
@@ -201,7 +203,12 @@ void GitCredentialsOverlayWidget::eventCallback(EventManager::Event event) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() { emit error(); });
     break;
   }
-
+  case EventManager::EventType::GitRepoManagerGetCredentialsFinished: {
+    const auto guard = getSelf().toWeakRef();
+    Q_ASSERT(!guard.isNull());
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() { emit finished(); });
+    break;
+  }
   default: {
     break;
   }

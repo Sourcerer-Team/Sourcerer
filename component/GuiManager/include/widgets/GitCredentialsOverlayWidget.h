@@ -34,8 +34,8 @@ public:
   void start();
   void stop();
 
-  void onCancelClicked();
-  void onSubmitClicked();
+  void onCancelClicked() const;
+  void onSubmitClicked() const;
 
   void eventCallback(EventManager::Event event);
 

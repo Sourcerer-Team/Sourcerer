@@ -79,6 +79,8 @@ QString GitRepoManagerFsm::eventName(int event) const {
     return "ListTags";
   case EventType::OpenRepo:
     return "OpenRepo";
+  case EventType::Pull:
+    return "Pull";
   case EventType::Setup:
     return "Setup";
   case EventType::StageFiles:

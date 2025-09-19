@@ -98,7 +98,7 @@ void CloneGitRepoContainer::onCloneClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void CloneGitRepoContainer::onTextChanged(const QString &text) {
+void CloneGitRepoContainer::onTextChanged(const QString &text) const {
   LOG_PERF(0, "Enter");
 
   ui->labelFullDir->setVisible(true);

@@ -56,6 +56,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerPull, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStageFiles, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStatus, callbackFunc));
@@ -105,6 +107,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerListTags, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerPull, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStageFiles, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -278,6 +282,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent openRepoEvent(EventType::OpenRepo);
     openRepoEvent.addParam(QVariant::fromValue(openRepoCommand));
     _fsm.send(openRepoEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerPull: {
+    const auto pullCommand = event.data<GitRepoPullCommand>();
+    GitRepoManagerEvent pullEvent(EventType::Pull);
+    pullEvent.addParam(QVariant::fromValue(pullCommand));
+    _fsm.send(pullEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerStageFiles: {

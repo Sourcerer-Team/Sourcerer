@@ -408,6 +408,14 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(_repoDirWatcherTimer, &QTimer::timeout, this,
           &GitRepoContainer::onRepoDirChangedTimeout);
 
+  connect(pushButtonPull, &QPushButton::clicked, this,
+          &GitRepoContainer::onPull);
+  connect(pushButtonPush, &QPushButton::clicked, this,
+          &GitRepoContainer::onPush);
+  connect(pushButtonStash, &QPushButton::clicked, this,
+          &GitRepoContainer::onStash);
+  connect(pushButtonPop, &QPushButton::clicked, this, &GitRepoContainer::onPop);
+
   LOG_PERF(0, "Exit")
 }
 
@@ -763,6 +771,31 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
   _dispatcher.dispatch(
       [=]() { checkoutBranch(guard, branchName, GitRepo::BranchType::Local); });
 
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onPop() {
+  LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onPull() {
+  LOG_PERF(0, "Enter");
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { pull(guard); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onPush() {
+  LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onStash() {
+  LOG_PERF(0, "Enter");
   LOG_PERF(0, "Exit");
 }
 
@@ -2677,6 +2710,69 @@ bool GitRepoContainer::openRepo() {
   LOG_PERF(0, "Exit")
 
   return refreshHistorySuccess;
+}
+
+void GitRepoContainer::pull(const WeakPtr &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoPullCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event pullEvent(EventManager::EventType::GitRepoManagerPull,
+                                eventUuid);
+  pullEvent.addData(command);
+  _eventManager.send(pullEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerPullError,
+                           EventManager::EventType::GitRepoManagerPullResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerPullResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  if (const bool pulled = commandResult.value.toBool(); !pulled) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to pull from remote."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Git repository is up to-date."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
 }
 
 void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {

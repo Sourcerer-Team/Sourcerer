@@ -29,7 +29,7 @@ signals:
 private slots:
   void onBrowseClicked();
   void onCloneClicked();
-  void onTextChanged(const QString &text);
+  void onTextChanged(const QString &text) const;
 
 private:
   Ui::CloneGitRepoContainer *ui;
