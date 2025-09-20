@@ -11,31 +11,35 @@ namespace Ui {
 class HomeContainer;
 }
 
-namespace GuiManager {
-
-namespace Containers {
+namespace GuiManager::Containers {
 
 using namespace Delegates;
 using namespace Models;
 using namespace Widgets;
 
-class HomeContainer : public ContainerWidget {
+class HomeContainer final : public ContainerWidget {
   Q_OBJECT
 
 public:
   explicit HomeContainer(QWidget *parent = nullptr);
-  virtual ~HomeContainer();
+  ~HomeContainer() override;
 
-  void reloadRecentlyOpened();
+  void reloadRecentlyOpened() const;
+
+  void selected() override;
 
 signals:
   void clone();
-  void init();
+  void init() override;
   void open();
+  void recentClicked(const QString& path);
+
+protected:
+  bool eventFilter(QObject *obj, QEvent *event) override;
 
 private slots:
-  void hoverEnter(const QModelIndex& index);
-  void hoverLeave(const QModelIndex& index);
+  void hoverEnter(const QModelIndex &index);
+  void hoverLeave(const QModelIndex &index);
   void onCloneClicked();
   void onInitClicked();
   void onOpenClicked(bool checked = false);
@@ -46,5 +50,4 @@ private:
   HomeRecentItemDelegate *_itemDelegate;
 };
 
-} // namespace Containers
-} // namespace GuiManager
+} // namespace GuiManager::Containers

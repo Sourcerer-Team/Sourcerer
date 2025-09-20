@@ -24,7 +24,7 @@ signals:
 
 private:
   bool leave(QEvent* event);
-  bool mouseMove(QMouseEvent* event);
+  bool mouseMove(const QMouseEvent * event);
 
 private:
   QModelIndex _prev;

@@ -14,6 +14,12 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
       QColorDialog{
         font-size:14px;
       }
+      QLabel#labelRecent {
+        font-weight:bold;
+      }
+      QLabel#labelWorkspaces {
+        font-weight:bold;
+      }
       QLineEdit{
         color:white;
       }
@@ -56,7 +62,7 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
         padding: 5px;
       }
       QTextEdit:focus {
-          border: 2px solid #53A0ED;
+        border: 2px solid #53A0ED;
       }
       QTreeView::item:selected {
         background-color: #384D59;
@@ -81,124 +87,124 @@ QMap<StylesheetKey, QString> STYLESHEETS = {
         font-weight:bold;
       }
       QTabWidget#tabWidgetCommit::pane {
-          border: none;
-          padding: 0px;
-          margin: 0px;
+        border: none;
+        padding: 0px;
+        margin: 0px;
       }
       QTabBar#tabWidgetCommitTabBar::tab {
-          background: transparent;
-          border: 1px solid #6D6E6E;
-          border-radius: 8px;
-          padding: 6px 12px;
-          margin: 4px;
-          font-weight: normal;
-          color: white;
+        background: transparent;
+        border: 1px solid #6D6E6E;
+        border-radius: 8px;
+        padding: 6px 12px;
+        margin: 4px;
+        font-weight: normal;
+        color: white;
       }
       QTabBar#tabWidgetCommitTabBar::tab:selected {
-          background-color: #384D59;
-          border: 2px solid #6D6E6E;
-          font-weight: bold;
-          color: white;
+        background-color: #384D59;
+        border: 2px solid #6D6E6E;
+        font-weight: bold;
+        color: white;
       }
       QTabBar#tabWidgetCommitTabBar::tab:hover {
-          background-color: #384D59;
-          color: white;
+        background-color: #384D59;
+        color: white;
       }
       QTabWidget#tabWidgetIndex::pane {
-          border: none;
-          padding: 0px;
-          margin: 0px;
+        border: none;
+        padding: 0px;
+        margin: 0px;
       }
       QTabBar#tabWidgetIndexTabBar::tab {
-          background: transparent;
-          border: 1px solid #6D6E6E;
-          border-radius: 8px;
-          padding: 6px 12px;
-          margin: 4px;
-          font-weight: normal;
-          color: white;
+        background: transparent;
+        border: 1px solid #6D6E6E;
+        border-radius: 8px;
+        padding: 6px 12px;
+        margin: 4px;
+        font-weight: normal;
+        color: white;
       }
       QTabBar#tabWidgetIndexTabBar::tab:selected {
-          background-color: #384D59;
-          border: 2px solid #6D6E6E;
-          font-weight: bold;
-          color: white;
+        background-color: #384D59;
+        border: 2px solid #6D6E6E;
+        font-weight: bold;
+        color: white;
       }
       QTabBar#tabWidgetIndexTabBar::tab:hover {
-          background-color: #384D59;
-          color: white;
+        background-color: #384D59;
+        color: white;
       }
       QTabWidget#tabWidgetWorkingTree::pane {
-          border: none;
-          padding: 0px;
-          margin: 0px;
+        border: none;
+        padding: 0px;
+        margin: 0px;
       }
       QTabBar#tabWidgetWorkingTreeTabBar::tab {
-          background: transparent;
-          border: 1px solid #6D6E6E;
-          border-radius: 8px;
-          padding: 6px 12px;
-          margin: 4px;
-          font-weight: normal;
-          color: white;
+        background: transparent;
+        border: 1px solid #6D6E6E;
+        border-radius: 8px;
+        padding: 6px 12px;
+        margin: 4px;
+        font-weight: normal;
+        color: white;
       }
       QTabBar#tabWidgetWorkingTreeTabBar::tab:selected {
-          background-color: #384D59;
-          border: 2px solid #6D6E6E;
-          font-weight: bold;
-          color: white;
+        background-color: #384D59;
+        border: 2px solid #6D6E6E;
+        font-weight: bold;
+        color: white;
       }
       QTabBar#tabWidgetWorkingTreeTabBar::tab:hover {
-          background-color: #384D59;
-          color: white;
+        background-color: #384D59;
+        color: white;
       }
       QTabWidget#tabWidgetPageDisplayFiles::pane {
-          border: none;
-          padding: 0px;
-          margin: 0px;
+        border: none;
+        padding: 0px;
+        margin: 0px;
       }
       QTabBar#tabWidgetPageDisplayFilesTabBar::tab {
-          background: transparent;
-          border: 1px solid #6D6E6E;
-          border-radius: 8px;
-          padding: 6px 12px;
-          margin: 4px;
-          font-weight: normal;
-          color: white;
+        background: transparent;
+        border: 1px solid #6D6E6E;
+        border-radius: 8px;
+        padding: 6px 12px;
+        margin: 4px;
+        font-weight: normal;
+        color: white;
       }
       QTabBar#tabWidgetPageDisplayFilesTabBar::tab:selected {
-          background-color: #384D59;
-          border: 2px solid #6D6E6E;
-          font-weight: bold;
-          color: white;
+        background-color: #384D59;
+        border: 2px solid #6D6E6E;
+        font-weight: bold;
+        color: white;
       }
       QTabBar#tabWidgetPageDisplayFilesTabBar::tab:hover {
-          background-color: #384D59;
-          color: white;
+        background-color: #384D59;
+        color: white;
       }
       QTabWidget#tabWidgetPageDisplayFilesTabBar::pane {
-          border: none;
-          padding: 0px;
-          margin: 0px;
+        border: none;
+        padding: 0px;
+        margin: 0px;
       }
       QTabBar#tabWidgetPageDisplayFilesTabBar::tab {
-          background: transparent;
-          border: 1px solid #6D6E6E;
-          border-radius: 8px;
-          padding: 6px 12px;
-          margin: 4px;
-          font-weight: normal;
-          color: white;
+        background: transparent;
+        border: 1px solid #6D6E6E;
+        border-radius: 8px;
+        padding: 6px 12px;
+        margin: 4px;
+        font-weight: normal;
+        color: white;
       }
       QTabBar#tabWidgetPageDisplayFilesTabBar::tab:selected {
-          background-color: #384D59;
-          border: 2px solid #6D6E6E;
-          font-weight: bold;
-          color: white;
+        background-color: #384D59;
+        border: 2px solid #6D6E6E;
+        font-weight: bold;
+        color: white;
       }
       QTabBar#tabWidgetPageDisplayFilesTabBar::tab:hover {
-          background-color: #384D59;
-          color: white;
+        background-color: #384D59;
+        color: white;
       }
       QToolBox::tab{
         background: #353535;

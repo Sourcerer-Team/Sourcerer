@@ -50,6 +50,7 @@ private slots:
   void onCloneFinished(ContainerWidget *sender);
   void onInit();
   void onInitFinished(ContainerWidget *sender);
+  void onRecentClicked(const QString& path);
   void onSettings();
   void onAbout() const;
   void onClosedTab(int index);

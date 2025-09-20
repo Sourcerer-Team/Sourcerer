@@ -42,7 +42,7 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::TitleBarMaximizeButtonColor,
      "window/titlebar/maximizeButtonColor"},
     {ConfigKey::TitleBarMaxTabWidth, "window/titleBarMaxTabWidth"},
-    {ConfigKey::TitleBarMenuMinimumSize, "window/xxx/titleBarMenuMinimumWidth"},
+    {ConfigKey::TitleBarMenuMinimumSize, "window/titleBarMenuMinimumWidth"},
     {ConfigKey::TestColor, "test/testColor"},
     {ConfigKey::TestDateTime, "test/testDateTime"},
     {ConfigKey::ToastAnimationDuration, "window/toasts/toastAnimationDuration"},
@@ -93,9 +93,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::GitRepoSplitterPos, ""},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
-    {ConfigKey::RecentlyOpenedRepos,
-     "git@github.com:levi9-embedded/"
-     "components.git,git@github.com:levi9-embedded/arduino-projects.git"},
+    {ConfigKey::RecentlyOpenedRepos, ""},
     {ConfigKey::SettingsSplitterPos, ""}};
 
 ConfigManager::ConfigManager()

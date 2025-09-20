@@ -897,6 +897,32 @@ void GitRepoContainer::restorePreviousSectionWidth() {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::saveRepoInRecentList() const {
+  LOG_PERF(0, "Enter");
+
+  QString recentRepos =
+      _configManager.getString(ConfigManager::ConfigKey::RecentlyOpenedRepos);
+
+  QStringList recentReposList = recentRepos.split(";", Qt::SkipEmptyParts);
+  if (recentReposList.contains(QDir::fromNativeSeparators(_path))) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (recentReposList.length() > 9) {
+    recentReposList = recentReposList.mid(1, 9);
+  }
+
+  recentReposList += QDir::fromNativeSeparators(_path);
+  recentRepos = recentReposList.join(";");
+
+  _configManager.setString(ConfigManager::ConfigKey::RecentlyOpenedRepos,
+                           recentRepos);
+  _configManager.save();
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::startOverlayTimer() const {
   LOG_PERF(0, "Enter");
 
@@ -2712,6 +2738,10 @@ bool GitRepoContainer::openRepo() {
 
   const bool refreshHistorySuccess = refreshHistory(guard);
 
+  if (refreshHistorySuccess) {
+    saveRepoInRecentList();
+  }
+
   LOG_PERF(0, "Exit")
 
   return refreshHistorySuccess;
@@ -2837,7 +2867,7 @@ void GitRepoContainer::push(const WeakPtr &guard) {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
-    showToast(tr("Sucesfully pushed to remote."), tr("Info"));
+    showToast(tr("Successfully pushed to remote."), tr("Info"));
   });
 
   LOG_PERF(0, "Exit")

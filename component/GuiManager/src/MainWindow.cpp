@@ -214,6 +214,15 @@ void MainWindow::onInitFinished(ContainerWidget *sender) {
   LOG_PERF(0, "Exit");
 }
 
+void MainWindow::onRecentClicked(const QString &path) {
+  LOG_PERF(0, "Enter");
+
+  if (!path.isEmpty())
+    addGitRepoContainer(path);
+
+  LOG_PERF(0, "Exit");
+}
+
 void MainWindow::onSettings() {
   LOG_PERF(0, "Enter");
 
@@ -379,7 +388,17 @@ void MainWindow::addGitRepoContainer(const QString &path) {
   container->init();
   container->setupShortcuts();
   _containers += container;
-  _topBarWidget->titleBarWidget()->addTab(Git::parseRepoName(path));
+
+  const QStringList parts = path.split(QDir::separator(), Qt::SkipEmptyParts);
+
+  QString repoName;
+  if (parts.length() > 0) {
+    repoName = parts.last();
+  } else {
+    repoName = path;
+  }
+
+  _topBarWidget->titleBarWidget()->addTab(repoName);
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
@@ -404,6 +423,8 @@ void MainWindow::addHomeContainer() {
   connect(container.get(), &HomeContainer::clone, this, &MainWindow::onClone);
   connect(container.get(), &HomeContainer::init, this, &MainWindow::onInit);
   connect(container.get(), &HomeContainer::open, this, &MainWindow::onOpen);
+  connect(container.get(), &HomeContainer::recentClicked, this,
+          &MainWindow::onRecentClicked);
 
   LOG_PERF(0, "Exit");
 }
@@ -503,11 +524,10 @@ void MainWindow::eventCallback(EventManager::Event event) {
         overlayWidget = new GitCredentialsOverlayWidget(request.id, parent);
         _credentialsWidgets[request.id] = overlayWidget;
       }
-      connect(overlayWidget, &GitCredentialsOverlayWidget::error, this,
-              [=]() {
-                hideCredentialsOverlay(overlayWidget);
-                _credentialsWidgets.remove(request.id);
-                delete overlayWidget;
+      connect(overlayWidget, &GitCredentialsOverlayWidget::error, this, [=]() {
+        hideCredentialsOverlay(overlayWidget);
+        _credentialsWidgets.remove(request.id);
+        delete overlayWidget;
       });
       connect(overlayWidget, &GitCredentialsOverlayWidget::finished, this,
               [=]() {
@@ -597,6 +617,7 @@ void MainWindow::selectContainer(const int index) {
 
   _containers[index]->show();
   _containers[index]->setupShortcuts();
+  _containers[index]->selected();
   _centralWidget->setCentralWidget(_containers[index].get());
   _current = index;
 

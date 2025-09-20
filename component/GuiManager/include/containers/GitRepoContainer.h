@@ -157,6 +157,7 @@ private:
   void resetDisplayTreeExpandedButton();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
+  void saveRepoInRecentList() const;
   void startOverlayTimer() const;
   void stopOverlayTimer() const;
   void stopWatcher(const WeakPtr &guard);

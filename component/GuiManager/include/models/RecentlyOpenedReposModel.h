@@ -4,18 +4,18 @@
 
 #include <QAbstractTableModel>
 
-namespace GuiManager {
-
-namespace Models {
+namespace GuiManager::Models {
 
 struct RecentlyOpenedRepo {
-  QString url;
+  QString path;
   QString name;
 };
 
-class RecentlyOpenedReposModel : public QAbstractTableModel {
+class RecentlyOpenedReposModel final : public QAbstractTableModel {
 public:
   explicit RecentlyOpenedReposModel(QObject *parent = nullptr);
+
+  QModelIndex createIndex(int row, int column) const;
 
   // QAbstractItemModel interface
   int columnCount(const QModelIndex &parent) const override;
@@ -33,5 +33,4 @@ private:
   QVector<RecentlyOpenedRepo> _recentlyOpened;
 };
 
-} // namespace Models
-} // namespace GuiManager
+} // namespace GuiManager::Models

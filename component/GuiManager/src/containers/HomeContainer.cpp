@@ -1,7 +1,7 @@
 #include "containers/HomeContainer.h"
 #include "containers/ui_HomeContainer.h"
 #include "delegates/HomeRecentItemDelegate.h"
-#include <widgets/RecentTableView.h>
+#include "widgets/RecentTableView.h"
 
 #include <Log.h>
 
@@ -20,12 +20,13 @@ HomeContainer::HomeContainer(QWidget *parent)
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
-  ui->recentTableView->setModel(_recentlyOpenedModel);
-  ui->recentTableView->setItemDelegate(_itemDelegate);
+  ui->tableViewRecent->setModel(_recentlyOpenedModel);
+  ui->tableViewRecent->setItemDelegate(_itemDelegate);
+  ui->tableViewRecent->viewport()->installEventFilter(this);
 
-  connect(ui->recentTableView, &RecentTableView::hoverEnter, this,
+  connect(ui->tableViewRecent, &RecentTableView::hoverEnter, this,
           &HomeContainer::hoverEnter);
-  connect(ui->recentTableView, &RecentTableView::hoverLeave, this,
+  connect(ui->tableViewRecent, &RecentTableView::hoverLeave, this,
           &HomeContainer::hoverLeave);
   connect(ui->openButton, &QPushButton::clicked, this,
           &HomeContainer::onOpenClicked);
@@ -46,12 +47,42 @@ HomeContainer::~HomeContainer() {
   LOG_PERF(0, "Exit");
 }
 
-void HomeContainer::reloadRecentlyOpened() {
+void HomeContainer::reloadRecentlyOpened() const {
   LOG_PERF(0, "Enter");
 
   _recentlyOpenedModel->reload();
 
   LOG_PERF(0, "Exit");
+}
+
+void HomeContainer::selected() {
+  LOG_PERF(0, "Enter");
+
+  reloadRecentlyOpened();
+
+  LOG_PERF(0, "Exit");
+}
+
+bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
+  if (event->type() == QEvent::MouseButtonPress) {
+    if (const auto mouseEvent = static_cast<QMouseEvent *>(event);
+        mouseEvent->button() == Qt::LeftButton) {
+      const auto viewport = qobject_cast<QWidget *>(obj);
+      if (const auto view =
+              qobject_cast<GuiManager::Widgets::RecentTableView *>(
+                  viewport->parentWidget())) {
+        if (const QModelIndex index = view->indexAt(mouseEvent->pos());
+            index.isValid()) {
+          const QModelIndex pathIndex =
+              _recentlyOpenedModel->createIndex(index.row(), 1);
+          const QString path = pathIndex.data(Qt::DisplayRole).toString();
+          emit recentClicked(path);
+        }
+      }
+    }
+  }
+
+  return ContainerWidget::eventFilter(obj, event);
 }
 
 void HomeContainer::hoverEnter(const QModelIndex &index) {
@@ -65,7 +96,7 @@ void HomeContainer::hoverEnter(const QModelIndex &index) {
   }
 
   _itemDelegate->setHover(index);
-  ui->recentTableView->viewport()->update();
+  ui->tableViewRecent->viewport()->update();
 
   setCursor(Qt::PointingHandCursor);
 
@@ -77,15 +108,14 @@ void HomeContainer::hoverLeave(const QModelIndex &index) {
   LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
 
   _itemDelegate->setHover(QModelIndex());
-  ui->recentTableView->viewport()->update();
+  ui->tableViewRecent->viewport()->update();
 
   setCursor(Qt::ArrowCursor);
 
   LOG_PERF(0, "Exit");
 }
 
-void HomeContainer::onCloneClicked()
-{
+void HomeContainer::onCloneClicked() {
   LOG_PERF(0, "Enter");
 
   emit clone();
@@ -93,8 +123,7 @@ void HomeContainer::onCloneClicked()
   LOG_PERF(0, "Exit");
 }
 
-void HomeContainer::onInitClicked()
-{
+void HomeContainer::onInitClicked() {
   LOG_PERF(0, "Enter");
 
   emit init();
