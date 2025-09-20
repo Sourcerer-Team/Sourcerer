@@ -2828,7 +2828,7 @@ void GitRepoContainer::push(const WeakPtr &guard) {
   if (const bool pushed = commandResult.value.toBool(); !pushed) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(tr("Failed to push from remote."), tr("Error"));
+      showErrorToast(tr("Failed to push to remote."), tr("Error"));
     });
 
     LOG_PERF(0, "Exit")

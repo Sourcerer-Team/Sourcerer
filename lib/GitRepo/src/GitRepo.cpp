@@ -2794,7 +2794,7 @@ bool push(git_repository *repo) {
 
   LOG_PERF(0, "Exit");
 
-  return true;
+  return error == 0;
 }
 
 } // namespace GitRepo
