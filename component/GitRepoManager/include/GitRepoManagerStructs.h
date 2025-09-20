@@ -33,6 +33,7 @@ enum class GitRepoCommandType : int {
   ListTags,
   Open,
   Pull,
+  Push,
   StageFiles,
   Status,
   UnstageFiles,
@@ -208,6 +209,11 @@ struct GitRepoOpenCommand final : GitRepoCommand {
 struct GitRepoPullCommand final : GitRepoCommand {
   GitRepoPullCommand() : GitRepoCommand(GitRepoCommandType::Pull) {}
   ~GitRepoPullCommand() override = default;
+};
+
+struct GitRepoPushCommand final : GitRepoCommand {
+  GitRepoPushCommand() : GitRepoCommand(GitRepoCommandType::Push) {}
+  ~GitRepoPushCommand() override = default;
 };
 
 struct GitRepoStageFilesCommand final : GitRepoCommand {

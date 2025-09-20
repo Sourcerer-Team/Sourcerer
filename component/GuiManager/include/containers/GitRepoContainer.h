@@ -147,6 +147,7 @@ private:
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   bool openRepo();
   void pull(const WeakPtr &guard);
+  void push(const WeakPtr &guard);
   void prepareWatcher(const WeakPtr &guard);
   bool refreshHistory(const WeakPtr &guard);
   void refreshStatus(const WeakPtr &guard);

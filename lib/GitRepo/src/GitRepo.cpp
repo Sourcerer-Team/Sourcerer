@@ -2556,14 +2556,6 @@ bool pull(git_repository *repo) {
     return false;
   }
 
-  if (const char *localBranchName = git_reference_shorthand(head);
-      !localBranchName) {
-    git_reference_free(head);
-    LOG_ERROR(Log::ErrorId::Git, "Can't get local branch name");
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
   // Step 2: Get upstream tracking branch
   git_reference *upstream = nullptr;
 
@@ -2733,6 +2725,72 @@ bool pull(git_repository *repo) {
   git_reference_free(upstream);
   git_reference_free(head);
   git_remote_free(remote);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+bool push(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  git_reference *headRef = nullptr;
+
+  int error = git_repository_head(&headRef, repo);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const char *branchName = git_reference_name(headRef);
+  if (!branchName) {
+    git_reference_free(headRef);
+    LOG_ERROR(Log::ErrorId::Git, "Can't get branch name");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_remote *remote = nullptr;
+
+  error = git_remote_lookup(&remote, repo, "origin");
+  if (error) {
+    logGitError(error);
+    git_reference_free(headRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_push_options opts;
+  git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
+  opts.callbacks.credentials = &credentialsAcquireCallback;
+  opts.callbacks.transfer_progress = &fetchProgressCallback;
+
+  git_strarray refspecs =
+      qstringlist_to_git_strarray(QStringList() << branchName);
+
+  int retries = 0;
+  const char *url = git_remote_url(remote);
+
+  do {
+    error = git_remote_push(remote, &refspecs, &opts);
+    if (error) {
+      logGitError(error);
+
+      gGitCredentialsMutex.lock();
+      gGitCredentials.remove(url);
+      gGitCredentialsMutex.unlock();
+
+      sendInvalidCredentialsSignal(url);
+    }
+
+    ++retries;
+  } while (error != 0 && error != GIT_EUSER && retries < MAX_RETRIES);
+
+  finishCredentialsAcquiring(url);
+
+  git_reference_free(headRef);
+  git_strarray_destroy(refspecs);
 
   LOG_PERF(0, "Exit");
 

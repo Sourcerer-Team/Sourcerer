@@ -186,6 +186,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForPull(pullCommand);
     break;
   }
+  case EventType::Push: {
+    const auto pushCommand = event.nextParam<GitRepoPushCommand>();
+    scheduleWorkerForPush(pushCommand);
+    break;
+  }
   case EventType::StageFiles: {
     const auto stageFilesCommand = event.nextParam<GitRepoStageFilesCommand>();
     scheduleWorkerForStageFiles(stageFilesCommand);
@@ -1137,6 +1142,25 @@ void ProcessingState::scheduleWorkerForPull(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForPush(
+    const Structs::GitRepoPushCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerPushError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoPushCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForStageFiles(
     const Structs::GitRepoStageFilesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -1285,6 +1309,35 @@ void ProcessingState::pullWorker(const Structs::GitRepoPullCommand &command) {
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerPullResult, command.syncUuid);
+  resultEvent.addData(
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::pushWorker(const Structs::GitRepoPushCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerPushError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::push(repo);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerPushResult, command.syncUuid);
   resultEvent.addData(
       GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
   _eventManager.send(resultEvent);
@@ -1932,6 +1985,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoPullCommand *>(command);
       if (pullCommand) {
         pullWorker(*pullCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::Push: {
+      const auto *pushCommand =
+          dynamic_cast<const GitRepoPushCommand *>(command);
+      if (pushCommand) {
+        pushWorker(*pushCommand);
       }
       break;
     }

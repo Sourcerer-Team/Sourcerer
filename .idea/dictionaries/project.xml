@@ -2,6 +2,7 @@
   <dictionary name="project">
     <words>
       <w>qproperty</w>
+      <w>refspecs</w>
     </words>
   </dictionary>
 </component>

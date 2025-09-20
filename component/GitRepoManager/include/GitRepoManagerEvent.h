@@ -28,6 +28,7 @@ enum class EventType : int {
   ListTags,
   OpenRepo,
   Pull,
+  Push,
   Setup,
   StageFiles,
   Status,
