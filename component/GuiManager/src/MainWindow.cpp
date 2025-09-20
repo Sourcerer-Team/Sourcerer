@@ -500,7 +500,7 @@ void MainWindow::eventCallback(EventManager::Event event) {
       if (_credentialsWidgets.contains(request.id)) {
         overlayWidget = _credentialsWidgets[request.id];
       } else {
-        overlayWidget = new GitCredentialsOverlayWidget(parent);
+        overlayWidget = new GitCredentialsOverlayWidget(request.id, parent);
         _credentialsWidgets[request.id] = overlayWidget;
       }
       connect(overlayWidget, &GitCredentialsOverlayWidget::error, this,

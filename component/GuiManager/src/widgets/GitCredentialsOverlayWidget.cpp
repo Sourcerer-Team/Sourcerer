@@ -10,10 +10,11 @@
 
 namespace GuiManager::Widgets {
 
-GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(QWidget *parent)
+GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
+                                                         QWidget *parent)
     : OverlayWidget(parent, ALPHA),
       _eventManager(::EventManager::EventManager::getInstance()),
-      _showing(false), _holder(QSharedPointer<bool>::create(false)) {
+      _showing(false), _holder(QSharedPointer<bool>::create(false)), _id(id) {
   LOG_PERF(0, "Enter");
 
   const auto widget = new QWidget(this);
@@ -227,12 +228,18 @@ void GitCredentialsOverlayWidget::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCredentialsFinished: {
+    if (const uint id = event.data<size_t>(); id != _id) {
+      break;
+    }
     const auto guard = _holder.toWeakRef();
     Q_ASSERT(!guard.isNull());
     Util::Dispatcher::dispatchToMainThread(guard, [=]() { emit finished(); });
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCredentialsInvalid: {
+    if (const uint id = event.data<size_t>(); id != _id) {
+      break;
+    }
     const auto guard = _holder.toWeakRef();
     Q_ASSERT(!guard.isNull());
     Util::Dispatcher::dispatchToMainThread(guard,

@@ -102,12 +102,13 @@ static void invalidateCredentials(const QString &url) {
     gGitCredentials.erase(it);
 }
 
-static void sendInvalidCredentialsSignal() {
+static void sendInvalidCredentialsSignal(const QString &url) {
   EventManager::EventManager &eventManager =
       EventManager::EventManager::getInstance();
 
   EventManager::Event event(
       EventManager::EventType::GitRepoManagerGetCredentialsInvalid);
+  event.addData(qHash(url));
 
   eventManager.send(event);
 }
@@ -1052,12 +1053,13 @@ static void finishFetchProgress(const QString &uuid, const bool error) {
   EventManager::EventManager::getInstance().send(progressEvent);
 }
 
-static void finishCredentialsAquaring() {
+static void finishCredentialsAcquiring(const QString &url) {
   EventManager::EventManager &eventManager =
       EventManager::EventManager::getInstance();
 
-  const EventManager::Event credentialsFinishedEvent(
+  EventManager::Event credentialsFinishedEvent(
       EventManager::EventType::GitRepoManagerGetCredentialsFinished);
+  credentialsFinishedEvent.addData(qHash(url));
 
   eventManager.send(credentialsFinishedEvent);
 }
@@ -1073,7 +1075,7 @@ acquireCredentials(const QString &url, const QString &username,
   const int token = eventManager.startWait();
 
   GitCredentialsRequest request;
-  request.id = qt_hash(url);
+  request.id = qHash(url);
   request.url = url;
   request.username = username;
   request.allowedTypes = allowedTypes;
@@ -1251,7 +1253,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
                 destinationDir.toStdString().c_str(), &clone_opts);
 
   finishFetchProgress(uuid, error != 0);
-  finishCredentialsAquaring();
+  finishCredentialsAcquiring(uuid);
 
   if (error || !repo) {
     invalidateCredentials(url);
@@ -2585,6 +2587,7 @@ bool pull(git_repository *repo) {
   }
 
   int retries = 0;
+  const char *url = git_remote_url(remote);
 
   do {
     git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
@@ -2594,18 +2597,17 @@ bool pull(git_repository *repo) {
     error = git_remote_fetch(remote, nullptr, &fetchOpts, nullptr);
 
     if (error) {
-      const char *url = git_remote_url(remote);
       gGitCredentialsMutex.lock();
       gGitCredentials.remove(url);
       gGitCredentialsMutex.unlock();
 
-      sendInvalidCredentialsSignal();
+      sendInvalidCredentialsSignal(url);
     }
 
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < MAX_RETRIES);
 
-  finishCredentialsAquaring();
+  finishCredentialsAcquiring(url);
 
   if (error) {
     git_remote_free(remote);

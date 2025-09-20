@@ -23,7 +23,7 @@ public:
   typedef QWeakPointer<GitCredentialsOverlayWidget> WeakPtr;
 
 public:
-  explicit GitCredentialsOverlayWidget(QWidget *parent);
+  explicit GitCredentialsOverlayWidget(uint id, QWidget *parent);
   ~GitCredentialsOverlayWidget() override;
 
   SharedPtr getSelf() { return sharedFromThis(); }
@@ -57,6 +57,7 @@ private:
   GitRepo::GitCredentialsRequest _request;
   bool _showing;
   QSharedPointer<bool> _holder;
+  size_t _id;
 };
 
 } // namespace GuiManager::Widgets
