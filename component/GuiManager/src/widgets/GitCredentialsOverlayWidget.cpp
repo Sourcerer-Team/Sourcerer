@@ -1,5 +1,7 @@
 #include "Widgets/GitCredentialsOverlayWidget.h"
 
+#include "spdlog/details/backtracer.h"
+
 #include <Log.h>
 
 #define THREAD_ID "GitCredentialsOverlayWidget"
@@ -14,13 +16,18 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(QWidget *parent)
       _showing(false), _holder(QSharedPointer<bool>::create(false)) {
   LOG_PERF(0, "Enter");
 
-  const auto titleLabel = new QLabel(tr("Credentials"), this);
+  const auto widget = new QWidget(this);
+
+  const auto titleLabel = new QLabel(tr("Credentials"), widget);
   titleLabel->setAlignment(Qt::AlignLeft);
+  titleLabel->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Expanding);
   titleLabel->setStyleSheet(QString("font-size: 16px; font-weight: bold; "
                                     "background-color: %1; padding: 4")
                                 .arg(QColor(Qt::darkYellow).name()));
 
-  const auto widget = new QWidget(this);
+  const auto titleLayout = new QHBoxLayout();
+  titleLayout->addWidget(titleLabel);
+  titleLayout->addStretch(1);
 
   _message = new QLabel(widget);
 
@@ -77,7 +84,7 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(QWidget *parent)
   composedLayout3->addLayout(editsLayout);
 
   const auto composedLayout2 = new QVBoxLayout();
-  composedLayout2->addWidget(titleLabel);
+  composedLayout2->addLayout(titleLayout);
   composedLayout2->addSpacing(16);
   composedLayout2->addWidget(_message);
   composedLayout2->addSpacing(8);
