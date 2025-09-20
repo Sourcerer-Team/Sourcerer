@@ -28,6 +28,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QMap>
+#include <QStandardPaths>
 #include <QString>
 
 #include <set>
@@ -1144,9 +1145,27 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
                                       void *payload) {
   LOG_PERF(0, "Enter");
 
-  if ((allowed_types & GIT_CREDENTIAL_USERPASS_PLAINTEXT) == 0) {
+  if (((allowed_types & GIT_CREDENTIAL_USERPASS_PLAINTEXT) == 0) &&
+      ((allowed_types & GIT_CREDENTIAL_SSH_KEY) == 0)) {
     LOG_PERF(0, "Exit");
     return 1;
+  }
+
+  if (const QString urlString = QString::fromUtf8(url);
+      urlString.startsWith("git@")) {
+
+    const QString homePath =
+        QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+
+    const int error = git_credential_ssh_key_new(
+        out, username_from_url ? username_from_url : "git",
+        QString("%1/.ssh/id_rsa.pub").arg(homePath).toStdString().c_str(),
+        QString("%1/.ssh/id_rsa").arg(homePath).toStdString().c_str(),
+        nullptr // passphrase
+    );
+
+    LOG_PERF(0, "Exit");
+    return error;
   }
 
   gGitCredentialsMutex.lock();
