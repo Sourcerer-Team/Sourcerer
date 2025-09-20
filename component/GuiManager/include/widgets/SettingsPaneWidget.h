@@ -18,15 +18,16 @@ public:
 
   void setGroup(const ConfigManager::ConfigGroup &group);
 
-  int sectionPosition(const QString& sectionName) const;
+  int sectionPosition(const QString &sectionName) const;
 
 private:
-  SettingsPaneItemWidget *createItemWidget(const ConfigManager::ConfigItem& item);
+  SettingsPaneItemWidget *
+  createItemWidget(const ConfigManager::ConfigItem &item);
   void recreate();
-  void recreateGroup(const ConfigManager::ConfigGroup& group);
+  void recreateGroup(const ConfigManager::ConfigGroup &group);
 
 private:
-  QMap<QString, QWidget*> _sections;
+  QMap<QString, QWidget *> _sections;
   ConfigManager::ConfigGroup _group;
 };
 

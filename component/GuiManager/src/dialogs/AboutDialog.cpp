@@ -14,7 +14,7 @@ AboutDialog::AboutDialog(QWidget *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
-  setWindowFlags(Qt::CustomizeWindowHint |Qt::WindowTitleHint);
+  setWindowFlags(Qt::CustomizeWindowHint | Qt::WindowTitleHint);
 
   ui->setupUi(this);
 

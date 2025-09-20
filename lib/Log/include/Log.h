@@ -237,7 +237,7 @@ public:
                           QString corelationId);
   void debugCorrelation(QString threadId, QString function, int line,
                         QString message, QString corelationId);
-  void initCorrelation(const QString& threadId, QString function, int line,
+  void initCorrelation(const QString &threadId, QString function, int line,
                        QString message, QString corelationId) const;
 
   template <typename... Args>

@@ -112,7 +112,7 @@ GitRepoManager::~GitRepoManager() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerPull, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
-    EventManager::EventType::GitRepoManagerPush, callbackFunc));
+      EventManager::EventType::GitRepoManagerPush, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStageFiles, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(

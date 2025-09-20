@@ -6,4 +6,4 @@ namespace Uuid {
 
 QString createUuid();
 
-} // namespace Guid
+} // namespace Uuid

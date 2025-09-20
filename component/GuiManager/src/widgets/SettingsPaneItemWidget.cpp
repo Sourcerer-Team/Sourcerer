@@ -24,14 +24,13 @@ SettingsPaneItemWidget::SettingsPaneItemWidget(
   LOG_PERF(0, "Exit");
 }
 
-void SettingsPaneItemWidget::inflate()
-{
+void SettingsPaneItemWidget::inflate() {
   LOG_PERF(0, "Enter");
 
   load();
 
   QWidget *widget = createWidget();
-  if(widget) {
+  if (widget) {
     QHBoxLayout *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->addWidget(widget);
@@ -40,9 +39,8 @@ void SettingsPaneItemWidget::inflate()
   LOG_PERF(0, "Exit");
 }
 
-bool SettingsPaneItemWidget::eventFilter(QObject *watched, QEvent *event)
-{
-  if(!event || watched != this)
+bool SettingsPaneItemWidget::eventFilter(QObject *watched, QEvent *event) {
+  if (!event || watched != this)
     return false;
 
   switch (event->type()) {
@@ -75,7 +73,7 @@ bool SettingsPaneItemWidget::hover(QHoverEvent *event, bool entered) {
   LOG_DEBUG("Entered is '{}'", entered);
 
   QPalette palette;
-  if(entered)
+  if (entered)
     palette.setColor(QPalette::Window, _hoverColor);
 
   setAutoFillBackground(true);

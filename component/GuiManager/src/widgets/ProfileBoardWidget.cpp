@@ -14,10 +14,10 @@ namespace GuiManager::Widgets {
 
 ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
     : QWidget(parent, Qt::FramelessWindowHint | Qt::Tool),
-    ui(new Ui::ProfileBoardWidget), _arrowX(0),
-    _currentlyEditProfileIndex(-1), _operation(OperationType::Unknown),
-    _model(new QStandardItemModel),
-    _userProfileManager(Common::UserProfileManager::instance()) {
+      ui(new Ui::ProfileBoardWidget), _arrowX(0),
+      _currentlyEditProfileIndex(-1), _operation(OperationType::Unknown),
+      _model(new QStandardItemModel),
+      _userProfileManager(Common::UserProfileManager::instance()) {
   LOG_PERF(0, "Enter");
 
   setAttribute(Qt::WA_TranslucentBackground);
@@ -25,7 +25,7 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
 
   ui->setupUi(this);
   ui->listViewProfiles->setItemDelegate(
-    new Delegates::FixedHeightDelegate(ui->listViewProfiles));
+      new Delegates::FixedHeightDelegate(ui->listViewProfiles));
 
   layout()->setContentsMargins(15, 25, 15, 15); // Leave space for arrow
 
@@ -95,7 +95,7 @@ void ProfileBoardWidget::paintEvent(QPaintEvent *event) {
 
   // Clamp arrowX to stay within bounds
   int ax =
-    qBound(radius + arrowWidth / 2, _arrowX, w - radius - arrowWidth / 2);
+      qBound(radius + arrowWidth / 2, _arrowX, w - radius - arrowWidth / 2);
 
   // Rounded rectangle with top arrow
   path.moveTo(radius, arrowHeight);
@@ -149,10 +149,10 @@ void ProfileBoardWidget::onButtonEditClicked() {
   _operation = OperationType::Edit;
 
   _currentlyEditProfileIndex =
-    ui->listViewProfiles->selectionModel()->currentIndex().row();
+      ui->listViewProfiles->selectionModel()->currentIndex().row();
 
   const Common::UserProfile &currentProfile =
-    _userProfileManager.currentProfile();
+      _userProfileManager.currentProfile();
 
   ui->lineEditAuthor->setText(currentProfile.author);
   ui->lineEditEmail->setText(currentProfile.email);
@@ -166,7 +166,7 @@ void ProfileBoardWidget::onButtonRemoveClicked() {
   LOG_PERF(0, "Enter");
 
   const int profileIndex =
-    ui->listViewProfiles->selectionModel()->currentIndex().row();
+      ui->listViewProfiles->selectionModel()->currentIndex().row();
 
   const QVector<Common::UserProfile> profiles = _userProfileManager.profiles();
 
@@ -181,8 +181,8 @@ void ProfileBoardWidget::onButtonRemoveClicked() {
   const Common::UserProfile &profile = profiles.at(profileIndex);
 
   ui->labelRemoveQuestion->setText(
-    tr("Are you sure you want to remove the profile \"%1\"?")
-      .arg(profile.author));
+      tr("Are you sure you want to remove the profile \"%1\"?")
+          .arg(profile.author));
 
   ui->stackedWidget->setCurrentIndex(static_cast<int>(ScreenType::Remove));
 
@@ -193,7 +193,7 @@ void ProfileBoardWidget::onButtonRemoveYesClicked() {
   LOG_PERF(0, "Enter");
 
   const int profileIndex =
-    ui->listViewProfiles->selectionModel()->currentIndex().row();
+      ui->listViewProfiles->selectionModel()->currentIndex().row();
 
   QVector<Common::UserProfile> profiles = _userProfileManager.profiles();
 
@@ -306,10 +306,10 @@ void ProfileBoardWidget::fillProfiles() {
   for (int i = 0; i < profiles.size(); ++i) {
     const auto &profile = profiles.at(i);
     QStandardItem *item =
-      new QStandardItem(profile.email == currentProfile.email
-                                              ? QPixmap(":icons/profile-default.png")
-                                              : QPixmap(":icons/profile.png"),
-                                            profile.author);
+        new QStandardItem(profile.email == currentProfile.email
+                              ? QPixmap(":icons/profile-default.png")
+                              : QPixmap(":icons/profile.png"),
+                          profile.author);
     item->setData(i); // Store index for retrieval
     _model->appendRow(item);
   }
@@ -323,9 +323,9 @@ void ProfileBoardWidget::resetButtons() {
   LOG_PERF(0, "Enter");
 
   ui->pushButtonEdit->setVisible(
-    !ui->listViewProfiles->selectionModel()->selectedIndexes().isEmpty());
+      !ui->listViewProfiles->selectionModel()->selectedIndexes().isEmpty());
   ui->pushButtonRemove->setVisible(
-    !ui->listViewProfiles->selectionModel()->selectedIndexes().isEmpty());
+      !ui->listViewProfiles->selectionModel()->selectedIndexes().isEmpty());
 
   LOG_PERF(0, "Exit");
 }

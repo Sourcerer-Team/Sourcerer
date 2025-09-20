@@ -131,7 +131,7 @@ public:
 
   T operator[](size_t index) const {
     std::unique_lock<std::mutex> guard(myMutex);
-    if(index < 0 || index >= myQueue.size()) {
+    if (index < 0 || index >= myQueue.size()) {
       throw std::out_of_range("Index out of range");
     }
 

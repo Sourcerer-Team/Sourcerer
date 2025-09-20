@@ -27,8 +27,8 @@ public:
     Component *component = new C();
 
     {
-        LOCKGUARD(_threadsMutex);
-        _threads += component;
+      LOCKGUARD(_threadsMutex);
+      _threads += component;
     }
 
     component->start();
@@ -48,8 +48,8 @@ public:
     Component *component = new C();
 
     {
-        LOCKGUARD(_processMutex);
-        _process += component;
+      LOCKGUARD(_processMutex);
+      _process += component;
     }
 
     component->start();
@@ -69,13 +69,13 @@ private:
   Util::Mutex _threadsMutex;
   Util::Mutex _processMutex;
 
-  QVector<Component*> _threads;
-  QVector<Component*> _process;
+  QVector<Component *> _threads;
+  QVector<Component *> _process;
 
   bool _started;
   bool _stopped;
 
-  EventManager::EventManager& _eventManager;
+  EventManager::EventManager &_eventManager;
 };
 
 } // namespace ComponentManager

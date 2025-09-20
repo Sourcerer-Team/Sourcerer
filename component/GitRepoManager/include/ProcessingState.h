@@ -25,7 +25,7 @@ public:
 
 private:
   void
-    checkoutBranchWorker(const Structs::GitRepoCheckoutBranchCommand &command);
+  checkoutBranchWorker(const Structs::GitRepoCheckoutBranchCommand &command);
   void cloneRepoWorker(const Structs::GitRepoCloneCommand &command);
   void closeRepoWorker(const Structs::GitRepoCloseCommand &command);
   void commitStagedWorker(const Structs::GitRepoCommitStagedCommand &command);
@@ -69,7 +69,7 @@ private:
   void scheduleWorkerForCloneRepo(const Structs::GitRepoCloneCommand &command);
   void scheduleWorkerForCloseRepo(const Structs::GitRepoCloseCommand &command);
   void scheduleWorkerForCommitStagedRepo(
-    const Structs::GitRepoCommitStagedCommand &command);
+      const Structs::GitRepoCommitStagedCommand &command);
   void scheduleWorkerForGetActiveBranch(
       const Structs::GitRepoGetActiveBranchCommand &command);
   void scheduleWorkerForGetCommitBranches(
@@ -83,7 +83,7 @@ private:
   void
   scheduleWorkerForDiffFiles(const Structs::GitRepoDiffFilesCommand &command);
   void scheduleWorkerForDiscardFiles(
-    const Structs::GitRepoDiscardFilesCommand &command);
+      const Structs::GitRepoDiscardFilesCommand &command);
   void scheduleWorkerForGetBranchHistory(
       const Structs::GitRepoGetBranchHistoryCommand &command);
   void
@@ -103,7 +103,7 @@ private:
   scheduleWorkerForStageFiles(const Structs::GitRepoStageFilesCommand &command);
   void scheduleWorkerForStatus(const Structs::GitRepoStatusCommand &command);
   void scheduleWorkerForUnstageFiles(
-    const Structs::GitRepoUnstageFilesCommand &command);
+      const Structs::GitRepoUnstageFilesCommand &command);
   void scheduleWorkerForQuit(const Structs::GitRepoQuitCommand &command);
   void workersThreadFunc(const QString &uuid);
 

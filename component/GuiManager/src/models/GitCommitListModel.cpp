@@ -73,8 +73,7 @@ GitCommitListModel::from(const GitRepo::GitCommitStatus &commitStatus) {
   return model.take();
 }
 
-GitCommitListModel *GitCommitListModel::from(const GitRepo::GitStatus &status)
-{
+GitCommitListModel *GitCommitListModel::from(const GitRepo::GitStatus &status) {
   LOG_PERF(0, "Enter");
 
   QList<GitCommitListModification> modifications;
@@ -122,7 +121,7 @@ GitCommitListModel *GitCommitListModel::from(const GitRepo::GitStatus &status)
                  [](const GitCommitListModification &modification) {
                    GitCommitListModification normalized(modification);
                    normalized._filePath =
-                     QDir::toNativeSeparators(modification._filePath);
+                       QDir::toNativeSeparators(modification._filePath);
                    return normalized;
                  });
 
@@ -140,8 +139,8 @@ GitCommitListModel *GitCommitListModel::from(const GitRepo::GitStatus &status)
   return model.take();
 }
 
-GitCommitListModel *GitCommitListModel::fromStaged(const GitRepo::GitStatus &status)
-{
+GitCommitListModel *
+GitCommitListModel::fromStaged(const GitRepo::GitStatus &status) {
   LOG_PERF(0, "Enter");
 
   QList<GitCommitListModification> modifications;
@@ -182,7 +181,7 @@ GitCommitListModel *GitCommitListModel::fromStaged(const GitRepo::GitStatus &sta
                  [](const GitCommitListModification &modification) {
                    GitCommitListModification normalized(modification);
                    normalized._filePath =
-                     QDir::toNativeSeparators(modification._filePath);
+                       QDir::toNativeSeparators(modification._filePath);
                    return normalized;
                  });
 

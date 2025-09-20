@@ -36,11 +36,11 @@ private slots:
   void onAbout();
 
 private:
-  QMenu* createMenu();
-  bool hover(QHoverEvent* event, bool entered);
+  QMenu *createMenu();
+  bool hover(QHoverEvent *event, bool entered);
 
 private:
-  ConfigManager::ConfigManager& _configManager;
+  ConfigManager::ConfigManager &_configManager;
 };
 
 } // namespace Widgets

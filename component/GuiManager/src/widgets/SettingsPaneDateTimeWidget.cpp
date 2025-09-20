@@ -4,8 +4,8 @@
 #include <Log.h>
 
 #include <QDateTimeEdit>
-#include <QVBoxLayout>
 #include <QLabel>
+#include <QVBoxLayout>
 
 #define THREAD_ID "SettingsPaneDateTimeWidget"
 
@@ -29,7 +29,8 @@ QWidget *SettingsPaneDateTimeWidget::createWidget() {
   nameLabel->setObjectName("nameLabel");
   nameLabel->setWordWrap(true);
 
-  QLabel *descriptionLabel = new QLabel(item().description(), placeholderWidget);
+  QLabel *descriptionLabel =
+      new QLabel(item().description(), placeholderWidget);
   descriptionLabel->setObjectName("descriptionLabel");
   descriptionLabel->setWordWrap(true);
 
@@ -39,7 +40,7 @@ QWidget *SettingsPaneDateTimeWidget::createWidget() {
 
   QVBoxLayout *layout = new QVBoxLayout(placeholderWidget);
   layout->addWidget(nameLabel);
-  if(!item().description().isEmpty())
+  if (!item().description().isEmpty())
     layout->addWidget(dateTimeWidget);
   layout->addWidget(descriptionLabel);
 

@@ -14,24 +14,24 @@ namespace GuiManager::Widgets {
 class ProfileBoardWidget : public QWidget {
   Q_OBJECT
 
-  public:
+public:
   explicit ProfileBoardWidget(QWidget *parent = nullptr);
   ~ProfileBoardWidget() override;
 
   void setArrowTargetX(int x) { _arrowX = x; }
 
-  signals:
+signals:
   void hidden();
 
   // QObject interface
-  public:
+public:
   bool eventFilter(QObject *watched, QEvent *event) override;
 
   // QWidget interface
-  protected:
+protected:
   void paintEvent(QPaintEvent *event) override;
 
-  private slots:
+private slots:
   void onButtonAddClicked();
   void onButtonBackClicked();
   void onButtonEditClicked();
@@ -40,21 +40,21 @@ class ProfileBoardWidget : public QWidget {
   void onButtonSaveClicked();
   void onListItemClicked(const QModelIndex &index);
 
-  private:
+private:
   enum class ScreenType {
-        Unknown = -1,
-        Display = 0,
-        Edit = 1,
-        Remove = 2,
-        last
-      };
+    Unknown = -1,
+    Display = 0,
+    Edit = 1,
+    Remove = 2,
+    last
+  };
 
   enum class OperationType { Unknown = 0, Add, Edit, last };
 
   void fillProfiles();
   void resetButtons();
 
-  private:
+private:
   Ui::ProfileBoardWidget *ui;
   int _arrowX; // Default center
   int _currentlyEditProfileIndex;

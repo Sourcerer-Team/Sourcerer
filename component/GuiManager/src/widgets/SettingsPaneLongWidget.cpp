@@ -25,13 +25,15 @@ QWidget *SettingsPaneLongWidget::createWidget() {
   LOG_PERF(0, "Enter");
 
   QWidget *placeholderWidget = new QWidget(this);
-  placeholderWidget->setSizePolicy(QSizePolicy::Policy::Expanding, QSizePolicy::Minimum);
+  placeholderWidget->setSizePolicy(QSizePolicy::Policy::Expanding,
+                                   QSizePolicy::Minimum);
 
   QLabel *nameLabel = new QLabel(item().name(), placeholderWidget);
   nameLabel->setObjectName("nameLabel");
   nameLabel->setWordWrap(true);
 
-  QLabel *descriptionLabel = new QLabel(item().description(), placeholderWidget);
+  QLabel *descriptionLabel =
+      new QLabel(item().description(), placeholderWidget);
   descriptionLabel->setObjectName("descriptionLabel");
   descriptionLabel->setWordWrap(true);
 
@@ -43,7 +45,7 @@ QWidget *SettingsPaneLongWidget::createWidget() {
 
   QVBoxLayout *layout = new QVBoxLayout(placeholderWidget);
   layout->addWidget(nameLabel);
-  if(!item().description().isEmpty())
+  if (!item().description().isEmpty())
     layout->addWidget(descriptionLabel);
   layout->addWidget(longWidget);
 

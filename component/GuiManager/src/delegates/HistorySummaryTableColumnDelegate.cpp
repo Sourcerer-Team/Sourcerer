@@ -99,7 +99,7 @@ void HistorySummaryTableColumnDelegate::paintStatus(
     prevWidth += symbolRect.width();
 
     painter->drawRoundedRect(symbolRect.x(), symbolRect.y(), symbolRect.width(),
-                      symbolRect.height(), 2, 2);
+                             symbolRect.height(), 2, 2);
 
     const QString counterStr = QString::number(counter);
 
@@ -140,4 +140,4 @@ void HistorySummaryTableColumnDelegate::paintDefault(
 
   painter->restore();
 }
-} // namespace GuiManager::Widgets
+} // namespace GuiManager::Delegates

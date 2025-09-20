@@ -77,7 +77,7 @@ public:
     _selectionModel = selectionModel;
   }
 
-  void updateStatus(const GitRepo::GitStatus& status);
+  void updateStatus(const GitRepo::GitStatus &status);
 
   void updateHistoryAndStatus(
       const GitRepo::GitHistoryWithStatus &historyWithStatus,

@@ -16,26 +16,26 @@ public:
   explicit ElidePartialColorDelegate(
       const Qt::TextElideMode elideMode = Qt::TextElideMode::ElideRight,
       bool treePainter = false, QObject *parent = nullptr)
-        : QStyledItemDelegate(parent), _elideMode(elideMode),
+      : QStyledItemDelegate(parent), _elideMode(elideMode),
         _treePainter(treePainter) {
     _modificationTypeToIcon = {
-      {GuiManager::Models::GitCommitListModificationType::New,
-       QPixmap(":/icons/file-add.png")},
-      {GuiManager::Models::GitCommitListModificationType::Modified,
-       QPixmap(":/icons/file-modify.png")},
-      {GuiManager::Models::GitCommitListModificationType::Deleted,
-       QPixmap(":/icons/file-delete.png")},
-      {GuiManager::Models::GitCommitListModificationType::Renamed,
-       QPixmap(":/icons/file-rename.png")},
-      {GuiManager::Models::GitCommitListModificationType::TypeChanged,
-       QPixmap(":/icons/file-type-change.png")},
-      {GuiManager::Models::GitCommitListModificationType::Unreadable,
-       QPixmap(":/icons/file-unreadable.png")},
-      {GuiManager::Models::GitCommitListModificationType::Conflicted,
-       QPixmap(":/icons/file-conflict.png")},
-      {GuiManager::Models::GitCommitListModificationType::Ignored,
-       QPixmap(":/icons/file-add.png")},
-      };
+        {GuiManager::Models::GitCommitListModificationType::New,
+         QPixmap(":/icons/file-add.png")},
+        {GuiManager::Models::GitCommitListModificationType::Modified,
+         QPixmap(":/icons/file-modify.png")},
+        {GuiManager::Models::GitCommitListModificationType::Deleted,
+         QPixmap(":/icons/file-delete.png")},
+        {GuiManager::Models::GitCommitListModificationType::Renamed,
+         QPixmap(":/icons/file-rename.png")},
+        {GuiManager::Models::GitCommitListModificationType::TypeChanged,
+         QPixmap(":/icons/file-type-change.png")},
+        {GuiManager::Models::GitCommitListModificationType::Unreadable,
+         QPixmap(":/icons/file-unreadable.png")},
+        {GuiManager::Models::GitCommitListModificationType::Conflicted,
+         QPixmap(":/icons/file-conflict.png")},
+        {GuiManager::Models::GitCommitListModificationType::Ignored,
+         QPixmap(":/icons/file-add.png")},
+    };
   }
 
   void paint(QPainter *painter, const QStyleOptionViewItem &option,
@@ -44,8 +44,8 @@ public:
     initStyleOption(&opt, index);
 
     const GuiManager::Models::GitCommitListModificationType modificationType =
-      static_cast<GuiManager::Models::GitCommitListModificationType>(
-      index.data(Qt::UserRole).toInt());
+        static_cast<GuiManager::Models::GitCommitListModificationType>(
+            index.data(Qt::UserRole).toInt());
 
     painter->save();
 
@@ -61,7 +61,7 @@ public:
 
     // Get the correct text rectangle
     QRect textRect =
-      style->subElementRect(QStyle::SE_ItemViewItemText, &opt, widget);
+        style->subElementRect(QStyle::SE_ItemViewItemText, &opt, widget);
 
     const int height = opt.rect.height();
     const QPixmap &icon = _modificationTypeToIcon.value(modificationType);
@@ -87,7 +87,7 @@ public:
 
     // Elide manually
     const QString elided =
-      fm.elidedText(fullText, _elideMode, textRect.width());
+        fm.elidedText(fullText, _elideMode, textRect.width());
 
     QString prefix;
     int separatorIndex = -1;
@@ -110,9 +110,9 @@ public:
           };
 
           const QString leftOfElideSymbol = elided.mid(i < 0    ? 0
-                                                        : i == 0 ? 0
-                                                           : i + 1,
-                                                  separatorIndex - i - 1);
+                                                       : i == 0 ? 0
+                                                                : i + 1,
+                                                       separatorIndex - i - 1);
           const QString rightOfElideSymbol = elided.mid(separatorIndex + 1);
           const QString fileName = QFileInfo(fullText).fileName();
 
@@ -173,10 +173,10 @@ public:
     return QSize(option.rect.width(), height);
   }
 
-  private:
+private:
   Qt::TextElideMode _elideMode;
-      QMap<GuiManager::Models::GitCommitListModificationType, QPixmap>
-    _modificationTypeToIcon;
+  QMap<GuiManager::Models::GitCommitListModificationType, QPixmap>
+      _modificationTypeToIcon;
   bool _treePainter;
 };
 

@@ -401,4 +401,4 @@ void HistorySliceTableColumnDelegate::paintStatus(
   painter->restore();
 }
 
-} // namespace GuiManager::Widgets
+} // namespace GuiManager::Delegates

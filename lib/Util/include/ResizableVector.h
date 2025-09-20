@@ -4,12 +4,11 @@
 
 namespace Util {
 
-template <typename T>
-class ResizableVector : public QVector<T> {
+template <typename T> class ResizableVector : public QVector<T> {
 public:
   ResizableVector() : QVector<T>() {}
 
-  const T& operator[](qsizetype index) const {
+  const T &operator[](qsizetype index) const {
     Q_ASSERT(index >= 0);
 
     if (index < 0) {
@@ -23,7 +22,7 @@ public:
     return QVector<T>::operator[](index);
   }
 
-  T& operator[](qsizetype index) {
+  T &operator[](qsizetype index) {
     Q_ASSERT(index >= 0);
 
     if (index < 0) {
@@ -37,7 +36,7 @@ public:
     return QVector<T>::operator[](index);
   }
 
-  const T& at(qsizetype index) const {
+  const T &at(qsizetype index) const {
     Q_ASSERT(index >= 0);
 
     if (index < 0) {
@@ -50,8 +49,6 @@ public:
 
     return QVector<T>::at(index);
   }
-
-
 };
 
-}
+} // namespace Util

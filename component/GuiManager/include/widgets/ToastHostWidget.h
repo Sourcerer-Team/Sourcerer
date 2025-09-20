@@ -23,7 +23,8 @@ enum class ToastPosition {
   Last
 };
 
-class ToastHostWidget final : public OverlayWidget, public QEnableSharedFromThis<ToastHostWidget> {
+class ToastHostWidget final : public OverlayWidget,
+                              public QEnableSharedFromThis<ToastHostWidget> {
   Q_OBJECT
 
   typedef QSharedPointer<ToastHostWidget> SharedPtr;
@@ -38,7 +39,7 @@ public:
   SharedPtr getSelf() { return sharedFromThis(); }
 
   void addToast(ToastWidget *toast);
-  void addToast(const QSharedPointer<ToastWidget>& toast);
+  void addToast(const QSharedPointer<ToastWidget> &toast);
   [[nodiscard]] ToastPosition position() const { return _position; }
   void setPosition(ToastPosition position);
   void setYOffset(int offset);

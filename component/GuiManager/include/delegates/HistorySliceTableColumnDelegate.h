@@ -26,5 +26,4 @@ private:
                    const QModelIndex &index) const;
 };
 
-} // namespace GuiManager::Widgets
-
+} // namespace GuiManager::Delegates

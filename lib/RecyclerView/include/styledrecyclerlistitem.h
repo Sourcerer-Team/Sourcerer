@@ -1,23 +1,21 @@
 #ifndef STYLEDRECYCLERLISTITEM_H
 #define STYLEDRECYCLERLISTITEM_H
 
-#include <QWidget>
 #include <QColor>
+#include <QWidget>
 
-class StyledRecyclerListItem : public QWidget
-{
-    Q_OBJECT
+class StyledRecyclerListItem : public QWidget {
+  Q_OBJECT
 public:
-    explicit StyledRecyclerListItem(QWidget *parent = nullptr);
+  explicit StyledRecyclerListItem(QWidget *parent = nullptr);
 
 protected:
-    void paintEvent(QPaintEvent *) override;
-    void enterEvent(QEnterEvent *event) override;
-    void leaveEvent(QEvent *event) override;
+  void paintEvent(QPaintEvent *) override;
+  void enterEvent(QEnterEvent *event) override;
+  void leaveEvent(QEvent *event) override;
 
 private:
-    QColor previousColor;
-
+  QColor previousColor;
 };
 
 #endif // STYLEDRECYCLERLISTITEM_H

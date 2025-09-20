@@ -36,7 +36,9 @@ bool checkForAnotherInstance(const std::string &lockName) {
 
 #else // if Q_OS_WIN32
 
-bool checkForAnotherInstance(const std::string &lockName) { return false; }
+bool checkForAnotherInstance(const std::string &lockName) {
+  return false;
+}
 
 #endif
 

@@ -14,7 +14,7 @@ namespace GuiManager::Widgets {
 TopBarWidget::TopBarWidget(QWidget *parent)
     : QWidget{parent},
       _configManager(ConfigManager::ConfigManager::getInstance()),
-    _titleBarWidget(new TitlebarWidget), _profileButton(nullptr) {
+      _titleBarWidget(new TitlebarWidget), _profileButton(nullptr) {
   LOG_PERF(0, "Enter");
 
   setMouseTracking(true);

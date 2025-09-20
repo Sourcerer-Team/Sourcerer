@@ -56,8 +56,7 @@ GitHistoryModel::~GitHistoryModel() {
   LOG_PERF(0, "Exit");
 }
 
-void GitHistoryModel::updateStatus(const GitRepo::GitStatus &status)
-{
+void GitHistoryModel::updateStatus(const GitRepo::GitStatus &status) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_mutex);

@@ -8,9 +8,8 @@
 
 namespace StylesheetManager {
 
-QMap<StylesheetKey, QString> STYLESHEETS = {
-    {StylesheetKey::Default,
-     R"(
+QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
+                                             R"(
       QColorDialog{
         font-size:14px;
       }

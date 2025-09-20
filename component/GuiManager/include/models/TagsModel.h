@@ -9,17 +9,16 @@ namespace GuiManager {
 
 namespace Models {
 
-class TagsModel : public BranchesModel
-{
-    Q_OBJECT
+class TagsModel : public BranchesModel {
+  Q_OBJECT
 public:
-    explicit TagsModel(QObject *parent = nullptr);
-    virtual ~TagsModel();
+  explicit TagsModel(QObject *parent = nullptr);
+  virtual ~TagsModel();
 
-    // BranchesModel interface
+  // BranchesModel interface
 public:
-    QString iconPath() const override;
+  QString iconPath() const override;
 };
 
-}
-}
+} // namespace Models
+} // namespace GuiManager

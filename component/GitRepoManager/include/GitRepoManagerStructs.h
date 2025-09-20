@@ -256,7 +256,8 @@ struct GitRepoResult {
 struct GitRepoContext {
   QString uuid;
   BlockingQueue<GitRepoCommand *> commandsQueue;
-  QThread *workersThread = nullptr;;
+  QThread *workersThread = nullptr;
+  ;
   git_repository *gitRepo = nullptr;
   bool quit = false;
 };

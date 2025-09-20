@@ -6,7 +6,7 @@
 namespace Uuid {
 
 QString createUuid() {
-    return QUuid::createUuid().toString();
+  return QUuid::createUuid().toString();
 }
 
-} // namespace Guid
+} // namespace Uuid

@@ -7,13 +7,13 @@ namespace GuiManager::Widgets {
 
 class RightClickSelectListView : public QListView {
   Q_OBJECT
-  public:
+public:
   explicit RightClickSelectListView(QWidget *parent = nullptr)
-          : QListView(parent) {}
+      : QListView(parent) {}
   ~RightClickSelectListView() override = default;
 
   // QWidget interface
-  protected:
+protected:
   void mousePressEvent(QMouseEvent *event) override {
     if (event->button() == Qt::RightButton) {
       QModelIndex index = indexAt(event->pos());

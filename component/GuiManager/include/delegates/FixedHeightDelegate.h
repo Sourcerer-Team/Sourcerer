@@ -5,9 +5,9 @@
 namespace GuiManager::Delegates {
 
 class FixedHeightDelegate : public QStyledItemDelegate {
-  public:
+public:
   FixedHeightDelegate(QObject *parent = nullptr)
-          : QStyledItemDelegate(parent) {}
+      : QStyledItemDelegate(parent) {}
 
   QSize sizeHint(const QStyleOptionViewItem &option,
                  const QModelIndex &index) const override {

@@ -71,7 +71,8 @@ void SettingsContainer::onTreeViewClicked(const QModelIndex &index) {
   const QString sectionName = index.data().toString();
   LOG_DEBUG("Clicked on section name '{}'", sectionName);
 
-  const int sectionPosition = ui->groupsPaneWidget->sectionPosition(sectionName);
+  const int sectionPosition =
+      ui->groupsPaneWidget->sectionPosition(sectionName);
   if (sectionPosition != -1)
     ui->groupsPaneScrollArea->verticalScrollBar()->setValue(sectionPosition);
 

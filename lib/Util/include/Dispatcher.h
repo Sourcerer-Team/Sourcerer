@@ -49,7 +49,9 @@ public:
       const std::function<void(const std::exception &)> &errorTask = nullptr);
 
   template <class T>
-  static bool dispatchToMainThreadWithOwner(T *owner, const std::function<void()> &callback) {
+  static bool
+  dispatchToMainThreadWithOwner(T *owner,
+                                const std::function<void()> &callback) {
     if (!owner)
       return false;
 

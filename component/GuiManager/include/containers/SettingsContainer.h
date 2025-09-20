@@ -27,14 +27,15 @@ public:
 
 private slots:
   void onSplitterMoved(int pos, int index);
-  void onTreeViewClicked(const QModelIndex& index);
+  void onTreeViewClicked(const QModelIndex &index);
 
 private:
-  QStandardItemModel *createModel(const ConfigManager::ConfigGroup& rootGroup) const;
+  QStandardItemModel *
+  createModel(const ConfigManager::ConfigGroup &rootGroup) const;
 
 private:
   Ui::SettingsContainer *ui;
-  ConfigManager::ConfigManager& _configManager;
+  ConfigManager::ConfigManager &_configManager;
 };
 
 } // namespace Containers

@@ -23,7 +23,7 @@ protected:
   void save() const override;
 
 private slots:
-  void onTextChanged(const QString& text);
+  void onTextChanged(const QString &text);
 };
 
 } // namespace Widgets

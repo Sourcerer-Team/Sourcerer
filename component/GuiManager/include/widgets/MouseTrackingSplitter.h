@@ -8,7 +8,7 @@ namespace Widgets {
 
 class MouseTrackingSplitterHandle : public QSplitterHandle {
   Q_OBJECT
- public:
+public:
   MouseTrackingSplitterHandle(Qt::Orientation orientation, QSplitter *parent);
   ~MouseTrackingSplitterHandle() override = default;
 
@@ -29,5 +29,5 @@ protected:
   QSplitterHandle *createHandle() override;
 };
 
-}
-}
+} // namespace Widgets
+} // namespace GuiManager

@@ -14,9 +14,9 @@
 
 #include <QEnableSharedFromThis>
 #include <QMainWindow>
+#include <QMap>
 #include <QResizeEvent>
 #include <QSet>
-#include <QMap>
 
 namespace GuiManager {
 
@@ -50,7 +50,7 @@ private slots:
   void onCloneFinished(ContainerWidget *sender);
   void onInit();
   void onInitFinished(ContainerWidget *sender);
-  void onRecentClicked(const QString& path);
+  void onRecentClicked(const QString &path);
   void onSettings();
   void onAbout() const;
   void onClosedTab(int index);
@@ -94,7 +94,7 @@ private:
   HitDetector *_hitDetector;
   ProfileBoardWidget *_profileBoardWidget;
   bool _profileBoardActive;
-  QMap<uint, GitCredentialsOverlayWidget*> _credentialsWidgets;
+  QMap<uint, GitCredentialsOverlayWidget *> _credentialsWidgets;
 };
 
 } // namespace GuiManager

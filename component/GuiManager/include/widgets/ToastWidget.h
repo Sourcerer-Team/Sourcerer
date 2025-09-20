@@ -14,7 +14,7 @@ public:
 
   virtual void stop();
 
-  void setTitleText(const QString& text) const;
+  void setTitleText(const QString &text) const;
 
   void hideTitle() const;
 

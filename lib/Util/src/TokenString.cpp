@@ -26,7 +26,9 @@ void TokenString::addEmpty() {
   _str = builder;
 }
 
-bool TokenString::hasNext() const { return _str.length() > _currentIndex; }
+bool TokenString::hasNext() const {
+  return _str.length() > _currentIndex;
+}
 
 QString TokenString::getNextToken() {
   const size_t start = _currentIndex;
@@ -52,8 +54,12 @@ QString TokenString::getNextToken() {
   return _str.sliced(start, pos - start);
 }
 
-const QString &TokenString::getString() const { return _str; }
+const QString &TokenString::getString() const {
+  return _str;
+}
 
-void TokenString::reset() { _currentIndex = 0; }
+void TokenString::reset() {
+  _currentIndex = 0;
+}
 
 } // namespace Util

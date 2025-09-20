@@ -19,7 +19,7 @@ namespace EventManager {
 #define CAPTURE_CALLBACK(type, callback) {type, this, callback}
 
 const ulong DEFAULT_WAIT_TIMEOUT =
-  std::numeric_limits<ulong>::max(); // indefinite wait time
+    std::numeric_limits<ulong>::max(); // indefinite wait time
 
 enum class EventRecordType { Quit = 0, Send };
 
@@ -28,8 +28,8 @@ typedef std::function<void(Event)> CallbackType;
 typedef std::function<void()> EventRecordCallbackType;
 
 struct EventRecord {
-  EventRecord(EventRecordCallbackType callback,
-              EventRecordType type, EventType eventType)
+  EventRecord(EventRecordCallbackType callback, EventRecordType type,
+              EventType eventType)
       : _callback(callback), _type(type), _eventType(eventType) {}
 
   EventRecordType _type;
@@ -80,6 +80,7 @@ public:
                                         ulong timeout = DEFAULT_WAIT_TIMEOUT);
 
   QString eventName(EventType type) const;
+
 private:
   EventManager();
 

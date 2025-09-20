@@ -86,7 +86,8 @@ public:
   }
 
   void
-  invertVertically(const bool &quitFlag, const std::function<void(int)> &progressCallback = nullptr) {
+  invertVertically(const bool &quitFlag,
+                   const std::function<void(int)> &progressCallback = nullptr) {
     resize(sizeX(), sizeY());
     for (int i = 0; i < sizeY() / 2 && !quitFlag; ++i) {
       if (progressCallback) {

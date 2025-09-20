@@ -2,8 +2,8 @@
 
 #include <Log.h>
 
-#include <windows.h>
 #include <Winbase.h>
+#include <windows.h>
 
 #define THREAD_ID "DirectoryWatcher"
 
@@ -61,9 +61,9 @@ void DirectoryWatcher::run() {
   LOG_PERF(0, "Enter");
 
   HANDLE dirHandle = CreateFile(
-    reinterpret_cast<LPCWSTR>(_path.utf16()), FILE_LIST_DIRECTORY,
-    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
-    OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
+      reinterpret_cast<LPCWSTR>(_path.utf16()), FILE_LIST_DIRECTORY,
+      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
+      OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
 
   if (dirHandle == INVALID_HANDLE_VALUE) {
     LOG_ERROR(Log::ErrorId::FileSystem,
@@ -80,11 +80,11 @@ void DirectoryWatcher::run() {
   while (!_quit) {
     DWORD bytesReturned = 0;
     if (ReadDirectoryChangesW(
-          dirHandle, &buffer, sizeof(buffer), TRUE,
-          FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME |
-            FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE |
-            FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_CREATION,
-          &bytesReturned, &overlapped, NULL) == 0) {
+            dirHandle, &buffer, sizeof(buffer), TRUE,
+            FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME |
+                FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE |
+                FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_CREATION,
+            &bytesReturned, &overlapped, NULL) == 0) {
       LOG_ERROR(Log::ErrorId::FileSystem,
                 "Failed to read directory changes for {}. Error: {}",
                 _path.toStdString(), GetLastError());
@@ -94,10 +94,10 @@ void DirectoryWatcher::run() {
     DWORD waitStatus = WaitForSingleObject(overlapped.hEvent, 500);
     if (waitStatus == WAIT_OBJECT_0) {
       FILE_NOTIFY_INFORMATION *info =
-        reinterpret_cast<FILE_NOTIFY_INFORMATION *>(buffer);
+          reinterpret_cast<FILE_NOTIFY_INFORMATION *>(buffer);
       do {
         QString fileName = QString::fromWCharArray(
-          info->FileName, info->FileNameLength / sizeof(WCHAR));
+            info->FileName, info->FileNameLength / sizeof(WCHAR));
         LOG_INFO("Directory change detected: {} - {}", fileName.toStdString(),
                  info->Action);
 
@@ -107,7 +107,7 @@ void DirectoryWatcher::run() {
         if (info->NextEntryOffset == 0)
           break;
         info = reinterpret_cast<FILE_NOTIFY_INFORMATION *>(
-          reinterpret_cast<BYTE *>(info) + info->NextEntryOffset);
+            reinterpret_cast<BYTE *>(info) + info->NextEntryOffset);
       } while (true);
 
       ResetEvent(overlapped.hEvent);

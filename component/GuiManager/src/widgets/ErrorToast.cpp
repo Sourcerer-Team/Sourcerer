@@ -6,8 +6,8 @@
 
 namespace GuiManager::Widgets {
 
-
-ErrorToast::ErrorToast(const QString &message, const QString& title, QWidget *parent)
+ErrorToast::ErrorToast(const QString &message, const QString &title,
+                       QWidget *parent)
     : InfoToast(message, title, parent) {
   LOG_PERF(0, "Enter");
 
@@ -21,4 +21,4 @@ ErrorToast::~ErrorToast() {
   LOG_PERF(0, "Exit");
 }
 
-}
+} // namespace GuiManager::Widgets

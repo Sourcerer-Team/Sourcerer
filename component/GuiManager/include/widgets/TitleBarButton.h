@@ -17,15 +17,15 @@ public:
   explicit TitleBarButton(const QPixmap &icon, const QColor &hoverColor,
                           QWidget *parent = nullptr);
 
-    // QObject interface
+  // QObject interface
 public:
-    bool eventFilter(QObject *watched, QEvent *event) override;
+  bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
-    bool hover(QHoverEvent* event, bool entered);
+  bool hover(QHoverEvent *event, bool entered);
 
 private:
-    QColor _hoverColor;
+  QColor _hoverColor;
 };
 
 } // namespace Widgets

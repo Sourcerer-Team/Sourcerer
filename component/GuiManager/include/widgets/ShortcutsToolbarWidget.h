@@ -10,7 +10,7 @@ namespace GuiManager::Widgets {
 class ShortcutsToolbarWidget final : public QWidget {
   Q_OBJECT
 
- public:
+public:
   explicit ShortcutsToolbarWidget(QWidget *parent = nullptr);
   ~ShortcutsToolbarWidget() override;
 
@@ -18,8 +18,8 @@ class ShortcutsToolbarWidget final : public QWidget {
 
   void clearShortcuts() const;
 
- private:
+private:
   Layouts::FlowLayout *_shortcutsLayout;
 };
 
-}
+} // namespace GuiManager::Widgets

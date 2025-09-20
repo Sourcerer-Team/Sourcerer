@@ -13,7 +13,8 @@
 
 namespace GuiManager::Widgets {
 
-InfoToast::InfoToast(const QString &message, const QString& title, QWidget *parent)
+InfoToast::InfoToast(const QString &message, const QString &title,
+                     QWidget *parent)
     : ToastWidget{parent}, _stopTimer{new QTimer},
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");

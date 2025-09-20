@@ -66,11 +66,10 @@ void BranchesModel::setActiveIndex(const int index) {
   }
 
   if (index == -1) {
-    QStandardItem *prevItem =
-        new QStandardItem(QIcon(iconPath()),
-                          BranchesModel::index(_prevIndex, 0)
-                              .data()
-                              .toString()); // Recreate item with normal icon
+    QStandardItem *prevItem = new QStandardItem(
+        QIcon(iconPath()), BranchesModel::index(_prevIndex, 0)
+                               .data()
+                               .toString()); // Recreate item with normal icon
     setItem(_prevIndex, prevItem);
     _prevIndex = -1;
     LOG_PERF(0, "EXit");
@@ -78,11 +77,10 @@ void BranchesModel::setActiveIndex(const int index) {
   }
 
   if (_prevIndex != -1 && _prevIndex < rowCount()) {
-    QStandardItem *prevItem =
-        new QStandardItem(QIcon(iconPath()),
-                          BranchesModel::index(_prevIndex, 0)
-                              .data()
-                              .toString()); // Recreate item with normal icon
+    QStandardItem *prevItem = new QStandardItem(
+        QIcon(iconPath()), BranchesModel::index(_prevIndex, 0)
+                               .data()
+                               .toString()); // Recreate item with normal icon
     setItem(_prevIndex, prevItem);
   }
 

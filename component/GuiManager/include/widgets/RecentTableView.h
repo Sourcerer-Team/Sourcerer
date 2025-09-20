@@ -19,12 +19,12 @@ public:
   bool eventFilter(QObject *watched, QEvent *event) override;
 
 signals:
-  void hoverEnter(const QModelIndex& index);
-  void hoverLeave(const QModelIndex& index);
+  void hoverEnter(const QModelIndex &index);
+  void hoverLeave(const QModelIndex &index);
 
 private:
-  bool leave(QEvent* event);
-  bool mouseMove(const QMouseEvent * event);
+  bool leave(QEvent *event);
+  bool mouseMove(const QMouseEvent *event);
 
 private:
   QModelIndex _prev;

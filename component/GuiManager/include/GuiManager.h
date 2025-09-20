@@ -6,7 +6,7 @@
 
 namespace GuiManager {
 
-class GuiManager : public ComponentManager::Component{
+class GuiManager : public ComponentManager::Component {
 public:
   GuiManager();
   virtual ~GuiManager();

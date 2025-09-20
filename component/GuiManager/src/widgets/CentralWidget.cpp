@@ -20,7 +20,7 @@ CentralWidget::CentralWidget(QWidget *parent)
 void CentralWidget::setCentralWidget(QWidget *widget) {
   LOG_PERF(0, "Enter");
 
-  if(_centralWidget) {
+  if (_centralWidget) {
     layout()->removeWidget(_centralWidget);
   }
 

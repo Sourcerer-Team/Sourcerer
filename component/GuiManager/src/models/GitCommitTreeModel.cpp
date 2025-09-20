@@ -63,7 +63,7 @@ GitCommitTreeModel::from(const GitRepo::GitCommitStatus &commitStatus) {
                  [](const GitCommitListModification &modification) {
                    GitCommitListModification normalized(modification);
                    normalized._filePath =
-                     QDir::toNativeSeparators(modification._filePath);
+                       QDir::toNativeSeparators(modification._filePath);
                    return normalized;
                  });
 
@@ -152,7 +152,7 @@ GitCommitTreeModel *GitCommitTreeModel::from(const GitRepo::GitStatus &status) {
                  [](const GitCommitListModification &modification) {
                    GitCommitListModification normalized(modification);
                    normalized._filePath =
-                     QDir::toNativeSeparators(modification._filePath);
+                       QDir::toNativeSeparators(modification._filePath);
                    return normalized;
                  });
 
@@ -238,7 +238,7 @@ GitCommitTreeModel::fromStaged(const GitRepo::GitStatus &status) {
                  [](const GitCommitListModification &modification) {
                    GitCommitListModification normalized(modification);
                    normalized._filePath =
-                     QDir::toNativeSeparators(modification._filePath);
+                       QDir::toNativeSeparators(modification._filePath);
                    return normalized;
                  });
 

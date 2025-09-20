@@ -13,7 +13,7 @@ namespace GuiManager {
 
 HitDetector::HitDetector(MainWindow *window)
     : _window(window), _pixelRatio(1.0),
-    _configManager(ConfigManager::ConfigManager::getInstance()) {
+      _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit");

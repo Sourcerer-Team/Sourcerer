@@ -6,8 +6,7 @@ namespace Util {
 
 class Git {
 public:
-
-  static QString parseRepoName(const QString& url);
+  static QString parseRepoName(const QString &url);
 
 private:
   Git() = delete;

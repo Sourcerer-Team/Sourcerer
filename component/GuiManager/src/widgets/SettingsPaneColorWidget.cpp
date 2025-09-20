@@ -94,8 +94,8 @@ void SettingsPaneColorWidget::onClicked() {
   const int ret = colorDialog.exec();
 
   if (ret == QDialog::Accepted) {
-    const QColor& currentColor = colorDialog.currentColor();
-    if(_colorButton)
+    const QColor &currentColor = colorDialog.currentColor();
+    if (_colorButton)
       _colorButton->setColor(currentColor);
     item().setValue(currentColor);
     save();

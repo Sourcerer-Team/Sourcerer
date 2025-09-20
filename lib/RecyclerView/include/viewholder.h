@@ -2,21 +2,20 @@
 #define VIEWHOLDER_H
 
 #include <QObject>
-#include <QWidget>
 #include <QPointer>
+#include <QWidget>
 
-class ViewHolder : public QObject
-{
-    Q_OBJECT
+class ViewHolder : public QObject {
+  Q_OBJECT
 public:
-    explicit ViewHolder(QObject *parent, QWidget *view);
-    ~ViewHolder() override;
+  explicit ViewHolder(QObject *parent, QWidget *view);
+  ~ViewHolder() override;
 
-    QWidget *getItemView() const { return _itemView; }
-    int _dataPos;
+  QWidget *getItemView() const { return _itemView; }
+  int _dataPos;
 
 private:
-    QPointer<QWidget> _itemView;
+  QPointer<QWidget> _itemView;
 };
 
 #endif // VIEWHOLDER_H

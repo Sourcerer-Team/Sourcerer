@@ -31,13 +31,12 @@ void SettingsPaneWidget::setGroup(const ConfigManager::ConfigGroup &group) {
   LOG_PERF(0, "Exit");
 }
 
-int SettingsPaneWidget::sectionPosition(const QString &sectionName) const
-{
+int SettingsPaneWidget::sectionPosition(const QString &sectionName) const {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Scroll to section '{}'", sectionName);
 
   QWidget *widget = _sections[sectionName];
-  if(!widget) {
+  if (!widget) {
     LOG_WARN("Unknown section name.");
     LOG_PERF(0, "Exit");
     return -1;
@@ -84,7 +83,8 @@ void SettingsPaneWidget::recreate() {
   LOG_PERF(0, "Exit");
 }
 
-void SettingsPaneWidget::recreateGroup(const ConfigManager::ConfigGroup &group) {
+void SettingsPaneWidget::recreateGroup(
+    const ConfigManager::ConfigGroup &group) {
   LOG_PERF(0, "Enter");
 
   LOG_DEBUG("Recreating group '{}'.", group.name());

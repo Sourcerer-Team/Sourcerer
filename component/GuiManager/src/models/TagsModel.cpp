@@ -11,7 +11,9 @@ TagsModel::TagsModel(QObject *parent) : BranchesModel{parent} {}
 
 Models::TagsModel::~TagsModel() {}
 
-QString TagsModel::iconPath() const { return ICON_PATH; }
+QString TagsModel::iconPath() const {
+  return ICON_PATH;
+}
 
 } // namespace Models
 } // namespace GuiManager

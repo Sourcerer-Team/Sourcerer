@@ -7,13 +7,13 @@ namespace GuiManager::Widgets {
 
 class RightClickSelectTreeView : public QTreeView {
   Q_OBJECT
-  public:
+public:
   explicit RightClickSelectTreeView(QWidget *parent = nullptr)
       : QTreeView(parent) {}
   ~RightClickSelectTreeView() override = default;
 
   // QWidget interface
-  protected:
+protected:
   void mousePressEvent(QMouseEvent *event) override {
     if (event->button() == Qt::RightButton) {
       QModelIndex index = indexAt(event->pos());

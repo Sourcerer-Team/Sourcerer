@@ -11,11 +11,12 @@ class HomeRecentItemDelegate : public QStyledItemDelegate {
 public:
   explicit HomeRecentItemDelegate(QObject *parent = nullptr);
 
-  void setHover(const QModelIndex& index);
+  void setHover(const QModelIndex &index);
 
   // QAbstractItemDelegate interface
 public:
-  void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
+  void paint(QPainter *painter, const QStyleOptionViewItem &option,
+             const QModelIndex &index) const override;
 
 private:
   QModelIndex _indexHovered;

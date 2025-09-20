@@ -146,8 +146,8 @@ void InitGitRepoContainer::showToast(const QString &message,
   LOG_PERF(0, "Exit")
 }
 
-void InitGitRepoContainer::showErrorToast(const QString &message, const QString &title)
-{
+void InitGitRepoContainer::showErrorToast(const QString &message,
+                                          const QString &title) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 

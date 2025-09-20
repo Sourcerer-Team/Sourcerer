@@ -56,7 +56,8 @@ QVariant RecentlyOpenedReposModel::data(const QModelIndex &index,
 
   for (int i = 0; i < _recentlyOpened.length(); i++) {
     qDebug() << "i = " << i << ", name = " << _recentlyOpened[i].name
-             << ", path = " << QDir::toNativeSeparators(_recentlyOpened[i].path);
+             << ", path = "
+             << QDir::toNativeSeparators(_recentlyOpened[i].path);
   }
 
   return column == 0 ? _recentlyOpened[row].name

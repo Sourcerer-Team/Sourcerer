@@ -24,7 +24,7 @@ private slots:
   void onClicked();
 
 private:
-  bool hover(QHoverEvent* event, bool entered);
+  bool hover(QHoverEvent *event, bool entered);
 };
 
 } // namespace Widgets

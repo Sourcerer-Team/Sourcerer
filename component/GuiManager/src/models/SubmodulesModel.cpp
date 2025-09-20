@@ -11,7 +11,9 @@ SubmodulesModel::SubmodulesModel(QObject *parent) : BranchesModel{parent} {}
 
 SubmodulesModel::~SubmodulesModel() {}
 
-QString SubmodulesModel::iconPath() const { return ICON_PATH; }
+QString SubmodulesModel::iconPath() const {
+  return ICON_PATH;
+}
 
 } // namespace Models
 } // namespace GuiManager

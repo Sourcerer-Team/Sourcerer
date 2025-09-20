@@ -13,7 +13,7 @@ struct UserProfile {
 };
 
 class UserProfileManager {
-  public:
+public:
   static UserProfileManager &instance();
 
   int currentIndex() const { return _currentIndex; }
@@ -28,20 +28,20 @@ class UserProfileManager {
 
   const UserProfile &currentProfile() const {
     return _currentIndex >= 0 && _currentIndex < _profiles.size()
-             ? _profiles[_currentIndex]
-             : _emptyProfile;
+               ? _profiles[_currentIndex]
+               : _emptyProfile;
   }
 
   void load();
   void save();
 
-  private:
+private:
   UserProfileManager();
   ~UserProfileManager() = default;
   UserProfileManager(const UserProfileManager &) = delete;
-      UserProfileManager &operator=(const UserProfileManager &) = delete;
+  UserProfileManager &operator=(const UserProfileManager &) = delete;
 
-  private:
+private:
   int _currentIndex;
   QVector<UserProfile> _profiles;
   ConfigManager::ConfigManager &_configManager;

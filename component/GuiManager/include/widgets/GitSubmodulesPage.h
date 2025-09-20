@@ -20,7 +20,7 @@ public:
   void updateActiveBranch(const QString &submoduleName);
   void updateModel(const QStringList &submodules);
 
-  signals:
+signals:
   void submoduleSelected(const QString &branchName);
 
 private slots:

@@ -14,13 +14,12 @@ namespace Widgets {
 
 SettingsPaneStringWidget::SettingsPaneStringWidget(
     const ConfigManager::ConfigItem &item, QWidget *parent)
-  : SettingsPaneItemWidget(item, parent) {
+    : SettingsPaneItemWidget(item, parent) {
   LOG_PERF(0, "Enter");
   LOG_PERF(0, "Exit");
 }
 
-QWidget *SettingsPaneStringWidget::createWidget()
-{
+QWidget *SettingsPaneStringWidget::createWidget() {
   LOG_PERF(0, "Enter");
 
   QWidget *placeholderWidget = new QWidget(this);
@@ -29,7 +28,8 @@ QWidget *SettingsPaneStringWidget::createWidget()
   nameLabel->setObjectName("nameLabel");
   nameLabel->setWordWrap(true);
 
-  QLabel *descriptionLabel = new QLabel(item().description(), placeholderWidget);
+  QLabel *descriptionLabel =
+      new QLabel(item().description(), placeholderWidget);
   descriptionLabel->setObjectName("descriptionLabel");
   descriptionLabel->setWordWrap(true);
 
@@ -39,7 +39,7 @@ QWidget *SettingsPaneStringWidget::createWidget()
 
   QVBoxLayout *layout = new QVBoxLayout(placeholderWidget);
   layout->addWidget(nameLabel);
-  if(!item().description().isEmpty())
+  if (!item().description().isEmpty())
     layout->addWidget(descriptionLabel);
   layout->addWidget(stringWidget);
 
@@ -51,8 +51,7 @@ QWidget *SettingsPaneStringWidget::createWidget()
   return placeholderWidget;
 }
 
-void SettingsPaneStringWidget::load()
-{
+void SettingsPaneStringWidget::load() {
   LOG_PERF(0, "Enter");
 
   ConfigManager::ConfigManager &configManager =
@@ -64,8 +63,7 @@ void SettingsPaneStringWidget::load()
   LOG_PERF(0, "Exit");
 }
 
-void SettingsPaneStringWidget::save() const
-{
+void SettingsPaneStringWidget::save() const {
   LOG_PERF(0, "Enter");
 
   ConfigManager::ConfigManager &configManager =
@@ -76,8 +74,7 @@ void SettingsPaneStringWidget::save() const
   LOG_PERF(0, "Exit");
 }
 
-void SettingsPaneStringWidget::onTextChanged(const QString &text)
-{
+void SettingsPaneStringWidget::onTextChanged(const QString &text) {
   LOG_PERF(0, "Enter");
 
   item().setValue(text);

@@ -3,20 +3,19 @@
 
 #include "viewholder.h"
 
-class RecyclerViewPool
-{
+class RecyclerViewPool {
 public:
-    RecyclerViewPool(int max = 10);
-    ~RecyclerViewPool();
+  RecyclerViewPool(int max = 10);
+  ~RecyclerViewPool();
 
-    void clear();
-    ViewHolder *getRecycledView();
-    void putRecycledView(ViewHolder *scrap);
+  void clear();
+  ViewHolder *getRecycledView();
+  void putRecycledView(ViewHolder *scrap);
 
-    int maxSize;
+  int maxSize;
 
 private:
-    QVector<ViewHolder *> recycledList;
+  QVector<ViewHolder *> recycledList;
 };
 
 #endif // RECYCLERVIEWPOOL_H

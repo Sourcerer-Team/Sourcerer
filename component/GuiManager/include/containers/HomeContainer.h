@@ -1,8 +1,8 @@
 #pragma once
 
+#include "models/RecentlyOpenedReposModel.h"
 #include "widgets/ContainerWidget.h"
 #include <delegates/HomeRecentItemDelegate.h>
-#include "models/RecentlyOpenedReposModel.h"
 
 #include <QModelIndex>
 #include <QWidget>
@@ -32,7 +32,7 @@ signals:
   void clone();
   void init() override;
   void open();
-  void recentClicked(const QString& path);
+  void recentClicked(const QString &path);
 
 protected:
   bool eventFilter(QObject *obj, QEvent *event) override;

@@ -40,6 +40,8 @@ LockGuard::LockGuard(Mutex &mutex, size_t timeout, const QString &function,
   }
 }
 
-LockGuard::~LockGuard() { _mutex.unlock(); }
+LockGuard::~LockGuard() {
+  _mutex.unlock();
+}
 
 } // namespace Util

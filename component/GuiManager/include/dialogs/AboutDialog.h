@@ -21,7 +21,7 @@ public:
 
 private:
   Ui::AboutDialog *ui;
-  ConfigManager::ConfigManager& _configManager;
+  ConfigManager::ConfigManager &_configManager;
 };
 
 } // namespace Dialogs

@@ -29,7 +29,8 @@ protected:
   virtual QString eventName(int event) const = 0;
   virtual void initStateTable(QMap<int, FsmState *> &table) = 0;
   virtual void initChangeTable(QMap<int, QMap<int, bool>> &table) = 0;
-  virtual FsmState* firstState(const QMap<int, Fsm::FsmState *> &table) const = 0;
+  virtual FsmState *
+  firstState(const QMap<int, Fsm::FsmState *> &table) const = 0;
 
 private:
   void chageState(int from, int to);

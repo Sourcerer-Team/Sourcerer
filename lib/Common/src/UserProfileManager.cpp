@@ -15,7 +15,7 @@ UserProfile UserProfileManager::_emptyProfile{"Default", ""};
 
 UserProfileManager::UserProfileManager()
     : _currentIndex(-1),
-    _configManager(ConfigManager::ConfigManager::getInstance()) {
+      _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
   load();
@@ -33,7 +33,7 @@ void UserProfileManager::load() {
 
   const int count = _configManager.getString(USERPROFILEMANAGER_COUNT).toInt();
   const int currentIndex =
-    _configManager.getString(USERPROFILEMANAGER_CURRENTINDEX).toInt();
+      _configManager.getString(USERPROFILEMANAGER_CURRENTINDEX).toInt();
 
   _currentIndex = currentIndex;
 

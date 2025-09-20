@@ -169,9 +169,8 @@ EventManager::waitForAnswer(int token, const QString &uuid,
       timeout);
 }
 
-QString EventManager::eventName(EventType type) const
-{
-  switch(type) {
+QString EventManager::eventName(EventType type) const {
+  switch (type) {
   case EventType::Null:
     return "Null";
   case EventType::Quit:
@@ -343,7 +342,8 @@ void EventManager::send(Event event) {
       const CallbackType &callbackFunc = callback._callback;
       const auto EventDataFunction = std::bind(callbackFunc, event);
 
-      _eventsQueue.push({EventDataFunction, EventRecordType::Send, event.type()});
+      _eventsQueue.push(
+          {EventDataFunction, EventRecordType::Send, event.type()});
 
       LOG_DEBUG("Event has been queued: {}", eventName(type));
     }
