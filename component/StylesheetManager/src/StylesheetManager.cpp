@@ -25,6 +25,12 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
       QLineEdit::placeholder{
         color: #C0C0C0;
       }
+      QLineEdit#lineEditTextOverlayWidgetInput{
+        border: 1px solid white;
+      }
+      QLineEdit#lineEditTextOverlayWidgetInput:focus{
+        border: 1px solid #0078d7;
+      }
       QListView::item:selected {
         background-color: #384D59;
       }

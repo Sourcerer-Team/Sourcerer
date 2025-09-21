@@ -1,9 +1,14 @@
 #include "containers/HomeContainer.h"
+
+#include "Dispatcher.h"
 #include "containers/ui_HomeContainer.h"
 #include "delegates/HomeRecentItemDelegate.h"
 #include "widgets/RecentTableView.h"
 
 #include <Log.h>
+
+#include <QEvent>
+#include <QMouseEvent>
 
 #define THREAD_ID "HomeContainer"
 
@@ -16,13 +21,19 @@ namespace Containers {
 HomeContainer::HomeContainer(QWidget *parent)
     : ContainerWidget(ContainerType::Home, parent), ui(new Ui::HomeContainer),
       _recentlyOpenedModel(new RecentlyOpenedReposModel(this)),
+      _workspacesModel(new WorkspacesModel(this)),
       _itemDelegate(new HomeRecentItemDelegate(this)) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
   ui->tableViewRecent->setModel(_recentlyOpenedModel);
+  ui->tableViewRecent->resizeColumnsToContents();
   ui->tableViewRecent->setItemDelegate(_itemDelegate);
   ui->tableViewRecent->viewport()->installEventFilter(this);
+  ui->tableViewWorkspaces->setModel(_workspacesModel);
+  ui->tableViewWorkspaces->resizeColumnsToContents();
+  ui->tableViewWorkspaces->setItemDelegate(_itemDelegate);
+  ui->tableViewWorkspaces->viewport()->installEventFilter(this);
 
   connect(ui->tableViewRecent, &RecentTableView::hoverEnter, this,
           &HomeContainer::hoverEnter);
@@ -43,6 +54,7 @@ HomeContainer::~HomeContainer() {
 
   delete ui;
   delete _recentlyOpenedModel;
+  delete _workspacesModel;
 
   LOG_PERF(0, "Exit");
 }
@@ -55,10 +67,19 @@ void HomeContainer::reloadRecentlyOpened() const {
   LOG_PERF(0, "Exit");
 }
 
+void HomeContainer::reloadWorkspaces() const {
+  LOG_PERF(0, "Enter");
+
+  _workspacesModel->reload();
+
+  LOG_PERF(0, "Exit");
+}
+
 void HomeContainer::selected() {
   LOG_PERF(0, "Enter");
 
   reloadRecentlyOpened();
+  reloadWorkspaces();
 
   LOG_PERF(0, "Exit");
 }
@@ -67,16 +88,33 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
   if (event->type() == QEvent::MouseButtonPress) {
     if (const auto mouseEvent = static_cast<QMouseEvent *>(event);
         mouseEvent->button() == Qt::LeftButton) {
-      const auto viewport = qobject_cast<QWidget *>(obj);
-      if (const auto view =
-              qobject_cast<GuiManager::Widgets::RecentTableView *>(
-                  viewport->parentWidget())) {
+      if (const auto viewport = qobject_cast<QWidget *>(obj);
+          viewport->parentWidget() == ui->tableViewRecent) {
+        const auto view = qobject_cast<GuiManager::Widgets::RecentTableView *>(
+            viewport->parentWidget());
         if (const QModelIndex index = view->indexAt(mouseEvent->pos());
             index.isValid()) {
+          ui->tableViewRecent->selectionModel()->select(
+              index, QItemSelectionModel::Select);
+          ui->tableViewRecent->setCurrentIndex(index);
           const QModelIndex pathIndex =
               _recentlyOpenedModel->createIndex(index.row(), 1);
           const QString path = pathIndex.data(Qt::DisplayRole).toString();
-          emit recentClicked(path);
+          Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+            emit recentClicked(path);
+          });
+        }
+      } else if (viewport->parentWidget() == ui->tableViewWorkspaces) {
+        const auto view = qobject_cast<QTableView *>(viewport->parentWidget());
+        if (const QModelIndex index = view->indexAt(mouseEvent->pos());
+            index.isValid()) {
+          ui->tableViewWorkspaces->selectionModel()->select(
+              index, QItemSelectionModel::Select);
+          ui->tableViewWorkspaces->setCurrentIndex(index);
+          const QString name = index.data(Qt::DisplayRole).toString();
+          Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+            emit workspaceClicked(name);
+          });
         }
       }
     }

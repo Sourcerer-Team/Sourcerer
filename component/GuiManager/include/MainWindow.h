@@ -36,6 +36,8 @@ public:
 
   SharedPtr getSelf() { return sharedFromThis(); }
 
+  QStringList containerPaths() const;
+
   // QWidget interface
 protected:
   void mouseMoveEvent(QMouseEvent *event) override;
@@ -51,7 +53,10 @@ private slots:
   void onInit();
   void onInitFinished(ContainerWidget *sender);
   void onRecentClicked(const QString &path);
+  void onSaveWorkspace();
   void onSettings();
+  void onSubmitWorkspace(const QString& name);
+  void onWorkspaceClicked(const QString &name);
   void onAbout() const;
   void onClosedTab(int index);
   void onSelectedTab(int index);
@@ -72,6 +77,7 @@ private:
   void addSettingsContainer();
   void closeContainer(const ContainerWidget *container);
   void eventCallback(EventManager::Event event);
+  void saveNewWorkspace();
   void selectContainer(int index);
   static void hideCredentialsOverlay(GitCredentialsOverlayWidget *widget);
   static void showCredentialsOverlay(const GitCredentialsRequest &request,

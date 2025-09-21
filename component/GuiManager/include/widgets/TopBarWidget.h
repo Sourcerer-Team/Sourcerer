@@ -28,6 +28,7 @@ signals:
   void open();
   void clone();
   void init();
+  void saveWorkspace();
   void settings();
   void about();
 

@@ -71,7 +71,7 @@ public:
   }
 
   template <class T>
-  static bool dispatchToMainThread(const T &guard,
+  static bool dispatchToMainThread(const T &guard, const int timeout,
                                    const std::function<void()> &callback) {
     const auto timer = new QTimer();
     timer->moveToThread(qApp->thread());
@@ -94,9 +94,15 @@ public:
     });
 
     QMetaObject::invokeMethod(timer, "start", Qt::QueuedConnection,
-                              Q_ARG(int, 0));
+                              Q_ARG(int, timeout));
 
     return true;
+  }
+
+  template <class T>
+  static bool dispatchToMainThread(const T &guard,
+                                   const std::function<void()> &callback) {
+    return dispatchToMainThread(guard, 0, callback);
   }
 
   void stopAll();

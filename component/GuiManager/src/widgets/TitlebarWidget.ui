@@ -77,7 +77,10 @@
         <iconset resource="../../resources/resources.qrc">
          <normaloff>:/icons/titlebar_menu.png</normaloff>:/icons/titlebar_menu.png</iconset>
        </property>
-       <property name="flat">
+       <property name="popupMode">
+        <enum>QToolButton::ToolButtonPopupMode::DelayedPopup</enum>
+       </property>
+       <property name="flat" stdset="0">
         <bool>true</bool>
        </property>
       </widget>
@@ -102,7 +105,7 @@
  <customwidgets>
   <customwidget>
    <class>GuiManager::Widgets::TitleBarMenuButton</class>
-   <extends>QPushButton</extends>
+   <extends>QToolButton</extends>
    <header>widgets/TitleBarMenuButton.h</header>
   </customwidget>
   <customwidget>

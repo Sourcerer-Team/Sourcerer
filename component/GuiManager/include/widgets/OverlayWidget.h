@@ -1,7 +1,11 @@
 #pragma once
 
+#include "ClickableHeaderView.h"
+
+#include <QApplication>
 #include <QEvent>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -12,6 +16,8 @@ public:
   explicit OverlayWidget(QWidget *parent, int alpha) : QWidget(parent) {
     setAttribute(Qt::WA_TransparentForMouseEvents, false);
     setAttribute(Qt::WA_NativeWindow);
+    setWindowFlags(Qt::FramelessWindowHint | Qt::Tool |
+                   Qt::WindowStaysOnTopHint);
 
     QColor defaultBackgroundColor = palette().color(QPalette::Window);
     defaultBackgroundColor.setAlpha(alpha); // semi-transparent

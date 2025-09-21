@@ -93,6 +93,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   connect(_titleBarWidget, &TitlebarWidget::open, this, &TopBarWidget::open);
   connect(_titleBarWidget, &TitlebarWidget::clone, this, &TopBarWidget::clone);
   connect(_titleBarWidget, &TitlebarWidget::init, this, &TopBarWidget::init);
+  connect(_titleBarWidget, &TitlebarWidget::saveWorkspace, this,
+          &TopBarWidget::saveWorkspace);
   connect(_titleBarWidget, &TitlebarWidget::settings, this,
           &TopBarWidget::settings);
   connect(_titleBarWidget, &TitlebarWidget::about, this, &TopBarWidget::about);

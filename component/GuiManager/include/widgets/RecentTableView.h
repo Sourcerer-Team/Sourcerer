@@ -17,6 +17,7 @@ public:
   // QObject interface
 public:
   bool eventFilter(QObject *watched, QEvent *event) override;
+  void mouseMoveEvent(QMouseEvent *event) override;
 
 signals:
   void hoverEnter(const QModelIndex &index);

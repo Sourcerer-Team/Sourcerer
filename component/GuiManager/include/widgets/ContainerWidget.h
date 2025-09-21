@@ -29,6 +29,8 @@ public:
 
   virtual void setupShortcuts() {}
 
+  virtual QString path() const { return QString(); }
+
 private:
   ContainerType _type;
 };

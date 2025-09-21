@@ -28,6 +28,7 @@ signals:
   void open();
   void clone();
   void init();
+  void saveWorkspace();
   void settings();
   void about();
 
@@ -39,6 +40,7 @@ private slots:
   void onOpen();
   void onClone();
   void onInit();
+  void onSaveWorkspace();
   void onSettings();
   void onAbout();
 

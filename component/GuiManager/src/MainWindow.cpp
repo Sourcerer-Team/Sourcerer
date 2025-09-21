@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 
+#include "Constants.h"
 #include "GitRepoManagerStructs.h"
 #include "containers/CloneGitRepoContainer.h"
 #include "containers/GitRepoContainer.h"
@@ -10,17 +11,21 @@
 #include "widgets/ErrorToast.h"
 #include "widgets/GitProgressToast.h"
 #include "widgets/InfoToast.h"
+#include "widgets/TextInputOverlayWidget.h"
 #include "widgets/TitlebarWidget.h"
 
 #include <ConfigKey.h>
 #include <Dispatcher.h>
-#include <Git.h>
 #include <Log.h>
 
 #include <QFileDialog>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QStandardPaths>
 #include <QWindow>
 
+#include <QMessageBox>
 #include <functional>
 
 #define THREAD_ID "MainWindow"
@@ -89,6 +94,8 @@ MainWindow::MainWindow(QWidget *parent)
   connect(_topBarWidget, &TopBarWidget::open, this, &MainWindow::onOpen);
   connect(_topBarWidget, &TopBarWidget::clone, this, &MainWindow::onClone);
   connect(_topBarWidget, &TopBarWidget::init, this, &MainWindow::onInit);
+  connect(_topBarWidget, &TopBarWidget::saveWorkspace, this,
+          &MainWindow::onSaveWorkspace);
   connect(_topBarWidget, &TopBarWidget::settings, this,
           &MainWindow::onSettings);
   connect(_topBarWidget, &TopBarWidget::about, this, &MainWindow::onAbout);
@@ -151,6 +158,31 @@ MainWindow::~MainWindow() {
   delete _hitDetector;
 
   LOG_PERF(0, "Exit");
+}
+
+QStringList MainWindow::containerPaths() const {
+  LOG_PERF(0, "Enter");
+
+  QStringList paths;
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    const auto container = _containers[i];
+    Q_ASSERT(container != nullptr);
+    if (!container) {
+      continue;
+    }
+
+    const ContainerType type = container->type();
+    if (type == ContainerType::Home) {
+      continue;
+    }
+
+    paths += container->path();
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return paths;
 }
 
 void MainWindow::mouseMoveEvent(QMouseEvent *event) {
@@ -223,10 +255,194 @@ void MainWindow::onRecentClicked(const QString &path) {
   LOG_PERF(0, "Exit");
 }
 
+void MainWindow::onSaveWorkspace() {
+  LOG_PERF(0, "Enter");
+
+  saveNewWorkspace();
+
+  LOG_PERF(0, "Exit");
+}
+
 void MainWindow::onSettings() {
   LOG_PERF(0, "Enter");
 
   addSettingsContainer();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onSubmitWorkspace(const QString &name) {
+  LOG_PERF(0, "Enter");
+
+  if (name.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString writableDir =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  const QString workspacesDirectory =
+      writableDir + "/" + WORKSPACES_SUBDIRECTORY;
+  const QString workspaceFilePath =
+      workspacesDirectory + "/" + name + ".workspace";
+
+  const QDir dir;
+  dir.mkpath(workspacesDirectory);
+
+  QFile file(workspaceFilePath);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Text |
+                 QIODevice::Truncate)) {
+    LOG_ERROR(Log::ErrorId::FileSystem, "Can't open file \"{}\" for writing.",
+              workspaceFilePath);
+    return;
+  }
+
+  QVector<QPair<ContainerType, QString>> workspaces;
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    if (const auto repoContainer =
+            qobject_cast<Widgets::ContainerWidget *>(_containers[i].get())) {
+      const ContainerType type = repoContainer->type();
+      if (type == ContainerType::Home) {
+        continue;
+      }
+
+      const QString path = repoContainer->path();
+      if (path.isEmpty())
+        continue;
+
+      workspaces += qMakePair(type, path);
+    }
+  }
+
+  QJsonArray array;
+
+  for (const auto &[type, path] : workspaces) {
+    array += QJsonObject{
+        {"type", static_cast<int>(type)},
+        {"path", QDir::fromNativeSeparators(path)},
+    };
+  }
+
+  const QJsonDocument document(array);
+  const QString jsonStr = document.toJson(QJsonDocument::Compact);
+
+  QTextStream stream(&file);
+  stream << jsonStr;
+  stream.flush();
+
+  file.close();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onWorkspaceClicked(const QString &name) {
+  LOG_PERF(0, "Enter");
+
+  bool foundNotHome = false;
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    ContainerWidget *containerWidget = _containers[i].get();
+    Q_ASSERT(containerWidget != nullptr);
+    if (!containerWidget) {
+      continue;
+    }
+    if (containerWidget->type() == ContainerType::Home) {
+      continue;
+    }
+
+    foundNotHome = true;
+    break;
+  }
+
+  if (foundNotHome) {
+    const QMessageBox::StandardButton reply = QMessageBox::question(
+        this, "Confirm Action", "Do you want to close existing repositories?",
+        QMessageBox::Yes | QMessageBox::No);
+
+    if (reply != QMessageBox::Yes) {
+      LOG_PERF(0, "Exit");
+      return;
+    }
+  }
+
+  const QString writableDir =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  const QString workspacesDirectory =
+      writableDir + "/" + WORKSPACES_SUBDIRECTORY;
+  const QString workspaceFilePath =
+      workspacesDirectory + "/" + name + ".workspace";
+
+  QFile file(workspaceFilePath);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    LOG_ERROR(Log::ErrorId::FileSystem, "Can't open file \"{}\" for writing.",
+              workspaceFilePath);
+    return;
+  }
+
+  const QByteArray data = file.readAll();
+
+  file.close();
+
+  const QJsonDocument document = QJsonDocument::fromJson(data);
+  if (document.isNull()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!document.isArray()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto containersListCopy = _containers;
+
+  for (int i = 0; i < containersListCopy.length(); ++i) {
+    ContainerWidget *containerWidget = containersListCopy[i].get();
+    Q_ASSERT(containerWidget != nullptr);
+    if (!containerWidget) {
+      continue;
+    }
+    if (containerWidget->type() == ContainerType::Home) {
+      continue;
+    }
+
+    closeContainer(containerWidget);
+  }
+
+  QJsonArray array = document.array();
+
+  for (const auto &val : array) {
+    Q_ASSERT(val.isObject());
+    if (!val.isObject()) {
+      continue;
+    }
+
+    const QJsonObject object = val.toObject();
+
+    const int type = object["type"].toInt();
+
+    if (type <= static_cast<int>(ContainerType::Unknown) ||
+        type >= static_cast<int>(ContainerType::last)) {
+      continue;
+    }
+
+    const QString path = object["path"].toString();
+    if (path.isEmpty()) {
+      continue;
+    }
+
+    switch (static_cast<ContainerType>(type)) {
+    case ContainerType::GitRepo: {
+      addGitRepoContainer(path);
+      break;
+    }
+    default: {
+      LOG_WARN(("Internal error! Unknown container type {}."), type);
+      break;
+    }
+    }
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -389,7 +605,8 @@ void MainWindow::addGitRepoContainer(const QString &path) {
   container->setupShortcuts();
   _containers += container;
 
-  const QStringList parts = path.split(QDir::separator(), Qt::SkipEmptyParts);
+  const QStringList parts =
+      QDir::fromNativeSeparators(path).split('/', Qt::SkipEmptyParts);
 
   QString repoName;
   if (parts.length() > 0) {
@@ -425,6 +642,8 @@ void MainWindow::addHomeContainer() {
   connect(container.get(), &HomeContainer::open, this, &MainWindow::onOpen);
   connect(container.get(), &HomeContainer::recentClicked, this,
           &MainWindow::onRecentClicked);
+  connect(container.get(), &HomeContainer::workspaceClicked, this,
+          &MainWindow::onWorkspaceClicked);
 
   LOG_PERF(0, "Exit");
 }
@@ -579,6 +798,29 @@ void MainWindow::eventCallback(EventManager::Event event) {
     break;
   }
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::saveNewWorkspace() {
+  LOG_PERF(0, "Enter");
+
+  const auto inputOverlay = new TextInputOverlayWidget(this);
+  inputOverlay->setPlaceholderText(tr("Enter workspace name"));
+
+  connect(inputOverlay, &TextInputOverlayWidget::canceled, this, [=]() {
+    inputOverlay->hide();
+    delete inputOverlay;
+  });
+  connect(inputOverlay, &TextInputOverlayWidget::submitted, this,
+          [=](const QString &name) {
+            inputOverlay->hide();
+            delete inputOverlay;
+            onSubmitWorkspace(name);
+          });
+
+  inputOverlay->show();
+  inputOverlay->raise();
 
   LOG_PERF(0, "Exit");
 }

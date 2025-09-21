@@ -148,6 +148,11 @@ set(GUIMANAGER_SOURCE_FILES
         ${TS_FILES}
         include/layouts/FlowLayout.h
         src/layouts/FlowLayout.cpp
+        include/widgets/TextInputOverlayWidget.h
+        src/widgets/TextInputOverlayWidget.cpp
+        include/models/WorkspacesModel.h
+        src/models/WorkspacesModel.cpp
+        include/constants.h
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

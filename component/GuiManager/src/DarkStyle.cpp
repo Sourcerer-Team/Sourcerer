@@ -18,8 +18,8 @@
 #define NTDDI_VERSION NTDDI_VISTA
 #define _WIN32_WINNT _WIN32_WINNT_VISTA
 
-#include <shellapi.h>
 #include <windows.h>
+#include <shellapi.h>
 
 #include <QLibrary>
 

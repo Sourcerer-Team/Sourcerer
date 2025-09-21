@@ -26,5 +26,7 @@
         <file>icons/stash.png</file>
         <file>icons/padlock.png</file>
         <file>icons/id-card.png</file>
+        <file>icons/ok.png</file>
+        <file>icons/cancel.png</file>
     </qresource>
 </RCC>

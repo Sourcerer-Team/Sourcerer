@@ -91,7 +91,7 @@ QStringList traverseModelIndexSubtree(const QModelIndex &parent,
 }
 
 GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
-    : ContainerWidget(Widgets::ContainerType::Unknown, parent),
+    : ContainerWidget(Widgets::ContainerType::GitRepo, parent),
       ui(new Ui::GitRepoContainer), _uuid(Uuid::createUuid()),
       _path(std::move(path)), _activeBranchType(GitRepo::BranchType::All),
       _configManager(ConfigManager::ConfigManager::getInstance()),

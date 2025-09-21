@@ -1,7 +1,5 @@
 #include "Widgets/GitCredentialsOverlayWidget.h"
 
-#include "spdlog/details/backtracer.h"
-
 #include <Log.h>
 
 #define THREAD_ID "GitCredentialsOverlayWidget"

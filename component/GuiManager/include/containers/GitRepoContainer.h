@@ -54,6 +54,8 @@ public:
 
   SharedPtr getSelf() { return sharedFromThis(); }
 
+  QString path() const override { return _path; }
+
   // QObject interface
 public:
   bool eventFilter(QObject *watched, QEvent *event) override;

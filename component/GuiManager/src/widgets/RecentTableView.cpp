@@ -26,10 +26,12 @@ bool RecentTableView::eventFilter(QObject *watched, QEvent *event) {
 
   switch (event->type()) {
   case QEvent::MouseMove: {
-    return mouseMove(static_cast<QMouseEvent *>(event));
+    mouseMove(static_cast<QMouseEvent *>(event));
+    break;
   }
   case QEvent::Leave: {
-    return leave(event);
+    leave(event);
+    break;
   }
   default: {
     break;
@@ -37,6 +39,16 @@ bool RecentTableView::eventFilter(QObject *watched, QEvent *event) {
   }
 
   return QTableView::eventFilter(watched, event);
+}
+
+void RecentTableView::mouseMoveEvent(QMouseEvent *event) {
+  if (const QModelIndex index = indexAt(event->pos()); index.isValid()) {
+    setCursor(Qt::PointingHandCursor); // Or any other shape
+  } else {
+    unsetCursor(); // Restore default
+  }
+
+  QTableView::mouseMoveEvent(event);
 }
 
 bool RecentTableView::leave(QEvent *event) {

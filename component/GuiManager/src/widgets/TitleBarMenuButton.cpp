@@ -2,24 +2,22 @@
 
 #include <Log.h>
 
+#include <QApplication>
 #include <QKeySequence>
 
 #define THREAD_ID "TitleBarMenuButton"
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
-    : QPushButton{parent},
+    : QToolButton{parent},
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
   setMouseTracking(true);
   setAttribute(Qt::WA_Hover, true);
+  setPopupMode(QToolButton::MenuButtonPopup);
   installEventFilter(this);
-
-  setMenu(createMenu());
 
   connect(this, &TitleBarMenuButton::clicked, this,
           &TitleBarMenuButton::onClicked);
@@ -43,12 +41,13 @@ bool TitleBarMenuButton::eventFilter(QObject *watched, QEvent *event) {
   }
   }
 
-  return QPushButton::eventFilter(watched, event);
+  return QToolButton::eventFilter(watched, event);
 }
 
 void TitleBarMenuButton::onClicked() {
   LOG_PERF(0, "Enter");
 
+  setMenu(createMenu());
   showMenu();
 
   LOG_PERF(0, "Exit");
@@ -78,6 +77,14 @@ void TitleBarMenuButton::onInit() {
   LOG_PERF(0, "Exit");
 }
 
+void TitleBarMenuButton::onSaveWorkspace() {
+  LOG_PERF(0, "Enter");
+
+  emit saveWorkspace();
+
+  LOG_PERF(0, "Exit");
+}
+
 void TitleBarMenuButton::onSettings() {
   LOG_PERF(0, "Enter");
 
@@ -95,28 +102,40 @@ void TitleBarMenuButton::onAbout() {
 }
 
 QMenu *TitleBarMenuButton::createMenu() {
-  QMenu *menu = new QMenu(this);
+  LOG_PERF(0, "Enter");
 
-  QAction *openAction = new QAction(menu);
+  const auto menu = new QMenu(this);
+
+  const auto openAction = new QAction(menu);
   openAction->setText(tr("&Open"));
   openAction->setShortcut(QKeySequence::Open);
 
-  QAction *cloneAction = new QAction(menu);
+  const auto cloneAction = new QAction(menu);
   cloneAction->setText(tr("&Clone"));
 
-  QAction *initAction = new QAction(menu);
+  const auto initAction = new QAction(menu);
   initAction->setText(tr("&Init"));
   initAction->setShortcut(QKeySequence::New);
 
-  QAction *settingsAction = new QAction(menu);
+  const MainWindow *mainWindow_ = mainWindow();
+  Q_ASSERT(mainWindow_ != nullptr);
+
+  const auto saveWorkspaceAction = new QAction(menu);
+  saveWorkspaceAction->setText(tr("Save &workspace"));
+  saveWorkspaceAction->setEnabled(mainWindow_ != nullptr &&
+                                  !mainWindow_->containerPaths().isEmpty());
+
+  const auto settingsAction = new QAction(menu);
   settingsAction->setText(tr("Settings"));
 
-  QAction *aboutAction = new QAction(menu);
+  const auto aboutAction = new QAction(menu);
   aboutAction->setText(tr("About"));
 
   menu->addAction(openAction);
   menu->addAction(cloneAction);
   menu->addAction(initAction);
+  menu->addSeparator();
+  menu->addAction(saveWorkspaceAction);
   menu->addSeparator();
   menu->addAction(settingsAction);
   menu->addAction(aboutAction);
@@ -131,11 +150,29 @@ QMenu *TitleBarMenuButton::createMenu() {
   connect(openAction, &QAction::triggered, this, &TitleBarMenuButton::onOpen);
   connect(cloneAction, &QAction::triggered, this, &TitleBarMenuButton::onClone);
   connect(initAction, &QAction::triggered, this, &TitleBarMenuButton::onInit);
+  connect(saveWorkspaceAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onSaveWorkspace);
   connect(settingsAction, &QAction::triggered, this,
           &TitleBarMenuButton::onSettings);
   connect(aboutAction, &QAction::triggered, this, &TitleBarMenuButton::onAbout);
 
+  LOG_PERF(0, "Exit");
+
   return menu;
+}
+
+MainWindow *TitleBarMenuButton::mainWindow() {
+  LOG_PERF(0, "Enter");
+
+  foreach (QWidget *widget, QApplication::topLevelWidgets()) {
+    if (auto *mainWin = qobject_cast<MainWindow *>(widget)) {
+      LOG_PERF(0, "Exit");
+      return mainWin;
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+  return nullptr;
 }
 
 bool TitleBarMenuButton::hover(QHoverEvent *event, bool entered) {
@@ -148,5 +185,4 @@ bool TitleBarMenuButton::hover(QHoverEvent *event, bool entered) {
   return true;
 }
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets
