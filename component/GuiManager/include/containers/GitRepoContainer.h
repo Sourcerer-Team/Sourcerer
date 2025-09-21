@@ -161,6 +161,7 @@ private:
   void restorePreviousSectionWidth();
   void saveRepoInRecentList() const;
   void startOverlayTimer() const;
+  void stash(const WeakPtr& guard);
   void stopOverlayTimer() const;
   void stopWatcher(const WeakPtr &guard);
   void stretchBranchHistoryTableColumns() const;

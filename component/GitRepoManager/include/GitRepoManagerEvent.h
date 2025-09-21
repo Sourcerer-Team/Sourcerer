@@ -31,6 +31,7 @@ enum class EventType : int {
   Push,
   Setup,
   StageFiles,
+  Stash,
   Status,
   UnstageFiles,
 

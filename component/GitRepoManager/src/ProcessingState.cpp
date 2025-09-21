@@ -196,6 +196,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForStageFiles(stageFilesCommand);
     break;
   }
+  case EventType::Stash: {
+    const auto stashCommand = event.nextParam<GitRepoStashCommand>();
+    scheduleWorkerForStash(stashCommand);
+    break;
+  }
   case EventType::Status: {
     const auto statusCommand = event.nextParam<GitRepoStatusCommand>();
     scheduleWorkerForStatus(statusCommand);
@@ -1180,6 +1185,25 @@ void ProcessingState::scheduleWorkerForStageFiles(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForStash(
+    const Structs::GitRepoStashCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerStashError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoStashCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForStatus(
     const Structs::GitRepoStatusCommand &command) {
   LOG_PERF(0, "Enter");
@@ -1371,6 +1395,36 @@ void ProcessingState::stageFilesWorker(
       command.syncUuid);
   resultEvent.addData(
       GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::stashWorker(
+    const Structs::GitRepoStashCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerStashError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool stashed = GitRepo::stash(repo);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerStashResult, command.syncUuid);
+  resultEvent.addData(
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(stashed)});
   _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
@@ -2001,6 +2055,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoStageFilesCommand *>(command);
       if (stageFilesCommand) {
         stageFilesWorker(*stageFilesCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::Stash: {
+      const auto *stashCommand =
+          dynamic_cast<const GitRepoStashCommand *>(command);
+      if (stashCommand) {
+        stashWorker(*stashCommand);
       }
       break;
     }

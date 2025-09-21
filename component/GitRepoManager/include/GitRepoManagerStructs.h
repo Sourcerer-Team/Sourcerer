@@ -35,6 +35,7 @@ enum class GitRepoCommandType : int {
   Pull,
   Push,
   StageFiles,
+  Stash,
   Status,
   UnstageFiles,
   Quit,
@@ -221,6 +222,11 @@ struct GitRepoStageFilesCommand final : GitRepoCommand {
   ~GitRepoStageFilesCommand() override = default;
 
   QStringList files;
+};
+
+struct GitRepoStashCommand final : GitRepoCommand {
+  GitRepoStashCommand() : GitRepoCommand(GitRepoCommandType::Stash) {}
+  ~GitRepoStashCommand() override = default;
 };
 
 struct GitRepoStatusCommand final : GitRepoCommand {

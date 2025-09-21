@@ -62,6 +62,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStageFiles, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerStash, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStatus, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerUnstageFiles, callbackFunc));
@@ -115,6 +117,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerPush, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStageFiles, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerStash, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStatus, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -307,6 +311,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent stageFilesRepoEvent(EventType::StageFiles);
     stageFilesRepoEvent.addParam(QVariant::fromValue(stageFilesCommand));
     _fsm.send(stageFilesRepoEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerStash: {
+    const auto stashCommand = event.data<GitRepoStashCommand>();
+    GitRepoManagerEvent stashEvent(EventType::Stash);
+    stashEvent.addParam(QVariant::fromValue(stashCommand));
+    _fsm.send(stashEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerStatus: {

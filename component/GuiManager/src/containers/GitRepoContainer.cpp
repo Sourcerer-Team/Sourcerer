@@ -801,6 +801,11 @@ void GitRepoContainer::onPush() {
 
 void GitRepoContainer::onStash() {
   LOG_PERF(0, "Enter");
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { stash(guard); });
+
   LOG_PERF(0, "Exit");
 }
 
@@ -930,6 +935,74 @@ void GitRepoContainer::startOverlayTimer() const {
       ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
 
   _spinnerOverlayTimer->start(timerTimeout);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::stash(const WeakPtr &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoStashCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event stageFilesEvent(
+      EventManager::EventType::GitRepoManagerStash, eventUuid);
+  stageFilesEvent.addData(command);
+  _eventManager.send(stageFilesEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerStashError,
+                           EventManager::EventType::GitRepoManagerStashResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(tr("Failed to stash changes."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerStashResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to stash changes."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool stashSuccess = commandResult.value.toBool();
+
+  refreshStatus(guard);
+
+  if (!stashSuccess) {
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to stash changes."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
+    simulateClickOnFirstHistoryRow();
+  });
 
   LOG_PERF(0, "Exit");
 }

@@ -1145,6 +1145,11 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
                                       void *payload) {
   LOG_PERF(0, "Enter");
 
+  if (!out || !url) {
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
+
   if (((allowed_types & GIT_CREDENTIAL_USERPASS_PLAINTEXT) == 0) &&
       ((allowed_types & GIT_CREDENTIAL_SSH_KEY) == 0)) {
     LOG_PERF(0, "Exit");
@@ -1297,6 +1302,13 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
 GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
                             const BranchType type, const bool &quitFlag) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
 
   GitHistory history_;
 
@@ -1609,6 +1621,13 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
                               const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
   if (commitOid.isEmpty()) {
     LOG_WARN("Commit \"{}\" is empty", commitOid);
     LOG_PERF(0, "Exit");
@@ -1718,6 +1737,13 @@ QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
                            const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
   QStringList branches;
 
   git_branch_iterator *iter = nullptr;
@@ -1788,6 +1814,13 @@ QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
 bool getCommitIsHead(git_repository *repo, const QString &commitOid,
                      const bool &quitFlag) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   git_branch_iterator *iter = nullptr;
   git_reference *ref = nullptr;
@@ -1860,6 +1893,13 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
 
 GitStatus getStatus(git_repository *repo) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
 
   GitStatus status;
 
@@ -1987,6 +2027,13 @@ GitCommitStatus getCommitStatus(git_repository *repo,
                                 const QString &commitOid) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
   GitCommitStatus status;
 
   git_commit *commit = nullptr;
@@ -2107,6 +2154,13 @@ GitCommitStatus getCommitStatus(git_repository *repo,
 bool stageFiles(git_repository *repo, const QStringList &files) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_index *index = nullptr;
 
   int error = git_repository_index(&index, repo);
@@ -2161,6 +2215,13 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
 bool unstageFiles(git_repository *repo, const QStringList &files) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_object *headCommit = nullptr;
 
   // Lookup HEAD commit
@@ -2201,6 +2262,13 @@ bool commitStaged(git_repository *repo, const QString &summary,
                   const QString &message, const QString &author,
                   const QString &email) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   git_index *index = nullptr;
   git_oid treeId;
@@ -2309,6 +2377,13 @@ bool commitStaged(git_repository *repo, const QString &summary,
 QString diffFiles(git_repository *repo, const QStringList &files) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return QString();
+  }
+
   git_object *headCommit = nullptr;
   git_commit *commit = nullptr;
   git_tree *headTree = nullptr;
@@ -2397,6 +2472,13 @@ QString diffFiles(git_repository *repo, const QStringList &files) {
 
 bool discardFiles(git_repository *repo, const QStringList &files) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   for (const auto &file : files) {
     git_object *headTree = nullptr;
@@ -2564,6 +2646,13 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
 
 bool pull(git_repository *repo) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   // Step 1: Get current branch
   git_reference *head = nullptr;
@@ -2753,6 +2842,13 @@ bool pull(git_repository *repo) {
 bool push(git_repository *repo) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_reference *headRef = nullptr;
 
   int error = git_repository_head(&headRef, repo);
@@ -2814,6 +2910,45 @@ bool push(git_repository *repo) {
   LOG_PERF(0, "Exit");
 
   return error == 0;
+}
+
+bool stash(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_oid stashId;
+  git_signature *signature = nullptr;
+
+  // Get default signature (author info)
+  int error = git_signature_default(&signature, repo);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_stash_save(
+      &stashId,         // Optional: receives the stash commit ID
+      repo,             // Your git_repository pointer
+      signature,        // Signature of the stasher
+      nullptr,          // Optional message
+      GIT_STASH_DEFAULT // Flags (can be GIT_STASH_INCLUDE_UNTRACKED, etc.)
+  );
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return true;
 }
 
 } // namespace GitRepo

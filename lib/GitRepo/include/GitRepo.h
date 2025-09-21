@@ -152,5 +152,6 @@ QString diffFiles(git_repository *repo, const QStringList &files);
 bool discardFiles(git_repository *repo, const QStringList &files);
 bool pull(git_repository *rep);
 bool push(git_repository *rep);
+bool stash(git_repository *repo);
 
 } // namespace GitRepo
