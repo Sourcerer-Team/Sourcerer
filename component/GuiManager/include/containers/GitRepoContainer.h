@@ -84,6 +84,7 @@ private slots:
   void onRepoDirChanged(const QString &path);
   void onRepoDirChangedTimeout();
   void onStash();
+  void onStashSelected(const QString &tagName);
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay();
   void onGraphColumnExpand(int section);
@@ -141,6 +142,7 @@ private:
   QStringList getSelectedFilesWhichExist(QTreeView *treeView);
   bool getLocalBranches();
   bool getRemoteBranches();
+  bool getStashes();
   bool getSubmodules();
   bool getTags();
   QStringList getSubdirectories(const QString &path,
@@ -192,6 +194,8 @@ private:
   void updateRemoteBranchesModelActiveBranch(const WeakPtr &guard,
                                              const QString &activeBranch,
                                              bool updatePages = true);
+  void updateStashesModel(const WeakPtr &guard,
+                                 const QStringList &stashes) const;
   void updateTagsModelActiveTag(const WeakPtr &guard, const QString &activeTag,
                                 bool updatePages = true);
   void updateSubmodulesModel(const WeakPtr &guard,

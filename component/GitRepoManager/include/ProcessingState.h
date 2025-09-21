@@ -52,6 +52,8 @@ private:
       const Structs::GitRepoListLocalBranchesCommand &command);
   void listRemoteBranchesWorker(
       const Structs::GitRepoListRemoteBranchesCommand &command);
+  void listStashesWorker(
+      const Structs::GitRepoListStashesCommand &command);
   void
   listSubmodulesWorker(const Structs::GitRepoListSubmodulesCommand &command);
   void listTagsWorker(const Structs::GitRepoListTagsCommand &command);
@@ -93,6 +95,8 @@ private:
       const Structs::GitRepoListLocalBranchesCommand &command);
   void scheduleWorkerForListRemoteBranches(
       const Structs::GitRepoListRemoteBranchesCommand &command);
+  void scheduleWorkerForListStashes(
+      const Structs::GitRepoListStashesCommand &command);
   void scheduleWorkerForListSubmodules(
       const Structs::GitRepoListSubmodulesCommand &command);
   void

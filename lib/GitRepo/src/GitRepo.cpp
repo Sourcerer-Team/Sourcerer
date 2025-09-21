@@ -860,6 +860,38 @@ QStringList listRemoteBranches(git_repository *repo, const bool &quitFlag) {
   return listBranches(repo, BranchType::Remote, quitFlag);
 }
 
+QStringList listStashes(git_repository *repo, const bool &quitFlag) {
+  LOG_PERF(0, "Enter");
+
+  QStringList stashes;
+
+  const auto callback = [](size_t index, const char *message,
+                           const git_oid *stash_id, void *payload) {
+    if (!payload) {
+      return -1;
+    }
+
+    const auto payloadStashes = static_cast<QStringList *>(payload);
+    if (message) {
+      *payloadStashes += QString::fromStdString(message);
+    } else {
+      *payloadStashes += QString("stash@{%1}").arg(index);
+    }
+
+    return 0;
+  };
+
+  if (const int error = git_stash_foreach(repo, callback, &stashes)) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return stashes;
+}
+
 QStringList listTags(git_repository *repo) {
   LOG_PERF(0, "Enter");
 

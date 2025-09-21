@@ -50,6 +50,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListRemoteBranches, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerListStashes, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListSubmodules, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListTags, callbackFunc));
@@ -105,6 +107,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerListLocalBranches, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListRemoteBranches, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerListStashes, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListSubmodules, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -268,6 +272,14 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent listRemoteEvent(EventType::ListRemoteBranches);
     listRemoteEvent.addParam(QVariant::fromValue(listRemoteCommand));
     _fsm.send(listRemoteEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerListStashes: {
+    const auto listStashesCommand =
+        event.data<GitRepoListStashesCommand>();
+    GitRepoManagerEvent listStashesEvent(EventType::ListStashes);
+    listStashesEvent.addParam(QVariant::fromValue(listStashesCommand));
+    _fsm.send(listStashesEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerListSubmodules: {

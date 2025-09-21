@@ -130,6 +130,7 @@ bool initRepository(const QString &repoName, const QString &workingDir,
                     const QString &defaultBranch);
 QStringList listLocalBranches(git_repository *repo, const bool &quitFlag);
 QStringList listRemoteBranches(git_repository *repo, const bool &quitFlag);
+QStringList listStashes(git_repository *repo, const bool &quitFlag);
 QStringList listSubmodules(git_repository *repo);
 QStringList listTags(git_repository *repo);
 git_repository *openRepository(const QString &path);

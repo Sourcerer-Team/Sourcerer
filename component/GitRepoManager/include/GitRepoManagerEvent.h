@@ -24,6 +24,7 @@ enum class EventType : int {
   Init,
   ListLocalBranches,
   ListRemoteBranches,
+  ListStashes,
   ListSubmodules,
   ListTags,
   OpenRepo,

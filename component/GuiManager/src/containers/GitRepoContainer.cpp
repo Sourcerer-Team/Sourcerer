@@ -9,6 +9,7 @@
 #include "widgets/ErrorToast.h"
 #include "widgets/InfoToast.h"
 #include "widgets/ShortcutsToolbarWidget.h"
+#include "widgets/StashesPage.h"
 
 #include <Dispatcher.h>
 #include <GitRepoManagerStructs.h>
@@ -116,6 +117,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->toolBox->setItemText(1, tr("Remote Branches"));
   ui->toolBox->setItemText(2, tr("Tags"));
   ui->toolBox->setItemText(3, tr("Submodules"));
+  ui->toolBox->setItemText(4, tr("Stashes"));
   ui->toolBox->setAttribute(Qt::WA_StyledBackground, true);
   ui->splitter->setStretchFactor(0, 2);
   ui->splitter->setStretchFactor(1, 6);
@@ -308,6 +310,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   connect(ui->tagsPage, &GitTagsPage::tagSelected, this,
           &GitRepoContainer::onTagSelected);
+
+  connect(ui->stashesPage, &StashesPage::stashSelected, this,
+          &GitRepoContainer::onStashSelected);
 
   connect(_spinnerOverlayTimer, &QTimer::timeout, this,
           &GitRepoContainer::onShowSpinnerOverlay);
@@ -805,6 +810,18 @@ void GitRepoContainer::onStash() {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { stash(guard); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onStashSelected(const QString &tagName) {
+  LOG_PERF(0, "Enter");
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {});
 
   LOG_PERF(0, "Exit");
 }
@@ -2564,6 +2581,65 @@ bool GitRepoContainer::getRemoteBranches() {
   return true;
 }
 
+bool GitRepoContainer::getStashes() {
+  LOG_PERF(0, "Enter");
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoListStashesCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event listStashesEvent(
+      EventManager::EventType::GitRepoManagerListStashes, eventUuid);
+  listStashesEvent.addData(command);
+  _eventManager.send(listStashesEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerListStashesError,
+      EventManager::EventType::GitRepoManagerListStashesResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
+      showErrorToast(tr("Failed to retrieve the list of stashes."),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerListStashesResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorToast(tr("Failed to retrieve the list of stashes."),
+                     tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const auto stashes = commandResult.value.value<QStringList>();
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() { updateStashesModel(guard, stashes); });
+
+  LOG_PERF(0, "Exit")
+
+  return true;
+}
+
 bool GitRepoContainer::getSubmodules() {
   LOG_PERF(0, "Enter");
 
@@ -2982,6 +3058,7 @@ bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
   ok &= ok && getTags();
   ok &= ok && getActiveTag();
   ok &= ok && getSubmodules();
+  ok &= ok && getStashes();
 
   if (!ok) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
@@ -3623,6 +3700,17 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
   }
 
   _dispatcher.dispatch([=]() { (void)getBranchHistory(guard); });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::updateStashesModel(const WeakPtr &guard,
+                                          const QStringList &stashes) const {
+  LOG_PERF(0, "Enter");
+
+  if (const auto locked = guard.lock()) {
+    ui->stashesPage->updateModel(stashes);
+  }
 
   LOG_PERF(0, "Exit")
 }

@@ -16,7 +16,24 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui GuiPrivate Svg Widgets LinguistToo
 set(TS_FILES translations/Sourcerer_en_US.ts)
 set(QRC_FILES resources/resources.qrc)
 
+set(UI_FILES
+        src/containers/CloneGitRepoContainer.ui
+        src/containers/GitRepoContainer.ui
+        src/containers/HomeContainer.ui
+        src/containers/InitGitRepoContainer.ui
+        src/containers/PleaseWaitContainer.ui
+        src/containers/SettingsContainer.ui
+        src/dialogs/AboutDialog.ui
+        src/widgets/GitSubmodulesPage.ui
+        src/widgets/GitTagsPage.ui
+        src/widgets/LocalGitBranchesPage.ui
+        src/widgets/RemoteGitBranchesPage.ui
+        src/widgets/StashesPage.ui
+        src/widgets/TitlebarWidget.ui
+)
+
 set(GUIMANAGER_SOURCE_FILES
+        include/Constants.h
         include/DarkStyle.h
         include/GuiManager.h
         include/HitDetector.h
@@ -34,12 +51,15 @@ set(GUIMANAGER_SOURCE_FILES
         include/delegates/HistorySummaryTableColumnDelegate.h
         include/delegates/HomeRecentItemDelegate.h
         include/dialogs/AboutDialog.h
+        include/layouts/FlowLayout.h
         include/models/BranchesModel.h
         include/models/GitCommitListModel.h
         include/models/GitHistoryModel.h
         include/models/RecentlyOpenedReposModel.h
+        include/models/StashesModel.h
         include/models/SubmodulesModel.h
         include/models/TagsModel.h
+        include/models/WorkspacesModel.h
         include/widgets/CentralWidget.h
         include/widgets/ClickableHeaderView.h
         include/widgets/ColorButton.h
@@ -68,6 +88,8 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/ShadeIconToolbox.h
         include/widgets/SpinnerDialog.h
         include/widgets/SpinnerOverlayWidget.h
+        include/widgets/StashesPage.h
+        include/widgets/TextInputOverlayWidget.h
         include/widgets/TitleBarButton.h
         include/widgets/TitleBarHomeButton.h
         include/widgets/TitleBarMenuButton.h
@@ -93,12 +115,14 @@ set(GUIMANAGER_SOURCE_FILES
         src/delegates/HistorySummaryTableColumnDelegate.cpp
         src/delegates/HomeRecentItemDelegate.cpp
         src/dialogs/AboutDialog.cpp
-        src/dialogs/AboutDialog.ui
+        src/layouts/FlowLayout.cpp
         src/models/BranchesModel.cpp
         src/models/GitCommitListModel.cpp
         src/models/GitHistoryModel.cpp
         src/models/RecentlyOpenedReposModel.cpp
+        src/models/StashesModel.cpp
         src/models/SubmodulesModel.cpp
+        src/models/WorkspacesModel.cpp
         src/models/TagsModel.cpp
         src/widgets/CentralWidget.cpp
         src/widgets/ColorButton.cpp
@@ -123,6 +147,8 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/SettingsPaneStringWidget.cpp
         src/widgets/ShadeIconToolbox.cpp
         src/widgets/SpinnerOverlayWidget.cpp
+        src/widgets/StashesPage.cpp
+        src/widgets/TextInputOverlayWidget.cpp
         src/widgets/TitleBarButton.cpp
         src/widgets/TitleBarHomeButton.cpp
         src/widgets/TitleBarMenuButton.cpp
@@ -133,26 +159,9 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/ToastWidget.cpp
         src/widgets/TopBarWidget.cpp
         src/widgets/factories/SettingsPaneItemWidgetFactory.cpp
-        src/containers/CloneGitRepoContainer.ui
-        src/containers/GitRepoContainer.ui
-        src/containers/HomeContainer.ui
-        src/containers/InitGitRepoContainer.ui
-        src/containers/PleaseWaitContainer.ui
-        src/containers/SettingsContainer.ui
-        src/widgets/GitSubmodulesPage.ui
-        src/widgets/GitTagsPage.ui
-        src/widgets/LocalGitBranchesPage.ui
-        src/widgets/RemoteGitBranchesPage.ui
-        src/widgets/TitlebarWidget.ui
-        ${QRC_FILES}
+ 	${UI_FILES}
+	${QRC_FILES}
         ${TS_FILES}
-        include/layouts/FlowLayout.h
-        src/layouts/FlowLayout.cpp
-        include/widgets/TextInputOverlayWidget.h
-        src/widgets/TextInputOverlayWidget.cpp
-        include/models/WorkspacesModel.h
-        src/models/WorkspacesModel.cpp
-        include/constants.h
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

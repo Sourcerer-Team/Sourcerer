@@ -165,6 +165,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForListRemoteBranches(listRemoteCommand);
     break;
   }
+  case EventType::ListStashes: {
+    const auto listStashesCommand =
+        event.nextParam<GitRepoListStashesCommand>();
+    scheduleWorkerForListStashes(listStashesCommand);
+    break;
+  }
   case EventType::ListSubmodules: {
     const auto listSubmodulesCommand =
         event.nextParam<GitRepoListSubmodulesCommand>();
@@ -1003,6 +1009,48 @@ void ProcessingState::listRemoteBranchesWorker(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::listStashesWorker(
+    const Structs::GitRepoListStashesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerListStashesError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+  const bool *quit = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+    quit = &ctx->quit;
+  }
+
+  const QStringList stashes = GitRepo::listStashes(repo, *quit);
+
+  if (*quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerListStashesError,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerListStashesResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(stashes)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::listSubmodulesWorker(
     const Structs::GitRepoListSubmodulesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -1400,8 +1448,7 @@ void ProcessingState::stageFilesWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::stashWorker(
-    const Structs::GitRepoStashCommand &command) {
+void ProcessingState::stashWorker(const Structs::GitRepoStashCommand &command) {
   LOG_PERF(0, "Enter");
 
   const GitRepoContext *ctx = context(command.uuid);
@@ -1833,6 +1880,25 @@ void ProcessingState::scheduleWorkerForListRemoteBranches(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForListStashes(
+    const Structs::GitRepoListStashesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerListStashesError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoListStashesCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForListSubmodules(
     const Structs::GitRepoListSubmodulesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2007,6 +2073,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoListRemoteBranchesCommand *>(command);
       if (listRemoteCommand) {
         listRemoteBranchesWorker(*listRemoteCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::ListStashes: {
+      const auto *listStashesCommand =
+          dynamic_cast<const GitRepoListStashesCommand *>(command);
+      if (listStashesCommand) {
+        listStashesWorker(*listStashesCommand);
       }
       break;
     }

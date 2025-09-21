@@ -146,7 +146,7 @@
                   <x>0</x>
                   <y>0</y>
                   <width>217</width>
-                  <height>254</height>
+                  <height>224</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -160,8 +160,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>98</width>
-                  <height>28</height>
+                  <width>217</width>
+                  <height>224</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -176,7 +176,7 @@
                   <x>0</x>
                   <y>0</y>
                   <width>217</width>
-                  <height>254</height>
+                  <height>224</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -190,14 +190,25 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>98</width>
-                  <height>28</height>
+                  <width>217</width>
+                  <height>224</height>
                  </rect>
                 </property>
                 <attribute name="label">
                  <string>
                                                                         Submodules
                                                                     </string>
+                </attribute>
+               </widget>
+               <widget class="GuiManager::Widgets::StashesPage" name="stashesPage">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <attribute name="label">
+                 <string>Page</string>
                 </attribute>
                </widget>
               </widget>
@@ -1293,6 +1304,12 @@
    <class>GuiManager::Widgets::RightClickSelectTreeView</class>
    <extends>QTreeView</extends>
    <header>widgets/RightClickSelectTreeView.h</header>
+  </customwidget>
+  <customwidget>
+   <class>GuiManager::Widgets::StashesPage</class>
+   <extends>QWidget</extends>
+   <header>widgets/StashesPage.h</header>
+   <container>1</container>
   </customwidget>
  </customwidgets>
  <resources/>
