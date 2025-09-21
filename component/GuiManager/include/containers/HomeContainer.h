@@ -5,6 +5,8 @@
 #include "widgets/ContainerWidget.h"
 #include <delegates/HomeRecentItemDelegate.h>
 
+#include <ConfigManager.h>
+
 #include <QEnableSharedFromThis>
 #include <QModelIndex>
 #include <QWidget>
@@ -42,7 +44,9 @@ signals:
   void init() override;
   void open();
   void recentClicked(const QString &path);
+  void recentRightClicked(const QString &path, const QPoint &pos);
   void workspaceClicked(const QString &name);
+  void workspaceRightClicked(const QString &name, const QPoint &pos);
 
 protected:
   bool eventFilter(QObject *obj, QEvent *event) override;
@@ -53,12 +57,15 @@ private slots:
   void onCloneClicked();
   void onInitClicked();
   void onOpenClicked(bool checked = false);
+  void onRecentRightClicked(const QString &path, const QPoint &pos);
+  void onWorkspaceRightClicked(const QString &name, const QPoint &pos);
 
 private:
   Ui::HomeContainer *ui;
   RecentlyOpenedReposModel *_recentlyOpenedModel;
   WorkspacesModel *_workspacesModel;
   HomeRecentItemDelegate *_itemDelegate;
+  ::ConfigManager::ConfigManager &_configManager;
 };
 
 } // namespace GuiManager::Containers
