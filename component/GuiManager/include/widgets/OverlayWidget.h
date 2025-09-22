@@ -13,11 +13,9 @@ namespace GuiManager::Widgets {
 
 class OverlayWidget : public QWidget {
 public:
-  explicit OverlayWidget(QWidget *parent, int alpha) : QWidget(parent) {
+  explicit OverlayWidget(QWidget *parent, const int alpha) : QWidget(parent) {
     setAttribute(Qt::WA_TransparentForMouseEvents, false);
     setAttribute(Qt::WA_NativeWindow);
-    setWindowFlags(Qt::FramelessWindowHint | Qt::Tool |
-                   Qt::WindowStaysOnTopHint);
 
     QColor defaultBackgroundColor = palette().color(QPalette::Window);
     defaultBackgroundColor.setAlpha(alpha); // semi-transparent
@@ -88,7 +86,7 @@ protected:
   }
 
   void adjustToParent() {
-    if (auto *p = parentWidget()) {
+    if (const auto *p = parentWidget()) {
       setGeometry(p->rect()); // fills entire parent
       raise();
     }

@@ -14,10 +14,12 @@ namespace GitRepoManager::Structs {
 
 enum class GitRepoCommandType : int {
   Unknown = 0,
+  ApplyStash,
   CheckoutBranch,
   Clone,
   Close,
   CommitStaged,
+  DeleteStash,
   DiffFiles,
   DiscardFiles,
   GetActiveBranch,
@@ -63,6 +65,14 @@ struct GitRepoCommand {
   QString syncUuid;
 };
 
+struct GitRepoApplyStashCommand final : GitRepoCommand {
+  GitRepoApplyStashCommand()
+      : GitRepoCommand(GitRepoCommandType::ApplyStash) {}
+  ~GitRepoApplyStashCommand() override = default;
+
+  int index = -1;
+};
+
 struct GitRepoCheckoutBranchCommand final : GitRepoCommand {
   GitRepoCheckoutBranchCommand()
       : GitRepoCommand(GitRepoCommandType::CheckoutBranch) {}
@@ -99,6 +109,14 @@ struct GitRepoCommitStagedCommand final : GitRepoCommand {
   QString email;
   QString summary;
   QString message;
+};
+
+struct GitRepoDeleteStashCommand final : GitRepoCommand {
+  GitRepoDeleteStashCommand()
+      : GitRepoCommand(GitRepoCommandType::DeleteStash) {}
+  ~GitRepoDeleteStashCommand() override = default;
+
+  int index = -1;
 };
 
 struct GitRepoDiffFilesCommand final : GitRepoCommand {

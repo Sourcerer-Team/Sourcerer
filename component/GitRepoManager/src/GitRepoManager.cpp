@@ -20,6 +20,8 @@ GitRepoManager::GitRepoManager()
       std::bind(&GitRepoManager::eventCallback, this, std::placeholders::_1);
 
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerApplyStash, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCheckoutBranch, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepo, callbackFunc));
@@ -29,6 +31,8 @@ GitRepoManager::GitRepoManager()
       EventManager::EventType::GitRepoManagerCloseRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCommitStaged, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDeleteStash, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiffFiles, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
@@ -80,6 +84,8 @@ GitRepoManager::~GitRepoManager() {
       std::bind(&GitRepoManager::eventCallback, this, std::placeholders::_1);
 
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerApplyStash, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCheckoutBranch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetBranchHistory, callbackFunc));
@@ -89,6 +95,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerCloseRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCommitStaged, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDeleteStash, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiffFiles, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -161,6 +169,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
   LOG_DEBUG("Received event {}", _eventManager.eventName(eventType));
 
   switch (eventType) {
+  case EventManager::EventType::GitRepoManagerApplyStash: {
+    const auto applyStashCommand = event.data<GitRepoApplyStashCommand>();
+    GitRepoManagerEvent applyStashEvent(EventType::ApplyStash);
+    applyStashEvent.addParam(QVariant::fromValue(applyStashCommand));
+    _fsm.send(applyStashEvent);
+    break;
+  }
   case EventManager::EventType::GitRepoManagerCheckoutBranch: {
     const auto checkoutCommand = event.data<GitRepoCheckoutBranchCommand>();
     GitRepoManagerEvent checkoutBranchEvent(EventType::CheckoutBranch);
@@ -187,6 +202,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent commitStagedRepoEvent(EventType::CommitStaged);
     commitStagedRepoEvent.addParam(QVariant::fromValue(commitStagedCommand));
     _fsm.send(commitStagedRepoEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerDeleteStash: {
+    const auto deleteStashCommand = event.data<GitRepoDeleteStashCommand>();
+    GitRepoManagerEvent deleteStashEvent(EventType::DeleteStash);
+    deleteStashEvent.addParam(QVariant::fromValue(deleteStashCommand));
+    _fsm.send(deleteStashEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerDiffFiles: {

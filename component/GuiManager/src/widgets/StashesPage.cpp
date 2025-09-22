@@ -2,7 +2,9 @@
 #include "widgets/ui_StashesPage.h"
 
 #include <Log.h>
+
 #include <QListView>
+#include <QMenu>
 
 #define THREAD_ID "StashesPagePage"
 
@@ -19,6 +21,10 @@ StashesPage::StashesPage(QWidget *parent)
 
   connect(ui->listView, &QListView::doubleClicked, this,
           &StashesPage::onListViewDoubleClicked);
+  connect(this, &StashesPage::rightClickOnStash, this,
+          &StashesPage::onStashClicked);
+
+  ui->listView->viewport()->installEventFilter(this);
 
   LOG_PERF(0, "Exit");
 }
@@ -80,6 +86,30 @@ void StashesPage::updateModel(const QStringList &stashes) {
   LOG_PERF(0, "Exit");
 }
 
+int StashesPage::lastStash() const {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit");
+
+  return _model->rowCount() > 0 ? 0 : -1;
+}
+
+bool StashesPage::eventFilter(QObject *obj, QEvent *event) {
+  if (event->type() == QEvent::MouseButtonPress) {
+    if (const auto *mouseEvent = static_cast<QMouseEvent *>(event);
+        mouseEvent->button() == Qt::RightButton) {
+      if (const auto *listView = qobject_cast<QListView *>(obj->parent())) {
+        if (const QModelIndex index = listView->indexAt(mouseEvent->pos());
+            index.isValid()) {
+          emit rightClickOnStash(index.row(), mouseEvent->globalPos());
+        }
+      }
+    }
+  }
+
+  return QObject::eventFilter(obj, event);
+}
+
 void StashesPage::onListViewDoubleClicked(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
@@ -93,9 +123,31 @@ void StashesPage::onListViewDoubleClicked(const QModelIndex &index) {
     return;
   }
 
-  const QString stashName = _model->stashForIndex(index.row());
+  emit stashSelected(index.row());
 
-  emit stashSelected(stashName);
+  LOG_PERF(0, "Exit");
+}
+
+void StashesPage::onStashClicked(int stashIndex, const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  QAction actionApply(tr("Apply"), this);
+  QAction actionPop(tr("Pop"), this);
+  QAction actionDelete(tr("Delete"), this);
+
+  connect(&actionApply, &QAction::triggered, this,
+          [=]() { emit applyStash(stashIndex); });
+  connect(&actionPop, &QAction::triggered, this,
+          [=]() { emit popStash(stashIndex); });
+  connect(&actionDelete, &QAction::triggered, this,
+          [=]() { emit deleteStash(stashIndex); });
+
+  QMenu menu(this);
+  menu.addAction(&actionApply);
+  menu.addAction(&actionPop);
+  menu.addAction(&actionDelete);
+
+  menu.exec(pos);
 
   LOG_PERF(0, "Exit");
 }

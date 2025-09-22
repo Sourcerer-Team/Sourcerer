@@ -24,6 +24,7 @@ public:
   void exit() override;
 
 private:
+  void applyStashWorker(const Structs::GitRepoApplyStashCommand &command);
   void
   checkoutBranchWorker(const Structs::GitRepoCheckoutBranchCommand &command);
   void cloneRepoWorker(const Structs::GitRepoCloneCommand &command);
@@ -32,6 +33,7 @@ private:
   Structs::GitRepoContext *context(const QString &uuid);
   void destroyContext(const QString &uuid);
   void destroyContextsMap();
+  void deleteStashWorker(const Structs::GitRepoDeleteStashCommand &command);
   void diffFilesWorker(const Structs::GitRepoDiffFilesCommand &command);
   void discardFilesWorker(const Structs::GitRepoDiscardFilesCommand &command);
   void eventCallback(const EventManager::Event event);
@@ -52,8 +54,7 @@ private:
       const Structs::GitRepoListLocalBranchesCommand &command);
   void listRemoteBranchesWorker(
       const Structs::GitRepoListRemoteBranchesCommand &command);
-  void listStashesWorker(
-      const Structs::GitRepoListStashesCommand &command);
+  void listStashesWorker(const Structs::GitRepoListStashesCommand &command);
   void
   listSubmodulesWorker(const Structs::GitRepoListSubmodulesCommand &command);
   void listTagsWorker(const Structs::GitRepoListTagsCommand &command);
@@ -67,6 +68,8 @@ private:
   void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
   void reportError(EventManager::EventType eventType, const QString &message,
                    const Structs::GitRepoCommand &command) const;
+  void
+  scheduleWorkerForApplyStash(const Structs::GitRepoApplyStashCommand &command);
   void scheduleWorkerForCheckoutBranch(
       const Structs::GitRepoCheckoutBranchCommand &command);
   void scheduleWorkerForCloneRepo(const Structs::GitRepoCloneCommand &command);
@@ -83,6 +86,8 @@ private:
       const Structs::GitRepoGetCommitIsHeadCommand &command);
   void scheduleWorkerForGetCommitStatus(
       const Structs::GitRepoGetCommitStatusCommand &command);
+  void
+  scheduleWorkerForDeleteStash(const Structs::GitRepoDeleteStashCommand &command);
   void
   scheduleWorkerForDiffFiles(const Structs::GitRepoDiffFilesCommand &command);
   void scheduleWorkerForDiscardFiles(

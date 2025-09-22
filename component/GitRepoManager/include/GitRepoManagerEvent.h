@@ -9,10 +9,12 @@ enum class EventType : int {
 
   Stop = -1,
   ChangeState = 0,
+  ApplyStash,
   CheckoutBranch,
   CloneRepo,
   CloseRepo,
   CommitStaged,
+  DeleteStash,
   DiffFiles,
   DiscardFiles,
   GetActiveBranch,

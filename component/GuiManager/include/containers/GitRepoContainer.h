@@ -66,6 +66,8 @@ protected:
   void showEvent(QShowEvent *event) override;
 
 private slots:
+  void onApplyStash(int stashIndex);
+  void onDeleteStash(int stashIndex);
   void onSplitterMoved(int pos, int index) const;
   void showTooltipForColumnSlice(const QModelIndex &index);
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
@@ -78,13 +80,14 @@ private slots:
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onLocalBranchSelected(const QString &branchName);
   void onPop();
+  void onPopStash(int stashIndex);
   void onPull();
   void onPush();
   void onRemoteBranchSelected(const QString &branchName);
   void onRepoDirChanged(const QString &path);
   void onRepoDirChangedTimeout();
   void onStash();
-  void onStashSelected(const QString &tagName);
+  void onStashSelected(int stashIndex);
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay();
   void onGraphColumnExpand(int section);
@@ -116,6 +119,9 @@ private slots:
                                GitRepo::BranchType branchType);
 
 private:
+  void applyStash(
+      const WeakPtr &guard, int stashIndex,
+      const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
   void checkoutBranch(const WeakPtr &guard, const QString &branchName,
                       GitRepo::BranchType branchType);
   void clearSummaryAndDescription();
@@ -124,6 +130,9 @@ private:
               const QString &description, const QString &author,
               const QString &email);
   void deleteFiles(const WeakPtr &guard, const QStringList &files);
+  void deleteStash(
+      const WeakPtr &guard, int stashIndex,
+      const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
   void diffFiles(const WeakPtr &guard, const QStringList &files);
   void discardFiles(const WeakPtr &guard, const QStringList &files);
   bool getActiveBranchOrTag(const WeakPtr &guard,
@@ -142,7 +151,7 @@ private:
   QStringList getSelectedFilesWhichExist(QTreeView *treeView);
   bool getLocalBranches();
   bool getRemoteBranches();
-  bool getStashes();
+  bool getStashes(const WeakPtr& guard);
   bool getSubmodules();
   bool getTags();
   QStringList getSubdirectories(const QString &path,
@@ -150,6 +159,7 @@ private:
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   bool openRepo();
+  void popStash(const WeakPtr &guard, int stashIndex);
   void pull(const WeakPtr &guard);
   void push(const WeakPtr &guard);
   void prepareWatcher(const WeakPtr &guard);
@@ -163,7 +173,7 @@ private:
   void restorePreviousSectionWidth();
   void saveRepoInRecentList() const;
   void startOverlayTimer() const;
-  void stash(const WeakPtr& guard);
+  void stash(const WeakPtr &guard);
   void stopOverlayTimer() const;
   void stopWatcher(const WeakPtr &guard);
   void stretchBranchHistoryTableColumns() const;
@@ -195,7 +205,7 @@ private:
                                              const QString &activeBranch,
                                              bool updatePages = true);
   void updateStashesModel(const WeakPtr &guard,
-                                 const QStringList &stashes) const;
+                          const QStringList &stashes) const;
   void updateTagsModelActiveTag(const WeakPtr &guard, const QString &activeTag,
                                 bool updatePages = true);
   void updateSubmodulesModel(const WeakPtr &guard,

@@ -119,11 +119,13 @@ enum class BranchType {
 int getLastError();
 void initForCurrentThread();
 void shutdownForCurrentThread();
+bool applyStash(git_repository *repo, int index);
 bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
                     BranchType type);
 bool cloneRepository(const QString &url, const QString &destinationDir,
                      const QString &uuid);
 void closeRepository(git_repository *repo);
+bool deleteStash(git_repository *repo, int stashIndex);
 QString getActiveBranch(git_repository *repo, BranchType type,
                         const bool &quitFlag);
 bool initRepository(const QString &repoName, const QString &workingDir,

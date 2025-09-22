@@ -313,6 +313,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   connect(ui->stashesPage, &StashesPage::stashSelected, this,
           &GitRepoContainer::onStashSelected);
+  connect(ui->stashesPage, &StashesPage::applyStash, this,
+          &GitRepoContainer::onApplyStash);
+  connect(ui->stashesPage, &StashesPage::popStash, this,
+          &GitRepoContainer::onPopStash);
+  connect(ui->stashesPage, &StashesPage::deleteStash, this,
+          &GitRepoContainer::onDeleteStash);
 
   connect(_spinnerOverlayTimer, &QTimer::timeout, this,
           &GitRepoContainer::onShowSpinnerOverlay);
@@ -491,6 +497,69 @@ void GitRepoContainer::showEvent(QShowEvent *event) {
   ContainerWidget::showEvent(event);
 
   raise();
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::onApplyStash(int stashIndex) {
+  LOG_PERF(0, "Enter");
+
+  const QMessageBox::StandardButton reply =
+      QMessageBox::question(this,                      // parent widget
+                            "Confirm Action",          // dialog title
+                            "Do you want to apply this stash?", // message text
+                            QMessageBox::Yes | QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { applyStash(guard, stashIndex); });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::onDeleteStash(int stashIndex) {
+  LOG_PERF(0, "Enter");
+
+  const QMessageBox::StandardButton reply =
+    QMessageBox::question(this,                      // parent widget
+                          "Confirm Action",          // dialog title
+                          "Do you want to delete this stash?", // message text
+                          QMessageBox::Yes | QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { deleteStash(guard, stashIndex); });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::onPopStash(int stashIndex) {
+  LOG_PERF(0, "Enter");
+
+  const QMessageBox::StandardButton reply =
+    QMessageBox::question(this,                      // parent widget
+                          "Confirm Action",          // dialog title
+                          "Do you want to pop this stash?", // message text
+                          QMessageBox::Yes | QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { popStash(guard, stashIndex); });
 
   LOG_PERF(0, "Exit")
 }
@@ -781,6 +850,20 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
 
 void GitRepoContainer::onPop() {
   LOG_PERF(0, "Enter");
+
+  const int stashIndex = ui->stashesPage->lastStash();
+  if (stashIndex == -1) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {
+    popStash(guard, stashIndex);
+    getStashes(guard);
+  });
+
   LOG_PERF(0, "Exit");
 }
 
@@ -814,14 +897,14 @@ void GitRepoContainer::onStash() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onStashSelected(const QString &tagName) {
+void GitRepoContainer::onStashSelected(int stashIndex) {
   LOG_PERF(0, "Enter");
 
   startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() {});
+  _dispatcher.dispatch([=]() { applyStash(guard, stashIndex); });
 
   LOG_PERF(0, "Exit");
 }
@@ -1004,6 +1087,7 @@ void GitRepoContainer::stash(const WeakPtr &guard) {
   const bool stashSuccess = commandResult.value.toBool();
 
   refreshStatus(guard);
+  getStashes(guard);
 
   if (!stashSuccess) {
 
@@ -1679,6 +1763,81 @@ void GitRepoContainer::updateModelActiveBranch(const WeakPtr &guard,
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::applyStash(
+    const WeakPtr &guard, int stashIndex,
+    const std::function<void(const WeakPtr &, int)> &onSuccess) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoApplyStashCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.index = stashIndex;
+
+  EventManager::Event applyStashEvent(
+      EventManager::EventType::GitRepoManagerApplyStash, eventUuid);
+  applyStashEvent.addData(command);
+  _eventManager.send(applyStashEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerApplyStashError,
+      EventManager::EventType::GitRepoManagerApplyStashResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to apply stash.")), tr("Apply"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerApplyStashResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to apply stash.")), tr("Checkout"));
+    });
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool applySuccess = commandResult.value.toBool();
+
+  refreshStatus(guard);
+  getStashes(guard);
+
+  if (!applySuccess) {
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to apply stash."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (onSuccess) {
+    onSuccess(guard, stashIndex);
+  } else {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      simulateClickOnFirstHistoryRow();
+    });
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
                                       const QString &branchName,
                                       const GitRepo::BranchType branchType) {
@@ -1892,6 +2051,96 @@ void GitRepoContainer::deleteFiles(const WeakPtr &guard,
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
     showSpinnerOverlay(false);
     simulateClickOnFirstHistoryRow();
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::deleteStash(
+    const WeakPtr &guard, int stashIndex,
+    const std::function<void(const WeakPtr &, int)> &onSuccess) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoDeleteStashCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.index = stashIndex;
+
+  EventManager::Event deleteStashEvent(
+      EventManager::EventType::GitRepoManagerDeleteStash, eventUuid);
+  deleteStashEvent.addData(command);
+  _eventManager.send(deleteStashEvent);
+
+  static std::set types = {
+    EventManager::EventType::GitRepoManagerDeleteStashError,
+    EventManager::EventType::GitRepoManagerDeleteStashResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to delete stash.")), tr("Apply"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerDeleteStashResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to delete stash.")), tr("Checkout"));
+    });
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool deleteSuccess = commandResult.value.toBool();
+
+  refreshStatus(guard);
+  getStashes(guard);
+
+  if (!deleteSuccess) {
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to delete stash."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (onSuccess) {
+    onSuccess(guard, stashIndex);
+  } else {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      simulateClickOnFirstHistoryRow();
+    });
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::popStash(const WeakPtr &guard, int stashIndex) {
+  LOG_PERF(0, "Enter");
+
+  applyStash(guard, stashIndex, [=](const WeakPtr &guard, const int index) {
+    deleteStash(guard, index, [=](const WeakPtr &guard, const int) {
+      Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+        showSpinnerOverlay(false);
+        simulateClickOnFirstHistoryRow();
+      });
+    });
   });
 
   LOG_PERF(0, "Exit")
@@ -2581,10 +2830,8 @@ bool GitRepoContainer::getRemoteBranches() {
   return true;
 }
 
-bool GitRepoContainer::getStashes() {
+bool GitRepoContainer::getStashes(const WeakPtr& guard) {
   LOG_PERF(0, "Enter");
-
-  const WeakPtr guard = getSelf().toWeakRef();
 
   const QString eventUuid = Uuid::createUuid();
 
@@ -3058,7 +3305,7 @@ bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
   ok &= ok && getTags();
   ok &= ok && getActiveTag();
   ok &= ok && getSubmodules();
-  ok &= ok && getStashes();
+  ok &= ok && getStashes(guard);
 
   if (!ok) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {

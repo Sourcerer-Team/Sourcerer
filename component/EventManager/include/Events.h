@@ -19,6 +19,9 @@ enum EventType {
   ComponentStopped,
 
   // GitRepoManager
+  GitRepoManagerApplyStash,
+  GitRepoManagerApplyStashResult,
+  GitRepoManagerApplyStashError,
   GitRepoManagerCheckoutBranch,
   GitRepoManagerCheckoutBranchResult,
   GitRepoManagerCheckoutBranchError,
@@ -32,6 +35,9 @@ enum EventType {
   GitRepoManagerCommitStaged,
   GitRepoManagerCommitStagedResult,
   GitRepoManagerCommitStagedError,
+  GitRepoManagerDeleteStash,
+  GitRepoManagerDeleteStashResult,
+  GitRepoManagerDeleteStashError,
   GitRepoManagerDiffFiles,
   GitRepoManagerDiffFilesResult,
   GitRepoManagerDiffFilesError,

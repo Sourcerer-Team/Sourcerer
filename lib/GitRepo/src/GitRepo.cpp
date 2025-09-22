@@ -298,6 +298,31 @@ void shutdownForCurrentThread() {
   LOG_PERF(0, "Exit");
 }
 
+bool applyStash(git_repository *repo, int index) {
+  LOG_PERF(0, "Enter");
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_stash_apply_options options;
+  git_stash_apply_options_init(&options, GIT_STASH_APPLY_OPTIONS_VERSION);
+
+  // Optional: customize behavior
+  options.flags = GIT_STASH_APPLY_REINSTATE_INDEX; // restores index state
+
+  if (const int error = git_stash_apply(repo, index, &options)) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
 bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
                     const BranchType type) {
   LOG_PERF(0, "Enter");
@@ -940,6 +965,25 @@ QStringList listSubmodules(git_repository *repo) {
   LOG_PERF(0, "Exit");
 
   return submodules;
+}
+
+bool deleteStash(git_repository *repo, int stashIndex) {
+  LOG_PERF(0, "Enter");
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (const int error = git_stash_drop(repo, stashIndex)) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return true;
 }
 
 QString getActiveBranch(git_repository *repo, const BranchType type,
@@ -2966,11 +3010,13 @@ bool stash(git_repository *repo) {
   }
 
   error = git_stash_save(
-      &stashId,         // Optional: receives the stash commit ID
-      repo,             // Your git_repository pointer
-      signature,        // Signature of the stasher
-      nullptr,          // Optional message
-      GIT_STASH_DEFAULT // Flags (can be GIT_STASH_INCLUDE_UNTRACKED, etc.)
+      &stashId,  // Optional: receives the stash commit ID
+      repo,      // Your git_repository pointer
+      signature, // Signature of the stasher
+      nullptr,   // Optional message
+      GIT_STASH_DEFAULT |
+          GIT_STASH_INCLUDE_UNTRACKED // Flags (can be
+                                      // GIT_STASH_INCLUDE_UNTRACKED, etc.)
   );
   if (error) {
     logGitError(error);
