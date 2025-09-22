@@ -427,6 +427,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onStash);
   connect(pushButtonPop, &QPushButton::clicked, this, &GitRepoContainer::onPop);
 
+  connect(this, &GitRepoContainer::historyViewRightClicked, this,
+          &GitRepoContainer::onHistoryViewRightClicked);
+
   LOG_PERF(0, "Exit")
 }
 
@@ -466,6 +469,14 @@ bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
     } else if (event->type() == QEvent::Leave) {
       LOCKGUARD(_tooltipsMutex);
       _mousePos = QPoint(-1, -1);
+    } else if (event->type() == QEvent::MouseButtonPress) {
+      QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
+      if (mouseEvent->button() == Qt::RightButton) {
+        QModelIndex index = ui->historyView->indexAt(mouseEvent->pos());
+        if (index.isValid()) {
+          emit historyViewRightClicked(index, mouseEvent->globalPos());
+        }
+      }
     }
   }
 
@@ -501,12 +512,18 @@ void GitRepoContainer::showEvent(QShowEvent *event) {
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::onApplyPatch() {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit")
+}
+
 void GitRepoContainer::onApplyStash(int stashIndex) {
   LOG_PERF(0, "Enter");
 
   const QMessageBox::StandardButton reply =
-      QMessageBox::question(this,                      // parent widget
-                            "Confirm Action",          // dialog title
+      QMessageBox::question(this,                               // parent widget
+                            "Confirm Action",                   // dialog title
                             "Do you want to apply this stash?", // message text
                             QMessageBox::Yes | QMessageBox::No);
 
@@ -526,10 +543,10 @@ void GitRepoContainer::onDeleteStash(int stashIndex) {
   LOG_PERF(0, "Enter");
 
   const QMessageBox::StandardButton reply =
-    QMessageBox::question(this,                      // parent widget
-                          "Confirm Action",          // dialog title
-                          "Do you want to delete this stash?", // message text
-                          QMessageBox::Yes | QMessageBox::No);
+      QMessageBox::question(this,             // parent widget
+                            "Confirm Action", // dialog title
+                            "Do you want to delete this stash?", // message text
+                            QMessageBox::Yes | QMessageBox::No);
 
   if (reply != QMessageBox::Yes) {
     LOG_PERF(0, "Exit")
@@ -547,10 +564,10 @@ void GitRepoContainer::onPopStash(int stashIndex) {
   LOG_PERF(0, "Enter");
 
   const QMessageBox::StandardButton reply =
-    QMessageBox::question(this,                      // parent widget
-                          "Confirm Action",          // dialog title
-                          "Do you want to pop this stash?", // message text
-                          QMessageBox::Yes | QMessageBox::No);
+      QMessageBox::question(this,                             // parent widget
+                            "Confirm Action",                 // dialog title
+                            "Do you want to pop this stash?", // message text
+                            QMessageBox::Yes | QMessageBox::No);
 
   if (reply != QMessageBox::Yes) {
     LOG_PERF(0, "Exit")
@@ -700,6 +717,12 @@ void GitRepoContainer::showTooltipForSummaryColumn(
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onCheckoutCommit(const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onCommitButtonClicked() {
   LOG_PERF(0, "Enter");
 
@@ -748,6 +771,30 @@ void GitRepoContainer::onCommitAndMergeWorkingTreeTreeStageAllButtonClicked() {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onCreateBranchFromCommit(const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onCreatePatchFromCommit(const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onDeleteBranch() {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onDisplayTreeExpandAllButtonClicked() {
   LOG_PERF(0, "Enter");
 
@@ -761,6 +808,12 @@ void GitRepoContainer::onDisplayTreeExpandAllButtonClicked() {
   ui->treeViewPageDisplayFilesTree->expandAll();
   _displayTreeExpandAllButton->setText(tr("Collapse all"));
   _displayTreeExpanded = true;
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onHardResetToCommit(const QString &commit) {
+  LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit");
 }
@@ -808,6 +861,96 @@ void GitRepoContainer::onHistorySelectionChanged(
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
+                                                 const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndex commitIndex =
+      _historyModel->index(index.row(), COLUMN_COMMIT_FULL_SHA, QModelIndex());
+  Q_ASSERT(commitIndex.isValid());
+  if (!commitIndex.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString commit = commitIndex.data(Qt::DisplayRole).toString();
+  Q_ASSERT(!commit.isEmpty());
+  if (commit.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QAction actionPull(tr("Pull"), this);
+  QAction actionPush(tr("Push"), this);
+  QAction actionSetUpstream(tr("Set Upstream"), this);
+  QAction actionCheckoutCommit(tr("Checkout commit"), this);
+  QAction actionCreateBranchFromCommit(tr("Create branch from commit"), this);
+  QAction actionSoftResetToCommit(tr("Soft reset"), this);
+  QAction actionMixedResetToCommit(tr("Mixed reset"), this);
+  QAction actionHardResetToCommit(tr("Hard reset"), this);
+  QAction actionRevertCommit(tr("Revert"), this);
+  QAction actionApplyPatch(tr("Apply patch"), this);
+  QAction actionRenameBranch(QString(tr("Rename %1")).arg(_activeBranch), this);
+  QAction actionDeleteBranch(QString(tr("Delete %1")).arg(_activeBranch), this);
+  QAction actionCreateTagFromCommit(tr("Create tag from commit"), this);
+  QAction actionCreatePatchFromCommit(tr("Create patch from commit"), this);
+
+  connect(&actionPull, &QAction::triggered, this, &GitRepoContainer::onPull);
+  connect(&actionPush, &QAction::triggered, this, &GitRepoContainer::onPush);
+  connect(&actionSetUpstream, &QAction::triggered, this,
+          &GitRepoContainer::onSetUpstream);
+  connect(&actionCheckoutCommit, &QAction::triggered, this,
+          [=]() { onCheckoutCommit(commit); });
+  connect(&actionCreateBranchFromCommit, &QAction::triggered, this,
+          [=]() { onCreateBranchFromCommit(commit); });
+  connect(&actionSoftResetToCommit, &QAction::triggered, this,
+          [=]() { onSoftResetToCommit(commit); });
+  connect(&actionMixedResetToCommit, &QAction::triggered, this,
+          [=]() { onMixedResetToCommit(commit); });
+  connect(&actionHardResetToCommit, &QAction::triggered, this,
+          [=]() { onHardResetToCommit(commit); });
+  connect(&actionRevertCommit, &QAction::triggered, this,
+          [=]() { onRevertCommit(commit); });
+  connect(&actionApplyPatch, &QAction::triggered, this,
+          &GitRepoContainer::onApplyPatch);
+  connect(&actionRenameBranch, &QAction::triggered, this,
+          &GitRepoContainer::onRenameBranch);
+  connect(&actionDeleteBranch, &QAction::triggered, this,
+          &GitRepoContainer::onDeleteBranch);
+  connect(&actionCreateTagFromCommit, &QAction::triggered, this,
+          [=]() { onCreateTagFromCommit(commit); });
+  connect(&actionCreatePatchFromCommit, &QAction::triggered, this,
+          [=]() { onCreatePatchFromCommit(commit); });
+
+  QMenu resetMenu(QString(tr("Reset %1 to commit")).arg(_activeBranch), this);
+  resetMenu.addAction(&actionSoftResetToCommit);
+  resetMenu.addAction(&actionMixedResetToCommit);
+  resetMenu.addAction(&actionHardResetToCommit);
+
+  QMenu menu(this);
+  menu.addAction(&actionPull);
+  menu.addAction(&actionPush);
+  menu.addAction(&actionSetUpstream);
+  menu.addSeparator();
+  menu.addAction(&actionCheckoutCommit);
+  menu.addSeparator();
+  menu.addAction(&actionCreateBranchFromCommit);
+  menu.addMenu(&resetMenu);
+  menu.addAction(&actionRevertCommit);
+  menu.addSeparator();
+  menu.addAction(&actionApplyPatch);
+  menu.addAction(&actionRenameBranch);
+  menu.addAction(&actionDeleteBranch);
+  menu.addSeparator();
+  menu.addAction(&actionCreateTagFromCommit);
+  menu.addSeparator();
+  menu.addAction(&actionCreatePatchFromCommit);
+
+  menu.exec(pos);
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
@@ -844,6 +987,12 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
 
   _dispatcher.dispatch(
       [=]() { checkoutBranch(guard, branchName, GitRepo::BranchType::Local); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onMixedResetToCommit(const QString &commit) {
+  LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit");
 }
@@ -923,6 +1072,12 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onRenameBranch() {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onRepoDirChanged(const QString &path) {
   LOG_PERF(0, "Enter");
 
@@ -948,6 +1103,24 @@ void GitRepoContainer::onRepoDirChangedTimeout() {
     Util::Dispatcher::dispatchToMainThread(
         guard, [=]() { simulateClickOnFirstHistoryRow(); });
   });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onRevertCommit(const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onSetUpstream() {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onSoftResetToCommit(const QString &commit) {
+  LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit");
 }
@@ -2076,8 +2249,8 @@ void GitRepoContainer::deleteStash(
   _eventManager.send(deleteStashEvent);
 
   static std::set types = {
-    EventManager::EventType::GitRepoManagerDeleteStashError,
-    EventManager::EventType::GitRepoManagerDeleteStashResult};
+      EventManager::EventType::GitRepoManagerDeleteStashError,
+      EventManager::EventType::GitRepoManagerDeleteStashResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -2095,7 +2268,8 @@ void GitRepoContainer::deleteStash(
     return;
   }
 
-  if (event.type() != EventManager::EventType::GitRepoManagerDeleteStashResult) {
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerDeleteStashResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString(tr("Failed to delete stash.")), tr("Checkout"));
@@ -2830,7 +3004,7 @@ bool GitRepoContainer::getRemoteBranches() {
   return true;
 }
 
-bool GitRepoContainer::getStashes(const WeakPtr& guard) {
+bool GitRepoContainer::getStashes(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();

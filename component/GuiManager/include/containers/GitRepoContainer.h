@@ -60,32 +60,48 @@ public:
 public:
   bool eventFilter(QObject *watched, QEvent *event) override;
 
+signals:
+  void historyViewRightClicked(const QModelIndex &index, const QPoint &pos);
+
 protected:
   void hideEvent(QHideEvent *event) override;
   void resizeEvent(QResizeEvent *event) override;
   void showEvent(QShowEvent *event) override;
 
 private slots:
+  void onApplyPatch();
   void onApplyStash(int stashIndex);
   void onDeleteStash(int stashIndex);
   void onSplitterMoved(int pos, int index) const;
   void showTooltipForColumnSlice(const QModelIndex &index);
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
+  void onCheckoutCommit(const QString &commit);
   void onCommitButtonClicked();
   void onCommitAndMergeIndexTreeUnstageAllButtonClicked();
   void onCommitAndMergeWorkingTreeTreeStageAllButtonClicked();
+  void onCreateBranchFromCommit(const QString &commit);
+  void onCreatePatchFromCommit(const QString &commit);
+  void onCreateTagFromCommit(const QString &commit);
+  void onDeleteBranch();
   void onDisplayTreeExpandAllButtonClicked();
+  void onHardResetToCommit(const QString &commit);
   void onHistorySelectionChanged(const QItemSelection &selected,
                                  const QItemSelection &deselected);
+  void onHistoryViewRightClicked(const QModelIndex &index, const QPoint &pos);
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onLocalBranchSelected(const QString &branchName);
+  void onMixedResetToCommit(const QString &commit);
   void onPop();
   void onPopStash(int stashIndex);
   void onPull();
   void onPush();
   void onRemoteBranchSelected(const QString &branchName);
+  void onRenameBranch();
   void onRepoDirChanged(const QString &path);
   void onRepoDirChangedTimeout();
+  void onRevertCommit(const QString &commit);
+  void onSetUpstream();
+  void onSoftResetToCommit(const QString &commit);
   void onStash();
   void onStashSelected(int stashIndex);
   void onTagSelected(const QString &tagName);
@@ -151,7 +167,7 @@ private:
   QStringList getSelectedFilesWhichExist(QTreeView *treeView);
   bool getLocalBranches();
   bool getRemoteBranches();
-  bool getStashes(const WeakPtr& guard);
+  bool getStashes(const WeakPtr &guard);
   bool getSubmodules();
   bool getTags();
   QStringList getSubdirectories(const QString &path,
