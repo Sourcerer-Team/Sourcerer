@@ -10,7 +10,7 @@
 
 #define THREAD_ID "UpstreamInputOverlayWidget"
 
-#define ALPHA 160
+#define ALPHA 200
 
 namespace GuiManager::Widgets {
 

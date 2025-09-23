@@ -124,6 +124,7 @@ QMenu *TitleBarMenuButton::createMenu() {
   saveWorkspaceAction->setText(tr("Save &workspace"));
   saveWorkspaceAction->setEnabled(mainWindow_ != nullptr &&
                                   !mainWindow_->containerPaths().isEmpty());
+  saveWorkspaceAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_W));
 
   const auto settingsAction = new QAction(menu);
   settingsAction->setText(tr("Settings"));

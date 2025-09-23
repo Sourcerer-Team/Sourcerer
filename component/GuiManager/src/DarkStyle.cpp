@@ -18,8 +18,8 @@
 #define NTDDI_VERSION NTDDI_VISTA
 #define _WIN32_WINNT _WIN32_WINNT_VISTA
 
-#include <shellapi.h>
 #include <windows.h>
+#include <shellapi.h>
 
 #include <QLibrary>
 
@@ -60,13 +60,13 @@ QPixmap winStandardPixmap(QStyle::StandardPixmap standardPixmap) {
 
   typedef HRESULT(STDAPICALLTYPE * tSHGetStockIconInfo)(
       SHSTOCKICONID siid, UINT uFlags, SHSTOCKICONINFO * psii);
-  tSHGetStockIconInfo pSHGetStockIconInfo =
-      tSHGetStockIconInfo(QLibrary::resolve("shell32", "SHGetStockIconInfo"));
+  const auto pSHGetStockIconInfo =
+      reinterpret_cast<tSHGetStockIconInfo>(
+          QLibrary::resolve("shell32", "SHGetStockIconInfo"));
 
   if (pSHGetStockIconInfo) {
     if (icon_handle_vista != SIID_INVALID) {
-      SHSTOCKICONINFO sii;
-      memset(&sii, 0, sizeof(SHSTOCKICONINFO));
+      SHSTOCKICONINFO sii = {};
       sii.cbSize = sizeof(sii);
 
       if (SUCCEEDED(pSHGetStockIconInfo(icon_handle_vista,
@@ -94,13 +94,13 @@ QPixmap winStandardPixmap(QStyle::StandardPixmap standardPixmap) {
 
 DarkStyle::DarkStyle() : DarkStyle(styleBase()) {
 #ifdef Q_OS_WIN
-  _pixmap_cache[SP_MessageBoxInformation] =
+  _pixmapCache[SP_MessageBoxInformation] =
       StyleCommon::winStandardPixmap(SP_MessageBoxInformation);
-  _pixmap_cache[SP_MessageBoxWarning] =
+  _pixmapCache[SP_MessageBoxWarning] =
       StyleCommon::winStandardPixmap(SP_MessageBoxWarning);
-  _pixmap_cache[SP_MessageBoxCritical] =
+  _pixmapCache[SP_MessageBoxCritical] =
       StyleCommon::winStandardPixmap(SP_MessageBoxCritical);
-  _pixmap_cache[SP_MessageBoxQuestion] =
+  _pixmapCache[SP_MessageBoxQuestion] =
       StyleCommon::winStandardPixmap(SP_MessageBoxQuestion);
 #endif
 }
@@ -109,12 +109,12 @@ DarkStyle::DarkStyle(QStyle *style) : QProxyStyle(style) {}
 
 DarkStyle::~DarkStyle() {}
 
-QStyle *DarkStyle::styleBase() const {
+QStyle *DarkStyle::styleBase() {
   QStyle *base = QStyleFactory::create(QStringLiteral("Fusion"));
   return base;
 }
 
-QIcon DarkStyle::standardIcon(StandardPixmap standardPixmap,
+QIcon DarkStyle::standardIcon(const StandardPixmap standardPixmap,
                               const QStyleOption *option,
                               const QWidget *widget) const {
 #ifdef Q_OS_WIN
@@ -123,7 +123,7 @@ QIcon DarkStyle::standardIcon(StandardPixmap standardPixmap,
   case SP_MessageBoxWarning:
   case SP_MessageBoxCritical:
   case SP_MessageBoxQuestion: {
-    QPixmap pixmap = _pixmap_cache.value(standardPixmap, QPixmap());
+    QPixmap pixmap = _pixmapCache.value(standardPixmap, QPixmap());
 
     if (!pixmap.isNull())
       return QIcon(pixmap);
@@ -172,10 +172,9 @@ void DarkStyle::polish(QApplication *app) {
   defaultFont.setPointSize(defaultFont.pointSize() + 2);
   app->setFont(defaultFont);
 
-  QFile file(QStringLiteral(":/darkstyle.qss"));
-
-  if (file.open(QFile::ReadOnly | QFile::Text)) {
-    QString style_sheet = QLatin1String(file.readAll());
+  if (QFile file(QStringLiteral(":/darkstyle.qss"));
+      file.open(QFile::ReadOnly | QFile::Text)) {
+    const QString style_sheet = QLatin1String(file.readAll());
     app->setStyleSheet(style_sheet);
     file.close();
   }
@@ -190,6 +189,6 @@ void DarkStyle::unpolish(QApplication *app) {
   app->setFont(defaultFont);
 }
 
-QStyle *DarkStyle::baseStyle() const {
+QStyle *DarkStyle::baseStyle() {
   return styleBase();
 }

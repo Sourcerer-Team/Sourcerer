@@ -2,12 +2,13 @@
 
 #include <Log.h>
 
+#include <QGroupBox>
 #include <QKeyEvent>
 #include <QPushButton>
 
 #define THREAD_ID "TextInputOverlayWidget"
 
-#define ALPHA 160
+#define ALPHA 200
 
 namespace GuiManager::Widgets {
 
@@ -31,6 +32,14 @@ TextInputOverlayWidget::TextInputOverlayWidget(QWidget *parent)
   pushButtonCancel->setMaximumHeight(32);
   pushButtonCancel->setIcon(QPixmap(":icons/cancel.png"));
 
+  const auto groupBox = new QGroupBox(this);
+  groupBox->setObjectName("groupBoxTextOverlayWidgetInput");
+  groupBox->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  groupBox->setMinimumWidth(640);
+  groupBox->setMaximumWidth(640);
+  groupBox->setMinimumHeight(100);
+  groupBox->setMaximumHeight(100);
+
   const auto horizontalLayout = new QHBoxLayout();
   horizontalLayout->setAlignment(Qt::AlignCenter);
   horizontalLayout->setContentsMargins(0, 0, 0, 0);
@@ -39,7 +48,13 @@ TextInputOverlayWidget::TextInputOverlayWidget(QWidget *parent)
   horizontalLayout->addWidget(pushButtonSubmit);
   horizontalLayout->addWidget(pushButtonCancel);
 
-  getLayout()->addLayout(horizontalLayout);
+  const auto horizontalLayoutGroupBox = new QVBoxLayout(groupBox);
+  horizontalLayoutGroupBox->setAlignment(Qt::AlignCenter);
+  horizontalLayoutGroupBox->setContentsMargins(6, 6, 6, 6);
+  horizontalLayoutGroupBox->setSpacing(6);
+  horizontalLayoutGroupBox->addLayout(horizontalLayout);
+
+  getLayout()->addWidget(groupBox);
 
   connect(pushButtonSubmit, &QPushButton::clicked, this,
           &TextInputOverlayWidget::onButtonSubmitted);

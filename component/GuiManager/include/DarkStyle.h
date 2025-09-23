@@ -13,22 +13,22 @@ public:
 
   ~DarkStyle();
 
-  QStyle *styleBase() const;
+  static QStyle *styleBase();
 
   QIcon standardIcon(StandardPixmap standardPixmap, const QStyleOption *option,
-                     const QWidget *widget) const;
+                     const QWidget *widget) const override;
 
-  void polish(QPalette &palette);
+  void polish(QPalette &palette) override;
 
-  void polish(QApplication *app);
+  void polish(QApplication *app) override;
 
-  void unpolish(QApplication *app);
+  void unpolish(QApplication *app) override;
 
 private:
-  QStyle *baseStyle() const;
+  static QStyle *baseStyle();
 
 private:
 #ifdef Q_OS_WIN
-  QHash<StandardPixmap, QPixmap> _pixmap_cache;
+  QHash<StandardPixmap, QPixmap> _pixmapCache;
 #endif
 };
