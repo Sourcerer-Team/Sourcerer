@@ -1,6 +1,7 @@
 #pragma once
 
 #include "OverlayWidget.h"
+#include "PersistentPlaceholderLineEdit.h"
 
 #include <QLineEdit>
 
@@ -42,8 +43,8 @@ private slots:
   void onButtonSubmitted();
 
 private:
-  QLineEdit *_lineEditRemoteInput;
-  QLineEdit *_lineEditBranchInput;
+  PersistentPlaceholderLineEdit *_lineEditRemoteInput;
+  PersistentPlaceholderLineEdit *_lineEditBranchInput;
 };
 
 } // namespace GuiManager::Widgets

@@ -1,8 +1,10 @@
 #include "widgets/UpstreamInputOverlayWidget.h"
+#include "widgets/OpagueGroupBox.h"
+#include "widgets/OpaqueLabel.h"
+#include "widgets/OpaquePushButton.h"
 
 #include <Log.h>
 
-#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
@@ -10,15 +12,27 @@
 
 #define THREAD_ID "UpstreamInputOverlayWidget"
 
-#define ALPHA 200
+#define ALPHA 255
 
 namespace GuiManager::Widgets {
 
 UpstreamInputOverlayWidget::UpstreamInputOverlayWidget(QWidget *parent)
-    : OverlayWidget(parent, ALPHA), _lineEditRemoteInput(new QLineEdit(this)),
-      _lineEditBranchInput(new QLineEdit(this)) {
+    : OverlayWidget(parent, ALPHA),
+      _lineEditRemoteInput(new PersistentPlaceholderLineEdit(
+          QColor::fromString("#969696"), this)),
+      _lineEditBranchInput(new PersistentPlaceholderLineEdit(
+          QColor::fromString("#969696"), this)) {
   LOG_PERF(0, "Enter");
 
+  const auto groupBox = new OpaqueGroupBox(QColor::fromString("#384D59"), this);
+  groupBox->setObjectName("groupBoxTextOverlayWidgetInput");
+  groupBox->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  groupBox->setMinimumWidth(640);
+  groupBox->setMaximumWidth(640);
+  groupBox->setMinimumHeight(100);
+  groupBox->setMaximumHeight(100);
+
+  _lineEditRemoteInput->setParent(groupBox);
   _lineEditRemoteInput->setObjectName("lineEditTextOverlayWidgetInputRemote");
   _lineEditRemoteInput->setSizePolicy(QSizePolicy::Expanding,
                                       QSizePolicy::Preferred);
@@ -27,6 +41,7 @@ UpstreamInputOverlayWidget::UpstreamInputOverlayWidget(QWidget *parent)
   _lineEditRemoteInput->setMaximumWidth(250);
   _lineEditRemoteInput->setFocus();
 
+  _lineEditBranchInput->setParent(groupBox);
   _lineEditBranchInput->setObjectName("lineEditTextOverlayWidgetInputBranch");
   _lineEditBranchInput->setSizePolicy(QSizePolicy::Expanding,
                                       QSizePolicy::Preferred);
@@ -34,30 +49,30 @@ UpstreamInputOverlayWidget::UpstreamInputOverlayWidget(QWidget *parent)
   _lineEditBranchInput->setMaximumWidth(250);
   _lineEditBranchInput->setMaximumWidth(250);
 
-  const auto pushButtonSubmit = new QPushButton(this);
+  const auto pushButtonSubmit =
+      new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  pushButtonSubmit->setObjectName("pushButtonTextOverlayWidgetInputSubmit");
   pushButtonSubmit->setMaximumWidth(32);
   pushButtonSubmit->setMaximumHeight(32);
   pushButtonSubmit->setIcon(QPixmap(":icons/ok.png"));
+  pushButtonSubmit->setFlat(false);
 
-  const auto pushButtonCancel = new QPushButton(this);
+  const auto pushButtonCancel =
+      new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  pushButtonCancel->setObjectName("pushButtonTextOverlayWidgetInputCancel");
   pushButtonCancel->setMaximumWidth(32);
   pushButtonCancel->setMaximumHeight(32);
   pushButtonCancel->setIcon(QPixmap(":icons/cancel.png"));
+  pushButtonCancel->setFlat(false);
 
-  const auto labelSlash = new QLabel(this);
+  const auto labelSlash =
+      new OpaqueLabel(QColor::fromString("#384D59"), groupBox);
+  labelSlash->setObjectName("labelTextOverlayWidgetInputSlash");
   labelSlash->setText("/");
   labelSlash->setAlignment(Qt::AlignCenter);
   labelSlash->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   labelSlash->setMinimumWidth(8);
   labelSlash->setMaximumWidth(8);
-
-  const auto groupBox = new QGroupBox(this);
-  groupBox->setObjectName("groupBoxTextOverlayWidgetInput");
-  groupBox->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-  groupBox->setMinimumWidth(640);
-  groupBox->setMaximumWidth(640);
-  groupBox->setMinimumHeight(100);
-  groupBox->setMaximumHeight(100);
 
   const auto horizontalLayout = new QHBoxLayout();
   horizontalLayout->setAlignment(Qt::AlignCenter);

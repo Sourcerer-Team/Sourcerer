@@ -60,9 +60,8 @@ QPixmap winStandardPixmap(QStyle::StandardPixmap standardPixmap) {
 
   typedef HRESULT(STDAPICALLTYPE * tSHGetStockIconInfo)(
       SHSTOCKICONID siid, UINT uFlags, SHSTOCKICONINFO * psii);
-  const auto pSHGetStockIconInfo =
-      reinterpret_cast<tSHGetStockIconInfo>(
-          QLibrary::resolve("shell32", "SHGetStockIconInfo"));
+  const auto pSHGetStockIconInfo = reinterpret_cast<tSHGetStockIconInfo>(
+      QLibrary::resolve("shell32", "SHGetStockIconInfo"));
 
   if (pSHGetStockIconInfo) {
     if (icon_handle_vista != SIID_INVALID) {

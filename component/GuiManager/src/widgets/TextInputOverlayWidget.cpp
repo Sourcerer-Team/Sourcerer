@@ -1,4 +1,6 @@
 #include "widgets/TextInputOverlayWidget.h"
+#include "widgets/OpagueGroupBox.h"
+#include "widgets/OpaquePushButton.h"
 
 #include <Log.h>
 
@@ -8,37 +10,47 @@
 
 #define THREAD_ID "TextInputOverlayWidget"
 
-#define ALPHA 200
+#define ALPHA 255
 
 namespace GuiManager::Widgets {
 
 TextInputOverlayWidget::TextInputOverlayWidget(QWidget *parent)
-    : OverlayWidget(parent, ALPHA), _lineEditInput(new QLineEdit(this)) {
+    : OverlayWidget(parent, ALPHA),
+      _lineEditInput(new PersistentPlaceholderLineEdit(
+          QColor::fromString("#969696"), this)) {
   LOG_PERF(0, "Enter");
 
+  const auto groupBox = new OpaqueGroupBox(QColor::fromString("#384D59"), this);
+  groupBox->setObjectName("groupBoxTextOverlayWidgetInput");
+  groupBox->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  groupBox->setMinimumWidth(400);
+  groupBox->setMaximumWidth(400);
+  groupBox->setMinimumHeight(100);
+  groupBox->setMaximumHeight(100);
+
+  _lineEditInput->setParent(groupBox);
   _lineEditInput->setObjectName("lineEditTextOverlayWidgetInput");
   _lineEditInput->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
   _lineEditInput->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
   _lineEditInput->setMaximumWidth(250);
   _lineEditInput->setMaximumWidth(250);
+  _lineEditInput->setFocus();
 
-  const auto pushButtonSubmit = new QPushButton(this);
+  const auto pushButtonSubmit =
+      new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  pushButtonSubmit->setObjectName("pushButtonTextOverlayWidgetInputSubmit");
   pushButtonSubmit->setMaximumWidth(32);
   pushButtonSubmit->setMaximumHeight(32);
   pushButtonSubmit->setIcon(QPixmap(":icons/ok.png"));
+  pushButtonSubmit->setFlat(false);
 
-  const auto pushButtonCancel = new QPushButton(this);
+  const auto pushButtonCancel =
+      new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  pushButtonCancel->setObjectName("pushButtonTextOverlayWidgetInputCancel");
   pushButtonCancel->setMaximumWidth(32);
   pushButtonCancel->setMaximumHeight(32);
   pushButtonCancel->setIcon(QPixmap(":icons/cancel.png"));
-
-  const auto groupBox = new QGroupBox(this);
-  groupBox->setObjectName("groupBoxTextOverlayWidgetInput");
-  groupBox->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-  groupBox->setMinimumWidth(640);
-  groupBox->setMaximumWidth(640);
-  groupBox->setMinimumHeight(100);
-  groupBox->setMaximumHeight(100);
+  pushButtonSubmit->setFlat(false);
 
   const auto horizontalLayout = new QHBoxLayout();
   horizontalLayout->setAlignment(Qt::AlignCenter);

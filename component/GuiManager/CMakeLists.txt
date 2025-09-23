@@ -164,6 +164,10 @@ set(GUIMANAGER_SOURCE_FILES
         ${TS_FILES}
         include/widgets/UpstreamInputOverlayWidget.h
 		src/widgets/UpstreamInputOverlayWidget.cpp
+		include/widgets/OpagueGroupBox.h
+		include/widgets/OpaqueLabel.h
+		include/widgets/OpaquePushButton.h
+		include/widgets/PersistentPlaceholderLineEdit.h
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

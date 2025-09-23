@@ -806,7 +806,7 @@ void MainWindow::saveNewWorkspace() {
   LOG_PERF(0, "Enter");
 
   const auto inputOverlay = new TextInputOverlayWidget(this);
-  inputOverlay->setPlaceholderText(tr("Enter workspace name"));
+  inputOverlay->setPlaceholderText(tr("Name of the workspace"));
 
   connect(inputOverlay, &TextInputOverlayWidget::canceled, this, [=]() {
     inputOverlay->hide();

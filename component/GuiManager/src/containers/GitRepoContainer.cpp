@@ -1118,8 +1118,8 @@ void GitRepoContainer::onSetUpstream() {
   LOG_PERF(0, "Enter");
 
   const auto upstreamOverlay = new UpstreamInputOverlayWidget(this);
-  upstreamOverlay->setRemotePlaceholderText(tr("Enter remote name"));
-  upstreamOverlay->setBranchPlaceholderText(tr("Enter branch name"));
+  upstreamOverlay->setRemotePlaceholderText(tr("Remote name"));
+  upstreamOverlay->setBranchPlaceholderText(tr("Remote branch name"));
 
   connect(upstreamOverlay, &UpstreamInputOverlayWidget::canceled, this, [=]() {
     upstreamOverlay->hide();

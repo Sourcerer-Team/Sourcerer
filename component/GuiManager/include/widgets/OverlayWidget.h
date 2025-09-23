@@ -4,6 +4,7 @@
 
 #include <QApplication>
 #include <QEvent>
+#include <QGraphicsOpacityEffect>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QVBoxLayout>
@@ -17,10 +18,10 @@ public:
     setAttribute(Qt::WA_TransparentForMouseEvents, false);
     setAttribute(Qt::WA_NativeWindow);
 
-    QColor defaultBackgroundColor = palette().color(QPalette::Window);
-    defaultBackgroundColor.setAlpha(alpha); // semi-transparent
-
-    setBackgroundColor(defaultBackgroundColor);
+    const auto effect = new QGraphicsOpacityEffect(this);
+    effect->setOpacity((1.0 / 255.0) *
+                       alpha); // 0.0 = fully transparent, 1.0 = fully opaque
+    setGraphicsEffect(effect);
 
     raise();
 

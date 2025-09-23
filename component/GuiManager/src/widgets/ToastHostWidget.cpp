@@ -13,7 +13,7 @@
 
 #define THREAD_ID "ToastHostWidget"
 
-#define ALPHA 160
+#define ALPHA 255
 
 namespace GuiManager::Widgets {
 
