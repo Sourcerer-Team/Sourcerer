@@ -172,6 +172,7 @@ private:
   bool getTags();
   QStringList getSubdirectories(const QString &path,
                                 const QStringList &excluded) const;
+  QPair<QString, QString> getUpstream(const WeakPtr &guard);
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   bool openRepo();
@@ -188,6 +189,8 @@ private:
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
   void saveRepoInRecentList() const;
+  void setUpstream(const WeakPtr &guard, const QString &remoteName,
+                   const QString &remoteBranchName);
   void startOverlayTimer() const;
   void stash(const WeakPtr &guard);
   void stopOverlayTimer() const;

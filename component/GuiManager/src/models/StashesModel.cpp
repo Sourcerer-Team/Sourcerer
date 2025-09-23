@@ -99,7 +99,7 @@ void StashesModel::setActiveIndex(const int index) {
 }
 
 void StashesModel::updateModel(const QStringList &branches,
-                                const int activeIndex) {
+                               const int activeIndex) {
   LOG_PERF(0, "Enter");
 
   clear();

@@ -156,5 +156,10 @@ bool discardFiles(git_repository *repo, const QStringList &files);
 bool pull(git_repository *rep);
 bool push(git_repository *rep);
 bool stash(git_repository *repo);
+bool setUpstream(git_repository *repo, const QString &remoteName,
+                 const QString &remoteBranchName,
+                 const QString &localBranchName);
+QPair<QString, QString> getUpstream(git_repository *repo,
+                                    const QString &localBranchName);
 
 } // namespace GitRepo

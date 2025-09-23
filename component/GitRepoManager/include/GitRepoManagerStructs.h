@@ -28,6 +28,7 @@ enum class GitRepoCommandType : int {
   GetCommitHeads,
   GetCommitIsHead,
   GetCommitStatus,
+  GetUpstream,
   Init,
   ListLocalBranches,
   ListRemoteBranches,
@@ -37,6 +38,7 @@ enum class GitRepoCommandType : int {
   Open,
   Pull,
   Push,
+  SetUpstream,
   StageFiles,
   Stash,
   Status,
@@ -66,8 +68,7 @@ struct GitRepoCommand {
 };
 
 struct GitRepoApplyStashCommand final : GitRepoCommand {
-  GitRepoApplyStashCommand()
-      : GitRepoCommand(GitRepoCommandType::ApplyStash) {}
+  GitRepoApplyStashCommand() : GitRepoCommand(GitRepoCommandType::ApplyStash) {}
   ~GitRepoApplyStashCommand() override = default;
 
   int index = -1;
@@ -188,6 +189,19 @@ struct GitRepoGetBranchHistoryCommand final : GitRepoCommand {
   GitRepo::BranchType branchType = GitRepo::BranchType::Unknown;
 };
 
+struct GitRepoGetUpstreamCommand final : GitRepoCommand {
+  GitRepoGetUpstreamCommand()
+      : GitRepoCommand(GitRepoCommandType::GetUpstream) {}
+  ~GitRepoGetUpstreamCommand() override = default;
+
+  QString localBranchName;
+};
+
+struct GitRepoGetUpstreamCommandResult {
+  QString remoteName;
+  QString remoteBranchName;
+};
+
 struct GitRepoInitRepoCommand final : GitRepoCommand {
   GitRepoInitRepoCommand() : GitRepoCommand(GitRepoCommandType::Init) {}
   ~GitRepoInitRepoCommand() override = default;
@@ -240,6 +254,16 @@ struct GitRepoPullCommand final : GitRepoCommand {
 struct GitRepoPushCommand final : GitRepoCommand {
   GitRepoPushCommand() : GitRepoCommand(GitRepoCommandType::Push) {}
   ~GitRepoPushCommand() override = default;
+};
+
+struct GitRepoSetUpstreamCommand final : GitRepoCommand {
+  GitRepoSetUpstreamCommand()
+      : GitRepoCommand(GitRepoCommandType::SetUpstream) {}
+  ~GitRepoSetUpstreamCommand() override = default;
+
+  QString remoteName;
+  QString remoteBranchName;
+  QString localBranchName;
 };
 
 struct GitRepoStageFilesCommand final : GitRepoCommand {

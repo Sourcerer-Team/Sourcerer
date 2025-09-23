@@ -107,7 +107,8 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     break;
   }
   case EventType::DeleteStash: {
-    const auto deleteStashCommand = event.nextParam<GitRepoDeleteStashCommand>();
+    const auto deleteStashCommand =
+        event.nextParam<GitRepoDeleteStashCommand>();
     scheduleWorkerForDeleteStash(deleteStashCommand);
     break;
   }
@@ -158,6 +159,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForGetCommitStatus(commitStatusCommand);
     break;
   }
+  case EventType::GetUpstream: {
+    const auto getUpstreamCommand =
+        event.nextParam<GitRepoGetUpstreamCommand>();
+    scheduleWorkerForGetUpstream(getUpstreamCommand);
+    break;
+  }
   case EventType::Init: {
     const auto initCommand = event.nextParam<GitRepoInitRepoCommand>();
     scheduleWorkerForInitRepo(initCommand);
@@ -205,6 +212,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
   case EventType::Push: {
     const auto pushCommand = event.nextParam<GitRepoPushCommand>();
     scheduleWorkerForPush(pushCommand);
+    break;
+  }
+  case EventType::SetUpstream: {
+    const auto setUpstreamCommand =
+        event.nextParam<GitRepoSetUpstreamCommand>();
+    scheduleWorkerForSetUpstream(setUpstreamCommand);
     break;
   }
   case EventType::StageFiles: {
@@ -991,6 +1004,42 @@ void ProcessingState::getBranchHistoryWorker(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::getUpstreamWorker(
+    const Structs::GitRepoGetUpstreamCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerGetUpstreamError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const auto &[remoteName, remoteBranchName] =
+      GitRepo::getUpstream(repo, command.localBranchName);
+
+  GitRepoGetUpstreamCommandResult result;
+  result.remoteName = remoteName;
+  result.remoteBranchName = remoteBranchName;
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerGetUpstreamResult,
+      command.syncUuid);
+  resultEvent.addData(
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(result)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::initRepoWorker(
     const Structs::GitRepoInitRepoCommand &command) {
   LOG_PERF(0, "Enter");
@@ -1332,6 +1381,25 @@ void ProcessingState::scheduleWorkerForPush(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForSetUpstream(
+    const Structs::GitRepoSetUpstreamCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerSetUpstreamError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoSetUpstreamCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForStageFiles(
     const Structs::GitRepoStageFilesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -1528,6 +1596,39 @@ void ProcessingState::pushWorker(const Structs::GitRepoPushCommand &command) {
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerPushResult, command.syncUuid);
+  resultEvent.addData(
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::setUpstreamWorker(
+    const Structs::GitRepoSetUpstreamCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerSetUpstreamError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success =
+      GitRepo::setUpstream(repo, command.remoteName, command.remoteBranchName,
+                           command.localBranchName);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerSetUpstreamResult,
+      command.syncUuid);
   resultEvent.addData(
       GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
   _eventManager.send(resultEvent);
@@ -1890,6 +1991,24 @@ void ProcessingState::scheduleWorkerForGetCommitStatus(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForGetUpstream(
+    const Structs::GitRepoGetUpstreamCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerGetUpstreamError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoGetUpstreamCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
 
 void ProcessingState::scheduleWorkerForDeleteStash(
     const Structs::GitRepoDeleteStashCommand &command) {
@@ -2225,6 +2344,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       }
       break;
     }
+    case GitRepoCommandType::GetUpstream: {
+      const auto *getUpstreamCommand =
+          dynamic_cast<const GitRepoGetUpstreamCommand *>(command);
+      if (getUpstreamCommand) {
+        getUpstreamWorker(*getUpstreamCommand);
+      }
+      break;
+    }
     case GitRepoCommandType::Init: {
       const auto *initRepoCommand =
           dynamic_cast<const GitRepoInitRepoCommand *>(command);
@@ -2294,6 +2421,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoPushCommand *>(command);
       if (pushCommand) {
         pushWorker(*pushCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::SetUpstream: {
+      const auto *setUpstreamCommand =
+          dynamic_cast<const GitRepoSetUpstreamCommand *>(command);
+      if (setUpstreamCommand) {
+        setUpstreamWorker(*setUpstreamCommand);
       }
       break;
     }

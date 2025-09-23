@@ -2,8 +2,8 @@
 
 #include <Log.h>
 
-#include <windows.h>
 #include <Winbase.h>
+#include <windows.h>
 
 #define THREAD_ID "DirectoryWatcher"
 

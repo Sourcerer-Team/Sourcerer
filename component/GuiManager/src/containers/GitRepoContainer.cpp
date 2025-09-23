@@ -10,6 +10,7 @@
 #include "widgets/InfoToast.h"
 #include "widgets/ShortcutsToolbarWidget.h"
 #include "widgets/StashesPage.h"
+#include "widgets/UpstreamInputOverlayWidget.h"
 
 #include <Dispatcher.h>
 #include <GitRepoManagerStructs.h>
@@ -1116,6 +1117,37 @@ void GitRepoContainer::onRevertCommit(const QString &commit) {
 void GitRepoContainer::onSetUpstream() {
   LOG_PERF(0, "Enter");
 
+  const auto upstreamOverlay = new UpstreamInputOverlayWidget(this);
+  upstreamOverlay->setRemotePlaceholderText(tr("Enter remote name"));
+  upstreamOverlay->setBranchPlaceholderText(tr("Enter branch name"));
+
+  connect(upstreamOverlay, &UpstreamInputOverlayWidget::canceled, this, [=]() {
+    upstreamOverlay->hide();
+    delete upstreamOverlay;
+  });
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  connect(upstreamOverlay, &UpstreamInputOverlayWidget::submitted, this,
+          [&, upstreamOverlay, guard](const QString &remote,
+                                      const QString &branch) {
+            upstreamOverlay->hide();
+            delete upstreamOverlay;
+
+            _dispatcher.dispatch([=]() { setUpstream(guard, remote, branch); });
+          });
+
+  _dispatcher.dispatch([=]() {
+    const auto &[remoteName, remoteBranchName] = getUpstream(guard);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      upstreamOverlay->setRemoteName(remoteName);
+      upstreamOverlay->setRemoteBranchName(remoteBranchName);
+      upstreamOverlay->selectAllRemoteText();
+      upstreamOverlay->show();
+      upstreamOverlay->raise();
+    });
+  });
+
   LOG_PERF(0, "Exit");
 }
 
@@ -1197,6 +1229,80 @@ void GitRepoContainer::saveRepoInRecentList() const {
   _configManager.setString(ConfigManager::ConfigKey::RecentlyOpenedRepos,
                            recentRepos);
   _configManager.save();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::setUpstream(const WeakPtr &guard,
+                                   const QString &remoteName,
+                                   const QString &remoteBranchName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoSetUpstreamCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remoteName;
+  command.remoteBranchName = remoteBranchName;
+  command.localBranchName = _activeBranch;
+
+  EventManager::Event setUpstreamStashEvent(
+      EventManager::EventType::GitRepoManagerSetUpstream, eventUuid);
+  setUpstreamStashEvent.addData(command);
+  _eventManager.send(setUpstreamStashEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerSetUpstreamError,
+      EventManager::EventType::GitRepoManagerSetUpstreamResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to set upstream.")), tr("Apply"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerSetUpstreamResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to set upstream.")), tr("Checkout"));
+    });
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool setUpstreamSuccess = commandResult.value.toBool();
+
+  refreshStatus(guard);
+
+  if (!setUpstreamSuccess) {
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to set upstream."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
+    simulateClickOnFirstHistoryRow();
+    showToast(tr("Succesfully set upstream."), tr("Info"));
+  });
 
   LOG_PERF(0, "Exit");
 }
@@ -3201,6 +3307,63 @@ GitRepoContainer::getSubdirectories(const QString &path,
   LOG_PERF(0, "Exit")
 
   return paths;
+}
+
+QPair<QString, QString> GitRepoContainer::getUpstream(const WeakPtr &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoGetUpstreamCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.localBranchName = _activeBranch;
+
+  EventManager::Event getUpstreamStashEvent(
+      EventManager::EventType::GitRepoManagerGetUpstream, eventUuid);
+  getUpstreamStashEvent.addData(command);
+  _eventManager.send(getUpstreamStashEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGetUpstreamError,
+      EventManager::EventType::GitRepoManagerGetUpstreamResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to get upstream.")), tr("Apply"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerGetUpstreamResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to get upstream.")), tr("Checkout"));
+    });
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const auto getUpstreamResult =
+      commandResult.value.value<GitRepoGetUpstreamCommandResult>();
+
+  refreshStatus(guard);
+
+  LOG_PERF(0, "Exit")
+
+  return qMakePair(getUpstreamResult.remoteName,
+                   getUpstreamResult.remoteBranchName);
 }
 
 void GitRepoContainer::hideAllWidgets() const {

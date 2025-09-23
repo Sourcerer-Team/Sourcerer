@@ -162,6 +162,8 @@ set(GUIMANAGER_SOURCE_FILES
  	${UI_FILES}
 	${QRC_FILES}
         ${TS_FILES}
+        include/widgets/UpstreamInputOverlayWidget.h
+		src/widgets/UpstreamInputOverlayWidget.cpp
 )
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})

@@ -3029,4 +3029,95 @@ bool stash(git_repository *repo) {
   return true;
 }
 
+bool setUpstream(git_repository *repo, const QString &remoteName,
+                 const QString &remoteBranchName,
+                 const QString &localBranchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference *localRef = nullptr;
+  int error = git_branch_lookup(
+      &localRef, repo, localBranchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_branch_set_upstream(localRef, QString("%1/%2")
+                                                .arg(remoteName)
+                                                .arg(remoteBranchName)
+                                                .toStdString()
+                                                .c_str());
+  if (error) {
+    logGitError(error);
+    git_reference_free(localRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference_free(localRef);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+QPair<QString, QString> getUpstream(git_repository *repo,
+                                    const QString &localBranchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_reference *localRef = nullptr;
+  int error = git_branch_lookup(
+      &localRef, repo, localBranchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_reference *upstreamRef = nullptr;
+  error = git_branch_upstream(&upstreamRef, localRef);
+  if (error && error != GIT_ENOTFOUND) {
+    logGitError(error);
+    git_reference_free(localRef);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_reference_free(localRef);
+
+  QString remoteName;
+  QString remoteBranchName;
+
+  if (error != GIT_ENOTFOUND) {
+    remoteName = git_reference_name(upstreamRef);
+    const QStringList remoteNames = remoteName.split('/');
+    Q_ASSERT(remoteNames.size() >= 2);
+    if (remoteNames.size() >= 2) {
+      remoteName = remoteNames[remoteNames.size() - 2];
+      remoteBranchName = remoteNames[remoteNames.size() - 1];
+    }
+  }
+
+  git_reference_free(upstreamRef);
+
+  LOG_PERF(0, "Exit");
+
+  return qMakePair(remoteName, remoteBranchName);
+}
+
 } // namespace GitRepo

@@ -49,6 +49,7 @@ private:
   getCommitStatusWorker(const Structs::GitRepoGetCommitStatusCommand &command);
   void getBranchHistoryWorker(
       const Structs::GitRepoGetBranchHistoryCommand &command);
+  void getUpstreamWorker(const Structs::GitRepoGetUpstreamCommand &command);
   void initRepoWorker(const Structs::GitRepoInitRepoCommand &command);
   void listLocalBranchesWorker(
       const Structs::GitRepoListLocalBranchesCommand &command);
@@ -61,6 +62,7 @@ private:
   void openRepoWorker(const Structs::GitRepoOpenCommand &command);
   void pullWorker(const Structs::GitRepoPullCommand &command);
   void pushWorker(const Structs::GitRepoPushCommand &command);
+  void setUpstreamWorker(const Structs::GitRepoSetUpstreamCommand &command);
   void stageFilesWorker(const Structs::GitRepoStageFilesCommand &command);
   void stashWorker(const Structs::GitRepoStashCommand &command);
   void statusWorker(const Structs::GitRepoStatusCommand &command);
@@ -86,8 +88,10 @@ private:
       const Structs::GitRepoGetCommitIsHeadCommand &command);
   void scheduleWorkerForGetCommitStatus(
       const Structs::GitRepoGetCommitStatusCommand &command);
-  void
-  scheduleWorkerForDeleteStash(const Structs::GitRepoDeleteStashCommand &command);
+  void scheduleWorkerForGetUpstream(
+      const Structs::GitRepoGetUpstreamCommand &command);
+  void scheduleWorkerForDeleteStash(
+      const Structs::GitRepoDeleteStashCommand &command);
   void
   scheduleWorkerForDiffFiles(const Structs::GitRepoDiffFilesCommand &command);
   void scheduleWorkerForDiscardFiles(
@@ -109,6 +113,8 @@ private:
   void scheduleWorkerForOpenRepo(const Structs::GitRepoOpenCommand &command);
   void scheduleWorkerForPull(const Structs::GitRepoPullCommand &command);
   void scheduleWorkerForPush(const Structs::GitRepoPushCommand &command);
+  void scheduleWorkerForSetUpstream(
+      const Structs::GitRepoSetUpstreamCommand &command);
   void
   scheduleWorkerForStageFiles(const Structs::GitRepoStageFilesCommand &command);
   void scheduleWorkerForStash(const Structs::GitRepoStashCommand &command);

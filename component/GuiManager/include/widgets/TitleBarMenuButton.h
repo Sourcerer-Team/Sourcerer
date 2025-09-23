@@ -39,7 +39,7 @@ private slots:
 
 private:
   QMenu *createMenu();
-  static MainWindow* mainWindow() ;
+  static MainWindow *mainWindow();
   bool hover(QHoverEvent *event, bool entered);
 
 private:

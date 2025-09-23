@@ -55,7 +55,7 @@ private slots:
   void onRecentClicked(const QString &path);
   void onSaveWorkspace();
   void onSettings();
-  void onSubmitWorkspace(const QString& name);
+  void onSubmitWorkspace(const QString &name);
   void onWorkspaceClicked(const QString &name);
   void onAbout() const;
   void onClosedTab(int index);

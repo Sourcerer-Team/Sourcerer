@@ -13,11 +13,23 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
       QColorDialog{
         font-size:14px;
       }
+      QGroupBox#groupBoxTextOverlayWidgetInput {
+        background-color: #353535;
+        border: 2px solid gray;
+        border-radius: 10px;
+        padding: 10px;
+      }
       QLabel#labelRecent {
         font-weight:bold;
       }
       QLabel#labelWorkspaces {
         font-weight:bold;
+      }
+      QLabel#labelTextOverlayWidgetInputTitle {
+        background-color: #999900;
+        font-size: 16px;
+        font-weight:bold;
+        padding: 4;
       }
       QLineEdit{
         color:white;
@@ -29,6 +41,18 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border: 1px solid white;
       }
       QLineEdit#lineEditTextOverlayWidgetInput:focus{
+        border: 1px solid #0078d7;
+      }
+      QLineEdit#lineEditTextOverlayWidgetInputRemote{
+        border: 1px solid white;
+      }
+      QLineEdit#lineEditTextOverlayWidgetInputRemote:focus{
+        border: 1px solid #0078d7;
+      }
+      QLineEdit#lineEditTextOverlayWidgetInputBranch{
+        border: 1px solid white;
+      }
+      QLineEdit#lineEditTextOverlayWidgetInputBranch:focus{
         border: 1px solid #0078d7;
       }
       QListView::item:selected {
