@@ -721,6 +721,10 @@ void GitRepoContainer::showTooltipForSummaryColumn(
 void GitRepoContainer::onCheckoutCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
 
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { checkoutCommit(guard, commit); });
+
   LOG_PERF(0, "Exit");
 }
 
@@ -1301,7 +1305,7 @@ void GitRepoContainer::setUpstream(const WeakPtr &guard,
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
     showSpinnerOverlay(false);
     simulateClickOnFirstHistoryRow();
-    showToast(tr("Succesfully set upstream."), tr("Info"));
+    showToast(tr("Successfully set upstream."), tr("Info"));
   });
 
   LOG_PERF(0, "Exit");
@@ -2198,6 +2202,96 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
 
     prepareWatcher(guard);
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::checkoutCommit(const WeakPtr &guard,
+                                      const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  stopWatcher(guard);
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoCheckoutCommitCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+
+  EventManager::Event checkoutCommitEvent(
+      EventManager::EventType::GitRepoManagerCheckoutCommit, eventUuid);
+  checkoutCommitEvent.addData(command);
+  _eventManager.send(checkoutCommitEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerCheckoutCommitError,
+      EventManager::EventType::GitRepoManagerCheckoutCommitResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  QString additionalClarificationMessage;
+
+  if (_historyModel->hasStatus()) {
+    additionalClarificationMessage =
+        tr("\nPlease "
+           "commit your changes or stash them before you checkout.");
+  }
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to checkout commit. %1"))
+                         .arg(additionalClarificationMessage),
+                     tr("Checkout"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerCheckoutCommitResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to checkout commit. %1"))
+                         .arg(additionalClarificationMessage),
+                     tr("Checkout"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool checkoutSuccess = commandResult.value.toBool();
+
+  if (!checkoutSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to checkout commit. %1"))
+                         .arg(additionalClarificationMessage),
+                     tr("Checkout"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    simulateClickOnFirstHistoryRow();
+  });
+
+  prepareWatcher(guard);
 
   LOG_PERF(0, "Exit");
 }

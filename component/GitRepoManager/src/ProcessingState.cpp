@@ -90,6 +90,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForCheckoutBranch(checkoutCommand);
     break;
   }
+  case EventType::CheckoutCommit: {
+    const auto checkoutCommand =
+        event.nextParam<GitRepoCheckoutCommitCommand>();
+    scheduleWorkerForCheckoutCommit(checkoutCommand);
+    break;
+  }
   case EventType::CloneRepo: {
     const auto cloneCommand = event.nextParam<GitRepoCloneCommand>();
     scheduleWorkerForCloneRepo(cloneCommand);
@@ -365,6 +371,61 @@ void ProcessingState::checkoutBranchWorker(
         command.syncUuid);
     resultEvent.addData(
         GitRepoResult{command.uuid, command.type, QVariant::fromValue(result)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::checkoutCommitWorker(
+    const Structs::GitRepoCheckoutCommitCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerCheckoutCommitError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success =
+      GitRepo::checkoutCommit(repo, command.commit);
+  if (!success) {
+    reportError(EventManager::EventType::GitRepoManagerCheckoutCommitError,
+                tr("Can't checkout commit."), command);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to checkout commit \"{}\".",
+              command.commit);
+    return;
+  }
+
+  bool quit = false;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    quit = ctx->quit;
+  }
+
+  if (quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCheckoutCommitError,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoError{command.uuid, QString(), GitRepo::getLastError()});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCheckoutCommitResult,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type, success});
     _eventManager.send(resultEvent);
   }
 
@@ -1827,6 +1888,25 @@ void ProcessingState::scheduleWorkerForCheckoutBranch(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForCheckoutCommit(
+    const Structs::GitRepoCheckoutCommitCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerCheckoutCommitError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoCheckoutCommitCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForCloneRepo(
     const Structs::GitRepoCloneCommand &command) {
   LOCKGUARD(_contextsMutex);
@@ -2245,6 +2325,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoCheckoutBranchCommand *>(command);
       if (checkoutCommand) {
         checkoutBranchWorker(*checkoutCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::CheckoutCommit: {
+      const auto checkoutCommand =
+          dynamic_cast<const GitRepoCheckoutCommitCommand *>(command);
+      if (checkoutCommand) {
+        checkoutCommitWorker(*checkoutCommand);
       }
       break;
     }

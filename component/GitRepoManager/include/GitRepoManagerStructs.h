@@ -16,6 +16,7 @@ enum class GitRepoCommandType : int {
   Unknown = 0,
   ApplyStash,
   CheckoutBranch,
+  CheckoutCommit,
   Clone,
   Close,
   CommitStaged,
@@ -86,6 +87,14 @@ struct GitRepoCheckoutBranchCommand final : GitRepoCommand {
 struct GitRepoCheckoutBranchCommandResult {
   QString branchName;
   GitRepo::BranchType branchType = GitRepo::BranchType::Unknown;
+};
+
+struct GitRepoCheckoutCommitCommand final : GitRepoCommand {
+  GitRepoCheckoutCommitCommand()
+      : GitRepoCommand(GitRepoCommandType::CheckoutCommit) {}
+  ~GitRepoCheckoutCommitCommand() override = default;
+
+  QString commit;
 };
 
 struct GitRepoCloneCommand final : GitRepoCommand {

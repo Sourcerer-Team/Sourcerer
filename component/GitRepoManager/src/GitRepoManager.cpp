@@ -24,6 +24,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCheckoutBranch, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCheckoutCommit, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetBranchHistory, callbackFunc));
@@ -91,6 +93,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerApplyStash, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCheckoutBranch, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCheckoutCommit, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetBranchHistory, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -189,6 +193,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent checkoutBranchEvent(EventType::CheckoutBranch);
     checkoutBranchEvent.addParam(QVariant::fromValue(checkoutCommand));
     _fsm.send(checkoutBranchEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCheckoutCommit: {
+    const auto checkoutCommand = event.data<GitRepoCheckoutCommitCommand>();
+    GitRepoManagerEvent checkoutCommitEvent(EventType::CheckoutCommit);
+    checkoutCommitEvent.addParam(QVariant::fromValue(checkoutCommand));
+    _fsm.send(checkoutCommitEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepo: {

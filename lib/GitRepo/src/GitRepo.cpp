@@ -1318,6 +1318,65 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
   return 0;
 }
 
+bool checkoutCommit(git_repository *repo, const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  git_oid oid;
+  git_commit *commit_ = nullptr;
+
+  int error = git_oid_fromstr(&oid, commit.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_commit_lookup(&commit_, repo, &oid);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_tree *tree = nullptr;
+  error = git_commit_tree(&tree, commit_);
+  if (error) {
+    logGitError(error);
+    git_commit_free(commit_);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
+  opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+  error = git_checkout_tree(repo, reinterpret_cast<const git_object *>(tree),
+                            &opts);
+  if (error) {
+    logGitError(error);
+    git_tree_free(tree);
+    git_commit_free(commit_);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_repository_set_head_detached(repo, &oid);
+  if (error) {
+    logGitError(error);
+    git_tree_free(tree);
+    git_commit_free(commit_);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_tree_free(tree);
+  git_commit_free(commit_);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
 bool cloneRepository(const QString &url, const QString &destinationDir,
                      const QString &uuid) {
   LOG_PERF(0, "Enter");

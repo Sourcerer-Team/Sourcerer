@@ -122,6 +122,7 @@ void shutdownForCurrentThread();
 bool applyStash(git_repository *repo, int index);
 bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
                     BranchType type);
+bool checkoutCommit(git_repository *repo, const QString &commit);
 bool cloneRepository(const QString &url, const QString &destinationDir,
                      const QString &uuid);
 void closeRepository(git_repository *repo);

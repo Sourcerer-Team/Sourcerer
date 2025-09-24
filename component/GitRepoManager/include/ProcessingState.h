@@ -27,6 +27,8 @@ private:
   void applyStashWorker(const Structs::GitRepoApplyStashCommand &command);
   void
   checkoutBranchWorker(const Structs::GitRepoCheckoutBranchCommand &command);
+  void
+  checkoutCommitWorker(const Structs::GitRepoCheckoutCommitCommand &command);
   void cloneRepoWorker(const Structs::GitRepoCloneCommand &command);
   void closeRepoWorker(const Structs::GitRepoCloseCommand &command);
   void commitStagedWorker(const Structs::GitRepoCommitStagedCommand &command);
@@ -74,6 +76,8 @@ private:
   scheduleWorkerForApplyStash(const Structs::GitRepoApplyStashCommand &command);
   void scheduleWorkerForCheckoutBranch(
       const Structs::GitRepoCheckoutBranchCommand &command);
+  void scheduleWorkerForCheckoutCommit(
+      const Structs::GitRepoCheckoutCommitCommand &command);
   void scheduleWorkerForCloneRepo(const Structs::GitRepoCloneCommand &command);
   void scheduleWorkerForCloseRepo(const Structs::GitRepoCloseCommand &command);
   void scheduleWorkerForCommitStagedRepo(

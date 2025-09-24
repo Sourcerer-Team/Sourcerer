@@ -140,6 +140,7 @@ private:
       const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
   void checkoutBranch(const WeakPtr &guard, const QString &branchName,
                       GitRepo::BranchType branchType);
+  void checkoutCommit(const WeakPtr &guard, const QString &commit);
   void clearSummaryAndDescription();
   void closeRepo() const;
   void commit(const WeakPtr &guard, const QString &summary,

@@ -11,6 +11,7 @@ enum class EventType : int {
   ChangeState = 0,
   ApplyStash,
   CheckoutBranch,
+  CheckoutCommit,
   CloneRepo,
   CloseRepo,
   CommitStaged,
