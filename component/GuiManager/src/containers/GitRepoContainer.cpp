@@ -1304,7 +1304,6 @@ void GitRepoContainer::setUpstream(const WeakPtr &guard,
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
     showSpinnerOverlay(false);
-    simulateClickOnFirstHistoryRow();
     showToast(tr("Successfully set upstream."), tr("Info"));
   });
 
@@ -1385,7 +1384,6 @@ void GitRepoContainer::stash(const WeakPtr &guard) {
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
     showSpinnerOverlay(false);
-    simulateClickOnFirstHistoryRow();
   });
 
   LOG_PERF(0, "Exit");
@@ -2114,7 +2112,6 @@ void GitRepoContainer::applyStash(
   } else {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showSpinnerOverlay(false);
-      simulateClickOnFirstHistoryRow();
     });
   }
 
@@ -2288,7 +2285,6 @@ void GitRepoContainer::checkoutCommit(const WeakPtr &guard,
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
-    simulateClickOnFirstHistoryRow();
   });
 
   prepareWatcher(guard);
@@ -2423,7 +2419,6 @@ void GitRepoContainer::deleteFiles(const WeakPtr &guard,
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
     showSpinnerOverlay(false);
-    simulateClickOnFirstHistoryRow();
   });
 
   LOG_PERF(0, "Exit")
@@ -2498,7 +2493,6 @@ void GitRepoContainer::deleteStash(
   } else {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showSpinnerOverlay(false);
-      simulateClickOnFirstHistoryRow();
     });
   }
 
@@ -2512,7 +2506,6 @@ void GitRepoContainer::popStash(const WeakPtr &guard, int stashIndex) {
     deleteStash(guard, index, [=](const WeakPtr &guard, const int) {
       Util::Dispatcher::dispatchToMainThread(guard, [&]() {
         showSpinnerOverlay(false);
-        simulateClickOnFirstHistoryRow();
       });
     });
   });
@@ -2669,7 +2662,6 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
     showSpinnerOverlay(false);
-    simulateClickOnFirstHistoryRow();
   });
 
   LOG_PERF(0, "Exit")
@@ -4280,7 +4272,6 @@ void GitRepoContainer::updateBranchHistory(
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
     stretchBranchHistoryTableColumns();
-    simulateClickOnFirstHistoryRow();
   });
 
   LOG_PERF(0, "Exit")
