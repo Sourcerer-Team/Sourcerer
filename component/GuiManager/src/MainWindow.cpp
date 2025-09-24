@@ -36,7 +36,7 @@ using namespace Containers;
 using namespace Dialogs;
 using namespace Util;
 
-constexpr int TOP_MARGIN_OFFSET = -35;
+constexpr int TOP_MARGIN_OFFSET = -55;
 constexpr int PROFILE_WIDGET_ARROW_OFFSET = 30;
 
 MainWindow::MainWindow(QWidget *parent)

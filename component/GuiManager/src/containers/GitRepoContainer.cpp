@@ -259,29 +259,29 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   pushButtonPull->setObjectName("pushButtonPull");
   pushButtonPull->setIcon(pullIcon);
   pushButtonPull->setToolTip(tr("Pull"));
-  pushButtonPull->setMinimumSize(32, 32);
-  pushButtonPull->setMaximumSize(32, 32);
+  pushButtonPull->setMinimumSize(42, 42);
+  pushButtonPull->setMaximumSize(42, 42);
 
   auto *pushButtonPush = new QPushButton();
   pushButtonPush->setObjectName("pushButtonPush");
   pushButtonPush->setIcon(pushIcon);
   pushButtonPush->setToolTip(tr("Push"));
-  pushButtonPush->setMinimumSize(32, 32);
-  pushButtonPush->setMaximumSize(32, 32);
+  pushButtonPush->setMinimumSize(42, 42);
+  pushButtonPush->setMaximumSize(42, 42);
 
   auto *pushButtonPop = new QPushButton();
   pushButtonPop->setObjectName("pushButtonPop");
   pushButtonPop->setIcon(popIcon);
   pushButtonPop->setToolTip(tr("Pop"));
-  pushButtonPop->setMinimumSize(32, 32);
-  pushButtonPop->setMaximumSize(32, 32);
+  pushButtonPop->setMinimumSize(42, 42);
+  pushButtonPop->setMaximumSize(42, 42);
 
   auto *pushButtonStash = new QPushButton();
   pushButtonStash->setObjectName("pushButtonStash");
   pushButtonStash->setIcon(stashIcon);
   pushButtonStash->setToolTip(tr("Stash"));
-  pushButtonStash->setMinimumSize(32, 32);
-  pushButtonStash->setMaximumSize(32, 32);
+  pushButtonStash->setMinimumSize(42, 42);
+  pushButtonStash->setMaximumSize(42, 42);
 
   _shortcutsWidget->addShortcutWidget(pushButtonPull);
   _shortcutsWidget->addShortcutWidget(pushButtonPush);
@@ -457,7 +457,9 @@ void GitRepoContainer::init() {
 
   openRepo();
 
-  prepareWatcher(getSelf().toWeakRef());
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  prepareWatcher(guard);
 
   LOG_PERF(0, "Exit")
 }
@@ -3898,7 +3900,7 @@ void GitRepoContainer::refreshStatus(const WeakPtr &guard) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::resetCommitAndMergeIndexTreeUnstageAllButton() {
+void GitRepoContainer::resetCommitAndMergeIndexTreeUnstageAllButton() const {
   LOG_PERF(0, "Enter");
 
   _commitAndMergeIndexTreeUnstageAllButton->setText(tr("Unstage all"));
@@ -3918,7 +3920,7 @@ void GitRepoContainer::resetCommitAndMergeWorkingTreeTreeStageAllButton() {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::resetCommitButton() {
+void GitRepoContainer::resetCommitButton() const {
   LOG_PERF(0, "Enter");
 
   ui->pushButtonCommit->setEnabled(
@@ -4373,6 +4375,7 @@ void GitRepoContainer::updateBranchHistory(
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
     stretchBranchHistoryTableColumns();
+    simulateClickOnFirstHistoryRow();
   });
 
   LOG_PERF(0, "Exit")

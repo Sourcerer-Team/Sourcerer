@@ -189,9 +189,9 @@ private:
   void prepareWatcher(const WeakPtr &guard);
   bool refreshHistory(const WeakPtr &guard);
   void refreshStatus(const WeakPtr &guard);
-  void resetCommitAndMergeIndexTreeUnstageAllButton();
+  void resetCommitAndMergeIndexTreeUnstageAllButton() const;
   void resetCommitAndMergeWorkingTreeTreeStageAllButton();
-  void resetCommitButton();
+  void resetCommitButton() const;
   void resetDisplayTreeExpandedButton();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();

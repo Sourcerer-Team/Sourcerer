@@ -8,7 +8,7 @@ using namespace std::chrono_literals;
 
 namespace Util {
 
-const size_t MAX_LOCK_WAIT_TIME = 60000; // 60 secs
+constexpr size_t MAX_LOCK_WAIT_TIME = 60000; // 60 secs
 
 class Mutex : public std::timed_mutex {
 public:

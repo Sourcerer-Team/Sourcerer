@@ -23,9 +23,9 @@ LockGuard::LockGuard(Mutex &mutex, size_t timeout, const QString &function,
 
     if (!lockedAfterSomeTime) {
       LOG_ERROR(Log::ErrorId::Generic,
-                "Could not lock the mutex in %1 seconds.", _timeout / 1000);
-      LOG_ERROR(Log::ErrorId::Generic, "Function: '%1'.", _function);
-      LOG_ERROR(Log::ErrorId::Generic, "Line: %1.", _line);
+                "Could not lock the mutex in {} seconds.", _timeout / 1000);
+      LOG_ERROR(Log::ErrorId::Generic, "Function: '{}'.", _function);
+      LOG_ERROR(Log::ErrorId::Generic, "Line: {}.", _line);
     }
 
     lockedAfterSomeTime = true;
@@ -33,10 +33,10 @@ LockGuard::LockGuard(Mutex &mutex, size_t timeout, const QString &function,
 
   if (lockedAfterSomeTime) {
     LOG_ERROR(Log::ErrorId::Generic,
-              "The mutex has been sucesfully locked after %1 seconds.",
+              "The mutex has been successfully locked after {} seconds.",
               totalWaitTime);
-    LOG_ERROR(Log::ErrorId::Generic, "Function: '%1'.", _function);
-    LOG_ERROR(Log::ErrorId::Generic, "Line: %1.", _line);
+    LOG_ERROR(Log::ErrorId::Generic, "Function: '{}'.", _function);
+    LOG_ERROR(Log::ErrorId::Generic, "Line: {}.", _line);
   }
 }
 
