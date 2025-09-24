@@ -2,8 +2,8 @@
 
 #include <Log.h>
 
-#include <windows.h>
 #include <Winbase.h>
+#include <windows.h>
 
 #define THREAD_ID "DirectoryWatcher"
 
@@ -98,8 +98,10 @@ void DirectoryWatcher::run() {
         continue;
       }
 
-      auto info =
+      const auto startingInfo =
           reinterpret_cast<FILE_NOTIFY_INFORMATION *>(buffer);
+      auto info = startingInfo;
+
       do {
         QString fileName = QString::fromWCharArray(
             info->FileName, info->FileNameLength / sizeof(WCHAR));
@@ -109,8 +111,17 @@ void DirectoryWatcher::run() {
         // Emit signal or handle the change as needed
         emit directoryChanged(fileName);
 
-        if (info->NextEntryOffset == 0)
+        if (info->NextEntryOffset == 0) {
           break;
+        }
+
+        if (reinterpret_cast<char *>(info) -
+                reinterpret_cast<char *>(startingInfo) +
+                info->NextEntryOffset >=
+            bytesReturned) {
+          break;
+        }
+
         info = reinterpret_cast<FILE_NOTIFY_INFORMATION *>(
             reinterpret_cast<BYTE *>(info) + info->NextEntryOffset);
       } while (true);
