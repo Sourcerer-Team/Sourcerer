@@ -112,6 +112,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForCommitStagedRepo(commitStagedCommand);
     break;
   }
+  case EventType::CreateBranchFromCommit: {
+    const auto createBranchFromCommitCommand =
+        event.nextParam<GitRepoCreateBranchFromCommitCommand>();
+    scheduleWorkerForCreateBranchFromCommit(createBranchFromCommitCommand);
+    break;
+  }
   case EventType::DeleteStash: {
     const auto deleteStashCommand =
         event.nextParam<GitRepoDeleteStashCommand>();
@@ -396,8 +402,7 @@ void ProcessingState::checkoutCommitWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success =
-      GitRepo::checkoutCommit(repo, command.commit);
+  const bool success = GitRepo::checkoutCommit(repo, command.commit);
   if (!success) {
     reportError(EventManager::EventType::GitRepoManagerCheckoutCommitError,
                 tr("Can't checkout commit."), command);
@@ -424,8 +429,7 @@ void ProcessingState::checkoutCommitWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerCheckoutCommitResult,
         command.syncUuid);
-    resultEvent.addData(
-        GitRepoResult{command.uuid, command.type, success});
+    resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
     _eventManager.send(resultEvent);
   }
 
@@ -558,6 +562,38 @@ void ProcessingState::commitStagedWorker(
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerCommitStagedResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::createBranchFromCommitWorker(
+    const Structs::GitRepoCreateBranchFromCommitCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(
+        EventManager::EventType::GitRepoManagerCreateBranchFromCommitError,
+        tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success =
+      GitRepo::createBranchFromCommit(repo, command.commit, command.branchName);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerCreateBranchFromCommitResult,
       command.syncUuid);
   resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
   _eventManager.send(resultEvent);
@@ -1976,6 +2012,26 @@ void ProcessingState::scheduleWorkerForCommitStagedRepo(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForCreateBranchFromCommit(
+    const Structs::GitRepoCreateBranchFromCommitCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(
+        EventManager::EventType::GitRepoManagerCreateBranchFromCommitError,
+        tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoCreateBranchFromCommitCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForGetActiveBranch(
     const Structs::GitRepoGetActiveBranchCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2357,6 +2413,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoCommitStagedCommand *>(command);
       if (commitStagedCommand) {
         commitStagedWorker(*commitStagedCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::CreateBranchFromCommit: {
+      const auto createBranchFromCommitCommand =
+          dynamic_cast<const GitRepoCreateBranchFromCommitCommand *>(command);
+      if (createBranchFromCommitCommand) {
+        createBranchFromCommitWorker(*createBranchFromCommitCommand);
       }
       break;
     }

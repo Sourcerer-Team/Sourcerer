@@ -967,6 +967,50 @@ QStringList listSubmodules(git_repository *repo) {
   return submodules;
 }
 
+bool createBranchFromCommit(git_repository *repo, const QString &commit,
+                            const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_oid oid;
+  git_commit *commit_ = nullptr;
+
+  int error = git_oid_fromstr(&oid, commit.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_commit_lookup(&commit_, repo, &oid);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference *ref = nullptr;
+  error = git_branch_create(&ref, repo, branchName.toStdString().c_str(),
+                            commit_, 0);
+  if (error) {
+    logGitError(error);
+    git_commit_free(commit_);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_commit_free(commit_);
+  git_reference_free(ref);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
 bool deleteStash(git_repository *repo, int stashIndex) {
   LOG_PERF(0, "Enter");
 
@@ -1320,6 +1364,11 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
 
 bool checkoutCommit(git_repository *repo, const QString &commit) {
   LOG_PERF(0, "Enter");
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   git_oid oid;
   git_commit *commit_ = nullptr;

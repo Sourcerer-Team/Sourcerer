@@ -10,6 +10,7 @@
 #include "widgets/InfoToast.h"
 #include "widgets/ShortcutsToolbarWidget.h"
 #include "widgets/StashesPage.h"
+#include "widgets/TextInputOverlayWidget.h"
 #include "widgets/UpstreamInputOverlayWidget.h"
 
 #include <Dispatcher.h>
@@ -780,6 +781,43 @@ void GitRepoContainer::onCommitAndMergeWorkingTreeTreeStageAllButtonClicked() {
 
 void GitRepoContainer::onCreateBranchFromCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  const auto overlayWidget = new TextInputOverlayWidget(this);
+  overlayWidget->setPlaceholderText(tr("Branch name here"));
+
+  connect(overlayWidget, &TextInputOverlayWidget::canceled, this, [=]() {
+    overlayWidget->hide();
+    delete overlayWidget;
+  });
+
+  connect(overlayWidget, &TextInputOverlayWidget::submitted, this,
+          [=](const QString &branchName) {
+            overlayWidget->hide();
+            delete overlayWidget;
+
+            startOverlayTimer();
+
+            _dispatcher.dispatch([=]() {
+              createBranchFromCommit(
+                  guard, commit, branchName,
+                  [=](const WeakPtr &guard, const QString &branchName) {
+                    checkoutBranch(
+                        guard, branchName, GitRepo::BranchType::Local,
+                        [=](const WeakPtr &guard) {
+                          Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+                            showSpinnerOverlay(false);
+                            showToast(tr("Branch created sucesfully."),
+                                      tr("Info"));
+                          });
+                        });
+                  });
+            });
+          });
+
+  overlayWidget->show();
+  overlayWidget->raise();
 
   LOG_PERF(0, "Exit");
 }
@@ -2114,9 +2152,10 @@ void GitRepoContainer::applyStash(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
-                                      const QString &branchName,
-                                      const GitRepo::BranchType branchType) {
+void GitRepoContainer::checkoutBranch(
+    const WeakPtr &guard, const QString &branchName,
+    const GitRepo::BranchType branchType,
+    const std::function<void(const WeakPtr &)> &onSuccess) {
   LOG_PERF(0, "Enter");
 
   if (branchName == ALL_BRANCHES) {
@@ -2194,6 +2233,10 @@ void GitRepoContainer::checkoutBranch(const WeakPtr &guard,
     });
 
     prepareWatcher(guard);
+
+    if (onSuccess) {
+      onSuccess(guard);
+    }
   }
 
   LOG_PERF(0, "Exit");
@@ -2373,6 +2416,71 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
     }
     showSpinnerOverlay(false);
   });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::createBranchFromCommit(
+    const WeakPtr &guard, const QString &commit, const QString &branchName,
+    const std::function<void(const WeakPtr &, const QString &)> &onSuccess) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoCreateBranchFromCommitCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+  command.branchName = branchName;
+
+  EventManager::Event createBranchFromCommitEvent(
+      EventManager::EventType::GitRepoManagerCreateBranchFromCommit, eventUuid);
+  createBranchFromCommitEvent.addData(command);
+  _eventManager.send(createBranchFromCommitEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerCreateBranchFromCommitError,
+      EventManager::EventType::GitRepoManagerCreateBranchFromCommitResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
+      showErrorToast(tr("Failed to create branch from commit."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerCreateBranchFromCommitResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to create branch from commit."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const bool createSuccess = commandResult.value.toBool();
+
+  refreshHistory(guard);
+
+  if (onSuccess) {
+    onSuccess(guard, branchName);
+  } else {
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { showSpinnerOverlay(false); });
+  }
 
   LOG_PERF(0, "Exit")
 }
@@ -2652,8 +2760,10 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
 
   refreshStatus(guard);
 
-  Util::Dispatcher::dispatchToMainThread(guard,
-                                         [&]() { showSpinnerOverlay(false); });
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
+    simulateClickOnFirstHistoryRow();
+  });
 
   LOG_PERF(0, "Exit")
 }

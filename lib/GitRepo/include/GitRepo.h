@@ -126,6 +126,8 @@ bool checkoutCommit(git_repository *repo, const QString &commit);
 bool cloneRepository(const QString &url, const QString &destinationDir,
                      const QString &uuid);
 void closeRepository(git_repository *repo);
+bool createBranchFromCommit(git_repository *repo, const QString &commit,
+                            const QString &branchName);
 bool deleteStash(git_repository *repo, int stashIndex);
 QString getActiveBranch(git_repository *repo, BranchType type,
                         const bool &quitFlag);

@@ -138,14 +138,20 @@ private:
   void applyStash(
       const WeakPtr &guard, int stashIndex,
       const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
-  void checkoutBranch(const WeakPtr &guard, const QString &branchName,
-                      GitRepo::BranchType branchType);
+  void checkoutBranch(
+      const WeakPtr &guard, const QString &branchName,
+      GitRepo::BranchType branchType,
+      const std::function<void(const WeakPtr &)> &onSuccess = nullptr);
   void checkoutCommit(const WeakPtr &guard, const QString &commit);
   void clearSummaryAndDescription();
   void closeRepo() const;
   void commit(const WeakPtr &guard, const QString &summary,
               const QString &description, const QString &author,
               const QString &email);
+  void createBranchFromCommit(
+      const WeakPtr &guard, const QString &commit, const QString &branchName,
+      const std::function<void(const WeakPtr &, const QString &)> &onSuccess =
+          nullptr);
   void deleteFiles(const WeakPtr &guard, const QStringList &files);
   void deleteStash(
       const WeakPtr &guard, int stashIndex,
