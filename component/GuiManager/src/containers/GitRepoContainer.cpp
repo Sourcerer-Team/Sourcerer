@@ -721,6 +721,8 @@ void GitRepoContainer::showTooltipForSummaryColumn(
 void GitRepoContainer::onCheckoutCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
 
+  startOverlayTimer();
+
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { checkoutCommit(guard, commit); });
@@ -1102,11 +1104,7 @@ void GitRepoContainer::onRepoDirChangedTimeout() {
 
   _dispatcher.dispatch([=]() {
     prepareWatcher(guard);
-
     refreshStatus(guard);
-
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [=]() { simulateClickOnFirstHistoryRow(); });
   });
 
   LOG_PERF(0, "Exit");
@@ -1382,9 +1380,8 @@ void GitRepoContainer::stash(const WeakPtr &guard) {
     return;
   }
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    showSpinnerOverlay(false);
-  });
+  Util::Dispatcher::dispatchToMainThread(guard,
+                                         [&]() { showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit");
 }
@@ -2110,9 +2107,8 @@ void GitRepoContainer::applyStash(
   if (onSuccess) {
     onSuccess(guard, stashIndex);
   } else {
-    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showSpinnerOverlay(false);
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { showSpinnerOverlay(false); });
   }
 
   LOG_PERF(0, "Exit");
@@ -2283,9 +2279,8 @@ void GitRepoContainer::checkoutCommit(const WeakPtr &guard,
     return;
   }
 
-  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    showSpinnerOverlay(false);
-  });
+  Util::Dispatcher::dispatchToMainThread(guard,
+                                         [=]() { showSpinnerOverlay(false); });
 
   prepareWatcher(guard);
 
@@ -2417,9 +2412,8 @@ void GitRepoContainer::deleteFiles(const WeakPtr &guard,
 
   refreshStatus(guard);
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    showSpinnerOverlay(false);
-  });
+  Util::Dispatcher::dispatchToMainThread(guard,
+                                         [&]() { showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit")
 }
@@ -2491,9 +2485,8 @@ void GitRepoContainer::deleteStash(
   if (onSuccess) {
     onSuccess(guard, stashIndex);
   } else {
-    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showSpinnerOverlay(false);
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { showSpinnerOverlay(false); });
   }
 
   LOG_PERF(0, "Exit")
@@ -2504,9 +2497,8 @@ void GitRepoContainer::popStash(const WeakPtr &guard, int stashIndex) {
 
   applyStash(guard, stashIndex, [=](const WeakPtr &guard, const int index) {
     deleteStash(guard, index, [=](const WeakPtr &guard, const int) {
-      Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-        showSpinnerOverlay(false);
-      });
+      Util::Dispatcher::dispatchToMainThread(
+          guard, [&]() { showSpinnerOverlay(false); });
     });
   });
 
@@ -2660,9 +2652,8 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
 
   refreshStatus(guard);
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    showSpinnerOverlay(false);
-  });
+  Util::Dispatcher::dispatchToMainThread(guard,
+                                         [&]() { showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit")
 }
