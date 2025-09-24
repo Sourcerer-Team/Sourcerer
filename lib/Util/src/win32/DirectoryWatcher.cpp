@@ -93,6 +93,11 @@ void DirectoryWatcher::run() {
 
     if (const DWORD waitStatus = WaitForSingleObject(overlapped.hEvent, 500);
         waitStatus == WAIT_OBJECT_0) {
+      if (bytesReturned < sizeof(FILE_NOTIFY_INFORMATION)) {
+        ResetEvent(overlapped.hEvent);
+        continue;
+      }
+
       auto info =
           reinterpret_cast<FILE_NOTIFY_INFORMATION *>(buffer);
       do {
