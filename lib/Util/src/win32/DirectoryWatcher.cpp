@@ -60,7 +60,7 @@ bool DirectoryWatcher::stopWatching() {
 void DirectoryWatcher::run() {
   LOG_PERF(0, "Enter");
 
-  HANDLE dirHandle = CreateFile(
+  const HANDLE dirHandle = CreateFile(
       reinterpret_cast<LPCWSTR>(_path.utf16()), FILE_LIST_DIRECTORY,
       FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL,
       OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
@@ -75,25 +75,25 @@ void DirectoryWatcher::run() {
 
   BYTE buffer[BUFFER_SIZE];
   OVERLAPPED overlapped = {};
-  overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+  overlapped.hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 
   while (!_quit) {
     DWORD bytesReturned = 0;
     if (ReadDirectoryChangesW(
-            dirHandle, &buffer, sizeof(buffer), TRUE,
+            dirHandle, &buffer[0], sizeof(buffer), TRUE,
             FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME |
                 FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE |
                 FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_CREATION,
-            &bytesReturned, &overlapped, NULL) == 0) {
+            &bytesReturned, &overlapped, nullptr) == 0) {
       LOG_ERROR(Log::ErrorId::FileSystem,
                 "Failed to read directory changes for {}. Error: {}",
                 _path.toStdString(), GetLastError());
       break;
     }
 
-    DWORD waitStatus = WaitForSingleObject(overlapped.hEvent, 500);
-    if (waitStatus == WAIT_OBJECT_0) {
-      FILE_NOTIFY_INFORMATION *info =
+    if (const DWORD waitStatus = WaitForSingleObject(overlapped.hEvent, 500);
+        waitStatus == WAIT_OBJECT_0) {
+      auto info =
           reinterpret_cast<FILE_NOTIFY_INFORMATION *>(buffer);
       do {
         QString fileName = QString::fromWCharArray(
