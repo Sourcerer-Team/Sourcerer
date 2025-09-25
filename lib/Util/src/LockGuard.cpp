@@ -2,8 +2,6 @@
 
 #include <Log.h>
 
-#include <chrono>
-
 #define THREAD_ID "LockGuard"
 
 namespace Util {

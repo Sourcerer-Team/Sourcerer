@@ -40,7 +40,7 @@ public:
   LockGuard(MutexType &mutex, const size_t timeout, const QString &function,
             const int line)
       : _mutex(mutex), _timeout(timeout), _function(function), _line(line) {
-    static const char *const THREAD_ID = "LockGuard";
+    static const auto THREAD_ID = "LockGuard";
 
     size_t totalWaitTime = 0;
     bool lockedAfterSomeTime = false;
