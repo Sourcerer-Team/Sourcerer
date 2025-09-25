@@ -430,6 +430,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(this, &GitRepoContainer::historyViewRightClicked, this,
           &GitRepoContainer::onHistoryViewRightClicked);
 
+  qApp->setStyleSheet(qApp->styleSheet());
+
   LOG_PERF(0, "Exit")
 }
 
