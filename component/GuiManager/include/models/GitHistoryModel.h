@@ -102,7 +102,10 @@ public:
                       int role) const override;
 
 private:
-  void createDrawableSlices(const std::function<void(int)> &progressCallback);
+  static Util::ResizableMatrix<Slice>
+  createDrawableSlices(GitRepo::GitHistoryWithStatus &historyWithStatus,
+                       const bool &quitUpdate,
+                       const std::function<void(int)> &progressCallback);
 
 private:
   Slices historySlices(const QString &commit) const;

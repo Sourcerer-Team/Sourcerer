@@ -182,7 +182,7 @@ private:
   QPair<QString, QString> getUpstream(const WeakPtr &guard);
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
-  bool openRepo();
+  bool openRepo(const WeakPtr &guard);
   void popStash(const WeakPtr &guard, int stashIndex);
   void pull(const WeakPtr &guard);
   void push(const WeakPtr &guard);

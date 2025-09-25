@@ -4,44 +4,35 @@
 
 #include <chrono>
 
+#define THREAD_ID "LockGuard"
+
 namespace Util {
 
 Mutex::Mutex() : std::timed_mutex() {}
 
 Mutex::~Mutex() {}
 
-LockGuard::LockGuard(Mutex &mutex, size_t timeout, const QString &function,
-                     int line)
-    : _mutex(mutex), _timeout(timeout), _function(function), _line(line) {
-  const static QString THREAD_ID = "LockGuard";
+RecursiveMutex::RecursiveMutex() : std::recursive_timed_mutex() {}
 
-  size_t totalWaitTime = 0;
-  bool lockedAfterSomeTime = false;
+RecursiveMutex::~RecursiveMutex() {}
 
-  while (!_mutex.try_lock_for(std::chrono::milliseconds(_timeout))) {
-    totalWaitTime += _timeout / 1000;
-
-    if (!lockedAfterSomeTime) {
-      LOG_ERROR(Log::ErrorId::Generic,
-                "Could not lock the mutex in {} seconds.", _timeout / 1000);
-      LOG_ERROR(Log::ErrorId::Generic, "Function: '{}'.", _function);
-      LOG_ERROR(Log::ErrorId::Generic, "Line: {}.", _line);
-    }
-
-    lockedAfterSomeTime = true;
-  }
-
-  if (lockedAfterSomeTime) {
-    LOG_ERROR(Log::ErrorId::Generic,
-              "The mutex has been successfully locked after {} seconds.",
-              totalWaitTime);
-    LOG_ERROR(Log::ErrorId::Generic, "Function: '{}'.", _function);
-    LOG_ERROR(Log::ErrorId::Generic, "Line: {}.", _line);
-  }
+void printDetailsError(const QString &function, const int line,
+                  const uint64_t mutexId, const size_t waitTime) {
+  LOG_ERROR(Log::ErrorId::Generic,
+            "Could not lock the mutex in {} seconds.", waitTime / 1000);
+  LOG_ERROR(Log::ErrorId::Generic, "Function: '{}'.", function);
+  LOG_ERROR(Log::ErrorId::Generic, "Line: {}.", line);
+  LOG_ERROR(Log::ErrorId::Generic, "mutex id: {}", mutexId);
 }
 
-LockGuard::~LockGuard() {
-  _mutex.unlock();
+void printDetailsSuccess(const QString &function, const int line,
+                         const uint64_t mutexId, const size_t waitTime) {
+  LOG_ERROR(Log::ErrorId::Generic,
+            "The mutex {} has been successfully locked after {} seconds.",
+            mutexId, waitTime);
+  LOG_ERROR(Log::ErrorId::Generic, "Function: '{}'.", function);
+  LOG_ERROR(Log::ErrorId::Generic, "Line: {}.", line);
 }
+
 
 } // namespace Util

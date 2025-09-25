@@ -229,8 +229,6 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->listViewPageDisplayFilesFlat->setHorizontalScrollBarPolicy(
       Qt::ScrollBarAlwaysOff);
 
-  qApp->setStyleSheet(qApp->styleSheet());
-
   // Set placeholder text color via palette
   QPalette palette = ui->textEditDescription->palette();
   palette.setColor(QPalette::PlaceholderText, QColor("#808080")); // Bright blue
@@ -455,11 +453,12 @@ void GitRepoContainer::init() {
 
   ContainerWidget::init();
 
-  openRepo();
-
   const WeakPtr guard = getSelf().toWeakRef();
 
-  prepareWatcher(guard);
+  _dispatcher.dispatch([=]() {
+    openRepo(guard);
+    prepareWatcher(guard);
+  });
 
   LOG_PERF(0, "Exit")
 }
@@ -3611,7 +3610,7 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
   LOG_PERF(0, "Exit")
 }
 
-bool GitRepoContainer::openRepo() {
+bool GitRepoContainer::openRepo(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -3634,8 +3633,6 @@ bool GitRepoContainer::openRepo() {
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
-
-  const WeakPtr guard = getSelf().toWeakRef();
 
   if (!success) {
     closeRepo();
@@ -4363,7 +4360,7 @@ void GitRepoContainer::updateBranchHistory(
   LOG_PERF(0, "Enter");
 
   _historyModel->updateHistoryAndStatus(
-      historyWithStatus, [&](const int progress) {
+      historyWithStatus, [=](const int progress) {
         Util::Dispatcher::dispatchToMainThread(guard, [=]() {
           const QString progressStr = QString("%1%").arg(progress);
           if (_spinnerOverlay) {
