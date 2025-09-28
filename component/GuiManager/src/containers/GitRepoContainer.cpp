@@ -1439,7 +1439,6 @@ void GitRepoContainer::stopWatcher(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    Q_ASSERT(_repoDirWatcher != nullptr);
 #ifdef Q_OS_WIN32
     if (_repoDirWatcher) {
       _repoDirWatcher->stopWatching();

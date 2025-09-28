@@ -23,7 +23,6 @@ ToastHostWidget::ToastHostWidget()
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
-  setAttribute(Qt::WA_TranslucentBackground, true);
   setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
                  Qt::Widget);
   setAttribute(Qt::WA_TransparentForMouseEvents, true);

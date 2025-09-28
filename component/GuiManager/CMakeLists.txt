@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD 17)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 find_package(libgit2 REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Gui GuiPrivate Svg Widgets LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Widgets LinguistTools)
 
 set(TS_FILES translations/Sourcerer_en_US.ts)
 set(QRC_FILES resources/resources.qrc)
@@ -199,7 +199,6 @@ includeLib(GuiManager QtWaitingSpinner)
 target_link_libraries(GuiManager PRIVATE
         Qt6::Core
         Qt6::Gui
-        Qt6::GuiPrivate
         Qt6::Svg
         Qt6::Widgets
         ${LIBGIT2_LIBRARIES}

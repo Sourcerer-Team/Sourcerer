@@ -1,4 +1,4 @@
-#include "Widgets/GitCredentialsOverlayWidget.h"
+#include "widgets/GitCredentialsOverlayWidget.h"
 
 #include <Log.h>
 
