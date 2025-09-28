@@ -475,10 +475,10 @@ bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
       LOCKGUARD(_tooltipsMutex);
       _mousePos = QPoint(-1, -1);
     } else if (event->type() == QEvent::MouseButtonPress) {
-      QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-      if (mouseEvent->button() == Qt::RightButton) {
-        QModelIndex index = ui->historyView->indexAt(mouseEvent->pos());
-        if (index.isValid()) {
+      if (const auto mouseEvent = static_cast<QMouseEvent *>(event);
+          mouseEvent->button() == Qt::RightButton) {
+        if (const QModelIndex index = ui->historyView->indexAt(mouseEvent->pos());
+            index.isValid()) {
           emit historyViewRightClicked(index, mouseEvent->globalPos());
         }
       }
