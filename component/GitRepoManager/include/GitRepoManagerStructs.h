@@ -41,6 +41,7 @@ enum class GitRepoCommandType : int {
   Pull,
   Push,
   Reset,
+  Revert,
   SetUpstream,
   StageFiles,
   Stash,
@@ -282,6 +283,16 @@ struct GitRepoResetCommand final : GitRepoCommand {
 
   QString commit;
   GitRepo::ResetType resetType = GitRepo::ResetType::Unknown;
+};
+
+struct GitRepoRevertCommand final : GitRepoCommand {
+  GitRepoRevertCommand() : GitRepoCommand(GitRepoCommandType::Revert) {}
+  ~GitRepoRevertCommand() override = default;
+
+  QString commit;
+  QString author;
+  QString email;
+  QString message;
 };
 
 struct GitRepoSetUpstreamCommand final : GitRepoCommand {

@@ -28,7 +28,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerCreateBranchFromCommit, callbackFunc));
+      EventManager::EventType::GitRepoManagerCreateBranchFromCommit,
+      callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetBranchHistory, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
@@ -74,6 +75,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerReset, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerRevert, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSetUpstream, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStageFiles, callbackFunc));
@@ -108,7 +111,8 @@ GitRepoManager::~GitRepoManager() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCommitStaged, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
-      EventManager::EventType::GitRepoManagerCreateBranchFromCommit, callbackFunc));
+      EventManager::EventType::GitRepoManagerCreateBranchFromCommit,
+      callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteStash, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -145,6 +149,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerPush, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerReset, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerRevert, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSetUpstream, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -232,9 +238,12 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerCreateBranchFromCommit: {
-    const auto createBranchFromCommitCommand = event.data<GitRepoCreateBranchFromCommitCommand>();
-    GitRepoManagerEvent createBranchFromCommitEvent(EventType::CreateBranchFromCommit);
-    createBranchFromCommitEvent.addParam(QVariant::fromValue(createBranchFromCommitCommand));
+    const auto createBranchFromCommitCommand =
+        event.data<GitRepoCreateBranchFromCommitCommand>();
+    GitRepoManagerEvent createBranchFromCommitEvent(
+        EventType::CreateBranchFromCommit);
+    createBranchFromCommitEvent.addParam(
+        QVariant::fromValue(createBranchFromCommitCommand));
     _fsm.send(createBranchFromCommitEvent);
     break;
   }
@@ -385,6 +394,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent resetEvent(EventType::Reset);
     resetEvent.addParam(QVariant::fromValue(resetCommand));
     _fsm.send(resetEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerRevert: {
+    const auto revertCommand = event.data<GitRepoRevertCommand>();
+    GitRepoManagerEvent revertEvent(EventType::Revert);
+    revertEvent.addParam(QVariant::fromValue(revertCommand));
+    _fsm.send(revertEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerSetUpstream: {

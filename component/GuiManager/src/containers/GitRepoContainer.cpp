@@ -477,7 +477,8 @@ bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
     } else if (event->type() == QEvent::MouseButtonPress) {
       if (const auto mouseEvent = static_cast<QMouseEvent *>(event);
           mouseEvent->button() == Qt::RightButton) {
-        if (const QModelIndex index = ui->historyView->indexAt(mouseEvent->pos());
+        if (const QModelIndex index =
+                ui->historyView->indexAt(mouseEvent->pos());
             index.isValid()) {
           emit historyViewRightClicked(index, mouseEvent->globalPos());
         }
@@ -1140,7 +1141,7 @@ void GitRepoContainer::onRenameBranch() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onRepoDirChanged(const QString &path) {
+void GitRepoContainer::onRepoDirChanged(const QString &path) const {
   LOG_PERF(0, "Enter");
 
   const qlonglong holdbackTimeout = _configManager.getLong(
@@ -1167,6 +1168,12 @@ void GitRepoContainer::onRepoDirChangedTimeout() {
 
 void GitRepoContainer::onRevertCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { revert(guard, commit); });
 
   LOG_PERF(0, "Exit");
 }
@@ -3829,7 +3836,7 @@ void GitRepoContainer::reset(const WeakPtr &guard, const QString &commit,
   command.resetType = type;
 
   EventManager::Event resetEvent(EventManager::EventType::GitRepoManagerReset,
-                                eventUuid);
+                                 eventUuid);
   resetEvent.addData(command);
   _eventManager.send(resetEvent);
 
@@ -3877,6 +3884,98 @@ void GitRepoContainer::reset(const WeakPtr &guard, const QString &commit,
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
     showToast(tr("Successfully reset to commit."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::revert(const WeakPtr &guard, const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  QString summaryToRevert;
+
+  for (int i = 0; i < _historyModel->rowCount(QModelIndex()); ++i) {
+    const QString rowFullSHA =
+        _historyModel
+            ->data(
+                _historyModel->index(i, COLUMN_COMMIT_FULL_SHA, QModelIndex()),
+                Qt::DisplayRole)
+            .toString();
+    if (rowFullSHA == commit) {
+      summaryToRevert =
+          _historyModel
+              ->data(_historyModel->index(i, COLUMN_SUMMARY, QModelIndex()),
+                     Qt::DisplayRole)
+              .toString();
+      break;
+    }
+  }
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoRevertCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+  command.author =
+      Common::UserProfileManager::instance().currentProfile().author;
+  command.email = Common::UserProfileManager::instance().currentProfile().email;
+  command.message =
+      QString("[%1] %2")
+          .arg(tr("Revert"))
+          .arg(summaryToRevert.isEmpty() ? commit : summaryToRevert);
+
+  EventManager::Event revertEvent(EventManager::EventType::GitRepoManagerRevert,
+                                  eventUuid);
+  revertEvent.addData(command);
+  _eventManager.send(revertEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerRevertError,
+                           EventManager::EventType::GitRepoManagerRevertResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerRevertResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  if (const bool pushed = commandResult.value.toBool(); !pushed) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to revert commit."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Successfully reverted commit."), tr("Info"));
   });
 
   LOG_PERF(0, "Exit")

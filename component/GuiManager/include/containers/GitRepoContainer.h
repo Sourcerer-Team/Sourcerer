@@ -97,7 +97,7 @@ private slots:
   void onPush();
   void onRemoteBranchSelected(const QString &branchName);
   void onRenameBranch();
-  void onRepoDirChanged(const QString &path);
+  void onRepoDirChanged(const QString &path) const;
   void onRepoDirChangedTimeout();
   void onRevertCommit(const QString &commit);
   void onSetUpstream();
@@ -188,6 +188,7 @@ private:
   void push(const WeakPtr &guard);
   void reset(const WeakPtr &guard, const QString &commit,
              GitRepo::ResetType type);
+  void revert(const WeakPtr &guard, const QString &commit);
   void prepareWatcher(const WeakPtr &guard);
   bool refreshHistory(const WeakPtr &guard);
   void refreshStatus(const WeakPtr &guard);

@@ -231,6 +231,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForReset(resetCommand);
     break;
   }
+  case EventType::Revert: {
+    const auto revertCommand = event.nextParam<GitRepoRevertCommand>();
+    scheduleWorkerForRevert(revertCommand);
+    break;
+  }
   case EventType::SetUpstream: {
     const auto setUpstreamCommand =
         event.nextParam<GitRepoSetUpstreamCommand>();
@@ -1502,6 +1507,25 @@ void ProcessingState::scheduleWorkerForReset(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForRevert(
+    const Structs::GitRepoRevertCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerRevertError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoRevertCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForSetUpstream(
     const Structs::GitRepoSetUpstreamCommand &command) {
   LOG_PERF(0, "Enter");
@@ -1742,10 +1766,42 @@ void ProcessingState::resetWorker(const Structs::GitRepoResetCommand &command) {
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::resetToCommit(repo, command.commit, command.resetType);
+  const bool success =
+      GitRepo::resetToCommit(repo, command.commit, command.resetType);
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerResetResult, command.syncUuid);
+  resultEvent.addData(
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::revertWorker(
+    const Structs::GitRepoRevertCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerRevertError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::revertCommit(
+      repo, command.commit, command.author, command.email, command.message);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerRevertResult, command.syncUuid);
   resultEvent.addData(
       GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
   _eventManager.send(resultEvent);
@@ -2634,6 +2690,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoResetCommand *>(command);
       if (resetCommand) {
         resetWorker(*resetCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::Revert: {
+      const auto *revertCommand =
+          dynamic_cast<const GitRepoRevertCommand *>(command);
+      if (revertCommand) {
+        revertWorker(*revertCommand);
       }
       break;
     }

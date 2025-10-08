@@ -36,6 +36,7 @@ enum class EventType : int {
   Pull,
   Push,
   Reset,
+  Revert,
   Setup,
   SetUpstream,
   StageFiles,

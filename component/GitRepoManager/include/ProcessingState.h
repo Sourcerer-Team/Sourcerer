@@ -66,6 +66,7 @@ private:
   void pullWorker(const Structs::GitRepoPullCommand &command);
   void pushWorker(const Structs::GitRepoPushCommand &command);
   void resetWorker(const Structs::GitRepoResetCommand &command);
+  void revertWorker(const Structs::GitRepoRevertCommand &command);
   void setUpstreamWorker(const Structs::GitRepoSetUpstreamCommand &command);
   void stageFilesWorker(const Structs::GitRepoStageFilesCommand &command);
   void stashWorker(const Structs::GitRepoStashCommand &command);
@@ -122,6 +123,7 @@ private:
   void scheduleWorkerForPull(const Structs::GitRepoPullCommand &command);
   void scheduleWorkerForPush(const Structs::GitRepoPushCommand &command);
   void scheduleWorkerForReset(const Structs::GitRepoResetCommand &command);
+  void scheduleWorkerForRevert(const Structs::GitRepoRevertCommand &command);
   void scheduleWorkerForSetUpstream(
       const Structs::GitRepoSetUpstreamCommand &command);
   void
