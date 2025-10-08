@@ -40,6 +40,7 @@ enum class GitRepoCommandType : int {
   Open,
   Pull,
   Push,
+  Reset,
   SetUpstream,
   StageFiles,
   Stash,
@@ -273,6 +274,14 @@ struct GitRepoPullCommand final : GitRepoCommand {
 struct GitRepoPushCommand final : GitRepoCommand {
   GitRepoPushCommand() : GitRepoCommand(GitRepoCommandType::Push) {}
   ~GitRepoPushCommand() override = default;
+};
+
+struct GitRepoResetCommand final : GitRepoCommand {
+  GitRepoResetCommand() : GitRepoCommand(GitRepoCommandType::Reset) {}
+  ~GitRepoResetCommand() override = default;
+
+  QString commit;
+  GitRepo::ResetType resetType = GitRepo::ResetType::Unknown;
 };
 
 struct GitRepoSetUpstreamCommand final : GitRepoCommand {

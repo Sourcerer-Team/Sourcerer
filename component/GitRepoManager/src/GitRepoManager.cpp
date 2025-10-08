@@ -72,6 +72,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerPush, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerReset, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSetUpstream, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStageFiles, callbackFunc));
@@ -141,6 +143,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerPull, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerPush, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerReset, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSetUpstream, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -374,6 +378,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent pushEvent(EventType::Push);
     pushEvent.addParam(QVariant::fromValue(pushCommand));
     _fsm.send(pushEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerReset: {
+    const auto resetCommand = event.data<GitRepoResetCommand>();
+    GitRepoManagerEvent resetEvent(EventType::Reset);
+    resetEvent.addParam(QVariant::fromValue(resetCommand));
+    _fsm.send(resetEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerSetUpstream: {

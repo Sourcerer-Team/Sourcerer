@@ -35,6 +35,7 @@ enum class EventType : int {
   OpenRepo,
   Pull,
   Push,
+  Reset,
   Setup,
   SetUpstream,
   StageFiles,

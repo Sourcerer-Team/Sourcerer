@@ -863,6 +863,13 @@ void GitRepoContainer::onDisplayTreeExpandAllButtonClicked() {
 void GitRepoContainer::onHardResetToCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
 
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch(
+      [=]() { reset(guard, commit, GitRepo::ResetType::Hard); });
+
   LOG_PERF(0, "Exit");
 }
 
@@ -1042,6 +1049,13 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
 void GitRepoContainer::onMixedResetToCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
 
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch(
+      [=]() { reset(guard, commit, GitRepo::ResetType::Mixed); });
+
   LOG_PERF(0, "Exit");
 }
 
@@ -1196,6 +1210,13 @@ void GitRepoContainer::onSetUpstream() {
 
 void GitRepoContainer::onSoftResetToCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch(
+      [=]() { reset(guard, commit, GitRepo::ResetType::Soft); });
 
   LOG_PERF(0, "Exit");
 }
@@ -3788,6 +3809,74 @@ void GitRepoContainer::push(const WeakPtr &guard) {
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
     showToast(tr("Successfully pushed to remote."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::reset(const WeakPtr &guard, const QString &commit,
+                             GitRepo::ResetType type) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoResetCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+  command.resetType = type;
+
+  EventManager::Event resetEvent(EventManager::EventType::GitRepoManagerReset,
+                                eventUuid);
+  resetEvent.addData(command);
+  _eventManager.send(resetEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerResetError,
+                           EventManager::EventType::GitRepoManagerResetResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerResetResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  if (const bool pushed = commandResult.value.toBool(); !pushed) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to reset to commit."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Successfully reset to commit."), tr("Info"));
   });
 
   LOG_PERF(0, "Exit")

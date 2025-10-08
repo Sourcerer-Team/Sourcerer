@@ -186,6 +186,8 @@ private:
   void popStash(const WeakPtr &guard, int stashIndex);
   void pull(const WeakPtr &guard);
   void push(const WeakPtr &guard);
+  void reset(const WeakPtr &guard, const QString &commit,
+             GitRepo::ResetType type);
   void prepareWatcher(const WeakPtr &guard);
   bool refreshHistory(const WeakPtr &guard);
   void refreshStatus(const WeakPtr &guard);

@@ -8,7 +8,6 @@
 #include <git2/status.h>
 
 namespace GitRepo {
-
 enum class CloneProgressStageType : int {
   Unknown = 0,
   Fetch,
@@ -116,6 +115,16 @@ enum class BranchType {
   last
 };
 
+enum class ResetType {
+  Unknown = 0,
+
+  Soft,
+  Mixed,
+  Hard,
+
+  last
+};
+
 int getLastError();
 void initForCurrentThread();
 void shutdownForCurrentThread();
@@ -164,5 +173,5 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
                  const QString &localBranchName);
 QPair<QString, QString> getUpstream(git_repository *repo,
                                     const QString &localBranchName);
-
+bool resetToCommit(git_repository *repo, const QString &commit, ResetType type);
 } // namespace GitRepo

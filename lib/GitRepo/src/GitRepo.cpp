@@ -3228,4 +3228,51 @@ QPair<QString, QString> getUpstream(git_repository *repo,
   return qMakePair(remoteName, remoteBranchName);
 }
 
+bool resetToCommit(git_repository *repo, const QString &commit,
+                   ResetType type) {
+  LOG_PERF(0, "Enter");
+
+  git_object *target = nullptr;
+
+  int error = git_revparse_single(&target, repo, commit.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  switch (type) {
+  case ResetType::Hard: {
+    git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
+    opts.checkout_strategy = GIT_CHECKOUT_FORCE;
+    error = git_reset(repo, target, GIT_RESET_HARD, &opts);
+    break;
+  }
+  case ResetType::Mixed: {
+    error = git_reset(repo, target, GIT_RESET_MIXED, nullptr);
+    break;
+  }
+  case ResetType::Soft: {
+    error = git_reset(repo, target, GIT_RESET_SOFT, nullptr);
+    break;
+  }
+  default: {
+    LOG_ERROR(Log::ErrorId::Git, "Internal error! Unsupported reset type!")
+    break;
+  }
+  }
+
+  git_object_free(target);
+
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
 } // namespace GitRepo
