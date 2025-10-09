@@ -20,6 +20,8 @@ GitRepoManager::GitRepoManager()
       std::bind(&GitRepoManager::eventCallback, this, std::placeholders::_1);
 
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerApplyPatch, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyStash, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCheckoutBranch, callbackFunc));
@@ -97,6 +99,8 @@ GitRepoManager::~GitRepoManager() {
       std::bind(&GitRepoManager::eventCallback, this, std::placeholders::_1);
 
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerApplyPatch, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyStash, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCheckoutBranch, callbackFunc));
@@ -170,7 +174,8 @@ void GitRepoManager::start() {
 
   _fsm.start();
 
-  EventManager::Event startedEvent(EventManager::EventType::ComponentStarted);
+  const EventManager::Event startedEvent(
+      EventManager::EventType::ComponentStarted);
   _eventManager.send(startedEvent);
 
   LOG_PERF(0, "Exit");
@@ -195,6 +200,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
   LOG_DEBUG("Received event {}", _eventManager.eventName(eventType));
 
   switch (eventType) {
+  case EventManager::EventType::GitRepoManagerApplyPatch: {
+    const auto applyPatchCommand = event.data<GitRepoApplyPatchCommand>();
+    GitRepoManagerEvent applyPatchEvent(EventType::ApplyPatch);
+    applyPatchEvent.addParam(QVariant::fromValue(applyPatchCommand));
+    _fsm.send(applyPatchEvent);
+    break;
+  }
   case EventManager::EventType::GitRepoManagerApplyStash: {
     const auto applyStashCommand = event.data<GitRepoApplyStashCommand>();
     GitRepoManagerEvent applyStashEvent(EventType::ApplyStash);

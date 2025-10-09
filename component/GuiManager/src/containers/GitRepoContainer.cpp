@@ -521,6 +521,19 @@ void GitRepoContainer::showEvent(QShowEvent *event) {
 void GitRepoContainer::onApplyPatch() {
   LOG_PERF(0, "Enter");
 
+  const QString filePath = QFileDialog::getOpenFileName(
+      this, tr("Select a patch file to open"), QDir::homePath(),
+      tr("Text Files (*.patch);;All Files (*)"));
+
+  if (filePath.isEmpty()) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { applyPatch(guard, filePath); });
+
   LOG_PERF(0, "Exit")
 }
 
@@ -930,11 +943,6 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   }
 
   const QString commit = commitIndex.data(Qt::DisplayRole).toString();
-  Q_ASSERT(!commit.isEmpty());
-  if (commit.isEmpty()) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
 
   QAction actionPull(tr("Pull"), this);
   QAction actionPush(tr("Push"), this);
@@ -955,6 +963,7 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   connect(&actionPush, &QAction::triggered, this, &GitRepoContainer::onPush);
   connect(&actionSetUpstream, &QAction::triggered, this,
           &GitRepoContainer::onSetUpstream);
+
   connect(&actionCheckoutCommit, &QAction::triggered, this,
           [=]() { onCheckoutCommit(commit); });
   connect(&actionCreateBranchFromCommit, &QAction::triggered, this,
@@ -988,19 +997,26 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   menu.addAction(&actionPush);
   menu.addAction(&actionSetUpstream);
   menu.addSeparator();
-  menu.addAction(&actionCheckoutCommit);
-  menu.addSeparator();
-  menu.addAction(&actionCreateBranchFromCommit);
-  menu.addMenu(&resetMenu);
-  menu.addAction(&actionRevertCommit);
-  menu.addSeparator();
+
+  if (!commit.isEmpty()) {
+    menu.addAction(&actionCheckoutCommit);
+    menu.addSeparator();
+    menu.addAction(&actionCreateBranchFromCommit);
+    menu.addMenu(&resetMenu);
+    menu.addAction(&actionRevertCommit);
+    menu.addSeparator();
+  }
+
   menu.addAction(&actionApplyPatch);
   menu.addAction(&actionRenameBranch);
   menu.addAction(&actionDeleteBranch);
-  menu.addSeparator();
-  menu.addAction(&actionCreateTagFromCommit);
-  menu.addSeparator();
-  menu.addAction(&actionCreatePatchFromCommit);
+
+  if (!commit.isEmpty()) {
+    menu.addSeparator();
+    menu.addAction(&actionCreateTagFromCommit);
+    menu.addSeparator();
+    menu.addAction(&actionCreatePatchFromCommit);
+  }
 
   menu.exec(pos);
 
@@ -1351,6 +1367,9 @@ void GitRepoContainer::setUpstream(const WeakPtr &guard,
       showSpinnerOverlay(false);
       showErrorToast(QString(tr("Failed to set upstream.")), tr("Checkout"));
     });
+
+    LOG_PERF(0, "Exit")
+    return;
   }
 
   const auto commandResult = event.data<GitRepoResult>();
@@ -2109,8 +2128,89 @@ void GitRepoContainer::updateModelActiveBranch(const WeakPtr &guard,
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::applyPatch(const WeakPtr &guard,
+                                  const QString &filePath) {
+  QFile file(filePath);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorToast(tr("Can't open file \"%1\" for reading").arg(filePath),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  QTextStream in(&file);
+  const QString content = in.readAll();
+
+  file.close();
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoApplyPatchCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.patchContent = content;
+
+  EventManager::Event applyPatchEvent(
+      EventManager::EventType::GitRepoManagerApplyPatch, eventUuid);
+  applyPatchEvent.addData(command);
+  _eventManager.send(applyPatchEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerApplyPatchError,
+      EventManager::EventType::GitRepoManagerApplyPatchResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to apply patch.")), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerApplyPatchResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to apply patch.")), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool applySuccess = commandResult.value.toBool();
+
+  refreshStatus(guard);
+
+  if (!applySuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to apply patch."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard,
+                                         [&]() { showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::applyStash(
-    const WeakPtr &guard, int stashIndex,
+    const WeakPtr &guard, const int stashIndex,
     const std::function<void(const WeakPtr &, int)> &onSuccess) {
   LOG_PERF(0, "Enter");
 
@@ -2141,7 +2241,7 @@ void GitRepoContainer::applyStash(
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorPage();
-      showErrorToast(QString(tr("Failed to apply stash.")), tr("Apply"));
+      showErrorToast(QString(tr("Failed to apply stash.")), tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -2151,8 +2251,11 @@ void GitRepoContainer::applyStash(
   if (event.type() != EventManager::EventType::GitRepoManagerApplyStashResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(QString(tr("Failed to apply stash.")), tr("Checkout"));
+      showErrorToast(QString(tr("Failed to apply stash.")), tr("Error"));
     });
+
+    LOG_PERF(0, "Exit")
+    return;
   }
 
   const auto commandResult = event.data<GitRepoResult>();
@@ -2430,6 +2533,7 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
       showSpinnerOverlay(false);
       showErrorToast(tr("Failed to commit staged changes."), tr("Error"));
     });
+
     LOG_PERF(0, "Exit")
     return;
   }
@@ -2495,6 +2599,7 @@ void GitRepoContainer::createBranchFromCommit(
       showSpinnerOverlay(false);
       showErrorToast(tr("Failed to create branch from commit."), tr("Error"));
     });
+
     LOG_PERF(0, "Exit")
     return;
   }
@@ -2601,6 +2706,9 @@ void GitRepoContainer::deleteStash(
       showSpinnerOverlay(false);
       showErrorToast(QString(tr("Failed to delete stash.")), tr("Checkout"));
     });
+
+    LOG_PERF(0, "Exit")
+    return;
   }
 
   const auto commandResult = event.data<GitRepoResult>();
@@ -2686,6 +2794,7 @@ void GitRepoContainer::diffFiles(const WeakPtr &guard,
       showSpinnerOverlay(false);
       showErrorToast(tr("Failed to create diff file."), tr("Error"));
     });
+
     LOG_PERF(0, "Exit")
     return;
   }
@@ -2771,6 +2880,7 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
       showSpinnerOverlay(false);
       showErrorToast(tr("Failed to discard file(s)."), tr("Error"));
     });
+
     LOG_PERF(0, "Exit")
     return;
   }
@@ -2842,6 +2952,7 @@ bool GitRepoContainer::getActiveBranchOrTag(
       showErrorToast(tr("Failed to retrieve the active local branch."),
                      tr("Error"));
     });
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3252,6 +3363,7 @@ bool GitRepoContainer::getLocalBranches() {
       showErrorToast(tr("Failed to retrieve the list of local branches."),
                      tr("Error"));
     });
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3311,6 +3423,7 @@ bool GitRepoContainer::getRemoteBranches() {
       showErrorToast(tr("Failed to retrieve the list of remote branches."),
                      tr("Error"));
     });
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3368,6 +3481,7 @@ bool GitRepoContainer::getStashes(const WeakPtr &guard) {
       showErrorToast(tr("Failed to retrieve the list of stashes."),
                      tr("Error"));
     });
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3427,6 +3541,7 @@ bool GitRepoContainer::getSubmodules() {
       showErrorToast(tr("Failed to retrieve the list of submodules."),
                      tr("Error"));
     });
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3483,6 +3598,7 @@ bool GitRepoContainer::getTags() {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showErrorToast(tr("Failed to retrieve the list of tags."), tr("Error"));
     });
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3569,18 +3685,20 @@ QPair<QString, QString> GitRepoContainer::getUpstream(const WeakPtr &guard) {
       showSpinnerOverlay(false);
       showErrorToast(QString(tr("Failed to get upstream.")), tr("Checkout"));
     });
+
+    LOG_PERF(0, "Exit")
+    return {};
   }
 
   const auto commandResult = event.data<GitRepoResult>();
-  const auto getUpstreamResult =
+  const auto [remoteName, remoteBranchName] =
       commandResult.value.value<GitRepoGetUpstreamCommandResult>();
 
   refreshStatus(guard);
 
   LOG_PERF(0, "Exit")
 
-  return qMakePair(getUpstreamResult.remoteName,
-                   getUpstreamResult.remoteBranchName);
+  return qMakePair(remoteName, remoteBranchName);
 }
 
 void GitRepoContainer::hideAllWidgets() const {

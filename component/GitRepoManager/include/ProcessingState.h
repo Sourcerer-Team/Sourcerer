@@ -24,6 +24,7 @@ public:
   void exit() override;
 
 private:
+  void applyPatchWorker(const Structs::GitRepoApplyPatchCommand &command);
   void applyStashWorker(const Structs::GitRepoApplyStashCommand &command);
   void
   checkoutBranchWorker(const Structs::GitRepoCheckoutBranchCommand &command);
@@ -75,6 +76,8 @@ private:
   void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
   void reportError(EventManager::EventType eventType, const QString &message,
                    const Structs::GitRepoCommand &command) const;
+  void
+  scheduleWorkerForApplyPatch(const Structs::GitRepoApplyPatchCommand &command);
   void
   scheduleWorkerForApplyStash(const Structs::GitRepoApplyStashCommand &command);
   void scheduleWorkerForCheckoutBranch(

@@ -79,6 +79,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
   case EventType::Setup: {
     break;
   }
+  case EventType::ApplyPatch: {
+    const auto applyPatchCommand = event.nextParam<GitRepoApplyPatchCommand>();
+    scheduleWorkerForApplyPatch(applyPatchCommand);
+    break;
+  }
   case EventType::ApplyStash: {
     const auto applyStashCommand = event.nextParam<GitRepoApplyStashCommand>();
     scheduleWorkerForApplyStash(applyStashCommand);
@@ -276,6 +281,43 @@ void ProcessingState::exit() {
   LOG_PERF(0, "Enter");
 
   destroyContextsMap();
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::applyPatchWorker(
+    const Structs::GitRepoApplyPatchCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerApplyPatchError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::applyPatch(repo, command.patchContent);
+  if (!success) {
+    reportError(EventManager::EventType::GitRepoManagerApplyPatchError,
+                tr("Can't apply stash."), command);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to apply patch.");
+    return;
+  }
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerApplyPatchResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                    QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -1995,6 +2037,25 @@ void ProcessingState::reportError(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForApplyPatch(
+    const Structs::GitRepoApplyPatchCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerApplyPatchError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoApplyPatchCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForApplyStash(
     const Structs::GitRepoApplyStashCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2477,6 +2538,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
     }
 
     switch (command->type) {
+    case GitRepoCommandType::ApplyPatch: {
+      const auto applyPatchCommand =
+          dynamic_cast<const GitRepoApplyPatchCommand *>(command);
+      if (applyPatchCommand) {
+        applyPatchWorker(*applyPatchCommand);
+      }
+      break;
+    }
     case GitRepoCommandType::ApplyStash: {
       const auto applyStashCommand =
           dynamic_cast<const GitRepoApplyStashCommand *>(command);

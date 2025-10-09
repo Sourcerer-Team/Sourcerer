@@ -174,5 +174,8 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
 QPair<QString, QString> getUpstream(git_repository *repo,
                                     const QString &localBranchName);
 bool resetToCommit(git_repository *repo, const QString &commit, ResetType type);
-bool revertCommit(git_repository *repo, const QString &commit, const QString& author, const QString& email, const QString& message);
+bool revertCommit(git_repository *repo, const QString &commit,
+                  const QString &author, const QString &email,
+                  const QString &message);
+bool applyPatch(git_repository *repo, const QString &patchContent);
 } // namespace GitRepo

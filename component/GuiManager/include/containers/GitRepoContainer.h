@@ -135,6 +135,7 @@ private slots:
                                GitRepo::BranchType branchType);
 
 private:
+  void applyPatch(const WeakPtr &guard, const QString &filePath);
   void applyStash(
       const WeakPtr &guard, int stashIndex,
       const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
@@ -168,7 +169,7 @@ private:
                                               const QString &commit) const;
   [[nodiscard]] GitRepo::GitCommitStatus
   getCommitStatus(const WeakPtr &guard, const QString &commit) const;
-  QStringList getSelectedFiles(QListView *listView);
+  static QStringList getSelectedFiles(QListView *listView);
   QStringList getSelectedFilesWhichExist(QListView *listView);
   QStringList getSelectedFiles(QTreeView *treeView);
   QStringList getSelectedFilesWhichExist(QTreeView *treeView);

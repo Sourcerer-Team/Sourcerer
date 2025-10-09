@@ -19,6 +19,9 @@ enum EventType {
   ComponentStopped,
 
   // GitRepoManager
+  GitRepoManagerApplyPatch,
+  GitRepoManagerApplyPatchResult,
+  GitRepoManagerApplyPatchError,
   GitRepoManagerApplyStash,
   GitRepoManagerApplyStashResult,
   GitRepoManagerApplyStashError,

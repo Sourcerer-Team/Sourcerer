@@ -17,6 +17,7 @@
 #include <git2/errors.h>
 #include <git2/graph.h>
 #include <git2/index.h>
+#include <git2/patch.h>
 #include <git2/refs.h>
 #include <git2/revparse.h>
 #include <git2/revwalk.h>
@@ -3388,6 +3389,35 @@ bool revertCommit(git_repository *repo, const QString &commit,
   git_commit_free(headCommit);
   git_commit_free(targetCommit);
   git_reference_free(headRef);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+bool applyPatch(git_repository *repo, const QString &patchContent) {
+  LOG_PERF(0, "Enter");
+
+  git_diff *diff = nullptr;
+
+  const std::string buffer = patchContent.toStdString();
+
+  int error = git_diff_from_buffer(&diff, buffer.c_str(), buffer.size());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_apply(repo, diff, GIT_APPLY_LOCATION_WORKDIR, nullptr);
+  if (error) {
+    logGitError(error);
+    git_diff_free(diff);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_diff_free(diff);
 
   LOG_PERF(0, "Exit");
 
