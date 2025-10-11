@@ -847,6 +847,32 @@ void GitRepoContainer::onCreatePatchFromCommit(const QString &commit) {
 void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
 
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  const auto overlayWidget = new TextInputOverlayWidget(this);
+  overlayWidget->setPlaceholderText(tr("Tag name here"));
+
+  connect(overlayWidget, &TextInputOverlayWidget::canceled, this, [=]() {
+    overlayWidget->hide();
+    delete overlayWidget;
+  });
+
+  connect(overlayWidget, &TextInputOverlayWidget::submitted, this,
+          [=](const QString &tagName) {
+            overlayWidget->hide();
+            delete overlayWidget;
+
+            startOverlayTimer();
+
+            _dispatcher.dispatch([=]() {
+              createTagFromCommit(
+                  guard, commit, tagName);
+            });
+          });
+
+  overlayWidget->show();
+  overlayWidget->raise();
+
   LOG_PERF(0, "Exit");
 }
 
@@ -2675,6 +2701,77 @@ void GitRepoContainer::createBranchFromCommit(
     Util::Dispatcher::dispatchToMainThread(
         guard, [=]() { showSpinnerOverlay(false); });
   }
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::createTagFromCommit(const WeakPtr &guard,
+                                           const QString &commit,
+                                           const QString &tagName) {
+  LOG_PERF(0, "Enter");
+
+  const QString author = Common::UserProfileManager::instance().currentProfile()
+      .author;
+  const QString email = Common::UserProfileManager::instance().currentProfile().
+      email;
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoCreateTagFromCommitCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+  command.tagName = tagName;
+  command.author = author;
+  command.email = email;
+  command.message = QString();
+
+  EventManager::Event createTagFromCommitEvent(
+      EventManager::EventType::GitRepoManagerCreateTagFromCommit, eventUuid);
+  createTagFromCommitEvent.addData(command);
+  _eventManager.send(createTagFromCommitEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerCreateTagFromCommitError,
+      EventManager::EventType::GitRepoManagerCreateTagFromCommitResult
+  };
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
+      showErrorToast(tr("Failed to create tag from commit."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerCreateTagFromCommitResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to create tag from commit."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const bool createSuccess = commandResult.value.toBool();
+
+  refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() { showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit")
 }

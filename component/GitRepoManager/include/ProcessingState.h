@@ -13,6 +13,7 @@ namespace GitRepoManager {
 
 class ProcessingState final : public GitRepoManagerState {
   Q_OBJECT
+
 public:
   explicit ProcessingState(GitRepoManagerFsm &fsm);
   ~ProcessingState() override;
@@ -33,7 +34,10 @@ private:
   void cloneRepoWorker(const Structs::GitRepoCloneCommand &command);
   void closeRepoWorker(const Structs::GitRepoCloseCommand &command);
   void commitStagedWorker(const Structs::GitRepoCommitStagedCommand &command);
-  void createBranchFromCommitWorker(const Structs::GitRepoCreateBranchFromCommitCommand &command);
+  void createBranchFromCommitWorker(
+      const Structs::GitRepoCreateBranchFromCommitCommand &command);
+  void createTagFromCommitWorker(
+      const Structs::GitRepoCreateTagFromCommitCommand &command);
   Structs::GitRepoContext *context(const QString &uuid);
   void destroyContext(const QString &uuid);
   void destroyContextsMap();
@@ -92,6 +96,8 @@ private:
       const Structs::GitRepoCommitStagedCommand &command);
   void scheduleWorkerForCreateBranchFromCommit(
       const Structs::GitRepoCreateBranchFromCommitCommand &command);
+  void scheduleWorkerForCreateTagFromCommit(
+      const Structs::GitRepoCreateTagFromCommitCommand &command);
   void scheduleWorkerForGetActiveBranch(
       const Structs::GitRepoGetActiveBranchCommand &command);
   void scheduleWorkerForGetCommitBranches(
@@ -129,7 +135,8 @@ private:
   void scheduleWorkerForOpenRepo(const Structs::GitRepoOpenCommand &command);
   void scheduleWorkerForPull(const Structs::GitRepoPullCommand &command);
   void scheduleWorkerForPush(const Structs::GitRepoPushCommand &command);
-  void scheduleWorkerForRenameBranch(const Structs::GitRepoRenameBranchCommand &command);
+  void scheduleWorkerForRenameBranch(
+      const Structs::GitRepoRenameBranchCommand &command);
   void scheduleWorkerForReset(const Structs::GitRepoResetCommand &command);
   void scheduleWorkerForRevert(const Structs::GitRepoRevertCommand &command);
   void scheduleWorkerForSetUpstream(

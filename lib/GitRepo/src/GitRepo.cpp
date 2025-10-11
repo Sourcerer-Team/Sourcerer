@@ -3481,4 +3481,59 @@ bool deleteBranch(git_repository *repo, const QString& branchName) {
   return true;
 }
 
+bool createTagFromCommit(git_repository *repo, const QString &commit,
+                         const QString &tagName, const QString &author,
+                         const QString &email, const QString &message) {
+  LOG_PERF(0, "Enter");
+
+  git_oid targetOid;
+
+  int error = git_oid_fromstr(&targetOid, commit.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_commit *targetCommit = nullptr;
+  error = git_commit_lookup(&targetCommit, repo, &targetOid);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_signature *sig = nullptr;
+
+  error = git_signature_now(&sig, author.toStdString().c_str(),
+                            email.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    git_commit_free(targetCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_oid tagOid;
+
+  error = git_tag_create(&tagOid, repo, tagName.toStdString().c_str(),
+                         reinterpret_cast<git_object *>(targetCommit), sig,
+                         message.toStdString().c_str(), 0);
+  if (error) {
+    logGitError(error);
+    git_commit_free(targetCommit);
+    git_signature_free(sig);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_commit_free(targetCommit);
+  git_signature_free(sig);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+
 } // namespace GitRepo

@@ -33,6 +33,9 @@ GitRepoManager::GitRepoManager()
       EventManager::EventType::GitRepoManagerCreateBranchFromCommit,
       callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCreateTagFromCommit,
+      callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetBranchHistory, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloseRepo, callbackFunc));
@@ -120,6 +123,9 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerCommitStaged, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCreateBranchFromCommit,
+      callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCreateTagFromCommit,
       callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteBranch, callbackFunc));
@@ -265,6 +271,16 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     createBranchFromCommitEvent.addParam(
         QVariant::fromValue(createBranchFromCommitCommand));
     _fsm.send(createBranchFromCommitEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCreateTagFromCommit: {
+    const auto createTagFromCommitCommand =
+        event.data<GitRepoCreateTagFromCommitCommand>();
+    GitRepoManagerEvent createTagFromCommitEvent(
+        EventType::CreateTagFromCommit);
+    createTagFromCommitEvent.addParam(
+        QVariant::fromValue(createTagFromCommitCommand));
+    _fsm.send(createTagFromCommitEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerDeleteBranch: {

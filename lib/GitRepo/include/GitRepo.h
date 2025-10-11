@@ -218,5 +218,9 @@ bool applyPatch(git_repository *repo, const QString &patchContent);
 bool renameBranch(git_repository *repo, const QString &oldName,
                   const QString &newName);
 
-bool deleteBranch(git_repository *repo, const QString& branchName);
+bool deleteBranch(git_repository *repo, const QString &branchName);
+
+bool createTagFromCommit(git_repository *repo, const QString &commit,
+                         const QString &tagName, const QString &author,
+                         const QString &email, const QString &message);
 } // namespace GitRepo

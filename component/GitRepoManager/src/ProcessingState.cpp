@@ -123,6 +123,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForCreateBranchFromCommit(createBranchFromCommitCommand);
     break;
   }
+  case EventType::CreateTagFromCommit: {
+    const auto createTagFromCommitCommand =
+        event.nextParam<GitRepoCreateTagFromCommitCommand>();
+    scheduleWorkerForCreateTagFromCommit(createTagFromCommitCommand);
+    break;
+  }
   case EventType::DeleteBranch: {
     const auto deleteBranchCommand =
         event.nextParam<GitRepoDeleteBranchCommand>();
@@ -637,7 +643,7 @@ void ProcessingState::createBranchFromCommitWorker(
     const Structs::GitRepoCreateBranchFromCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(
         EventManager::EventType::GitRepoManagerCreateBranchFromCommitError,
@@ -658,6 +664,40 @@ void ProcessingState::createBranchFromCommitWorker(
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerCreateBranchFromCommitResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::createTagFromCommitWorker(
+    const Structs::GitRepoCreateTagFromCommitCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(
+        EventManager::EventType::GitRepoManagerCreateTagFromCommitError,
+        tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success =
+      GitRepo::createTagFromCommit(repo, command.commit, command.tagName,
+                                   command.author, command.email,
+                                   command.message);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerCreateTagFromCommitResult,
       command.syncUuid);
   resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
   _eventManager.send(resultEvent);
@@ -2303,6 +2343,26 @@ void ProcessingState::scheduleWorkerForCreateBranchFromCommit(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForCreateTagFromCommit(
+    const Structs::GitRepoCreateTagFromCommitCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(
+        EventManager::EventType::GitRepoManagerCreateTagFromCommitError,
+        tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoCreateTagFromCommitCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForGetActiveBranch(
     const Structs::GitRepoGetActiveBranchCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2719,6 +2779,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoCreateBranchFromCommitCommand *>(command);
       if (createBranchFromCommitCommand) {
         createBranchFromCommitWorker(*createBranchFromCommitCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::CreateTagFromCommit: {
+      const auto createTagFromCommitCommand =
+          dynamic_cast<const GitRepoCreateTagFromCommitCommand *>(command);
+      if (createTagFromCommitCommand) {
+        createTagFromCommitWorker(*createTagFromCommitCommand);
       }
       break;
     }
