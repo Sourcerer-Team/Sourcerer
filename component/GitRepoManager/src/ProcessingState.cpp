@@ -16,8 +16,8 @@ using namespace GitRepoManager::Structs;
 namespace GitRepoManager {
 
 ProcessingState::ProcessingState(GitRepoManagerFsm &fsm)
-    : GitRepoManagerState{StateType::Processing, fsm}, _quitAll{false},
-      _eventManager{EventManager::EventManager::getInstance()} {
+  : GitRepoManagerState{StateType::Processing, fsm}, _quitAll{false},
+    _eventManager{EventManager::EventManager::getInstance()} {
   LOG_PERF(0, "Enter");
 
   const auto eventCallbackFunc =
@@ -121,6 +121,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     const auto createBranchFromCommitCommand =
         event.nextParam<GitRepoCreateBranchFromCommitCommand>();
     scheduleWorkerForCreateBranchFromCommit(createBranchFromCommitCommand);
+    break;
+  }
+  case EventType::DeleteBranch: {
+    const auto deleteBranchCommand =
+        event.nextParam<GitRepoDeleteBranchCommand>();
+    scheduleWorkerForDeleteBranch(deleteBranchCommand);
     break;
   }
   case EventType::DeleteStash: {
@@ -232,7 +238,8 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     break;
   }
   case EventType::RenameBranch: {
-    const auto renameBranchCommand = event.nextParam<GitRepoRenameBranchCommand>();
+    const auto renameBranchCommand = event.nextParam<
+      GitRepoRenameBranchCommand>();
     scheduleWorkerForRenameBranch(renameBranchCommand);
     break;
   }
@@ -749,6 +756,44 @@ void ProcessingState::destroyContextsMap() {
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::deleteBranchWorker(
+    const Structs::GitRepoDeleteBranchCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteBranchError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::deleteBranch(repo, command.branchName);
+  if (!success) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteBranchError,
+                tr("Can't delete branch."), command);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to delete branch \"{}\".",
+              command.branchName);
+    return;
+  }
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerDeleteBranchResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                    QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::deleteStashWorker(
     const Structs::GitRepoDeleteStashCommand &command) {
   LOG_PERF(0, "Enter");
@@ -772,7 +817,7 @@ void ProcessingState::deleteStashWorker(
   if (!success) {
     reportError(EventManager::EventType::GitRepoManagerDeleteStashError,
                 tr("Can't delete stash."), command);
-    LOG_ERROR(Log::ErrorId::Git, "Failed to apply stash \"{}\".",
+    LOG_ERROR(Log::ErrorId::Git, "Failed to delete stash \"{}\".",
               command.index);
     return;
   }
@@ -1814,7 +1859,8 @@ void ProcessingState::pushWorker(const Structs::GitRepoPushCommand &command) {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::renameBranchWorker(const Structs::GitRepoRenameBranchCommand &command) {
+void ProcessingState::renameBranchWorker(
+    const Structs::GitRepoRenameBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
   const GitRepoContext *ctx = context(command.uuid);
@@ -1836,7 +1882,8 @@ void ProcessingState::renameBranchWorker(const Structs::GitRepoRenameBranchComma
       GitRepo::renameBranch(repo, command.oldBranchName, command.newBranchName);
 
   EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerRenameBranchResult, command.syncUuid);
+      EventManager::EventType::GitRepoManagerRenameBranchResult,
+      command.syncUuid);
   resultEvent.addData(
       GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
   _eventManager.send(resultEvent);
@@ -2370,6 +2417,25 @@ void ProcessingState::scheduleWorkerForGetUpstream(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForDeleteBranch(
+    const Structs::GitRepoDeleteBranchCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteBranchError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoDeleteBranchCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForDeleteStash(
     const Structs::GitRepoDeleteStashCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2653,6 +2719,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoCreateBranchFromCommitCommand *>(command);
       if (createBranchFromCommitCommand) {
         createBranchFromCommitWorker(*createBranchFromCommitCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::DeleteBranch: {
+      const auto deleteBranchCommand =
+          dynamic_cast<const GitRepoDeleteBranchCommand *>(command);
+      if (deleteBranchCommand) {
+        deleteBranchWorker(*deleteBranchCommand);
       }
       break;
     }

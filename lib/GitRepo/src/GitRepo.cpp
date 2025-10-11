@@ -3452,4 +3452,33 @@ bool renameBranch(git_repository *repo, const QString &oldName,
 
   return true;
 }
+
+bool deleteBranch(git_repository *repo, const QString& branchName) {
+  LOG_PERF(0, "Enter");
+
+  git_reference *ref = nullptr;
+
+  int error = git_branch_lookup(&ref, repo, branchName.toStdString().c_str(),
+                                GIT_BRANCH_LOCAL);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_branch_delete(ref);
+  if (error) {
+    logGitError(error);
+    git_reference_free(ref);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference_free(ref);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
 } // namespace GitRepo

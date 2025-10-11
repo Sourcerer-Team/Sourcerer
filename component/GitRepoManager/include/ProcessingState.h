@@ -37,6 +37,7 @@ private:
   Structs::GitRepoContext *context(const QString &uuid);
   void destroyContext(const QString &uuid);
   void destroyContextsMap();
+  void deleteBranchWorker(const Structs::GitRepoDeleteBranchCommand &command);
   void deleteStashWorker(const Structs::GitRepoDeleteStashCommand &command);
   void diffFilesWorker(const Structs::GitRepoDiffFilesCommand &command);
   void discardFilesWorker(const Structs::GitRepoDiscardFilesCommand &command);
@@ -103,6 +104,8 @@ private:
       const Structs::GitRepoGetCommitStatusCommand &command);
   void scheduleWorkerForGetUpstream(
       const Structs::GitRepoGetUpstreamCommand &command);
+  void scheduleWorkerForDeleteBranch(
+      const Structs::GitRepoDeleteBranchCommand &command);
   void scheduleWorkerForDeleteStash(
       const Structs::GitRepoDeleteStashCommand &command);
   void

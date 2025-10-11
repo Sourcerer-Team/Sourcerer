@@ -853,6 +853,23 @@ void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
 void GitRepoContainer::onDeleteBranch() {
   LOG_PERF(0, "Enter");
 
+  const QString question = QString(
+      "Are you sure that you want to delete branch '%1'?").arg(_activeBranch);
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch(
+      [=]() { deleteBranch(guard, _activeBranch); });
+
   LOG_PERF(0, "Exit");
 }
 
@@ -953,7 +970,6 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   QAction actionRevertCommit(tr("Revert"), this);
   QAction actionApplyPatch(tr("Apply patch"), this);
   QAction actionRenameBranch(QString(tr("Rename %1")).arg(_activeBranch), this);
-  QAction actionDeleteBranch(QString(tr("Delete %1")).arg(_activeBranch), this);
   QAction actionCreateTagFromCommit(tr("Create tag from commit"), this);
   QAction actionCreatePatchFromCommit(tr("Create patch from commit"), this);
 
@@ -978,8 +994,6 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
           &GitRepoContainer::onApplyPatch);
   connect(&actionRenameBranch, &QAction::triggered, this,
           &GitRepoContainer::onRenameBranch);
-  connect(&actionDeleteBranch, &QAction::triggered, this,
-          &GitRepoContainer::onDeleteBranch);
   connect(&actionCreateTagFromCommit, &QAction::triggered, this,
           [=]() { onCreateTagFromCommit(commit); });
   connect(&actionCreatePatchFromCommit, &QAction::triggered, this,
@@ -1007,7 +1021,6 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
 
   menu.addAction(&actionApplyPatch);
   menu.addAction(&actionRenameBranch);
-  menu.addAction(&actionDeleteBranch);
 
   if (!commit.isEmpty()) {
     menu.addSeparator();
@@ -2666,6 +2679,77 @@ void GitRepoContainer::createBranchFromCommit(
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::deleteBranch(const WeakPtr &guard,
+                                    const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoDeleteBranchCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.branchName = branchName;
+
+  EventManager::Event deleteBranchEvent(
+      EventManager::EventType::GitRepoManagerDeleteBranch, eventUuid);
+  deleteBranchEvent.addData(command);
+  _eventManager.send(deleteBranchEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerDeleteBranchError,
+      EventManager::EventType::GitRepoManagerDeleteBranchResult
+  };
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to delete branch.")), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerDeleteBranchResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to delete branch.")), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool deleteSuccess = commandResult.value.toBool();
+
+  refreshHistory(guard);
+
+  if (!deleteSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to delete branch."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit")
+}
+
 void GitRepoContainer::deleteFiles(const WeakPtr &guard,
                                    const QStringList &files) {
   LOG_PERF(0, "Enter");
@@ -2740,7 +2824,7 @@ void GitRepoContainer::deleteStash(
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorPage();
-      showErrorToast(QString(tr("Failed to delete stash.")), tr("Apply"));
+      showErrorToast(QString(tr("Failed to delete stash.")), tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -2751,7 +2835,7 @@ void GitRepoContainer::deleteStash(
       EventManager::EventType::GitRepoManagerDeleteStashResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(QString(tr("Failed to delete stash.")), tr("Checkout"));
+      showErrorToast(QString(tr("Failed to delete stash.")), tr("Error"));
     });
 
     LOG_PERF(0, "Exit")

@@ -39,6 +39,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCommitStaged, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDeleteBranch, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteStash, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiffFiles, callbackFunc));
@@ -119,6 +121,8 @@ GitRepoManager::~GitRepoManager() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCreateBranchFromCommit,
       callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDeleteBranch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteStash, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -261,6 +265,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     createBranchFromCommitEvent.addParam(
         QVariant::fromValue(createBranchFromCommitCommand));
     _fsm.send(createBranchFromCommitEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerDeleteBranch: {
+    const auto deleteBranchCommand = event.data<GitRepoDeleteBranchCommand>();
+    GitRepoManagerEvent deleteBranchEvent(EventType::DeleteBranch);
+    deleteBranchEvent.addParam(QVariant::fromValue(deleteBranchCommand));
+    _fsm.send(deleteBranchEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerDeleteStash: {

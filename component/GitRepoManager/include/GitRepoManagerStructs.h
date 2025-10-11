@@ -22,6 +22,7 @@ enum class GitRepoCommandType : int {
   Close,
   CommitStaged,
   CreateBranchFromCommit,
+  DeleteBranch,
   DeleteStash,
   DiffFiles,
   DiscardFiles,
@@ -140,6 +141,14 @@ struct GitRepoCreateBranchFromCommitCommand final : GitRepoCommand {
 
   QString branchName;
   QString commit;
+};
+
+struct GitRepoDeleteBranchCommand final : GitRepoCommand {
+  GitRepoDeleteBranchCommand()
+      : GitRepoCommand(GitRepoCommandType::DeleteBranch) {}
+  ~GitRepoDeleteBranchCommand() override = default;
+
+  QString branchName;
 };
 
 struct GitRepoDeleteStashCommand final : GitRepoCommand {

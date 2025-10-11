@@ -104,7 +104,7 @@ private slots:
   void onSoftResetToCommit(const QString &commit);
   void onStash();
   void onStashSelected(int stashIndex);
-  void onSubmitRenameBranch(const QString& newName);
+  void onSubmitRenameBranch(const QString &newName);
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay();
   void onGraphColumnExpand(int section);
@@ -154,6 +154,7 @@ private:
       const WeakPtr &guard, const QString &commit, const QString &branchName,
       const std::function<void(const WeakPtr &, const QString &)> &onSuccess =
           nullptr);
+  void deleteBranch(const WeakPtr &guard, const QString &branchName);
   void deleteFiles(const WeakPtr &guard, const QStringList &files);
   void deleteStash(
       const WeakPtr &guard, int stashIndex,
@@ -188,7 +189,7 @@ private:
   void popStash(const WeakPtr &guard, int stashIndex);
   void pull(const WeakPtr &guard);
   void push(const WeakPtr &guard);
-  void renameBranch(const WeakPtr& guard, const QString& newName);
+  void renameBranch(const WeakPtr &guard, const QString &newName);
   void reset(const WeakPtr &guard, const QString &commit,
              GitRepo::ResetType type);
   void revert(const WeakPtr &guard, const QString &commit);
