@@ -223,4 +223,6 @@ bool deleteBranch(git_repository *repo, const QString &branchName);
 bool createTagFromCommit(git_repository *repo, const QString &commit,
                          const QString &tagName, const QString &author,
                          const QString &email, const QString &message);
+
+QString createPatchFromCommit(git_repository *repo, const QString &commit);
 } // namespace GitRepo

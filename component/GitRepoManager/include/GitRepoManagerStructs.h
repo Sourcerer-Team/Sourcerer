@@ -22,6 +22,7 @@ enum class GitRepoCommandType : int {
   Close,
   CommitStaged,
   CreateBranchFromCommit,
+  CreatePatchFromCommit,
   CreateTagFromCommit,
   DeleteBranch,
   DeleteStash,
@@ -142,6 +143,18 @@ struct GitRepoCreateBranchFromCommitCommand final : GitRepoCommand {
 
   QString branchName;
   QString commit;
+};
+
+struct GitRepoCreatePatchFromCommitCommand final : GitRepoCommand {
+  GitRepoCreatePatchFromCommitCommand()
+      : GitRepoCommand(GitRepoCommandType::CreatePatchFromCommit) {}
+  ~GitRepoCreatePatchFromCommitCommand() override = default;
+
+  QString commit;
+};
+
+struct GitRepoCreatePatchFromCommitCommandResult {
+  QString patchContent;
 };
 
 struct GitRepoCreateTagFromCommitCommand final : GitRepoCommand {

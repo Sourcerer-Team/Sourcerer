@@ -36,6 +36,8 @@ private:
   void commitStagedWorker(const Structs::GitRepoCommitStagedCommand &command);
   void createBranchFromCommitWorker(
       const Structs::GitRepoCreateBranchFromCommitCommand &command);
+  void createPatchFromCommitWorker(
+      const Structs::GitRepoCreatePatchFromCommitCommand &command);
   void createTagFromCommitWorker(
       const Structs::GitRepoCreateTagFromCommitCommand &command);
   Structs::GitRepoContext *context(const QString &uuid);
@@ -96,6 +98,8 @@ private:
       const Structs::GitRepoCommitStagedCommand &command);
   void scheduleWorkerForCreateBranchFromCommit(
       const Structs::GitRepoCreateBranchFromCommitCommand &command);
+  void scheduleWorkerForCreatePatchFromCommit(
+      const Structs::GitRepoCreatePatchFromCommitCommand &command);
   void scheduleWorkerForCreateTagFromCommit(
       const Structs::GitRepoCreateTagFromCommitCommand &command);
   void scheduleWorkerForGetActiveBranch(

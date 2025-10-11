@@ -33,6 +33,9 @@ GitRepoManager::GitRepoManager()
       EventManager::EventType::GitRepoManagerCreateBranchFromCommit,
       callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCreatePatchFromCommit,
+      callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCreateTagFromCommit,
       callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
@@ -123,6 +126,9 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerCommitStaged, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCreateBranchFromCommit,
+      callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCreatePatchFromCommit,
       callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCreateTagFromCommit,
@@ -271,6 +277,16 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     createBranchFromCommitEvent.addParam(
         QVariant::fromValue(createBranchFromCommitCommand));
     _fsm.send(createBranchFromCommitEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCreatePatchFromCommit: {
+    const auto createPatchFromCommitCommand =
+        event.data<GitRepoCreatePatchFromCommitCommand>();
+    GitRepoManagerEvent createPatchFromCommitEvent(
+        EventType::CreatePatchFromCommit);
+    createPatchFromCommitEvent.addParam(
+        QVariant::fromValue(createPatchFromCommitCommand));
+    _fsm.send(createPatchFromCommitEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerCreateTagFromCommit: {

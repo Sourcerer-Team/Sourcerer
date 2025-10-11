@@ -123,6 +123,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForCreateBranchFromCommit(createBranchFromCommitCommand);
     break;
   }
+  case EventType::CreatePatchFromCommit: {
+    const auto createPatchFromCommitCommand =
+        event.nextParam<GitRepoCreatePatchFromCommitCommand>();
+    scheduleWorkerForCreatePatchFromCommit(createPatchFromCommitCommand);
+    break;
+  }
   case EventType::CreateTagFromCommit: {
     const auto createTagFromCommitCommand =
         event.nextParam<GitRepoCreateTagFromCommitCommand>();
@@ -666,6 +672,42 @@ void ProcessingState::createBranchFromCommitWorker(
       EventManager::EventType::GitRepoManagerCreateBranchFromCommitResult,
       command.syncUuid);
   resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::createPatchFromCommitWorker(
+    const Structs::GitRepoCreatePatchFromCommitCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(
+        EventManager::EventType::GitRepoManagerCreatePatchFromCommitError,
+        tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const QString patchContent =
+      GitRepo::createPatchFromCommit(repo, command.commit);
+
+  GitRepoCreatePatchFromCommitCommandResult result;
+  result.patchContent = patchContent;
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerCreatePatchFromCommitResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                    QVariant::fromValue(result)});
   _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
@@ -2343,6 +2385,26 @@ void ProcessingState::scheduleWorkerForCreateBranchFromCommit(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForCreatePatchFromCommit(
+    const Structs::GitRepoCreatePatchFromCommitCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(
+        EventManager::EventType::GitRepoManagerCreatePatchFromCommitError,
+        tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoCreatePatchFromCommitCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForCreateTagFromCommit(
     const Structs::GitRepoCreateTagFromCommitCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2779,6 +2841,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoCreateBranchFromCommitCommand *>(command);
       if (createBranchFromCommitCommand) {
         createBranchFromCommitWorker(*createBranchFromCommitCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::CreatePatchFromCommit: {
+      const auto createPatchFromCommitCommand =
+          dynamic_cast<const GitRepoCreatePatchFromCommitCommand *>(command);
+      if (createPatchFromCommitCommand) {
+        createPatchFromCommitWorker(*createPatchFromCommitCommand);
       }
       break;
     }

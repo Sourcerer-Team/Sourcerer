@@ -841,6 +841,12 @@ void GitRepoContainer::onCreateBranchFromCommit(const QString &commit) {
 void GitRepoContainer::onCreatePatchFromCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
 
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { createPatchFromCommit(guard, commit); });
+
   LOG_PERF(0, "Exit");
 }
 
@@ -2701,6 +2707,93 @@ void GitRepoContainer::createBranchFromCommit(
     Util::Dispatcher::dispatchToMainThread(
         guard, [=]() { showSpinnerOverlay(false); });
   }
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::createPatchFromCommit(const WeakPtr &guard,
+                                             const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoCreatePatchFromCommitCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+
+  EventManager::Event createPatchFromCommitEvent(
+      EventManager::EventType::GitRepoManagerCreatePatchFromCommit, eventUuid);
+  createPatchFromCommitEvent.addData(command);
+  _eventManager.send(createPatchFromCommitEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerCreatePatchFromCommitError,
+      EventManager::EventType::GitRepoManagerCreatePatchFromCommitResult
+  };
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
+      showErrorToast(tr("Failed to create patch from commit."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerCreatePatchFromCommitResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to create patch from commit."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const auto result = commandResult.value.value<
+    GitRepoCreatePatchFromCommitCommandResult>();
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() {
+        showSpinnerOverlay(false);
+
+        if (result.patchContent.isEmpty()) {
+          showErrorToast(tr("Failed to create patch from commit."),
+                         tr("Error"));
+          return;
+        }
+
+        const QString filePath = QFileDialog::getSaveFileName(
+            nullptr, // Parent widget
+            "Save Patch File", // Dialog title
+            QDir::homePath(), // Default directory
+            "Patch Files (*.patch);;All Files (*)" // File filters
+            );
+
+        if (filePath.isEmpty()) {
+          return;
+        }
+
+        QFile file(filePath);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+          QTextStream out(&file);
+          out << result.patchContent;
+
+          file.close();
+        }
+      });
 
   LOG_PERF(0, "Exit")
 }

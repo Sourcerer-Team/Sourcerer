@@ -3453,7 +3453,7 @@ bool renameBranch(git_repository *repo, const QString &oldName,
   return true;
 }
 
-bool deleteBranch(git_repository *repo, const QString& branchName) {
+bool deleteBranch(git_repository *repo, const QString &branchName) {
   LOG_PERF(0, "Enter");
 
   git_reference *ref = nullptr;
@@ -3533,6 +3533,128 @@ bool createTagFromCommit(git_repository *repo, const QString &commit,
   LOG_PERF(0, "Exit");
 
   return true;
+}
+
+QString createPatchFromCommit(git_repository *repo, const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  git_oid oid;
+
+  int error = git_oid_fromstr(&oid, commit.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_commit *commit_ = nullptr;
+
+  error = git_commit_lookup(&commit_, repo, &oid);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_tree *tree = nullptr;
+
+  error = git_commit_tree(&tree, commit_);
+  if (error) {
+    logGitError(error);
+    git_commit_free(commit_);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_commit *parent = nullptr;
+  git_tree *parentTree = nullptr;
+
+  if (const int parentCount = git_commit_parentcount(commit_);
+    parentCount > 0) {
+    error = git_commit_parent(&parent, commit_, 0);
+    if (error) {
+      logGitError(error);
+      git_tree_free(tree);
+      git_commit_free(commit_);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    error = git_commit_tree(&parentTree, parent);
+    if (error) {
+      logGitError(error);
+      git_tree_free(tree);
+      git_commit_free(commit_);
+      git_commit_free(parent);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+  }
+
+  git_diff *diff = nullptr;
+
+  error = git_diff_tree_to_tree(&diff, repo, parentTree, tree, nullptr);
+  if (error) {
+    logGitError(error);
+
+    if (parentTree) {
+      git_tree_free(parentTree);
+    }
+
+    if (parent) {
+      git_commit_free(parent);
+    }
+
+    git_tree_free(tree);
+    git_commit_free(commit_);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  QString patch;
+  const size_t count = git_diff_num_deltas(diff);
+  for (size_t i = 0; i < count; ++i) {
+    git_patch *patch_ = nullptr;
+
+    error = git_patch_from_diff(&patch_, diff, i);
+    if (error) {
+      logGitError(error);
+      continue;
+    }
+
+    git_buf buf = {nullptr};
+
+    error = git_patch_to_buf(&buf, patch_);
+    if (error) {
+      logGitError(error);
+      git_patch_free(patch_);
+      continue;
+    }
+
+    if (buf.ptr && buf.size > 0) {
+      patch += QString::fromUtf8(buf.ptr, buf.size);
+    }
+
+    git_buf_dispose(&buf);
+    git_patch_free(patch_);
+  }
+
+  git_diff_free(diff);
+  git_tree_free(tree);
+
+  if (parentTree) {
+    git_tree_free(parentTree);
+  }
+
+  git_commit_free(commit_);
+
+  if (parent) {
+    git_commit_free(parent);
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return patch;
 }
 
 
