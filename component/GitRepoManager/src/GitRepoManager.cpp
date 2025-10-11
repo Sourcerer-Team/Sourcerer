@@ -13,7 +13,7 @@ using namespace GitRepoManager::Structs;
 namespace GitRepoManager {
 
 GitRepoManager::GitRepoManager()
-    : _eventManager(EventManager::EventManager::getInstance()) {
+  : _eventManager(EventManager::EventManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
   const auto callbackFunc =
@@ -74,6 +74,8 @@ GitRepoManager::GitRepoManager()
       EventManager::EventType::GitRepoManagerPull, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerPush, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerRenameBranch, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerReset, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
@@ -149,8 +151,10 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerPull, callbackFunc));
-  _eventManager.subscribe(CAPTURE_CALLBACK(
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerPush, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerRenameBranch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerReset, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -399,6 +403,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent pushEvent(EventType::Push);
     pushEvent.addParam(QVariant::fromValue(pushCommand));
     _fsm.send(pushEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerRenameBranch: {
+    const auto renameBranchCommand = event.data<GitRepoRenameBranchCommand>();
+    GitRepoManagerEvent renameBranchEvent(EventType::RenameBranch);
+    renameBranchEvent.addParam(QVariant::fromValue(renameBranchCommand));
+    _fsm.send(renameBranchEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerReset: {

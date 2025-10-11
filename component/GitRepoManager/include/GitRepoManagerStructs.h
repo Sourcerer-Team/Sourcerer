@@ -41,6 +41,7 @@ enum class GitRepoCommandType : int {
   Open,
   Pull,
   Push,
+  RenameBranch,
   Reset,
   Revert,
   SetUpstream,
@@ -283,6 +284,14 @@ struct GitRepoPullCommand final : GitRepoCommand {
 struct GitRepoPushCommand final : GitRepoCommand {
   GitRepoPushCommand() : GitRepoCommand(GitRepoCommandType::Push) {}
   ~GitRepoPushCommand() override = default;
+};
+
+struct GitRepoRenameBranchCommand final : GitRepoCommand {
+  GitRepoRenameBranchCommand() : GitRepoCommand(GitRepoCommandType::RenameBranch) {}
+  ~GitRepoRenameBranchCommand() override = default;
+
+  QString oldBranchName;
+  QString newBranchName;
 };
 
 struct GitRepoResetCommand final : GitRepoCommand {

@@ -66,6 +66,7 @@ private:
   void openRepoWorker(const Structs::GitRepoOpenCommand &command);
   void pullWorker(const Structs::GitRepoPullCommand &command);
   void pushWorker(const Structs::GitRepoPushCommand &command);
+  void renameBranchWorker(const Structs::GitRepoRenameBranchCommand &command);
   void resetWorker(const Structs::GitRepoResetCommand &command);
   void revertWorker(const Structs::GitRepoRevertCommand &command);
   void setUpstreamWorker(const Structs::GitRepoSetUpstreamCommand &command);
@@ -125,6 +126,7 @@ private:
   void scheduleWorkerForOpenRepo(const Structs::GitRepoOpenCommand &command);
   void scheduleWorkerForPull(const Structs::GitRepoPullCommand &command);
   void scheduleWorkerForPush(const Structs::GitRepoPushCommand &command);
+  void scheduleWorkerForRenameBranch(const Structs::GitRepoRenameBranchCommand &command);
   void scheduleWorkerForReset(const Structs::GitRepoResetCommand &command);
   void scheduleWorkerForRevert(const Structs::GitRepoRevertCommand &command);
   void scheduleWorkerForSetUpstream(

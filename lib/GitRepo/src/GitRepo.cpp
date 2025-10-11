@@ -1,4 +1,3 @@
-
 #include "GitRepo.h"
 
 #include "../../../component/GitRepoManager/include/GitRepoManagerStructs.h"
@@ -40,7 +39,6 @@
 #define HEAD "HEAD"
 
 namespace GitRepo {
-
 constexpr qint64 DEFAULT_CREDENTIALS_EXPIRATION_TIME =
     30 * 60 * 1000; // 30 minutes
 
@@ -398,7 +396,6 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     git_tree_free(tree);
     git_reference_free(localRef);
     git_commit_free(targetCommit);
-
   } else if (type == BranchType::Remote) {
     git_tree *tree = nullptr;
     git_reference *localRef = nullptr;
@@ -742,7 +739,7 @@ static QStringList listCheckoutBranches(git_repository *repo,
       } else {
         // Raw commit
         if (const QString referenceName = git_reference_name(headRef);
-            referenceName == HEAD) {
+          referenceName == HEAD) {
           activeBranches += HEAD;
         }
       }
@@ -798,7 +795,7 @@ static QStringList listBranches(git_repository *repo, const BranchType type,
     if (git_reference_type(headRef) == GIT_REFERENCE_DIRECT) {
       // Detached HEAD — could be tag or raw commit
       if (const QString referenceName = git_reference_name(headRef);
-          referenceName == HEAD) {
+        referenceName == HEAD) {
         activeBranches += HEAD;
       }
     }
@@ -1113,7 +1110,8 @@ static int fetchProgressCallback(const git_indexer_progress *stats,
           EventManager::EventType::GitRepoManagerCloneRepoProgress);
       progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
           progress->uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
-          QVariant::fromValue(*progress)});
+          QVariant::fromValue(*progress)
+      });
       EventManager::EventManager::getInstance().send(progressEvent);
     }
   } else {
@@ -1121,7 +1119,8 @@ static int fetchProgressCallback(const git_indexer_progress *stats,
         EventManager::EventType::GitRepoManagerCloneRepoProgress);
     progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
         progress->uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
-        QVariant::fromValue(*progress)});
+        QVariant::fromValue(*progress)
+    });
     EventManager::EventManager::getInstance().send(progressEvent);
   }
 
@@ -1153,7 +1152,8 @@ static void checkoutProgressCallback(const char *path, size_t completed_steps,
         EventManager::EventType::GitRepoManagerCloneRepoProgress);
     progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
         progress->uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
-        QVariant::fromValue(*progress)});
+        QVariant::fromValue(*progress)
+    });
     EventManager::EventManager::getInstance().send(progressEvent);
   }
 }
@@ -1171,7 +1171,8 @@ static void finishFetchProgress(const QString &uuid, const bool error) {
       EventManager::EventType::GitRepoManagerCloneRepoProgress);
   progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
       uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
-      QVariant::fromValue(progress)});
+      QVariant::fromValue(progress)
+  });
   EventManager::EventManager::getInstance().send(progressEvent);
 }
 
@@ -1233,7 +1234,8 @@ acquireCredentials(const QString &url, const QString &username,
 
   const std::set<EventManager::EventType> types{
       EventManager::EventType::GitRepoManagerGetCredentialsCancel,
-      EventManager::EventType::GitRepoManagerGetCredentialsSubmit};
+      EventManager::EventType::GitRepoManagerGetCredentialsSubmit
+  };
 
   const auto &[success, event] =
       eventManager.waitOneOf(token, types, predicate);
@@ -1249,8 +1251,10 @@ acquireCredentials(const QString &url, const QString &username,
           event.data<GitCredentialsResponse>();
       LOG_PERF(0, "Exit");
       return std::make_tuple(
-          true, GitPlaintextCredentials{response.username, response.password,
-                                        QDateTime::currentMSecsSinceEpoch()});
+          true, GitPlaintextCredentials{
+              response.username, response.password,
+              QDateTime::currentMSecsSinceEpoch()
+          });
     } else {
       LOG_ERROR(Log::ErrorId::Git, "Internal error. Unknown event type.");
     }
@@ -1278,8 +1282,7 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
   }
 
   if (const QString urlString = QString::fromUtf8(url);
-      urlString.startsWith("git@")) {
-
+    urlString.startsWith("git@")) {
     const QString homePath =
         QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
 
@@ -1288,7 +1291,7 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
         QString("%1/.ssh/id_rsa.pub").arg(homePath).toStdString().c_str(),
         QString("%1/.ssh/id_rsa").arg(homePath).toStdString().c_str(),
         nullptr // passphrase
-    );
+        );
 
     LOG_PERF(0, "Exit");
     return error;
@@ -1297,7 +1300,6 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
   gGitCredentialsMutex.lock();
 
   if (const auto it = gGitCredentials.find(url); it != gGitCredentials.end()) {
-
     gGitCredentialsMutex.unlock();
 
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
@@ -1305,11 +1307,9 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
         ConfigManager::ConfigManager::getInstance().getLong(
             ConfigManager::ConfigKey::GitRepoGitCredentialsExpirationTime);
     if (it->createdTime + expirationTimeout < now) {
-
       const auto &[success, credentials] = acquireCredentials(
           url, username_from_url ? username_from_url : "", allowed_types);
       if (success) {
-
         LOG_INFO("Acquired credentials for '{}'", credentials.username);
 
         gGitCredentialsMutex.lock();
@@ -1323,13 +1323,11 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
       }
     }
   } else {
-
     gGitCredentialsMutex.unlock();
 
     const auto &[success, credentials] = acquireCredentials(
         url, username_from_url ? username_from_url : "", allowed_types);
     if (success) {
-
       LOG_INFO("Acquired credentials for '{}'", credentials.username);
 
       gGitCredentialsMutex.lock();
@@ -1905,7 +1903,7 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
 
     // Check if branch contains the commit
     if (const int contains = git_graph_descendant_of(repo, branchOid, &oid);
-        contains == 1)
+      contains == 1)
       branches += branchName;
 
     git_reference_free(ref);
@@ -2120,9 +2118,11 @@ GitStatus getStatus(git_repository *repo) {
     }
 
     const char *filePath =
-        entry->head_to_index      ? entry->head_to_index->new_file.path
-        : entry->index_to_workdir ? entry->index_to_workdir->new_file.path
-                                  : nullptr;
+        entry->head_to_index
+          ? entry->head_to_index->new_file.path
+          : entry->index_to_workdir
+          ? entry->index_to_workdir->new_file.path
+          : nullptr;
 
     Q_ASSERT(filePath != nullptr);
 
@@ -2135,8 +2135,8 @@ GitStatus getStatus(git_repository *repo) {
 
     if (QFileInfo(fullPath).isDir()) {
       if (QDir(fullPath)
-              .entryList(QDir::Files | QDir::AllDirs | QDir::NoDotAndDotDot)
-              .isEmpty()) {
+          .entryList(QDir::Files | QDir::AllDirs | QDir::NoDotAndDotDot)
+          .isEmpty()) {
         // Skip empty directories
         continue;
       }
@@ -2276,7 +2276,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   // Generate diff
   git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
   opts.flags |= GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_INCLUDE_TYPECHANGE |
-                GIT_DIFF_RECURSE_UNTRACKED_DIRS;
+      GIT_DIFF_RECURSE_UNTRACKED_DIRS;
 
   error = git_diff_tree_to_tree(&diff, repo, parent_tree, tree, &opts);
   if (error) {
@@ -3119,14 +3119,14 @@ bool stash(git_repository *repo) {
   }
 
   error = git_stash_save(
-      &stashId,  // Optional: receives the stash commit ID
-      repo,      // Your git_repository pointer
+      &stashId, // Optional: receives the stash commit ID
+      repo, // Your git_repository pointer
       signature, // Signature of the stasher
-      nullptr,   // Optional message
+      nullptr, // Optional message
       GIT_STASH_DEFAULT |
-          GIT_STASH_INCLUDE_UNTRACKED // Flags (can be
-                                      // GIT_STASH_INCLUDE_UNTRACKED, etc.)
-  );
+      GIT_STASH_INCLUDE_UNTRACKED // Flags (can be
+      // GIT_STASH_INCLUDE_UNTRACKED, etc.)
+      );
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
@@ -3160,10 +3160,10 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
   }
 
   error = git_branch_set_upstream(localRef, QString("%1/%2")
-                                                .arg(remoteName)
-                                                .arg(remoteBranchName)
-                                                .toStdString()
-                                                .c_str());
+                                            .arg(remoteName)
+                                            .arg(remoteBranchName)
+                                            .toStdString()
+                                            .c_str());
   if (error) {
     logGitError(error);
     git_reference_free(localRef);
@@ -3424,4 +3424,32 @@ bool applyPatch(git_repository *repo, const QString &patchContent) {
   return true;
 }
 
+bool renameBranch(git_repository *repo, const QString &oldName,
+                  const QString &newName) {
+  LOG_PERF(0, "Enter");
+
+  git_reference *ref = nullptr;
+
+  int error = git_branch_lookup(&ref, repo, oldName.toStdString().c_str(),
+                                GIT_BRANCH_LOCAL);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_branch_move(&ref, ref, newName.toStdString().c_str(), 0);
+  if (error) {
+    logGitError(error);
+    git_reference_free(ref);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference_free(ref);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
 } // namespace GitRepo
