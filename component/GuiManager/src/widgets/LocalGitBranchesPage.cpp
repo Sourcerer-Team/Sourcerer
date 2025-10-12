@@ -10,14 +10,18 @@ using namespace GuiManager::Models;
 namespace GuiManager::Widgets {
 
 LocalGitBranchesPage::LocalGitBranchesPage(QWidget *parent)
-    : QWidget(parent), _model(new BranchesModel(this)),
-      ui(new Ui::LocalGitBranchesPage), _previous(-1) {
+  : QWidget(parent), _model(new BranchesModel(this)),
+    ui(new Ui::LocalGitBranchesPage), _previous(-1) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
+  ui->listView->setContextMenuPolicy(Qt::CustomContextMenu);
 
   connect(ui->listView, &QListView::doubleClicked, this,
           &LocalGitBranchesPage::onListViewDoubleClicked);
+  connect(ui->listView,
+          &QListView::customContextMenuRequested, this,
+          &LocalGitBranchesPage::onListViewContextMenuRequested);
 
   LOG_PERF(0, "Exit");
 }
@@ -75,6 +79,22 @@ void LocalGitBranchesPage::updateModel(const QStringList &localBranches) {
   ui->listView->setModel(_model);
 
   _previous = -1;
+
+  LOG_PERF(0, "Exit");
+}
+
+void LocalGitBranchesPage::onListViewContextMenuRequested(const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndex index = ui->listView->indexAt(pos);
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString branchName = _model->branchForIndex(index.row());
+
+  emit branchRightClicked(branchName, ui->listView->mapToGlobal(pos));
 
   LOG_PERF(0, "Exit");
 }

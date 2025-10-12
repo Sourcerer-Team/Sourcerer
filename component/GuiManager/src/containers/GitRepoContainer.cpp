@@ -304,6 +304,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(ui->localPage, &LocalGitBranchesPage::branchSelected, this,
           &GitRepoContainer::onLocalBranchSelected);
 
+  connect(ui->localPage, &LocalGitBranchesPage::branchRightClicked, this,
+          &GitRepoContainer::onLocalBranchRightClicked);
+
   connect(ui->remotePage, &RemoteGitBranchesPage::branchSelected, this,
           &GitRepoContainer::onRemoteBranchSelected);
 
@@ -882,11 +885,11 @@ void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDeleteBranch() {
+void GitRepoContainer::onDeleteBranch(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
   const QString question = QString(
-      "Are you sure that you want to delete branch '%1'?").arg(_activeBranch);
+      "Are you sure that you want to delete branch '%1'?").arg(branchName);
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
                                            QMessageBox::Yes, QMessageBox::No);
@@ -900,7 +903,7 @@ void GitRepoContainer::onDeleteBranch() {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch(
-      [=]() { deleteBranch(guard, _activeBranch); });
+      [=]() { deleteBranch(guard, branchName); });
 
   LOG_PERF(0, "Exit");
 }
@@ -1025,7 +1028,9 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   connect(&actionApplyPatch, &QAction::triggered, this,
           &GitRepoContainer::onApplyPatch);
   connect(&actionRenameBranch, &QAction::triggered, this,
-          &GitRepoContainer::onRenameBranch);
+          [=]() {
+            onRenameBranch(_activeBranch);
+          });
   connect(&actionCreateTagFromCommit, &QAction::triggered, this,
           [=]() { onCreateTagFromCommit(commit); });
   connect(&actionCreatePatchFromCommit, &QAction::triggered, this,
@@ -1106,6 +1111,44 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
+                                                 const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  QAction actionCheckoutBranch(tr("Checkout branch"), this);
+  QAction actionRanameBranch(tr("Rename branch"), this);
+  QAction actionDeleteBranch(tr("Delete branch"), this);
+
+  connect(&actionCheckoutBranch, &QAction::triggered, this, [=]() {
+    startOverlayTimer();
+
+    const WeakPtr guard = getSelf().toWeakRef();
+
+    _dispatcher.dispatch([=]() {
+      checkoutBranch(guard, branchName, GitRepo::BranchType::Local);
+    });
+  });
+
+  connect(&actionRanameBranch, &QAction::triggered, this,
+          [=]() {
+            onRenameBranch(branchName);
+          });
+
+  connect(&actionDeleteBranch, &QAction::triggered, this,
+          [=]() {
+            onDeleteBranch(branchName);
+          });
+
+  QMenu menu;
+  menu.addAction(&actionCheckoutBranch);
+  menu.addAction(&actionRanameBranch);
+  menu.addAction(&actionDeleteBranch);
+
+  menu.exec(pos);
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onMixedResetToCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
 
@@ -1180,7 +1223,8 @@ void GitRepoContainer::onStashSelected(int stashIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSubmitRenameBranch(const QString &newName) {
+void GitRepoContainer::onSubmitRenameBranch(const QString &oldName,
+                                            const QString &newName) {
   LOG_PERF(0, "Enter");
 
   startOverlayTimer();
@@ -1188,7 +1232,7 @@ void GitRepoContainer::onSubmitRenameBranch(const QString &newName) {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    renameBranch(guard, newName);
+    renameBranch(guard, oldName, newName);
   });
 
   LOG_PERF(0, "Exit");
@@ -1208,7 +1252,7 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onRenameBranch() {
+void GitRepoContainer::onRenameBranch(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
   const auto inputOverlay = new TextInputOverlayWidget(this);
@@ -1219,10 +1263,10 @@ void GitRepoContainer::onRenameBranch() {
     delete inputOverlay;
   });
   connect(inputOverlay, &TextInputOverlayWidget::submitted, this,
-          [=](const QString &name) {
+          [=](const QString &newName) {
             inputOverlay->hide();
             delete inputOverlay;
-            onSubmitRenameBranch(name);
+            onSubmitRenameBranch(branchName, newName);
           });
 
   inputOverlay->show();
@@ -1891,8 +1935,8 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
     const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
-  const QModelIndex index = ui->listViewTabWidgetIndexFlat->indexAt(pos);
-  if (!index.isValid()) {
+  if (const QModelIndex index = ui->listViewTabWidgetIndexFlat->indexAt(pos); !
+    index.isValid()) {
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4278,6 +4322,7 @@ void GitRepoContainer::push(const WeakPtr &guard) {
 }
 
 void GitRepoContainer::renameBranch(const WeakPtr &guard,
+                                    const QString &oldName,
                                     const QString &newName) {
   LOG_PERF(0, "Enter");
 
@@ -4288,7 +4333,7 @@ void GitRepoContainer::renameBranch(const WeakPtr &guard,
   GitRepoRenameBranchCommand command;
   command.uuid = _uuid;
   command.syncUuid = eventUuid;
-  command.oldBranchName = _activeBranch;
+  command.oldBranchName = oldName;
   command.newBranchName = newName;
 
   EventManager::Event renameBranchEvent(

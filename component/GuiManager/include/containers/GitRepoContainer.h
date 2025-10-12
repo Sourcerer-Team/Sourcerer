@@ -82,7 +82,7 @@ private slots:
   void onCreateBranchFromCommit(const QString &commit);
   void onCreatePatchFromCommit(const QString &commit);
   void onCreateTagFromCommit(const QString &commit);
-  void onDeleteBranch();
+  void onDeleteBranch(const QString& branchName);
   void onDisplayTreeExpandAllButtonClicked();
   void onHardResetToCommit(const QString &commit);
   void onHistorySelectionChanged(const QItemSelection &selected,
@@ -90,13 +90,14 @@ private slots:
   void onHistoryViewRightClicked(const QModelIndex &index, const QPoint &pos);
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onLocalBranchSelected(const QString &branchName);
+  void onLocalBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onMixedResetToCommit(const QString &commit);
   void onPop();
   void onPopStash(int stashIndex);
   void onPull();
   void onPush();
   void onRemoteBranchSelected(const QString &branchName);
-  void onRenameBranch();
+  void onRenameBranch(const QString &branchName);
   void onRepoDirChanged(const QString &path) const;
   void onRepoDirChangedTimeout();
   void onRevertCommit(const QString &commit);
@@ -104,7 +105,7 @@ private slots:
   void onSoftResetToCommit(const QString &commit);
   void onStash();
   void onStashSelected(int stashIndex);
-  void onSubmitRenameBranch(const QString &newName);
+  void onSubmitRenameBranch(const QString &oldName, const QString &newName);
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay();
   void onGraphColumnExpand(int section);
@@ -193,7 +194,8 @@ private:
   void popStash(const WeakPtr &guard, int stashIndex);
   void pull(const WeakPtr &guard);
   void push(const WeakPtr &guard);
-  void renameBranch(const WeakPtr &guard, const QString &newName);
+  void renameBranch(const WeakPtr &guard, const QString &oldName,
+                    const QString &newName);
   void reset(const WeakPtr &guard, const QString &commit,
              GitRepo::ResetType type);
   void revert(const WeakPtr &guard, const QString &commit);
