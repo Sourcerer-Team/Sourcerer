@@ -310,6 +310,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(ui->remotePage, &RemoteGitBranchesPage::branchSelected, this,
           &GitRepoContainer::onRemoteBranchSelected);
 
+  connect(ui->remotePage, &RemoteGitBranchesPage::branchRightClicked, this,
+          &GitRepoContainer::onRemoteBranchRightClicked);
+
   connect(ui->tagsPage, &GitTagsPage::tagSelected, this,
           &GitRepoContainer::onTagSelected);
 
@@ -1249,6 +1252,30 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
   _dispatcher.dispatch([=]() {
     checkoutBranch(guard, branchName, GitRepo::BranchType::Remote);
   });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onRemoteBranchRightClicked(const QString &branchName,
+                                                  const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  QAction actionCheckoutBranch(tr("Checkout branch"), this);
+
+  connect(&actionCheckoutBranch, &QAction::triggered, this, [=]() {
+    startOverlayTimer();
+
+    const WeakPtr guard = getSelf().toWeakRef();
+
+    _dispatcher.dispatch([=]() {
+      checkoutBranch(guard, branchName, GitRepo::BranchType::Remote);
+    });
+  });
+
+  QMenu menu;
+  menu.addAction(&actionCheckoutBranch);
+
+  menu.exec(pos);
 
   LOG_PERF(0, "Exit");
 }

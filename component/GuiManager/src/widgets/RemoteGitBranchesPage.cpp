@@ -10,14 +10,18 @@ using namespace GuiManager::Models;
 namespace GuiManager::Widgets {
 
 RemoteGitBranchesPage::RemoteGitBranchesPage(QWidget *parent)
-    : QWidget(parent), _model(new BranchesModel(this)),
-      ui(new Ui::RemoteGitBranchesPage), _previous(-1) {
+  : QWidget(parent), _model(new BranchesModel(this)),
+    ui(new Ui::RemoteGitBranchesPage), _previous(-1) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
+  ui->listView->setContextMenuPolicy(Qt::CustomContextMenu);
 
   connect(ui->listView, &QListView::doubleClicked, this,
           &RemoteGitBranchesPage::onListViewDoubleClicked);
+  connect(ui->listView,
+          &QListView::customContextMenuRequested, this,
+          &RemoteGitBranchesPage::onListViewContextMenuRequested);
 
   LOG_PERF(0, "Exit");
 }
@@ -75,6 +79,22 @@ void RemoteGitBranchesPage::updateModel(const QStringList &remoteBranches) {
   ui->listView->setModel(_model);
 
   _previous = -1;
+
+  LOG_PERF(0, "Exit");
+}
+
+void RemoteGitBranchesPage::onListViewContextMenuRequested(const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndex index = ui->listView->indexAt(pos);
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString branchName = _model->branchForIndex(index.row());
+
+  emit branchRightClicked(branchName, ui->listView->mapToGlobal(pos));
 
   LOG_PERF(0, "Exit");
 }

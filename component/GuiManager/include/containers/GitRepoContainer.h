@@ -82,7 +82,7 @@ private slots:
   void onCreateBranchFromCommit(const QString &commit);
   void onCreatePatchFromCommit(const QString &commit);
   void onCreateTagFromCommit(const QString &commit);
-  void onDeleteBranch(const QString& branchName);
+  void onDeleteBranch(const QString &branchName);
   void onDisplayTreeExpandAllButtonClicked();
   void onHardResetToCommit(const QString &commit);
   void onHistorySelectionChanged(const QItemSelection &selected,
@@ -97,6 +97,7 @@ private slots:
   void onPull();
   void onPush();
   void onRemoteBranchSelected(const QString &branchName);
+  void onRemoteBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onRenameBranch(const QString &branchName);
   void onRepoDirChanged(const QString &path) const;
   void onRepoDirChangedTimeout();

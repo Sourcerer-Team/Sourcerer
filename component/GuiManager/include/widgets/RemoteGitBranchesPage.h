@@ -23,8 +23,10 @@ public:
 
 signals:
   void branchSelected(const QString &branchName);
+  void branchRightClicked(const QString &branchName, const QPoint &pos);
 
 private slots:
+  void onListViewContextMenuRequested(const QPoint &pos);
   void onListViewDoubleClicked(const QModelIndex &index);
 
 private:
