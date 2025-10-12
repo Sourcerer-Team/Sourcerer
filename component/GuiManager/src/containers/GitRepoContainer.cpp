@@ -1142,6 +1142,7 @@ void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
   QMenu menu;
   menu.addAction(&actionCheckoutBranch);
   menu.addAction(&actionRanameBranch);
+  menu.addSeparator();
   menu.addAction(&actionDeleteBranch);
 
   menu.exec(pos);
