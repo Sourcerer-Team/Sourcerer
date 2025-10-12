@@ -36,7 +36,7 @@ protected:
 
 private slots:
   void onListViewDoubleClicked(const QModelIndex &index);
-  void onStashClicked(int stashIndex, const QPoint &pos);
+  void onStashRightClicked(int stashIndex, const QPoint &pos);
 
 private:
   Models::StashesModel *_model;

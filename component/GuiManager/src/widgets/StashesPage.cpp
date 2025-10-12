@@ -22,7 +22,7 @@ StashesPage::StashesPage(QWidget *parent)
   connect(ui->listView, &QListView::doubleClicked, this,
           &StashesPage::onListViewDoubleClicked);
   connect(this, &StashesPage::rightClickOnStash, this,
-          &StashesPage::onStashClicked);
+          &StashesPage::onStashRightClicked);
 
   ui->listView->viewport()->installEventFilter(this);
 
@@ -128,7 +128,7 @@ void StashesPage::onListViewDoubleClicked(const QModelIndex &index) {
   LOG_PERF(0, "Exit");
 }
 
-void StashesPage::onStashClicked(int stashIndex, const QPoint &pos) {
+void StashesPage::onStashRightClicked(int stashIndex, const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
   QAction actionApply(tr("Apply"), this);
@@ -145,6 +145,7 @@ void StashesPage::onStashClicked(int stashIndex, const QPoint &pos) {
   QMenu menu(this);
   menu.addAction(&actionApply);
   menu.addAction(&actionPop);
+  menu.addSeparator();
   menu.addAction(&actionDelete);
 
   menu.exec(pos);
