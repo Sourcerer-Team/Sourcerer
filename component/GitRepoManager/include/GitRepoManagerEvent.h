@@ -40,6 +40,7 @@ enum class EventType : int {
   Pull,
   Push,
   RenameBranch,
+  RenameTag,
   Reset,
   Revert,
   Setup,

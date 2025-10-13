@@ -303,18 +303,18 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   connect(ui->localPage, &LocalGitBranchesPage::branchSelected, this,
           &GitRepoContainer::onLocalBranchSelected);
-
   connect(ui->localPage, &LocalGitBranchesPage::branchRightClicked, this,
           &GitRepoContainer::onLocalBranchRightClicked);
 
   connect(ui->remotePage, &RemoteGitBranchesPage::branchSelected, this,
           &GitRepoContainer::onRemoteBranchSelected);
-
   connect(ui->remotePage, &RemoteGitBranchesPage::branchRightClicked, this,
           &GitRepoContainer::onRemoteBranchRightClicked);
 
   connect(ui->tagsPage, &GitTagsPage::tagSelected, this,
           &GitRepoContainer::onTagSelected);
+  connect(ui->tagsPage, &GitTagsPage::tagRightClicked, this,
+          &GitRepoContainer::onTagRightClicked);
 
   connect(ui->stashesPage, &StashesPage::stashSelected, this,
           &GitRepoContainer::onStashSelected);
@@ -1242,6 +1242,60 @@ void GitRepoContainer::onSubmitRenameBranch(const QString &oldName,
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onSubmitRenameTag(const QString &oldName,
+                                            const QString &newName) {
+  LOG_PERF(0, "Enter");
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {
+    renameTag(guard, oldName, newName);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onTagRightClicked(const QString &tagName,
+    const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  QAction actionCheckoutTag(tr("Checkout tag"), this);
+  QAction actionRanameTag(tr("Rename tag"), this);
+  QAction actionDeleteTag(tr("Delete tag"), this);
+
+  connect(&actionCheckoutTag, &QAction::triggered, this, [=]() {
+    startOverlayTimer();
+
+    const WeakPtr guard = getSelf().toWeakRef();
+
+    _dispatcher.dispatch([=]() {
+      checkoutBranch(guard, tagName, GitRepo::BranchType::Tag);
+    });
+  });
+
+  connect(&actionRanameTag, &QAction::triggered, this,
+          [=]() {
+            onRenameTag(tagName);
+          });
+
+  connect(&actionDeleteTag, &QAction::triggered, this,
+          [=]() {
+            //onDeleteTag(tagName);
+          });
+
+  QMenu menu;
+  menu.addAction(&actionCheckoutTag);
+  menu.addAction(&actionRanameTag);
+  menu.addSeparator();
+  menu.addAction(&actionDeleteTag);
+
+  menu.exec(pos);
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
@@ -1295,6 +1349,29 @@ void GitRepoContainer::onRenameBranch(const QString &branchName) {
             inputOverlay->hide();
             delete inputOverlay;
             onSubmitRenameBranch(branchName, newName);
+          });
+
+  inputOverlay->show();
+  inputOverlay->raise();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onRenameTag(const QString &tagName) {
+  LOG_PERF(0, "Enter");
+
+  const auto inputOverlay = new TextInputOverlayWidget(this);
+  inputOverlay->setPlaceholderText(tr("New tag name"));
+
+  connect(inputOverlay, &TextInputOverlayWidget::canceled, this, [=]() {
+    inputOverlay->hide();
+    delete inputOverlay;
+  });
+  connect(inputOverlay, &TextInputOverlayWidget::submitted, this,
+          [=](const QString &newName) {
+            inputOverlay->hide();
+            delete inputOverlay;
+            onSubmitRenameTag(tagName, newName);
           });
 
   inputOverlay->show();
@@ -4416,6 +4493,78 @@ void GitRepoContainer::renameBranch(const WeakPtr &guard,
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
     showToast(tr("Successfully renamed branch."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::renameTag(const WeakPtr &guard,
+                                    const QString &oldName,
+                                    const QString &newName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoRenameTagCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.oldTagName = oldName;
+  command.newTagName = newName;
+
+  EventManager::Event renameTagEvent(
+      EventManager::EventType::GitRepoManagerRenameTag,
+      eventUuid);
+  renameTagEvent.addData(command);
+  _eventManager.send(renameTagEvent);
+
+  static std::set types = {
+    EventManager::EventType::GitRepoManagerRenameTagError,
+    EventManager::EventType::GitRepoManagerRenameTagResult
+};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to rename tag"), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerRenameTagResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to rename tag"), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+      }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  if (const bool pushed = commandResult.value.toBool(); !pushed) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to rename tag"), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Successfully renamed tag."), tr("Info"));
   });
 
   LOG_PERF(0, "Exit")

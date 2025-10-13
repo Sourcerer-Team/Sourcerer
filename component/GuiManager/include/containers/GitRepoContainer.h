@@ -99,6 +99,7 @@ private slots:
   void onRemoteBranchSelected(const QString &branchName);
   void onRemoteBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onRenameBranch(const QString &branchName);
+  void onRenameTag(const QString &tagName);
   void onRepoDirChanged(const QString &path) const;
   void onRepoDirChangedTimeout();
   void onRevertCommit(const QString &commit);
@@ -107,6 +108,8 @@ private slots:
   void onStash();
   void onStashSelected(int stashIndex);
   void onSubmitRenameBranch(const QString &oldName, const QString &newName);
+  void onSubmitRenameTag(const QString &oldName, const QString &newName);
+  void onTagRightClicked(const QString &tagName, const QPoint &pos);
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay();
   void onGraphColumnExpand(int section);
@@ -196,6 +199,8 @@ private:
   void pull(const WeakPtr &guard);
   void push(const WeakPtr &guard);
   void renameBranch(const WeakPtr &guard, const QString &oldName,
+                    const QString &newName);
+  void renameTag(const WeakPtr &guard, const QString &oldName,
                     const QString &newName);
   void reset(const WeakPtr &guard, const QString &commit,
              GitRepo::ResetType type);

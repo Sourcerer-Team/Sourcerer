@@ -45,6 +45,7 @@ enum class GitRepoCommandType : int {
   Pull,
   Push,
   RenameBranch,
+  RenameTag,
   Reset,
   Revert,
   SetUpstream,
@@ -327,6 +328,14 @@ struct GitRepoRenameBranchCommand final : GitRepoCommand {
 
   QString oldBranchName;
   QString newBranchName;
+};
+
+struct GitRepoRenameTagCommand final : GitRepoCommand {
+  GitRepoRenameTagCommand() : GitRepoCommand(GitRepoCommandType::RenameTag) {}
+  ~GitRepoRenameTagCommand() override = default;
+
+  QString oldTagName;
+  QString newTagName;
 };
 
 struct GitRepoResetCommand final : GitRepoCommand {

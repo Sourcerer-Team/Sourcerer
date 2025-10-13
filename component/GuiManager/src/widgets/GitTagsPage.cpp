@@ -15,9 +15,13 @@ GitTagsPage::GitTagsPage(QWidget *parent)
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
+  ui->listView->setContextMenuPolicy(Qt::CustomContextMenu);
 
   connect(ui->listView, &QListView::doubleClicked, this,
           &GitTagsPage::onListViewDoubleClicked);
+  connect(ui->listView,
+          &QListView::customContextMenuRequested, this,
+          &GitTagsPage::onListViewContextMenuRequested);
 
   LOG_PERF(0, "Exit");
 }
@@ -65,6 +69,22 @@ void GitTagsPage::updateModel(const QStringList &tags) {
   ui->listView->setModel(_model);
 
   _previous = -1;
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitTagsPage::onListViewContextMenuRequested(const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndex index = ui->listView->indexAt(pos);
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString tagName = _model->branchForIndex(index.row());
+
+  emit tagRightClicked(tagName, ui->listView->mapToGlobal(pos));
 
   LOG_PERF(0, "Exit");
 }

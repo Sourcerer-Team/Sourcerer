@@ -85,6 +85,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerRenameBranch, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerRenameTag, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerReset, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerRevert, callbackFunc));
@@ -171,6 +173,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerPush, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerRenameBranch, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerRenameTag, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerReset, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -453,6 +457,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent renameBranchEvent(EventType::RenameBranch);
     renameBranchEvent.addParam(QVariant::fromValue(renameBranchCommand));
     _fsm.send(renameBranchEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerRenameTag: {
+    const auto renameTagCommand = event.data<GitRepoRenameTagCommand>();
+    GitRepoManagerEvent renameTagEvent(EventType::RenameTag);
+    renameTagEvent.addParam(QVariant::fromValue(renameTagCommand));
+    _fsm.send(renameTagEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerReset: {

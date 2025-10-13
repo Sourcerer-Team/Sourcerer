@@ -255,6 +255,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForRenameBranch(renameBranchCommand);
     break;
   }
+  case EventType::RenameTag: {
+    const auto renameTagCommand = event.nextParam<
+      GitRepoRenameTagCommand>();
+    scheduleWorkerForRenameTag(renameTagCommand);
+    break;
+  }
   case EventType::Reset: {
     const auto resetCommand = event.nextParam<GitRepoResetCommand>();
     scheduleWorkerForReset(resetCommand);
@@ -1681,6 +1687,25 @@ void ProcessingState::scheduleWorkerForRenameBranch(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForRenameTag(
+    const Structs::GitRepoRenameTagCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerRenameTagError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoRenameTagCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForReset(
     const Structs::GitRepoResetCommand &command) {
   LOG_PERF(0, "Enter");
@@ -1965,6 +1990,38 @@ void ProcessingState::renameBranchWorker(
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerRenameBranchResult,
+      command.syncUuid);
+  resultEvent.addData(
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::renameTagWorker(
+    const Structs::GitRepoRenameTagCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerRenameTagError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success =
+      GitRepo::renameTag(repo, command.oldTagName, command.newTagName);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerRenameTagResult,
       command.syncUuid);
   resultEvent.addData(
       GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
@@ -3025,6 +3082,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoRenameBranchCommand *>(command);
       if (renameBranchCommand) {
         renameBranchWorker(*renameBranchCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::RenameTag: {
+      const auto *renameTagCommand =
+          dynamic_cast<const GitRepoRenameTagCommand *>(command);
+      if (renameTagCommand) {
+        renameTagWorker(*renameTagCommand);
       }
       break;
     }

@@ -225,4 +225,8 @@ bool createTagFromCommit(git_repository *repo, const QString &commit,
                          const QString &email, const QString &message);
 
 QString createPatchFromCommit(git_repository *repo, const QString &commit);
+
+bool renameTag(git_repository *repo, const QString &oldName,
+                  const QString &newName);
+
 } // namespace GitRepo

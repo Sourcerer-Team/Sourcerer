@@ -3657,5 +3657,101 @@ QString createPatchFromCommit(git_repository *repo, const QString &commit) {
   return patch;
 }
 
+bool renameTag(git_repository *repo, const QString &oldName,
+               const QString &newName) {
+  LOG_PERF(0, "Enter");
+
+  git_reference *tagRef = nullptr;
+  git_object *target = nullptr;
+  git_oid newOid;
+
+  int error = git_reference_lookup(&tagRef, repo,
+                                   QString("refs/tags/%1").arg(oldName).
+                                   toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_reference_peel(&target, tagRef, GIT_OBJECT_TAG);
+  if (error < 0) {
+    // Might be a lightweight tag — try commit or tree
+    error = git_reference_peel(&target, tagRef, GIT_OBJECT_ANY);
+    if (error) {
+      logGitError(error);
+      git_reference_free(tagRef);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  // If it's an annotated tag, get message and tagger
+  if (git_object_type(target) == GIT_OBJECT_TAG) {
+    git_tag *tag = nullptr;
+    tag = reinterpret_cast<git_tag *>(target);
+    const git_signature *tagger = git_tag_tagger(tag);
+    if (!tagger) {
+      git_reference_free(tagRef);
+      git_object_free(target);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    const char *message = git_tag_message(tag);
+
+    git_object *tagTarget = nullptr;
+
+    error = git_tag_target(&tagTarget, tag);
+    if (error) {
+      logGitError(error);
+      git_reference_free(tagRef);
+      git_object_free(target);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    error = git_tag_create(&newOid, repo, newName.toStdString().c_str(),
+                           tagTarget,
+                           tagger, message, 0);
+    if (error) {
+      logGitError(error);
+      git_reference_free(tagRef);
+      git_object_free(target);
+      git_object_free(tagTarget);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  } else {
+    // Lightweight tag
+    error = git_tag_create_lightweight(&newOid, repo,
+                                       newName.toStdString().c_str(), target,
+                                       0);
+    if (error) {
+      logGitError(error);
+      git_reference_free(tagRef);
+      git_object_free(target);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  error = git_tag_delete(repo, oldName.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    git_reference_free(tagRef);
+    git_object_free(target);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference_free(tagRef);
+  git_object_free(target);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
 
 } // namespace GitRepo
