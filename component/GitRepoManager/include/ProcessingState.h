@@ -45,6 +45,7 @@ private:
   void destroyContextsMap();
   void deleteBranchWorker(const Structs::GitRepoDeleteBranchCommand &command);
   void deleteStashWorker(const Structs::GitRepoDeleteStashCommand &command);
+  void deleteTagWorker(const Structs::GitRepoDeleteTagCommand &command);
   void diffFilesWorker(const Structs::GitRepoDiffFilesCommand &command);
   void discardFilesWorker(const Structs::GitRepoDiscardFilesCommand &command);
   void eventCallback(const EventManager::Event event);
@@ -119,6 +120,8 @@ private:
       const Structs::GitRepoDeleteBranchCommand &command);
   void scheduleWorkerForDeleteStash(
       const Structs::GitRepoDeleteStashCommand &command);
+  void scheduleWorkerForDeleteTag(
+      const Structs::GitRepoDeleteTagCommand &command);
   void
   scheduleWorkerForDiffFiles(const Structs::GitRepoDiffFilesCommand &command);
   void scheduleWorkerForDiscardFiles(

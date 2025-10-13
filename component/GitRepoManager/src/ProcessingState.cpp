@@ -147,6 +147,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForDeleteStash(deleteStashCommand);
     break;
   }
+  case EventType::DeleteTag: {
+    const auto deleteTagCommand =
+        event.nextParam<GitRepoDeleteTagCommand>();
+    scheduleWorkerForDeleteTag(deleteTagCommand);
+    break;
+  }
   case EventType::DiffFiles: {
     const auto diffFilesCommand = event.nextParam<GitRepoDiffFilesCommand>();
     scheduleWorkerForDiffFiles(diffFilesCommand);
@@ -932,6 +938,37 @@ void ProcessingState::deleteStashWorker(
                                       QVariant::fromValue(success)});
     _eventManager.send(resultEvent);
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::deleteTagWorker(
+    const Structs::GitRepoDeleteTagCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteTagError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::deleteTag(repo, command.tagName);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerDeleteTagResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                    QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -2634,6 +2671,25 @@ void ProcessingState::scheduleWorkerForDeleteStash(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForDeleteTag(
+    const Structs::GitRepoDeleteTagCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteTagError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoDeleteTagCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForDiffFiles(
     const Structs::GitRepoDiffFilesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2930,6 +2986,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoDeleteStashCommand *>(command);
       if (deleteStashCommand) {
         deleteStashWorker(*deleteStashCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::DeleteTag: {
+      const auto deleteTagCommand =
+          dynamic_cast<const GitRepoDeleteTagCommand *>(command);
+      if (deleteTagCommand) {
+        deleteTagWorker(*deleteTagCommand);
       }
       break;
     }

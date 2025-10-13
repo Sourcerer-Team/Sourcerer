@@ -3753,5 +3753,18 @@ bool renameTag(git_repository *repo, const QString &oldName,
   return true;
 }
 
+bool deleteTag(git_repository *repo, const QString &tagName) {
+  LOG_PERF(0, "Enter");
+
+  if (const int error = git_tag_delete(repo, tagName.toStdString().c_str())) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
 
 } // namespace GitRepo

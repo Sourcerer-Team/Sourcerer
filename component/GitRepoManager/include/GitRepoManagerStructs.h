@@ -26,6 +26,7 @@ enum class GitRepoCommandType : int {
   CreateTagFromCommit,
   DeleteBranch,
   DeleteStash,
+  DeleteTag,
   DiffFiles,
   DiscardFiles,
   GetActiveBranch,
@@ -184,6 +185,14 @@ struct GitRepoDeleteStashCommand final : GitRepoCommand {
   ~GitRepoDeleteStashCommand() override = default;
 
   int index = -1;
+};
+
+struct GitRepoDeleteTagCommand final : GitRepoCommand {
+  GitRepoDeleteTagCommand()
+      : GitRepoCommand(GitRepoCommandType::DeleteTag) {}
+  ~GitRepoDeleteTagCommand() override = default;
+
+  QString tagName;
 };
 
 struct GitRepoDiffFilesCommand final : GitRepoCommand {

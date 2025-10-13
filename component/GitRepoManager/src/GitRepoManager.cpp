@@ -49,6 +49,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteStash, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDeleteTag, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiffFiles, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiscardFiles, callbackFunc));
@@ -139,6 +141,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerDeleteBranch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteStash, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDeleteTag, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiffFiles, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -315,6 +319,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent deleteStashEvent(EventType::DeleteStash);
     deleteStashEvent.addParam(QVariant::fromValue(deleteStashCommand));
     _fsm.send(deleteStashEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerDeleteTag: {
+    const auto deleteTagCommand = event.data<GitRepoDeleteTagCommand>();
+    GitRepoManagerEvent deleteTagEvent(EventType::DeleteTag);
+    deleteTagEvent.addParam(QVariant::fromValue(deleteTagCommand));
+    _fsm.send(deleteTagEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerDiffFiles: {

@@ -83,6 +83,7 @@ private slots:
   void onCreatePatchFromCommit(const QString &commit);
   void onCreateTagFromCommit(const QString &commit);
   void onDeleteBranch(const QString &branchName);
+  void onDeleteTag(const QString &tagName);
   void onDisplayTreeExpandAllButtonClicked();
   void onHardResetToCommit(const QString &commit);
   void onHistorySelectionChanged(const QItemSelection &selected,
@@ -168,6 +169,7 @@ private:
   void deleteStash(
       const WeakPtr &guard, int stashIndex,
       const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
+  void deleteTag(const WeakPtr &guard, const QString &tagName);
   void diffFiles(const WeakPtr &guard, const QStringList &files);
   void discardFiles(const WeakPtr &guard, const QStringList &files);
   bool getActiveBranchOrTag(const WeakPtr &guard,

@@ -911,6 +911,29 @@ void GitRepoContainer::onDeleteBranch(const QString &branchName) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onDeleteTag(const QString &tagName) {
+  LOG_PERF(0, "Enter");
+
+  const QString question = QString(
+      "Are you sure that you want to delete tag '%1'?").arg(tagName);
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch(
+      [=]() { deleteTag(guard, tagName); });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onDisplayTreeExpandAllButtonClicked() {
   LOG_PERF(0, "Enter");
 
@@ -1282,7 +1305,7 @@ void GitRepoContainer::onTagRightClicked(const QString &tagName,
 
   connect(&actionDeleteTag, &QAction::triggered, this,
           [=]() {
-            //onDeleteTag(tagName);
+            onDeleteTag(tagName);
           });
 
   QMenu menu;
@@ -3205,6 +3228,76 @@ void GitRepoContainer::deleteStash(
   }
 
   LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::deleteTag(const WeakPtr &guard, const QString &tagName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoDeleteTagCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.tagName = tagName;
+
+  EventManager::Event deleteTagEvent(
+      EventManager::EventType::GitRepoManagerDeleteTag, eventUuid);
+  deleteTagEvent.addData(command);
+  _eventManager.send(deleteTagEvent);
+
+  static std::set types = {
+    EventManager::EventType::GitRepoManagerDeleteTagError,
+    EventManager::EventType::GitRepoManagerDeleteTagResult
+};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to delete tag.")), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerDeleteTagResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to delete tag.")), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+      }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool deleteSuccess = commandResult.value.toBool();
+
+  refreshHistory(guard);
+
+  if (!deleteSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to delete tag."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::popStash(const WeakPtr &guard, int stashIndex) {
