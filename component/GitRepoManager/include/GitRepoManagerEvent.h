@@ -30,6 +30,7 @@ enum class EventType : int {
   GetCommitHeads,
   GetCommitIsHead,
   GetCommitStatus,
+  GetSubmodulePath,
   GetUpstream,
   Init,
   ListLocalBranches,

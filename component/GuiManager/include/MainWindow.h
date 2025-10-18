@@ -52,6 +52,7 @@ private slots:
   void onCloneFinished(ContainerWidget *sender);
   void onInit();
   void onInitFinished(ContainerWidget *sender);
+  void onOpenRepo(const QString &path);
   void onRecentClicked(const QString &path);
   void onSaveWorkspace();
   void onSettings();

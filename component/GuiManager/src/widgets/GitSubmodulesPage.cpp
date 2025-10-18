@@ -7,19 +7,21 @@
 
 using namespace GuiManager::Models;
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 GitSubmodulesPage::GitSubmodulesPage(QWidget *parent)
-    : QWidget(parent), _model(new SubmodulesModel(this)),
-      ui(new Ui::GitSubmodulesPage), _previous(-1) {
+  : QWidget(parent), _model(new SubmodulesModel(this)),
+    ui(new Ui::GitSubmodulesPage), _previous(-1) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
+  ui->listView->setContextMenuPolicy(Qt::CustomContextMenu);
 
   connect(ui->listView, &QListView::doubleClicked, this,
           &GitSubmodulesPage::onListViewDoubleClicked);
+  connect(ui->listView,
+          &QListView::customContextMenuRequested, this,
+          &GitSubmodulesPage::onListViewContextMenuRequested);
 
   LOG_PERF(0, "Exit");
 }
@@ -63,6 +65,22 @@ void GitSubmodulesPage::updateModel(const QStringList &submodules) {
   LOG_PERF(0, "Exit");
 }
 
+void GitSubmodulesPage::onListViewContextMenuRequested(const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndex index = ui->listView->indexAt(pos);
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString submoduleName = _model->branchForIndex(index.row());
+
+  emit submoduleRightClicked(submoduleName, ui->listView->mapToGlobal(pos));
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitSubmodulesPage::onListViewDoubleClicked(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
@@ -81,5 +99,4 @@ void GitSubmodulesPage::onListViewDoubleClicked(const QModelIndex &index) {
   emit submoduleSelected(_model->branchForIndex(index.row()));
 }
 
-} // namespace Widgets
-} // namespace GuiManager
+}

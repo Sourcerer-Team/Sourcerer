@@ -61,6 +61,7 @@ private:
   getCommitStatusWorker(const Structs::GitRepoGetCommitStatusCommand &command);
   void getBranchHistoryWorker(
       const Structs::GitRepoGetBranchHistoryCommand &command);
+  void getSubmodulePathWorker(const Structs::GitRepoGetSubmodulePathCommand &command);
   void getUpstreamWorker(const Structs::GitRepoGetUpstreamCommand &command);
   void initRepoWorker(const Structs::GitRepoInitRepoCommand &command);
   void listLocalBranchesWorker(
@@ -114,6 +115,8 @@ private:
       const Structs::GitRepoGetCommitIsHeadCommand &command);
   void scheduleWorkerForGetCommitStatus(
       const Structs::GitRepoGetCommitStatusCommand &command);
+  void scheduleWorkerForGetSubmodulePath(
+      const Structs::GitRepoGetSubmodulePathCommand &command);
   void scheduleWorkerForGetUpstream(
       const Structs::GitRepoGetUpstreamCommand &command);
   void scheduleWorkerForDeleteBranch(

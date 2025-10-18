@@ -3767,4 +3767,33 @@ bool deleteTag(git_repository *repo, const QString &tagName) {
   return true;
 }
 
+QString getSubmodulePath(git_repository *repo, const QString &submoduleName) {
+  LOG_PERF(0, "Enter");
+
+  git_submodule *submodule = nullptr;
+
+  if (const int error = git_submodule_lookup(&submodule, repo,
+                                             submoduleName.toStdString().
+                                             c_str())) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const char *path = git_submodule_path(submodule);
+  if (!path) {
+    git_submodule_free(submodule);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QString pathStr = path;
+
+  git_submodule_free(submodule);
+
+  LOG_PERF(0, "Exit");
+
+  return pathStr;
+}
+
 } // namespace GitRepo

@@ -35,6 +35,7 @@ enum class GitRepoCommandType : int {
   GetCommitHeads,
   GetCommitIsHead,
   GetCommitStatus,
+  GetSubmodulePath,
   GetUpstream,
   Init,
   ListLocalBranches,
@@ -262,6 +263,18 @@ struct GitRepoGetBranchHistoryCommand final : GitRepoCommand {
 
   QString branchName;
   GitRepo::BranchType branchType = GitRepo::BranchType::Unknown;
+};
+
+struct GitRepoGetSubmodulePathCommand final : GitRepoCommand {
+  GitRepoGetSubmodulePathCommand()
+      : GitRepoCommand(GitRepoCommandType::GetSubmodulePath) {}
+  ~GitRepoGetSubmodulePathCommand() override = default;
+
+  QString submoduleName;
+};
+
+struct GitRepoGetSubmodulePathCommandResult {
+  QString submodulePath;
 };
 
 struct GitRepoGetUpstreamCommand final : GitRepoCommand {

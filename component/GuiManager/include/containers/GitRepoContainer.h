@@ -62,6 +62,7 @@ public:
 
 signals:
   void historyViewRightClicked(const QModelIndex &index, const QPoint &pos);
+  void openRepoRequested(const QString &path);
 
 protected:
   void hideEvent(QHideEvent *event) override;
@@ -110,6 +111,8 @@ private slots:
   void onStashSelected(int stashIndex);
   void onSubmitRenameBranch(const QString &oldName, const QString &newName);
   void onSubmitRenameTag(const QString &oldName, const QString &newName);
+  void onSubmoduleRightClicked(const QString &submoduleName, const QPoint &pos);
+  void onSubmoduleSelected(const QString &submoduleName);
   void onTagRightClicked(const QString &tagName, const QPoint &pos);
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay();
@@ -197,6 +200,7 @@ private:
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   bool openRepo(const WeakPtr &guard);
+  void openSubmodule(const WeakPtr& guard, const QString &submoduleName);
   void popStash(const WeakPtr &guard, int stashIndex);
   void pull(const WeakPtr &guard);
   void push(const WeakPtr &guard);

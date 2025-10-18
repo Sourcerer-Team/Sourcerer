@@ -231,4 +231,6 @@ bool renameTag(git_repository *repo, const QString &oldName,
 
 bool deleteTag(git_repository *repo, const QString &tagName);
 
+QString getSubmodulePath(git_repository *repo, const QString& submoduleName);
+
 } // namespace GitRepo

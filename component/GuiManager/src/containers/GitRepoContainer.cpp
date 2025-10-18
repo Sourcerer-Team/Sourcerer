@@ -325,6 +325,11 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(ui->stashesPage, &StashesPage::deleteStash, this,
           &GitRepoContainer::onDeleteStash);
 
+  connect(ui->submodulesPage, &GitSubmodulesPage::submoduleSelected, this,
+          &GitRepoContainer::onSubmoduleSelected);
+  connect(ui->submodulesPage, &GitSubmodulesPage::submoduleRightClicked, this,
+          &GitRepoContainer::onSubmoduleRightClicked);
+
   connect(_spinnerOverlayTimer, &QTimer::timeout, this,
           &GitRepoContainer::onShowSpinnerOverlay);
 
@@ -1266,7 +1271,7 @@ void GitRepoContainer::onSubmitRenameBranch(const QString &oldName,
 }
 
 void GitRepoContainer::onSubmitRenameTag(const QString &oldName,
-                                            const QString &newName) {
+                                         const QString &newName) {
   LOG_PERF(0, "Enter");
 
   startOverlayTimer();
@@ -1280,8 +1285,26 @@ void GitRepoContainer::onSubmitRenameTag(const QString &oldName,
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onSubmoduleRightClicked(const QString &submoduleName,
+                                               const QPoint &pos) {
+}
+
+void GitRepoContainer::onSubmoduleSelected(const QString &submoduleName) {
+  LOG_PERF(0, "Enter");
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {
+    openSubmodule(guard, submoduleName);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onTagRightClicked(const QString &tagName,
-    const QPoint &pos) {
+                                         const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
   QAction actionCheckoutTag(tr("Checkout tag"), this);
@@ -3248,9 +3271,9 @@ void GitRepoContainer::deleteTag(const WeakPtr &guard, const QString &tagName) {
   _eventManager.send(deleteTagEvent);
 
   static std::set types = {
-    EventManager::EventType::GitRepoManagerDeleteTagError,
-    EventManager::EventType::GitRepoManagerDeleteTagResult
-};
+      EventManager::EventType::GitRepoManagerDeleteTagError,
+      EventManager::EventType::GitRepoManagerDeleteTagResult
+  };
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -3277,7 +3300,7 @@ void GitRepoContainer::deleteTag(const WeakPtr &guard, const QString &tagName) {
 
     LOG_PERF(0, "Exit")
     return;
-      }
+  }
 
   const auto commandResult = event.data<GitRepoResult>();
   const bool deleteSuccess = commandResult.value.toBool();
@@ -3296,6 +3319,81 @@ void GitRepoContainer::deleteTag(const WeakPtr &guard, const QString &tagName) {
 
   Util::Dispatcher::dispatchToMainThread(
       guard, [&]() { showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::openSubmodule(const WeakPtr &guard,
+                                     const QString &submoduleName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoGetSubmodulePathCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.submoduleName = submoduleName;
+
+  EventManager::Event deleteTagEvent(
+      EventManager::EventType::GitRepoManagerGetSubmodulePath, eventUuid);
+  deleteTagEvent.addData(command);
+  _eventManager.send(deleteTagEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGetSubmodulePathError,
+      EventManager::EventType::GitRepoManagerGetSubmodulePathResult
+  };
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to get submodule path.")), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerGetSubmodulePathResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to get submodule path.")), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const auto [submodulePath] = commandResult.value.value<
+    GitRepoGetSubmodulePathCommandResult>();
+
+  if (submodulePath.isEmpty()) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to get submodule path."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() {
+        showSpinnerOverlay(false);
+
+        const QString fullPath = QDir(_path).filePath(submodulePath);
+        emit openRepoRequested(fullPath);
+      });
 
   LOG_PERF(0, "Exit");
 }
@@ -4592,8 +4690,8 @@ void GitRepoContainer::renameBranch(const WeakPtr &guard,
 }
 
 void GitRepoContainer::renameTag(const WeakPtr &guard,
-                                    const QString &oldName,
-                                    const QString &newName) {
+                                 const QString &oldName,
+                                 const QString &newName) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -4613,9 +4711,9 @@ void GitRepoContainer::renameTag(const WeakPtr &guard,
   _eventManager.send(renameTagEvent);
 
   static std::set types = {
-    EventManager::EventType::GitRepoManagerRenameTagError,
-    EventManager::EventType::GitRepoManagerRenameTagResult
-};
+      EventManager::EventType::GitRepoManagerRenameTagError,
+      EventManager::EventType::GitRepoManagerRenameTagResult
+  };
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -4639,7 +4737,7 @@ void GitRepoContainer::renameTag(const WeakPtr &guard,
 
     LOG_PERF(0, "Exit")
     return;
-      }
+  }
 
   const auto commandResult = event.data<GitRepoResult>();
 

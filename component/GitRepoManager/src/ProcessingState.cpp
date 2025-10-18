@@ -200,6 +200,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForGetCommitStatus(commitStatusCommand);
     break;
   }
+  case EventType::GetSubmodulePath: {
+    const auto getSubmodulePathCommand =
+        event.nextParam<GitRepoGetSubmodulePathCommand>();
+    scheduleWorkerForGetSubmodulePath(getSubmodulePathCommand);
+    break;
+  }
   case EventType::GetUpstream: {
     const auto getUpstreamCommand =
         event.nextParam<GitRepoGetUpstreamCommand>();
@@ -1324,6 +1330,41 @@ void ProcessingState::getBranchHistoryWorker(
                                       QVariant::fromValue(history)});
     _eventManager.send(resultEvent);
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::getSubmodulePathWorker(
+    const Structs::GitRepoGetSubmodulePathCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerGetSubmodulePath,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const auto path =
+      GitRepo::getSubmodulePath(repo, command.submoduleName);
+
+  GitRepoGetSubmodulePathCommandResult result;
+  result.submodulePath = path;
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerGetSubmodulePathResult,
+      command.syncUuid);
+  resultEvent.addData(
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(result)});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -2614,6 +2655,25 @@ void ProcessingState::scheduleWorkerForGetCommitStatus(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForGetSubmodulePath(
+    const Structs::GitRepoGetSubmodulePathCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerGetSubmodulePathError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoGetSubmodulePathCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForGetUpstream(
     const Structs::GitRepoGetUpstreamCommand &command) {
   LOG_PERF(0, "Enter");
@@ -3058,6 +3118,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoGetBranchHistoryCommand *>(command);
       if (branchHistoryCommand) {
         getBranchHistoryWorker(*branchHistoryCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::GetSubmodulePath: {
+      const auto *getSubmodulePathCommand =
+          dynamic_cast<const GitRepoGetSubmodulePathCommand *>(command);
+      if (getSubmodulePathCommand) {
+        getSubmodulePathWorker(*getSubmodulePathCommand);
       }
       break;
     }

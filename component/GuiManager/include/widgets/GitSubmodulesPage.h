@@ -22,8 +22,11 @@ public:
 
 signals:
   void submoduleSelected(const QString &branchName);
+  void submoduleRightClicked(const QString &submoduleName, const QPoint &pos);
+
 
 private slots:
+  void onListViewContextMenuRequested(const QPoint &pos);
   void onListViewDoubleClicked(const QModelIndex &index);
 
 private:
