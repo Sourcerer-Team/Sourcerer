@@ -55,6 +55,7 @@ enum class GitRepoCommandType : int {
   StageFiles,
   Stash,
   Status,
+  SubmoduleUpdate,
   UnstageFiles,
   Quit,
   Last
@@ -498,6 +499,16 @@ struct GitRepoStatusCommand final : GitRepoCommand {
   }
 
   ~GitRepoStatusCommand() override = default;
+};
+
+struct GitRepoSubmoduleUpdateCommand final : GitRepoCommand {
+  GitRepoSubmoduleUpdateCommand()
+    : GitRepoCommand(GitRepoCommandType::SubmoduleUpdate) {
+  }
+
+  ~GitRepoSubmoduleUpdateCommand() override = default;
+
+  QString submoduleName;
 };
 
 struct GitRepoUnstageFilesCommand final : GitRepoCommand {

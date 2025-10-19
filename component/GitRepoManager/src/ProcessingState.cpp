@@ -310,6 +310,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForStatus(statusCommand);
     break;
   }
+  case EventType::SubmoduleUpdate: {
+    const auto submoduleUpdateCommand = event.nextParam<
+      GitRepoSubmoduleUpdateCommand>();
+    scheduleWorkerForSubmoduleUpdate(submoduleUpdateCommand);
+    break;
+  }
   case EventType::UnstageFiles: {
     const auto unstageFilesCommand =
         event.nextParam<GitRepoUnstageFilesCommand>();
@@ -1936,6 +1942,25 @@ void ProcessingState::scheduleWorkerForStatus(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForSubmoduleUpdate(
+    const Structs::GitRepoSubmoduleUpdateCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerSubmoduleUpdateError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoSubmoduleUpdateCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForUnstageFiles(
     const Structs::GitRepoUnstageFilesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2341,6 +2366,37 @@ void ProcessingState::statusWorker(
         GitRepoResult{command.uuid, command.type, QVariant::fromValue(status)});
     _eventManager.send(resultEvent);
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::submoduleUpdateWorker(
+    const Structs::GitRepoSubmoduleUpdateCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerSubmoduleUpdateError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::updateSubmodule(repo, command.submoduleName);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerSubmoduleUpdateResult,
+      command.syncUuid);
+  resultEvent.addData(
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -3335,6 +3391,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoStatusCommand *>(command);
       if (statusCommand) {
         statusWorker(*statusCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::SubmoduleUpdate: {
+      const auto *submoduleUpdateCommand =
+          dynamic_cast<const GitRepoSubmoduleUpdateCommand *>(command);
+      if (submoduleUpdateCommand) {
+        submoduleUpdateWorker(*submoduleUpdateCommand);
       }
       break;
     }

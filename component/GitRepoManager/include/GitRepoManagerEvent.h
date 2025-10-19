@@ -51,6 +51,7 @@ enum class EventType : int {
   StageFiles,
   Stash,
   Status,
+  SubmoduleUpdate,
   UnstageFiles,
 
   last

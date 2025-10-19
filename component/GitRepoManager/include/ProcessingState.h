@@ -45,7 +45,8 @@ private:
   void destroyContextsMap();
   void deleteBranchWorker(const Structs::GitRepoDeleteBranchCommand &command);
   void deleteStashWorker(const Structs::GitRepoDeleteStashCommand &command);
-  void deleteSubmoduleWorker(const Structs::GitRepoDeleteSubmoduleCommand &command);
+  void deleteSubmoduleWorker(
+      const Structs::GitRepoDeleteSubmoduleCommand &command);
   void deleteTagWorker(const Structs::GitRepoDeleteTagCommand &command);
   void diffFilesWorker(const Structs::GitRepoDiffFilesCommand &command);
   void discardFilesWorker(const Structs::GitRepoDiscardFilesCommand &command);
@@ -85,6 +86,8 @@ private:
   void stageFilesWorker(const Structs::GitRepoStageFilesCommand &command);
   void stashWorker(const Structs::GitRepoStashCommand &command);
   void statusWorker(const Structs::GitRepoStatusCommand &command);
+  void submoduleUpdateWorker(
+      const Structs::GitRepoSubmoduleUpdateCommand &command);
   void unstageFilesWorker(const Structs::GitRepoUnstageFilesCommand &command);
   void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
   void reportError(EventManager::EventType eventType, const QString &message,
@@ -162,6 +165,8 @@ private:
   scheduleWorkerForStageFiles(const Structs::GitRepoStageFilesCommand &command);
   void scheduleWorkerForStash(const Structs::GitRepoStashCommand &command);
   void scheduleWorkerForStatus(const Structs::GitRepoStatusCommand &command);
+  void scheduleWorkerForSubmoduleUpdate(
+      const Structs::GitRepoSubmoduleUpdateCommand &command);
   void scheduleWorkerForUnstageFiles(
       const Structs::GitRepoUnstageFilesCommand &command);
   void scheduleWorkerForQuit(const Structs::GitRepoQuitCommand &command);

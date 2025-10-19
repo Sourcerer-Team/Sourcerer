@@ -3953,4 +3953,42 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
   return true;
 }
 
+bool updateSubmodule(git_repository *repo, const QString &submoduleName) {
+  LOG_PERF(0, "Enter");
+
+  const std::string name = submoduleName.toStdString();
+
+  git_submodule *submodule = nullptr;
+
+  int error = git_submodule_lookup(&submodule, repo,
+                                   name.c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_submodule_init(submodule, 0);
+  if (error) {
+    logGitError(error);
+    git_submodule_free(submodule);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_submodule_update(submodule, 1, nullptr);
+  if (error) {
+    logGitError(error);
+    git_submodule_free(submodule);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_submodule_free(submodule);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
 } // namespace GitRepo

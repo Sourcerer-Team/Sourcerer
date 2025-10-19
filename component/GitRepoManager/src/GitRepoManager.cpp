@@ -105,6 +105,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStatus, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerSubmoduleUpdate, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerUnstageFiles, callbackFunc));
 
   LOG_PERF(0, "Exit");
@@ -199,6 +201,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerStash, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStatus, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerSubmoduleUpdate, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerUnstageFiles, callbackFunc));
 
@@ -542,6 +546,14 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent statusRepoEvent(EventType::Status);
     statusRepoEvent.addParam(QVariant::fromValue(statusCommand));
     _fsm.send(statusRepoEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerSubmoduleUpdate: {
+    const auto submoduleUpdateCommand = event.data<
+      GitRepoSubmoduleUpdateCommand>();
+    GitRepoManagerEvent submoduleUpdateEvent(EventType::SubmoduleUpdate);
+    submoduleUpdateEvent.addParam(QVariant::fromValue(submoduleUpdateCommand));
+    _fsm.send(submoduleUpdateEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerUnstageFiles: {

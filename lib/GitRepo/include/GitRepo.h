@@ -236,4 +236,6 @@ QString getSubmodulePath(git_repository *repo, const QString &submoduleName);
 bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
                      const QString &submodulePath);
 
+bool updateSubmodule(git_repository *repo, const QString &submoduleName);
+
 } // namespace GitRepo

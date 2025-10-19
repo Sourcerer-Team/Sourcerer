@@ -3516,7 +3516,8 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
     return;
   }
 
-  if (event.type() != EventManager::EventType::GitRepoManagerDeleteSubmoduleResult) {
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerDeleteSubmoduleResult) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showSpinnerOverlay(false);
       showErrorToast(tr("Failed to delete submodule."), tr("Error"));
@@ -5787,6 +5788,74 @@ void GitRepoContainer::updateTagsModelActiveTag(const WeakPtr &guard,
 void GitRepoContainer::updateSubmodule(const WeakPtr &guard,
                                        const QString &submoduleName) {
   LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoSubmoduleUpdateCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.submoduleName = submoduleName;
+
+  EventManager::Event submoduleUpdateEvent(
+      EventManager::EventType::GitRepoManagerSubmoduleUpdate, eventUuid);
+  submoduleUpdateEvent.addData(command);
+  _eventManager.send(submoduleUpdateEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerSubmoduleUpdateError,
+      EventManager::EventType::GitRepoManagerSubmoduleUpdateResult
+  };
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(tr("Failed to update submodule."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerSubmoduleUpdateResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to update submodule."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  if (const bool commandSuccess = commandResult.value.toBool(); !
+    commandSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to update submodule."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Submodule updated successfully."), tr("Info"));
+  });
 
   LOG_PERF(0, "Exit")
 }
