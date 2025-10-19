@@ -116,6 +116,7 @@ private slots:
   void onTagRightClicked(const QString &tagName, const QPoint &pos);
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay();
+  void onDeleteSubmodule(const QString &submoduleName);
   void onGraphColumnExpand(int section);
   void onWorkingTreeFlatListViewContextMenuRequested(const QPoint &pos);
   void onWorkingTreeFlatListViewStageSelected(bool checked = false);
@@ -173,6 +174,7 @@ private:
       const WeakPtr &guard, int stashIndex,
       const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
   void deleteTag(const WeakPtr &guard, const QString &tagName);
+  void deleteSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void diffFiles(const WeakPtr &guard, const QStringList &files);
   void discardFiles(const WeakPtr &guard, const QStringList &files);
   bool getActiveBranchOrTag(const WeakPtr &guard,
@@ -259,6 +261,7 @@ private:
                           const QStringList &stashes) const;
   void updateTagsModelActiveTag(const WeakPtr &guard, const QString &activeTag,
                                 bool updatePages = true);
+  void updateSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void updateSubmodulesModel(const WeakPtr &guard,
                              const QStringList &tags) const;
   void updateTagsModel(const WeakPtr &guard, const QStringList &tags) const;

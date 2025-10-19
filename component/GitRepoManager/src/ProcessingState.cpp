@@ -147,6 +147,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForDeleteStash(deleteStashCommand);
     break;
   }
+  case EventType::DeleteSubmodule: {
+    const auto deleteSubmoduleCommand =
+        event.nextParam<GitRepoDeleteSubmoduleCommand>();
+    scheduleWorkerForDeleteSubmodule(deleteSubmoduleCommand);
+    break;
+  }
   case EventType::DeleteTag: {
     const auto deleteTagCommand =
         event.nextParam<GitRepoDeleteTagCommand>();
@@ -948,11 +954,43 @@ void ProcessingState::deleteStashWorker(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::deleteSubmoduleWorker(
+    const Structs::GitRepoDeleteSubmoduleCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteSubmoduleError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::deleteSubmodule(repo, command.submoduleName,
+                                                command.submodulePath);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerDeleteSubmoduleResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                    QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::deleteTagWorker(
     const Structs::GitRepoDeleteTagCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerDeleteTagError,
                 tr("Internal error. Context not initialized."), command);
@@ -2731,6 +2769,25 @@ void ProcessingState::scheduleWorkerForDeleteStash(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForDeleteSubmodule(
+    const Structs::GitRepoDeleteSubmoduleCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteSubmoduleError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoDeleteSubmoduleCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForDeleteTag(
     const Structs::GitRepoDeleteTagCommand &command) {
   LOG_PERF(0, "Enter");
@@ -3046,6 +3103,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoDeleteStashCommand *>(command);
       if (deleteStashCommand) {
         deleteStashWorker(*deleteStashCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::DeleteSubmodule: {
+      const auto deleteSubmoduleCommand =
+          dynamic_cast<const GitRepoDeleteSubmoduleCommand *>(command);
+      if (deleteSubmoduleCommand) {
+        deleteSubmoduleWorker(*deleteSubmoduleCommand);
       }
       break;
     }

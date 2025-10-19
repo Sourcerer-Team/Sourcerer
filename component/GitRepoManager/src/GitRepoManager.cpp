@@ -49,6 +49,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteStash, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDeleteSubmodule, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteTag, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiffFiles, callbackFunc));
@@ -143,6 +145,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerDeleteBranch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteStash, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDeleteSubmodule, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteTag, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -325,6 +329,14 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     _fsm.send(deleteStashEvent);
     break;
   }
+  case EventManager::EventType::GitRepoManagerDeleteSubmodule: {
+    const auto deleteSubmoduleCommand = event.data<
+      GitRepoDeleteSubmoduleCommand>();
+    GitRepoManagerEvent deleteSubmoduleEvent(EventType::DeleteSubmodule);
+    deleteSubmoduleEvent.addParam(QVariant::fromValue(deleteSubmoduleCommand));
+    _fsm.send(deleteSubmoduleEvent);
+    break;
+  }
   case EventManager::EventType::GitRepoManagerDeleteTag: {
     const auto deleteTagCommand = event.data<GitRepoDeleteTagCommand>();
     GitRepoManagerEvent deleteTagEvent(EventType::DeleteTag);
@@ -396,9 +408,11 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetSubmodulePath: {
-    const auto getSubmodulePathCommand = event.data<GitRepoGetSubmodulePathCommand>();
+    const auto getSubmodulePathCommand = event.data<
+      GitRepoGetSubmodulePathCommand>();
     GitRepoManagerEvent getSubmodulePathEvent(EventType::GetSubmodulePath);
-    getSubmodulePathEvent.addParam(QVariant::fromValue(getSubmodulePathCommand));
+    getSubmodulePathEvent.
+        addParam(QVariant::fromValue(getSubmodulePathCommand));
     _fsm.send(getSubmodulePathEvent);
     break;
   }

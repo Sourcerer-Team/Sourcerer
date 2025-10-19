@@ -45,6 +45,7 @@ private:
   void destroyContextsMap();
   void deleteBranchWorker(const Structs::GitRepoDeleteBranchCommand &command);
   void deleteStashWorker(const Structs::GitRepoDeleteStashCommand &command);
+  void deleteSubmoduleWorker(const Structs::GitRepoDeleteSubmoduleCommand &command);
   void deleteTagWorker(const Structs::GitRepoDeleteTagCommand &command);
   void diffFilesWorker(const Structs::GitRepoDiffFilesCommand &command);
   void discardFilesWorker(const Structs::GitRepoDiscardFilesCommand &command);
@@ -61,7 +62,8 @@ private:
   getCommitStatusWorker(const Structs::GitRepoGetCommitStatusCommand &command);
   void getBranchHistoryWorker(
       const Structs::GitRepoGetBranchHistoryCommand &command);
-  void getSubmodulePathWorker(const Structs::GitRepoGetSubmodulePathCommand &command);
+  void getSubmodulePathWorker(
+      const Structs::GitRepoGetSubmodulePathCommand &command);
   void getUpstreamWorker(const Structs::GitRepoGetUpstreamCommand &command);
   void initRepoWorker(const Structs::GitRepoInitRepoCommand &command);
   void listLocalBranchesWorker(
@@ -123,6 +125,8 @@ private:
       const Structs::GitRepoDeleteBranchCommand &command);
   void scheduleWorkerForDeleteStash(
       const Structs::GitRepoDeleteStashCommand &command);
+  void scheduleWorkerForDeleteSubmodule(
+      const Structs::GitRepoDeleteSubmoduleCommand &command);
   void scheduleWorkerForDeleteTag(
       const Structs::GitRepoDeleteTagCommand &command);
   void

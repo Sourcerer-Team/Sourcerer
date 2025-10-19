@@ -1287,6 +1287,45 @@ void GitRepoContainer::onSubmitRenameTag(const QString &oldName,
 
 void GitRepoContainer::onSubmoduleRightClicked(const QString &submoduleName,
                                                const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  QAction actionOpenSubmodule(tr("Open"), this);
+  QAction actionUpdateSubmodule(tr("Update"), this);
+  QAction actionDeleteSubmodule(tr("Delete"), this);
+
+  connect(&actionOpenSubmodule, &QAction::triggered, this, [=]() {
+    startOverlayTimer();
+
+    const WeakPtr guard = getSelf().toWeakRef();
+
+    _dispatcher.dispatch([=]() {
+      openSubmodule(guard, submoduleName);
+    });
+  });
+
+  connect(&actionUpdateSubmodule, &QAction::triggered, this, [=]() {
+    startOverlayTimer();
+
+    const WeakPtr guard = getSelf().toWeakRef();
+
+    _dispatcher.dispatch([=]() {
+      updateSubmodule(guard, submoduleName);
+    });
+  });
+
+  connect(&actionDeleteSubmodule, &QAction::triggered, this, [=]() {
+    onDeleteSubmodule(submoduleName);
+  });
+
+  QMenu menu;
+  menu.addAction(&actionOpenSubmodule);
+  menu.addAction(&actionUpdateSubmodule);
+  menu.addSeparator();
+  menu.addAction(&actionDeleteSubmodule);
+
+  menu.exec(pos);
+
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::onSubmoduleSelected(const QString &submoduleName) {
@@ -1530,6 +1569,30 @@ void GitRepoContainer::onShowSpinnerOverlay() {
   LOG_PERF(0, "Enter");
 
   showSpinnerOverlay();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onDeleteSubmodule(const QString &submoduleName) {
+  LOG_PERF(0, "Enter");
+
+  const QString question = QString(
+          "Are you sure that you want to delete submodule '%1'?").
+      arg(submoduleName);
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch(
+      [=]() { deleteSubmodule(guard, submoduleName); });
 
   LOG_PERF(0, "Exit");
 }
@@ -3406,6 +3469,80 @@ void GitRepoContainer::popStash(const WeakPtr &guard, int stashIndex) {
       Util::Dispatcher::dispatchToMainThread(
           guard, [&]() { showSpinnerOverlay(false); });
     });
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
+                                       const QString &submoduleName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  const QString fullPath = QDir(_path).filePath(submoduleName);
+
+  GitRepoDeleteSubmoduleCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.submoduleName = submoduleName;
+  command.submodulePath = fullPath;
+
+  EventManager::Event deleteSubmoduleEvent(
+      EventManager::EventType::GitRepoManagerDeleteSubmodule, eventUuid);
+  deleteSubmoduleEvent.addData(command);
+  _eventManager.send(deleteSubmoduleEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerDeleteSubmoduleError,
+      EventManager::EventType::GitRepoManagerDeleteSubmoduleResult
+  };
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(tr("Failed to delete submodule."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerDeleteSubmoduleResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to delete submodule."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool commandSuccess = commandResult.value.toBool();
+
+  if (!commandSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to delete submodule."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
   });
 
   LOG_PERF(0, "Exit")
@@ -5646,6 +5783,14 @@ void GitRepoContainer::updateTagsModelActiveTag(const WeakPtr &guard,
 
   LOG_PERF(0, "Exit")
 }
+
+void GitRepoContainer::updateSubmodule(const WeakPtr &guard,
+                                       const QString &submoduleName) {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit")
+}
+
 
 void GitRepoContainer::updateSubmodulesModel(const WeakPtr &guard,
                                              const QStringList &tags) const {

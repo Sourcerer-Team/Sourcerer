@@ -6,7 +6,6 @@
 #include <EventManager.h>
 #include <LockGuard.h>
 #include <Log.h>
-#include <Uuid.h>
 
 #include <git2.h>
 #include <git2/branch.h>
@@ -937,13 +936,37 @@ QStringList listTags(git_repository *repo) {
   return tags;
 }
 
+struct ListSubmodulesPayload {
+  const char *repoPath = nullptr;
+  QStringList submodules;
+};
+
 static int listSubmodulesCallback(git_submodule *sm, const char *name,
                                   void *payload) {
-  if (!payload)
-    return -1;
+  if (!payload) {
+    return 0;
+  }
 
-  QStringList *submodules = static_cast<QStringList *>(payload);
-  *submodules += name;
+  auto *listPayload =
+      static_cast<ListSubmodulesPayload *>(payload);
+  Q_ASSERT(listPayload->repoPath);
+  if (!listPayload->repoPath) {
+    return 0;
+  }
+
+  const char *path = git_submodule_path(sm);
+  if (!path) {
+    return 0;
+  }
+
+  const QString fullPath = QString("%1/../%2").arg(listPayload->repoPath).
+                                               arg(path);
+
+  if (const QDir dir(fullPath); !dir.exists()) {
+    return 0;
+  }
+
+  listPayload->submodules += name;
 
   return 0;
 }
@@ -951,10 +974,11 @@ static int listSubmodulesCallback(git_submodule *sm, const char *name,
 QStringList listSubmodules(git_repository *repo) {
   LOG_PERF(0, "Enter");
 
-  QStringList submodules;
+  ListSubmodulesPayload payload;
+  payload.repoPath = git_repository_path(repo);
 
   const int error =
-      git_submodule_foreach(repo, &listSubmodulesCallback, &submodules);
+      git_submodule_foreach(repo, &listSubmodulesCallback, &payload);
   if (error) {
     logGitError(error);
     return {};
@@ -962,7 +986,7 @@ QStringList listSubmodules(git_repository *repo) {
 
   LOG_PERF(0, "Exit");
 
-  return submodules;
+  return payload.submodules;
 }
 
 bool createBranchFromCommit(git_repository *repo, const QString &commit,
@@ -3794,6 +3818,139 @@ QString getSubmodulePath(git_repository *repo, const QString &submoduleName) {
   LOG_PERF(0, "Exit");
 
   return pathStr;
+}
+
+bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
+                     const QString &submodulePath) {
+  LOG_PERF(0, "Enter");
+
+  const std::string name = submoduleName.toStdString();
+  const std::string path = submodulePath.toStdString();
+
+  git_submodule *submodule = nullptr;
+
+  int error = git_submodule_lookup(&submodule, repo,
+                                   name.c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const char *repositoryPath = git_repository_path(repo);
+  if (!repositoryPath) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const std::string gitModulesPath = QString("%1/../.gitmodules").
+                                     arg(repositoryPath).toStdString();
+  const std::string gitModulesTmpPath = QString("%1/../.gitmodules.tmp").
+                                        arg(repositoryPath).toStdString();
+
+  FILE *src = fopen(
+      gitModulesPath.c_str(), "r");
+  if (FILE *dst = fopen(
+      gitModulesTmpPath.c_str(),
+      "w"); src && dst) {
+    char line[1024];
+    int skip = 0;
+    while (fgets(line, sizeof(line), src)) {
+      if (strstr(line, name.c_str())) {
+        skip = 1;
+        continue;
+      }
+
+      if (skip && line[0] == '[') {
+        skip = 0;
+      }
+
+      if (!skip) {
+        fputs(line, dst);
+      }
+    }
+
+    fclose(src);
+    fclose(dst);
+
+    remove(gitModulesPath.c_str());
+    rename(gitModulesTmpPath.c_str(), gitModulesPath.c_str());
+
+    if (const bool staged = stageFiles(repo, QStringList() << ".gitmodules"); !
+      staged) {
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  } else {
+    if (src) {
+      fclose(src);
+    }
+  }
+
+  git_config *config = nullptr;
+  git_config *localConfig = nullptr;
+
+  error = git_repository_config(&config, repo);
+  if (error) {
+    logGitError(error);
+    git_submodule_free(submodule);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_config_open_level(&localConfig, config, GIT_CONFIG_LEVEL_LOCAL);
+  if (error) {
+    logGitError(error);
+    git_submodule_free(submodule);
+    git_config_free(config);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  char key[256];
+  snprintf(key, sizeof(key), "submodule.%s.path", name.c_str());
+
+  git_config_delete_entry(config, key);
+
+  git_config_free(config);
+  git_config_free(localConfig);
+
+  git_index *index = nullptr;
+
+  error = git_repository_index(&index, repo);
+  if (error) {
+    logGitError(error);
+    git_submodule_free(submodule);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_index_remove(index, name.c_str(), 0);
+  if (error) {
+    logGitError(error);
+    git_submodule_free(submodule);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_index_write(index);
+  if (error) {
+    logGitError(error);
+    git_submodule_free(submodule);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_submodule_free(submodule);
+  git_index_free(index);
+
+  QDir(submodulePath).removeRecursively();
+
+  LOG_PERF(0, "Exit");
+
+  return true;
 }
 
 } // namespace GitRepo
