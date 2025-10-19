@@ -16,6 +16,8 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets LinguistTools)
 
 set(PROJECT_SOURCES
         main.cpp
+        ../component/GuiManager/include/widgets/AddSubmoduleOverlayWidget.h
+        ../component/GuiManager/src/widgets/AddSubmoduleOverlayWidget.cpp
 )
 
 if(WIN32)

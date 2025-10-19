@@ -70,6 +70,7 @@ protected:
   void showEvent(QShowEvent *event) override;
 
 private slots:
+  void onAddSubmodule();
   void onApplyPatch();
   void onApplyStash(int stashIndex);
   void onDeleteStash(int stashIndex);
@@ -112,6 +113,7 @@ private slots:
   void onSubmitRenameBranch(const QString &oldName, const QString &newName);
   void onSubmitRenameTag(const QString &oldName, const QString &newName);
   void onSubmoduleRightClicked(const QString &submoduleName, const QPoint &pos);
+  void onSubmodulePanelRightClicked(const QPoint &pos);
   void onSubmoduleSelected(const QString &submoduleName);
   void onTagRightClicked(const QString &tagName, const QPoint &pos);
   void onTagSelected(const QString &tagName);
@@ -146,6 +148,8 @@ private slots:
                                GitRepo::BranchType branchType);
 
 private:
+  void addSubmodule(const WeakPtr &guard, const QString &url,
+                    const QString &name);
   void applyPatch(const WeakPtr &guard, const QString &filePath);
   void applyStash(
       const WeakPtr &guard, int stashIndex,
@@ -202,14 +206,14 @@ private:
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   bool openRepo(const WeakPtr &guard);
-  void openSubmodule(const WeakPtr& guard, const QString &submoduleName);
+  void openSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void popStash(const WeakPtr &guard, int stashIndex);
   void pull(const WeakPtr &guard);
   void push(const WeakPtr &guard);
   void renameBranch(const WeakPtr &guard, const QString &oldName,
                     const QString &newName);
   void renameTag(const WeakPtr &guard, const QString &oldName,
-                    const QString &newName);
+                 const QString &newName);
   void reset(const WeakPtr &guard, const QString &commit,
              GitRepo::ResetType type);
   void revert(const WeakPtr &guard, const QString &commit);

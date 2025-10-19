@@ -20,6 +20,8 @@ GitRepoManager::GitRepoManager()
       std::bind(&GitRepoManager::eventCallback, this, std::placeholders::_1);
 
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerAddSubmodule, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyPatch, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyStash, callbackFunc));
@@ -118,6 +120,8 @@ GitRepoManager::~GitRepoManager() {
   const auto callbackFunc =
       std::bind(&GitRepoManager::eventCallback, this, std::placeholders::_1);
 
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+    EventManager::EventType::GitRepoManagerAddSubmodule, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyPatch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -240,6 +244,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
   LOG_DEBUG("Received event {}", _eventManager.eventName(eventType));
 
   switch (eventType) {
+  case EventManager::EventType::GitRepoManagerAddSubmodule: {
+    const auto addSubmoduleCommand = event.data<GitRepoAddSubmoduleCommand>();
+    GitRepoManagerEvent addSubmoduleEvent(EventType::AddSubmodule);
+    addSubmoduleEvent.addParam(QVariant::fromValue(addSubmoduleCommand));
+    _fsm.send(addSubmoduleEvent);
+    break;
+  }
   case EventManager::EventType::GitRepoManagerApplyPatch: {
     const auto applyPatchCommand = event.data<GitRepoApplyPatchCommand>();
     GitRepoManagerEvent applyPatchEvent(EventType::ApplyPatch);

@@ -9,6 +9,7 @@ enum class EventType : int {
 
   Stop = -1,
   ChangeState = 0,
+  AddSubmodule,
   ApplyPatch,
   ApplyStash,
   CheckoutBranch,

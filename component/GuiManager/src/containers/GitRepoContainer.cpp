@@ -5,6 +5,7 @@
 #include "delegates/HistorySummaryTableColumnDelegate.h"
 #include "models/GitCommitListModel.h"
 #include "models/GitCommitTreeModel.h"
+#include "widgets/AddSubmoduleOverlayWidget.h"
 #include "widgets/ClickableHeaderView.h"
 #include "widgets/ErrorToast.h"
 #include "widgets/InfoToast.h"
@@ -325,6 +326,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(ui->stashesPage, &StashesPage::deleteStash, this,
           &GitRepoContainer::onDeleteStash);
 
+  connect(ui->submodulesPage, &GitSubmodulesPage::rightClicked, this,
+          &GitRepoContainer::onSubmodulePanelRightClicked);
   connect(ui->submodulesPage, &GitSubmodulesPage::submoduleSelected, this,
           &GitRepoContainer::onSubmoduleSelected);
   connect(ui->submodulesPage, &GitSubmodulesPage::submoduleRightClicked, this,
@@ -528,6 +531,36 @@ void GitRepoContainer::showEvent(QShowEvent *event) {
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::onAddSubmodule() {
+  LOG_PERF(0, "Enter");
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  const auto overlayWidget = new AddSubmoduleOverlayWidget(this);
+
+  connect(overlayWidget, &AddSubmoduleOverlayWidget::canceled, this, [=]() {
+    overlayWidget->hide();
+    delete overlayWidget;
+  });
+
+  connect(overlayWidget, &AddSubmoduleOverlayWidget::submitted, this,
+          [=](const QString &url, const QString &name) {
+            overlayWidget->hide();
+            delete overlayWidget;
+
+            //startOverlayTimer();
+
+            _dispatcher.dispatch([=]() {
+              addSubmodule(guard, url, name);
+            });
+          });
+
+  overlayWidget->show();
+  overlayWidget->raise();
+
+  LOG_PERF(0, "Exit")
+}
+
 void GitRepoContainer::onApplyPatch() {
   LOG_PERF(0, "Enter");
 
@@ -547,7 +580,7 @@ void GitRepoContainer::onApplyPatch() {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::onApplyStash(int stashIndex) {
+void GitRepoContainer::onApplyStash(const int stashIndex) {
   LOG_PERF(0, "Enter");
 
   const QMessageBox::StandardButton reply =
@@ -568,7 +601,7 @@ void GitRepoContainer::onApplyStash(int stashIndex) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::onDeleteStash(int stashIndex) {
+void GitRepoContainer::onDeleteStash(const int stashIndex) {
   LOG_PERF(0, "Enter");
 
   const QMessageBox::StandardButton reply =
@@ -589,7 +622,7 @@ void GitRepoContainer::onDeleteStash(int stashIndex) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::onPopStash(int stashIndex) {
+void GitRepoContainer::onPopStash(const int stashIndex) {
   LOG_PERF(0, "Enter");
 
   const QMessageBox::StandardButton reply =
@@ -1322,6 +1355,22 @@ void GitRepoContainer::onSubmoduleRightClicked(const QString &submoduleName,
   menu.addAction(&actionUpdateSubmodule);
   menu.addSeparator();
   menu.addAction(&actionDeleteSubmodule);
+
+  menu.exec(pos);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onSubmodulePanelRightClicked(const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  QAction actionAddSubmodule(tr("Add"), this);
+
+  connect(&actionAddSubmodule, &QAction::triggered, this,
+          &GitRepoContainer::onAddSubmodule);
+
+  QMenu menu;
+  menu.addAction(&actionAddSubmodule);
 
   menu.exec(pos);
 
@@ -2458,6 +2507,76 @@ void GitRepoContainer::updateModelActiveBranch(const WeakPtr &guard,
     break;
   }
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::addSubmodule(const WeakPtr &guard, const QString &url,
+                                    const QString &name) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoAddSubmoduleCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.url = url;
+  command.name = name;
+
+  EventManager::Event addSubmoduleEvent(
+      EventManager::EventType::GitRepoManagerAddSubmodule, eventUuid);
+  addSubmoduleEvent.addData(command);
+  _eventManager.send(addSubmoduleEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerAddSubmoduleError,
+      EventManager::EventType::GitRepoManagerAddSubmoduleResult
+  };
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to add submodule.")), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerAddSubmoduleResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to add submodule.")), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool addSuccess = commandResult.value.toBool();
+
+  refreshHistory(guard);
+
+  if (!addSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to add submodule."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard,
+                                         [&]() { showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit");
 }

@@ -3907,10 +3907,9 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
     return false;
   }
 
-  char key[256];
-  snprintf(key, sizeof(key), "submodule.%s.path", name.c_str());
+  const QString key = QString("submodule.%1.*").arg(name);
 
-  git_config_delete_entry(config, key);
+  git_config_delete_multivar(localConfig, key.toStdString().c_str(), nullptr);
 
   git_config_free(config);
   git_config_free(localConfig);
@@ -3947,6 +3946,8 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
   git_index_free(index);
 
   QDir(submodulePath).removeRecursively();
+  QDir(QString("%1/modules/%2").arg(repositoryPath).arg(name)).
+      removeRecursively();
 
   LOG_PERF(0, "Exit");
 
@@ -3985,6 +3986,76 @@ bool updateSubmodule(git_repository *repo, const QString &submoduleName) {
   }
 
   git_submodule_free(submodule);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+bool addSubmodule(git_repository *repo, const QString &url,
+                  const QString &name, const QString &uuid) {
+  LOG_PERF(0, "Enter");
+
+  const char *repoPath = git_repository_path(repo);
+  if (!repoPath) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  deleteSubmodule(repo, name, QString("%1/../%2").arg(repoPath).arg(name));
+
+  git_submodule *subModule = nullptr;
+
+  int error = git_submodule_add_setup(&subModule, repo,
+                                      url.toStdString().c_str(),
+                                      name.toStdString().c_str(), 1);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_repository *subRepo = nullptr;
+
+  CloneProgress progressData;
+  progressData.uuid = uuid;
+
+  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
+  checkoutOpts.progress_payload = &progressData;
+  checkoutOpts.progress_cb = &checkoutProgressCallback;
+
+  git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
+  fetchOpts.callbacks.credentials = &credentialsAcquireCallback;
+  fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
+  fetchOpts.callbacks.payload = &progressData;
+
+  git_submodule_update_options cloneOpts = GIT_SUBMODULE_UPDATE_OPTIONS_INIT;
+  cloneOpts.fetch_opts = fetchOpts;
+  cloneOpts.checkout_opts = checkoutOpts;
+
+  error = git_submodule_clone(&subRepo, subModule, &cloneOpts);
+  if (error) {
+    logGitError(error);
+    git_submodule_free(subModule);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  finishFetchProgress(uuid, error != 0);
+  finishCredentialsAcquiring(uuid);
+
+  error = git_submodule_add_finalize(subModule);
+  if (error) {
+    logGitError(error);
+    git_submodule_free(subModule);
+    git_repository_free(subRepo);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_submodule_free(subModule);
+  git_repository_free(subRepo);
 
   LOG_PERF(0, "Exit");
 

@@ -71,6 +71,7 @@ void GitSubmodulesPage::onListViewContextMenuRequested(const QPoint &pos) {
   const QModelIndex index = ui->listView->indexAt(pos);
   if (!index.isValid()) {
     LOG_PERF(0, "Exit");
+    emit rightClicked(ui->listView->mapToGlobal(pos));
     return;
   }
 

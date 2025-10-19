@@ -13,7 +13,7 @@ public:
   explicit TextInputOverlayWidget(QWidget *parent);
   ~TextInputOverlayWidget() override;
 
-  bool showing() const override { return true; }
+  [[nodiscard]] bool showing() const override { return true; }
   void setPlaceholderText(const QString &text) const {
     _lineEditInput->setPlaceholderText(text);
   }

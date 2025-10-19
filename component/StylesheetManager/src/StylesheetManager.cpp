@@ -54,6 +54,22 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border: 2px solid #0078d7;
         border-radius: 5px;
       }
+      QLineEdit#lineEditAddSubmoduleOverlayWidgetUrl{
+        border: 2px solid gray;
+        border-radius: 5px;
+      }
+      QLineEdit#lineEditAddSubmoduleOverlayWidgetUrl:focus{
+        border: 2px solid #0078d7;
+        border-radius: 5px;
+      }
+      QLineEdit#lineEditAddSubmoduleOverlayWidgetName{
+        border: 2px solid gray;
+        border-radius: 5px;
+      }
+      QLineEdit#lineEditAddSubmoduleOverlayWidgetName:focus{
+        border: 2px solid #0078d7;
+        border-radius: 5px;
+      }
       QListView::item:selected {
         background-color: #384D59;
       }

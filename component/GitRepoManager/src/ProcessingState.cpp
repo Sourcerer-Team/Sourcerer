@@ -79,6 +79,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
   case EventType::Setup: {
     break;
   }
+  case EventType::AddSubmodule: {
+    const auto addSubmoduleCommand = event.nextParam<
+      GitRepoAddSubmoduleCommand>();
+    scheduleWorkerForAddSubmodule(addSubmoduleCommand);
+    break;
+  }
   case EventType::ApplyPatch: {
     const auto applyPatchCommand = event.nextParam<GitRepoApplyPatchCommand>();
     scheduleWorkerForApplyPatch(applyPatchCommand);
@@ -335,6 +341,38 @@ void ProcessingState::exit() {
   LOG_PERF(0, "Enter");
 
   destroyContextsMap();
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::addSubmoduleWorker(
+    const Structs::GitRepoAddSubmoduleCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerAddSubmoduleError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::addSubmodule(repo, command.url, command.name,
+                                             command.uuid);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerAddSubmoduleResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                    QVariant::fromValue(success)});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -2449,6 +2487,25 @@ void ProcessingState::reportError(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForAddSubmodule(
+    const Structs::GitRepoAddSubmoduleCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerAddSubmoduleError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoAddSubmoduleCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForApplyPatch(
     const Structs::GitRepoApplyPatchCommand &command) {
   LOG_PERF(0, "Enter");
@@ -3066,6 +3123,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
     }
 
     switch (command->type) {
+    case GitRepoCommandType::AddSubmodule: {
+      const auto addSubmoduleCommand =
+          dynamic_cast<const GitRepoAddSubmoduleCommand *>(command);
+      if (addSubmoduleCommand) {
+        addSubmoduleWorker(*addSubmoduleCommand);
+      }
+      break;
+    }
     case GitRepoCommandType::ApplyPatch: {
       const auto applyPatchCommand =
           dynamic_cast<const GitRepoApplyPatchCommand *>(command);

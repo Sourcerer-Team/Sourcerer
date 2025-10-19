@@ -14,6 +14,7 @@ namespace GitRepoManager::Structs {
 
 enum class GitRepoCommandType : int {
   Unknown = 0,
+  AddSubmodule,
   ApplyPatch,
   ApplyStash,
   CheckoutBranch,
@@ -81,6 +82,16 @@ struct GitRepoCommand {
   GitRepoCommandType type;
   QString uuid;
   QString syncUuid;
+};
+
+struct GitRepoAddSubmoduleCommand final : GitRepoCommand {
+  GitRepoAddSubmoduleCommand() : GitRepoCommand(GitRepoCommandType::AddSubmodule) {
+  }
+
+  ~GitRepoAddSubmoduleCommand() override = default;
+
+  QString url;
+  QString name;
 };
 
 struct GitRepoApplyPatchCommand final : GitRepoCommand {

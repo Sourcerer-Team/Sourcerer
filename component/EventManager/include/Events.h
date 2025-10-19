@@ -19,6 +19,9 @@ enum EventType {
   ComponentStopped,
 
   // GitRepoManager
+  GitRepoManagerAddSubmodule,
+  GitRepoManagerAddSubmoduleResult,
+  GitRepoManagerAddSubmoduleError,
   GitRepoManagerApplyPatch,
   GitRepoManagerApplyPatchResult,
   GitRepoManagerApplyPatchError,
