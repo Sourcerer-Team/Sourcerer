@@ -198,12 +198,15 @@ includeLib(GuiManager Log)
 includeLib(GuiManager Util)
 includeLib(GuiManager QtWaitingSpinner)
 
+add_subdirectory(../../lib/QScintilla/src "QScintilla")
+
 target_link_libraries(GuiManager PRIVATE
         Qt6::Core
         Qt6::Gui
         Qt6::Svg
         Qt6::Widgets
         ${LIBGIT2_LIBRARIES}
+		qscintilla
 )
 
 target_include_directories(GuiManager PRIVATE
