@@ -8,6 +8,12 @@
 #include <git2/status.h>
 
 namespace GitRepo {
+
+struct GitError {
+  int errorCode = -1;
+  QString errorMessage;
+};
+
 enum class CloneProgressStageType : int {
   Unknown = 0,
   Fetch,
@@ -125,7 +131,7 @@ enum class ResetType {
   last
 };
 
-int getLastError();
+GitError getLastError();
 
 void initForCurrentThread();
 

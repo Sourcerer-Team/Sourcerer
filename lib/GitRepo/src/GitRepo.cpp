@@ -31,6 +31,7 @@
 #include <QString>
 
 #include <set>
+#include <thread>
 
 #define THREAD_ID "GitRepo"
 
@@ -52,7 +53,8 @@ struct GitPlaintextCredentials {
 Util::Mutex gGitCredentialsMutex;
 QMap<QString, GitPlaintextCredentials> gGitCredentials;
 
-static int gLastError = -1;
+Util::Mutex gErrorMutex;
+QMap<std::thread::id, GitError> gErrorMap;
 
 static void git_strarray_destroy(git_strarray &arr) {
   for (int i = 0; i < arr.count; ++i) {
@@ -86,7 +88,13 @@ static void logGitError(const int error) {
   if (!gitError || !gitError->message)
     return;
 
-  gLastError = (gitError->klass & 0x00ff) << 16 | (error & 0xffff);
+  {
+    LOCKGUARD(gErrorMutex);
+    gErrorMap[std::this_thread::get_id()] = {
+      (gitError->klass & 0x00ff) << 16 | (error & 0xffff),
+      gitError->message
+    };
+  }
 
   LOG_ERROR(Log::ErrorId::Git,
             "Error is {}, error klass is {}, error message is '{}'", error,
@@ -270,10 +278,13 @@ static git_commit *getLastCommit(git_repository *repo, const QString &name) {
   return commit;
 }
 
-int getLastError() {
+GitError getLastError() {
   LOG_PERF(0, "Enter");
+
+  LOCKGUARD(gErrorMutex);
+
   LOG_PERF(0, "Exit");
-  return gLastError;
+  return gErrorMap[std::this_thread::get_id()];
 }
 
 void initForCurrentThread() {
