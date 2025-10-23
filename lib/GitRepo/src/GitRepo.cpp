@@ -2119,7 +2119,7 @@ GitStatus getStatus(git_repository *repo) {
     return {};
   }
 
-  GitStatus status;
+  GitStatus status = {};
 
   const QString repoPath =
       QDir::fromNativeSeparators(git_repository_workdir(repo));
@@ -2134,8 +2134,7 @@ GitStatus getStatus(git_repository *repo) {
 
   git_status_list *statusList = nullptr;
 
-  int error = git_status_list_new(&statusList, repo, &opts);
-  if (error) {
+  if (const int error = git_status_list_new(&statusList, repo, &opts)) {
     logGitError(error);
     LOG_PERF(0, "Exit");
     return {};

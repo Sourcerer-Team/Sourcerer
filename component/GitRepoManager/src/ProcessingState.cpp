@@ -366,13 +366,22 @@ void ProcessingState::addSubmoduleWorker(
 
   const bool success = GitRepo::addSubmodule(repo, command.url, command.name,
                                              command.uuid);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerAddSubmoduleResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                    QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerAddSubmoduleError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerAddSubmoduleResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -381,7 +390,7 @@ void ProcessingState::applyPatchWorker(
     const Structs::GitRepoApplyPatchCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerApplyPatchError,
                 tr("Internal error. Context not initialized."), command);
@@ -396,20 +405,23 @@ void ProcessingState::applyPatchWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::applyPatch(repo, command.patchContent);
-  if (!success) {
-    reportError(EventManager::EventType::GitRepoManagerApplyPatchError,
-                tr("Can't apply stash."), command);
-    LOG_ERROR(Log::ErrorId::Git, "Failed to apply patch.");
-    return;
+  if (const bool success = GitRepo::applyPatch(repo, command.patchContent); !
+    success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerApplyPatchError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerApplyPatchResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
   }
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerApplyPatchResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                    QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -418,7 +430,7 @@ void ProcessingState::applyStashWorker(
     const Structs::GitRepoApplyStashCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerApplyStashError,
                 tr("Internal error. Context not initialized."), command);
@@ -433,21 +445,22 @@ void ProcessingState::applyStashWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::applyStash(repo, command.index);
-  if (!success) {
-    reportError(EventManager::EventType::GitRepoManagerApplyStashError,
-                tr("Can't apply stash."), command);
-    LOG_ERROR(Log::ErrorId::Git, "Failed to apply stash \"{}\".",
-              command.index);
-    return;
+  if (const bool success = GitRepo::applyStash(repo, command.index); !success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerApplyStashError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerApplyStashResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
   }
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerApplyStashResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                    QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -456,7 +469,7 @@ void ProcessingState::checkoutBranchWorker(
     const Structs::GitRepoCheckoutBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerCheckoutBranchError,
                 tr("Internal error. Context not initialized."), command);
@@ -474,27 +487,13 @@ void ProcessingState::checkoutBranchWorker(
   const bool success =
       GitRepo::checkoutBranch(repo, command.branchName, command.branchType);
   if (!success) {
-    reportError(EventManager::EventType::GitRepoManagerCheckoutBranchError,
-                tr("Can't checkout branch."), command);
-    LOG_ERROR(Log::ErrorId::Git, "Failed to checkout branch \"{}\".",
-              command.branchName);
-    return;
-  }
-
-  bool quit = false;
-
-  {
-    LOCKGUARD(_contextsMutex);
-    quit = ctx->quit;
-  }
-
-  if (quit) {
-    EventManager::Event resultEvent(
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerCheckoutBranchError,
         command.syncUuid);
-    resultEvent.addData(
-        GitRepoError{command.uuid, QString(), -1});
-    _eventManager.send(resultEvent);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
   } else {
     GitRepoCheckoutBranchCommandResult result;
     result.branchName = command.branchName;
@@ -515,7 +514,7 @@ void ProcessingState::checkoutCommitWorker(
     const Structs::GitRepoCheckoutCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerCheckoutCommitError,
                 tr("Internal error. Context not initialized."), command);
@@ -530,34 +529,21 @@ void ProcessingState::checkoutCommitWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::checkoutCommit(repo, command.commit);
-  if (!success) {
-    reportError(EventManager::EventType::GitRepoManagerCheckoutCommitError,
-                tr("Can't checkout commit."), command);
-    LOG_ERROR(Log::ErrorId::Git, "Failed to checkout commit \"{}\".",
-              command.commit);
-    return;
-  }
-
-  bool quit = false;
-
-  {
-    LOCKGUARD(_contextsMutex);
-    quit = ctx->quit;
-  }
-
-  if (quit) {
-    EventManager::Event resultEvent(
+  if (const bool success = GitRepo::checkoutCommit(repo, command.commit); !
+    success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerCheckoutCommitError,
         command.syncUuid);
-    resultEvent.addData(
-        GitRepoError{command.uuid, QString(), -1});
-    _eventManager.send(resultEvent);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerCheckoutCommitResult,
         command.syncUuid);
-    resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
     _eventManager.send(resultEvent);
   }
 
@@ -578,38 +564,25 @@ void ProcessingState::cloneRepoWorker(const GitRepoCloneCommand &command) {
   const bool success = GitRepo::cloneRepository(
       command.url, command.destinationDir, command.uuid);
   if (!success) {
-    reportError(EventManager::EventType::GitRepoManagerCloneRepoError,
-                tr("Can't clone repository."), command);
-    LOG_ERROR(Log::ErrorId::Git, "Can't clone repository.");
-    return;
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerCloneRepoError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCloneRepoResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      command.destinationDir});
+    _eventManager.send(resultEvent);
   }
 
   {
     LOCKGUARD(_contextsMutex);
     ctx->gitRepo = nullptr;
-  }
-
-  bool quit = false;
-
-  {
-    LOCKGUARD(_contextsMutex);
-    quit = ctx->quit;
-  }
-
-  if (quit) {
-    EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerCloneRepoError,
-        command.syncUuid);
-    resultEvent.addData(
-        GitRepoError{command.uuid, QString(), -1});
-    _eventManager.send(resultEvent);
-  } else {
-    EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerCloneRepoResult,
-        command.syncUuid);
-    resultEvent.addData(
-        GitRepoResult{command.uuid, command.type, command.destinationDir});
-    _eventManager.send(resultEvent);
   }
 
   LOG_PERF(0, "Exit");
@@ -641,27 +614,11 @@ void ProcessingState::closeRepoWorker(
     ctx->gitRepo = nullptr;
   }
 
-  bool quit = false;
-
-  {
-    LOCKGUARD(_contextsMutex);
-    quit = ctx->quit;
-  }
-
-  if (quit) {
-    EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerCloseRepoError,
-        command.syncUuid);
-    resultEvent.addData(
-        GitRepoError{command.uuid, QString(), -1});
-    _eventManager.send(resultEvent);
-  } else {
-    EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerCloseRepoResult,
-        command.syncUuid);
-    resultEvent.addData(GitRepoResult{command.uuid, command.type, QVariant()});
-    _eventManager.send(resultEvent);
-  }
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerCloseRepoResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type, QVariant()});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -670,7 +627,7 @@ void ProcessingState::commitStagedWorker(
     const Structs::GitRepoCommitStagedCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerCommitStagedError,
                 tr("Internal error. Context not initialized."), command);
@@ -687,12 +644,22 @@ void ProcessingState::commitStagedWorker(
 
   const bool success = GitRepo::commitStaged(
       repo, command.summary, command.message, command.author, command.email);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerCommitStagedResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerCommitStagedError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCommitStagedResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -719,12 +686,22 @@ void ProcessingState::createBranchFromCommitWorker(
 
   const bool success =
       GitRepo::createBranchFromCommit(repo, command.commit, command.branchName);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerCreateBranchFromCommitResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerCreateBranchFromCommitError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCreateBranchFromCommitResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -751,16 +728,25 @@ void ProcessingState::createPatchFromCommitWorker(
 
   const QString patchContent =
       GitRepo::createPatchFromCommit(repo, command.commit);
+  if (patchContent.isEmpty()) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerCreatePatchFromCommitError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    GitRepoCreatePatchFromCommitCommandResult result;
+    result.patchContent = patchContent;
 
-  GitRepoCreatePatchFromCommitCommandResult result;
-  result.patchContent = patchContent;
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerCreatePatchFromCommitResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                    QVariant::fromValue(result)});
-  _eventManager.send(resultEvent);
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCreatePatchFromCommitResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(result)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -789,12 +775,22 @@ void ProcessingState::createTagFromCommitWorker(
       GitRepo::createTagFromCommit(repo, command.commit, command.tagName,
                                    command.author, command.email,
                                    command.message);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerCreateTagFromCommitResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerCreateTagFromCommitError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCreateTagFromCommitResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -894,7 +890,7 @@ void ProcessingState::deleteBranchWorker(
     const Structs::GitRepoDeleteBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerDeleteBranchError,
                 tr("Internal error. Context not initialized."), command);
@@ -909,21 +905,23 @@ void ProcessingState::deleteBranchWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::deleteBranch(repo, command.branchName);
-  if (!success) {
-    reportError(EventManager::EventType::GitRepoManagerDeleteBranchError,
-                tr("Can't delete branch."), command);
-    LOG_ERROR(Log::ErrorId::Git, "Failed to delete branch \"{}\".",
-              command.branchName);
-    return;
+  if (const bool success = GitRepo::deleteBranch(repo, command.branchName); !
+    success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerDeleteBranchError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerDeleteBranchResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
   }
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerDeleteBranchResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                    QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -932,7 +930,7 @@ void ProcessingState::deleteStashWorker(
     const Structs::GitRepoDeleteStashCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerDeleteStashError,
                 tr("Internal error. Context not initialized."), command);
@@ -947,29 +945,15 @@ void ProcessingState::deleteStashWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::deleteStash(repo, command.index);
-  if (!success) {
-    reportError(EventManager::EventType::GitRepoManagerDeleteStashError,
-                tr("Can't delete stash."), command);
-    LOG_ERROR(Log::ErrorId::Git, "Failed to delete stash \"{}\".",
-              command.index);
-    return;
-  }
-
-  bool quit = false;
-
-  {
-    LOCKGUARD(_contextsMutex);
-    quit = ctx->quit;
-  }
-
-  if (quit) {
-    EventManager::Event resultEvent(
+  if (const bool success = GitRepo::deleteStash(repo, command.index); !
+    success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDeleteStashError,
         command.syncUuid);
-    resultEvent.addData(
-        GitRepoError{command.uuid, QString(), -1});
-    _eventManager.send(resultEvent);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerDeleteStashResult,
@@ -1003,13 +987,22 @@ void ProcessingState::deleteSubmoduleWorker(
 
   const bool success = GitRepo::deleteSubmodule(repo, command.submoduleName,
                                                 command.submodulePath);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerDeleteSubmoduleResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                    QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerDeleteSubmoduleError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerDeleteSubmoduleResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -1033,14 +1026,23 @@ void ProcessingState::deleteTagWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::deleteTag(repo, command.tagName);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerDeleteTagResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                    QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
+  if (const bool success = GitRepo::deleteTag(repo, command.tagName); !
+    success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerDeleteTagError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerDeleteTagResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -1049,7 +1051,7 @@ void ProcessingState::diffFilesWorker(
     const Structs::GitRepoDiffFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerDiffFilesError,
                 tr("Internal error. Context not initialized."), command);
@@ -1064,12 +1066,23 @@ void ProcessingState::diffFilesWorker(
     repo = ctx->gitRepo;
   }
 
-  const QString diff = GitRepo::diffFiles(repo, command.files);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerDiffFilesResult, command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type, diff});
-  _eventManager.send(resultEvent);
+  if (const QString diff = GitRepo::diffFiles(repo, command.files); diff.
+    isEmpty()) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerDiffFilesError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerDiffFilesResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      diff});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -1078,7 +1091,7 @@ void ProcessingState::discardFilesWorker(
     const Structs::GitRepoDiscardFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
-  GitRepoContext *ctx = context(command.uuid);
+  const GitRepoContext *ctx = context(command.uuid);
   if (!ctx) {
     reportError(EventManager::EventType::GitRepoManagerDiscardFilesError,
                 tr("Internal error. Context not initialized."), command);
@@ -1093,13 +1106,23 @@ void ProcessingState::discardFilesWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::discardFiles(repo, command.files);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerDiscardFilesResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type, success});
-  _eventManager.send(resultEvent);
+  if (const bool success = GitRepo::discardFiles(repo, command.files); !
+    success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerDiscardFilesError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerDiscardFilesResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -1113,7 +1136,7 @@ void ProcessingState::eventCallback(const EventManager::Event event) {
 
   switch (eventType) {
   case EventManager::EventType::GitRepoManagerCloneRepoError: {
-    const GitRepoError error = event.data<GitRepoError>();
+    const auto error = event.data<GitRepoError>();
     destroyContext(error.uuid);
     break;
   }
@@ -1123,7 +1146,7 @@ void ProcessingState::eventCallback(const EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerInitRepoError: {
-    const GitRepoError error = event.data<GitRepoError>();
+    const auto error = event.data<GitRepoError>();
     destroyContext(error.uuid);
     break;
   }
@@ -1133,7 +1156,7 @@ void ProcessingState::eventCallback(const EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepoError: {
-    const GitRepoError error = event.data<GitRepoError>();
+    const auto error = event.data<GitRepoError>();
     destroyContext(error.uuid);
     break;
   }
@@ -1224,6 +1247,14 @@ void ProcessingState::getCommitBranchesWorker(
     resultEvent.addData(
         GitRepoError{command.uuid, QString(), -1});
     _eventManager.send(resultEvent);
+  } else if (branches.isEmpty()) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerGetCommitBranchesError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerGetCommitBranchesResult,
@@ -1259,7 +1290,6 @@ void ProcessingState::getCommitHeadsWorker(
 
   const QStringList branches =
       GitRepo::getCommitHeads(repo, command.commitOid, *quit);
-
   if (*quit) {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerGetCommitHeadsError,
@@ -1267,6 +1297,14 @@ void ProcessingState::getCommitHeadsWorker(
     resultEvent.addData(
         GitRepoError{command.uuid, QString(), -1});
     _eventManager.send(resultEvent);
+  } else if (branches.isEmpty()) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerGetCommitHeadsError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerGetCommitHeadsResult,
@@ -1340,14 +1378,24 @@ void ProcessingState::getCommitStatusWorker(
     repo = ctx->gitRepo;
   }
 
-  const auto commitStatus = GitRepo::getCommitStatus(repo, command.commitOid);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerGetCommitStatusResult,
-      command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                    QVariant::fromValue(commitStatus)});
-  _eventManager.send(resultEvent);
+  if (const auto commitStatus =
+        GitRepo::getCommitStatus(repo, command.commitOid); commitStatus.commit.
+    isEmpty()) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerGetCommitStatusError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetCommitStatusResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(commitStatus)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -1388,6 +1436,14 @@ void ProcessingState::getBranchHistoryWorker(
     resultEvent.addData(
         GitRepoError{command.uuid, QString(), -1});
     _eventManager.send(resultEvent);
+  } else if (!history.valid) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerGetBranchHistoryError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerGetBranchHistoryResult,
@@ -1421,16 +1477,25 @@ void ProcessingState::getSubmodulePathWorker(
 
   const auto path =
       GitRepo::getSubmodulePath(repo, command.submoduleName);
+  if (path.isEmpty()) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerGetSubmodulePathError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    GitRepoGetSubmodulePathCommandResult result;
+    result.submodulePath = path;
 
-  GitRepoGetSubmodulePathCommandResult result;
-  result.submodulePath = path;
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerGetSubmodulePathResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(result)});
-  _eventManager.send(resultEvent);
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetSubmodulePathResult,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type, QVariant::fromValue(result)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -1456,17 +1521,26 @@ void ProcessingState::getUpstreamWorker(
 
   const auto &[remoteName, remoteBranchName] =
       GitRepo::getUpstream(repo, command.localBranchName);
+  if (remoteName.isEmpty()) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerGetUpstreamError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    GitRepoGetUpstreamCommandResult result;
+    result.remoteName = remoteName;
+    result.remoteBranchName = remoteBranchName;
 
-  GitRepoGetUpstreamCommandResult result;
-  result.remoteName = remoteName;
-  result.remoteBranchName = remoteBranchName;
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerGetUpstreamResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(result)});
-  _eventManager.send(resultEvent);
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetUpstreamResult,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type, QVariant::fromValue(result)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -1486,30 +1560,13 @@ void ProcessingState::initRepoWorker(
   const bool success = GitRepo::initRepository(
       command.repoName, command.workingDir, command.defaultBranch);
   if (!success) {
-    reportError(EventManager::EventType::GitRepoManagerInitRepoError,
-                tr("Can't init repository."), command);
-    LOG_ERROR(Log::ErrorId::Git, "Can't init repository.");
-    return;
-  }
-
-  {
-    LOCKGUARD(_contextsMutex);
-    ctx->gitRepo = nullptr;
-  }
-
-  bool quit = false;
-
-  {
-    LOCKGUARD(_contextsMutex);
-    quit = ctx->quit;
-  }
-
-  if (quit) {
-    EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerInitRepoError, command.syncUuid);
-    resultEvent.addData(
-        GitRepoError{command.uuid, QString(), -1});
-    _eventManager.send(resultEvent);
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerInitRepoError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
   } else {
     const QString repoPath = command.workingDir + "/" + command.repoName;
 
@@ -1518,6 +1575,11 @@ void ProcessingState::initRepoWorker(
         command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type, repoPath});
     _eventManager.send(resultEvent);
+  }
+
+  {
+    LOCKGUARD(_contextsMutex);
+    ctx->gitRepo = nullptr;
   }
 
   LOG_PERF(0, "Exit");
@@ -1670,28 +1732,12 @@ void ProcessingState::listSubmodulesWorker(
 
   const QStringList submodules = GitRepo::listSubmodules(repo);
 
-  bool quit = false;
-
-  {
-    LOCKGUARD(_contextsMutex);
-    quit = ctx->quit;
-  }
-
-  if (quit) {
-    EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerListSubmodulesError,
-        command.syncUuid);
-    resultEvent.addData(
-        GitRepoError{command.uuid, QString(), -1});
-    _eventManager.send(resultEvent);
-  } else {
-    EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerListSubmodulesResult,
-        command.syncUuid);
-    resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                      QVariant::fromValue(submodules)});
-    _eventManager.send(resultEvent);
-  }
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerListSubmodulesResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                    QVariant::fromValue(submodules)});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -1717,27 +1763,12 @@ void ProcessingState::listTagsWorker(
 
   const QStringList tags = GitRepo::listTags(repo);
 
-  bool quit = false;
-
-  {
-    LOCKGUARD(_contextsMutex);
-    quit = ctx->quit;
-  }
-
-  if (quit) {
-    EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerListTagsError, command.syncUuid);
-    resultEvent.addData(
-        GitRepoError{command.uuid, QString(), -1});
-    _eventManager.send(resultEvent);
-  } else {
-    EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerListTagsResult,
-        command.syncUuid);
-    resultEvent.addData(
-        GitRepoResult{command.uuid, command.type, QVariant::fromValue(tags)});
-    _eventManager.send(resultEvent);
-  }
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerListTagsResult,
+      command.syncUuid);
+  resultEvent.addData(
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(tags)});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -2090,12 +2121,22 @@ void ProcessingState::pullWorker(const Structs::GitRepoPullCommand &command) {
   }
 
   const bool success = GitRepo::pull(repo);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerPullResult, command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerPullError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerPullResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2119,12 +2160,22 @@ void ProcessingState::pushWorker(const Structs::GitRepoPushCommand &command) {
   }
 
   const bool success = GitRepo::push(repo);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerPushResult, command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerPushError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerPushResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2150,13 +2201,22 @@ void ProcessingState::renameBranchWorker(
 
   const bool success =
       GitRepo::renameBranch(repo, command.oldBranchName, command.newBranchName);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerRenameBranchResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerRenameBranchError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerRenameBranchResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2182,13 +2242,22 @@ void ProcessingState::renameTagWorker(
 
   const bool success =
       GitRepo::renameTag(repo, command.oldTagName, command.newTagName);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerRenameTagResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerRenameTagError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerRenameTagResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2213,12 +2282,22 @@ void ProcessingState::resetWorker(const Structs::GitRepoResetCommand &command) {
 
   const bool success =
       GitRepo::resetToCommit(repo, command.commit, command.resetType);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerResetResult, command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerResetError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerResetResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2244,12 +2323,22 @@ void ProcessingState::revertWorker(
 
   const bool success = GitRepo::revertCommit(
       repo, command.commit, command.author, command.email, command.message);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerRevertResult, command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerRevertError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerRevertResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2276,13 +2365,22 @@ void ProcessingState::setUpstreamWorker(
   const bool success =
       GitRepo::setUpstream(repo, command.remoteName, command.remoteBranchName,
                            command.localBranchName);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerSetUpstreamResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerSetUpstreamError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerSetUpstreamResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2307,13 +2405,22 @@ void ProcessingState::stageFilesWorker(
   }
 
   const bool success = GitRepo::stageFiles(repo, command.files);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerStageFilesResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerStageFilesError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerStageFilesResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2336,13 +2443,23 @@ void ProcessingState::stashWorker(const Structs::GitRepoStashCommand &command) {
     repo = ctx->gitRepo;
   }
 
-  const bool stashed = GitRepo::stash(repo);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerStashResult, command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(stashed)});
-  _eventManager.send(resultEvent);
+  const bool success = GitRepo::stash(repo);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerStashError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerStashResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2368,26 +2485,11 @@ void ProcessingState::statusWorker(
 
   const GitRepo::GitStatus status = GitRepo::getStatus(repo);
 
-  bool quit = false;
-
-  {
-    LOCKGUARD(_contextsMutex);
-    quit = ctx->quit;
-  }
-
-  if (quit) {
-    EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerStatusError, command.syncUuid);
-    resultEvent.addData(
-        GitRepoError{command.uuid, QString(), -1});
-    _eventManager.send(resultEvent);
-  } else {
-    EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerStatusResult, command.syncUuid);
-    resultEvent.addData(
-        GitRepoResult{command.uuid, command.type, QVariant::fromValue(status)});
-    _eventManager.send(resultEvent);
-  }
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerStatusResult, command.syncUuid);
+  resultEvent.addData(
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(status)});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -2412,13 +2514,22 @@ void ProcessingState::submoduleUpdateWorker(
   }
 
   const bool success = GitRepo::updateSubmodule(repo, command.submoduleName);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerSubmoduleUpdateResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerSubmoduleUpdateError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerSubmoduleUpdateResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2443,13 +2554,22 @@ void ProcessingState::unstageFilesWorker(
   }
 
   const bool success = GitRepo::unstageFiles(repo, command.files);
-
-  EventManager::Event resultEvent(
-      EventManager::EventType::GitRepoManagerUnstageFilesResult,
-      command.syncUuid);
-  resultEvent.addData(
-      GitRepoResult{command.uuid, command.type, QVariant::fromValue(success)});
-  _eventManager.send(resultEvent);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerUnstageFilesError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage,
+                                    errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerUnstageFilesResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2978,7 +3098,7 @@ void ProcessingState::scheduleWorkerForInitRepo(
   const auto workersThreadFunc =
       std::bind(&ProcessingState::workersThreadFunc, this, command.uuid);
 
-  GitRepoContext *newContext = new GitRepoContext();
+  auto *newContext = new GitRepoContext();
   _contexts[command.uuid] = newContext;
 
   newContext->uuid = command.uuid;
