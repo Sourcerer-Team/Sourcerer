@@ -1788,7 +1788,7 @@ void GitRepoContainer::startOverlayTimer() const {
   const qlonglong timerTimeout = _configManager.getLong(
       ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
 
-  _spinnerOverlayTimer->start(timerTimeout);
+  _spinnerOverlayTimer->start(static_cast<int>(timerTimeout));
 
   LOG_PERF(0, "Exit");
 }
@@ -5575,7 +5575,7 @@ void GitRepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {
   if (spinnerEnabled) {
     hideAllWidgets();
     _spinnerOverlay->startSpinning();
-    _spinnerOverlay->setText("0%");
+    _spinnerOverlay->setText("");
     _spinnerOverlay->raise();
     _spinnerOverlay->show();
   } else {
