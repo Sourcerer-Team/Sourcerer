@@ -96,7 +96,8 @@ private slots:
   void onHistoryViewRightClicked(const QModelIndex &index, const QPoint &pos);
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onListViewTabWidgetFlatSelected(const QModelIndex &index);
-  void onTreeViewTabWidgetTreeSelected(const QModelIndex &index);
+  void onTreeViewTabWidgetTreeSelected(const QModelIndex &index,
+                                       const Models::GitCommitTreeModel &model);
   void onLocalBranchSelected(const QString &branchName);
   void onLocalBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onMixedResetToCommit(const QString &commit);

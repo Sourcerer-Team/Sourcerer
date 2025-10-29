@@ -506,7 +506,7 @@
                      <enum>QTabWidget::TabShape::Rounded</enum>
                     </property>
                     <property name="currentIndex">
-                     <number>1</number>
+                     <number>0</number>
                     </property>
                     <widget class="QWidget" name="tabFlatIndex">
                      <property name="sizePolicy">
@@ -541,6 +541,9 @@
                         </property>
                         <item>
                          <widget class="GuiManager::Widgets::RightClickSelectListView" name="listViewTabWidgetIndexFlat">
+                          <property name="editTriggers">
+                           <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                          </property>
                           <property name="selectionMode">
                            <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
                           </property>
@@ -595,6 +598,9 @@
                         </property>
                         <item>
                          <widget class="GuiManager::Widgets::RightClickSelectTreeView" name="treeViewTabWidgetIndexTree">
+                          <property name="editTriggers">
+                           <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                          </property>
                           <property name="selectionMode">
                            <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
                           </property>

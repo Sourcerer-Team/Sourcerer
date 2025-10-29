@@ -1248,7 +1248,7 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
 }
 
 void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
-    const QModelIndex &index) {
+    const QModelIndex &index, const Models::GitCommitTreeModel &model) {
   LOG_PERF(0, "Enter");
 
   if (!index.isValid()) {
@@ -1256,18 +1256,8 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
     return;
   }
 
-  const auto *model = static_cast<Models::GitCommitTreeModel *>(
-      ui->treeViewTabWidgetWorkingTreeTree->model());
-
-  Q_ASSERT(model);
-
-  if (!model) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
   // Check if it is leaf node
-  if (model->rowCount(index) > 0) {
+  if (model.rowCount(index) > 0) {
     LOG_PERF(0, "Exit");
     return;
   }
@@ -1276,7 +1266,7 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
   QModelIndex current = index;
 
   while (current.isValid()) {
-    QStandardItem *item = model->itemFromIndex(current);
+    QStandardItem *item = model.itemFromIndex(current);
     Q_ASSERT(item);
 
     if (!item) {
@@ -5685,7 +5675,8 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
                   return;
                 }
 
-                onTreeViewTabWidgetTreeSelected(selected.indexes().front());
+                onTreeViewTabWidgetTreeSelected(selected.indexes().front(),
+                                                *_commitTreeModel);
               });
     }
 
@@ -5719,7 +5710,8 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
                   return;
                 }
 
-                onTreeViewTabWidgetTreeSelected(selected.indexes().front());
+                onTreeViewTabWidgetTreeSelected(selected.indexes().front(),
+                                                *_commitStagedTreeModel);
               });
     }
 
