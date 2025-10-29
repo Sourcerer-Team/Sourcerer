@@ -13,7 +13,7 @@ using namespace GitRepoManager::Structs;
 namespace GitRepoManager {
 
 GitRepoManager::GitRepoManager()
-  : _eventManager(EventManager::EventManager::getInstance()) {
+    : _eventManager(EventManager::EventManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
   const auto callbackFunc =
@@ -121,7 +121,7 @@ GitRepoManager::~GitRepoManager() {
       std::bind(&GitRepoManager::eventCallback, this, std::placeholders::_1);
 
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
-    EventManager::EventType::GitRepoManagerAddSubmodule, callbackFunc));
+      EventManager::EventType::GitRepoManagerAddSubmodule, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyPatch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -345,8 +345,8 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerDeleteSubmodule: {
-    const auto deleteSubmoduleCommand = event.data<
-      GitRepoDeleteSubmoduleCommand>();
+    const auto deleteSubmoduleCommand =
+        event.data<GitRepoDeleteSubmoduleCommand>();
     GitRepoManagerEvent deleteSubmoduleEvent(EventType::DeleteSubmodule);
     deleteSubmoduleEvent.addParam(QVariant::fromValue(deleteSubmoduleCommand));
     _fsm.send(deleteSubmoduleEvent);
@@ -423,11 +423,11 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetSubmodulePath: {
-    const auto getSubmodulePathCommand = event.data<
-      GitRepoGetSubmodulePathCommand>();
+    const auto getSubmodulePathCommand =
+        event.data<GitRepoGetSubmodulePathCommand>();
     GitRepoManagerEvent getSubmodulePathEvent(EventType::GetSubmodulePath);
-    getSubmodulePathEvent.
-        addParam(QVariant::fromValue(getSubmodulePathCommand));
+    getSubmodulePathEvent.addParam(
+        QVariant::fromValue(getSubmodulePathCommand));
     _fsm.send(getSubmodulePathEvent);
     break;
   }
@@ -560,8 +560,8 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerSubmoduleUpdate: {
-    const auto submoduleUpdateCommand = event.data<
-      GitRepoSubmoduleUpdateCommand>();
+    const auto submoduleUpdateCommand =
+        event.data<GitRepoSubmoduleUpdateCommand>();
     GitRepoManagerEvent submoduleUpdateEvent(EventType::SubmoduleUpdate);
     submoduleUpdateEvent.addParam(QVariant::fromValue(submoduleUpdateCommand));
     _fsm.send(submoduleUpdateEvent);

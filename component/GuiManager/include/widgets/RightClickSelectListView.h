@@ -16,8 +16,7 @@ public:
 protected:
   void mousePressEvent(QMouseEvent *event) override {
     if (event->button() == Qt::RightButton) {
-      QModelIndex index = indexAt(event->pos());
-      if (index.isValid()) {
+      if (const QModelIndex index = indexAt(event->pos()); index.isValid()) {
         selectionModel()->select(index, QItemSelectionModel::Select);
       }
     }

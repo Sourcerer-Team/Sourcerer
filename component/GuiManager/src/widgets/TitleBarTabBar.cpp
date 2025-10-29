@@ -15,7 +15,7 @@ TitleBarTabBar::TitleBarTabBar(QWidget *parent)
 
   setTabsClosable(true);
 
-  ConfigManager::ConfigManager &configManager =
+  const ConfigManager::ConfigManager &configManager =
       ConfigManager::ConfigManager::getInstance();
 
   _maximumTabWidth =
@@ -52,7 +52,7 @@ void TitleBarTabBar::resizeEvent(QResizeEvent *event) {
 QSize TitleBarTabBar::sizeHint() const {
   QSize size = QTabBar::sizeHint();
 
-  QWidget *rootWidget = qobject_cast<QWidget *>(window());
+  const QWidget *rootWidget = qobject_cast<QWidget *>(window());
   if (!rootWidget)
     return size;
 

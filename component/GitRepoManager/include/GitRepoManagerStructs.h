@@ -75,8 +75,7 @@ enum class GitRepoErrorType : int {
 
 struct GitRepoCommand {
   explicit GitRepoCommand(const GitRepoCommandType commandType)
-    : type(commandType) {
-  }
+      : type(commandType) {}
 
   virtual ~GitRepoCommand() = default;
   GitRepoCommandType type;
@@ -85,8 +84,8 @@ struct GitRepoCommand {
 };
 
 struct GitRepoAddSubmoduleCommand final : GitRepoCommand {
-  GitRepoAddSubmoduleCommand() : GitRepoCommand(GitRepoCommandType::AddSubmodule) {
-  }
+  GitRepoAddSubmoduleCommand()
+      : GitRepoCommand(GitRepoCommandType::AddSubmodule) {}
 
   ~GitRepoAddSubmoduleCommand() override = default;
 
@@ -95,8 +94,7 @@ struct GitRepoAddSubmoduleCommand final : GitRepoCommand {
 };
 
 struct GitRepoApplyPatchCommand final : GitRepoCommand {
-  GitRepoApplyPatchCommand() : GitRepoCommand(GitRepoCommandType::ApplyPatch) {
-  }
+  GitRepoApplyPatchCommand() : GitRepoCommand(GitRepoCommandType::ApplyPatch) {}
 
   ~GitRepoApplyPatchCommand() override = default;
 
@@ -104,8 +102,7 @@ struct GitRepoApplyPatchCommand final : GitRepoCommand {
 };
 
 struct GitRepoApplyStashCommand final : GitRepoCommand {
-  GitRepoApplyStashCommand() : GitRepoCommand(GitRepoCommandType::ApplyStash) {
-  }
+  GitRepoApplyStashCommand() : GitRepoCommand(GitRepoCommandType::ApplyStash) {}
 
   ~GitRepoApplyStashCommand() override = default;
 
@@ -114,8 +111,7 @@ struct GitRepoApplyStashCommand final : GitRepoCommand {
 
 struct GitRepoCheckoutBranchCommand final : GitRepoCommand {
   GitRepoCheckoutBranchCommand()
-    : GitRepoCommand(GitRepoCommandType::CheckoutBranch) {
-  }
+      : GitRepoCommand(GitRepoCommandType::CheckoutBranch) {}
 
   ~GitRepoCheckoutBranchCommand() override = default;
 
@@ -130,8 +126,7 @@ struct GitRepoCheckoutBranchCommandResult {
 
 struct GitRepoCheckoutCommitCommand final : GitRepoCommand {
   GitRepoCheckoutCommitCommand()
-    : GitRepoCommand(GitRepoCommandType::CheckoutCommit) {
-  }
+      : GitRepoCommand(GitRepoCommandType::CheckoutCommit) {}
 
   ~GitRepoCheckoutCommitCommand() override = default;
 
@@ -139,8 +134,7 @@ struct GitRepoCheckoutCommitCommand final : GitRepoCommand {
 };
 
 struct GitRepoCloneCommand final : GitRepoCommand {
-  GitRepoCloneCommand() : GitRepoCommand(GitRepoCommandType::Clone) {
-  }
+  GitRepoCloneCommand() : GitRepoCommand(GitRepoCommandType::Clone) {}
 
   ~GitRepoCloneCommand() override = default;
 
@@ -149,16 +143,14 @@ struct GitRepoCloneCommand final : GitRepoCommand {
 };
 
 struct GitRepoCloseCommand final : GitRepoCommand {
-  GitRepoCloseCommand() : GitRepoCommand(GitRepoCommandType::Close) {
-  }
+  GitRepoCloseCommand() : GitRepoCommand(GitRepoCommandType::Close) {}
 
   ~GitRepoCloseCommand() override = default;
 };
 
 struct GitRepoCommitStagedCommand final : GitRepoCommand {
   GitRepoCommitStagedCommand()
-    : GitRepoCommand(GitRepoCommandType::CommitStaged) {
-  }
+      : GitRepoCommand(GitRepoCommandType::CommitStaged) {}
 
   ~GitRepoCommitStagedCommand() override = default;
 
@@ -170,8 +162,7 @@ struct GitRepoCommitStagedCommand final : GitRepoCommand {
 
 struct GitRepoCreateBranchFromCommitCommand final : GitRepoCommand {
   GitRepoCreateBranchFromCommitCommand()
-    : GitRepoCommand(GitRepoCommandType::CreateBranchFromCommit) {
-  }
+      : GitRepoCommand(GitRepoCommandType::CreateBranchFromCommit) {}
 
   ~GitRepoCreateBranchFromCommitCommand() override = default;
 
@@ -181,8 +172,7 @@ struct GitRepoCreateBranchFromCommitCommand final : GitRepoCommand {
 
 struct GitRepoCreatePatchFromCommitCommand final : GitRepoCommand {
   GitRepoCreatePatchFromCommitCommand()
-    : GitRepoCommand(GitRepoCommandType::CreatePatchFromCommit) {
-  }
+      : GitRepoCommand(GitRepoCommandType::CreatePatchFromCommit) {}
 
   ~GitRepoCreatePatchFromCommitCommand() override = default;
 
@@ -195,8 +185,7 @@ struct GitRepoCreatePatchFromCommitCommandResult {
 
 struct GitRepoCreateTagFromCommitCommand final : GitRepoCommand {
   GitRepoCreateTagFromCommitCommand()
-    : GitRepoCommand(GitRepoCommandType::CreateTagFromCommit) {
-  }
+      : GitRepoCommand(GitRepoCommandType::CreateTagFromCommit) {}
 
   ~GitRepoCreateTagFromCommitCommand() override = default;
 
@@ -209,8 +198,7 @@ struct GitRepoCreateTagFromCommitCommand final : GitRepoCommand {
 
 struct GitRepoDeleteBranchCommand final : GitRepoCommand {
   GitRepoDeleteBranchCommand()
-    : GitRepoCommand(GitRepoCommandType::DeleteBranch) {
-  }
+      : GitRepoCommand(GitRepoCommandType::DeleteBranch) {}
 
   ~GitRepoDeleteBranchCommand() override = default;
 
@@ -219,8 +207,7 @@ struct GitRepoDeleteBranchCommand final : GitRepoCommand {
 
 struct GitRepoDeleteStashCommand final : GitRepoCommand {
   GitRepoDeleteStashCommand()
-    : GitRepoCommand(GitRepoCommandType::DeleteStash) {
-  }
+      : GitRepoCommand(GitRepoCommandType::DeleteStash) {}
 
   ~GitRepoDeleteStashCommand() override = default;
 
@@ -229,8 +216,7 @@ struct GitRepoDeleteStashCommand final : GitRepoCommand {
 
 struct GitRepoDeleteSubmoduleCommand final : GitRepoCommand {
   GitRepoDeleteSubmoduleCommand()
-    : GitRepoCommand(GitRepoCommandType::DeleteSubmodule) {
-  }
+      : GitRepoCommand(GitRepoCommandType::DeleteSubmodule) {}
 
   ~GitRepoDeleteSubmoduleCommand() override = default;
 
@@ -239,9 +225,7 @@ struct GitRepoDeleteSubmoduleCommand final : GitRepoCommand {
 };
 
 struct GitRepoDeleteTagCommand final : GitRepoCommand {
-  GitRepoDeleteTagCommand()
-    : GitRepoCommand(GitRepoCommandType::DeleteTag) {
-  }
+  GitRepoDeleteTagCommand() : GitRepoCommand(GitRepoCommandType::DeleteTag) {}
 
   ~GitRepoDeleteTagCommand() override = default;
 
@@ -249,8 +233,7 @@ struct GitRepoDeleteTagCommand final : GitRepoCommand {
 };
 
 struct GitRepoDiffFilesCommand final : GitRepoCommand {
-  GitRepoDiffFilesCommand() : GitRepoCommand(GitRepoCommandType::DiffFiles) {
-  }
+  GitRepoDiffFilesCommand() : GitRepoCommand(GitRepoCommandType::DiffFiles) {}
 
   ~GitRepoDiffFilesCommand() override = default;
 
@@ -259,8 +242,7 @@ struct GitRepoDiffFilesCommand final : GitRepoCommand {
 
 struct GitRepoDiscardFilesCommand final : GitRepoCommand {
   GitRepoDiscardFilesCommand()
-    : GitRepoCommand(GitRepoCommandType::DiscardFiles) {
-  }
+      : GitRepoCommand(GitRepoCommandType::DiscardFiles) {}
 
   ~GitRepoDiscardFilesCommand() override = default;
 
@@ -269,8 +251,7 @@ struct GitRepoDiscardFilesCommand final : GitRepoCommand {
 
 struct GitRepoGetActiveBranchCommand final : GitRepoCommand {
   GitRepoGetActiveBranchCommand()
-    : GitRepoCommand(GitRepoCommandType::GetActiveBranch) {
-  }
+      : GitRepoCommand(GitRepoCommandType::GetActiveBranch) {}
 
   ~GitRepoGetActiveBranchCommand() override = default;
 
@@ -284,8 +265,7 @@ struct GitRepoGetActiveBranchCommandResult {
 
 struct GitRepoGetCommitBranchesCommand final : GitRepoCommand {
   GitRepoGetCommitBranchesCommand()
-    : GitRepoCommand(GitRepoCommandType::GetCommitBranches) {
-  }
+      : GitRepoCommand(GitRepoCommandType::GetCommitBranches) {}
 
   ~GitRepoGetCommitBranchesCommand() override = default;
 
@@ -294,8 +274,7 @@ struct GitRepoGetCommitBranchesCommand final : GitRepoCommand {
 
 struct GitRepoGetCommitHeadsCommand final : GitRepoCommand {
   GitRepoGetCommitHeadsCommand()
-    : GitRepoCommand(GitRepoCommandType::GetCommitHeads) {
-  }
+      : GitRepoCommand(GitRepoCommandType::GetCommitHeads) {}
 
   ~GitRepoGetCommitHeadsCommand() override = default;
 
@@ -304,8 +283,7 @@ struct GitRepoGetCommitHeadsCommand final : GitRepoCommand {
 
 struct GitRepoGetCommitIsHeadCommand final : GitRepoCommand {
   GitRepoGetCommitIsHeadCommand()
-    : GitRepoCommand(GitRepoCommandType::GetCommitIsHead) {
-  }
+      : GitRepoCommand(GitRepoCommandType::GetCommitIsHead) {}
 
   ~GitRepoGetCommitIsHeadCommand() override = default;
 
@@ -314,8 +292,7 @@ struct GitRepoGetCommitIsHeadCommand final : GitRepoCommand {
 
 struct GitRepoGetCommitStatusCommand final : GitRepoCommand {
   GitRepoGetCommitStatusCommand()
-    : GitRepoCommand(GitRepoCommandType::GetCommitStatus) {
-  }
+      : GitRepoCommand(GitRepoCommandType::GetCommitStatus) {}
 
   ~GitRepoGetCommitStatusCommand() override = default;
 
@@ -324,8 +301,7 @@ struct GitRepoGetCommitStatusCommand final : GitRepoCommand {
 
 struct GitRepoGetBranchHistoryCommand final : GitRepoCommand {
   GitRepoGetBranchHistoryCommand()
-    : GitRepoCommand(GitRepoCommandType::GetBranchHistory) {
-  }
+      : GitRepoCommand(GitRepoCommandType::GetBranchHistory) {}
 
   ~GitRepoGetBranchHistoryCommand() override = default;
 
@@ -335,8 +311,7 @@ struct GitRepoGetBranchHistoryCommand final : GitRepoCommand {
 
 struct GitRepoGetSubmodulePathCommand final : GitRepoCommand {
   GitRepoGetSubmodulePathCommand()
-    : GitRepoCommand(GitRepoCommandType::GetSubmodulePath) {
-  }
+      : GitRepoCommand(GitRepoCommandType::GetSubmodulePath) {}
 
   ~GitRepoGetSubmodulePathCommand() override = default;
 
@@ -349,8 +324,7 @@ struct GitRepoGetSubmodulePathCommandResult {
 
 struct GitRepoGetUpstreamCommand final : GitRepoCommand {
   GitRepoGetUpstreamCommand()
-    : GitRepoCommand(GitRepoCommandType::GetUpstream) {
-  }
+      : GitRepoCommand(GitRepoCommandType::GetUpstream) {}
 
   ~GitRepoGetUpstreamCommand() override = default;
 
@@ -363,8 +337,7 @@ struct GitRepoGetUpstreamCommandResult {
 };
 
 struct GitRepoInitRepoCommand final : GitRepoCommand {
-  GitRepoInitRepoCommand() : GitRepoCommand(GitRepoCommandType::Init) {
-  }
+  GitRepoInitRepoCommand() : GitRepoCommand(GitRepoCommandType::Init) {}
 
   ~GitRepoInitRepoCommand() override = default;
 
@@ -375,69 +348,60 @@ struct GitRepoInitRepoCommand final : GitRepoCommand {
 
 struct GitRepoListLocalBranchesCommand final : GitRepoCommand {
   GitRepoListLocalBranchesCommand()
-    : GitRepoCommand(GitRepoCommandType::ListLocalBranches) {
-  }
+      : GitRepoCommand(GitRepoCommandType::ListLocalBranches) {}
 
   ~GitRepoListLocalBranchesCommand() override = default;
 };
 
 struct GitRepoListRemoteBranchesCommand final : GitRepoCommand {
   GitRepoListRemoteBranchesCommand()
-    : GitRepoCommand(GitRepoCommandType::ListRemoteBranches) {
-  }
+      : GitRepoCommand(GitRepoCommandType::ListRemoteBranches) {}
 
   ~GitRepoListRemoteBranchesCommand() override = default;
 };
 
 struct GitRepoListStashesCommand final : GitRepoCommand {
   GitRepoListStashesCommand()
-    : GitRepoCommand(GitRepoCommandType::ListStashes) {
-  }
+      : GitRepoCommand(GitRepoCommandType::ListStashes) {}
 
   ~GitRepoListStashesCommand() override = default;
 };
 
 struct GitRepoListSubmodulesCommand final : GitRepoCommand {
   GitRepoListSubmodulesCommand()
-    : GitRepoCommand(GitRepoCommandType::ListSubmodules) {
-  }
+      : GitRepoCommand(GitRepoCommandType::ListSubmodules) {}
 
   ~GitRepoListSubmodulesCommand() override = default;
 };
 
 struct GitRepoListTagsCommand final : GitRepoCommand {
-  GitRepoListTagsCommand() : GitRepoCommand(GitRepoCommandType::ListTags) {
-  }
+  GitRepoListTagsCommand() : GitRepoCommand(GitRepoCommandType::ListTags) {}
 
   ~GitRepoListTagsCommand() override = default;
 };
 
 struct GitRepoOpenCommand final : GitRepoCommand {
-  GitRepoOpenCommand() : GitRepoCommand(GitRepoCommandType::Open) {
-  }
+  GitRepoOpenCommand() : GitRepoCommand(GitRepoCommandType::Open) {}
 
   ~GitRepoOpenCommand() override = default;
   QString path;
 };
 
 struct GitRepoPullCommand final : GitRepoCommand {
-  GitRepoPullCommand() : GitRepoCommand(GitRepoCommandType::Pull) {
-  }
+  GitRepoPullCommand() : GitRepoCommand(GitRepoCommandType::Pull) {}
 
   ~GitRepoPullCommand() override = default;
 };
 
 struct GitRepoPushCommand final : GitRepoCommand {
-  GitRepoPushCommand() : GitRepoCommand(GitRepoCommandType::Push) {
-  }
+  GitRepoPushCommand() : GitRepoCommand(GitRepoCommandType::Push) {}
 
   ~GitRepoPushCommand() override = default;
 };
 
 struct GitRepoRenameBranchCommand final : GitRepoCommand {
-  GitRepoRenameBranchCommand() : GitRepoCommand(
-      GitRepoCommandType::RenameBranch) {
-  }
+  GitRepoRenameBranchCommand()
+      : GitRepoCommand(GitRepoCommandType::RenameBranch) {}
 
   ~GitRepoRenameBranchCommand() override = default;
 
@@ -446,8 +410,7 @@ struct GitRepoRenameBranchCommand final : GitRepoCommand {
 };
 
 struct GitRepoRenameTagCommand final : GitRepoCommand {
-  GitRepoRenameTagCommand() : GitRepoCommand(GitRepoCommandType::RenameTag) {
-  }
+  GitRepoRenameTagCommand() : GitRepoCommand(GitRepoCommandType::RenameTag) {}
 
   ~GitRepoRenameTagCommand() override = default;
 
@@ -456,8 +419,7 @@ struct GitRepoRenameTagCommand final : GitRepoCommand {
 };
 
 struct GitRepoResetCommand final : GitRepoCommand {
-  GitRepoResetCommand() : GitRepoCommand(GitRepoCommandType::Reset) {
-  }
+  GitRepoResetCommand() : GitRepoCommand(GitRepoCommandType::Reset) {}
 
   ~GitRepoResetCommand() override = default;
 
@@ -466,8 +428,7 @@ struct GitRepoResetCommand final : GitRepoCommand {
 };
 
 struct GitRepoRevertCommand final : GitRepoCommand {
-  GitRepoRevertCommand() : GitRepoCommand(GitRepoCommandType::Revert) {
-  }
+  GitRepoRevertCommand() : GitRepoCommand(GitRepoCommandType::Revert) {}
 
   ~GitRepoRevertCommand() override = default;
 
@@ -479,8 +440,7 @@ struct GitRepoRevertCommand final : GitRepoCommand {
 
 struct GitRepoSetUpstreamCommand final : GitRepoCommand {
   GitRepoSetUpstreamCommand()
-    : GitRepoCommand(GitRepoCommandType::SetUpstream) {
-  }
+      : GitRepoCommand(GitRepoCommandType::SetUpstream) {}
 
   ~GitRepoSetUpstreamCommand() override = default;
 
@@ -490,8 +450,7 @@ struct GitRepoSetUpstreamCommand final : GitRepoCommand {
 };
 
 struct GitRepoStageFilesCommand final : GitRepoCommand {
-  GitRepoStageFilesCommand() : GitRepoCommand(GitRepoCommandType::StageFiles) {
-  }
+  GitRepoStageFilesCommand() : GitRepoCommand(GitRepoCommandType::StageFiles) {}
 
   ~GitRepoStageFilesCommand() override = default;
 
@@ -499,23 +458,20 @@ struct GitRepoStageFilesCommand final : GitRepoCommand {
 };
 
 struct GitRepoStashCommand final : GitRepoCommand {
-  GitRepoStashCommand() : GitRepoCommand(GitRepoCommandType::Stash) {
-  }
+  GitRepoStashCommand() : GitRepoCommand(GitRepoCommandType::Stash) {}
 
   ~GitRepoStashCommand() override = default;
 };
 
 struct GitRepoStatusCommand final : GitRepoCommand {
-  GitRepoStatusCommand() : GitRepoCommand(GitRepoCommandType::Status) {
-  }
+  GitRepoStatusCommand() : GitRepoCommand(GitRepoCommandType::Status) {}
 
   ~GitRepoStatusCommand() override = default;
 };
 
 struct GitRepoSubmoduleUpdateCommand final : GitRepoCommand {
   GitRepoSubmoduleUpdateCommand()
-    : GitRepoCommand(GitRepoCommandType::SubmoduleUpdate) {
-  }
+      : GitRepoCommand(GitRepoCommandType::SubmoduleUpdate) {}
 
   ~GitRepoSubmoduleUpdateCommand() override = default;
 
@@ -524,8 +480,7 @@ struct GitRepoSubmoduleUpdateCommand final : GitRepoCommand {
 
 struct GitRepoUnstageFilesCommand final : GitRepoCommand {
   GitRepoUnstageFilesCommand()
-    : GitRepoCommand(GitRepoCommandType::UnstageFiles) {
-  }
+      : GitRepoCommand(GitRepoCommandType::UnstageFiles) {}
 
   ~GitRepoUnstageFilesCommand() override = default;
 
@@ -533,8 +488,7 @@ struct GitRepoUnstageFilesCommand final : GitRepoCommand {
 };
 
 struct GitRepoQuitCommand final : GitRepoCommand {
-  GitRepoQuitCommand() : GitRepoCommand(GitRepoCommandType::Quit) {
-  }
+  GitRepoQuitCommand() : GitRepoCommand(GitRepoCommandType::Quit) {}
 
   ~GitRepoQuitCommand() override = default;
 };

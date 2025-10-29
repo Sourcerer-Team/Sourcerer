@@ -74,7 +74,7 @@ public:
     if (is_connected()) {
       close();
     }
-    struct addrinfo hints{};
+    struct addrinfo hints {};
     ZeroMemory(&hints, sizeof(hints));
 
     hints.ai_family = AF_INET;       // IPv4

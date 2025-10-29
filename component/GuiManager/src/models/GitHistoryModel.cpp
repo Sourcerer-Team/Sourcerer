@@ -341,8 +341,8 @@ Util::ResizableMatrix<Slice> GitHistoryModel::createDrawableSlices(
   try {
     QMap<QString, QPair<int, int>> commitPositions;
 
-    for (int i = 0;
-         i < historyWithStatus.history.commits.size() && !quitUpdate; ++i) {
+    for (int i = 0; i < historyWithStatus.history.commits.size() && !quitUpdate;
+         ++i) {
       if (quitUpdate) {
         drawableSlices.clear();
         LOG_PERF(0, "Exit");
@@ -356,8 +356,7 @@ Util::ResizableMatrix<Slice> GitHistoryModel::createDrawableSlices(
       }
 
       const QString &currentCommit = historyWithStatus.history.commits.at(i);
-      const auto it =
-          historyWithStatus.history.commitInfos.find(currentCommit);
+      const auto it = historyWithStatus.history.commitInfos.find(currentCommit);
       if (it == historyWithStatus.history.commitInfos.end()) {
         continue;
       }

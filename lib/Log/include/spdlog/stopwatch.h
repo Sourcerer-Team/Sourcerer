@@ -47,8 +47,8 @@ public:
 namespace fmt {
 template <> struct formatter<spdlog::stopwatch> : formatter<double> {
   template <typename FormatContext>
-  auto format(const spdlog::stopwatch &sw, FormatContext &ctx)
-      -> decltype(ctx.out()) {
+  auto format(const spdlog::stopwatch &sw,
+              FormatContext &ctx) -> decltype(ctx.out()) {
     return formatter<double>::format(sw.elapsed().count(), ctx);
   }
 };

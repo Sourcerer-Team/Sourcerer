@@ -10,8 +10,8 @@ using namespace GuiManager::Models;
 namespace GuiManager::Widgets {
 
 RemoteGitBranchesPage::RemoteGitBranchesPage(QWidget *parent)
-  : QWidget(parent), _model(new BranchesModel(this)),
-    ui(new Ui::RemoteGitBranchesPage), _previous(-1) {
+    : QWidget(parent), _model(new BranchesModel(this)),
+      ui(new Ui::RemoteGitBranchesPage), _previous(-1) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -19,8 +19,7 @@ RemoteGitBranchesPage::RemoteGitBranchesPage(QWidget *parent)
 
   connect(ui->listView, &QListView::doubleClicked, this,
           &RemoteGitBranchesPage::onListViewDoubleClicked);
-  connect(ui->listView,
-          &QListView::customContextMenuRequested, this,
+  connect(ui->listView, &QListView::customContextMenuRequested, this,
           &RemoteGitBranchesPage::onListViewContextMenuRequested);
 
   LOG_PERF(0, "Exit");

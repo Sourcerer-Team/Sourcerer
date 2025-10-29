@@ -19,6 +19,8 @@
 #include <Log.h>
 #include <Uuid.h>
 
+#include <Qsci/qscilexerdiff.h>
+
 #include <QCheckBox>
 #include <QDirIterator>
 #include <QFile>
@@ -94,21 +96,21 @@ QStringList traverseModelIndexSubtree(const QModelIndex &parent,
 }
 
 GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
-  : ContainerWidget(Widgets::ContainerType::GitRepo, parent),
-    ui(new Ui::GitRepoContainer), _uuid(Uuid::createUuid()),
-    _path(std::move(path)), _activeBranchType(GitRepo::BranchType::All),
-    _configManager(ConfigManager::ConfigManager::getInstance()),
-    _eventManager(EventManager::EventManager::getInstance()),
-    _userProfileManager(Common::UserProfileManager::instance()),
-    _toastHost(ToastHostWidget::getInstance()),
-    _historyModel(new Models::GitHistoryModel()), _dispatcher(1),
-    _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
-    _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
-    _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
-    _displayTreeExpanded(false), _commitListModel(nullptr),
-    _commitTreeModel(nullptr), _repoDirWatcher(nullptr),
-    _repoDirWatcherTimer(new QTimer(this)),
-    _shortcutsWidget(new GuiManager::Widgets::ShortcutsToolbarWidget(this)) {
+    : ContainerWidget(Widgets::ContainerType::GitRepo, parent),
+      ui(new Ui::GitRepoContainer), _uuid(Uuid::createUuid()),
+      _path(std::move(path)), _activeBranchType(GitRepo::BranchType::All),
+      _configManager(ConfigManager::ConfigManager::getInstance()),
+      _eventManager(EventManager::EventManager::getInstance()),
+      _userProfileManager(Common::UserProfileManager::instance()),
+      _toastHost(ToastHostWidget::getInstance()),
+      _historyModel(new Models::GitHistoryModel()), _dispatcher(1),
+      _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
+      _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
+      _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
+      _displayTreeExpanded(false), _commitListModel(nullptr),
+      _commitTreeModel(nullptr), _repoDirWatcher(nullptr),
+      _repoDirWatcherTimer(new QTimer(this)),
+      _shortcutsWidget(new GuiManager::Widgets::ShortcutsToolbarWidget(this)) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -231,7 +233,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   // Set placeholder text color via palette
   QPalette palette = ui->textEditDescription->palette();
-  palette.setColor(QPalette::PlaceholderText, QColor("#808080")); // Bright blue
+  palette.setColor(QPalette::PlaceholderText, QColor(0x808080)); // Bright blue
   ui->textEditDescription->setPalette(palette);
 
   _errorPixmap = new QPixmap(QSize(128, 128));
@@ -288,12 +290,49 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->leftVerticalLayout->insertWidget(0, _shortcutsWidget);
 
+  ui->pushButtonDiffClose->setIcon(QPixmap(":/icons/close_button.png"));
+  ui->pushButtonDiffClose->setMinimumSize(32, 32);
+  ui->pushButtonDiffClose->setMaximumSize(32, 32);
+
+  ui->pushButtonDiffUnified->setIcon(QPixmap(":/icons/diff-unified.png"));
+  ui->pushButtonDiffUnified->setMinimumSize(32, 32);
+  ui->pushButtonDiffUnified->setMaximumSize(32, 32);
+  ui->pushButtonDiffUnified->setChecked(true);
+
+  ui->pushButtonDiffSideBySide->setIcon(
+      QPixmap(":/icons/diff-side-by-side.png"));
+  ui->pushButtonDiffSideBySide->setMinimumSize(32, 32);
+  ui->pushButtonDiffSideBySide->setMaximumSize(32, 32);
+
+  const QString diffFontName =
+      _configManager.getString(ConfigManager::ConfigKey::GitRepoDiffFontName);
+  const qlonglong diffFontSize =
+      _configManager.getLong(ConfigManager::ConfigKey::GitRepoDiffFontSize);
+
+  QsciLexerDiff *lexerDiffUnified = new QsciLexerDiff();
+  lexerDiffUnified->setFont(QFont(diffFontName, diffFontSize));
+  lexerDiffUnified->setColor(QColor(0xf8f8f2), QsciLexerDiff::Default);
+  lexerDiffUnified->setColor(QColor(0x7f8c8d), QsciLexerDiff::Comment);
+  lexerDiffUnified->setColor(QColor(0xe67e22), QsciLexerDiff::Command);
+  lexerDiffUnified->setColor(QColor(0x9b59b6), QsciLexerDiff::Header);
+  lexerDiffUnified->setColor(QColor(0x3498db), QsciLexerDiff::Position);
+  lexerDiffUnified->setColor(QColor(0x2ecc71), QsciLexerDiff::LineAdded);
+  lexerDiffUnified->setColor(QColor(0xe74c3c), QsciLexerDiff::LineRemoved);
+  lexerDiffUnified->setColor(QColor(0xf1c40f), QsciLexerDiff::LineChanged);
+
+  ui->scintillaTextEditorUnified->setSizePolicy(QSizePolicy::Expanding,
+                                                QSizePolicy::Expanding);
+  ui->scintillaTextEditorUnified->setWrapMode(QsciScintilla::WrapWord);
+  ui->scintillaTextEditorUnified->setMarginsBackgroundColor(QColor(0x384D59));
+  ui->scintillaTextEditorUnified->setMarginType(0, QsciScintilla::NumberMargin);
+  ui->scintillaTextEditorUnified->setLexer(lexerDiffUnified);
+
   showMainSpinnerPage(false);
   showSpinnerOverlay();
 
   const QByteArray splitterState = QByteArray::fromHex(
       _configManager.getString(ConfigManager::ConfigKey::GitRepoSplitterPos)
-                    .toUtf8());
+          .toUtf8());
   ui->splitter->restoreState(splitterState);
 
   connect(ui->historyView, &QAbstractItemView::entered, this,
@@ -343,9 +382,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &QItemSelectionModel::selectionChanged, this,
           &GitRepoContainer::onHistorySelectionChanged);
 
-  connect(
-      ui->tabWidgetPageDisplayFiles, &QTabWidget::currentChanged, this,
-      [=](int index) { _displayTreeExpandAllButton->setVisible(index != 0); });
+  connect(ui->tabWidgetPageDisplayFiles, &QTabWidget::currentChanged, this,
+          [=](const int index) {
+            _displayTreeExpandAllButton->setVisible(index != 0);
+          });
 
   connect(_displayTreeExpandAllButton, &QPushButton::clicked, this,
           &GitRepoContainer::onDisplayTreeExpandAllButtonClicked);
@@ -443,6 +483,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(this, &GitRepoContainer::historyViewRightClicked, this,
           &GitRepoContainer::onHistoryViewRightClicked);
 
+  connect(ui->pushButtonDiffUnified, &QPushButton::clicked, this,
+          &GitRepoContainer::onDiffUnifiedClicked);
+  connect(ui->pushButtonDiffSideBySide, &QPushButton::clicked, this,
+          &GitRepoContainer::onDiffSideBySideClicked);
+  connect(ui->pushButtonDiffClose, &QPushButton::clicked, this,
+          &GitRepoContainer::onDiffCloseClicked);
+
   qApp->setStyleSheet(qApp->styleSheet());
 
   LOG_PERF(0, "Exit")
@@ -489,10 +536,10 @@ bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
       _mousePos = QPoint(-1, -1);
     } else if (event->type() == QEvent::MouseButtonPress) {
       if (const auto mouseEvent = static_cast<QMouseEvent *>(event);
-        mouseEvent->button() == Qt::RightButton) {
+          mouseEvent->button() == Qt::RightButton) {
         if (const QModelIndex index =
-              ui->historyView->indexAt(mouseEvent->pos());
-          index.isValid()) {
+                ui->historyView->indexAt(mouseEvent->pos());
+            index.isValid()) {
           emit historyViewRightClicked(index, mouseEvent->globalPos());
         }
       }
@@ -548,11 +595,9 @@ void GitRepoContainer::onAddSubmodule() {
             overlayWidget->hide();
             delete overlayWidget;
 
-            //startOverlayTimer();
+            // startOverlayTimer();
 
-            _dispatcher.dispatch([=]() {
-              addSubmodule(guard, url, name);
-            });
+            _dispatcher.dispatch([=]() { addSubmodule(guard, url, name); });
           });
 
   overlayWidget->show();
@@ -584,8 +629,8 @@ void GitRepoContainer::onApplyStash(const int stashIndex) {
   LOG_PERF(0, "Enter");
 
   const QMessageBox::StandardButton reply =
-      QMessageBox::question(this, // parent widget
-                            "Confirm Action", // dialog title
+      QMessageBox::question(this,                               // parent widget
+                            "Confirm Action",                   // dialog title
                             "Do you want to apply this stash?", // message text
                             QMessageBox::Yes | QMessageBox::No);
 
@@ -605,7 +650,7 @@ void GitRepoContainer::onDeleteStash(const int stashIndex) {
   LOG_PERF(0, "Enter");
 
   const QMessageBox::StandardButton reply =
-      QMessageBox::question(this, // parent widget
+      QMessageBox::question(this,             // parent widget
                             "Confirm Action", // dialog title
                             "Do you want to delete this stash?", // message text
                             QMessageBox::Yes | QMessageBox::No);
@@ -626,8 +671,8 @@ void GitRepoContainer::onPopStash(const int stashIndex) {
   LOG_PERF(0, "Enter");
 
   const QMessageBox::StandardButton reply =
-      QMessageBox::question(this, // parent widget
-                            "Confirm Action", // dialog title
+      QMessageBox::question(this,                             // parent widget
+                            "Confirm Action",                 // dialog title
                             "Do you want to pop this stash?", // message text
                             QMessageBox::Yes | QMessageBox::No);
 
@@ -738,8 +783,8 @@ void GitRepoContainer::showTooltipForSummaryColumn(
   const auto statusFieldsMap =
       index.data(StatusRole).value<Models::StatusFieldsMap>();
   tooltipText += "New " +
-      QString::number(statusFieldsMap[Models::StatusFields::New]) +
-      "\n";
+                 QString::number(statusFieldsMap[Models::StatusFields::New]) +
+                 "\n";
   tooltipText +=
       "Modified " +
       QString::number(statusFieldsMap[Models::StatusFields::Modified]) + "\n";
@@ -914,10 +959,8 @@ void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
 
             startOverlayTimer();
 
-            _dispatcher.dispatch([=]() {
-              createTagFromCommit(
-                  guard, commit, tagName);
-            });
+            _dispatcher.dispatch(
+                [=]() { createTagFromCommit(guard, commit, tagName); });
           });
 
   overlayWidget->show();
@@ -929,8 +972,9 @@ void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
 void GitRepoContainer::onDeleteBranch(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
-  const QString question = QString(
-      "Are you sure that you want to delete branch '%1'?").arg(branchName);
+  const QString question =
+      QString("Are you sure that you want to delete branch '%1'?")
+          .arg(branchName);
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
                                            QMessageBox::Yes, QMessageBox::No);
@@ -943,8 +987,7 @@ void GitRepoContainer::onDeleteBranch(const QString &branchName) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { deleteBranch(guard, branchName); });
+  _dispatcher.dispatch([=]() { deleteBranch(guard, branchName); });
 
   LOG_PERF(0, "Exit");
 }
@@ -952,8 +995,8 @@ void GitRepoContainer::onDeleteBranch(const QString &branchName) {
 void GitRepoContainer::onDeleteTag(const QString &tagName) {
   LOG_PERF(0, "Enter");
 
-  const QString question = QString(
-      "Are you sure that you want to delete tag '%1'?").arg(tagName);
+  const QString question =
+      QString("Are you sure that you want to delete tag '%1'?").arg(tagName);
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
                                            QMessageBox::Yes, QMessageBox::No);
@@ -966,8 +1009,32 @@ void GitRepoContainer::onDeleteTag(const QString &tagName) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { deleteTag(guard, tagName); });
+  _dispatcher.dispatch([=]() { deleteTag(guard, tagName); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onDiffCloseClicked() const {
+  LOG_PERF(0, "Enter");
+
+  ui->stackedWidgetMiddle->setCurrentIndex(0);
+  stretchBranchHistoryTableColumns();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onDiffUnifiedClicked() {
+  LOG_PERF(0, "Enter");
+
+  ui->pushButtonDiffSideBySide->setChecked(false);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onDiffSideBySideClicked() {
+  LOG_PERF(0, "Enter");
+
+  ui->pushButtonDiffUnified->setChecked(false);
 
   LOG_PERF(0, "Exit");
 }
@@ -1092,9 +1159,7 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   connect(&actionApplyPatch, &QAction::triggered, this,
           &GitRepoContainer::onApplyPatch);
   connect(&actionRenameBranch, &QAction::triggered, this,
-          [=]() {
-            onRenameBranch(_activeBranch);
-          });
+          [=]() { onRenameBranch(_activeBranch); });
   connect(&actionCreateTagFromCommit, &QAction::triggered, this,
           [=]() { onCreateTagFromCommit(commit); });
   connect(&actionCreatePatchFromCommit, &QAction::triggered, this,
@@ -1162,6 +1227,26 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onListViewTabWidgetWorkingTreeFlatSelected(
+    const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString filePath = index.data(Qt::DisplayRole).toString();
+
+  filePath = QDir::fromNativeSeparators(filePath);
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { diff(guard, filePath); });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
@@ -1194,14 +1279,10 @@ void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
   });
 
   connect(&actionRanameBranch, &QAction::triggered, this,
-          [=]() {
-            onRenameBranch(branchName);
-          });
+          [=]() { onRenameBranch(branchName); });
 
   connect(&actionDeleteBranch, &QAction::triggered, this,
-          [=]() {
-            onDeleteBranch(branchName);
-          });
+          [=]() { onDeleteBranch(branchName); });
 
   QMenu menu;
   menu.addAction(&actionCheckoutBranch);
@@ -1296,9 +1377,7 @@ void GitRepoContainer::onSubmitRenameBranch(const QString &oldName,
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() {
-    renameBranch(guard, oldName, newName);
-  });
+  _dispatcher.dispatch([=]() { renameBranch(guard, oldName, newName); });
 
   LOG_PERF(0, "Exit");
 }
@@ -1311,9 +1390,7 @@ void GitRepoContainer::onSubmitRenameTag(const QString &oldName,
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() {
-    renameTag(guard, oldName, newName);
-  });
+  _dispatcher.dispatch([=]() { renameTag(guard, oldName, newName); });
 
   LOG_PERF(0, "Exit");
 }
@@ -1331,9 +1408,7 @@ void GitRepoContainer::onSubmoduleRightClicked(const QString &submoduleName,
 
     const WeakPtr guard = getSelf().toWeakRef();
 
-    _dispatcher.dispatch([=]() {
-      openSubmodule(guard, submoduleName);
-    });
+    _dispatcher.dispatch([=]() { openSubmodule(guard, submoduleName); });
   });
 
   connect(&actionUpdateSubmodule, &QAction::triggered, this, [=]() {
@@ -1341,14 +1416,11 @@ void GitRepoContainer::onSubmoduleRightClicked(const QString &submoduleName,
 
     const WeakPtr guard = getSelf().toWeakRef();
 
-    _dispatcher.dispatch([=]() {
-      updateSubmodule(guard, submoduleName);
-    });
+    _dispatcher.dispatch([=]() { updateSubmodule(guard, submoduleName); });
   });
 
-  connect(&actionDeleteSubmodule, &QAction::triggered, this, [=]() {
-    onDeleteSubmodule(submoduleName);
-  });
+  connect(&actionDeleteSubmodule, &QAction::triggered, this,
+          [=]() { onDeleteSubmodule(submoduleName); });
 
   QMenu menu;
   menu.addAction(&actionOpenSubmodule);
@@ -1384,9 +1456,7 @@ void GitRepoContainer::onSubmoduleSelected(const QString &submoduleName) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() {
-    openSubmodule(guard, submoduleName);
-  });
+  _dispatcher.dispatch([=]() { openSubmodule(guard, submoduleName); });
 
   LOG_PERF(0, "Exit");
 }
@@ -1404,20 +1474,15 @@ void GitRepoContainer::onTagRightClicked(const QString &tagName,
 
     const WeakPtr guard = getSelf().toWeakRef();
 
-    _dispatcher.dispatch([=]() {
-      checkoutBranch(guard, tagName, GitRepo::BranchType::Tag);
-    });
+    _dispatcher.dispatch(
+        [=]() { checkoutBranch(guard, tagName, GitRepo::BranchType::Tag); });
   });
 
   connect(&actionRanameTag, &QAction::triggered, this,
-          [=]() {
-            onRenameTag(tagName);
-          });
+          [=]() { onRenameTag(tagName); });
 
   connect(&actionDeleteTag, &QAction::triggered, this,
-          [=]() {
-            onDeleteTag(tagName);
-          });
+          [=]() { onDeleteTag(tagName); });
 
   QMenu menu;
   menu.addAction(&actionCheckoutTag);
@@ -1625,9 +1690,9 @@ void GitRepoContainer::onShowSpinnerOverlay() {
 void GitRepoContainer::onDeleteSubmodule(const QString &submoduleName) {
   LOG_PERF(0, "Enter");
 
-  const QString question = QString(
-          "Are you sure that you want to delete submodule '%1'?").
-      arg(submoduleName);
+  const QString question =
+      QString("Are you sure that you want to delete submodule '%1'?")
+          .arg(submoduleName);
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
                                            QMessageBox::Yes, QMessageBox::No);
@@ -1640,8 +1705,7 @@ void GitRepoContainer::onDeleteSubmodule(const QString &submoduleName) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { deleteSubmodule(guard, submoduleName); });
+  _dispatcher.dispatch([=]() { deleteSubmodule(guard, submoduleName); });
 
   LOG_PERF(0, "Exit");
 }
@@ -1725,8 +1789,7 @@ void GitRepoContainer::setUpstream(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerSetUpstreamError,
-      EventManager::EventType::GitRepoManagerSetUpstreamResult
-  };
+      EventManager::EventType::GitRepoManagerSetUpstreamResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -1749,10 +1812,9 @@ void GitRepoContainer::setUpstream(const WeakPtr &guard,
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(
-          QString(
-              QString("%1\n%2").arg(tr("Failed to set upstream."),
-                                    error.message)), tr("Error"));
+      showErrorToast(QString(QString("%1\n%2").arg(
+                         tr("Failed to set upstream."), error.message)),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -1809,10 +1871,8 @@ void GitRepoContainer::stash(const WeakPtr &guard) {
   stageFilesEvent.addData(command);
   _eventManager.send(stageFilesEvent);
 
-  static std::set types = {
-      EventManager::EventType::GitRepoManagerStashError,
-      EventManager::EventType::GitRepoManagerStashResult
-  };
+  static std::set types = {EventManager::EventType::GitRepoManagerStashError,
+                           EventManager::EventType::GitRepoManagerStashResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -1998,7 +2058,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected(bool checked) {
     question = tr("Are you sure you want to delete the selected file?");
   } else {
     question = tr("Are you sure you want to delete the %1 selected files?")
-        .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -2034,7 +2094,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected(bool checked) {
     question = tr("Are you sure you want to discard the selected file?");
   } else {
     question = tr("Are you sure you want to discard the %1 selected files?")
-        .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -2146,7 +2206,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected(bool checked) {
     question = tr("Are you sure you want to delete the selected file?");
   } else {
     question = tr("Are you sure you want to delete the %1 selected files?")
-        .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -2182,7 +2242,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected(bool checked) {
     question = tr("Are you sure you want to discard the selected file?");
   } else {
     question = tr("Are you sure you want to discard the %1 selected files?")
-        .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -2205,8 +2265,8 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
     const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
-  if (const QModelIndex index = ui->listViewTabWidgetIndexFlat->indexAt(pos); !
-    index.isValid()) {
+  if (const QModelIndex index = ui->listViewTabWidgetIndexFlat->indexAt(pos);
+      !index.isValid()) {
     LOG_PERF(0, "Exit");
     return;
   }
@@ -2291,7 +2351,7 @@ void GitRepoContainer::onIndexFlatListViewDeleteSelected(bool checked) {
     question = tr("Are you sure you want to delete the selected file?");
   } else {
     question = tr("Are you sure you want to delete the %1 selected files?")
-        .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -2326,7 +2386,7 @@ void GitRepoContainer::onIndexFlatListViewDiscardSelected(bool checked) {
     question = tr("Are you sure you want to discard the selected file?");
   } else {
     question = tr("Are you sure you want to discard the %1 selected files?")
-        .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -2435,7 +2495,7 @@ void GitRepoContainer::onIndexTreeTreeViewDeleteSelected(bool checked) {
     question = tr("Are you sure you want to delete the selected file?");
   } else {
     question = tr("Are you sure you want to delete the %1 selected files?")
-        .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -2470,7 +2530,7 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
     question = tr("Are you sure you want to discard the selected file?");
   } else {
     question = tr("Are you sure you want to discard the %1 selected files?")
-        .arg(files.length());
+                   .arg(files.length());
   }
 
   const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
@@ -2539,8 +2599,7 @@ void GitRepoContainer::addSubmodule(const WeakPtr &guard, const QString &url,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerAddSubmoduleError,
-      EventManager::EventType::GitRepoManagerAddSubmoduleResult
-  };
+      EventManager::EventType::GitRepoManagerAddSubmoduleResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -2625,8 +2684,7 @@ void GitRepoContainer::applyPatch(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerApplyPatchError,
-      EventManager::EventType::GitRepoManagerApplyPatchResult
-  };
+      EventManager::EventType::GitRepoManagerApplyPatchResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -2697,8 +2755,7 @@ void GitRepoContainer::applyStash(
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerApplyStashError,
-      EventManager::EventType::GitRepoManagerApplyStashResult
-  };
+      EventManager::EventType::GitRepoManagerApplyStashResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -2783,8 +2840,7 @@ void GitRepoContainer::checkoutBranch(
 
     static std::set types = {
         EventManager::EventType::GitRepoManagerCheckoutBranchError,
-        EventManager::EventType::GitRepoManagerCheckoutBranchResult
-    };
+        EventManager::EventType::GitRepoManagerCheckoutBranchResult};
 
     const auto &[success, event] =
         _eventManager.waitForAnswer(token, eventUuid, types);
@@ -2794,7 +2850,7 @@ void GitRepoContainer::checkoutBranch(
     if (_historyModel->hasStatus()) {
       additionalClarificationMessage =
           tr("\nPlease "
-              "commit your changes or stash them before you switch branches.");
+             "commit your changes or stash them before you switch branches.");
     }
 
     if (!success) {
@@ -2804,7 +2860,7 @@ void GitRepoContainer::checkoutBranch(
         showSpinnerOverlay(false);
         showErrorPage();
         showErrorToast(QString(tr("Failed to checkout branch. %1"))
-                       .arg(additionalClarificationMessage),
+                           .arg(additionalClarificationMessage),
                        tr("Checkout"));
       });
 
@@ -2817,9 +2873,9 @@ void GitRepoContainer::checkoutBranch(
       const auto error = event.data<GitRepoError>();
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
         showSpinnerOverlay(false);
-        showErrorToast(QString("%1 %2\n%3").arg(
-                           tr("Failed to checkout branch."),
-                           additionalClarificationMessage, error.message),
+        showErrorToast(QString("%1 %2\n%3")
+                           .arg(tr("Failed to checkout branch."),
+                                additionalClarificationMessage, error.message),
                        tr("Error"));
       });
 
@@ -2870,8 +2926,7 @@ void GitRepoContainer::checkoutCommit(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerCheckoutCommitError,
-      EventManager::EventType::GitRepoManagerCheckoutCommitResult
-  };
+      EventManager::EventType::GitRepoManagerCheckoutCommitResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -2881,7 +2936,7 @@ void GitRepoContainer::checkoutCommit(const WeakPtr &guard,
   if (_historyModel->hasStatus()) {
     additionalClarificationMessage =
         tr("\nPlease "
-            "commit your changes or stash them before you checkout.");
+           "commit your changes or stash them before you checkout.");
   }
 
   if (!success) {
@@ -2891,7 +2946,7 @@ void GitRepoContainer::checkoutCommit(const WeakPtr &guard,
       showSpinnerOverlay(false);
       showErrorPage();
       showErrorToast(QString(tr("Failed to checkout commit. %1"))
-                     .arg(additionalClarificationMessage),
+                         .arg(additionalClarificationMessage),
                      tr("Checkout"));
     });
 
@@ -2904,9 +2959,9 @@ void GitRepoContainer::checkoutCommit(const WeakPtr &guard,
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(QString("%1 %2\n%3").arg(
-                         tr("Failed to checkout commit."),
-                         additionalClarificationMessage, error.message),
+      showErrorToast(QString("%1 %2\n%3")
+                         .arg(tr("Failed to checkout commit."),
+                              additionalClarificationMessage, error.message),
                      tr("Error"));
     });
 
@@ -2923,7 +2978,7 @@ void GitRepoContainer::checkoutCommit(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString(tr("Failed to checkout commit. %1"))
-                     .arg(additionalClarificationMessage),
+                         .arg(additionalClarificationMessage),
                      tr("Checkout"));
     });
 
@@ -2986,8 +3041,7 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerCommitStagedError,
-      EventManager::EventType::GitRepoManagerCommitStagedResult
-  };
+      EventManager::EventType::GitRepoManagerCommitStagedResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -3009,9 +3063,9 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to commit staged changes."),
-                                error.message), tr("Error"));
+      showErrorToast(QString("%1\n%2").arg(
+                         tr("Failed to commit staged changes."), error.message),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -3066,8 +3120,7 @@ void GitRepoContainer::createBranchFromCommit(
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerCreateBranchFromCommitError,
-      EventManager::EventType::GitRepoManagerCreateBranchFromCommitResult
-  };
+      EventManager::EventType::GitRepoManagerCreateBranchFromCommitResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -3091,7 +3144,8 @@ void GitRepoContainer::createBranchFromCommit(
       showSpinnerOverlay(false);
       showErrorToast(
           QString("%1\n%2").arg(tr("Failed to create branch from commit."),
-                                error.message), tr("Error"));
+                                error.message),
+          tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -3134,8 +3188,7 @@ void GitRepoContainer::createPatchFromCommit(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerCreatePatchFromCommitError,
-      EventManager::EventType::GitRepoManagerCreatePatchFromCommitResult
-  };
+      EventManager::EventType::GitRepoManagerCreatePatchFromCommitResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -3159,7 +3212,8 @@ void GitRepoContainer::createPatchFromCommit(const WeakPtr &guard,
       showSpinnerOverlay(false);
       showErrorToast(
           QString("%1\n%2").arg(tr("Failed to create patch from commit."),
-                                error.message), tr("Error"));
+                                error.message),
+          tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -3168,38 +3222,36 @@ void GitRepoContainer::createPatchFromCommit(const WeakPtr &guard,
 
   const auto commandResult = event.data<GitRepoResult>();
 
-  const auto result = commandResult.value.value<
-    GitRepoCreatePatchFromCommitCommandResult>();
+  const auto result =
+      commandResult.value.value<GitRepoCreatePatchFromCommitCommandResult>();
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() {
-        showSpinnerOverlay(false);
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
 
-        if (result.patchContent.isEmpty()) {
-          showErrorToast(tr("Failed to create patch from commit."),
-                         tr("Error"));
-          return;
-        }
+    if (result.patchContent.isEmpty()) {
+      showErrorToast(tr("Failed to create patch from commit."), tr("Error"));
+      return;
+    }
 
-        const QString filePath = QFileDialog::getSaveFileName(
-            nullptr, // Parent widget
-            "Save Patch File", // Dialog title
-            QDir::homePath(), // Default directory
-            "Patch Files (*.patch);;All Files (*)" // File filters
-            );
+    const QString filePath = QFileDialog::getSaveFileName(
+        nullptr,                               // Parent widget
+        "Save Patch File",                     // Dialog title
+        QDir::homePath(),                      // Default directory
+        "Patch Files (*.patch);;All Files (*)" // File filters
+    );
 
-        if (filePath.isEmpty()) {
-          return;
-        }
+    if (filePath.isEmpty()) {
+      return;
+    }
 
-        QFile file(filePath);
-        if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-          QTextStream out(&file);
-          out << result.patchContent;
+    QFile file(filePath);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+      QTextStream out(&file);
+      out << result.patchContent;
 
-          file.close();
-        }
-      });
+      file.close();
+    }
+  });
 
   LOG_PERF(0, "Exit")
 }
@@ -3209,10 +3261,10 @@ void GitRepoContainer::createTagFromCommit(const WeakPtr &guard,
                                            const QString &tagName) {
   LOG_PERF(0, "Enter");
 
-  const QString author = Common::UserProfileManager::instance().currentProfile()
-      .author;
-  const QString email = Common::UserProfileManager::instance().currentProfile().
-      email;
+  const QString author =
+      Common::UserProfileManager::instance().currentProfile().author;
+  const QString email =
+      Common::UserProfileManager::instance().currentProfile().email;
 
   const QString eventUuid = Uuid::createUuid();
 
@@ -3234,8 +3286,7 @@ void GitRepoContainer::createTagFromCommit(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerCreateTagFromCommitError,
-      EventManager::EventType::GitRepoManagerCreateTagFromCommitResult
-  };
+      EventManager::EventType::GitRepoManagerCreateTagFromCommitResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -3259,7 +3310,8 @@ void GitRepoContainer::createTagFromCommit(const WeakPtr &guard,
       showSpinnerOverlay(false);
       showErrorToast(
           QString("%1\n%2").arg(tr("Failed to create tag from commit."),
-                                error.message), tr("Error"));
+                                error.message),
+          tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -3272,8 +3324,8 @@ void GitRepoContainer::createTagFromCommit(const WeakPtr &guard,
 
   refreshHistory(guard);
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { showSpinnerOverlay(false); });
+  Util::Dispatcher::dispatchToMainThread(guard,
+                                         [=]() { showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit")
 }
@@ -3298,8 +3350,7 @@ void GitRepoContainer::deleteBranch(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerDeleteBranchError,
-      EventManager::EventType::GitRepoManagerDeleteBranchResult
-  };
+      EventManager::EventType::GitRepoManagerDeleteBranchResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -3346,8 +3397,8 @@ void GitRepoContainer::deleteBranch(const WeakPtr &guard,
     return;
   }
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [&]() { showSpinnerOverlay(false); });
+  Util::Dispatcher::dispatchToMainThread(guard,
+                                         [&]() { showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit")
 }
@@ -3414,8 +3465,7 @@ void GitRepoContainer::deleteStash(
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerDeleteStashError,
-      EventManager::EventType::GitRepoManagerDeleteStashResult
-  };
+      EventManager::EventType::GitRepoManagerDeleteStashResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -3492,8 +3542,7 @@ void GitRepoContainer::deleteTag(const WeakPtr &guard, const QString &tagName) {
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerDeleteTagError,
-      EventManager::EventType::GitRepoManagerDeleteTagResult
-  };
+      EventManager::EventType::GitRepoManagerDeleteTagResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -3511,8 +3560,7 @@ void GitRepoContainer::deleteTag(const WeakPtr &guard, const QString &tagName) {
     return;
   }
 
-  if (event.type() !=
-      EventManager::EventType::GitRepoManagerDeleteTagResult) {
+  if (event.type() != EventManager::EventType::GitRepoManagerDeleteTagResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
@@ -3540,8 +3588,8 @@ void GitRepoContainer::deleteTag(const WeakPtr &guard, const QString &tagName) {
     return;
   }
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [&]() { showSpinnerOverlay(false); });
+  Util::Dispatcher::dispatchToMainThread(guard,
+                                         [&]() { showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit");
 }
@@ -3566,8 +3614,7 @@ void GitRepoContainer::openSubmodule(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerGetSubmodulePathError,
-      EventManager::EventType::GitRepoManagerGetSubmodulePathResult
-  };
+      EventManager::EventType::GitRepoManagerGetSubmodulePathResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -3590,9 +3637,9 @@ void GitRepoContainer::openSubmodule(const WeakPtr &guard,
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to get submodule path."),
-                                error.message), tr("Error"));
+      showErrorToast(QString("%1\n%2").arg(tr("Failed to get submodule path."),
+                                           error.message),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -3600,8 +3647,8 @@ void GitRepoContainer::openSubmodule(const WeakPtr &guard,
   }
 
   const auto commandResult = event.data<GitRepoResult>();
-  const auto [submodulePath] = commandResult.value.value<
-    GitRepoGetSubmodulePathCommandResult>();
+  const auto [submodulePath] =
+      commandResult.value.value<GitRepoGetSubmodulePathCommandResult>();
 
   if (submodulePath.isEmpty()) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
@@ -3613,13 +3660,12 @@ void GitRepoContainer::openSubmodule(const WeakPtr &guard,
     return;
   }
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() {
-        showSpinnerOverlay(false);
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
 
-        const QString fullPath = QDir(_path).filePath(submodulePath);
-        emit openRepoRequested(fullPath);
-      });
+    const QString fullPath = QDir(_path).filePath(submodulePath);
+    emit openRepoRequested(fullPath);
+  });
 
   LOG_PERF(0, "Exit");
 }
@@ -3660,8 +3706,7 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerDeleteSubmoduleError,
-      EventManager::EventType::GitRepoManagerDeleteSubmoduleResult
-  };
+      EventManager::EventType::GitRepoManagerDeleteSubmoduleResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -3684,9 +3729,9 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to delete submodule."),
-                                error.message), tr("Error"));
+      showErrorToast(QString("%1\n%2").arg(tr("Failed to delete submodule."),
+                                           error.message),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -3708,8 +3753,86 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
 
   refreshHistory(guard);
 
+  Util::Dispatcher::dispatchToMainThread(guard,
+                                         [=]() { showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit")
+}
+
+inline void GitRepoContainer::diff(const WeakPtr &guard,
+                                   const QString &filePath) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoDiffFilesCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.files += filePath;
+
+  EventManager::Event diffFilesEvent(
+      EventManager::EventType::GitRepoManagerDiffFiles, eventUuid);
+  diffFilesEvent.addData(command);
+  _eventManager.send(diffFilesEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerDiffFilesError,
+      EventManager::EventType::GitRepoManagerDiffFilesResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(tr("Failed to create file diff."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerDiffFilesResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString("%1\n%2").arg(tr("Failed to create file diff."),
+                                           error.message),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const QString diff = commandResult.value.toString();
+
+  if (diff.isEmpty()) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showToast(tr("No difference compared to the HEAD commit."), tr("Info"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    showSpinnerOverlay(false);
+    const QString normalized =
+        QString(diff).replace("\r\n", "\n").replace('\r', '\n');
+    const int lineCount = normalized.count('\n') + 1;
+    const int width = QString::number(lineCount).length();
+    const QString mask = QString::number(0).rightJustified(width + 1, '0');
+    ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
+    ui->scintillaTextEditorUnified->setText(diff);
+    ui->stackedWidgetMiddle->setCurrentIndex(1);
+    ui->stackedWidgetDiff->setCurrentIndex(0);
   });
 
   LOG_PERF(0, "Exit")
@@ -3735,8 +3858,7 @@ void GitRepoContainer::diffFiles(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerDiffFilesError,
-      EventManager::EventType::GitRepoManagerDiffFilesResult
-  };
+      EventManager::EventType::GitRepoManagerDiffFilesResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -3758,9 +3880,9 @@ void GitRepoContainer::diffFiles(const WeakPtr &guard,
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to create diff file."),
-                                error.message), tr("Error"));
+      showErrorToast(QString("%1\n%2").arg(tr("Failed to create diff file."),
+                                           error.message),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -3824,8 +3946,7 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerDiscardFilesError,
-      EventManager::EventType::GitRepoManagerDiscardFilesResult
-  };
+      EventManager::EventType::GitRepoManagerDiscardFilesResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -3848,9 +3969,9 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(
-          QString("%1\n%2").
-          arg(tr("Failed to discard file(s)."), error.message), tr("Error"));
+      showErrorToast(QString("%1\n%2").arg(tr("Failed to discard file(s)."),
+                                           error.message),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -3900,8 +4021,7 @@ bool GitRepoContainer::getActiveBranchOrTag(
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerGetActiveBranchError,
-      EventManager::EventType::GitRepoManagerGetActiveBranchResult
-  };
+      EventManager::EventType::GitRepoManagerGetActiveBranchResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -3996,8 +4116,7 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
 
   static std::set historyTypes = {
       EventManager::EventType::GitRepoManagerGetBranchHistoryError,
-      EventManager::EventType::GitRepoManagerGetBranchHistoryResult
-  };
+      EventManager::EventType::GitRepoManagerGetBranchHistoryResult};
 
   const auto &[historySuccess, historyResultEvent] =
       _eventManager.waitForAnswer(historyToken, historyEventUuid, historyTypes);
@@ -4009,7 +4128,7 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
       showSpinnerOverlay(false);
       showErrorPage();
       showErrorToast(QString(tr("Failed to retrieve the history of branch %1."))
-                     .arg(_activeBranch),
+                         .arg(_activeBranch),
                      tr("Error"));
     });
 
@@ -4023,9 +4142,9 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1 %2\n%3").arg(
-              tr("Failed to retrieve the history of branch %1."), _activeBranch,
-              error.message),
+          QString("%1 %2\n%3")
+              .arg(tr("Failed to retrieve the history of branch %1."),
+                   _activeBranch, error.message),
           tr("Error"));
     });
 
@@ -4052,8 +4171,7 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
 
   static std::set statusTypes = {
       EventManager::EventType::GitRepoManagerStatusError,
-      EventManager::EventType::GitRepoManagerStatusResult
-  };
+      EventManager::EventType::GitRepoManagerStatusResult};
 
   const auto &[statusSuccess, statusResultEvent] =
       _eventManager.waitForAnswer(statusToken, statusEventUuid, statusTypes);
@@ -4124,8 +4242,7 @@ QStringList GitRepoContainer::getCommitBranches(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerGetCommitBranchesError,
-      EventManager::EventType::GitRepoManagerGetCommitBranchesResult
-  };
+      EventManager::EventType::GitRepoManagerGetCommitBranchesResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -4172,8 +4289,7 @@ GitRepoContainer::getCommitStatus(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerGetCommitStatusError,
-      EventManager::EventType::GitRepoManagerGetCommitStatusResult
-  };
+      EventManager::EventType::GitRepoManagerGetCommitStatusResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -4324,8 +4440,7 @@ bool GitRepoContainer::getLocalBranches() {
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerListLocalBranchesError,
-      EventManager::EventType::GitRepoManagerListLocalBranchesResult
-  };
+      EventManager::EventType::GitRepoManagerListLocalBranchesResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -4348,11 +4463,10 @@ bool GitRepoContainer::getLocalBranches() {
       EventManager::EventType::GitRepoManagerListLocalBranchesResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showErrorToast(
-          QString("%1\n%2").arg(
-              tr("Failed to retrieve the list of local branches."),
-              error.message),
-          tr("Error"));
+      showErrorToast(QString("%1\n%2").arg(
+                         tr("Failed to retrieve the list of local branches."),
+                         error.message),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -4391,8 +4505,7 @@ bool GitRepoContainer::getRemoteBranches() {
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerListRemoteBranchesError,
-      EventManager::EventType::GitRepoManagerListRemoteBranchesResult
-  };
+      EventManager::EventType::GitRepoManagerListRemoteBranchesResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -4413,11 +4526,10 @@ bool GitRepoContainer::getRemoteBranches() {
       EventManager::EventType::GitRepoManagerListRemoteBranchesResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showErrorToast(
-          QString("%1\n%2").arg(
-              tr("Failed to retrieve the list of remote branches."),
-              error.message),
-          tr("Error"));
+      showErrorToast(QString("%1\n%2").arg(
+                         tr("Failed to retrieve the list of remote branches."),
+                         error.message),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -4454,8 +4566,7 @@ bool GitRepoContainer::getStashes(const WeakPtr &guard) {
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerListStashesError,
-      EventManager::EventType::GitRepoManagerListStashesResult
-  };
+      EventManager::EventType::GitRepoManagerListStashesResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -4516,8 +4627,7 @@ bool GitRepoContainer::getSubmodules() {
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerListSubmodulesError,
-      EventManager::EventType::GitRepoManagerListSubmodulesResult
-  };
+      EventManager::EventType::GitRepoManagerListSubmodulesResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -4580,8 +4690,7 @@ bool GitRepoContainer::getTags() {
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerListTagsError,
-      EventManager::EventType::GitRepoManagerListTagsResult
-  };
+      EventManager::EventType::GitRepoManagerListTagsResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -4604,7 +4713,8 @@ bool GitRepoContainer::getTags() {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showErrorToast(
           QString("%1\n%2").arg(tr("Failed to retrieve the list of tags."),
-                                error.message), tr("Error"));
+                                error.message),
+          tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -4669,8 +4779,7 @@ QPair<QString, QString> GitRepoContainer::getUpstream(const WeakPtr &guard) {
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerGetUpstreamError,
-      EventManager::EventType::GitRepoManagerGetUpstreamResult
-  };
+      EventManager::EventType::GitRepoManagerGetUpstreamResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -4733,7 +4842,7 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString(tr("Failed to open %1 for writing."))
-                     .arg(GIT_IGNORE_FILENAME),
+                         .arg(GIT_IGNORE_FILENAME),
                      tr("Error"));
     });
     LOG_PERF(0, "Exit");
@@ -4788,8 +4897,7 @@ bool GitRepoContainer::openRepo(const WeakPtr &guard) {
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerOpenRepoError,
-      EventManager::EventType::GitRepoManagerOpenRepoResult
-  };
+      EventManager::EventType::GitRepoManagerOpenRepoResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -4842,10 +4950,8 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
   pullEvent.addData(command);
   _eventManager.send(pullEvent);
 
-  static std::set types = {
-      EventManager::EventType::GitRepoManagerPullError,
-      EventManager::EventType::GitRepoManagerPullResult
-  };
+  static std::set types = {EventManager::EventType::GitRepoManagerPullError,
+                           EventManager::EventType::GitRepoManagerPullResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -4907,10 +5013,8 @@ void GitRepoContainer::push(const WeakPtr &guard) {
   pushEvent.addData(command);
   _eventManager.send(pushEvent);
 
-  static std::set types = {
-      EventManager::EventType::GitRepoManagerPushError,
-      EventManager::EventType::GitRepoManagerPushResult
-  };
+  static std::set types = {EventManager::EventType::GitRepoManagerPushError,
+                           EventManager::EventType::GitRepoManagerPushResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -4972,15 +5076,13 @@ void GitRepoContainer::renameBranch(const WeakPtr &guard,
   command.newBranchName = newName;
 
   EventManager::Event renameBranchEvent(
-      EventManager::EventType::GitRepoManagerRenameBranch,
-      eventUuid);
+      EventManager::EventType::GitRepoManagerRenameBranch, eventUuid);
   renameBranchEvent.addData(command);
   _eventManager.send(renameBranchEvent);
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerRenameBranchError,
-      EventManager::EventType::GitRepoManagerRenameBranchResult
-  };
+      EventManager::EventType::GitRepoManagerRenameBranchResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -5031,8 +5133,7 @@ void GitRepoContainer::renameBranch(const WeakPtr &guard,
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::renameTag(const WeakPtr &guard,
-                                 const QString &oldName,
+void GitRepoContainer::renameTag(const WeakPtr &guard, const QString &oldName,
                                  const QString &newName) {
   LOG_PERF(0, "Enter");
 
@@ -5047,15 +5148,13 @@ void GitRepoContainer::renameTag(const WeakPtr &guard,
   command.newTagName = newName;
 
   EventManager::Event renameTagEvent(
-      EventManager::EventType::GitRepoManagerRenameTag,
-      eventUuid);
+      EventManager::EventType::GitRepoManagerRenameTag, eventUuid);
   renameTagEvent.addData(command);
   _eventManager.send(renameTagEvent);
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerRenameTagError,
-      EventManager::EventType::GitRepoManagerRenameTagResult
-  };
+      EventManager::EventType::GitRepoManagerRenameTagResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -5070,8 +5169,7 @@ void GitRepoContainer::renameTag(const WeakPtr &guard,
     return;
   }
 
-  if (event.type() !=
-      EventManager::EventType::GitRepoManagerRenameTagResult) {
+  if (event.type() != EventManager::EventType::GitRepoManagerRenameTagResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
@@ -5125,10 +5223,8 @@ void GitRepoContainer::reset(const WeakPtr &guard, const QString &commit,
   resetEvent.addData(command);
   _eventManager.send(resetEvent);
 
-  static std::set types = {
-      EventManager::EventType::GitRepoManagerResetError,
-      EventManager::EventType::GitRepoManagerResetResult
-  };
+  static std::set types = {EventManager::EventType::GitRepoManagerResetError,
+                           EventManager::EventType::GitRepoManagerResetResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -5184,16 +5280,16 @@ void GitRepoContainer::revert(const WeakPtr &guard, const QString &commit) {
   for (int i = 0; i < _historyModel->rowCount(QModelIndex()); ++i) {
     const QString rowFullSHA =
         _historyModel
-        ->data(
-            _historyModel->index(i, COLUMN_COMMIT_FULL_SHA, QModelIndex()),
-            Qt::DisplayRole)
-        .toString();
+            ->data(
+                _historyModel->index(i, COLUMN_COMMIT_FULL_SHA, QModelIndex()),
+                Qt::DisplayRole)
+            .toString();
     if (rowFullSHA == commit) {
       summaryToRevert =
           _historyModel
-          ->data(_historyModel->index(i, COLUMN_SUMMARY, QModelIndex()),
-                 Qt::DisplayRole)
-          .toString();
+              ->data(_historyModel->index(i, COLUMN_SUMMARY, QModelIndex()),
+                     Qt::DisplayRole)
+              .toString();
       break;
     }
   }
@@ -5211,18 +5307,16 @@ void GitRepoContainer::revert(const WeakPtr &guard, const QString &commit) {
   command.email = Common::UserProfileManager::instance().currentProfile().email;
   command.message =
       QString("[%1] %2")
-      .arg(tr("Revert"))
-      .arg(summaryToRevert.isEmpty() ? commit : summaryToRevert);
+          .arg(tr("Revert"))
+          .arg(summaryToRevert.isEmpty() ? commit : summaryToRevert);
 
   EventManager::Event revertEvent(EventManager::EventType::GitRepoManagerRevert,
                                   eventUuid);
   revertEvent.addData(command);
   _eventManager.send(revertEvent);
 
-  static std::set types = {
-      EventManager::EventType::GitRepoManagerRevertError,
-      EventManager::EventType::GitRepoManagerRevertResult
-  };
+  static std::set types = {EventManager::EventType::GitRepoManagerRevertError,
+                           EventManager::EventType::GitRepoManagerRevertResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -5338,8 +5432,7 @@ void GitRepoContainer::refreshStatus(const WeakPtr &guard) {
 
   static std::set statusTypes = {
       EventManager::EventType::GitRepoManagerStatusError,
-      EventManager::EventType::GitRepoManagerStatusResult
-  };
+      EventManager::EventType::GitRepoManagerStatusResult};
 
   const auto &[statusSuccess, statusResultEvent] =
       _eventManager.waitForAnswer(statusToken, statusEventUuid, statusTypes);
@@ -5476,14 +5569,13 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     ui->labelPageDiaplayAuthorValue->setText(commitInfo.authorName);
     ui->labelPageDiaplayParentsValue->setText(
         commitInfo.parents.isEmpty()
-          ? tr("None")
-          : commitInfo.parents
+            ? tr("None")
+            : commitInfo.parents
                       .mid(0, MAXIMUM_PARENTS_IN_LABEL) // Show up to 3 parents
                       .join(", ")
                       .left(MAX_COMMIT_SHA_LENGTH) +
-            (commitInfo.parents.size() > MAXIMUM_PARENTS_IN_LABEL
-               ? "..."
-               : ""));
+                  (commitInfo.parents.size() > MAXIMUM_PARENTS_IN_LABEL ? "..."
+                                                                        : ""));
 
     QTextCursor cursor = ui->textEditPageDisplayDescription->textCursor();
     QTextBlockFormat format = cursor.blockFormat();
@@ -5516,6 +5608,19 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
         Models::GitCommitListModel::from(historyAndStatus.status));
     if (_commitListModel) {
       ui->listViewTabWidgetWorkingTreeFlat->setModel(_commitListModel.get());
+
+      connect(
+          ui->listViewTabWidgetWorkingTreeFlat->selectionModel(),
+          &QItemSelectionModel::selectionChanged, this,
+          [=](const QItemSelection &selected,
+              const QItemSelection &deselected) {
+            if (selected.isEmpty()) {
+              return;
+            }
+
+            onListViewTabWidgetWorkingTreeFlatSelected(
+                selected.indexes().front());
+          });
     }
 
     _commitTreeModel.reset(
@@ -5686,8 +5791,7 @@ void GitRepoContainer::stageFiles(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerStageFilesError,
-      EventManager::EventType::GitRepoManagerStageFilesResult
-  };
+      EventManager::EventType::GitRepoManagerStageFilesResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -5787,8 +5891,7 @@ void GitRepoContainer::unstageFiles(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerUnstageFilesError,
-      EventManager::EventType::GitRepoManagerUnstageFilesResult
-  };
+      EventManager::EventType::GitRepoManagerUnstageFilesResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -5902,7 +6005,7 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
     ui->localPage->updateActiveBranch(activeBranch);
     if (_activeBranch != ALL_BRANCHES) {
       ui->remotePage->updateActiveBranch(
-          QString()); // deselect remote branch if any
+          QString());                           // deselect remote branch if any
       ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
     } else {
       ui->remotePage->clearCached();
@@ -5950,7 +6053,7 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
     ui->remotePage->updateActiveBranch(activeBranch);
     if (_activeBranch != ALL_BRANCHES) {
       ui->localPage->updateActiveBranch(
-          QString()); // deselect remote branch if any
+          QString());                           // deselect remote branch if any
       ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
     } else {
       ui->localPage->clearCached();
@@ -6023,8 +6126,7 @@ void GitRepoContainer::updateSubmodule(const WeakPtr &guard,
 
   static std::set types = {
       EventManager::EventType::GitRepoManagerSubmoduleUpdateError,
-      EventManager::EventType::GitRepoManagerSubmoduleUpdateResult
-  };
+      EventManager::EventType::GitRepoManagerSubmoduleUpdateResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -6047,9 +6149,9 @@ void GitRepoContainer::updateSubmodule(const WeakPtr &guard,
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to update submodule."),
-                                error.message), tr("Error"));
+      showErrorToast(QString("%1\n%2").arg(tr("Failed to update submodule."),
+                                           error.message),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -6058,8 +6160,8 @@ void GitRepoContainer::updateSubmodule(const WeakPtr &guard,
 
   const auto commandResult = event.data<GitRepoResult>();
 
-  if (const bool commandSuccess = commandResult.value.toBool(); !
-    commandSuccess) {
+  if (const bool commandSuccess = commandResult.value.toBool();
+      !commandSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showSpinnerOverlay(false);
       showErrorToast(tr("Failed to update submodule."), tr("Error"));
@@ -6078,7 +6180,6 @@ void GitRepoContainer::updateSubmodule(const WeakPtr &guard,
 
   LOG_PERF(0, "Exit")
 }
-
 
 void GitRepoContainer::updateSubmodulesModel(const WeakPtr &guard,
                                              const QStringList &tags) const {

@@ -15,11 +15,11 @@
 namespace GuiManager::Widgets {
 
 AddSubmoduleOverlayWidget::AddSubmoduleOverlayWidget(QWidget *parent)
-  : OverlayWidget(parent, ALPHA),
-    _lineEditUrl(new PersistentPlaceholderLineEdit(
-        QColor::fromString("#969696"), this)),
-    _lineEditName(new PersistentPlaceholderLineEdit(
-        QColor::fromString("#969696"), this)) {
+    : OverlayWidget(parent, ALPHA),
+      _lineEditUrl(new PersistentPlaceholderLineEdit(
+          QColor::fromString("#969696"), this)),
+      _lineEditName(new PersistentPlaceholderLineEdit(
+          QColor::fromString("#969696"), this)) {
   LOG_PERF(0, "Enter");
 
   const auto groupBox = new OpaqueGroupBox(QColor::fromString("#384D59"), this);
@@ -105,7 +105,7 @@ AddSubmoduleOverlayWidget::~AddSubmoduleOverlayWidget() {
 bool AddSubmoduleOverlayWidget::eventFilter(QObject *obj, QEvent *event) {
   if (event->type() == QEvent::KeyPress) {
     if (const auto *keyEvent = dynamic_cast<QKeyEvent *>(event);
-      keyEvent->key() == Qt::Key_Escape) {
+        keyEvent->key() == Qt::Key_Escape) {
       emit canceled();
       return true; // Event handled
     } else if (keyEvent->key() == Qt::Key_Return) {

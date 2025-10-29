@@ -86,12 +86,16 @@ private slots:
   void onCreateTagFromCommit(const QString &commit);
   void onDeleteBranch(const QString &branchName);
   void onDeleteTag(const QString &tagName);
+  void onDiffCloseClicked() const;
+  void onDiffUnifiedClicked();
+  void onDiffSideBySideClicked();
   void onDisplayTreeExpandAllButtonClicked();
   void onHardResetToCommit(const QString &commit);
   void onHistorySelectionChanged(const QItemSelection &selected,
                                  const QItemSelection &deselected);
   void onHistoryViewRightClicked(const QModelIndex &index, const QPoint &pos);
   void onHistoryViewItemEntered(const QModelIndex &index);
+  void onListViewTabWidgetWorkingTreeFlatSelected(const QModelIndex &index);
   void onLocalBranchSelected(const QString &branchName);
   void onLocalBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onMixedResetToCommit(const QString &commit);
@@ -168,10 +172,9 @@ private:
       const WeakPtr &guard, const QString &commit, const QString &branchName,
       const std::function<void(const WeakPtr &, const QString &)> &onSuccess =
           nullptr);
-  void createPatchFromCommit(
-      const WeakPtr &guard, const QString &commit);
-  void createTagFromCommit(
-      const WeakPtr &guard, const QString &commit, const QString &tagName);
+  void createPatchFromCommit(const WeakPtr &guard, const QString &commit);
+  void createTagFromCommit(const WeakPtr &guard, const QString &commit,
+                           const QString &tagName);
   void deleteBranch(const WeakPtr &guard, const QString &branchName);
   void deleteFiles(const WeakPtr &guard, const QStringList &files);
   void deleteStash(
@@ -179,6 +182,7 @@ private:
       const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
   void deleteTag(const WeakPtr &guard, const QString &tagName);
   void deleteSubmodule(const WeakPtr &guard, const QString &submoduleName);
+  void diff(const WeakPtr &guard, const QString &filePath);
   void diffFiles(const WeakPtr &guard, const QStringList &files);
   void discardFiles(const WeakPtr &guard, const QStringList &files);
   bool getActiveBranchOrTag(const WeakPtr &guard,

@@ -40,14 +40,14 @@ constexpr int TOP_MARGIN_OFFSET = -55;
 constexpr int PROFILE_WIDGET_ARROW_OFFSET = 30;
 
 MainWindow::MainWindow(QWidget *parent)
-  : QMainWindow(parent), _current(-1), _centralWidget(new CentralWidget),
-    _topBarWidget(new TopBarWidget),
-    _toastHost(ToastHostWidget::getInstance()),
-    _configManager(ConfigManager::ConfigManager::getInstance()),
-    _eventManager(EventManager::EventManager::getInstance()),
-    _maximized(false), _mousePressed(false), _hitDetector(nullptr),
-    _profileBoardWidget(new ProfileBoardWidget(this)),
-    _profileBoardActive(false) {
+    : QMainWindow(parent), _current(-1), _centralWidget(new CentralWidget),
+      _topBarWidget(new TopBarWidget),
+      _toastHost(ToastHostWidget::getInstance()),
+      _configManager(ConfigManager::ConfigManager::getInstance()),
+      _eventManager(EventManager::EventManager::getInstance()),
+      _maximized(false), _mousePressed(false), _hitDetector(nullptr),
+      _profileBoardWidget(new ProfileBoardWidget(this)),
+      _profileBoardActive(false) {
   LOG_PERF(0, "Enter");
 
   setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
@@ -309,7 +309,7 @@ void MainWindow::onSubmitWorkspace(const QString &name) {
 
   for (int i = 0; i < _containers.length(); ++i) {
     if (const auto repoContainer =
-        qobject_cast<Widgets::ContainerWidget *>(_containers[i].get())) {
+            qobject_cast<Widgets::ContainerWidget *>(_containers[i].get())) {
       const ContainerType type = repoContainer->type();
       if (type == ContainerType::Home) {
         continue;
@@ -741,9 +741,8 @@ void MainWindow::eventCallback(EventManager::Event event) {
     Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
       Q_ASSERT(_current != -1);
       QWidget *parent =
-          _current != -1
-            ? qobject_cast<QWidget *>(_containers[_current].get())
-            : qobject_cast<QWidget *>(this);
+          _current != -1 ? qobject_cast<QWidget *>(_containers[_current].get())
+                         : qobject_cast<QWidget *>(this);
       Q_ASSERT(parent != nullptr);
       if (!parent) {
         LOG_WARN("Parent widget is null.");
@@ -789,7 +788,7 @@ void MainWindow::eventCallback(EventManager::Event event) {
     const auto commandResult =
         event.data<GitRepoManager::Structs::GitRepoResult>();
     if (const CloneProgress data = commandResult.value.value<CloneProgress>();
-      !data.error && !_progressing.contains(data.uuid)) {
+        !data.error && !_progressing.contains(data.uuid)) {
       _progressing += data.uuid;
       Util::Dispatcher::dispatchToMainThread(
           getSelf().toWeakRef(), [=]() { showCloneProgressToast(data); });

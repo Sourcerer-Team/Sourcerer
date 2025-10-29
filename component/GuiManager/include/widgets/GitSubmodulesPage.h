@@ -21,7 +21,7 @@ public:
   void updateModel(const QStringList &submodules);
 
 signals:
-  void rightClicked(const QPoint& pos);
+  void rightClicked(const QPoint &pos);
   void submoduleSelected(const QString &branchName);
   void submoduleRightClicked(const QString &submoduleName, const QPoint &pos);
 

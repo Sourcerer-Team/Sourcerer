@@ -91,9 +91,7 @@ static void logGitError(const int error) {
   {
     LOCKGUARD(gErrorMutex);
     gErrorMap[std::this_thread::get_id()] = {
-      (gitError->klass & 0x00ff) << 16 | (error & 0xffff),
-      gitError->message
-    };
+        (gitError->klass & 0x00ff) << 16 | (error & 0xffff), gitError->message};
   }
 
   LOG_ERROR(Log::ErrorId::Git,
@@ -749,7 +747,7 @@ static QStringList listCheckoutBranches(git_repository *repo,
       } else {
         // Raw commit
         if (const QString referenceName = git_reference_name(headRef);
-          referenceName == HEAD) {
+            referenceName == HEAD) {
           activeBranches += HEAD;
         }
       }
@@ -805,7 +803,7 @@ static QStringList listBranches(git_repository *repo, const BranchType type,
     if (git_reference_type(headRef) == GIT_REFERENCE_DIRECT) {
       // Detached HEAD — could be tag or raw commit
       if (const QString referenceName = git_reference_name(headRef);
-        referenceName == HEAD) {
+          referenceName == HEAD) {
         activeBranches += HEAD;
       }
     }
@@ -958,8 +956,7 @@ static int listSubmodulesCallback(git_submodule *sm, const char *name,
     return 0;
   }
 
-  auto *listPayload =
-      static_cast<ListSubmodulesPayload *>(payload);
+  auto *listPayload = static_cast<ListSubmodulesPayload *>(payload);
   Q_ASSERT(listPayload->repoPath);
   if (!listPayload->repoPath) {
     return 0;
@@ -970,8 +967,8 @@ static int listSubmodulesCallback(git_submodule *sm, const char *name,
     return 0;
   }
 
-  const QString fullPath = QString("%1/../%2").arg(listPayload->repoPath).
-                                               arg(path);
+  const QString fullPath =
+      QString("%1/../%2").arg(listPayload->repoPath).arg(path);
 
   if (const QDir dir(fullPath); !dir.exists()) {
     return 0;
@@ -1145,8 +1142,7 @@ static int fetchProgressCallback(const git_indexer_progress *stats,
           EventManager::EventType::GitRepoManagerCloneRepoProgress);
       progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
           progress->uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
-          QVariant::fromValue(*progress)
-      });
+          QVariant::fromValue(*progress)});
       EventManager::EventManager::getInstance().send(progressEvent);
     }
   } else {
@@ -1154,8 +1150,7 @@ static int fetchProgressCallback(const git_indexer_progress *stats,
         EventManager::EventType::GitRepoManagerCloneRepoProgress);
     progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
         progress->uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
-        QVariant::fromValue(*progress)
-    });
+        QVariant::fromValue(*progress)});
     EventManager::EventManager::getInstance().send(progressEvent);
   }
 
@@ -1187,8 +1182,7 @@ static void checkoutProgressCallback(const char *path, size_t completed_steps,
         EventManager::EventType::GitRepoManagerCloneRepoProgress);
     progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
         progress->uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
-        QVariant::fromValue(*progress)
-    });
+        QVariant::fromValue(*progress)});
     EventManager::EventManager::getInstance().send(progressEvent);
   }
 }
@@ -1206,8 +1200,7 @@ static void finishFetchProgress(const QString &uuid, const bool error) {
       EventManager::EventType::GitRepoManagerCloneRepoProgress);
   progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
       uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
-      QVariant::fromValue(progress)
-  });
+      QVariant::fromValue(progress)});
   EventManager::EventManager::getInstance().send(progressEvent);
 }
 
@@ -1269,8 +1262,7 @@ acquireCredentials(const QString &url, const QString &username,
 
   const std::set<EventManager::EventType> types{
       EventManager::EventType::GitRepoManagerGetCredentialsCancel,
-      EventManager::EventType::GitRepoManagerGetCredentialsSubmit
-  };
+      EventManager::EventType::GitRepoManagerGetCredentialsSubmit};
 
   const auto &[success, event] =
       eventManager.waitOneOf(token, types, predicate);
@@ -1286,10 +1278,8 @@ acquireCredentials(const QString &url, const QString &username,
           event.data<GitCredentialsResponse>();
       LOG_PERF(0, "Exit");
       return std::make_tuple(
-          true, GitPlaintextCredentials{
-              response.username, response.password,
-              QDateTime::currentMSecsSinceEpoch()
-          });
+          true, GitPlaintextCredentials{response.username, response.password,
+                                        QDateTime::currentMSecsSinceEpoch()});
     } else {
       LOG_ERROR(Log::ErrorId::Git, "Internal error. Unknown event type.");
     }
@@ -1317,7 +1307,7 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
   }
 
   if (const QString urlString = QString::fromUtf8(url);
-    urlString.startsWith("git@")) {
+      urlString.startsWith("git@")) {
     const QString homePath =
         QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
 
@@ -1326,7 +1316,7 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
         QString("%1/.ssh/id_rsa.pub").arg(homePath).toStdString().c_str(),
         QString("%1/.ssh/id_rsa").arg(homePath).toStdString().c_str(),
         nullptr // passphrase
-        );
+    );
 
     LOG_PERF(0, "Exit");
     return error;
@@ -1938,7 +1928,7 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
 
     // Check if branch contains the commit
     if (const int contains = git_graph_descendant_of(repo, branchOid, &oid);
-      contains == 1)
+        contains == 1)
       branches += branchName;
 
     git_reference_free(ref);
@@ -2152,11 +2142,9 @@ GitStatus getStatus(git_repository *repo) {
     }
 
     const char *filePath =
-        entry->head_to_index
-          ? entry->head_to_index->new_file.path
-          : entry->index_to_workdir
-          ? entry->index_to_workdir->new_file.path
-          : nullptr;
+        entry->head_to_index      ? entry->head_to_index->new_file.path
+        : entry->index_to_workdir ? entry->index_to_workdir->new_file.path
+                                  : nullptr;
 
     Q_ASSERT(filePath != nullptr);
 
@@ -2169,8 +2157,8 @@ GitStatus getStatus(git_repository *repo) {
 
     if (QFileInfo(fullPath).isDir()) {
       if (QDir(fullPath)
-          .entryList(QDir::Files | QDir::AllDirs | QDir::NoDotAndDotDot)
-          .isEmpty()) {
+              .entryList(QDir::Files | QDir::AllDirs | QDir::NoDotAndDotDot)
+              .isEmpty()) {
         // Skip empty directories
         continue;
       }
@@ -2310,7 +2298,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   // Generate diff
   git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
   opts.flags |= GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_INCLUDE_TYPECHANGE |
-      GIT_DIFF_RECURSE_UNTRACKED_DIRS;
+                GIT_DIFF_RECURSE_UNTRACKED_DIRS;
 
   error = git_diff_tree_to_tree(&diff, repo, parent_tree, tree, &opts);
   if (error) {
@@ -3153,14 +3141,13 @@ bool stash(git_repository *repo) {
   }
 
   error = git_stash_save(
-      &stashId, // Optional: receives the stash commit ID
-      repo, // Your git_repository pointer
+      &stashId,  // Optional: receives the stash commit ID
+      repo,      // Your git_repository pointer
       signature, // Signature of the stasher
-      nullptr, // Optional message
-      GIT_STASH_DEFAULT |
-      GIT_STASH_INCLUDE_UNTRACKED // Flags (can be
+      nullptr,   // Optional message
+      GIT_STASH_DEFAULT | GIT_STASH_INCLUDE_UNTRACKED // Flags (can be
       // GIT_STASH_INCLUDE_UNTRACKED, etc.)
-      );
+  );
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
@@ -3194,10 +3181,10 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
   }
 
   error = git_branch_set_upstream(localRef, QString("%1/%2")
-                                            .arg(remoteName)
-                                            .arg(remoteBranchName)
-                                            .toStdString()
-                                            .c_str());
+                                                .arg(remoteName)
+                                                .arg(remoteBranchName)
+                                                .toStdString()
+                                                .c_str());
   if (error) {
     logGitError(error);
     git_reference_free(localRef);
@@ -3604,7 +3591,7 @@ QString createPatchFromCommit(git_repository *repo, const QString &commit) {
   git_tree *parentTree = nullptr;
 
   if (const int parentCount = git_commit_parentcount(commit_);
-    parentCount > 0) {
+      parentCount > 0) {
     error = git_commit_parent(&parent, commit_, 0);
     if (error) {
       logGitError(error);
@@ -3699,9 +3686,9 @@ bool renameTag(git_repository *repo, const QString &oldName,
   git_object *target = nullptr;
   git_oid newOid;
 
-  int error = git_reference_lookup(&tagRef, repo,
-                                   QString("refs/tags/%1").arg(oldName).
-                                   toStdString().c_str());
+  int error = git_reference_lookup(
+      &tagRef, repo,
+      QString("refs/tags/%1").arg(oldName).toStdString().c_str());
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
@@ -3746,8 +3733,7 @@ bool renameTag(git_repository *repo, const QString &oldName,
     }
 
     error = git_tag_create(&newOid, repo, newName.toStdString().c_str(),
-                           tagTarget,
-                           tagger, message, 0);
+                           tagTarget, tagger, message, 0);
     if (error) {
       logGitError(error);
       git_reference_free(tagRef);
@@ -3758,9 +3744,8 @@ bool renameTag(git_repository *repo, const QString &oldName,
     }
   } else {
     // Lightweight tag
-    error = git_tag_create_lightweight(&newOid, repo,
-                                       newName.toStdString().c_str(), target,
-                                       0);
+    error = git_tag_create_lightweight(
+        &newOid, repo, newName.toStdString().c_str(), target, 0);
     if (error) {
       logGitError(error);
       git_reference_free(tagRef);
@@ -3806,9 +3791,8 @@ QString getSubmodulePath(git_repository *repo, const QString &submoduleName) {
 
   git_submodule *submodule = nullptr;
 
-  if (const int error = git_submodule_lookup(&submodule, repo,
-                                             submoduleName.toStdString().
-                                             c_str())) {
+  if (const int error = git_submodule_lookup(
+          &submodule, repo, submoduleName.toStdString().c_str())) {
     logGitError(error);
     LOG_PERF(0, "Exit");
     return {};
@@ -3839,8 +3823,7 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
 
   git_submodule *submodule = nullptr;
 
-  int error = git_submodule_lookup(&submodule, repo,
-                                   name.c_str());
+  int error = git_submodule_lookup(&submodule, repo, name.c_str());
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
@@ -3853,16 +3836,13 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
     return false;
   }
 
-  const std::string gitModulesPath = QString("%1/../.gitmodules").
-                                     arg(repositoryPath).toStdString();
-  const std::string gitModulesTmpPath = QString("%1/../.gitmodules.tmp").
-                                        arg(repositoryPath).toStdString();
+  const std::string gitModulesPath =
+      QString("%1/../.gitmodules").arg(repositoryPath).toStdString();
+  const std::string gitModulesTmpPath =
+      QString("%1/../.gitmodules.tmp").arg(repositoryPath).toStdString();
 
-  FILE *src = fopen(
-      gitModulesPath.c_str(), "r");
-  if (FILE *dst = fopen(
-      gitModulesTmpPath.c_str(),
-      "w"); src && dst) {
+  FILE *src = fopen(gitModulesPath.c_str(), "r");
+  if (FILE *dst = fopen(gitModulesTmpPath.c_str(), "w"); src && dst) {
     char line[1024];
     int skip = 0;
     while (fgets(line, sizeof(line), src)) {
@@ -3886,8 +3866,8 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
     remove(gitModulesPath.c_str());
     rename(gitModulesTmpPath.c_str(), gitModulesPath.c_str());
 
-    if (const bool staged = stageFiles(repo, QStringList() << ".gitmodules"); !
-      staged) {
+    if (const bool staged = stageFiles(repo, QStringList() << ".gitmodules");
+        !staged) {
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -3956,8 +3936,8 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
   git_index_free(index);
 
   QDir(submodulePath).removeRecursively();
-  QDir(QString("%1/modules/%2").arg(repositoryPath).arg(name)).
-      removeRecursively();
+  QDir(QString("%1/modules/%2").arg(repositoryPath).arg(name))
+      .removeRecursively();
 
   LOG_PERF(0, "Exit");
 
@@ -3971,8 +3951,7 @@ bool updateSubmodule(git_repository *repo, const QString &submoduleName) {
 
   git_submodule *submodule = nullptr;
 
-  int error = git_submodule_lookup(&submodule, repo,
-                                   name.c_str());
+  int error = git_submodule_lookup(&submodule, repo, name.c_str());
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
@@ -4002,8 +3981,8 @@ bool updateSubmodule(git_repository *repo, const QString &submoduleName) {
   return true;
 }
 
-bool addSubmodule(git_repository *repo, const QString &url,
-                  const QString &name, const QString &uuid) {
+bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
+                  const QString &uuid) {
   LOG_PERF(0, "Enter");
 
   const char *repoPath = git_repository_path(repo);
@@ -4016,9 +3995,9 @@ bool addSubmodule(git_repository *repo, const QString &url,
 
   git_submodule *subModule = nullptr;
 
-  int error = git_submodule_add_setup(&subModule, repo,
-                                      url.toStdString().c_str(),
-                                      name.toStdString().c_str(), 1);
+  int error =
+      git_submodule_add_setup(&subModule, repo, url.toStdString().c_str(),
+                              name.toStdString().c_str(), 1);
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");

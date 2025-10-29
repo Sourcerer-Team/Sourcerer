@@ -46,8 +46,8 @@ private:
   void destroyContextsMap();
   void deleteBranchWorker(const Structs::GitRepoDeleteBranchCommand &command);
   void deleteStashWorker(const Structs::GitRepoDeleteStashCommand &command);
-  void deleteSubmoduleWorker(
-      const Structs::GitRepoDeleteSubmoduleCommand &command);
+  void
+  deleteSubmoduleWorker(const Structs::GitRepoDeleteSubmoduleCommand &command);
   void deleteTagWorker(const Structs::GitRepoDeleteTagCommand &command);
   void diffFilesWorker(const Structs::GitRepoDiffFilesCommand &command);
   void discardFilesWorker(const Structs::GitRepoDiscardFilesCommand &command);
@@ -87,14 +87,14 @@ private:
   void stageFilesWorker(const Structs::GitRepoStageFilesCommand &command);
   void stashWorker(const Structs::GitRepoStashCommand &command);
   void statusWorker(const Structs::GitRepoStatusCommand &command);
-  void submoduleUpdateWorker(
-      const Structs::GitRepoSubmoduleUpdateCommand &command);
+  void
+  submoduleUpdateWorker(const Structs::GitRepoSubmoduleUpdateCommand &command);
   void unstageFilesWorker(const Structs::GitRepoUnstageFilesCommand &command);
   void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
   void reportError(EventManager::EventType eventType, const QString &message,
                    const Structs::GitRepoCommand &command) const;
-  void
-  scheduleWorkerForAddSubmodule(const Structs::GitRepoAddSubmoduleCommand &command);
+  void scheduleWorkerForAddSubmodule(
+      const Structs::GitRepoAddSubmoduleCommand &command);
   void
   scheduleWorkerForApplyPatch(const Structs::GitRepoApplyPatchCommand &command);
   void
@@ -133,8 +133,8 @@ private:
       const Structs::GitRepoDeleteStashCommand &command);
   void scheduleWorkerForDeleteSubmodule(
       const Structs::GitRepoDeleteSubmoduleCommand &command);
-  void scheduleWorkerForDeleteTag(
-      const Structs::GitRepoDeleteTagCommand &command);
+  void
+  scheduleWorkerForDeleteTag(const Structs::GitRepoDeleteTagCommand &command);
   void
   scheduleWorkerForDiffFiles(const Structs::GitRepoDiffFilesCommand &command);
   void scheduleWorkerForDiscardFiles(
@@ -158,8 +158,8 @@ private:
   void scheduleWorkerForPush(const Structs::GitRepoPushCommand &command);
   void scheduleWorkerForRenameBranch(
       const Structs::GitRepoRenameBranchCommand &command);
-  void scheduleWorkerForRenameTag(
-      const Structs::GitRepoRenameTagCommand &command);
+  void
+  scheduleWorkerForRenameTag(const Structs::GitRepoRenameTagCommand &command);
   void scheduleWorkerForReset(const Structs::GitRepoResetCommand &command);
   void scheduleWorkerForRevert(const Structs::GitRepoRevertCommand &command);
   void scheduleWorkerForSetUpstream(

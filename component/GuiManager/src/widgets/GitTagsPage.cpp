@@ -19,8 +19,7 @@ GitTagsPage::GitTagsPage(QWidget *parent)
 
   connect(ui->listView, &QListView::doubleClicked, this,
           &GitTagsPage::onListViewDoubleClicked);
-  connect(ui->listView,
-          &QListView::customContextMenuRequested, this,
+  connect(ui->listView, &QListView::customContextMenuRequested, this,
           &GitTagsPage::onListViewContextMenuRequested);
 
   LOG_PERF(0, "Exit");

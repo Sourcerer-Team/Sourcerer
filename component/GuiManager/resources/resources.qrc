@@ -28,5 +28,7 @@
         <file>icons/id-card.png</file>
         <file>icons/ok.png</file>
         <file>icons/cancel.png</file>
+        <file>icons/diff-unified.png</file>
+        <file>icons/diff-side-by-side.png</file>
     </qresource>
 </RCC>

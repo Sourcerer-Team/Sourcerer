@@ -29,6 +29,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
      "gitrepo/spinnerOverlay/timer"},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout,
      "gitrepo/dirWatcher/holdbackTimeout"},
+    {ConfigKey::GitRepoDiffFontName, "gitrepo/diff/fontName"},
+    {ConfigKey::GitRepoDiffFontSize, "gitrepo/diff/fontSize"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
     {ConfigKey::MainWindowBorderWidth, "window/borderWidth"},
     {ConfigKey::MainWindowMinimumWidth, "window/minimumWidth"},
@@ -54,6 +56,8 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::Unknown, {"", ""}},
     {ConfigKey::GitRepoGitCredentialsExpirationTime,
      {"Credentials expiration time", ""}},
+    {ConfigKey::GitRepoDiffFontName, {"Diff editor font name", ""}},
+    {ConfigKey::GitRepoDiffFontSize, {"Diff editor font size in pixels"}},
     {ConfigKey::RecentlyOpenedRepos, {"Recently opened repositories list", ""}},
     {ConfigKey::TitleBarHeight, {"Maximum title bar height", ""}},
     {ConfigKey::TitleBarMaxTabWidth, {"Maximum width of a title bar tab", ""}},
@@ -77,6 +81,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::GitRepoGitCredentialsExpirationTime, 30000},
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 1000},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout, 2000},
+    {ConfigKey::GitRepoDiffFontSize, 12},
     {ConfigKey::InfoToastDisplayTime, 8000},
     {ConfigKey::MainWindowBorderWidth, 2},
     {ConfigKey::MainWindowMinimumWidth, 800},
@@ -93,6 +98,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::GitRepoSplitterPos, ""},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
+    {ConfigKey::GitRepoDiffFontName, "Courier"},
     {ConfigKey::RecentlyOpenedRepos, ""},
     {ConfigKey::SettingsSplitterPos, ""}};
 

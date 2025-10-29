@@ -4,9 +4,7 @@
 
 #define THREAD_ID "TitleBarButton"
 
-namespace GuiManager {
-
-namespace Widgets {
+namespace GuiManager::Widgets {
 
 TitleBarButton::TitleBarButton(const QPixmap &icon, const QColor &hoverColor,
                                QWidget *parent)
@@ -53,5 +51,4 @@ bool TitleBarButton::hover(QHoverEvent *event, bool entered) {
   return true;
 }
 
-} // namespace Widgets
-} // namespace GuiManager
+} // namespace GuiManager::Widgets

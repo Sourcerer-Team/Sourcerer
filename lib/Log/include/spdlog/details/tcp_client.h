@@ -41,7 +41,7 @@ public:
   // try to connect or throw on failure
   void connect(const std::string &host, int port) {
     close();
-    struct addrinfo hints{};
+    struct addrinfo hints {};
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_INET;       // IPv4
     hints.ai_socktype = SOCK_STREAM; // TCP

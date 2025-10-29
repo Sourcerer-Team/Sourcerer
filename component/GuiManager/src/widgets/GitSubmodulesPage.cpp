@@ -10,8 +10,8 @@ using namespace GuiManager::Models;
 namespace GuiManager::Widgets {
 
 GitSubmodulesPage::GitSubmodulesPage(QWidget *parent)
-  : QWidget(parent), _model(new SubmodulesModel(this)),
-    ui(new Ui::GitSubmodulesPage), _previous(-1) {
+    : QWidget(parent), _model(new SubmodulesModel(this)),
+      ui(new Ui::GitSubmodulesPage), _previous(-1) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -19,8 +19,7 @@ GitSubmodulesPage::GitSubmodulesPage(QWidget *parent)
 
   connect(ui->listView, &QListView::doubleClicked, this,
           &GitSubmodulesPage::onListViewDoubleClicked);
-  connect(ui->listView,
-          &QListView::customContextMenuRequested, this,
+  connect(ui->listView, &QListView::customContextMenuRequested, this,
           &GitSubmodulesPage::onListViewContextMenuRequested);
 
   LOG_PERF(0, "Exit");
@@ -100,4 +99,4 @@ void GitSubmodulesPage::onListViewDoubleClicked(const QModelIndex &index) {
   emit submoduleSelected(_model->branchForIndex(index.row()));
 }
 
-}
+} // namespace GuiManager::Widgets
