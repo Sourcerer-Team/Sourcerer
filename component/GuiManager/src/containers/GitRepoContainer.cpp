@@ -1247,6 +1247,58 @@ void GitRepoContainer::onListViewTabWidgetWorkingTreeFlatSelected(
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onListViewTabWidgetWorkingTreeTreeSelected(
+    const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto *model = static_cast<Models::GitCommitTreeModel *>(
+      ui->treeViewTabWidgetWorkingTreeTree->model());
+
+  Q_ASSERT(model);
+
+  if(!model) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Check if it is leaf node
+  if(model->rowCount(index) > 0) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QStringList path;
+  QModelIndex current = index;
+
+
+  while (current.isValid()) {
+    QStandardItem *item = model->itemFromIndex(current);
+    Q_ASSERT(item);
+
+    if(!item) {
+      continue;
+    }
+
+    path.prepend(item->text());
+    current = current.parent();
+  }
+
+  QString filePath = path.join("/");
+
+  filePath = QDir::fromNativeSeparators(filePath);
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { diff(guard, filePath); });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Enter");
 
@@ -5609,24 +5661,35 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
     if (_commitListModel) {
       ui->listViewTabWidgetWorkingTreeFlat->setModel(_commitListModel.get());
 
-      connect(
-          ui->listViewTabWidgetWorkingTreeFlat->selectionModel(),
-          &QItemSelectionModel::selectionChanged, this,
-          [=](const QItemSelection &selected,
-              const QItemSelection &deselected) {
-            if (selected.isEmpty()) {
-              return;
-            }
+      connect(ui->listViewTabWidgetWorkingTreeFlat->selectionModel(),
+              &QItemSelectionModel::selectionChanged, this,
+              [=](const QItemSelection &selected,
+                  const QItemSelection &deselected) {
+                if (selected.isEmpty()) {
+                  return;
+                }
 
-            onListViewTabWidgetWorkingTreeFlatSelected(
-                selected.indexes().front());
-          });
+                onListViewTabWidgetWorkingTreeFlatSelected(
+                    selected.indexes().front());
+              });
     }
 
     _commitTreeModel.reset(
         Models::GitCommitTreeModel::from(historyAndStatus.status));
     if (_commitTreeModel) {
       ui->treeViewTabWidgetWorkingTreeTree->setModel(_commitTreeModel.get());
+
+      connect(ui->treeViewTabWidgetWorkingTreeTree->selectionModel(),
+              &QItemSelectionModel::selectionChanged, this,
+              [=](const QItemSelection &selected,
+                  const QItemSelection &deselected) {
+                if (selected.isEmpty()) {
+                  return;
+                }
+
+                onListViewTabWidgetWorkingTreeTreeSelected(
+                    selected.indexes().front());
+              });
     }
 
     _commitStagedListModel.reset(

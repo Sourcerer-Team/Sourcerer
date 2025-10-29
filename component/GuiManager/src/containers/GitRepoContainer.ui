@@ -393,7 +393,7 @@
                      </sizepolicy>
                     </property>
                     <property name="currentIndex">
-                     <number>0</number>
+                     <number>1</number>
                     </property>
                     <widget class="QWidget" name="tabFlatWorkingTree">
                      <property name="sizePolicy">
@@ -480,7 +480,7 @@
                            <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
                           </property>
                           <property name="selectionMode">
-                           <enum>QAbstractItemView::SelectionMode::MultiSelection</enum>
+                           <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
                           </property>
                           <property name="indentation">
                            <number>20</number>
@@ -506,7 +506,7 @@
                      <enum>QTabWidget::TabShape::Rounded</enum>
                     </property>
                     <property name="currentIndex">
-                     <number>0</number>
+                     <number>1</number>
                     </property>
                     <widget class="QWidget" name="tabFlatIndex">
                      <property name="sizePolicy">
@@ -596,7 +596,7 @@
                         <item>
                          <widget class="GuiManager::Widgets::RightClickSelectTreeView" name="treeViewTabWidgetIndexTree">
                           <property name="selectionMode">
-                           <enum>QAbstractItemView::SelectionMode::MultiSelection</enum>
+                           <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
                           </property>
                           <property name="headerHidden">
                            <bool>true</bool>
