@@ -1227,7 +1227,7 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onListViewTabWidgetWorkingTreeFlatSelected(
+void GitRepoContainer::onListViewTabWidgetFlatSelected(
     const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
@@ -1247,7 +1247,7 @@ void GitRepoContainer::onListViewTabWidgetWorkingTreeFlatSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onListViewTabWidgetWorkingTreeTreeSelected(
+void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
     const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
@@ -1261,13 +1261,13 @@ void GitRepoContainer::onListViewTabWidgetWorkingTreeTreeSelected(
 
   Q_ASSERT(model);
 
-  if(!model) {
+  if (!model) {
     LOG_PERF(0, "Exit");
     return;
   }
 
   // Check if it is leaf node
-  if(model->rowCount(index) > 0) {
+  if (model->rowCount(index) > 0) {
     LOG_PERF(0, "Exit");
     return;
   }
@@ -1275,12 +1275,11 @@ void GitRepoContainer::onListViewTabWidgetWorkingTreeTreeSelected(
   QStringList path;
   QModelIndex current = index;
 
-
   while (current.isValid()) {
     QStandardItem *item = model->itemFromIndex(current);
     Q_ASSERT(item);
 
-    if(!item) {
+    if (!item) {
       continue;
     }
 
@@ -5669,8 +5668,7 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
                   return;
                 }
 
-                onListViewTabWidgetWorkingTreeFlatSelected(
-                    selected.indexes().front());
+                onListViewTabWidgetFlatSelected(selected.indexes().front());
               });
     }
 
@@ -5687,8 +5685,7 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
                   return;
                 }
 
-                onListViewTabWidgetWorkingTreeTreeSelected(
-                    selected.indexes().front());
+                onTreeViewTabWidgetTreeSelected(selected.indexes().front());
               });
     }
 
@@ -5696,12 +5693,34 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
         Models::GitCommitListModel::fromStaged(historyAndStatus.status));
     if (_commitStagedListModel) {
       ui->listViewTabWidgetIndexFlat->setModel(_commitStagedListModel.get());
+
+      connect(ui->listViewTabWidgetIndexFlat->selectionModel(),
+              &QItemSelectionModel::selectionChanged, this,
+              [=](const QItemSelection &selected,
+                  const QItemSelection &deselected) {
+                if (selected.isEmpty()) {
+                  return;
+                }
+
+                onListViewTabWidgetFlatSelected(selected.indexes().front());
+              });
     }
 
     _commitStagedTreeModel.reset(
         Models::GitCommitTreeModel::fromStaged(historyAndStatus.status));
     if (_commitStagedTreeModel) {
       ui->treeViewTabWidgetIndexTree->setModel(_commitStagedTreeModel.get());
+
+      connect(ui->treeViewTabWidgetIndexTree->selectionModel(),
+              &QItemSelectionModel::selectionChanged, this,
+              [=](const QItemSelection &selected,
+                  const QItemSelection &deselected) {
+                if (selected.isEmpty()) {
+                  return;
+                }
+
+                onTreeViewTabWidgetTreeSelected(selected.indexes().front());
+              });
     }
 
     resetCommitButton();
