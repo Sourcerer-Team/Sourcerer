@@ -1091,7 +1091,7 @@ void ProcessingState::diffFilesFromCommitWorker(
   }
 
   if (const QString diff =
-      GitRepo::diffFilesFromCommit(repo, command.files, command.commit);
+          GitRepo::diffFilesFromCommit(repo, command.files, command.commit);
       diff.isEmpty()) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(

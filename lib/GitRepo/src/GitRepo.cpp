@@ -2640,34 +2640,59 @@ QString diffFiles(git_repository *repo, const QStringList &files) {
   git_tree_free(headTree);
   git_strarray_destroy(arr);
 
-  const auto callback = [](const git_diff_delta *, const git_diff_hunk *hunk,
-                           const git_diff_line *line, void *payload) -> int {
-    QString *output = static_cast<QString *>(payload);
-
-    Q_ASSERT(output != nullptr);
-
-    if (!output) {
-      return 0;
-    }
-
-    if (line->origin == GIT_DIFF_LINE_FILE_HDR) {
-      // Skip file header lines
-      return 0;
-    }
-
-    output->append(QString::fromUtf8(line->content, line->content_len));
-
-    return 0;
-  };
-
   QString diffOutput;
 
-  error = git_diff_print(diff, GIT_DIFF_FORMAT_PATCH, callback, &diffOutput);
-  if (error) {
-    logGitError(error);
-    git_diff_free(diff);
-    LOG_PERF(0, "Exit");
-    return {};
+  size_t num_deltas = git_diff_num_deltas(diff);
+  for (size_t i = 0; i < num_deltas; ++i) {
+    const git_diff_delta *delta = git_diff_get_delta(diff, i);
+    diffOutput += QString("diff --git a/%1 b/%2\n")
+                      .arg(delta->old_file.path, delta->new_file.path);
+
+    git_patch *patch;
+    error = git_patch_from_diff(&patch, diff, i);
+    if (error) {
+      logGitError(error);
+      continue;
+    }
+
+    const size_t num_hunks = git_patch_num_hunks(patch);
+    for (size_t h = 0; h < num_hunks; ++h) {
+      const git_diff_hunk *hunk;
+      error = git_patch_get_hunk(&hunk, NULL, patch, h);
+      if (error) {
+        logGitError(error);
+        continue;
+      }
+
+      diffOutput += QString("@@ -%1,%2 +%3,%4 @@\n")
+                        .arg(hunk->old_start)
+                        .arg(hunk->old_lines)
+                        .arg(hunk->new_start)
+                        .arg(hunk->new_lines);
+
+      size_t num_lines = git_patch_num_lines_in_hunk(patch, h);
+      for (size_t l = 0; l < num_lines; ++l) {
+        const git_diff_line *line;
+        error = git_patch_get_line_in_hunk(&line, patch, h, l);
+        if (error) {
+          logGitError(error);
+          continue;
+        }
+
+        const char *start = line->content;
+        const char *end = start + line->content_len;
+        const char *newline =
+            static_cast<char *>(memchr(start, '\n', end - start));
+        if (!newline) {
+          newline = end;
+        }
+
+        diffOutput += QString("%1%2\n").arg(
+            line->origin, QString::fromUtf8(start, newline - start));
+      }
+    }
+
+    git_patch_free(patch);
   }
 
   git_diff_free(diff);
@@ -4134,48 +4159,59 @@ QString diffFilesFromCommit(git_repository *repo, const QStringList &files,
     return {};
   }
 
-  const auto callback = [](const git_diff_delta *, const git_diff_hunk *hunk,
-                           const git_diff_line *line, void *payload) -> int {
-    QString *output = static_cast<QString *>(payload);
-
-    Q_ASSERT(output != nullptr);
-
-    if (!output) {
-      return 0;
-    }
-
-    if (line->origin == GIT_DIFF_LINE_FILE_HDR) {
-      // Skip file header lines
-      return 0;
-    }
-
-    output->append(QString::fromUtf8(line->content, line->content_len));
-
-    return 0;
-  };
-
   QString diffOutput;
 
-  error = git_diff_print(diff, GIT_DIFF_FORMAT_PATCH, callback, &diffOutput);
-  if (error) {
-    logGitError(error);
-    git_commit_free(commit_);
-    git_tree_free(tree);
+  size_t num_deltas = git_diff_num_deltas(diff);
+  for (size_t i = 0; i < num_deltas; ++i) {
+    const git_diff_delta *delta = git_diff_get_delta(diff, i);
+    diffOutput += QString("diff --git a/%1 b/%2\n")
+                      .arg(delta->old_file.path, delta->new_file.path);
 
-    if (parent) {
-      git_commit_free(parent);
+    git_patch *patch;
+    error = git_patch_from_diff(&patch, diff, i);
+    if (error) {
+      logGitError(error);
+      continue;
     }
 
-    if (parentTree) {
-      git_tree_free(parentTree);
+    const size_t num_hunks = git_patch_num_hunks(patch);
+    for (size_t h = 0; h < num_hunks; ++h) {
+      const git_diff_hunk *hunk;
+      error = git_patch_get_hunk(&hunk, NULL, patch, h);
+      if (error) {
+        logGitError(error);
+        continue;
+      }
+
+      diffOutput += QString("@@ -%1,%2 +%3,%4 @@\n")
+                        .arg(hunk->old_start)
+                        .arg(hunk->old_lines)
+                        .arg(hunk->new_start)
+                        .arg(hunk->new_lines);
+
+      size_t num_lines = git_patch_num_lines_in_hunk(patch, h);
+      for (size_t l = 0; l < num_lines; ++l) {
+        const git_diff_line *line;
+        error = git_patch_get_line_in_hunk(&line, patch, h, l);
+        if (error) {
+          logGitError(error);
+          continue;
+        }
+
+        const char *start = line->content;
+        const char *end = start + line->content_len;
+        const char *newline =
+            static_cast<char *>(memchr(start, '\n', end - start));
+        if (!newline) {
+          newline = end;
+        }
+
+        diffOutput += QString("%1%2\n").arg(
+            line->origin, QString::fromUtf8(start, newline - start));
+      }
     }
 
-    git_diff_free(diff);
-
-    git_strarray_destroy(arr);
-
-    LOG_PERF(0, "Exit");
-    return {};
+    git_patch_free(patch);
   }
 
   git_commit_free(commit_);

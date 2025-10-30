@@ -309,7 +309,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   const qlonglong diffFontSize =
       _configManager.getLong(ConfigManager::ConfigKey::GitRepoDiffFontSize);
 
-  QsciLexerDiff *lexerDiffUnified = new QsciLexerDiff();
+  QsciLexerDiff *lexerDiffUnified =
+      new QsciLexerDiff(ui->scintillaTextEditorUnified);
   lexerDiffUnified->setFont(QFont(diffFontName, diffFontSize));
   lexerDiffUnified->setColor(QColor(0xf8f8f2), QsciLexerDiff::Default);
   lexerDiffUnified->setColor(QColor(0x7f8c8d), QsciLexerDiff::Comment);
@@ -323,9 +324,14 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaTextEditorUnified->setSizePolicy(QSizePolicy::Expanding,
                                                 QSizePolicy::Expanding);
   ui->scintillaTextEditorUnified->setWrapMode(QsciScintilla::WrapWord);
+  ui->scintillaTextEditorUnified->setLexer(lexerDiffUnified);
   ui->scintillaTextEditorUnified->setMarginsBackgroundColor(QColor(0x384D59));
   ui->scintillaTextEditorUnified->setMarginType(0, QsciScintilla::NumberMargin);
-  ui->scintillaTextEditorUnified->setLexer(lexerDiffUnified);
+  ui->scintillaTextEditorUnified->setMarginType(1, QsciScintilla::SymbolMargin);
+  ui->scintillaTextEditorUnified->setMarginWidth(1, 2);
+  ui->scintillaTextEditorUnified->markerDefine(QsciScintilla::Background, 1);
+  ui->scintillaTextEditorUnified->setMarkerBackgroundColor(Qt::darkYellow, 1);
+  ui->scintillaTextEditorUnified->setReadOnly(true);
 
   showMainSpinnerPage(false);
   showSpinnerOverlay();
@@ -1318,7 +1324,7 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelectedFromCommit(
     return;
   }
 
-         // Check if it is leaf node
+  // Check if it is leaf node
   if (model.rowCount(index) > 0) {
     LOG_PERF(0, "Exit");
     return;
@@ -3934,6 +3940,13 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
     const QString mask = QString::number(0).rightJustified(width + 1, '0');
     ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
     ui->scintillaTextEditorUnified->setText(diff);
+
+    // Mark hunk headers
+    for (int i = 0; i < ui->scintillaTextEditorUnified->lines(); ++i) {
+      if (ui->scintillaTextEditorUnified->text(i).startsWith("@@ "))
+        ui->scintillaTextEditorUnified->markerAdd(i, 1);
+    }
+
     ui->stackedWidgetMiddle->setCurrentIndex(1);
     ui->stackedWidgetDiff->setCurrentIndex(0);
   });
@@ -3962,7 +3975,7 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
   _eventManager.send(diffFilesFromCommitEvent);
 
   static std::set types = {
-                           EventManager::EventType::GitRepoManagerDiffFilesFromCommitError,
+      EventManager::EventType::GitRepoManagerDiffFilesFromCommitError,
       EventManager::EventType::GitRepoManagerDiffFilesFromCommitResult};
 
   const auto &[success, event] =
@@ -4016,6 +4029,13 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
     const QString mask = QString::number(0).rightJustified(width + 1, '0');
     ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
     ui->scintillaTextEditorUnified->setText(diff);
+
+    // Mark hunk headers
+    for (int i = 0; i < ui->scintillaTextEditorUnified->lines(); ++i) {
+      if (ui->scintillaTextEditorUnified->text(i).startsWith("@@ "))
+        ui->scintillaTextEditorUnified->markerAdd(i, 1);
+    }
+
     ui->stackedWidgetMiddle->setCurrentIndex(1);
     ui->stackedWidgetDiff->setCurrentIndex(0);
   });
