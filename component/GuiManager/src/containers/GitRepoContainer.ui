@@ -361,7 +361,7 @@
                 </sizepolicy>
                </property>
                <property name="currentIndex">
-                <number>0</number>
+                <number>1</number>
                </property>
                <widget class="QWidget" name="pageCommitAndMerge">
                 <property name="sizePolicy">
@@ -1269,7 +1269,7 @@
   </action>
   <action name="actionWorkingTreeTreeCreateFilePatch">
    <property name="text">
-    <string>Createfile  patch</string>
+    <string>Create file  patch</string>
    </property>
    <property name="menuRole">
     <enum>QAction::MenuRole::NoRole</enum>

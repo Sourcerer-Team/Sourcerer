@@ -4051,4 +4051,151 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   return true;
 }
 
+QString diffFilesFromCommit(git_repository *repo, const QStringList &files,
+                            const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  git_oid oid;
+
+  int error = git_oid_fromstr(&oid, commit.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_commit *commit_ = nullptr;
+
+  error = git_commit_lookup(&commit_, repo, &oid);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_tree *tree = nullptr;
+
+  error = git_commit_tree(&tree, commit_);
+  if (error) {
+    logGitError(error);
+    git_commit_free(commit_);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_commit *parent = nullptr;
+  git_tree *parentTree = nullptr;
+
+  if (git_commit_parentcount(commit_) > 0) {
+    error = git_commit_parent(&parent, commit_, 0);
+    if (error) {
+      logGitError(error);
+      git_commit_free(commit_);
+      git_tree_free(tree);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    error = git_commit_tree(&parentTree, parent);
+    if (error) {
+      logGitError(error);
+      git_commit_free(commit_);
+      git_tree_free(tree);
+      git_commit_free(parent);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+  }
+
+  git_diff *diff = nullptr;
+
+  git_strarray arr = qstringlist_to_git_strarray(files);
+
+  git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
+  opts.pathspec = arr;
+
+  error = git_diff_tree_to_tree(&diff, repo, parentTree, tree, &opts);
+  if (error) {
+    logGitError(error);
+    git_commit_free(commit_);
+    git_tree_free(tree);
+
+    if (parent) {
+      git_commit_free(parent);
+    }
+
+    if (parentTree) {
+      git_tree_free(parentTree);
+    }
+
+    git_strarray_destroy(arr);
+
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const auto callback = [](const git_diff_delta *, const git_diff_hunk *hunk,
+                           const git_diff_line *line, void *payload) -> int {
+    QString *output = static_cast<QString *>(payload);
+
+    Q_ASSERT(output != nullptr);
+
+    if (!output) {
+      return 0;
+    }
+
+    if (line->origin == GIT_DIFF_LINE_FILE_HDR) {
+      // Skip file header lines
+      return 0;
+    }
+
+    output->append(QString::fromUtf8(line->content, line->content_len));
+
+    return 0;
+  };
+
+  QString diffOutput;
+
+  error = git_diff_print(diff, GIT_DIFF_FORMAT_PATCH, callback, &diffOutput);
+  if (error) {
+    logGitError(error);
+    git_commit_free(commit_);
+    git_tree_free(tree);
+
+    if (parent) {
+      git_commit_free(parent);
+    }
+
+    if (parentTree) {
+      git_tree_free(parentTree);
+    }
+
+    git_diff_free(diff);
+
+    git_strarray_destroy(arr);
+
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_commit_free(commit_);
+  git_tree_free(tree);
+
+  if (parent) {
+    git_commit_free(parent);
+  }
+
+  if (parentTree) {
+    git_tree_free(parentTree);
+  }
+
+  git_diff_free(diff);
+
+  git_strarray_destroy(arr);
+
+  LOG_PERF(0, "Exit");
+
+  return diffOutput;
+}
+
 } // namespace GitRepo

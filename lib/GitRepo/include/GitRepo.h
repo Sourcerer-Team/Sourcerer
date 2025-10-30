@@ -198,6 +198,9 @@ bool commitStaged(git_repository *repo, const QString &summary,
 
 QString diffFiles(git_repository *repo, const QStringList &files);
 
+QString diffFilesFromCommit(git_repository *repo, const QStringList &files,
+                            const QString &commit);
+
 bool discardFiles(git_repository *repo, const QStringList &files);
 
 bool pull(git_repository *rep);

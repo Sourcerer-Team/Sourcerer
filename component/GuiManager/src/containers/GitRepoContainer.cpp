@@ -1247,6 +1247,26 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onListViewTabWidgetFlatSelectedFromCommit(
+    const QModelIndex &index, const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString filePath = index.data(Qt::DisplayRole).toString();
+
+  filePath = QDir::fromNativeSeparators(filePath);
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { diffFromCommit(guard, filePath, commit); });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
     const QModelIndex &index, const Models::GitCommitTreeModel &model) {
   LOG_PERF(0, "Enter");
@@ -1284,6 +1304,48 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { diff(guard, filePath); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onTreeViewTabWidgetTreeSelectedFromCommit(
+    const QModelIndex &index, const Models::GitCommitTreeModel &model,
+    const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+         // Check if it is leaf node
+  if (model.rowCount(index) > 0) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QStringList path;
+  QModelIndex current = index;
+
+  while (current.isValid()) {
+    QStandardItem *item = model.itemFromIndex(current);
+    Q_ASSERT(item);
+
+    if (!item) {
+      continue;
+    }
+
+    path.prepend(item->text());
+    current = current.parent();
+  }
+
+  QString filePath = path.join("/");
+
+  filePath = QDir::fromNativeSeparators(filePath);
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { diffFromCommit(guard, filePath, commit); });
 
   LOG_PERF(0, "Exit");
 }
@@ -3879,6 +3941,88 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
+                                      const QString &filePath,
+                                      const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoDiffFilesFromCommitCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.files += filePath;
+  command.commit = commit;
+
+  EventManager::Event diffFilesFromCommitEvent(
+      EventManager::EventType::GitRepoManagerDiffFilesFromCommit, eventUuid);
+  diffFilesFromCommitEvent.addData(command);
+  _eventManager.send(diffFilesFromCommitEvent);
+
+  static std::set types = {
+                           EventManager::EventType::GitRepoManagerDiffFilesFromCommitError,
+      EventManager::EventType::GitRepoManagerDiffFilesFromCommitResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(tr("Failed to create file diff."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerDiffFilesFromCommitResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString("%1\n%2").arg(tr("Failed to create file diff."),
+                                           error.message),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const QString diff = commandResult.value.toString();
+
+  if (diff.isEmpty()) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showToast(tr("No difference compared to the HEAD commit."), tr("Info"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    const QString normalized =
+        QString(diff).replace("\r\n", "\n").replace('\r', '\n');
+    const int lineCount = normalized.count('\n') + 1;
+    const int width = QString::number(lineCount).length();
+    const QString mask = QString::number(0).rightJustified(width + 1, '0');
+    ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
+    ui->scintillaTextEditorUnified->setText(diff);
+    ui->stackedWidgetMiddle->setCurrentIndex(1);
+    ui->stackedWidgetDiff->setCurrentIndex(0);
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
 void GitRepoContainer::diffFiles(const WeakPtr &guard,
                                  const QStringList &files) {
   LOG_PERF(0, "Enter");
@@ -5627,11 +5771,35 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     _commitListModel.reset(Models::GitCommitListModel::from(commitStatus));
     if (_commitListModel) {
       ui->listViewPageDisplayFilesFlat->setModel(_commitListModel.get());
+
+      connect(ui->listViewPageDisplayFilesFlat->selectionModel(),
+              &QItemSelectionModel::selectionChanged, this,
+              [=](const QItemSelection &selected,
+                  const QItemSelection &deselected) {
+                if (selected.isEmpty()) {
+                  return;
+                }
+
+                onListViewTabWidgetFlatSelectedFromCommit(
+                    selected.indexes().front(), commit);
+              });
     }
 
     _commitTreeModel.reset(Models::GitCommitTreeModel::from(commitStatus));
     if (_commitTreeModel) {
       ui->treeViewPageDisplayFilesTree->setModel(_commitTreeModel.get());
+
+      connect(ui->treeViewPageDisplayFilesTree->selectionModel(),
+              &QItemSelectionModel::selectionChanged, this,
+              [=](const QItemSelection &selected,
+                  const QItemSelection &deselected) {
+                if (selected.isEmpty()) {
+                  return;
+                }
+
+                onTreeViewTabWidgetTreeSelectedFromCommit(
+                    selected.indexes().front(), *_commitTreeModel, commit);
+              });
     }
   });
 

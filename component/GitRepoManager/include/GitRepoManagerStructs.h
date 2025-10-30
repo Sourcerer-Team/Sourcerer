@@ -30,6 +30,7 @@ enum class GitRepoCommandType : int {
   DeleteSubmodule,
   DeleteTag,
   DiffFiles,
+  DiffFilesFromCommit,
   DiscardFiles,
   GetActiveBranch,
   GetBranchHistory,
@@ -238,6 +239,16 @@ struct GitRepoDiffFilesCommand final : GitRepoCommand {
   ~GitRepoDiffFilesCommand() override = default;
 
   QStringList files;
+};
+
+struct GitRepoDiffFilesFromCommitCommand final : GitRepoCommand {
+  GitRepoDiffFilesFromCommitCommand()
+      : GitRepoCommand(GitRepoCommandType::DiffFilesFromCommit) {}
+
+  ~GitRepoDiffFilesFromCommitCommand() override = default;
+
+  QStringList files;
+  QString commit;
 };
 
 struct GitRepoDiscardFilesCommand final : GitRepoCommand {

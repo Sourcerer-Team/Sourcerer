@@ -57,6 +57,9 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiffFiles, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDiffFilesFromCommit,
+      callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiscardFiles, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranch, callbackFunc));
@@ -157,6 +160,9 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerDeleteTag, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiffFiles, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDiffFilesFromCommit,
+      callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiscardFiles, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -364,6 +370,16 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent diffFilesEvent(EventType::DiffFiles);
     diffFilesEvent.addParam(QVariant::fromValue(diffFilesCommand));
     _fsm.send(diffFilesEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerDiffFilesFromCommit: {
+    const auto diffFilesFromCommitCommand =
+        event.data<GitRepoDiffFilesFromCommitCommand>();
+    GitRepoManagerEvent diffFilesFromCommitEvent(
+        EventType::DiffFilesFromCommit);
+    diffFilesFromCommitEvent.addParam(
+        QVariant::fromValue(diffFilesFromCommitCommand));
+    _fsm.send(diffFilesFromCommitEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerDiscardFiles: {

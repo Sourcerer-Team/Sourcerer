@@ -96,8 +96,13 @@ private slots:
   void onHistoryViewRightClicked(const QModelIndex &index, const QPoint &pos);
   void onHistoryViewItemEntered(const QModelIndex &index);
   void onListViewTabWidgetFlatSelected(const QModelIndex &index);
+  void onListViewTabWidgetFlatSelectedFromCommit(const QModelIndex &index,
+                                                 const QString &commit);
   void onTreeViewTabWidgetTreeSelected(const QModelIndex &index,
                                        const Models::GitCommitTreeModel &model);
+  void onTreeViewTabWidgetTreeSelectedFromCommit(
+      const QModelIndex &index, const Models::GitCommitTreeModel &model,
+      const QString &commit);
   void onLocalBranchSelected(const QString &branchName);
   void onLocalBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onMixedResetToCommit(const QString &commit);
@@ -185,6 +190,8 @@ private:
   void deleteTag(const WeakPtr &guard, const QString &tagName);
   void deleteSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void diff(const WeakPtr &guard, const QString &filePath);
+  void diffFromCommit(const WeakPtr &guard, const QString &filePath,
+                      const QString &commit);
   void diffFiles(const WeakPtr &guard, const QStringList &files);
   void discardFiles(const WeakPtr &guard, const QStringList &files);
   bool getActiveBranchOrTag(const WeakPtr &guard,

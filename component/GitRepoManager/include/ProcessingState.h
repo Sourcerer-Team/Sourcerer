@@ -50,6 +50,8 @@ private:
   deleteSubmoduleWorker(const Structs::GitRepoDeleteSubmoduleCommand &command);
   void deleteTagWorker(const Structs::GitRepoDeleteTagCommand &command);
   void diffFilesWorker(const Structs::GitRepoDiffFilesCommand &command);
+  void diffFilesFromCommitWorker(
+      const Structs::GitRepoDiffFilesFromCommitCommand &command);
   void discardFilesWorker(const Structs::GitRepoDiscardFilesCommand &command);
   void eventCallback(const EventManager::Event event);
   void
@@ -137,6 +139,8 @@ private:
   scheduleWorkerForDeleteTag(const Structs::GitRepoDeleteTagCommand &command);
   void
   scheduleWorkerForDiffFiles(const Structs::GitRepoDiffFilesCommand &command);
+  void scheduleWorkerForDiffFilesFromCommit(
+      const Structs::GitRepoDiffFilesFromCommitCommand &command);
   void scheduleWorkerForDiscardFiles(
       const Structs::GitRepoDiscardFilesCommand &command);
   void scheduleWorkerForGetBranchHistory(

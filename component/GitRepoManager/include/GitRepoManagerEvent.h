@@ -25,6 +25,7 @@ enum class EventType : int {
   DeleteSubmodule,
   DeleteTag,
   DiffFiles,
+  DiffFilesFromCommit,
   DiscardFiles,
   GetActiveBranch,
   GetBranchHistory,
