@@ -8,6 +8,7 @@
 #include <Log.h>
 
 #include <git2.h>
+#include <git2/blob.h>
 #include <git2/branch.h>
 #include <git2/checkout.h>
 #include <git2/clone.h>
@@ -2581,14 +2582,14 @@ bool commitStaged(git_repository *repo, const QString &summary,
   return true;
 }
 
-QString diffFiles(git_repository *repo, const QStringList &files) {
+FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
     LOG_PERF(0, "Exit");
-    return QString();
+    return {};
   }
 
   git_object *headCommit = nullptr;
@@ -2697,9 +2698,103 @@ QString diffFiles(git_repository *repo, const QStringList &files) {
 
   git_diff_free(diff);
 
+  git_reference *headRef = nullptr;
+
+  error = git_repository_head(&headRef, repo);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  headCommit = nullptr;
+
+  error = git_reference_peel(&headCommit, headRef, GIT_OBJECT_COMMIT);
+  if (error) {
+    logGitError(error);
+    git_reference_free(headRef);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_tree *tree = nullptr;
+
+  error =
+      git_commit_tree(&tree, reinterpret_cast<const git_commit *>(headCommit));
+  if (error) {
+    logGitError(error);
+    git_reference_free(headRef);
+    git_commit_free(reinterpret_cast<git_commit *>(headCommit));
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  QMap<QString, QString> filesContent;
+  QMap<QString, QString> repoContent;
+
+  for (const auto &file : files) {
+    const QString repoPath = git_repository_workdir(repo);
+    const QString filePath = QDir::fromNativeSeparators(file);
+    const QString fullPath = repoPath + filePath;
+
+    QFile fileObj(fullPath);
+    if (fileObj.open(QIODevice::ReadOnly)) {
+      const QByteArray content = fileObj.readAll();
+      filesContent.insert(file, QString::fromUtf8(content));
+      fileObj.close();
+    } else {
+      filesContent.insert(file, QString());
+    }
+
+    git_tree_entry *entry = nullptr;
+
+    error = git_tree_entry_bypath(&entry, tree, filePath.toStdString().c_str());
+    if (error) {
+      logGitError(error);
+      repoContent.insert(file, QString());
+      continue;
+    }
+
+    const git_oid *fullOid = git_tree_entry_id(entry);
+    if (!fullOid) {
+      logGitError(error);
+      git_tree_entry_free(entry);
+      repoContent.insert(file, QString());
+      continue;
+    }
+
+    git_blob *blob = nullptr;
+    error = git_blob_lookup_prefix(&blob, repo, fullOid, 7);
+    if (error) {
+      logGitError(error);
+      git_tree_entry_free(entry);
+      repoContent.insert(file, QString());
+      continue;
+    }
+
+    const char *blobContent =
+        static_cast<const char *>(git_blob_rawcontent(blob));
+    const size_t blobSize = git_blob_rawsize(blob);
+
+    repoContent.insert(file, QString::fromUtf8(blobContent, blobSize));
+
+    git_tree_entry_free(entry);
+    git_blob_free(blob);
+  }
+
+  git_reference_free(headRef);
+  git_commit_free(reinterpret_cast<git_commit *>(headCommit));
+  git_tree_free(tree);
+
+  FilesDiff filesDiff;
+  filesDiff.diff = diffOutput;
+  filesDiff.filesContent = filesContent;
+  filesDiff.repoContent = repoContent;
+  filesDiff.valid = true;
+
   LOG_PERF(0, "Exit");
 
-  return diffOutput;
+  return filesDiff;
 }
 
 bool discardFiles(git_repository *repo, const QStringList &files) {
@@ -4076,8 +4171,8 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   return true;
 }
 
-QString diffFilesFromCommit(git_repository *repo, const QStringList &files,
-                            const QString &commit) {
+FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
+                              const QString &commit) {
   LOG_PERF(0, "Enter");
 
   git_oid oid;
@@ -4214,9 +4309,6 @@ QString diffFilesFromCommit(git_repository *repo, const QStringList &files,
     git_patch_free(patch);
   }
 
-  git_commit_free(commit_);
-  git_tree_free(tree);
-
   if (parent) {
     git_commit_free(parent);
   }
@@ -4229,9 +4321,75 @@ QString diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
   git_strarray_destroy(arr);
 
+  QMap<QString, QString> filesContent;
+  QMap<QString, QString> repoContent;
+
+  for (const auto &file : files) {
+    const QString repoPath = git_repository_workdir(repo);
+    const QString filePath = QDir::fromNativeSeparators(file);
+    const QString fullPath = repoPath + filePath;
+
+    QFile fileObj(fullPath);
+    if (fileObj.open(QIODevice::ReadOnly)) {
+      const QByteArray content = fileObj.readAll();
+      filesContent.insert(file, QString::fromUtf8(content));
+      fileObj.close();
+    } else {
+      filesContent.insert(file, QString());
+    }
+
+    git_tree_entry *entry = nullptr;
+
+    error = git_tree_entry_bypath(&entry, tree, filePath.toStdString().c_str());
+    if (error) {
+      logGitError(error);
+      git_tree_free(tree);
+      repoContent.insert(file, QString());
+      continue;
+    }
+
+    const git_oid *fullOid = git_tree_entry_id(entry);
+    if (!fullOid) {
+      logGitError(error);
+      git_tree_free(tree);
+      git_tree_entry_free(entry);
+      repoContent.insert(file, QString());
+      continue;
+    }
+
+    git_blob *blob = nullptr;
+    error = git_blob_lookup_prefix(&blob, repo, fullOid, 7);
+    if (error) {
+      logGitError(error);
+      git_tree_free(tree);
+      git_tree_entry_free(entry);
+      repoContent.insert(file, QString());
+      continue;
+    }
+
+    const char *blobContent =
+        static_cast<const char *>(git_blob_rawcontent(blob));
+    const size_t blobSize = git_blob_rawsize(blob);
+
+    repoContent.insert(file, QString::fromUtf8(blobContent, blobSize));
+
+    git_tree_free(tree);
+    git_tree_entry_free(entry);
+    git_blob_free(blob);
+  }
+
+  git_commit_free(commit_);
+  git_tree_free(tree);
+
+  FilesDiff filesDiff;
+  filesDiff.diff = diffOutput;
+  filesDiff.filesContent = filesContent;
+  filesDiff.repoContent = repoContent;
+  filesDiff.valid = true;
+
   LOG_PERF(0, "Exit");
 
-  return diffOutput;
+  return filesDiff;
 }
 
 } // namespace GitRepo

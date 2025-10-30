@@ -131,6 +131,13 @@ enum class ResetType {
   last
 };
 
+struct FilesDiff {
+  QString diff;
+  QMap<QString, QString> filesContent;
+  QMap<QString, QString> repoContent;
+  bool valid = false;
+};
+
 GitError getLastError();
 
 void initForCurrentThread();
@@ -196,9 +203,9 @@ bool commitStaged(git_repository *repo, const QString &summary,
                   const QString &message, const QString &author,
                   const QString &email);
 
-QString diffFiles(git_repository *repo, const QStringList &files);
+FilesDiff diffFiles(git_repository *repo, const QStringList &files);
 
-QString diffFilesFromCommit(git_repository *repo, const QStringList &files,
+FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
                             const QString &commit);
 
 bool discardFiles(git_repository *repo, const QStringList &files);

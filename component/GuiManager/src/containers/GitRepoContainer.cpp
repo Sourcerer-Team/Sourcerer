@@ -63,6 +63,15 @@ enum class CommitAndMergeStackIndexes {
   last
 };
 
+enum class DiffStackIndexes {
+  Unknown = -1,
+
+  DiffUnified = 0,
+  DiffSideBySide = 1,
+
+  last
+};
+
 QStringList traverseModelIndexSubtree(const QModelIndex &parent,
                                       const QAbstractItemModel *model) {
   if (!parent.isValid()) {
@@ -1024,6 +1033,7 @@ void GitRepoContainer::onDiffCloseClicked() const {
   LOG_PERF(0, "Enter");
 
   ui->stackedWidgetMiddle->setCurrentIndex(0);
+
   stretchBranchHistoryTableColumns();
 
   LOG_PERF(0, "Exit");
@@ -1034,6 +1044,9 @@ void GitRepoContainer::onDiffUnifiedClicked() {
 
   ui->pushButtonDiffSideBySide->setChecked(false);
 
+  ui->stackedWidgetDiff->setCurrentIndex(
+      static_cast<int>(DiffStackIndexes::DiffUnified));
+
   LOG_PERF(0, "Exit");
 }
 
@@ -1041,6 +1054,9 @@ void GitRepoContainer::onDiffSideBySideClicked() {
   LOG_PERF(0, "Enter");
 
   ui->pushButtonDiffUnified->setChecked(false);
+
+  ui->stackedWidgetDiff->setCurrentIndex(
+      static_cast<int>(DiffStackIndexes::DiffSideBySide));
 
   LOG_PERF(0, "Exit");
 }
@@ -3920,9 +3936,10 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
   }
 
   const auto commandResult = event.data<GitRepoResult>();
-  const QString diff = commandResult.value.toString();
+  const auto filesDiff =
+      commandResult.value.value<GitRepoDiffFilesCommandResult>();
 
-  if (diff.isEmpty()) {
+  if (filesDiff.diff.isEmpty()) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showSpinnerOverlay(false);
       showToast(tr("No difference compared to the HEAD commit."), tr("Info"));
@@ -3934,12 +3951,12 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     const QString normalized =
-        QString(diff).replace("\r\n", "\n").replace('\r', '\n');
+        QString(filesDiff.diff).replace("\r\n", "\n").replace('\r', '\n');
     const int lineCount = normalized.count('\n') + 1;
     const int width = QString::number(lineCount).length();
     const QString mask = QString::number(0).rightJustified(width + 1, '0');
     ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
-    ui->scintillaTextEditorUnified->setText(diff);
+    ui->scintillaTextEditorUnified->setText(filesDiff.diff);
 
     // Mark hunk headers
     for (int i = 0; i < ui->scintillaTextEditorUnified->lines(); ++i) {
@@ -3947,8 +3964,12 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
         ui->scintillaTextEditorUnified->markerAdd(i, 1);
     }
 
+    if (!filesDiff.filesContent.isEmpty() && !filesDiff.repoContent.isEmpty()) {
+      ui->sideBySideDiffViewer->loadAndHighlight(filesDiff.filesContent.first(),
+                                                 filesDiff.repoContent.first());
+    }
+
     ui->stackedWidgetMiddle->setCurrentIndex(1);
-    ui->stackedWidgetDiff->setCurrentIndex(0);
   });
 
   LOG_PERF(0, "Exit")
@@ -4009,9 +4030,10 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
   }
 
   const auto commandResult = event.data<GitRepoResult>();
-  const QString diff = commandResult.value.toString();
+  const auto filesDiff =
+      commandResult.value.value<GitRepoDiffFilesFromCommitCommandResult>();
 
-  if (diff.isEmpty()) {
+  if (filesDiff.diff.isEmpty()) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showSpinnerOverlay(false);
       showToast(tr("No difference compared to the HEAD commit."), tr("Info"));
@@ -4023,12 +4045,12 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     const QString normalized =
-        QString(diff).replace("\r\n", "\n").replace('\r', '\n');
+        QString(filesDiff.diff).replace("\r\n", "\n").replace('\r', '\n');
     const int lineCount = normalized.count('\n') + 1;
     const int width = QString::number(lineCount).length();
     const QString mask = QString::number(0).rightJustified(width + 1, '0');
     ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
-    ui->scintillaTextEditorUnified->setText(diff);
+    ui->scintillaTextEditorUnified->setText(filesDiff.diff);
 
     // Mark hunk headers
     for (int i = 0; i < ui->scintillaTextEditorUnified->lines(); ++i) {
@@ -4036,8 +4058,12 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
         ui->scintillaTextEditorUnified->markerAdd(i, 1);
     }
 
+    if (!filesDiff.filesContent.isEmpty() && !filesDiff.repoContent.isEmpty()) {
+      ui->sideBySideDiffViewer->loadAndHighlight(filesDiff.filesContent.first(),
+                                                 filesDiff.repoContent.first());
+    }
+
     ui->stackedWidgetMiddle->setCurrentIndex(1);
-    ui->stackedWidgetDiff->setCurrentIndex(0);
   });
 
   LOG_PERF(0, "Exit")
@@ -4095,9 +4121,10 @@ void GitRepoContainer::diffFiles(const WeakPtr &guard,
   }
 
   const auto commandResult = event.data<GitRepoResult>();
-  const QString diff = commandResult.value.toString();
+  const auto filesDiff =
+      commandResult.value.value<GitRepoDiffFilesCommandResult>();
 
-  if (diff.isEmpty()) {
+  if (filesDiff.diff.isEmpty()) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showSpinnerOverlay(false);
       showToast(tr("No difference compared to the HEAD commit."), tr("Info"));
@@ -4122,7 +4149,7 @@ void GitRepoContainer::diffFiles(const WeakPtr &guard,
     }
 
     QTextStream out(&file);
-    out << diff;
+    out << filesDiff.diff;
     out.flush();
 
     file.close();

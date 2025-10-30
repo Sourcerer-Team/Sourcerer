@@ -241,6 +241,12 @@ struct GitRepoDiffFilesCommand final : GitRepoCommand {
   QStringList files;
 };
 
+struct GitRepoDiffFilesCommandResult {
+  QString diff;
+  QMap<QString, QString> filesContent;
+  QMap<QString, QString> repoContent;
+};
+
 struct GitRepoDiffFilesFromCommitCommand final : GitRepoCommand {
   GitRepoDiffFilesFromCommitCommand()
       : GitRepoCommand(GitRepoCommandType::DiffFilesFromCommit) {}
@@ -249,6 +255,12 @@ struct GitRepoDiffFilesFromCommitCommand final : GitRepoCommand {
 
   QStringList files;
   QString commit;
+};
+
+struct GitRepoDiffFilesFromCommitCommandResult {
+  QString diff;
+  QMap<QString, QString> filesContent;
+  QMap<QString, QString> repoContent;
 };
 
 struct GitRepoDiscardFilesCommand final : GitRepoCommand {

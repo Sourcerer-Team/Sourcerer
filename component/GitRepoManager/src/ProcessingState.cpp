@@ -1052,8 +1052,9 @@ void ProcessingState::diffFilesWorker(
     repo = ctx->gitRepo;
   }
 
-  if (const QString diff = GitRepo::diffFiles(repo, command.files);
-      diff.isEmpty()) {
+  const GitRepo::FilesDiff filesDiff = GitRepo::diffFiles(repo, command.files);
+
+  if (!filesDiff.valid) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDiffFilesError,
@@ -1061,10 +1062,16 @@ void ProcessingState::diffFilesWorker(
     errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
     _eventManager.send(errorEvent);
   } else {
+    GitRepoDiffFilesCommandResult commandResult;
+    commandResult.diff = filesDiff.diff;
+    commandResult.filesContent = filesDiff.filesContent;
+    commandResult.repoContent = filesDiff.repoContent;
+
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerDiffFilesResult,
         command.syncUuid);
-    resultEvent.addData(GitRepoResult{command.uuid, command.type, diff});
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(commandResult)});
     _eventManager.send(resultEvent);
   }
 
@@ -1090,9 +1097,10 @@ void ProcessingState::diffFilesFromCommitWorker(
     repo = ctx->gitRepo;
   }
 
-  if (const QString diff =
-          GitRepo::diffFilesFromCommit(repo, command.files, command.commit);
-      diff.isEmpty()) {
+  const GitRepo::FilesDiff filesDiff =
+      GitRepo::diffFilesFromCommit(repo, command.files, command.commit);
+
+  if (!filesDiff.valid) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDiffFilesFromCommitError,
@@ -1100,10 +1108,16 @@ void ProcessingState::diffFilesFromCommitWorker(
     errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
     _eventManager.send(errorEvent);
   } else {
+    GitRepoDiffFilesFromCommitCommandResult commandResult;
+    commandResult.diff = filesDiff.diff;
+    commandResult.filesContent = filesDiff.filesContent;
+    commandResult.repoContent = filesDiff.repoContent;
+
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerDiffFilesFromCommitResult,
         command.syncUuid);
-    resultEvent.addData(GitRepoResult{command.uuid, command.type, diff});
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(commandResult)});
     _eventManager.send(resultEvent);
   }
 

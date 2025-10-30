@@ -339,7 +339,17 @@
                        </item>
                       </layout>
                      </widget>
-                     <widget class="QWidget" name="pageDiffSideBySide"/>
+                     <widget class="QWidget" name="pageDiffSideBySide">
+                      <layout class="QVBoxLayout" name="verticalLayout_5">
+                       <item>
+                        <layout class="QVBoxLayout" name="verticalLayoutScintillaDiffSideBySide">
+                         <item>
+                          <widget class="GuiManager::Widgets::SideBySideDiffView" name="sideBySideDiffViewer" native="true"/>
+                         </item>
+                        </layout>
+                       </item>
+                      </layout>
+                     </widget>
                     </widget>
                    </item>
                   </layout>
@@ -1451,6 +1461,12 @@
    <class>QsciScintilla</class>
    <extends>QWidget</extends>
    <header>Qsci/qsciscintilla.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>GuiManager::Widgets::SideBySideDiffView</class>
+   <extends>QWidget</extends>
+   <header>widgets/SideBySideDiffView.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
