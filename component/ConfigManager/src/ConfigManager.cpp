@@ -81,7 +81,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::GitRepoGitCredentialsExpirationTime, 30000},
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 1000},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout, 2000},
-    {ConfigKey::GitRepoDiffFontSize, 12},
+    {ConfigKey::GitRepoDiffFontSize, 10},
     {ConfigKey::InfoToastDisplayTime, 8000},
     {ConfigKey::MainWindowBorderWidth, 2},
     {ConfigKey::MainWindowMinimumWidth, 800},
@@ -98,7 +98,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::GitRepoSplitterPos, ""},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
-    {ConfigKey::GitRepoDiffFontName, "Courier"},
+    {ConfigKey::GitRepoDiffFontName, "Lucida Console"},
     {ConfigKey::RecentlyOpenedRepos, ""},
     {ConfigKey::SettingsSplitterPos, ""}};
 

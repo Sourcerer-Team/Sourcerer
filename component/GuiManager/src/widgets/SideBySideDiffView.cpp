@@ -1,4 +1,6 @@
 #include "widgets/SideBySideDiffView.h"
+#include "DarkThemeLexersHighlighter.h"
+#include "QScintillaLexerFactory.h"
 
 #include <Log.h>
 
@@ -18,17 +20,16 @@ struct AlignedLine {
 };
 
 SideBySideDiffView::SideBySideDiffView(QWidget *parent)
-    : QWidget(parent), leftEditor(new QsciScintilla(this)),
-      rightEditor(new QsciScintilla(this)),
+    : QWidget(parent), _leftEditor(new QsciScintilla(this)),
+      _rightEditor(new QsciScintilla(this)),
       _configManager(::ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
-  setupEditors();
   syncScrollbars();
 
   auto *layout = new QHBoxLayout(this);
-  layout->addWidget(leftEditor);
-  layout->addWidget(rightEditor);
+  layout->addWidget(_leftEditor);
+  layout->addWidget(_rightEditor);
   setLayout(layout);
 
   LOG_PERF(0, "Exit");
@@ -54,8 +55,11 @@ static QList<AlignedLine> compareFiles(const QStringList &leftLines,
 }
 
 void SideBySideDiffView::loadAndHighlight(const QString &leftContent,
-                                          const QString &rightContent) {
+                                          const QString &rightContent,
+                                          const QString &extension) {
   LOG_PERF(0, "Enter");
+
+  setupEditors(extension);
 
   const QStringList leftRaw =
       QString(leftContent).replace("\r\n", "\n").split('\n');
@@ -86,47 +90,50 @@ void SideBySideDiffView::loadAndHighlight(const QString &leftContent,
   const QString rightMask =
       QString::number(0).rightJustified(rightWidth + 1, '0');
 
-  leftEditor->setMarginWidth(0, leftMask);
-  rightEditor->setMarginWidth(0, rightMask);
+  _leftEditor->setMarginWidth(0, leftMask);
+  _rightEditor->setMarginWidth(0, rightMask);
 
-  leftEditor->setText(leftAlignedContent);
-  rightEditor->setText(rightAlignedContent);
+  _leftEditor->setText(leftAlignedContent);
+  _rightEditor->setText(rightAlignedContent);
 
          // Highlight differing lines
-  leftEditor->markerDefine(QsciScintilla::Background, 1);
-  rightEditor->markerDefine(QsciScintilla::Background, 1);
-  leftEditor->setMarkerBackgroundColor(Qt::yellow, 1);
-  rightEditor->setMarkerBackgroundColor(Qt::yellow, 1);
+  _leftEditor->markerDefine(QsciScintilla::Background, 1);
+  _rightEditor->markerDefine(QsciScintilla::Background, 1);
+  _leftEditor->setMarkerBackgroundColor(Qt::yellow, 1);
+  _rightEditor->setMarkerBackgroundColor(Qt::yellow, 1);
 
   for (int line : diffLines) {
-    leftEditor->markerAdd(line, 1);
-    rightEditor->markerAdd(line, 1);
+    _leftEditor->markerAdd(line, 1);
+    _rightEditor->markerAdd(line, 1);
   }
 
   LOG_PERF(0, "Exit");
 }
 
-void SideBySideDiffView::setupEditors() {
+void SideBySideDiffView::setupEditors(const QString &extension) {
   LOG_PERF(0, "Enter");
 
-  auto *lexer = new QsciLexerDiff(this);
-  leftEditor->setLexer(lexer);
-  rightEditor->setLexer(lexer);
+  const QScintillaLexerFactory factory;
 
-  const QString fontName =
-      _configManager.getString(::ConfigManager::ConfigKey::GitRepoDiffFontName);
-  const qlonglong fontSize =
-      _configManager.getLong(::ConfigManager::ConfigKey::GitRepoDiffFontSize);
+  auto *lexer = factory.createLexerForExtension(extension, this);
 
-  const QFont font(fontName, fontSize);
-  leftEditor->setFont(font);
-  rightEditor->setFont(font);
+  _leftEditor->setLexer(lexer);
+  _rightEditor->setLexer(lexer);
 
-  leftEditor->setMarginsBackgroundColor(Qt::lightGray);
-  rightEditor->setMarginsBackgroundColor(Qt::lightGray);
+  _leftEditor->setMarginType(0, QsciScintilla::NumberMargin);
+  _leftEditor->setMarginType(1, QsciScintilla::SymbolMargin);
+  _leftEditor->setMarginWidth(1, 2);
 
-  leftEditor->setWrapMode(QsciScintilla::WrapNone);
-  rightEditor->setWrapMode(QsciScintilla::WrapNone);
+  _rightEditor->setMarginType(0, QsciScintilla::NumberMargin);
+  _rightEditor->setMarginType(1, QsciScintilla::SymbolMargin);
+  _rightEditor->setMarginWidth(1, 2);
+
+  _leftEditor->setWrapMode(QsciScintilla::WrapNone);
+  _rightEditor->setWrapMode(QsciScintilla::WrapNone);
+
+  DarkThemeLexersHighlighter highligheter;
+  highligheter.applyDarkTheme(_leftEditor);
+  highligheter.applyDarkTheme(_rightEditor);
 
   LOG_PERF(0, "Exit");
 }
@@ -134,10 +141,10 @@ void SideBySideDiffView::setupEditors() {
 void SideBySideDiffView::syncScrollbars() {
   LOG_PERF(0, "Enter");
 
-  connect(leftEditor->verticalScrollBar(), &QScrollBar::valueChanged,
-          rightEditor->verticalScrollBar(), &QScrollBar::setValue);
-  connect(rightEditor->verticalScrollBar(), &QScrollBar::valueChanged,
-          leftEditor->verticalScrollBar(), &QScrollBar::setValue);
+  connect(_leftEditor->verticalScrollBar(), &QScrollBar::valueChanged,
+          _rightEditor->verticalScrollBar(), &QScrollBar::setValue);
+  connect(_rightEditor->verticalScrollBar(), &QScrollBar::valueChanged,
+          _leftEditor->verticalScrollBar(), &QScrollBar::setValue);
 
   LOG_PERF(0, "Exit");
 }

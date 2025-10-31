@@ -1,4 +1,6 @@
 #include "containers/GitRepoContainer.h"
+#include "DarkThemeLexersHighlighter.h"
+#include "QScintillaLexerFactory.h"
 #include "containers/ui_GitRepoContainer.h"
 #include "delegates/ElidePartialColorDelegate.h"
 #include "delegates/HistorySliceTableColumnDelegate.h"
@@ -19,12 +21,11 @@
 #include <Log.h>
 #include <Uuid.h>
 
-#include <Qsci/qscilexerdiff.h>
-
 #include <QCheckBox>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -313,22 +314,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonDiffSideBySide->setMinimumSize(32, 32);
   ui->pushButtonDiffSideBySide->setMaximumSize(32, 32);
 
-  const QString diffFontName =
-      _configManager.getString(ConfigManager::ConfigKey::GitRepoDiffFontName);
-  const qlonglong diffFontSize =
-      _configManager.getLong(ConfigManager::ConfigKey::GitRepoDiffFontSize);
+  const QScintillaLexerFactory factory;
 
-  QsciLexerDiff *lexerDiffUnified =
-      new QsciLexerDiff(ui->scintillaTextEditorUnified);
-  lexerDiffUnified->setFont(QFont(diffFontName, diffFontSize));
-  lexerDiffUnified->setColor(QColor(0xf8f8f2), QsciLexerDiff::Default);
-  lexerDiffUnified->setColor(QColor(0x7f8c8d), QsciLexerDiff::Comment);
-  lexerDiffUnified->setColor(QColor(0xe67e22), QsciLexerDiff::Command);
-  lexerDiffUnified->setColor(QColor(0x9b59b6), QsciLexerDiff::Header);
-  lexerDiffUnified->setColor(QColor(0x3498db), QsciLexerDiff::Position);
-  lexerDiffUnified->setColor(QColor(0x2ecc71), QsciLexerDiff::LineAdded);
-  lexerDiffUnified->setColor(QColor(0xe74c3c), QsciLexerDiff::LineRemoved);
-  lexerDiffUnified->setColor(QColor(0xf1c40f), QsciLexerDiff::LineChanged);
+  QsciLexer *lexerDiffUnified =
+      factory.createLexerByName("Diff", ui->scintillaTextEditorUnified);
 
   ui->scintillaTextEditorUnified->setSizePolicy(QSizePolicy::Expanding,
                                                 QSizePolicy::Expanding);
@@ -341,6 +330,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaTextEditorUnified->markerDefine(QsciScintilla::Background, 1);
   ui->scintillaTextEditorUnified->setMarkerBackgroundColor(Qt::darkYellow, 1);
   ui->scintillaTextEditorUnified->setReadOnly(true);
+
+  DarkThemeLexersHighlighter highlighter;
+  highlighter.applyDarkTheme(ui->scintillaTextEditorUnified);
 
   showMainSpinnerPage(false);
   showSpinnerOverlay();
@@ -3279,8 +3271,6 @@ void GitRepoContainer::createBranchFromCommit(
 
   const auto commandResult = event.data<GitRepoResult>();
 
-  const bool createSuccess = commandResult.value.toBool();
-
   refreshHistory(guard);
 
   if (onSuccess) {
@@ -3444,8 +3434,6 @@ void GitRepoContainer::createTagFromCommit(const WeakPtr &guard,
   }
 
   const auto commandResult = event.data<GitRepoResult>();
-
-  const bool createSuccess = commandResult.value.toBool();
 
   refreshHistory(guard);
 
@@ -3965,8 +3953,10 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
     }
 
     if (!filesDiff.filesContent.isEmpty() && !filesDiff.repoContent.isEmpty()) {
+      const QFileInfo fileInfo(filesDiff.filesContent.firstKey());
       ui->sideBySideDiffViewer->loadAndHighlight(filesDiff.filesContent.first(),
-                                                 filesDiff.repoContent.first());
+                                                 filesDiff.repoContent.first(),
+                                                 fileInfo.suffix());
     }
 
     ui->stackedWidgetMiddle->setCurrentIndex(1);
@@ -4059,8 +4049,10 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
     }
 
     if (!filesDiff.filesContent.isEmpty() && !filesDiff.repoContent.isEmpty()) {
+      const QFileInfo fileInfo(filesDiff.filesContent.firstKey());
       ui->sideBySideDiffViewer->loadAndHighlight(filesDiff.filesContent.first(),
-                                                 filesDiff.repoContent.first());
+                                                 filesDiff.repoContent.first(),
+                                                 fileInfo.suffix());
     }
 
     ui->stackedWidgetMiddle->setCurrentIndex(1);
@@ -5537,10 +5529,8 @@ void GitRepoContainer::revert(const WeakPtr &guard, const QString &commit) {
   command.author =
       Common::UserProfileManager::instance().currentProfile().author;
   command.email = Common::UserProfileManager::instance().currentProfile().email;
-  command.message =
-      QString("[%1] %2")
-          .arg(tr("Revert"))
-          .arg(summaryToRevert.isEmpty() ? commit : summaryToRevert);
+  command.message = QString("[%1] %2").arg(
+      tr("Revert"), summaryToRevert.isEmpty() ? commit : summaryToRevert);
 
   EventManager::Event revertEvent(EventManager::EventType::GitRepoManagerRevert,
                                   eventUuid);

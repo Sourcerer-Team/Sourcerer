@@ -15,16 +15,16 @@ class SideBySideDiffView : public QWidget {
 public:
   SideBySideDiffView(QWidget *parent = nullptr);
 
-  void loadAndHighlight(const QString &leftContent,
-                        const QString &rightContent);
+  void loadAndHighlight(const QString &leftContent, const QString &rightContent,
+                        const QString &extension);
 
 private:
-  void setupEditors();
+  void setupEditors(const QString &extension);
   void syncScrollbars();
 
 private:
-  QsciScintilla *leftEditor;
-  QsciScintilla *rightEditor;
+  QsciScintilla *_leftEditor;
+  QsciScintilla *_rightEditor;
   ::ConfigManager::ConfigManager &_configManager;
 };
 
