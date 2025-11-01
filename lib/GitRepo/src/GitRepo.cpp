@@ -2683,7 +2683,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
         const char *start = line->content;
         const char *end = start + line->content_len;
         const char *newline =
-            static_cast<char *>(memchr(start, '\n', end - start));
+            static_cast<const char *>(memchr(start, '\n', end - start));
         if (!newline) {
           newline = end;
         }
@@ -4296,7 +4296,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
         const char *start = line->content;
         const char *end = start + line->content_len;
         const char *newline =
-            static_cast<char *>(memchr(start, '\n', end - start));
+            static_cast<const char *>(memchr(start, '\n', end - start));
         if (!newline) {
           newline = end;
         }

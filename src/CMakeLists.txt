@@ -12,7 +12,7 @@ set(QT_NO_PRIVATE_MODULE_WARNING ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 find_package(libgit2 REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Widgets LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Widgets LinguistTools)
 
 set(PROJECT_SOURCES
         main.cpp

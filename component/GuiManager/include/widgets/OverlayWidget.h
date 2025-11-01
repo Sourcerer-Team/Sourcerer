@@ -16,7 +16,10 @@ class OverlayWidget : public QWidget {
 public:
   explicit OverlayWidget(QWidget *parent, const int alpha) : QWidget(parent) {
     setAttribute(Qt::WA_TransparentForMouseEvents, false);
+
+#ifdef Q_OS_WIN
     setAttribute(Qt::WA_NativeWindow);
+#endif
 
     const auto effect = new QGraphicsOpacityEffect(this);
     effect->setOpacity((1.0 / 255.0) *
