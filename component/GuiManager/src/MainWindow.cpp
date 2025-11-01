@@ -557,17 +557,6 @@ void MainWindow::onEdgeHit(Qt::Edges edges) const {
 void MainWindow::onProfile(int middleX) {
   LOG_PERF(0, "Enter");
 
-  qDebug() << "onProfile called";
-
-  /*
-  if (_profileBoardActive) {
-    _profileBoardWidget->hide();
-    _profileBoardActive = false;
-    LOG_PERF(0, "Exit");
-    return;
-  };
-*/
-
   _profileBoardWidget->setArrowTargetX(_profileBoardWidget->width() -
                                        PROFILE_WIDGET_ARROW_OFFSET);
   _profileBoardWidget->show();
