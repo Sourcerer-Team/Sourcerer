@@ -1,6 +1,7 @@
 #pragma once
 
 #include <ConfigManager.h>
+#include <GitRepo.h>
 
 #include <Qsci/qsciscintilla.h>
 
@@ -15,7 +16,8 @@ class SideBySideDiffView : public QWidget {
 public:
   SideBySideDiffView(QWidget *parent = nullptr);
 
-  void loadAndHighlight(const QString &leftContent, const QString &rightContent,
+  void loadAndHighlight(const QString &leftContent,
+                        const GitRepo::FilesDiffDelta &rightDelta,
                         const QString &extension);
 
 private:

@@ -13,10 +13,11 @@
 
 namespace GuiManager::Widgets {
 
-struct AlignedLine {
+struct Content {
   QString left;
   QString right;
-  bool isDifferent;
+  QVector<int> leftMarks;
+  QVector<int> rightMarks;
 };
 
 SideBySideDiffView::SideBySideDiffView(QWidget *parent)
@@ -35,54 +36,43 @@ SideBySideDiffView::SideBySideDiffView(QWidget *parent)
   LOG_PERF(0, "Exit");
 }
 
-static QList<AlignedLine> compareFiles(const QStringList &leftLines,
-                                       const QStringList &rightLines) {
+Content createContent(const QString &leftContent,
+                      const GitRepo::FilesDiffDelta &rightDelta) {
   LOG_PERF(0, "Enter");
 
-  QList<AlignedLine> result;
-  int maxLines = qMax(leftLines.size(), rightLines.size());
+  QStringList leftLines = QString(leftContent).replace("\r\n", "\n").split('\n');
+  QStringList rightLines;
 
-  for (int i = 0; i < maxLines; ++i) {
-    QString left = i < leftLines.size() ? leftLines[i] : "";
-    QString right = i < rightLines.size() ? rightLines[i] : "";
-    bool diff = (left != right);
-    result.append({left, right, diff});
-  }
+  QVector<int> leftMarks;
+  QVector<int> rightMarks;
+
+  Content content;
+  content.left = leftLines.join('\n');
+  content.right = rightLines.join('\n');
+  content.leftMarks = leftMarks;
+  content.rightMarks = rightMarks;
 
   LOG_PERF(0, "Exit");
 
-  return result;
+  return content;
 }
 
-void SideBySideDiffView::loadAndHighlight(const QString &leftContent,
-                                          const QString &rightContent,
-                                          const QString &extension) {
+void SideBySideDiffView::loadAndHighlight(
+    const QString &leftContent, const GitRepo::FilesDiffDelta &rightDelta,
+    const QString &extension) {
   LOG_PERF(0, "Enter");
 
   setupEditors(extension);
 
+  const Content content = createContent(leftContent, rightDelta);
+
   const QStringList leftRaw =
-      QString(leftContent).replace("\r\n", "\n").split('\n');
+      QString(content.left).replace("\r\n", "\n").split('\n');
   const QStringList rightRaw =
-      QString(rightContent).replace("\r\n", "\n").split('\n');
+      QString(content.right).replace("\r\n", "\n").split('\n');
 
-  const auto aligned = compareFiles(leftRaw, rightRaw);
-
-  QStringList leftAligned, rightAligned;
-  QList<int> diffLines;
-
-  for (int i = 0; i < aligned.size(); ++i) {
-    leftAligned << aligned[i].left;
-    rightAligned << aligned[i].right;
-    if (aligned[i].isDifferent)
-      diffLines << i;
-  }
-
-  const QString leftAlignedContent = leftAligned.join("\n");
-  const QString rightAlignedContent = rightAligned.join("\n");
-
-  const int leftLineCount = leftAligned.length() + 1;
-  const int rightLineCount = rightAligned.length() + 1;
+  const int leftLineCount = content.left.length() + 1;
+  const int rightLineCount = content.right.length() + 1;
   const int leftWidth = QString::number(leftLineCount).length();
   const int rightWidth = QString::number(rightLineCount).length();
   const QString leftMask =
@@ -93,17 +83,20 @@ void SideBySideDiffView::loadAndHighlight(const QString &leftContent,
   _leftEditor->setMarginWidth(0, leftMask);
   _rightEditor->setMarginWidth(0, rightMask);
 
-  _leftEditor->setText(leftAlignedContent);
-  _rightEditor->setText(rightAlignedContent);
+  _leftEditor->setText(content.left);
+  _rightEditor->setText(content.right);
 
-         // Highlight differing lines
+  // Highlight differing lines
   _leftEditor->markerDefine(QsciScintilla::Background, 1);
   _rightEditor->markerDefine(QsciScintilla::Background, 1);
   _leftEditor->setMarkerBackgroundColor(Qt::yellow, 1);
   _rightEditor->setMarkerBackgroundColor(Qt::yellow, 1);
 
-  for (int line : diffLines) {
+  for (const int line : content.leftMarks) {
     _leftEditor->markerAdd(line, 1);
+  }
+
+  for (const int line : content.rightMarks) {
     _rightEditor->markerAdd(line, 1);
   }
 

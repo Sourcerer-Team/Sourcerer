@@ -3952,10 +3952,10 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
         ui->scintillaTextEditorUnified->markerAdd(i, 1);
     }
 
-    if (!filesDiff.filesContent.isEmpty() && !filesDiff.repoContent.isEmpty()) {
+    if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
       const QFileInfo fileInfo(filesDiff.filesContent.firstKey());
-      ui->sideBySideDiffViewer->loadAndHighlight(filesDiff.filesContent.first(),
-                                                 filesDiff.repoContent.first(),
+      ui->sideBySideDiffViewer->loadAndHighlight(filesDiff.repoContent.first(),
+                                                 filesDiff.deltas.first(),
                                                  fileInfo.suffix());
     }
 
@@ -4048,10 +4048,10 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
         ui->scintillaTextEditorUnified->markerAdd(i, 1);
     }
 
-    if (!filesDiff.filesContent.isEmpty() && !filesDiff.repoContent.isEmpty()) {
+    if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
       const QFileInfo fileInfo(filesDiff.filesContent.firstKey());
-      ui->sideBySideDiffViewer->loadAndHighlight(filesDiff.filesContent.first(),
-                                                 filesDiff.repoContent.first(),
+      ui->sideBySideDiffViewer->loadAndHighlight(filesDiff.repoContent.first(),
+                                                 filesDiff.deltas.first(),
                                                  fileInfo.suffix());
     }
 

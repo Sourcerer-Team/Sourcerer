@@ -2643,11 +2643,17 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
 
   QString diffOutput;
 
+  QVector<FilesDiffDelta> filesDeltas;
+
   size_t num_deltas = git_diff_num_deltas(diff);
   for (size_t i = 0; i < num_deltas; ++i) {
     const git_diff_delta *delta = git_diff_get_delta(diff, i);
     diffOutput += QString("diff --git a/%1 b/%2\n")
                       .arg(delta->old_file.path, delta->new_file.path);
+
+    FilesDiffDelta filesDiffDelta;
+    filesDiffDelta.oldFilePath = delta->old_file.path;
+    filesDiffDelta.newFilePath = delta->new_file.path;
 
     git_patch *patch;
     error = git_patch_from_diff(&patch, diff, i);
@@ -2671,6 +2677,12 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
                         .arg(hunk->new_start)
                         .arg(hunk->new_lines);
 
+      FilesDiffHunk filesDiffHunk;
+      filesDiffHunk.oldStart = hunk->old_start;
+      filesDiffHunk.oldLines = hunk->old_lines;
+      filesDiffHunk.newStart = hunk->new_start;
+      filesDiffHunk.newLines = hunk->new_lines;
+
       size_t num_lines = git_patch_num_lines_in_hunk(patch, h);
       for (size_t l = 0; l < num_lines; ++l) {
         const git_diff_line *line;
@@ -2688,12 +2700,23 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
           newline = end;
         }
 
-        diffOutput += QString("%1%2\n").arg(
-            line->origin, QString::fromUtf8(start, newline - start));
+        const QString lineContent = QString::fromUtf8(start, newline - start);
+
+        diffOutput += QString("%1%2\n").arg(line->origin, lineContent);
+
+        FilesDiffLine filesDiffLine;
+        filesDiffLine.origin = line->origin;
+        filesDiffLine.content = lineContent;
+
+        filesDiffHunk.lines += filesDiffLine;
       }
+
+      filesDiffDelta.hunks += filesDiffHunk;
     }
 
     git_patch_free(patch);
+
+    filesDeltas += filesDiffDelta;
   }
 
   git_diff_free(diff);
@@ -2790,6 +2813,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
   filesDiff.diff = diffOutput;
   filesDiff.filesContent = filesContent;
   filesDiff.repoContent = repoContent;
+  filesDiff.deltas = filesDeltas;
   filesDiff.valid = true;
 
   LOG_PERF(0, "Exit");
@@ -4256,11 +4280,17 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
   QString diffOutput;
 
+  QVector<FilesDiffDelta> filesDeltas;
+
   size_t num_deltas = git_diff_num_deltas(diff);
   for (size_t i = 0; i < num_deltas; ++i) {
     const git_diff_delta *delta = git_diff_get_delta(diff, i);
     diffOutput += QString("diff --git a/%1 b/%2\n")
                       .arg(delta->old_file.path, delta->new_file.path);
+
+    FilesDiffDelta filesDiffDelta;
+    filesDiffDelta.oldFilePath = delta->old_file.path;
+    filesDiffDelta.newFilePath = delta->new_file.path;
 
     git_patch *patch;
     error = git_patch_from_diff(&patch, diff, i);
@@ -4284,6 +4314,12 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
                         .arg(hunk->new_start)
                         .arg(hunk->new_lines);
 
+      FilesDiffHunk filesDiffHunk;
+      filesDiffHunk.oldStart = hunk->old_start;
+      filesDiffHunk.oldLines = hunk->old_lines;
+      filesDiffHunk.newStart = hunk->new_start;
+      filesDiffHunk.newLines = hunk->new_lines;
+
       size_t num_lines = git_patch_num_lines_in_hunk(patch, h);
       for (size_t l = 0; l < num_lines; ++l) {
         const git_diff_line *line;
@@ -4301,12 +4337,23 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
           newline = end;
         }
 
-        diffOutput += QString("%1%2\n").arg(
-            line->origin, QString::fromUtf8(start, newline - start));
+        const QString lineContent = QString::fromUtf8(start, newline - start);
+
+        diffOutput += QString("%1%2\n").arg(line->origin, lineContent);
+
+        FilesDiffLine filesDiffLine;
+        filesDiffLine.origin = line->origin;
+        filesDiffLine.content = lineContent;
+
+        filesDiffHunk.lines += filesDiffLine;
       }
+
+      filesDiffDelta.hunks += filesDiffHunk;
     }
 
     git_patch_free(patch);
+
+    filesDeltas += filesDiffDelta;
   }
 
   if (parent) {
@@ -4385,6 +4432,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
   filesDiff.diff = diffOutput;
   filesDiff.filesContent = filesContent;
   filesDiff.repoContent = repoContent;
+  filesDiff.deltas = filesDeltas;
   filesDiff.valid = true;
 
   LOG_PERF(0, "Exit");
