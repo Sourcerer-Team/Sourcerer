@@ -5255,10 +5255,8 @@ void GitRepoContainer::push(const WeakPtr &guard) {
   }
 
   if (event.type() != EventManager::EventType::GitRepoManagerPushResult) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
-      showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { showSpinnerOverlay(false); });
 
     LOG_PERF(0, "Exit")
     return;

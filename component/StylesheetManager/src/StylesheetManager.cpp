@@ -18,6 +18,11 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border-radius: 10px;
         padding: 10px;
       }
+      QGroupBox#groupBoxGiCredentialsTextOverlayWidgetCredentials {
+        border: 2px solid gray;
+        border-radius: 10px;
+        padding: 10px;
+      }
       QLabel#labelRecent {
         font-weight:bold;
       }
@@ -51,6 +56,22 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border-radius: 5px;
       }
       QLineEdit#lineEditTextOverlayWidgetInputBranch:focus{
+        border: 2px solid #0078d7;
+        border-radius: 5px;
+      }
+      QLineEdit#lineEditTextGitCredentialsOverlayWidgetUsername{
+        border: 2px solid gray;
+        border-radius: 5px;
+      }
+      QLineEdit#lineEditTextGitCredentialsOverlayWidgetUsername:focus{
+        border: 2px solid #0078d7;
+        border-radius: 5px;
+      }
+      QLineEdit#lineEditTextGitCredentialsOverlayWidgetPassword{
+        border: 2px solid gray;
+        border-radius: 5px;
+      }
+      QLineEdit#lineEditTextGitCredentialsOverlayWidgetPassword:focus{
         border: 2px solid #0078d7;
         border-radius: 5px;
       }

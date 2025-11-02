@@ -1,4 +1,7 @@
 #include "widgets/GitCredentialsOverlayWidget.h"
+#include "widgets/OpagueGroupBox.h"
+#include "widgets/OpaqueLabel.h"
+#include "widgets/OpaquePushButton.h"
 
 #include <Log.h>
 
@@ -12,108 +15,98 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
                                                          QWidget *parent)
     : OverlayWidget(parent, ALPHA),
       _eventManager(::EventManager::EventManager::getInstance()),
+      _usernameLineEdit(new PersistentPlaceholderLineEdit(
+          QColor::fromString("#969696"), this)),
+      _passwordLineEdit(new PersistentPlaceholderLineEdit(
+          QColor::fromString("#969696"), this)),
       _showing(false), _holder(QSharedPointer<bool>::create(false)), _id(id) {
   LOG_PERF(0, "Enter");
 
-  const auto widget = new QWidget(this);
+  const auto groupBox = new OpaqueGroupBox(QColor::fromString("#384D59"), this);
+  groupBox->setObjectName("groupBoxGiCredentialsTextOverlayWidgetCredentials");
+  groupBox->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  groupBox->setMinimumWidth(640);
+  groupBox->setMaximumWidth(640);
+  groupBox->setMinimumHeight(100);
+  groupBox->setMaximumHeight(100);
 
-  const auto titleLabel = new QLabel(tr("Credentials"), widget);
-  titleLabel->setAlignment(Qt::AlignLeft);
-  titleLabel->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Expanding);
-  titleLabel->setStyleSheet(QString("font-size: 16px; font-weight: bold; "
-                                    "background-color: %1; padding: 4")
-                                .arg(QColor(Qt::darkYellow).name()));
-
-  const auto titleLayout = new QHBoxLayout();
-  titleLayout->addWidget(titleLabel);
-  titleLayout->addStretch(1);
-
-  _message = new QLabel(widget);
-
-  _usernameLineEdit = new QLineEdit(widget);
-  _usernameLineEdit->setAlignment(Qt::AlignLeft);
-  _usernameLineEdit->setFocus();
-  _usernameLineEdit->setMinimumWidth(250);
+  _usernameLineEdit->setParent(groupBox);
+  _usernameLineEdit->setObjectName(
+      "lineEditTextGitCredentialsOverlayWidgetUsername");
+  _usernameLineEdit->setSizePolicy(QSizePolicy::Expanding,
+                                   QSizePolicy::Preferred);
+  _usernameLineEdit->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
   _usernameLineEdit->setMaximumWidth(250);
+  _usernameLineEdit->setMaximumWidth(250);
+  _usernameLineEdit->setFocus();
   _usernameLineEdit->setPlaceholderText(tr("Enter username"));
 
-  _passwordLineEdit = new QLineEdit(widget);
-  _passwordLineEdit->setEchoMode(QLineEdit::Password);
-  _passwordLineEdit->setAlignment(Qt::AlignLeft);
-  _passwordLineEdit->setMinimumWidth(250);
+  _passwordLineEdit->setParent(groupBox);
+  _passwordLineEdit->setObjectName(
+      "lineEditTextGitCredentialsOverlayWidgetPassword");
+  _passwordLineEdit->setSizePolicy(QSizePolicy::Expanding,
+                                   QSizePolicy::Preferred);
+  _passwordLineEdit->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+  _passwordLineEdit->setMaximumWidth(250);
   _passwordLineEdit->setMaximumWidth(250);
   _passwordLineEdit->setPlaceholderText(tr("Enter password"));
 
-  _submitButton = new QPushButton(tr("Submit"), this);
-  _submitButton->setFlat(true);
-  _submitButton->setCursor(Qt::PointingHandCursor);
-  _submitButton->setDefault(true);
+  _message = new OpaqueLabel(QColor::fromString("#384D59"), this);
 
-  const auto cancelButton = new QPushButton(tr("Cancel"), this);
-  cancelButton->setFlat(true);
-  cancelButton->setCursor(Qt::PointingHandCursor);
+  QPalette palette = _message->palette();
+  palette.setColor(QPalette::WindowText, Qt::darkRed);
+  _message->setPalette(palette);
 
-  const auto idCardLabel = new QLabel(this);
-  idCardLabel->setPixmap(QPixmap(":icons/id-card.png"));
+  _submitButton = new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  _submitButton->setObjectName("pushButtonTextOverlayWidgetInputSubmit");
+  _submitButton->setMaximumWidth(32);
+  _submitButton->setMaximumHeight(32);
+  _submitButton->setIcon(QPixmap(":icons/ok.png"));
+  _submitButton->setFlat(false);
 
-  const auto usernameLayout = new QHBoxLayout();
-  usernameLayout->addWidget(idCardLabel);
-  usernameLayout->addWidget(_usernameLineEdit);
+  const auto pushButtonCancel =
+      new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  pushButtonCancel->setObjectName("pushButtonTextOverlayWidgetInputCancel");
+  pushButtonCancel->setMaximumWidth(32);
+  pushButtonCancel->setMaximumHeight(32);
+  pushButtonCancel->setIcon(QPixmap(":icons/cancel.png"));
+  pushButtonCancel->setFlat(false);
 
-  const auto padlockLabel = new QLabel(this);
-  padlockLabel->setPixmap(QPixmap(":icons/padlock.png"));
+  const auto horizontalLayout = new QHBoxLayout();
+  horizontalLayout->setAlignment(Qt::AlignCenter);
+  horizontalLayout->setContentsMargins(0, 0, 0, 0);
+  horizontalLayout->setSpacing(6);
+  horizontalLayout->addWidget(_usernameLineEdit);
+  horizontalLayout->addWidget(_passwordLineEdit);
+  horizontalLayout->addWidget(_submitButton);
+  horizontalLayout->addWidget(pushButtonCancel);
 
-  const auto passwordLayout = new QHBoxLayout();
-  passwordLayout->addWidget(padlockLabel);
-  passwordLayout->addWidget(_passwordLineEdit);
+  const auto horizontalLayoutMessage = new QHBoxLayout();
+  horizontalLayoutMessage->setAlignment(Qt::AlignCenter);
+  horizontalLayoutMessage->setContentsMargins(0, 0, 0, 0);
+  horizontalLayoutMessage->addWidget(_message);
 
-  const auto editsLayout = new QVBoxLayout();
-  editsLayout->addLayout(usernameLayout);
-  editsLayout->addLayout(passwordLayout);
+  const auto verticalLayout = new QVBoxLayout();
+  verticalLayout->setContentsMargins(0, 0, 0, 0);
+  verticalLayout->setSpacing(12);
+  verticalLayout->addLayout(horizontalLayoutMessage);
+  verticalLayout->addLayout(horizontalLayout);
 
-  const auto buttonsLayout = new QHBoxLayout();
-  buttonsLayout->addWidget(_submitButton);
-  buttonsLayout->addSpacing(16);
-  buttonsLayout->addWidget(cancelButton);
+  const auto horizontalLayoutGroupBox = new QVBoxLayout(groupBox);
+  horizontalLayoutGroupBox->setAlignment(Qt::AlignCenter);
+  horizontalLayoutGroupBox->setContentsMargins(6, 6, 6, 6);
+  horizontalLayoutGroupBox->setSpacing(6);
+  horizontalLayoutGroupBox->addLayout(verticalLayout);
 
-  const auto composedLayout4 = new QVBoxLayout();
-  composedLayout4->addLayout(buttonsLayout);
-
-  const auto composedLayout3 = new QHBoxLayout();
-  composedLayout3->addLayout(editsLayout);
-
-  const auto composedLayout2 = new QVBoxLayout();
-  composedLayout2->addLayout(titleLayout);
-  composedLayout2->addSpacing(16);
-  composedLayout2->addWidget(_message);
-  composedLayout2->addSpacing(8);
-  composedLayout2->addLayout(composedLayout3);
-  composedLayout2->addLayout(composedLayout4);
-
-  const auto composedLayout1 = new QHBoxLayout();
-  composedLayout1->addStretch(1);
-  composedLayout1->addLayout(composedLayout2);
-  composedLayout1->addStretch(1);
-
-  const auto composedLayout0 = new QVBoxLayout();
-  composedLayout0->addStretch(1);
-  composedLayout0->addLayout(composedLayout1);
-  composedLayout0->addStretch(2);
-
-  const auto widgetLayout = new QHBoxLayout(widget);
-  widgetLayout->addLayout(composedLayout0);
-
-  const auto layout = getLayout();
-  Q_ASSERT(layout != nullptr);
-
-  if (layout)
-    layout->addWidget(widget);
-
-  connect(cancelButton, &QPushButton::clicked, this,
-          &GitCredentialsOverlayWidget::onCancelClicked);
+  getLayout()->addWidget(groupBox);
 
   connect(_submitButton, &QPushButton::clicked, this,
           &GitCredentialsOverlayWidget::onSubmitClicked);
+  connect(pushButtonCancel, &QPushButton::clicked, this,
+          &GitCredentialsOverlayWidget::onCancelClicked);
+
+  _usernameLineEdit->installEventFilter(this);
+  _passwordLineEdit->installEventFilter(this);
 
   const auto callbackFunc = std::bind(
       &GitCredentialsOverlayWidget::eventCallback, this, std::placeholders::_1);
@@ -136,7 +129,7 @@ GitCredentialsOverlayWidget::~GitCredentialsOverlayWidget() {
   const auto callbackFunc = std::bind(
       &GitCredentialsOverlayWidget::eventCallback, this, std::placeholders::_1);
 
-  _eventManager.subscribe(CAPTURE_CALLBACK(
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCredentialsInvalid,
       callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -266,7 +259,7 @@ void GitCredentialsOverlayWidget::keyPressEvent(QKeyEvent *event) {
 void GitCredentialsOverlayWidget::invalidCredentials() const {
   LOG_PERF(0, "Enter");
 
-  _message->setText(tr("Invalid credentials."));
+  _message->setText(tr("Invalid credentials"));
 
   _passwordLineEdit->setFocus();
   _passwordLineEdit->selectAll();

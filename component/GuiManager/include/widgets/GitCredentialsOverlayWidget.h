@@ -3,12 +3,13 @@
 #include "Dispatcher.h"
 #include "EventManager.h"
 #include "GitRepo.h"
+#include "OpaqueLabel.h"
+#include "OpaquePushButton.h"
 #include "OverlayWidget.h"
+#include "PersistentPlaceholderLineEdit.h"
 
 #include <QEnableSharedFromThis>
 #include <QKeyEvent>
-#include <QLineEdit>
-#include <QPushButton>
 #include <QWidget>
 
 namespace GuiManager::Widgets {
@@ -50,10 +51,10 @@ private:
 
 private:
   ::EventManager::EventManager &_eventManager;
-  QLineEdit *_usernameLineEdit;
-  QLineEdit *_passwordLineEdit;
-  QPushButton *_submitButton;
-  QLabel *_message;
+  PersistentPlaceholderLineEdit *_usernameLineEdit;
+  PersistentPlaceholderLineEdit *_passwordLineEdit;
+  OpaquePushButton *_submitButton;
+  OpaqueLabel *_message;
   GitRepo::GitCredentialsRequest _request;
   bool _showing;
   QSharedPointer<bool> _holder;
