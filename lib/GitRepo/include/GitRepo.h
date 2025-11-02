@@ -131,10 +131,30 @@ enum class ResetType {
   last
 };
 
+struct FilesDiffLine {
+  QChar origin;
+  QString content;
+};
+
+struct FilesDiffHunk {
+  int oldStart = -1;
+  int newStart = -1;
+  int oldLines = -1;
+  int newLines = -1;
+  QVector<FilesDiffLine> lines;
+};
+
+struct FilesDiffDelta {
+  QString oldFilePath;
+  QString newFilePath;
+  QVector<FilesDiffHunk> hunks;
+};
+
 struct FilesDiff {
   QString diff;
   QMap<QString, QString> filesContent;
   QMap<QString, QString> repoContent;
+  QVector<FilesDiffDelta> deltas;
   bool valid = false;
 };
 

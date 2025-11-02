@@ -245,6 +245,7 @@ struct GitRepoDiffFilesCommandResult {
   QString diff;
   QMap<QString, QString> filesContent;
   QMap<QString, QString> repoContent;
+  QVector<GitRepo::FilesDiffDelta> deltas;
 };
 
 struct GitRepoDiffFilesFromCommitCommand final : GitRepoCommand {
@@ -261,6 +262,7 @@ struct GitRepoDiffFilesFromCommitCommandResult {
   QString diff;
   QMap<QString, QString> filesContent;
   QMap<QString, QString> repoContent;
+  QVector<GitRepo::FilesDiffDelta> deltas;
 };
 
 struct GitRepoDiscardFilesCommand final : GitRepoCommand {

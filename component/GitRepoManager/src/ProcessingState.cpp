@@ -1066,6 +1066,7 @@ void ProcessingState::diffFilesWorker(
     commandResult.diff = filesDiff.diff;
     commandResult.filesContent = filesDiff.filesContent;
     commandResult.repoContent = filesDiff.repoContent;
+    commandResult.deltas = filesDiff.deltas;
 
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerDiffFilesResult,
@@ -1112,6 +1113,7 @@ void ProcessingState::diffFilesFromCommitWorker(
     commandResult.diff = filesDiff.diff;
     commandResult.filesContent = filesDiff.filesContent;
     commandResult.repoContent = filesDiff.repoContent;
+    commandResult.deltas = filesDiff.deltas;
 
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerDiffFilesFromCommitResult,
