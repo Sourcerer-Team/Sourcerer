@@ -3953,7 +3953,7 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
     }
 
     if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
-      const QFileInfo fileInfo(filesDiff.filesContent.firstKey());
+      const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
       ui->sideBySideDiffViewer->loadAndHighlight(filesDiff.repoContent.first(),
                                                  filesDiff.deltas.first(),
                                                  fileInfo.suffix());
@@ -4049,7 +4049,7 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
     }
 
     if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
-      const QFileInfo fileInfo(filesDiff.filesContent.firstKey());
+      const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
       ui->sideBySideDiffViewer->loadAndHighlight(filesDiff.repoContent.first(),
                                                  filesDiff.deltas.first(),
                                                  fileInfo.suffix());

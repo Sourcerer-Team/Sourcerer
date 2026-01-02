@@ -4356,14 +4356,6 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
     filesDeltas += filesDiffDelta;
   }
 
-  if (parent) {
-    git_commit_free(parent);
-  }
-
-  if (parentTree) {
-    git_tree_free(parentTree);
-  }
-
   git_diff_free(diff);
 
   git_strarray_destroy(arr);
@@ -4387,7 +4379,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
     git_tree_entry *entry = nullptr;
 
-    error = git_tree_entry_bypath(&entry, tree, filePath.toStdString().c_str());
+    error = git_tree_entry_bypath(&entry, parentTree, filePath.toStdString().c_str());
     if (error) {
       logGitError(error);
       git_tree_free(tree);
@@ -4405,7 +4397,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
     }
 
     git_blob *blob = nullptr;
-    error = git_blob_lookup_prefix(&blob, repo, fullOid, 7);
+    error = git_blob_lookup(&blob, repo, fullOid);
     if (error) {
       logGitError(error);
       git_tree_free(tree);
@@ -4427,6 +4419,14 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
   git_commit_free(commit_);
   git_tree_free(tree);
+
+  if (parent) {
+    git_commit_free(parent);
+  }
+
+  if (parentTree) {
+    git_tree_free(parentTree);
+  }
 
   FilesDiff filesDiff;
   filesDiff.diff = diffOutput;
