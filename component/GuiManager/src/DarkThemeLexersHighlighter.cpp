@@ -104,7 +104,8 @@ const DarkThemeLexersHighlighter::DarkThemeColors
         QColor(92, 99, 112),   // phpCommentLine - dark gray
         QColor(224, 108, 117), // error - red
         QColor(255, 138, 101), // warning - orange-red
-        QColor(86, 182, 194)   // info - cyan
+        QColor(86, 182, 194),  // info - cyan
+        QColor(152, 195, 121)  // rawString - green
 };
 
 DarkThemeLexersHighlighter::DarkThemeLexersHighlighter(QObject *parent)
@@ -334,6 +335,11 @@ void DarkThemeLexersHighlighter::configureCppLexer(QsciLexer *lexer) {
   cppLexer->setColor(colors.unclosedString, QsciLexerCPP::UnclosedString);
   cppLexer->setPaper(colors.background, QsciLexerCPP::UnclosedString);
   cppLexer->setFont(_defaultFont, QsciLexerCPP::UnclosedString);
+
+  cppLexer->setColor(colors.rawString,
+                     QsciLexerCPP::RawString);
+  cppLexer->setPaper(colors.background, QsciLexerCPP::RawString);
+  cppLexer->setFont(_defaultFont, QsciLexerCPP::RawString);
 
   // Numbers
   cppLexer->setColor(colors.number, QsciLexerCPP::Number);

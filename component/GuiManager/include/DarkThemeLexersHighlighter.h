@@ -130,6 +130,7 @@ private:
     QColor error;
     QColor warning;
     QColor info;
+    QColor rawString;
   };
 
          // Helper methods
