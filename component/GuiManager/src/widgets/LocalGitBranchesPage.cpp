@@ -1,4 +1,5 @@
 #include "widgets/LocalGitBranchesPage.h"
+#include "widgets/MoveProxy.h"
 #include "widgets/ui_LocalGitBranchesPage.h"
 
 #include <Log.h>
@@ -16,11 +17,23 @@ LocalGitBranchesPage::LocalGitBranchesPage(QWidget *parent)
 
   ui->setupUi(this);
   ui->listView->setContextMenuPolicy(Qt::CustomContextMenu);
+  ui->listView->setDragEnabled(true);
+  ui->listView->setAcceptDrops(true);
+  ui->listView->setDropIndicatorShown(true);
+  ui->listView->setDragDropMode(QAbstractItemView::DragDrop);
+  ui->listView->setDefaultDropAction(Qt::CopyAction);
+  ui->listView->setDragDropOverwriteMode(false);
+  ui->listView->viewport()->setAcceptDrops(true);
 
   connect(ui->listView, &QListView::doubleClicked, this,
           &LocalGitBranchesPage::onListViewDoubleClicked);
   connect(ui->listView, &QListView::customContextMenuRequested, this,
           &LocalGitBranchesPage::onListViewContextMenuRequested);
+
+  connect(_model, &BranchesModel::branchesMoved, this,
+          &LocalGitBranchesPage::onBranchesMoved);
+
+  ui->listView->setModel(_model);
 
   LOG_PERF(0, "Exit");
 }
@@ -75,11 +88,14 @@ void LocalGitBranchesPage::updateModel(const QStringList &localBranches) {
   _model->setActiveIndex(-1);
   _model->updateModel(localBranches);
 
-  ui->listView->setModel(_model);
-
   _previous = -1;
 
   LOG_PERF(0, "Exit");
+}
+
+void LocalGitBranchesPage::onBranchesMoved(const QString &sourceBranch,
+                                           const QString &destBranch) {
+  emit branchesMoved(sourceBranch, destBranch);
 }
 
 void LocalGitBranchesPage::onListViewContextMenuRequested(const QPoint &pos) {

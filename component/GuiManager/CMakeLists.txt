@@ -80,6 +80,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/GitTagsPage.h
         include/widgets/InfoToast.h
         include/widgets/LocalGitBranchesPage.h
+        include/widgets/MoveProxy.h
         include/widgets/MouseTrackingSplitter.h
         include/widgets/OverlayWidget.h
         include/widgets/OpagueGroupBox.h
