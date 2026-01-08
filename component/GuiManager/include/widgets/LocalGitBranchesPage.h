@@ -24,10 +24,10 @@ public:
 signals:
   void branchSelected(const QString &branchName);
   void branchRightClicked(const QString &branchName, const QPoint &pos);
-  void branchesMoved(const QString& sourceBranch, const QString& destBranch);
+  void branchesMoved(const QString &sourceBranch, const QString &destBranch);
 
 private slots:
-  void onBranchesMoved(const QString& sourceBranch, const QString& destBranch);
+  void onBranchesMoved(const QString &sourceBranch, const QString &destBranch);
   void onListViewContextMenuRequested(const QPoint &pos);
   void onListViewDoubleClicked(const QModelIndex &index);
 

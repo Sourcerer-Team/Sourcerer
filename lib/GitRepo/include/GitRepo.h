@@ -226,7 +226,7 @@ bool commitStaged(git_repository *repo, const QString &summary,
 FilesDiff diffFiles(git_repository *repo, const QStringList &files);
 
 FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
-                            const QString &commit);
+                              const QString &commit);
 
 bool discardFiles(git_repository *repo, const QStringList &files);
 

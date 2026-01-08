@@ -336,8 +336,7 @@ void DarkThemeLexersHighlighter::configureCppLexer(QsciLexer *lexer) {
   cppLexer->setPaper(colors.background, QsciLexerCPP::UnclosedString);
   cppLexer->setFont(_defaultFont, QsciLexerCPP::UnclosedString);
 
-  cppLexer->setColor(colors.rawString,
-                     QsciLexerCPP::RawString);
+  cppLexer->setColor(colors.rawString, QsciLexerCPP::RawString);
   cppLexer->setPaper(colors.background, QsciLexerCPP::RawString);
   cppLexer->setFont(_defaultFont, QsciLexerCPP::RawString);
 

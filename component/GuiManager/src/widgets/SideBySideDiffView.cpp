@@ -42,7 +42,8 @@ Content createContent(const QString &leftContent,
                       const GitRepo::FilesDiffDelta &rightDelta) {
   LOG_PERF(0, "Enter");
 
-  QStringList leftLines = QString(leftContent).replace("\r\n", "\n").split('\n');
+  QStringList leftLines =
+      QString(leftContent).replace("\r\n", "\n").split('\n');
 
   QStringList alignedLeft;
   QStringList alignedRight;
@@ -54,21 +55,22 @@ Content createContent(const QString &leftContent,
 
   int currentLeftIndex = 0; // track position in original file
 
-  for (const auto& hunk : rightDelta.hunks) {
+  for (const auto &hunk : rightDelta.hunks) {
     int hunkStart = hunk.oldStart - 1;
 
-           // --- Copy unchanged lines before hunk ---
-    while (currentLeftIndex < hunkStart && currentLeftIndex < leftLines.size()) {
+    // --- Copy unchanged lines before hunk ---
+    while (currentLeftIndex < hunkStart &&
+           currentLeftIndex < leftLines.size()) {
       alignedLeft.append(leftLines[currentLeftIndex]);
       alignedRight.append(leftLines[currentLeftIndex]);
       currentLeftIndex++;
     }
 
-           // --- Apply hunk ---
+    // --- Apply hunk ---
     int leftIndex = hunk.oldStart - 1;
     int rightIndex = hunk.newStart - 1;
 
-    for (const auto& line : hunk.lines) {
+    for (const auto &line : hunk.lines) {
       if (line.origin == QChar('-')) {
         // Removed from left
         if (leftIndex < leftLines.size()) {
@@ -80,7 +82,7 @@ Content createContent(const QString &leftContent,
         alignedRight.append(""); // mark deletion on right
         changedRight1.append(alignedLeft.length() - 1);
         leftIndex++;
-        //rightIndex++;
+        // rightIndex++;
         currentLeftIndex++;
       } else if (line.origin == QChar('+')) {
         // Added to right
@@ -88,9 +90,9 @@ Content createContent(const QString &leftContent,
         changedLeft1.append(alignedLeft.length() - 1);
         alignedRight.append(line.content);
         changedRight0.append(alignedRight.length() - 1);
-        //leftIndex++;
+        // leftIndex++;
         rightIndex++;
-        //currentLeftIndex++;
+        // currentLeftIndex++;
       } else {
         // Context line
         if (leftIndex < leftLines.size()) {
@@ -104,7 +106,7 @@ Content createContent(const QString &leftContent,
     }
   }
 
-         // --- Copy remaining lines after last hunk ---
+  // --- Copy remaining lines after last hunk ---
   while (currentLeftIndex < leftLines.size()) {
     alignedLeft.append(leftLines[currentLeftIndex]);
     alignedRight.append(leftLines[currentLeftIndex]);

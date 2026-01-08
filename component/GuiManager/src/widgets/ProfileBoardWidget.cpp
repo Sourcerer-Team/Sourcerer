@@ -13,15 +13,14 @@
 namespace GuiManager::Widgets {
 
 ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
-    : QWidget(parent, Qt::FramelessWindowHint),
-      ui(new Ui::ProfileBoardWidget), _arrowX(0),
-      _currentlyEditProfileIndex(-1), _operation(OperationType::Unknown),
-      _model(new QStandardItemModel),
+    : QWidget(parent, Qt::FramelessWindowHint), ui(new Ui::ProfileBoardWidget),
+      _arrowX(0), _currentlyEditProfileIndex(-1),
+      _operation(OperationType::Unknown), _model(new QStandardItemModel),
       _userProfileManager(Common::UserProfileManager::instance()) {
   LOG_PERF(0, "Enter");
 
 #ifdef Q_OS_WIN
-    setWindowFlag(Qt::Tool);
+  setWindowFlag(Qt::Tool);
 #endif
 
   setAttribute(Qt::WA_TranslucentBackground);

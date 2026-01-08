@@ -4379,7 +4379,8 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
     git_tree_entry *entry = nullptr;
 
-    error = git_tree_entry_bypath(&entry, parentTree, filePath.toStdString().c_str());
+    error = git_tree_entry_bypath(&entry, parentTree,
+                                  filePath.toStdString().c_str());
     if (error) {
       logGitError(error);
       git_tree_free(tree);

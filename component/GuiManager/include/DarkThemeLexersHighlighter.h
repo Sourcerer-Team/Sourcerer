@@ -133,7 +133,7 @@ private:
     QColor rawString;
   };
 
-         // Helper methods
+  // Helper methods
   void initializeColorSchemes();
   void applyEditorColors(QsciScintilla *editor);
   void setLexerColors(QsciLexer *lexer, const DarkThemeColors &colors);
