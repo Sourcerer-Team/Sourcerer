@@ -160,10 +160,10 @@ void SideBySideDiffView::loadAndHighlight(
   _leftEditor->markerDefine(QsciScintilla::Background, 2);
   _rightEditor->markerDefine(QsciScintilla::Background, 1);
   _rightEditor->markerDefine(QsciScintilla::Background, 2);
-  _leftEditor->setMarkerBackgroundColor(QColor(0x31363e), 1);
-  _leftEditor->setMarkerBackgroundColor(QColor(0x363b44), 2);
-  _rightEditor->setMarkerBackgroundColor(QColor(0x363b44), 1);
-  _rightEditor->setMarkerBackgroundColor(QColor(0x31363e), 2);
+  _leftEditor->setMarkerBackgroundColor(QColor(0xc6efce), 1);
+  _leftEditor->setMarkerBackgroundColor(QColor(0xffc7ce), 2);
+  _rightEditor->setMarkerBackgroundColor(QColor(0xffc7ce), 1);
+  _rightEditor->setMarkerBackgroundColor(QColor(0xc6efce), 2);
 
   for (const int line : content.leftMarks0) {
     _leftEditor->markerAdd(line, 1);
