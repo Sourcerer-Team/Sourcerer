@@ -100,7 +100,7 @@ void DirectoryWatcher::run() {
     auto info = startingInfo;
 
     do {
-      QString fileName = QString::fromWCharArray(
+      const QString fileName = QString::fromWCharArray(
           info->FileName, info->FileNameLength / sizeof(WCHAR));
       LOG_INFO("Directory change detected: {} - {}", fileName.toStdString(),
                info->Action);

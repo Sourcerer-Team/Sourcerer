@@ -41,6 +41,7 @@ void HistorySummaryTableColumnDelegate::paintStatus(
   int modifiedCount = statusFieldsMap[Models::StatusFields::Modified];
   int deletedCount = statusFieldsMap[Models::StatusFields::Deleted];
   int renamedCount = statusFieldsMap[Models::StatusFields::Renamed];
+  int conflictedCount = statusFieldsMap[Models::StatusFields::Conflicted];
 
   newCount += statusFieldsMap[Models::StatusFields::NewStaged];
   modifiedCount += statusFieldsMap[Models::StatusFields::ModifiedStaged];
@@ -64,13 +65,17 @@ void HistorySummaryTableColumnDelegate::paintStatus(
   QRegion clipRegion(opt.rect);
   painter->setClipRegion(clipRegion);
 
-  const QMap<int, int> indexedCounters = {
-      {0, newCount}, {1, modifiedCount}, {2, deletedCount}, {3, renamedCount}};
+  const QMap<int, int> indexedCounters = {{0, newCount},
+                                          {1, modifiedCount},
+                                          {2, deletedCount},
+                                          {3, renamedCount},
+                                          {4, conflictedCount}};
 
-  static const QMap<int, QColor> colors = {{0, QColor::fromString("#B05C24")},
-                                           {1, QColor::fromString("#A03A3A")},
-                                           {2, QColor::fromString("#8B5C2A")},
-                                           {3, QColor::fromString("#7C3F58")}};
+  static const QMap<int, QColor> colors = {{0, QColor(0xB05C24)},
+                                           {1, QColor(0xA03A3A)},
+                                           {2, QColor(0x8B5C2A)},
+                                           {3, QColor(0x7C3F58)},
+                                           {4, QColor(0x556B2F)}};
 
   const QFontMetrics metrics(painter->font());
 
