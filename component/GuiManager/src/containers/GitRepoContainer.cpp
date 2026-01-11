@@ -3136,6 +3136,8 @@ void GitRepoContainer::checkoutBranch(
                        tr("Error"));
       });
 
+      prepareWatcher(guard);
+
       LOG_PERF(0, "Exit")
       return;
     }

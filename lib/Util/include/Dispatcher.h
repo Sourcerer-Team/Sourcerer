@@ -73,28 +73,21 @@ public:
   template <class T>
   static bool dispatchToMainThread(const T &guard, const int timeout,
                                    const std::function<void()> &callback) {
-    const auto timer = new QTimer();
-    timer->moveToThread(qApp->thread());
-    timer->setSingleShot(true);
-
-    QObject::connect(timer, &QTimer::timeout, [=]() {
-      // main thread
-      if (const auto locked = guard.lock()) {
-        const auto THREAD_ID = "dispatchToMainThread";
-        try {
-          callback();
-        } catch (const std::exception &e) {
-          LOG_ERROR(Log::ErrorId::Gui, "Exception: \"{}\"", e.what());
-        } catch (...) {
-          LOG_ERROR(Log::ErrorId::Gui, "Unknown exception thrown");
-        }
-      }
-
-      timer->deleteLater();
-    });
-
-    QMetaObject::invokeMethod(timer, "start", Qt::QueuedConnection,
-                              Q_ARG(int, timeout));
+    QMetaObject::invokeMethod(
+        qApp,
+        [=]() {
+          if (auto locked = guard.lock()) {
+            const auto THREAD_ID = "dispatchToMainThread";
+            try {
+              callback();
+            } catch (const std::exception &e) {
+              LOG_ERROR(Log::ErrorId::Gui, "Exception: \"{}\"", e.what());
+            } catch (...) {
+              LOG_ERROR(Log::ErrorId::Gui, "Unknown exception thrown");
+            }
+          }
+        },
+        Qt::QueuedConnection);
 
     return true;
   }
