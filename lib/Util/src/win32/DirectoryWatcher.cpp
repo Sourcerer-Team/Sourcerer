@@ -74,8 +74,8 @@ void DirectoryWatcher::run() {
   }
 
   BYTE buffer[BUFFER_SIZE];
-  OVERLAPPED overlapped = {};
-  overlapped.hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+
+  std::memset(&buffer[0], 0, sizeof(buffer));
 
   while (!_quit) {
     DWORD bytesReturned = 0;
@@ -84,58 +84,43 @@ void DirectoryWatcher::run() {
             FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME |
                 FILE_NOTIFY_CHANGE_ATTRIBUTES | FILE_NOTIFY_CHANGE_SIZE |
                 FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_CREATION,
-            &bytesReturned, &overlapped, nullptr) == 0) {
+            &bytesReturned, nullptr, nullptr) == 0) {
       LOG_ERROR(Log::ErrorId::FileSystem,
                 "Failed to read directory changes for {}. Error: {}",
                 _path.toStdString(), GetLastError());
       break;
     }
 
-    if (const DWORD waitStatus = WaitForSingleObject(overlapped.hEvent, 500);
-        waitStatus == WAIT_OBJECT_0) {
-      if (bytesReturned < sizeof(FILE_NOTIFY_INFORMATION)) {
-        ResetEvent(overlapped.hEvent);
-        continue;
+    if (bytesReturned < sizeof(FILE_NOTIFY_INFORMATION)) {
+      continue;
+    }
+
+    const auto startingInfo =
+        reinterpret_cast<FILE_NOTIFY_INFORMATION *>(buffer);
+    auto info = startingInfo;
+
+    do {
+      QString fileName = QString::fromWCharArray(
+          info->FileName, info->FileNameLength / sizeof(WCHAR));
+      LOG_INFO("Directory change detected: {} - {}", fileName.toStdString(),
+               info->Action);
+
+      // Emit signal or handle the change as needed
+      emit directoryChanged(fileName);
+
+      if (info->NextEntryOffset == 0) {
+        break;
       }
 
-      const auto startingInfo =
-          reinterpret_cast<FILE_NOTIFY_INFORMATION *>(buffer);
-      auto info = startingInfo;
+      if (reinterpret_cast<char *>(info) -
+              reinterpret_cast<char *>(startingInfo) + info->NextEntryOffset >=
+          bytesReturned) {
+        break;
+      }
 
-      do {
-        QString fileName = QString::fromWCharArray(
-            info->FileName, info->FileNameLength / sizeof(WCHAR));
-        LOG_INFO("Directory change detected: {} - {}", fileName.toStdString(),
-                 info->Action);
-
-        // Emit signal or handle the change as needed
-        emit directoryChanged(fileName);
-
-        if (info->NextEntryOffset == 0) {
-          break;
-        }
-
-        if (reinterpret_cast<char *>(info) -
-                reinterpret_cast<char *>(startingInfo) +
-                info->NextEntryOffset >=
-            bytesReturned) {
-          break;
-        }
-
-        info = reinterpret_cast<FILE_NOTIFY_INFORMATION *>(
-            reinterpret_cast<BYTE *>(info) + info->NextEntryOffset);
-      } while (true);
-
-      ResetEvent(overlapped.hEvent);
-    } else if (waitStatus == WAIT_TIMEOUT) {
-      // Timeout occurred, loop again to check _quit flag
-      continue;
-    } else {
-      LOG_ERROR(Log::ErrorId::FileSystem,
-                "WaitForSingleObject failed for {}. Error: {}",
-                _path.toStdString(), GetLastError());
-      break;
-    }
+      info = reinterpret_cast<FILE_NOTIFY_INFORMATION *>(
+          reinterpret_cast<BYTE *>(info) + info->NextEntryOffset);
+    } while (true);
   }
 
   ::CloseHandle(dirHandle);
