@@ -80,6 +80,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/GitTagsPage.h
         include/widgets/InfoToast.h
         include/widgets/LocalGitBranchesPage.h
+        include/widgets/MergeDiffView.h
         include/widgets/MoveProxy.h
         include/widgets/MouseTrackingSplitter.h
         include/widgets/OverlayWidget.h
@@ -156,6 +157,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/GitTagsPage.cpp
         src/widgets/InfoToast.cpp
         src/widgets/LocalGitBranchesPage.cpp
+        src/widgets/MergeDiffView.cpp
         src/widgets/MouseTrackingSplitter.cpp
         src/widgets/ProfileBoardWidget.cpp
         src/widgets/RecentTableView.cpp
@@ -213,7 +215,7 @@ target_link_libraries(GuiManager PRIVATE
         Qt6::Svg
         Qt6::Widgets
         ${LIBGIT2_LIBRARIES}
-		qscintilla
+        qscintilla
 )
 
 target_include_directories(GuiManager PRIVATE

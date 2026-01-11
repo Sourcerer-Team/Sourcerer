@@ -41,6 +41,7 @@ enum class EventType : int {
   ListStashes,
   ListSubmodules,
   ListTags,
+  Merge,
   OpenRepo,
   Pull,
   Push,

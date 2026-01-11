@@ -103,7 +103,9 @@ bool BranchesModel::dropMimeData(const QMimeData *data, Qt::DropAction action,
     destBranch = index(row, column, parent).data().toString();
   }
 
-  emit branchesMoved(sourceBranch, destBranch);
+  if(!sourceBranch.isEmpty() && !destBranch.isEmpty()) {
+    emit branchesMoved(sourceBranch, destBranch);
+  }
 
   return true;
 }

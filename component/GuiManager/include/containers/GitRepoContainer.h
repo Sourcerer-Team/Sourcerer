@@ -98,11 +98,16 @@ private slots:
   void onListViewTabWidgetFlatSelected(const QModelIndex &index);
   void onListViewTabWidgetFlatSelectedFromCommit(const QModelIndex &index,
                                                  const QString &commit);
+  void onMergeDiffCloseClicked() const;
+  void onMergeDiffUnifiedClicked();
+  void onMergeDiffSideBySideClicked();
   void onTreeViewTabWidgetTreeSelected(const QModelIndex &index,
                                        const Models::GitCommitTreeModel &model);
   void onTreeViewTabWidgetTreeSelectedFromCommit(
       const QModelIndex &index, const Models::GitCommitTreeModel &model,
       const QString &commit);
+  void onLocalBranchMoved(const QString &sourceBranch,
+                          const QString &destBranch);
   void onLocalBranchSelected(const QString &branchName);
   void onLocalBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onMixedResetToCommit(const QString &commit);
@@ -189,9 +194,9 @@ private:
       const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
   void deleteTag(const WeakPtr &guard, const QString &tagName);
   void deleteSubmodule(const WeakPtr &guard, const QString &submoduleName);
-  void diff(const WeakPtr &guard, const QString &filePath);
+  void diff(const WeakPtr &guard, const QString &filePath, bool merge);
   void diffFromCommit(const WeakPtr &guard, const QString &filePath,
-                      const QString &commit);
+                      const QString &commit, bool merge);
   void diffFiles(const WeakPtr &guard, const QStringList &files);
   void discardFiles(const WeakPtr &guard, const QStringList &files);
   bool getActiveBranchOrTag(const WeakPtr &guard,
@@ -218,6 +223,8 @@ private:
   QPair<QString, QString> getUpstream(const WeakPtr &guard);
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
+  void merge(const WeakPtr &guard, const QString &sourceBranch,
+             const QString &destBranch);
   bool openRepo(const WeakPtr &guard);
   void openSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void popStash(const WeakPtr &guard, int stashIndex);

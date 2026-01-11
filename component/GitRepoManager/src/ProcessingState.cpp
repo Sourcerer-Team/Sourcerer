@@ -263,6 +263,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForListTags(listTagsCommand);
     break;
   }
+  case EventType::Merge: {
+    const auto mergeCommand = event.nextParam<GitRepoMergeCommand>();
+    scheduleWorkerForMerge(mergeCommand);
+    break;
+  }
   case EventType::OpenRepo: {
     const auto openCommand = event.nextParam<GitRepoOpenCommand>();
     scheduleWorkerForOpenRepo(openCommand);
@@ -1793,6 +1798,36 @@ void ProcessingState::listTagsWorker(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::mergeWorker(const Structs::GitRepoMergeCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerMergeError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool merged =
+      GitRepo::merge(repo, command.sourceBranch, command.destinationBranch,
+                     command.author, command.email);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerMergeResult, command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type, merged});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForOpenRepo(
     const GitRepoOpenCommand &command) {
   LOG_PERF(0, "Enter");
@@ -3224,6 +3259,25 @@ void ProcessingState::scheduleWorkerForListTags(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForMerge(
+    const Structs::GitRepoMergeCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerMergeError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoMergeCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::workersThreadFunc(const QString &uuid) {
   LOG_PERF(0, "Enter");
 
@@ -3496,6 +3550,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoListTagsCommand *>(command);
       if (listTagsCommand) {
         listTagsWorker(*listTagsCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::Merge: {
+      const auto *mergeCommand =
+          dynamic_cast<const GitRepoMergeCommand *>(command);
+      if (mergeCommand) {
+        mergeWorker(*mergeCommand);
       }
       break;
     }

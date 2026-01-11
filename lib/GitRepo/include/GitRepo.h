@@ -197,6 +197,10 @@ QStringList listSubmodules(git_repository *repo);
 
 QStringList listTags(git_repository *repo);
 
+bool merge(git_repository *repo, const QString &sourceBranch,
+           const QString &destinationBranch, const QString &author,
+           const QString &email);
+
 git_repository *openRepository(const QString &path);
 
 GitHistory getBranchHistory(git_repository *repo, const QString &branchName,

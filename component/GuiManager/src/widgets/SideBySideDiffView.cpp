@@ -38,8 +38,8 @@ SideBySideDiffView::SideBySideDiffView(QWidget *parent)
   LOG_PERF(0, "Exit");
 }
 
-Content createContent(const QString &leftContent,
-                      const GitRepo::FilesDiffDelta &rightDelta) {
+static Content createContent(const QString &leftContent,
+                             const GitRepo::FilesDiffDelta &rightDelta) {
   LOG_PERF(0, "Enter");
 
   QStringList leftLines =
@@ -67,8 +67,8 @@ Content createContent(const QString &leftContent,
     }
 
     // --- Apply hunk ---
-    int leftIndex = hunk.oldStart - 1;
-    int rightIndex = hunk.newStart - 1;
+    int leftIndex = hunk.oldStart > 0 ? hunk.oldStart - 1 : 0;
+    int rightIndex = hunk.newStart > 0 ? hunk.newStart - 1 : 0;
 
     for (const auto &line : hunk.lines) {
       if (line.origin == QChar('-')) {

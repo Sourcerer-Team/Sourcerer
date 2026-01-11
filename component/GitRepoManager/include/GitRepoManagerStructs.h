@@ -46,6 +46,7 @@ enum class GitRepoCommandType : int {
   ListStashes,
   ListSubmodules,
   ListTags,
+  Merge,
   Open,
   Pull,
   Push,
@@ -403,6 +404,17 @@ struct GitRepoListTagsCommand final : GitRepoCommand {
   GitRepoListTagsCommand() : GitRepoCommand(GitRepoCommandType::ListTags) {}
 
   ~GitRepoListTagsCommand() override = default;
+};
+
+struct GitRepoMergeCommand final : GitRepoCommand {
+  GitRepoMergeCommand() : GitRepoCommand(GitRepoCommandType::Merge) {}
+
+  ~GitRepoMergeCommand() override = default;
+
+  QString sourceBranch;
+  QString destinationBranch;
+  QString author;
+  QString email;
 };
 
 struct GitRepoOpenCommand final : GitRepoCommand {

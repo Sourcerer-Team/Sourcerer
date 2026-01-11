@@ -3324,11 +3324,9 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
     return false;
   }
 
-  error = git_branch_set_upstream(localRef, QString("%1/%2")
-                                                .arg(remoteName)
-                                                .arg(remoteBranchName)
-                                                .toStdString()
-                                                .c_str());
+  error = git_branch_set_upstream(
+      localRef,
+      QString("%1/%2").arg(remoteName, remoteBranchName).toStdString().c_str());
   if (error) {
     logGitError(error);
     git_reference_free(localRef);
@@ -4439,6 +4437,345 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
   LOG_PERF(0, "Exit");
 
   return filesDiff;
+}
+
+bool merge(git_repository *repo, const QString &sourceBranch,
+           const QString &destinationBranch, const QString &author,
+           const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  git_reference *srcRef = nullptr;
+  git_reference *dstRef = nullptr;
+
+  // Lookup branches
+  int error = git_branch_lookup(
+      &srcRef, repo, sourceBranch.toStdString().c_str(), GIT_BRANCH_LOCAL);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_branch_lookup(
+      &dstRef, repo, destinationBranch.toStdString().c_str(), GIT_BRANCH_LOCAL);
+  if (error) {
+    logGitError(error);
+    git_reference_free(srcRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_object *dstObj = nullptr;
+
+  error = git_reference_peel(&dstObj, dstRef, GIT_OBJECT_COMMIT);
+  if (error) {
+    logGitError(error);
+    git_reference_free(srcRef);
+    git_reference_free(dstRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_checkout_tree(repo, dstObj, nullptr);
+  if (error) {
+    logGitError(error);
+    git_reference_free(srcRef);
+    git_reference_free(dstRef);
+    git_object_free(dstObj);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_object_free(dstObj);
+
+  error = git_repository_set_head(repo, git_reference_name(dstRef));
+  if (error) {
+    logGitError(error);
+    git_reference_free(srcRef);
+    git_reference_free(dstRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Get annotated commits
+  git_annotated_commit *srcCommit = nullptr;
+
+  error = git_annotated_commit_from_ref(&srcCommit, repo, srcRef);
+  if (error) {
+    logGitError(error);
+    git_reference_free(srcRef);
+    git_reference_free(dstRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_annotated_commit *dstCommit = nullptr;
+
+  error = git_annotated_commit_from_ref(&dstCommit, repo, dstRef);
+  if (error) {
+    logGitError(error);
+    git_reference_free(srcRef);
+    git_reference_free(dstRef);
+    git_annotated_commit_free(srcCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_merge_analysis_t analysis;
+  git_merge_preference_t preference;
+
+  const git_annotated_commit *commits[1] = {srcCommit};
+
+  // Merge analysis
+  error = git_merge_analysis(&analysis, &preference, repo, commits, 1);
+  if (error) {
+    logGitError(error);
+    git_reference_free(srcRef);
+    git_reference_free(dstRef);
+    git_annotated_commit_free(srcCommit);
+    git_annotated_commit_free(dstCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (analysis & GIT_MERGE_ANALYSIS_UP_TO_DATE) {
+    LOG_DEBUG("Destination branch is already up to date.");
+    git_reference_free(srcRef);
+    git_reference_free(dstRef);
+    git_annotated_commit_free(srcCommit);
+    git_annotated_commit_free(dstCommit);
+    LOG_PERF(0, "Exit");
+    return true;
+  } else if (analysis & GIT_MERGE_ANALYSIS_FASTFORWARD) {
+    LOG_DEBUG("Performing fast-forward merge...");
+
+    git_oid targetOid;
+    git_commit *srcCommitObj = nullptr;
+    error = git_commit_lookup(&srcCommitObj, repo,
+                              git_annotated_commit_id(srcCommit));
+    if (error) {
+      logGitError(error);
+      git_reference_free(srcRef);
+      git_reference_free(dstRef);
+      git_annotated_commit_free(srcCommit);
+      git_annotated_commit_free(dstCommit);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_reference *updatedRef = nullptr;
+
+    // Update destination branch to point to source commit
+    error = git_reference_set_target(
+        &updatedRef, dstRef, git_commit_id(srcCommitObj), "Fast-forward merge");
+    if (error) {
+      logGitError(error);
+      git_reference_free(srcRef);
+      git_reference_free(dstRef);
+      git_annotated_commit_free(srcCommit);
+      git_annotated_commit_free(dstCommit);
+      git_commit_free(srcCommitObj);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_commit *newCommit = nullptr;
+
+    error = git_commit_lookup(&newCommit, repo, git_commit_id(srcCommitObj));
+    if (error) {
+      logGitError(error);
+      git_reference_free(srcRef);
+      git_reference_free(dstRef);
+      git_annotated_commit_free(srcCommit);
+      git_annotated_commit_free(dstCommit);
+      git_commit_free(srcCommitObj);
+      git_reference_free(updatedRef);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_reference_free(srcRef);
+    git_reference_free(dstRef);
+    git_annotated_commit_free(srcCommit);
+    git_annotated_commit_free(dstCommit);
+    git_commit_free(srcCommitObj);
+    git_reference_free(updatedRef);
+
+    git_checkout_options ffOpts = GIT_CHECKOUT_OPTIONS_INIT;
+    ffOpts.checkout_strategy =
+        GIT_CHECKOUT_SAFE | GIT_CHECKOUT_RECREATE_MISSING;
+
+    error = git_reset(repo, reinterpret_cast<git_object *>(newCommit),
+                      GIT_RESET_HARD, &ffOpts);
+    if (error) {
+      logGitError(error);
+      git_commit_free(newCommit);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_commit_free(newCommit);
+
+    LOG_PERF(0, "Exit");
+    return true;
+  } else if (analysis & GIT_MERGE_ANALYSIS_NORMAL) {
+    LOG_DEBUG("Performing normal merge...");
+
+    git_merge_options mergeOpts = GIT_MERGE_OPTIONS_INIT;
+    git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+
+    error = git_merge(repo, commits, 1, &mergeOpts, &checkoutOpts);
+    if (error) {
+      logGitError(error);
+      git_reference_free(srcRef);
+      git_reference_free(dstRef);
+      git_annotated_commit_free(srcCommit);
+      git_annotated_commit_free(dstCommit);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_index *index = NULL;
+    error = git_repository_index(&index, repo);
+    if (error) {
+      logGitError(error);
+      git_reference_free(srcRef);
+      git_reference_free(dstRef);
+      git_annotated_commit_free(srcCommit);
+      git_annotated_commit_free(dstCommit);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    if (git_index_has_conflicts(index)) {
+      LOG_DEBUG("Merge has conflicts. Resolve them before committing.");
+      git_reference_free(srcRef);
+      git_reference_free(dstRef);
+      git_annotated_commit_free(srcCommit);
+      git_annotated_commit_free(dstCommit);
+      git_index_free(index);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // Write tree
+    git_oid treeOid;
+    git_tree *tree = nullptr;
+
+    error = git_index_write_tree(&treeOid, index);
+    if (error) {
+      logGitError(error);
+      git_reference_free(srcRef);
+      git_reference_free(dstRef);
+      git_annotated_commit_free(srcCommit);
+      git_annotated_commit_free(dstCommit);
+      git_index_free(index);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    error = git_tree_lookup(&tree, repo, &treeOid);
+    if (error) {
+      logGitError(error);
+      git_reference_free(srcRef);
+      git_reference_free(dstRef);
+      git_annotated_commit_free(srcCommit);
+      git_annotated_commit_free(dstCommit);
+      git_index_free(index);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // Create commit
+    git_signature *sig = nullptr;
+
+    error = git_signature_now(&sig, author.toStdString().c_str(),
+                              email.toStdString().c_str());
+    if (error) {
+      logGitError(error);
+      git_reference_free(srcRef);
+      git_reference_free(dstRef);
+      git_annotated_commit_free(srcCommit);
+      git_annotated_commit_free(dstCommit);
+      git_index_free(index);
+      git_tree_free(tree);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_oid commitOid;
+    git_commit *dstCommitObj = nullptr;
+    git_commit *srcCommitObj = nullptr;
+
+    error =
+        git_commit_lookup(&dstCommitObj, repo, git_reference_target(dstRef));
+    if (error) {
+      logGitError(error);
+      git_reference_free(srcRef);
+      git_reference_free(dstRef);
+      git_annotated_commit_free(srcCommit);
+      git_annotated_commit_free(dstCommit);
+      git_index_free(index);
+      git_tree_free(tree);
+      git_signature_free(sig);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    error =
+        git_commit_lookup(&srcCommitObj, repo, git_reference_target(srcRef));
+    if (error) {
+      logGitError(error);
+      git_reference_free(srcRef);
+      git_reference_free(dstRef);
+      git_annotated_commit_free(srcCommit);
+      git_annotated_commit_free(dstCommit);
+      git_index_free(index);
+      git_tree_free(tree);
+      git_signature_free(sig);
+      git_commit_free(dstCommitObj);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    const git_commit *parents[2] = {dstCommitObj, srcCommitObj};
+
+    const QString comment = QString("Merge branch '%1' into '%2'")
+                                .arg(sourceBranch, destinationBranch);
+
+    error = git_commit_create(&commitOid, repo, "HEAD", sig, sig, NULL,
+                              comment.toStdString().c_str(), tree, 2, parents);
+    if (error) {
+      logGitError(error);
+      git_reference_free(srcRef);
+      git_reference_free(dstRef);
+      git_annotated_commit_free(srcCommit);
+      git_annotated_commit_free(dstCommit);
+      git_index_free(index);
+      git_tree_free(tree);
+      git_signature_free(sig);
+      git_commit_free(dstCommitObj);
+      git_commit_free(srcCommitObj);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_reference_free(srcRef);
+    git_reference_free(dstRef);
+    git_annotated_commit_free(srcCommit);
+    git_annotated_commit_free(dstCommit);
+    git_index_free(index);
+    git_tree_free(tree);
+    git_signature_free(sig);
+    git_commit_free(dstCommitObj);
+    git_commit_free(srcCommitObj);
+    LOG_PERF(0, "Exit");
+    return true;
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return true;
 }
 
 } // namespace GitRepo

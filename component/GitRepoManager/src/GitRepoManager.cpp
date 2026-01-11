@@ -88,6 +88,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListTags, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerMerge, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerPull, callbackFunc));
@@ -189,6 +191,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerListSubmodules, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListTags, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerMerge, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -496,6 +500,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent listTagsEvent(EventType::ListTags);
     listTagsEvent.addParam(QVariant::fromValue(listTagsCommand));
     _fsm.send(listTagsEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerMerge: {
+    const auto mergeCommand = event.data<GitRepoMergeCommand>();
+    GitRepoManagerEvent mergeEvent(EventType::Merge);
+    mergeEvent.addParam(QVariant::fromValue(mergeCommand));
+    _fsm.send(mergeEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepo: {

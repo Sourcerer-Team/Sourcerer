@@ -356,6 +356,109 @@
                  </item>
                 </layout>
                </widget>
+               <widget class="QWidget" name="pageMergeDiff">
+                <layout class="QVBoxLayout" name="verticalLayout12" stretch="0">
+                 <item>
+                  <layout class="QVBoxLayout" name="verticalLayout_4">
+                   <item>
+                    <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="0,0,0,0,0">
+                     <item>
+                      <spacer name="horizontalSpacer_1">
+                       <property name="orientation">
+                        <enum>Qt::Orientation::Horizontal</enum>
+                       </property>
+                       <property name="sizeHint" stdset="0">
+                        <size>
+                         <width>40</width>
+                         <height>20</height>
+                        </size>
+                       </property>
+                      </spacer>
+                     </item>
+                     <item>
+                      <widget class="QPushButton" name="pushButtonMergeDiffUnified">
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="checkable">
+                        <bool>true</bool>
+                       </property>
+                       <property name="flat">
+                        <bool>false</bool>
+                       </property>
+                      </widget>
+                     </item>
+                     <item>
+                      <widget class="QPushButton" name="pushButtonMergeDiffSideBySide">
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="checkable">
+                        <bool>true</bool>
+                       </property>
+                       <property name="flat">
+                        <bool>false</bool>
+                       </property>
+                      </widget>
+                     </item>
+                     <item>
+                      <spacer name="horizontalSpacer_3">
+                       <property name="orientation">
+                        <enum>Qt::Orientation::Horizontal</enum>
+                       </property>
+                       <property name="sizeType">
+                        <enum>QSizePolicy::Policy::Fixed</enum>
+                       </property>
+                       <property name="sizeHint" stdset="0">
+                        <size>
+                         <width>40</width>
+                         <height>20</height>
+                        </size>
+                       </property>
+                      </spacer>
+                     </item>
+                     <item>
+                      <widget class="QPushButton" name="pushButtonMergeDiffClose">
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="flat">
+                        <bool>true</bool>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </item>
+                   <item>
+                    <widget class="QStackedWidget" name="stackedWidgetMergeDiff">
+                     <widget class="QWidget" name="pageMergeDiffUnified">
+                      <layout class="QVBoxLayout" name="verticalLayout_6">
+                       <item>
+                        <layout class="QVBoxLayout" name="verticalLayoutScintillaMergeDiffUnified">
+                         <item>
+                          <widget class="QsciScintilla" name="scintillaTextEditorMergeUnified" native="true"/>
+                         </item>
+                        </layout>
+                       </item>
+                      </layout>
+                     </widget>
+                     <widget class="QWidget" name="pageMergeDiffSideBySide">
+                      <layout class="QVBoxLayout" name="verticalLayout_7">
+                       <item>
+                        <layout class="QVBoxLayout" name="verticalLayoutScintillaMergeDiffSideBySide">
+                         <item>
+                          <widget class="GuiManager::Widgets::MergeDiffView" name="mergeDiffViewer" native="true"/>
+                         </item>
+                        </layout>
+                       </item>
+                      </layout>
+                     </widget>
+                    </widget>
+                   </item>
+                  </layout>
+                 </item>
+                </layout>
+               </widget>
               </widget>
              </item>
             </layout>
@@ -1467,6 +1570,12 @@
    <class>GuiManager::Widgets::SideBySideDiffView</class>
    <extends>QWidget</extends>
    <header>widgets/SideBySideDiffView.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>GuiManager::Widgets::MergeDiffView</class>
+   <extends>QWidget</extends>
+   <header>widgets/MergeDiffView.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
