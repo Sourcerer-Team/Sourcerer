@@ -31,6 +31,8 @@ InitGitRepoContainer::InitGitRepoContainer(QWidget *parent)
   LOG_PERF(0, "Enter");
   ui->setupUi(this);
 
+  QTimer::singleShot(0, ui->lineEditName, [this]{ ui->lineEditName->setFocus(); });
+
   connect(ui->pushButtonBrowse, &QPushButton::clicked, this,
           &InitGitRepoContainer::onBrowseClicked);
   connect(ui->pushButtonInit, &QPushButton::clicked, this,
