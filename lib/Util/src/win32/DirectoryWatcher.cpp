@@ -217,7 +217,6 @@ void DirectoryWatcher::run() {
     }
   }
 
-         // 7) Cleanup
   ::CloseHandle(ol.hEvent);
   ::CloseHandle(dirHandle);
 
