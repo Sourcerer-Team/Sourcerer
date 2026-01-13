@@ -30,5 +30,7 @@
         <file>icons/cancel.png</file>
         <file>icons/diff-unified.png</file>
         <file>icons/diff-side-by-side.png</file>
+        <file>icons/down_arrow.png</file>
+        <file>icons/up_arrow.png</file>
     </qresource>
 </RCC>

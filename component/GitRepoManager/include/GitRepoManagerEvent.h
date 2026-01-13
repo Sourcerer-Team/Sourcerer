@@ -36,6 +36,7 @@ enum class EventType : int {
   GetSubmodulePath,
   GetUpstream,
   Init,
+  ListConflicts,
   ListLocalBranches,
   ListRemoteBranches,
   ListStashes,

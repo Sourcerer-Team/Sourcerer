@@ -376,7 +376,7 @@
                       </spacer>
                      </item>
                      <item>
-                      <widget class="QPushButton" name="pushButtonMergeDiffUnified">
+                      <widget class="QPushButton" name="pushButtonMergeDiffUp">
                        <property name="text">
                         <string/>
                        </property>
@@ -389,12 +389,12 @@
                       </widget>
                      </item>
                      <item>
-                      <widget class="QPushButton" name="pushButtonMergeDiffSideBySide">
+                      <widget class="QPushButton" name="pushButtonMergeDiffDown">
                        <property name="text">
                         <string/>
                        </property>
                        <property name="checkable">
-                        <bool>true</bool>
+                        <bool>false</bool>
                        </property>
                        <property name="flat">
                         <bool>false</bool>
@@ -431,17 +431,6 @@
                    </item>
                    <item>
                     <widget class="QStackedWidget" name="stackedWidgetMergeDiff">
-                     <widget class="QWidget" name="pageMergeDiffUnified">
-                      <layout class="QVBoxLayout" name="verticalLayout_6">
-                       <item>
-                        <layout class="QVBoxLayout" name="verticalLayoutScintillaMergeDiffUnified">
-                         <item>
-                          <widget class="QsciScintilla" name="scintillaTextEditorMergeUnified" native="true"/>
-                         </item>
-                        </layout>
-                       </item>
-                      </layout>
-                     </widget>
                      <widget class="QWidget" name="pageMergeDiffSideBySide">
                       <layout class="QVBoxLayout" name="verticalLayout_7">
                        <item>

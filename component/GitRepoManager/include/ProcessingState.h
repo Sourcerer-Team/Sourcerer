@@ -70,6 +70,7 @@ private:
       const Structs::GitRepoGetSubmodulePathCommand &command);
   void getUpstreamWorker(const Structs::GitRepoGetUpstreamCommand &command);
   void initRepoWorker(const Structs::GitRepoInitRepoCommand &command);
+  void listConflictsWorker(const Structs::GitRepoListConflictsCommand &command);
   void listLocalBranchesWorker(
       const Structs::GitRepoListLocalBranchesCommand &command);
   void listRemoteBranchesWorker(
@@ -148,6 +149,8 @@ private:
       const Structs::GitRepoGetBranchHistoryCommand &command);
   void
   scheduleWorkerForInitRepo(const Structs::GitRepoInitRepoCommand &command);
+  void scheduleWorkerForListConflicts(
+      const Structs::GitRepoListConflictsCommand &command);
   void scheduleWorkerForListLocalBranches(
       const Structs::GitRepoListLocalBranchesCommand &command);
   void scheduleWorkerForListRemoteBranches(

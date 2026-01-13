@@ -16,8 +16,7 @@ class MergeDiffView : public QWidget {
 public:
   MergeDiffView(QWidget *parent = nullptr);
 
-  void loadAndHighlight(const QString &leftContent,
-                        const GitRepo::FilesDiffDelta &rightDelta,
+  void loadAndHighlight(const QString &contentWithMarkers,
                         const QString &extension);
 
 private:
@@ -27,6 +26,7 @@ private:
 private:
   QsciScintilla *_leftEditor;
   QsciScintilla *_rightEditor;
+  QsciScintilla *_bottomEditor;
   ::ConfigManager::ConfigManager &_configManager;
 };
 

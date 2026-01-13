@@ -4778,4 +4778,117 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   return true;
 }
 
+QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
+  LOG_PERF(0, "Enter");
+
+  git_index *index = nullptr;
+
+  int error = git_repository_index(&index, repo);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_index_conflict_iterator *iterator = nullptr;
+
+  error = git_index_conflict_iterator_new(&iterator, index);
+  if (error) {
+    logGitError(error);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  QString fileContentWithMarkers;
+
+  const std::string filePathStr = filePath.toStdString();
+
+  const git_index_entry *ancestor = nullptr;
+  const git_index_entry *ours = nullptr;
+  const git_index_entry *theirs = nullptr;
+
+  while (!git_index_conflict_next(&ancestor, &ours, &theirs, iterator)) {
+    if (ours->path == nullptr || ours->path != filePathStr ||
+        theirs == nullptr || theirs->path != filePathStr) {
+      continue;
+    }
+
+    git_blob *blobAncestor = nullptr;
+    git_blob *blobOurs = nullptr;
+    git_blob *blobTheirs = nullptr;
+    git_merge_file_input inputAncestor = GIT_MERGE_FILE_INPUT_INIT;
+    git_merge_file_input inputOurs = GIT_MERGE_FILE_INPUT_INIT;
+    git_merge_file_input inputTheirs = GIT_MERGE_FILE_INPUT_INIT;
+    git_merge_file_options opts = GIT_MERGE_FILE_OPTIONS_INIT;
+    git_merge_file_result result = {0};
+
+    if (ancestor) {
+      error = git_blob_lookup(&blobAncestor, repo, &ancestor->id);
+      if (error) {
+        continue;
+      }
+
+      inputAncestor.ptr =
+          static_cast<const char *>(git_blob_rawcontent(blobAncestor));
+      inputAncestor.size = git_blob_rawsize(blobAncestor);
+      inputAncestor.path = "file";
+      inputAncestor.mode = GIT_FILEMODE_BLOB;
+    }
+
+    error = git_blob_lookup(&blobOurs, repo, &ours->id);
+    if (error) {
+      git_blob_free(blobAncestor);
+      continue;
+    }
+
+    inputOurs.ptr = static_cast<const char *>(git_blob_rawcontent(blobOurs));
+    inputOurs.size = git_blob_rawsize(blobOurs);
+    inputOurs.path = "file";
+    inputOurs.mode = GIT_FILEMODE_BLOB;
+
+    error = git_blob_lookup(&blobTheirs, repo, &theirs->id);
+    if (error) {
+      git_blob_free(blobAncestor);
+      git_blob_free(blobOurs);
+      continue;
+    }
+
+    inputTheirs.ptr =
+        static_cast<const char *>(git_blob_rawcontent(blobTheirs));
+    inputTheirs.size = git_blob_rawsize(blobTheirs);
+    inputTheirs.path = "file";
+    inputTheirs.mode = GIT_FILEMODE_BLOB;
+
+    opts.flags =
+        GIT_MERGE_FILE_STYLE_MERGE; // produces <<<<<<<, =======, >>>>>>>
+    opts.favor = GIT_MERGE_FILE_FAVOR_NORMAL;
+
+           // Perform merge
+    error = git_merge_file(&result, &inputAncestor, &inputOurs, &inputTheirs,
+                           &opts);
+    if (error) {
+      git_blob_free(blobAncestor);
+      git_blob_free(blobOurs);
+      git_blob_free(blobTheirs);
+      continue;
+    }
+
+    fileContentWithMarkers += result.ptr;
+
+    git_merge_file_result_free(&result);
+    git_blob_free(blobAncestor);
+    git_blob_free(blobOurs);
+    git_blob_free(blobTheirs);
+
+    break;
+  }
+
+  git_index_conflict_iterator_free(iterator);
+
+  LOG_PERF(0, "Exit");
+
+  return fileContentWithMarkers;
+}
+
 } // namespace GitRepo

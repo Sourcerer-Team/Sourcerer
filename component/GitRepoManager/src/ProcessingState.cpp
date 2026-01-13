@@ -234,6 +234,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForInitRepo(initCommand);
     break;
   }
+  case EventType::ListConflicts: {
+    const auto listConflictsCommand =
+        event.nextParam<GitRepoListConflictsCommand>();
+    scheduleWorkerForListConflicts(listConflictsCommand);
+    break;
+  }
   case EventType::ListLocalBranches: {
     const auto listLocalCommand =
         event.nextParam<GitRepoListLocalBranchesCommand>();
@@ -1610,6 +1616,41 @@ void ProcessingState::initRepoWorker(
     LOCKGUARD(_contextsMutex);
     ctx->gitRepo = nullptr;
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::listConflictsWorker(
+    const Structs::GitRepoListConflictsCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerListConflictsError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const QString fileContentWithMarkers =
+      GitRepo::listConflictsForAFile(repo, command.filePath);
+
+  GitRepoListConflictsCommandResult result;
+  result.fileContentWithMarkers = fileContentWithMarkers;
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerListConflictsResult,
+      command.syncUuid);
+  resultEvent.addData(
+      GitRepoResult{command.uuid, command.type, QVariant::fromValue(result)});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -3164,6 +3205,25 @@ void ProcessingState::scheduleWorkerForInitRepo(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForListConflicts(
+    const Structs::GitRepoListConflictsCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerListConflictsError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoListConflictsCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForListLocalBranches(
     const Structs::GitRepoListLocalBranchesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -3510,6 +3570,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoInitRepoCommand *>(command);
       if (initRepoCommand) {
         initRepoWorker(*initRepoCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::ListConflicts: {
+      const auto *listConflictsCommand =
+          dynamic_cast<const GitRepoListConflictsCommand *>(command);
+      if (listConflictsCommand) {
+        listConflictsWorker(*listConflictsCommand);
       }
       break;
     }

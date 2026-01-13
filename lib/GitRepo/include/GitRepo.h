@@ -187,6 +187,8 @@ QString getActiveBranch(git_repository *repo, BranchType type,
 bool initRepository(const QString &repoName, const QString &workingDir,
                     const QString &defaultBranch);
 
+QString listConflictsForAFile(git_repository *repo, const QString &filePath);
+
 QStringList listLocalBranches(git_repository *repo, const bool &quitFlag);
 
 QStringList listRemoteBranches(git_repository *repo, const bool &quitFlag);

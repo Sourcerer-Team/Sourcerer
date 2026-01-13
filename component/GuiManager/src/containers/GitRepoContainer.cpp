@@ -318,15 +318,14 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMergeDiffClose->setMinimumSize(32, 32);
   ui->pushButtonMergeDiffClose->setMaximumSize(32, 32);
 
-  ui->pushButtonMergeDiffUnified->setIcon(QPixmap(":/icons/diff-unified.png"));
-  ui->pushButtonMergeDiffUnified->setMinimumSize(32, 32);
-  ui->pushButtonMergeDiffUnified->setMaximumSize(32, 32);
-  ui->pushButtonMergeDiffUnified->setChecked(true);
+  ui->pushButtonMergeDiffDown->setIcon(QPixmap(":/icons/down_arrow.png"));
+  ui->pushButtonMergeDiffDown->setMinimumSize(32, 32);
+  ui->pushButtonMergeDiffDown->setMaximumSize(32, 32);
+  ui->pushButtonMergeDiffDown->setChecked(true);
 
-  ui->pushButtonMergeDiffSideBySide->setIcon(
-      QPixmap(":/icons/diff-side-by-side.png"));
-  ui->pushButtonMergeDiffSideBySide->setMinimumSize(32, 32);
-  ui->pushButtonMergeDiffSideBySide->setMaximumSize(32, 32);
+  ui->pushButtonMergeDiffUp->setIcon(QPixmap(":/icons/up_arrow.png"));
+  ui->pushButtonMergeDiffUp->setMinimumSize(32, 32);
+  ui->pushButtonMergeDiffUp->setMaximumSize(32, 32);
 
   const QScintillaLexerFactory factory;
 
@@ -345,29 +344,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaTextEditorUnified->setMarkerBackgroundColor(Qt::darkYellow, 1);
   ui->scintillaTextEditorUnified->setReadOnly(true);
 
-  QsciLexer *lexerMergeDiffUnified =
-      factory.createLexerByName("Diff", ui->scintillaTextEditorMergeUnified);
-
-  ui->scintillaTextEditorMergeUnified->setSizePolicy(QSizePolicy::Expanding,
-                                                     QSizePolicy::Expanding);
-  ui->scintillaTextEditorMergeUnified->setWrapMode(QsciScintilla::WrapWord);
-  ui->scintillaTextEditorMergeUnified->setLexer(lexerMergeDiffUnified);
-  ui->scintillaTextEditorMergeUnified->setMarginsBackgroundColor(
-      QColor(0x384D59));
-  ui->scintillaTextEditorMergeUnified->setMarginType(
-      0, QsciScintilla::NumberMargin);
-  ui->scintillaTextEditorMergeUnified->setMarginType(
-      1, QsciScintilla::SymbolMargin);
-  ui->scintillaTextEditorMergeUnified->setMarginWidth(1, 2);
-  ui->scintillaTextEditorMergeUnified->markerDefine(QsciScintilla::Background,
-                                                    1);
-  ui->scintillaTextEditorMergeUnified->setMarkerBackgroundColor(Qt::darkYellow,
-                                                                1);
-  ui->scintillaTextEditorMergeUnified->setReadOnly(true);
-
   DarkThemeLexersHighlighter highlighter;
   highlighter.applyDarkTheme(ui->scintillaTextEditorUnified);
-  highlighter.applyDarkTheme(ui->scintillaTextEditorMergeUnified);
 
   showMainSpinnerPage(false);
   showSpinnerOverlay();
@@ -534,10 +512,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(ui->pushButtonDiffClose, &QPushButton::clicked, this,
           &GitRepoContainer::onDiffCloseClicked);
 
-  connect(ui->pushButtonMergeDiffUnified, &QPushButton::clicked, this,
-          &GitRepoContainer::onMergeDiffUnifiedClicked);
-  connect(ui->pushButtonMergeDiffSideBySide, &QPushButton::clicked, this,
-          &GitRepoContainer::onMergeDiffSideBySideClicked);
+  connect(ui->pushButtonMergeDiffDown, &QPushButton::clicked, this,
+          &GitRepoContainer::onMergeDiffDownClicked);
+  connect(ui->pushButtonMergeDiffUp, &QPushButton::clicked, this,
+          &GitRepoContainer::onMergeDiffUpClicked);
   connect(ui->pushButtonMergeDiffClose, &QPushButton::clicked, this,
           &GitRepoContainer::onMergeDiffCloseClicked);
 
@@ -1305,10 +1283,14 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    const bool merge =
+    const bool conflicted =
         modificationType ==
         GuiManager::Models::GitCommitListModificationType::Conflicted;
-    diff(guard, filePath, merge);
+    if (!conflicted) {
+      diff(guard, filePath);
+    } else {
+      diffThreeWay(guard, filePath);
+    }
   });
 
   LOG_PERF(0, "Exit");
@@ -1327,18 +1309,9 @@ void GitRepoContainer::onListViewTabWidgetFlatSelectedFromCommit(
 
   filePath = QDir::fromNativeSeparators(filePath);
 
-  const GuiManager::Models::GitCommitListModificationType modificationType =
-      static_cast<GuiManager::Models::GitCommitListModificationType>(
-          index.data(Qt::UserRole).toInt());
-
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() {
-    const bool merge =
-        modificationType ==
-        GuiManager::Models::GitCommitListModificationType::Conflicted;
-    diffFromCommit(guard, filePath, commit, merge);
-  });
+  _dispatcher.dispatch([=]() { diffFromCommit(guard, filePath, commit); });
 
   LOG_PERF(0, "Exit");
 }
@@ -1353,24 +1326,14 @@ void GitRepoContainer::onMergeDiffCloseClicked() const {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onMergeDiffUnifiedClicked() {
+void GitRepoContainer::onMergeDiffDownClicked() {
   LOG_PERF(0, "Enter");
-
-  ui->pushButtonMergeDiffSideBySide->setChecked(false);
-
-  ui->stackedWidgetMergeDiff->setCurrentIndex(
-      static_cast<int>(DiffStackIndexes::DiffUnified));
 
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onMergeDiffSideBySideClicked() {
+void GitRepoContainer::onMergeDiffUpClicked() {
   LOG_PERF(0, "Enter");
-
-  ui->pushButtonMergeDiffUnified->setChecked(false);
-
-  ui->stackedWidgetMergeDiff->setCurrentIndex(
-      static_cast<int>(DiffStackIndexes::DiffSideBySide));
 
   LOG_PERF(0, "Exit");
 }
@@ -1419,10 +1382,14 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    const bool merge =
+    const bool conflicted =
         modificationType ==
         GuiManager::Models::GitCommitListModificationType::Conflicted;
-    diff(guard, filePath, merge);
+    if (!conflicted) {
+      diff(guard, filePath);
+    } else {
+      diffThreeWay(guard, filePath);
+    }
   });
 
   LOG_PERF(0, "Exit");
@@ -1460,10 +1427,6 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelectedFromCommit(
 
     path.prepend(item->text());
     current = current.parent();
-
-    modificationType =
-        static_cast<GuiManager::Models::GitCommitListModificationType>(
-            index.data(Qt::UserRole).toInt());
   }
 
   QString filePath = path.join("/");
@@ -1472,12 +1435,7 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelectedFromCommit(
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() {
-    const bool merge =
-        modificationType ==
-        GuiManager::Models::GitCommitListModificationType::Conflicted;
-    diffFromCommit(guard, filePath, commit, merge);
-  });
+  _dispatcher.dispatch([=]() { diffFromCommit(guard, filePath, commit); });
 
   LOG_PERF(0, "Exit");
 }
@@ -4015,7 +3973,7 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
 }
 
 inline void GitRepoContainer::diff(const WeakPtr &guard,
-                                   const QString &filePath, bool merge) {
+                                   const QString &filePath) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -4086,38 +4044,20 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
     const int width = QString::number(lineCount).length();
     const QString mask = QString::number(0).rightJustified(width + 1, '0');
 
-    if (!merge) {
-      ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
-      ui->scintillaTextEditorUnified->setText(filesDiff.diff);
+    ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
+    ui->scintillaTextEditorUnified->setText(filesDiff.diff);
 
-      // Mark hunk headers
-      for (int i = 0; i < ui->scintillaTextEditorUnified->lines(); ++i) {
-        if (ui->scintillaTextEditorUnified->text(i).startsWith("@@ "))
-          ui->scintillaTextEditorUnified->markerAdd(i, 1);
-      }
+    // Mark hunk headers
+    for (int i = 0; i < ui->scintillaTextEditorUnified->lines(); ++i) {
+      if (ui->scintillaTextEditorUnified->text(i).startsWith("@@ "))
+        ui->scintillaTextEditorUnified->markerAdd(i, 1);
+    }
 
-      if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
-        const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
-        ui->sideBySideDiffViewer->loadAndHighlight(
-            filesDiff.repoContent.first(), filesDiff.deltas.first(),
-            fileInfo.suffix());
-      }
-    } else {
-      ui->scintillaTextEditorMergeUnified->setMarginWidth(0, mask);
-      ui->scintillaTextEditorMergeUnified->setText(filesDiff.diff);
-
-             // Mark hunk headers
-      for (int i = 0; i < ui->scintillaTextEditorMergeUnified->lines(); ++i) {
-        if (ui->scintillaTextEditorMergeUnified->text(i).startsWith("@@ "))
-          ui->scintillaTextEditorMergeUnified->markerAdd(i, 1);
-      }
-
-      if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
-        const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
-        ui->mergeDiffViewer->loadAndHighlight(filesDiff.repoContent.first(),
-                                              filesDiff.deltas.first(),
-                                              fileInfo.suffix());
-      }
+    if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
+      const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
+      ui->sideBySideDiffViewer->loadAndHighlight(filesDiff.repoContent.first(),
+                                                 filesDiff.deltas.first(),
+                                                 fileInfo.suffix());
     }
 
     ui->stackedWidgetMiddle->setCurrentIndex(1);
@@ -4126,9 +4066,85 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::diffThreeWay(const WeakPtr &guard,
+                                    const QString &filePath) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoListConflictsCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.filePath = filePath;
+
+  EventManager::Event listConflictsEvent(
+      EventManager::EventType::GitRepoManagerListConflicts, eventUuid);
+  listConflictsEvent.addData(command);
+  _eventManager.send(listConflictsEvent);
+
+  static std::set types = {
+                           EventManager::EventType::GitRepoManagerListConflictsError,
+      EventManager::EventType::GitRepoManagerListConflictsResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(tr("Failed to create file diff."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerListConflictsResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString("%1\n%2").arg(tr("Failed to create file diff."),
+                                           error.message),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const auto listConflictsResult =
+      commandResult.value.value<GitRepoListConflictsCommandResult>();
+
+  if (listConflictsResult.fileContentWithMarkers.isEmpty()) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showToast(tr("No difference compared to the HEAD commit."), tr("Info"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    const QFileInfo fileInfo(filePath);
+    ui->mergeDiffViewer->loadAndHighlight(
+        listConflictsResult.fileContentWithMarkers, fileInfo.suffix());
+    ui->stackedWidgetMiddle->setCurrentIndex(2);
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
 void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
                                       const QString &filePath,
-                                      const QString &commit, bool merge) {
+                                      const QString &commit) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -4201,38 +4217,20 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
     const int width = QString::number(lineCount).length();
     const QString mask = QString::number(0).rightJustified(width + 1, '0');
 
-    if (!merge) {
-      ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
-      ui->scintillaTextEditorUnified->setText(filesDiff.diff);
+    ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
+    ui->scintillaTextEditorUnified->setText(filesDiff.diff);
 
-      // Mark hunk headers
-      for (int i = 0; i < ui->scintillaTextEditorUnified->lines(); ++i) {
-        if (ui->scintillaTextEditorUnified->text(i).startsWith("@@ "))
-          ui->scintillaTextEditorUnified->markerAdd(i, 1);
-      }
+    // Mark hunk headers
+    for (int i = 0; i < ui->scintillaTextEditorUnified->lines(); ++i) {
+      if (ui->scintillaTextEditorUnified->text(i).startsWith("@@ "))
+        ui->scintillaTextEditorUnified->markerAdd(i, 1);
+    }
 
-      if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
-        const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
-        ui->sideBySideDiffViewer->loadAndHighlight(
-            filesDiff.repoContent.first(), filesDiff.deltas.first(),
-            fileInfo.suffix());
-      }
-    } else {
-      ui->scintillaTextEditorMergeUnified->setMarginWidth(0, mask);
-      ui->scintillaTextEditorMergeUnified->setText(filesDiff.diff);
-
-             // Mark hunk headers
-      for (int i = 0; i < ui->scintillaTextEditorMergeUnified->lines(); ++i) {
-        if (ui->scintillaTextEditorMergeUnified->text(i).startsWith("@@ "))
-          ui->scintillaTextEditorMergeUnified->markerAdd(i, 1);
-      }
-
-      if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
-        const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
-        ui->mergeDiffViewer->loadAndHighlight(filesDiff.repoContent.first(),
-                                              filesDiff.deltas.first(),
-                                              fileInfo.suffix());
-      }
+    if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
+      const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
+      ui->sideBySideDiffViewer->loadAndHighlight(filesDiff.repoContent.first(),
+                                                 filesDiff.deltas.first(),
+                                                 fileInfo.suffix());
     }
 
     ui->stackedWidgetMiddle->setCurrentIndex(1);

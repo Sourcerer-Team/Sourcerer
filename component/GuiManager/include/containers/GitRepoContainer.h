@@ -99,8 +99,8 @@ private slots:
   void onListViewTabWidgetFlatSelectedFromCommit(const QModelIndex &index,
                                                  const QString &commit);
   void onMergeDiffCloseClicked() const;
-  void onMergeDiffUnifiedClicked();
-  void onMergeDiffSideBySideClicked();
+  void onMergeDiffDownClicked();
+  void onMergeDiffUpClicked();
   void onTreeViewTabWidgetTreeSelected(const QModelIndex &index,
                                        const Models::GitCommitTreeModel &model);
   void onTreeViewTabWidgetTreeSelectedFromCommit(
@@ -194,9 +194,10 @@ private:
       const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
   void deleteTag(const WeakPtr &guard, const QString &tagName);
   void deleteSubmodule(const WeakPtr &guard, const QString &submoduleName);
-  void diff(const WeakPtr &guard, const QString &filePath, bool merge);
+  void diff(const WeakPtr &guard, const QString &filePath);
+  void diffThreeWay(const WeakPtr &guard, const QString &filePath);
   void diffFromCommit(const WeakPtr &guard, const QString &filePath,
-                      const QString &commit, bool merge);
+                      const QString &commit);
   void diffFiles(const WeakPtr &guard, const QStringList &files);
   void discardFiles(const WeakPtr &guard, const QStringList &files);
   bool getActiveBranchOrTag(const WeakPtr &guard,

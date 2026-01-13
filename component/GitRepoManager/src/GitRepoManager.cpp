@@ -78,6 +78,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerListConflicts, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranches, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListRemoteBranches, callbackFunc));
@@ -181,6 +183,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerGetSubmodulePath, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetUpstream, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerListConflicts, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListLocalBranches, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -463,6 +467,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent initRepoEvent(EventType::Init);
     initRepoEvent.addParam(QVariant::fromValue(initRepoCommand));
     _fsm.send(initRepoEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerListConflicts: {
+    const auto listConflictsCommand = event.data<GitRepoListConflictsCommand>();
+    GitRepoManagerEvent listConflictsEvent(EventType::ListConflicts);
+    listConflictsEvent.addParam(QVariant::fromValue(listConflictsCommand));
+    _fsm.send(listConflictsEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerListLocalBranches: {

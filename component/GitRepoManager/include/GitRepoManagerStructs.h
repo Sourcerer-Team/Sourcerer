@@ -41,6 +41,7 @@ enum class GitRepoCommandType : int {
   GetSubmodulePath,
   GetUpstream,
   Init,
+  ListConflicts,
   ListLocalBranches,
   ListRemoteBranches,
   ListStashes,
@@ -370,6 +371,19 @@ struct GitRepoInitRepoCommand final : GitRepoCommand {
   QString repoName;
   QString workingDir;
   QString defaultBranch;
+};
+
+struct GitRepoListConflictsCommand final : GitRepoCommand {
+  GitRepoListConflictsCommand()
+      : GitRepoCommand(GitRepoCommandType::ListConflicts) {}
+
+  ~GitRepoListConflictsCommand() override = default;
+
+  QString filePath;
+};
+
+struct GitRepoListConflictsCommandResult {
+  QString fileContentWithMarkers;
 };
 
 struct GitRepoListLocalBranchesCommand final : GitRepoCommand {
