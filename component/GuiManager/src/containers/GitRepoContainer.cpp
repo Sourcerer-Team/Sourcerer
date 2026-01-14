@@ -2190,18 +2190,33 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
     return;
   }
 
+  const GuiManager::Models::GitCommitListModificationType modificationType =
+      static_cast<GuiManager::Models::GitCommitListModificationType>(
+          index.data(Qt::UserRole).toInt());
+
+  const bool conflicted =
+      modificationType ==
+      GuiManager::Models::GitCommitListModificationType::Conflicted;
+
   const QStringList files =
       getSelectedFilesWhichExist(ui->listViewTabWidgetWorkingTreeFlat);
 
   QMenu contextMenu;
-  contextMenu.addAction(ui->actionWorkingTreeFlatStage);
-  contextMenu.addAction(ui->actionWorkingTreeFlatDiscard);
+
+  if (!conflicted) {
+    contextMenu.addAction(ui->actionWorkingTreeFlatStage);
+    contextMenu.addAction(ui->actionWorkingTreeFlatDiscard);
+  }
 
   if (!files.isEmpty()) {
     contextMenu.addAction(ui->actionWorkingTreeFlatIgnore);
     contextMenu.addSeparator();
-    contextMenu.addAction(ui->actionWorkingTreeFlatCreateFilePatch);
-    contextMenu.addSeparator();
+
+    if (!conflicted) {
+      contextMenu.addAction(ui->actionWorkingTreeFlatCreateFilePatch);
+      contextMenu.addSeparator();
+    }
+
     contextMenu.addAction(ui->actionWorkingTreeFlatDelete);
   }
 
@@ -2338,18 +2353,33 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
     return;
   }
 
+  const GuiManager::Models::GitCommitListModificationType modificationType =
+      static_cast<GuiManager::Models::GitCommitListModificationType>(
+          index.data(Qt::UserRole).toInt());
+
+  const bool conflicted =
+      modificationType ==
+      GuiManager::Models::GitCommitListModificationType::Conflicted;
+
   const QStringList files =
       getSelectedFilesWhichExist(ui->treeViewTabWidgetWorkingTreeTree);
 
   QMenu contextMenu;
-  contextMenu.addAction(ui->actionWorkingTreeTreeStage);
-  contextMenu.addAction(ui->actionWorkingTreeTreeDiscard);
+
+  if (!conflicted) {
+    contextMenu.addAction(ui->actionWorkingTreeTreeStage);
+    contextMenu.addAction(ui->actionWorkingTreeTreeDiscard);
+  }
 
   if (!files.isEmpty()) {
     contextMenu.addAction(ui->actionWorkingTreeTreeIgnore);
     contextMenu.addSeparator();
-    contextMenu.addAction(ui->actionWorkingTreeTreeCreateFilePatch);
-    contextMenu.addSeparator();
+
+    if (!conflicted) {
+      contextMenu.addAction(ui->actionWorkingTreeTreeCreateFilePatch);
+      contextMenu.addSeparator();
+    }
+
     contextMenu.addAction(ui->actionWorkingTreeTreeDelete);
   }
 
@@ -4735,6 +4765,15 @@ QStringList GitRepoContainer::getSelectedFiles(QListView *listView) {
   QStringList files;
 
   for (const auto &index : listIndexes) {
+    const GuiManager::Models::GitCommitListModificationType modificationType =
+        static_cast<GuiManager::Models::GitCommitListModificationType>(
+            index.data(Qt::UserRole).toInt());
+
+    if (modificationType ==
+        GuiManager::Models::GitCommitListModificationType::Conflicted) {
+      continue;
+    }
+
     files += QDir::fromNativeSeparators(index.data().toString());
   }
 
@@ -4785,6 +4824,15 @@ QStringList GitRepoContainer::getSelectedFiles(QTreeView *treeView) {
   QStringList files;
 
   for (const auto &index : listIndexes) {
+    const GuiManager::Models::GitCommitListModificationType modificationType =
+        static_cast<GuiManager::Models::GitCommitListModificationType>(
+            index.data(Qt::UserRole).toInt());
+
+    if (modificationType ==
+        GuiManager::Models::GitCommitListModificationType::Conflicted) {
+      continue;
+    }
+
     const QStringList traversedFiles =
         traverseModelIndexSubtree(index, treeView->model());
 
@@ -5945,9 +5993,24 @@ void GitRepoContainer::refreshStatus(const WeakPtr &guard) {
 void GitRepoContainer::resetCommitAndMergeIndexTreeUnstageAllButton() const {
   LOG_PERF(0, "Enter");
 
+  int rowCount = 0;
+
+  if (_commitStagedListModel) {
+    for (int i = 0; i < _commitStagedListModel->rowCount(); ++i) {
+      const GuiManager::Models::GitCommitListModificationType modificationType =
+          static_cast<GuiManager::Models::GitCommitListModificationType>(
+              _commitStagedListModel->index(i, 0).data(Qt::UserRole).toInt());
+      if (modificationType ==
+          GuiManager::Models::GitCommitListModificationType::Conflicted) {
+        continue;
+      }
+
+      ++rowCount;
+    }
+  }
+
   _commitAndMergeIndexTreeUnstageAllButton->setText(tr("Unstage all"));
-  _commitAndMergeIndexTreeUnstageAllButton->setVisible(
-      _commitStagedListModel && _commitStagedListModel->rowCount() > 0);
+  _commitAndMergeIndexTreeUnstageAllButton->setVisible(rowCount > 0);
 
   LOG_PERF(0, "Exit")
 }
@@ -5956,8 +6019,24 @@ void GitRepoContainer::resetCommitAndMergeWorkingTreeTreeStageAllButton() {
   LOG_PERF(0, "Enter");
 
   _commitAndMergeWorkingDirTreeStageAllButton->setText(tr("Stage all"));
-  _commitAndMergeWorkingDirTreeStageAllButton->setVisible(
-      _commitListModel && _commitListModel->rowCount() > 0);
+
+  int rowCount = 0;
+
+  if (_commitListModel) {
+    for (int i = 0; i < _commitListModel->rowCount(); ++i) {
+      const GuiManager::Models::GitCommitListModificationType modificationType =
+          static_cast<GuiManager::Models::GitCommitListModificationType>(
+              _commitListModel->index(i, 0).data(Qt::UserRole).toInt());
+      if (modificationType ==
+          GuiManager::Models::GitCommitListModificationType::Conflicted) {
+        continue;
+      }
+
+      ++rowCount;
+    }
+  }
+
+  _commitAndMergeWorkingDirTreeStageAllButton->setVisible(rowCount > 0);
 
   LOG_PERF(0, "Exit")
 }
@@ -6280,8 +6359,7 @@ void GitRepoContainer::stageAll(const WeakPtr &guard) {
   const QStringList modifiedFiles = historyAndStatus.status.newFiles +
                                     historyAndStatus.status.modifiedFiles +
                                     historyAndStatus.status.deletedFiles +
-                                    historyAndStatus.status.renamedFiles +
-                                    historyAndStatus.status.conflictedFiles;
+                                    historyAndStatus.status.renamedFiles;
 
   if (!modifiedFiles.isEmpty()) {
     stageFiles(guard, modifiedFiles);
