@@ -10,6 +10,15 @@
 
 namespace GuiManager::Widgets {
 
+struct SideBySideDiffContent {
+  QString left;
+  QString right;
+  QVector<int> leftMarks0;
+  QVector<int> leftMarks1;
+  QVector<int> rightMarks0;
+  QVector<int> rightMarks1;
+};
+
 class SideBySideDiffView : public QWidget {
   Q_OBJECT
 

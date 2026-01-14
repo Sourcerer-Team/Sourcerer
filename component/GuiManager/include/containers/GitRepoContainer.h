@@ -101,6 +101,7 @@ private slots:
   void onMergeDiffCloseClicked() const;
   void onMergeDiffDownClicked();
   void onMergeDiffUpClicked();
+  void onMergeDiffSaveClicked();
   void onTreeViewTabWidgetTreeSelected(const QModelIndex &index,
                                        const Models::GitCommitTreeModel &model);
   void onTreeViewTabWidgetTreeSelectedFromCommit(
@@ -248,6 +249,9 @@ private:
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
   void saveRepoInRecentList() const;
+  void saveThreeWayMergeResultFile(const WeakPtr &guard,
+                                   const QString &filePath,
+                                   const QString &content);
   void setUpstream(const WeakPtr &guard, const QString &remoteName,
                    const QString &remoteBranchName);
   void startOverlayTimer() const;

@@ -162,6 +162,42 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#pushButtonMergeDiffDown{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonMergeDiffDown:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonMergeDiffUp{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonMergeDiffUp:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonMergeDiffSave{
+        background-color: #006400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonMergeDiffSave:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
       QPushButton#pushButtonTextOverlayWidgetInputSubmit{
         background-color: #006400;
         border: 1px solid gray;

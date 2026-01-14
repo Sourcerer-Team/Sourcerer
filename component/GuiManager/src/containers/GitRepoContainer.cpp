@@ -327,6 +327,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMergeDiffUp->setMinimumSize(32, 32);
   ui->pushButtonMergeDiffUp->setMaximumSize(32, 32);
 
+  ui->pushButtonMergeDiffSave->setMinimumHeight(32);
+  ui->pushButtonMergeDiffSave->setMaximumHeight(32);
+
   const QScintillaLexerFactory factory;
 
   QsciLexer *lexerDiffUnified =
@@ -516,6 +519,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onMergeDiffDownClicked);
   connect(ui->pushButtonMergeDiffUp, &QPushButton::clicked, this,
           &GitRepoContainer::onMergeDiffUpClicked);
+  connect(ui->pushButtonMergeDiffSave, &QPushButton::clicked, this,
+          &GitRepoContainer::onMergeDiffSaveClicked);
   connect(ui->pushButtonMergeDiffClose, &QPushButton::clicked, this,
           &GitRepoContainer::onMergeDiffCloseClicked);
 
@@ -1338,6 +1343,39 @@ void GitRepoContainer::onMergeDiffUpClicked() {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onMergeDiffSaveClicked() {
+  LOG_PERF(0, "Enter");
+
+  if (!ui->mergeDiffViewer->areConflictsResolved()) {
+    const QString question =
+        QString("All conflicts in the file are not resolved.\nAre you sure "
+                "that you want to save this file?");
+
+    const auto reply =
+        QMessageBox::question(this, tr("Confirm action"), question,
+                              QMessageBox::Yes, QMessageBox::No);
+    if (reply == QMessageBox::No) {
+      LOG_PERF(0, "Exit");
+      return;
+    }
+  }
+
+  QString mergedContent = ui->mergeDiffViewer->mergedContent();
+
+  if (ui->mergeDiffViewer->shouldConvertToWindowsFile()) {
+    mergedContent = mergedContent.replace("\n", "\r\n");
+  }
+
+  const QString filePath = ui->mergeDiffViewer->filePath();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch(
+      [=]() { saveThreeWayMergeResultFile(guard, filePath, mergedContent); });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
     const QModelIndex &index, const Models::GitCommitTreeModel &model) {
   LOG_PERF(0, "Enter");
@@ -1977,6 +2015,31 @@ void GitRepoContainer::saveRepoInRecentList() const {
   _configManager.setString(ConfigManager::ConfigKey::RecentlyOpenedRepos,
                            recentRepos);
   _configManager.save();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::saveThreeWayMergeResultFile(const WeakPtr &guard,
+                                                   const QString &filePath,
+                                                   const QString &content) {
+  LOG_PERF(0, "Enter");
+
+  const QString ttt = QDir(_path).absoluteFilePath(filePath);
+
+  QFile file(QDir(_path).absoluteFilePath(filePath));
+  if (file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+    QTextStream out(&file);
+    out.setEncoding(QStringConverter::Utf8);
+    out << content;
+    file.close();
+  }
+
+  stageFiles(guard, QStringList() << filePath);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
+    ui->pushButtonMergeDiffSave->setEnabled(false);
+  });
 
   LOG_PERF(0, "Exit");
 }
@@ -4163,9 +4226,9 @@ void GitRepoContainer::diffThreeWay(const WeakPtr &guard,
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    const QFileInfo fileInfo(filePath);
+    ui->pushButtonMergeDiffSave->setEnabled(true);
     ui->mergeDiffViewer->loadAndHighlight(
-        listConflictsResult.fileContentWithMarkers, fileInfo.suffix());
+        listConflictsResult.fileContentWithMarkers, filePath);
     ui->stackedWidgetMiddle->setCurrentIndex(2);
   });
 

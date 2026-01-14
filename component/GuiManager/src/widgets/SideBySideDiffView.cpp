@@ -13,15 +13,6 @@
 
 namespace GuiManager::Widgets {
 
-struct Content {
-  QString left;
-  QString right;
-  QVector<int> leftMarks0;
-  QVector<int> leftMarks1;
-  QVector<int> rightMarks0;
-  QVector<int> rightMarks1;
-};
-
 SideBySideDiffView::SideBySideDiffView(QWidget *parent)
     : QWidget(parent), _leftEditor(new QsciScintilla(this)),
       _rightEditor(new QsciScintilla(this)),
@@ -38,8 +29,9 @@ SideBySideDiffView::SideBySideDiffView(QWidget *parent)
   LOG_PERF(0, "Exit");
 }
 
-static Content createContent(const QString &leftContent,
-                             const GitRepo::FilesDiffDelta &rightDelta) {
+static SideBySideDiffContent
+createContent(const QString &leftContent,
+              const GitRepo::FilesDiffDelta &rightDelta) {
   LOG_PERF(0, "Enter");
 
   QStringList leftLines =
@@ -113,7 +105,7 @@ static Content createContent(const QString &leftContent,
     currentLeftIndex++;
   }
 
-  Content content;
+  SideBySideDiffContent content;
   content.left = alignedLeft.join('\n');
   content.right = alignedRight.join('\n');
   content.leftMarks0 = changedLeft0;
@@ -133,7 +125,7 @@ void SideBySideDiffView::loadAndHighlight(
 
   setupEditors(extension);
 
-  const Content content = createContent(leftContent, rightDelta);
+  const SideBySideDiffContent content = createContent(leftContent, rightDelta);
 
   const QStringList leftRaw =
       QString(content.left).replace("\r\n", "\n").split('\n');
