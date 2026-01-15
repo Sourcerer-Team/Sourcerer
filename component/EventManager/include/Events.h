@@ -19,6 +19,9 @@ enum EventType {
   ComponentStopped,
 
   // GitRepoManager
+  GitRepoManagerAbortMerge,
+  GitRepoManagerAbortMergeResult,
+  GitRepoManagerAbortMergeError,
   GitRepoManagerAddSubmodule,
   GitRepoManagerAddSubmoduleResult,
   GitRepoManagerAddSubmoduleError,
@@ -89,6 +92,9 @@ enum EventType {
   GitRepoManagerGetCommitIsHead,
   GitRepoManagerGetCommitIsHeadResult,
   GitRepoManagerGetCommitIsHeadError,
+  GitRepoManagerGetIsMergeInProgress,
+  GitRepoManagerGetIsMergeInProgressResult,
+  GitRepoManagerGetIsMergeInProgressError,
   GitRepoManagerGetCommitStatus,
   GitRepoManagerGetCommitStatusResult,
   GitRepoManagerGetCommitStatusError,

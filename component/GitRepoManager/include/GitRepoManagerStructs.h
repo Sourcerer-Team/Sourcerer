@@ -14,6 +14,7 @@ namespace GitRepoManager::Structs {
 
 enum class GitRepoCommandType : int {
   Unknown = 0,
+  AbortMerge,
   AddSubmodule,
   ApplyPatch,
   ApplyStash,
@@ -38,6 +39,7 @@ enum class GitRepoCommandType : int {
   GetCommitHeads,
   GetCommitIsHead,
   GetCommitStatus,
+  GetIsMergeInProgress,
   GetSubmodulePath,
   GetUpstream,
   Init,
@@ -84,6 +86,13 @@ struct GitRepoCommand {
   GitRepoCommandType type;
   QString uuid;
   QString syncUuid;
+};
+
+struct GitRepoAbortMergeCommand final : GitRepoCommand {
+  GitRepoAbortMergeCommand()
+      : GitRepoCommand(GitRepoCommandType::AbortMerge) {}
+
+  ~GitRepoAbortMergeCommand() override = default;
 };
 
 struct GitRepoAddSubmoduleCommand final : GitRepoCommand {
@@ -161,6 +170,7 @@ struct GitRepoCommitStagedCommand final : GitRepoCommand {
   QString email;
   QString summary;
   QString message;
+  bool cleanup = false;
 };
 
 struct GitRepoCreateBranchFromCommitCommand final : GitRepoCommand {
@@ -334,6 +344,13 @@ struct GitRepoGetBranchHistoryCommand final : GitRepoCommand {
 
   QString branchName;
   GitRepo::BranchType branchType = GitRepo::BranchType::Unknown;
+};
+
+struct GitRepoGetIsMergeInProgressCommand final : GitRepoCommand {
+  GitRepoGetIsMergeInProgressCommand()
+      : GitRepoCommand(GitRepoCommandType::GetIsMergeInProgress) {}
+
+  ~GitRepoGetIsMergeInProgressCommand() override = default;
 };
 
 struct GitRepoGetSubmodulePathCommand final : GitRepoCommand {

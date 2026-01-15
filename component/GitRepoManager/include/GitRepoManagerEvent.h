@@ -9,6 +9,7 @@ enum class EventType : int {
 
   Stop = -1,
   ChangeState = 0,
+  AbortMerge,
   AddSubmodule,
   ApplyPatch,
   ApplyStash,
@@ -33,6 +34,7 @@ enum class EventType : int {
   GetCommitHeads,
   GetCommitIsHead,
   GetCommitStatus,
+  GetIsMergeInProgress,
   GetSubmodulePath,
   GetUpstream,
   Init,

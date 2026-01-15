@@ -20,6 +20,8 @@ GitRepoManager::GitRepoManager()
       std::bind(&GitRepoManager::eventCallback, this, std::placeholders::_1);
 
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerAbortMerge, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAddSubmodule, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyPatch, callbackFunc));
@@ -69,6 +71,9 @@ GitRepoManager::GitRepoManager()
       EventManager::EventType::GitRepoManagerGetCommitHeads, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitIsHead, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetIsMergeInProgress,
+      callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitStatus, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
@@ -128,6 +133,8 @@ GitRepoManager::~GitRepoManager() {
       std::bind(&GitRepoManager::eventCallback, this, std::placeholders::_1);
 
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerAbortMerge, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAddSubmodule, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyPatch, callbackFunc));
@@ -177,6 +184,9 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerGetCommitHeads, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitIsHead, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetIsMergeInProgress,
+      callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitStatus, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -258,6 +268,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
   LOG_DEBUG("Received event {}", _eventManager.eventName(eventType));
 
   switch (eventType) {
+  case EventManager::EventType::GitRepoManagerAbortMerge: {
+    const auto abortMergeCommand = event.data<GitRepoAbortMergeCommand>();
+    GitRepoManagerEvent abortMergeEvent(EventType::AbortMerge);
+    abortMergeEvent.addParam(QVariant::fromValue(abortMergeCommand));
+    _fsm.send(abortMergeEvent);
+    break;
+  }
   case EventManager::EventType::GitRepoManagerAddSubmodule: {
     const auto addSubmoduleCommand = event.data<GitRepoAddSubmoduleCommand>();
     GitRepoManagerEvent addSubmoduleEvent(EventType::AddSubmodule);
@@ -436,6 +453,16 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent getCommitIsHeadEvent(EventType::GetCommitIsHead);
     getCommitIsHeadEvent.addParam(QVariant::fromValue(getCommitIsHeadCommand));
     _fsm.send(getCommitIsHeadEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerGetIsMergeInProgress: {
+    const auto getIsMergeInProgressCommand =
+        event.data<GitRepoGetIsMergeInProgressCommand>();
+    GitRepoManagerEvent getIsMergeInProgressEvent(
+        EventType::GetIsMergeInProgress);
+    getIsMergeInProgressEvent.addParam(
+        QVariant::fromValue(getIsMergeInProgressCommand));
+    _fsm.send(getIsMergeInProgressEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCommitStatus: {

@@ -179,6 +179,9 @@ void SideBySideDiffView::loadAndHighlight(
 void SideBySideDiffView::setupEditors(const QString &extension) {
   LOG_PERF(0, "Enter");
 
+  _leftEditor->setReadOnly(true);
+  _rightEditor->setReadOnly(true);
+
   const QScintillaLexerFactory factory;
 
   auto *lexer = factory.createLexerForExtension(extension, this);

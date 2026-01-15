@@ -227,7 +227,7 @@ bool unstageFiles(git_repository *repo, const QStringList &files);
 
 bool commitStaged(git_repository *repo, const QString &summary,
                   const QString &message, const QString &author,
-                  const QString &email);
+                  const QString &email, bool cleanup);
 
 FilesDiff diffFiles(git_repository *repo, const QStringList &files);
 
@@ -282,5 +282,9 @@ bool updateSubmodule(git_repository *repo, const QString &submoduleName);
 
 bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
                   const QString &uuid);
+
+bool getIsMergeInProgress(git_repository *repo);
+
+bool abortMerge(git_repository *repo);
 
 } // namespace GitRepo

@@ -126,6 +126,42 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#pushButtonAbort{
+        background-color: #8b0000;
+        border: 1px solid gray;
+        border-radius: 5px;z
+        padding: 5px;
+      }
+      QPushButton#pushButtonAbort:hover{
+        background-color: #b22222;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonCommit{
+        background-color: #006400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonCommit:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonMerge{
+        background-color: #006400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonMerge:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
       QPushButton#pushButtonDiffUnified{
         background-color: #384D59;
         border: 1px solid gray;

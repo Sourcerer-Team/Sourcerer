@@ -151,7 +151,7 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>137</width>
+                  <width>73</width>
                   <height>185</height>
                  </rect>
                 </property>
@@ -166,7 +166,7 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>137</width>
+                  <width>73</width>
                   <height>185</height>
                  </rect>
                 </property>
@@ -181,7 +181,7 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>137</width>
+                  <width>73</width>
                   <height>185</height>
                  </rect>
                 </property>
@@ -196,7 +196,7 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>137</width>
+                  <width>73</width>
                   <height>185</height>
                  </rect>
                 </property>
@@ -211,7 +211,7 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>137</width>
+                  <width>73</width>
                   <height>185</height>
                  </rect>
                 </property>
@@ -361,7 +361,7 @@
                  <item>
                   <layout class="QVBoxLayout" name="verticalLayout_4">
                    <item>
-                    <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="0,0,0,0,0">
+                    <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="0,0,0,0,0,0">
                      <item>
                       <spacer name="horizontalSpacer_1">
                        <property name="orientation">
@@ -863,6 +863,19 @@
                             </property>
                             <property name="flat">
                              <bool>false</bool>
+                            </property>
+                           </widget>
+                          </item>
+                          <item>
+                           <widget class="QPushButton" name="pushButtonMerge">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="text">
+                             <string>Merge</string>
                             </property>
                            </widget>
                           </item>

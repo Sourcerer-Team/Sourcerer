@@ -25,6 +25,7 @@ public:
   void exit() override;
 
 private:
+  void abortMergeWorker(const Structs::GitRepoAbortMergeCommand &command);
   void addSubmoduleWorker(const Structs::GitRepoAddSubmoduleCommand &command);
   void applyPatchWorker(const Structs::GitRepoApplyPatchCommand &command);
   void applyStashWorker(const Structs::GitRepoApplyStashCommand &command);
@@ -64,6 +65,8 @@ private:
   getCommitIsHeadWorker(const Structs::GitRepoGetCommitIsHeadCommand &command);
   void
   getCommitStatusWorker(const Structs::GitRepoGetCommitStatusCommand &command);
+  void getIsMergeInProgressWorker(
+      const Structs::GitRepoGetIsMergeInProgressCommand &command);
   void getBranchHistoryWorker(
       const Structs::GitRepoGetBranchHistoryCommand &command);
   void getSubmodulePathWorker(
@@ -97,6 +100,8 @@ private:
   void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
   void reportError(EventManager::EventType eventType, const QString &message,
                    const Structs::GitRepoCommand &command) const;
+  void
+  scheduleWorkerForAbortMerge(const Structs::GitRepoAbortMergeCommand &command);
   void scheduleWorkerForAddSubmodule(
       const Structs::GitRepoAddSubmoduleCommand &command);
   void
@@ -127,6 +132,8 @@ private:
       const Structs::GitRepoGetCommitIsHeadCommand &command);
   void scheduleWorkerForGetCommitStatus(
       const Structs::GitRepoGetCommitStatusCommand &command);
+  void scheduleWorkerForGetIsMergeInProgress(
+      const Structs::GitRepoGetIsMergeInProgressCommand &command);
   void scheduleWorkerForGetSubmodulePath(
       const Structs::GitRepoGetSubmodulePathCommand &command);
   void scheduleWorkerForGetUpstream(

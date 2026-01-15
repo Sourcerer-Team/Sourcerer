@@ -78,7 +78,9 @@ private slots:
   void showTooltipForColumnSlice(const QModelIndex &index);
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
   void onCheckoutCommit(const QString &commit);
+  void onAbortButtonClicked();
   void onCommitButtonClicked();
+  void onMergeButtonClicked();
   void onCommitAndMergeIndexTreeUnstageAllButtonClicked();
   void onCommitAndMergeWorkingTreeTreeStageAllButtonClicked();
   void onCreateBranchFromCommit(const QString &commit);
@@ -165,6 +167,7 @@ private slots:
                                GitRepo::BranchType branchType);
 
 private:
+  void abortMerge(const WeakPtr &guard);
   void addSubmodule(const WeakPtr &guard, const QString &url,
                     const QString &name);
   void applyPatch(const WeakPtr &guard, const QString &filePath);
@@ -180,7 +183,7 @@ private:
   void closeRepo() const;
   void commit(const WeakPtr &guard, const QString &summary,
               const QString &description, const QString &author,
-              const QString &email);
+              const QString &email, bool cleanup);
   void createBranchFromCommit(
       const WeakPtr &guard, const QString &commit, const QString &branchName,
       const std::function<void(const WeakPtr &, const QString &)> &onSuccess =
@@ -326,6 +329,7 @@ private:
   QPushButton *_commitAndMergeIndexTreeUnstageAllButton;
   QPushButton *_displayTreeExpandAllButton;
   bool _displayTreeExpanded;
+  bool _mergeInProgress;
 
   QSharedPointer<Models::GitCommitListModel> _commitListModel;
   QSharedPointer<Models::GitCommitTreeModel> _commitTreeModel;

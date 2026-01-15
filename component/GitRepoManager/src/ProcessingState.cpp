@@ -79,6 +79,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
   case EventType::Setup: {
     break;
   }
+  case EventType::AbortMerge: {
+    const auto abortMergeCommand = event.nextParam<GitRepoAbortMergeCommand>();
+    scheduleWorkerForAbortMerge(abortMergeCommand);
+    break;
+  }
   case EventType::AddSubmodule: {
     const auto addSubmoduleCommand =
         event.nextParam<GitRepoAddSubmoduleCommand>();
@@ -215,6 +220,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     const auto commitStatusCommand =
         event.nextParam<GitRepoGetCommitStatusCommand>();
     scheduleWorkerForGetCommitStatus(commitStatusCommand);
+    break;
+  }
+  case EventType::GetIsMergeInProgress: {
+    const auto getIsMergeInProgressCommand =
+        event.nextParam<GitRepoGetIsMergeInProgressCommand>();
+    scheduleWorkerForGetIsMergeInProgress(getIsMergeInProgressCommand);
     break;
   }
   case EventType::GetSubmodulePath: {
@@ -356,6 +367,45 @@ void ProcessingState::exit() {
   LOG_PERF(0, "Enter");
 
   destroyContextsMap();
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::abortMergeWorker(
+    const Structs::GitRepoAbortMergeCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerAbortMergeError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::abortMerge(repo);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerAbortMergeError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerAbortMergeResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -650,8 +700,9 @@ void ProcessingState::commitStagedWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::commitStaged(
-      repo, command.summary, command.message, command.author, command.email);
+  const bool success =
+      GitRepo::commitStaged(repo, command.summary, command.message,
+                            command.author, command.email, command.cleanup);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
@@ -1438,6 +1489,38 @@ void ProcessingState::getCommitStatusWorker(
                                       QVariant::fromValue(commitStatus)});
     _eventManager.send(resultEvent);
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::getIsMergeInProgressWorker(
+    const Structs::GitRepoGetIsMergeInProgressCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(
+        EventManager::EventType::GitRepoManagerGetIsMergeInProgressError,
+        tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const auto mergeInProgress = GitRepo::getIsMergeInProgress(repo);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerGetIsMergeInProgressResult,
+      command.syncUuid);
+  resultEvent.addData(
+      GitRepoResult{command.uuid, command.type, mergeInProgress});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -2665,6 +2748,25 @@ void ProcessingState::reportError(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForAbortMerge(
+    const Structs::GitRepoAbortMergeCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerAbortMergeError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoAbortMergeCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForAddSubmodule(
     const Structs::GitRepoAddSubmoduleCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2979,6 +3081,26 @@ void ProcessingState::scheduleWorkerForGetCommitStatus(
   }
 
   (*it)->commandsQueue.push(new GitRepoGetCommitStatusCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForGetIsMergeInProgress(
+    const Structs::GitRepoGetIsMergeInProgressCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(
+        EventManager::EventType::GitRepoManagerGetIsMergeInProgressError,
+        tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoGetIsMergeInProgressCommand(command));
 
   LOG_PERF(0, "Exit");
 }
@@ -3357,6 +3479,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
     }
 
     switch (command->type) {
+    case GitRepoCommandType::AbortMerge: {
+      const auto abortMergeCommand =
+          dynamic_cast<const GitRepoAbortMergeCommand *>(command);
+      if (abortMergeCommand) {
+        abortMergeWorker(*abortMergeCommand);
+      }
+      break;
+    }
     case GitRepoCommandType::AddSubmodule: {
       const auto addSubmoduleCommand =
           dynamic_cast<const GitRepoAddSubmoduleCommand *>(command);
@@ -3509,6 +3639,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       }
       break;
     }
+    case GitRepoCommandType::GetBranchHistory: {
+      const auto *branchHistoryCommand =
+          dynamic_cast<const GitRepoGetBranchHistoryCommand *>(command);
+      if (branchHistoryCommand) {
+        getBranchHistoryWorker(*branchHistoryCommand);
+      }
+      break;
+    }
     case GitRepoCommandType::GetCommitBranches: {
       const auto *getCommitBranchesCommand =
           dynamic_cast<const GitRepoGetCommitBranchesCommand *>(command);
@@ -3541,11 +3679,11 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       }
       break;
     }
-    case GitRepoCommandType::GetBranchHistory: {
-      const auto *branchHistoryCommand =
-          dynamic_cast<const GitRepoGetBranchHistoryCommand *>(command);
-      if (branchHistoryCommand) {
-        getBranchHistoryWorker(*branchHistoryCommand);
+    case GitRepoCommandType::GetIsMergeInProgress: {
+      const auto *getIsMergeInProgressCommand =
+          dynamic_cast<const GitRepoGetIsMergeInProgressCommand *>(command);
+      if (getIsMergeInProgressCommand) {
+        getIsMergeInProgressWorker(*getIsMergeInProgressCommand);
       }
       break;
     }

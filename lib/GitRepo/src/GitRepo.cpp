@@ -2468,7 +2468,7 @@ bool unstageFiles(git_repository *repo, const QStringList &files) {
 
 bool commitStaged(git_repository *repo, const QString &summary,
                   const QString &message, const QString &author,
-                  const QString &email) {
+                  const QString &email, bool cleanup) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
@@ -2575,6 +2575,15 @@ bool commitStaged(git_repository *repo, const QString &summary,
 
   if (parent) {
     git_commit_free(parent);
+  }
+
+  if (cleanup) {
+    error = git_repository_state_cleanup(repo);
+    if (error) {
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
   }
 
   LOG_PERF(0, "Exit");
@@ -4889,6 +4898,55 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
   LOG_PERF(0, "Exit");
 
   return fileContentWithMarkers;
+}
+
+bool getIsMergeInProgress(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  const int state = git_repository_state(repo);
+
+  LOG_PERF(0, "Exit");
+
+  return state == GIT_REPOSITORY_STATE_MERGE;
+}
+
+bool abortMerge(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  if (git_repository_state(repo) != GIT_REPOSITORY_STATE_MERGE) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  int error = git_repository_state_cleanup(repo);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_object *head = NULL;
+
+  error = git_revparse_single(&head, repo, "HEAD");
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_reset(repo, head, GIT_RESET_HARD, NULL);
+  if (error) {
+    logGitError(error);
+    git_object_free(head);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_object_free(head);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
 }
 
 } // namespace GitRepo
