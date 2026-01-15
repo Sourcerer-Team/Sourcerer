@@ -20,15 +20,23 @@
 namespace GuiManager::Widgets {
 
 ToastHostWidget::ToastHostWidget()
-    : OverlayWidget{nullptr, ALPHA}, _yOffset(0),
+    : OverlayWidget{nullptr, 0}, _yOffset(0),
       _position{ToastPosition::BottomRight},
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
   setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
                  Qt::Widget);
-  // Make host transparent to mouse events - individual toasts will be top-level windows
+  // Make host transparent to mouse events - individual toasts will be top-level
+  // windows
   setAttribute(Qt::WA_TransparentForMouseEvents, true);
+
+  // Set transparent background for the host widget
+  setAttribute(Qt::WA_StyledBackground, true);
+  setStyleSheet("background-color: transparent;");
+
+  // Remove the opacity effect from OverlayWidget
+  setGraphicsEffect(nullptr);
 
   setMouseTracking(true);
 
@@ -91,32 +99,31 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
 
   // Since toasts are now top-level windows, position them manually
   // Calculate position based on existing toasts and position preference
-  const int toastSpacing =
-      _configManager.getLong(ConfigManager::ConfigKey::ToastSpacing);
-  
-  int yOffset = _yOffset + 16; // Start with base offset
-  
+  const int toastSpacing = 8; // 8 pixels spacing between toasts
+
+  int yOffset = _yOffset; // Start with base offset, no extra padding
+
   // Calculate y position based on existing toasts
   for (const ToastWidget *existingToast : _toasts) {
     if (existingToast && existingToast != toast && existingToast->isVisible()) {
       yOffset += existingToast->height() + toastSpacing;
     }
   }
-  
+
   // Get the host widget's global position
   QPoint hostPos = mapToGlobal(QPoint(0, 0));
   int xPos = hostPos.x();
   int yPos = hostPos.y();
-  
+
   // Adjust based on position preference
-  if (_position == ToastPosition::BottomRight || 
+  if (_position == ToastPosition::BottomRight ||
       _position == ToastPosition::TopRight) {
     xPos += width() - toast->width() - 8;
   } else if (_position == ToastPosition::BottomLeft ||
              _position == ToastPosition::TopLeft) {
     xPos += 16;
   }
-  
+
   if (_position == ToastPosition::Bottom ||
       _position == ToastPosition::BottomLeft ||
       _position == ToastPosition::BottomRight) {
@@ -124,10 +131,10 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
   } else {
     yPos += yOffset;
   }
-  
+
   // Set the position for the top-level window
   toast->move(xPos, yPos);
-  
+
   animateWidget(toast);
 
   LOG_PERF(0, "Exit");
@@ -213,14 +220,17 @@ void ToastHostWidget::addToast(ToastWidget *toast) {
 
   // Don't setParent - keep toast as independent top-level window
   // Just ensure window flags are set correctly
-  toast->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+  toast->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
+                        Qt::Tool);
   toast->setAttribute(Qt::WA_TransparentForMouseEvents, false);
-  
-  toast->setMinimumWidth(toastWidth);
-  toast->setMaximumWidth(toastWidth);
-  toast->setMinimumHeight(toastHeight);
-  toast->setMaximumHeight(toastHeight);
-  toast->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+  toast->setFixedWidth(toastWidth);
+  toast->setMinimumHeight(0);
+  toast->setMaximumHeight(QWIDGETSIZE_MAX);
+  // Don't set fixed height - let it size to content
+  toast->layout()->activate();
+  toast->updateGeometry();
+  toast->adjustSize();
 
   if (toastWillFit(toast)) {
     _toasts += toast;
@@ -248,13 +258,17 @@ void ToastHostWidget::addToast(const QSharedPointer<ToastWidget> &toast) {
 
   // Don't setParent - keep toast as independent top-level window
   // Just ensure window flags are set correctly
-  toast->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+  toast->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
+                        Qt::Tool);
   toast->setAttribute(Qt::WA_TransparentForMouseEvents, false);
-  
-  toast->setMinimumWidth(toastWidth);
-  toast->setMaximumWidth(toastWidth);
-  toast->setMinimumHeight(toastHeight);
-  toast->setMaximumHeight(toastHeight);
+
+  toast->setFixedWidth(toastWidth);
+  toast->setMinimumHeight(0);
+  toast->setMaximumHeight(QWIDGETSIZE_MAX);
+  // Don't set fixed height - let it size to content
+  toast->layout()->activate();
+  toast->updateGeometry();
+  toast->adjustSize();
 
   if (toastWillFit(toast.get())) {
     _sharedToasts += toast;
@@ -349,15 +363,29 @@ void ToastHostWidget::onToastStopped(ToastWidget *toast) {
     delete toast;
   }
 
-  if (!_waitingToasts.isEmpty()) {
-    if (ToastWidget *waitingToast = _waitingToasts.first()) {
-      if (toastWillFit(waitingToast)) {
-        addToLayout(waitingToast);
-        _waitingToasts.dequeue();
-        _toasts += waitingToast;
-      }
-    } else
+  // Reposition all remaining toasts
+  for (ToastWidget *existingToast : _toasts) {
+    if (existingToast && existingToast->isVisible()) {
+      addToLayout(existingToast);
+    }
+  }
+
+  // Try to display waiting toasts that now have space
+  while (!_waitingToasts.isEmpty()) {
+    ToastWidget *waitingToast = _waitingToasts.first();
+    if (!waitingToast) {
       _waitingToasts.dequeue();
+      continue;
+    }
+
+    if (toastWillFit(waitingToast)) {
+      _waitingToasts.dequeue();
+      _toasts += waitingToast;
+      addToLayout(waitingToast);
+    } else {
+      // If this toast doesn't fit, no subsequent toasts will fit either
+      break;
+    }
   }
 
   LOG_PERF(0, "Exit");
@@ -371,33 +399,29 @@ bool ToastHostWidget::toastWillFit(const ToastWidget *toast) const {
     return false;
   }
 
-  const auto layout_ = layout();
   const int toastSpacing =
       _configManager.getLong(ConfigManager::ConfigKey::ToastSpacing);
 
+  // Calculate total height of currently displayed toasts
   int totalToastHeight = 0;
-  for (int i = 0; i < layout_->count(); i++) {
-    const QLayoutItem *layoutitem = layout_->itemAt(i);
-    Q_ASSERT(layoutitem != nullptr);
-    if (!layoutitem) {
-      continue;
+  for (const ToastWidget *existingToast : _toasts) {
+    if (existingToast && existingToast->isVisible()) {
+      totalToastHeight += existingToast->height();
+      if (totalToastHeight > 0) {
+        totalToastHeight += toastSpacing;
+      }
     }
-
-    const QWidget *widget = layoutitem->widget();
-    Q_ASSERT(widget != nullptr);
-    if (!widget) {
-      continue;
-    }
-
-    totalToastHeight += widget->rect().height();
-    totalToastHeight += toastSpacing;
   }
 
-  totalToastHeight += toast->rect().height();
+  // Add height of the new toast being checked
+  totalToastHeight += toast->height();
+
+  // Check if total height fits within the host widget
+  const bool willFit = height() >= totalToastHeight;
 
   LOG_PERF(0, "Exit");
 
-  return rect().height() >= totalToastHeight + toast->rect().height();
+  return willFit;
 }
 
 } // namespace GuiManager::Widgets

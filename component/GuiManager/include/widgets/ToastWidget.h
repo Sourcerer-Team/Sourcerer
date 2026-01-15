@@ -28,6 +28,11 @@ public slots:
 signals:
   void stopped(ToastWidget *toast);
 
+protected:
+  QLabel *getTitleLabel() const { return _titleLabel; }
+  void applyToastColors(const QColor &backgroundColor,
+                        const QColor &titleColor);
+
 private:
   QWidget *_titleWidget;
   QLabel *_titleLabel;

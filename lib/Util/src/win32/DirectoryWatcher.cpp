@@ -2,8 +2,10 @@
 
 #include <Log.h>
 
+// clang-format off
 #include <windows.h>
 #include <Winbase.h>
+// clang-format on
 
 #define THREAD_ID "DirectoryWatcher"
 

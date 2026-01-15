@@ -11,7 +11,8 @@ ErrorToast::ErrorToast(const QString &message, const QString &title,
     : InfoToast(message, title, parent) {
   LOG_PERF(0, "Enter");
 
-  setStyleSheet("font-size:14px;color:white;background-color:#4a2439;");
+  // Apply dark red background and dark yellow title
+  applyToastColors(QColor("#4B0000"), QColor("#B8860B"));
 
   LOG_PERF(0, "Exit");
 }

@@ -89,8 +89,7 @@ struct GitRepoCommand {
 };
 
 struct GitRepoAbortMergeCommand final : GitRepoCommand {
-  GitRepoAbortMergeCommand()
-      : GitRepoCommand(GitRepoCommandType::AbortMerge) {}
+  GitRepoAbortMergeCommand() : GitRepoCommand(GitRepoCommandType::AbortMerge) {}
 
   ~GitRepoAbortMergeCommand() override = default;
 };

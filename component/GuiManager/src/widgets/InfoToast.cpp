@@ -22,15 +22,21 @@ InfoToast::InfoToast(const QString &message, const QString &title,
   setTitleText(title);
 
   const auto widget = new QWidget(this);
+  widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
-  const auto messageLabel = new QLabel(message + "\n", widget);
+  const auto messageLabel = new QLabel(message, widget);
   messageLabel->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
   messageLabel->setWordWrap(true);
 
   const auto widgetLayout = new QVBoxLayout(widget);
+  widgetLayout->setContentsMargins(8, 8, 8, 8);
+  widgetLayout->setSpacing(0);
   widgetLayout->addWidget(messageLabel);
 
   layout()->addWidget(widget);
+
+  // Apply dark grey background and dark yellow title
+  applyToastColors(QColor("#505050"), QColor("#B8860B"));
 
   const qlonglong displayTime =
       _configManager.getLong(ConfigManager::ConfigKey::InfoToastDisplayTime);

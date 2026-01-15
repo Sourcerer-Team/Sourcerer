@@ -18,8 +18,10 @@
 #define NTDDI_VERSION NTDDI_VISTA
 #define _WIN32_WINNT _WIN32_WINNT_VISTA
 
+// clang-format off
 #include <windows.h>
 #include <shellapi.h>
+// clang-format on
 
 #include <QLibrary>
 

@@ -2596,15 +2596,15 @@ static QString createFullPatchFromContent(const QString &filePath,
   QString patch;
   QTextStream stream(&patch);
 
-         // Diff header
+  // Diff header
   stream << "--- " << filePath << "\n";
   stream << "+++ " << filePath << "\n";
 
-         // Hunk header: replace everything (start at line 1)
+  // Hunk header: replace everything (start at line 1)
   const int newLines = convertedContent.count('\n') + 1;
   stream << "@@ -1," << newLines << " +1," << newLines << " @@\n";
 
-         // Emit each line as "added"
+  // Emit each line as "added"
   const QStringList lines = convertedContent.split('\n');
   for (const QString &line : lines) {
     stream << "+ " << line << "\n";
@@ -4945,7 +4945,7 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
         GIT_MERGE_FILE_STYLE_MERGE; // produces <<<<<<<, =======, >>>>>>>
     opts.favor = GIT_MERGE_FILE_FAVOR_NORMAL;
 
-           // Perform merge
+    // Perform merge
     error = git_merge_file(&result, &inputAncestor, &inputOurs, &inputTheirs,
                            &opts);
     if (error) {

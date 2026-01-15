@@ -898,15 +898,15 @@ void GitRepoContainer::onCheckoutCommit(const QString &commit) {
 }
 
 void GitRepoContainer::onAbortButtonClicked() {
-    LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Enter");
 
-    const WeakPtr guard = getSelf().toWeakRef();
+  const WeakPtr guard = getSelf().toWeakRef();
 
-    startOverlayTimer();
+  startOverlayTimer();
 
-    _dispatcher.dispatch([=]() { abortMerge(guard); });
+  _dispatcher.dispatch([=]() { abortMerge(guard); });
 
-    LOG_PERF(0, "Exit");
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::onCommitButtonClicked() {
@@ -930,23 +930,23 @@ void GitRepoContainer::onCommitButtonClicked() {
 }
 
 void GitRepoContainer::onMergeButtonClicked() {
-    LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Enter");
 
-    const Common::UserProfile &currentProfile =
-            _userProfileManager.currentProfile();
-    const QString summary = ui->lineEditSummary->text().trimmed();
-    const QString description = ui->textEditDescription->toPlainText().trimmed();
+  const Common::UserProfile &currentProfile =
+      _userProfileManager.currentProfile();
+  const QString summary = ui->lineEditSummary->text().trimmed();
+  const QString description = ui->textEditDescription->toPlainText().trimmed();
 
-    const WeakPtr guard = getSelf().toWeakRef();
+  const WeakPtr guard = getSelf().toWeakRef();
 
-    startOverlayTimer();
+  startOverlayTimer();
 
-    _dispatcher.dispatch([=]() {
-        commit(guard, summary, description, currentProfile.author,
-               currentProfile.email, true);
-    });
+  _dispatcher.dispatch([=]() {
+    commit(guard, summary, description, currentProfile.author,
+           currentProfile.email, true);
+  });
 
-    LOG_PERF(0, "Exit");
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::onCommitAndMergeIndexTreeUnstageAllButtonClicked() {
@@ -1115,7 +1115,7 @@ void GitRepoContainer::onDiffCloseClicked() {
   _lastDiffRepoStatusChanged = false;
 
   ui->stackedWidgetMiddle->setCurrentIndex(
-              static_cast<int>(MainViewPanes::History));
+      static_cast<int>(MainViewPanes::History));
 
   stretchBranchHistoryTableColumns();
 
@@ -1393,7 +1393,7 @@ void GitRepoContainer::onMergeDiffCloseClicked() {
   _lastDiffRepoStatusChanged = false;
 
   ui->stackedWidgetMiddle->setCurrentIndex(
-              static_cast<int>(MainViewPanes::History));
+      static_cast<int>(MainViewPanes::History));
 
   stretchBranchHistoryTableColumns();
 
@@ -2956,74 +2956,74 @@ void GitRepoContainer::updateModelActiveBranch(const WeakPtr &guard,
 }
 
 void GitRepoContainer::abortMerge(const WeakPtr &guard) {
-    LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Enter");
 
-    const QString eventUuid = Uuid::createUuid();
+  const QString eventUuid = Uuid::createUuid();
 
-    const int token = _eventManager.startWait();
+  const int token = _eventManager.startWait();
 
-    GitRepoAbortMergeCommand command;
-    command.uuid = _uuid;
-    command.syncUuid = eventUuid;
+  GitRepoAbortMergeCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
 
-    EventManager::Event abortMergeEvent(
-                EventManager::EventType::GitRepoManagerAbortMerge, eventUuid);
-    abortMergeEvent.addData(command);
-    _eventManager.send(abortMergeEvent);
+  EventManager::Event abortMergeEvent(
+      EventManager::EventType::GitRepoManagerAbortMerge, eventUuid);
+  abortMergeEvent.addData(command);
+  _eventManager.send(abortMergeEvent);
 
-    static std::set types = {
-        EventManager::EventType::GitRepoManagerAbortMergeError,
-        EventManager::EventType::GitRepoManagerAbortMergeResult};
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerAbortMergeError,
+      EventManager::EventType::GitRepoManagerAbortMergeResult};
 
-    const auto &[success, event] =
-            _eventManager.waitForAnswer(token, eventUuid, types);
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
 
-    if (!success) {
+  if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        showSpinnerOverlay(false);
-        showErrorPage();
-        showErrorToast(QString(tr("Failed to abort merge.")), tr("Error"));
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to abort merge.")), tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
-            return;
-    }
+    return;
+  }
 
-    if (event.type() != EventManager::EventType::GitRepoManagerAbortMergeResult) {
+  if (event.type() != EventManager::EventType::GitRepoManagerAbortMergeResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        showSpinnerOverlay(false);
-        showErrorToast(
-                    QString("%1\n%2").arg(tr("Failed to abort merge."), error.message),
-                    tr("Error"));
+      showSpinnerOverlay(false);
+      showErrorToast(
+          QString("%1\n%2").arg(tr("Failed to abort merge."), error.message),
+          tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
-            return;
-    }
+    return;
+  }
 
-    const auto commandResult = event.data<GitRepoResult>();
-    const bool abortSuccess = commandResult.value.toBool();
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool abortSuccess = commandResult.value.toBool();
 
-    refreshHistory(guard);
+  refreshHistory(guard);
 
-    if (!abortSuccess) {
+  if (!abortSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-        showSpinnerOverlay(false);
-        showErrorToast(tr("Failed to abort merge."), tr("Error"));
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to abort merge."), tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
-            return;
-    }
+    return;
+  }
 
-    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-        showSpinnerOverlay(false);
-        ui->stackedWidgetMiddle->setCurrentIndex(
-                    static_cast<int>(MainViewPanes::History));
-    });
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
+    ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::History));
+  });
 
-    LOG_PERF(0, "Exit");
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::addSubmodule(const WeakPtr &guard, const QString &url,
@@ -3545,7 +3545,7 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
     }
     showSpinnerOverlay(false);
     ui->stackedWidgetMiddle->setCurrentIndex(
-                static_cast<int>(MainViewPanes::History));
+        static_cast<int>(MainViewPanes::History));
   });
 
   LOG_PERF(0, "Exit")
@@ -4214,12 +4214,12 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
 
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
-      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-          ui->stackedWidgetMiddle->setCurrentIndex(
-                      static_cast<int>(MainViewPanes::Diff));
-      });
-      LOG_PERF(0, "Exit")
-              return;
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      ui->stackedWidgetMiddle->setCurrentIndex(
+          static_cast<int>(MainViewPanes::Diff));
+    });
+    LOG_PERF(0, "Exit")
+    return;
   }
 
   _lastDiffedFilePath = filePath;
@@ -4309,7 +4309,7 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
     }
 
     ui->stackedWidgetMiddle->setCurrentIndex(
-                static_cast<int>(MainViewPanes::Diff));
+        static_cast<int>(MainViewPanes::Diff));
   });
 
   LOG_PERF(0, "Exit")
@@ -4321,12 +4321,12 @@ void GitRepoContainer::diffThreeWay(const WeakPtr &guard,
 
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
-      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-          ui->stackedWidgetMiddle->setCurrentIndex(
-                      static_cast<int>(MainViewPanes::Diff));
-      });
-      LOG_PERF(0, "Exit")
-              return;
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      ui->stackedWidgetMiddle->setCurrentIndex(
+          static_cast<int>(MainViewPanes::Diff));
+    });
+    LOG_PERF(0, "Exit")
+    return;
   }
 
   _lastDiffedFilePath = filePath;
@@ -4398,7 +4398,7 @@ void GitRepoContainer::diffThreeWay(const WeakPtr &guard,
     ui->mergeDiffViewer->loadAndHighlight(
         listConflictsResult.fileContentWithMarkers, filePath);
     ui->stackedWidgetMiddle->setCurrentIndex(
-                static_cast<int>(MainViewPanes::ThreeWayDiff));
+        static_cast<int>(MainViewPanes::ThreeWayDiff));
   });
 
   LOG_PERF(0, "Exit")
@@ -4411,13 +4411,13 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
 
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedCommit == commit &&
-          _lastDiffedFilePath == filePath) {
-      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-          ui->stackedWidgetMiddle->setCurrentIndex(
-                      static_cast<int>(MainViewPanes::Diff));
-      });
-      LOG_PERF(0, "Exit")
-              return;
+      _lastDiffedFilePath == filePath) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      ui->stackedWidgetMiddle->setCurrentIndex(
+          static_cast<int>(MainViewPanes::Diff));
+    });
+    LOG_PERF(0, "Exit")
+    return;
   }
 
   _lastDiffedCommit = commit;
@@ -4510,7 +4510,7 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
     }
 
     ui->stackedWidgetMiddle->setCurrentIndex(
-                static_cast<int>(MainViewPanes::Diff));
+        static_cast<int>(MainViewPanes::Diff));
   });
 
   LOG_PERF(0, "Exit")
@@ -4676,7 +4676,7 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
     showSpinnerOverlay(false);
     simulateClickOnFirstHistoryRow();
     ui->stackedWidgetMiddle->setCurrentIndex(
-                static_cast<int>(MainViewPanes::History));
+        static_cast<int>(MainViewPanes::History));
   });
 
   LOG_PERF(0, "Exit")
@@ -6235,25 +6235,25 @@ void GitRepoContainer::refreshStatus(const WeakPtr &guard) {
   const auto status = statusCommandResult.value.value<GitRepo::GitStatus>();
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      const QModelIndex currentIndex = ui->historyView->currentIndex();
-      const int currentRow = currentIndex.row();
+    const QModelIndex currentIndex = ui->historyView->currentIndex();
+    const int currentRow = currentIndex.row();
 
-      int offset = 0;
+    int offset = 0;
 
-      if (!_historyModel->hasStatus() && status.hasChanges()) {
-          ++offset;
-      } else if (_historyModel->hasStatus() && !status.hasChanges()) {
-          --offset;
-      }
+    if (!_historyModel->hasStatus() && status.hasChanges()) {
+      ++offset;
+    } else if (_historyModel->hasStatus() && !status.hasChanges()) {
+      --offset;
+    }
 
-      int newRow = currentRow + offset;
-      if (newRow < 0) {
-          newRow = 0;
-      }
+    int newRow = currentRow + offset;
+    if (newRow < 0) {
+      newRow = 0;
+    }
 
-      _historyModel->updateStatus(status);
+    _historyModel->updateStatus(status);
 
-      simulateClickOnHistoryRow(newRow);
+    simulateClickOnHistoryRow(newRow);
   });
 
   LOG_PERF(0, "Exit")
@@ -6315,7 +6315,7 @@ void GitRepoContainer::resetCommitButton() const {
 
   ui->pushButtonCommit->setEnabled(
       !_mergeInProgress && _commitStagedListModel &&
-              _commitStagedListModel->rowCount() > 0 &&
+      _commitStagedListModel->rowCount() > 0 &&
       (!ui->lineEditSummary->text().isEmpty() ||
        !ui->textEditDescription->toPlainText().isEmpty()));
   ui->pushButtonCommit->setVisible(!_mergeInProgress);
@@ -6325,10 +6325,10 @@ void GitRepoContainer::resetCommitButton() const {
 
   ui->pushButtonMerge->setVisible(_mergeInProgress);
   ui->pushButtonMerge->setEnabled(
-              _mergeInProgress && _commitStagedListModel &&
-              _commitStagedListModel->rowCount() > 0 &&
-              (!ui->lineEditSummary->text().isEmpty() ||
-               !ui->textEditDescription->toPlainText().isEmpty()));
+      _mergeInProgress && _commitStagedListModel &&
+      _commitStagedListModel->rowCount() > 0 &&
+      (!ui->lineEditSummary->text().isEmpty() ||
+       !ui->textEditDescription->toPlainText().isEmpty()));
 
   LOG_PERF(0, "Exit")
 }
@@ -6423,7 +6423,7 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
       connect(ui->listViewPageDisplayFilesFlat, &QListView::pressed, this,
               [=](const QModelIndex &index) {
                 onListViewTabWidgetFlatSelectedFromCommit(index, commit);
-      });
+              });
     }
 
     _commitTreeModel.reset(Models::GitCommitTreeModel::from(commitStatus));
@@ -6437,7 +6437,7 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
               [=](const QModelIndex &index) {
                 onTreeViewTabWidgetTreeSelectedFromCommit(
                     index, *_commitTreeModel, commit);
-      });
+              });
     }
   });
 
@@ -6480,7 +6480,7 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
   }
 
   if (event.type() !=
-          EventManager::EventType::GitRepoManagerGetIsMergeInProgressResult) {
+      EventManager::EventType::GitRepoManagerGetIsMergeInProgressResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
@@ -6515,7 +6515,7 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
               &GuiManager::Widgets::RightClickSelectListView::pressed, this,
               [=](const QModelIndex &index) {
                 onListViewTabWidgetFlatSelected(index);
-      });
+              });
     }
 
     _commitTreeModel.reset(
@@ -6531,7 +6531,7 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
               &GuiManager::Widgets::RightClickSelectTreeView::pressed, this,
               [=](const QModelIndex &index) {
                 onTreeViewTabWidgetTreeSelected(index, *_commitTreeModel);
-      });
+              });
     }
 
     _commitStagedListModel.reset(
@@ -6547,7 +6547,7 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
               &GuiManager::Widgets::RightClickSelectListView::pressed, this,
               [=](const QModelIndex &index) {
                 onListViewTabWidgetFlatSelected(index);
-      });
+              });
     }
 
     _commitStagedTreeModel.reset(
@@ -6563,7 +6563,7 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
               &GuiManager::Widgets::RightClickSelectTreeView::pressed, this,
               [=](const QModelIndex &index) {
                 onTreeViewTabWidgetTreeSelected(index, *_commitStagedTreeModel);
-      });
+              });
     }
 
     resetCommitButton();
