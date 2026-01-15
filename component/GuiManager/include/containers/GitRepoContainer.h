@@ -88,7 +88,7 @@ private slots:
   void onCreateTagFromCommit(const QString &commit);
   void onDeleteBranch(const QString &branchName);
   void onDeleteTag(const QString &tagName);
-  void onDiffCloseClicked() const;
+  void onDiffCloseClicked();
   void onDiffUnifiedClicked();
   void onDiffSideBySideClicked();
   void onDisplayTreeExpandAllButtonClicked();
@@ -100,7 +100,7 @@ private slots:
   void onListViewTabWidgetFlatSelected(const QModelIndex &index);
   void onListViewTabWidgetFlatSelectedFromCommit(const QModelIndex &index,
                                                  const QString &commit);
-  void onMergeDiffCloseClicked() const;
+  void onMergeDiffCloseClicked();
   void onMergeDiffDownClicked();
   void onMergeDiffUpClicked();
   void onMergeDiffSaveClicked();
@@ -303,6 +303,9 @@ private:
   QString _uuid;
   QString _path;
   QString _activeBranch;
+  QString _lastDiffedCommit;
+  QString _lastDiffedFilePath;
+  bool _lastDiffRepoStatusChanged;
   GitRepo::BranchType _activeBranchType;
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;

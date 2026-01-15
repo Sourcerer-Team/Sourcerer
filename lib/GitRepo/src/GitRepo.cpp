@@ -69,8 +69,6 @@ static void git_strarray_destroy(git_strarray &arr) {
 }
 
 static git_strarray qstringlist_to_git_strarray(const QStringList &list) {
-  LOG_PERF(0, "Enter");
-
   git_strarray arr;
   arr.count = static_cast<size_t>(list.length());
   arr.strings = static_cast<char **>(malloc(arr.count * sizeof(char *)));
@@ -78,8 +76,6 @@ static git_strarray qstringlist_to_git_strarray(const QStringList &list) {
   for (size_t i = 0; i < arr.count; ++i) {
     arr.strings[i] = strdup(list[i].toStdString().c_str()); // allocates a copy
   }
-
-  LOG_PERF(0, "Exit");
 
   return arr;
 }

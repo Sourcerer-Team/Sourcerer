@@ -666,9 +666,9 @@ void ProcessingState::closeRepoWorker(
     repo = ctx->gitRepo;
   }
 
-  GitRepo::closeRepository(repo);
+  if (repo) {
+    GitRepo::closeRepository(repo);
 
-  {
     LOCKGUARD(_contextsMutex);
     ctx->gitRepo = nullptr;
   }

@@ -118,7 +118,8 @@ QStringList traverseModelIndexSubtree(const QModelIndex &parent,
 GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
     : ContainerWidget(Widgets::ContainerType::GitRepo, parent),
       ui(new Ui::GitRepoContainer), _uuid(Uuid::createUuid()),
-      _path(std::move(path)), _activeBranchType(GitRepo::BranchType::All),
+      _path(std::move(path)), _lastDiffRepoStatusChanged(false),
+      _activeBranchType(GitRepo::BranchType::All),
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
       _userProfileManager(Common::UserProfileManager::instance()),
@@ -1102,8 +1103,12 @@ void GitRepoContainer::onDeleteTag(const QString &tagName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDiffCloseClicked() const {
+void GitRepoContainer::onDiffCloseClicked() {
   LOG_PERF(0, "Enter");
+
+  _lastDiffedCommit.clear();
+  _lastDiffedFilePath.clear();
+  _lastDiffRepoStatusChanged = false;
 
   ui->stackedWidgetMiddle->setCurrentIndex(
               static_cast<int>(MainViewPanes::History));
@@ -1376,8 +1381,12 @@ void GitRepoContainer::onListViewTabWidgetFlatSelectedFromCommit(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onMergeDiffCloseClicked() const {
+void GitRepoContainer::onMergeDiffCloseClicked() {
   LOG_PERF(0, "Enter");
+
+  _lastDiffedCommit.clear();
+  _lastDiffedFilePath.clear();
+  _lastDiffRepoStatusChanged = false;
 
   ui->stackedWidgetMiddle->setCurrentIndex(
               static_cast<int>(MainViewPanes::History));
@@ -1908,6 +1917,8 @@ void GitRepoContainer::onRepoDirChangedTimeout() {
   _dispatcher.dispatch([=]() {
     prepareWatcher(guard);
     refreshStatus(guard);
+
+    _lastDiffRepoStatusChanged = true;
   });
 
   LOG_PERF(0, "Exit");
@@ -4197,6 +4208,18 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
                                    const QString &filePath) {
   LOG_PERF(0, "Enter");
 
+  // Guard against malicious multiple calls
+  if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+          ui->stackedWidgetMiddle->setCurrentIndex(
+                      static_cast<int>(MainViewPanes::Diff));
+      });
+      LOG_PERF(0, "Exit")
+              return;
+  }
+
+  _lastDiffedFilePath = filePath;
+
   const QString eventUuid = Uuid::createUuid();
 
   const int token = _eventManager.startWait();
@@ -4292,6 +4315,18 @@ void GitRepoContainer::diffThreeWay(const WeakPtr &guard,
                                     const QString &filePath) {
   LOG_PERF(0, "Enter");
 
+  // Guard against malicious multiple calls
+  if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+          ui->stackedWidgetMiddle->setCurrentIndex(
+                      static_cast<int>(MainViewPanes::Diff));
+      });
+      LOG_PERF(0, "Exit")
+              return;
+  }
+
+  _lastDiffedFilePath = filePath;
+
   const QString eventUuid = Uuid::createUuid();
 
   const int token = _eventManager.startWait();
@@ -4369,6 +4404,20 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
                                       const QString &filePath,
                                       const QString &commit) {
   LOG_PERF(0, "Enter");
+
+  // Guard against malicious multiple calls
+  if (!_lastDiffRepoStatusChanged && _lastDiffedCommit == commit &&
+          _lastDiffedFilePath == filePath) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+          ui->stackedWidgetMiddle->setCurrentIndex(
+                      static_cast<int>(MainViewPanes::Diff));
+      });
+      LOG_PERF(0, "Exit")
+              return;
+  }
+
+  _lastDiffedCommit = commit;
+  _lastDiffedFilePath = filePath;
 
   const QString eventUuid = Uuid::createUuid();
 
@@ -6364,34 +6413,21 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     if (_commitListModel) {
       ui->listViewPageDisplayFilesFlat->setModel(_commitListModel.get());
 
-      connect(ui->listViewPageDisplayFilesFlat->selectionModel(),
-              &QItemSelectionModel::selectionChanged, this,
-              [=](const QItemSelection &selected,
-                  const QItemSelection &deselected) {
-                if (selected.isEmpty()) {
-                  return;
-                }
-
-                onListViewTabWidgetFlatSelectedFromCommit(
-                    selected.indexes().front(), commit);
-              });
+      connect(ui->listViewPageDisplayFilesFlat, &QListView::pressed, this,
+              [=](const QModelIndex &index) {
+                onListViewTabWidgetFlatSelectedFromCommit(index, commit);
+      });
     }
 
     _commitTreeModel.reset(Models::GitCommitTreeModel::from(commitStatus));
     if (_commitTreeModel) {
       ui->treeViewPageDisplayFilesTree->setModel(_commitTreeModel.get());
 
-      connect(ui->treeViewPageDisplayFilesTree->selectionModel(),
-              &QItemSelectionModel::selectionChanged, this,
-              [=](const QItemSelection &selected,
-                  const QItemSelection &deselected) {
-                if (selected.isEmpty()) {
-                  return;
-                }
-
+      connect(ui->treeViewPageDisplayFilesTree, &QTreeView::pressed, this,
+              [=](const QModelIndex &index) {
                 onTreeViewTabWidgetTreeSelectedFromCommit(
-                    selected.indexes().front(), *_commitTreeModel, commit);
-              });
+                    index, *_commitTreeModel, commit);
+      });
     }
   });
 
@@ -6461,16 +6497,11 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
     if (_commitListModel) {
       ui->listViewTabWidgetWorkingTreeFlat->setModel(_commitListModel.get());
 
-      connect(ui->listViewTabWidgetWorkingTreeFlat->selectionModel(),
-              &QItemSelectionModel::selectionChanged, this,
-              [=](const QItemSelection &selected,
-                  const QItemSelection &deselected) {
-                if (selected.isEmpty()) {
-                  return;
-                }
-
-                onListViewTabWidgetFlatSelected(selected.indexes().front());
-              });
+      connect(ui->listViewTabWidgetWorkingTreeFlat,
+              &GuiManager::Widgets::RightClickSelectListView::pressed, this,
+              [=](const QModelIndex &index) {
+                onListViewTabWidgetFlatSelected(index);
+      });
     }
 
     _commitTreeModel.reset(
@@ -6478,17 +6509,11 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
     if (_commitTreeModel) {
       ui->treeViewTabWidgetWorkingTreeTree->setModel(_commitTreeModel.get());
 
-      connect(ui->treeViewTabWidgetWorkingTreeTree->selectionModel(),
-              &QItemSelectionModel::selectionChanged, this,
-              [=](const QItemSelection &selected,
-                  const QItemSelection &deselected) {
-                if (selected.isEmpty()) {
-                  return;
-                }
-
-                onTreeViewTabWidgetTreeSelected(selected.indexes().front(),
-                                                *_commitTreeModel);
-              });
+      connect(ui->treeViewTabWidgetWorkingTreeTree,
+              &GuiManager::Widgets::RightClickSelectTreeView::pressed, this,
+              [=](const QModelIndex &index) {
+                onTreeViewTabWidgetTreeSelected(index, *_commitTreeModel);
+      });
     }
 
     _commitStagedListModel.reset(
@@ -6496,16 +6521,11 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
     if (_commitStagedListModel) {
       ui->listViewTabWidgetIndexFlat->setModel(_commitStagedListModel.get());
 
-      connect(ui->listViewTabWidgetIndexFlat->selectionModel(),
-              &QItemSelectionModel::selectionChanged, this,
-              [=](const QItemSelection &selected,
-                  const QItemSelection &deselected) {
-                if (selected.isEmpty()) {
-                  return;
-                }
-
-                onListViewTabWidgetFlatSelected(selected.indexes().front());
-              });
+      connect(ui->listViewTabWidgetIndexFlat,
+              &GuiManager::Widgets::RightClickSelectListView::pressed, this,
+              [=](const QModelIndex &index) {
+                onListViewTabWidgetFlatSelected(index);
+      });
     }
 
     _commitStagedTreeModel.reset(
@@ -6513,17 +6533,11 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
     if (_commitStagedTreeModel) {
       ui->treeViewTabWidgetIndexTree->setModel(_commitStagedTreeModel.get());
 
-      connect(ui->treeViewTabWidgetIndexTree->selectionModel(),
-              &QItemSelectionModel::selectionChanged, this,
-              [=](const QItemSelection &selected,
-                  const QItemSelection &deselected) {
-                if (selected.isEmpty()) {
-                  return;
-                }
-
-                onTreeViewTabWidgetTreeSelected(selected.indexes().front(),
-                                                *_commitStagedTreeModel);
-              });
+      connect(ui->treeViewTabWidgetIndexTree,
+              &GuiManager::Widgets::RightClickSelectTreeView::pressed, this,
+              [=](const QModelIndex &index) {
+                onTreeViewTabWidgetTreeSelected(index, *_commitStagedTreeModel);
+      });
     }
 
     resetCommitButton();
