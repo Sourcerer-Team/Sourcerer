@@ -790,8 +790,6 @@ void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
       return;
     }
 
-    LOG_DEBUG("dezelin0");
-
     {
       LOCKGUARD(_tooltipsMutex);
 
@@ -800,8 +798,6 @@ void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
         return;
       }
     }
-
-    LOG_DEBUG("dezelin1");
 
     if (const auto locked = guard.lock()) {
       const QPoint viewportPos =
