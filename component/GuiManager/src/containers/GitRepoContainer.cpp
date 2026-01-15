@@ -4622,6 +4622,8 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
     showSpinnerOverlay(false);
     simulateClickOnFirstHistoryRow();
+    ui->stackedWidgetMiddle->setCurrentIndex(
+                static_cast<int>(MainViewPanes::History));
   });
 
   LOG_PERF(0, "Exit")
