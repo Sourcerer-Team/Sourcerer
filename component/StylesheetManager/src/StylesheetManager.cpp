@@ -192,6 +192,18 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#pushButtonDiffClose{
+        background-color: #353535;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonDiffClose:hover{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
       QPushButton#pushButtonDiffSideBySide:checked{
         background-color: #008400;
         border: 1px solid gray;
@@ -230,6 +242,18 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
       }
       QPushButton#pushButtonMergeDiffSave:hover{
         background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonMergeDiffClose{
+        background-color: #353535;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonMergeDiffClose:hover{
+        background-color: #384D59;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
