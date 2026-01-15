@@ -27,7 +27,7 @@ ToastWidget::ToastWidget(QWidget *parent)
 
   const auto titleLayout = new QHBoxLayout(_titleWidget);
   titleLayout->setSpacing(0);
-  titleLayout->setContentsMargins(0, 16, 0, 16);
+  titleLayout->setContentsMargins(0, 8, 0, 8);
   titleLayout->addWidget(_titleLabel);
   titleLayout->addStretch();
   titleLayout->addWidget(closeButton);
