@@ -113,7 +113,7 @@ private:
   int indexDifference(const QString &commitA, const QString &commitB) const;
 
 private:
-  mutable Util::Mutex _mutex;
+  mutable Util::RecursiveMutex _mutex;
   GitRepo::GitHistoryWithStatus _historyWithStatus;
   mutable Util::ResizableMatrix<Slice> _drawableSlices;
   std::atomic_bool _quitUpdate;

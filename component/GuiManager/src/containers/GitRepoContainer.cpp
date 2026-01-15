@@ -6179,7 +6179,27 @@ void GitRepoContainer::refreshStatus(const WeakPtr &guard) {
 
   const auto status = statusCommandResult.value.value<GitRepo::GitStatus>();
 
-  _historyModel->updateStatus(status);
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      const QModelIndex currentIndex = ui->historyView->currentIndex();
+      const int currentRow = currentIndex.row();
+
+      int offset = 0;
+
+      if (!_historyModel->hasStatus() && status.hasChanges()) {
+          ++offset;
+      } else if (_historyModel->hasStatus() && !status.hasChanges()) {
+          --offset;
+      }
+
+      int newRow = currentRow + offset;
+      if (newRow < 0) {
+          newRow = 0;
+      }
+
+      _historyModel->updateStatus(status);
+
+      simulateClickOnHistoryRow(newRow);
+  });
 
   LOG_PERF(0, "Exit")
 }
@@ -6580,15 +6600,19 @@ void GitRepoContainer::showErrorToast(const QString &message,
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::simulateClickOnCurrentHistoryRow() const {
+void GitRepoContainer::simulateClickOnHistoryRow(int row) const {
   LOG_PERF(0, "Enter");
 
-  const QModelIndex index = ui->historyView->currentIndex();
-  ui->historyView->selectionModel()->select(
-      index, QItemSelectionModel::Select | QItemSelectionModel::Rows);
-  ui->historyView->setCurrentIndex(index);
+  const QModelIndex index = ui->historyView->model()->index(row, 0);
 
-  ui->historyView->setFocus();
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  ui->historyView->selectRow(index.row());
+  ui->historyView->setCurrentIndex(index);
+  ui->historyView->scrollTo(index, QAbstractItemView::PositionAtCenter);
 
   LOG_PERF(0, "Exit")
 }
@@ -6596,13 +6620,11 @@ void GitRepoContainer::simulateClickOnCurrentHistoryRow() const {
 void GitRepoContainer::simulateClickOnFirstHistoryRow() const {
   LOG_PERF(0, "Enter");
 
-  const QModelIndex index =
-      ui->historyView->model()->index(0, 0); // First row, first column
-  ui->historyView->selectionModel()->select(
-      index, QItemSelectionModel::Select | QItemSelectionModel::Rows);
-  ui->historyView->setCurrentIndex(index);
+  const QModelIndex index = ui->historyView->model()->index(0, 0);
 
-  ui->historyView->setFocus();
+  ui->historyView->selectRow(0);
+  ui->historyView->setCurrentIndex(index);
+  ui->historyView->scrollToTop();
 
   LOG_PERF(0, "Exit")
 }
