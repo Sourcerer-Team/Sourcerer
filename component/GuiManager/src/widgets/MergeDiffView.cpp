@@ -27,10 +27,12 @@ MergeDiffView::MergeDiffView(QWidget *parent)
   LOG_PERF(0, "Enter");
 
   auto *horizontalLayout = new QHBoxLayout();
+  horizontalLayout->setContentsMargins(0, 0, 0, 0);
   horizontalLayout->addWidget(_leftEditor);
   horizontalLayout->addWidget(_rightEditor);
 
   auto *verticalLayout = new QVBoxLayout();
+  verticalLayout->setContentsMargins(0, 0, 0, 0);
   verticalLayout->addLayout(horizontalLayout);
   verticalLayout->addWidget(_bottomEditor);
 

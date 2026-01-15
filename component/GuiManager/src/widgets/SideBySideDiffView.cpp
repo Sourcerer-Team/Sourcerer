@@ -22,6 +22,7 @@ SideBySideDiffView::SideBySideDiffView(QWidget *parent)
   syncScrollbars();
 
   auto *layout = new QHBoxLayout(this);
+  layout->setContentsMargins(0, 0, 0, 0);
   layout->addWidget(_leftEditor);
   layout->addWidget(_rightEditor);
   setLayout(layout);
