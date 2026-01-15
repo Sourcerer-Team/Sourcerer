@@ -2587,6 +2587,66 @@ bool commitStaged(git_repository *repo, const QString &summary,
   return true;
 }
 
+static QString createFullPatchFromContent(const QString &filePath,
+                                          const QString &fileContent) {
+  LOG_PERF(0, "Enter");
+
+  const QString convertedContent = QString(fileContent).replace("\r\n", "\n");
+
+  QString patch;
+  QTextStream stream(&patch);
+
+         // Diff header
+  stream << "--- " << filePath << "\n";
+  stream << "+++ " << filePath << "\n";
+
+         // Hunk header: replace everything (start at line 1)
+  const int newLines = convertedContent.count('\n') + 1;
+  stream << "@@ -1," << newLines << " +1," << newLines << " @@\n";
+
+         // Emit each line as "added"
+  const QStringList lines = convertedContent.split('\n');
+  for (const QString &line : lines) {
+    stream << "+ " << line << "\n";
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return patch;
+}
+
+static FilesDiffDelta
+createFullPatchDeltasFromContent(const QString &filePath,
+                                 const QString &fileContent) {
+  LOG_PERF(0, "Enter");
+
+  const QString convertedContent = QString(fileContent).replace("\r\n", "\n");
+
+  FilesDiffDelta delta;
+  delta.oldFilePath = filePath;
+  delta.newFilePath = filePath;
+
+  FilesDiffHunk hunk;
+  hunk.oldStart = 1; // old file starts at line 1
+  hunk.newStart = 1; // new file starts at line 1
+  hunk.oldLines = 0; // old file has 0 lines (empty)
+  hunk.newLines = convertedContent.count('\n') + 1;
+
+  const QStringList lines = convertedContent.split('\n');
+  for (const QString &line : lines) {
+    FilesDiffLine diffLine;
+    diffLine.origin = '+'; // every line is an addition
+    diffLine.content = line;
+    hunk.lines.append(diffLine);
+  }
+
+  delta.hunks.append(hunk);
+
+  LOG_PERF(0, "Exit");
+
+  return delta;
+}
+
 FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
   LOG_PERF(0, "Enter");
 
@@ -2811,8 +2871,24 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
   }
 
   git_reference_free(headRef);
+
   git_commit_free(reinterpret_cast<git_commit *>(headCommit));
   git_tree_free(tree);
+
+  for (const auto &file : files) {
+    if (!repoContent.value(file).isEmpty()) {
+      continue;
+    }
+
+    const QString patch = createFullPatchFromContent(file, filesContent[file]);
+
+    diffOutput += QString("diff --git a/%1 b/%2\n").arg(file, file);
+    diffOutput += patch;
+
+    const FilesDiffDelta patchDeltas =
+        createFullPatchDeltasFromContent(file, filesContent[file]);
+    filesDeltas += patchDeltas;
+  }
 
   FilesDiff filesDiff;
   filesDiff.diff = diffOutput;
