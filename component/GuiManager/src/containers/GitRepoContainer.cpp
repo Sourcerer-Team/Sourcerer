@@ -6413,6 +6413,9 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     if (_commitListModel) {
       ui->listViewPageDisplayFilesFlat->setModel(_commitListModel.get());
 
+      disconnect(ui->listViewPageDisplayFilesFlat, &QListView::pressed, this,
+                 nullptr);
+
       connect(ui->listViewPageDisplayFilesFlat, &QListView::pressed, this,
               [=](const QModelIndex &index) {
                 onListViewTabWidgetFlatSelectedFromCommit(index, commit);
@@ -6422,6 +6425,9 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     _commitTreeModel.reset(Models::GitCommitTreeModel::from(commitStatus));
     if (_commitTreeModel) {
       ui->treeViewPageDisplayFilesTree->setModel(_commitTreeModel.get());
+
+      disconnect(ui->treeViewPageDisplayFilesTree, &QTreeView::pressed, this,
+                 nullptr);
 
       connect(ui->treeViewPageDisplayFilesTree, &QTreeView::pressed, this,
               [=](const QModelIndex &index) {
@@ -6497,6 +6503,10 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
     if (_commitListModel) {
       ui->listViewTabWidgetWorkingTreeFlat->setModel(_commitListModel.get());
 
+      disconnect(ui->listViewTabWidgetWorkingTreeFlat,
+                 &GuiManager::Widgets::RightClickSelectListView::pressed, this,
+                 nullptr);
+
       connect(ui->listViewTabWidgetWorkingTreeFlat,
               &GuiManager::Widgets::RightClickSelectListView::pressed, this,
               [=](const QModelIndex &index) {
@@ -6508,6 +6518,10 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
         Models::GitCommitTreeModel::from(historyAndStatus.status));
     if (_commitTreeModel) {
       ui->treeViewTabWidgetWorkingTreeTree->setModel(_commitTreeModel.get());
+
+      disconnect(ui->treeViewTabWidgetWorkingTreeTree,
+                 &GuiManager::Widgets::RightClickSelectTreeView::pressed, this,
+                 nullptr);
 
       connect(ui->treeViewTabWidgetWorkingTreeTree,
               &GuiManager::Widgets::RightClickSelectTreeView::pressed, this,
@@ -6521,6 +6535,10 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
     if (_commitStagedListModel) {
       ui->listViewTabWidgetIndexFlat->setModel(_commitStagedListModel.get());
 
+      disconnect(ui->listViewTabWidgetIndexFlat,
+                 &GuiManager::Widgets::RightClickSelectListView::pressed, this,
+                 nullptr);
+
       connect(ui->listViewTabWidgetIndexFlat,
               &GuiManager::Widgets::RightClickSelectListView::pressed, this,
               [=](const QModelIndex &index) {
@@ -6532,6 +6550,10 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
         Models::GitCommitTreeModel::fromStaged(historyAndStatus.status));
     if (_commitStagedTreeModel) {
       ui->treeViewTabWidgetIndexTree->setModel(_commitStagedTreeModel.get());
+
+      disconnect(ui->treeViewTabWidgetIndexTree,
+                 &GuiManager::Widgets::RightClickSelectTreeView::pressed, this,
+                 nullptr);
 
       connect(ui->treeViewTabWidgetIndexTree,
               &GuiManager::Widgets::RightClickSelectTreeView::pressed, this,
