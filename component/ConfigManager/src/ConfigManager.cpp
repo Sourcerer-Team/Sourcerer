@@ -90,7 +90,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::TitleBarMaxTabWidth, 285},
     {ConfigKey::TitleBarMenuMinimumSize, 230},
     {ConfigKey::ToastAnimationDuration, 500},
-    {ConfigKey::ToastHeight, 140},
+    {ConfigKey::ToastHeight, 150},
     {ConfigKey::ToastSpacing, 4},
     {ConfigKey::ToastWidth, 400},
     {ConfigKey::TooltipDisplayTime, 5000}};

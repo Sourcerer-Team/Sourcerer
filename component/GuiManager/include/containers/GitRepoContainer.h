@@ -60,6 +60,10 @@ public:
 public:
   bool eventFilter(QObject *watched, QEvent *event) override;
 
+  // Widgets::ContainerWidget
+public:
+  void selected() override;
+
 signals:
   void historyViewRightClicked(const QModelIndex &index, const QPoint &pos);
   void openRepoRequested(const QString &path);

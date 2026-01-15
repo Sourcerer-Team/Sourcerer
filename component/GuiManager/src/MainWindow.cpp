@@ -707,6 +707,8 @@ void MainWindow::closeContainer(const ContainerWidget *container) {
     return;
   }
 
+  _toastHost.setParent(this);
+
   _containers.remove(index);
   _current = -1;
 
@@ -857,6 +859,8 @@ void MainWindow::selectContainer(const int index) {
 
   if (_current != -1)
     _containers[_current]->hide();
+
+  _toastHost.setParent(_containers[index].get());
 
   _containers[index]->show();
   _containers[index]->setupShortcuts();

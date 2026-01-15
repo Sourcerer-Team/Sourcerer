@@ -6,7 +6,9 @@
 
 #include <Log.h>
 
+#include <QMouseEvent>
 #include <QPropertyAnimation>
+#include <QRegion>
 #include <QSizePolicy>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -25,6 +27,7 @@ ToastHostWidget::ToastHostWidget()
 
   setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
                  Qt::Widget);
+  // Make host transparent to mouse events - individual toasts will be top-level windows
   setAttribute(Qt::WA_TransparentForMouseEvents, true);
 
   setMouseTracking(true);
@@ -86,23 +89,45 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
     return;
   }
 
-  const auto layout_ = qobject_cast<QVBoxLayout *>(layout());
-  if (!layout_) {
-    LOG_PERF(0, "Exit");
-    return;
+  // Since toasts are now top-level windows, position them manually
+  // Calculate position based on existing toasts and position preference
+  const int toastSpacing =
+      _configManager.getLong(ConfigManager::ConfigKey::ToastSpacing);
+  
+  int yOffset = _yOffset + 16; // Start with base offset
+  
+  // Calculate y position based on existing toasts
+  for (const ToastWidget *existingToast : _toasts) {
+    if (existingToast && existingToast != toast && existingToast->isVisible()) {
+      yOffset += existingToast->height() + toastSpacing;
+    }
   }
-
+  
+  // Get the host widget's global position
+  QPoint hostPos = mapToGlobal(QPoint(0, 0));
+  int xPos = hostPos.x();
+  int yPos = hostPos.y();
+  
+  // Adjust based on position preference
+  if (_position == ToastPosition::BottomRight || 
+      _position == ToastPosition::TopRight) {
+    xPos += width() - toast->width() - 8;
+  } else if (_position == ToastPosition::BottomLeft ||
+             _position == ToastPosition::TopLeft) {
+    xPos += 16;
+  }
+  
   if (_position == ToastPosition::Bottom ||
       _position == ToastPosition::BottomLeft ||
       _position == ToastPosition::BottomRight) {
-    layout_->insertWidget(0, toast, 0, Qt::AlignBottom);
-  } else if (_position == ToastPosition::Top ||
-             _position == ToastPosition::TopLeft ||
-             _position == ToastPosition::TopRight) {
-    layout_->insertWidget(layout_->count(), toast, 0, Qt::AlignTop);
-  } else
-    layout_->insertWidget(layout_->count(), toast, 0, Qt::AlignCenter);
-
+    yPos += height() - yOffset - toast->height();
+  } else {
+    yPos += yOffset;
+  }
+  
+  // Set the position for the top-level window
+  toast->move(xPos, yPos);
+  
   animateWidget(toast);
 
   LOG_PERF(0, "Exit");
@@ -186,7 +211,11 @@ void ToastHostWidget::addToast(ToastWidget *toast) {
   const int toastHeight =
       _configManager.getLong(ConfigManager::ConfigKey::ToastHeight);
 
-  toast->setParent(this);
+  // Don't setParent - keep toast as independent top-level window
+  // Just ensure window flags are set correctly
+  toast->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+  toast->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+  
   toast->setMinimumWidth(toastWidth);
   toast->setMaximumWidth(toastWidth);
   toast->setMinimumHeight(toastHeight);
@@ -217,7 +246,11 @@ void ToastHostWidget::addToast(const QSharedPointer<ToastWidget> &toast) {
   const int toastHeight =
       _configManager.getLong(ConfigManager::ConfigKey::ToastHeight);
 
-  toast->setParent(this);
+  // Don't setParent - keep toast as independent top-level window
+  // Just ensure window flags are set correctly
+  toast->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+  toast->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+  
   toast->setMinimumWidth(toastWidth);
   toast->setMaximumWidth(toastWidth);
   toast->setMinimumHeight(toastHeight);

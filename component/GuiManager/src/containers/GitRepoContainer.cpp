@@ -14,6 +14,7 @@
 #include "widgets/ShortcutsToolbarWidget.h"
 #include "widgets/StashesPage.h"
 #include "widgets/TextInputOverlayWidget.h"
+#include "widgets/ToastHostWidget.h"
 #include "widgets/UpstreamInputOverlayWidget.h"
 
 #include <Dispatcher.h>
@@ -606,10 +607,17 @@ bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
   return QObject::eventFilter(watched, event);
 }
 
-void GitRepoContainer::hideEvent(QHideEvent *event) {
+void GitRepoContainer::selected() {
   LOG_PERF(0, "Enter");
 
-  //_spinnerOverlay->hide();
+  _toastHost.setParent(this);
+  _toastHost.raise();
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::hideEvent(QHideEvent *event) {
+  LOG_PERF(0, "Enter");
 
   ContainerWidget::hideEvent(event);
 

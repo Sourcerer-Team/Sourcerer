@@ -14,6 +14,10 @@ ToastWidget::ToastWidget(QWidget *parent)
     : QWidget{parent}, _titleWidget{nullptr} {
   LOG_PERF(0, "Enter");
 
+  // Make this a top-level window so it can receive mouse events independently
+  setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::Tool);
+  setAttribute(Qt::WA_TransparentForMouseEvents, false);
+
   _titleWidget = new QWidget(this);
 
   _titleLabel = new QLabel(_titleWidget);
@@ -23,14 +27,20 @@ ToastWidget::ToastWidget(QWidget *parent)
 
   const auto closeButton = new ToastCloseButton(this);
   closeButton->setMaximumSize(16, 16);
-  closeButton->setText(QString());
+  closeButton->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+
+  const auto closeButtonLayout = new QVBoxLayout();
+  closeButtonLayout->setAlignment(Qt::AlignTop | Qt::AlignRight);
+  closeButtonLayout->setSpacing(0);
+  closeButtonLayout->setContentsMargins(0, 0, 0, 0);
+  closeButtonLayout->addWidget(closeButton);
 
   const auto titleLayout = new QHBoxLayout(_titleWidget);
   titleLayout->setSpacing(0);
   titleLayout->setContentsMargins(0, 8, 0, 8);
   titleLayout->addWidget(_titleLabel);
   titleLayout->addStretch();
-  titleLayout->addWidget(closeButton);
+  titleLayout->addLayout(closeButtonLayout);
 
   const auto layout = new QVBoxLayout(this);
   layout->setAlignment(Qt::AlignTop | Qt::AlignLeft);
