@@ -41,11 +41,19 @@ private slots:
 
 private:
   QMenu *createMenu();
+  void createActions();
   static MainWindow *mainWindow();
   bool hover(QHoverEvent *event, bool entered);
 
 private:
   ConfigManager::ConfigManager &_configManager;
+  QAction *_openAction;
+  QAction *_cloneAction;
+  QAction *_initAction;
+  QAction *_saveWorkspaceAction;
+  QAction *_settingsAction;
+  QAction *_terminalAction;
+  QAction *_aboutAction;
 };
 
 } // namespace GuiManager::Widgets

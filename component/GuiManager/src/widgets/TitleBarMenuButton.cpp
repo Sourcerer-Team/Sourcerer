@@ -11,13 +11,18 @@ namespace GuiManager::Widgets {
 
 TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
     : QToolButton{parent},
-      _configManager(ConfigManager::ConfigManager::getInstance()) {
+      _configManager(ConfigManager::ConfigManager::getInstance()),
+      _openAction(nullptr), _cloneAction(nullptr), _initAction(nullptr),
+      _saveWorkspaceAction(nullptr), _settingsAction(nullptr),
+      _terminalAction(nullptr), _aboutAction(nullptr) {
   LOG_PERF(0, "Enter");
 
   setMouseTracking(true);
   setAttribute(Qt::WA_Hover, true);
   setPopupMode(QToolButton::MenuButtonPopup);
   installEventFilter(this);
+
+  createActions();
 
   connect(this, &TitleBarMenuButton::clicked, this,
           &TitleBarMenuButton::onClicked);
@@ -109,50 +114,80 @@ void TitleBarMenuButton::onAbout() {
   LOG_PERF(0, "Exit");
 }
 
+void TitleBarMenuButton::createActions() {
+  LOG_PERF(0, "Enter");
+
+  _openAction = new QAction(this);
+  _openAction->setText(tr("&Open"));
+  _openAction->setShortcut(QKeySequence::Open);
+  _openAction->setShortcutContext(Qt::ApplicationShortcut);
+  connect(_openAction, &QAction::triggered, this, &TitleBarMenuButton::onOpen);
+
+  _cloneAction = new QAction(this);
+  _cloneAction->setText(tr("&Clone"));
+  connect(_cloneAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onClone);
+
+  _initAction = new QAction(this);
+  _initAction->setText(tr("&Init"));
+  _initAction->setShortcut(QKeySequence::New);
+  _initAction->setShortcutContext(Qt::ApplicationShortcut);
+  connect(_initAction, &QAction::triggered, this, &TitleBarMenuButton::onInit);
+
+  _saveWorkspaceAction = new QAction(this);
+  _saveWorkspaceAction->setText(tr("Save &workspace"));
+  _saveWorkspaceAction->setShortcut(QKeySequence("Ctrl+w"));
+  _saveWorkspaceAction->setShortcutContext(Qt::ApplicationShortcut);
+  connect(_saveWorkspaceAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onSaveWorkspace);
+
+  _settingsAction = new QAction(this);
+  _settingsAction->setText(tr("Settings"));
+  connect(_settingsAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onSettings);
+
+  _terminalAction = new QAction(this);
+  _terminalAction->setText(tr("Show &terminal"));
+  _terminalAction->setShortcut(QKeySequence("Ctrl+t"));
+  _terminalAction->setShortcutContext(Qt::ApplicationShortcut);
+  connect(_terminalAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onTerminal);
+
+  _aboutAction = new QAction(this);
+  _aboutAction->setText(tr("About"));
+  connect(_aboutAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onAbout);
+
+  // Add actions to the widget so their shortcuts become active
+  addAction(_openAction);
+  addAction(_initAction);
+  addAction(_saveWorkspaceAction);
+  addAction(_terminalAction);
+
+  LOG_PERF(0, "Exit");
+}
+
 QMenu *TitleBarMenuButton::createMenu() {
   LOG_PERF(0, "Enter");
 
   const auto menu = new QMenu(this);
 
-  const auto openAction = new QAction(menu);
-  openAction->setText(tr("&Open"));
-  openAction->setShortcut(QKeySequence::Open);
-
-  const auto cloneAction = new QAction(menu);
-  cloneAction->setText(tr("&Clone"));
-
-  const auto initAction = new QAction(menu);
-  initAction->setText(tr("&Init"));
-  initAction->setShortcut(QKeySequence::New);
-
   const MainWindow *mainWindow_ = mainWindow();
   Q_ASSERT(mainWindow_ != nullptr);
 
-  const auto saveWorkspaceAction = new QAction(menu);
-  saveWorkspaceAction->setText(tr("Save &workspace"));
-  saveWorkspaceAction->setEnabled(mainWindow_ != nullptr &&
-                                  !mainWindow_->containerPaths().isEmpty());
-  saveWorkspaceAction->setShortcut(QKeySequence("Ctrl+w"));
+  // Update save workspace action enabled state based on current containers
+  _saveWorkspaceAction->setEnabled(mainWindow_ != nullptr &&
+                                   !mainWindow_->containerPaths().isEmpty());
 
-  const auto settingsAction = new QAction(menu);
-  settingsAction->setText(tr("Settings"));
-
-  const auto terminalAction = new QAction(menu);
-  terminalAction->setText(tr("Show &terminal"));
-  terminalAction->setShortcut(QKeySequence("Ctrl+t"));
-
-  const auto aboutAction = new QAction(menu);
-  aboutAction->setText(tr("About"));
-
-  menu->addAction(openAction);
-  menu->addAction(cloneAction);
-  menu->addAction(initAction);
+  menu->addAction(_openAction);
+  menu->addAction(_cloneAction);
+  menu->addAction(_initAction);
   menu->addSeparator();
-  menu->addAction(saveWorkspaceAction);
+  menu->addAction(_saveWorkspaceAction);
   menu->addSeparator();
-  menu->addAction(settingsAction);
-  menu->addAction(terminalAction);
-  menu->addAction(aboutAction);
+  menu->addAction(_settingsAction);
+  menu->addAction(_terminalAction);
+  menu->addAction(_aboutAction);
 
   const qlonglong menuMinimumWidth =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarMenuMinimumSize);
@@ -160,17 +195,6 @@ QMenu *TitleBarMenuButton::createMenu() {
   LOG_DEBUG("Menu minimum width is {} pixels.", menuMinimumWidth);
 
   menu->setMinimumWidth(menuMinimumWidth);
-
-  connect(openAction, &QAction::triggered, this, &TitleBarMenuButton::onOpen);
-  connect(cloneAction, &QAction::triggered, this, &TitleBarMenuButton::onClone);
-  connect(initAction, &QAction::triggered, this, &TitleBarMenuButton::onInit);
-  connect(saveWorkspaceAction, &QAction::triggered, this,
-          &TitleBarMenuButton::onSaveWorkspace);
-  connect(settingsAction, &QAction::triggered, this,
-          &TitleBarMenuButton::onSettings);
-  connect(terminalAction, &QAction::triggered, this,
-          &TitleBarMenuButton::onTerminal);
-  connect(aboutAction, &QAction::triggered, this, &TitleBarMenuButton::onAbout);
 
   LOG_PERF(0, "Exit");
 
