@@ -41,6 +41,7 @@ public:
   // QWidget interface
 protected:
   void mouseMoveEvent(QMouseEvent *event) override;
+  void changeEvent(QEvent *event) override;
 
   // QObject interface
 public:

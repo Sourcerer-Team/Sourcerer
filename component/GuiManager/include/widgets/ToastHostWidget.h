@@ -43,6 +43,8 @@ public:
   [[nodiscard]] ToastPosition position() const { return _position; }
   void setPosition(ToastPosition position);
   void setYOffset(int offset);
+  void hideAllToasts();
+  void showAllToasts();
 
 private slots:
   void onToastStopped(ToastWidget *toast);

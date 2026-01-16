@@ -424,4 +424,28 @@ bool ToastHostWidget::toastWillFit(const ToastWidget *toast) const {
   return willFit;
 }
 
+void ToastHostWidget::hideAllToasts() {
+  LOG_PERF(0, "Enter");
+
+  for (ToastWidget *toast : _toasts) {
+    if (toast && toast->isVisible()) {
+      toast->hide();
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ToastHostWidget::showAllToasts() {
+  LOG_PERF(0, "Enter");
+
+  for (ToastWidget *toast : _toasts) {
+    if (toast && !toast->isVisible()) {
+      toast->show();
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 } // namespace GuiManager::Widgets

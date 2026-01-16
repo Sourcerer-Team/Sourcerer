@@ -194,6 +194,24 @@ void MainWindow::mouseMoveEvent(QMouseEvent *event) {
   event->ignore();
 }
 
+void MainWindow::changeEvent(QEvent *event) {
+  LOG_PERF(0, "Enter");
+
+  if (event->type() == QEvent::WindowStateChange) {
+    if (windowState() & Qt::WindowMinimized) {
+      // Window is minimized, hide all toasts
+      _toastHost.hideAllToasts();
+    } else {
+      // Window is restored, show all toasts
+      _toastHost.showAllToasts();
+    }
+  }
+
+  QMainWindow::changeEvent(event);
+
+  LOG_PERF(0, "Exit");
+}
+
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
   return _hitDetector->eventFilter(watched, event);
 }
