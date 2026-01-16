@@ -33,6 +33,14 @@ set(UI_FILES
         src/widgets/TitlebarWidget.ui
 )
 
+if(WIN32)
+set(PLATFORM_SOURCES 
+        include/widgets/win32/PowerShellWidget.h 
+        src/widgets/win32/PowerShellWidget.cpp
+)
+endif()
+
+
 set(GUIMANAGER_SOURCE_FILES
         include/Constants.h
         include/DarkStyle.h
@@ -69,6 +77,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/CentralWidget.h
         include/widgets/ClickableHeaderView.h
         include/widgets/ColorButton.h
+        include/widgets/ConsoleWidget.h
         include/widgets/ContainerWidget.h
         include/widgets/ElidedLabel.h
         include/widgets/ErrorToast.h
@@ -148,6 +157,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/AddSubmoduleOverlayWidget.cpp
         src/widgets/CentralWidget.cpp
         src/widgets/ColorButton.cpp
+        src/widgets/ConsoleWidget.cpp
         src/widgets/ContainerWidget.cpp
         src/widgets/ElidedLabel.cpp
         src/widgets/ErrorToast.cpp
@@ -193,7 +203,7 @@ set(GUIMANAGER_SOURCE_FILES
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
 
-add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES})
+add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES} ${PLATFORM_SOURCES})
 
 include(../../cmake/helpers.cmake)
 

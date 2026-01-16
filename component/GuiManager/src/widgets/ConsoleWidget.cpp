@@ -1,0 +1,148 @@
+#include "widgets/ConsoleWidget.h"
+#include "widgets/win32/PowerShellWidget.h"
+
+#include <Log.h>
+
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QVBoxLayout>
+
+#define THREAD_ID "ConsoleWidget"
+
+namespace GuiManager::Widgets {
+
+ConsoleWidget::ConsoleWidget(QWidget *parent)
+    : QWidget(parent), _titleBar(nullptr), _minimizeButton(nullptr)
+#ifdef Q_OS_WIN
+      ,
+      _powerShellWidget(nullptr)
+#endif
+{
+  LOG_PERF(0, "Enter");
+
+  // Create main layout
+  auto *layout = new QVBoxLayout(this);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
+
+  // Create title bar
+  _titleBar = new QWidget(this);
+  _titleBar->setStyleSheet("background-color: #2d2d30; padding: 4px;");
+  _titleBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  _titleBar->setFixedHeight(28); // Fixed height for title bar
+
+  // Add title label
+  auto *titleLabel = new QLabel("PowerShell Console", _titleBar);
+  titleLabel->setStyleSheet("color: white; font-weight: bold; font-size: 12px;");
+  titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+
+  auto *titleBarLayout = new QHBoxLayout(_titleBar);
+  titleBarLayout->setContentsMargins(8, 4, 4, 4);
+  titleBarLayout->setSpacing(4);
+  titleBarLayout->addWidget(titleLabel);
+  titleBarLayout->addStretch();
+
+  // Create minimize button with icon
+  _minimizeButton = new QPushButton(_titleBar);
+  _minimizeButton->setFlat(true);
+  _minimizeButton->setFixedSize(16, 16);
+  _minimizeButton->setIcon(QIcon(":/icons/close_button.png"));
+  _minimizeButton->setIconSize(QSize(16, 16));
+  _minimizeButton->setStyleSheet(
+      "QPushButton { background-color: transparent; border: none; border-radius: 2px; }"
+      "QPushButton:hover { background-color: #3e3e42; }"
+      "QPushButton:pressed { background-color: #007acc; }");
+  _minimizeButton->setCursor(Qt::PointingHandCursor);
+
+  titleBarLayout->addWidget(_minimizeButton);
+
+  layout->addWidget(_titleBar);
+
+  // Connect minimize button
+  connect(_minimizeButton, &QPushButton::clicked, this,
+          &ConsoleWidget::onMinimizeClicked);
+
+#ifdef Q_OS_WIN
+  // Create and add PowerShell widget
+  _powerShellWidget = new Win32::PowerShellWidget(this);
+  _powerShellWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+  layout->addWidget(_powerShellWidget, 1); // Stretch factor 1 to take remaining space
+
+  // Connect signals
+  connect(_powerShellWidget, &Win32::PowerShellWidget::processStarted, this,
+          &ConsoleWidget::consoleStarted);
+  connect(_powerShellWidget, &Win32::PowerShellWidget::processStopped, this,
+          &ConsoleWidget::consoleStopped);
+  connect(_powerShellWidget, &Win32::PowerShellWidget::errorOccurred, this,
+          &ConsoleWidget::consoleError);
+#else
+  // On non-Windows platforms, show a message
+  auto *label =
+      new QLabel("PowerShell console is only available on Windows", this);
+  label->setAlignment(Qt::AlignCenter);
+  label->setStyleSheet("color: gray; font-size: 14px;");
+  layout->addWidget(label);
+#endif
+
+  LOG_PERF(0, "Exit");
+}
+
+ConsoleWidget::~ConsoleWidget() {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit");
+}
+
+bool ConsoleWidget::executeCommand(const QString &command) {
+  LOG_PERF(0, "Enter");
+
+#ifdef Q_OS_WIN
+  if (_powerShellWidget) {
+    bool result = _powerShellWidget->executeCommand(command);
+    LOG_PERF(0, "Exit");
+    return result;
+  }
+#endif
+
+  LOG_PERF(0, "Exit");
+  return false;
+}
+
+bool ConsoleWidget::isConsoleRunning() const {
+#ifdef Q_OS_WIN
+  if (_powerShellWidget) {
+    return _powerShellWidget->isRunning();
+  }
+#endif
+  return false;
+}
+
+void ConsoleWidget::restartConsole() {
+  LOG_PERF(0, "Enter");
+
+#ifdef Q_OS_WIN
+  if (_powerShellWidget) {
+    _powerShellWidget->restart();
+  }
+#endif
+
+  LOG_PERF(0, "Exit");
+}
+
+#ifdef Q_OS_WIN
+Win32::PowerShellWidget *ConsoleWidget::getPowerShellWidget() const {
+  return _powerShellWidget;
+}
+#endif
+
+void ConsoleWidget::onMinimizeClicked() {
+  LOG_PERF(0, "Enter");
+
+  // Hide the console widget
+  hide();
+
+  LOG_PERF(0, "Exit");
+}
+
+} // namespace GuiManager::Widgets
