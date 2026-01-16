@@ -586,9 +586,16 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
           _completionPathPrefix.clear();
           _waitingForCompletion = true;
 
+          // Extract just the filename part for matching (strip .\ or ./ prefix)
+          QString searchPattern = partial;
+          if (searchPattern.startsWith(".\\") ||
+              searchPattern.startsWith("./")) {
+            searchPattern = searchPattern.mid(2);
+          }
+
           // Request completions for current directory
           QString completionCmd;
-          if (partial.isEmpty()) {
+          if (searchPattern.isEmpty()) {
             completionCmd =
                 "Get-ChildItem -Force -ErrorAction SilentlyContinue | "
                 "Select-Object -First 50 | ForEach-Object { if "
@@ -600,7 +607,7 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
                         "Select-Object -First 50 | "
                         "ForEach-Object { if ($_.PSIsContainer) { $_.Name + "
                         "'|DIR' } else { $_.Name } }\n")
-                    .arg(partial);
+                    .arg(searchPattern);
           }
 
           LOG_INFO("Sending completion command: '{}'", completionCmd.left(100));
