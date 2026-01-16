@@ -56,12 +56,16 @@ public:
 
   QString path() const override { return _path; }
 
+public slots:
+  void onTerminalRequested();
+
   // QObject interface
 public:
   bool eventFilter(QObject *watched, QEvent *event) override;
 
   // Widgets::ContainerWidget
 public:
+  void deselected() override;
   void selected() override;
 
 signals:
@@ -351,6 +355,8 @@ private:
   QTimer *_repoDirWatcherTimer;
 
   GuiManager::Widgets::ShortcutsToolbarWidget *_shortcutsWidget;
+
+  bool _selected;
 };
 
 } // namespace GuiManager::Containers

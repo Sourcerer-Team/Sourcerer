@@ -132,10 +132,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _displayTreeExpanded(false), _mergeInProgress(false),
       _commitListModel(nullptr), _commitTreeModel(nullptr),
       _repoDirWatcher(nullptr), _repoDirWatcherTimer(new QTimer(this)),
-      _shortcutsWidget(new GuiManager::Widgets::ShortcutsToolbarWidget(this)) {
+      _shortcutsWidget(new GuiManager::Widgets::ShortcutsToolbarWidget(this)),
+      _selected(false) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
+  ui->consoleWidget->hide();
   ui->localPage->setContentsMargins(0, 0, 0, 0);
   ui->remotePage->setContentsMargins(0, 0, 0, 0);
   ui->tagsPage->setContentsMargins(0, 0, 0, 0);
@@ -583,6 +585,16 @@ void GitRepoContainer::init() {
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::onTerminalRequested() {
+  LOG_PERF(0, "Enter");
+
+  if (_selected) {
+    ui->consoleWidget->show();
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
 bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
   if (watched == ui->historyView->viewport()) {
     if (event->type() == QEvent::MouseMove) {
@@ -607,8 +619,18 @@ bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
   return QObject::eventFilter(watched, event);
 }
 
+void GitRepoContainer::deselected() {
+  LOG_PERF(0, "Enter");
+
+  _selected = false;
+
+  LOG_PERF(0, "Exit")
+}
+
 void GitRepoContainer::selected() {
   LOG_PERF(0, "Enter");
+
+  _selected = true;
 
   _toastHost.setParent(this);
   _toastHost.raise();

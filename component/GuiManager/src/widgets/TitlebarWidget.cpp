@@ -39,6 +39,8 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::onSaveWorkspace);
   connect(ui->menuButton, &TitleBarMenuButton::settings, this,
           &TitlebarWidget::onSettings);
+  connect(ui->menuButton, &TitleBarMenuButton::terminal, this,
+          &TitlebarWidget::onTerminal);
   connect(ui->menuButton, &TitleBarMenuButton::about, this,
           &TitlebarWidget::onAbout);
 
@@ -139,6 +141,14 @@ void TitlebarWidget::onSettings() {
   LOG_PERF(0, "Enter");
 
   emit settings();
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitlebarWidget::onTerminal() {
+  LOG_PERF(0, "Enter");
+
+  emit terminal();
 
   LOG_PERF(0, "Exit");
 }

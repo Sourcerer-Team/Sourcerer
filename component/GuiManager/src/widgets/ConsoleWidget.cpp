@@ -34,7 +34,8 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
 
   // Add title label
   auto *titleLabel = new QLabel("PowerShell Console", _titleBar);
-  titleLabel->setStyleSheet("color: white; font-weight: bold; font-size: 12px;");
+  titleLabel->setStyleSheet(
+      "color: white; font-weight: bold; font-size: 12px;");
   titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
   auto *titleBarLayout = new QHBoxLayout(_titleBar);
@@ -50,7 +51,8 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
   _minimizeButton->setIcon(QIcon(":/icons/close_button.png"));
   _minimizeButton->setIconSize(QSize(16, 16));
   _minimizeButton->setStyleSheet(
-      "QPushButton { background-color: transparent; border: none; border-radius: 2px; }"
+      "QPushButton { background-color: transparent; border: none; "
+      "border-radius: 2px; }"
       "QPushButton:hover { background-color: #3e3e42; }"
       "QPushButton:pressed { background-color: #007acc; }");
   _minimizeButton->setCursor(Qt::PointingHandCursor);
@@ -66,8 +68,10 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
 #ifdef Q_OS_WIN
   // Create and add PowerShell widget
   _powerShellWidget = new Win32::PowerShellWidget(this);
-  _powerShellWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-  layout->addWidget(_powerShellWidget, 1); // Stretch factor 1 to take remaining space
+  _powerShellWidget->setSizePolicy(QSizePolicy::Expanding,
+                                   QSizePolicy::Expanding);
+  layout->addWidget(_powerShellWidget,
+                    1); // Stretch factor 1 to take remaining space
 
   // Connect signals
   connect(_powerShellWidget, &Win32::PowerShellWidget::processStarted, this,

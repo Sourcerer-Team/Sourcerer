@@ -1,48 +1,71 @@
 #include "widgets/win32/PowerShellWidget.h"
+#include "Log.h"
 
-#include <Log.h>
-
-#include <QHideEvent>
-#include <QPaintEvent>
-#include <QResizeEvent>
+#include <QFont>
+#include <QKeyEvent>
+#include <QScrollBar>
 #include <QTimer>
-
-#include <tlhelp32.h>
-#include <windows.h>
+#include <QVBoxLayout>
 
 #define THREAD_ID "PowerShellWidget"
 
-namespace GuiManager::Widgets::Win32 {
+using namespace GuiManager::Widgets::Win32;
 
 PowerShellWidget::PowerShellWidget(QWidget *parent)
-    : QWidget(parent), _consoleWindow(nullptr), _processRunning(false), 
-      _embedRetries(0), _visibilityTimer(nullptr), _inDestructor(false) {
+    : QWidget(parent), _process(nullptr), _commandBuffer(),
+      _commandCursorPos(0), _waitingForPrompt(false), _historyIndex(-1),
+      _waitingForCompletion(false), _completionIndex(-1) {
   LOG_PERF(0, "Enter");
 
-  ZeroMemory(&_processInfo, sizeof(_processInfo));
+  // Create completion timer
+  _completionTimer = new QTimer(this);
+  _completionTimer->setSingleShot(true);
+  _completionTimer->setInterval(150);
+  connect(_completionTimer, &QTimer::timeout, this,
+          &PowerShellWidget::processCompletionResults);
 
-  // Set background to black to match console
-  setStyleSheet("background-color: black;");
-  
-  // Set minimum size to ensure widget gets space in layout/splitter
-  setMinimumSize(400, 200);
-  
-  // Force creation of native window handle
-  setAttribute(Qt::WA_NativeWindow);
-  
-  // Make sure widget updates are enabled
-  setAttribute(Qt::WA_OpaquePaintEvent, false);
-  setAttribute(Qt::WA_NoSystemBackground, false);
-  
-  // Create native window now
-  create();
-  
-  // Create visibility timer
-  _visibilityTimer = new QTimer(this);
-  _visibilityTimer->setInterval(100); // Check every 100ms
-  connect(_visibilityTimer, &QTimer::timeout, this, &PowerShellWidget::ensureConsoleVisible);
+  // Create prompt request timer
+  _promptTimer = new QTimer(this);
+  _promptTimer->setSingleShot(true);
+  _promptTimer->setInterval(
+      1000); // 1 second delay to handle interactive programs
+  connect(_promptTimer, &QTimer::timeout, this,
+          &PowerShellWidget::requestPrompt);
 
-  // Start PowerShell process immediately
+  // Create layout
+  auto *layout = new QVBoxLayout(this);
+  layout->setContentsMargins(0, 0, 0, 0);
+  layout->setSpacing(0);
+
+  // Create text display widget
+  _textDisplay = new QPlainTextEdit(this);
+  _textDisplay->setReadOnly(false); // Allow cursor to be visible
+  _textDisplay->setWordWrapMode(QTextOption::WrapAnywhere);
+  _textDisplay->setFocusPolicy(Qt::StrongFocus);
+  _textDisplay->setTabChangesFocus(false); // Disable tab focus navigation
+
+  // Install event filter to capture keyboard input
+  _textDisplay->installEventFilter(this);
+
+  // Set console-like font
+  QFont font("Consolas", 10);
+  font.setStyleHint(QFont::Monospace);
+  _textDisplay->setFont(font);
+
+  // Dark console theme with visible cursor
+  _textDisplay->setStyleSheet("QPlainTextEdit {"
+                              "  background-color: #012456;"
+                              "  color: #CCCCCC;"
+                              "  border: none;"
+                              "  padding: 4px;"
+                              "}");
+
+  layout->addWidget(_textDisplay);
+
+  // Set focus to text display
+  _textDisplay->setFocus();
+
+  // Start PowerShell
   startPowerShell();
 
   LOG_PERF(0, "Exit");
@@ -51,8 +74,18 @@ PowerShellWidget::PowerShellWidget(QWidget *parent)
 PowerShellWidget::~PowerShellWidget() {
   LOG_PERF(0, "Enter");
 
-  _inDestructor = true;
-  cleanupProcess();
+  if (_process) {
+    // Disconnect signals to avoid error notifications during shutdown
+    _process->disconnect();
+
+    // Try graceful termination first
+    _process->write("exit\n");
+    if (!_process->waitForFinished(1000)) {
+      _process->kill();
+      _process->waitForFinished(1000);
+    }
+    delete _process;
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -60,631 +93,817 @@ PowerShellWidget::~PowerShellWidget() {
 void PowerShellWidget::startPowerShell() {
   LOG_PERF(0, "Enter");
 
-  if (_processRunning) {
-    LOG_WARN("PowerShell process is already running");
-    LOG_PERF(0, "Exit");
-    return;
+  _process = new QProcess(this);
+
+  // Connect signals
+  connect(_process, &QProcess::readyReadStandardOutput, this,
+          &PowerShellWidget::onReadyReadStandardOutput);
+  connect(_process, &QProcess::readyReadStandardError, this,
+          &PowerShellWidget::onReadyReadStandardError);
+  connect(_process, &QProcess::started, this,
+          &PowerShellWidget::onProcessStarted);
+  connect(_process,
+          QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+          &PowerShellWidget::onProcessFinished);
+  connect(_process, &QProcess::errorOccurred, this,
+          &PowerShellWidget::onProcessError);
+
+  // Set environment variables for unbuffered output
+  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+  env.insert("PYTHONUNBUFFERED", "1");     // Force Python unbuffered output
+  env.insert("PYTHONIOENCODING", "utf-8"); // Force UTF-8 encoding
+  env.insert("TERM", "dumb");              // Simple terminal type
+  _process->setProcessEnvironment(env);
+
+  // Start PowerShell in interactive mode with no logo
+  _process->setProgram("powershell.exe");
+  _process->setArguments({"-NoLogo", "-NoExit"});
+  _process->setProcessChannelMode(
+      QProcess::MergedChannels); // Merge stdout and stderr
+
+  _process->start();
+
+  if (!_process->waitForStarted(3000)) {
+    LOG_ERROR(Log::ErrorId::Gui, "Failed to start PowerShell");
+    emit errorOccurred("Failed to start PowerShell");
   }
-
-  STARTUPINFOW si;
-  ZeroMemory(&si, sizeof(si));
-  si.cb = sizeof(si);
-  si.dwFlags = STARTF_USESHOWWINDOW;
-  si.wShowWindow = SW_HIDE; // Start hidden, show after embedding
-  ZeroMemory(&_processInfo, sizeof(_processInfo));
-
-  // Get path to PowerShell - use older powershell.exe to avoid Windows Terminal
-  wchar_t powershellPath[MAX_PATH];
-  ExpandEnvironmentStringsW(
-      L"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-      powershellPath, MAX_PATH);
-
-  // Create PowerShell process with -NoExit to keep it open
-  wchar_t cmdLine[MAX_PATH * 2];
-  swprintf_s(cmdLine, L"\"%s\" -NoExit -NoLogo", powershellPath);
-
-  const BOOL success = CreateProcessW(nullptr, // Application name
-                                      cmdLine, // Command line
-                                      nullptr, // Process security attributes
-                                      nullptr, // Thread security attributes
-                                      FALSE,   // Inherit handles
-                                      CREATE_NEW_CONSOLE, // Creation flags - creates console
-                                      nullptr,            // Environment
-                                      nullptr,            // Current directory
-                                      &si,                // Startup info
-                                      &_processInfo       // Process info
-  );
-
-  if (!success) {
-    DWORD error = GetLastError();
-    LOG_ERROR(Log::ErrorId::Gui,
-              "Failed to create PowerShell process. Error code: {}", error);
-    emit errorOccurred(
-        QString("Failed to create PowerShell process. Error code: %1")
-            .arg(error));
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  _processRunning = true;
-  LOG_INFO("PowerShell process created with PID: {}", _processInfo.dwProcessId);
-
-  // Start embedding attempts with retry mechanism
-  _embedRetries = 0;
-  embedConsoleWithRetry(0);
-
-  emit processStarted();
 
   LOG_PERF(0, "Exit");
-}
-
-void PowerShellWidget::embedConsole() {
-  LOG_PERF(0, "Enter");
-
-  if (!_processRunning) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  // Find the console window associated with the process
-  HWND foundWindow = nullptr;
-  
-  // Structure to pass data to callback
-  struct EnumData {
-    DWORD processId;
-    HWND* windowHandle;
-  };
-  
-  EnumData enumData = { _processInfo.dwProcessId, &foundWindow };
-
-  // Enumerate all windows to find the console window
-  EnumWindows(
-      [](HWND hwnd, LPARAM lParam) -> BOOL {
-        EnumData* data = reinterpret_cast<EnumData*>(lParam);
-        DWORD processId = 0;
-        GetWindowThreadProcessId(hwnd, &processId);
-
-        if (processId == data->processId) {
-          wchar_t className[256];
-          GetClassNameW(hwnd, className, 256);
-
-          // Check if it's a console window
-          if (wcscmp(className, L"ConsoleWindowClass") == 0) {
-            *(data->windowHandle) = hwnd;
-            return FALSE; // Stop enumeration
-          }
-        }
-        return TRUE; // Continue enumeration
-      },
-      reinterpret_cast<LPARAM>(&enumData));
-
-  if (!foundWindow) {
-    LOG_ERROR(Log::ErrorId::Gui, "Could not find console window for process {}",
-              _processInfo.dwProcessId);
-    
-    // Try alternative approach - get console window by attaching to the process console
-    if (AttachConsole(_processInfo.dwProcessId)) {
-      foundWindow = GetConsoleWindow();
-      FreeConsole();
-    }
-    
-    if (!foundWindow) {
-      if (!_inDestructor) {
-        emit errorOccurred("Could not find console window");
-      }
-      LOG_PERF(0, "Exit");
-      return;
-    }
-  }
-
-  _consoleWindow = foundWindow;
-  LOG_INFO("Found console window: {}",
-           reinterpret_cast<uintptr_t>(_consoleWindow));
-
-  // Get current window style
-  LONG_PTR style = GetWindowLongPtrW(_consoleWindow, GWL_STYLE);
-  LONG_PTR exStyle = GetWindowLongPtrW(_consoleWindow, GWL_EXSTYLE);
-  
-  LOG_INFO("Original console style: 0x{:X}, exStyle: 0x{:X}", style, exStyle);
-  
-  // Remove window decorations and make it a child window WITH visibility
-  style &= ~(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZE | WS_MAXIMIZE | WS_SYSMENU | WS_OVERLAPPED | WS_POPUP | WS_BORDER);
-  style |= WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | WS_VISIBLE;
-  
-  SetWindowLongPtrW(_consoleWindow, GWL_STYLE, style);
-  SetWindowLongPtrW(_consoleWindow, GWL_EXSTYLE, exStyle & ~(WS_EX_WINDOWEDGE | WS_EX_DLGMODALFRAME));
-  
-  LOG_INFO("Updated console style to: 0x{:X} (added WS_CHILD | WS_VISIBLE)", style);
-
-  // Embed the console window into this widget BEFORE showing it
-  const HWND parentHwnd = reinterpret_cast<HWND>(winId());
-  
-  if (!parentHwnd || !IsWindow(parentHwnd)) {
-    LOG_ERROR(Log::ErrorId::Gui, "Parent widget does not have a valid window handle!");
-    if (!_inDestructor) {
-      emit errorOccurred("Parent widget has no valid window handle");
-    }
-    LOG_PERF(0, "Exit");
-    return;
-  }
-  
-  LOG_INFO("Parent widget HWND: 0x{:X}, visible: {}, size: {}x{}", 
-           reinterpret_cast<uintptr_t>(parentHwnd), isVisible(), width(), height());
-  
-  // Set parent first
-  HWND oldParent = SetParent(_consoleWindow, parentHwnd);
-  LOG_INFO("Changed console parent from 0x{:X} to 0x{:X}", 
-           reinterpret_cast<uintptr_t>(oldParent), reinterpret_cast<uintptr_t>(parentHwnd));
-  
-  // Verify parent was set
-  HWND currentParent = GetParent(_consoleWindow);
-  if (currentParent != parentHwnd) {
-    LOG_ERROR(Log::ErrorId::Gui, "Failed to set parent! Expected 0x{:X}, got 0x{:X}",
-              reinterpret_cast<uintptr_t>(parentHwnd), reinterpret_cast<uintptr_t>(currentParent));
-  }
-
-  // Get the actual client area size
-  const QSize widgetSize = size();
-  const int w = widgetSize.width() > 0 ? widgetSize.width() : 800;
-  const int h = widgetSize.height() > 0 ? widgetSize.height() : 600;
-  
-  LOG_INFO("Setting console window size to {}x{}", w, h);
-
-  // Position and size the window in client coordinates (0,0 relative to parent)
-  // Use SWP_NOACTIVATE to prevent activation issues
-  BOOL posResult = SetWindowPos(_consoleWindow, HWND_TOP, 0, 0, w, h,
-                                 SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE);
-  
-  if (!posResult) {
-    LOG_WARN("SetWindowPos failed with error: {}", GetLastError());
-  }
-  
-  // Verify position
-  RECT consoleRect;
-  if (GetWindowRect(_consoleWindow, &consoleRect)) {
-    POINT topLeft = {consoleRect.left, consoleRect.top};
-    ScreenToClient(parentHwnd, &topLeft);
-    LOG_INFO("Console window positioned at ({}, {}) with size {}x{}", 
-             topLeft.x, topLeft.y, 
-             consoleRect.right - consoleRect.left, 
-             consoleRect.bottom - consoleRect.top);
-  }
-  
-  // Check window state before showing
-  WINDOWPLACEMENT placement;
-  placement.length = sizeof(WINDOWPLACEMENT);
-  GetWindowPlacement(_consoleWindow, &placement);
-  LOG_INFO("Console window placement: showCmd={}, flags={}", placement.showCmd, placement.flags);
-  
-  // Get window style
-  style = GetWindowLongPtrW(_consoleWindow, GWL_STYLE);
-  exStyle = GetWindowLongPtrW(_consoleWindow, GWL_EXSTYLE);
-  LOG_INFO("Console window styles: style=0x{:X}, exStyle=0x{:X}", style, exStyle);
-  LOG_INFO("Has WS_VISIBLE: {}, Has WS_CHILD: {}", (style & WS_VISIBLE) ? "YES" : "NO", (style & WS_CHILD) ? "YES" : "NO");
-  
-  // Try multiple methods to show the window
-  LOG_INFO("Attempting to show console window with multiple methods");
-  ShowWindow(_consoleWindow, SW_SHOWNOACTIVATE);
-  ShowWindow(_consoleWindow, SW_SHOW);
-  SetWindowPos(_consoleWindow, HWND_TOP, 0, 0, w, h,
-               SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW | SWP_FRAMECHANGED);
-  
-  // Force window to repaint and update
-  InvalidateRect(_consoleWindow, nullptr, TRUE);
-  UpdateWindow(_consoleWindow);
-  RedrawWindow(_consoleWindow, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN | RDW_ERASE);
-  
-  // Send explicit paint message
-  SendMessageW(_consoleWindow, WM_PAINT, 0, 0);
-  
-  // Check if window region is set properly
-  HRGN region = CreateRectRgn(0, 0, w, h);
-  SetWindowRgn(_consoleWindow, region, TRUE);
-  
-  // Get client rect to verify it's not zero
-  RECT clientRect;
-  GetClientRect(_consoleWindow, &clientRect);
-  LOG_INFO("Console client rect: ({},{}) to ({},{})", clientRect.left, clientRect.top, clientRect.right, clientRect.bottom);
-  
-  // Check if it's actually visible now
-  BOOL nowVisible = IsWindowVisible(_consoleWindow);
-  LOG_INFO("After show attempts, IsWindowVisible returns: {}", nowVisible);
-  
-  // Check for child windows - the actual rendering might happen in a child
-  LOG_INFO("Checking for child windows of console...");
-  struct EnumChildData {
-    int count;
-  };
-  EnumChildData childData = {0};
-  
-  EnumChildWindows(_consoleWindow, [](HWND hwnd, LPARAM lParam) -> BOOL {
-    auto* data = reinterpret_cast<EnumChildData*>(lParam);
-    data->count++;
-    
-    RECT childRect;
-    GetWindowRect(hwnd, &childRect);
-    POINT topLeft = {childRect.left, childRect.top};
-    ScreenToClient(GetParent(hwnd), &topLeft);
-    
-    char className[256];
-    GetClassNameA(hwnd, className, sizeof(className));
-    
-    LONG_PTR style = GetWindowLongPtrW(hwnd, GWL_STYLE);
-    BOOL visible = IsWindowVisible(hwnd);
-    
-    LOG_INFO("  Child window {}: class='{}', pos=({},{}), size={}x{}, visible={}, style=0x{:X}",
-             data->count, className, topLeft.x, topLeft.y,
-             childRect.right - childRect.left, childRect.bottom - childRect.top,
-             visible, style);
-    
-    // Try to show and resize this child window too
-    ShowWindow(hwnd, SW_SHOW);
-    
-    return TRUE;
-  }, reinterpret_cast<LPARAM>(&childData));
-  
-  LOG_INFO("Found {} child windows", childData.count);
-  
-  // Try to attach to the console and write directly to trigger rendering
-  if (AttachConsole(_processInfo.dwProcessId)) {
-    LOG_INFO("Successfully attached to console, writing initial output...");
-    
-    // Get console output handle and write to it
-    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-    if (hConsole != INVALID_HANDLE_VALUE) {
-      const char* msg = "\nPowerShell Console Ready\n";
-      DWORD written;
-      WriteConsoleA(hConsole, msg, strlen(msg), &written, nullptr);
-      FlushConsoleInputBuffer(GetStdHandle(STD_INPUT_HANDLE));
-    }
-    
-    FreeConsole();
-    LOG_INFO("Detached from console after writing");
-  } else {
-    LOG_WARN("Failed to attach to console for writing, error: {}", GetLastError());
-  }
-  
-  // Send focus message to console window
-  SetFocus(_consoleWindow);
-  SetForegroundWindow(_consoleWindow);
-  
-  // Force console to think it's active
-  SendMessageW(_consoleWindow, WM_SETFOCUS, 0, 0);
-  SendMessageW(_consoleWindow, WM_ACTIVATE, WA_ACTIVE, 0);
-  
-  // Force a repaint of the parent widget
-  update();
-  repaint();
-  
-  // Send an initial command to activate the console
-  QTimer::singleShot(100, this, [this]() {
-    if (_consoleWindow && IsWindow(_consoleWindow)) {
-      LOG_INFO("Sending initial command to console to activate it");
-      executeCommand("Write-Host 'Console initialized' -ForegroundColor Green");
-    }
-  });
-
-  LOG_INFO("Console window embedded successfully");
-
-  LOG_PERF(0, "Exit");
-}
-
-void PowerShellWidget::embedConsoleWithRetry(int attempt) {
-  LOG_PERF(0, "Enter");
-  
-  if (!_processRunning) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-  
-  if (attempt > 10) {
-    LOG_ERROR(Log::ErrorId::Gui, "Failed to embed console after 10 attempts");
-    if (!_inDestructor) {
-      emit errorOccurred("Failed to embed console window after multiple attempts");
-    }
-    LOG_PERF(0, "Exit");
-    return;
-  }
-  
-  // Wait a bit more on first few attempts for console to initialize
-  const int delay = (attempt == 0) ? 200 : (attempt < 3) ? 150 : 100;
-  
-  QTimer::singleShot(delay, this, [this, attempt]() {
-    embedConsole();
-    
-    // If embedding didn't succeed (no console window found), retry
-    if (!_consoleWindow) {
-      LOG_WARN("Console window not found yet, retrying... (attempt {})", attempt + 1);
-      embedConsoleWithRetry(attempt + 1);
-    } else {
-      LOG_INFO("Console successfully embedded after {} attempts", attempt + 1);
-      // Start the visibility timer once console is embedded
-      if (_visibilityTimer) {
-        _visibilityTimer->start();
-      }
-      
-      // Force immediate visibility check
-      QTimer::singleShot(50, this, [this]() {
-        if (_consoleWindow && IsWindow(_consoleWindow)) {
-          LOG_INFO("Post-embedding visibility check");
-          ShowWindow(_consoleWindow, SW_SHOW);
-          ensureConsoleVisible();
-          update();
-        }
-      });
-    }
-  });
-  
-  LOG_PERF(0, "Exit");
-}
-
-void PowerShellWidget::ensureConsoleVisible() {
-  if (!_consoleWindow || !IsWindow(_consoleWindow)) {
-    return;
-  }
-  
-  const int w = width();
-  const int h = height();
-  
-  if (w <= 0 || h <= 0) {
-    return;
-  }
-  
-  // Check if console is visible
-  const BOOL consoleVisible = IsWindowVisible(_consoleWindow);
-  if (!consoleVisible) {
-    LOG_WARN("Console window was hidden, making it visible again");
-    ShowWindow(_consoleWindow, SW_SHOWNA);
-    SetWindowPos(_consoleWindow, HWND_TOP, 0, 0, w, h, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE);
-    InvalidateRect(_consoleWindow, nullptr, TRUE);
-    UpdateWindow(_consoleWindow);
-    update();
-  }
-  
-  // Ensure console is child of this widget
-  HWND currentParent = GetParent(_consoleWindow);
-  HWND expectedParent = reinterpret_cast<HWND>(winId());
-  if (currentParent != expectedParent) {
-    LOG_WARN("Console window parent changed from {} to {}, re-parenting", 
-             reinterpret_cast<uintptr_t>(currentParent),
-             reinterpret_cast<uintptr_t>(expectedParent));
-    SetParent(_consoleWindow, expectedParent);
-    ShowWindow(_consoleWindow, SW_SHOW);
-    SetWindowPos(_consoleWindow, HWND_TOP, 0, 0, w, h, SWP_SHOWWINDOW);
-  }
-  
-  // Ensure proper size and position
-  RECT consoleRect;
-  if (GetWindowRect(_consoleWindow, &consoleRect)) {
-    POINT topLeft = {consoleRect.left, consoleRect.top};
-    ScreenToClient(expectedParent, &topLeft);
-    
-    const int consoleW = consoleRect.right - consoleRect.left;
-    const int consoleH = consoleRect.bottom - consoleRect.top;
-    
-    // Check if position or size is wrong
-    if (topLeft.x != 0 || topLeft.y != 0 || abs(consoleW - w) > 5 || abs(consoleH - h) > 5) {
-      SetWindowPos(_consoleWindow, HWND_TOP, 0, 0, w, h, 
-                   SWP_SHOWWINDOW);
-      InvalidateRect(_consoleWindow, nullptr, TRUE);
-    }
-  }
-  
-  // Ensure window style still has WS_VISIBLE
-  LONG_PTR style = GetWindowLongPtrW(_consoleWindow, GWL_STYLE);
-  if (!(style & WS_VISIBLE)) {
-    LOG_WARN("Console window lost WS_VISIBLE style, restoring");
-    style |= WS_VISIBLE;
-    SetWindowLongPtrW(_consoleWindow, GWL_STYLE, style);
-    ShowWindow(_consoleWindow, SW_SHOW);
-  }
 }
 
 bool PowerShellWidget::executeCommand(const QString &command) {
-  LOG_PERF(0, "Enter");
-
-  if (!_processRunning || !_consoleWindow) {
-    LOG_WARN("PowerShell process is not running or console not embedded");
-    LOG_PERF(0, "Exit");
+  if (!_process || _process->state() != QProcess::Running) {
     return false;
   }
 
-  // Send the command to the console window by simulating keyboard input
-  const QString fullCommand = command + "\n";
-
-  for (const QChar &ch : fullCommand) {
-    if (ch == '\n') {
-      // Send Enter key
-      PostMessageW(_consoleWindow, WM_CHAR, VK_RETURN, 0);
-    } else {
-      // Send character
-      PostMessageW(_consoleWindow, WM_CHAR, ch.unicode(), 0);
-    }
+  QString cmd = command;
+  if (!cmd.endsWith('\n')) {
+    cmd += "\n";
   }
 
-  LOG_PERF(0, "Exit");
+  _process->write(cmd.toLocal8Bit());
   return true;
 }
 
 bool PowerShellWidget::isRunning() const {
-  LOG_PERF(0, "Enter");
-
-  if (!_processRunning) {
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  DWORD exitCode;
-  if (GetExitCodeProcess(_processInfo.hProcess, &exitCode)) {
-    LOG_PERF(0, "Exit");
-    return exitCode == STILL_ACTIVE;
-  }
-
-  LOG_PERF(0, "Exit");
-
-  return false;
+  return _process && _process->state() == QProcess::Running;
 }
 
 void PowerShellWidget::restart() {
-  LOG_PERF(0, "Enter");
+  if (_process) {
+    _process->kill();
+    _process->waitForFinished(1000);
+  }
 
-  terminate();
-
-  QTimer::singleShot(500, this, [this]() { startPowerShell(); });
-
-  LOG_PERF(0, "Exit");
+  _textDisplay->clear();
+  _commandBuffer.clear();
+  startPowerShell();
 }
 
 void PowerShellWidget::terminate() {
-  LOG_PERF(0, "Enter");
-
-  cleanupProcess();
-
-  LOG_PERF(0, "Exit");
-}
-
-void PowerShellWidget::cleanupProcess() {
-  LOG_PERF(0, "Enter");
-
-  // Stop visibility timer
-  if (_visibilityTimer) {
-    _visibilityTimer->stop();
-  }
-
-  if (_processRunning) {
-    if (_consoleWindow) {
-      // Unparent the console window before terminating
-      SetParent(_consoleWindow, nullptr);
-      _consoleWindow = nullptr;
-    }
-
-    if (_processInfo.hProcess) {
-      // Try to terminate gracefully first
-      if (WaitForSingleObject(_processInfo.hProcess, 1000) == WAIT_TIMEOUT) {
-        // Force terminate if it doesn't close gracefully
-        TerminateProcess(_processInfo.hProcess, 0);
-      }
-      CloseHandle(_processInfo.hProcess);
-    }
-
-    if (_processInfo.hThread) {
-      CloseHandle(_processInfo.hThread);
-    }
-
-    ZeroMemory(&_processInfo, sizeof(_processInfo));
-    _processRunning = false;
-
-    // Only emit signal if not in destructor
-    if (!_inDestructor) {
-      emit processStopped();
-    }
-    LOG_INFO("PowerShell process terminated");
-  }
-
-  LOG_PERF(0, "Exit");
-}
-
-void PowerShellWidget::resizeEvent(QResizeEvent *event) {
-  LOG_PERF(0, "Enter");
-
-  QWidget::resizeEvent(event);
-
-  if (_consoleWindow && IsWindow(_consoleWindow)) {
-    const int w = event->size().width();
-    const int h = event->size().height();
-    
-    LOG_INFO("resizeEvent: New size={}x{}", w, h);
-    
-    if (w > 0 && h > 0) {
-      SetWindowPos(_consoleWindow, HWND_TOP, 0, 0, w, h,
-                   SWP_SHOWWINDOW | SWP_FRAMECHANGED);
-      UpdateWindow(_consoleWindow);
-      RedrawWindow(_consoleWindow, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
-      
-      // Ensure it's visible
-      if (!IsWindowVisible(_consoleWindow)) {
-        LOG_WARN("resizeEvent: Console not visible, forcing show");
-        ShowWindow(_consoleWindow, SW_SHOW);
-        BringWindowToTop(_consoleWindow);
-      }
+  if (_process) {
+    _process->terminate();
+    if (!_process->waitForFinished(2000)) {
+      _process->kill();
     }
   }
-
-  LOG_PERF(0, "Exit");
-}
-
-void PowerShellWidget::showEvent(QShowEvent *event) {
-  LOG_PERF(0, "Enter");
-
-  QWidget::showEvent(event);
-
-  if (_consoleWindow && IsWindow(_consoleWindow)) {
-    const int w = width() > 0 ? width() : 800;
-    const int h = height() > 0 ? height() : 600;
-    
-    LOG_INFO("showEvent: Widget size={}x{}, making console visible", w, h);
-    BOOL wasVisible = IsWindowVisible(_consoleWindow);
-    LOG_INFO("showEvent: Console was visible: {}", wasVisible);
-    
-    // Multiple show attempts
-    ShowWindow(_consoleWindow, SW_SHOWNA);
-    ShowWindow(_consoleWindow, SW_SHOW);
-    SetWindowPos(_consoleWindow, HWND_TOP, 0, 0, w, h,
-                 SWP_SHOWWINDOW | SWP_FRAMECHANGED);
-    UpdateWindow(_consoleWindow);
-    RedrawWindow(_consoleWindow, nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW);
-    BringWindowToTop(_consoleWindow);
-    
-    BOOL nowVisible = IsWindowVisible(_consoleWindow);
-    LOG_INFO("showEvent: Console now visible: {}", nowVisible);
-    
-    // Trigger a repaint
-    update();
-    
-    // Start visibility timer
-    if (_visibilityTimer) {
-      _visibilityTimer->start();
-    }
-  }
-
-  LOG_PERF(0, "Exit");
-}
-
-void PowerShellWidget::hideEvent(QHideEvent *event) {
-  LOG_PERF(0, "Enter");
-
-  QWidget::hideEvent(event);
-
-  // Stop visibility timer
-  if (_visibilityTimer) {
-    _visibilityTimer->stop();
-  }
-
-  // Hide the console window when the widget is hidden
-  if (_consoleWindow && IsWindow(_consoleWindow)) {
-    ShowWindow(_consoleWindow, SW_HIDE);
-  }
-
-  LOG_PERF(0, "Exit");
 }
 
 void PowerShellWidget::closeEvent(QCloseEvent *event) {
-  LOG_PERF(0, "Enter");
-
-  cleanupProcess();
+  terminate();
   QWidget::closeEvent(event);
-
-  LOG_PERF(0, "Exit");
 }
 
-void PowerShellWidget::paintEvent(QPaintEvent *event) {
-  QWidget::paintEvent(event);
-  
-  // The visibility timer will handle ensuring console is visible
-  // Just trigger a manual check here
-  if (_consoleWindow && IsWindow(_consoleWindow) && isVisible()) {
-    ensureConsoleVisible();
+bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
+  if (obj == _textDisplay && event->type() == QEvent::KeyPress) {
+    QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+
+    if (_process && _process->state() == QProcess::Running) {
+      // Handle special keys
+      if (keyEvent->key() == Qt::Key_Return ||
+          keyEvent->key() == Qt::Key_Enter) {
+        QString cmd = _commandBuffer;
+
+        // Save to history if not empty
+        if (!cmd.trimmed().isEmpty()) {
+          _commandHistory.append(cmd);
+          _historyIndex = _commandHistory.size();
+        }
+
+        LOG_INFO("Executing command: '{}'", cmd.toStdString());
+        appendOutput("\n", false); // Add newline after command
+        _lastCommand = cmd;        // Store for echo filtering
+        _process->write((cmd + "\n").toUtf8());
+        _commandBuffer.clear();
+        _commandCursorPos = 0;
+
+        // Start timer to request prompt after output stops
+        _promptTimer->start();
+        return true;
+      } else if (keyEvent->key() == Qt::Key_Up) {
+        // Navigate to previous command in history
+        if (_historyIndex > 0) {
+          _historyIndex--;
+
+          // Clear current input from display
+          for (int i = 0; i < _commandBuffer.length(); i++) {
+            QTextCursor cursor = _textDisplay->textCursor();
+            cursor.deletePreviousChar();
+          }
+
+          // Set command from history
+          _commandBuffer = _commandHistory[_historyIndex];
+          _commandCursorPos = _commandBuffer.length();
+          appendOutput(_commandBuffer, false);
+        }
+        return true;
+      } else if (keyEvent->key() == Qt::Key_Down) {
+        // Navigate to next command in history
+        if (_historyIndex < _commandHistory.size() - 1) {
+          _historyIndex++;
+
+          // Clear current input from display
+          for (int i = 0; i < _commandBuffer.length(); i++) {
+            QTextCursor cursor = _textDisplay->textCursor();
+            cursor.deletePreviousChar();
+          }
+
+          // Set command from history
+          _commandBuffer = _commandHistory[_historyIndex];
+          _commandCursorPos = _commandBuffer.length();
+          appendOutput(_commandBuffer, false);
+        } else if (_historyIndex == _commandHistory.size() - 1) {
+          // At the end of history, clear to empty
+          _historyIndex = _commandHistory.size();
+
+          // Clear current input from display
+          for (int i = 0; i < _commandBuffer.length(); i++) {
+            QTextCursor cursor = _textDisplay->textCursor();
+            cursor.deletePreviousChar();
+          }
+
+          _commandBuffer.clear();
+          _commandCursorPos = 0;
+        }
+        return true;
+      } else if (keyEvent->key() == Qt::Key_Left) {
+        // Move cursor left
+        if (_commandCursorPos > 0) {
+          _commandCursorPos--;
+          QTextCursor cursor = _textDisplay->textCursor();
+          cursor.movePosition(QTextCursor::Left);
+          _textDisplay->setTextCursor(cursor);
+        }
+        return true;
+      } else if (keyEvent->key() == Qt::Key_Right) {
+        // Move cursor right
+        if (_commandCursorPos < _commandBuffer.length()) {
+          _commandCursorPos++;
+          QTextCursor cursor = _textDisplay->textCursor();
+          cursor.movePosition(QTextCursor::Right);
+          _textDisplay->setTextCursor(cursor);
+        }
+        return true;
+      } else if (keyEvent->key() == Qt::Key_Home) {
+        // Move cursor to start of command
+        _commandCursorPos = 0;
+        QTextCursor cursor = _textDisplay->textCursor();
+        // Move to end first, then back by command length to get to start of
+        // command
+        cursor.movePosition(QTextCursor::End);
+        cursor.movePosition(QTextCursor::Left, QTextCursor::MoveAnchor,
+                            _commandBuffer.length());
+        _textDisplay->setTextCursor(cursor);
+        return true;
+      } else if (keyEvent->key() == Qt::Key_End) {
+        // Move cursor to end of command
+        _commandCursorPos = _commandBuffer.length();
+        QTextCursor cursor = _textDisplay->textCursor();
+        cursor.movePosition(QTextCursor::End);
+        _textDisplay->setTextCursor(cursor);
+        return true;
+      } else if (keyEvent->key() == Qt::Key_Tab) {
+        // Tab completion - cycle through matches
+        LOG_INFO("Tab key pressed, commandBuffer: '{}'",
+                 _commandBuffer.toStdString());
+
+        // Extract the base command (everything before the last word)
+        int lastSpaceIdx = _commandBuffer.lastIndexOf(' ');
+        QString base = (lastSpaceIdx >= 0)
+                           ? _commandBuffer.left(lastSpaceIdx + 1)
+                           : QString();
+
+        // Check if current buffer ends with a directory (has backslash at end)
+        bool endsWithBackslash =
+            _commandBuffer.endsWith('\\') || _commandBuffer.endsWith('/');
+
+        LOG_INFO(
+            "Tab handler - base: '{}', _completionBase: '{}', "
+            "endsWithBackslash: {}, stack size: {}, matches: {}, index: {}",
+            base.toStdString(), _completionBase.toStdString(),
+            endsWithBackslash, _completionStack.size(),
+            _completionMatches.size(), _completionIndex);
+
+        // If we already have completions for this base, cycle to next
+        if (!_completionMatches.isEmpty() && _completionBase == base &&
+            !endsWithBackslash) {
+          // Calculate next index
+          int nextIndex = (_completionIndex + 1) % _completionMatches.size();
+
+          // Check if we've wrapped around (reached end of current level)
+          // Only pop if we actually have multiple items or if we've cycled at
+          // least once
+          if (nextIndex == 0 && _completionIndex > 0 &&
+              !_completionStack.isEmpty()) {
+            // Pop back to parent directory
+            LOG_INFO("Reached end of subdirectory, returning to parent");
+
+            // Stop any pending completion operations
+            _completionTimer->stop();
+            _waitingForCompletion = false;
+            _completionBuffer.clear();
+
+            CompletionState parentState = _completionStack.takeLast();
+
+            // Clear current path from display
+            QString currentWord = (lastSpaceIdx >= 0)
+                                      ? _commandBuffer.mid(lastSpaceIdx + 1)
+                                      : _commandBuffer;
+            for (int i = 0; i < currentWord.length(); i++) {
+              QTextCursor cursor = _textDisplay->textCursor();
+              cursor.deletePreviousChar();
+            }
+
+            // Restore parent state and move to next sibling
+            _completionMatches = parentState.matches;
+            _completionIsDirectory = parentState.isDirectory;
+            _completionPartial = parentState.partial;
+            _completionBase = parentState.base;
+            _completionPathPrefix = parentState.pathPrefix;
+            _completionIndex =
+                (parentState.index + 1) % parentState.matches.size();
+
+            // Check if we wrapped back to 0 at parent level - need to pop again
+            if (_completionIndex == 0 && !_completionStack.isEmpty()) {
+              LOG_INFO("Wrapped at parent level, popping again");
+              // Recursively pop until we find a level with more siblings or
+              // stack is empty
+              while (_completionIndex == 0 && !_completionStack.isEmpty()) {
+                parentState = _completionStack.takeLast();
+                _completionMatches = parentState.matches;
+                _completionIsDirectory = parentState.isDirectory;
+                _completionPartial = parentState.partial;
+                _completionBase = parentState.base;
+                _completionPathPrefix = parentState.pathPrefix;
+                _completionIndex =
+                    (parentState.index + 1) % parentState.matches.size();
+
+                LOG_INFO(
+                    "Popped to level with stack size: {}, new index: {}/{}",
+                    _completionStack.size(), _completionIndex,
+                    _completionMatches.size());
+              }
+
+              // If we exhausted the entire stack, we're back at root - just
+              // start over
+              if (_completionStack.isEmpty() && _completionIndex == 0) {
+                LOG_INFO("Exhausted all levels, cycling from start");
+                _completionIndex = 0;
+              }
+            }
+
+            QString match = _completionMatches[_completionIndex];
+            bool isDir = _completionIndex < _completionIsDirectory.size() &&
+                         _completionIsDirectory[_completionIndex];
+
+            LOG_INFO("Back to parent, cycling to match {}/{}: '{}' (isDir: {})",
+                     _completionIndex + 1, _completionMatches.size(),
+                     match.toStdString(), isDir);
+
+            // Build full match with path prefix
+            QString fullMatch = _completionPathPrefix + match;
+            _commandBuffer = _completionBase + fullMatch;
+            _commandCursorPos = _commandBuffer.length();
+
+            // If it's a directory, add backslash
+            if (isDir && !match.endsWith('\\') && !match.endsWith('/')) {
+              _commandBuffer += "\\";
+              _commandCursorPos++;
+              appendOutput(fullMatch + "\\", false);
+            } else {
+              appendOutput(fullMatch, false);
+            }
+            return true;
+          }
+
+          // Normal cycling within current level
+          _completionIndex = nextIndex;
+          QString match = _completionMatches[_completionIndex];
+          bool isDir = _completionIndex < _completionIsDirectory.size() &&
+                       _completionIsDirectory[_completionIndex];
+
+          LOG_INFO("Cycling to match {}/{}: '{}' (isDir: {})",
+                   _completionIndex + 1, _completionMatches.size(),
+                   match.toStdString(), isDir);
+
+          // Clear the current word from display
+          QString currentWord = (lastSpaceIdx >= 0)
+                                    ? _commandBuffer.mid(lastSpaceIdx + 1)
+                                    : _commandBuffer;
+          for (int i = 0; i < currentWord.length(); i++) {
+            QTextCursor cursor = _textDisplay->textCursor();
+            cursor.deletePreviousChar();
+          }
+
+          // Build full match with path prefix
+          QString fullMatch = _completionPathPrefix + match;
+          _commandBuffer = base + fullMatch;
+          _commandCursorPos = _commandBuffer.length();
+
+          // If it's a directory, add backslash and prepare for automatic
+          // descent
+          if (isDir && !match.endsWith('\\') && !match.endsWith('/')) {
+            _commandBuffer += "\\";
+            _commandCursorPos++;
+            appendOutput(fullMatch + "\\", false);
+
+            // For recursive traversal: automatically descend into directory on
+            // next Tab by not returning here - the next Tab will detect
+            // endsWithBackslash and enter
+          } else {
+            appendOutput(fullMatch, false);
+          }
+        } else if (endsWithBackslash) {
+          // Entering a subdirectory - save parent state for recursive traversal
+          QString partial = (lastSpaceIdx >= 0)
+                                ? _commandBuffer.mid(lastSpaceIdx + 1)
+                                : _commandBuffer;
+
+          if (!_completionMatches.isEmpty()) {
+            CompletionState parentState;
+            parentState.matches = _completionMatches;
+            parentState.isDirectory = _completionIsDirectory;
+            parentState.index = _completionIndex;
+            parentState.partial = _completionPartial;
+            parentState.base = _completionBase;
+            parentState.pathPrefix = _completionPathPrefix;
+            _completionStack.append(parentState);
+
+            LOG_INFO(
+                "Entering subdirectory, saved parent state (stack size: {})",
+                _completionStack.size());
+          }
+
+          // Check if we're completing inside a subdirectory
+          QString searchPath;
+          QString searchPartial;
+          int lastBackslash = partial.lastIndexOf('\\');
+          if (lastBackslash < 0) {
+            lastBackslash = partial.lastIndexOf('/');
+          }
+
+          if (lastBackslash >= 0) {
+            // We have a path component
+            searchPath = partial.left(lastBackslash + 1);
+            searchPartial = partial.mid(lastBackslash + 1);
+          } else {
+            searchPath = "";
+            searchPartial = partial;
+          }
+
+          _completionPartial = partial;
+          _completionBase = base;
+          _completionMatches.clear();
+          _completionIsDirectory.clear();
+          _completionIndex = -1;
+          _completionBuffer.clear();
+          _waitingForCompletion = true;
+
+          // Use PowerShell to find matching files/folders with directory flag
+          QString completionCmd;
+          if (searchPath.isEmpty()) {
+            // Search in current directory
+            if (searchPartial.isEmpty()) {
+              // No partial - show all items
+              completionCmd = "Get-ChildItem -Force -ErrorAction "
+                              "SilentlyContinue | Select-Object -First 50 | "
+                              "ForEach-Object { if ($_.PSIsContainer) { "
+                              "$_.Name + '|DIR' } else { $_.Name } }\n";
+            } else {
+              // With partial - search matching items
+              completionCmd =
+                  QString(
+                      "Get-ChildItem -Force -ErrorAction SilentlyContinue | "
+                      "Where-Object { $_.Name -like '%1*' } | "
+                      "Select-Object -First 50 | "
+                      "ForEach-Object { if ($_.PSIsContainer) { $_.Name + "
+                      "'|DIR' } else { $_.Name } }\n")
+                      .arg(searchPartial);
+            }
+          } else {
+            // Search in subdirectory
+            if (searchPartial.isEmpty()) {
+              completionCmd =
+                  QString("Get-ChildItem -Path '%1' -Force -ErrorAction "
+                          "SilentlyContinue | "
+                          "Select-Object -First 50 | "
+                          "ForEach-Object { if ($_.PSIsContainer) { $_.Name + "
+                          "'|DIR' } else { $_.Name } }\n")
+                      .arg(searchPath);
+            } else {
+              completionCmd =
+                  QString("Get-ChildItem -Path '%1' -Force -ErrorAction "
+                          "SilentlyContinue | "
+                          "Where-Object { $_.Name -like '%2*' } | "
+                          "Select-Object -First 50 | "
+                          "ForEach-Object { if ($_.PSIsContainer) { $_.Name + "
+                          "'|DIR' } else { $_.Name } }\n")
+                      .arg(searchPath, searchPartial);
+            }
+          }
+
+          LOG_INFO("Sending completion command: '{}'",
+                   completionCmd.left(100).toStdString());
+          _process->write(completionCmd.toLocal8Bit());
+
+          // Start timer to process accumulated results
+          _completionTimer->start();
+        } else {
+          // Starting fresh completion (not cycling, not entering subdirectory),
+          // clear stack
+          _completionStack.clear();
+
+          QString partial = (lastSpaceIdx >= 0)
+                                ? _commandBuffer.mid(lastSpaceIdx + 1)
+                                : _commandBuffer;
+          _completionPartial = partial;
+          _completionBase = base;
+          _completionMatches.clear();
+          _completionIsDirectory.clear();
+          _completionIndex = -1;
+          _completionBuffer.clear();
+          _completionPathPrefix.clear();
+          _waitingForCompletion = true;
+
+          // Request completions for current directory
+          QString completionCmd;
+          if (partial.isEmpty()) {
+            completionCmd =
+                "Get-ChildItem -Force -ErrorAction SilentlyContinue | "
+                "Select-Object -First 50 | ForEach-Object { if "
+                "($_.PSIsContainer) { $_.Name + '|DIR' } else { $_.Name } }\n";
+          } else {
+            completionCmd =
+                QString("Get-ChildItem -Force -ErrorAction SilentlyContinue | "
+                        "Where-Object { $_.Name -like '%1*' } | "
+                        "Select-Object -First 50 | "
+                        "ForEach-Object { if ($_.PSIsContainer) { $_.Name + "
+                        "'|DIR' } else { $_.Name } }\n")
+                    .arg(partial);
+          }
+
+          LOG_INFO("Sending completion command: '{}'",
+                   completionCmd.left(100).toStdString());
+          _process->write(completionCmd.toLocal8Bit());
+
+          // Start timer to process accumulated results
+          _completionTimer->start();
+        }
+        return true;
+      } else if (keyEvent->key() == Qt::Key_Backspace) {
+        if (!_commandBuffer.isEmpty()) {
+          // Get current cursor position in display
+          QTextCursor cursor = _textDisplay->textCursor();
+          int cursorPosInDisplay = cursor.position();
+          int docLength = _textDisplay->document()->characterCount() - 1;
+
+          // Calculate position within command buffer
+          _commandCursorPos =
+              _commandBuffer.length() - (docLength - cursorPosInDisplay);
+          if (_commandCursorPos < 0)
+            _commandCursorPos = 0;
+          if (_commandCursorPos > _commandBuffer.length())
+            _commandCursorPos = _commandBuffer.length();
+
+          if (_commandCursorPos > 0) {
+            _commandBuffer.remove(_commandCursorPos - 1, 1);
+            _commandCursorPos--;
+            // Remove character from display
+            cursor.deletePreviousChar();
+          }
+
+          // Clear completion state
+          _completionMatches.clear();
+          _completionIsDirectory.clear();
+          _completionIndex = -1;
+          _completionStack.clear();
+        }
+        return true;
+      } else if (keyEvent->key() == Qt::Key_C &&
+                 (keyEvent->modifiers() & Qt::ControlModifier)) {
+        // Ctrl+C - clear current command and show new prompt
+        if (!_commandBuffer.isEmpty()) {
+          // Clear the command buffer visually by deleting all characters
+          QTextCursor cursor = _textDisplay->textCursor();
+          for (int i = 0; i < _commandBuffer.length(); i++) {
+            cursor.deletePreviousChar();
+          }
+        }
+        _commandBuffer.clear();
+        _commandCursorPos = 0;
+
+        // Display ^C indicator and new prompt
+        appendOutput("^C\n", false);
+        appendOutput("PS " + _currentDirectory + "> ", false);
+
+        // Clear completion state
+        _completionMatches.clear();
+        _completionIsDirectory.clear();
+        _completionIndex = -1;
+        _completionStack.clear();
+        return true;
+      } else if (!keyEvent->text().isEmpty() && keyEvent->text()[0].isPrint()) {
+        // Printable character - insert at cursor position
+        QString text = keyEvent->text();
+
+        // Get current cursor position in display
+        QTextCursor cursor = _textDisplay->textCursor();
+        int cursorPosInDisplay = cursor.position();
+        int docLength = _textDisplay->document()->characterCount() -
+                        1; // -1 for trailing newline
+
+        // Calculate position within command buffer (from end of document)
+        _commandCursorPos =
+            _commandBuffer.length() - (docLength - cursorPosInDisplay);
+        if (_commandCursorPos < 0)
+          _commandCursorPos = 0;
+        if (_commandCursorPos > _commandBuffer.length())
+          _commandCursorPos = _commandBuffer.length();
+
+        // Insert into command buffer
+        _commandBuffer.insert(_commandCursorPos, text);
+        _commandCursorPos += text.length();
+
+        // Insert into display at cursor
+        cursor.insertText(text);
+
+        // Clear completion state
+        _completionMatches.clear();
+        _completionIsDirectory.clear();
+        _completionIndex = -1;
+        _completionStack.clear();
+        return true;
+      }
+    }
+  }
+
+  return QWidget::eventFilter(obj, event);
+}
+
+void PowerShellWidget::onReadyReadStandardOutput() {
+  if (_process) {
+    QByteArray data = _process->readAllStandardOutput();
+    QString text = QString::fromLocal8Bit(data);
+    LOG_INFO("Received {} bytes from stdout: '{}', waitingForCompletion: {}",
+             data.size(), text.left(100).toStdString(), _waitingForCompletion);
+
+    // Check if this is the working directory output (for prompt)
+    if (_waitingForPrompt) {
+      QString trimmed = text.trimmed();
+      // Check if it's a path - should contain drive letter and colon
+      if (trimmed.contains(":\\") && trimmed.length() < 200 &&
+          !trimmed.contains('\n') && !trimmed.contains('>') &&
+          !trimmed.startsWith("PS ")) {
+        // This is the path for the prompt
+        _waitingForPrompt = false;
+        _currentDirectory = trimmed;
+        appendOutput("\nPS " + _currentDirectory + "> ", false);
+        return;
+      }
+      // If we receive output that's clearly not a path (like Python banner),
+      // cancel prompt wait only if it contains multiple lines or lots of text
+      if (trimmed.length() > 250 || trimmed.contains('\n') ||
+          trimmed.toLower().contains("python")) {
+        _waitingForPrompt = false;
+        _promptTimer->stop();
+      } else {
+        // For short output that doesn't match, just display it and keep waiting
+        // This handles cases where path comes in chunks
+      }
+    }
+
+    if (_waitingForCompletion) {
+      // Accumulate completion results - DO NOT display
+      _completionBuffer += text;
+      // Restart timer to wait for more data
+      _completionTimer->start();
+    } else if (!text.trimmed().isEmpty()) {
+      // Only display non-empty output (skip initial PowerShell prompt)
+      // Skip if it looks like a PowerShell prompt (starts with PS and contains
+      // path)
+      bool isPrompt = text.trimmed().startsWith("PS ") &&
+                      text.contains(":\\") && text.contains(">");
+      // Skip our internal command echo
+      bool isInternalCommand = text.contains("Write-Host -NoNewLine") ||
+                               text.contains("(Get-Location).Path");
+      // Skip command echo - PowerShell echoes the command back
+      bool isCommandEcho =
+          !_lastCommand.isEmpty() && text.trimmed() == _lastCommand.trimmed();
+      if (isCommandEcho) {
+        _lastCommand.clear(); // Clear after filtering
+      }
+      if (!isPrompt && !isInternalCommand && !isCommandEcho) {
+        appendOutput(text, false);
+        // Restart prompt timer since we're still receiving output
+        if (_promptTimer->isActive()) {
+          _promptTimer->start();
+        }
+      }
+    }
   }
 }
 
-} // namespace GuiManager::Widgets::Win32
+void PowerShellWidget::onReadyReadStandardError() {
+  if (_process) {
+    QByteArray data = _process->readAllStandardError();
+    QString text = QString::fromLocal8Bit(data);
+    LOG_INFO("Received {} bytes from stderr: '{}'", data.size(),
+             text.left(100).toStdString());
+    appendOutput(text, true);
+    // Restart prompt timer since we're still receiving output
+    if (_promptTimer->isActive()) {
+      _promptTimer->start();
+    }
+  }
+}
+
+void PowerShellWidget::requestPrompt() {
+  if (_process && _process->state() == QProcess::Running &&
+      !_waitingForPrompt) {
+    _waitingForPrompt = true;
+    _process->write("Write-Host -NoNewLine ''; (Get-Location).Path\n");
+  }
+}
+
+void PowerShellWidget::onProcessStarted() {
+  LOG_INFO("PowerShell process started");
+
+  // Display initial prompt
+  QTimer::singleShot(100, this, [this]() {
+    if (_process && _process->state() == QProcess::Running) {
+      // Get current directory and display prompt
+      // Use Write-Host with -NoNewLine to suppress command echo
+      _waitingForPrompt = true;
+      _process->write("Write-Host -NoNewLine ''; (Get-Location).Path\n");
+    }
+  });
+
+  emit processStarted();
+}
+
+void PowerShellWidget::onProcessFinished(int exitCode,
+                                         QProcess::ExitStatus exitStatus) {
+  LOG_INFO("PowerShell process finished with exit code: {}", exitCode);
+  appendOutput(QString("\n[Process exited with code %1]\n").arg(exitCode),
+               true);
+  emit processStopped();
+}
+
+void PowerShellWidget::onProcessError(QProcess::ProcessError error) {
+  QString errorMsg;
+  switch (error) {
+  case QProcess::FailedToStart:
+    errorMsg = "Failed to start PowerShell";
+    break;
+  case QProcess::Crashed:
+    errorMsg = "PowerShell crashed";
+    break;
+  case QProcess::Timedout:
+    errorMsg = "PowerShell timed out";
+    break;
+  case QProcess::WriteError:
+    errorMsg = "Write error";
+    break;
+  case QProcess::ReadError:
+    errorMsg = "Read error";
+    break;
+  default:
+    errorMsg = "Unknown error";
+  }
+
+  LOG_ERROR(Log::ErrorId::Gui, "PowerShell error: {}", errorMsg.toStdString());
+  appendOutput(QString("\n[Error: %1]\n").arg(errorMsg), true);
+  emit errorOccurred(errorMsg);
+}
+
+void PowerShellWidget::processCompletionResults() {
+  _waitingForCompletion = false;
+
+  if (_completionBuffer.isEmpty()) {
+    LOG_INFO("Completion: No results");
+    return;
+  }
+
+  LOG_INFO("Processing completion buffer: '{}'",
+           _completionBuffer.left(200).toStdString());
+
+  QStringList matches =
+      _completionBuffer.trimmed().split("\n", Qt::SkipEmptyParts);
+
+  // Clean up matches and filter out command echoes and prompt
+  QStringList cleanMatches;
+  QList<bool> isDirectory;
+
+  for (const QString &match : matches) {
+    QString trimmed = match.trimmed();
+    // Skip empty lines, command echoes, and PowerShell prompt (contains "PS "
+    // and ends with ">")
+    bool isPrompt = trimmed.startsWith("PS ") && trimmed.contains(">") &&
+                    trimmed.contains(":\\");
+
+    if (!trimmed.isEmpty() && !trimmed.startsWith("Get-ChildItem") &&
+        !trimmed.startsWith("Where-Object") &&
+        !trimmed.startsWith("Select-Object") &&
+        !trimmed.startsWith("ForEach-Object") && !isPrompt) {
+
+      // Check if it's a directory (marked with |DIR)
+      if (trimmed.endsWith("|DIR")) {
+        cleanMatches.append(trimmed.left(trimmed.length() - 4));
+        isDirectory.append(true);
+      } else {
+        cleanMatches.append(trimmed);
+        isDirectory.append(false);
+      }
+    }
+  }
+
+  LOG_INFO("Completion: {} matches found", cleanMatches.size());
+
+  if (cleanMatches.isEmpty()) {
+    _completionMatches.clear();
+    _completionIsDirectory.clear();
+    _completionIndex = -1;
+    return;
+  }
+
+  // Store matches and apply first one
+  _completionMatches = cleanMatches;
+  _completionIsDirectory = isDirectory;
+  _completionIndex = 0;
+  QString match = _completionMatches[0];
+  bool isDir = _completionIsDirectory[0];
+
+  LOG_INFO("Applying first match: '{}' (isDir: {})", match.toStdString(),
+           isDir);
+
+  // Extract the path component from partial
+  int lastBackslash = _completionPartial.lastIndexOf('\\');
+  if (lastBackslash < 0) {
+    lastBackslash = _completionPartial.lastIndexOf('/');
+  }
+  _completionPathPrefix = (lastBackslash >= 0)
+                              ? _completionPartial.left(lastBackslash + 1)
+                              : QString();
+
+  // Clear the partial from display
+  for (int i = 0; i < _completionPartial.length(); i++) {
+    QTextCursor cursor = _textDisplay->textCursor();
+    cursor.deletePreviousChar();
+  }
+
+  // Update command buffer with first completion
+  QString fullMatch = _completionPathPrefix + match;
+  _commandBuffer = _completionBase + fullMatch;
+  _commandCursorPos = _commandBuffer.length();
+
+  // If it's a directory, add backslash
+  if (isDir) {
+    _commandBuffer += "\\";
+    _commandCursorPos++;
+    appendOutput(fullMatch + "\\", false);
+  } else {
+    appendOutput(fullMatch, false);
+  }
+}
+
+void PowerShellWidget::appendOutput(const QString &text, bool isError) {
+  if (text.isEmpty()) {
+    return;
+  }
+
+  QTextCursor cursor = _textDisplay->textCursor();
+  cursor.movePosition(QTextCursor::End);
+
+  // Set color based on error status
+  QTextCharFormat format;
+  if (isError) {
+    format.setForeground(QColor(0xFF6B6B));
+  } else {
+    format.setForeground(QColor(0xCCCCCC));
+  }
+
+  cursor.insertText(text, format);
+  _textDisplay->setTextCursor(cursor);
+  _textDisplay->verticalScrollBar()->setValue(
+      _textDisplay->verticalScrollBar()->maximum());
+}

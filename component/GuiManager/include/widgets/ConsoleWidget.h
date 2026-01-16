@@ -11,7 +11,7 @@ class PowerShellWidget;
 
 /**
  * @brief A widget that displays an embedded PowerShell console
- * 
+ *
  * This widget provides a container for the PowerShellWidget,
  * making it easy to integrate a PowerShell console into the application.
  */

@@ -46,6 +46,9 @@ protected:
 public:
   bool eventFilter(QObject *watched, QEvent *event) override;
 
+signals:
+  void terminal();
+
 private slots:
   void onOpen();
   void onClone();
@@ -57,6 +60,7 @@ private slots:
   void onSaveWorkspace();
   void onSettings();
   void onSubmitWorkspace(const QString &name);
+  void onTerminal();
   void onWorkspaceClicked(const QString &name);
   void onAbout() const;
   void onClosedTab(int index);

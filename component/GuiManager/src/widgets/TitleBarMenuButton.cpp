@@ -93,6 +93,14 @@ void TitleBarMenuButton::onSettings() {
   LOG_PERF(0, "Exit");
 }
 
+void TitleBarMenuButton::onTerminal() {
+  LOG_PERF(0, "Enter");
+
+  emit terminal();
+
+  LOG_PERF(0, "Exit");
+}
+
 void TitleBarMenuButton::onAbout() {
   LOG_PERF(0, "Enter");
 
@@ -124,10 +132,14 @@ QMenu *TitleBarMenuButton::createMenu() {
   saveWorkspaceAction->setText(tr("Save &workspace"));
   saveWorkspaceAction->setEnabled(mainWindow_ != nullptr &&
                                   !mainWindow_->containerPaths().isEmpty());
-  saveWorkspaceAction->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_W));
+  saveWorkspaceAction->setShortcut(QKeySequence("Ctrl+w"));
 
   const auto settingsAction = new QAction(menu);
   settingsAction->setText(tr("Settings"));
+
+  const auto terminalAction = new QAction(menu);
+  terminalAction->setText(tr("Show &terminal"));
+  terminalAction->setShortcut(QKeySequence("Ctrl+t"));
 
   const auto aboutAction = new QAction(menu);
   aboutAction->setText(tr("About"));
@@ -139,6 +151,7 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addAction(saveWorkspaceAction);
   menu->addSeparator();
   menu->addAction(settingsAction);
+  menu->addAction(terminalAction);
   menu->addAction(aboutAction);
 
   const qlonglong menuMinimumWidth =
@@ -155,6 +168,8 @@ QMenu *TitleBarMenuButton::createMenu() {
           &TitleBarMenuButton::onSaveWorkspace);
   connect(settingsAction, &QAction::triggered, this,
           &TitleBarMenuButton::onSettings);
+  connect(terminalAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onTerminal);
   connect(aboutAction, &QAction::triggered, this, &TitleBarMenuButton::onAbout);
 
   LOG_PERF(0, "Exit");

@@ -25,6 +25,8 @@ public:
 
   virtual void init() {}
 
+  virtual void deselected() {}
+
   virtual void selected() {}
 
   virtual void setupShortcuts() {}

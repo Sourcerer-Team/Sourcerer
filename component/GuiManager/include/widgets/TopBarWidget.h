@@ -30,6 +30,7 @@ signals:
   void init();
   void saveWorkspace();
   void settings();
+  void terminal();
   void about();
 
   void closedTab(int index);

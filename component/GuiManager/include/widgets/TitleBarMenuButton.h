@@ -26,6 +26,7 @@ signals:
   void init();
   void saveWorkspace();
   void settings();
+  void terminal();
   void about();
 
 private slots:
@@ -35,6 +36,7 @@ private slots:
   void onInit();
   void onSaveWorkspace();
   void onSettings();
+  void onTerminal();
   void onAbout();
 
 private:

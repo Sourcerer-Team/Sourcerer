@@ -1,18 +1,16 @@
 #pragma once
 
+#include <QPlainTextEdit>
+#include <QProcess>
 #include <QWidget>
-
-#ifdef Q_OS_WIN
-#include <windows.h>
-#endif
 
 namespace GuiManager::Widgets::Win32 {
 
 /**
- * @brief A QWidget that embeds a PowerShell console on Windows platform
- * 
- * This widget creates a PowerShell process and embeds its console window
- * within the Qt widget hierarchy using Windows API.
+ * @brief A QWidget that embeds a PowerShell console using QProcess
+ *
+ * This widget creates a PowerShell process with redirected I/O,
+ * captures its output, and displays it in a Qt text widget.
  */
 class PowerShellWidget : public QWidget {
   Q_OBJECT
@@ -50,27 +48,52 @@ signals:
   void errorOccurred(const QString &error);
 
 protected:
-  void resizeEvent(QResizeEvent *event) override;
-  void showEvent(QShowEvent *event) override;
-  void hideEvent(QHideEvent *event) override;
   void closeEvent(QCloseEvent *event) override;
-  void paintEvent(QPaintEvent *event) override;
+  bool eventFilter(QObject *obj, QEvent *event) override;
+
+private slots:
+  void onReadyReadStandardOutput();
+  void onReadyReadStandardError();
+  void onProcessStarted();
+  void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
+  void onProcessError(QProcess::ProcessError error);
+  void processCompletionResults();
+  void requestPrompt();
 
 private:
+  struct CompletionState {
+    QStringList matches;
+    QList<bool> isDirectory;
+    int index;
+    QString partial;
+    QString base;
+    QString pathPrefix;
+  };
+
   void startPowerShell();
-  void embedConsole();
-  void embedConsoleWithRetry(int attempt);
-  void cleanupProcess();
-  void ensureConsoleVisible();
-  
-#ifdef Q_OS_WIN
-  HWND _consoleWindow;
-  PROCESS_INFORMATION _processInfo;
-  bool _processRunning;
-  int _embedRetries;
-  QTimer *_visibilityTimer;
-  bool _inDestructor;
-#endif
+  void appendOutput(const QString &text, bool isError = false);
+  void requestTabCompletion(const QString &partial);
+
+  QProcess *_process;
+  QPlainTextEdit *_textDisplay;
+  QString _commandBuffer;
+  int _commandCursorPos;
+  bool _waitingForPrompt;
+  QStringList _commandHistory;
+  int _historyIndex;
+  QString _currentDirectory;
+  QString _lastCommand;
+  bool _waitingForCompletion;
+  QString _completionPartial;
+  QStringList _completionMatches;
+  QList<bool> _completionIsDirectory;
+  int _completionIndex;
+  QString _completionBase;
+  QString _completionBuffer;
+  QString _completionPathPrefix;
+  QTimer *_completionTimer;
+  QTimer *_promptTimer;
+  QList<CompletionState> _completionStack;
 };
 
 } // namespace GuiManager::Widgets::Win32
