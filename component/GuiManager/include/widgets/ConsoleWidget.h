@@ -40,6 +40,11 @@ public:
    */
   void restartConsole();
 
+  /**
+   * @brief Sets focus to the console input
+   */
+  void setFocusToConsole();
+
 #ifdef Q_OS_WIN
   /**
    * @brief Gets the PowerShell widget instance

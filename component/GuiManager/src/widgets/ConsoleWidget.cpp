@@ -6,6 +6,7 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #define THREAD_ID "ConsoleWidget"
@@ -139,6 +140,21 @@ Win32::PowerShellWidget *ConsoleWidget::getPowerShellWidget() const {
   return _powerShellWidget;
 }
 #endif
+
+void ConsoleWidget::setFocusToConsole() {
+  LOG_PERF(0, "Enter");
+
+#ifdef Q_OS_WIN
+  if (_powerShellWidget) {
+    // Use QTimer::singleShot to ensure the widget is fully visible before
+    // setting focus
+    QTimer::singleShot(0, _powerShellWidget,
+                       [this]() { _powerShellWidget->setFocusToInput(); });
+  }
+#endif
+
+  LOG_PERF(0, "Exit");
+}
 
 void ConsoleWidget::onCloseClicked() {
   LOG_PERF(0, "Enter");

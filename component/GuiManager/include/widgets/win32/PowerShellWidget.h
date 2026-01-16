@@ -42,6 +42,11 @@ public:
    */
   void terminate();
 
+  /**
+   * @brief Sets focus to the input text area
+   */
+  void setFocusToInput();
+
 signals:
   void processStarted();
   void processStopped();

@@ -590,6 +590,7 @@ void GitRepoContainer::onTerminalRequested() {
 
   if (_selected) {
     ui->consoleWidget->show();
+    ui->consoleWidget->setFocusToConsole();
   }
 
   LOG_PERF(0, "Exit")

@@ -185,6 +185,17 @@ void PowerShellWidget::terminate() {
   LOG_PERF(0, "Exit");
 }
 
+void PowerShellWidget::setFocusToInput() {
+  LOG_PERF(0, "Enter");
+
+  if (_textDisplay) {
+    _textDisplay->setFocus();
+    _textDisplay->activateWindow();
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void PowerShellWidget::closeEvent(QCloseEvent *event) {
   terminate();
   QWidget::closeEvent(event);
