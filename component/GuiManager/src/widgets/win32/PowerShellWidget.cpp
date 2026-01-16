@@ -109,10 +109,7 @@ void PowerShellWidget::startPowerShell() {
           &PowerShellWidget::onProcessError);
 
   // Set environment variables for unbuffered output
-  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-  env.insert("PYTHONUNBUFFERED", "1");     // Force Python unbuffered output
-  env.insert("PYTHONIOENCODING", "utf-8"); // Force UTF-8 encoding
-  env.insert("TERM", "dumb");              // Simple terminal type
+  const QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
   _process->setProcessEnvironment(env);
 
   // Start PowerShell in interactive mode with no logo
@@ -132,7 +129,10 @@ void PowerShellWidget::startPowerShell() {
 }
 
 bool PowerShellWidget::executeCommand(const QString &command) {
+  LOG_PERF(0, "Enter");
+
   if (!_process || _process->state() != QProcess::Running) {
+    LOG_PERF(0, "Exit");
     return false;
   }
 
@@ -142,14 +142,22 @@ bool PowerShellWidget::executeCommand(const QString &command) {
   }
 
   _process->write(cmd.toLocal8Bit());
+
+  LOG_PERF(0, "Exit");
+
   return true;
 }
 
 bool PowerShellWidget::isRunning() const {
+  LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Exit");
+
   return _process && _process->state() == QProcess::Running;
 }
 
 void PowerShellWidget::restart() {
+  LOG_PERF(0, "Enter");
+
   if (_process) {
     _process->kill();
     _process->waitForFinished(1000);
@@ -157,16 +165,24 @@ void PowerShellWidget::restart() {
 
   _textDisplay->clear();
   _commandBuffer.clear();
+
   startPowerShell();
+
+  LOG_PERF(0, "Exit");
 }
 
 void PowerShellWidget::terminate() {
+  LOG_PERF(0, "Enter");
+
   if (_process) {
     _process->terminate();
+
     if (!_process->waitForFinished(2000)) {
       _process->kill();
     }
   }
+
+  LOG_PERF(0, "Exit");
 }
 
 void PowerShellWidget::closeEvent(QCloseEvent *event) {
@@ -176,13 +192,13 @@ void PowerShellWidget::closeEvent(QCloseEvent *event) {
 
 bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
   if (obj == _textDisplay && event->type() == QEvent::KeyPress) {
-    QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+    const QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
 
     if (_process && _process->state() == QProcess::Running) {
       // Handle special keys
       if (keyEvent->key() == Qt::Key_Return ||
           keyEvent->key() == Qt::Key_Enter) {
-        QString cmd = _commandBuffer;
+        const QString cmd = _commandBuffer;
 
         // Save to history if not empty
         if (!cmd.trimmed().isEmpty()) {
@@ -190,15 +206,18 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
           _historyIndex = _commandHistory.size();
         }
 
-        LOG_INFO("Executing command: '{}'", cmd.toStdString());
+        LOG_INFO("Executing command: '{}'", cmd);
+
         appendOutput("\n", false); // Add newline after command
-        _lastCommand = cmd;        // Store for echo filtering
+
+        _lastCommand = cmd; // Store for echo filtering
         _process->write((cmd + "\n").toUtf8());
         _commandBuffer.clear();
         _commandCursorPos = 0;
 
         // Start timer to request prompt after output stops
         _promptTimer->start();
+
         return true;
       } else if (keyEvent->key() == Qt::Key_Up) {
         // Navigate to previous command in history
@@ -214,8 +233,10 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
           // Set command from history
           _commandBuffer = _commandHistory[_historyIndex];
           _commandCursorPos = _commandBuffer.length();
+
           appendOutput(_commandBuffer, false);
         }
+
         return true;
       } else if (keyEvent->key() == Qt::Key_Down) {
         // Navigate to next command in history
@@ -231,6 +252,7 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
           // Set command from history
           _commandBuffer = _commandHistory[_historyIndex];
           _commandCursorPos = _commandBuffer.length();
+
           appendOutput(_commandBuffer, false);
         } else if (_historyIndex == _commandHistory.size() - 1) {
           // At the end of history, clear to empty
@@ -245,56 +267,67 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
           _commandBuffer.clear();
           _commandCursorPos = 0;
         }
+
         return true;
       } else if (keyEvent->key() == Qt::Key_Left) {
         // Move cursor left
         if (_commandCursorPos > 0) {
           _commandCursorPos--;
+
           QTextCursor cursor = _textDisplay->textCursor();
           cursor.movePosition(QTextCursor::Left);
+
           _textDisplay->setTextCursor(cursor);
         }
+
         return true;
       } else if (keyEvent->key() == Qt::Key_Right) {
         // Move cursor right
         if (_commandCursorPos < _commandBuffer.length()) {
           _commandCursorPos++;
+
           QTextCursor cursor = _textDisplay->textCursor();
           cursor.movePosition(QTextCursor::Right);
+
           _textDisplay->setTextCursor(cursor);
         }
         return true;
       } else if (keyEvent->key() == Qt::Key_Home) {
         // Move cursor to start of command
         _commandCursorPos = 0;
+
         QTextCursor cursor = _textDisplay->textCursor();
         // Move to end first, then back by command length to get to start of
         // command
         cursor.movePosition(QTextCursor::End);
         cursor.movePosition(QTextCursor::Left, QTextCursor::MoveAnchor,
                             _commandBuffer.length());
+
         _textDisplay->setTextCursor(cursor);
+
         return true;
       } else if (keyEvent->key() == Qt::Key_End) {
         // Move cursor to end of command
         _commandCursorPos = _commandBuffer.length();
+
         QTextCursor cursor = _textDisplay->textCursor();
         cursor.movePosition(QTextCursor::End);
+
         _textDisplay->setTextCursor(cursor);
+
         return true;
       } else if (keyEvent->key() == Qt::Key_Tab) {
         // Tab completion - cycle through matches
-        LOG_INFO("Tab key pressed, commandBuffer: '{}'",
-                 _commandBuffer.toStdString());
+        LOG_INFO("Tab key pressed, commandBuffer: '{}'", _commandBuffer);
 
         // Extract the base command (everything before the last word)
-        int lastSpaceIdx = _commandBuffer.lastIndexOf(' ');
-        QString base = (lastSpaceIdx >= 0)
-                           ? _commandBuffer.left(lastSpaceIdx + 1)
-                           : QString();
+        const int lastSpaceIdx = _commandBuffer.lastIndexOf(' ');
+        const QString base = (lastSpaceIdx >= 0)
+                                 ? _commandBuffer.left(lastSpaceIdx + 1)
+                                 : QString();
 
         // Check if current buffer ends with a directory (has backslash at end)
-        bool endsWithBackslash =
+        const bool endsWithBackslash =
             _commandBuffer.endsWith('\\') || _commandBuffer.endsWith('/');
 
         LOG_INFO(
@@ -308,7 +341,8 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
         if (!_completionMatches.isEmpty() && _completionBase == base &&
             !endsWithBackslash) {
           // Calculate next index
-          int nextIndex = (_completionIndex + 1) % _completionMatches.size();
+          const int nextIndex =
+              (_completionIndex + 1) % _completionMatches.size();
 
           // Check if we've wrapped around (reached end of current level)
           // Only pop if we actually have multiple items or if we've cycled at
@@ -326,9 +360,9 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
             CompletionState parentState = _completionStack.takeLast();
 
             // Clear current path from display
-            QString currentWord = (lastSpaceIdx >= 0)
-                                      ? _commandBuffer.mid(lastSpaceIdx + 1)
-                                      : _commandBuffer;
+            const QString currentWord =
+                (lastSpaceIdx >= 0) ? _commandBuffer.mid(lastSpaceIdx + 1)
+                                    : _commandBuffer;
             for (int i = 0; i < currentWord.length(); i++) {
               QTextCursor cursor = _textDisplay->textCursor();
               cursor.deletePreviousChar();
@@ -350,6 +384,7 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
               // stack is empty
               while (_completionIndex == 0 && !_completionStack.isEmpty()) {
                 parentState = _completionStack.takeLast();
+
                 _completionMatches = parentState.matches;
                 _completionIsDirectory = parentState.isDirectory;
                 _completionPartial = parentState.partial;
@@ -372,16 +407,18 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
               }
             }
 
-            QString match = _completionMatches[_completionIndex];
-            bool isDir = _completionIndex < _completionIsDirectory.size() &&
-                         _completionIsDirectory[_completionIndex];
+            const QString match = _completionMatches[_completionIndex];
+            const bool isDir =
+                _completionIndex < _completionIsDirectory.size() &&
+                _completionIsDirectory[_completionIndex];
 
             LOG_INFO("Back to parent, cycling to match {}/{}: '{}' (isDir: {})",
-                     _completionIndex + 1, _completionMatches.size(),
-                     match.toStdString(), isDir);
+                     _completionIndex + 1, _completionMatches.size(), match,
+                     isDir);
 
             // Build full match with path prefix
-            QString fullMatch = _completionPathPrefix + match;
+            const QString fullMatch = _completionPathPrefix + match;
+
             _commandBuffer = _completionBase + fullMatch;
             _commandCursorPos = _commandBuffer.length();
 
@@ -389,6 +426,7 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
             if (isDir && !match.endsWith('\\') && !match.endsWith('/')) {
               _commandBuffer += "\\";
               _commandCursorPos++;
+
               appendOutput(fullMatch + "\\", false);
             } else {
               appendOutput(fullMatch, false);
@@ -398,25 +436,27 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
 
           // Normal cycling within current level
           _completionIndex = nextIndex;
-          QString match = _completionMatches[_completionIndex];
-          bool isDir = _completionIndex < _completionIsDirectory.size() &&
-                       _completionIsDirectory[_completionIndex];
+
+          const QString match = _completionMatches[_completionIndex];
+          const bool isDir = _completionIndex < _completionIsDirectory.size() &&
+                             _completionIsDirectory[_completionIndex];
 
           LOG_INFO("Cycling to match {}/{}: '{}' (isDir: {})",
-                   _completionIndex + 1, _completionMatches.size(),
-                   match.toStdString(), isDir);
+                   _completionIndex + 1, _completionMatches.size(), match,
+                   isDir);
 
           // Clear the current word from display
-          QString currentWord = (lastSpaceIdx >= 0)
-                                    ? _commandBuffer.mid(lastSpaceIdx + 1)
-                                    : _commandBuffer;
+          const QString currentWord = (lastSpaceIdx >= 0)
+                                          ? _commandBuffer.mid(lastSpaceIdx + 1)
+                                          : _commandBuffer;
           for (int i = 0; i < currentWord.length(); i++) {
             QTextCursor cursor = _textDisplay->textCursor();
             cursor.deletePreviousChar();
           }
 
           // Build full match with path prefix
-          QString fullMatch = _completionPathPrefix + match;
+          const QString fullMatch = _completionPathPrefix + match;
+
           _commandBuffer = base + fullMatch;
           _commandCursorPos = _commandBuffer.length();
 
@@ -425,6 +465,7 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
           if (isDir && !match.endsWith('\\') && !match.endsWith('/')) {
             _commandBuffer += "\\";
             _commandCursorPos++;
+
             appendOutput(fullMatch + "\\", false);
 
             // For recursive traversal: automatically descend into directory on
@@ -435,9 +476,9 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
           }
         } else if (endsWithBackslash) {
           // Entering a subdirectory - save parent state for recursive traversal
-          QString partial = (lastSpaceIdx >= 0)
-                                ? _commandBuffer.mid(lastSpaceIdx + 1)
-                                : _commandBuffer;
+          const QString partial = (lastSpaceIdx >= 0)
+                                      ? _commandBuffer.mid(lastSpaceIdx + 1)
+                                      : _commandBuffer;
 
           if (!_completionMatches.isEmpty()) {
             CompletionState parentState;
@@ -522,8 +563,8 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
             }
           }
 
-          LOG_INFO("Sending completion command: '{}'",
-                   completionCmd.left(100).toStdString());
+          LOG_INFO("Sending completion command: '{}'", completionCmd.left(100));
+
           _process->write(completionCmd.toLocal8Bit());
 
           // Start timer to process accumulated results
@@ -562,20 +603,20 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
                     .arg(partial);
           }
 
-          LOG_INFO("Sending completion command: '{}'",
-                   completionCmd.left(100).toStdString());
+          LOG_INFO("Sending completion command: '{}'", completionCmd.left(100));
           _process->write(completionCmd.toLocal8Bit());
 
           // Start timer to process accumulated results
           _completionTimer->start();
         }
+
         return true;
       } else if (keyEvent->key() == Qt::Key_Backspace) {
         if (!_commandBuffer.isEmpty()) {
           // Get current cursor position in display
           QTextCursor cursor = _textDisplay->textCursor();
-          int cursorPosInDisplay = cursor.position();
-          int docLength = _textDisplay->document()->characterCount() - 1;
+          const int cursorPosInDisplay = cursor.position();
+          const int docLength = _textDisplay->document()->characterCount() - 1;
 
           // Calculate position within command buffer
           _commandCursorPos =
@@ -598,6 +639,7 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
           _completionIndex = -1;
           _completionStack.clear();
         }
+
         return true;
       } else if (keyEvent->key() == Qt::Key_C &&
                  (keyEvent->modifiers() & Qt::ControlModifier)) {
@@ -609,6 +651,7 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
             cursor.deletePreviousChar();
           }
         }
+
         _commandBuffer.clear();
         _commandCursorPos = 0;
 
@@ -621,16 +664,17 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
         _completionIsDirectory.clear();
         _completionIndex = -1;
         _completionStack.clear();
+
         return true;
       } else if (!keyEvent->text().isEmpty() && keyEvent->text()[0].isPrint()) {
         // Printable character - insert at cursor position
-        QString text = keyEvent->text();
+        const QString text = keyEvent->text();
 
         // Get current cursor position in display
         QTextCursor cursor = _textDisplay->textCursor();
-        int cursorPosInDisplay = cursor.position();
-        int docLength = _textDisplay->document()->characterCount() -
-                        1; // -1 for trailing newline
+        const int cursorPosInDisplay = cursor.position();
+        const int docLength = _textDisplay->document()->characterCount() -
+                              1; // -1 for trailing newline
 
         // Calculate position within command buffer (from end of document)
         _commandCursorPos =
@@ -652,6 +696,7 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
         _completionIsDirectory.clear();
         _completionIndex = -1;
         _completionStack.clear();
+
         return true;
       }
     }
@@ -661,15 +706,18 @@ bool PowerShellWidget::eventFilter(QObject *obj, QEvent *event) {
 }
 
 void PowerShellWidget::onReadyReadStandardOutput() {
+  LOG_PERF(0, "Enter");
+
   if (_process) {
-    QByteArray data = _process->readAllStandardOutput();
-    QString text = QString::fromLocal8Bit(data);
+    const QByteArray data = _process->readAllStandardOutput();
+    const QString text = QString::fromLocal8Bit(data);
+
     LOG_INFO("Received {} bytes from stdout: '{}', waitingForCompletion: {}",
-             data.size(), text.left(100).toStdString(), _waitingForCompletion);
+             data.size(), text.left(100), _waitingForCompletion);
 
     // Check if this is the working directory output (for prompt)
     if (_waitingForPrompt) {
-      QString trimmed = text.trimmed();
+      const QString trimmed = text.trimmed();
       // Check if it's a path - should contain drive letter and colon
       if (trimmed.contains(":\\") && trimmed.length() < 200 &&
           !trimmed.contains('\n') && !trimmed.contains('>') &&
@@ -677,7 +725,10 @@ void PowerShellWidget::onReadyReadStandardOutput() {
         // This is the path for the prompt
         _waitingForPrompt = false;
         _currentDirectory = trimmed;
+
         appendOutput("\nPS " + _currentDirectory + "> ", false);
+
+        LOG_PERF(0, "Exit");
         return;
       }
       // If we receive output that's clearly not a path (like Python banner),
@@ -701,19 +752,21 @@ void PowerShellWidget::onReadyReadStandardOutput() {
       // Only display non-empty output (skip initial PowerShell prompt)
       // Skip if it looks like a PowerShell prompt (starts with PS and contains
       // path)
-      bool isPrompt = text.trimmed().startsWith("PS ") &&
-                      text.contains(":\\") && text.contains(">");
+      const bool isPrompt = text.trimmed().startsWith("PS ") &&
+                            text.contains(":\\") && text.contains(">");
       // Skip our internal command echo
-      bool isInternalCommand = text.contains("Write-Host -NoNewLine") ||
-                               text.contains("(Get-Location).Path");
+      const bool isInternalCommand = text.contains("Write-Host -NoNewLine") ||
+                                     text.contains("(Get-Location).Path");
       // Skip command echo - PowerShell echoes the command back
-      bool isCommandEcho =
+      const bool isCommandEcho =
           !_lastCommand.isEmpty() && text.trimmed() == _lastCommand.trimmed();
       if (isCommandEcho) {
         _lastCommand.clear(); // Clear after filtering
       }
+
       if (!isPrompt && !isInternalCommand && !isCommandEcho) {
         appendOutput(text, false);
+
         // Restart prompt timer since we're still receiving output
         if (_promptTimer->isActive()) {
           _promptTimer->start();
@@ -721,31 +774,45 @@ void PowerShellWidget::onReadyReadStandardOutput() {
       }
     }
   }
+
+  LOG_PERF(0, "Exit");
 }
 
 void PowerShellWidget::onReadyReadStandardError() {
+  LOG_PERF(0, "Enter");
+
   if (_process) {
-    QByteArray data = _process->readAllStandardError();
-    QString text = QString::fromLocal8Bit(data);
+    const QByteArray data = _process->readAllStandardError();
+    const QString text = QString::fromLocal8Bit(data);
+
     LOG_INFO("Received {} bytes from stderr: '{}'", data.size(),
              text.left(100).toStdString());
+
     appendOutput(text, true);
+
     // Restart prompt timer since we're still receiving output
     if (_promptTimer->isActive()) {
       _promptTimer->start();
     }
   }
+
+  LOG_PERF(0, "Exit");
 }
 
 void PowerShellWidget::requestPrompt() {
+  LOG_PERF(0, "Enter");
+
   if (_process && _process->state() == QProcess::Running &&
       !_waitingForPrompt) {
     _waitingForPrompt = true;
     _process->write("Write-Host -NoNewLine ''; (Get-Location).Path\n");
   }
+
+  LOG_PERF(0, "Exit");
 }
 
 void PowerShellWidget::onProcessStarted() {
+  LOG_PERF(0, "Enter");
   LOG_INFO("PowerShell process started");
 
   // Display initial prompt
@@ -759,17 +826,26 @@ void PowerShellWidget::onProcessStarted() {
   });
 
   emit processStarted();
+
+  LOG_PERF(0, "Exit");
 }
 
 void PowerShellWidget::onProcessFinished(int exitCode,
                                          QProcess::ExitStatus exitStatus) {
+  LOG_PERF(0, "Enter");
   LOG_INFO("PowerShell process finished with exit code: {}", exitCode);
+
   appendOutput(QString("\n[Process exited with code %1]\n").arg(exitCode),
                true);
+
   emit processStopped();
+
+  LOG_PERF(0, "Exit");
 }
 
 void PowerShellWidget::onProcessError(QProcess::ProcessError error) {
+  LOG_PERF(0, "Enter");
+
   QString errorMsg;
   switch (error) {
   case QProcess::FailedToStart:
@@ -792,22 +868,29 @@ void PowerShellWidget::onProcessError(QProcess::ProcessError error) {
   }
 
   LOG_ERROR(Log::ErrorId::Gui, "PowerShell error: {}", errorMsg.toStdString());
+
   appendOutput(QString("\n[Error: %1]\n").arg(errorMsg), true);
+
   emit errorOccurred(errorMsg);
+
+  LOG_PERF(0, "Exit");
 }
 
 void PowerShellWidget::processCompletionResults() {
+  LOG_PERF(0, "Enter");
+
   _waitingForCompletion = false;
 
   if (_completionBuffer.isEmpty()) {
     LOG_INFO("Completion: No results");
+    LOG_PERF(0, "Exit");
     return;
   }
 
   LOG_INFO("Processing completion buffer: '{}'",
            _completionBuffer.left(200).toStdString());
 
-  QStringList matches =
+  const QStringList matches =
       _completionBuffer.trimmed().split("\n", Qt::SkipEmptyParts);
 
   // Clean up matches and filter out command echoes and prompt
@@ -815,11 +898,11 @@ void PowerShellWidget::processCompletionResults() {
   QList<bool> isDirectory;
 
   for (const QString &match : matches) {
-    QString trimmed = match.trimmed();
+    const QString trimmed = match.trimmed();
     // Skip empty lines, command echoes, and PowerShell prompt (contains "PS "
     // and ends with ">")
-    bool isPrompt = trimmed.startsWith("PS ") && trimmed.contains(">") &&
-                    trimmed.contains(":\\");
+    const bool isPrompt = trimmed.startsWith("PS ") && trimmed.contains(">") &&
+                          trimmed.contains(":\\");
 
     if (!trimmed.isEmpty() && !trimmed.startsWith("Get-ChildItem") &&
         !trimmed.startsWith("Where-Object") &&
@@ -843,6 +926,8 @@ void PowerShellWidget::processCompletionResults() {
     _completionMatches.clear();
     _completionIsDirectory.clear();
     _completionIndex = -1;
+
+    LOG_PERF(0, "Exit");
     return;
   }
 
@@ -850,8 +935,9 @@ void PowerShellWidget::processCompletionResults() {
   _completionMatches = cleanMatches;
   _completionIsDirectory = isDirectory;
   _completionIndex = 0;
-  QString match = _completionMatches[0];
-  bool isDir = _completionIsDirectory[0];
+
+  const QString match = _completionMatches[0];
+  const bool isDir = _completionIsDirectory[0];
 
   LOG_INFO("Applying first match: '{}' (isDir: {})", match.toStdString(),
            isDir);
@@ -861,6 +947,7 @@ void PowerShellWidget::processCompletionResults() {
   if (lastBackslash < 0) {
     lastBackslash = _completionPartial.lastIndexOf('/');
   }
+
   _completionPathPrefix = (lastBackslash >= 0)
                               ? _completionPartial.left(lastBackslash + 1)
                               : QString();
@@ -872,7 +959,8 @@ void PowerShellWidget::processCompletionResults() {
   }
 
   // Update command buffer with first completion
-  QString fullMatch = _completionPathPrefix + match;
+  const QString fullMatch = _completionPathPrefix + match;
+
   _commandBuffer = _completionBase + fullMatch;
   _commandCursorPos = _commandBuffer.length();
 
@@ -880,10 +968,13 @@ void PowerShellWidget::processCompletionResults() {
   if (isDir) {
     _commandBuffer += "\\";
     _commandCursorPos++;
+
     appendOutput(fullMatch + "\\", false);
   } else {
     appendOutput(fullMatch, false);
   }
+
+  LOG_PERF(0, "Exit");
 }
 
 void PowerShellWidget::appendOutput(const QString &text, bool isError) {
@@ -903,6 +994,7 @@ void PowerShellWidget::appendOutput(const QString &text, bool isError) {
   }
 
   cursor.insertText(text, format);
+
   _textDisplay->setTextCursor(cursor);
   _textDisplay->verticalScrollBar()->setValue(
       _textDisplay->verticalScrollBar()->maximum());

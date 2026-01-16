@@ -13,7 +13,7 @@
 namespace GuiManager::Widgets {
 
 ConsoleWidget::ConsoleWidget(QWidget *parent)
-    : QWidget(parent), _titleBar(nullptr), _minimizeButton(nullptr)
+    : QWidget(parent), _titleBar(nullptr), _closeButton(nullptr)
 #ifdef Q_OS_WIN
       ,
       _powerShellWidget(nullptr)
@@ -45,25 +45,25 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
   titleBarLayout->addStretch();
 
   // Create minimize button with icon
-  _minimizeButton = new QPushButton(_titleBar);
-  _minimizeButton->setFlat(true);
-  _minimizeButton->setFixedSize(16, 16);
-  _minimizeButton->setIcon(QIcon(":/icons/close_button.png"));
-  _minimizeButton->setIconSize(QSize(16, 16));
-  _minimizeButton->setStyleSheet(
+  _closeButton = new QPushButton(_titleBar);
+  _closeButton->setFlat(true);
+  _closeButton->setFixedSize(12, 12);
+  _closeButton->setIcon(QIcon(":/icons/close_button.png"));
+  _closeButton->setIconSize(QSize(12, 12));
+  _closeButton->setStyleSheet(
       "QPushButton { background-color: transparent; border: none; "
       "border-radius: 2px; }"
       "QPushButton:hover { background-color: #3e3e42; }"
       "QPushButton:pressed { background-color: #007acc; }");
-  _minimizeButton->setCursor(Qt::PointingHandCursor);
+  _closeButton->setCursor(Qt::PointingHandCursor);
 
-  titleBarLayout->addWidget(_minimizeButton);
+  titleBarLayout->addWidget(_closeButton);
 
   layout->addWidget(_titleBar);
 
   // Connect minimize button
-  connect(_minimizeButton, &QPushButton::clicked, this,
-          &ConsoleWidget::onMinimizeClicked);
+  connect(_closeButton, &QPushButton::clicked, this,
+          &ConsoleWidget::onCloseClicked);
 
 #ifdef Q_OS_WIN
   // Create and add PowerShell widget
@@ -140,7 +140,7 @@ Win32::PowerShellWidget *ConsoleWidget::getPowerShellWidget() const {
 }
 #endif
 
-void ConsoleWidget::onMinimizeClicked() {
+void ConsoleWidget::onCloseClicked() {
   LOG_PERF(0, "Enter");
 
   // Hide the console widget

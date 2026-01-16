@@ -54,11 +54,11 @@ signals:
   void consoleError(const QString &error);
 
 private slots:
-  void onMinimizeClicked();
+  void onCloseClicked();
 
 private:
   QWidget *_titleBar;
-  QPushButton *_minimizeButton;
+  QPushButton *_closeButton;
 
 #ifdef Q_OS_WIN
   Win32::PowerShellWidget *_powerShellWidget;
