@@ -35,8 +35,6 @@ bool DirectoryWatcher::startWatching() {
 
   _thread = QThread::create([&]() { run(); });
 
-  connect(_thread, &QThread::finished, _thread, &QObject::deleteLater);
-
   _thread->start();
 
   LOG_PERF(0, "Exit");
@@ -56,6 +54,7 @@ bool DirectoryWatcher::stopWatching() {
 
   if (_thread) {
     _thread->wait();
+    delete _thread;
     _thread = nullptr;
   }
 

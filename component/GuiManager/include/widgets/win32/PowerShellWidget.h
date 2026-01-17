@@ -1,16 +1,52 @@
 #pragma once
 
-#include <QPlainTextEdit>
-#include <QProcess>
+#include <QBuffer>
+#include <QIODevice>
+#include <QMutex>
+#include <QThread>
 #include <QWidget>
+#include <qvterminal.h>
+#include <windows.h>
+
+// Forward declare winpty types
+struct winpty_s;
+typedef struct winpty_s winpty_t;
 
 namespace GuiManager::Widgets::Win32 {
 
 /**
- * @brief A QWidget that embeds a PowerShell console using QProcess
+ * @brief QIODevice wrapper for WinPTY pipes using overlapped I/O
+ */
+class WinPtyIODevice : public QIODevice {
+  Q_OBJECT
+
+public:
+  explicit WinPtyIODevice(HANDLE hInput, HANDLE hOutput,
+                          QObject *parent = nullptr);
+  ~WinPtyIODevice() override;
+
+  bool isSequential() const override { return true; }
+  qint64 bytesAvailable() const override;
+
+protected:
+  qint64 readData(char *data, qint64 maxSize) override;
+  qint64 writeData(const char *data, qint64 maxSize) override;
+
+private:
+  HANDLE _hInput;
+  HANDLE _hOutput;
+  QThread *_readerThread;
+  bool _running;
+  QByteArray _readBuffer;
+  mutable QMutex _bufferMutex;
+};
+
+/**
+ * @brief PowerShell terminal widget using WinPTY and QVTerminal
  *
- * This widget creates a PowerShell process with redirected I/O,
- * captures its output, and displays it in a Qt text widget.
+ * Uses WinPTY to create a real pseudo-terminal with QVTerminal for
+ * native VT100 emulation, making interactive programs like Python,
+ * gcc, etc. work properly with full I/O support.
  */
 class PowerShellWidget : public QWidget {
   Q_OBJECT
@@ -19,32 +55,10 @@ public:
   explicit PowerShellWidget(QWidget *parent = nullptr);
   ~PowerShellWidget() override;
 
-  /**
-   * @brief Executes a PowerShell command
-   * @param command The PowerShell command to execute
-   * @return true if command was sent successfully, false otherwise
-   */
   bool executeCommand(const QString &command);
-
-  /**
-   * @brief Checks if the PowerShell process is running
-   * @return true if running, false otherwise
-   */
   bool isRunning() const;
-
-  /**
-   * @brief Restarts the PowerShell process
-   */
   void restart();
-
-  /**
-   * @brief Terminates the PowerShell process
-   */
   void terminate();
-
-  /**
-   * @brief Sets focus to the input text area
-   */
   void setFocusToInput();
 
 signals:
@@ -54,51 +68,20 @@ signals:
 
 protected:
   void closeEvent(QCloseEvent *event) override;
-  bool eventFilter(QObject *obj, QEvent *event) override;
-
-private slots:
-  void onReadyReadStandardOutput();
-  void onReadyReadStandardError();
-  void onProcessStarted();
-  void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
-  void onProcessError(QProcess::ProcessError error);
-  void processCompletionResults();
-  void requestPrompt();
 
 private:
-  struct CompletionState {
-    QStringList matches;
-    QList<bool> isDirectory;
-    int index;
-    QString partial;
-    QString base;
-    QString pathPrefix;
-  };
-
   void startPowerShell();
-  void appendOutput(const QString &text, bool isError = false);
-  void requestTabCompletion(const QString &partial);
+  void cleanupPty();
 
-  QProcess *_process;
-  QPlainTextEdit *_textDisplay;
-  QString _commandBuffer;
-  int _commandCursorPos;
-  bool _waitingForPrompt;
-  QStringList _commandHistory;
-  int _historyIndex;
-  QString _currentDirectory;
-  QString _lastCommand;
-  bool _waitingForCompletion;
-  QString _completionPartial;
-  QStringList _completionMatches;
-  QList<bool> _completionIsDirectory;
-  int _completionIndex;
-  QString _completionBase;
-  QString _completionBuffer;
-  QString _completionPathPrefix;
-  QTimer *_completionTimer;
-  QTimer *_promptTimer;
-  QList<CompletionState> _completionStack;
+  // WinPTY handles
+  winpty_t *_pty;
+  HANDLE _ptyIn;  // Handle to write to PTY
+  HANDLE _ptyOut; // Handle to read from PTY
+  HANDLE _childProcess;
+
+  // UI - QVTerminal handles terminal emulation
+  QVTerminal *_textDisplay;
+  WinPtyIODevice *_ptyDevice;
 };
 
 } // namespace GuiManager::Widgets::Win32
