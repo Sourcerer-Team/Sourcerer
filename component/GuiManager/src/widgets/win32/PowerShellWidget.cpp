@@ -5,100 +5,134 @@
 #include <QDir>
 #include <QFont>
 #include <QFontInfo>
+#include <QFontMetrics>
+#include <QResizeEvent>
+#include <QTimer>
 #include <QVBoxLayout>
 
 #include <qvterminal.h>
-#include <winpty.h>
 
-#include <thread>
+// ConPTY API requires Windows 10 1809 (10.0.17763) or later
+#ifndef PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE
+#define PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE                                    \
+ProcThreadAttributeValue(22, FALSE, TRUE, FALSE)
+#endif
+
+#ifndef HPCON
+typedef VOID *HPCON;
+#endif
+
+// Function pointers for ConPTY API (dynamically loaded from kernel32.dll)
+typedef HRESULT(WINAPI *PFN_CreatePseudoConsole)(COORD size, HANDLE hInput,
+                                                 HANDLE hOutput, DWORD dwFlags,
+                                                 HPCON *phPC);
+typedef HRESULT(WINAPI *PFN_ResizePseudoConsole)(HPCON hPC, COORD size);
+typedef void(WINAPI *PFN_ClosePseudoConsole)(HPCON hPC);
+
+static PFN_CreatePseudoConsole pfnCreatePseudoConsole = nullptr;
+static PFN_ResizePseudoConsole pfnResizePseudoConsole = nullptr;
+static PFN_ClosePseudoConsole pfnClosePseudoConsole = nullptr;
+
+static bool LoadConPtyAPI() {
+  static bool loaded = false;
+  static bool available = false;
+
+  if (loaded) {
+    return available;
+  }
+
+  loaded = true;
+
+  HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
+  if (!hKernel32) {
+    return false;
+  }
+
+  pfnCreatePseudoConsole = reinterpret_cast<PFN_CreatePseudoConsole>(
+      GetProcAddress(hKernel32, "CreatePseudoConsole"));
+  pfnResizePseudoConsole = reinterpret_cast<PFN_ResizePseudoConsole>(
+      GetProcAddress(hKernel32, "ResizePseudoConsole"));
+  pfnClosePseudoConsole = reinterpret_cast<PFN_ClosePseudoConsole>(
+      GetProcAddress(hKernel32, "ClosePseudoConsole"));
+
+  available = (pfnCreatePseudoConsole && pfnResizePseudoConsole &&
+               pfnClosePseudoConsole);
+  return available;
+}
 
 #define THREAD_ID "PowerShellWidget"
 
 using namespace GuiManager::Widgets::Win32;
 
-// WinPtyIODevice implementation
-WinPtyIODevice::WinPtyIODevice(HANDLE hInput, HANDLE hOutput, QObject *parent)
+// ConPtyIODevice implementation
+ConPtyIODevice::ConPtyIODevice(HANDLE hInput, HANDLE hOutput, QObject *parent)
     : QIODevice(parent), _hInput(hInput), _hOutput(hOutput),
       _readerThread(nullptr), _running(true) {
 
   open(QIODevice::ReadWrite | QIODevice::Unbuffered);
 
-  // Start reader thread for async reads
+  // Start reader thread for synchronous reads
   _readerThread = QThread::create([this]() {
+    char buffer[4096];
+
     while (_running && _hOutput != INVALID_HANDLE_VALUE) {
-      char buffer[4096];
-
-      std::memset(&buffer[0], 0, sizeof(buffer));
-
       DWORD bytesRead = 0;
-      OVERLAPPED overlapped = {};
-      overlapped.hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 
-      if (!overlapped.hEvent) {
-        break;
-      }
-
-      BOOL readResult =
-          ReadFile(_hOutput, buffer, sizeof(buffer), &bytesRead, &overlapped);
-
-      if (readResult && bytesRead > 0) {
-        // Read completed immediately - buffer and emit readyRead
-        CloseHandle(overlapped.hEvent);
-        {
+      // Synchronous read
+      if (ReadFile(_hOutput, buffer, sizeof(buffer), &bytesRead, nullptr)) {
+        if (bytesRead > 0) {
           QMutexLocker locker(&_bufferMutex);
           _readBuffer.append(buffer, bytesRead);
+          locker.unlock();
+          emit readyRead();
         }
-        emit readyRead();
       } else {
         DWORD error = GetLastError();
-        if (error == ERROR_IO_PENDING) {
-          DWORD waitResult = WaitForSingleObject(overlapped.hEvent, INFINITE);
-          if (waitResult == WAIT_OBJECT_0) {
-            if (GetOverlappedResult(_hOutput, &overlapped, &bytesRead, FALSE)) {
-              if (bytesRead > 0) {
-                {
-                  QMutexLocker locker(&_bufferMutex);
-                  _readBuffer.append(buffer, bytesRead);
-                }
-                emit readyRead();
-              }
-            } else {
-              DWORD overlappedError = GetLastError();
-              if (overlappedError == ERROR_BROKEN_PIPE ||
-                  overlappedError == ERROR_HANDLE_EOF) {
-                CloseHandle(overlapped.hEvent);
-                break;
-              }
-            }
-          }
-          CloseHandle(overlapped.hEvent);
-        } else if (error == ERROR_BROKEN_PIPE) {
-          CloseHandle(overlapped.hEvent);
-          break;
-        } else {
-          CloseHandle(overlapped.hEvent);
+        if (error == ERROR_BROKEN_PIPE || error == ERROR_HANDLE_EOF) {
           break;
         }
+        // Other errors - wait a bit to avoid tight loop
+        Sleep(10);
       }
     }
   });
   _readerThread->start();
 }
 
-WinPtyIODevice::~WinPtyIODevice() {
+ConPtyIODevice::~ConPtyIODevice() {
   _running = false;
+
+  // Cancel any pending I/O operations before closing handles
+  if (_hOutput != INVALID_HANDLE_VALUE) {
+    CancelIoEx(_hOutput, nullptr);
+  }
+  if (_hInput != INVALID_HANDLE_VALUE) {
+    CancelIoEx(_hInput, nullptr);
+  }
+
+  // Wait for reader thread to exit
   if (_readerThread) {
     _readerThread->wait();
     delete _readerThread;
   }
+
+  // Now safe to close handles
+  if (_hOutput != INVALID_HANDLE_VALUE) {
+    CloseHandle(_hOutput);
+    _hOutput = INVALID_HANDLE_VALUE;
+  }
+  if (_hInput != INVALID_HANDLE_VALUE) {
+    CloseHandle(_hInput);
+    _hInput = INVALID_HANDLE_VALUE;
+  }
 }
 
-qint64 WinPtyIODevice::bytesAvailable() const {
+qint64 ConPtyIODevice::bytesAvailable() const {
   QMutexLocker locker(&_bufferMutex);
   return _readBuffer.size() + QIODevice::bytesAvailable();
 }
 
-qint64 WinPtyIODevice::readData(char *data, qint64 maxSize) {
+qint64 ConPtyIODevice::readData(char *data, qint64 maxSize) {
   QMutexLocker locker(&_bufferMutex);
 
   if (_readBuffer.isEmpty()) {
@@ -112,53 +146,30 @@ qint64 WinPtyIODevice::readData(char *data, qint64 maxSize) {
   return bytesToRead;
 }
 
-qint64 WinPtyIODevice::writeData(const char *data, qint64 maxSize) {
+qint64 ConPtyIODevice::writeData(const char *data, qint64 maxSize) {
   if (_hInput == INVALID_HANDLE_VALUE || maxSize <= 0) {
     return -1;
   }
 
-  const QString buffer = QString::fromUtf8(data, static_cast<int>(maxSize));
-  ;
+  const QByteArray buffer(data, maxSize);
 
-  // Write buffered data to PTY
+  // Write data synchronously
   DWORD bytesWritten = 0;
-  OVERLAPPED overlapped = {};
-  overlapped.hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-
-  if (!overlapped.hEvent) {
-    return -1;
+  if (WriteFile(_hInput, buffer.constData(), buffer.length(), &bytesWritten,
+                nullptr)) {
+    return bytesWritten;
   }
 
-  BOOL result = WriteFile(_hInput, buffer.constData(), buffer.length(),
-                          &bytesWritten, &overlapped);
-
-  if (result) {
-    CloseHandle(overlapped.hEvent);
-    return maxSize;
-  }
-
-  DWORD error = GetLastError();
-  if (error == ERROR_IO_PENDING) {
-    if (WaitForSingleObject(overlapped.hEvent, 5000) == WAIT_OBJECT_0) {
-      if (GetOverlappedResult(_hInput, &overlapped, &bytesWritten, FALSE)) {
-        CloseHandle(overlapped.hEvent);
-        return maxSize;
-      }
-    } else {
-      CancelIo(_hInput);
-    }
-  }
-
-  CloseHandle(overlapped.hEvent);
   return -1;
 }
 
 // PowerShellWidget implementation
 
 PowerShellWidget::PowerShellWidget(QWidget *parent)
-    : QWidget(parent), _pty(nullptr), _ptyIn(INVALID_HANDLE_VALUE),
+    : QWidget(parent), _hPseudoConsole(nullptr), _ptyIn(INVALID_HANDLE_VALUE),
       _ptyOut(INVALID_HANDLE_VALUE), _childProcess(INVALID_HANDLE_VALUE),
-      _ptyDevice(nullptr), _initialized(false) {
+      _childThread(INVALID_HANDLE_VALUE), _ptyDevice(nullptr),
+      _initialized(false) {
   LOG_PERF(0, "Enter");
 
   // Create layout
@@ -231,125 +242,162 @@ void PowerShellWidget::startPowerShell() {
   // Clean up any existing PTY
   cleanupPty();
 
-  // Create WinPTY configuration
-  winpty_error_ptr_t err = nullptr;
-  winpty_config_t *config = winpty_config_new(0, &err);
-
-  if (!config) {
-    QString errorMsg = "Failed to create WinPTY config";
-    if (err) {
-      errorMsg +=
-          QString(": %1").arg(QString::fromWCharArray(winpty_error_msg(err)));
-      winpty_error_free(err);
-    }
-    LOG_ERROR(Log::ErrorId::Gui, errorMsg);
-    emit errorOccurred(errorMsg);
+  // Check if ConPTY API is available
+  if (!LoadConPtyAPI()) {
+    LOG_ERROR(Log::ErrorId::Gui,
+              "ConPTY API not available (requires Windows 10 1809 or later)");
+    emit errorOccurred(
+        "ConPTY API not available. Requires Windows 10 version 1809 or later.");
     return;
   }
 
-  // Set PTY size (80x24 is standard)
-  winpty_config_set_initial_size(config, 120, 30);
+  // Create pipes for ConPTY I/O
+  HANDLE hPipeIn = INVALID_HANDLE_VALUE;
+  HANDLE hPipeOut = INVALID_HANDLE_VALUE;
 
-  // Create the PTY
-  _pty = winpty_open(config, &err);
-  winpty_config_free(config);
+  SECURITY_ATTRIBUTES sa = {sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
 
-  if (!_pty) {
-    QString errorMsg = "Failed to open WinPTY";
-    if (err) {
-      errorMsg +=
-          QString(": %1").arg(QString::fromWCharArray(winpty_error_msg(err)));
-      winpty_error_free(err);
-    }
-    LOG_ERROR(Log::ErrorId::Gui, errorMsg);
-    emit errorOccurred(errorMsg);
-    return;
-  }
-
-  // Get pipe names for I/O
-  LPCWSTR coninName = winpty_conin_name(_pty);
-  LPCWSTR conoutName = winpty_conout_name(_pty);
-
-  // Open input pipe (write end) with overlapped I/O
-  _ptyIn = CreateFileW(coninName, GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
-                       FILE_FLAG_OVERLAPPED, nullptr);
-
-  if (_ptyIn == INVALID_HANDLE_VALUE) {
-    LOG_ERROR(Log::ErrorId::Gui, "Failed to open PTY input pipe: {}",
+  // Create input pipe (we write to _ptyIn, console reads from hPipeIn)
+  if (!CreatePipe(&hPipeIn, &_ptyIn, &sa, 0)) {
+    LOG_ERROR(Log::ErrorId::Gui, "Failed to create input pipe: {}",
               GetLastError());
-    cleanupPty();
-    emit errorOccurred("Failed to open PTY input pipe");
+    emit errorOccurred("Failed to create input pipe");
     return;
   }
 
-  // Open output pipe (read end) with overlapped I/O
-  _ptyOut = CreateFileW(conoutName, GENERIC_READ, 0, nullptr, OPEN_EXISTING,
-                        FILE_FLAG_OVERLAPPED, nullptr);
-
-  if (_ptyOut == INVALID_HANDLE_VALUE) {
-    LOG_ERROR(Log::ErrorId::Gui, "Failed to open PTY output pipe: {}",
+  // Create output pipe (console writes to hPipeOut, we read from _ptyOut)
+  if (!CreatePipe(&_ptyOut, &hPipeOut, &sa, 0)) {
+    LOG_ERROR(Log::ErrorId::Gui, "Failed to create output pipe: {}",
               GetLastError());
-    cleanupPty();
-    emit errorOccurred("Failed to open PTY output pipe");
+    CloseHandle(hPipeIn);
+    CloseHandle(_ptyIn);
+    _ptyIn = INVALID_HANDLE_VALUE;
+    emit errorOccurred("Failed to create output pipe");
     return;
   }
 
-  // Spawn PowerShell process with full path
+  // Make sure child process doesn't inherit our ends of the pipes
+  SetHandleInformation(_ptyIn, HANDLE_FLAG_INHERIT, 0);
+  SetHandleInformation(_ptyOut, HANDLE_FLAG_INHERIT, 0);
+
+  // Calculate terminal size
+  QFontMetrics fm(_textDisplay->font());
+  int charWidth = fm.horizontalAdvance('X');
+  int charHeight = fm.height();
+  int cols = qMax(1, _textDisplay->width() / charWidth);
+  int rows = qMax(1, _textDisplay->height() / charHeight);
+
+  // Create the pseudoconsole
+  COORD consoleSize = {static_cast<SHORT>(cols), static_cast<SHORT>(rows)};
+  HRESULT hr = pfnCreatePseudoConsole(consoleSize, hPipeIn, hPipeOut, 0,
+                                      &_hPseudoConsole);
+
+  // Close the console ends of the pipes (ConPTY owns them now)
+  CloseHandle(hPipeIn);
+  CloseHandle(hPipeOut);
+
+  if (FAILED(hr)) {
+    LOG_ERROR(Log::ErrorId::Gui, "Failed to create pseudoconsole: {:x}", hr);
+    CloseHandle(_ptyIn);
+    CloseHandle(_ptyOut);
+    _ptyIn = INVALID_HANDLE_VALUE;
+    _ptyOut = INVALID_HANDLE_VALUE;
+    emit errorOccurred("Failed to create pseudoconsole");
+    return;
+  }
+
+  // Prepare startup info with pseudoconsole
+  STARTUPINFOEXW siEx = {};
+  siEx.StartupInfo.cb = sizeof(STARTUPINFOEXW);
+  siEx.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+  siEx.StartupInfo.hStdInput = nullptr;
+  siEx.StartupInfo.hStdOutput = nullptr;
+  siEx.StartupInfo.hStdError = nullptr;
+
+  // Initialize attribute list
+  SIZE_T attrListSize = 0;
+  InitializeProcThreadAttributeList(nullptr, 1, 0, &attrListSize);
+  siEx.lpAttributeList =
+      reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(malloc(attrListSize));
+
+  if (!InitializeProcThreadAttributeList(siEx.lpAttributeList, 1, 0,
+                                         &attrListSize)) {
+    LOG_ERROR(Log::ErrorId::Gui, "Failed to initialize attribute list: {}",
+              GetLastError());
+    free(siEx.lpAttributeList);
+    cleanupPty();
+    emit errorOccurred("Failed to initialize attribute list");
+    return;
+  }
+
+  // Attach the pseudoconsole to the attribute list
+  if (!UpdateProcThreadAttribute(
+          siEx.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
+          _hPseudoConsole, sizeof(_hPseudoConsole), nullptr, nullptr)) {
+    LOG_ERROR(Log::ErrorId::Gui, "Failed to update proc thread attribute: {}",
+              GetLastError());
+    DeleteProcThreadAttributeList(siEx.lpAttributeList);
+    free(siEx.lpAttributeList);
+    cleanupPty();
+    emit errorOccurred("Failed to update proc thread attribute");
+    return;
+  }
+
+  // Build command line
+  std::wstring cmdLine;
+  if (GetFileAttributesW(L"C:\\Program Files\\PowerShell\\7\\pwsh.exe") !=
+      INVALID_FILE_ATTRIBUTES) {
+    cmdLine = L"C:\\Program Files\\PowerShell\\7\\pwsh.exe -NoLogo";
+  } else {
+    cmdLine = L"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe "
+              L"-NoLogo -NoExit";
+  }
+
+  // CreateProcessW modifies the command line, so make a mutable copy
+  std::vector<wchar_t> cmdLineBuf(cmdLine.begin(), cmdLine.end());
+  cmdLineBuf.push_back(L'\0');
+
+  // Set working directory
   std::wstring workingDir = _workingDirectory.toStdWString();
   LPCWSTR cwd = workingDir.empty() ? nullptr : workingDir.c_str();
 
-  winpty_spawn_config_t *spawnConfig =
-      winpty_spawn_config_new(WINPTY_SPAWN_FLAG_AUTO_SHUTDOWN,
-                              nullptr, // appname (use cmdline)
-                              L"C:\\Windows\\System32\\WindowsPowerShell\\v1."
-                              L"0\\powershell.exe -NoProfile -NoLogo -NoExit",
-                              cwd,     // working directory
-                              nullptr, // env
-                              &err);
+  // Create the process
+  PROCESS_INFORMATION pi = {};
+  BOOL success = CreateProcessW(nullptr,           // application name
+                                cmdLineBuf.data(), // command line (mutable)
+                                nullptr,           // process attributes
+                                nullptr,           // thread attributes
+                                FALSE,             // inherit handles
+                                EXTENDED_STARTUPINFO_PRESENT, // creation flags
+                                nullptr,                      // environment
+                                cwd,               // current directory
+                                &siEx.StartupInfo, // startup info
+                                &pi                // process information
+  );
 
-  if (!spawnConfig) {
-    QString errorMsg = "Failed to create spawn config";
-    if (err) {
-      errorMsg +=
-          QString(": %1").arg(QString::fromWCharArray(winpty_error_msg(err)));
-      winpty_error_free(err);
-    }
-    LOG_ERROR(Log::ErrorId::Gui, errorMsg);
+  // Clean up attribute list
+  DeleteProcThreadAttributeList(siEx.lpAttributeList);
+  free(siEx.lpAttributeList);
+
+  if (!success) {
+    LOG_ERROR(Log::ErrorId::Gui, "Failed to create PowerShell process: {}",
+              GetLastError());
     cleanupPty();
-    emit errorOccurred(errorMsg);
+    emit errorOccurred("Failed to create PowerShell process");
     return;
   }
 
-  DWORD exitCode = 0;
-  BOOL spawnSuccess = winpty_spawn(_pty, spawnConfig, &_childProcess,
-                                   nullptr, // thread handle
-                                   &exitCode, &err);
-
-  winpty_spawn_config_free(spawnConfig);
-
-  if (!spawnSuccess) {
-    QString errorMsg = "Failed to spawn PowerShell";
-    if (err) {
-      errorMsg +=
-          QString(": %1").arg(QString::fromWCharArray(winpty_error_msg(err)));
-      winpty_error_free(err);
-    }
-    LOG_ERROR(Log::ErrorId::Gui, errorMsg);
-    cleanupPty();
-    emit errorOccurred(errorMsg);
-    return;
-  }
+  _childProcess = pi.hProcess;
+  _childThread = pi.hThread;
 
   // Create QIODevice wrapper for the PTY pipes
-  _ptyDevice = new WinPtyIODevice(_ptyIn, _ptyOut, this);
+  _ptyDevice = new ConPtyIODevice(_ptyIn, _ptyOut, this);
 
   // Connect the IO device to QVTerminal
   _textDisplay->setIODevice(_ptyDevice);
 
-  LOG_INFO("PowerShell started with WinPTY, child process handle: {}",
+  LOG_INFO("PowerShell started with ConPTY, child process handle: {}",
            (void *)_childProcess);
-
-  executeCommand("Clear-Host");
 
   // Send initial command to trigger output
   emit processStarted();
@@ -360,21 +408,21 @@ void PowerShellWidget::startPowerShell() {
 void PowerShellWidget::cleanupPty() {
   LOG_PERF(0, "Enter");
 
-  if (_ptyIn != INVALID_HANDLE_VALUE) {
-    CloseHandle(_ptyIn);
-    _ptyIn = INVALID_HANDLE_VALUE;
-  }
-
-  if (_ptyOut != INVALID_HANDLE_VALUE) {
-    CloseHandle(_ptyOut);
-    _ptyOut = INVALID_HANDLE_VALUE;
-  }
-
-  // Delete the IO device first (which will stop its reader thread)
+  // Delete the IO device first (which will stop its reader thread and close
+  // pipe handles)
   if (_ptyDevice) {
     _textDisplay->setIODevice(nullptr);
     delete _ptyDevice;
     _ptyDevice = nullptr;
+  }
+
+  // Handles are closed by ConPtyIODevice destructor, just reset them
+  _ptyIn = INVALID_HANDLE_VALUE;
+  _ptyOut = INVALID_HANDLE_VALUE;
+
+  if (_childThread != INVALID_HANDLE_VALUE) {
+    CloseHandle(_childThread);
+    _childThread = INVALID_HANDLE_VALUE;
   }
 
   if (_childProcess != INVALID_HANDLE_VALUE) {
@@ -383,9 +431,9 @@ void PowerShellWidget::cleanupPty() {
     _childProcess = INVALID_HANDLE_VALUE;
   }
 
-  if (_pty) {
-    winpty_free(_pty);
-    _pty = nullptr;
+  if (_hPseudoConsole) {
+    pfnClosePseudoConsole(_hPseudoConsole);
+    _hPseudoConsole = nullptr;
   }
 
   LOG_PERF(0, "Exit");
@@ -394,7 +442,7 @@ void PowerShellWidget::cleanupPty() {
 bool PowerShellWidget::executeCommand(const QString &command) {
   LOG_PERF(0, "Enter");
 
-  if (!_ptyDevice || !_pty) {
+  if (!_ptyDevice || !_hPseudoConsole) {
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -468,5 +516,24 @@ void PowerShellWidget::focusOutEvent(QFocusEvent *event) {
   // QVTerminal will lose focus and stop showing cursor automatically
 }
 
-// QVTerminal handles all terminal emulation, ANSI escape sequences,
-// keyboard input, and rendering natively via WinPtyIODevice wrapper
+void PowerShellWidget::resizeEvent(QResizeEvent *event) {
+  QWidget::resizeEvent(event);
+
+  // Update PTY size when widget is resized
+  if (_hPseudoConsole && _textDisplay) {
+    // Calculate terminal size from widget dimensions
+    QFontMetrics fm(_textDisplay->font());
+    int charWidth = fm.horizontalAdvance('X');
+    int charHeight = fm.height();
+
+    int cols = qMax(1, _textDisplay->width() / charWidth);
+    int rows = qMax(1, _textDisplay->height() / charHeight);
+
+    // Update pseudoconsole size
+    COORD newSize = {static_cast<SHORT>(cols), static_cast<SHORT>(rows)};
+    HRESULT hr = pfnResizePseudoConsole(_hPseudoConsole, newSize);
+    if (FAILED(hr)) {
+      LOG_ERROR(Log::ErrorId::Gui, "Failed to resize pseudoconsole: {:x}", hr);
+    }
+  }
+}

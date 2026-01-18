@@ -6,24 +6,25 @@
 #include <QThread>
 #include <QWidget>
 #include <qvterminal.h>
+
 #include <windows.h>
 
-// Forward declare winpty types
-struct winpty_s;
-typedef struct winpty_s winpty_t;
+#ifndef HPCON
+typedef void* HPCON;
+#endif
 
 namespace GuiManager::Widgets::Win32 {
 
 /**
- * @brief QIODevice wrapper for WinPTY pipes using overlapped I/O
+ * @brief QIODevice wrapper for ConPTY pipes using overlapped I/O
  */
-class WinPtyIODevice : public QIODevice {
+class ConPtyIODevice : public QIODevice {
   Q_OBJECT
 
 public:
-  explicit WinPtyIODevice(HANDLE hInput, HANDLE hOutput,
+  explicit ConPtyIODevice(HANDLE hInput, HANDLE hOutput,
                           QObject *parent = nullptr);
-  ~WinPtyIODevice() override;
+  ~ConPtyIODevice() override;
 
   bool isSequential() const override { return true; }
   qint64 bytesAvailable() const override;
@@ -42,11 +43,11 @@ private:
 };
 
 /**
- * @brief PowerShell terminal widget using WinPTY and QVTerminal
+ * @brief PowerShell terminal widget using ConPTY and QVTerminal
  *
- * Uses WinPTY to create a real pseudo-terminal with QVTerminal for
- * native VT100 emulation, making interactive programs like Python,
- * gcc, etc. work properly with full I/O support.
+ * Uses Windows ConPTY (Console Pseudoconsole) API to create a real
+ * pseudo-terminal with QVTerminal for native VT100 emulation, making
+ * interactive programs like Python, gcc, etc. work properly with full I/O support.
  */
 class PowerShellWidget : public QWidget {
   Q_OBJECT
@@ -72,6 +73,7 @@ protected:
   void closeEvent(QCloseEvent *event) override;
   void focusInEvent(QFocusEvent *event) override;
   void focusOutEvent(QFocusEvent *event) override;
+  void resizeEvent(QResizeEvent *event) override;
 
 private:
   void startPowerShell();
@@ -80,15 +82,16 @@ private:
   QString _workingDirectory;
   bool _initialized;
 
-  // WinPTY handles
-  winpty_t *_pty;
+  // ConPTY handles
+  HPCON _hPseudoConsole;
   HANDLE _ptyIn;  // Handle to write to PTY
   HANDLE _ptyOut; // Handle to read from PTY
   HANDLE _childProcess;
+  HANDLE _childThread;
 
   // UI - QVTerminal handles terminal emulation
   QVTerminal *_textDisplay;
-  WinPtyIODevice *_ptyDevice;
+  ConPtyIODevice *_ptyDevice;
 };
 
 } // namespace GuiManager::Widgets::Win32

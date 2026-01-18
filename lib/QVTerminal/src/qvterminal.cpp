@@ -192,34 +192,70 @@ void QVTerminal::appendData(const QByteArray &data) {
           }
           _state = QVTerminal::Text;
         } else if (c == 'H') {
-          setCursorPos(_formatValue, _formatValue_Y);
+          setCursorPos(_formatValue, _cursorPos.y()/*_formatValue_Y*/);
           _state = QVTerminal::Text;
         } else if (c == 'G') {
-          setCursorPos(_formatValue, _cursorPos.y());
+           setCursorPos(_formatValue, _cursorPos.y());
           _state = QVTerminal::Text;
         } else if (c == 'J') {
           switch (_formatValue) {
           case 0:
-            clear();
+            // Clear from cursor to end of display
+            removeStringFromCursor(RIGHT_DIRECT);
+            // Clear all lines below current line
+            for (int i = _cursorPos.y() + 1; i < _layout->lineCount(); ++i) {
+              QVTLine &line = _layout->lineAt(i);
+              QVTChar termChar('\x20', _curentFormat);
+              for (int j = 0; j < line.size(); ++j) {
+                line.replace(termChar, j);
+              }
+            }
             break;
 
           case 1:
+            // Clear from beginning of display to cursor
+            // Clear all lines above current line
+            for (int i = 0; i < _cursorPos.y(); ++i) {
+              QVTLine &line = _layout->lineAt(i);
+              QVTChar termChar('\x20', _curentFormat);
+              for (int j = 0; j < line.size(); ++j) {
+                line.replace(termChar, j);
+              }
+            }
+            // Clear from start of current line to cursor
+            removeStringFromCursor(LEFT_DIRECT);
+            break;
+
           case 2:
+            // Clear entire display
+            clear();
+            break;
+
           default:
-            qDebug() << __FUNCTION__ << "unimplement J function!";
+            qDebug() << __FUNCTION__ << "unknown J function:" << _formatValue;
             break;
           }
           _state = QVTerminal::Text;
         } else if (c == 'K') {
           switch (_formatValue) {
           case 0:
+            // Erase from cursor to end of line
             removeStringFromCursor(RIGHT_DIRECT);
             break;
 
           case 1:
+            // Erase from beginning of line to cursor
+            removeStringFromCursor(LEFT_DIRECT);
+            break;
+
           case 2:
+            // Erase entire line
+            removeStringFromCursor(LEFT_DIRECT);
+            removeStringFromCursor(RIGHT_DIRECT);
+            break;
+
           default:
-            qDebug() << __FUNCTION__ << "unimplement K function!";
+            qDebug() << __FUNCTION__ << "unknown K function:" << _formatValue;
             break;
           }
           _state = QVTerminal::Text;
@@ -347,9 +383,7 @@ void QVTerminal::toggleCursor() {
   viewport()->update();
 }
 
-void QVTerminal::setCursorPos(int x, int y) {
-  setCursorPos(QPoint(x, y));
-}
+void QVTerminal::setCursorPos(int x, int y) { setCursorPos(QPoint(x, y)); }
 
 void QVTerminal::setCursorPos(QPoint cursorPos) {
   if (cursorPos != _cursorPos) {
@@ -358,22 +392,16 @@ void QVTerminal::setCursorPos(QPoint cursorPos) {
   }
 }
 
-QPoint QVTerminal::cursorPos() const {
-  return _cursorPos;
-}
+QPoint QVTerminal::cursorPos() const { return _cursorPos; }
 
 QPoint QVTerminal::posToCursor(const QPoint &cursorPos) const {
   return QPoint((cursorPos.x() - xMargin) / _cw,
                 (cursorPos.y() - yMargin + verticalScrollBar()->value()) / _ch);
 }
 
-bool QVTerminal::crlf() const {
-  return _crlf;
-}
+bool QVTerminal::crlf() const { return _crlf; }
 
-void QVTerminal::setCrlf(bool crlf) {
-  _crlf = crlf;
-}
+void QVTerminal::setCrlf(bool crlf) { _crlf = crlf; }
 
 void QVTerminal::writeData(const QByteArray &data) {
   if (_device && _device->isWritable()) {
@@ -384,17 +412,11 @@ void QVTerminal::writeData(const QByteArray &data) {
   }
 }
 
-bool QVTerminal::echo() const {
-  return _echo;
-}
+bool QVTerminal::echo() const { return _echo; }
 
-void QVTerminal::setEcho(bool echo) {
-  _echo = echo;
-}
+void QVTerminal::setEcho(bool echo) { _echo = echo; }
 
-const QVTCharFormat &QVTerminal::format() const {
-  return _format;
-}
+const QVTCharFormat &QVTerminal::format() const { return _format; }
 
 void QVTerminal::setFormat(const QVTCharFormat &format) {
   _format = format;

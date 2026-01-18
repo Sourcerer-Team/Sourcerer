@@ -13,10 +13,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 find_package(libgit2 REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Widgets LinguistTools)
 
-if(WIN32)
-    find_package(winpty REQUIRED)
-endif()
-
 set(TS_FILES translations/Sourcerer_en_US.ts)
 set(QRC_FILES resources/resources.qrc)
 
@@ -232,10 +228,6 @@ target_link_libraries(GuiManager PRIVATE
         ${LIBGIT2_LIBRARIES}
         qscintilla
 )
-
-if(WIN32)
-    target_link_libraries(GuiManager PRIVATE winpty::winpty)
-endif()
 
 target_include_directories(GuiManager PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
