@@ -130,8 +130,28 @@ void QVTerminal::appendData(const QByteArray &data) {
         }
       } else {
         _useFormaValue_Y = false;
-        if (c == ';' || c == '?' || c == 'm' || c == 'l') // Format
+        if (c == ';' || c == '?') // Format continuation
         {
+          _formatValue_Y = 0;
+          _useFormaValue_Y = true;
+          _state = QVTerminal::Format;
+        } else if (c == 'h') {
+          // DEC Private Mode Set - typically cursor visibility
+          // ESC[?25h - show cursor
+          if (_formatValue == 25) {
+            _cursorTimer.start();
+            _cvisible = true;
+          }
+          _state = QVTerminal::Text;
+        } else if (c == 'l') {
+          // DEC Private Mode Reset - typically cursor visibility
+          // ESC[?25l - hide cursor
+          if (_formatValue == 25) {
+            _cursorTimer.stop();
+            _cvisible = false;
+          }
+          _state = QVTerminal::Text;
+        } else if (c == 'm') {
           if (_formatValue == 0) // reset format
           {
             _curentFormat = _format;
@@ -143,24 +163,19 @@ void QVTerminal::appendData(const QByteArray &data) {
             QColor foreground = _curentFormat.foreground();
             _curentFormat.setForeground(_curentFormat.background());
             _curentFormat.setBackground(foreground);
-          } else if (_formatValue / 10 == 3) // foreground
+          } else if ((_formatValue >= 30 && _formatValue <= 37) ||
+                     (_formatValue >= 90 && _formatValue <= 97)) // foreground
           {
             _curentFormat.setForeground(
                 vt100color(static_cast<char>(_formatValue % 10) + '0'));
-          } else if (_formatValue / 10 == 4) // background
+          } else if ((_formatValue >= 30 && _formatValue <= 37) ||
+                     (_formatValue >= 100 && _formatValue <= 107)) // background
           {
             _curentFormat.setBackground(
                 vt100color(static_cast<char>(_formatValue % 10) + '0'));
           }
 
-          if (c == ';' || c == '?') {
-            _formatValue_Y = 0;
-            _useFormaValue_Y = true;
-
-            _state = QVTerminal::Format;
-          } else {
-            _state = QVTerminal::Text;
-          }
+          _state = QVTerminal::Text;
         } else if (c >= 'A' && c <= 'D') // Cursor command
         {
           // move at least one char
@@ -175,7 +190,8 @@ void QVTerminal::appendData(const QByteArray &data) {
             break;
 
           case 'B': // down
-            setCursorPos(_cursorPos.x(), _cursorPos.y() + _formatValue);
+            setCursorPos(_cursorPos.x(), qMin(_cursorPos.y() + _formatValue,
+                                              _layout->lineCount() - 1));
             break;
 
           case 'C': // right
@@ -192,10 +208,31 @@ void QVTerminal::appendData(const QByteArray &data) {
           }
           _state = QVTerminal::Text;
         } else if (c == 'H') {
-          setCursorPos(_formatValue, _cursorPos.y()/*_formatValue_Y*/);
+          // Cursor positioning uses 1-based indexing in VT100
+          // Convert to 0-based for internal use
+          int row = _formatValue > 0 ? _formatValue - 1 : 0;
+          /*
+          row = qMin(row, _layout->lineCount() - 1);
+          row = qMax(0, row);
+*/
+          int col = _formatValue_Y > 0 ? _formatValue_Y - 1 : 0;
+          /*
+          col = qMin(col, _layout->lineAt(row).size() - 1);
+          col = qMax(0, col);
+*/
+          setCursorPos(col, row);
           _state = QVTerminal::Text;
         } else if (c == 'G') {
-           setCursorPos(_formatValue, _cursorPos.y());
+          /*
+      int row = qMin(_cursorPos.y(), _layout->lineCount() - 1);
+      row = qMax(0, row);
+      int col = _formatValue > 0 ? _formatValue - 1 : 0;
+      col = qMin(col, _layout->lineAt(row).size() - 1);
+      col = qMax(0, col);
+*/
+          int row = _cursorPos.y();
+          int col = _formatValue > 0 ? _formatValue - 1 : 0;
+          setCursorPos(col, row);
           _state = QVTerminal::Text;
         } else if (c == 'J') {
           switch (_formatValue) {
@@ -262,6 +299,12 @@ void QVTerminal::appendData(const QByteArray &data) {
         } else if (c == 'P') {
           removeStringFromCursor(LEFT_DIRECT, _formatValue);
           removeStringFromCursor(RIGHT_DIRECT);
+          _state = QVTerminal::Text;
+        } else if (c == 'X') {
+          // ECH - Erase Character
+          // Erase n characters from cursor position (replace with spaces)
+          const int count = _formatValue > 0 ? _formatValue : 1;
+          removeStringFromCursor(RIGHT_DIRECT, count);
           _state = QVTerminal::Text;
         } else {
           _state = QVTerminal::Text;
@@ -383,25 +426,35 @@ void QVTerminal::toggleCursor() {
   viewport()->update();
 }
 
-void QVTerminal::setCursorPos(int x, int y) { setCursorPos(QPoint(x, y)); }
+void QVTerminal::setCursorPos(int x, int y) {
+  setCursorPos(QPoint(x, y));
+}
 
 void QVTerminal::setCursorPos(QPoint cursorPos) {
   if (cursorPos != _cursorPos) {
     _cursorPos = cursorPos;
+    _layout->lineAt(_cursorPos.y())
+        .resize(_cursorPos.x(), _format); // ensure line exists
     emit cursorMoved(cursorPos);
   }
 }
 
-QPoint QVTerminal::cursorPos() const { return _cursorPos; }
+QPoint QVTerminal::cursorPos() const {
+  return _cursorPos;
+}
 
 QPoint QVTerminal::posToCursor(const QPoint &cursorPos) const {
   return QPoint((cursorPos.x() - xMargin) / _cw,
                 (cursorPos.y() - yMargin + verticalScrollBar()->value()) / _ch);
 }
 
-bool QVTerminal::crlf() const { return _crlf; }
+bool QVTerminal::crlf() const {
+  return _crlf;
+}
 
-void QVTerminal::setCrlf(bool crlf) { _crlf = crlf; }
+void QVTerminal::setCrlf(bool crlf) {
+  _crlf = crlf;
+}
 
 void QVTerminal::writeData(const QByteArray &data) {
   if (_device && _device->isWritable()) {
@@ -412,11 +465,17 @@ void QVTerminal::writeData(const QByteArray &data) {
   }
 }
 
-bool QVTerminal::echo() const { return _echo; }
+bool QVTerminal::echo() const {
+  return _echo;
+}
 
-void QVTerminal::setEcho(bool echo) { _echo = echo; }
+void QVTerminal::setEcho(bool echo) {
+  _echo = echo;
+}
 
-const QVTCharFormat &QVTerminal::format() const { return _format; }
+const QVTCharFormat &QVTerminal::format() const {
+  return _format;
+}
 
 void QVTerminal::setFormat(const QVTCharFormat &format) {
   _format = format;

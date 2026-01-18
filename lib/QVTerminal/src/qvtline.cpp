@@ -56,3 +56,10 @@ QString QVTLine::text(qsizetype position, qsizetype n) const {
 qsizetype QVTLine::size() const {
   return _chars.size();
 }
+
+void QVTLine::resize(int size, const QVTCharFormat &format) {
+  for (int i = _chars.size(); i < size; ++i) {
+    QVTChar termChar('\x20', format);
+    _chars.append(termChar);
+  }
+}

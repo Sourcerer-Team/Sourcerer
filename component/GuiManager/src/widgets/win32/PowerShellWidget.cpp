@@ -15,7 +15,7 @@
 // ConPTY API requires Windows 10 1809 (10.0.17763) or later
 #ifndef PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE
 #define PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE                                    \
-ProcThreadAttributeValue(22, FALSE, TRUE, FALSE)
+  ProcThreadAttributeValue(22, FALSE, TRUE, FALSE)
 #endif
 
 #ifndef HPCON
@@ -140,6 +140,26 @@ qint64 ConPtyIODevice::readData(char *data, qint64 maxSize) {
   }
 
   qint64 bytesToRead = qMin(maxSize, static_cast<qint64>(_readBuffer.size()));
+
+  // Log the buffer data with escaped control characters
+  QString escaped;
+  for (int i = 0; i < bytesToRead; ++i) {
+    char c = _readBuffer[i];
+    if (c == '\r') {
+      escaped.append("\\r");
+    } else if (c == '\n') {
+      escaped.append("\\n");
+    } else if (c == 0x1B) { // ESC character
+      escaped.append("\\033");
+    } else if (c >= 32 && c <= 126) { // printable ASCII
+      escaped.append(c);
+    } else {
+      escaped.append(QString("\\x%1").arg(static_cast<unsigned char>(c), 2, 16,
+                                          QChar('0')));
+    }
+  }
+  LOG_DEBUG("ConPTY readData: {}", escaped.toStdString());
+
   memcpy(data, _readBuffer.constData(), bytesToRead);
   _readBuffer.remove(0, bytesToRead);
 
@@ -151,7 +171,9 @@ qint64 ConPtyIODevice::writeData(const char *data, qint64 maxSize) {
     return -1;
   }
 
-  const QByteArray buffer(data, maxSize);
+  QByteArray buffer(data, maxSize);
+  buffer = buffer.replace("\r\n", "\r"); // This is a workaround for
+                                         // PowerShell handling of CRLF
 
   // Write data synchronously
   DWORD bytesWritten = 0;

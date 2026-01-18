@@ -10,7 +10,7 @@
 #include <windows.h>
 
 #ifndef HPCON
-typedef void* HPCON;
+typedef void *HPCON;
 #endif
 
 namespace GuiManager::Widgets::Win32 {
@@ -47,7 +47,8 @@ private:
  *
  * Uses Windows ConPTY (Console Pseudoconsole) API to create a real
  * pseudo-terminal with QVTerminal for native VT100 emulation, making
- * interactive programs like Python, gcc, etc. work properly with full I/O support.
+ * interactive programs like Python, gcc, etc. work properly with full I/O
+ * support.
  */
 class PowerShellWidget : public QWidget {
   Q_OBJECT

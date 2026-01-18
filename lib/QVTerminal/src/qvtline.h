@@ -18,6 +18,8 @@ public:
 
   qsizetype size() const;
 
+  void resize(int size, const QVTCharFormat &format);
+
 protected:
   QList<QVTChar> _chars;
 };
