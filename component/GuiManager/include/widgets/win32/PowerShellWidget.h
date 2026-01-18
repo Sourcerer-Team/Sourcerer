@@ -70,6 +70,8 @@ signals:
 
 protected:
   void closeEvent(QCloseEvent *event) override;
+  void focusInEvent(QFocusEvent *event) override;
+  void focusOutEvent(QFocusEvent *event) override;
 
 private:
   void startPowerShell();

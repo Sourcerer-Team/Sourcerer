@@ -456,5 +456,17 @@ void PowerShellWidget::closeEvent(QCloseEvent *event) {
   QWidget::closeEvent(event);
 }
 
+void PowerShellWidget::focusInEvent(QFocusEvent *event) {
+  QWidget::focusInEvent(event);
+  if (_textDisplay) {
+    _textDisplay->setFocus();
+  }
+}
+
+void PowerShellWidget::focusOutEvent(QFocusEvent *event) {
+  QWidget::focusOutEvent(event);
+  // QVTerminal will lose focus and stop showing cursor automatically
+}
+
 // QVTerminal handles all terminal emulation, ANSI escape sequences,
 // keyboard input, and rendering natively via WinPtyIODevice wrapper

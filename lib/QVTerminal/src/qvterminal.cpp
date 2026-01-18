@@ -503,6 +503,18 @@ void QVTerminal::resizeEvent(QResizeEvent *event) {
                                        viewport()->size().height());
 }
 
+void QVTerminal::focusInEvent(QFocusEvent *event) {
+  QAbstractScrollArea::focusInEvent(event);
+  _cursorTimer.start();
+}
+
+void QVTerminal::focusOutEvent(QFocusEvent *event) {
+  QAbstractScrollArea::focusOutEvent(event);
+  _cursorTimer.stop();
+  _cvisible = false;
+  viewport()->update();
+}
+
 void QVTerminal::mousePressEvent(QMouseEvent *event) {
   if (event->button() == Qt::LeftButton) {
     _endSelectPos = QPoint();
