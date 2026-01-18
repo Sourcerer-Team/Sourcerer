@@ -449,6 +449,10 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         font-weight:bold;
         background-color:#384D59;
       }
+      QVTerminal {
+        background-color: #012456;
+        border: none;
+      }
       GuiManager--Widgets--TitleBarMenuButton::menu-indicator{
         width:0px;
       }

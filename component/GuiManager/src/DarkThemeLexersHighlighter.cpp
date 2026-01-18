@@ -113,10 +113,10 @@ DarkThemeLexersHighlighter::DarkThemeLexersHighlighter(QObject *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   initializeColorSchemes();
 
-  const QString diffFontName =
-      _configManager.getString(ConfigManager::ConfigKey::GitRepoDiffFontName);
-  const qlonglong diffFontSize =
-      _configManager.getLong(ConfigManager::ConfigKey::GitRepoDiffFontSize);
+  const QString diffFontName = _configManager.getString(
+      ConfigManager::ConfigKey::GitRepoMonospaceFontName);
+  const qlonglong diffFontSize = _configManager.getLong(
+      ConfigManager::ConfigKey::GitRepoMonospaceFontSize);
 
   // Set default font
   _defaultFont = QFont(diffFontName, diffFontSize);
@@ -127,6 +127,7 @@ DarkThemeLexersHighlighter::DarkThemeLexersHighlighter(QObject *parent)
     _defaultFont = QFont("Courier New", 10);
   }
 
+  _defaultFont.setStyleHint(QFont::Monospace);
   _defaultFont.setFixedPitch(true);
 }
 

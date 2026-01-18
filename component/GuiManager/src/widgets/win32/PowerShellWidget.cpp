@@ -1,7 +1,9 @@
 #include "widgets/win32/PowerShellWidget.h"
+#include "ConfigManager.h"
 #include "Log.h"
 
 #include <QFont>
+#include <QFontInfo>
 #include <QVBoxLayout>
 #include <qvterminal.h>
 #include <winpty.h>
@@ -164,22 +166,31 @@ PowerShellWidget::PowerShellWidget(QWidget *parent)
   _textDisplay = new QVTerminal(this);
   _textDisplay->setFocusPolicy(Qt::StrongFocus);
 
-  // Set console-like font
-  QFont font("Consolas", 10);
+  // Get font from ConfigManager (same as diff editor)
+  ConfigManager::ConfigManager &configManager =
+      ConfigManager::ConfigManager::getInstance();
+  const QString fontName = configManager.getString(
+      ConfigManager::ConfigKey::GitRepoMonospaceFontName);
+  const int fontSize = static_cast<int>(configManager.getLong(
+      ConfigManager::ConfigKey::GitRepoMonospaceFontSize));
+
+  // Set console font with fallback
+  QFont font(fontName, fontSize);
+  QFontInfo fontInfo(font);
+  if (fontInfo.family() != font.family()) {
+    // Fallback if requested font not available
+    font = QFont("Courier New", 10);
+  }
+
   font.setStyleHint(QFont::Monospace);
-  _textDisplay->setFont(font);
+  font.setFixedPitch(true);
 
-  // Set terminal format (colors)
-  QVTCharFormat format = _textDisplay->format();
-  format.setForeground(QColor("#CCCCCC"));
-  format.setBackground(QColor("#012456"));
+  QVTCharFormat format;
+  format.setFont(font);
+  format.setForeground(QColor(187, 187, 187));
+  format.setBackground(QColor(0x23, 0x26, 0x29));
+
   _textDisplay->setFormat(format);
-
-  // Dark theme styling
-  _textDisplay->setStyleSheet("QVTerminal {"
-                              "  background-color: #012456;"
-                              "  border: none;"
-                              "}");
 
   layout->addWidget(_textDisplay);
 
