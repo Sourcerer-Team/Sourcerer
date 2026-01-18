@@ -552,6 +552,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   qApp->setStyleSheet(qApp->styleSheet());
 
+  // Set PowerShell working directory to repository root
+  ui->consoleWidget->setWorkingDirectory(_path);
+
   LOG_PERF(0, "Exit")
 }
 
@@ -589,6 +592,7 @@ void GitRepoContainer::onTerminalRequested() {
   LOG_PERF(0, "Enter");
 
   if (_selected) {
+    ui->consoleWidget->init();
     ui->consoleWidget->show();
     ui->consoleWidget->setFocusToConsole();
   }

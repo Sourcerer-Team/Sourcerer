@@ -55,11 +55,13 @@ public:
   explicit PowerShellWidget(QWidget *parent = nullptr);
   ~PowerShellWidget() override;
 
+  void init();
   bool executeCommand(const QString &command);
   bool isRunning() const;
   void restart();
   void terminate();
   void setFocusToInput();
+  void setWorkingDirectory(const QString &path);
 
 signals:
   void processStarted();
@@ -72,6 +74,9 @@ protected:
 private:
   void startPowerShell();
   void cleanupPty();
+
+  QString _workingDirectory;
+  bool _initialized;
 
   // WinPTY handles
   winpty_t *_pty;

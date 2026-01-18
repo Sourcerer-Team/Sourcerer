@@ -23,6 +23,11 @@ public:
   ~ConsoleWidget() override;
 
   /**
+   * @brief Initializes the console widget and starts PowerShell
+   */
+  void init();
+
+  /**
    * @brief Executes a PowerShell command in the embedded console
    * @param command The PowerShell command to execute
    * @return true if command was sent successfully, false otherwise
@@ -44,6 +49,12 @@ public:
    * @brief Sets focus to the console input
    */
   void setFocusToConsole();
+
+  /**
+   * @brief Sets the working directory for the PowerShell console
+   * @param path The working directory path
+   */
+  void setWorkingDirectory(const QString &path);
 
 #ifdef Q_OS_WIN
   /**

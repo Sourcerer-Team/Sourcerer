@@ -2,11 +2,15 @@
 #include "ConfigManager.h"
 #include "Log.h"
 
+#include <QDir>
 #include <QFont>
 #include <QFontInfo>
 #include <QVBoxLayout>
+
 #include <qvterminal.h>
 #include <winpty.h>
+
+#include <thread>
 
 #define THREAD_ID "PowerShellWidget"
 
@@ -154,7 +158,7 @@ qint64 WinPtyIODevice::writeData(const char *data, qint64 maxSize) {
 PowerShellWidget::PowerShellWidget(QWidget *parent)
     : QWidget(parent), _pty(nullptr), _ptyIn(INVALID_HANDLE_VALUE),
       _ptyOut(INVALID_HANDLE_VALUE), _childProcess(INVALID_HANDLE_VALUE),
-      _ptyDevice(nullptr) {
+      _ptyDevice(nullptr), _initialized(false) {
   LOG_PERF(0, "Enter");
 
   // Create layout
@@ -199,9 +203,6 @@ PowerShellWidget::PowerShellWidget(QWidget *parent)
 
   _textDisplay->setCrlf(true);
 
-  // Start PowerShell with WinPTY
-  startPowerShell();
-
   LOG_PERF(0, "Exit");
 }
 
@@ -209,6 +210,17 @@ PowerShellWidget::~PowerShellWidget() {
   LOG_PERF(0, "Enter");
 
   cleanupPty();
+
+  LOG_PERF(0, "Exit");
+}
+
+void PowerShellWidget::init() {
+  LOG_PERF(0, "Enter");
+
+  if (!_initialized) {
+    _initialized = true;
+    startPowerShell();
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -283,12 +295,15 @@ void PowerShellWidget::startPowerShell() {
   }
 
   // Spawn PowerShell process with full path
+  std::wstring workingDir = _workingDirectory.toStdWString();
+  LPCWSTR cwd = workingDir.empty() ? nullptr : workingDir.c_str();
+
   winpty_spawn_config_t *spawnConfig =
       winpty_spawn_config_new(WINPTY_SPAWN_FLAG_AUTO_SHUTDOWN,
                               nullptr, // appname (use cmdline)
                               L"C:\\Windows\\System32\\WindowsPowerShell\\v1."
                               L"0\\powershell.exe -NoProfile -NoLogo -NoExit",
-                              nullptr, // cwd
+                              cwd,     // working directory
                               nullptr, // env
                               &err);
 
@@ -334,6 +349,8 @@ void PowerShellWidget::startPowerShell() {
   LOG_INFO("PowerShell started with WinPTY, child process handle: {}",
            (void *)_childProcess);
 
+  executeCommand("Clear-Host");
+
   // Send initial command to trigger output
   emit processStarted();
 
@@ -378,12 +395,18 @@ bool PowerShellWidget::executeCommand(const QString &command) {
   LOG_PERF(0, "Enter");
 
   if (!_ptyDevice || !_pty) {
-    LOG_PERF(0, "Exit - not running");
+    LOG_PERF(0, "Exit");
     return false;
   }
 
   // Write command to the PTY device
-  _ptyDevice->write((command + "\r\n").toUtf8());
+  for (const auto &c : command.toUtf8()) {
+    QByteArray part;
+    part.append(c);
+    _ptyDevice->write(part);
+  }
+
+  _ptyDevice->write(QString("\r\n").toUtf8());
 
   LOG_PERF(0, "Exit");
   return true;
@@ -422,6 +445,10 @@ void PowerShellWidget::setFocusToInput() {
   }
 
   LOG_PERF(0, "Exit");
+}
+
+void PowerShellWidget::setWorkingDirectory(const QString &path) {
+  _workingDirectory = path;
 }
 
 void PowerShellWidget::closeEvent(QCloseEvent *event) {

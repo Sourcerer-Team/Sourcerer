@@ -99,6 +99,18 @@ ConsoleWidget::~ConsoleWidget() {
   LOG_PERF(0, "Exit");
 }
 
+void ConsoleWidget::init() {
+  LOG_PERF(0, "Enter");
+
+#ifdef Q_OS_WIN
+  if (_powerShellWidget) {
+    _powerShellWidget->init();
+  }
+#endif
+
+  LOG_PERF(0, "Exit");
+}
+
 bool ConsoleWidget::executeCommand(const QString &command) {
   LOG_PERF(0, "Enter");
 
@@ -134,7 +146,17 @@ void ConsoleWidget::restartConsole() {
 
   LOG_PERF(0, "Exit");
 }
+void ConsoleWidget::setWorkingDirectory(const QString &path) {
+  LOG_PERF(0, "Enter");
 
+#ifdef Q_OS_WIN
+  if (_powerShellWidget) {
+    _powerShellWidget->setWorkingDirectory(path);
+  }
+#endif
+
+  LOG_PERF(0, "Exit");
+}
 #ifdef Q_OS_WIN
 Win32::PowerShellWidget *ConsoleWidget::getPowerShellWidget() const {
   return _powerShellWidget;
