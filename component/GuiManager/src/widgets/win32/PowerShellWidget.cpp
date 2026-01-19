@@ -64,6 +64,47 @@ static bool LoadConPtyAPI() {
 
 using namespace GuiManager::Widgets::Win32;
 
+namespace {
+struct TerminalGeometry {
+  int cols = 80;
+  int rows = 25;
+  bool usedFallback = false;
+};
+
+TerminalGeometry calculateTerminalGeometry(QVTerminal *terminal) {
+  TerminalGeometry geometry;
+  if (!terminal) {
+    return geometry;
+  }
+
+  const QFontMetrics fm(terminal->format().font());
+  const int charWidth = qMax(1, fm.horizontalAdvance('M'));
+  const int charHeight = qMax(1, fm.height());
+
+  int viewportWidth = terminal->viewport() ? terminal->viewport()->width() : 0;
+  int viewportHeight =
+      terminal->viewport() ? terminal->viewport()->height() : 0;
+
+  if (viewportWidth <= 0) {
+    viewportWidth = terminal->width();
+  }
+  if (viewportHeight <= 0) {
+    viewportHeight = terminal->height();
+  }
+
+  if (viewportWidth <= 0 || viewportHeight <= 0) {
+    geometry.usedFallback = true;
+    viewportWidth = qMax(viewportWidth, charWidth * geometry.cols);
+    viewportHeight = qMax(viewportHeight, charHeight * geometry.rows);
+  }
+
+  geometry.cols = qMax(1, viewportWidth / charWidth);
+  geometry.rows = qMax(1, viewportHeight / charHeight);
+
+  return geometry;
+}
+} // namespace
+
 // ConPtyIODevice implementation
 ConPtyIODevice::ConPtyIODevice(HANDLE hInput, HANDLE hOutput, QObject *parent)
     : QIODevice(parent), _hInput(hInput), _hOutput(hOutput),
@@ -303,11 +344,10 @@ void PowerShellWidget::startPowerShell() {
   SetHandleInformation(_ptyOut, HANDLE_FLAG_INHERIT, 0);
 
   // Calculate terminal size
-  QFontMetrics fm(_textDisplay->font());
-  int charWidth = fm.horizontalAdvance('X');
-  int charHeight = fm.height();
-  int cols = qMax(1, _textDisplay->width() / charWidth);
-  int rows = qMax(1, _textDisplay->height() / charHeight);
+  const auto geometry = calculateTerminalGeometry(_textDisplay);
+  const int cols = geometry.cols;
+  const int rows = geometry.rows;
+  _textDisplay->setViewportRowCountOverride(rows);
 
   // Create the pseudoconsole
   COORD consoleSize = {static_cast<SHORT>(cols), static_cast<SHORT>(rows)};
@@ -417,6 +457,23 @@ void PowerShellWidget::startPowerShell() {
 
   // Connect the IO device to QVTerminal
   _textDisplay->setIODevice(_ptyDevice);
+
+  if (geometry.usedFallback) {
+    QTimer::singleShot(0, this, [this]() {
+      if (!_hPseudoConsole || !_textDisplay) {
+        return;
+      }
+      const auto refreshedGeometry = calculateTerminalGeometry(_textDisplay);
+      _textDisplay->setViewportRowCountOverride(refreshedGeometry.rows);
+      COORD newSize = {static_cast<SHORT>(refreshedGeometry.cols),
+                       static_cast<SHORT>(refreshedGeometry.rows)};
+      HRESULT hr = pfnResizePseudoConsole(_hPseudoConsole, newSize);
+      if (FAILED(hr)) {
+        LOG_ERROR(Log::ErrorId::Gui,
+                  "Failed to apply deferred pseudoconsole resize: {:x}", hr);
+      }
+    });
+  }
 
   LOG_INFO("PowerShell started with ConPTY, child process handle: {}",
            (void *)_childProcess);
@@ -543,16 +600,12 @@ void PowerShellWidget::resizeEvent(QResizeEvent *event) {
 
   // Update PTY size when widget is resized
   if (_hPseudoConsole && _textDisplay) {
-    // Calculate terminal size from widget dimensions
-    QFontMetrics fm(_textDisplay->font());
-    int charWidth = fm.horizontalAdvance('X');
-    int charHeight = fm.height();
-
-    int cols = qMax(1, _textDisplay->width() / charWidth);
-    int rows = qMax(1, _textDisplay->height() / charHeight);
+    const auto geometry = calculateTerminalGeometry(_textDisplay);
+    _textDisplay->setViewportRowCountOverride(geometry.rows);
 
     // Update pseudoconsole size
-    COORD newSize = {static_cast<SHORT>(cols), static_cast<SHORT>(rows)};
+    COORD newSize = {static_cast<SHORT>(geometry.cols),
+                     static_cast<SHORT>(geometry.rows)};
     HRESULT hr = pfnResizePseudoConsole(_hPseudoConsole, newSize);
     if (FAILED(hr)) {
       LOG_ERROR(Log::ErrorId::Gui, "Failed to resize pseudoconsole: {:x}", hr);

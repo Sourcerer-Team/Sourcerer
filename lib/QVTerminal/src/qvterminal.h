@@ -30,6 +30,9 @@ public:
   const QVTCharFormat &format() const;
   void setFormat(const QVTCharFormat &format);
 
+  // viewport overrides (useful for external PTY integrations)
+  void setViewportRowCountOverride(int rows);
+
   // mode
   bool echo() const;
   void setEcho(bool echo);
@@ -58,6 +61,11 @@ protected slots:
 
   void toggleCursor();
 
+  void logViewportState(const char *tag, int viewportHeight, int contentHeight,
+                        int oldValue, int oldMax, int newMax, int viewportRows,
+                        int targetValue, int targetRaw, int anchorRows,
+                        int anchorValue, bool wasAtBottom, bool wasAtTop);
+
 private:
   QIODevice *_device;
 
@@ -83,6 +91,7 @@ private:
   QPoint _cursorPos;
   QTimer _cursorTimer;
   bool _cvisible;
+  int _viewportRowCountOverride;
 
   // select
   QPoint _startCursorSelectPos;
