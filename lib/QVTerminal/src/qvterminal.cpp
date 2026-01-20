@@ -102,7 +102,12 @@ void QVTerminal::appendData(const QByteArray &data) {
       } else if (c == '\n') {
         appendString(text);
         text.clear();
-        _layout->appendLine();
+
+        // Only append a new line if we're at the last line
+        // Otherwise, just move to the existing next line
+        if (_cursorPos.y() >= _layout->lineCount() - 1) {
+          _layout->appendLine();
+        }
 
         setCursorPos(0, _cursorPos.y() + 1);
       } else if (c == '\r') {
@@ -139,7 +144,6 @@ void QVTerminal::appendData(const QByteArray &data) {
           _formatValue = _formatValue * 10 + (c.cell() - '0');
         }
       } else {
-        _useFormaValue_Y = false;
         if (c == ';' || c == '?') // Format continuation
         {
           _formatValue_Y = 0;
@@ -148,7 +152,8 @@ void QVTerminal::appendData(const QByteArray &data) {
         } else if (c == 'h') {
           // DEC Private Mode Set - typically cursor visibility
           // ESC[?25h - show cursor
-          if (_formatValue == 25) {
+          if ((!_useFormaValue_Y && _formatValue == 25) ||
+              (_useFormaValue_Y && _formatValue_Y == 25)) {
             _cursorTimer.start();
             _cvisible = true;
           }
@@ -156,7 +161,8 @@ void QVTerminal::appendData(const QByteArray &data) {
         } else if (c == 'l') {
           // DEC Private Mode Reset - typically cursor visibility
           // ESC[?25l - hide cursor
-          if (_formatValue == 25) {
+          if ((!_useFormaValue_Y && _formatValue == 25) ||
+              (_useFormaValue_Y && _formatValue_Y == 25)) {
             _cursorTimer.stop();
             _cvisible = false;
           }
@@ -204,16 +210,17 @@ void QVTerminal::appendData(const QByteArray &data) {
           }
 
           switch (c.toLatin1()) {
-          case 'A': // up
-            setCursorPos(_cursorPos.x(),
-                         qMax(_cursorPos.y() - _formatValue, 0));
+          case 'A': { // up
+            int newY = qMax(_cursorPos.y() - _formatValue, 0);
+            setCursorPos(_cursorPos.x(), newY);
             break;
-
-          case 'B': // down
-            setCursorPos(_cursorPos.x(), qMin(_cursorPos.y() + _formatValue,
-                                              _layout->lineCount() - 1));
+          }
+          case 'B': { // down
+            int newY =
+                qMin(_cursorPos.y() + _formatValue, _layout->lineCount() - 1);
+            setCursorPos(_cursorPos.x(), newY);
             break;
-
+          }
           case 'C': // right
             setCursorPos(_cursorPos.x() + _formatValue, _cursorPos.y());
             break;
@@ -234,7 +241,7 @@ void QVTerminal::appendData(const QByteArray &data) {
           int row = _formatValue > 0 ? _formatValue - 1 : 0;
           int col = _formatValue_Y > 0 ? _formatValue_Y - 1 : 0;
 
-          // Calculate viewport size in rows based on widget dimensions
+          // Calculate viewport parameters
           int viewportRows = _viewportRowCountOverride;
           if (viewportRows <= 0) {
             viewportRows = viewport()->size().height() / _ch;
@@ -243,14 +250,23 @@ void QVTerminal::appendData(const QByteArray &data) {
             viewportRows = 1;
           }
 
-          // The viewport origin is based on the current scroll position
-          // Row 1 in the terminal is the first visible row in the viewport
-          int viewportOrigin = verticalScrollBar()->value() / _ch;
+          int currentLineCount = _layout->lineCount();
+
+          // When buffer is smaller than viewport, use absolute positioning
+          // VT100 row 1 = buffer line 0 directly
+          // When buffer >= viewport, use bottom-aligned viewport origin
+          int viewportOrigin;
+          if (currentLineCount <= viewportRows) {
+            viewportOrigin = 0; // Small buffer: direct mapping
+          } else {
+            viewportOrigin =
+                currentLineCount - viewportRows; // Large buffer: bottom-aligned
+          }
+
           row += viewportOrigin;
 
-          // Ensure row is not negative
+          // Ensure row is valid
           row = qMax(0, row);
-          row = qMin(row, _layout->lineCount() - 1);
 
           setCursorPos(col, row);
           _state = QVTerminal::Text;
@@ -334,6 +350,9 @@ void QVTerminal::appendData(const QByteArray &data) {
         } else {
           _state = QVTerminal::Text;
         }
+        if (c != ';' && c != '?') {
+          _useFormaValue_Y = false;
+        }
       }
       break;
 
@@ -347,9 +366,19 @@ void QVTerminal::appendData(const QByteArray &data) {
   appendString(text);
 
   if (viewport()->height() > 0) {
-    int viewportHeight = _viewportRowCountOverride * _ch;
+    // Calculate viewport parameters
+    int viewportRows = _viewportRowCountOverride;
+    if (viewportRows <= 0) {
+      viewportRows = viewport()->size().height() / _ch;
+    }
+    if (viewportRows < 1) {
+      viewportRows = 1;
+    }
+
+    int viewportHeight = viewportRows * _ch;
     int cursorHeight = (_cursorPos.y() + 1) * _ch;
-    int newMax = qMax(0, cursorHeight - viewportHeight) + yMargin * 2;
+    int newMaxWithoutMargin = qMax(0, cursorHeight - viewportHeight);
+    int newMax = qMax(0, newMaxWithoutMargin + yMargin * 2);
     verticalScrollBar()->setRange(0, newMax);
     verticalScrollBar()->setValue(newMax);
   }
