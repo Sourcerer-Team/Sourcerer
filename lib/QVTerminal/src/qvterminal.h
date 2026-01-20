@@ -93,6 +93,7 @@ private:
   QTimer _cursorTimer;
   bool _cvisible;
   int _viewportRowCountOverride;
+  int _cachedViewportOrigin;
 
   // select
   QPoint _startCursorSelectPos;

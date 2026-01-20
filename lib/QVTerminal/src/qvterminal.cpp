@@ -83,6 +83,23 @@ void QVTerminal::appendData(const QByteArray &data) {
 
   setUpdatesEnabled(false);
 
+  // Calculate and cache viewport origin once for this entire batch
+  // This ensures consistent coordinate mapping throughout the batch
+  int viewportRows = _viewportRowCountOverride;
+  if (viewportRows <= 0) {
+    viewportRows = viewport()->size().height() / _ch;
+  }
+  if (viewportRows < 1) {
+    viewportRows = 1;
+  }
+  int currentLineCount = _layout->lineCount();
+  if (currentLineCount <= viewportRows) {
+    _cachedViewportOrigin = 0; // Small buffer: direct absolute positioning
+  } else {
+    _cachedViewportOrigin =
+        currentLineCount - viewportRows; // Large buffer: bottom-aligned
+  }
+
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   QTextCodec *textCodec = QTextCodec::codecForName("UTF-8");
   QString dataString = textCodec->toUnicode(data);
@@ -241,7 +258,9 @@ void QVTerminal::appendData(const QByteArray &data) {
           int row = _formatValue > 0 ? _formatValue - 1 : 0;
           int col = _formatValue_Y > 0 ? _formatValue_Y - 1 : 0;
 
-          // Calculate viewport parameters
+          // Calculate viewport origin dynamically based on CURRENT buffer size
+          // PowerShell's positioning commands expect origin to reflect buffer
+          // state at command time
           int viewportRows = _viewportRowCountOverride;
           if (viewportRows <= 0) {
             viewportRows = viewport()->size().height() / _ch;
@@ -249,18 +268,10 @@ void QVTerminal::appendData(const QByteArray &data) {
           if (viewportRows < 1) {
             viewportRows = 1;
           }
-
           int currentLineCount = _layout->lineCount();
-
-          // When buffer is smaller than viewport, use absolute positioning
-          // VT100 row 1 = buffer line 0 directly
-          // When buffer >= viewport, use bottom-aligned viewport origin
-          int viewportOrigin;
-          if (currentLineCount <= viewportRows) {
-            viewportOrigin = 0; // Small buffer: direct mapping
-          } else {
-            viewportOrigin =
-                currentLineCount - viewportRows; // Large buffer: bottom-aligned
+          int viewportOrigin = 0;
+          if (currentLineCount > viewportRows) {
+            viewportOrigin = currentLineCount - viewportRows;
           }
 
           row += viewportOrigin;
@@ -376,8 +387,11 @@ void QVTerminal::appendData(const QByteArray &data) {
     }
 
     int viewportHeight = viewportRows * _ch;
-    int cursorHeight = (_cursorPos.y() + 1) * _ch;
-    int newMaxWithoutMargin = qMax(0, cursorHeight - viewportHeight);
+    // Use buffer size instead of cursor position to ensure all content is
+    // scrollable This fixes the issue where text written above cursor position
+    // gets scrolled off
+    int bufferHeight = _layout->lineCount() * _ch;
+    int newMaxWithoutMargin = qMax(0, bufferHeight - viewportHeight);
     int newMax = qMax(0, newMaxWithoutMargin + yMargin * 2);
     verticalScrollBar()->setRange(0, newMax);
     verticalScrollBar()->setValue(newMax);
