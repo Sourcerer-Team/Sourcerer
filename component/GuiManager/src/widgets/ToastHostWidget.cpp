@@ -6,6 +6,7 @@
 
 #include <Log.h>
 
+#include <QApplication>
 #include <QMouseEvent>
 #include <QPropertyAnimation>
 #include <QRegion>
@@ -39,6 +40,17 @@ ToastHostWidget::ToastHostWidget()
   setGraphicsEffect(nullptr);
 
   setMouseTracking(true);
+
+  // Hide toasts when application loses focus, show them again when regaining
+  // focus
+  connect(qApp, &QApplication::applicationStateChanged, this,
+          [this](Qt::ApplicationState state) {
+            if (state == Qt::ApplicationActive) {
+              showAllToasts();
+            } else {
+              hideAllToasts();
+            }
+          });
 
   setPosition(_position);
 
