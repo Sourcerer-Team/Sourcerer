@@ -1,5 +1,7 @@
 #include "widgets/ConsoleWidget.h"
+#ifdef Q_OS_WIN
 #include "widgets/win32/PowerShellWidget.h"
+#endif
 
 #include <Log.h>
 
