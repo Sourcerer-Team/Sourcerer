@@ -9,10 +9,6 @@ int QVTLayout::lineCount() const {
 }
 
 QVTLine &QVTLayout::lineAt(int i) {
-  if (i >= _lines.length()) {
-    _lines.resize(i + 1);
-  }
-
   return _lines[i];
 }
 

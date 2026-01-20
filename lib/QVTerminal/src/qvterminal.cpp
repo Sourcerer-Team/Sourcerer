@@ -17,8 +17,8 @@
 
 #include <vt/vt100.h>
 
-static const int xMargin = 3;
-static const int yMargin = 3;
+static const int xMargin = 6;
+static const int yMargin = 0;
 
 QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   _device = Q_NULLPTR;
@@ -55,7 +55,7 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
 
   _vt = new VT100(this);
   _useFormaValue_Y = false;
-  _viewportRowCountOverride = -1;
+  _viewportRowCountOverride = 0;
 
   viewport()->setCursor(QCursor(Qt::IBeamCursor));
 }
@@ -63,7 +63,7 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
 QVTerminal::~QVTerminal() {}
 
 void QVTerminal::setViewportRowCountOverride(int rows) {
-  _viewportRowCountOverride = rows > 0 ? rows : -1;
+  _viewportRowCountOverride = rows > 0 ? rows : 0;
 }
 
 void QVTerminal::setIODevice(QIODevice *device) {
@@ -102,6 +102,7 @@ void QVTerminal::appendData(const QByteArray &data) {
 
         setCursorPos(0, _cursorPos.y() + 1);
       } else if (c == '\r') {
+        appendString(text);
         text.clear();
         setCursorPos(0, _cursorPos.y());
       } else if (c == '\b') {
@@ -228,24 +229,18 @@ void QVTerminal::appendData(const QByteArray &data) {
             viewportRows = 1;
           }
 
-          // The viewport origin is where the "active terminal area" starts
-          // For ConPTY, this is the bottom viewportRows lines of the buffer
-          int viewportOrigin = qMax(0, _layout->lineCount() - viewportRows);
+          // The viewport origin is based on the current scroll position
+          // Row 1 in the terminal is the first visible row in the viewport
+          int viewportOrigin = verticalScrollBar()->value() / _ch;
           row += viewportOrigin;
 
           // Ensure row is not negative
           row = qMax(0, row);
+          row = qMin(row, _layout->lineCount() - 1);
 
           setCursorPos(col, row);
           _state = QVTerminal::Text;
         } else if (c == 'G') {
-          /*
-      int row = qMin(_cursorPos.y(), _layout->lineCount() - 1);
-      row = qMax(0, row);
-      int col = _formatValue > 0 ? _formatValue - 1 : 0;
-      col = qMin(col, _layout->lineAt(row).size() - 1);
-      col = qMax(0, col);
-*/
           int row = _cursorPos.y();
           int col = _formatValue > 0 ? _formatValue - 1 : 0;
           setCursorPos(col, row);
@@ -337,53 +332,12 @@ void QVTerminal::appendData(const QByteArray &data) {
   }
   appendString(text);
 
-  // Only update scrollbar if viewport has valid dimensions
-  int viewportHeight = viewport()->size().height();
-  if (viewportHeight > 0) {
-    // Check if we should auto-scroll BEFORE updating range
-    int oldMax = verticalScrollBar()->maximum();
-    int oldValue = verticalScrollBar()->value();
-
-    int viewportRows = _ch > 0 ? qMax(1, viewportHeight / _ch) : 1;
-
-    // Calculate new scrollbar maximum
-    int contentHeight = _layout->lineCount() * _ch + yMargin * 2;
-    int newMax = qMax(0, contentHeight - viewportHeight);
-
-    int anchorRows = qMax(0, _layout->lineCount() - viewportRows);
-    if (anchorRows == 0) {
-      // Short buffers should not create fractional scroll ranges from margins
-      newMax = 0;
-    }
-
-    // We should auto-scroll if we were at the bottom of actual scrollable
-    // content Use a tolerance of 2 character heights to handle rapid updates
-    bool wasAtBottom = (oldMax > 0) && (oldValue >= oldMax - (_ch * 2));
-
-    // Also auto-scroll if buffer was empty/small (startup or after clear)
-    // or if we're near the top with minimal content
-    bool wasAtTop = (oldMax <= 0) || (oldValue == 0 && oldMax <= _ch * 2);
-
-    // Update scrollbar range to reflect new content
+  if (viewport()->height() > 0) {
+    int viewportHeight = _viewportRowCountOverride * _ch;
+    int cursorHeight = (_cursorPos.y() + 1) * _ch;
+    int newMax = qMax(0, cursorHeight - viewportHeight) + yMargin * 2;
     verticalScrollBar()->setRange(0, newMax);
-
-    // Prefer keeping the cursor near the bottom of the viewport so prompts stay
-    // in view even when ConPTY requests taller buffers than we can display.
-    int cursorPixel = _cursorPos.y() * _ch;
-    int targetRaw = cursorPixel - viewportHeight + (_ch * 2);
-    int targetValue = qBound(0, targetRaw, newMax);
-    int anchorValue = anchorRows > 0 ? newMax : 0;
-    if (anchorRows > 0) {
-      targetValue = qMax(targetValue, anchorValue);
-    }
-
-    // Auto-scroll near the cursor when we were near the edges
-    if (wasAtBottom || wasAtTop) {
-      logViewportState("appendData", viewportHeight, contentHeight, oldValue,
-                       oldMax, newMax, viewportRows, targetValue, targetRaw,
-                       anchorRows, anchorValue, wasAtBottom, wasAtTop);
-      verticalScrollBar()->setValue(targetValue);
-    }
+    verticalScrollBar()->setValue(newMax);
   }
 
   setUpdatesEnabled(true);
@@ -486,42 +440,6 @@ void QVTerminal::removeStringFromCursor(Direction direction, int len) {
 void QVTerminal::toggleCursor() {
   _cvisible = !_cvisible;
   viewport()->update();
-}
-
-void QVTerminal::logViewportState(const char *tag, int viewportHeight,
-                                  int contentHeight, int oldValue, int oldMax,
-                                  int newMax, int viewportRows, int targetValue,
-                                  int targetRaw, int anchorRows,
-                                  int anchorValue, bool wasAtBottom,
-                                  bool wasAtTop) {
-#ifdef QT_DEBUG
-  qInfo().nospace() << "[QVTerminal] " << tag << " cursor=" << _cursorPos
-                    << " lines=" << _layout->lineCount()
-                    << " override=" << _viewportRowCountOverride
-                    << " viewportHeight=" << viewportHeight
-                    << " viewportRows=" << viewportRows << " charHeight=" << _ch
-                    << " contentHeight=" << contentHeight
-                    << " oldValue=" << oldValue << " oldMax=" << oldMax
-                    << " newMax=" << newMax << " targetRaw=" << targetRaw
-                    << " target=" << targetValue << " anchorRows=" << anchorRows
-                    << " anchorValue=" << anchorValue
-                    << " wasAtBottom=" << wasAtBottom
-                    << " wasAtTop=" << wasAtTop;
-#else
-  Q_UNUSED(tag);
-  Q_UNUSED(viewportHeight);
-  Q_UNUSED(contentHeight);
-  Q_UNUSED(oldValue);
-  Q_UNUSED(oldMax);
-  Q_UNUSED(newMax);
-  Q_UNUSED(viewportRows);
-  Q_UNUSED(targetValue);
-  Q_UNUSED(targetRaw);
-  Q_UNUSED(anchorRows);
-  Q_UNUSED(anchorValue);
-  Q_UNUSED(wasAtBottom);
-  Q_UNUSED(wasAtTop);
-#endif
 }
 
 void QVTerminal::setCursorPos(int x, int y) {
@@ -680,37 +598,15 @@ void QVTerminal::resizeEvent(QResizeEvent *event) {
   verticalScrollBar()->setPageStep(_ch * 10);
   verticalScrollBar()->setSingleStep(_ch);
 
-  int viewportHeight = viewport()->size().height();
-  if (viewportHeight > 0) {
-    int oldMax = verticalScrollBar()->maximum();
-    int oldValue = verticalScrollBar()->value();
-    bool wasAtBottom = (oldMax <= 0) || (oldValue >= oldMax - (_ch * 2));
+  // Recalculate scrollbar range based on new viewport size
+  int viewportHeight = _viewportRowCountOverride * _ch;
+  int cursorHeight = (_cursorPos.y() + 1) * _ch;
+  int newMax = qMax(0, cursorHeight - viewportHeight) + yMargin * 2;
 
-    int viewportRows = _ch > 0 ? qMax(1, viewportHeight / _ch) : 1;
-    int anchorRows = qMax(0, _layout->lineCount() - viewportRows);
-
-    int contentHeight = _layout->lineCount() * _ch + yMargin * 2;
-    int newMax = qMax(0, contentHeight - viewportHeight);
-    if (anchorRows == 0) {
-      newMax = 0;
-    }
-    verticalScrollBar()->setRange(0, newMax);
-
-    // Keep the cursor visible if we were at bottom before resize
-    if (wasAtBottom) {
-      int cursorPixel = _cursorPos.y() * _ch;
-      int targetRaw = cursorPixel - viewportHeight + (_ch * 2);
-      int targetValue = qBound(0, targetRaw, newMax);
-      int anchorValue = anchorRows > 0 ? newMax : 0;
-      if (anchorRows > 0) {
-        targetValue = qMax(targetValue, anchorValue);
-      }
-      logViewportState("resizeEvent", viewportHeight, contentHeight, oldValue,
-                       oldMax, newMax, viewportRows, targetValue, targetRaw,
-                       anchorRows, anchorValue, wasAtBottom, false);
-      verticalScrollBar()->setValue(targetValue);
-    }
-  }
+  // Maintain scroll position relative to content
+  int oldValue = verticalScrollBar()->value();
+  verticalScrollBar()->setRange(0, newMax);
+  verticalScrollBar()->setValue(qMin(oldValue, newMax));
 }
 
 void QVTerminal::focusInEvent(QFocusEvent *event) {

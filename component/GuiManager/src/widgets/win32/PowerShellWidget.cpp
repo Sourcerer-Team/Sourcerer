@@ -65,11 +65,6 @@ static bool LoadConPtyAPI() {
 using namespace GuiManager::Widgets::Win32;
 
 namespace {
-struct TerminalGeometry {
-  int cols = 80;
-  int rows = 25;
-  bool usedFallback = false;
-};
 
 TerminalGeometry calculateTerminalGeometry(QVTerminal *terminal) {
   TerminalGeometry geometry;
@@ -173,19 +168,10 @@ qint64 ConPtyIODevice::bytesAvailable() const {
   return _readBuffer.size() + QIODevice::bytesAvailable();
 }
 
-qint64 ConPtyIODevice::readData(char *data, qint64 maxSize) {
-  QMutexLocker locker(&_bufferMutex);
-
-  if (_readBuffer.isEmpty()) {
-    return 0;
-  }
-
-  qint64 bytesToRead = qMin(maxSize, static_cast<qint64>(_readBuffer.size()));
-
-  // Log the buffer data with escaped control characters
+static QString escape(const QByteArray &buffer) {
   QString escaped;
-  for (int i = 0; i < bytesToRead; ++i) {
-    char c = _readBuffer[i];
+  for (int i = 0; i < buffer.length(); ++i) {
+    char c = buffer[i];
     if (c == '\r') {
       escaped.append("\\r");
     } else if (c == '\n') {
@@ -199,7 +185,21 @@ qint64 ConPtyIODevice::readData(char *data, qint64 maxSize) {
                                           QChar('0')));
     }
   }
-  LOG_DEBUG("ConPTY readData: {}", escaped.toStdString());
+
+  return escaped;
+}
+
+qint64 ConPtyIODevice::readData(char *data, qint64 maxSize) {
+  QMutexLocker locker(&_bufferMutex);
+
+  if (_readBuffer.isEmpty()) {
+    return 0;
+  }
+
+  qint64 bytesToRead = qMin(maxSize, static_cast<qint64>(_readBuffer.size()));
+
+  // Log the buffer data with escaped control characters
+  LOG_DEBUG("ConPTY readData: {}", escape(_readBuffer.left(bytesToRead)));
 
   memcpy(data, _readBuffer.constData(), bytesToRead);
   _readBuffer.remove(0, bytesToRead);
@@ -215,6 +215,8 @@ qint64 ConPtyIODevice::writeData(const char *data, qint64 maxSize) {
   QByteArray buffer(data, maxSize);
   buffer = buffer.replace("\r\n", "\r"); // This is a workaround for
                                          // PowerShell handling of CRLF
+
+  LOG_DEBUG("ConPTY writeData: {}", escape(buffer));
 
   // Write data synchronously
   DWORD bytesWritten = 0;
@@ -343,11 +345,8 @@ void PowerShellWidget::startPowerShell() {
   SetHandleInformation(_ptyIn, HANDLE_FLAG_INHERIT, 0);
   SetHandleInformation(_ptyOut, HANDLE_FLAG_INHERIT, 0);
 
-  // Calculate terminal size
-  const auto geometry = calculateTerminalGeometry(_textDisplay);
-  const int cols = geometry.cols;
-  const int rows = geometry.rows;
-  _textDisplay->setViewportRowCountOverride(rows);
+  constexpr int cols = 80;
+  constexpr int rows = 25;
 
   // Create the pseudoconsole
   COORD consoleSize = {static_cast<SHORT>(cols), static_cast<SHORT>(rows)};
@@ -458,22 +457,20 @@ void PowerShellWidget::startPowerShell() {
   // Connect the IO device to QVTerminal
   _textDisplay->setIODevice(_ptyDevice);
 
-  if (geometry.usedFallback) {
-    QTimer::singleShot(0, this, [this]() {
-      if (!_hPseudoConsole || !_textDisplay) {
-        return;
-      }
-      const auto refreshedGeometry = calculateTerminalGeometry(_textDisplay);
-      _textDisplay->setViewportRowCountOverride(refreshedGeometry.rows);
-      COORD newSize = {static_cast<SHORT>(refreshedGeometry.cols),
-                       static_cast<SHORT>(refreshedGeometry.rows)};
-      HRESULT hr = pfnResizePseudoConsole(_hPseudoConsole, newSize);
-      if (FAILED(hr)) {
-        LOG_ERROR(Log::ErrorId::Gui,
-                  "Failed to apply deferred pseudoconsole resize: {:x}", hr);
-      }
-    });
-  }
+  QTimer::singleShot(0, this, [this]() {
+    if (!_hPseudoConsole || !_textDisplay) {
+      return;
+    }
+    const auto refreshedGeometry = calculateTerminalGeometry(_textDisplay);
+    _textDisplay->setViewportRowCountOverride(refreshedGeometry.rows);
+    COORD newSize = {static_cast<SHORT>(refreshedGeometry.cols),
+                     static_cast<SHORT>(refreshedGeometry.rows)};
+    HRESULT hr = pfnResizePseudoConsole(_hPseudoConsole, newSize);
+    if (FAILED(hr)) {
+      LOG_ERROR(Log::ErrorId::Gui,
+                "Failed to apply deferred pseudoconsole resize: {:x}", hr);
+    }
+  });
 
   LOG_INFO("PowerShell started with ConPTY, child process handle: {}",
            (void *)_childProcess);
@@ -599,7 +596,9 @@ void PowerShellWidget::resizeEvent(QResizeEvent *event) {
   QWidget::resizeEvent(event);
 
   // Update PTY size when widget is resized
-  if (_hPseudoConsole && _textDisplay) {
+  if (_hPseudoConsole && _textDisplay &&
+      _textDisplay->viewport()->height() > 0 &&
+      _textDisplay->viewport()->width() > 0) {
     const auto geometry = calculateTerminalGeometry(_textDisplay);
     _textDisplay->setViewportRowCountOverride(geometry.rows);
 

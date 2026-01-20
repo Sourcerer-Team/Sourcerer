@@ -12,6 +12,12 @@
 
 #include <limits.h>
 
+struct TerminalGeometry {
+  int cols = 80;
+  int rows = 25;
+  bool usedFallback = false;
+};
+
 class QVTerminal : public QAbstractScrollArea {
   Q_OBJECT
 
@@ -60,11 +66,6 @@ protected slots:
                               int len = INT_MAX);
 
   void toggleCursor();
-
-  void logViewportState(const char *tag, int viewportHeight, int contentHeight,
-                        int oldValue, int oldMax, int newMax, int viewportRows,
-                        int targetValue, int targetRaw, int anchorRows,
-                        int anchorValue, bool wasAtBottom, bool wasAtTop);
 
 private:
   QIODevice *_device;
