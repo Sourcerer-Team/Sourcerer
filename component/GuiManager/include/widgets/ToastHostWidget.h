@@ -60,6 +60,10 @@ private:
 public:
   bool showing() const override { return true; };
 
+protected:
+  void adjustToParent() override;
+  void resizeEvent(QResizeEvent *event) override;
+
 private:
   int _yOffset;
   ToastPosition _position;

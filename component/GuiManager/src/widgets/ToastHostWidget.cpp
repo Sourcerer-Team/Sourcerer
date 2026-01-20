@@ -14,6 +14,10 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#ifdef Q_OS_LINUX
+#include <QWindow>
+#endif
+
 #define THREAD_ID "ToastHostWidget"
 
 #define ALPHA 255
@@ -122,32 +126,82 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
     }
   }
 
-  // Get the host widget's global position
-  QPoint hostPos = mapToGlobal(QPoint(0, 0));
-  int xPos = hostPos.x();
-  int yPos = hostPos.y();
+  // Calculate global position based on parent widget, not ToastHostWidget
+  const QWidget *parent = parentWidget();
+  if (!parent) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Walk up to find the actual top-level window (MainWindow)
+  const QWidget *topLevel = parent;
+  while (topLevel->parentWidget() != nullptr) {
+    topLevel = topLevel->parentWidget();
+  }
+
+  QPoint topLevelGlobalPos = topLevel->mapToGlobal(QPoint(0, 0));
+  
+  int xPos = topLevelGlobalPos.x();
+  int yPos = topLevelGlobalPos.y();
+
+  LOG_DEBUG("ToastHostWidget::addToLayout - Toast size: {}x{}, TopLevel global pos: ({}, {}), TopLevel size: {}x{}", 
+            toast->width(), toast->height(), topLevelGlobalPos.x(), topLevelGlobalPos.y(), topLevel->width(), topLevel->height());
 
   // Adjust based on position preference
   if (_position == ToastPosition::BottomRight ||
       _position == ToastPosition::TopRight) {
-    xPos += width() - toast->width() - 8;
+    xPos += topLevel->width() - toast->width() - 16;  // 16px margin from right
   } else if (_position == ToastPosition::BottomLeft ||
              _position == ToastPosition::TopLeft) {
-    xPos += 16;
+    xPos += 16;  // 16px margin from left
+  } else {
+    // Center horizontally
+    xPos += (topLevel->width() - toast->width()) / 2;
   }
 
   if (_position == ToastPosition::Bottom ||
       _position == ToastPosition::BottomLeft ||
       _position == ToastPosition::BottomRight) {
-    yPos += height() - yOffset - toast->height();
+    yPos += topLevel->height() - yOffset - toast->height() - 16;  // 16px margin from bottom
   } else {
-    yPos += yOffset;
+    yPos += _yOffset + yOffset;
   }
 
-  // Set the position for the top-level window
-  toast->move(xPos, yPos);
+  LOG_DEBUG("ToastHostWidget::addToLayout - Final toast position: ({}, {})", xPos, yPos);
 
-  animateWidget(toast);
+#ifdef Q_OS_LINUX
+  // Linux-specific: Direct window positioning to work around X11 window manager issues
+  // Show the window first to ensure it has a window handle
+  toast->show();
+  
+  // Position both the window handle and widget for redundancy
+  QWindow *window = toast->windowHandle();
+  if (window) {
+    window->setPosition(xPos, yPos);
+  }
+  toast->move(xPos, yPos);
+  
+  toast->raise();
+  toast->activateWindow();
+  
+  // Verify position after event loop processes (X11 WM may interfere)
+  QTimer::singleShot(100, [toast, xPos, yPos]() {
+    QWindow *window = toast->windowHandle();
+    if (toast->x() != xPos || toast->y() != yPos) {
+      toast->move(xPos, yPos);
+      if (window) {
+        window->setPosition(xPos, yPos);
+      }
+    }
+  });
+#else
+  // Windows and macOS: Simple positioning works reliably
+  toast->move(xPos, yPos);
+  toast->show();
+  toast->raise();
+#endif
+
+  //animateWidget(toast);
 
   LOG_PERF(0, "Exit");
 }
@@ -164,17 +218,45 @@ void ToastHostWidget::animateWidget(QWidget *widget) const {
 
   widget->hide();
 
-  // Start position: fully outside to the left
+  // Walk up to find the actual top-level window (MainWindow)
+  const QWidget *parent = parentWidget();
+  if (!parent) {
+    widget->show();
+    LOG_PERF(0, "Exit");
+    return;
+  }
+  
+  const QWidget *topLevel = parent;
+  while (topLevel->parentWidget() != nullptr) {
+    topLevel = topLevel->parentWidget();
+  }
+
+  QPoint topLevelGlobalPos = topLevel->mapToGlobal(QPoint(0, 0));
+  int startX = targetX;
+
+  // Start position: fully outside based on position preference
   if (_position == ToastPosition::TopLeft ||
       _position == ToastPosition::BottomLeft) {
-    widget->setGeometry(-targetWidth, targetY, targetWidth, targetHeight);
+    // Slide in from the left
+    startX = topLevelGlobalPos.x() - targetWidth;
   } else if (_position == ToastPosition::TopRight ||
              _position == ToastPosition::BottomRight) {
-    widget->setGeometry(width(), targetY, targetWidth, targetHeight);
+    // Slide in from the right
+    startX = topLevelGlobalPos.x() + topLevel->width();
   } else if (_position == ToastPosition::Top) {
-    widget->setGeometry(targetX, -targetHeight, targetWidth, targetHeight);
+    // Slide in from the top (use targetX for horizontal position)
+    widget->setGeometry(targetX, topLevelGlobalPos.y() - targetHeight, targetWidth, targetHeight);
   } else {
-    widget->setGeometry(targetX, height(), targetWidth, targetHeight);
+    // Slide in from the bottom
+    widget->setGeometry(targetX, topLevelGlobalPos.y() + topLevel->height(), targetWidth, targetHeight);
+  }
+
+  // Set initial geometry for left/right animations
+  if (_position == ToastPosition::TopLeft ||
+      _position == ToastPosition::BottomLeft ||
+      _position == ToastPosition::TopRight ||
+      _position == ToastPosition::BottomRight) {
+    widget->setGeometry(startX, targetY, targetWidth, targetHeight);
   }
 
   const qlonglong toastAnimationDuration =
@@ -186,20 +268,20 @@ void ToastHostWidget::animateWidget(QWidget *widget) const {
   if (_position == ToastPosition::TopLeft ||
       _position == ToastPosition::BottomLeft) {
     animation->setStartValue(
-        QRect(-targetWidth, targetY, targetWidth, targetHeight));
+        QRect(startX, targetY, targetWidth, targetHeight));
     animation->setEndValue(QRect(targetX, targetY, targetWidth, targetHeight));
   } else if (_position == ToastPosition::TopRight ||
              _position == ToastPosition::BottomRight) {
     animation->setStartValue(
-        QRect(width(), targetY, targetWidth, targetHeight));
+        QRect(startX, targetY, targetWidth, targetHeight));
     animation->setEndValue(QRect(targetX, targetY, targetWidth, targetHeight));
   } else if (_position == ToastPosition::Top) {
     animation->setStartValue(
-        QRect(targetX, -targetHeight, targetWidth, targetHeight));
+        QRect(targetX, topLevelGlobalPos.y() - targetHeight, targetWidth, targetHeight));
     animation->setEndValue(QRect(targetX, targetY, targetWidth, targetHeight));
   } else {
     animation->setStartValue(
-        QRect(targetX, height(), targetWidth, targetHeight));
+        QRect(targetX, topLevelGlobalPos.y() + topLevel->height(), targetWidth, targetHeight));
     animation->setEndValue(QRect(targetX, targetY, targetWidth, targetHeight));
   }
 
@@ -230,10 +312,21 @@ void ToastHostWidget::addToast(ToastWidget *toast) {
   const int toastHeight =
       _configManager.getLong(ConfigManager::ConfigKey::ToastHeight);
 
-  // Don't setParent - keep toast as independent top-level window
-  // Just ensure window flags are set correctly
-  toast->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
-                        Qt::Tool);
+  // Platform-specific window configuration
+  toast->setParent(nullptr);
+  
+#ifdef Q_OS_LINUX
+  // Linux-specific: Use Qt::Popup to bypass X11 window manager positioning
+  // On Linux, X11 window managers can interfere with Qt::Window positioning,
+  // placing windows where they want rather than where we specify.
+  // Qt::Popup widgets are exempt from window manager control and position exactly where told.
+  toast->setWindowFlags(Qt::Popup | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+#else
+  // Windows and macOS: Use standard Qt::Tool flag
+  toast->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+#endif
+  
+  toast->setWindowModality(Qt::NonModal);
   toast->setAttribute(Qt::WA_TransparentForMouseEvents, false);
 
   toast->setFixedWidth(toastWidth);
@@ -268,10 +361,21 @@ void ToastHostWidget::addToast(const QSharedPointer<ToastWidget> &toast) {
   const int toastHeight =
       _configManager.getLong(ConfigManager::ConfigKey::ToastHeight);
 
-  // Don't setParent - keep toast as independent top-level window
-  // Just ensure window flags are set correctly
-  toast->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
-                        Qt::Tool);
+  // Platform-specific window configuration
+  toast->setParent(nullptr);
+  
+#ifdef Q_OS_LINUX
+  // Linux-specific: Use Qt::Popup to bypass X11 window manager positioning
+  // On Linux, X11 window managers can interfere with Qt::Window positioning,
+  // placing windows where they want rather than where we specify.
+  // Qt::Popup widgets are exempt from window manager control and position exactly where told.
+  toast->setWindowFlags(Qt::Popup | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+#else
+  // Windows and macOS: Use standard Qt::Tool flag
+  toast->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+#endif
+  
+  toast->setWindowModality(Qt::NonModal);
   toast->setAttribute(Qt::WA_TransparentForMouseEvents, false);
 
   toast->setFixedWidth(toastWidth);
@@ -351,6 +455,68 @@ void ToastHostWidget::setYOffset(const int offset) {
 
   move(x(), _yOffset);
 
+  LOG_PERF(0, "Exit");
+}
+
+void ToastHostWidget::adjustToParent() {
+  LOG_PERF(0, "Enter");
+
+  const auto *p = parentWidget();
+  if (!p) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Calculate the size needed for the toast host widget
+  // It should be sized to fit the toasts, positioned in the corner
+  const int toastWidth =
+      _configManager.getLong(ConfigManager::ConfigKey::ToastWidth);
+  const int hostWidth = toastWidth + 24;  // Add padding
+  const int hostHeight = p->height() - _yOffset;
+
+  // Position based on the configured position
+  int xPos = 0;
+  int yPos = _yOffset;
+
+  switch (_position) {
+  case ToastPosition::BottomRight:
+  case ToastPosition::TopRight: {
+    xPos = p->width() - hostWidth;
+    break;
+  }
+  case ToastPosition::BottomLeft:
+  case ToastPosition::TopLeft: {
+    xPos = 0;
+    break;
+  }
+  case ToastPosition::Top:
+  case ToastPosition::Bottom: {
+    xPos = (p->width() - hostWidth) / 2;
+    break;
+  }
+  default: {
+    xPos = p->width() - hostWidth;
+    break;
+  }
+  }
+
+  LOG_DEBUG("ToastHostWidget::adjustToParent - Parent: {}x{}, Position: {}, Setting geometry: x={}, y={}, w={}, h={}", 
+            p->width(), p->height(), static_cast<int>(_position), xPos, yPos, hostWidth, hostHeight);
+
+  // Set geometry to position in corner instead of filling parent
+  setGeometry(xPos, yPos, hostWidth, hostHeight);
+  raise();
+
+  LOG_PERF(0, "Exit");
+}
+
+void ToastHostWidget::resizeEvent(QResizeEvent *event) {
+  LOG_PERF(0, "Enter");
+  
+  // Don't call the base class (OverlayWidget) implementation which resizes to match parent
+  // Skip directly to QWidget::resizeEvent
+  QWidget::resizeEvent(event);
+  
   LOG_PERF(0, "Exit");
 }
 

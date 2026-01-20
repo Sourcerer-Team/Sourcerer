@@ -89,7 +89,7 @@ protected:
     return QWidget::eventFilter(watched, event);
   }
 
-  void adjustToParent() {
+  virtual void adjustToParent() {
     if (const auto *p = parentWidget()) {
       setGeometry(p->rect()); // fills entire parent
       raise();
