@@ -173,16 +173,26 @@ void QVTerminal::appendData(const QByteArray &data) {
             QColor foreground = _curentFormat.foreground();
             _curentFormat.setForeground(_curentFormat.background());
             _curentFormat.setBackground(foreground);
-          } else if ((_formatValue >= 30 && _formatValue <= 37) ||
-                     (_formatValue >= 90 && _formatValue <= 97)) // foreground
+          } else if (_formatValue >= 30 &&
+                     _formatValue <= 37) // standard foreground
           {
             _curentFormat.setForeground(
-                vt100color(static_cast<char>(_formatValue % 10) + '0'));
-          } else if ((_formatValue >= 30 && _formatValue <= 37) ||
-                     (_formatValue >= 100 && _formatValue <= 107)) // background
+                vt100color(static_cast<char>(_formatValue % 10) + '0', false));
+          } else if (_formatValue >= 90 &&
+                     _formatValue <= 97) // bright foreground
+          {
+            _curentFormat.setForeground(
+                vt100color(static_cast<char>(_formatValue % 10) + '0', true));
+          } else if (_formatValue >= 40 &&
+                     _formatValue <= 47) // standard background
           {
             _curentFormat.setBackground(
-                vt100color(static_cast<char>(_formatValue % 10) + '0'));
+                vt100color(static_cast<char>(_formatValue % 10) + '0', false));
+          } else if (_formatValue >= 100 &&
+                     _formatValue <= 107) // bright background
+          {
+            _curentFormat.setBackground(
+                vt100color(static_cast<char>(_formatValue % 10) + '0', true));
           }
 
           _state = QVTerminal::Text;
@@ -366,32 +376,44 @@ void QVTerminal::clear() {
   setUpdatesEnabled(true);
 }
 
-QColor QVTerminal::vt100color(char c) {
+QColor QVTerminal::vt100color(char c, bool bright) {
+  QColor color;
   switch (c) {
+  case '0':
+    color = bright ? QColor(128, 128, 128) : QColor(Qt::black);
+    break;
   case '1':
-    return QColor(Qt::red);
-
+    color = QColor(Qt::red);
+    break;
   case '2':
-    return QColor(Qt::green);
-
+    color = QColor(Qt::green);
+    break;
   case '3':
-    return QColor(Qt::yellow);
-
+    color = QColor(Qt::yellow);
+    break;
   case '4':
-    return QColor(Qt::blue);
-
+    color = QColor(Qt::blue);
+    break;
   case '5':
-    return QColor(Qt::magenta);
-
+    color = QColor(Qt::magenta);
+    break;
   case '6':
-    return QColor(Qt::cyan);
-
+    color = QColor(Qt::cyan);
+    break;
   case '7':
-    return QColor(Qt::white);
-
+    color = QColor(Qt::white);
+    break;
   default:
-    return QColor(Qt::black);
+    color = QColor(Qt::black);
+    break;
   }
+
+  // Make bright colors lighter (except black which is handled specially)
+  if (bright && c != '0') {
+    color = color.lighter(150);
+  }
+
+  return color;
 }
 
 void QVTerminal::read() {
@@ -453,8 +475,12 @@ void QVTerminal::setCursorPos(int x, int y) {
 void QVTerminal::setCursorPos(QPoint cursorPos) {
   if (cursorPos != _cursorPos) {
     _cursorPos = cursorPos;
-    _layout->lineAt(_cursorPos.y())
-        .resize(_cursorPos.x(), _format); // ensure line exists
+    // Ensure the line exists and has enough capacity for cursor position
+    // Don't truncate - only expand if needed
+    QVTLine &line = _layout->lineAt(_cursorPos.y());
+    if (line.size() < _cursorPos.x()) {
+      line.resize(_cursorPos.x(), _curentFormat);
+    }
     emit cursorMoved(cursorPos);
   }
 }

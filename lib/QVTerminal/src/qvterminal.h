@@ -128,7 +128,7 @@ protected:
   // QAbstractScrollArea interface
 protected:
   bool viewportEvent(QEvent *event) override;
-  QColor vt100color(char c);
+  QColor vt100color(char c, bool bright = false);
 };
 
 #endif // QVTERMINAL_H
