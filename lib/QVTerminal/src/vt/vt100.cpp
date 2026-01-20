@@ -9,40 +9,48 @@ QByteArray VT100::dataFromKey(const QString &text, int key,
   QByteArray data;
 
   switch (key) {
-  case Qt::Key_Up:
-    data.append(0x1B);
-    data.append('[');
-    data.append('A');
-    break;
-
-  case Qt::Key_Down:
-    data.append(0x1B);
-    data.append('[');
-    data.append('B');
-    break;
-
-  case Qt::Key_Right:
-    data.append(0x1B);
-    data.append('[');
-    data.append('C');
-    break;
-
-  case Qt::Key_Left:
-    data.append(0x1B);
-    data.append('[');
-    data.append('D');
-    break;
-
-  case Qt::Key_Home:
-    data.append(0x01);
-    break;
-
-  case Qt::Key_End:
-    data.append(0x05);
-    break;
-
   case Qt::Key_Backspace:
-    data.append(127);
+    data.append('\x7f');
+    break;
+  case Qt::Key_Tab:
+    data.append('\t');
+    break;
+  case Qt::Key_Return:
+  case Qt::Key_Enter:
+    data.append('\r');
+    break;
+  case Qt::Key_Escape:
+    data.append('\x1b');
+    break;
+  case Qt::Key_Up:
+    data.append("\x1b[A");
+    break;
+  case Qt::Key_Down:
+    data.append("\x1b[B");
+    break;
+  case Qt::Key_Right:
+    data.append("\x1b[C");
+    break;
+  case Qt::Key_Left:
+    data.append("\x1b[D");
+    break;
+  case Qt::Key_Home:
+    data.append("\x1b[H");
+    break;
+  case Qt::Key_End:
+    data.append("\x1b[F");
+    break;
+  case Qt::Key_PageUp:
+    data.append("\x1b[5~");
+    break;
+  case Qt::Key_PageDown:
+    data.append("\x1b[6~");
+    break;
+  case Qt::Key_Insert:
+    data.append("\x1b[2~");
+    break;
+  case Qt::Key_Delete:
+    data.append("\x1b[3~");
     break;
 
   default:

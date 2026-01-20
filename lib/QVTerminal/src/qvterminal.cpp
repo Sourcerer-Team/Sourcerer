@@ -58,6 +58,10 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   _viewportRowCountOverride = 0;
 
   viewport()->setCursor(QCursor(Qt::IBeamCursor));
+
+  // Enable keyboard input and prevent Tab from switching focus
+  setFocusPolicy(Qt::StrongFocus);
+  viewport()->setFocusPolicy(Qt::StrongFocus);
 }
 
 QVTerminal::~QVTerminal() {}
@@ -503,6 +507,8 @@ void QVTerminal::setFormat(const QVTCharFormat &format) {
 }
 
 void QVTerminal::keyPressEvent(QKeyEvent *event) {
+  event->accept(); // Prevent Qt from processing this event further
+
   QByteArray data;
   QString text = event->text();
 
@@ -517,8 +523,6 @@ void QVTerminal::keyPressEvent(QKeyEvent *event) {
   }
 
   writeData(data);
-
-  // QAbstractScrollArea::keyPressEvent(event);
 }
 
 void QVTerminal::paintEvent(QPaintEvent *paintEvent) {
@@ -591,6 +595,18 @@ void QVTerminal::paintEvent(QPaintEvent *paintEvent) {
     p.fillRect(QRect(_cursorPos.x() * _cw, _cursorPos.y() * _ch, _cw, _ch),
                QColor(187, 187, 187, 187));
   }
+}
+
+bool QVTerminal::event(QEvent *e) {
+  // Intercept Tab and Backtab before Qt's focus system handles them
+  if (e->type() == QEvent::KeyPress) {
+    QKeyEvent *keyEvent = static_cast<QKeyEvent *>(e);
+    if (keyEvent->key() == Qt::Key_Tab || keyEvent->key() == Qt::Key_Backtab) {
+      keyPressEvent(keyEvent);
+      return true;
+    }
+  }
+  return QAbstractScrollArea::event(e);
 }
 
 void QVTerminal::resizeEvent(QResizeEvent *event) {
