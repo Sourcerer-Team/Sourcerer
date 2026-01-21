@@ -5868,6 +5868,9 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
     return;
   }
 
+  refreshHistory(guard);
+  refreshStatus(guard);
+
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
     showToast(tr("Git repository is up to-date."), tr("Info"));

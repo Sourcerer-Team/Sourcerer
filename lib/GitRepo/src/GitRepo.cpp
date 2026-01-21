@@ -3086,33 +3086,10 @@ bool pull(git_repository *repo) {
     return false;
   }
 
-  // Step 1: Get current branch
-  git_reference *head = nullptr;
-
-  int error = git_repository_head(&head, repo);
-  if (error) {
-    logGitError(error);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  // Step 2: Get upstream tracking branch
-  git_reference *upstream = nullptr;
-
-  error = git_branch_upstream(&upstream, head);
-  if (error != 0) {
-    git_reference_free(head);
-    logGitError(error);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  // Step 3: Fetch from remote
+  // Step 1: Fetch from remote
   git_remote *remote = nullptr;
-  error = git_remote_lookup(&remote, repo, "origin");
+  int error = git_remote_lookup(&remote, repo, "origin");
   if (error != 0) {
-    git_reference_free(upstream);
-    git_reference_free(head);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
@@ -3129,6 +3106,8 @@ bool pull(git_repository *repo) {
     error = git_remote_fetch(remote, nullptr, &fetchOpts, nullptr);
 
     if (error) {
+      logGitError(error);
+
       gGitCredentialsMutex.lock();
       gGitCredentials.remove(url);
       gGitCredentialsMutex.unlock();
@@ -3143,9 +3122,50 @@ bool pull(git_repository *repo) {
 
   if (error) {
     git_remote_free(remote);
-    git_reference_free(upstream);
-    git_reference_free(head);
     logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Step 2: Get current branch
+  git_reference *head = nullptr;
+
+  error = git_repository_head(&head, repo);
+  if (error) {
+    logGitError(error);
+    git_remote_free(remote);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const char *branchName = nullptr;
+
+  error = git_branch_name(&branchName, head);
+  if (error != 0) {
+    logGitError(error);
+    git_remote_free(remote);
+    git_reference_free(head);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!branchName) {
+    git_remote_free(remote);
+    git_reference_free(head);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Step 3: Get upstream tracking branch
+  git_reference *upstream = nullptr;
+
+  error = git_reference_lookup(
+      &upstream, repo,
+      QString("refs/remotes/origin/%1").arg(branchName).toStdString().c_str());
+  if (error != 0) {
+    logGitError(error);
+    git_remote_free(remote);
+    git_reference_free(head);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -3155,10 +3175,10 @@ bool pull(git_repository *repo) {
 
   error = git_annotated_commit_from_ref(&upstreamCommit, repo, upstream);
   if (error) {
-    git_remote_free(remote);
-    git_reference_free(upstream);
-    git_reference_free(head);
     logGitError(error);
+    git_remote_free(remote);
+    git_reference_free(head);
+    git_reference_free(upstream);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -3171,11 +3191,11 @@ bool pull(git_repository *repo) {
       &analysis, &preference, repo,
       const_cast<const git_annotated_commit **>(&upstreamCommit), 1);
   if (error) {
-    git_annotated_commit_free(upstreamCommit);
-    git_remote_free(remote);
-    git_reference_free(upstream);
-    git_reference_free(head);
     logGitError(error);
+    git_remote_free(remote);
+    git_reference_free(head);
+    git_reference_free(upstream);
+    git_annotated_commit_free(upstreamCommit);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -3184,10 +3204,10 @@ bool pull(git_repository *repo) {
     // Fast-forward
     const git_oid *targetOid = git_annotated_commit_id(upstreamCommit);
     if (!targetOid) {
-      git_annotated_commit_free(upstreamCommit);
       git_remote_free(remote);
-      git_reference_free(upstream);
       git_reference_free(head);
+      git_reference_free(upstream);
+      git_annotated_commit_free(upstreamCommit);
       LOG_ERROR(Log::ErrorId::Git, "Can't get target OID for fast-forward");
       LOG_PERF(0, "Exit");
       return false;
@@ -3197,11 +3217,11 @@ bool pull(git_repository *repo) {
 
     error = git_commit_lookup(&targetCommit, repo, targetOid);
     if (error) {
-      git_annotated_commit_free(upstreamCommit);
-      git_remote_free(remote);
-      git_reference_free(upstream);
-      git_reference_free(head);
       logGitError(error);
+      git_remote_free(remote);
+      git_reference_free(head);
+      git_reference_free(upstream);
+      git_annotated_commit_free(upstreamCommit);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -3211,12 +3231,12 @@ bool pull(git_repository *repo) {
 
     error = git_checkout_tree(repo, (git_object *)targetCommit, &checkout_opts);
     if (error) {
-      git_commit_free(targetCommit);
-      git_annotated_commit_free(upstreamCommit);
-      git_remote_free(remote);
-      git_reference_free(upstream);
-      git_reference_free(head);
       logGitError(error);
+      git_remote_free(remote);
+      git_reference_free(head);
+      git_reference_free(upstream);
+      git_annotated_commit_free(upstreamCommit);
+      git_commit_free(targetCommit);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -3225,12 +3245,12 @@ bool pull(git_repository *repo) {
 
     error = git_reference_set_target(&newHead, head, targetOid, "Fast-forward");
     if (error) {
-      git_commit_free(targetCommit);
-      git_annotated_commit_free(upstreamCommit);
-      git_remote_free(remote);
-      git_reference_free(upstream);
-      git_reference_free(head);
       logGitError(error);
+      git_remote_free(remote);
+      git_reference_free(head);
+      git_reference_free(upstream);
+      git_annotated_commit_free(upstreamCommit);
+      git_commit_free(targetCommit);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -3261,10 +3281,10 @@ bool pull(git_repository *repo) {
   }
 
   // Cleanup
-  git_annotated_commit_free(upstreamCommit);
-  git_reference_free(upstream);
-  git_reference_free(head);
   git_remote_free(remote);
+  git_reference_free(head);
+  git_reference_free(upstream);
+  git_annotated_commit_free(upstreamCommit);
 
   LOG_PERF(0, "Exit");
 
