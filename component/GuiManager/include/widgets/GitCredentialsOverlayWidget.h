@@ -34,7 +34,7 @@ public:
   void start();
   void stop();
 
-  void onCancelClicked() const;
+  void onCancelClicked();
   void onSubmitClicked() const;
 
   void eventCallback(EventManager::Event event);
@@ -54,6 +54,7 @@ private:
   PersistentPlaceholderLineEdit *_usernameLineEdit;
   PersistentPlaceholderLineEdit *_passwordLineEdit;
   OpaquePushButton *_submitButton;
+  OpaquePushButton *_cancelButton;
   OpaqueLabel *_message;
   GitRepo::GitCredentialsRequest _request;
   bool _showing;

@@ -64,13 +64,12 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   _submitButton->setIcon(QPixmap(":icons/ok.png"));
   _submitButton->setFlat(false);
 
-  const auto pushButtonCancel =
-      new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
-  pushButtonCancel->setObjectName("pushButtonTextOverlayWidgetInputCancel");
-  pushButtonCancel->setMaximumWidth(32);
-  pushButtonCancel->setMaximumHeight(32);
-  pushButtonCancel->setIcon(QPixmap(":icons/cancel.png"));
-  pushButtonCancel->setFlat(false);
+  _cancelButton = new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  _cancelButton->setObjectName("pushButtonTextOverlayWidgetInputCancel");
+  _cancelButton->setMaximumWidth(32);
+  _cancelButton->setMaximumHeight(32);
+  _cancelButton->setIcon(QPixmap(":icons/cancel.png"));
+  _cancelButton->setFlat(false);
 
   const auto horizontalLayout = new QHBoxLayout();
   horizontalLayout->setAlignment(Qt::AlignCenter);
@@ -79,7 +78,7 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   horizontalLayout->addWidget(_usernameLineEdit);
   horizontalLayout->addWidget(_passwordLineEdit);
   horizontalLayout->addWidget(_submitButton);
-  horizontalLayout->addWidget(pushButtonCancel);
+  horizontalLayout->addWidget(_cancelButton);
 
   const auto horizontalLayoutMessage = new QHBoxLayout();
   horizontalLayoutMessage->setAlignment(Qt::AlignCenter);
@@ -102,7 +101,7 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
 
   connect(_submitButton, &QPushButton::clicked, this,
           &GitCredentialsOverlayWidget::onSubmitClicked);
-  connect(pushButtonCancel, &QPushButton::clicked, this,
+  connect(_cancelButton, &QPushButton::clicked, this,
           &GitCredentialsOverlayWidget::onCancelClicked);
 
   _usernameLineEdit->installEventFilter(this);
@@ -176,7 +175,7 @@ void GitCredentialsOverlayWidget::stop() {
   LOG_PERF(0, "Exit");
 }
 
-void GitCredentialsOverlayWidget::onCancelClicked() const {
+void GitCredentialsOverlayWidget::onCancelClicked() {
   LOG_PERF(0, "Enter");
 
   GitRepo::GitCredentialsErrorResponse response;
@@ -251,6 +250,11 @@ void GitCredentialsOverlayWidget::keyPressEvent(QKeyEvent *event) {
       _submitButton->click();
       return;
     }
+  } else if (event->key() == Qt::Key_Escape) {
+    if (_cancelButton) {
+      _cancelButton->click();
+    }
+    return;
   }
 
   OverlayWidget::keyPressEvent(event);
