@@ -14,7 +14,8 @@ TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _openAction(nullptr), _cloneAction(nullptr), _initAction(nullptr),
       _saveWorkspaceAction(nullptr), _settingsAction(nullptr),
-      _terminalAction(nullptr), _aboutAction(nullptr) {
+      _credentialsAction(nullptr), _terminalAction(nullptr),
+      _aboutAction(nullptr) {
   LOG_PERF(0, "Enter");
 
   setMouseTracking(true);
@@ -98,6 +99,14 @@ void TitleBarMenuButton::onSettings() {
   LOG_PERF(0, "Exit");
 }
 
+void TitleBarMenuButton::onCredentials() {
+  LOG_PERF(0, "Enter");
+
+  emit credentials();
+
+  LOG_PERF(0, "Exit");
+}
+
 void TitleBarMenuButton::onTerminal() {
   LOG_PERF(0, "Enter");
 
@@ -153,6 +162,11 @@ void TitleBarMenuButton::createActions() {
   connect(_terminalAction, &QAction::triggered, this,
           &TitleBarMenuButton::onTerminal);
 
+  _credentialsAction = new QAction(this);
+  _credentialsAction->setText(tr("Credentials manager"));
+  connect(_credentialsAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onCredentials);
+
   _aboutAction = new QAction(this);
   _aboutAction->setText(tr("About"));
   connect(_aboutAction, &QAction::triggered, this,
@@ -187,6 +201,9 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addSeparator();
   menu->addAction(_settingsAction);
   menu->addAction(_terminalAction);
+  menu->addSeparator();
+  menu->addAction(_credentialsAction);
+  menu->addSeparator();
   menu->addAction(_aboutAction);
 
   const qlonglong menuMinimumWidth =

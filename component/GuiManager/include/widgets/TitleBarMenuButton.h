@@ -26,6 +26,7 @@ signals:
   void init();
   void saveWorkspace();
   void settings();
+  void credentials();
   void terminal();
   void about();
 
@@ -36,6 +37,7 @@ private slots:
   void onInit();
   void onSaveWorkspace();
   void onSettings();
+  void onCredentials();
   void onTerminal();
   void onAbout();
 
@@ -52,6 +54,7 @@ private:
   QAction *_initAction;
   QAction *_saveWorkspaceAction;
   QAction *_settingsAction;
+  QAction *_credentialsAction;
   QAction *_terminalAction;
   QAction *_aboutAction;
 };

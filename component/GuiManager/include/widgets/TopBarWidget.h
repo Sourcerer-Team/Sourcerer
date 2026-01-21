@@ -30,6 +30,7 @@ signals:
   void init();
   void saveWorkspace();
   void settings();
+  void credentials();
   void terminal();
   void about();
 

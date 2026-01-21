@@ -51,6 +51,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/MainWindow.h
         include/QScintillaLexerFactory.h
         include/containers/CloneGitRepoContainer.h
+        include/containers/GitCredentialsContainer.h
         include/containers/GitRepoContainer.h
         include/containers/HomeContainer.h
         include/containers/InitGitRepoContainer.h
@@ -135,6 +136,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/MainWindow.cpp
         src/QScintillaLexerFactory.cpp
         src/containers/CloneGitRepoContainer.cpp
+        src/containers/GitCredentialsContainer.cpp
         src/containers/GitRepoContainer.cpp
         src/containers/HomeContainer.cpp
         src/containers/InitGitRepoContainer.cpp

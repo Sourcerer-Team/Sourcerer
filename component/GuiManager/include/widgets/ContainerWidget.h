@@ -7,6 +7,7 @@ namespace GuiManager::Widgets {
 enum class ContainerType {
   Unknown = 0,
   Clone,
+  GitCredentials,
   GitRepo,
   Home,
   InitGitRepo,

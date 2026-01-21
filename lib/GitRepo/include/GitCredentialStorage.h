@@ -72,6 +72,22 @@ public:
   void clearAll();
 
   /**
+   * @brief Get all stored repository paths
+   * @return List of repository paths that have stored credentials
+   */
+  QList<QString> getAllRepositoryPaths() const;
+
+  /**
+   * @brief Get credentials info for a repository (without password)
+   * @param repoPath The absolute path to the repository
+   * @param username Output parameter for username
+   * @param createdTime Output parameter for creation timestamp
+   * @return true if credentials exist
+   */
+  bool getCredentialsInfo(const QString &repoPath, QString &username,
+                          qint64 &createdTime) const;
+
+  /**
    * @brief Check if credentials have expired
    * @param repoPath The absolute path to the repository
    * @param expirationTimeMs Expiration time in milliseconds

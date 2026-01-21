@@ -97,6 +97,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
           &TopBarWidget::saveWorkspace);
   connect(_titleBarWidget, &TitlebarWidget::settings, this,
           &TopBarWidget::settings);
+  connect(_titleBarWidget, &TitlebarWidget::credentials, this,
+          &TopBarWidget::credentials);
   connect(_titleBarWidget, &TitlebarWidget::terminal, this,
           &TopBarWidget::terminal);
   connect(_titleBarWidget, &TitlebarWidget::about, this, &TopBarWidget::about);

@@ -201,6 +201,27 @@ bool GitCredentialStorage::areCredentialsExpired(
   return expired;
 }
 
+QList<QString> GitCredentialStorage::getAllRepositoryPaths() const {
+  LOCKGUARD(_mutex);
+  return _credentials.keys();
+}
+
+bool GitCredentialStorage::getCredentialsInfo(const QString &repoPath,
+                                              QString &username,
+                                              qint64 &createdTime) const {
+  LOCKGUARD(_mutex);
+
+  if (!_credentials.contains(repoPath)) {
+    return false;
+  }
+
+  const Credentials &cred = _credentials[repoPath];
+  username = cred.username;
+  createdTime = cred.createdTime;
+
+  return true;
+}
+
 void GitCredentialStorage::loadPersistedCredentials() {
   LOG_PERF(0, "Enter");
 
