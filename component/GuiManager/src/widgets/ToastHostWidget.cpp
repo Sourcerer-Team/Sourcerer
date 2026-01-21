@@ -316,11 +316,10 @@ void ToastHostWidget::addToast(ToastWidget *toast) {
   toast->setParent(nullptr);
   
 #ifdef Q_OS_LINUX
-  // Linux-specific: Use Qt::Popup to bypass X11 window manager positioning
-  // On Linux, X11 window managers can interfere with Qt::Window positioning,
-  // placing windows where they want rather than where we specify.
-  // Qt::Popup widgets are exempt from window manager control and position exactly where told.
-  toast->setWindowFlags(Qt::Popup | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+  // Linux-specific: Use Qt::ToolTip to bypass X11 window manager positioning
+  // Qt::ToolTip allows multiple windows to coexist (unlike Qt::Popup which is exclusive)
+  // and bypasses window manager positioning like Qt::Popup does.
+  toast->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
 #else
   // Windows and macOS: Use standard Qt::Tool flag
   toast->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
@@ -365,11 +364,10 @@ void ToastHostWidget::addToast(const QSharedPointer<ToastWidget> &toast) {
   toast->setParent(nullptr);
   
 #ifdef Q_OS_LINUX
-  // Linux-specific: Use Qt::Popup to bypass X11 window manager positioning
-  // On Linux, X11 window managers can interfere with Qt::Window positioning,
-  // placing windows where they want rather than where we specify.
-  // Qt::Popup widgets are exempt from window manager control and position exactly where told.
-  toast->setWindowFlags(Qt::Popup | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+  // Linux-specific: Use Qt::ToolTip to bypass X11 window manager positioning
+  // Qt::ToolTip allows multiple windows to coexist (unlike Qt::Popup which is exclusive)
+  // and bypasses window manager positioning like Qt::Popup does.
+  toast->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
 #else
   // Windows and macOS: Use standard Qt::Tool flag
   toast->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
@@ -541,12 +539,79 @@ void ToastHostWidget::onToastStopped(ToastWidget *toast) {
     delete toast;
   }
 
-  // Reposition all remaining toasts
+#ifdef Q_OS_LINUX
+  // Linux-specific: For bottom positions, recalculate positions from bottom up
+  if (_position == ToastPosition::Bottom ||
+      _position == ToastPosition::BottomLeft ||
+      _position == ToastPosition::BottomRight) {
+    
+    // Get parent and top-level window for position calculation
+    const QWidget *parent = parentWidget();
+    if (parent) {
+      const QWidget *topLevel = parent;
+      while (topLevel->parentWidget() != nullptr) {
+        topLevel = topLevel->parentWidget();
+      }
+      
+      QPoint topLevelGlobalPos = topLevel->mapToGlobal(QPoint(0, 0));
+      const int toastSpacing = 8;
+      
+      // Position each toast from the newest (bottom) to oldest (top)
+      // For each toast, calculate yOffset as the sum of all toasts BELOW it
+      for (int i = _toasts.size() - 1; i >= 0; --i) {
+        ToastWidget *currentToast = _toasts[i];
+        if (!currentToast || !currentToast->isVisible()) {
+          continue;
+        }
+        
+        // Calculate yOffset: sum of heights of all toasts below this one
+        int yOffset = _yOffset;
+        for (int j = _toasts.size() - 1; j > i; --j) {
+          ToastWidget *belowToast = _toasts[j];
+          if (belowToast && belowToast->isVisible()) {
+            yOffset += belowToast->height() + toastSpacing;
+          }
+        }
+        
+        // Calculate positions using the exact same formula as addToLayout
+        int xPos = topLevelGlobalPos.x();
+        
+        // Calculate X position based on alignment
+        if (_position == ToastPosition::BottomRight) {
+          xPos += topLevel->width() - currentToast->width() - 16;
+        } else if (_position == ToastPosition::BottomLeft) {
+          xPos += 16;
+        } else {
+          xPos += (topLevel->width() - currentToast->width()) / 2;
+        }
+        
+        // Calculate Y position: same formula as addToLayout
+        int yPos = topLevelGlobalPos.y() + topLevel->height() - yOffset - currentToast->height() - 16;
+        
+        QWindow *window = currentToast->windowHandle();
+        if (window) {
+          window->setPosition(xPos, yPos);
+        }
+        currentToast->move(xPos, yPos);
+        currentToast->raise();
+      }
+    }
+  } else {
+    // Top positions: Recalculate all positions
+    for (ToastWidget *existingToast : _toasts) {
+      if (existingToast && existingToast->isVisible()) {
+        addToLayout(existingToast);
+      }
+    }
+  }
+#else
+  // Windows/macOS: Reposition all remaining toasts using original logic
   for (ToastWidget *existingToast : _toasts) {
     if (existingToast && existingToast->isVisible()) {
       addToLayout(existingToast);
     }
   }
+#endif
 
   // Try to display waiting toasts that now have space
   while (!_waitingToasts.isEmpty()) {
