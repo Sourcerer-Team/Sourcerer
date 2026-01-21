@@ -746,7 +746,7 @@ void MainWindow::addGitCredentialsContainer() {
   container->selected();
   container->setupShortcuts();
   _containers += container;
-  _topBarWidget->titleBarWidget()->addTab(tr("Git Credentials"));
+  _topBarWidget->titleBarWidget()->addTab(tr("Git credentials"));
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 

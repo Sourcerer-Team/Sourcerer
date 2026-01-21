@@ -7,8 +7,9 @@
 #include <QStandardItemModel>
 #include <QWidget>
 
-class QTableView;
-class QPushButton;
+namespace Ui {
+class GitCredentialsContainer;
+}
 
 namespace GuiManager {
 
@@ -33,13 +34,10 @@ private slots:
 
 private:
   void loadCredentials();
-  void setupUi();
 
 private:
-  QTableView *_tableView;
+  Ui::GitCredentialsContainer *ui;
   QStandardItemModel *_model;
-  QPushButton *_deleteButton;
-  QPushButton *_refreshButton;
 
   GitRepo::GitCredentialStorage &_credentialStorage;
 };

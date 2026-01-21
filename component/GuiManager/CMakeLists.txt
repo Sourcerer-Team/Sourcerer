@@ -18,6 +18,7 @@ set(QRC_FILES resources/resources.qrc)
 
 set(UI_FILES
         src/containers/CloneGitRepoContainer.ui
+        src/containers/GitCredentialsContainer.ui
         src/containers/GitRepoContainer.ui
         src/containers/HomeContainer.ui
         src/containers/InitGitRepoContainer.ui
