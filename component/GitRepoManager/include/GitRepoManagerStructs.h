@@ -16,6 +16,7 @@ enum class GitRepoCommandType : int {
   Unknown = 0,
   AbortMerge,
   AddSubmodule,
+  Amend,
   ApplyPatch,
   ApplyStash,
   CheckoutBranch,
@@ -102,6 +103,17 @@ struct GitRepoAddSubmoduleCommand final : GitRepoCommand {
 
   QString url;
   QString name;
+};
+
+struct GitRepoAmendCommand final : GitRepoCommand {
+  GitRepoAmendCommand() : GitRepoCommand(GitRepoCommandType::Amend) {}
+
+  ~GitRepoAmendCommand() override = default;
+
+  QString author;
+  QString email;
+  QString summary;
+  QString message;
 };
 
 struct GitRepoApplyPatchCommand final : GitRepoCommand {

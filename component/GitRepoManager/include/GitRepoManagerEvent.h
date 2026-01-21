@@ -11,6 +11,7 @@ enum class EventType : int {
   ChangeState = 0,
   AbortMerge,
   AddSubmodule,
+  Amend,
   ApplyPatch,
   ApplyStash,
   CheckoutBranch,

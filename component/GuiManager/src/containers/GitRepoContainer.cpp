@@ -947,14 +947,20 @@ void GitRepoContainer::onCommitButtonClicked() {
       _userProfileManager.currentProfile();
   const QString summary = ui->lineEditSummary->text().trimmed();
   const QString description = ui->textEditDescription->toPlainText().trimmed();
+  const bool toAmend = _checkBoxAmend->isChecked();
 
   const WeakPtr guard = getSelf().toWeakRef();
 
   startOverlayTimer();
 
   _dispatcher.dispatch([=]() {
-    commit(guard, summary, description, currentProfile.author,
-           currentProfile.email, false);
+    if (toAmend) {
+      amend(guard, summary, description, currentProfile.author,
+            currentProfile.email);
+    } else {
+      commit(guard, summary, description, currentProfile.author,
+             currentProfile.email, false);
+    }
   });
 
   LOG_PERF(0, "Exit");
@@ -3127,6 +3133,87 @@ void GitRepoContainer::addSubmodule(const WeakPtr &guard, const QString &url,
                                          [&]() { showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::amend(const WeakPtr &guard, const QString &summary,
+                             const QString &description, const QString &author,
+                             const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoAmendCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.author = author;
+  command.email = email;
+  command.summary = summary;
+  command.message = description;
+
+  EventManager::Event amendEvent(EventManager::EventType::GitRepoManagerAmend,
+                                 eventUuid);
+  amendEvent.addData(command);
+  _eventManager.send(amendEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerAmendError,
+                           EventManager::EventType::GitRepoManagerAmendResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
+      showErrorToast(tr("Failed to amend changes."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerAmendResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(
+          QString("%1\n%2").arg(tr("Failed to amend changes."), error.message),
+          tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const bool commitSuccess = commandResult.value.toBool();
+
+  if (!commitSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to amend changes."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    if (commitSuccess) {
+      clearSummaryAndDescription();
+    }
+    showSpinnerOverlay(false);
+    ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::History));
+  });
+
+  LOG_PERF(0, "Exit")
 }
 
 void GitRepoContainer::applyPatch(const WeakPtr &guard,
@@ -6358,6 +6445,7 @@ void GitRepoContainer::resetCommitButton() const {
       _commitStagedListModel->rowCount() > 0 &&
       (!ui->lineEditSummary->text().isEmpty() ||
        !ui->textEditDescription->toPlainText().isEmpty()));
+  _checkBoxAmend->setVisible(!_mergeInProgress);
 
   LOG_PERF(0, "Exit")
 }

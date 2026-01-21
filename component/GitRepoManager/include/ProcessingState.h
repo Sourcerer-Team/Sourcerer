@@ -27,6 +27,7 @@ public:
 private:
   void abortMergeWorker(const Structs::GitRepoAbortMergeCommand &command);
   void addSubmoduleWorker(const Structs::GitRepoAddSubmoduleCommand &command);
+  void amendWorker(const Structs::GitRepoAmendCommand &command);
   void applyPatchWorker(const Structs::GitRepoApplyPatchCommand &command);
   void applyStashWorker(const Structs::GitRepoApplyStashCommand &command);
   void
@@ -104,6 +105,7 @@ private:
   scheduleWorkerForAbortMerge(const Structs::GitRepoAbortMergeCommand &command);
   void scheduleWorkerForAddSubmodule(
       const Structs::GitRepoAddSubmoduleCommand &command);
+  void scheduleWorkerForAmend(const Structs::GitRepoAmendCommand &command);
   void
   scheduleWorkerForApplyPatch(const Structs::GitRepoApplyPatchCommand &command);
   void

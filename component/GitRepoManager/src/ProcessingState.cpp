@@ -90,6 +90,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForAddSubmodule(addSubmoduleCommand);
     break;
   }
+  case EventType::Amend: {
+    const auto amendCommand = event.nextParam<GitRepoAmendCommand>();
+    scheduleWorkerForAmend(amendCommand);
+    break;
+  }
   case EventType::ApplyPatch: {
     const auto applyPatchCommand = event.nextParam<GitRepoApplyPatchCommand>();
     scheduleWorkerForApplyPatch(applyPatchCommand);
@@ -444,6 +449,42 @@ void ProcessingState::addSubmoduleWorker(
         command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type,
                                       QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::amendWorker(const Structs::GitRepoAmendCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerAmendError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::amend(repo, command.summary, command.message,
+                                      command.author, command.email);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerAmendError, command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerAmendResult, command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type, true});
     _eventManager.send(resultEvent);
   }
 
@@ -2786,6 +2827,25 @@ void ProcessingState::scheduleWorkerForAddSubmodule(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForAmend(
+    const Structs::GitRepoAmendCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerAmendError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoAmendCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForApplyPatch(
     const Structs::GitRepoApplyPatchCommand &command) {
   LOG_PERF(0, "Enter");
@@ -3492,6 +3552,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoAddSubmoduleCommand *>(command);
       if (addSubmoduleCommand) {
         addSubmoduleWorker(*addSubmoduleCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::Amend: {
+      const auto amendCommand =
+          dynamic_cast<const GitRepoAmendCommand *>(command);
+      if (amendCommand) {
+        amendWorker(*amendCommand);
       }
       break;
     }

@@ -5021,4 +5021,108 @@ bool abortMerge(git_repository *repo) {
   return true;
 }
 
+bool amend(git_repository *repo, const QString &summary, const QString &message,
+           const QString &author, const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  git_commit *commitToAmend = nullptr;
+  git_oid commitOid;
+  git_oid newCommitOid;
+  git_tree *tree = nullptr;
+  const git_signature *authorSig = nullptr;
+  git_signature *committerSig = nullptr;
+
+  // 1. Get the HEAD commit (the one to amend)
+  int error = git_reference_name_to_id(&commitOid, repo, "HEAD");
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_commit_lookup(&commitToAmend, repo, &commitOid);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // 2. Get the tree to commit (your staged changes)
+  git_index *index = nullptr;
+
+  error = git_repository_index(&index, repo);
+  if (error) {
+    logGitError(error);
+    git_commit_free(commitToAmend);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_oid treeOid;
+
+  error = git_index_write_tree(&treeOid, index);
+  if (error) {
+    logGitError(error);
+    git_commit_free(commitToAmend);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_tree_lookup(&tree, repo, &treeOid);
+  if (error) {
+    logGitError(error);
+    git_commit_free(commitToAmend);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // 3. Create committer signature (or use nullptr to keep original)
+  error = git_signature_now(&committerSig, author.toStdString().c_str(),
+                            email.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    git_commit_free(commitToAmend);
+    git_index_free(index);
+    git_tree_free(tree);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  authorSig = git_commit_author(commitToAmend);
+
+  // 4. Amend the commit
+  error = git_commit_amend(
+      &newCommitOid,
+      commitToAmend, // Commit to amend
+      "HEAD",        // Update HEAD reference
+      authorSig,     // Keep original author (or provide new one)
+      committerSig,  // New committer (or nullptr to keep original)
+      nullptr,       // Use default encoding
+      summary.toStdString()
+          .c_str(), // Keep original message (or provide new one)
+      tree          // New tree (or nullptr to keep original)
+  );
+  if (error) {
+    logGitError(error);
+    git_commit_free(commitToAmend);
+    git_index_free(index);
+    git_tree_free(tree);
+    git_signature_free(committerSig);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Cleanup
+  git_commit_free(commitToAmend);
+  git_index_free(index);
+  git_tree_free(tree);
+  git_signature_free(committerSig);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
 } // namespace GitRepo

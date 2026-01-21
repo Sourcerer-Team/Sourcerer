@@ -164,6 +164,9 @@ void initForCurrentThread();
 
 void shutdownForCurrentThread();
 
+bool amend(git_repository *repo, const QString &summary, const QString &message,
+           const QString &author, const QString &email);
+
 bool applyStash(git_repository *repo, int index);
 
 bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,

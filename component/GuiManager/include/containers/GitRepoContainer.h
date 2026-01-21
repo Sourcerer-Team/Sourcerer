@@ -178,6 +178,9 @@ private:
   void abortMerge(const WeakPtr &guard);
   void addSubmodule(const WeakPtr &guard, const QString &url,
                     const QString &name);
+  void amend(const WeakPtr &guard, const QString &summary,
+             const QString &description, const QString &author,
+             const QString &email);
   void applyPatch(const WeakPtr &guard, const QString &filePath);
   void applyStash(
       const WeakPtr &guard, int stashIndex,

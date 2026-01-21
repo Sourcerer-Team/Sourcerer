@@ -24,6 +24,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAddSubmodule, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerAmend, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyPatch, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyStash, callbackFunc));
@@ -136,6 +138,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerAbortMerge, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAddSubmodule, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerAmend, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyPatch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -280,6 +284,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent addSubmoduleEvent(EventType::AddSubmodule);
     addSubmoduleEvent.addParam(QVariant::fromValue(addSubmoduleCommand));
     _fsm.send(addSubmoduleEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerAmend: {
+    const auto amendCommand = event.data<GitRepoAmendCommand>();
+    GitRepoManagerEvent amendEvent(EventType::Amend);
+    amendEvent.addParam(QVariant::fromValue(amendCommand));
+    _fsm.send(amendEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerApplyPatch: {
