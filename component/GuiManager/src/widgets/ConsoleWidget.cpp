@@ -58,7 +58,7 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
       "border-radius: 2px; }"
       "QPushButton:hover { background-color: #3e3e42; }"
       "QPushButton:pressed { background-color: #007acc; }");
-  _closeButton->setCursor(Qt::PointingHandCursor);
+  _closeButton->setCursor(Qt::ArrowCursor);
 
   titleBarLayout->addWidget(_closeButton);
 

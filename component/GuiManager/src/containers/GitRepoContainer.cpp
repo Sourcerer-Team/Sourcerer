@@ -179,23 +179,17 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _checkBoxAmend =
       new QCheckBox(tr("Amend previous commit"), ui->tabWidgetCommit);
-  _checkBoxAmend->setCursor(Qt::PointingHandCursor);
 
   ui->tabWidgetCommit->setCornerWidget(_checkBoxAmend);
   ui->tabWidgetCommit->tabBar()->setObjectName("tabWidgetCommitTabBar");
-  ui->tabWidgetCommit->tabBar()->setCursor(Qt::PointingHandCursor);
   ui->tabWidgetIndex->tabBar()->setObjectName("tabWidgetIndexTabBar");
-  ui->tabWidgetIndex->tabBar()->setCursor(Qt::PointingHandCursor);
   ui->tabWidgetWorkingTree->tabBar()->setObjectName(
       "tabWidgetWorkingTreeTabBar");
-  ui->tabWidgetWorkingTree->tabBar()->setCursor(Qt::PointingHandCursor);
 
   _commitAndMergeWorkingDirTreeStageAllButton =
       new QPushButton(tr("Stage all"), ui->tabWidgetWorkingTree);
   _commitAndMergeWorkingDirTreeStageAllButton->setObjectName(
       "commitAndMergeWorkingDirTreeStageAllButton");
-  _commitAndMergeWorkingDirTreeStageAllButton->setCursor(
-      Qt::PointingHandCursor);
   _commitAndMergeWorkingDirTreeStageAllButton->setFlat(false);
   _commitAndMergeWorkingDirTreeStageAllButton->setVisible(true);
 
@@ -223,7 +217,6 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       new QPushButton(tr("Unstage all"), ui->tabWidgetIndex);
   _commitAndMergeIndexTreeUnstageAllButton->setObjectName(
       "commitAndMergeIndexTreeUnstageAllButton");
-  _commitAndMergeIndexTreeUnstageAllButton->setCursor(Qt::PointingHandCursor);
   _commitAndMergeIndexTreeUnstageAllButton->setFlat(false);
   _commitAndMergeIndexTreeUnstageAllButton->setVisible(true);
 
@@ -246,7 +239,6 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _displayTreeExpandAllButton =
       new QPushButton(tr("Expand all"), ui->tabWidgetPageDisplayFiles);
-  _displayTreeExpandAllButton->setCursor(Qt::PointingHandCursor);
   _displayTreeExpandAllButton->setFlat(true);
   _displayTreeExpandAllButton->setVisible(
       ui->tabWidgetPageDisplayFiles->currentIndex() != 0);
