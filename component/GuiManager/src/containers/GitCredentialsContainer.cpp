@@ -28,15 +28,17 @@ GitCredentialsContainer::GitCredentialsContainer(QWidget *parent)
 
   // Configure table view
   ui->tableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
-  ui->tableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+  ui->tableView->horizontalHeader()->setSectionResizeMode(0,
+                                                          QHeaderView::Stretch);
 
   // Connect signals
   connect(ui->refreshButton, &QPushButton::clicked, this,
           &GitCredentialsContainer::onRefreshClicked);
   connect(ui->deleteButton, &QPushButton::clicked, this,
           &GitCredentialsContainer::onDeleteClicked);
-  connect(ui->tableView->selectionModel(), &QItemSelectionModel::selectionChanged,
-          this, &GitCredentialsContainer::onSelectionChanged);
+  connect(ui->tableView->selectionModel(),
+          &QItemSelectionModel::selectionChanged, this,
+          &GitCredentialsContainer::onSelectionChanged);
 
   loadCredentials();
 
@@ -48,7 +50,6 @@ GitCredentialsContainer::~GitCredentialsContainer() {
   delete ui;
   LOG_PERF(0, "Exit");
 }
-
 
 void GitCredentialsContainer::loadCredentials() {
   LOG_PERF(0, "Enter");
@@ -91,7 +92,8 @@ void GitCredentialsContainer::loadCredentials() {
 
   // Resize columns to content, except first column which stretches
   ui->tableView->resizeColumnsToContents();
-  ui->tableView->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+  ui->tableView->horizontalHeader()->setSectionResizeMode(0,
+                                                          QHeaderView::Stretch);
 
   LOG_PERF(0, "Exit");
 }
@@ -137,7 +139,8 @@ void GitCredentialsContainer::onRefreshClicked() {
 }
 
 void GitCredentialsContainer::onSelectionChanged() {
-  bool hasSelection = !ui->tableView->selectionModel()->selectedRows().isEmpty();
+  bool hasSelection =
+      !ui->tableView->selectionModel()->selectedRows().isEmpty();
   ui->deleteButton->setEnabled(hasSelection);
 }
 

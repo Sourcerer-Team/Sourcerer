@@ -41,6 +41,13 @@ set(PLATFORM_SOURCES
 )
 endif()
 
+if(UNIX AND NOT APPLE)
+set(PLATFORM_SOURCES 
+        include/widgets/linux/BashShellWidget.h 
+        src/widgets/linux/BashShellWidget.cpp
+)
+endif()
+
 
 set(GUIMANAGER_SOURCE_FILES
         include/Constants.h

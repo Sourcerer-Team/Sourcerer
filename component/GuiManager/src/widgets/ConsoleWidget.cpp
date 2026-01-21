@@ -3,6 +3,10 @@
 #include "widgets/win32/PowerShellWidget.h"
 #endif
 
+#ifdef Q_OS_LINUX
+#include "widgets/linux/BashShellWidget.h"
+#endif
+
 #include <Log.h>
 
 #include <QHBoxLayout>
@@ -21,6 +25,10 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
       ,
       _powerShellWidget(nullptr)
 #endif
+#ifdef Q_OS_LINUX
+      ,
+      _bashShellWidget(nullptr)
+#endif
 {
   LOG_PERF(0, "Enter");
 
@@ -36,7 +44,13 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
   _titleBar->setFixedHeight(28); // Fixed height for title bar
 
   // Add title label
+#ifdef Q_OS_WIN
   auto *titleLabel = new QLabel("PowerShell Console", _titleBar);
+#elif defined(Q_OS_LINUX)
+  auto *titleLabel = new QLabel("Bash Console", _titleBar);
+#else
+  auto *titleLabel = new QLabel("Console", _titleBar);
+#endif
   titleLabel->setStyleSheet(
       "color: white; font-weight: bold; font-size: 12px;");
   titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -83,10 +97,25 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
           &ConsoleWidget::consoleStopped);
   connect(_powerShellWidget, &Win32::PowerShellWidget::errorOccurred, this,
           &ConsoleWidget::consoleError);
+#elif defined(Q_OS_LINUX)
+  // Create and add Bash shell widget
+  _bashShellWidget = new Linux::BashShellWidget(this);
+  _bashShellWidget->setSizePolicy(QSizePolicy::Expanding,
+                                  QSizePolicy::Expanding);
+  layout->addWidget(_bashShellWidget,
+                    1); // Stretch factor 1 to take remaining space
+
+  // Connect signals
+  connect(_bashShellWidget, &Linux::BashShellWidget::processStarted, this,
+          &ConsoleWidget::consoleStarted);
+  connect(_bashShellWidget, &Linux::BashShellWidget::processStopped, this,
+          &ConsoleWidget::consoleStopped);
+  connect(_bashShellWidget, &Linux::BashShellWidget::errorOccurred, this,
+          &ConsoleWidget::consoleError);
 #else
-  // On non-Windows platforms, show a message
+  // On unsupported platforms, show a message
   auto *label =
-      new QLabel("PowerShell console is only available on Windows", this);
+      new QLabel("Terminal console is not available on this platform", this);
   label->setAlignment(Qt::AlignCenter);
   label->setStyleSheet("color: gray; font-size: 14px;");
   layout->addWidget(label);
@@ -108,6 +137,10 @@ void ConsoleWidget::init() {
   if (_powerShellWidget) {
     _powerShellWidget->init();
   }
+#elif defined(Q_OS_LINUX)
+  if (_bashShellWidget) {
+    _bashShellWidget->init();
+  }
 #endif
 
   LOG_PERF(0, "Exit");
@@ -122,6 +155,12 @@ bool ConsoleWidget::executeCommand(const QString &command) {
     LOG_PERF(0, "Exit");
     return result;
   }
+#elif defined(Q_OS_LINUX)
+  if (_bashShellWidget) {
+    bool result = _bashShellWidget->executeCommand(command);
+    LOG_PERF(0, "Exit");
+    return result;
+  }
 #endif
 
   LOG_PERF(0, "Exit");
@@ -132,6 +171,10 @@ bool ConsoleWidget::isConsoleRunning() const {
 #ifdef Q_OS_WIN
   if (_powerShellWidget) {
     return _powerShellWidget->isRunning();
+  }
+#elif defined(Q_OS_LINUX)
+  if (_bashShellWidget) {
+    return _bashShellWidget->isRunning();
   }
 #endif
   return false;
@@ -144,6 +187,10 @@ void ConsoleWidget::restartConsole() {
   if (_powerShellWidget) {
     _powerShellWidget->restart();
   }
+#elif defined(Q_OS_LINUX)
+  if (_bashShellWidget) {
+    _bashShellWidget->restart();
+  }
 #endif
 
   LOG_PERF(0, "Exit");
@@ -155,6 +202,10 @@ void ConsoleWidget::setWorkingDirectory(const QString &path) {
   if (_powerShellWidget) {
     _powerShellWidget->setWorkingDirectory(path);
   }
+#elif defined(Q_OS_LINUX)
+  if (_bashShellWidget) {
+    _bashShellWidget->setWorkingDirectory(path);
+  }
 #endif
 
   LOG_PERF(0, "Exit");
@@ -162,6 +213,12 @@ void ConsoleWidget::setWorkingDirectory(const QString &path) {
 #ifdef Q_OS_WIN
 Win32::PowerShellWidget *ConsoleWidget::getPowerShellWidget() const {
   return _powerShellWidget;
+}
+#endif
+
+#ifdef Q_OS_LINUX
+Linux::BashShellWidget *ConsoleWidget::getBashShellWidget() const {
+  return _bashShellWidget;
 }
 #endif
 
@@ -174,6 +231,13 @@ void ConsoleWidget::setFocusToConsole() {
     // setting focus
     QTimer::singleShot(0, _powerShellWidget,
                        [this]() { _powerShellWidget->setFocusToInput(); });
+  }
+#elif defined(Q_OS_LINUX)
+  if (_bashShellWidget) {
+    // Use QTimer::singleShot to ensure the widget is fully visible before
+    // setting focus
+    QTimer::singleShot(0, _bashShellWidget,
+                       [this]() { _bashShellWidget->setFocusToInput(); });
   }
 #endif
 

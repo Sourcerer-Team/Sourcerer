@@ -76,6 +76,7 @@ private:
     Escape,
     Format,
     ResetFont,
+    OSC, // Operating System Command (ESC ] ... BEL/ST)
   };
   State _state;
   int _formatValue;
@@ -90,6 +91,7 @@ private:
   int _cw;
   int _ch;
   QPoint _cursorPos;
+  QPoint _savedCursorPos; // For ESC 7 / ESC 8 (save/restore cursor)
   QTimer _cursorTimer;
   bool _cvisible;
   int _viewportRowCountOverride;

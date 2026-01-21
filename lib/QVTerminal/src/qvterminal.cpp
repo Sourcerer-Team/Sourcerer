@@ -24,6 +24,7 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   _device = Q_NULLPTR;
 
   setCursorPos(QPoint(0, 0));
+  _savedCursorPos = QPoint(0, 0);
   _cursorTimer.start(QGuiApplication::styleHints()->cursorFlashTime() / 2);
   _cvisible = true;
   connect(&_cursorTimer, &QTimer::timeout, this, &QVTerminal::toggleCursor);
@@ -150,7 +151,34 @@ void QVTerminal::appendData(const QByteArray &data) {
         _state = QVTerminal::Format;
       } else if (c == '(') {
         _state = QVTerminal::ResetFont;
+      } else if (c == ']') {
+        // OSC - Operating System Command (e.g., window title)
+        _state = QVTerminal::OSC;
+      } else if (c == '7') {
+        // ESC 7 = Save cursor position
+        _savedCursorPos = _cursorPos;
+        _state = QVTerminal::Text;
+      } else if (c == '8') {
+        // ESC 8 = Restore cursor position
+        setCursorPos(_savedCursorPos);
+        _state = QVTerminal::Text;
+      } else {
+        // Unknown escape sequence, return to Text state
+        _state = QVTerminal::Text;
       }
+      break;
+
+    case QVTerminal::OSC:
+      // OSC sequences are terminated by BEL (0x07) or ST (ESC \)
+      if (c == '\x07') {
+        // BEL terminates OSC
+        _state = QVTerminal::Text;
+      } else if (c == '\\' && _formatValue == 0x1B) {
+        // ST (ESC \) terminates OSC
+        _state = QVTerminal::Text;
+      }
+      // Store last character to detect ST sequence
+      _formatValue = c.unicode();
       break;
 
     case QVTerminal::Format:

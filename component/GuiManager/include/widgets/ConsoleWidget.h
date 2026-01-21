@@ -9,11 +9,16 @@ namespace Win32 {
 class PowerShellWidget;
 }
 
+namespace Linux {
+class BashShellWidget;
+}
+
 /**
- * @brief A widget that displays an embedded PowerShell console
+ * @brief A widget that displays an embedded terminal console
  *
- * This widget provides a container for the PowerShellWidget,
- * making it easy to integrate a PowerShell console into the application.
+ * This widget provides a container for platform-specific terminal widgets:
+ * - PowerShellWidget on Windows
+ * - BashShellWidget on Linux
  */
 class ConsoleWidget : public QWidget {
   Q_OBJECT
@@ -23,25 +28,25 @@ public:
   ~ConsoleWidget() override;
 
   /**
-   * @brief Initializes the console widget and starts PowerShell
+   * @brief Initializes the console widget and starts the shell
    */
   void init();
 
   /**
-   * @brief Executes a PowerShell command in the embedded console
-   * @param command The PowerShell command to execute
+   * @brief Executes a command in the embedded console
+   * @param command The command to execute
    * @return true if command was sent successfully, false otherwise
    */
   bool executeCommand(const QString &command);
 
   /**
-   * @brief Checks if the PowerShell console is running
+   * @brief Checks if the console is running
    * @return true if running, false otherwise
    */
   bool isConsoleRunning() const;
 
   /**
-   * @brief Restarts the PowerShell console
+   * @brief Restarts the console
    */
   void restartConsole();
 
@@ -51,17 +56,25 @@ public:
   void setFocusToConsole();
 
   /**
-   * @brief Sets the working directory for the PowerShell console
+   * @brief Sets the working directory for the console
    * @param path The working directory path
    */
   void setWorkingDirectory(const QString &path);
 
 #ifdef Q_OS_WIN
   /**
-   * @brief Gets the PowerShell widget instance
+   * @brief Gets the PowerShell widget instance (Windows only)
    * @return Pointer to the PowerShellWidget, or nullptr if not available
    */
   Win32::PowerShellWidget *getPowerShellWidget() const;
+#endif
+
+#ifdef Q_OS_LINUX
+  /**
+   * @brief Gets the Bash shell widget instance (Linux only)
+   * @return Pointer to the BashShellWidget, or nullptr if not available
+   */
+  Linux::BashShellWidget *getBashShellWidget() const;
 #endif
 
 signals:
@@ -78,6 +91,10 @@ private:
 
 #ifdef Q_OS_WIN
   Win32::PowerShellWidget *_powerShellWidget;
+#endif
+
+#ifdef Q_OS_LINUX
+  Linux::BashShellWidget *_bashShellWidget;
 #endif
 };
 
