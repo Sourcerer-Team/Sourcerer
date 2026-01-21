@@ -236,6 +236,8 @@ private:
   bool getTags();
   QStringList getSubdirectories(const QString &path,
                                 const QStringList &excluded) const;
+  QStringList getAllFiles(const QString &path,
+                          const QStringList &excluded) const;
   QPair<QString, QString> getUpstream(const WeakPtr &guard);
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);

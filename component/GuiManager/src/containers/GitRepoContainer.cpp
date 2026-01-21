@@ -5569,6 +5569,39 @@ GitRepoContainer::getSubdirectories(const QString &path,
   return paths;
 }
 
+QStringList GitRepoContainer::getAllFiles(const QString &path,
+                                          const QStringList &excluded) const {
+  LOG_PERF(0, "Enter");
+
+  QStringList files;
+
+  QDirIterator it(path, QDir::Files | QDir::NoDotAndDotDot | QDir::NoSymLinks,
+                  QDirIterator::Subdirectories);
+
+  while (it.hasNext()) {
+    const QString filePath = it.next();
+    const QString relativePath = QDir(_path).relativeFilePath(filePath);
+
+    // Check if file is in excluded directory
+    bool shouldExclude = false;
+    for (const QString &excludedDir : excluded) {
+      if (relativePath.startsWith(excludedDir + "/") ||
+          relativePath == excludedDir) {
+        shouldExclude = true;
+        break;
+      }
+    }
+
+    if (!shouldExclude) {
+      files += filePath;
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return files;
+}
+
 QPair<QString, QString> GitRepoContainer::getUpstream(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
@@ -6256,10 +6289,17 @@ void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
     _repoDirWatcher = new QFileSystemWatcher(this);
     connect(_repoDirWatcher, &QFileSystemWatcher::directoryChanged, this,
             &GitRepoContainer::onRepoDirChanged);
-    const QStringList paths =
+    connect(_repoDirWatcher, &QFileSystemWatcher::fileChanged, this,
+            &GitRepoContainer::onRepoDirChanged);
+    
+    // Watch all subdirectories except .git to detect file additions/deletions
+    const QStringList directories =
         getSubdirectories(_path, QStringList() << GIT_SUBDIR);
-
-    _repoDirWatcher->addPaths(paths);
+    _repoDirWatcher->addPaths(directories);
+    
+    // Watch all files recursively (excluding .git directory) to detect modifications
+    const QStringList files = getAllFiles(_path, QStringList() << GIT_SUBDIR);
+    _repoDirWatcher->addPaths(files);
 #endif
   });
 
