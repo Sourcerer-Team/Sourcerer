@@ -179,12 +179,16 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _checkBoxAmend =
       new QCheckBox(tr("Amend previous commit"), ui->tabWidgetCommit);
+  _checkBoxAmend->setCursor(Qt::PointingHandCursor);
 
   ui->tabWidgetCommit->setCornerWidget(_checkBoxAmend);
   ui->tabWidgetCommit->tabBar()->setObjectName("tabWidgetCommitTabBar");
+  ui->tabWidgetCommit->tabBar()->setCursor(Qt::PointingHandCursor);
   ui->tabWidgetIndex->tabBar()->setObjectName("tabWidgetIndexTabBar");
+  ui->tabWidgetIndex->tabBar()->setCursor(Qt::PointingHandCursor);
   ui->tabWidgetWorkingTree->tabBar()->setObjectName(
       "tabWidgetWorkingTreeTabBar");
+  ui->tabWidgetWorkingTree->tabBar()->setCursor(Qt::PointingHandCursor);
 
   _commitAndMergeWorkingDirTreeStageAllButton =
       new QPushButton(tr("Stage all"), ui->tabWidgetWorkingTree);
