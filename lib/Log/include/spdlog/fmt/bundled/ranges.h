@@ -75,8 +75,8 @@ OutputIterator copy(wchar_t ch, OutputIterator out) {
 /// Return true value if T has std::string interface, like std::string_view.
 template <typename T> class is_std_string_like {
   template <typename U>
-  static auto check(U *p) -> decltype((void)p->find('a'), p->length(),
-                                      (void)p->data(), int());
+  static auto check(U *p)
+      -> decltype((void)p->find('a'), p->length(), (void)p->data(), int());
   template <typename> static void check(...);
 
 public:
@@ -94,9 +94,7 @@ template <typename T, typename _ = void> struct is_range_ : std::false_type {};
 #if !FMT_MSC_VER || FMT_MSC_VER > 1800
 
 #define FMT_DECLTYPE_RETURN(val)                                               \
-  ->decltype(val) {                                                            \
-    return val;                                                                \
-  }                                                                            \
+  ->decltype(val) { return val; }                                              \
   static_assert(true,                                                          \
                 "") // This makes it so that a semicolon is required after the
                     // macro, which helps clang-format handle the formatting.
@@ -438,15 +436,15 @@ FMT_MODULE_EXPORT_BEGIN
   \endrst
  */
 template <typename... T>
-FMT_CONSTEXPR auto join(const std::tuple<T...> &tuple,
-                        string_view sep) -> tuple_join_view<char, T...> {
+FMT_CONSTEXPR auto join(const std::tuple<T...> &tuple, string_view sep)
+    -> tuple_join_view<char, T...> {
   return {tuple, sep};
 }
 
 template <typename... T>
-FMT_CONSTEXPR auto
-join(const std::tuple<T...> &tuple,
-     basic_string_view<wchar_t> sep) -> tuple_join_view<wchar_t, T...> {
+FMT_CONSTEXPR auto join(const std::tuple<T...> &tuple,
+                        basic_string_view<wchar_t> sep)
+    -> tuple_join_view<wchar_t, T...> {
   return {tuple, sep};
 }
 
@@ -462,8 +460,8 @@ join(const std::tuple<T...> &tuple,
   \endrst
  */
 template <typename T>
-auto join(std::initializer_list<T> list,
-          string_view sep) -> join_view<const T *, const T *> {
+auto join(std::initializer_list<T> list, string_view sep)
+    -> join_view<const T *, const T *> {
   return join(std::begin(list), std::end(list), sep);
 }
 

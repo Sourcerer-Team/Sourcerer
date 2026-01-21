@@ -15,8 +15,8 @@ template <> struct fmt::formatter<QString> {
   }
 
   template <typename FormatContext>
-  auto format(const QString &str,
-              FormatContext &ctx) const -> decltype(ctx.out()) {
+  auto format(const QString &str, FormatContext &ctx) const
+      -> decltype(ctx.out()) {
     return fmt::format_to(ctx.out(), "{}", str.toStdString());
   }
 };

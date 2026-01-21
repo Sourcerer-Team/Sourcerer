@@ -21,7 +21,7 @@ public:
   explicit QScintillaLexerFactory(QObject *parent = nullptr);
   ~QScintillaLexerFactory();
 
-         // Main factory methods
+  // Main factory methods
   QsciLexer *createLexerForFile(const QString &filePath,
                                 QObject *parent = nullptr) const;
   QsciLexer *createLexerForExtension(const QString &extension,
@@ -90,12 +90,12 @@ private:
   QsciLexer *createPovLexer(QObject *parent) const;
   QsciLexer *createSpiceLexer(QObject *parent) const;
 
-         // Helper methods
+  // Helper methods
   void initializeExtensionMappings();
   void initializeLexerDescriptions();
   QsciLexer *createLexerByType(const QString &lexerName, QObject *parent) const;
 
-         // Member variables
+  // Member variables
   QHash<QString, QString> _extensionToLexer;  // extension -> lexer name
   QHash<QString, QString> _lexerDescriptions; // lexer name -> description
 

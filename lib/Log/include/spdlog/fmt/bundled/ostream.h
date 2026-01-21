@@ -123,8 +123,8 @@ void format_value(buffer<Char> &buf, const T &value,
 template <typename T, typename Char>
 struct fallback_formatter<T, Char, enable_if_t<is_streamable<T, Char>::value>>
     : private formatter<basic_string_view<Char>, Char> {
-  FMT_CONSTEXPR auto
-  parse(basic_format_parse_context<Char> &ctx) -> decltype(ctx.begin()) {
+  FMT_CONSTEXPR auto parse(basic_format_parse_context<Char> &ctx)
+      -> decltype(ctx.begin()) {
     return formatter<basic_string_view<Char>, Char>::parse(ctx);
   }
   template <typename ParseCtx,
@@ -135,16 +135,16 @@ struct fallback_formatter<T, Char, enable_if_t<is_streamable<T, Char>::value>>
   }
 
   template <typename OutputIt>
-  auto format(const T &value,
-              basic_format_context<OutputIt, Char> &ctx) -> OutputIt {
+  auto format(const T &value, basic_format_context<OutputIt, Char> &ctx)
+      -> OutputIt {
     basic_memory_buffer<Char> buffer;
     format_value(buffer, value, ctx.locale());
     basic_string_view<Char> str(buffer.data(), buffer.size());
     return formatter<basic_string_view<Char>, Char>::format(str, ctx);
   }
   template <typename OutputIt>
-  auto format(const T &value,
-              basic_printf_context<OutputIt, Char> &ctx) -> OutputIt {
+  auto format(const T &value, basic_printf_context<OutputIt, Char> &ctx)
+      -> OutputIt {
     basic_memory_buffer<Char> buffer;
     format_value(buffer, value, ctx.locale());
     return std::copy(buffer.begin(), buffer.end(), ctx.out());

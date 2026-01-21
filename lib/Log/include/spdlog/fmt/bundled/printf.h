@@ -546,8 +546,8 @@ using wprintf_args = basic_format_args<wprintf_context>;
   \endrst
  */
 template <typename... T>
-inline auto
-make_printf_args(const T &...args) -> format_arg_store<printf_context, T...> {
+inline auto make_printf_args(const T &...args)
+    -> format_arg_store<printf_context, T...> {
   return {args...};
 }
 
@@ -558,8 +558,8 @@ make_printf_args(const T &...args) -> format_arg_store<printf_context, T...> {
   \endrst
  */
 template <typename... T>
-inline auto
-make_wprintf_args(const T &...args) -> format_arg_store<wprintf_context, T...> {
+inline auto make_wprintf_args(const T &...args)
+    -> format_arg_store<wprintf_context, T...> {
   return {args...};
 }
 
