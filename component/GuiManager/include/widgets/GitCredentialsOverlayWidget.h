@@ -8,6 +8,7 @@
 #include "OverlayWidget.h"
 #include "PersistentPlaceholderLineEdit.h"
 
+#include <QCheckBox>
 #include <QEnableSharedFromThis>
 #include <QKeyEvent>
 #include <QWidget>
@@ -31,6 +32,7 @@ public:
 
   bool showing() const override { return _showing; }
   void setRequest(const GitRepo::GitCredentialsRequest &request);
+  void setRepoPath(const QString &repoPath);
   void start();
   void stop();
 
@@ -53,10 +55,12 @@ private:
   ::EventManager::EventManager &_eventManager;
   PersistentPlaceholderLineEdit *_usernameLineEdit;
   PersistentPlaceholderLineEdit *_passwordLineEdit;
+  QCheckBox *_storeCredentialsCheckBox;
   OpaquePushButton *_submitButton;
   OpaquePushButton *_cancelButton;
   OpaqueLabel *_message;
   GitRepo::GitCredentialsRequest _request;
+  QString _repoPath;
   bool _showing;
   QSharedPointer<bool> _holder;
   size_t _id;

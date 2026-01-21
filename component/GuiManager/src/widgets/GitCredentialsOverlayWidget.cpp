@@ -3,7 +3,10 @@
 #include "widgets/OpaqueLabel.h"
 #include "widgets/OpaquePushButton.h"
 
+#include <GitCredentialStorage.h>
 #include <Log.h>
+
+#include <QCheckBox>
 
 #define THREAD_ID "GitCredentialsOverlayWidget"
 
@@ -19,7 +22,8 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
           QColor::fromString("#969696"), this)),
       _passwordLineEdit(new PersistentPlaceholderLineEdit(
           QColor::fromString("#969696"), this)),
-      _showing(false), _holder(QSharedPointer<bool>::create(false)), _id(id) {
+      _storeCredentialsCheckBox(new QCheckBox(this)), _showing(false),
+      _holder(QSharedPointer<bool>::create(false)), _id(id) {
   LOG_PERF(0, "Enter");
 
   const auto groupBox = new OpaqueGroupBox(QColor::fromString("#384D59"), this);
@@ -27,8 +31,8 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   groupBox->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   groupBox->setMinimumWidth(640);
   groupBox->setMaximumWidth(640);
-  groupBox->setMinimumHeight(100);
-  groupBox->setMaximumHeight(100);
+  groupBox->setMinimumHeight(130);
+  groupBox->setMaximumHeight(130);
 
   _usernameLineEdit->setParent(groupBox);
   _usernameLineEdit->setObjectName(
@@ -50,6 +54,13 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   _passwordLineEdit->setMaximumWidth(250);
   _passwordLineEdit->setMaximumWidth(250);
   _passwordLineEdit->setPlaceholderText(tr("Enter password"));
+
+  _storeCredentialsCheckBox->setParent(groupBox);
+  _storeCredentialsCheckBox->setObjectName(
+      "checkBoxGitCredentialsOverlayWidgetStore");
+  _storeCredentialsCheckBox->setText(tr("Store credentials"));
+  _storeCredentialsCheckBox->setCursor(Qt::PointingHandCursor);
+  _storeCredentialsCheckBox->setChecked(false);
 
   _message = new OpaqueLabel(QColor::fromString("#384D59"), this);
 
@@ -80,6 +91,11 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   horizontalLayout->addWidget(_submitButton);
   horizontalLayout->addWidget(_cancelButton);
 
+  const auto horizontalLayoutCheckbox = new QHBoxLayout();
+  horizontalLayoutCheckbox->setAlignment(Qt::AlignCenter);
+  horizontalLayoutCheckbox->setContentsMargins(0, 0, 0, 0);
+  horizontalLayoutCheckbox->addWidget(_storeCredentialsCheckBox);
+
   const auto horizontalLayoutMessage = new QHBoxLayout();
   horizontalLayoutMessage->setAlignment(Qt::AlignCenter);
   horizontalLayoutMessage->setContentsMargins(0, 0, 0, 0);
@@ -90,6 +106,7 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   verticalLayout->setSpacing(12);
   verticalLayout->addLayout(horizontalLayoutMessage);
   verticalLayout->addLayout(horizontalLayout);
+  verticalLayout->addLayout(horizontalLayoutCheckbox);
 
   const auto horizontalLayoutGroupBox = new QVBoxLayout(groupBox);
   horizontalLayoutGroupBox->setAlignment(Qt::AlignCenter);
@@ -146,14 +163,49 @@ void GitCredentialsOverlayWidget::setRequest(
 
   _request = request;
 
-  _usernameLineEdit->setText(request.username);
-  _usernameLineEdit->setReadOnly(!request.username.isEmpty());
-  _usernameLineEdit->setEnabled(request.username.isEmpty());
+  // Try to load credentials from storage if repo path is set
+  QString storedUsername;
+  QString storedPassword;
+  bool hasStoredCredentials = false;
 
-  if (request.username.isEmpty())
+  if (!_repoPath.isEmpty()) {
+    GitRepo::GitCredentialStorage &storage =
+        GitRepo::GitCredentialStorage::getInstance();
+
+    if (storage.getCredentials(_repoPath, storedUsername, storedPassword)) {
+      hasStoredCredentials = true;
+      LOG_INFO("Loaded stored credentials for repository: {}", _repoPath);
+    }
+  }
+
+  // Use stored credentials if available, otherwise use request username
+  if (hasStoredCredentials) {
+    _usernameLineEdit->setText(storedUsername);
+    _passwordLineEdit->setText(storedPassword);
+    _storeCredentialsCheckBox->setChecked(true);
+  } else {
+    _usernameLineEdit->setText(request.username);
+    _passwordLineEdit->clear();
+    _storeCredentialsCheckBox->setChecked(false);
+  }
+
+  _usernameLineEdit->setReadOnly(!request.username.isEmpty() &&
+                                 !hasStoredCredentials);
+  _usernameLineEdit->setEnabled(request.username.isEmpty() ||
+                                hasStoredCredentials);
+
+  if (request.username.isEmpty() && !hasStoredCredentials)
     _usernameLineEdit->setFocus();
   else
     _passwordLineEdit->setFocus();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitCredentialsOverlayWidget::setRepoPath(const QString &repoPath) {
+  LOG_PERF(0, "Enter");
+
+  _repoPath = repoPath;
 
   LOG_PERF(0, "Exit");
 }
@@ -197,6 +249,7 @@ void GitCredentialsOverlayWidget::onSubmitClicked() const {
   response.id = _request.id;
   response.username = _usernameLineEdit->text();
   response.password = _passwordLineEdit->text();
+  response.rememberCredentials = _storeCredentialsCheckBox->isChecked();
 
   EventManager::Event submitEvent(
       EventManager::EventType::GitRepoManagerGetCredentialsSubmit);

@@ -14,12 +14,15 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 find_package(libgit2 REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
 find_package(Threads REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 add_compile_definitions(QT_USE_STRING_BUILDER)
 
 add_library(GitRepo STATIC
     include/GitRepo.h
+    include/GitCredentialStorage.h
     src/GitRepo.cpp
+    src/GitCredentialStorage.cpp
 )
 
 include(../../cmake/helpers.cmake)
@@ -36,6 +39,8 @@ target_link_libraries(GitRepo PRIVATE
     Qt6::Gui
     Qt6::Widgets
     ${LIBGIT2_LIBRARIES}
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )
 
 target_include_directories(GitRepo PRIVATE

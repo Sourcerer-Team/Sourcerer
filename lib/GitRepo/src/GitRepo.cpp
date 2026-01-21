@@ -1,4 +1,5 @@
 #include "GitRepo.h"
+#include "GitCredentialStorage.h"
 
 #include "../../../component/GitRepoManager/include/GitRepoManagerStructs.h"
 
@@ -49,6 +50,11 @@ struct GitPlaintextCredentials {
   QString username;
   QString password;
   qint64 createdTime;
+};
+
+struct GitCredentialPayload {
+  QString repoPath;
+  QString uuid;
 };
 
 Util::Mutex gGitCredentialsMutex;
@@ -1213,10 +1219,40 @@ static void finishCredentialsAcquiring(const QString &url) {
 }
 
 static std::tuple<bool, GitPlaintextCredentials>
-acquireCredentials(const QString &url, const QString &username,
-                   const int allowedTypes) {
+acquireCredentials(const QString &repoPath, const QString &url,
+                   const QString &username, const int allowedTypes) {
   LOG_PERF(0, "Enter");
+  LOG_INFO("acquireCredentials called with repoPath: '{}', url: '{}'", repoPath,
+           url);
 
+  // First, try to get stored credentials from encrypted storage
+  GitCredentialStorage &credStorage = GitCredentialStorage::getInstance();
+
+  QString storedUsername, storedPassword;
+  if (credStorage.getCredentials(repoPath, storedUsername, storedPassword)) {
+    LOG_INFO("Found stored credentials for repository: {}", repoPath);
+
+    // Check if credentials are expired
+    const qlonglong expirationTimeout =
+        ConfigManager::ConfigManager::getInstance().getLong(
+            ConfigManager::ConfigKey::GitRepoGitCredentialsExpirationTime);
+
+    LOG_INFO("Expiration timeout: {} ms", expirationTimeout);
+
+    if (!credStorage.areCredentialsExpired(repoPath, expirationTimeout)) {
+      LOG_INFO("Using stored credentials for repository: {}", repoPath);
+      LOG_PERF(0, "Exit");
+      return std::make_tuple(
+          true, GitPlaintextCredentials{storedUsername, storedPassword,
+                                        QDateTime::currentMSecsSinceEpoch()});
+    } else {
+      LOG_INFO("Stored credentials expired for repository: {}", repoPath);
+    }
+  } else {
+    LOG_INFO("No stored credentials found for repository: {}", repoPath);
+  }
+
+  // If no stored credentials or expired, request from user
   EventManager::EventManager &eventManager =
       EventManager::EventManager::getInstance();
 
@@ -1227,6 +1263,7 @@ acquireCredentials(const QString &url, const QString &username,
   request.url = url;
   request.username = username;
   request.allowedTypes = allowedTypes;
+  request.repoPath = repoPath;
 
   EventManager::Event credentialsEvent(
       EventManager::EventType::GitRepoManagerGetCredentials);
@@ -1273,6 +1310,21 @@ acquireCredentials(const QString &url, const QString &username,
                EventManager::EventType::GitRepoManagerGetCredentialsSubmit) {
       const GitCredentialsResponse response =
           event.data<GitCredentialsResponse>();
+
+      LOG_INFO("Received credentials response: username='{}', "
+               "rememberCredentials={}",
+               response.username, response.rememberCredentials);
+
+      // Store credentials in encrypted storage if user wants to remember them
+      if (response.rememberCredentials) {
+        GitCredentialStorage &credStorage = GitCredentialStorage::getInstance();
+        credStorage.storeCredentials(repoPath, response.username,
+                                     response.password, true);
+        LOG_INFO("Stored credentials for repository: {}", repoPath);
+      } else {
+        LOG_INFO("User chose NOT to remember credentials");
+      }
+
       LOG_PERF(0, "Exit");
       return std::make_tuple(
           true, GitPlaintextCredentials{response.username, response.password,
@@ -1303,6 +1355,14 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
     return 1;
   }
 
+  // Extract repository path from payload
+  QString repoPath;
+  if (payload) {
+    GitCredentialPayload *credPayload =
+        static_cast<GitCredentialPayload *>(payload);
+    repoPath = credPayload->repoPath;
+  }
+
   if (const QString urlString = QString::fromUtf8(url);
       urlString.startsWith("git@")) {
     const QString homePath =
@@ -1330,7 +1390,8 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
             ConfigManager::ConfigKey::GitRepoGitCredentialsExpirationTime);
     if (it->createdTime + expirationTimeout < now) {
       const auto &[success, credentials] = acquireCredentials(
-          url, username_from_url ? username_from_url : "", allowed_types);
+          repoPath, url, username_from_url ? username_from_url : "",
+          allowed_types);
       if (success) {
         LOG_INFO("Acquired credentials for '{}'", credentials.username);
 
@@ -1348,7 +1409,8 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
     gGitCredentialsMutex.unlock();
 
     const auto &[success, credentials] = acquireCredentials(
-        url, username_from_url ? username_from_url : "", allowed_types);
+        repoPath, url, username_from_url ? username_from_url : "",
+        allowed_types);
     if (success) {
       LOG_INFO("Acquired credentials for '{}'", credentials.username);
 
@@ -1468,12 +1530,16 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   CloneProgress progressData;
   progressData.uuid = uuid;
 
+  GitCredentialPayload credPayload;
+  credPayload.repoPath = destinationDir;
+  credPayload.uuid = uuid;
+
   checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
   checkout_opts.progress_payload = &progressData;
   checkout_opts.progress_cb = &checkoutProgressCallback;
   fetch_opts.callbacks.credentials = &credentialsAcquireCallback;
   fetch_opts.callbacks.transfer_progress = &fetchProgressCallback;
-  fetch_opts.callbacks.payload = &progressData;
+  fetch_opts.callbacks.payload = &credPayload;
   clone_opts.checkout_opts = checkout_opts;
   clone_opts.fetch_opts = fetch_opts;
 
@@ -3086,6 +3152,14 @@ bool pull(git_repository *repo) {
     return false;
   }
 
+  // Get repository path
+  QString repoPath = QString::fromUtf8(git_repository_path(repo));
+  if (repoPath.endsWith("/.git/")) {
+    repoPath = repoPath.left(repoPath.length() - 6);
+  } else if (repoPath.endsWith("/.git")) {
+    repoPath = repoPath.left(repoPath.length() - 5);
+  }
+
   // Step 1: Fetch from remote
   git_remote *remote = nullptr;
   int error = git_remote_lookup(&remote, repo, "origin");
@@ -3098,10 +3172,14 @@ bool pull(git_repository *repo) {
   int retries = 0;
   const char *url = git_remote_url(remote);
 
+  GitCredentialPayload credPayload;
+  credPayload.repoPath = repoPath;
+
   do {
     git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
     fetchOpts.callbacks.credentials = &credentialsAcquireCallback;
     fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
+    fetchOpts.callbacks.payload = &credPayload;
 
     error = git_remote_fetch(remote, nullptr, &fetchOpts, nullptr);
 
@@ -3301,6 +3379,14 @@ bool push(git_repository *repo) {
     return false;
   }
 
+  // Get repository path
+  QString repoPath = QString::fromUtf8(git_repository_path(repo));
+  if (repoPath.endsWith("/.git/")) {
+    repoPath = repoPath.left(repoPath.length() - 6);
+  } else if (repoPath.endsWith("/.git")) {
+    repoPath = repoPath.left(repoPath.length() - 5);
+  }
+
   git_reference *headRef = nullptr;
 
   int error = git_repository_head(&headRef, repo);
@@ -3328,10 +3414,14 @@ bool push(git_repository *repo) {
     return false;
   }
 
+  GitCredentialPayload credPayload;
+  credPayload.repoPath = repoPath;
+
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
   opts.callbacks.credentials = &credentialsAcquireCallback;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
+  opts.callbacks.payload = &credPayload;
 
   git_strarray refspecs =
       qstringlist_to_git_strarray(QStringList() << branchName);

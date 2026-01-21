@@ -874,6 +874,7 @@ void MainWindow::showCredentialsOverlay(const GitCredentialsRequest &request,
     return;
   }
 
+  widget->setRepoPath(request.repoPath);
   widget->setRequest(request);
   widget->start();
   widget->show();

@@ -78,7 +78,8 @@ QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {
     {ConfigKey::TestDateTime, QDateTime::currentDateTime()}};
 
 QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
-    {ConfigKey::GitRepoGitCredentialsExpirationTime, 30000},
+    {ConfigKey::GitRepoGitCredentialsExpirationTime,
+     2592000000LL}, // 30 days in milliseconds
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 1000},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout, 2000},
     {ConfigKey::GitRepoMonospaceFontSize, 10},

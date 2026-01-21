@@ -38,12 +38,14 @@ struct GitCredentialsRequest {
   QString url;
   QString username;
   int allowedTypes;
+  QString repoPath;
 };
 
 struct GitCredentialsResponse {
   size_t id = -1;
   QString username;
   QString password;
+  bool rememberCredentials = false;
 };
 
 struct GitCredentialsErrorResponse {
