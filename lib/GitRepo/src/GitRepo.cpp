@@ -3485,6 +3485,26 @@ bool pull(git_repository *repo) {
   int retries = 0;
   const char *url = git_remote_url(remote);
 
+  // Determine max retries: use 1 if SSH with configured key, otherwise
+  // MAX_RETRIES
+  int maxRetries = MAX_RETRIES;
+  QString urlStr = QString::fromUtf8(url);
+  if (urlStr.startsWith("git@")) {
+    // Extract host from git@host:path format
+    QRegularExpression hostRegex("^git@([^:]+):");
+    QRegularExpressionMatch match = hostRegex.match(urlStr);
+    if (match.hasMatch()) {
+      QString host = match.captured(1);
+      GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
+      GitKeyPair keyPair;
+      if (keyStorage.getKeyPairForHost(host, keyPair)) {
+        maxRetries = 1; // Key is configured, only try once
+        LOG_DEBUG("SSH key configured for host {}, setting max retries to 1",
+                  host);
+      }
+    }
+  }
+
   GitCredentialPayload credPayload;
   credPayload.repoPath = repoPath;
 
@@ -3508,7 +3528,7 @@ bool pull(git_repository *repo) {
     }
 
     ++retries;
-  } while (error != 0 && error != GIT_EUSER && retries < MAX_RETRIES);
+  } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
   finishCredentialsAcquiring(url);
 
@@ -3743,6 +3763,26 @@ bool push(git_repository *repo) {
   int retries = 0;
   const char *url = git_remote_url(remote);
 
+  // Determine max retries: use 1 if SSH with configured key, otherwise
+  // MAX_RETRIES
+  int maxRetries = MAX_RETRIES;
+  QString urlStr = QString::fromUtf8(url);
+  if (urlStr.startsWith("git@")) {
+    // Extract host from git@host:path format
+    QRegularExpression hostRegex("^git@([^:]+):");
+    QRegularExpressionMatch match = hostRegex.match(urlStr);
+    if (match.hasMatch()) {
+      QString host = match.captured(1);
+      GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
+      GitKeyPair keyPair;
+      if (keyStorage.getKeyPairForHost(host, keyPair)) {
+        maxRetries = 1; // Key is configured, only try once
+        LOG_DEBUG("SSH key configured for host {}, setting max retries to 1",
+                  host);
+      }
+    }
+  }
+
   do {
     error = git_remote_push(remote, &refspecs, &opts);
     if (error) {
@@ -3756,7 +3796,7 @@ bool push(git_repository *repo) {
     }
 
     ++retries;
-  } while (error != 0 && error != GIT_EUSER && retries < MAX_RETRIES);
+  } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
   finishCredentialsAcquiring(url);
 
