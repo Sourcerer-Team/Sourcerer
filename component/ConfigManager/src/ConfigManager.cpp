@@ -25,6 +25,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
      "window/gitrepo/branchRecyclerViewItemsSplitterPos"},
     {ConfigKey::GitRepoGitCredentialsExpirationTime,
      "gitrepo/credentials/credentialsExpirationTime"},
+    {ConfigKey::GitRepoServerConnectTimeout, "gitrepo/server/connectTimeout"},
+    {ConfigKey::GitRepoServerTimeout, "gitrepo/server/timeout"},
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout,
      "gitrepo/spinnerOverlay/timer"},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout,
@@ -56,6 +58,10 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::Unknown, {"", ""}},
     {ConfigKey::GitRepoGitCredentialsExpirationTime,
      {"Credentials expiration time", ""}},
+    {ConfigKey::GitRepoServerConnectTimeout,
+     {"Server connection timeout in milliseconds", ""}},
+    {ConfigKey::GitRepoServerTimeout,
+     {"Server operation timeout in milliseconds", ""}},
     {ConfigKey::GitRepoMonospaceFontName, {"Monospace font name", ""}},
     {ConfigKey::GitRepoMonospaceFontSize, {"Monospace font size in pixels"}},
     {ConfigKey::RecentlyOpenedRepos, {"Recently opened repositories list", ""}},
@@ -80,6 +86,8 @@ QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {
 QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::GitRepoGitCredentialsExpirationTime,
      2592000000LL}, // 30 days in milliseconds
+    {ConfigKey::GitRepoServerConnectTimeout, 30000LL}, // 30 seconds
+    {ConfigKey::GitRepoServerTimeout, 30000LL},        // 30 seconds
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 1000},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout, 2000},
     {ConfigKey::GitRepoMonospaceFontSize, 10},

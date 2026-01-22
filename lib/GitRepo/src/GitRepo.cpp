@@ -306,6 +306,24 @@ void initForCurrentThread() {
 
   LOG_DEBUG("Number of initializations is {}", numberOfCalls);
 
+  // Get timeout values from ConfigManager
+  ConfigManager::ConfigManager &configManager =
+      ConfigManager::ConfigManager::getInstance();
+  const qlonglong connectTimeout = configManager.getLong(
+      ConfigManager::ConfigKey::GitRepoServerConnectTimeout);
+  const qlonglong serverTimeout =
+      configManager.getLong(ConfigManager::ConfigKey::GitRepoServerTimeout);
+
+  LOG_DEBUG("Setting server connect timeout to {} ms", connectTimeout);
+  LOG_DEBUG("Setting server timeout to {} ms", serverTimeout);
+
+  // Set SSH connection timeout (applies to initial connection establishment)
+  git_libgit2_opts(GIT_OPT_SET_SERVER_CONNECT_TIMEOUT,
+                   static_cast<int>(connectTimeout));
+
+  // Set SSH timeout (for libssh2 operations and data transfer)
+  git_libgit2_opts(GIT_OPT_SET_SERVER_TIMEOUT, static_cast<int>(serverTimeout));
+
   LOG_PERF(0, "Exit");
 }
 
