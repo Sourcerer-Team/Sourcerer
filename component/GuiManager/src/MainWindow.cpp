@@ -956,7 +956,11 @@ void MainWindow::selectContainer(const int index) {
     _containers[_current]->deselected();
   }
 
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+
   _toastHost.setParent(_containers[index].get());
+  _toastHost.setYOffset(titleBarHeight);
 
   _containers[index]->show();
   _containers[index]->setupShortcuts();

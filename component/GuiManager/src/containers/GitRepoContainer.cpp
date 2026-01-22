@@ -633,7 +633,11 @@ void GitRepoContainer::selected() {
 
   _selected = true;
 
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+
   _toastHost.setParent(this);
+  _toastHost.setYOffset(titleBarHeight);
   _toastHost.raise();
 
   LOG_PERF(0, "Exit")
