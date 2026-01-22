@@ -112,9 +112,11 @@ void GitKeysContainer::onGenerateClicked() {
   // Get key name from user
   bool ok;
   QString keyName = QInputDialog::getText(
-      this, "Generate SSH key pair", "Enter a name for the new key (e.g., "
-                                     "id_rsa_github, id_ed25519_gitlab):",
-      QLineEdit::Normal, "id_rsa_" + QString::number(QDateTime::currentSecsSinceEpoch()), &ok);
+      this, "Generate SSH key pair",
+      "Enter a name for the new key (e.g., "
+      "id_rsa_github, id_ed25519_gitlab):",
+      QLineEdit::Normal,
+      "id_rsa_" + QString::number(QDateTime::currentSecsSinceEpoch()), &ok);
 
   if (!ok || keyName.isEmpty()) {
     LOG_PERF(0, "Exit - Cancelled");
@@ -148,7 +150,7 @@ void GitKeysContainer::onGenerateClicked() {
   // Generate the key pair
   QString privateKeyPath, publicKeyPath, errorMessage;
   if (!_keyStorage.generateKeyPair(keyName, passphrase, privateKeyPath,
-                                    publicKeyPath, errorMessage)) {
+                                   publicKeyPath, errorMessage)) {
     QMessageBox::critical(
         this, "Key generation failed",
         QString("Failed to generate SSH key pair:\n\n%1").arg(errorMessage));
@@ -277,11 +279,10 @@ void GitKeysContainer::onEditClicked() {
 
   // Ask for new host
   bool ok;
-  QString newHost =
-      QInputDialog::getText(this, "Edit host mapping",
-                            QString("Current host: %1\n\nEnter new host:")
-                                .arg(oldHost),
-                            QLineEdit::Normal, oldHost, &ok);
+  QString newHost = QInputDialog::getText(
+      this, "Edit host mapping",
+      QString("Current host: %1\n\nEnter new host:").arg(oldHost),
+      QLineEdit::Normal, oldHost, &ok);
 
   if (!ok || newHost.isEmpty()) {
     LOG_PERF(0, "Exit - Cancelled");

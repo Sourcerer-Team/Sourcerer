@@ -117,7 +117,8 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
   // Calculate position based on existing toasts and position preference
   const int toastSpacing = 8; // 8 pixels spacing between toasts
 
-  // Calculate accumulated height of existing toasts (not including title bar offset)
+  // Calculate accumulated height of existing toasts (not including title bar
+  // offset)
   int existingToastsHeight = 0;
   for (const ToastWidget *existingToast : _toasts) {
     if (existingToast && existingToast != toast && existingToast->isVisible()) {
@@ -163,11 +164,13 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
   if (_position == ToastPosition::Bottom ||
       _position == ToastPosition::BottomLeft ||
       _position == ToastPosition::BottomRight) {
-    // For bottom positioning: start from bottom, go up by existing toasts height + this toast height + margin
+    // For bottom positioning: start from bottom, go up by existing toasts
+    // height + this toast height + margin
     yPos += topLevel->height() - existingToastsHeight - toast->height() -
             16; // 16px margin from bottom
   } else {
-    // For top positioning: start from top + title bar offset + existing toasts height
+    // For top positioning: start from top + title bar offset + existing toasts
+    // height
     yPos += _yOffset + existingToastsHeight;
   }
 
@@ -570,14 +573,16 @@ void ToastHostWidget::onToastStopped(ToastWidget *toast) {
       const int toastSpacing = 8;
 
       // Position each toast from the newest (bottom) to oldest (top)
-      // For each toast, calculate existingToastsHeight as the sum of all toasts BELOW it
+      // For each toast, calculate existingToastsHeight as the sum of all toasts
+      // BELOW it
       for (int i = _toasts.size() - 1; i >= 0; --i) {
         ToastWidget *currentToast = _toasts[i];
         if (!currentToast || !currentToast->isVisible()) {
           continue;
         }
 
-        // Calculate existingToastsHeight: sum of heights of all toasts below this one
+        // Calculate existingToastsHeight: sum of heights of all toasts below
+        // this one
         int existingToastsHeight = 0;
         for (int j = _toasts.size() - 1; j > i; --j) {
           ToastWidget *belowToast = _toasts[j];
@@ -598,9 +603,10 @@ void ToastHostWidget::onToastStopped(ToastWidget *toast) {
           xPos += (topLevel->width() - currentToast->width()) / 2;
         }
 
-        // Calculate Y position: same formula as addToLayout (for bottom positioning)
-        int yPos = topLevelGlobalPos.y() + topLevel->height() - existingToastsHeight -
-                   currentToast->height() - 16;
+        // Calculate Y position: same formula as addToLayout (for bottom
+        // positioning)
+        int yPos = topLevelGlobalPos.y() + topLevel->height() -
+                   existingToastsHeight - currentToast->height() - 16;
 
         QWindow *window = currentToast->windowHandle();
         if (window) {

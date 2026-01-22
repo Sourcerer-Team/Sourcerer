@@ -37,6 +37,10 @@ class GitCommitListModel;
 class GitCommitTreeModel;
 } // namespace GuiManager::Models
 
+namespace GuiManager::Widgets {
+class ScrollbarMarksWidget;
+}
+
 namespace GuiManager::Containers {
 
 class GitRepoContainer final : public Widgets::ContainerWidget,
@@ -360,6 +364,7 @@ private:
   QTimer *_repoDirWatcherTimer;
 
   GuiManager::Widgets::ShortcutsToolbarWidget *_shortcutsWidget;
+  GuiManager::Widgets::ScrollbarMarksWidget *_unifiedDiffMarks;
 
   bool _selected;
 };

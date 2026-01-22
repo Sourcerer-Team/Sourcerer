@@ -1348,7 +1348,7 @@ static int certificateCheckCallback(git_cert *cert, int valid, const char *host,
   // For now, accept invalid certificates to maintain compatibility
   // with self-signed certificates and development environments
 
-         // Return 0 to accept the certificate
+  // Return 0 to accept the certificate
   // Return GIT_ECERTIFICATE to reject it
   return 0; // Accept even if invalid
 }
@@ -1623,7 +1623,8 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
 
   if (const QString urlString = QString::fromUtf8(url);
       urlString.startsWith("git@")) {
-    // Extract host from git URL (e.g., "git@github.com:user/repo.git" -> "github.com")
+    // Extract host from git URL (e.g., "git@github.com:user/repo.git" ->
+    // "github.com")
     QString host;
     const QRegularExpression hostRegex("^git@([^:]+):");
     const QRegularExpressionMatch match = hostRegex.match(urlString);
@@ -1638,7 +1639,7 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
     // Try to get key pair from GitKeyStorage for this specific host
     GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
     GitKeyPair keyPair;
-    
+
     if (!host.isEmpty() && keyStorage.getKeyPairForHost(host, keyPair)) {
       privateKeyPath = keyPair.privateKeyPath;
       publicKeyPath = keyPair.publicKeyPath;
@@ -1649,8 +1650,9 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
           QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
       privateKeyPath = QString("%1/.ssh/id_rsa").arg(homePath);
       publicKeyPath = QString("%1/.ssh/id_rsa.pub").arg(homePath);
-      LOG_INFO("No specific SSH key configured for host '{}', using default: {}",
-               host.isEmpty() ? "unknown" : host, privateKeyPath);
+      LOG_INFO(
+          "No specific SSH key configured for host '{}', using default: {}",
+          host.isEmpty() ? "unknown" : host, privateKeyPath);
     }
 
     // Validate SSH keys using OpenSSL before attempting to use them

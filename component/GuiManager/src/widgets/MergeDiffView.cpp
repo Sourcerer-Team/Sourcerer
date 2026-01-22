@@ -1,6 +1,7 @@
 #include "widgets/MergeDiffView.h"
 #include "DarkThemeLexersHighlighter.h"
 #include "QScintillaLexerFactory.h"
+#include "widgets/SideBySideDiffView.h"
 
 #include <Log.h>
 
@@ -44,6 +45,14 @@ MergeDiffView::MergeDiffView(QWidget *parent)
           &MergeDiffView::rightMarginClicked);
 
   syncScrollbars();
+
+  // Create scrollbar marks widgets
+  _leftMarks = new ScrollbarMarksWidget(_leftEditor->verticalScrollBar(),
+                                        _leftEditor, this);
+  _rightMarks = new ScrollbarMarksWidget(_rightEditor->verticalScrollBar(),
+                                         _rightEditor, this);
+  _bottomMarks = new ScrollbarMarksWidget(_bottomEditor->verticalScrollBar(),
+                                          _bottomEditor, this);
 
   LOG_PERF(0, "Exit");
 }
@@ -180,6 +189,23 @@ void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
   }
 
   highlightConflictsInBottomEditor();
+
+  // Update scrollbar marks
+  // leftMarks0 = deleted lines (red) on left editor
+  // leftMarks1 = added lines (green) on left editor
+  // rightMarks0 = added lines (green) on right editor
+  // rightMarks1 = deleted lines (red) on right editor
+  _leftMarks->setMarks(_content.leftMarks0, _content.leftMarks1);
+  _rightMarks->setMarks(_content.rightMarks1, _content.rightMarks0);
+
+  // For bottom editor, show all conflict ranges as markers
+  QVector<int> conflictLines;
+  for (const auto &range : _content.rangesBottom) {
+    for (int line = range.leftStart; line <= range.rightEnd; ++line) {
+      conflictLines.append(line);
+    }
+  }
+  _bottomMarks->setMarks(conflictLines, QVector<int>());
 
   LOG_PERF(0, "Exit");
 }

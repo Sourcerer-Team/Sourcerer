@@ -19,6 +19,30 @@ struct SideBySideDiffContent {
   QVector<int> rightMarks1;
 };
 
+class ScrollbarMarksWidget : public QWidget {
+  Q_OBJECT
+
+public:
+  explicit ScrollbarMarksWidget(QScrollBar *scrollBar, QsciScintilla *editor,
+                                QWidget *parent = nullptr);
+
+  void setMarks(const QVector<int> &deletedLines,
+                const QVector<int> &addedLines);
+
+protected:
+  void paintEvent(QPaintEvent *event) override;
+  bool eventFilter(QObject *obj, QEvent *event) override;
+
+private:
+  void updateGeometry();
+
+private:
+  QScrollBar *_scrollBar;
+  QsciScintilla *_editor;
+  QVector<int> _deletedLines;
+  QVector<int> _addedLines;
+};
+
 class SideBySideDiffView : public QWidget {
   Q_OBJECT
 
@@ -36,6 +60,8 @@ private:
 private:
   QsciScintilla *_leftEditor;
   QsciScintilla *_rightEditor;
+  ScrollbarMarksWidget *_leftMarks;
+  ScrollbarMarksWidget *_rightMarks;
   ::ConfigManager::ConfigManager &_configManager;
 };
 

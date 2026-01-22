@@ -6,12 +6,123 @@
 
 #include <Qsci/qscilexerdiff.h>
 
+#include <QEvent>
 #include <QHBoxLayout>
+#include <QPainter>
 #include <QScrollBar>
+#include <QStyleOptionSlider>
 
 #define THREAD_ID "SideBySideDiffView"
 
 namespace GuiManager::Widgets {
+
+// ==================== ScrollbarMarksWidget ====================
+
+ScrollbarMarksWidget::ScrollbarMarksWidget(QScrollBar *scrollBar,
+                                           QsciScintilla *editor,
+                                           QWidget *parent)
+    : QWidget(parent), _scrollBar(scrollBar), _editor(editor) {
+  setAttribute(Qt::WA_TransparentForMouseEvents);
+  setAttribute(Qt::WA_TranslucentBackground);
+  setAutoFillBackground(false);
+
+  // Install event filter to track scrollbar geometry changes
+  _scrollBar->installEventFilter(this);
+
+  updateGeometry();
+}
+
+void ScrollbarMarksWidget::setMarks(const QVector<int> &deletedLines,
+                                    const QVector<int> &addedLines) {
+  _deletedLines = deletedLines;
+  _addedLines = addedLines;
+  update();
+}
+
+void ScrollbarMarksWidget::paintEvent(QPaintEvent *event) {
+  Q_UNUSED(event);
+
+  const int totalLines = _editor->lines();
+  if (totalLines <= 0) {
+    return;
+  }
+
+  QPainter painter(this);
+  painter.setRenderHint(QPainter::Antialiasing);
+
+  const int markerWidth = 4;
+  const int markerHeight = 2;
+  const int scrollbarHeight = height();
+
+  // Calculate available drawing area (exclude buttons)
+  QStyleOptionSlider opt;
+  opt.initFrom(_scrollBar);
+  opt.orientation = _scrollBar->orientation();
+  opt.minimum = _scrollBar->minimum();
+  opt.maximum = _scrollBar->maximum();
+  opt.sliderPosition = _scrollBar->value();
+  opt.sliderValue = _scrollBar->value();
+  opt.singleStep = _scrollBar->singleStep();
+  opt.pageStep = _scrollBar->pageStep();
+
+  QRect grooveRect = _scrollBar->style()->subControlRect(
+      QStyle::CC_ScrollBar, &opt, QStyle::SC_ScrollBarGroove, _scrollBar);
+
+  const int grooveTop = grooveRect.top();
+  const int grooveHeight = grooveRect.height();
+
+  if (grooveHeight <= 0) {
+    return;
+  }
+
+  // Draw deleted lines (red)
+  painter.setBrush(QColor(220, 50, 47)); // Red
+  painter.setPen(Qt::NoPen);
+  for (int lineNum : _deletedLines) {
+    if (lineNum < 0 || lineNum >= totalLines) {
+      continue;
+    }
+    const int yPos =
+        grooveTop + (lineNum * grooveHeight / totalLines) - markerHeight / 2;
+    painter.drawRect(width() - markerWidth - 2, yPos, markerWidth,
+                     markerHeight);
+  }
+
+  // Draw added lines (green)
+  painter.setBrush(QColor(133, 153, 0)); // Green
+  for (int lineNum : _addedLines) {
+    if (lineNum < 0 || lineNum >= totalLines) {
+      continue;
+    }
+    const int yPos =
+        grooveTop + (lineNum * grooveHeight / totalLines) - markerHeight / 2;
+    painter.drawRect(width() - markerWidth - 2, yPos, markerWidth,
+                     markerHeight);
+  }
+}
+
+bool ScrollbarMarksWidget::eventFilter(QObject *obj, QEvent *event) {
+  if (obj == _scrollBar) {
+    if (event->type() == QEvent::Resize || event->type() == QEvent::Move) {
+      updateGeometry();
+    }
+  }
+  return QWidget::eventFilter(obj, event);
+}
+
+void ScrollbarMarksWidget::updateGeometry() {
+  if (!_scrollBar) {
+    return;
+  }
+
+  // Position the overlay directly on top of the scrollbar
+  const QPoint scrollBarPos = _scrollBar->mapTo(parentWidget(), QPoint(0, 0));
+  setGeometry(scrollBarPos.x(), scrollBarPos.y(), _scrollBar->width(),
+              _scrollBar->height());
+  raise(); // Ensure it's on top
+}
+
+// ==================== SideBySideDiffView ====================
 
 SideBySideDiffView::SideBySideDiffView(QWidget *parent)
     : QWidget(parent), _leftEditor(new QsciScintilla(this)),
@@ -26,6 +137,12 @@ SideBySideDiffView::SideBySideDiffView(QWidget *parent)
   layout->addWidget(_leftEditor);
   layout->addWidget(_rightEditor);
   setLayout(layout);
+
+  // Create scrollbar marks widgets
+  _leftMarks = new ScrollbarMarksWidget(_leftEditor->verticalScrollBar(),
+                                        _leftEditor, this);
+  _rightMarks = new ScrollbarMarksWidget(_rightEditor->verticalScrollBar(),
+                                         _rightEditor, this);
 
   LOG_PERF(0, "Exit");
 }
@@ -173,6 +290,14 @@ void SideBySideDiffView::loadAndHighlight(
   for (const int line : content.rightMarks1) {
     _rightEditor->markerAdd(line, 2);
   }
+
+  // Update scrollbar marks
+  // leftMarks0 = deleted lines (red) on left editor
+  // leftMarks1 = added lines (green) on left editor
+  // rightMarks0 = added lines (green) on right editor
+  // rightMarks1 = deleted lines (red) on right editor
+  _leftMarks->setMarks(content.leftMarks0, content.leftMarks1);
+  _rightMarks->setMarks(content.rightMarks1, content.rightMarks0);
 
   LOG_PERF(0, "Exit");
 }

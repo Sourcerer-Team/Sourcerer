@@ -12,6 +12,7 @@
 #include "widgets/ErrorToast.h"
 #include "widgets/InfoToast.h"
 #include "widgets/ShortcutsToolbarWidget.h"
+#include "widgets/SideBySideDiffView.h"
 #include "widgets/StashesPage.h"
 #include "widgets/TextInputOverlayWidget.h"
 #include "widgets/ToastHostWidget.h"
@@ -367,6 +368,11 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   DarkThemeLexersHighlighter highlighter;
   highlighter.applyDarkTheme(ui->scintillaTextEditorUnified);
+
+  // Create scrollbar marks widget for unified diff
+  _unifiedDiffMarks = new Widgets::ScrollbarMarksWidget(
+      ui->scintillaTextEditorUnified->verticalScrollBar(),
+      ui->scintillaTextEditorUnified, this);
 
   showMainSpinnerPage(false);
   showSpinnerOverlay();
@@ -4413,11 +4419,24 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
     ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
     ui->scintillaTextEditorUnified->setText(filesDiff.diff);
 
+    // Collect added and deleted lines for scrollbar marks
+    QVector<int> deletedLines;
+    QVector<int> addedLines;
+
     // Mark hunk headers
     for (int i = 0; i < ui->scintillaTextEditorUnified->lines(); ++i) {
-      if (ui->scintillaTextEditorUnified->text(i).startsWith("@@ "))
+      const QString lineText = ui->scintillaTextEditorUnified->text(i);
+      if (lineText.startsWith("@@ ")) {
         ui->scintillaTextEditorUnified->markerAdd(i, 1);
+      } else if (lineText.startsWith("-") && !lineText.startsWith("---")) {
+        deletedLines.append(i);
+      } else if (lineText.startsWith("+") && !lineText.startsWith("+++")) {
+        addedLines.append(i);
+      }
     }
+
+    // Update scrollbar marks
+    _unifiedDiffMarks->setMarks(deletedLines, addedLines);
 
     if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
       const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
@@ -4614,11 +4633,24 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
     ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
     ui->scintillaTextEditorUnified->setText(filesDiff.diff);
 
+    // Collect added and deleted lines for scrollbar marks
+    QVector<int> deletedLines;
+    QVector<int> addedLines;
+
     // Mark hunk headers
     for (int i = 0; i < ui->scintillaTextEditorUnified->lines(); ++i) {
-      if (ui->scintillaTextEditorUnified->text(i).startsWith("@@ "))
+      const QString lineText = ui->scintillaTextEditorUnified->text(i);
+      if (lineText.startsWith("@@ ")) {
         ui->scintillaTextEditorUnified->markerAdd(i, 1);
+      } else if (lineText.startsWith("-") && !lineText.startsWith("---")) {
+        deletedLines.append(i);
+      } else if (lineText.startsWith("+") && !lineText.startsWith("+++")) {
+        addedLines.append(i);
+      }
     }
+
+    // Update scrollbar marks
+    _unifiedDiffMarks->setMarks(deletedLines, addedLines);
 
     if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
       const QFileInfo fileInfo(filesDiff.repoContent.firstKey());

@@ -358,7 +358,7 @@ void GitKeyStorage::loadKeyPairs() {
 void GitKeyStorage::saveKeyPairs() {
   LOG_PERF(0, "Enter");
 
-         // Mutex should already be locked by caller
+  // Mutex should already be locked by caller
 
   LOG_INFO("Saving {} key pair mappings to: {}", _keyPairs.size(),
            _storageFilePath);

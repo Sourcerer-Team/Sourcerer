@@ -10,6 +10,8 @@
 
 namespace GuiManager::Widgets {
 
+class ScrollbarMarksWidget;
+
 enum class MergeDiffResolutionType {
   Unknown = 0,
 
@@ -79,6 +81,9 @@ private:
   QsciScintilla *_leftEditor;
   QsciScintilla *_rightEditor;
   QsciScintilla *_bottomEditor;
+  ScrollbarMarksWidget *_leftMarks;
+  ScrollbarMarksWidget *_rightMarks;
+  ScrollbarMarksWidget *_bottomMarks;
   ::ConfigManager::ConfigManager &_configManager;
 };
 

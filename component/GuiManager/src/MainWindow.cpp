@@ -102,8 +102,7 @@ MainWindow::MainWindow(QWidget *parent)
           &MainWindow::onSettings);
   connect(_topBarWidget, &TopBarWidget::credentials, this,
           &MainWindow::onCredentials);
-  connect(_topBarWidget, &TopBarWidget::sshKeys, this,
-          &MainWindow::onSshKeys);
+  connect(_topBarWidget, &TopBarWidget::sshKeys, this, &MainWindow::onSshKeys);
   connect(_topBarWidget, &TopBarWidget::terminal, this,
           &MainWindow::onTerminal);
   connect(_topBarWidget, &TopBarWidget::about, this, &MainWindow::onAbout);
