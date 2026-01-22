@@ -1712,7 +1712,7 @@ void GitRepoContainer::onPull() {
 void GitRepoContainer::onPush() {
   LOG_PERF(0, "Enter");
 
-  showSpinnerOverlay(true);
+  startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
 
