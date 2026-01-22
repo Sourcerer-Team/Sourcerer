@@ -1153,6 +1153,9 @@ void GitRepoContainer::onDiffCloseClicked() {
   _lastDiffedFilePath.clear();
   _lastDiffRepoStatusChanged = false;
 
+  // Hide scrollbar marks to prevent them from appearing in history view
+  _unifiedDiffMarks->hide();
+
   ui->stackedWidgetMiddle->setCurrentIndex(
       static_cast<int>(MainViewPanes::History));
 
@@ -1166,6 +1169,9 @@ void GitRepoContainer::onDiffUnifiedClicked() {
 
   ui->pushButtonDiffSideBySide->setChecked(false);
 
+  // Show unified diff marks when switching to unified view
+  _unifiedDiffMarks->show();
+
   ui->stackedWidgetDiff->setCurrentIndex(
       static_cast<int>(DiffStackIndexes::DiffUnified));
 
@@ -1176,6 +1182,9 @@ void GitRepoContainer::onDiffSideBySideClicked() {
   LOG_PERF(0, "Enter");
 
   ui->pushButtonDiffUnified->setChecked(false);
+
+  // Hide unified diff marks when switching to side-by-side view
+  _unifiedDiffMarks->hide();
 
   ui->stackedWidgetDiff->setCurrentIndex(
       static_cast<int>(DiffStackIndexes::DiffSideBySide));
@@ -4438,6 +4447,13 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
     // Update scrollbar marks
     _unifiedDiffMarks->setMarks(deletedLines, addedLines);
 
+    // Only show marks if unified view is selected
+    if (ui->pushButtonDiffUnified->isChecked()) {
+      _unifiedDiffMarks->show();
+    } else {
+      _unifiedDiffMarks->hide();
+    }
+
     if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
       const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
       ui->sideBySideDiffViewer->loadAndHighlight(filesDiff.repoContent.first(),
@@ -4531,6 +4547,9 @@ void GitRepoContainer::diffThreeWay(const WeakPtr &guard,
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    // Hide unified diff marks when switching to three-way diff
+    _unifiedDiffMarks->hide();
+
     ui->pushButtonMergeDiffSave->setEnabled(true);
     ui->mergeDiffViewer->loadAndHighlight(
         listConflictsResult.fileContentWithMarkers, filePath);
@@ -4651,6 +4670,13 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
 
     // Update scrollbar marks
     _unifiedDiffMarks->setMarks(deletedLines, addedLines);
+
+    // Only show marks if unified view is selected
+    if (ui->pushButtonDiffUnified->isChecked()) {
+      _unifiedDiffMarks->show();
+    } else {
+      _unifiedDiffMarks->hide();
+    }
 
     if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
       const QFileInfo fileInfo(filesDiff.repoContent.firstKey());

@@ -52,7 +52,6 @@ void ScrollbarMarksWidget::paintEvent(QPaintEvent *event) {
 
   const int markerWidth = 4;
   const int markerHeight = 2;
-  const int scrollbarHeight = height();
 
   // Calculate available drawing area (exclude buttons)
   QStyleOptionSlider opt;
@@ -75,6 +74,9 @@ void ScrollbarMarksWidget::paintEvent(QPaintEvent *event) {
     return;
   }
 
+  // Draw at the right edge of the groove area
+  const int markerX = grooveRect.right() - markerWidth;
+
   // Draw deleted lines (red)
   painter.setBrush(QColor(220, 50, 47)); // Red
   painter.setPen(Qt::NoPen);
@@ -84,8 +86,7 @@ void ScrollbarMarksWidget::paintEvent(QPaintEvent *event) {
     }
     const int yPos =
         grooveTop + (lineNum * grooveHeight / totalLines) - markerHeight / 2;
-    painter.drawRect(width() - markerWidth - 2, yPos, markerWidth,
-                     markerHeight);
+    painter.drawRect(markerX, yPos, markerWidth, markerHeight);
   }
 
   // Draw added lines (green)
@@ -96,8 +97,7 @@ void ScrollbarMarksWidget::paintEvent(QPaintEvent *event) {
     }
     const int yPos =
         grooveTop + (lineNum * grooveHeight / totalLines) - markerHeight / 2;
-    painter.drawRect(width() - markerWidth - 2, yPos, markerWidth,
-                     markerHeight);
+    painter.drawRect(markerX, yPos, markerWidth, markerHeight);
   }
 }
 
