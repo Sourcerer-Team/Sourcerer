@@ -12,6 +12,7 @@
 #include <git2.h>
 #include <git2/blob.h>
 #include <git2/branch.h>
+#include <git2/cert.h>
 #include <git2/checkout.h>
 #include <git2/clone.h>
 #include <git2/commit.h>
@@ -30,6 +31,7 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/x509.h>
 
 #include <QDateTime>
 #include <QDir>
@@ -38,6 +40,7 @@
 #include <QStandardPaths>
 #include <QString>
 
+#include <cstring>
 #include <set>
 #include <thread>
 
@@ -1198,20 +1201,154 @@ static void checkoutProgressCallback(const char *path, size_t completed_steps,
 
 static int certificateCheckCallback(git_cert *cert, int valid, const char *host,
                                     void *payload) {
-  // For now, accept all certificates including self-signed ones
-  // This matches common git behavior when git.sslVerify is false
-  // In production, you may want to:
-  // 1. Check the 'valid' parameter and only accept if valid == 1
-  // 2. Verify the certificate chain properly
-  // 3. Check against known hosts
-  // 4. Prompt user for untrusted certificates
+  if (!cert || !host) {
+    LOG_ERROR(Log::ErrorId::Network,
+              "Certificate check called with null cert or host");
+    return GIT_ECERTIFICATE;
+  }
 
-  LOG_INFO("Certificate check for host: {}, valid: {}", host ? host : "unknown",
-           valid);
+  const char *certTypeStr = nullptr;
+  switch (cert->cert_type) {
+  case GIT_CERT_X509:
+    certTypeStr = "X.509";
+    break;
+  case GIT_CERT_HOSTKEY_LIBSSH2:
+    certTypeStr = "SSH hostkey";
+    break;
+  case GIT_CERT_STRARRAY:
+    certTypeStr = "certificate array";
+    break;
+  default:
+    certTypeStr = "unknown type";
+    break;
+  }
 
-  // Return 0 to accept the certificate, non-zero to reject
-  // For now, always accept to allow HTTPS connections
-  return 0;
+  LOG_INFO("Certificate check for host: '{}', type: {}, valid: {}", host,
+           certTypeStr, valid);
+
+  // If the certificate is valid according to libgit2, accept it
+  if (valid) {
+    LOG_DEBUG("Certificate for host '{}' is valid", host);
+    return 0; // Accept
+  }
+
+  // Certificate is not valid - log warning with details
+  LOG_WARN("Certificate validation failed for host '{}' (type: {}). "
+           "Accepting anyway to maintain connectivity. "
+           "In production, consider enabling strict SSL verification.",
+           host, certTypeStr);
+
+  // For X.509 certificates, perform detailed validation
+  if (cert->cert_type == GIT_CERT_X509) {
+    git_cert_x509 *x509_cert = reinterpret_cast<git_cert_x509 *>(cert);
+    if (x509_cert && x509_cert->data && x509_cert->len > 0) {
+      LOG_DEBUG("X.509 certificate data present (size: {} bytes)",
+                x509_cert->len);
+
+      // Parse the certificate using OpenSSL
+      const unsigned char *cert_data =
+          reinterpret_cast<const unsigned char *>(x509_cert->data);
+      X509 *x509 = d2i_X509(nullptr, &cert_data, x509_cert->len);
+
+      if (x509) {
+        // Get subject name
+        char subject[256] = {0};
+        X509_NAME_oneline(X509_get_subject_name(x509), subject,
+                          sizeof(subject));
+
+        // Get issuer name
+        char issuer[256] = {0};
+        X509_NAME_oneline(X509_get_issuer_name(x509), issuer, sizeof(issuer));
+
+        LOG_INFO("Certificate subject: {}", subject);
+        LOG_INFO("Certificate issuer: {}", issuer);
+
+        // Check if it's self-signed
+        bool isSelfSigned = (strcmp(subject, issuer) == 0);
+        if (isSelfSigned) {
+          LOG_WARN("Certificate for '{}' is self-signed", host);
+        }
+
+        // Perform certificate chain validation using OpenSSL
+        X509_STORE *store = X509_STORE_new();
+        if (store) {
+          // Load system default CA certificates
+          if (X509_STORE_set_default_paths(store) == 1) {
+            LOG_DEBUG("Loaded system CA certificates");
+
+            // Create verification context
+            X509_STORE_CTX *ctx = X509_STORE_CTX_new();
+            if (ctx) {
+              // Initialize context with certificate and store
+              if (X509_STORE_CTX_init(ctx, store, x509, nullptr) == 1) {
+                // Set hostname for verification
+                X509_VERIFY_PARAM *param = X509_STORE_CTX_get0_param(ctx);
+                if (param) {
+                  // Set hostname verification flags
+#ifdef X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS
+                  X509_VERIFY_PARAM_set_hostflags(
+                      param, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+#else
+                  X509_VERIFY_PARAM_set_hostflags(param, 0);
+#endif
+                  X509_VERIFY_PARAM_set1_host(param, host, 0);
+                }
+
+                // Perform verification
+                int verifyResult = X509_verify_cert(ctx);
+                if (verifyResult == 1) {
+                  LOG_INFO(
+                      "Certificate chain validation successful for host '{}'",
+                      host);
+                } else {
+                  int error = X509_STORE_CTX_get_error(ctx);
+                  const char *errorStr = X509_verify_cert_error_string(error);
+                  LOG_WARN(
+                      "Certificate chain validation failed for host '{}': {} "
+                      "(error code: {})",
+                      host, errorStr, error);
+
+                  // Log additional details about the failure
+                  if (error == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT ||
+                      error == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN) {
+                    LOG_WARN("Certificate chain contains self-signed "
+                             "certificate");
+                  } else if (error == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT ||
+                             error ==
+                                 X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY) {
+                    LOG_WARN("Unable to verify certificate issuer");
+                  } else if (error == X509_V_ERR_CERT_HAS_EXPIRED ||
+                             error == X509_V_ERR_CERT_NOT_YET_VALID) {
+                    LOG_WARN("Certificate validity period issue");
+                  }
+                }
+              }
+              X509_STORE_CTX_free(ctx);
+            } else {
+              LOG_WARN("Failed to create X509_STORE_CTX");
+            }
+          } else {
+            LOG_WARN("Failed to load system CA certificates");
+          }
+          X509_STORE_free(store);
+        } else {
+          LOG_WARN("Failed to create X509_STORE");
+        }
+
+        X509_free(x509);
+      } else {
+        LOG_WARN("Failed to parse X.509 certificate data");
+      }
+    }
+  }
+
+  // TODO: Add configuration option to enable strict SSL verification
+  // For now, accept invalid certificates to maintain compatibility
+  // with self-signed certificates and development environments
+
+         // Return 0 to accept the certificate
+  // Return GIT_ECERTIFICATE to reject it
+  return 0; // Accept even if invalid
 }
 
 static void finishFetchProgress(const QString &uuid, const bool error) {
