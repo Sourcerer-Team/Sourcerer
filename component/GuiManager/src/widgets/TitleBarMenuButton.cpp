@@ -212,7 +212,7 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addSeparator();
   menu->addAction(_saveWorkspaceAction);
   menu->addSeparator();
-  menu->addAction(_settingsAction);
+  //menu->addAction(_settingsAction);
   menu->addAction(_terminalAction);
   menu->addSeparator();
   menu->addAction(_credentialsAction);
