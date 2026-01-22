@@ -205,7 +205,8 @@ enum ErrorId {
   DateTime = -6,
   Logic = -7,
   Config = -8,
-  Git = -9
+  Git = -9,
+  Security = -10
 };
 
 class Log {

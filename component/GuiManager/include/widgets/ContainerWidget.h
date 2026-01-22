@@ -8,6 +8,7 @@ enum class ContainerType {
   Unknown = 0,
   Clone,
   GitCredentials,
+  GitKeys,
   GitRepo,
   Home,
   InitGitRepo,

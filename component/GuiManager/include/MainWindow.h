@@ -61,6 +61,7 @@ private slots:
   void onSaveWorkspace();
   void onSettings();
   void onCredentials();
+  void onSshKeys();
   void onSubmitWorkspace(const QString &name);
   void onTerminal();
   void onWorkspaceClicked(const QString &name);
@@ -80,6 +81,7 @@ private:
   void addCloneContainer();
   void addGitRepoContainer(const QString &path);
   void addGitCredentialsContainer();
+  void addGitKeysContainer();
   void addHomeContainer();
   void addInitGitRepoContainer();
   void addSettingsContainer();

@@ -1681,6 +1681,8 @@ void GitRepoContainer::onPop() {
 void GitRepoContainer::onPull() {
   LOG_PERF(0, "Enter");
 
+  showSpinnerOverlay(true);
+
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { pull(guard); });
@@ -1690,6 +1692,8 @@ void GitRepoContainer::onPull() {
 
 void GitRepoContainer::onPush() {
   LOG_PERF(0, "Enter");
+
+  showSpinnerOverlay(true);
 
   const WeakPtr guard = getSelf().toWeakRef();
 

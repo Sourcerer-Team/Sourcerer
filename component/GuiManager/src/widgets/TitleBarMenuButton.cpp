@@ -107,6 +107,14 @@ void TitleBarMenuButton::onCredentials() {
   LOG_PERF(0, "Exit");
 }
 
+void TitleBarMenuButton::onSshKeys() {
+  LOG_PERF(0, "Enter");
+
+  emit sshKeys();
+
+  LOG_PERF(0, "Exit");
+}
+
 void TitleBarMenuButton::onTerminal() {
   LOG_PERF(0, "Enter");
 
@@ -167,6 +175,11 @@ void TitleBarMenuButton::createActions() {
   connect(_credentialsAction, &QAction::triggered, this,
           &TitleBarMenuButton::onCredentials);
 
+  _sshKeysAction = new QAction(this);
+  _sshKeysAction->setText(tr("SSH keys manager"));
+  connect(_sshKeysAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onSshKeys);
+
   _aboutAction = new QAction(this);
   _aboutAction->setText(tr("About"));
   connect(_aboutAction, &QAction::triggered, this,
@@ -203,6 +216,7 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addAction(_terminalAction);
   menu->addSeparator();
   menu->addAction(_credentialsAction);
+  menu->addAction(_sshKeysAction);
   menu->addSeparator();
   menu->addAction(_aboutAction);
 

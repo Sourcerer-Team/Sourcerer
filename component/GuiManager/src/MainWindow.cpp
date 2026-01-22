@@ -4,6 +4,7 @@
 #include "GitRepoManagerStructs.h"
 #include "containers/CloneGitRepoContainer.h"
 #include "containers/GitCredentialsContainer.h"
+#include "containers/GitKeysContainer.h"
 #include "containers/GitRepoContainer.h"
 #include "containers/HomeContainer.h"
 #include "containers/InitGitRepoContainer.h"
@@ -101,6 +102,8 @@ MainWindow::MainWindow(QWidget *parent)
           &MainWindow::onSettings);
   connect(_topBarWidget, &TopBarWidget::credentials, this,
           &MainWindow::onCredentials);
+  connect(_topBarWidget, &TopBarWidget::sshKeys, this,
+          &MainWindow::onSshKeys);
   connect(_topBarWidget, &TopBarWidget::terminal, this,
           &MainWindow::onTerminal);
   connect(_topBarWidget, &TopBarWidget::about, this, &MainWindow::onAbout);
@@ -306,6 +309,14 @@ void MainWindow::onCredentials() {
   LOG_PERF(0, "Enter");
 
   addGitCredentialsContainer();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onSshKeys() {
+  LOG_PERF(0, "Enter");
+
+  addGitKeysContainer();
 
   LOG_PERF(0, "Exit");
 }
@@ -747,6 +758,24 @@ void MainWindow::addGitCredentialsContainer() {
   container->setupShortcuts();
   _containers += container;
   _topBarWidget->titleBarWidget()->addTab(tr("Git credentials"));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addGitKeysContainer() {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<GitKeysContainer>::create(this);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+  _containers += container;
+  _topBarWidget->titleBarWidget()->addTab(tr("SSH keys"));
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 

@@ -1,5 +1,6 @@
 #include "GitRepo.h"
 #include "GitCredentialStorage.h"
+#include "GitKeyStorage.h"
 
 #include "../../../component/GitRepoManager/include/GitRepoManagerStructs.h"
 
@@ -37,6 +38,7 @@
 #include <QDir>
 #include <QFile>
 #include <QMap>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QString>
 
@@ -1621,11 +1623,35 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
 
   if (const QString urlString = QString::fromUtf8(url);
       urlString.startsWith("git@")) {
-    const QString homePath =
-        QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    // Extract host from git URL (e.g., "git@github.com:user/repo.git" -> "github.com")
+    QString host;
+    const QRegularExpression hostRegex("^git@([^:]+):");
+    const QRegularExpressionMatch match = hostRegex.match(urlString);
+    if (match.hasMatch()) {
+      host = match.captured(1);
+      LOG_DEBUG("Extracted host '{}' from URL", host);
+    }
 
-    const QString privateKeyPath = QString("%1/.ssh/id_rsa").arg(homePath);
-    const QString publicKeyPath = QString("%1/.ssh/id_rsa.pub").arg(homePath);
+    QString privateKeyPath;
+    QString publicKeyPath;
+
+    // Try to get key pair from GitKeyStorage for this specific host
+    GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
+    GitKeyPair keyPair;
+    
+    if (!host.isEmpty() && keyStorage.getKeyPairForHost(host, keyPair)) {
+      privateKeyPath = keyPair.privateKeyPath;
+      publicKeyPath = keyPair.publicKeyPath;
+      LOG_INFO("Using SSH key '{}' for host '{}'", keyPair.keyName, host);
+    } else {
+      // Fall back to default SSH key
+      const QString homePath =
+          QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+      privateKeyPath = QString("%1/.ssh/id_rsa").arg(homePath);
+      publicKeyPath = QString("%1/.ssh/id_rsa.pub").arg(homePath);
+      LOG_INFO("No specific SSH key configured for host '{}', using default: {}",
+               host.isEmpty() ? "unknown" : host, privateKeyPath);
+    }
 
     // Validate SSH keys using OpenSSL before attempting to use them
     if (!validateSshKey(privateKeyPath, publicKeyPath)) {

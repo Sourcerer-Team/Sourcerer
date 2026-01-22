@@ -31,6 +31,7 @@ signals:
   void saveWorkspace();
   void settings();
   void credentials();
+  void sshKeys();
   void terminal();
   void about();
 

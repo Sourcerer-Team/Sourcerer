@@ -19,6 +19,7 @@ set(QRC_FILES resources/resources.qrc)
 set(UI_FILES
         src/containers/CloneGitRepoContainer.ui
         src/containers/GitCredentialsContainer.ui
+        src/containers/GitKeysContainer.ui
         src/containers/GitRepoContainer.ui
         src/containers/HomeContainer.ui
         src/containers/InitGitRepoContainer.ui
@@ -60,6 +61,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/QScintillaLexerFactory.h
         include/containers/CloneGitRepoContainer.h
         include/containers/GitCredentialsContainer.h
+        include/containers/GitKeysContainer.h
         include/containers/GitRepoContainer.h
         include/containers/HomeContainer.h
         include/containers/InitGitRepoContainer.h
@@ -145,6 +147,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/QScintillaLexerFactory.cpp
         src/containers/CloneGitRepoContainer.cpp
         src/containers/GitCredentialsContainer.cpp
+        src/containers/GitKeysContainer.cpp
         src/containers/GitRepoContainer.cpp
         src/containers/HomeContainer.cpp
         src/containers/InitGitRepoContainer.cpp

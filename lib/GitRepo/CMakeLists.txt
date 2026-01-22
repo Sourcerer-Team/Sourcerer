@@ -21,8 +21,10 @@ add_compile_definitions(QT_USE_STRING_BUILDER)
 add_library(GitRepo STATIC
     include/GitRepo.h
     include/GitCredentialStorage.h
+    include/GitKeyStorage.h
     src/GitRepo.cpp
     src/GitCredentialStorage.cpp
+    src/GitKeyStorage.cpp
 )
 
 include(../../cmake/helpers.cmake)

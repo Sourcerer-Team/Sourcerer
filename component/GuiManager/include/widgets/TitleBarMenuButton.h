@@ -27,6 +27,7 @@ signals:
   void saveWorkspace();
   void settings();
   void credentials();
+  void sshKeys();
   void terminal();
   void about();
 
@@ -38,6 +39,7 @@ private slots:
   void onSaveWorkspace();
   void onSettings();
   void onCredentials();
+  void onSshKeys();
   void onTerminal();
   void onAbout();
 
@@ -55,6 +57,7 @@ private:
   QAction *_saveWorkspaceAction;
   QAction *_settingsAction;
   QAction *_credentialsAction;
+  QAction *_sshKeysAction;
   QAction *_terminalAction;
   QAction *_aboutAction;
 };
