@@ -34,13 +34,13 @@ includeLib(GitRepo Util)
 
 
 target_link_libraries(GitRepo PRIVATE
-    Threads::Threads
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
-    ${LIBGIT2_LIBRARIES}
+    Threads::Threads
     OpenSSL::SSL
     OpenSSL::Crypto
+    ${LIBGIT2_LIBRARIES}
 )
 
 target_include_directories(GitRepo PRIVATE
