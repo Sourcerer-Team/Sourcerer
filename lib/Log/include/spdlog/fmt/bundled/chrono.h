@@ -541,8 +541,8 @@ template <typename Char> struct formatter<std::tm, Char> {
   }
 
   template <typename FormatContext>
-  auto format(const std::tm &tm, FormatContext &ctx) const
-      -> decltype(ctx.out()) {
+  auto format(const std::tm &tm,
+              FormatContext &ctx) const -> decltype(ctx.out()) {
     basic_memory_buffer<Char> tm_format;
     tm_format.append(specs.begin(), specs.end());
     // By appending an extra space we can distinguish an empty result that
@@ -1326,8 +1326,8 @@ private:
   }
 
 public:
-  FMT_CONSTEXPR auto parse(basic_format_parse_context<Char> &ctx)
-      -> decltype(ctx.begin()) {
+  FMT_CONSTEXPR auto
+  parse(basic_format_parse_context<Char> &ctx) -> decltype(ctx.begin()) {
     auto range = do_parse(ctx);
     format_str = basic_string_view<Char>(
         &*range.begin, detail::to_unsigned(range.end - range.begin));
@@ -1335,8 +1335,8 @@ public:
   }
 
   template <typename FormatContext>
-  auto format(const duration &d, FormatContext &ctx) const
-      -> decltype(ctx.out()) {
+  auto format(const duration &d,
+              FormatContext &ctx) const -> decltype(ctx.out()) {
     auto specs_copy = specs;
     auto precision_copy = precision;
     auto begin = format_str.begin(), end = format_str.end();

@@ -16,8 +16,7 @@
 
 namespace EventManager {
 
-#define CAPTURE_CALLBACK(type, callback)                                       \
-  { type, this, callback }
+#define CAPTURE_CALLBACK(type, callback) {type, this, callback}
 
 const ulong DEFAULT_WAIT_TIMEOUT =
     std::numeric_limits<ulong>::max(); // indefinite wait time

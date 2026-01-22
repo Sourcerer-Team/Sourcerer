@@ -30,6 +30,7 @@ include(../../cmake/helpers.cmake)
 includeComponent(GitRepo ConfigManager)
 
 includeLib(GitRepo Log)
+includeLib(GitRepo OpenSSLHelper)
 includeLib(GitRepo Util)
 
 
@@ -38,7 +39,7 @@ target_link_libraries(GitRepo PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Threads::Threads
-    OpenSSL::SSL
+    OpenSSL::SSL   
     OpenSSL::Crypto
     ${LIBGIT2_LIBRARIES}
 )

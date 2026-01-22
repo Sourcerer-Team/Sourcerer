@@ -5882,8 +5882,13 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
   }
 
   if (event.type() != EventManager::EventType::GitRepoManagerPullResult) {
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [=]() { showSpinnerOverlay(false); });
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(
+          QString(tr("Failed to pull from remote.\n%1")).arg(error.message),
+          tr("Error"));
+    });
 
     LOG_PERF(0, "Exit")
     return;

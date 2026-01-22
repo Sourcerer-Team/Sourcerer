@@ -185,17 +185,15 @@ enum level_enum {
 
 #if !defined(SPDLOG_LEVEL_NAMES)
 #define SPDLOG_LEVEL_NAMES                                                     \
-  {                                                                            \
-    SPDLOG_LEVEL_NAME_TRACE, SPDLOG_LEVEL_NAME_DEBUG, SPDLOG_LEVEL_NAME_INFO,  \
-        SPDLOG_LEVEL_NAME_WARNING, SPDLOG_LEVEL_NAME_ERROR,                    \
-        SPDLOG_LEVEL_NAME_CRITICAL, SPDLOG_LEVEL_NAME_OFF                      \
-  }
+  {SPDLOG_LEVEL_NAME_TRACE, SPDLOG_LEVEL_NAME_DEBUG,                           \
+   SPDLOG_LEVEL_NAME_INFO,  SPDLOG_LEVEL_NAME_WARNING,                         \
+   SPDLOG_LEVEL_NAME_ERROR, SPDLOG_LEVEL_NAME_CRITICAL,                        \
+   SPDLOG_LEVEL_NAME_OFF}
 #endif
 
 #if !defined(SPDLOG_SHORT_LEVEL_NAMES)
 
-#define SPDLOG_SHORT_LEVEL_NAMES                                               \
-  { "T", "D", "I", "W", "E", "C", "O" }
+#define SPDLOG_SHORT_LEVEL_NAMES {"T", "D", "I", "W", "E", "C", "O"}
 #endif
 
 SPDLOG_API const string_view_t &
