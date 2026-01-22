@@ -44,13 +44,7 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
   _titleBar->setFixedHeight(28); // Fixed height for title bar
 
   // Add title label
-#ifdef Q_OS_WIN
-  auto *titleLabel = new QLabel("PowerShell Console", _titleBar);
-#elif defined(Q_OS_LINUX)
-  auto *titleLabel = new QLabel("Bash Console", _titleBar);
-#else
   auto *titleLabel = new QLabel("Console", _titleBar);
-#endif
   titleLabel->setStyleSheet(
       "color: white; font-weight: bold; font-size: 12px;");
   titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
