@@ -4,6 +4,7 @@
 #include <Log.h>
 
 #include <QDateTime>
+#include <QDir>
 #include <QFileDialog>
 #include <QHeaderView>
 #include <QInputDialog>
@@ -84,9 +85,10 @@ void GitKeysContainer::loadKeyPairs() {
     QStandardItem *keyNameItem = new QStandardItem(keyPair.keyName);
     row.append(keyNameItem);
 
-    // Private Key Path
-    QStandardItem *pathItem = new QStandardItem(keyPair.privateKeyPath);
-    pathItem->setToolTip(keyPair.privateKeyPath);
+    // Private Key Path - convert to native separators for display
+    QString displayPath = QDir::toNativeSeparators(keyPair.privateKeyPath);
+    QStandardItem *pathItem = new QStandardItem(displayPath);
+    pathItem->setToolTip(displayPath);
     row.append(pathItem);
 
     // Created time

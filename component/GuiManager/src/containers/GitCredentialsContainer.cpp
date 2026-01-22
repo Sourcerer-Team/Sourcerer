@@ -4,6 +4,7 @@
 #include <Log.h>
 
 #include <QDateTime>
+#include <QDir>
 #include <QHeaderView>
 #include <QMessageBox>
 #include <QStandardItemModel>
@@ -71,9 +72,10 @@ void GitCredentialsContainer::loadCredentials() {
                                               createdTime)) {
       QList<QStandardItem *> row;
 
-      // Repository path
-      QStandardItem *pathItem = new QStandardItem(repoPath);
-      pathItem->setToolTip(repoPath);
+      // Repository path - convert to native separators for display
+      QString displayPath = QDir::toNativeSeparators(repoPath);
+      QStandardItem *pathItem = new QStandardItem(displayPath);
+      pathItem->setToolTip(displayPath);
       row.append(pathItem);
 
       // Username
