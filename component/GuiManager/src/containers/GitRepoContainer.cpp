@@ -1,5 +1,6 @@
 #include "containers/GitRepoContainer.h"
 #include "DarkThemeLexersHighlighter.h"
+#include "MainWindow.h"
 #include "QScintillaLexerFactory.h"
 #include "containers/ui_GitRepoContainer.h"
 #include "delegates/ElidePartialColorDelegate.h"
@@ -9,6 +10,7 @@
 #include "models/GitCommitTreeModel.h"
 #include "widgets/AddSubmoduleOverlayWidget.h"
 #include "widgets/ClickableHeaderView.h"
+#include "widgets/ConsoleWidget.h"
 #include "widgets/ErrorToast.h"
 #include "widgets/InfoToast.h"
 #include "widgets/ShortcutsToolbarWidget.h"
@@ -637,6 +639,39 @@ void GitRepoContainer::selected() {
   _toastHost.setParent(this);
   _toastHost.setYOffset(titleBarHeight);
   _toastHost.raise();
+
+  // Send commands to console when this container is selected
+  // Find MainWindow by walking up the parent chain
+  QWidget *widget = this;
+  Widgets::ConsoleWidget *consoleWidget = nullptr;
+  while (widget) {
+    auto *mainWindow = qobject_cast<GuiManager::MainWindow *>(widget);
+    if (mainWindow) {
+      consoleWidget = mainWindow->findChild<Widgets::ConsoleWidget *>();
+      if (consoleWidget) {
+        break;
+      }
+    }
+
+    widget = widget->parentWidget();
+  }
+
+  Q_ASSERT(consoleWidget);
+
+  if (!consoleWidget) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  // Send Ctrl+C to interrupt any running command
+  consoleWidget->executeCommand("\x03");
+
+  // Change directory to container's path
+  consoleWidget->executeCommand(
+      QString("cd \"%1\"").arg(QDir::toNativeSeparators(_path)));
+
+  // Clear the console
+  consoleWidget->executeCommand("clear");
 
   LOG_PERF(0, "Exit")
 }
