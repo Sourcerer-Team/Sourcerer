@@ -1,9 +1,6 @@
 
 #include "widgets/ToastHostWidget.h"
 
-#include "Dispatcher.h"
-#include "MainWindow.h"
-
 #include <Log.h>
 
 #include <QApplication>
@@ -177,20 +174,16 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
   LOG_DEBUG("ToastHostWidget::addToLayout - Final toast position: ({}, {})",
             xPos, yPos);
 
-#ifdef Q_OS_LINUX
-  // Linux-specific: Direct window positioning to work around X11 window manager
-  // issues Show the window first to ensure it has a window handle
-  toast->show();
+  // Set target position before animation
+  toast->move(xPos, yPos);
 
+#ifdef Q_OS_LINUX
+  // Linux-specific: Ensure window handle exists for positioning
   // Position both the window handle and widget for redundancy
   QWindow *window = toast->windowHandle();
   if (window) {
     window->setPosition(xPos, yPos);
   }
-  toast->move(xPos, yPos);
-
-  toast->raise();
-  toast->activateWindow();
 
   // Verify position after event loop processes (X11 WM may interfere)
   QTimer::singleShot(100, [toast, xPos, yPos]() {
@@ -202,14 +195,10 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
       }
     }
   });
-#else
-  // Windows and macOS: Simple positioning works reliably
-  toast->move(xPos, yPos);
-  toast->show();
-  toast->raise();
 #endif
 
-  // animateWidget(toast);
+  // Animate the toast widget appearance
+  animateWidget(toast);
 
   LOG_PERF(0, "Exit");
 }
@@ -319,8 +308,6 @@ void ToastHostWidget::addToast(ToastWidget *toast) {
 
   const int toastWidth =
       _configManager.getLong(ConfigManager::ConfigKey::ToastWidth);
-  const int toastHeight =
-      _configManager.getLong(ConfigManager::ConfigKey::ToastHeight);
 
   // Platform-specific window configuration
   toast->setParent(nullptr);
@@ -369,8 +356,6 @@ void ToastHostWidget::addToast(const QSharedPointer<ToastWidget> &toast) {
 
   const int toastWidth =
       _configManager.getLong(ConfigManager::ConfigKey::ToastWidth);
-  const int toastHeight =
-      _configManager.getLong(ConfigManager::ConfigKey::ToastHeight);
 
   // Platform-specific window configuration
   toast->setParent(nullptr);
