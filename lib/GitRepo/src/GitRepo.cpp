@@ -159,8 +159,8 @@ static bool createInitialCommit(git_repository *repo,
 
   error = git_index_write_tree(&tree_id, index);
   if (error) {
-    git_signature_free(sig);
     git_index_free(index);
+    git_signature_free(sig);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
@@ -183,14 +183,15 @@ static bool createInitialCommit(git_repository *repo,
   error = git_commit_create_v(&commit_id, repo, HEAD, sig, sig, NULL,
                               "Initial commit", tree, 0);
   if (error) {
+    git_tree_free(tree);
     git_signature_free(sig);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  git_signature_free(sig);
   git_tree_free(tree);
+  git_signature_free(sig);
 
   git_branch_iterator *it = nullptr;
 
@@ -258,8 +259,12 @@ static bool createInitialCommit(git_repository *repo,
                           defaultBranchName.toStdString().c_str(), false);
   if (error) {
     logGitError(error);
+    git_reference_free(branchRef);
     return false;
   }
+
+  git_reference_free(newRef);
+  git_reference_free(branchRef);
 
   LOG_PERF(0, "Exit");
   return true;
@@ -400,8 +405,8 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     error = git_commit_tree(&tree, targetCommit);
     if (error) {
       logGitError(error);
-      git_reference_free(localRef);
       git_commit_free(targetCommit);
+      git_reference_free(localRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -414,9 +419,9 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
         git_checkout_tree(repo, reinterpret_cast<git_object *>(tree), &opts);
     if (error) {
       logGitError(error);
-      git_tree_free(tree);
-      git_reference_free(localRef);
       git_commit_free(targetCommit);
+      git_reference_free(localRef);
+      git_tree_free(tree);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -425,17 +430,17 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     error = git_repository_set_head(repo, git_reference_name(localRef));
     if (error) {
       logGitError(error);
-      git_tree_free(tree);
-      git_reference_free(localRef);
       git_commit_free(targetCommit);
+      git_reference_free(localRef);
+      git_tree_free(tree);
       LOG_PERF(0, "Exit");
       return false;
     }
 
     // Cleanup
-    git_tree_free(tree);
-    git_reference_free(localRef);
     git_commit_free(targetCommit);
+    git_reference_free(localRef);
+    git_tree_free(tree);
   } else if (type == BranchType::Remote) {
     git_tree *tree = nullptr;
     git_reference *localRef = nullptr;
@@ -501,8 +506,8 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
                                     branchOrTagName.toStdString().c_str());
     if (error) {
       logGitError(error);
-      git_commit_free(targetCommit);
       git_reference_free(localRef);
+      git_commit_free(targetCommit);
       git_reference_free(remoteRef);
       LOG_PERF(0, "Exit");
       return false;
@@ -513,8 +518,8 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     if (error) {
       logGitError(error);
       git_reference_free(localRef);
-      git_reference_free(remoteRef);
       git_commit_free(targetCommit);
+      git_reference_free(remoteRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -529,8 +534,8 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
       logGitError(error);
       git_tree_free(tree);
       git_reference_free(localRef);
-      git_reference_free(remoteRef);
       git_commit_free(targetCommit);
+      git_reference_free(remoteRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -541,8 +546,8 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
       logGitError(error);
       git_tree_free(tree);
       git_reference_free(localRef);
-      git_reference_free(remoteRef);
       git_commit_free(targetCommit);
+      git_reference_free(remoteRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -550,8 +555,8 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     // Cleanup
     git_tree_free(tree);
     git_reference_free(localRef);
-    git_reference_free(remoteRef);
     git_commit_free(targetCommit);
+    git_reference_free(remoteRef);
   } else if (type == BranchType::Tag) {
     git_object *tagTarget = nullptr;
     git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
@@ -784,6 +789,8 @@ static QStringList listCheckoutBranches(git_repository *repo,
         }
       }
     }
+
+    git_reference_free(headRef);
   }
 
   LOG_PERF(0, "Exit");
@@ -936,7 +943,7 @@ QStringList listStashes(git_repository *repo, const bool &quitFlag) {
 
     const auto payloadStashes = static_cast<QStringList *>(payload);
     if (message) {
-      *payloadStashes += QString::fromStdString(message);
+      *payloadStashes += QString::fromUtf8(message);
     } else {
       *payloadStashes += QString("stash@{%1}").arg(index);
     }
@@ -1065,8 +1072,8 @@ bool createBranchFromCommit(git_repository *repo, const QString &commit,
     return false;
   }
 
-  git_commit_free(commit_);
   git_reference_free(ref);
+  git_commit_free(commit_);
 
   LOG_PERF(0, "Exit");
 
@@ -1946,6 +1953,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
       error = git_branch_name(&currentBranchName, ref);
       if (error) {
         logGitError(error);
+        git_reference_free(ref);
         git_revwalk_free(walker);
         git_branch_iterator_free(it);
         LOG_PERF(0, "Exit");
@@ -1953,8 +1961,9 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
       }
 
       if (!currentBranchName) {
-        git_revwalk_free(walker);
+        git_reference_free(ref);
         git_branch_iterator_free(it);
+        git_revwalk_free(walker);
         LOG_ERROR(Log::ErrorId::Git, "No branch name found!");
         LOG_PERF(0, "Exit");
         return {};
@@ -1967,8 +1976,9 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
       else if (branchType == GIT_BRANCH_REMOTE)
         fullBranchName = QString("refs/remotes/%1").arg(currentBranchName);
       else {
-        git_revwalk_free(walker);
+        git_reference_free(ref);
         git_branch_iterator_free(it);
+        git_revwalk_free(walker);
         LOG_ERROR(Log::ErrorId::Git, "Unknown branch type!");
         LOG_PERF(0, "Exit");
         return {};
@@ -1978,8 +1988,9 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
           git_revwalk_push_ref(walker, fullBranchName.toStdString().c_str());
       if (error) {
         logGitError(error);
-        git_revwalk_free(walker);
+        git_reference_free(ref);
         git_branch_iterator_free(it);
+        git_revwalk_free(walker);
         LOG_PERF(0, "Exit");
         return {};
       }
@@ -2094,8 +2105,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
         LOG_ERROR(Log::ErrorId::Git,
                   "Can't lookup parent oid at index {} for oid \"{}\"", i,
                   oidStr);
-        git_revwalk_free(walker);
         git_commit_free(commit);
+        git_revwalk_free(walker);
         LOG_PERF(0, "Exit");
         return {};
       }
@@ -2106,8 +2117,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
             Log::ErrorId::Git,
             "Can't convert parent oid at index {} for oid \"{}\" to string.", i,
             oidStr);
-        git_revwalk_free(walker);
         git_commit_free(commit);
+        git_revwalk_free(walker);
         LOG_PERF(0, "Exit");
         return {};
       }
@@ -2131,8 +2142,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
     else {
       LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit message for oid \"{}\"",
                 oidStr);
-      git_revwalk_free(walker);
       git_commit_free(commit);
+      git_revwalk_free(walker);
       LOG_PERF(0, "Exit");
       return {};
     }
@@ -2142,8 +2153,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
     else {
       LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit summary for oid \"{}\"",
                 oidStr);
-      git_revwalk_free(walker);
       git_commit_free(commit);
+      git_revwalk_free(walker);
       LOG_PERF(0, "Exit");
       return {};
     }
@@ -2160,8 +2171,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
     } else {
       LOG_ERROR(Log::ErrorId::Git,
                 "Can't lookup commit signature for oid \"{}\"", oidStr);
-      git_revwalk_free(walker);
       git_commit_free(commit);
+      git_revwalk_free(walker);
       LOG_PERF(0, "Exit");
       return {};
     }
@@ -2277,10 +2288,11 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
         return {};
       }
 
-      git_reference_free(symbolicRef);
-
       branchOid = git_object_id(branchTip);
+
       git_object_free(branchTip);
+      git_reference_free(symbolicRef);
+      git_reference_free(ref);
     } else {
       branchOid = git_reference_target(ref);
     }
@@ -2652,8 +2664,8 @@ GitCommitStatus getCommitStatus(git_repository *repo,
     error = git_commit_parent(&parent, commit, 0);
     if (error) {
       logGitError(error);
-      git_commit_free(commit);
       git_tree_free(tree);
+      git_commit_free(commit);
       LOG_PERF(0, "Exit");
       return {};
     }
@@ -2661,9 +2673,9 @@ GitCommitStatus getCommitStatus(git_repository *repo,
     error = git_commit_tree(&parent_tree, parent);
     if (error) {
       logGitError(error);
-      git_commit_free(commit);
-      git_commit_free(parent);
       git_tree_free(tree);
+      git_commit_free(parent);
+      git_commit_free(commit);
       LOG_PERF(0, "Exit");
       return {};
     }
@@ -2679,13 +2691,17 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   error = git_diff_tree_to_tree(&diff, repo, parent_tree, tree, &opts);
   if (error) {
     logGitError(error);
+
+    git_tree_free(tree);
+
     if (parent_tree) {
       git_tree_free(parent_tree);
     }
+
     if (parent) {
       git_commit_free(parent);
     }
-    git_tree_free(tree);
+
     git_commit_free(commit);
     LOG_PERF(0, "Exit");
     return {};
@@ -2698,13 +2714,17 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   error = git_diff_find_similar(diff, &find_opts);
   if (error) {
     logGitError(error);
+
     git_diff_free(diff);
+
     if (parent_tree) {
       git_tree_free(parent_tree);
     }
+
     if (parent) {
       git_commit_free(parent);
     }
+
     git_tree_free(tree);
     git_commit_free(commit);
     LOG_PERF(0, "Exit");
@@ -2745,12 +2765,15 @@ GitCommitStatus getCommitStatus(git_repository *repo,
 
   // Cleanup in reverse order of allocation
   git_diff_free(diff);
+
   if (parent_tree) {
     git_tree_free(parent_tree);
   }
+
   if (parent) {
     git_commit_free(parent);
   }
+
   git_tree_free(tree);
   git_commit_free(commit);
 
@@ -2915,8 +2938,8 @@ bool commitStaged(git_repository *repo, const QString &summary,
                             email.toStdString().c_str());
   if (error) {
     logGitError(error);
-    git_index_free(index);
     git_tree_free(tree);
+    git_index_free(index);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -2929,8 +2952,8 @@ bool commitStaged(git_repository *repo, const QString &summary,
     if (error) {
       logGitError(error);
       git_signature_free(sig);
-      git_index_free(index);
       git_tree_free(tree);
+      git_index_free(index);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -2938,10 +2961,10 @@ bool commitStaged(git_repository *repo, const QString &summary,
     error = git_commit_lookup(&parent, repo, git_reference_target(headRef));
     if (error) {
       logGitError(error);
-      git_signature_free(sig);
-      git_index_free(index);
-      git_tree_free(tree);
       git_reference_free(headRef);
+      git_signature_free(sig);
+      git_tree_free(tree);
+      git_index_free(index);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -2957,25 +2980,26 @@ bool commitStaged(git_repository *repo, const QString &summary,
                               parent ? 1 : 0, parent);
   if (error) {
     logGitError(error);
-    git_signature_free(sig);
-    git_index_free(index);
-    git_tree_free(tree);
 
     if (parent) {
       git_commit_free(parent);
     }
 
+    git_signature_free(sig);
+    git_tree_free(tree);
+    git_index_free(index);
+
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  git_signature_free(sig);
-  git_index_free(index);
-  git_tree_free(tree);
-
   if (parent) {
     git_commit_free(parent);
   }
+
+  git_signature_free(sig);
+  git_tree_free(tree);
+  git_index_free(index);
 
   if (cleanup) {
     error = git_repository_state_cleanup(repo);
@@ -3083,14 +3107,14 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
   error = git_commit_tree(&headTree, commit);
   if (error) {
     logGitError(error);
-    git_object_free(headCommit);
     git_commit_free(commit);
+    git_object_free(headCommit);
     LOG_PERF(0, "Exit");
     return {};
   }
 
-  git_object_free(headCommit);
   git_commit_free(commit);
+  git_object_free(headCommit);
 
   git_strarray arr = qstringlist_to_git_strarray(files);
 
@@ -3270,14 +3294,13 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
 
     repoContent.insert(file, QString::fromUtf8(blobContent, blobSize));
 
-    git_tree_entry_free(entry);
     git_blob_free(blob);
+    git_tree_entry_free(entry);
   }
 
-  git_reference_free(headRef);
-
-  git_commit_free(reinterpret_cast<git_commit *>(headCommit));
   git_tree_free(tree);
+  git_commit_free(reinterpret_cast<git_commit *>(headCommit));
+  git_reference_free(headRef);
 
   for (const auto &file : files) {
     if (!repoContent.value(file).isEmpty()) {
@@ -3342,8 +3365,8 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
       return false;
     }
 
-    git_object_free(headTree);
     git_strarray_destroy(arr);
+    git_object_free(headTree);
 
     // 2. Reset index entry to HEAD
     git_index *index = nullptr;
@@ -3367,8 +3390,8 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
     error = git_tree_lookup(&tree, repo, git_object_id(headTree2));
     if (error) {
       logGitError(error);
-      git_index_free(index);
       git_object_free(headTree2);
+      git_index_free(index);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -3380,8 +3403,8 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
     if (error) {
       logGitError(error);
       git_tree_free(tree);
-      git_index_free(index);
       git_object_free(headTree2);
+      git_index_free(index);
       continue;
     }
 
@@ -3390,10 +3413,10 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
       error = git_blob_lookup(&blob, repo, git_tree_entry_id(entry));
       if (error) {
         logGitError(error);
+        git_tree_entry_free(entry);
         git_tree_free(tree);
         git_object_free(headTree2);
         git_index_free(index);
-        git_tree_entry_free(entry);
         LOG_PERF(0, "Exit");
         return false;
       }
@@ -3412,10 +3435,10 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
         LOG_ERROR(Log::ErrorId::Git, "Can't open file \"{}\" for writing",
                   file.fileName());
         git_blob_free(blob);
+        git_tree_entry_free(entry);
         git_tree_free(tree);
         git_object_free(headTree2);
         git_index_free(index);
-        git_tree_entry_free(entry);
         LOG_PERF(0, "Exit");
         return false;
       }
@@ -3562,8 +3585,8 @@ bool pull(git_repository *repo) {
   finishCredentialsAcquiring(url);
 
   if (error) {
-    git_remote_free(remote);
     logGitError(error);
+    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -3584,15 +3607,15 @@ bool pull(git_repository *repo) {
   error = git_branch_name(&branchName, head);
   if (error != 0) {
     logGitError(error);
-    git_remote_free(remote);
     git_reference_free(head);
+    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
 
   if (!branchName) {
-    git_remote_free(remote);
     git_reference_free(head);
+    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -3605,8 +3628,8 @@ bool pull(git_repository *repo) {
       QString("refs/remotes/origin/%1").arg(branchName).toStdString().c_str());
   if (error != 0) {
     logGitError(error);
-    git_remote_free(remote);
     git_reference_free(head);
+    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -3617,9 +3640,9 @@ bool pull(git_repository *repo) {
   error = git_annotated_commit_from_ref(&upstreamCommit, repo, upstream);
   if (error) {
     logGitError(error);
-    git_remote_free(remote);
-    git_reference_free(head);
     git_reference_free(upstream);
+    git_reference_free(head);
+    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -3633,10 +3656,10 @@ bool pull(git_repository *repo) {
       const_cast<const git_annotated_commit **>(&upstreamCommit), 1);
   if (error) {
     logGitError(error);
-    git_remote_free(remote);
-    git_reference_free(head);
-    git_reference_free(upstream);
     git_annotated_commit_free(upstreamCommit);
+    git_reference_free(upstream);
+    git_reference_free(head);
+    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -3645,10 +3668,10 @@ bool pull(git_repository *repo) {
     // Fast-forward
     const git_oid *targetOid = git_annotated_commit_id(upstreamCommit);
     if (!targetOid) {
-      git_remote_free(remote);
-      git_reference_free(head);
-      git_reference_free(upstream);
       git_annotated_commit_free(upstreamCommit);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      git_remote_free(remote);
       LOG_ERROR(Log::ErrorId::Git, "Can't get target OID for fast-forward");
       LOG_PERF(0, "Exit");
       return false;
@@ -3659,10 +3682,10 @@ bool pull(git_repository *repo) {
     error = git_commit_lookup(&targetCommit, repo, targetOid);
     if (error) {
       logGitError(error);
-      git_remote_free(remote);
-      git_reference_free(head);
-      git_reference_free(upstream);
       git_annotated_commit_free(upstreamCommit);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      git_remote_free(remote);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -3673,11 +3696,11 @@ bool pull(git_repository *repo) {
     error = git_checkout_tree(repo, (git_object *)targetCommit, &checkout_opts);
     if (error) {
       logGitError(error);
-      git_remote_free(remote);
-      git_reference_free(head);
-      git_reference_free(upstream);
-      git_annotated_commit_free(upstreamCommit);
       git_commit_free(targetCommit);
+      git_annotated_commit_free(upstreamCommit);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      git_remote_free(remote);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -3687,17 +3710,17 @@ bool pull(git_repository *repo) {
     error = git_reference_set_target(&newHead, head, targetOid, "Fast-forward");
     if (error) {
       logGitError(error);
-      git_remote_free(remote);
-      git_reference_free(head);
-      git_reference_free(upstream);
-      git_annotated_commit_free(upstreamCommit);
       git_commit_free(targetCommit);
+      git_annotated_commit_free(upstreamCommit);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      git_remote_free(remote);
       LOG_PERF(0, "Exit");
       return false;
     }
 
-    git_commit_free(targetCommit);
     git_reference_free(newHead);
+    git_commit_free(targetCommit);
   } else if (analysis & GIT_MERGE_ANALYSIS_NORMAL) {
     // Normal merge
     git_merge_options merge_opts = GIT_MERGE_OPTIONS_INIT;
@@ -3708,11 +3731,11 @@ bool pull(git_repository *repo) {
         repo, const_cast<const git_annotated_commit **>(&upstreamCommit), 1,
         &merge_opts, &checkout_opts);
     if (error) {
+      logGitError(error);
       git_annotated_commit_free(upstreamCommit);
-      git_remote_free(remote);
       git_reference_free(upstream);
       git_reference_free(head);
-      logGitError(error);
+      git_remote_free(remote);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -3722,10 +3745,10 @@ bool pull(git_repository *repo) {
   }
 
   // Cleanup
-  git_remote_free(remote);
-  git_reference_free(head);
-  git_reference_free(upstream);
   git_annotated_commit_free(upstreamCommit);
+  git_reference_free(upstream);
+  git_reference_free(head);
+  git_remote_free(remote);
 
   LOG_PERF(0, "Exit");
 
@@ -3829,8 +3852,9 @@ bool push(git_repository *repo) {
 
   finishCredentialsAcquiring(url);
 
-  git_reference_free(headRef);
   git_strarray_destroy(refspecs);
+  git_remote_free(remote);
+  git_reference_free(headRef);
 
   LOG_PERF(0, "Exit");
 
@@ -3868,9 +3892,12 @@ bool stash(git_repository *repo) {
   );
   if (error) {
     logGitError(error);
+    git_signature_free(signature);
     LOG_PERF(0, "Exit");
     return false;
   }
+
+  git_signature_free(signature);
 
   LOG_PERF(0, "Exit");
 
@@ -4056,9 +4083,9 @@ bool revertCommit(git_repository *repo, const QString &commit,
                             &mergeOpts);
   if (error) {
     logGitError(error);
-    git_commit_free(targetCommit);
     git_commit_free(headCommit);
     git_reference_free(headRef);
+    git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4069,9 +4096,9 @@ bool revertCommit(git_repository *repo, const QString &commit,
   if (error) {
     logGitError(error);
     git_index_free(revertIndex);
-    git_commit_free(targetCommit);
     git_commit_free(headCommit);
     git_reference_free(headRef);
+    git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4082,9 +4109,9 @@ bool revertCommit(git_repository *repo, const QString &commit,
   if (error) {
     logGitError(error);
     git_index_free(revertIndex);
-    git_commit_free(targetCommit);
     git_commit_free(headCommit);
     git_reference_free(headRef);
+    git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4097,9 +4124,9 @@ bool revertCommit(git_repository *repo, const QString &commit,
     logGitError(error);
     git_tree_free(revertTree);
     git_index_free(revertIndex);
-    git_commit_free(targetCommit);
     git_commit_free(headCommit);
     git_reference_free(headRef);
+    git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4114,9 +4141,9 @@ bool revertCommit(git_repository *repo, const QString &commit,
     git_signature_free(sig);
     git_tree_free(revertTree);
     git_index_free(revertIndex);
-    git_commit_free(targetCommit);
     git_commit_free(headCommit);
     git_reference_free(headRef);
+    git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4125,8 +4152,8 @@ bool revertCommit(git_repository *repo, const QString &commit,
   git_tree_free(revertTree);
   git_index_free(revertIndex);
   git_commit_free(headCommit);
-  git_commit_free(targetCommit);
   git_reference_free(headRef);
+  git_commit_free(targetCommit);
 
   LOG_PERF(0, "Exit");
 
@@ -4259,14 +4286,14 @@ bool createTagFromCommit(git_repository *repo, const QString &commit,
                          message.toStdString().c_str(), 0);
   if (error) {
     logGitError(error);
-    git_commit_free(targetCommit);
     git_signature_free(sig);
+    git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  git_commit_free(targetCommit);
   git_signature_free(sig);
+  git_commit_free(targetCommit);
 
   LOG_PERF(0, "Exit");
 
@@ -4321,9 +4348,9 @@ QString createPatchFromCommit(git_repository *repo, const QString &commit) {
     error = git_commit_tree(&parentTree, parent);
     if (error) {
       logGitError(error);
+      git_commit_free(parent);
       git_tree_free(tree);
       git_commit_free(commit_);
-      git_commit_free(parent);
       LOG_PERF(0, "Exit");
       return {};
     }
@@ -4378,17 +4405,17 @@ QString createPatchFromCommit(git_repository *repo, const QString &commit) {
   }
 
   git_diff_free(diff);
-  git_tree_free(tree);
 
   if (parentTree) {
     git_tree_free(parentTree);
   }
 
-  git_commit_free(commit_);
-
   if (parent) {
     git_commit_free(parent);
   }
+
+  git_tree_free(tree);
+  git_commit_free(commit_);
 
   LOG_PERF(0, "Exit");
 
@@ -4430,8 +4457,8 @@ bool renameTag(git_repository *repo, const QString &oldName,
     tag = reinterpret_cast<git_tag *>(target);
     const git_signature *tagger = git_tag_tagger(tag);
     if (!tagger) {
-      git_reference_free(tagRef);
       git_object_free(target);
+      git_reference_free(tagRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -4443,8 +4470,8 @@ bool renameTag(git_repository *repo, const QString &oldName,
     error = git_tag_target(&tagTarget, tag);
     if (error) {
       logGitError(error);
-      git_reference_free(tagRef);
       git_object_free(target);
+      git_reference_free(tagRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -4453,20 +4480,22 @@ bool renameTag(git_repository *repo, const QString &oldName,
                            tagTarget, tagger, message, 0);
     if (error) {
       logGitError(error);
-      git_reference_free(tagRef);
-      git_object_free(target);
       git_object_free(tagTarget);
+      git_object_free(target);
+      git_reference_free(tagRef);
       LOG_PERF(0, "Exit");
       return false;
     }
+
+    git_object_free(tagTarget);
   } else {
     // Lightweight tag
     error = git_tag_create_lightweight(
         &newOid, repo, newName.toStdString().c_str(), target, 0);
     if (error) {
       logGitError(error);
-      git_reference_free(tagRef);
       git_object_free(target);
+      git_reference_free(tagRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -4475,14 +4504,14 @@ bool renameTag(git_repository *repo, const QString &oldName,
   error = git_tag_delete(repo, oldName.toStdString().c_str());
   if (error) {
     logGitError(error);
-    git_reference_free(tagRef);
     git_object_free(target);
+    git_reference_free(tagRef);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  git_reference_free(tagRef);
   git_object_free(target);
+  git_reference_free(tagRef);
 
   LOG_PERF(0, "Exit");
 
@@ -4549,6 +4578,7 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
 
   const char *repositoryPath = git_repository_path(repo);
   if (!repositoryPath) {
+    git_submodule_free(submodule);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4585,6 +4615,7 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
 
     if (const bool staged = stageFiles(repo, QStringList() << ".gitmodules");
         !staged) {
+      git_submodule_free(submodule);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -4608,8 +4639,8 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
   error = git_config_open_level(&localConfig, config, GIT_CONFIG_LEVEL_LOCAL);
   if (error) {
     logGitError(error);
-    git_submodule_free(submodule);
     git_config_free(config);
+    git_submodule_free(submodule);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4618,8 +4649,8 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
 
   git_config_delete_multivar(localConfig, key.toStdString().c_str(), nullptr);
 
-  git_config_free(config);
   git_config_free(localConfig);
+  git_config_free(config);
 
   git_index *index = nullptr;
 
@@ -4634,8 +4665,8 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
   error = git_index_remove(index, name.c_str(), 0);
   if (error) {
     logGitError(error);
-    git_submodule_free(submodule);
     git_index_free(index);
+    git_submodule_free(submodule);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4643,14 +4674,14 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
   error = git_index_write(index);
   if (error) {
     logGitError(error);
-    git_submodule_free(submodule);
     git_index_free(index);
+    git_submodule_free(submodule);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  git_submodule_free(submodule);
   git_index_free(index);
+  git_submodule_free(submodule);
 
   QDir(submodulePath).removeRecursively();
   QDir(QString("%1/modules/%2").arg(repositoryPath).arg(name))
@@ -4755,14 +4786,14 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   error = git_submodule_add_finalize(subModule);
   if (error) {
     logGitError(error);
-    git_submodule_free(subModule);
     git_repository_free(subRepo);
+    git_submodule_free(subModule);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  git_submodule_free(subModule);
   git_repository_free(subRepo);
+  git_submodule_free(subModule);
 
   LOG_PERF(0, "Exit");
 
@@ -4817,9 +4848,9 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
     error = git_commit_tree(&parentTree, parent);
     if (error) {
       logGitError(error);
+      git_commit_free(parent);
       git_tree_free(tree);
       git_commit_free(commit_);
-      git_commit_free(parent);
       LOG_PERF(0, "Exit");
       return {};
     }
@@ -4835,18 +4866,19 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
   error = git_diff_tree_to_tree(&diff, repo, parentTree, tree, &opts);
   if (error) {
     logGitError(error);
-    git_tree_free(tree);
-    git_commit_free(commit_);
 
-    if (parent) {
-      git_commit_free(parent);
-    }
+    git_strarray_destroy(arr);
 
     if (parentTree) {
       git_tree_free(parentTree);
     }
 
-    git_strarray_destroy(arr);
+    if (parent) {
+      git_commit_free(parent);
+    }
+
+    git_tree_free(tree);
+    git_commit_free(commit_);
 
     LOG_PERF(0, "Exit");
     return {};
@@ -4931,7 +4963,6 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
   }
 
   git_diff_free(diff);
-
   git_strarray_destroy(arr);
 
   QMap<QString, QString> filesContent;
@@ -4984,20 +5015,20 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
     repoContent.insert(file, QString::fromUtf8(blobContent, blobSize));
 
-    git_tree_entry_free(entry);
     git_blob_free(blob);
-  }
-
-  git_tree_free(tree);
-  git_commit_free(commit_);
-
-  if (parent) {
-    git_commit_free(parent);
+    git_tree_entry_free(entry);
   }
 
   if (parentTree) {
     git_tree_free(parentTree);
   }
+
+  if (parent) {
+    git_commit_free(parent);
+  }
+
+  git_tree_free(tree);
+  git_commit_free(commit_);
 
   FilesDiff filesDiff;
   filesDiff.diff = diffOutput;
@@ -5042,8 +5073,8 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   error = git_reference_peel(&dstObj, dstRef, GIT_OBJECT_COMMIT);
   if (error) {
     logGitError(error);
-    git_reference_free(srcRef);
     git_reference_free(dstRef);
+    git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5051,9 +5082,9 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   error = git_checkout_tree(repo, dstObj, nullptr);
   if (error) {
     logGitError(error);
-    git_reference_free(srcRef);
-    git_reference_free(dstRef);
     git_object_free(dstObj);
+    git_reference_free(dstRef);
+    git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5063,8 +5094,8 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   error = git_repository_set_head(repo, git_reference_name(dstRef));
   if (error) {
     logGitError(error);
-    git_reference_free(srcRef);
     git_reference_free(dstRef);
+    git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5075,8 +5106,8 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   error = git_annotated_commit_from_ref(&srcCommit, repo, srcRef);
   if (error) {
     logGitError(error);
-    git_reference_free(srcRef);
     git_reference_free(dstRef);
+    git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5086,9 +5117,9 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   error = git_annotated_commit_from_ref(&dstCommit, repo, dstRef);
   if (error) {
     logGitError(error);
-    git_reference_free(srcRef);
-    git_reference_free(dstRef);
     git_annotated_commit_free(srcCommit);
+    git_reference_free(dstRef);
+    git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5102,20 +5133,20 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   error = git_merge_analysis(&analysis, &preference, repo, commits, 1);
   if (error) {
     logGitError(error);
-    git_reference_free(srcRef);
-    git_reference_free(dstRef);
-    git_annotated_commit_free(srcCommit);
     git_annotated_commit_free(dstCommit);
+    git_annotated_commit_free(srcCommit);
+    git_reference_free(dstRef);
+    git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
     return false;
   }
 
   if (analysis & GIT_MERGE_ANALYSIS_UP_TO_DATE) {
     LOG_DEBUG("Destination branch is already up to date.");
-    git_reference_free(srcRef);
-    git_reference_free(dstRef);
-    git_annotated_commit_free(srcCommit);
     git_annotated_commit_free(dstCommit);
+    git_annotated_commit_free(srcCommit);
+    git_reference_free(dstRef);
+    git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
     return true;
   } else if (analysis & GIT_MERGE_ANALYSIS_FASTFORWARD) {
@@ -5127,10 +5158,10 @@ bool merge(git_repository *repo, const QString &sourceBranch,
                               git_annotated_commit_id(srcCommit));
     if (error) {
       logGitError(error);
-      git_reference_free(srcRef);
-      git_reference_free(dstRef);
-      git_annotated_commit_free(srcCommit);
       git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -5142,11 +5173,11 @@ bool merge(git_repository *repo, const QString &sourceBranch,
         &updatedRef, dstRef, git_commit_id(srcCommitObj), "Fast-forward merge");
     if (error) {
       logGitError(error);
-      git_reference_free(srcRef);
-      git_reference_free(dstRef);
-      git_annotated_commit_free(srcCommit);
-      git_annotated_commit_free(dstCommit);
       git_commit_free(srcCommitObj);
+      git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -5156,22 +5187,22 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     error = git_commit_lookup(&newCommit, repo, git_commit_id(srcCommitObj));
     if (error) {
       logGitError(error);
-      git_reference_free(srcRef);
-      git_reference_free(dstRef);
-      git_annotated_commit_free(srcCommit);
-      git_annotated_commit_free(dstCommit);
-      git_commit_free(srcCommitObj);
       git_reference_free(updatedRef);
+      git_commit_free(srcCommitObj);
+      git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
       LOG_PERF(0, "Exit");
       return false;
     }
 
-    git_reference_free(srcRef);
-    git_reference_free(dstRef);
-    git_annotated_commit_free(srcCommit);
-    git_annotated_commit_free(dstCommit);
-    git_commit_free(srcCommitObj);
     git_reference_free(updatedRef);
+    git_commit_free(srcCommitObj);
+    git_annotated_commit_free(dstCommit);
+    git_annotated_commit_free(srcCommit);
+    git_reference_free(dstRef);
+    git_reference_free(srcRef);
 
     git_checkout_options ffOpts = GIT_CHECKOUT_OPTIONS_INIT;
     ffOpts.checkout_strategy =
@@ -5199,10 +5230,10 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     error = git_merge(repo, commits, 1, &mergeOpts, &checkoutOpts);
     if (error) {
       logGitError(error);
-      git_reference_free(srcRef);
-      git_reference_free(dstRef);
-      git_annotated_commit_free(srcCommit);
       git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -5211,21 +5242,21 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     error = git_repository_index(&index, repo);
     if (error) {
       logGitError(error);
-      git_reference_free(srcRef);
-      git_reference_free(dstRef);
-      git_annotated_commit_free(srcCommit);
       git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
       LOG_PERF(0, "Exit");
       return false;
     }
 
     if (git_index_has_conflicts(index)) {
       LOG_DEBUG("Merge has conflicts. Resolve them before committing.");
-      git_reference_free(srcRef);
-      git_reference_free(dstRef);
-      git_annotated_commit_free(srcCommit);
-      git_annotated_commit_free(dstCommit);
       git_index_free(index);
+      git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -5237,11 +5268,11 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     error = git_index_write_tree(&treeOid, index);
     if (error) {
       logGitError(error);
-      git_reference_free(srcRef);
-      git_reference_free(dstRef);
-      git_annotated_commit_free(srcCommit);
-      git_annotated_commit_free(dstCommit);
       git_index_free(index);
+      git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -5249,11 +5280,11 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     error = git_tree_lookup(&tree, repo, &treeOid);
     if (error) {
       logGitError(error);
-      git_reference_free(srcRef);
-      git_reference_free(dstRef);
-      git_annotated_commit_free(srcCommit);
-      git_annotated_commit_free(dstCommit);
       git_index_free(index);
+      git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -5265,12 +5296,12 @@ bool merge(git_repository *repo, const QString &sourceBranch,
                               email.toStdString().c_str());
     if (error) {
       logGitError(error);
-      git_reference_free(srcRef);
-      git_reference_free(dstRef);
-      git_annotated_commit_free(srcCommit);
-      git_annotated_commit_free(dstCommit);
-      git_index_free(index);
       git_tree_free(tree);
+      git_index_free(index);
+      git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -5283,13 +5314,13 @@ bool merge(git_repository *repo, const QString &sourceBranch,
         git_commit_lookup(&dstCommitObj, repo, git_reference_target(dstRef));
     if (error) {
       logGitError(error);
-      git_reference_free(srcRef);
-      git_reference_free(dstRef);
-      git_annotated_commit_free(srcCommit);
-      git_annotated_commit_free(dstCommit);
-      git_index_free(index);
-      git_tree_free(tree);
       git_signature_free(sig);
+      git_tree_free(tree);
+      git_index_free(index);
+      git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -5298,14 +5329,14 @@ bool merge(git_repository *repo, const QString &sourceBranch,
         git_commit_lookup(&srcCommitObj, repo, git_reference_target(srcRef));
     if (error) {
       logGitError(error);
-      git_reference_free(srcRef);
-      git_reference_free(dstRef);
-      git_annotated_commit_free(srcCommit);
-      git_annotated_commit_free(dstCommit);
-      git_index_free(index);
-      git_tree_free(tree);
-      git_signature_free(sig);
       git_commit_free(dstCommitObj);
+      git_signature_free(sig);
+      git_tree_free(tree);
+      git_index_free(index);
+      git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -5319,28 +5350,28 @@ bool merge(git_repository *repo, const QString &sourceBranch,
                               comment.toStdString().c_str(), tree, 2, parents);
     if (error) {
       logGitError(error);
-      git_reference_free(srcRef);
-      git_reference_free(dstRef);
-      git_annotated_commit_free(srcCommit);
-      git_annotated_commit_free(dstCommit);
-      git_index_free(index);
-      git_tree_free(tree);
-      git_signature_free(sig);
-      git_commit_free(dstCommitObj);
       git_commit_free(srcCommitObj);
+      git_commit_free(dstCommitObj);
+      git_signature_free(sig);
+      git_tree_free(tree);
+      git_index_free(index);
+      git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
       LOG_PERF(0, "Exit");
       return false;
     }
 
-    git_reference_free(srcRef);
-    git_reference_free(dstRef);
-    git_annotated_commit_free(srcCommit);
-    git_annotated_commit_free(dstCommit);
-    git_index_free(index);
-    git_tree_free(tree);
-    git_signature_free(sig);
-    git_commit_free(dstCommitObj);
     git_commit_free(srcCommitObj);
+    git_commit_free(dstCommitObj);
+    git_signature_free(sig);
+    git_tree_free(tree);
+    git_index_free(index);
+    git_annotated_commit_free(dstCommit);
+    git_annotated_commit_free(srcCommit);
+    git_reference_free(dstRef);
+    git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
     return true;
   }
@@ -5421,8 +5452,8 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
 
     error = git_blob_lookup(&blobTheirs, repo, &theirs->id);
     if (error) {
-      git_blob_free(blobAncestor);
       git_blob_free(blobOurs);
+      git_blob_free(blobAncestor);
       continue;
     }
 
@@ -5440,18 +5471,18 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
     error = git_merge_file(&result, &inputAncestor, &inputOurs, &inputTheirs,
                            &opts);
     if (error) {
-      git_blob_free(blobAncestor);
-      git_blob_free(blobOurs);
       git_blob_free(blobTheirs);
+      git_blob_free(blobOurs);
+      git_blob_free(blobAncestor);
       continue;
     }
 
     fileContentWithMarkers += result.ptr;
 
     git_merge_file_result_free(&result);
-    git_blob_free(blobAncestor);
-    git_blob_free(blobOurs);
     git_blob_free(blobTheirs);
+    git_blob_free(blobOurs);
+    git_blob_free(blobAncestor);
 
     break;
   }
@@ -5555,8 +5586,8 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
   error = git_index_write_tree(&treeOid, index);
   if (error) {
     logGitError(error);
-    git_commit_free(commitToAmend);
     git_index_free(index);
+    git_commit_free(commitToAmend);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5564,8 +5595,8 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
   error = git_tree_lookup(&tree, repo, &treeOid);
   if (error) {
     logGitError(error);
-    git_commit_free(commitToAmend);
     git_index_free(index);
+    git_commit_free(commitToAmend);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5575,9 +5606,9 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
                             email.toStdString().c_str());
   if (error) {
     logGitError(error);
-    git_commit_free(commitToAmend);
-    git_index_free(index);
     git_tree_free(tree);
+    git_index_free(index);
+    git_commit_free(commitToAmend);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5598,19 +5629,20 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
   );
   if (error) {
     logGitError(error);
-    git_commit_free(commitToAmend);
-    git_index_free(index);
-    git_tree_free(tree);
     git_signature_free(committerSig);
+    git_tree_free(tree);
+
+    git_index_free(index);
+    git_commit_free(commitToAmend);
     LOG_PERF(0, "Exit");
     return false;
   }
 
   // Cleanup
-  git_commit_free(commitToAmend);
-  git_index_free(index);
-  git_tree_free(tree);
   git_signature_free(committerSig);
+  git_tree_free(tree);
+  git_index_free(index);
+  git_commit_free(commitToAmend);
 
   LOG_PERF(0, "Exit");
 

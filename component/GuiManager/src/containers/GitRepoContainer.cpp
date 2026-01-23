@@ -5905,9 +5905,8 @@ bool GitRepoContainer::openRepo(const WeakPtr &guard) {
     saveRepoInRecentList();
   }
 
-  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    showSpinnerOverlay(false);
-  });
+  Util::Dispatcher::dispatchToMainThread(guard,
+                                         [=]() { showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit")
 
