@@ -124,6 +124,14 @@ void TitleBarMenuButton::onTerminal() {
   LOG_PERF(0, "Exit");
 }
 
+void TitleBarMenuButton::onBugReport() {
+  LOG_PERF(0, "Enter");
+
+  emit bugReport();
+
+  LOG_PERF(0, "Exit");
+}
+
 void TitleBarMenuButton::onAbout() {
   LOG_PERF(0, "Enter");
 
@@ -181,6 +189,11 @@ void TitleBarMenuButton::createActions() {
   connect(_sshKeysAction, &QAction::triggered, this,
           &TitleBarMenuButton::onSshKeys);
 
+  _bugReportAction = new QAction(this);
+  _bugReportAction->setText(tr("Report bug"));
+  connect(_bugReportAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onBugReport);
+
   _aboutAction = new QAction(this);
   _aboutAction->setText(tr("About"));
   connect(_aboutAction, &QAction::triggered, this,
@@ -219,6 +232,7 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addAction(_credentialsAction);
   menu->addAction(_sshKeysAction);
   menu->addSeparator();
+  menu->addAction(_bugReportAction);
   menu->addAction(_aboutAction);
 
   const qlonglong menuMinimumWidth =

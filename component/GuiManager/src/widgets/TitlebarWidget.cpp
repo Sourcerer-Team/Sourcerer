@@ -45,6 +45,8 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::onSshKeys);
   connect(ui->menuButton, &TitleBarMenuButton::terminal, this,
           &TitlebarWidget::onTerminal);
+  connect(ui->menuButton, &TitleBarMenuButton::bugReport, this,
+          &TitlebarWidget::onBugReport);
   connect(ui->menuButton, &TitleBarMenuButton::about, this,
           &TitlebarWidget::onAbout);
 
@@ -176,6 +178,14 @@ void TitlebarWidget::onTerminal() {
   LOG_PERF(0, "Enter");
 
   emit terminal();
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitlebarWidget::onBugReport() {
+  LOG_PERF(0, "Enter");
+
+  emit bugReport();
 
   LOG_PERF(0, "Exit");
 }

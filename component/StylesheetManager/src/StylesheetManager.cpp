@@ -138,6 +138,18 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#pushButtonCancel{
+        background-color: #8b0000;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonCancel:hover{
+        background-color: #b22222;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
       QPushButton#pushButtonCommit{
         background-color: #006400;
         border: 1px solid gray;
@@ -145,6 +157,18 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         padding: 5px;
       }
       QPushButton#pushButtonCommit:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonSubmit{
+        background-color: #006400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonSubmit:hover{
         background-color: #008400;
         border: 1px solid gray;
         border-radius: 5px;
@@ -281,6 +305,12 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
+      }
+      QTextEdit {
+        color: white;
+      }
+      QTextEdit::placeholder {
+        color: #C0C0C0;
       }
       QTextEdit:focus {
         border: 2px solid #53A0ED;

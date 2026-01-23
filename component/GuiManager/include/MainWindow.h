@@ -66,6 +66,7 @@ private slots:
   void onSubmitWorkspace(const QString &name);
   void onTerminal();
   void onWorkspaceClicked(const QString &name);
+  void onBugReport();
   void onAbout() const;
   void onClosedTab(int index);
   void onSelectedTab(int index);
@@ -86,6 +87,7 @@ private:
   void addHomeContainer();
   void addInitGitRepoContainer();
   void addSettingsContainer();
+  void addBugReportContainer();
   void closeContainer(const ContainerWidget *container);
   void eventCallback(EventManager::Event event);
   void saveNewWorkspace();

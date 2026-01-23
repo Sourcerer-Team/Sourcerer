@@ -36,6 +36,7 @@ signals:
   void credentials();
   void sshKeys();
   void terminal();
+  void bugReport();
   void about();
 
   void closedTab(int index);
@@ -51,6 +52,7 @@ private slots:
   void onCredentials();
   void onSshKeys();
   void onTerminal();
+  void onBugReport();
   void onAbout();
 
   void onClosedTab(int index);

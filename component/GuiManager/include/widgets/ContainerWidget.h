@@ -6,6 +6,7 @@ namespace GuiManager::Widgets {
 
 enum class ContainerType {
   Unknown = 0,
+  BugReport,
   Clone,
   GitCredentials,
   GitKeys,

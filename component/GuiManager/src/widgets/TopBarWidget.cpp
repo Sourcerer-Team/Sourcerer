@@ -103,6 +103,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
           &TopBarWidget::sshKeys);
   connect(_titleBarWidget, &TitlebarWidget::terminal, this,
           &TopBarWidget::terminal);
+  connect(_titleBarWidget, &TitlebarWidget::bugReport, this,
+          &TopBarWidget::bugReport);
   connect(_titleBarWidget, &TitlebarWidget::about, this, &TopBarWidget::about);
   connect(_titleBarWidget, &TitlebarWidget::closedTab, this,
           &TopBarWidget::closedTab);

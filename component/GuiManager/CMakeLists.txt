@@ -11,12 +11,14 @@ set(CMAKE_CXX_STANDARD 17)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 find_package(libgit2 REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Widgets LinguistTools)
+find_package(libzip REQUIRED)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Widgets Network LinguistTools)
 
 set(TS_FILES translations/Sourcerer_en_US.ts)
 set(QRC_FILES resources/resources.qrc)
 
 set(UI_FILES
+        src/containers/BugReportContainer.ui
         src/containers/CloneGitRepoContainer.ui
         src/containers/GitCredentialsContainer.ui
         src/containers/GitKeysContainer.ui
@@ -59,6 +61,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/InitResources.h
         include/MainWindow.h
         include/QScintillaLexerFactory.h
+        include/containers/BugReportContainer.h
         include/containers/CloneGitRepoContainer.h
         include/containers/GitCredentialsContainer.h
         include/containers/GitKeysContainer.h
@@ -145,6 +148,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/InitResources.cpp
         src/MainWindow.cpp
         src/QScintillaLexerFactory.cpp
+        src/containers/BugReportContainer.cpp
         src/containers/CloneGitRepoContainer.cpp
         src/containers/GitCredentialsContainer.cpp
         src/containers/GitKeysContainer.cpp
@@ -238,7 +242,9 @@ target_link_libraries(GuiManager PRIVATE
         Qt6::Gui
         Qt6::Svg
         Qt6::Widgets
+        Qt6::Network
         ${LIBGIT2_LIBRARIES}
+        libzip::zip
         qscintilla
 )
 

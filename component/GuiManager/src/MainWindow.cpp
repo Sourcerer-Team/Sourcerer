@@ -2,6 +2,7 @@
 
 #include "Constants.h"
 #include "GitRepoManagerStructs.h"
+#include "containers/BugReportContainer.h"
 #include "containers/CloneGitRepoContainer.h"
 #include "containers/GitCredentialsContainer.h"
 #include "containers/GitKeysContainer.h"
@@ -123,6 +124,8 @@ MainWindow::MainWindow(QWidget *parent)
   connect(_topBarWidget, &TopBarWidget::sshKeys, this, &MainWindow::onSshKeys);
   connect(_topBarWidget, &TopBarWidget::terminal, this,
           &MainWindow::onTerminal);
+  connect(_topBarWidget, &TopBarWidget::bugReport, this,
+          &MainWindow::onBugReport);
   connect(_topBarWidget, &TopBarWidget::about, this, &MainWindow::onAbout);
   connect(_topBarWidget, &TopBarWidget::closedTab, this,
           &MainWindow::onClosedTab);
@@ -563,6 +566,14 @@ void MainWindow::onAbout() const {
   LOG_PERF(0, "Exit");
 }
 
+void MainWindow::onBugReport() {
+  LOG_PERF(0, "Enter");
+
+  addBugReportContainer();
+
+  LOG_PERF(0, "Exit");
+}
+
 void MainWindow::onClosedTab(const int index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("index is {}.", index);
@@ -791,6 +802,27 @@ void MainWindow::addSettingsContainer() {
   LOG_PERF(0, "Exit");
 }
 
+void MainWindow::addBugReportContainer() {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<BugReportContainer>::create(this);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+  _containers += container;
+  _topBarWidget->titleBarWidget()->addTab(tr("Report bug"));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  connect(container.get(), &BugReportContainer::close, this,
+          [this, container]() { closeContainer(container.get()); });
+
+  LOG_PERF(0, "Exit");
+}
+
 void MainWindow::addGitCredentialsContainer() {
   LOG_PERF(0, "Enter");
 
@@ -845,10 +877,16 @@ void MainWindow::closeContainer(const ContainerWidget *container) {
     return;
   }
 
+  // Hide and deselect the container being closed
+  if (_current == index) {
+    _containers[index]->hide();
+    _containers[index]->deselected();
+    _current = -1;
+  }
+
   _toastHost.setParent(this);
 
   _containers.remove(index);
-  _current = -1;
 
   if (_containers.length() == 0)
     addHomeContainer();
