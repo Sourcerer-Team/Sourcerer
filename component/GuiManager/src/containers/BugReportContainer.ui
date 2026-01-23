@@ -42,7 +42,7 @@
    <item>
     <widget class="QLabel" name="labelInfo">
      <property name="text">
-      <string>Please provide details about the issue you encountered. Log files will be automatically attached.</string>
+      <string>Please provide details about the issue you encountered. Anonymized log files will be automatically attached.</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignmentFlag::AlignCenter</set>
