@@ -150,6 +150,142 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#refreshButton{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#refreshButton:hover{
+        background-color: #4a6070;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#deleteButton{
+        background-color: #8b0000;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#deleteButton:hover{
+        background-color: #b22222;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#generateButton{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#generateButton:hover{
+        background-color: #4a6070;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#addButton{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#addButton:hover{
+        background-color: #4a6070;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#editButton{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#editButton:hover{
+        background-color: #4a6070;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#openButton{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#openButton:hover{
+        background-color: #4a6070;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+        text-decoration: none;
+      }
+      QPushButton#cloneButton{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#cloneButton:hover{
+        background-color: #4a6070;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+        text-decoration: none;
+      }
+      QPushButton#initButton{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#initButton:hover{
+        background-color: #4a6070;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+        text-decoration: none;
+      }
+      QPushButton#pushButtonBrowse{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonBrowse:hover{
+        background-color: #4a6070;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+        text-decoration: none;
+      }
+      QPushButton#pushButtonClone{
+        background-color: #006400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonClone:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonInit{
+        background-color: #006400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonInit:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
       QPushButton#pushButtonCommit{
         background-color: #006400;
         border: 1px solid gray;

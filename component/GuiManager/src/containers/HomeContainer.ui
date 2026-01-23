@@ -34,14 +34,17 @@
          </property>
          <item>
           <widget class="QPushButton" name="openButton">
-           <property name="maximumSize">
+           <property name="minimumSize">
             <size>
-             <width>64</width>
-             <height>16777215</height>
+             <width>120</width>
+             <height>0</height>
             </size>
            </property>
-           <property name="cursor">
-            <cursorShape>PointingHandCursor</cursorShape>
+           <property name="maximumSize">
+            <size>
+             <width>120</width>
+             <height>16777215</height>
+            </size>
            </property>
            <property name="styleSheet">
             <string notr="true"/>
@@ -49,21 +52,21 @@
            <property name="text">
             <string>Open</string>
            </property>
-           <property name="flat">
-            <bool>true</bool>
-           </property>
           </widget>
          </item>
          <item>
           <widget class="QPushButton" name="cloneButton">
-           <property name="maximumSize">
+           <property name="minimumSize">
             <size>
-             <width>64</width>
-             <height>16777215</height>
+             <width>120</width>
+             <height>0</height>
             </size>
            </property>
-           <property name="cursor">
-            <cursorShape>PointingHandCursor</cursorShape>
+           <property name="maximumSize">
+            <size>
+             <width>120</width>
+             <height>16777215</height>
+            </size>
            </property>
            <property name="styleSheet">
             <string notr="true"/>
@@ -71,30 +74,27 @@
            <property name="text">
             <string>Clone</string>
            </property>
-           <property name="flat">
-            <bool>true</bool>
-           </property>
           </widget>
          </item>
          <item>
           <widget class="QPushButton" name="initButton">
-           <property name="maximumSize">
+           <property name="minimumSize">
             <size>
-             <width>64</width>
-             <height>16777215</height>
+             <width>120</width>
+             <height>0</height>
             </size>
            </property>
-           <property name="cursor">
-            <cursorShape>PointingHandCursor</cursorShape>
+           <property name="maximumSize">
+            <size>
+             <width>120</width>
+             <height>16777215</height>
+            </size>
            </property>
            <property name="styleSheet">
             <string notr="true"/>
            </property>
            <property name="text">
             <string>Init</string>
-           </property>
-           <property name="flat">
-            <bool>true</bool>
            </property>
           </widget>
          </item>
