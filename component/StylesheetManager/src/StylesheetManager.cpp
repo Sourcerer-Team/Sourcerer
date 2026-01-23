@@ -126,6 +126,18 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#displayTreeExpandAllButton{
+        background-color: #006400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#displayTreeExpandAllButton:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
       QPushButton#pushButtonAbort{
         background-color: #8b0000;
         border: 1px solid gray;

@@ -242,7 +242,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _displayTreeExpandAllButton =
       new QPushButton(tr("Expand all"), ui->tabWidgetPageDisplayFiles);
-  _displayTreeExpandAllButton->setFlat(true);
+  _displayTreeExpandAllButton->setObjectName("displayTreeExpandAllButton");
+  _displayTreeExpandAllButton->setFlat(false);
   _displayTreeExpandAllButton->setVisible(
       ui->tabWidgetPageDisplayFiles->currentIndex() != 0);
 
