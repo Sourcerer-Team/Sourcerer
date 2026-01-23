@@ -2679,6 +2679,13 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   error = git_diff_tree_to_tree(&diff, repo, parent_tree, tree, &opts);
   if (error) {
     logGitError(error);
+    if (parent_tree) {
+      git_tree_free(parent_tree);
+    }
+    if (parent) {
+      git_commit_free(parent);
+    }
+    git_tree_free(tree);
     git_commit_free(commit);
     LOG_PERF(0, "Exit");
     return {};
@@ -2691,8 +2698,15 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   error = git_diff_find_similar(diff, &find_opts);
   if (error) {
     logGitError(error);
-    git_commit_free(commit);
+    git_diff_free(diff);
+    if (parent_tree) {
+      git_tree_free(parent_tree);
+    }
+    if (parent) {
+      git_commit_free(parent);
+    }
     git_tree_free(tree);
+    git_commit_free(commit);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -2728,6 +2742,17 @@ GitCommitStatus getCommitStatus(git_repository *repo,
         return 0;
       },
       nullptr, nullptr, nullptr, &status);
+
+  // Cleanup in reverse order of allocation
+  git_diff_free(diff);
+  if (parent_tree) {
+    git_tree_free(parent_tree);
+  }
+  if (parent) {
+    git_commit_free(parent);
+  }
+  git_tree_free(tree);
+  git_commit_free(commit);
 
   LOG_PERF(0, "Exit");
 
@@ -3354,6 +3379,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
     error = git_tree_entry_bypath(&entry, tree, path.c_str());
     if (error) {
       logGitError(error);
+      git_tree_free(tree);
       git_index_free(index);
       git_object_free(headTree2);
       continue;
@@ -3400,10 +3426,13 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
 
       git_blob_free(blob);
 
+      // Capture entry data before freeing
       git_index_entry newEntry = {};
       newEntry.mode = git_tree_entry_filemode(entry);
       newEntry.id = *git_tree_entry_id(entry);
       newEntry.path = path.c_str();
+
+      git_tree_entry_free(entry);
 
       error = git_index_remove(index, path.c_str(), 0); // Remove old entry
       if (error) {
@@ -4082,6 +4111,7 @@ bool revertCommit(git_repository *repo, const QString &commit,
                               headCommit);
   if (error) {
     logGitError(error);
+    git_signature_free(sig);
     git_tree_free(revertTree);
     git_index_free(revertIndex);
     git_commit_free(targetCommit);
@@ -4778,8 +4808,8 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
     error = git_commit_parent(&parent, commit_, 0);
     if (error) {
       logGitError(error);
-      git_commit_free(commit_);
       git_tree_free(tree);
+      git_commit_free(commit_);
       LOG_PERF(0, "Exit");
       return {};
     }
@@ -4787,8 +4817,8 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
     error = git_commit_tree(&parentTree, parent);
     if (error) {
       logGitError(error);
-      git_commit_free(commit_);
       git_tree_free(tree);
+      git_commit_free(commit_);
       git_commit_free(parent);
       LOG_PERF(0, "Exit");
       return {};
@@ -4805,8 +4835,8 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
   error = git_diff_tree_to_tree(&diff, repo, parentTree, tree, &opts);
   if (error) {
     logGitError(error);
-    git_commit_free(commit_);
     git_tree_free(tree);
+    git_commit_free(commit_);
 
     if (parent) {
       git_commit_free(parent);
@@ -4927,7 +4957,6 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
                                   filePath.toStdString().c_str());
     if (error) {
       logGitError(error);
-      git_tree_free(tree);
       repoContent.insert(file, QString());
       continue;
     }
@@ -4935,7 +4964,6 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
     const git_oid *fullOid = git_tree_entry_id(entry);
     if (!fullOid) {
       logGitError(error);
-      git_tree_free(tree);
       git_tree_entry_free(entry);
       repoContent.insert(file, QString());
       continue;
@@ -4945,7 +4973,6 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
     error = git_blob_lookup(&blob, repo, fullOid);
     if (error) {
       logGitError(error);
-      git_tree_free(tree);
       git_tree_entry_free(entry);
       repoContent.insert(file, QString());
       continue;
@@ -4957,13 +4984,12 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
     repoContent.insert(file, QString::fromUtf8(blobContent, blobSize));
 
-    git_tree_free(tree);
     git_tree_entry_free(entry);
     git_blob_free(blob);
   }
 
-  git_commit_free(commit_);
   git_tree_free(tree);
+  git_commit_free(commit_);
 
   if (parent) {
     git_commit_free(parent);
@@ -5431,6 +5457,7 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
   }
 
   git_index_conflict_iterator_free(iterator);
+  git_index_free(index);
 
   LOG_PERF(0, "Exit");
 
