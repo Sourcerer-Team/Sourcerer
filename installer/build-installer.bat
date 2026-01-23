@@ -84,9 +84,12 @@ REM Copy application files
 echo Copying application files...
 copy "%RELEASE_DIR%\Sourcerer.exe" "%DATA_DIR%\" || exit /b 1
 
-REM Copy application icon for installer
-echo Copying application icon...
+REM Copy application icon and images for installer
+echo Copying application icon and images...
 copy "%PROJECT_ROOT%\component\GuiManager\resources\icons\sorcerer-hat.ico" "%INSTALLER_DIR%\config\" || exit /b 1
+if not exist "%INSTALLER_DIR%\config\images" mkdir "%INSTALLER_DIR%\config\images"
+copy "%PROJECT_ROOT%\component\GuiManager\resources\icons\sorcerer-hat.png" "%INSTALLER_DIR%\config\images\logo.png" || exit /b 1
+copy "%PROJECT_ROOT%\component\GuiManager\resources\icons\sorcerer-hat.png" "%INSTALLER_DIR%\config\images\watermark.png" || exit /b 1
 
 REM Deploy Qt dependencies using windeployqt
 echo Deploying Qt dependencies...
@@ -138,7 +141,9 @@ REM copy "C:\Windows\System32\msvcp*.dll" "%DATA_DIR%\" 2>nul
 
 REM Extract version from config.xml
 echo Extracting version from config.xml...
-for /f "tokens=3 delims=<>" %%v in ('findstr "<Version>" "%INSTALLER_DIR%\config\config.xml"') do set APP_VERSION=%%v
+for /f "tokens=3 delims=<>" %%v in ('findstr "<Version>" "%INSTALLER_DIR%\config\config.xml"') do (
+    if not defined APP_VERSION set APP_VERSION=%%v
+)
 if not defined APP_VERSION (
     echo Warning: Could not extract version from config.xml, using default 1.0.0
     set APP_VERSION=1.0.0

@@ -1,8 +1,6 @@
 function Controller() {
-    installer.autoRejectMessageBoxes();
-    installer.installationFinished.connect(function() {
-        gui.clickButton(buttons.NextButton);
-    })
+    installer.setMessageBoxAutomaticAnswer("OverwriteTargetDirectory", QMessageBox.Yes);
+    installer.setMessageBoxAutomaticAnswer("stopProcessesForUpdates", QMessageBox.Ignore);
 }
 
 Controller.prototype.WelcomePageCallback = function() {
@@ -14,7 +12,19 @@ Controller.prototype.CredentialsPageCallback = function() {
 }
 
 Controller.prototype.IntroductionPageCallback = function() {
-    gui.clickButton(buttons.NextButton);
+    // Check if Sourcerer is running
+    if (installer.isProcessRunning("Sourcerer.exe")) {
+        var result = QMessageBox.question("quit.question", "Installer", 
+            "Sourcerer is currently running. Please close it before continuing with the installation.",
+            QMessageBox.Ok | QMessageBox.Cancel);
+        if (result == QMessageBox.Ok) {
+            gui.clickButton(buttons.NextButton);
+        } else {
+            gui.clickButton(buttons.CancelButton);
+        }
+    } else {
+        gui.clickButton(buttons.NextButton);
+    }
 }
 
 Controller.prototype.TargetDirectoryPageCallback = function() {
@@ -44,8 +54,9 @@ Controller.prototype.PerformInstallationPageCallback = function() {
 }
 
 Controller.prototype.FinishedPageCallback = function() {
-    var checkBoxForm = gui.currentPageWidget().LaunchApplicationCheckBox;
+    var checkBoxForm = gui.currentPageWidget().LaunchSourcererCheckBox;
     if (checkBoxForm && checkBoxForm.checked) {
-        installer.executeDetached(installer.value("TargetDir") + "/Sourcerer");
+        installer.executeDetached(installer.value("TargetDir") + "/Sourcerer.exe");
     }
+    gui.clickButton(buttons.FinishButton);
 }

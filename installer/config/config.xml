@@ -14,5 +14,8 @@
     <AllowNonAsciiCharacters>true</AllowNonAsciiCharacters>
     <AllowSpaceInPath>true</AllowSpaceInPath>
     <InstallerApplicationIcon>sorcerer-hat</InstallerApplicationIcon>
+    <Logo>images/logo.png</Logo>
+    <Watermark>images/watermark.png</Watermark>
+    <StyleSheet>style.qss</StyleSheet>
     <ControlScript>controlscript.js</ControlScript>
 </Installer>
