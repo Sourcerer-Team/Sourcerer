@@ -23,6 +23,9 @@
       <layout class="QVBoxLayout" name="rightVerticalLayout">
        <item>
         <layout class="QHBoxLayout" name="horizontalLayoutButtons">
+         <property name="spacing">
+          <number>10</number>
+         </property>
          <property name="leftMargin">
           <number>16</number>
          </property>
