@@ -2,6 +2,7 @@
 
 #include "HitDetector.h"
 #include "widgets/CentralWidget.h"
+#include "widgets/ConsoleWidget.h"
 #include "widgets/ContainerWidget.h"
 #include "widgets/GitCredentialsOverlayWidget.h"
 #include "widgets/ProfileBoardWidget.h"
@@ -100,6 +101,7 @@ private:
   int _current;
   CentralWidget *_centralWidget;
   TopBarWidget *_topBarWidget;
+  ConsoleWidget *_consoleWidget;
   ToastHostWidget &_toastHost;
   QVector<QSharedPointer<ContainerWidget>> _containers;
   ConfigManager::ConfigManager &_configManager;

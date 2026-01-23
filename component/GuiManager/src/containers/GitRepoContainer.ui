@@ -520,14 +520,6 @@
                  </layout>
                 </widget>
                </widget>
-               <widget class="GuiManager::Widgets::ConsoleWidget" name="consoleWidget" native="true">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-               </widget>
               </widget>
              </item>
             </layout>
@@ -1655,12 +1647,6 @@
    <class>GuiManager::Widgets::MergeDiffView</class>
    <extends>QWidget</extends>
    <header>widgets/MergeDiffView.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>GuiManager::Widgets::ConsoleWidget</class>
-   <extends>QWidget</extends>
-   <header>widgets/ConsoleWidget.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

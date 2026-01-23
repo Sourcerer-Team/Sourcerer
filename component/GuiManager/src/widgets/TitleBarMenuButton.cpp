@@ -1,4 +1,5 @@
 #include "widgets/TitleBarMenuButton.h"
+#include "MainWindow.h"
 
 #include <Log.h>
 

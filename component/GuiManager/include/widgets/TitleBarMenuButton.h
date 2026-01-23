@@ -1,7 +1,5 @@
 #pragma once
 
-#include <MainWindow.h>
-
 #include <ConfigManager.h>
 
 #include <QHoverEvent>
@@ -9,12 +7,18 @@
 #include <QToolButton>
 #include <QWidget>
 
+namespace GuiManager {
+class MainWindow;
+}
+
 namespace GuiManager::Widgets {
 
 class TitleBarMenuButton final : public QToolButton {
   Q_OBJECT
 public:
   explicit TitleBarMenuButton(QWidget *parent = nullptr);
+
+  QAction *terminalAction() const { return _terminalAction; }
 
   // QObject interface
 public:

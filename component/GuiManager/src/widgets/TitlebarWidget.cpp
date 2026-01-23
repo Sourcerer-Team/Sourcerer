@@ -109,6 +109,13 @@ int TitlebarWidget::tabsCount() const {
   return count;
 }
 
+TitleBarMenuButton *TitlebarWidget::menuButton() const {
+  LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Exit");
+
+  return ui->menuButton;
+}
+
 void TitlebarWidget::onOpen() {
   LOG_PERF(0, "Enter");
 

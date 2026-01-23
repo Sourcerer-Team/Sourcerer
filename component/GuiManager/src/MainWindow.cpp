@@ -24,6 +24,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSplitter>
 #include <QStandardPaths>
 #include <QWindow>
 
@@ -43,7 +44,7 @@ constexpr int PROFILE_WIDGET_ARROW_OFFSET = 30;
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), _current(-1), _centralWidget(new CentralWidget),
-      _topBarWidget(new TopBarWidget),
+      _topBarWidget(new TopBarWidget), _consoleWidget(new ConsoleWidget(this)),
       _toastHost(ToastHostWidget::getInstance()),
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
@@ -77,11 +78,28 @@ MainWindow::MainWindow(QWidget *parent)
 
   _centralWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
+  // Create upper widget with topBar and central widget
+  auto *upperWidget = new QWidget();
+  auto *upperLayout = new QVBoxLayout(upperWidget);
+  upperLayout->setContentsMargins(0, 0, 0, 0);
+  upperLayout->setSpacing(0);
+  upperLayout->addWidget(_topBarWidget);
+  upperLayout->addWidget(_centralWidget);
+
+  // Create splitter and add upper widget and console
+  auto *splitter = new QSplitter(Qt::Vertical, widget);
+  splitter->addWidget(upperWidget);
+  splitter->addWidget(_consoleWidget);
+  splitter->setStretchFactor(0, 1); // Upper widget takes most space
+  splitter->setStretchFactor(1, 0); // Console takes minimal space
+
+  // Main layout
   const auto verticalLayout = new QVBoxLayout(widget);
   verticalLayout->setContentsMargins(0, 0, 0, 0);
   verticalLayout->setSpacing(0);
-  verticalLayout->addWidget(_topBarWidget);
-  verticalLayout->addWidget(_centralWidget);
+  verticalLayout->addWidget(splitter);
+
+  _consoleWidget->hide();
 
   setCentralWidget(widget);
 
@@ -388,7 +406,37 @@ void MainWindow::onSubmitWorkspace(const QString &name) {
 void MainWindow::onTerminal() {
   LOG_PERF(0, "Enter");
 
-  emit terminal();
+  // Get the terminal action to update its text
+  QAction *terminalAction =
+      _topBarWidget->titleBarWidget()->menuButton()->terminalAction();
+
+  if (_consoleWidget->isVisible()) {
+    // Hide console
+    _consoleWidget->hide();
+    if (terminalAction) {
+      terminalAction->setText(tr("Show &terminal"));
+    }
+  } else {
+    // Show console
+    // Get current container path for working directory
+    if (_current >= 0 && _current < _containers.size()) {
+      const auto container = _containers[_current];
+      if (container) {
+        const QString path = container->path();
+        if (!path.isEmpty()) {
+          _consoleWidget->setWorkingDirectory(path);
+        }
+      }
+    }
+
+    _consoleWidget->init();
+    _consoleWidget->show();
+    _consoleWidget->setFocusToConsole();
+
+    if (terminalAction) {
+      terminalAction->setText(tr("Hide &terminal"));
+    }
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -654,8 +702,6 @@ void MainWindow::addGitRepoContainer(const QString &path) {
 
   connect(container.get(), &GitRepoContainer::openRepoRequested, this,
           &MainWindow::onOpenRepo);
-  connect(this, &MainWindow::terminal, container.get(),
-          &GitRepoContainer::onTerminalRequested);
 
   _containers += container;
 

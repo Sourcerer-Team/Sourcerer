@@ -60,9 +60,6 @@ public:
 
   QString path() const override { return _path; }
 
-public slots:
-  void onTerminalRequested();
-
   // QObject interface
 public:
   bool eventFilter(QObject *watched, QEvent *event) override;

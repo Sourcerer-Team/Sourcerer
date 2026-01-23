@@ -1,5 +1,6 @@
 #pragma once
 
+#include "widgets/TitleBarMenuButton.h"
 #include <ConfigManager.h>
 
 #include <QWidget>
@@ -23,6 +24,8 @@ public:
   void removeTab(int index) const;
   void selectTab(int index) const;
   int tabsCount() const;
+
+  Widgets::TitleBarMenuButton *menuButton() const;
 
 signals:
   void open();
