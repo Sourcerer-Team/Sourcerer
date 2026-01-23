@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Installer>
+    <Name>Sourcerer</Name>
+    <Version>0.0.1</Version>
+    <Title>Sourcerer Installer</Title>
+    <Publisher>Sourcerer Team</Publisher>
+    <ProductUrl>https://github.com/sourcerer</ProductUrl>
+    <StartMenuDir>Sourcerer</StartMenuDir>
+    <TargetDir>@HomeDir@/Sourcerer</TargetDir>
+    <AdminTargetDir>@ApplicationsDir@/Sourcerer</AdminTargetDir>
+    <RunProgram>@TargetDir@/Sourcerer</RunProgram>
+    <RunProgramDescription>Launch Sourcerer</RunProgramDescription>
+    <MaintenanceToolName>MaintenanceTool</MaintenanceToolName>
+    <AllowNonAsciiCharacters>true</AllowNonAsciiCharacters>
+    <AllowSpaceInPath>true</AllowSpaceInPath>
+    <InstallerApplicationIcon>sorcerer-hat</InstallerApplicationIcon>
+    <ControlScript>controlscript.js</ControlScript>
+</Installer>
