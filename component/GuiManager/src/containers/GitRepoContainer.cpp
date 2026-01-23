@@ -318,6 +318,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _shortcutsWidget->addShortcutWidget(pushButtonStash);
   _shortcutsWidget->addShortcutWidget(pushButtonPop);
 
+  // Explicitly show buttons to ensure they're interactive
+  pushButtonPull->show();
+  pushButtonPush->show();
+  pushButtonStash->show();
+  pushButtonPop->show();
+
   ui->leftVerticalLayout->insertWidget(0, _shortcutsWidget);
 
   ui->pushButtonDiffClose->setIcon(QPixmap(":/icons/close_button.png"));
