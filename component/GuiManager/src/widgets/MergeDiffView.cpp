@@ -54,6 +54,11 @@ MergeDiffView::MergeDiffView(QWidget *parent)
   _bottomMarks = new ScrollbarMarksWidget(_bottomEditor->verticalScrollBar(),
                                           _bottomEditor, this);
 
+  // Initially hide marks, they will show when scrollbars become visible
+  _leftMarks->hide();
+  _rightMarks->hide();
+  _bottomMarks->hide();
+
   LOG_PERF(0, "Exit");
 }
 

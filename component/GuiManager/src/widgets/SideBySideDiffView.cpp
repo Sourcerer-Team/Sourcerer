@@ -42,6 +42,11 @@ void ScrollbarMarksWidget::setMarks(const QVector<int> &deletedLines,
 void ScrollbarMarksWidget::paintEvent(QPaintEvent *event) {
   Q_UNUSED(event);
 
+  // Don't draw marks if scrollbar is not visible
+  if (!_scrollBar || !_scrollBar->isVisible()) {
+    return;
+  }
+
   const int totalLines = _editor->lines();
   if (totalLines <= 0) {
     return;
@@ -105,6 +110,12 @@ bool ScrollbarMarksWidget::eventFilter(QObject *obj, QEvent *event) {
   if (obj == _scrollBar) {
     if (event->type() == QEvent::Resize || event->type() == QEvent::Move) {
       updateGeometry();
+    } else if (event->type() == QEvent::Show) {
+      // Show marks when scrollbar becomes visible
+      show();
+    } else if (event->type() == QEvent::Hide) {
+      // Hide marks when scrollbar is hidden
+      hide();
     }
   }
   return QWidget::eventFilter(obj, event);
@@ -143,6 +154,10 @@ SideBySideDiffView::SideBySideDiffView(QWidget *parent)
                                         _leftEditor, this);
   _rightMarks = new ScrollbarMarksWidget(_rightEditor->verticalScrollBar(),
                                          _rightEditor, this);
+
+  // Initially hide marks, they will show when scrollbars become visible
+  _leftMarks->hide();
+  _rightMarks->hide();
 
   LOG_PERF(0, "Exit");
 }
