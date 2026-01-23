@@ -174,6 +174,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonCommit->setEnabled(false);
   ui->pushButtonCommit->setMinimumHeight(32);
   ui->pushButtonCommit->setMaximumHeight(32);
+  ui->pushButtonMerge->setVisible(false);
   ui->pushButtonMerge->setEnabled(false);
   ui->pushButtonMerge->setMinimumHeight(32);
   ui->pushButtonMerge->setMaximumHeight(32);

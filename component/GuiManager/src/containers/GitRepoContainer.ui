@@ -1388,7 +1388,7 @@
                 </font>
                </property>
                <property name="text">
-                <string>An error ocurred while during repository operation</string>
+                <string>An error occurred during repository operation</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop</set>

@@ -97,6 +97,15 @@ static git_strarray qstringlist_to_git_strarray(const QStringList &list) {
   return arr;
 }
 
+static QString capitalizeFirst(const QString &str) {
+  QString capitalized = str;
+  if (!capitalized.isEmpty()) {
+    capitalized[0] = capitalized[0].toUpper();
+  }
+
+  return capitalized;
+}
+
 static void logGitError(const int error) {
   const git_error *gitError = git_error_last();
   if (!gitError || !gitError->message)
@@ -105,7 +114,8 @@ static void logGitError(const int error) {
   {
     LOCKGUARD(gErrorMutex);
     gErrorMap[std::this_thread::get_id()] = {
-        (gitError->klass & 0x00ff) << 16 | (error & 0xffff), gitError->message};
+        (gitError->klass & 0x00ff) << 16 | (error & 0xffff),
+        capitalizeFirst(gitError->message)};
   }
 
   LOG_ERROR(Log::ErrorId::Git,
@@ -265,6 +275,70 @@ static bool createInitialCommit(git_repository *repo,
 
   git_reference_free(newRef);
   git_reference_free(branchRef);
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+static bool createInitialCommitWithoutStaging(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  git_signature *sig = nullptr;
+  int error = git_signature_default(&sig, repo);
+
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Create an empty tree builder
+  git_treebuilder *builder = nullptr;
+  error = git_treebuilder_new(&builder, repo, nullptr);
+
+  if (error) {
+    git_signature_free(sig);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Write the empty tree
+  git_oid tree_id;
+  error = git_treebuilder_write(&tree_id, builder);
+  git_treebuilder_free(builder);
+
+  if (error) {
+    git_signature_free(sig);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Lookup the empty tree
+  git_tree *tree = nullptr;
+  error = git_tree_lookup(&tree, repo, &tree_id);
+
+  if (error) {
+    git_signature_free(sig);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Create the initial commit with empty tree
+  git_oid commit_id;
+  error = git_commit_create_v(&commit_id, repo, HEAD, sig, sig, nullptr,
+                              "Initial commit", tree, 0);
+
+  git_tree_free(tree);
+  git_signature_free(sig);
+
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   LOG_PERF(0, "Exit");
   return true;
@@ -624,6 +698,12 @@ git_repository *openRepository(const QString &path) {
 
   if (const int error = git_repository_open(&repo, path.toStdString().c_str()))
     logGitError(error);
+
+  // Check if repository has no commits (HEAD is unborn)
+  if (repo && git_repository_head_unborn(repo) == 1) {
+    // Create empty initial commit without staging existing files
+    createInitialCommitWithoutStaging(repo);
+  }
 
   LOG_PERF(0, "Exit");
   return repo;
@@ -4983,6 +5063,11 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
     }
 
     git_tree_entry *entry = nullptr;
+
+    if (!parentTree) {
+      repoContent.insert(file, QString());
+      continue;
+    }
 
     error = git_tree_entry_bypath(&entry, parentTree,
                                   filePath.toStdString().c_str());
