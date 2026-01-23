@@ -380,6 +380,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _unifiedDiffMarks = new Widgets::ScrollbarMarksWidget(
       ui->scintillaTextEditorUnified->verticalScrollBar(),
       ui->scintillaTextEditorUnified, this);
+  _unifiedDiffMarks->hide();
 
   showMainSpinnerPage(false);
   showSpinnerOverlay();
