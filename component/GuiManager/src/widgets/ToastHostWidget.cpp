@@ -22,8 +22,8 @@
 namespace GuiManager::Widgets {
 
 ToastHostWidget::ToastHostWidget()
-    : OverlayWidget{nullptr, 0}, _yOffset(0),
-      _position{ToastPosition::BottomRight},
+    : OverlayWidget{nullptr, 0},
+      _yOffset(0), _position{ToastPosition::BottomRight},
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
@@ -206,6 +206,13 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
 void ToastHostWidget::animateWidget(QWidget *widget) const {
   LOG_PERF(0, "Enter");
 
+#ifdef Q_OS_LINUX
+  // On Linux, disable animation due to Qt positioning constraints
+  widget->show();
+  LOG_PERF(0, "Exit");
+  return;
+#endif
+
   widget->show();
 
   const int targetX = widget->x();
@@ -317,7 +324,8 @@ void ToastHostWidget::addToast(ToastWidget *toast) {
   // Qt::ToolTip allows multiple windows to coexist (unlike Qt::Popup which is
   // exclusive) and bypasses window manager positioning like Qt::Popup does.
   toast->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint |
-                        Qt::WindowStaysOnTopHint);
+                        Qt::WindowStaysOnTopHint |
+                        Qt::X11BypassWindowManagerHint);
 #else
   // Windows and macOS: Use standard Qt::Tool flag
   toast->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint |
@@ -365,11 +373,13 @@ void ToastHostWidget::addToast(const QSharedPointer<ToastWidget> &toast) {
   // Qt::ToolTip allows multiple windows to coexist (unlike Qt::Popup which is
   // exclusive) and bypasses window manager positioning like Qt::Popup does.
   toast->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint |
-                        Qt::WindowStaysOnTopHint);
+                        Qt::WindowStaysOnTopHint |
+                        Qt::X11BypassWindowManagerHint);
 #else
   // Windows and macOS: Use standard Qt::Tool flag
   toast->setWindowFlags(Qt::Tool | Qt::FramelessWindowHint |
-                        Qt::WindowStaysOnTopHint);
+                        Qt::WindowStaysOnTopHint |
+                        Qt::X11BypassWindowManagerHint);
 #endif
 
   toast->setWindowModality(Qt::NonModal);
