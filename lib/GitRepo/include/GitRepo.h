@@ -62,12 +62,25 @@ struct GitCommitInfo {
   QVector<QString> branches;
   QVector<QString> parents;
   QVector<QString> children;
+
+  bool operator==(const GitCommitInfo &other) const {
+    return git_oid_equal(&oid, &other.oid) == 1 && message == other.message &&
+           summary == other.summary && authorName == other.authorName &&
+           authorEmail == other.authorEmail && timeStamp == other.timeStamp &&
+           branches == other.branches && parents == other.parents &&
+           children == other.children;
+  }
 };
 
 struct GitHistory {
   bool valid = false;
   QVector<QString> commits;
   QMap<QString, GitCommitInfo> commitInfos;
+
+  bool operator==(const GitHistory &other) const {
+    return valid == other.valid && commits == other.commits &&
+           commitInfos == other.commitInfos;
+  }
 };
 
 struct GitStatus {
@@ -95,6 +108,22 @@ struct GitStatus {
            !renamedStagedFiles.isEmpty() /*|| !ignoredFiles.isEmpty()*/ ||
            !conflictedFiles.isEmpty();
   }
+
+  bool operator==(const GitStatus &other) const {
+    return path == other.path && newFiles == other.newFiles &&
+           modifiedFiles == other.modifiedFiles &&
+           deletedFiles == other.deletedFiles &&
+           typeChangedFiles == other.typeChangedFiles &&
+           renamedFiles == other.renamedFiles &&
+           unreadableFiles == other.unreadableFiles &&
+           newStagedFiles == other.newStagedFiles &&
+           modifiedStagedFiles == other.modifiedStagedFiles &&
+           deletedStagedFiles == other.deletedStagedFiles &&
+           typeChangedStagedFiles == other.typeChangedStagedFiles &&
+           renamedStagedFiles == other.renamedStagedFiles &&
+           ignoredFiles == other.ignoredFiles &&
+           conflictedFiles == other.conflictedFiles;
+  }
 };
 
 struct GitCommitStatus {
@@ -110,6 +139,10 @@ struct GitHistoryWithStatus {
   ;
   GitHistory history;
   GitStatus status;
+
+  bool operator==(const GitHistoryWithStatus &other) const {
+    return history == other.history && status == other.status;
+  }
 };
 
 enum class BranchType {

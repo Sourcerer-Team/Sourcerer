@@ -75,14 +75,22 @@ void GitHistoryModel::updateHistoryAndStatus(
     const std::function<void(int)> &progressCallback) {
   LOG_PERF(0, "Enter");
 
-  const auto self = getSelf();
+  {
+    LOCKGUARD(_mutex);
+    // Save us from updates with same data
+    if (_historyWithStatus == historyWithStatus) {
+      LOG_PERF(0, "Exit");
+      return;
+    }
+  }
 
-  beginResetModel();
+  const auto self = getSelf();
 
   _quitUpdate = false;
 
   {
     LOCKGUARD(_mutex);
+    // Release memory especialy for large repositories
     _drawableSlices.clear();
     _historyWithStatus = GitRepo::GitHistoryWithStatus();
   }
@@ -122,11 +130,14 @@ void GitHistoryModel::updateHistoryAndStatus(
 
   if (!_quitUpdate) {
     LOCKGUARD(_mutex);
+
+    beginResetModel();
+
     _drawableSlices = newDrawableSlices;
     _historyWithStatus = newHistoryWithStatus;
-  }
 
-  endResetModel();
+    endResetModel();
+  }
 
   LOG_PERF(0, "Exit");
 }

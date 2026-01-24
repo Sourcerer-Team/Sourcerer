@@ -4976,9 +4976,6 @@ bool GitRepoContainer::getActiveTag() {
 bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
-  // Release allocated memory
-  _historyModel->updateHistoryAndStatus(GitRepo::GitHistoryWithStatus());
-
   const QString historyEventUuid = Uuid::createUuid();
 
   const int historyToken = _eventManager.startWait();
