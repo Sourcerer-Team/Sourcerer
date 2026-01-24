@@ -1,7 +1,23 @@
 #!/bin/bash
 # Build script for Linux/macOS installer
+# Usage: 
+#   ./build-installer.sh              - Build Qt IFW installer only
+#   ./build-installer.sh --appimage   - Build AppImage only
+#   ./build-installer.sh --both       - Build both formats
 
 set -e
+
+# Parse command line arguments
+BUILD_QT_IFW=true
+BUILD_APPIMAGE=false
+
+if [[ "$1" == "--appimage" ]]; then
+    BUILD_QT_IFW=false
+    BUILD_APPIMAGE=true
+elif [[ "$1" == "--both" ]]; then
+    BUILD_QT_IFW=true
+    BUILD_APPIMAGE=true
+fi
 
 # Detect OS
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -17,7 +33,7 @@ fi
 # Set paths
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_ROOT/build"
+BUILD_DIR="$PROJECT_ROOT/src/build/Installer"
 RELEASE_DIR="$BUILD_DIR"
 INSTALLER_DIR="$SCRIPT_DIR"
 DATA_DIR="$INSTALLER_DIR/packages/com.sourcerer.app/data"
@@ -37,19 +53,22 @@ fi
 
 echo "Building installer for version $VERSION..."
 
-# Check if Qt IFW is installed
-if [ ! -f "$QT_IFW_DIR/bin/binarycreator" ]; then
-    echo "Error: Qt Installer Framework not found at $QT_IFW_DIR"
-    echo "Please install Qt IFW 4.0 or update QT_IFW_DIR path"
-    exit 1
+# Check if Qt IFW is installed (only if we need it)
+if [ "$BUILD_QT_IFW" = true ]; then
+    if [ ! -f "$QT_IFW_DIR/bin/binarycreator" ]; then
+        echo "Error: Qt Installer Framework not found at $QT_IFW_DIR"
+        echo "Please install Qt IFW 4.0 or update QT_IFW_DIR path"
+        exit 1
+    fi
 fi
 
 # Build release version
 echo "Building Sourcerer release version..."
+rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
-cmake -DCMAKE_BUILD_TYPE=Release ../src
+cmake -DCMAKE_BUILD_TYPE=Release ../../../src
 cmake --build . --config Release
 
 # Clean and prepare data directory
@@ -184,10 +203,22 @@ EOF
 
 fi
 
-# Create installer
-echo "Creating installer..."
-cd "$INSTALLER_DIR"
-"$QT_IFW_DIR/bin/binarycreator" -c config/config.xml -p packages "Sourcerer-${VERSION}-${INSTALLER_SUFFIX}-Installer.run"
+# Create Qt IFW installer
+if [ "$BUILD_QT_IFW" = true ]; then
+    echo "Creating Qt Installer Framework installer..."
+    cd "$INSTALLER_DIR"
+    "$QT_IFW_DIR/bin/binarycreator" -c config/config.xml -p packages "Sourcerer-${VERSION}-${INSTALLER_SUFFIX}-Installer.run"
+    
+    echo ""
+    echo "Qt IFW Installer created successfully: $INSTALLER_DIR/Sourcerer-${VERSION}-${INSTALLER_SUFFIX}-Installer.run"
+fi
+
+# Create AppImage
+if [ "$BUILD_APPIMAGE" = true ] && [ "$OS_TYPE" = "linux" ]; then
+    echo ""
+    echo "Building AppImage..."
+    bash "$INSTALLER_DIR/build-appimage.sh"
+fi
 
 echo ""
-echo "Installer created successfully: $INSTALLER_DIR/Sourcerer-${VERSION}-${INSTALLER_SUFFIX}-Installer.run"
+echo "Build complete!"

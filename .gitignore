@@ -76,3 +76,9 @@ build*/
 # Installer data directory
 installer/packages/*/data/
 
+
+installer/appimagetool-extracted/
+
+*.AppImage
+
+installer/Sourcerer.AppDir/
