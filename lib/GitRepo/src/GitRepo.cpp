@@ -8,7 +8,9 @@
 #include <EventManager.h>
 #include <LockGuard.h>
 #include <Log.h>
+#ifdef _WIN32
 #include <applink.c>
+#endif
 
 #include <git2.h>
 #include <git2/blob.h>

@@ -9,9 +9,12 @@ set(CMAKE_CXX_STANDARD 17)
 
 find_package(OpenSSL REQUIRED)
 
-set(OPENSSLHELPER_SOURCE_FILES
-   src/applink.c
-)
+set(OPENSSLHELPER_SOURCE_FILES)
+
+# applink.c is only needed on Windows
+if(WIN32)
+    list(APPEND OPENSSLHELPER_SOURCE_FILES src/applink.c)
+endif()
 
 add_library(OpenSSLHelper STATIC ${OPENSSLHELPER_SOURCE_FILES})
 

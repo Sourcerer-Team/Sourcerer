@@ -154,7 +154,7 @@
         </size>
        </property>
        <property name="text">
-        <string>Delete selected</string>
+        <string>Delete</string>
        </property>
       </widget>
      </item>
