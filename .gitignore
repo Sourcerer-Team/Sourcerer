@@ -25,13 +25,15 @@ tags
 *.debug
 Makefile*
 *.prl
-*.app
+build*/*.app/
+src/build*/*.app/
 moc_*.cpp
 ui_*.h
 qrc_*.cpp
 Thumbs.db
 /.qmake.cache
 /.qmake.stash
+*.run
 
 # qtcreator generated files
 *.pro.user*
@@ -70,4 +72,7 @@ build*/
 # --------
 *.dll
 *.exe
+
+# Installer data directory
+installer/packages/*/data/
 

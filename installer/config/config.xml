@@ -8,7 +8,7 @@
     <StartMenuDir>Sourcerer</StartMenuDir>
     <TargetDir>@HomeDir@/Sourcerer</TargetDir>
     <AdminTargetDir>@ApplicationsDir@/Sourcerer</AdminTargetDir>
-    <RunProgram>@TargetDir@/Sourcerer</RunProgram>
+    <RunProgram>@TargetDir@/Sourcerer-launcher.sh</RunProgram>
     <RunProgramDescription>Launch Sourcerer</RunProgramDescription>
     <MaintenanceToolName>MaintenanceTool</MaintenanceToolName>
     <AllowNonAsciiCharacters>true</AllowNonAsciiCharacters>
@@ -18,4 +18,11 @@
     <Watermark>images/watermark.png</Watermark>
     <StyleSheet>style.qss</StyleSheet>
     <ControlScript>controlscript.js</ControlScript>
+    <!-- RemoteRepositories can be added here for online updates -->
+    <!-- <RemoteRepositories>
+        <Repository>
+            <Url>https://your-update-server.com/repository</Url>
+            <Enabled>1</Enabled>
+        </Repository>
+    </RemoteRepositories> -->
 </Installer>

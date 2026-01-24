@@ -24,7 +24,10 @@ Controller.prototype.IntroductionPageCallback = function() {
     
     // Check if previous installation exists (but only prompt once)
     var targetDir = installer.value("TargetDir");
-    var maintenanceTool = targetDir + "/MaintenanceTool.exe";
+    var maintenanceTool = targetDir + "/MaintenanceTool";
+    if (systemInfo.productType === "windows") {
+        maintenanceTool = targetDir + "/MaintenanceTool.exe";
+    }
     
     if (!this.uninstallPerformed && installer.fileExists(maintenanceTool)) {
         var result = QMessageBox.question("update.installation", "Existing Installation Found", 
@@ -52,7 +55,9 @@ Controller.prototype.IntroductionPageCallback = function() {
                         if (systemInfo.productType === "windows") {
                             installer.execute("taskkill", ["/F", "/IM", processName]);
                         } else {
-                            installer.execute("pkill", ["-9", "Sourcerer"]);
+                            // Use pkill with exact match to avoid killing the installer itself
+                            // -x means exact match of the process name
+                            installer.execute("pkill", ["-9", "-x", "Sourcerer"]);
                         }
                     } catch(e) {
                         console.log("Error killing process: " + e);
@@ -205,8 +210,7 @@ Controller.prototype.TargetDirectoryPageCallback = function() {
     if (page) {
         page.TargetDirectoryLineEdit.setText(installer.value("TargetDir"));
     }
-    // Automatically accept if directory exists
-    gui.clickButton(buttons.NextButton, 500);
+    // Let user choose the directory - don't auto-click Next
 }
 
 Controller.prototype.ComponentSelectionPageCallback = function() {
