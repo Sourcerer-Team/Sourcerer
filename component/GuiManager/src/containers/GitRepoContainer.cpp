@@ -1177,6 +1177,23 @@ void GitRepoContainer::onDeleteTag(const QString &tagName) {
 void GitRepoContainer::onDiffCloseClicked() {
   LOG_PERF(0, "Enter");
 
+  closeDiffViewerIfOpen();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::closeDiffViewerIfOpen() {
+  LOG_PERF(0, "Enter");
+
+  // Check if the diff viewer is currently displayed
+  if (ui->stackedWidgetMiddle->currentIndex() !=
+          static_cast<int>(MainViewPanes::Diff) &&
+      ui->stackedWidgetMiddle->currentIndex() !=
+          static_cast<int>(MainViewPanes::ThreeWayDiff)) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   _lastDiffedCommit.clear();
   _lastDiffedFilePath.clear();
   _lastDiffRepoStatusChanged = false;
@@ -2531,6 +2548,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewStageSelected(bool checked) {
   const QStringList files =
       getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
 
+  closeDiffViewerIfOpen();
+
   startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
@@ -2545,6 +2564,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected(bool checked) {
 
   const QStringList files =
       getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
+
+  closeDiffViewerIfOpen();
 
   startOverlayTimer();
 
@@ -2561,6 +2582,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewIgnoreRecursiveSelected(
 
   const QStringList files =
       getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
+
+  closeDiffViewerIfOpen();
 
   startOverlayTimer();
 
@@ -2614,6 +2637,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected(bool checked) {
     return;
   }
 
+  closeDiffViewerIfOpen();
+
   startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
@@ -2649,6 +2674,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected(bool checked) {
     LOG_PERF(0, "Exit");
     return;
   }
+
+  closeDiffViewerIfOpen();
 
   startOverlayTimer();
 
@@ -2720,6 +2747,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewStageSelected(bool checked) {
   const QStringList files =
       getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
 
+  closeDiffViewerIfOpen();
+
   startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
@@ -2737,6 +2766,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected(bool checked) {
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
+  closeDiffViewerIfOpen();
+
   startOverlayTimer();
 
   _dispatcher.dispatch([=]() { ignoreFiles(guard, files); });
@@ -2752,6 +2783,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreRecursiveSelected(
       getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
 
   const WeakPtr &guard = getSelf().toWeakRef();
+
+  closeDiffViewerIfOpen();
 
   startOverlayTimer();
 
@@ -2803,6 +2836,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected(bool checked) {
     return;
   }
 
+  closeDiffViewerIfOpen();
+
   startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
@@ -2838,6 +2873,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected(bool checked) {
     LOG_PERF(0, "Exit");
     return;
   }
+
+  closeDiffViewerIfOpen();
 
   startOverlayTimer();
 
@@ -2892,6 +2929,8 @@ void GitRepoContainer::onIndexFlatListViewUnstageSelected(bool checked) {
 
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
 
+  closeDiffViewerIfOpen();
+
   startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
@@ -2905,6 +2944,8 @@ void GitRepoContainer::onIndexFlatListViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
+
+  closeDiffViewerIfOpen();
 
   startOverlayTimer();
 
@@ -2920,6 +2961,8 @@ void GitRepoContainer::onIndexFlatListViewIgnoreRecursiveSelected(
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
+
+  closeDiffViewerIfOpen();
 
   startOverlayTimer();
 
@@ -2972,6 +3015,8 @@ void GitRepoContainer::onIndexFlatListViewDeleteSelected(bool checked) {
     return;
   }
 
+  closeDiffViewerIfOpen();
+
   startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
@@ -3006,6 +3051,8 @@ void GitRepoContainer::onIndexFlatListViewDiscardSelected(bool checked) {
     LOG_PERF(0, "Exit");
     return;
   }
+
+  closeDiffViewerIfOpen();
 
   startOverlayTimer();
 
@@ -3060,6 +3107,8 @@ void GitRepoContainer::onIndexTreeTreeViewUnstageSelected(bool checked) {
 
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
 
+  closeDiffViewerIfOpen();
+
   startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
@@ -3073,6 +3122,8 @@ void GitRepoContainer::onIndexTreeTreeViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
+
+  closeDiffViewerIfOpen();
 
   startOverlayTimer();
 
@@ -3088,6 +3139,8 @@ void GitRepoContainer::onIndexTreeTreeViewIgnoreRecursiveSelected(
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
+
+  closeDiffViewerIfOpen();
 
   startOverlayTimer();
 
@@ -3140,6 +3193,8 @@ void GitRepoContainer::onIndexTreeTreeViewDeleteSelected(bool checked) {
     return;
   }
 
+  closeDiffViewerIfOpen();
+
   startOverlayTimer();
 
   const WeakPtr &guard = getSelf().toWeakRef();
@@ -3174,6 +3229,8 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
     LOG_PERF(0, "Exit");
     return;
   }
+
+  closeDiffViewerIfOpen();
 
   startOverlayTimer();
 

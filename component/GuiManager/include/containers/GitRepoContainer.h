@@ -196,6 +196,7 @@ private:
       const std::function<void(const WeakPtr &)> &onSuccess = nullptr);
   void checkoutCommit(const WeakPtr &guard, const QString &commit);
   void clearSummaryAndDescription();
+  void closeDiffViewerIfOpen();
   void closeRepo() const;
   void commit(const WeakPtr &guard, const QString &summary,
               const QString &description, const QString &author,
