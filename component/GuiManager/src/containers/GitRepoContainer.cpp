@@ -381,7 +381,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   // Create scrollbar marks widget for unified diff
   _unifiedDiffMarks = new Widgets::ScrollbarMarksWidget(
       ui->scintillaTextEditorUnified->verticalScrollBar(),
-      ui->scintillaTextEditorUnified, this);
+      ui->scintillaTextEditorUnified, ui->scintillaTextEditorUnified);
   _unifiedDiffMarks->hide();
 
   showMainSpinnerPage(false);
