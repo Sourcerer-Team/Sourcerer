@@ -688,6 +688,46 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         font-size:14px;
         background-color:yellow;
       }
+      QScrollBar:vertical {
+        border: none;
+        background: #3e3e42;
+        width: 14px;
+        margin: 0px;
+      }
+      QScrollBar::handle:vertical {
+        background: #686868;
+        min-height: 20px;
+        border-radius: 7px;
+      }
+      QScrollBar::handle:vertical:hover {
+        background: #9e9e9e;
+      }
+      QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+        height: 0px;
+      }
+      QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+        background: none;
+      }
+      QScrollBar:horizontal {
+        border: none;
+        background: #3e3e42;
+        height: 14px;
+        margin: 0px;
+      }
+      QScrollBar::handle:horizontal {
+        background: #686868;
+        min-width: 20px;
+        border-radius: 7px;
+      }
+      QScrollBar::handle:horizontal:hover {
+        background: #9e9e9e;
+      }
+      QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+        width: 0px;
+      }
+      QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+        background: none;
+      }
     )"}};
 
 StylesheetManager::StylesheetManager() {
