@@ -191,6 +191,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForDiscardFiles(discardFilesCommand);
     break;
   }
+  case EventType::GetFileSizeFromCommit: {
+    const auto getFileSizeFromCommitCommand =
+        event.nextParam<GitRepoGetFileSizeFromCommitCommand>();
+    scheduleWorkerForGetFileSizeFromCommit(getFileSizeFromCommitCommand);
+    break;
+  }
   case EventType::GetActiveBranch: {
     const auto getActiveBranchCommand =
         event.nextParam<GitRepoGetActiveBranchCommand>();
@@ -1305,6 +1311,51 @@ void ProcessingState::eventCallback(const EventManager::Event event) {
     LOG_WARN("Unhandled event.");
     break;
   }
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::getFileSizeFromCommitWorker(
+    const Structs::GitRepoGetFileSizeFromCommitCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(
+        EventManager::EventType::GitRepoManagerGetFileSizeFromCommitError,
+        tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const qint64 fileSize =
+      GitRepo::getFileSizeFromCommit(repo, command.filePath, command.commit);
+
+  if (fileSize < 0) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerGetFileSizeFromCommitError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    GitRepoGetFileSizeFromCommitCommandResult commandResult;
+    commandResult.fileSize = fileSize;
+
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetFileSizeFromCommitResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(commandResult)});
+    _eventManager.send(resultEvent);
   }
 
   LOG_PERF(0, "Exit");
@@ -3317,6 +3368,26 @@ void ProcessingState::scheduleWorkerForDiffFilesFromCommit(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForGetFileSizeFromCommit(
+    const Structs::GitRepoGetFileSizeFromCommitCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(
+        EventManager::EventType::GitRepoManagerGetFileSizeFromCommitError,
+        tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoGetFileSizeFromCommitCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForDiscardFiles(
     const Structs::GitRepoDiscardFilesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -3696,6 +3767,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoDiscardFilesCommand *>(command);
       if (discardFilesCommand) {
         discardFilesWorker(*discardFilesCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::GetFileSizeFromCommit: {
+      const auto getFileSizeFromCommitCommand =
+          dynamic_cast<const GitRepoGetFileSizeFromCommitCommand *>(command);
+      if (getFileSizeFromCommitCommand) {
+        getFileSizeFromCommitWorker(*getFileSizeFromCommitCommand);
       }
       break;
     }

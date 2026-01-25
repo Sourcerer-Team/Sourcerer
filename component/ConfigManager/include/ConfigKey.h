@@ -22,6 +22,7 @@ enum class ConfigKey {
   GitRepoBranchRecyclerViewItemsSplitterPos,
   GitRepoSpinnerOverlayTimerTimeout,
   GitRepoDirWatcherHoldbackTimeout,
+  GitRepoMaxDiffFileSize,
   GitRepoMonospaceFontName,
   GitRepoMonospaceFontSize,
 

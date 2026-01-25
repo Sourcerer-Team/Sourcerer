@@ -3327,6 +3327,11 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
     return {};
   }
 
+  const ConfigManager::ConfigManager &configManager =
+      ConfigManager::ConfigManager::getInstance();
+  const qlonglong maxBlobSize =
+      configManager.getLong(ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
+
   QMap<QString, QString> filesContent;
   QMap<QString, QString> repoContent;
 
@@ -3373,6 +3378,15 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
     const char *blobContent =
         static_cast<const char *>(git_blob_rawcontent(blob));
     const size_t blobSize = git_blob_rawsize(blob);
+    if (blobSize > static_cast<size_t>(maxBlobSize)) {
+      // Blob too large to include in repo content
+      repoContent.insert(
+          file,
+          QString("[[FILE SIZE EXCEEDS LIMIT OF %1 BYTES]]").arg(maxBlobSize));
+      git_blob_free(blob);
+      git_tree_entry_free(entry);
+      continue;
+    }
 
     repoContent.insert(file, QString::fromUtf8(blobContent, blobSize));
 
@@ -5047,6 +5061,11 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
   git_diff_free(diff);
   git_strarray_destroy(arr);
 
+  ConfigManager::ConfigManager &configManager =
+      ConfigManager::ConfigManager::getInstance();
+  const qlonglong maxBlobSize =
+      configManager.getLong(ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
+
   QMap<QString, QString> filesContent;
   QMap<QString, QString> repoContent;
 
@@ -5100,6 +5119,15 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
         static_cast<const char *>(git_blob_rawcontent(blob));
     const size_t blobSize = git_blob_rawsize(blob);
 
+    if (blobSize > static_cast<size_t>(maxBlobSize)) {
+      repoContent.insert(
+          file,
+          QString("[[FILE SIZE EXCEEDS LIMIT OF %1 BYTES]]").arg(maxBlobSize));
+      git_blob_free(blob);
+      git_tree_entry_free(entry);
+      continue;
+    }
+
     repoContent.insert(file, QString::fromUtf8(blobContent, blobSize));
 
     git_blob_free(blob);
@@ -5127,6 +5155,103 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
   LOG_PERF(0, "Exit");
 
   return filesDiff;
+}
+
+qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
+                             const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  git_oid oid;
+  int error;
+
+  // If commit is empty, use HEAD
+  if (commit.isEmpty()) {
+    git_reference *head = nullptr;
+    error = git_repository_head(&head, repo);
+    if (error) {
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return -1;
+    }
+
+    error = git_reference_name_to_id(&oid, repo, git_reference_name(head));
+    git_reference_free(head);
+    if (error) {
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return -1;
+    }
+  } else {
+    error = git_oid_fromstr(&oid, commit.toStdString().c_str());
+    if (error) {
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return -1;
+    }
+  }
+
+  git_commit *commit_ = nullptr;
+
+  error = git_commit_lookup(&commit_, repo, &oid);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
+
+  git_tree *tree = nullptr;
+
+  error = git_commit_tree(&tree, commit_);
+  if (error) {
+    logGitError(error);
+    git_commit_free(commit_);
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
+
+  const QString normalizedPath = QDir::fromNativeSeparators(filePath);
+  git_tree_entry *entry = nullptr;
+
+  error =
+      git_tree_entry_bypath(&entry, tree, normalizedPath.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    git_tree_free(tree);
+    git_commit_free(commit_);
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
+
+  const git_oid *blobOid = git_tree_entry_id(entry);
+  if (!blobOid) {
+    git_tree_entry_free(entry);
+    git_tree_free(tree);
+    git_commit_free(commit_);
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
+
+  git_blob *blob = nullptr;
+  error = git_blob_lookup(&blob, repo, blobOid);
+  if (error) {
+    logGitError(error);
+    git_tree_entry_free(entry);
+    git_tree_free(tree);
+    git_commit_free(commit_);
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
+
+  const qint64 blobSize = static_cast<qint64>(git_blob_rawsize(blob));
+
+  git_blob_free(blob);
+  git_tree_entry_free(entry);
+  git_tree_free(tree);
+  git_commit_free(commit_);
+
+  LOG_PERF(0, "Exit");
+
+  return blobSize;
 }
 
 bool merge(git_repository *repo, const QString &sourceBranch,

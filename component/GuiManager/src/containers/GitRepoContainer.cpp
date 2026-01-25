@@ -1425,9 +1425,34 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
       static_cast<GuiManager::Models::GitCommitListModificationType>(
           index.data(Qt::UserRole).toInt());
 
+  // Check file size for large files
+  const QString fullPath = QDir(_path).filePath(filePath);
+  const QFileInfo fileInfo(fullPath);
+  const qint64 maxDiffFileSize =
+      _configManager.getLong(ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
+
+  if (fileInfo.exists() && fileInfo.size() > maxDiffFileSize) {
+    showErrorToast(tr("File is too large to be displayed."), tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
+    const int blobSize = getFileSizeFromCommit(filePath, QString());
+    if (blobSize > maxDiffFileSize) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        showSpinnerOverlay(false);
+        showErrorToast(tr("File is too large to be displayed."), tr("Error"));
+        return;
+      });
+
+      return;
+    }
+
     const bool conflicted =
         modificationType ==
         GuiManager::Models::GitCommitListModificationType::Conflicted;
@@ -1456,7 +1481,26 @@ void GitRepoContainer::onListViewTabWidgetFlatSelectedFromCommit(
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() { diffFromCommit(guard, filePath, commit); });
+  _dispatcher.dispatch([=]() {
+    // Check file size from commit before generating diff
+    const qint64 maxDiffFileSize = _configManager.getLong(
+        ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
+    const qint64 fileSize = getFileSizeFromCommit(filePath, commit);
+
+    if (fileSize > 0 && fileSize > maxDiffFileSize) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        showErrorToast(tr("File is too large to be displayed."), tr("Error"));
+        return;
+      });
+
+      return;
+    }
+
+    Util::Dispatcher::dispatchToMainThread(guard,
+                                           [=]() { startOverlayTimer(); });
+
+    diffFromCommit(guard, filePath, commit);
+  });
 
   LOG_PERF(0, "Exit");
 }
@@ -1562,9 +1606,34 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
 
   filePath = QDir::fromNativeSeparators(filePath);
 
+  // Check file size for large files
+  const QString fullPath = QDir(_path).filePath(filePath);
+  const QFileInfo fileInfo(fullPath);
+  const qint64 maxDiffFileSize =
+      _configManager.getLong(ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
+
+  if (fileInfo.exists() && fileInfo.size() > maxDiffFileSize) {
+    showErrorToast(tr("File is too large to be displayed."), tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
+    const int blobSize = getFileSizeFromCommit(filePath, QString());
+    if (blobSize > maxDiffFileSize) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        showSpinnerOverlay(false);
+        showErrorToast(tr("File is too large to be displayed."), tr("Error"));
+        return;
+      });
+
+      return;
+    }
+
     const bool conflicted =
         modificationType ==
         GuiManager::Models::GitCommitListModificationType::Conflicted;
@@ -1615,6 +1684,19 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelectedFromCommit(
   QString filePath = path.join("/");
 
   filePath = QDir::fromNativeSeparators(filePath);
+
+  // Check file size from commit before generating diff
+  const qint64 maxDiffFileSize =
+      _configManager.getLong(ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
+  const qint64 fileSize = getFileSizeFromCommit(filePath, commit);
+
+  if (fileSize > 0 && fileSize > maxDiffFileSize) {
+    showErrorToast(tr("File is too large to be displayed."), tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -4372,6 +4454,7 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
       ui->stackedWidgetMiddle->setCurrentIndex(
           static_cast<int>(MainViewPanes::Diff));
     });
@@ -4485,6 +4568,7 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
                                                  fileInfo.suffix());
     }
 
+    showSpinnerOverlay(false);
     ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::Diff));
   });
@@ -4499,6 +4583,7 @@ void GitRepoContainer::diffThreeWay(const WeakPtr &guard,
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
       ui->stackedWidgetMiddle->setCurrentIndex(
           static_cast<int>(MainViewPanes::Diff));
     });
@@ -4577,6 +4662,8 @@ void GitRepoContainer::diffThreeWay(const WeakPtr &guard,
     ui->pushButtonMergeDiffSave->setEnabled(true);
     ui->mergeDiffViewer->loadAndHighlight(
         listConflictsResult.fileContentWithMarkers, filePath);
+
+    showSpinnerOverlay(false);
     ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::ThreeWayDiff));
   });
@@ -4593,6 +4680,7 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
   if (!_lastDiffRepoStatusChanged && _lastDiffedCommit == commit &&
       _lastDiffedFilePath == filePath) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
       ui->stackedWidgetMiddle->setCurrentIndex(
           static_cast<int>(MainViewPanes::Diff));
     });
@@ -4709,6 +4797,7 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
                                                  fileInfo.suffix());
     }
 
+    showSpinnerOverlay(false);
     ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::Diff));
   });
@@ -7363,6 +7452,46 @@ void GitRepoContainer::updateSubmodulesModel(const WeakPtr &guard,
   }
 
   LOG_PERF(0, "Exit")
+}
+
+qint64 GitRepoContainer::getFileSizeFromCommit(const QString &filePath,
+                                               const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+  const int token = _eventManager.startWait();
+
+  GitRepoGetFileSizeFromCommitCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.filePath = filePath;
+  command.commit = commit;
+
+  EventManager::Event getFileSizeEvent(
+      EventManager::EventType::GitRepoManagerGetFileSizeFromCommit, eventUuid);
+  getFileSizeEvent.addData(command);
+  _eventManager.send(getFileSizeEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGetFileSizeFromCommitError,
+      EventManager::EventType::GitRepoManagerGetFileSizeFromCommitResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success ||
+      event.type() !=
+          EventManager::EventType::GitRepoManagerGetFileSizeFromCommitResult) {
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const auto fileSizeResult =
+      commandResult.value.value<GitRepoGetFileSizeFromCommitCommandResult>();
+
+  LOG_PERF(0, "Exit");
+  return fileSizeResult.fileSize;
 }
 
 void GitRepoContainer::updateTagsModel(const WeakPtr &guard,

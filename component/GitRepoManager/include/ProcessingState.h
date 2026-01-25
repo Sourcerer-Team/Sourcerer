@@ -58,6 +58,8 @@ private:
   void eventCallback(const EventManager::Event event);
   void
   getActiveBranchWorker(const Structs::GitRepoGetActiveBranchCommand &command);
+  void getFileSizeFromCommitWorker(
+      const Structs::GitRepoGetFileSizeFromCommitCommand &command);
   void getCommitBranchesWorker(
       const Structs::GitRepoGetCommitBranchesCommand &command);
   void
@@ -154,6 +156,8 @@ private:
       const Structs::GitRepoDiffFilesFromCommitCommand &command);
   void scheduleWorkerForDiscardFiles(
       const Structs::GitRepoDiscardFilesCommand &command);
+  void scheduleWorkerForGetFileSizeFromCommit(
+      const Structs::GitRepoGetFileSizeFromCommitCommand &command);
   void scheduleWorkerForGetBranchHistory(
       const Structs::GitRepoGetBranchHistoryCommand &command);
   void

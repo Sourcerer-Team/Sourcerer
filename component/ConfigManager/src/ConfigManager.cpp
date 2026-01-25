@@ -31,6 +31,7 @@ QMap<ConfigKey, QString> KEY_NAMES = {
      "gitrepo/spinnerOverlay/timer"},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout,
      "gitrepo/dirWatcher/holdbackTimeout"},
+    {ConfigKey::GitRepoMaxDiffFileSize, "gitrepo/maxDiffFileSize"},
     {ConfigKey::GitRepoMonospaceFontName, "gitrepo/monospace/fontName"},
     {ConfigKey::GitRepoMonospaceFontSize, "gitrepo/monospace/fontSize"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
@@ -90,6 +91,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::GitRepoServerTimeout, 30000LL},        // 30 seconds
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 1000},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout, 2000},
+    {ConfigKey::GitRepoMaxDiffFileSize, 1 * 1024 * 1024}, // 1 MB
     {ConfigKey::GitRepoMonospaceFontSize, 10},
     {ConfigKey::InfoToastDisplayTime, 8000},
     {ConfigKey::MainWindowBorderWidth, 2},

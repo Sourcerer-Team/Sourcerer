@@ -272,6 +272,9 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files);
 FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
                               const QString &commit);
 
+qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
+                             const QString &commit);
+
 bool discardFiles(git_repository *repo, const QStringList &files);
 
 bool pull(git_repository *rep);

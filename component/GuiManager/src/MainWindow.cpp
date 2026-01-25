@@ -882,6 +882,8 @@ void MainWindow::closeContainer(const ContainerWidget *container) {
     _containers[index]->hide();
     _containers[index]->deselected();
     _current = -1;
+  } else if (_current > index && _current > -1) {
+    _current--;
   }
 
   _toastHost.setParent(this);

@@ -312,6 +312,8 @@ private:
                              const QStringList &tags) const;
   void updateTagsModel(const WeakPtr &guard, const QStringList &tags) const;
 
+  qint64 getFileSizeFromCommit(const QString &filePath, const QString &commit);
+
 private:
   Ui::GitRepoContainer *ui;
   QString _uuid;

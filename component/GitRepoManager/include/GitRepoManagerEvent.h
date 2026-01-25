@@ -35,6 +35,7 @@ enum class EventType : int {
   GetCommitHeads,
   GetCommitIsHead,
   GetCommitStatus,
+  GetFileSizeFromCommit,
   GetIsMergeInProgress,
   GetSubmodulePath,
   GetUpstream,

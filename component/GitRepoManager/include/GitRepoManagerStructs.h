@@ -35,6 +35,7 @@ enum class GitRepoCommandType : int {
   DiffFilesFromCommit,
   DiscardFiles,
   GetActiveBranch,
+  GetFileSizeFromCommit,
   GetBranchHistory,
   GetCommitBranches,
   GetCommitHeads,
@@ -295,6 +296,20 @@ struct GitRepoDiscardFilesCommand final : GitRepoCommand {
   ~GitRepoDiscardFilesCommand() override = default;
 
   QStringList files;
+};
+
+struct GitRepoGetFileSizeFromCommitCommand final : GitRepoCommand {
+  GitRepoGetFileSizeFromCommitCommand()
+      : GitRepoCommand(GitRepoCommandType::GetFileSizeFromCommit) {}
+
+  ~GitRepoGetFileSizeFromCommitCommand() override = default;
+
+  QString filePath;
+  QString commit;
+};
+
+struct GitRepoGetFileSizeFromCommitCommandResult {
+  qint64 fileSize = -1;
 };
 
 struct GitRepoGetActiveBranchCommand final : GitRepoCommand {

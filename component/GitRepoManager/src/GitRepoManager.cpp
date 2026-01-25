@@ -79,6 +79,9 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitStatus, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetFileSizeFromCommit,
+      callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetSubmodulePath, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetUpstream, callbackFunc));
@@ -193,6 +196,9 @@ GitRepoManager::~GitRepoManager() {
       callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitStatus, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetFileSizeFromCommit,
+      callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetSubmodulePath, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -482,6 +488,16 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent getCommitStatusEvent(EventType::GetCommitStatus);
     getCommitStatusEvent.addParam(QVariant::fromValue(getCommitStatusCommand));
     _fsm.send(getCommitStatusEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerGetFileSizeFromCommit: {
+    const auto getFileSizeFromCommand =
+        event.data<GitRepoGetFileSizeFromCommitCommand>();
+    GitRepoManagerEvent getFileSizeFromCommitEvent(
+        EventType::GetFileSizeFromCommit);
+    getFileSizeFromCommitEvent.addParam(
+        QVariant::fromValue(getFileSizeFromCommand));
+    _fsm.send(getFileSizeFromCommitEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerGetSubmodulePath: {
