@@ -151,24 +151,28 @@ private slots:
   void onWorkingTreeFlatListViewContextMenuRequested(const QPoint &pos);
   void onWorkingTreeFlatListViewStageSelected(bool checked = false);
   void onWorkingTreeFlatListViewIgnoreSelected(bool checked = false);
+  void onWorkingTreeFlatListViewIgnoreRecursiveSelected(bool checked = false);
   void onWorkingTreeFlatListViewCreateFilePatchSelected(bool checked = false);
   void onWorkingTreeFlatListViewDeleteSelected(bool checked = false);
   void onWorkingTreeFlatListViewDiscardSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewContextMenuRequested(const QPoint &pos);
   void onWorkingTreeTreeTreeViewStageSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewIgnoreSelected(bool checked = false);
+  void onWorkingTreeTreeTreeViewIgnoreRecursiveSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewCreateFilePatchSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewDeleteSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewDiscardSelected(bool checked = false);
   void onIndexFlatListViewContextMenuRequested(const QPoint &pos);
   void onIndexFlatListViewUnstageSelected(bool checked = false);
   void onIndexFlatListViewIgnoreSelected(bool checked = false);
+  void onIndexFlatListViewIgnoreRecursiveSelected(bool checked = false);
   void onIndexFlatListViewCreateFilePatchSelected(bool checked = false);
   void onIndexFlatListViewDeleteSelected(bool checked = false);
   void onIndexFlatListViewDiscardSelected(bool checked = false);
   void onIndexTreeTreeViewContextMenuRequested(const QPoint &pos);
   void onIndexTreeTreeViewUnstageSelected(bool checked = false);
   void onIndexTreeTreeViewIgnoreSelected(bool checked = false);
+  void onIndexTreeTreeViewIgnoreRecursiveSelected(bool checked = false);
   void onIndexTreeTreeViewCreateFilePatchSelected(bool checked = false);
   void onIndexTreeTreeViewDeleteSelected(bool checked = false);
   void onIndexTreeTreeViewDiscardSelected(bool checked = false);
@@ -242,6 +246,7 @@ private:
   QPair<QString, QString> getUpstream(const WeakPtr &guard);
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
+  void ignoreFilesRecursive(const WeakPtr &guard, const QStringList &files);
   void merge(const WeakPtr &guard, const QString &sourceBranch,
              const QString &destBranch);
   bool openRepo(const WeakPtr &guard);

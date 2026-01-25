@@ -2499,7 +2499,17 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
   }
 
   if (!files.isEmpty()) {
-    contextMenu.addAction(ui->actionWorkingTreeFlatIgnore);
+    QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
+    QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
+    QAction *ignoreRecursiveAction = ignoreMenu->addAction(
+        tr("Ignore all files recursively inside file's parent folder"));
+
+    connect(ignoreFileAction, &QAction::triggered, this,
+            &GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected);
+    connect(
+        ignoreRecursiveAction, &QAction::triggered, this,
+        &GitRepoContainer::onWorkingTreeFlatListViewIgnoreRecursiveSelected);
+
     contextMenu.addSeparator();
 
     if (!conflicted) {
@@ -2541,6 +2551,22 @@ void GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected(bool checked) {
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { ignoreFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onWorkingTreeFlatListViewIgnoreRecursiveSelected(
+    bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files =
+      getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
+
+  startOverlayTimer();
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { ignoreFilesRecursive(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -2662,7 +2688,17 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
   }
 
   if (!files.isEmpty()) {
-    contextMenu.addAction(ui->actionWorkingTreeTreeIgnore);
+    QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
+    QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
+    QAction *ignoreRecursiveAction = ignoreMenu->addAction(
+        tr("Ignore all files recursively inside file's parent folder"));
+
+    connect(ignoreFileAction, &QAction::triggered, this,
+            &GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected);
+    connect(
+        ignoreRecursiveAction, &QAction::triggered, this,
+        &GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreRecursiveSelected);
+
     contextMenu.addSeparator();
 
     if (!conflicted) {
@@ -2704,6 +2740,22 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected(bool checked) {
   startOverlayTimer();
 
   _dispatcher.dispatch([=]() { ignoreFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreRecursiveSelected(
+    bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files =
+      getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  startOverlayTimer();
+
+  _dispatcher.dispatch([=]() { ignoreFilesRecursive(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -2814,7 +2866,16 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
   contextMenu.addAction(ui->actionIndexFlatDiscard);
 
   if (!files.isEmpty()) {
-    contextMenu.addAction(ui->actionIndexFlatIgnore);
+    QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
+    QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
+    QAction *ignoreRecursiveAction = ignoreMenu->addAction(
+        tr("Ignore all files recursively inside file's parent folder"));
+
+    connect(ignoreFileAction, &QAction::triggered, this,
+            &GitRepoContainer::onIndexFlatListViewIgnoreSelected);
+    connect(ignoreRecursiveAction, &QAction::triggered, this,
+            &GitRepoContainer::onIndexFlatListViewIgnoreRecursiveSelected);
+
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexFlatCreateFilePatch);
     contextMenu.addSeparator();
@@ -2850,6 +2911,21 @@ void GitRepoContainer::onIndexFlatListViewIgnoreSelected(bool checked) {
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { ignoreFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onIndexFlatListViewIgnoreRecursiveSelected(
+    bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
+
+  startOverlayTimer();
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { ignoreFilesRecursive(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -2958,7 +3034,16 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
   contextMenu.addAction(ui->actionIndexTreeDiscard);
 
   if (!files.isEmpty()) {
-    contextMenu.addAction(ui->actionIndexTreeIgnore);
+    QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
+    QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
+    QAction *ignoreRecursiveAction = ignoreMenu->addAction(
+        tr("Ignore all files recursively inside file's parent folder"));
+
+    connect(ignoreFileAction, &QAction::triggered, this,
+            &GitRepoContainer::onIndexTreeTreeViewIgnoreSelected);
+    connect(ignoreRecursiveAction, &QAction::triggered, this,
+            &GitRepoContainer::onIndexTreeTreeViewIgnoreRecursiveSelected);
+
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexTreeCreateFilePatch);
     contextMenu.addSeparator();
@@ -2994,6 +3079,21 @@ void GitRepoContainer::onIndexTreeTreeViewIgnoreSelected(bool checked) {
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { ignoreFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onIndexTreeTreeViewIgnoreRecursiveSelected(
+    bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
+
+  startOverlayTimer();
+
+  const WeakPtr &guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { ignoreFilesRecursive(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -5894,6 +5994,63 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
   });
 
   LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::ignoreFilesRecursive(const WeakPtr &guard,
+                                            const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  const QString ignoreFilePath =
+      QDir::toNativeSeparators(_path + QDir::separator() + GIT_IGNORE_FILENAME);
+
+  QFile file(ignoreFilePath);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to open %1 for writing."))
+                         .arg(GIT_IGNORE_FILENAME),
+                     tr("Error"));
+    });
+    LOG_PERF(0, "Exit");
+    return;
+  };
+
+  QTextStream out(&file);
+
+  out << Qt::endl;
+
+  // Get unique parent folders
+  QSet<QString> parentFolders;
+  for (const QString &filePath : files) {
+    QFileInfo fileInfo(
+        QDir::toNativeSeparators(_path + QDir::separator() + filePath));
+    QString parentDir = fileInfo.dir().path();
+
+    // Make path relative to repo root
+    QString relativePath = QDir(_path).relativeFilePath(parentDir);
+    if (relativePath != ".") {
+      parentFolders.insert(relativePath);
+    }
+  }
+
+  // Add ignore patterns for each parent folder
+  for (const QString &folder : parentFolders) {
+    QString ignorePattern = QDir::fromNativeSeparators(folder) + "/**";
+    out << ignorePattern << Qt::endl;
+  }
+
+  out.flush();
+
+  file.close();
+
+  refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
+    simulateClickOnFirstHistoryRow();
+  });
+
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::merge(const WeakPtr &guard, const QString &sourceBranch,
