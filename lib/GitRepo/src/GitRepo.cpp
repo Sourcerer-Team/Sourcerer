@@ -2673,7 +2673,7 @@ GitStatus getStatus(git_repository *repo) {
     }
 
     if ((status_flags & GIT_STATUS_INDEX_DELETED) != 0) {
-      status.modifiedStagedFiles += unixFilePath;
+      status.deletedStagedFiles += unixFilePath;
     }
 
     if ((status_flags & GIT_STATUS_INDEX_TYPECHANGE) != 0) {
