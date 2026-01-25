@@ -5,12 +5,20 @@
 #   .\build-installer-docker.ps1 -AppImage          - Build AppImage only
 #   .\build-installer-docker.ps1 -Both              - Build both formats
 #   .\build-installer-docker.ps1 -Rebuild           - Rebuild Docker image first
+#   .\build-installer-docker.ps1 --rebuild          - Rebuild Docker image first (GNU style)
 
 param(
     [switch]$Rebuild,
     [switch]$AppImage,
     [switch]$Both
 )
+
+# Support GNU-style --arguments in addition to PowerShell -Arguments
+foreach ($arg in $args) {
+    if ($arg -eq "--rebuild") { $Rebuild = $true }
+    if ($arg -eq "--appimage") { $AppImage = $true }
+    if ($arg -eq "--both") { $Both = $true }
+}
 
 $ErrorActionPreference = "Stop"
 
@@ -56,8 +64,18 @@ try {
 }
 
 # Build Docker image if it doesn't exist or if -Rebuild flag is passed
-$imageExists = docker image inspect $ImageName 2>&1 | Out-Null; $?
+$imageExists = $false
+try {
+    $null = docker image inspect $ImageName 2>$null
+    $imageExists = $LASTEXITCODE -eq 0
+} catch {
+    $imageExists = $false
+}
+
 if ($Rebuild -or -not $imageExists) {
+    if (-not $imageExists) {
+        Write-Host "Docker image '$ImageName' not found. Building it now..." -ForegroundColor Yellow
+    }
     Write-Host "Building Docker image..." -ForegroundColor Blue
     
     # Prompt for Qt account credentials
@@ -92,8 +110,9 @@ if (-not (Test-Path $InstallerDir)) {
 
 Write-Host "Running build in Docker container..." -ForegroundColor Blue
 
-# Convert Windows path to Unix path for Docker volume mount
-$UnixProjectRoot = $ProjectRoot -replace '\\', '/' -replace '^([A-Z]):', { "/$($_.Groups[1].Value.ToLower())" }
+# For Docker Desktop on Windows, we can use the Windows path directly
+# Docker Desktop will automatically convert it
+$MountPath = $ProjectRoot
 
 # Get current user ID (note: on Windows with Docker Desktop, this uses the default Linux user in the container)
 # We use a common UID that works with Docker Desktop's file sharing
@@ -103,21 +122,10 @@ $UserId = "1000:1000"
 docker run --rm `
     --name $ContainerName `
     --user $UserId `
-    -v "${UnixProjectRoot}:/workspace:z" `
-    -w /workspace `
+    -v "${MountPath}:/workspace" `
+    -w /workspace/installer `
     $ImageName `
-    bash -c @"
-        set -e
-        echo '=== Building Installer ==='
-        cd /workspace/installer
-        
-        # Run the build-installer.sh script with appropriate flags
-        bash ./build-installer.sh $BuildMode
-        
-        echo '=== Build Complete ==='
-        ls -lh Sourcerer-*-Linux-Installer* Sourcerer-*-x86_64.AppImage 2>/dev/null || echo 'Build artifacts:'
-        ls -lh Sourcerer-* 2>/dev/null || echo 'No build artifacts found'
-"@
+    bash -c "git config --global --add safe.directory /workspace && dos2unix < build-installer.sh | bash -s -- $BuildMode"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "=== Build failed ===" -ForegroundColor Red
@@ -131,11 +139,11 @@ Write-Host "=== Checking build artifacts ===" -ForegroundColor Blue
 $installers = @()
 $appimages = @()
 
-# Check for Qt IFW installers
-$installerPattern = "Sourcerer-*-Linux-Installer*"
-$installerFiles = Get-ChildItem -Path $InstallerDir -Filter $installerPattern -ErrorAction SilentlyContinue
-if ($installerFiles) {
-    $installers += $installerFiles
+# Check for Qt IFW installers (.run files for Linux)
+$runPattern = "Sourcerer-*.run"
+$runFiles = Get-ChildItem -Path $InstallerDir -Filter $runPattern -ErrorAction SilentlyContinue
+if ($runFiles) {
+    $installers += $runFiles
 }
 
 # Check for AppImages

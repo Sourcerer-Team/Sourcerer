@@ -7,6 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
+    ninja-build \
     pkg-config \
     git \
     wget \
@@ -14,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     file \
     fuse \
     libfuse2 \
+    dos2unix \
     libssl-dev \
     libgit2-dev \
     libzip-dev \

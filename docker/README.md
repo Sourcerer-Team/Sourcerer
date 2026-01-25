@@ -36,7 +36,21 @@ The Docker setup provides a consistent build environment with all necessary depe
 
 # Rebuild Docker image and build installer
 .\build-installer-docker.ps1 -Rebuild
+# or using GNU-style argument
+.\build-installer-docker.ps1 --rebuild
+
+# Build AppImage instead
+.\build-installer-docker.ps1 -AppImage
+# or
+.\build-installer-docker.ps1 --appimage
+
+# Build both installer types
+.\build-installer-docker.ps1 -Both
+# or
+.\build-installer-docker.ps1 --both
 ```
+
+**Note:** The script supports both PowerShell-style (`-Rebuild`) and GNU-style (`--rebuild`) arguments.
 
 ## Prerequisites
 
@@ -101,8 +115,17 @@ sudo systemctl start docker
 
 ### Build fails
 Try rebuilding the Docker image:
+
+**Linux/macOS:**
 ```bash
 ./build-installer-docker.sh --rebuild
+```
+
+**Windows PowerShell:**
+```powershell
+.\build-installer-docker.ps1 -Rebuild
+# or
+.\build-installer-docker.ps1 --rebuild
 ```
 
 ### Qt Installer Framework download fails

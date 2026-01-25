@@ -4,7 +4,12 @@
 set -e
 
 # Set paths
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# When piped through dos2unix, BASH_SOURCE[0] is not reliable, so use INSTALLER_DIR env var if set
+if [ -n "$INSTALLER_DIR" ]; then
+    SCRIPT_DIR="$INSTALLER_DIR"
+else
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+fi
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_ROOT/src/build/Installer"
 APPDIR="$SCRIPT_DIR/Sourcerer.AppDir"

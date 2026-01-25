@@ -74,6 +74,44 @@ This will:
 2. Deploy Qt dependencies (macdeployqt on macOS, manual ldd-based on Linux)
 3. Create the installer
 
+#### Docker (Linux builds on any platform)
+
+For building Linux installers using Docker (works on Windows, macOS, or Linux):
+
+**PowerShell (Windows):**
+```powershell
+# Build installer
+.\build-installer-docker.ps1
+
+# Rebuild Docker image and build installer
+.\build-installer-docker.ps1 -Rebuild
+# or
+.\build-installer-docker.ps1 --rebuild
+
+# Build AppImage instead of Qt IFW installer
+.\build-installer-docker.ps1 -AppImage
+
+# Build both installer and AppImage
+.\build-installer-docker.ps1 -Both
+```
+
+**Bash (Linux/macOS):**
+```bash
+# Build installer
+./build-installer-docker.sh
+
+# Rebuild Docker image and build installer
+./build-installer-docker.sh --rebuild
+```
+
+The Docker build will:
+1. Build (or use existing) Docker image with all dependencies
+2. Build Sourcerer in Release mode inside container
+3. Deploy all shared libraries and Qt plugins
+4. Create the Linux installer in `installer/` directory
+
+See `docker/README.md` for more details on Docker-based builds.
+
 ## Directory Structure
 
 ```
@@ -131,10 +169,11 @@ Replace `packages/com.sourcerer.app/meta/license.txt` with your license text.
 - May need code signing for distribution
 
 ### Linux
-- The installer will be named `Sourcerer-Linux-Installer`
+- The installer will be named `Sourcerer-X.Y.Z-Linux-Installer.run`
 - Creates desktop entry
 - Includes startup script with LD_LIBRARY_PATH
-- Manual dependency deployment may be needed for some libraries
+- Docker build automatically includes all required shared libraries
+- Manual dependency deployment may be needed for some libraries when building natively
 
 ## Troubleshooting
 

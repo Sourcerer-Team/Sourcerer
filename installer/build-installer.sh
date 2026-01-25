@@ -68,8 +68,19 @@ rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
-cmake -DCMAKE_BUILD_TYPE=Release ../../../src
+echo "Running CMake configuration..."
+cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ../../../src
+if [ $? -ne 0 ]; then
+    echo "Error: CMake configuration failed"
+    exit 1
+fi
+
+echo "Building project..."
 cmake --build . --config Release
+if [ $? -ne 0 ]; then
+    echo "Error: Build failed"
+    exit 1
+fi
 
 # Clean and prepare data directory
 echo "Preparing installer data directory..."
@@ -88,6 +99,20 @@ if [ "$OS_TYPE" == "macos" ]; then
 else
     # Linux: Copy executable
     echo "Copying application files..."
+    
+    if [ ! -f "$RELEASE_DIR/Sourcerer" ]; then
+        echo "Error: Sourcerer executable not found at $RELEASE_DIR/Sourcerer"
+        echo "Build directory contents:"
+        ls -la "$BUILD_DIR" || echo "Build directory not found"
+        if [ -d "$RELEASE_DIR" ]; then
+            echo "Release directory contents:"
+            ls -la "$RELEASE_DIR"
+        else
+            echo "Release directory not found at $RELEASE_DIR"
+        fi
+        exit 1
+    fi
+    
     cp "$RELEASE_DIR/Sourcerer" "$DATA_DIR/"
     
     # Create lib directory
@@ -217,7 +242,8 @@ fi
 if [ "$BUILD_APPIMAGE" = true ] && [ "$OS_TYPE" = "linux" ]; then
     echo ""
     echo "Building AppImage..."
-    bash "$INSTALLER_DIR/build-appimage.sh"
+    cd "$INSTALLER_DIR"
+    dos2unix < build-appimage.sh | INSTALLER_DIR="$INSTALLER_DIR" bash
 fi
 
 echo ""
