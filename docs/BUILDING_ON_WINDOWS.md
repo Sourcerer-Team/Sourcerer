@@ -145,7 +145,7 @@ docker system prune -a
 
 ### Using Different Qt Versions
 
-Edit `docker/Dockerfile` to change Qt version:
+Edit `docker/Dockerfile.linux` to change Qt version:
 ```dockerfile
 ENV QT_VERSION=6.10.1
 ```

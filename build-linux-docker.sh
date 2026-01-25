@@ -81,7 +81,7 @@ if [ "$REBUILD" = true ] || ! docker image inspect "$IMAGE_NAME" &> /dev/null; t
     docker build -t "$IMAGE_NAME" \
         --build-arg QT_ACCOUNT_EMAIL="$QT_EMAIL" \
         --build-arg QT_ACCOUNT_PASSWORD="$QT_PASSWORD" \
-        -f "$DOCKER_DIR/Dockerfile" "$DOCKER_DIR"
+        -f "$DOCKER_DIR/Dockerfile.linux" "$DOCKER_DIR"
     
     if [[ $? -ne 0 ]]; then
         echo -e "${RED}Docker image build failed.${NC}"

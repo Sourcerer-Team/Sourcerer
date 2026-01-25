@@ -93,7 +93,7 @@ if ($Rebuild -or -not $imageExists) {
     docker build -t $ImageName `
         --build-arg QT_ACCOUNT_EMAIL="$QtEmail" `
         --build-arg QT_ACCOUNT_PASSWORD="$QtPassword" `
-        -f "$DockerDir/Dockerfile" $DockerDir
+        -f "$DockerDir/Dockerfile.linux" $DockerDir
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to build Docker image" -ForegroundColor Red

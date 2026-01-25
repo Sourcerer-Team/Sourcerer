@@ -1,0 +1,96 @@
+# Windows Server Core with Qt 6.10.1 and MSYS2 for Sourcerer build
+# Requires Windows containers mode in Docker Desktop
+
+# Use Windows Server Core 2022 as base
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+# Set up environment
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+# Install Chocolatey package manager
+RUN Set-ExecutionPolicy Bypass -Scope Process -Force; \
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; \
+    iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# Install build tools
+RUN choco install -y cmake --installargs 'ADD_CMAKE_TO_PATH=System' --version=3.28.1
+RUN choco install -y git
+RUN choco install -y 7zip
+RUN choco install -y python3
+
+# Refresh environment
+RUN refreshenv
+
+# Install MSYS2
+RUN Write-Host 'Installing MSYS2...'; \
+    $msys2Url = 'https://repo.msys2.org/distrib/x86_64/msys2-x86_64-20240113.exe'; \
+    Invoke-WebRequest -Uri $msys2Url -OutFile C:\msys2-installer.exe; \
+    Start-Process -Wait -FilePath C:\msys2-installer.exe -ArgumentList 'install', '--root', 'C:\msys64', '--confirm-command'; \
+    Remove-Item C:\msys2-installer.exe -Force
+
+# Update MSYS2 and install required packages
+RUN C:\msys64\usr\bin\bash.exe -lc 'pacman -Syu --noconfirm'
+RUN C:\msys64\usr\bin\bash.exe -lc 'pacman -Su --noconfirm'
+RUN C:\msys64\usr\bin\bash.exe -lc 'pacman -S --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-libzip mingw-w64-x86_64-libgit2 mingw-w64-x86_64-libssh2 mingw-w64-x86_64-openssl'
+
+# Set up environment variables for MSYS2
+RUN [Environment]::SetEnvironmentVariable('MSYS2_PATH', 'C:\msys64\mingw64\bin', 'Machine'); \
+    [Environment]::SetEnvironmentVariable('MSYS2_ROOT', 'C:\msys64', 'Machine'); \
+    $path = [Environment]::GetEnvironmentVariable('PATH', 'Machine'); \
+    [Environment]::SetEnvironmentVariable('PATH', 'C:\msys64\mingw64\bin;C:\msys64\usr\bin;' + $path, 'Machine')
+
+# Create Qt installation directory
+RUN New-Item -ItemType Directory -Force -Path C:\Qt | Out-Null
+
+# Qt installation parameters
+ARG QT_ACCOUNT_EMAIL
+ARG QT_ACCOUNT_PASSWORD
+ENV QT_VERSION=6.10.1
+ENV QT_IFW_VERSION=4.10
+ENV QT_DIR=C:\Qt
+
+# Download Qt online installer
+RUN Write-Host 'Downloading Qt online installer...'; \
+    Invoke-WebRequest -Uri 'https://download.qt.io/official_releases/online_installers/qt-online-installer-windows-x64-online.exe' `
+        -OutFile C:\qt-installer.exe
+
+# Install Qt (non-interactive)
+RUN Write-Host "Installing Qt $env:QT_VERSION and Qt IFW $env:QT_IFW_VERSION..."; \
+    $qtEmail = $env:QT_ACCOUNT_EMAIL; \
+    $qtPassword = $env:QT_ACCOUNT_PASSWORD; \
+    Start-Process -Wait -FilePath C:\qt-installer.exe -ArgumentList `
+        '--root', 'C:\Qt', `
+        '--accept-licenses', `
+        '--accept-obligations', `
+        '--default-answer', `
+        '--confirm-command', `
+        '--email', $qtEmail, `
+        '--pw', $qtPassword, `
+        'install', `
+        'qt.qt6.6101.win64_mingw', `
+        'qt.qt6.6101.addons.qtscxml', `
+        'qt.qt6.6101.addons.qtnetworkauth', `
+        'qt.tools.ifw.410', `
+        'qt.tools.qtcreator'; \
+    Remove-Item C:\qt-installer.exe -Force
+
+# Set up Qt environment variables
+RUN $qtBinPath = "C:\Qt\$env:QT_VERSION\mingw_64\bin"; \
+    $qtIfwPath = "C:\Qt\Tools\QtInstallerFramework\$env:QT_IFW_VERSION\bin"; \
+    $path = [Environment]::GetEnvironmentVariable('PATH', 'Machine'); \
+    [Environment]::SetEnvironmentVariable('PATH', $qtBinPath + ';' + $qtIfwPath + ';' + $path, 'Machine'); \
+    [Environment]::SetEnvironmentVariable('QT_DIR', 'C:\Qt', 'Machine'); \
+    [Environment]::SetEnvironmentVariable('Qt6_DIR', "C:\Qt\$env:QT_VERSION\mingw_64", 'Machine')
+
+# Verify installations
+RUN Write-Host 'Verifying installations...'; \
+    cmake --version; \
+    git --version; \
+    & "C:\Qt\$env:QT_VERSION\mingw_64\bin\qmake.exe" --version; \
+    & "C:\Qt\Tools\QtInstallerFramework\$env:QT_IFW_VERSION\bin\binarycreator.exe" --version
+
+# Set working directory
+WORKDIR C:\workspace
+
+# Default command
+CMD ["powershell.exe"]
