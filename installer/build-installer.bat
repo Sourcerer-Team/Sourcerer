@@ -9,31 +9,43 @@ set BUILD_DIR=%PROJECT_ROOT%\build
 set RELEASE_DIR=%BUILD_DIR%
 set INSTALLER_DIR=%~dp0
 set DATA_DIR=%INSTALLER_DIR%\packages\com.sourcerer.app\data
-set QT_IFW_DIR=C:\Qt\Tools\QtInstallerFramework\4.10
+set QT_IFW_DIR=C:\Qt\Tools\QtInstallerFramework\4.7
 set QT_MINGW_DIR=C:\Qt\6.10.1\mingw_64
-set MSYS64_DIR=C:\msys64
+set MSYS64_DIR=C:\tools\msys64
 
 REM Check if MSYS64 is installed
-if not exist "%MSYS64_DIR%\msys2.exe" (
+if not exist "%MSYS64_DIR%\usr\bin\bash.exe" (
     echo Warning: MSYS64 not found at %MSYS64_DIR%
     echo Please install MSYS64 from https://www.msys2.org/
     echo MSYS64 is required for some project dependencies.
-    exit /b 1
+    REM Continue anyway - might not be needed
 )
 
 REM Check for Qt MinGW installation and add to PATH
-if exist "%QT_MINGW_DIR%\bin\mingw32-make.exe" (
-    echo Found Qt MinGW at %QT_MINGW_DIR%
-    set PATH=%QT_MINGW_DIR%\bin;%PATH%
-) else if exist "C:\Qt\Tools\mingw1310_64\bin\mingw32-make.exe" (
-    echo Found Qt MinGW tools at C:\Qt\Tools\mingw1310_64
-    set PATH=C:\Qt\Tools\mingw1310_64\bin;%PATH%
-) else (
+set MINGW_FOUND=
+for /d %%i in ("C:\Qt\Tools\mingw*") do (
+    if exist "%%i\bin\mingw32-make.exe" (
+        echo Found Qt MinGW tools at %%i
+        set PATH=%%i\bin;%PATH%
+        set MINGW_FOUND=1
+        goto mingw_found
+    )
+)
+if not defined MINGW_FOUND (
+    if exist "%QT_MINGW_DIR%\bin\mingw32-make.exe" (
+        echo Found Qt MinGW at %QT_MINGW_DIR%
+        set PATH=%QT_MINGW_DIR%\bin;%PATH%
+        set MINGW_FOUND=1
+        goto mingw_found
+    )
+)
+if not defined MINGW_FOUND (
     echo Error: Qt MinGW not found. Please install one of the following:
+    echo   - Qt MinGW tools in C:\Qt\Tools\mingw*
     echo   - Qt MinGW at %QT_MINGW_DIR%
-    echo   - Qt MinGW tools at C:\Qt\Tools\mingw1310_64
     exit /b 1
 )
+:mingw_found
 
 REM Check if Qt IFW is installed
 if not exist "%QT_IFW_DIR%\bin\binarycreator.exe" (
@@ -56,8 +68,8 @@ REM Set libzip path
 set LIBZIP_INCLUDEDIR=%MSYS64_DIR%\mingw64\include
 set LIBZIP_LIBDIR=%MSYS64_DIR%\mingw64\lib
 
-REM Set OpenSSL path
-set OPENSSL_ROOT_DIR=C:\Qt\Tools\OpenSSLv3\Win_x64
+REM Set OpenSSL path from MSYS2
+set OPENSSL_ROOT_DIR=%MSYS64_DIR%\mingw64
 
 REM Clean CMake cache to avoid generator conflicts
 if exist CMakeCache.txt del CMakeCache.txt
@@ -103,7 +115,7 @@ echo Copying runtime dependencies...
 
 REM Copy MSYS64 dependencies
 echo Copying MSYS64 dependencies...
-set MSYS64_BIN=C:\msys64\mingw64\bin
+set MSYS64_BIN=%MSYS64_DIR%\mingw64\bin
 
 if not exist "%MSYS64_BIN%\libbz2-1.dll" (echo Error: libbz2-1.dll not found in %MSYS64_BIN% & exit /b 1)
 copy "%MSYS64_BIN%\libbz2-1.dll" "%DATA_DIR%\" || exit /b 1

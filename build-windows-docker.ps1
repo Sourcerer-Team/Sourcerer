@@ -68,23 +68,9 @@ if ($Rebuild -or -not $imageExists) {
         Write-Host "Docker image '$ImageName' not found. Building it now..." -ForegroundColor Yellow
     }
     Write-Host "Building Docker image (this may take 30-60 minutes)..." -ForegroundColor Blue
+    Write-Host "Note: Using aqtinstall to download Qt (no account credentials required)" -ForegroundColor Green
     
-    # Prompt for Qt account credentials
-    Write-Host "Qt account credentials are required for downloading Qt components." -ForegroundColor Blue
-    $QtEmail = Read-Host "Qt Account Email"
-    $QtPasswordSecure = Read-Host "Qt Account Password" -AsSecureString
-    $QtPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
-        [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($QtPasswordSecure))
-    
-    if ([string]::IsNullOrWhiteSpace($QtEmail) -or [string]::IsNullOrWhiteSpace($QtPassword)) {
-        Write-Host "Error: Qt account credentials are required." -ForegroundColor Red
-        exit 1
-    }
-    
-    docker build -t $ImageName `
-        --build-arg QT_ACCOUNT_EMAIL="$QtEmail" `
-        --build-arg QT_ACCOUNT_PASSWORD="$QtPassword" `
-        -f "$DockerDir/Dockerfile.windows" $DockerDir
+    docker build -t $ImageName -f "$DockerDir/Dockerfile.windows" $DockerDir
     
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to build Docker image" -ForegroundColor Red

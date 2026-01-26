@@ -10,11 +10,29 @@ This directory contains the Qt Installer Framework 4 project for creating instal
 
 ### Windows-Specific Prerequisites
 
-- **MSYS2 x86_64**
-  - Download from: https://www.msys2.org/
-  - Install to default location (C:\msys64) or update paths in build script
+- **Qt 6.10.1 with MinGW**
+  - Download from: https://www.qt.io/download-qt-installer
+  - During installation, select:
+    - Qt 6.10.1 → MinGW 64-bit
+    - Developer and Designer Tools → MinGW 13.1.0 64-bit (or similar version)
+    - Qt Installer Framework 4.7 or later
+  - Qt MinGW provides the compiler and build tools (gcc, g++, mingw32-make)
+  - Default installation: `C:\Qt\6.10.1\mingw_64` and `C:\Qt\Tools\mingw*`
+
+- **MSYS2 x86_64** (For Runtime Libraries Only)
   
-- **MSYS2 Required Packages**
+  **Option 1: Install via Chocolatey (Recommended)**
+  ```cmd
+  choco install -y msys2
+  ```
+  This installs MSYS2 to `C:\tools\msys64` which is the default path expected by `build-installer.bat`.
+  
+  **Option 2: Manual Installation**
+  - Download from: https://www.msys2.org/
+  - Install to `C:\tools\msys64` (or update paths in `build-installer.bat` if using a different location)
+  - Note: The default MSYS2 installation path is `C:\msys64`, but `build-installer.bat` expects `C:\tools\msys64` to match Docker environment
+  
+- **MSYS2 Required Packages (Runtime Libraries Only - No Compiler)**
   
   After installing MSYS2, open MSYS2 MINGW64 shell and install the following packages:
   
@@ -23,6 +41,9 @@ This directory contains the Qt Installer Framework 4 project for creating instal
   pacman -S mingw-w64-x86_64-libzip
   pacman -S mingw-w64-x86_64-libssh2
   ```
+  
+  **Important:** Do NOT install `mingw-w64-x86_64-gcc` or other compiler packages from MSYS2. 
+  The build system uses Qt's MinGW compiler, not MSYS2's compiler. MSYS2 is only needed for runtime libraries.
   
   These packages provide the required DLL files:
   - libgit2.dll (Git repository operations)
@@ -49,7 +70,12 @@ The installer will be created in the `installer/` directory.
 
 ### Method 2: Using Build Scripts
 
-#### Windows
+#### Windows (Local Build)
+
+**Prerequisites:**
+- Qt 6.10.1 with MinGW installed (includes compiler in `C:\Qt\Tools\mingw*`)
+- MSYS2 installed at `C:\tools\msys64` with runtime libraries (see Windows-Specific Prerequisites above)
+- Qt Installer Framework 4.7 or later
 
 ```cmd
 cd installer
@@ -57,9 +83,13 @@ build-installer.bat
 ```
 
 This will:
-1. Build Sourcerer in Release mode
-2. Deploy Qt dependencies using windeployqt
-3. Create the Windows installer executable
+1. Locate and use Qt's MinGW compiler (from `C:\Qt\Tools\mingw*\bin`)
+2. Build Sourcerer in Release mode using Qt MinGW
+3. Copy runtime libraries from MSYS2 (`C:\tools\msys64\mingw64\bin`)
+4. Deploy Qt dependencies using windeployqt
+5. Create the Windows installer executable
+
+**Note:** The build script automatically detects Qt MinGW tools. If you installed Qt to a non-standard location, update the `QT_MINGW_DIR` variable in the script.
 
 #### Linux/macOS
 

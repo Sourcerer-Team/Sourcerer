@@ -15,10 +15,13 @@ The Docker setup provides consistent build environments with all necessary depen
 
 ### Windows Build Environment
 - Windows Server Core 2022 base
-- Qt 6.10.1 (MinGW 64-bit)
-- Qt Installer Framework 4.10
-- MSYS2 with MinGW-w64 toolchain
-- Required libraries (libgit2, libzip, libssh2, openssl)
+- Qt 6.10.1 (MinGW 64-bit) - Qt framework and tools
+- Qt MinGW 13.1.0 64-bit - Compiler and build tools (gcc, g++, mingw32-make)
+- Qt Installer Framework 4.8
+- MSYS2 (installed via Chocolatey at C:\tools\msys64) - Provides runtime libraries only (libgit2, libzip, libssh2, openssl)
+- CMake, Git, 7-Zip, Python (via Chocolatey)
+
+**Note:** The build uses Qt's MinGW compiler, not MSYS2's compiler. MSYS2 is only for runtime libraries.
 
 ## Files
 
@@ -95,7 +98,7 @@ The Docker setup provides consistent build environments with all necessary depen
 ### Windows Builds
 - Docker Desktop for Windows in **Windows containers mode**
 - Windows 10 version 1809 or later, or Windows Server 2019 or later
-- Qt account (free registration at qt.io) for Qt installer
+- No Qt account needed (uses aqtinstall for automated Qt installation)
 
 ## What It Does
 
@@ -108,8 +111,12 @@ The Docker setup provides consistent build environments with all necessary depen
 
 ### Windows Build Process
 1. Builds a Windows Docker image with all dependencies (first run only, or with --rebuild)
+   - Installs Qt 6.10.1 via aqtinstall
+   - Installs Qt MinGW compiler tools (version 11.2.0)
+   - Installs Qt IFW 4.7
+   - Installs MSYS2 runtime libraries (not compiler)
 2. Mounts the project directory into the container
-3. Builds Sourcerer in Release mode using MinGW
+3. Builds Sourcerer in Release mode using Qt MinGW compiler
 4. Runs the build-installer.bat script
 5. Outputs the installer in the `installer/` directory
 
@@ -258,13 +265,15 @@ RUN apt-get update && apt-get install -y \
 **Windows (edit `Dockerfile.windows`):**
 Add MSYS2 packages:
 ```dockerfile
-RUN C:\msys64\usr\bin\bash.exe -lc 'pacman -S --noconfirm mingw-w64-x86_64-your-package'
+RUN C:\tools\msys64\usr\bin\bash.exe -lc 'pacman -S --noconfirm mingw-w64-x86_64-your-package'
 ```
 
 Or add Chocolatey packages:
 ```dockerfile
 RUN choco install -y your-package
 ```
+
+**Note:** MSYS2 is installed via Chocolatey to `C:\tools\msys64` to ensure consistency between Docker and local builds.
 
 ## Benefits of Docker-based Builds
 

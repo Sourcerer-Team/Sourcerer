@@ -268,6 +268,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   palette.setColor(QPalette::PlaceholderText, QColor(0x808080)); // Bright blue
   ui->textEditDescription->setPalette(palette);
 
+  // Set editing cursor for commit panel summary and description widgets
+  ui->lineEditSummary->setCursor(Qt::IBeamCursor);
+  ui->textEditDescription->setCursor(Qt::IBeamCursor);
+
   _errorPixmap = new QPixmap(QSize(128, 128));
   _errorPixmap->fill(Qt::transparent);
 
