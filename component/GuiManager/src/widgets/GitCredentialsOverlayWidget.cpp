@@ -54,6 +54,7 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   _passwordLineEdit->setMaximumWidth(250);
   _passwordLineEdit->setMaximumWidth(250);
   _passwordLineEdit->setPlaceholderText(tr("Enter password"));
+  _passwordLineEdit->setEchoMode(QLineEdit::Password);
 
   _storeCredentialsCheckBox->setParent(groupBox);
   _storeCredentialsCheckBox->setObjectName(
