@@ -162,6 +162,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->viewport()->installEventFilter(this);
   ui->historyView->setModel(_historyModel.get());
   ui->historyView->setSelectionMode(QAbstractItemView::SingleSelection);
+  ui->historyView->setVisible(false);
   ui->spinner->setColor(Qt::lightGray);
 
   auto *header = new ClickableHeaderView(Qt::Horizontal, ui->historyView);
@@ -389,7 +390,6 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _unifiedDiffMarks->hide();
 
   showMainSpinnerPage(false);
-  showSpinnerOverlay();
 
   const QByteArray splitterState = QByteArray::fromHex(
       _configManager.getString(ConfigManager::ConfigKey::GitRepoSplitterPos)
@@ -590,6 +590,8 @@ void GitRepoContainer::init() {
   LOG_PERF(0, "Enter");
 
   ContainerWidget::init();
+
+  startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -6237,9 +6239,6 @@ bool GitRepoContainer::openRepo(const WeakPtr &guard) {
     saveRepoInRecentList();
   }
 
-  Util::Dispatcher::dispatchToMainThread(guard,
-                                         [=]() { showSpinnerOverlay(false); });
-
   LOG_PERF(0, "Exit")
 
   return refreshHistorySuccess;
@@ -7442,6 +7441,7 @@ void GitRepoContainer::updateBranchHistory(
       });
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    ui->historyView->setVisible(true);
     showSpinnerOverlay(false);
     stretchBranchHistoryTableColumns();
     simulateClickOnFirstHistoryRow();
