@@ -323,7 +323,7 @@ void GitCredentialStorage::saveCredentialsToDisk(
       stream >> version;
 
       if (version == 1) {
-        int count;
+        qsizetype count;
         stream >> count;
 
         for (int i = 0; i < count; ++i) {
@@ -403,7 +403,7 @@ void GitCredentialStorage::removeCredentialsFromDisk(const QString &repoPath) {
     stream >> version;
 
     if (version == 1) {
-      int count;
+      qsizetype count;
       stream >> count;
 
       for (int i = 0; i < count; ++i) {
