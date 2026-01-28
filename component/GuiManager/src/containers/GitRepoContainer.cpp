@@ -6901,20 +6901,26 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() const {
   ui->historyView->horizontalHeader()->setSectionResizeMode(
       QHeaderView::Interactive);
 
+  const QFont font = ui->historyView->font();
+  const QFontMetrics fontMetrics(font);
+  const int charWidth = fontMetrics.horizontalAdvance('0');
+
   const int totalWidth = ui->historyView->viewport()->width();
   int colSummary = totalWidth / 2;
   if (constexpr int maxSummaryWidth = 600; colSummary > maxSummaryWidth)
     colSummary = maxSummaryWidth;
 
   const int remaining = totalWidth - colSummary;
-  const int colOther = remaining / 5;
+  const int colSha = charWidth * 7; // Short SHA length
+  const int remainingAfterSha = remaining - colSha;
+  const int colOther = remainingAfterSha / 4;
 
   ui->historyView->setColumnWidth(0, colOther);
   ui->historyView->setColumnWidth(1, colSummary);
   ui->historyView->setColumnWidth(2, colOther);
   ui->historyView->setColumnWidth(3, colOther);
   ui->historyView->setColumnWidth(4, colOther);
-  ui->historyView->setColumnWidth(5, colOther);
+  ui->historyView->setColumnWidth(5, colSha);
 
   LOG_PERF(0, "Exit")
 }
