@@ -6347,8 +6347,13 @@ void GitRepoContainer::push(const WeakPtr &guard) {
   }
 
   if (event.type() != EventManager::EventType::GitRepoManagerPushResult) {
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [=]() { showSpinnerOverlay(false); });
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(
+          QString(tr("Failed to push to remote.\n%1")).arg(error.message),
+          tr("Error"));
+    });
 
     LOG_PERF(0, "Exit")
     return;
@@ -6360,6 +6365,14 @@ void GitRepoContainer::push(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(tr("Failed to push to remote."), tr("Error"));
+    });
+
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(
+          QString(tr("Failed to pull from remote.\n%1")).arg(error.message),
+          tr("Error"));
     });
 
     LOG_PERF(0, "Exit")

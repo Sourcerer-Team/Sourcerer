@@ -210,11 +210,13 @@ static bool createInitialCommit(git_repository *repo,
   error = git_branch_iterator_new(&it, repo, GIT_BRANCH_LOCAL);
   if (error) {
     logGitError(error);
+    LOG_PERF(0, "Exit");
     return false;
   }
 
   if (!it) {
     LOG_ERROR(Log::ErrorId::Git, "Invalid branch iterator.");
+    LOG_PERF(0, "Exit");
     return false;
   }
 
@@ -262,6 +264,7 @@ static bool createInitialCommit(git_repository *repo,
   if (!foundMaster) {
     git_reference_free(branchRef);
     LOG_ERROR(Log::ErrorId::Git, "Coldn't find master branch.");
+    LOG_PERF(0, "Exit");
     return false;
   }
 
@@ -272,6 +275,7 @@ static bool createInitialCommit(git_repository *repo,
   if (error) {
     logGitError(error);
     git_reference_free(branchRef);
+    LOG_PERF(0, "Exit");
     return false;
   }
 
@@ -3903,6 +3907,7 @@ bool push(git_repository *repo) {
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
   opts.callbacks.credentials = &credentialsAcquireCallback;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
+  opts.callbacks.certificate_check = &certificateCheckCallback;
   opts.callbacks.payload = &credPayload;
 
   git_strarray refspecs =
