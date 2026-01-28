@@ -8,12 +8,15 @@
 set -e
 
 # Parse command line arguments
-BUILD_QT_IFW=true
-BUILD_APPIMAGE=false
+BUILD_QT_IFW=false
+BUILD_APPIMAGE=true
 
 if [[ "$1" == "--appimage" ]]; then
     BUILD_QT_IFW=false
     BUILD_APPIMAGE=true
+elif [[ "$1" == "--ifw" ]]; then
+    BUILD_QT_IFW=true
+    BUILD_APPIMAGE=false
 elif [[ "$1" == "--both" ]]; then
     BUILD_QT_IFW=true
     BUILD_APPIMAGE=true
