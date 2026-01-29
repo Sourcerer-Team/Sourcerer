@@ -30,6 +30,7 @@ struct CloneProgress {
   bool started = false;
   bool finished = false;
   bool error = false;
+  bool cloning = true;
   CloneProgressStageType stage = CloneProgressStageType::Unknown;
 };
 

@@ -105,7 +105,7 @@ void GitProgressToast::eventCallback(EventManager::Event event) {
       emit finished();
     else
       Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
-        _progressBar->setRange(0, data.totalSteps);
+        _progressBar->setRange(0, data.totalSteps - 1);
         _progressBar->setValue(data.completedSteps);
         _messageLabel->setText(data.stage == CloneProgressStageType::Checkout
                                    ? tr(CHECKOUT_STR)

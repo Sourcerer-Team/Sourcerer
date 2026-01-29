@@ -11,6 +11,7 @@
 #ifdef _WIN32
 #include <applink.c>
 #endif
+#include <Uuid.h>
 
 #include <git2.h>
 #include <git2/blob.h>
@@ -65,9 +66,8 @@ struct GitPlaintextCredentials {
   qint64 createdTime;
 };
 
-struct GitCredentialPayload {
+struct GitCredentialPayload : public CloneProgress {
   QString repoPath;
-  QString uuid;
 };
 
 Util::Mutex gGitCredentialsMutex;
@@ -1248,8 +1248,9 @@ bool initRepository(const QString &repoName, const QString &workingDir,
 
 static int fetchProgressCallback(const git_indexer_progress *stats,
                                  void *payload) {
-  if (!payload || !stats)
+  if (!payload || !stats) {
     return 0;
+  }
 
   const auto progress = static_cast<CloneProgress *>(payload);
   progress->completedSteps = stats->indexed_objects;
@@ -1464,7 +1465,8 @@ static int certificateCheckCallback(git_cert *cert, int valid, const char *host,
   return 0; // Accept even if invalid
 }
 
-static void finishFetchProgress(const QString &uuid, const bool error) {
+static void finishFetchProgress(const QString &uuid, const bool error,
+                                const bool cloning) {
   CloneProgress progress;
   progress.uuid = uuid;
   progress.completedSteps = 100;
@@ -1472,6 +1474,7 @@ static void finishFetchProgress(const QString &uuid, const bool error) {
   progress.started = true;
   progress.finished = true;
   progress.error = error;
+  progress.cloning = cloning;
 
   EventManager::Event progressEvent(
       EventManager::EventType::GitRepoManagerCloneRepoProgress);
@@ -1934,10 +1937,12 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
 
   CloneProgress progressData;
   progressData.uuid = uuid;
+  progressData.cloning = true;
 
   GitCredentialPayload credPayload;
   credPayload.repoPath = destinationDir;
   credPayload.uuid = uuid;
+  credPayload.cloning = true;
 
   checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
   checkout_opts.progress_payload = &progressData;
@@ -1953,7 +1958,10 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
       git_clone(&repo, url.toStdString().c_str(),
                 destinationDir.toStdString().c_str(), &clone_opts);
 
-  finishFetchProgress(uuid, error != 0);
+  if (credPayload.stage != CloneProgressStageType::Unknown) {
+    finishFetchProgress(uuid, error != 0, true);
+  }
+
   finishCredentialsAcquiring(uuid);
 
   if (error || !repo) {
@@ -3657,16 +3665,20 @@ bool pull(git_repository *repo) {
     }
   }
 
+  const QString fetchUuid = Uuid::createUuid();
+
   GitCredentialPayload credPayload;
   credPayload.repoPath = repoPath;
+  credPayload.uuid = fetchUuid;
+  credPayload.cloning = false;
+
+  git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
+  fetchOpts.callbacks.credentials = &credentialsAcquireCallback;
+  fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
+  fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
+  fetchOpts.callbacks.payload = &credPayload;
 
   do {
-    git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
-    fetchOpts.callbacks.credentials = &credentialsAcquireCallback;
-    fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
-    fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
-    fetchOpts.callbacks.payload = &credPayload;
-
     error = git_remote_fetch(remote, nullptr, &fetchOpts, nullptr);
 
     if (error) {
@@ -3681,6 +3693,10 @@ bool pull(git_repository *repo) {
 
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
+
+  if (credPayload.stage != CloneProgressStageType::Unknown) {
+    finishFetchProgress(fetchUuid, error != 0, false);
+  }
 
   finishCredentialsAcquiring(url);
 
@@ -3902,6 +3918,7 @@ bool push(git_repository *repo) {
 
   GitCredentialPayload credPayload;
   credPayload.repoPath = repoPath;
+  credPayload.cloning = false;
 
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
@@ -4857,6 +4874,7 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 
   CloneProgress progressData;
   progressData.uuid = uuid;
+  progressData.cloning = true;
 
   git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
   checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
@@ -4881,7 +4899,10 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
     return false;
   }
 
-  finishFetchProgress(uuid, error != 0);
+  if (progressData.stage != CloneProgressStageType::Unknown) {
+    finishFetchProgress(uuid, error != 0, true);
+  }
+
   finishCredentialsAcquiring(uuid);
 
   error = git_submodule_add_finalize(subModule);

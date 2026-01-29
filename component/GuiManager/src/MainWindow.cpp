@@ -1075,8 +1075,8 @@ void MainWindow::hideCredentialsOverlay(GitCredentialsOverlayWidget *widget) {
 void MainWindow::showCloneProgressToast(const CloneProgress &data) {
   LOG_PERF(0, "Enter");
 
-  const auto toast =
-      QSharedPointer<GitProgressToast>::create(data, tr("Clone"));
+  const auto toast = QSharedPointer<GitProgressToast>::create(
+      data, data.cloning ? tr("Clone") : tr("Fetch"));
 
   Dispatcher::dispatchToMainThread(getSelf().toWeakRef(),
                                    [=]() { _toastHost.addToast(toast); });
