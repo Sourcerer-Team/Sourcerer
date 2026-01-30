@@ -105,7 +105,7 @@ void GitCredentialsContainer::onDeleteClicked() {
 
   QModelIndexList selected = ui->tableView->selectionModel()->selectedRows();
   if (selected.isEmpty()) {
-    LOG_PERF(0, "Exit - No selection");
+    LOG_PERF(0, "Exit");
     return;
   }
 
@@ -123,7 +123,7 @@ void GitCredentialsContainer::onDeleteClicked() {
 
   if (reply == QMessageBox::Yes) {
     LOG_INFO("Deleting credentials for repository: {}", repoPath);
-    _credentialStorage.removeCredentials(repoPath);
+    _credentialStorage.removeCredentials(QDir::fromNativeSeparators(repoPath));
 
     // Reload the table
     loadCredentials();
