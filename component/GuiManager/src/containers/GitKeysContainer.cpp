@@ -116,9 +116,9 @@ void GitKeysContainer::onGenerateClicked() {
   QString keyName = QInputDialog::getText(
       this, "Generate SSH key pair",
       "Enter a name for the new key (e.g., "
-      "id_rsa_github, id_ed25519_gitlab):",
+      "id_ed25519_github, id_ed25519_gitlab):",
       QLineEdit::Normal,
-      "id_rsa_" + QString::number(QDateTime::currentSecsSinceEpoch()), &ok);
+      "id_ed25519_" + QString::number(QDateTime::currentSecsSinceEpoch()), &ok);
 
   if (!ok || keyName.isEmpty()) {
     LOG_PERF(0, "Exit - Cancelled");

@@ -153,6 +153,81 @@ bool GitKeyStorage::keyPairExists(const QString &keyName) const {
   return QFile::exists(privateKeyPath) && QFile::exists(publicKeyPath);
 }
 
+// Helper: write length-prefixed binary string
+static void writeString(BIO *bio, const unsigned char *data, int len) {
+  LOG_PERF(0, "Enter");
+
+  unsigned char lenbuf[4];
+  lenbuf[0] = (len >> 24) & 0xFF;
+  lenbuf[1] = (len >> 16) & 0xFF;
+  lenbuf[2] = (len >> 8) & 0xFF;
+  lenbuf[3] = len & 0xFF;
+  BIO_write(bio, lenbuf, 4);
+  BIO_write(bio, data, len);
+
+  LOG_PERF(0, "Exit");
+}
+
+// Helper: base64 encode buffer
+static char *base64Encode(const unsigned char *input, int length) {
+  LOG_PERF(0, "Enter");
+
+  BIO *b64 = BIO_new(BIO_f_base64());
+  BIO *mem = BIO_new(BIO_s_mem());
+  b64 = BIO_push(b64, mem);
+  BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
+  BIO_write(b64, input, length);
+  BIO_flush(b64);
+
+  BUF_MEM *bptr;
+  BIO_get_mem_ptr(b64, &bptr);
+
+  char *buff = new char[bptr->length + 1];
+  memcpy(buff, bptr->data, bptr->length);
+  buff[bptr->length] = 0;
+
+  BIO_free_all(b64);
+
+  LOG_PERF(0, "Exit");
+  return buff;
+}
+
+static QString convertSshRsaPubkeyToString(EVP_PKEY *pkey,
+                                           const char *comment) {
+  LOG_PERF(0, "Enter");
+
+  // Extract raw public key
+  unsigned char pubkey[32];
+  size_t len = sizeof(pubkey);
+  if (EVP_PKEY_get_raw_public_key(pkey, pubkey, &len) <= 0 || len != 32) {
+    LOG_ERROR(Log::ErrorId::Security, "Failed to get raw public key\n");
+    LOG_PERF(0, "Exit");
+  }
+
+  // Build SSH wire format
+  BIO *bio = BIO_new(BIO_s_mem());
+  const char *alg = "ssh-ed25519";
+  writeString(bio, (const unsigned char *)alg, strlen(alg));
+  writeString(bio, pubkey, len);
+
+  BUF_MEM *bptr;
+  BIO_get_mem_ptr(bio, &bptr);
+
+  // Base64 encode
+  char *b64 = base64Encode((unsigned char *)bptr->data, bptr->length);
+
+  const QString converted =
+      QString("ssh-ed25519 %1 %2\n").arg(b64, comment ? comment : "");
+
+  // Cleanup
+  delete[] b64;
+  BIO_free(bio);
+
+  LOG_PERF(0, "Exit");
+
+  return converted;
+}
+
 bool GitKeyStorage::generateKeyPair(const QString &keyName,
                                     const QString &passphrase,
                                     QString &privateKeyPath,
@@ -182,9 +257,9 @@ bool GitKeyStorage::generateKeyPair(const QString &keyName,
     return false;
   }
 
-  // Generate RSA key pair (4096 bits)
+  // Generate ED25519 key pair (256 bits)
   EVP_PKEY *pkey = nullptr;
-  EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr);
+  EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, nullptr);
 
   if (!ctx) {
     errorMessage = "Failed to create key generation context";
@@ -195,14 +270,6 @@ bool GitKeyStorage::generateKeyPair(const QString &keyName,
 
   if (EVP_PKEY_keygen_init(ctx) <= 0) {
     errorMessage = "Failed to initialize key generation";
-    LOG_ERROR(Log::ErrorId::Security, "{}", errorMessage);
-    EVP_PKEY_CTX_free(ctx);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  if (EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, 4096) <= 0) {
-    errorMessage = "Failed to set key size";
     LOG_ERROR(Log::ErrorId::Security, "{}", errorMessage);
     EVP_PKEY_CTX_free(ctx);
     LOG_PERF(0, "Exit");
@@ -271,7 +338,20 @@ bool GitKeyStorage::generateKeyPair(const QString &keyName,
     return false;
   }
 
-  if (!PEM_write_PUBKEY(publicFile, pkey)) {
+  const QString opennSshPubKeyStr = convertSshRsaPubkeyToString(pkey, nullptr);
+  if (opennSshPubKeyStr.isEmpty()) {
+    errorMessage = "Failed to write public key";
+    LOG_ERROR(Log::ErrorId::FileSystem, "{}", errorMessage);
+    fclose(publicFile);
+    EVP_PKEY_free(pkey);
+    QFile::remove(privateKeyPath);
+    QFile::remove(publicKeyPath);
+    return false;
+  }
+
+  const QByteArray buffer = opennSshPubKeyStr.toUtf8();
+
+  if (!fwrite(buffer.constData(), buffer.length(), 1, publicFile)) {
     errorMessage = "Failed to write public key";
     LOG_ERROR(Log::ErrorId::FileSystem, "{}", errorMessage);
     fclose(publicFile);
