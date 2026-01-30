@@ -9,8 +9,10 @@ set BUILD_DIR=%PROJECT_ROOT%\build
 set RELEASE_DIR=%BUILD_DIR%
 set INSTALLER_DIR=%~dp0
 set DATA_DIR=%INSTALLER_DIR%\packages\com.sourcerer.app\data
-set QT_IFW_DIR=C:\Qt\Tools\QtInstallerFramework\4.7
-set QT_MINGW_DIR=C:\Qt\6.10.1\mingw_64
+set QT_VERSION=6.10.1
+set QT_DIR=C:\Qt
+set QT_IFW_DIR=%QT_DIR%\Tools\QtInstallerFramework\4.7
+set QT_MINGW_DIR=%QT_DIR%\%QT_VERSION%\mingw_64
 set MSYS64_DIR=C:\tools\msys64
 
 REM Check if MSYS64 is installed
@@ -91,6 +93,7 @@ REM Clean and prepare data directory
 echo Preparing installer data directory...
 if exist "%DATA_DIR%" rmdir /s /q "%DATA_DIR%"
 mkdir "%DATA_DIR%"
+mkdir "%DATA_DIR%\crypto"
 
 REM Copy application files
 echo Copying application files...
@@ -146,6 +149,15 @@ copy "%MSYS64_BIN%\libzstd.dll" "%DATA_DIR%\" || exit /b 1
 
 if not exist "%MSYS64_BIN%\zlib1.dll" (echo Error: zlib1.dll not found in %MSYS64_BIN% & exit /b 1)
 copy "%MSYS64_BIN%\zlib1.dll" "%DATA_DIR%\" || exit /b 1
+
+if not exist "%BUILD_DIR%\bin\libqca-qt6.dll" (echo Error: libqca-qt6.dll not found in %BUILD_DIR%\bin & exit /b 1)
+copy "%BUILD_DIR%\bin\libqca-qt6.dll" "%DATA_DIR%\" || exit /b 1
+
+if not exist "%BUILD_DIR%\lib\qca-qt6\crypto\libqca-ossl.dll" (echo Error: libqca-ossl.dll not found in %BUILD_DIR%\lib\qca-qt6\crypto & exit /b 1)
+copy "%BUILD_DIR%\lib\qca-qt6\crypto\libqca-ossl.dll" "%DATA_DIR%\crypto" || exit /b 1
+
+if not exist "%QT_MINGW_DIR%\bin\Qt6Core5Compat.dll" (echo Error: Qt6Core5Compat.dll not found in %QT_MINGW_DIR%\bin & exit /b 1)
+copy "%QT_MINGW_DIR%\bin\Qt6Core5Compat.dll" "%DATA_DIR%\" || exit /b 1
 
 REM Copy Visual C++ runtime if needed
 REM copy "C:\Windows\System32\vcruntime*.dll" "%DATA_DIR%\" 2>nul

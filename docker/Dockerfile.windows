@@ -44,7 +44,7 @@ RUN python -m pip install --upgrade pip; \
 
 # Install Qt using aqtinstall (no credentials needed)
 RUN Write-Host "Installing Qt $env:QT_VERSION using aqtinstall..."; \
-    aqt install-qt windows desktop $env:QT_VERSION win64_mingw -m qtscxml qtnetworkauth --outputdir C:\Qt; \
+    aqt install-qt windows desktop $env:QT_VERSION win64_mingw -m qtscxml qtnetworkauth qt5compat --outputdir C:\Qt; \
     Write-Host 'Installing MinGW tools...'; \
     aqt install-tool windows desktop tools_mingw90 --outputdir C:\Qt; \
     Write-Host 'Installing Qt IFW...'; \

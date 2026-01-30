@@ -13,7 +13,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 find_package(libgit2 REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
-find_package(Qca-qt6 REQUIRED)
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 
@@ -36,6 +35,14 @@ includeLib(GitRepo Log)
 includeLib(GitRepo OpenSSLHelper)
 includeLib(GitRepo Util)
 
+set(WITH_ossl_PLUGIN ON CACHE BOOL "Enable OpenSSL plugin for QCA")
+set(BUILD_WITH_QT6 ON CACHE BOOL "Build with Qt 6")
+set(BUILD_TESTS OFF CACHE BOOL "Create test")
+set(BUILD_TOOLS OFF CACHE BOOL "Compile mozcerts and qcatool")
+set(BUILD_PLUGINS "none" CACHE STRING "Plugins for building (also possible values: none, all and auto)")
+set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared library")
+
+add_subdirectory(../../lib/qca "QCA")
 
 target_link_libraries(GitRepo PRIVATE
     Qt6::Core
@@ -51,4 +58,7 @@ target_link_libraries(GitRepo PRIVATE
 target_include_directories(GitRepo PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/include
    ${LIBGIT2_INCLUDE_DIR}
+   ../../lib/qca/include/QtCrypto
+   ${CMAKE_CURRENT_BINARY_DIR}/QCA
+   ${CMAKE_CURRENT_BINARY_DIR}/..
 )
