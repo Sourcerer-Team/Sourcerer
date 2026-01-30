@@ -13,6 +13,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 find_package(libgit2 REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
+find_package(Qca-qt6 REQUIRED)
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 
@@ -40,6 +41,7 @@ target_link_libraries(GitRepo PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    qca-qt6
     Threads::Threads
     OpenSSL::SSL   
     OpenSSL::Crypto
