@@ -1762,8 +1762,8 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
       // Fall back to default SSH key
       const QString homePath =
           QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-      privateKeyPath = QString("%1/.ssh/id_rsa").arg(homePath);
-      publicKeyPath = QString("%1/.ssh/id_rsa.pub").arg(homePath);
+      privateKeyPath = QString("%1/.ssh/id_ed25519").arg(homePath);
+      publicKeyPath = QString("%1/.ssh/id_ed25519.pub").arg(homePath);
       LOG_INFO(
           "No specific SSH key configured for host '{}', using default: {}",
           host.isEmpty() ? "unknown" : host, privateKeyPath);
