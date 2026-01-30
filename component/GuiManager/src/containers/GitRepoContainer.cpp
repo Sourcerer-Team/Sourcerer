@@ -2145,10 +2145,10 @@ void GitRepoContainer::onSetUpstream() {
           });
 
   _dispatcher.dispatch([=]() {
-    const auto &[remoteName, remoteBranchName] = getUpstream(guard);
+    const auto result = getUpstream(guard);
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      upstreamOverlay->setRemoteName(remoteName);
-      upstreamOverlay->setRemoteBranchName(remoteBranchName);
+      upstreamOverlay->setRemoteName(result.first);
+      upstreamOverlay->setRemoteBranchName(result.second);
       upstreamOverlay->selectAllRemoteText();
       upstreamOverlay->show();
       upstreamOverlay->raise();
@@ -3739,11 +3739,11 @@ void GitRepoContainer::checkoutBranch(
 
     const auto commandResult = event.data<GitRepoResult>();
 
-    const auto [branchName, branchType] =
+    const auto result =
         commandResult.value.value<GitRepoCheckoutBranchCommandResult>();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      updateModelActiveBranch(guard, branchName, branchType);
+      updateModelActiveBranch(guard, result.branchName, result.branchType);
     });
 
     prepareWatcher(guard);
@@ -4498,10 +4498,10 @@ void GitRepoContainer::openSubmodule(const WeakPtr &guard,
   }
 
   const auto commandResult = event.data<GitRepoResult>();
-  const auto [submodulePath] =
+  const auto result =
       commandResult.value.value<GitRepoGetSubmodulePathCommandResult>();
 
-  if (submodulePath.isEmpty()) {
+  if (result.submodulePath.isEmpty()) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showSpinnerOverlay(false);
       showErrorToast(tr("Failed to get submodule path."), tr("Error"));
@@ -4514,7 +4514,7 @@ void GitRepoContainer::openSubmodule(const WeakPtr &guard,
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
 
-    const QString fullPath = QDir(_path).filePath(submodulePath);
+    const QString fullPath = QDir(_path).filePath(result.submodulePath);
     emit openRepoRequested(fullPath);
   });
 
@@ -5188,11 +5188,12 @@ bool GitRepoContainer::getActiveBranchOrTag(
 
   const auto commandResult = event.data<GitRepoResult>();
 
-  const auto [branchName, _] =
+  const auto result =
       commandResult.value.value<GitRepoGetActiveBranchCommandResult>();
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { updateModelActiveBranch(guard, branchName, branchType); });
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    updateModelActiveBranch(guard, result.branchName, branchType);
+  });
 
   LOG_PERF(0, "Exit")
 
