@@ -22,8 +22,8 @@
 namespace GuiManager::Widgets {
 
 ToastHostWidget::ToastHostWidget()
-    : OverlayWidget{nullptr, 0}, _yOffset(0),
-      _position{ToastPosition::BottomRight},
+    : OverlayWidget{nullptr, 0},
+      _yOffset(0), _position{ToastPosition::BottomLeft},
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
@@ -146,29 +146,24 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
             toast->width(), toast->height(), topLevelGlobalPos.x(),
             topLevelGlobalPos.y(), topLevel->width(), topLevel->height());
 
-  // Adjust based on position preference
-  if (_position == ToastPosition::BottomRight ||
-      _position == ToastPosition::TopRight) {
-    xPos += topLevel->width() - toast->width() - 16; // 16px margin from right
-  } else if (_position == ToastPosition::BottomLeft ||
-             _position == ToastPosition::TopLeft) {
-    xPos += 16; // 16px margin from left
-  } else {
-    // Center horizontally
+  if (_position == ToastPosition::Top) {
     xPos += (topLevel->width() - toast->width()) / 2;
-  }
-
-  if (_position == ToastPosition::Bottom ||
-      _position == ToastPosition::BottomLeft ||
-      _position == ToastPosition::BottomRight) {
-    // For bottom positioning: start from bottom, go up by existing toasts
-    // height + this toast height + margin
-    yPos += topLevel->height() - existingToastsHeight - toast->height() -
-            16; // 16px margin from bottom
-  } else {
-    // For top positioning: start from top + title bar offset + existing toasts
-    // height
-    yPos += _yOffset + existingToastsHeight;
+    yPos += -toast->height() + existingToastsHeight;
+  } else if (_position == ToastPosition::Bottom) {
+    xPos += (topLevel->width() - toast->width()) / 2;
+    yPos += topLevel->height() - existingToastsHeight;
+  } else if (_position == ToastPosition::BottomLeft) {
+    xPos += -toast->width();
+    yPos += topLevel->height() - toast->height() - existingToastsHeight - 16;
+  } else if (_position == ToastPosition::TopLeft) {
+    xPos += -toast->width();
+    yPos += existingToastsHeight + 16;
+  } else if (_position == ToastPosition::BottomRight) {
+    xPos += topLevel->width();
+    yPos += topLevel->height() - toast->height() - existingToastsHeight - 16;
+  } else if (_position == ToastPosition::TopRight) {
+    xPos += toast->width();
+    yPos += 16;
   }
 
   LOG_DEBUG("ToastHostWidget::addToLayout - Final toast position: ({}, {})",
@@ -176,26 +171,6 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
 
   // Set target position before animation
   toast->move(xPos, yPos);
-
-#ifdef Q_OS_LINUX
-  // Linux-specific: Ensure window handle exists for positioning
-  // Position both the window handle and widget for redundancy
-  QWindow *window = toast->windowHandle();
-  if (window) {
-    window->setPosition(xPos, yPos);
-  }
-
-  // Verify position after event loop processes (X11 WM may interfere)
-  QTimer::singleShot(100, [toast, xPos, yPos]() {
-    QWindow *window = toast->windowHandle();
-    if (toast->x() != xPos || toast->y() != yPos) {
-      toast->move(xPos, yPos);
-      if (window) {
-        window->setPosition(xPos, yPos);
-      }
-    }
-  });
-#endif
 
   // Animate the toast widget appearance
   animateWidget(toast);
@@ -206,22 +181,6 @@ void ToastHostWidget::addToLayout(ToastWidget *toast) const {
 void ToastHostWidget::animateWidget(QWidget *widget) const {
   LOG_PERF(0, "Enter");
 
-#ifdef Q_OS_LINUX
-  // On Linux, disable animation due to Qt positioning constraints
-  widget->show();
-  LOG_PERF(0, "Exit");
-  return;
-#endif
-
-  widget->show();
-
-  const int targetX = widget->x();
-  const int targetY = widget->y();
-  const int targetWidth = widget->width();
-  const int targetHeight = widget->height();
-
-  widget->hide();
-
   // Walk up to find the actual top-level window (MainWindow)
   const QWidget *parent = parentWidget();
   if (!parent) {
@@ -230,40 +189,63 @@ void ToastHostWidget::animateWidget(QWidget *widget) const {
     return;
   }
 
+  // Since toasts are now top-level windows, position them manually
+  // Calculate position based on existing toasts and position preference
+  const int toastSpacing = 8; // 8 pixels spacing between toasts
+
+  // Calculate accumulated height of existing toasts (not including title bar
+  // offset)
+  int existingToastsHeight = 0;
+  for (const ToastWidget *existingToast : _toasts) {
+    if (existingToast && existingToast != widget &&
+        existingToast->isVisible()) {
+      existingToastsHeight += existingToast->height() + toastSpacing;
+    }
+  }
+
   const QWidget *topLevel = parent;
   while (topLevel->parentWidget() != nullptr) {
     topLevel = topLevel->parentWidget();
   }
 
   QPoint topLevelGlobalPos = topLevel->mapToGlobal(QPoint(0, 0));
-  int startX = targetX;
 
-  // Start position: fully outside based on position preference
-  if (_position == ToastPosition::TopLeft ||
-      _position == ToastPosition::BottomLeft) {
-    // Slide in from the left
-    startX = topLevelGlobalPos.x() - targetWidth;
-  } else if (_position == ToastPosition::TopRight ||
-             _position == ToastPosition::BottomRight) {
-    // Slide in from the right
-    startX = topLevelGlobalPos.x() + topLevel->width();
-  } else if (_position == ToastPosition::Top) {
-    // Slide in from the top (use targetX for horizontal position)
-    widget->setGeometry(targetX, topLevelGlobalPos.y() - targetHeight,
-                        targetWidth, targetHeight);
-  } else {
-    // Slide in from the bottom
-    widget->setGeometry(targetX, topLevelGlobalPos.y() + topLevel->height(),
-                        targetWidth, targetHeight);
+  int targetX = 0;
+  int targetY = 0;
+
+  if (_position == ToastPosition::Top) {
+    targetX = topLevelGlobalPos.x() + widget->pos().x();
+    targetY = existingToastsHeight + 16;
+  } else if (_position == ToastPosition::Bottom) {
+    targetX = topLevelGlobalPos.x() + widget->pos().x();
+    targetY = topLevelGlobalPos.y() + topLevel->height() - widget->height() -
+              existingToastsHeight - 16;
+  } else if (_position == ToastPosition::BottomLeft) {
+    targetX = topLevelGlobalPos.x() + 16;
+    targetY = topLevelGlobalPos.y() + topLevel->height() - widget->height() -
+              existingToastsHeight - 16;
+  } else if (_position == ToastPosition::TopLeft) {
+    targetX = topLevelGlobalPos.x() + 16;
+    targetY = topLevelGlobalPos.y() + existingToastsHeight + 16;
+  } else if (_position == ToastPosition::BottomRight) {
+    targetX = topLevelGlobalPos.x() + topLevel->width() - widget->width() - 16;
+    targetY = topLevelGlobalPos.y() + topLevel->height() - widget->height() -
+              existingToastsHeight - 16;
+  } else if (_position == ToastPosition::TopRight) {
+    targetX = topLevelGlobalPos.x() + topLevel->width() - widget->width() - 16;
+    targetY = topLevelGlobalPos.y() + existingToastsHeight + 16;
   }
 
-  // Set initial geometry for left/right animations
-  if (_position == ToastPosition::TopLeft ||
-      _position == ToastPosition::BottomLeft ||
-      _position == ToastPosition::TopRight ||
-      _position == ToastPosition::BottomRight) {
-    widget->setGeometry(startX, targetY, targetWidth, targetHeight);
-  }
+#ifdef Q_OS_LINUX
+  widget->move(targetX, targetY);
+#else
+  const int targetWidth = widget->width();
+  const int targetHeight = widget->height();
+
+  const int startX = topLevelGlobalPos.x() + widget->x();
+  const int startY = topLevelGlobalPos.y() + widget->y();
+
+  widget->move(startX, startY);
 
   const qlonglong toastAnimationDuration =
       _configManager.getLong(ConfigManager::ConfigKey::ToastAnimationDuration);
@@ -293,9 +275,10 @@ void ToastHostWidget::animateWidget(QWidget *widget) const {
 
   animation->setEasingCurve(QEasingCurve::OutCubic);
 
-  widget->show();
-
   animation->start(QAbstractAnimation::DeleteWhenStopped);
+#endif
+
+  widget->show();
 
   LOG_PERF(0, "Exit");
 }
