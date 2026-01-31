@@ -174,6 +174,18 @@ void GitKeysContainer::onGenerateClicked() {
     _keyStorage.setKeyPair(host, keyName, privateKeyPath, publicKeyPath);
   }
 
+  if (host.isEmpty()) {
+    QMessageBox::information(this, "Failure",
+                             QString("SSH key pair will be removed because you "
+                                     "didn't associate the host name."));
+
+    QFile::remove(privateKeyPath);
+    QFile::remove(publicKeyPath);
+
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   QMessageBox::information(
       this, "Success",
       QString("SSH key pair generated successfully!\n\nPrivate key: "

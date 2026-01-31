@@ -227,6 +227,7 @@ bool GitKeyStorage::generateKeyPair(const QString &keyName,
   // Generate RSA 4096-bit key pair
   QCA::PrivateKey priv = QCA::KeyGenerator().createRSA(4096);
   if (priv.isNull()) {
+    errorMessage = QString("Failed to load SSL plugin");
     LOG_ERROR(Log::ErrorId::FileSystem, "Key generation failed!");
     LOG_PERF(0, "Exit");
     return false;
@@ -237,6 +238,7 @@ bool GitKeyStorage::generateKeyPair(const QString &keyName,
   // Save private key in PEM
   QFile privFile(privateKeyPath);
   if (!privFile.open(QIODevice::WriteOnly)) {
+    errorMessage = QString("Failed to open private key file for writing.");
     LOG_ERROR(Log::ErrorId::FileSystem, "Writing private key to file failed!");
     LOG_PERF(0, "Exit");
     return false;
@@ -248,6 +250,7 @@ bool GitKeyStorage::generateKeyPair(const QString &keyName,
   // Save public key in OpenSSH format
   QFile pubFile(publicKeyPath);
   if (!pubFile.open(QIODevice::WriteOnly)) {
+    errorMessage = QString("Failed to open public key file for writing.");
     LOG_ERROR(Log::ErrorId::FileSystem, "Writing public key to file failed!");
     LOG_PERF(0, "Exit");
     return false;
