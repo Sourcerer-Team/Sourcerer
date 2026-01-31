@@ -30,25 +30,25 @@ namespace QCA { // WRAPNS_LINE
  * (C) 1999-2007 The Botan Project                *
  *************************************************/
 
-} // WRAPNS_LINE
+} // namespace QCA
 #include <botan/defalloc.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <botan/libstate.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <botan/util.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <cstdlib>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <cstring>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <cstdlib>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <cstring>
 namespace QCA { // WRAPNS_LINE
 
@@ -59,84 +59,77 @@ namespace {
 /*************************************************
  * Perform Memory Allocation                      *
  *************************************************/
-void *do_malloc(u32bit n, bool do_lock)
-{
-    void *ptr = malloc(n);
+void *do_malloc(u32bit n, bool do_lock) {
+  void *ptr = malloc(n);
 
-    if (!ptr)
-        return nullptr;
+  if (!ptr)
+    return nullptr;
 
-    if (do_lock)
-        lock_mem(ptr, n);
+  if (do_lock)
+    lock_mem(ptr, n);
 
-    memset(ptr, 0, n);
-    return ptr;
+  memset(ptr, 0, n);
+  return ptr;
 }
 
 /*************************************************
  * Perform Memory Deallocation                    *
  *************************************************/
-void do_free(void *ptr, u32bit n, bool do_lock)
-{
-    if (!ptr)
-        return;
+void do_free(void *ptr, u32bit n, bool do_lock) {
+  if (!ptr)
+    return;
 
-    memset(ptr, 0, n);
-    if (do_lock)
-        unlock_mem(ptr, n);
+  memset(ptr, 0, n);
+  if (do_lock)
+    unlock_mem(ptr, n);
 
-    free(ptr);
+  free(ptr);
 }
 
-}
+} // namespace
 
 /*************************************************
  * Malloc_Allocator's Allocation                  *
  *************************************************/
-void *Malloc_Allocator::alloc_block(u32bit n)
-{
-    return do_malloc(n, false);
+void *Malloc_Allocator::alloc_block(u32bit n) {
+  return do_malloc(n, false);
 }
 
 /*************************************************
  * Malloc_Allocator's Deallocation                *
  *************************************************/
-void Malloc_Allocator::dealloc_block(void *ptr, u32bit n)
-{
-    do_free(ptr, n, false);
+void Malloc_Allocator::dealloc_block(void *ptr, u32bit n) {
+  do_free(ptr, n, false);
 }
 
 /*************************************************
  * Locking_Allocator's Allocation                 *
  *************************************************/
-void *Locking_Allocator::alloc_block(u32bit n)
-{
-    return do_malloc(n, true);
+void *Locking_Allocator::alloc_block(u32bit n) {
+  return do_malloc(n, true);
 }
 
 /*************************************************
  * Locking_Allocator's Deallocation               *
  *************************************************/
-void Locking_Allocator::dealloc_block(void *ptr, u32bit n)
-{
-    do_free(ptr, n, true);
+void Locking_Allocator::dealloc_block(void *ptr, u32bit n) {
+  do_free(ptr, n, true);
 }
 
 /*************************************************
  * Get an allocator                               *
  *************************************************/
-Allocator *Allocator::get(bool locking)
-{
-    std::string type = "";
-    if (!locking)
-        type = "malloc";
+Allocator *Allocator::get(bool locking) {
+  std::string type = "";
+  if (!locking)
+    type = "malloc";
 
-    Allocator *alloc = global_state().get_allocator(type);
-    if (alloc)
-        return alloc;
+  Allocator *alloc = global_state().get_allocator(type);
+  if (alloc)
+    return alloc;
 
-    throw Exception("Couldn't find an allocator to use in get_allocator");
+  throw Exception("Couldn't find an allocator to use in get_allocator");
 }
 
-}
-} // WRAPNS_LINE
+} // namespace Botan
+} // namespace QCA

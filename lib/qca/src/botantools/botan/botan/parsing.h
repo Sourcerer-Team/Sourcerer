@@ -36,10 +36,10 @@ namespace QCA { // WRAPNS_LINE
 } // WRAPNS_LINE
 #include <botan/types.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <string>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <vector>
 namespace QCA { // WRAPNS_LINE
 
@@ -51,9 +51,9 @@ namespace Botan {
 #ifndef BOTAN_TOOLS_ONLY
 std::vector<std::string> parse_algorithm_name(const std::string &);
 std::vector<std::string> split_on(const std::string &, char);
-std::vector<u32bit>      parse_asn1_oid(const std::string &);
-bool                     x500_name_cmp(const std::string &, const std::string &);
-u32bit                   parse_expr(const std::string &);
+std::vector<u32bit> parse_asn1_oid(const std::string &);
+bool x500_name_cmp(const std::string &, const std::string &);
+u32bit parse_expr(const std::string &);
 #endif
 
 /*************************************************
@@ -64,7 +64,7 @@ std::string to_string(u64bit, u32bit = 0);
 u32bit to_u32bit(const std::string &);
 #endif
 
-}
+} // namespace Botan
 
 #endif
 } // WRAPNS_LINE

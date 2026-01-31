@@ -27,21 +27,21 @@
 
 // support for the 'http://affinix.com/qca/forms/qca-pkcs11#1.0' provider form
 
-class Pkcs11ConfigDlg : public QDialog
-{
+class Pkcs11ConfigDlg : public QDialog {
 public:
-    Pkcs11ConfigDlg(QWidget *parent = 0);
-    Pkcs11ConfigDlg(const QString &providerName, const QVariantMap &config, QWidget *parent = 0);
-    ~Pkcs11ConfigDlg();
+  Pkcs11ConfigDlg(QWidget *parent = 0);
+  Pkcs11ConfigDlg(const QString &providerName, const QVariantMap &config,
+                  QWidget *parent = 0);
+  ~Pkcs11ConfigDlg();
 
-    static bool isSupported();
+  static bool isSupported();
 
 protected slots:
-    virtual void done(int r);
+  virtual void done(int r);
 
 private:
-    class Private;
-    Private *d;
+  class Private;
+  Private *d;
 };
 
 #endif

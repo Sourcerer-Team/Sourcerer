@@ -27,24 +27,24 @@ namespace QCA {
 //   obj->disconnect(owner); // to prevent future signals to owner
 //   obj->setParent(0);      // to prevent delete if parent is deleted
 //   obj->deleteLater();     // now we can forget about the object
-inline void releaseAndDeleteLater(QObject *owner, QObject *obj)
-{
-    obj->disconnect(owner);
-    obj->setParent(nullptr);
-    obj->deleteLater();
+inline void releaseAndDeleteLater(QObject *owner, QObject *obj) {
+  obj->disconnect(owner);
+  obj->setParent(nullptr);
+  obj->deleteLater();
 }
 
-SafeSocketNotifier::SafeSocketNotifier(qintptr socket, QSocketNotifier::Type type, QObject *parent)
-    : QObject(parent)
-{
-    sn = new QSocketNotifier(socket, type, this);
-    connect(sn, &QSocketNotifier::activated, this, &SafeSocketNotifier::activated);
+SafeSocketNotifier::SafeSocketNotifier(qintptr socket,
+                                       QSocketNotifier::Type type,
+                                       QObject *parent)
+    : QObject(parent) {
+  sn = new QSocketNotifier(socket, type, this);
+  connect(sn, &QSocketNotifier::activated, this,
+          &SafeSocketNotifier::activated);
 }
 
-SafeSocketNotifier::~SafeSocketNotifier()
-{
-    sn->setEnabled(false);
-    releaseAndDeleteLater(this, sn);
+SafeSocketNotifier::~SafeSocketNotifier() {
+  sn->setEnabled(false);
+  releaseAndDeleteLater(this, sn);
 }
 
-}
+} // namespace QCA

@@ -56,25 +56,23 @@ extern "C" {
 /*************************************************
  * Word Multiply/Add                              *
  *************************************************/
-inline word word_madd2(word a, word b, word c, word *carry)
-{
-    dword z = (dword)a * b + c;
-    *carry  = (word)(z >> BOTAN_MP_WORD_BITS);
-    return (word)z;
+inline word word_madd2(word a, word b, word c, word *carry) {
+  dword z = (dword)a * b + c;
+  *carry = (word)(z >> BOTAN_MP_WORD_BITS);
+  return (word)z;
 }
 
 /*************************************************
  * Word Multiply/Add                              *
  *************************************************/
-inline word word_madd3(word a, word b, word c, word d, word *carry)
-{
-    dword z = (dword)a * b + c + d;
-    *carry  = (word)(z >> BOTAN_MP_WORD_BITS);
-    return (word)z;
+inline word word_madd3(word a, word b, word c, word d, word *carry) {
+  dword z = (dword)a * b + c + d;
+  *carry = (word)(z >> BOTAN_MP_WORD_BITS);
+  return (word)z;
 }
 }
 
-}
+} // namespace Botan
 
 #endif
 } // WRAPNS_LINE

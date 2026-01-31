@@ -42,24 +42,17 @@ namespace Botan {
 /*************************************************
  * Memory Mapping Allocator                       *
  *************************************************/
-class MemoryMapping_Allocator : public Pooling_Allocator
-{
+class MemoryMapping_Allocator : public Pooling_Allocator {
 public:
-    MemoryMapping_Allocator()
-        : Pooling_Allocator(64 * 1024, false)
-    {
-    }
-    std::string type() const
-    {
-        return "mmap";
-    }
+  MemoryMapping_Allocator() : Pooling_Allocator(64 * 1024, false) {}
+  std::string type() const { return "mmap"; }
 
 private:
-    void *alloc_block(u32bit);
-    void  dealloc_block(void *, u32bit);
+  void *alloc_block(u32bit);
+  void dealloc_block(void *, u32bit);
 };
 
-}
+} // namespace Botan
 
 #endif
 } // WRAPNS_LINE

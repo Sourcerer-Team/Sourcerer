@@ -27,46 +27,43 @@ namespace QCA {
 class SafeTimer;
 class DirWatch;
 
-}
+} // namespace QCA
 
 namespace gpgQCAPlugin {
 
-class RingWatch : public QObject
-{
-    Q_OBJECT
+class RingWatch : public QObject {
+  Q_OBJECT
 public:
-    class DirItem
-    {
-    public:
-        QCA::DirWatch  *dirWatch;
-        QCA::SafeTimer *changeTimer;
-    };
+  class DirItem {
+  public:
+    QCA::DirWatch *dirWatch;
+    QCA::SafeTimer *changeTimer;
+  };
 
-    class FileItem
-    {
-    public:
-        QCA::DirWatch *dirWatch;
-        QString        fileName;
-        bool           exists;
-        qint64         size;
-        QDateTime      lastModified;
-    };
+  class FileItem {
+  public:
+    QCA::DirWatch *dirWatch;
+    QString fileName;
+    bool exists;
+    qint64 size;
+    QDateTime lastModified;
+  };
 
-    QList<DirItem>  dirs;
-    QList<FileItem> files;
+  QList<DirItem> dirs;
+  QList<FileItem> files;
 
-    RingWatch(QObject *parent = nullptr);
-    ~RingWatch() override;
+  RingWatch(QObject *parent = nullptr);
+  ~RingWatch() override;
 
-    void add(const QString &filePath);
-    void clear();
+  void add(const QString &filePath);
+  void clear();
 
 Q_SIGNALS:
-    void changed(const QString &filePath);
+  void changed(const QString &filePath);
 
 private Q_SLOTS:
-    void dirChanged();
-    void handleChanged();
+  void dirChanged();
+  void handleChanged();
 };
 
 } // end namespace gpgQCAPlugin

@@ -22,8 +22,8 @@
 namespace GuiManager::Widgets {
 
 ToastHostWidget::ToastHostWidget()
-    : OverlayWidget{nullptr, 0},
-      _yOffset(0), _position{ToastPosition::BottomLeft},
+    : OverlayWidget{nullptr, 0}, _yOffset(0),
+      _position{ToastPosition::BottomLeft},
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 

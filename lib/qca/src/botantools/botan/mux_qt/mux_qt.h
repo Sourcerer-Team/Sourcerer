@@ -42,13 +42,12 @@ namespace Botan {
 /*************************************************
  * Qt Mutex                                       *
  *************************************************/
-class Qt_Mutex_Factory : public Mutex_Factory
-{
+class Qt_Mutex_Factory : public Mutex_Factory {
 public:
-    Mutex *make();
+  Mutex *make();
 };
 
-}
+} // namespace Botan
 
 #endif
 } // WRAPNS_LINE

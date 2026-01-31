@@ -28,16 +28,15 @@
 #include <QTest>
 #include <QtCrypto>
 
-class ClientPlugin : public QObject
-{
-    Q_OBJECT
+class ClientPlugin : public QObject {
+  Q_OBJECT
 private Q_SLOTS:
-    void initTestCase();
-    void cleanupTestCase();
-    void testInsertRemovePlugin();
+  void initTestCase();
+  void cleanupTestCase();
+  void testInsertRemovePlugin();
 
 private:
-    QCA::Initializer *m_init;
+  QCA::Initializer *m_init;
 };
 
 #endif

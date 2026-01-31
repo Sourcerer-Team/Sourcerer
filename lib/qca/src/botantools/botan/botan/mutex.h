@@ -42,69 +42,60 @@ namespace Botan {
 /*************************************************
  * Mutex Base Class                               *
  *************************************************/
-class Mutex
-{
+class Mutex {
 public:
-    virtual void lock()   = 0;
-    virtual void unlock() = 0;
-    virtual ~Mutex()
-    {
-    }
+  virtual void lock() = 0;
+  virtual void unlock() = 0;
+  virtual ~Mutex() {}
 };
 
 /*************************************************
  * Mutex Factory                                  *
  *************************************************/
-class Mutex_Factory
-{
+class Mutex_Factory {
 public:
-    virtual Mutex *make() = 0;
-    virtual ~Mutex_Factory()
-    {
-    }
+  virtual Mutex *make() = 0;
+  virtual ~Mutex_Factory() {}
 };
 
 /*************************************************
  * Default Mutex Factory                          *
  *************************************************/
-class Default_Mutex_Factory : public Mutex_Factory
-{
+class Default_Mutex_Factory : public Mutex_Factory {
 public:
-    Mutex *make() override;
+  Mutex *make() override;
 };
 
 /*************************************************
  * Mutex Holding Class                            *
  *************************************************/
-class Mutex_Holder
-{
+class Mutex_Holder {
 public:
-    Mutex_Holder(Mutex *);
-    ~Mutex_Holder();
+  Mutex_Holder(Mutex *);
+  ~Mutex_Holder();
 
-    Mutex_Holder(const Mutex_Holder &)            = delete;
-    Mutex_Holder &operator=(const Mutex_Holder &) = delete;
+  Mutex_Holder(const Mutex_Holder &) = delete;
+  Mutex_Holder &operator=(const Mutex_Holder &) = delete;
 
 private:
-    Mutex *mux;
+  Mutex *mux;
 };
 
 /*************************************************
  * Named Mutex Holder                             *
  *************************************************/
 #ifndef BOTAN_NO_LIBSTATE
-class Named_Mutex_Holder
-{
+class Named_Mutex_Holder {
 public:
-    Named_Mutex_Holder(const std::string &);
-    ~Named_Mutex_Holder();
+  Named_Mutex_Holder(const std::string &);
+  ~Named_Mutex_Holder();
 
 private:
-    const std::string mutex_name;
+  const std::string mutex_name;
 };
 #endif
 
-}
+} // namespace Botan
 
 #endif
 } // WRAPNS_LINE

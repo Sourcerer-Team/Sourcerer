@@ -85,9 +85,9 @@ void bigint_monty_redc(word[], u32bit, const word[], u32bit, word);
  *************************************************/
 u32bit bigint_divcore(word, word, word, word, word, word);
 s32bit bigint_cmp(const word[], u32bit, const word[], u32bit);
-word   bigint_divop(word, word, word);
-word   bigint_modop(word, word, word);
-void   bigint_wordmul(word, word, word *, word *);
+word bigint_divop(word, word, word);
+word bigint_modop(word, word, word);
+void bigint_wordmul(word, word, word *, word *);
 
 /*************************************************
  * Comba Multiplication / Squaring                *
@@ -104,11 +104,12 @@ void bigint_comba_sqr8(word[16], const word[8]);
 /*************************************************
  * High Level Multiplication/Squaring Interfaces  *
  *************************************************/
-void bigint_mul(word[], u32bit, word[], const word[], u32bit, u32bit, const word[], u32bit, u32bit);
+void bigint_mul(word[], u32bit, word[], const word[], u32bit, u32bit,
+                const word[], u32bit, u32bit);
 
 void bigint_sqr(word[], u32bit, word[], const word[], u32bit, u32bit);
 
-}
+} // namespace Botan
 
 #endif
 } // WRAPNS_LINE

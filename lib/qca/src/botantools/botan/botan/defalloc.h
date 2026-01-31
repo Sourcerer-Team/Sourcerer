@@ -42,44 +42,30 @@ namespace Botan {
 /*************************************************
  * Malloc Allocator                              *
  *************************************************/
-class Malloc_Allocator : public Pooling_Allocator
-{
+class Malloc_Allocator : public Pooling_Allocator {
 public:
-    Malloc_Allocator()
-        : Pooling_Allocator(64 * 1024, false)
-    {
-    }
-    std::string type() const override
-    {
-        return "malloc";
-    }
+  Malloc_Allocator() : Pooling_Allocator(64 * 1024, false) {}
+  std::string type() const override { return "malloc"; }
 
 private:
-    void *alloc_block(u32bit) override;
-    void  dealloc_block(void *, u32bit) override;
+  void *alloc_block(u32bit) override;
+  void dealloc_block(void *, u32bit) override;
 };
 
 /*************************************************
  * Locking Allocator                              *
  *************************************************/
-class Locking_Allocator : public Pooling_Allocator
-{
+class Locking_Allocator : public Pooling_Allocator {
 public:
-    Locking_Allocator()
-        : Pooling_Allocator(64 * 1024, true)
-    {
-    }
-    std::string type() const override
-    {
-        return "locking";
-    }
+  Locking_Allocator() : Pooling_Allocator(64 * 1024, true) {}
+  std::string type() const override { return "locking"; }
 
 private:
-    void *alloc_block(u32bit) override;
-    void  dealloc_block(void *, u32bit) override;
+  void *alloc_block(u32bit) override;
+  void dealloc_block(void *, u32bit) override;
 };
 
-}
+} // namespace Botan
 
 #endif
 } // WRAPNS_LINE

@@ -36,7 +36,7 @@ namespace QCA { // WRAPNS_LINE
 } // WRAPNS_LINE
 #include <botan/types.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <string>
 namespace QCA { // WRAPNS_LINE
 
@@ -51,33 +51,26 @@ namespace Botan {
 /*************************************************
  * Allocator                                      *
  *************************************************/
-class Allocator
-{
+class Allocator {
 public:
-    static Allocator *get(bool);
+  static Allocator *get(bool);
 
-    virtual void *allocate(u32bit)           = 0;
-    virtual void  deallocate(void *, u32bit) = 0;
+  virtual void *allocate(u32bit) = 0;
+  virtual void deallocate(void *, u32bit) = 0;
 
-    virtual std::string type() const = 0;
+  virtual std::string type() const = 0;
 
-    virtual void init()
-    {
-    }
-    virtual void destroy()
-    {
-    }
+  virtual void init() {}
+  virtual void destroy() {}
 
-    virtual ~Allocator() QCA_NOEXCEPT(false)
-    {
-    }
+  virtual ~Allocator() QCA_NOEXCEPT(false) {}
 };
 
 /*************************************************
  * Get an allocator                               *
  *************************************************/
 
-}
+} // namespace Botan
 
 #endif
 } // WRAPNS_LINE

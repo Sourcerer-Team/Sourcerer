@@ -29,37 +29,29 @@ class QPixmap;
 namespace QCA {
 class CertificateChain;
 class KeyStoreEntry;
-}
+} // namespace QCA
 
-class KeySelectDlg : public QDialog
-{
-    Q_OBJECT
+class KeySelectDlg : public QDialog {
+  Q_OBJECT
 public:
-    enum IconType
-    {
-        IconCert,
-        IconCrl,
-        IconKeyBundle,
-        IconPgpPub,
-        IconPgpSec
-    };
+  enum IconType { IconCert, IconCrl, IconKeyBundle, IconPgpPub, IconPgpSec };
 
-    KeySelectDlg(QWidget *parent = 0);
-    ~KeySelectDlg();
+  KeySelectDlg(QWidget *parent = 0);
+  ~KeySelectDlg();
 
-    void setIcon(IconType type, const QPixmap &icon);
+  void setIcon(IconType type, const QPixmap &icon);
 
 Q_SIGNALS:
-    void selected(const QCA::KeyStoreEntry &entry);
-    void viewCertificate(const QCA::CertificateChain &chain);
+  void selected(const QCA::KeyStoreEntry &entry);
+  void viewCertificate(const QCA::CertificateChain &chain);
 
 protected slots:
-    virtual void accept();
+  virtual void accept();
 
 private:
-    class Private;
-    friend class Private;
-    Private *d;
+  class Private;
+  friend class Private;
+  Private *d;
 };
 
 #endif

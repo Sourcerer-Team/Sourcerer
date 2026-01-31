@@ -70,7 +70,7 @@ u32bit entropy_estimate(const byte[], u32bit);
 u32bit dl_work_factor(u32bit);
 #endif
 
-}
+} // namespace Botan
 
 #endif
 } // WRAPNS_LINE

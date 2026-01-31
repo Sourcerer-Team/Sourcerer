@@ -28,17 +28,16 @@
 #include <QTest>
 #include <QtCrypto>
 
-class FileWatchUnitTest : public QObject
-{
-    Q_OBJECT
+class FileWatchUnitTest : public QObject {
+  Q_OBJECT
 
 private Q_SLOTS:
-    void initTestCase();
-    void cleanupTestCase();
-    void filewatchTest();
+  void initTestCase();
+  void cleanupTestCase();
+  void filewatchTest();
 
 private:
-    QCA::Initializer *m_init;
+  QCA::Initializer *m_init;
 };
 
 #endif

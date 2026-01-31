@@ -30,23 +30,23 @@ namespace QCA { // WRAPNS_LINE
  * (C) 1999-2007 The Botan Project                *
  *************************************************/
 
-} // WRAPNS_LINE
+} // namespace QCA
 #include <botan/modules.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <botan/defalloc.h>
 namespace QCA { // WRAPNS_LINE
 #ifndef BOTAN_TOOLS_ONLY
 } // WRAPNS_LINE
 #include <botan/def_char.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <botan/eng_def.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <botan/es_file.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <botan/timers.h>
 namespace QCA { // WRAPNS_LINE
 #endif
@@ -158,16 +158,15 @@ namespace Botan {
 /*************************************************
  * Return a mutex factory, if available           *
  *************************************************/
-Mutex_Factory *Builtin_Modules::mutex_factory() const
-{
+Mutex_Factory *Builtin_Modules::mutex_factory() const {
 #if defined(BOTAN_EXT_MUTEX_PTHREAD)
-    return new Pthread_Mutex_Factory;
+  return new Pthread_Mutex_Factory;
 #elif defined(BOTAN_EXT_MUTEX_WIN32)
-    return new Win32_Mutex_Factory;
+  return new Win32_Mutex_Factory;
 #elif defined(BOTAN_EXT_MUTEX_QT)
-    return new Qt_Mutex_Factory;
+  return new Qt_Mutex_Factory;
 #else
-    return 0;
+  return 0;
 #endif
 }
 
@@ -175,18 +174,17 @@ Mutex_Factory *Builtin_Modules::mutex_factory() const
  * Find a high resolution timer, if possible      *
  *************************************************/
 #ifndef BOTAN_TOOLS_ONLY
-Timer *Builtin_Modules::timer() const
-{
+Timer *Builtin_Modules::timer() const {
 #if defined(BOTAN_EXT_TIMER_HARDWARE)
-    return new Hardware_Timer;
+  return new Hardware_Timer;
 #elif defined(BOTAN_EXT_TIMER_POSIX)
-    return new POSIX_Timer;
+  return new POSIX_Timer;
 #elif defined(BOTAN_EXT_TIMER_UNIX)
-    return new Unix_Timer;
+  return new Unix_Timer;
 #elif defined(BOTAN_EXT_TIMER_WIN32)
-    return new Win32_Timer;
+  return new Win32_Timer;
 #else
-    return new Timer;
+  return new Timer;
 #endif
 }
 #endif
@@ -194,33 +192,31 @@ Timer *Builtin_Modules::timer() const
 /*************************************************
  * Find any usable allocators                     *
  *************************************************/
-std::vector<Allocator *> Builtin_Modules::allocators() const
-{
-    std::vector<Allocator *> allocators;
+std::vector<Allocator *> Builtin_Modules::allocators() const {
+  std::vector<Allocator *> allocators;
 
 #if defined(BOTAN_EXT_ALLOC_MMAP)
-    allocators.push_back(new MemoryMapping_Allocator);
+  allocators.push_back(new MemoryMapping_Allocator);
 #endif
 
-    allocators.push_back(new Locking_Allocator);
-    allocators.push_back(new Malloc_Allocator);
+  allocators.push_back(new Locking_Allocator);
+  allocators.push_back(new Malloc_Allocator);
 
-    return allocators;
+  return allocators;
 }
 
 /*************************************************
  * Return the default allocator                   *
  *************************************************/
-std::string Builtin_Modules::default_allocator() const
-{
-    if (should_lock) {
+std::string Builtin_Modules::default_allocator() const {
+  if (should_lock) {
 #if defined(BOTAN_EXT_ALLOC_MMAP)
-        return "mmap";
+    return "mmap";
 #else
-        return "locking";
+    return "locking";
 #endif
-    } else
-        return "malloc";
+  } else
+    return "malloc";
 }
 
 #ifndef BOTAN_TOOLS_ONLY
@@ -228,75 +224,72 @@ std::string Builtin_Modules::default_allocator() const
 /*************************************************
  * Register any usable entropy sources            *
  *************************************************/
-std::vector<EntropySource *> Builtin_Modules::entropy_sources() const
-{
-    std::vector<EntropySource *> sources;
+std::vector<EntropySource *> Builtin_Modules::entropy_sources() const {
+  std::vector<EntropySource *> sources;
 
-    sources.push_back(new File_EntropySource);
+  sources.push_back(new File_EntropySource);
 
 #if defined(BOTAN_EXT_ENTROPY_SRC_AEP)
-    sources.push_back(new AEP_EntropySource);
+  sources.push_back(new AEP_EntropySource);
 #endif
 
 #if defined(BOTAN_EXT_ENTROPY_SRC_EGD)
-    sources.push_back(new EGD_EntropySource);
+  sources.push_back(new EGD_EntropySource);
 #endif
 
 #if defined(BOTAN_EXT_ENTROPY_SRC_CAPI)
-    sources.push_back(new Win32_CAPI_EntropySource);
+  sources.push_back(new Win32_CAPI_EntropySource);
 #endif
 
 #if defined(BOTAN_EXT_ENTROPY_SRC_WIN32)
-    sources.push_back(new Win32_EntropySource);
+  sources.push_back(new Win32_EntropySource);
 #endif
 
 #if defined(BOTAN_EXT_ENTROPY_SRC_UNIX)
-    sources.push_back(new Unix_EntropySource);
+  sources.push_back(new Unix_EntropySource);
 #endif
 
 #if defined(BOTAN_EXT_ENTROPY_SRC_BEOS)
-    sources.push_back(new BeOS_EntropySource);
+  sources.push_back(new BeOS_EntropySource);
 #endif
 
 #if defined(BOTAN_EXT_ENTROPY_SRC_FTW)
-    sources.push_back(new FTW_EntropySource);
+  sources.push_back(new FTW_EntropySource);
 #endif
 
-    return sources;
+  return sources;
 }
 
 /*************************************************
  * Find any usable engines                        *
  *************************************************/
-std::vector<Engine *> Builtin_Modules::engines() const
-{
-    std::vector<Engine *> engines;
+std::vector<Engine *> Builtin_Modules::engines() const {
+  std::vector<Engine *> engines;
 
-    if (use_engines) {
+  if (use_engines) {
 #if defined(BOTAN_EXT_ENGINE_AEP)
-        engines.push_back(new AEP_Engine);
+    engines.push_back(new AEP_Engine);
 #endif
 
 #if defined(BOTAN_EXT_ENGINE_GNU_MP)
-        engines.push_back(new GMP_Engine);
+    engines.push_back(new GMP_Engine);
 #endif
 
 #if defined(BOTAN_EXT_ENGINE_OPENSSL)
-        engines.push_back(new OpenSSL_Engine);
+    engines.push_back(new OpenSSL_Engine);
 #endif
-    }
+  }
 
-    engines.push_back(new Default_Engine);
+  engines.push_back(new Default_Engine);
 
-    return engines;
+  return engines;
 }
 
 /*************************************************
  * Find the best transcoder option                *
  *************************************************/
-Charset_Transcoder *Builtin_Modules::transcoder() const
-{
-    return new Default_Charset_Transcoder;
+Charset_Transcoder *Builtin_Modules::transcoder() const {
+  return new Default_Charset_Transcoder;
 }
 
 #endif
@@ -305,17 +298,11 @@ Charset_Transcoder *Builtin_Modules::transcoder() const
  * Builtin_Modules Constructor                    *
  *************************************************/
 #ifdef BOTAN_TOOLS_ONLY
-Builtin_Modules::Builtin_Modules()
-    : should_lock(true)
-{
-}
+Builtin_Modules::Builtin_Modules() : should_lock(true) {}
 #else
 Builtin_Modules::Builtin_Modules(const InitializerOptions &args)
-    : should_lock(args.secure_memory())
-    , use_engines(args.use_engines())
-{
-}
+    : should_lock(args.secure_memory()), use_engines(args.use_engines()) {}
 #endif
 
-}
-} // WRAPNS_LINE
+} // namespace Botan
+} // namespace QCA

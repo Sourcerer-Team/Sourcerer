@@ -30,85 +30,85 @@
 #include "import_plugins.h"
 #endif
 
-int main(int argc, char **argv)
-{
-    // the Initializer object sets things up, and
-    // also does cleanup when it goes out of scope
-    QCA::Initializer init;
+int main(int argc, char **argv) {
+  // the Initializer object sets things up, and
+  // also does cleanup when it goes out of scope
+  QCA::Initializer init;
 
-    QCoreApplication app(argc, argv);
+  QCoreApplication app(argc, argv);
 
-    // We need to ensure that we have certificate handling support
-    if (!QCA::isSupported("cert")) {
-        std::cout << "Sorry, no PKI certificate support" << std::endl;
-        return 1;
-    }
+  // We need to ensure that we have certificate handling support
+  if (!QCA::isSupported("cert")) {
+    std::cout << "Sorry, no PKI certificate support" << std::endl;
+    return 1;
+  }
 
-    // Read in a private key
-    QCA::PrivateKey    privKey;
-    QCA::ConvertResult convRes;
-    QCA::SecureArray   passPhrase = "start";
-    privKey                       = QCA::PrivateKey::fromPEMFile(QStringLiteral("Userkey.pem"), passPhrase, &convRes);
-    if (convRes != QCA::ConvertGood) {
-        std::cout << "Sorry, could not import Private Key" << std::endl;
-        return 1;
-    }
+  // Read in a private key
+  QCA::PrivateKey privKey;
+  QCA::ConvertResult convRes;
+  QCA::SecureArray passPhrase = "start";
+  privKey = QCA::PrivateKey::fromPEMFile(QStringLiteral("Userkey.pem"),
+                                         passPhrase, &convRes);
+  if (convRes != QCA::ConvertGood) {
+    std::cout << "Sorry, could not import Private Key" << std::endl;
+    return 1;
+  }
 
-    // Read in a matching public key cert
-    // you could also build this using the fromPEMFile() method
-    QCA::Certificate pubCert(QStringLiteral("User.pem"));
-    if (pubCert.isNull()) {
-        std::cout << "Sorry, could not import public key certificate" << std::endl;
-        return 1;
-    }
-    // We are building the certificate into a SecureMessageKey object, via a
-    // CertificateChain
-    QCA::SecureMessageKey secMsgKey;
-    QCA::CertificateChain chain;
-    chain += pubCert;
-    secMsgKey.setX509CertificateChain(chain);
+  // Read in a matching public key cert
+  // you could also build this using the fromPEMFile() method
+  QCA::Certificate pubCert(QStringLiteral("User.pem"));
+  if (pubCert.isNull()) {
+    std::cout << "Sorry, could not import public key certificate" << std::endl;
+    return 1;
+  }
+  // We are building the certificate into a SecureMessageKey object, via a
+  // CertificateChain
+  QCA::SecureMessageKey secMsgKey;
+  QCA::CertificateChain chain;
+  chain += pubCert;
+  secMsgKey.setX509CertificateChain(chain);
 
-    // build up a SecureMessage object, based on our public key certificate
-    QCA::CMS           cms;
-    QCA::SecureMessage msg(&cms);
-    msg.setRecipient(secMsgKey);
+  // build up a SecureMessage object, based on our public key certificate
+  QCA::CMS cms;
+  QCA::SecureMessage msg(&cms);
+  msg.setRecipient(secMsgKey);
 
-    // Some plain text - we use the first command line argument if provided
-    QByteArray plainText = (argc >= 2) ? argv[1] : "What do ya want for nuthin'";
+  // Some plain text - we use the first command line argument if provided
+  QByteArray plainText = (argc >= 2) ? argv[1] : "What do ya want for nuthin'";
 
-    // Now use the SecureMessage object to encrypt the plain text.
-    msg.startEncrypt();
-    msg.update(plainText);
-    msg.end();
-    // I think it is reasonable to wait for 1 second for this
-    msg.waitForFinished(1000);
+  // Now use the SecureMessage object to encrypt the plain text.
+  msg.startEncrypt();
+  msg.update(plainText);
+  msg.end();
+  // I think it is reasonable to wait for 1 second for this
+  msg.waitForFinished(1000);
 
-    // check to see if it worked
-    if (!msg.success()) {
-        std::cout << "Error encrypting: " << msg.errorCode() << std::endl;
-        return 1;
-    }
+  // check to see if it worked
+  if (!msg.success()) {
+    std::cout << "Error encrypting: " << msg.errorCode() << std::endl;
+    return 1;
+  }
 
-    // get the result
-    QCA::SecureArray cipherText = msg.read();
-    QCA::Base64      enc;
-    std::cout << plainText.data() << " encrypts to (in base 64): ";
-    std::cout << qPrintable(enc.arrayToString(cipherText)) << std::endl;
+  // get the result
+  QCA::SecureArray cipherText = msg.read();
+  QCA::Base64 enc;
+  std::cout << plainText.data() << " encrypts to (in base 64): ";
+  std::cout << qPrintable(enc.arrayToString(cipherText)) << std::endl;
 
-    // Show we can decrypt it with the private key
-    if (!privKey.canDecrypt()) {
-        std::cout << "Private key cannot be used to decrypt" << std::endl;
-        return 1;
-    }
-    QCA::SecureArray plainTextResult;
-    if (0 == privKey.decrypt(cipherText, &plainTextResult, QCA::EME_PKCS1_OAEP)) {
-        std::cout << "Decryption process failed" << std::endl;
-        return 1;
-    }
+  // Show we can decrypt it with the private key
+  if (!privKey.canDecrypt()) {
+    std::cout << "Private key cannot be used to decrypt" << std::endl;
+    return 1;
+  }
+  QCA::SecureArray plainTextResult;
+  if (0 == privKey.decrypt(cipherText, &plainTextResult, QCA::EME_PKCS1_OAEP)) {
+    std::cout << "Decryption process failed" << std::endl;
+    return 1;
+  }
 
-    std::cout << qPrintable(enc.arrayToString(cipherText));
-    std::cout << " (in base 64) decrypts to: ";
-    std::cout << plainTextResult.data() << std::endl;
+  std::cout << qPrintable(enc.arrayToString(cipherText));
+  std::cout << " (in base 64) decrypts to: ";
+  std::cout << plainTextResult.data() << std::endl;
 
-    return 0;
+  return 0;
 }

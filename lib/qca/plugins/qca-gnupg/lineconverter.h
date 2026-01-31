@@ -24,31 +24,22 @@
 
 namespace gpgQCAPlugin {
 
-class LineConverter
-{
+class LineConverter {
 public:
-    enum Mode
-    {
-        Read,
-        Write
-    };
+  enum Mode { Read, Write };
 
-    void       setup(Mode m);
-    QByteArray update(const QByteArray &buf);
-    QByteArray final();
-    QByteArray process(const QByteArray &buf);
-    int        writtenToActual(int bytes);
+  void setup(Mode m);
+  QByteArray update(const QByteArray &buf);
+  QByteArray final();
+  QByteArray process(const QByteArray &buf);
+  int writtenToActual(int bytes);
 
 private:
-    enum State
-    {
-        Normal,
-        Partial
-    };
-    Mode       mode;
-    State      state;
-    int        prebytes;
-    QList<int> list;
+  enum State { Normal, Partial };
+  Mode mode;
+  State state;
+  int prebytes;
+  QList<int> list;
 };
 
 } // end namespace gpgQCAPlugin

@@ -47,17 +47,17 @@ namespace Botan {
 
 #ifdef BOTAN_TYPES_QT
 
-typedef quint8  byte;
+typedef quint8 byte;
 typedef quint16 u16bit;
 typedef quint32 u32bit;
-typedef qint32  s32bit;
+typedef qint32 s32bit;
 typedef quint64 u64bit;
 
 #else
 
-typedef unsigned char  byte;
+typedef unsigned char byte;
 typedef unsigned short u16bit;
-typedef unsigned int   u32bit;
+typedef unsigned int u32bit;
 
 typedef signed int s32bit;
 
@@ -73,14 +73,14 @@ typedef unsigned long long u64bit;
 
 #endif // BOTAN_TYPES_QT
 
-}
+} // namespace Botan
 
 namespace Botan_types {
 
-typedef Botan::byte   byte;
+typedef Botan::byte byte;
 typedef Botan::u32bit u32bit;
 
-}
+} // namespace Botan_types
 
 #endif
 } // WRAPNS_LINE

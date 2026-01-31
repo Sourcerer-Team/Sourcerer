@@ -36,16 +36,16 @@ namespace QCA { // WRAPNS_LINE
 } // WRAPNS_LINE
 #include <botan/allocate.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <botan/exceptn.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <botan/mutex.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <utility>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <vector>
 namespace QCA { // WRAPNS_LINE
 
@@ -54,67 +54,58 @@ namespace Botan {
 /*************************************************
  * Pooling Allocator                              *
  *************************************************/
-class Pooling_Allocator : public Allocator
-{
+class Pooling_Allocator : public Allocator {
 public:
-    void *allocate(u32bit) override;
-    void  deallocate(void *, u32bit) override;
+  void *allocate(u32bit) override;
+  void deallocate(void *, u32bit) override;
 
-    void destroy() override;
+  void destroy() override;
 
-    Pooling_Allocator(u32bit, bool);
-    ~Pooling_Allocator() QCA_NOEXCEPT(false) override;
+  Pooling_Allocator(u32bit, bool);
+  ~Pooling_Allocator() QCA_NOEXCEPT(false) override;
 
 private:
-    void  get_more_core(u32bit);
-    byte *allocate_blocks(u32bit);
+  void get_more_core(u32bit);
+  byte *allocate_blocks(u32bit);
 
-    virtual void *alloc_block(u32bit)           = 0;
-    virtual void  dealloc_block(void *, u32bit) = 0;
+  virtual void *alloc_block(u32bit) = 0;
+  virtual void dealloc_block(void *, u32bit) = 0;
 
-    class Memory_Block
-    {
-    public:
-        Memory_Block(void *);
+  class Memory_Block {
+  public:
+    Memory_Block(void *);
 
-        static u32bit bitmap_size()
-        {
-            return BITMAP_SIZE;
-        }
-        static u32bit block_size()
-        {
-            return BLOCK_SIZE;
-        }
+    static u32bit bitmap_size() { return BITMAP_SIZE; }
+    static u32bit block_size() { return BLOCK_SIZE; }
 
-        bool  contains(void *, u32bit) const throw();
-        byte *alloc(u32bit) throw();
-        void  free(void *, u32bit) throw();
+    bool contains(void *, u32bit) const throw();
+    byte *alloc(u32bit) throw();
+    void free(void *, u32bit) throw();
 
-        bool operator<(const Memory_Block &other) const
-        {
-            if (buffer < other.buffer && other.buffer < buffer_end)
-                return false;
-            return (buffer < other.buffer);
-        }
+    bool operator<(const Memory_Block &other) const {
+      if (buffer < other.buffer && other.buffer < buffer_end)
+        return false;
+      return (buffer < other.buffer);
+    }
 
-    private:
-        typedef u64bit      bitmap_type;
-        static const u32bit BITMAP_SIZE;
-        static const u32bit BLOCK_SIZE;
+  private:
+    typedef u64bit bitmap_type;
+    static const u32bit BITMAP_SIZE;
+    static const u32bit BLOCK_SIZE;
 
-        bitmap_type bitmap;
-        byte       *buffer, *buffer_end;
-    };
+    bitmap_type bitmap;
+    byte *buffer, *buffer_end;
+  };
 
-    const u32bit PREF_SIZE;
+  const u32bit PREF_SIZE;
 
-    std::vector<Memory_Block>              blocks;
-    std::vector<Memory_Block>::iterator    last_used;
-    std::vector<std::pair<void *, u32bit>> allocated;
-    Mutex                                 *mutex;
+  std::vector<Memory_Block> blocks;
+  std::vector<Memory_Block>::iterator last_used;
+  std::vector<std::pair<void *, u32bit>> allocated;
+  Mutex *mutex;
 };
 
-}
+} // namespace Botan
 
 #endif
 } // WRAPNS_LINE

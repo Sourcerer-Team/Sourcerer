@@ -25,29 +25,29 @@
 
 namespace QCA {
 
-bool qca_have_systemstore()
-{
-    return true;
+bool qca_have_systemstore() {
+  return true;
 }
 
-CertificateCollection qca_get_systemstore(const QString &provider)
-{
-    CertificateCollection col;
-    CFArrayRef            anchors;
-    if (SecTrustCopyAnchorCertificates(&anchors) != 0)
-        return col;
-    for (int n = 0; n < CFArrayGetCount(anchors); ++n) {
-        SecCertificateRef cr     = (SecCertificateRef)CFArrayGetValueAtIndex(anchors, n);
-        CFDataRef         derRef = SecCertificateCopyData(cr);
-        QByteArray        der((const char *)CFDataGetBytePtr(derRef), CFDataGetLength(derRef));
-        CFRelease(derRef);
-
-        Certificate cert = Certificate::fromDER(der, 0, provider);
-        if (!cert.isNull())
-            col.addCertificate(cert);
-    }
-    CFRelease(anchors);
+CertificateCollection qca_get_systemstore(const QString &provider) {
+  CertificateCollection col;
+  CFArrayRef anchors;
+  if (SecTrustCopyAnchorCertificates(&anchors) != 0)
     return col;
+  for (int n = 0; n < CFArrayGetCount(anchors); ++n) {
+    SecCertificateRef cr =
+        (SecCertificateRef)CFArrayGetValueAtIndex(anchors, n);
+    CFDataRef derRef = SecCertificateCopyData(cr);
+    QByteArray der((const char *)CFDataGetBytePtr(derRef),
+                   CFDataGetLength(derRef));
+    CFRelease(derRef);
+
+    Certificate cert = Certificate::fromDER(der, 0, provider);
+    if (!cert.isNull())
+      col.addCertificate(cert);
+  }
+  CFRelease(anchors);
+  return col;
 }
 
-}
+} // namespace QCA

@@ -30,46 +30,42 @@
 #include "import_plugins.h"
 #endif
 
-class KeyStore : public QObject
-{
-    Q_OBJECT
+class KeyStore : public QObject {
+  Q_OBJECT
 
 private Q_SLOTS:
-    void initTestCase();
-    void cleanupTestCase();
-    void nullKeystore();
+  void initTestCase();
+  void cleanupTestCase();
+  void nullKeystore();
 
 private:
-    QCA::Initializer *m_init;
+  QCA::Initializer *m_init;
 };
 
-void KeyStore::initTestCase()
-{
-    m_init = new QCA::Initializer;
+void KeyStore::initTestCase() {
+  m_init = new QCA::Initializer;
 }
 
-void KeyStore::cleanupTestCase()
-{
-    QCA::unloadAllPlugins();
-    delete m_init;
+void KeyStore::cleanupTestCase() {
+  QCA::unloadAllPlugins();
+  delete m_init;
 }
 
-void KeyStore::nullKeystore()
-{
-    QCA::KeyStoreManager manager;
-    if (QCA::isSupported("keystore")) {
-        QCA::KeyStore nullStore(QStringLiteral("null store"), &manager);
-        QVERIFY(nullStore.isValid());
+void KeyStore::nullKeystore() {
+  QCA::KeyStoreManager manager;
+  if (QCA::isSupported("keystore")) {
+    QCA::KeyStore nullStore(QStringLiteral("null store"), &manager);
+    QVERIFY(nullStore.isValid());
 
-        QVERIFY(nullStore.entryList().isEmpty());
+    QVERIFY(nullStore.entryList().isEmpty());
 
-        QCOMPARE(nullStore.type(), QCA::KeyStore::User);
+    QCOMPARE(nullStore.type(), QCA::KeyStore::User);
 
-        QCOMPARE(nullStore.id(), QStringLiteral("null store"));
-        QCOMPARE(nullStore.holdsTrustedCertificates(), false);
-        QCOMPARE(nullStore.holdsIdentities(), false);
-        QCOMPARE(nullStore.holdsPGPPublicKeys(), false);
-    }
+    QCOMPARE(nullStore.id(), QStringLiteral("null store"));
+    QCOMPARE(nullStore.holdsTrustedCertificates(), false);
+    QCOMPARE(nullStore.holdsIdentities(), false);
+    QCOMPARE(nullStore.holdsPGPPublicKeys(), false);
+  }
 }
 
 QTEST_MAIN(KeyStore)

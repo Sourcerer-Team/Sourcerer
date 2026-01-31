@@ -28,16 +28,15 @@ namespace QCA {
 class CertificateChain;
 }
 
-class CertViewDlg : public QDialog
-{
-    Q_OBJECT
+class CertViewDlg : public QDialog {
+  Q_OBJECT
 public:
-    explicit CertViewDlg(const QCA::CertificateChain &chain, QWidget *parent = 0);
-    ~CertViewDlg();
+  explicit CertViewDlg(const QCA::CertificateChain &chain, QWidget *parent = 0);
+  ~CertViewDlg();
 
 private:
-    class Private;
-    Private *d;
+  class Private;
+  Private *d;
 };
 
 #endif

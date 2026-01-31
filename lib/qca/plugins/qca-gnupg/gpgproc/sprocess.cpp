@@ -13,7 +13,8 @@
  *
  * You should have received a copy of the GNU Lesser General Public
  * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
+ * USA
  *
  */
 
@@ -29,38 +30,34 @@ namespace gpgQCAPlugin {
 //----------------------------------------------------------------------------
 // SProcess
 //----------------------------------------------------------------------------
-SProcess::SProcess(QObject *parent)
-    : QProcess(parent)
-{
+SProcess::SProcess(QObject *parent) : QProcess(parent) {
 #ifdef Q_OS_UNIX
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
-    setChildProcessModifier([this]() {
-        // set the pipes to be inheritable
-        for (int n = 0; n < pipeList.count(); ++n)
-            ::fcntl(pipeList[n], F_SETFD, (::fcntl(pipeList[n], F_GETFD) & ~FD_CLOEXEC));
-    });
+  setChildProcessModifier([this]() {
+    // set the pipes to be inheritable
+    for (int n = 0; n < pipeList.count(); ++n)
+      ::fcntl(pipeList[n], F_SETFD,
+              (::fcntl(pipeList[n], F_GETFD) & ~FD_CLOEXEC));
+  });
 #endif
 #endif
 }
 
-SProcess::~SProcess()
-{
-}
+SProcess::~SProcess() {}
 
 #ifdef Q_OS_UNIX
-void SProcess::setInheritPipeList(const QList<int> &list)
-{
-    pipeList = list;
+void SProcess::setInheritPipeList(const QList<int> &list) {
+  pipeList = list;
 }
 
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
-void SProcess::setupChildProcess()
-{
-    // set the pipes to be inheritable
-    for (int n = 0; n < pipeList.count(); ++n)
-        ::fcntl(pipeList[n], F_SETFD, (::fcntl(pipeList[n], F_GETFD) & ~FD_CLOEXEC));
+void SProcess::setupChildProcess() {
+  // set the pipes to be inheritable
+  for (int n = 0; n < pipeList.count(); ++n)
+    ::fcntl(pipeList[n], F_SETFD,
+            (::fcntl(pipeList[n], F_GETFD) & ~FD_CLOEXEC));
 }
 #endif
 #endif
 
-}
+} // namespace gpgQCAPlugin

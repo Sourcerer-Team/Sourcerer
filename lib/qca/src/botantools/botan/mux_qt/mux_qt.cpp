@@ -30,10 +30,10 @@ namespace QCA { // WRAPNS_LINE
  * (C) 1999-2007 The Botan Project                *
  *************************************************/
 
-} // WRAPNS_LINE
+} // namespace QCA
 #include <botan/mux_qt.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <qmutex.h>
 namespace QCA { // WRAPNS_LINE
 
@@ -42,26 +42,18 @@ namespace Botan {
 /*************************************************
  * Qt Mutex Factory                               *
  *************************************************/
-Mutex *Qt_Mutex_Factory::make()
-{
-    class Qt_Mutex : public Mutex
-    {
-    public:
-        void lock() override
-        {
-            mutex.lock();
-        }
-        void unlock() override
-        {
-            mutex.unlock();
-        }
+Mutex *Qt_Mutex_Factory::make() {
+  class Qt_Mutex : public Mutex {
+  public:
+    void lock() override { mutex.lock(); }
+    void unlock() override { mutex.unlock(); }
 
-    private:
-        QMutex mutex;
-    };
+  private:
+    QMutex mutex;
+  };
 
-    return new Qt_Mutex();
+  return new Qt_Mutex();
 }
 
-}
-} // WRAPNS_LINE
+} // namespace Botan
+} // namespace QCA

@@ -51,14 +51,12 @@ namespace Botan {
  * Character Set Transcoder Interface             *
  *************************************************/
 #ifndef BOTAN_TOOLS_ONLY
-class Charset_Transcoder
-{
+class Charset_Transcoder {
 public:
-    virtual std::string transcode(const std::string &, Character_Set, Character_Set) const = 0;
+  virtual std::string transcode(const std::string &, Character_Set,
+                                Character_Set) const = 0;
 
-    virtual ~Charset_Transcoder()
-    {
-    }
+  virtual ~Charset_Transcoder() {}
 };
 #endif
 
@@ -78,9 +76,9 @@ bool caseless_cmp(char, char);
 byte char2digit(char);
 char digit2char(byte);
 
-}
+} // namespace Charset
 
-}
+} // namespace Botan
 
 #endif
 } // WRAPNS_LINE

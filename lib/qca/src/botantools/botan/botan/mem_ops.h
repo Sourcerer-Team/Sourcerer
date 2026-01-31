@@ -36,10 +36,10 @@ namespace QCA { // WRAPNS_LINE
 } // WRAPNS_LINE
 #include <botan/types.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <cstring>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <cstring>
 namespace QCA { // WRAPNS_LINE
 
@@ -48,27 +48,23 @@ namespace Botan {
 /*************************************************
  * Memory Manipulation Functions                  *
  *************************************************/
-template<typename T> inline void copy_mem(T *out, const T *in, u32bit n)
-{
-    memmove(out, in, sizeof(T) * n);
+template <typename T> inline void copy_mem(T *out, const T *in, u32bit n) {
+  memmove(out, in, sizeof(T) * n);
 }
 
-template<typename T> inline void clear_mem(T *ptr, u32bit n)
-{
-    memset(ptr, 0, sizeof(T) * n);
+template <typename T> inline void clear_mem(T *ptr, u32bit n) {
+  memset(ptr, 0, sizeof(T) * n);
 }
 
-template<typename T> inline void set_mem(T *ptr, u32bit n, byte val)
-{
-    memset(ptr, val, sizeof(T) * n);
+template <typename T> inline void set_mem(T *ptr, u32bit n, byte val) {
+  memset(ptr, val, sizeof(T) * n);
 }
 
-template<typename T> inline bool same_mem(const T *p1, const T *p2, u32bit n)
-{
-    return (memcmp(p1, p2, sizeof(T) * n) == 0);
+template <typename T> inline bool same_mem(const T *p1, const T *p2, u32bit n) {
+  return (memcmp(p1, p2, sizeof(T) * n) == 0);
 }
 
-}
+} // namespace Botan
 
 #endif
 } // WRAPNS_LINE

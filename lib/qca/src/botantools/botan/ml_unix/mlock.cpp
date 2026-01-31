@@ -30,7 +30,7 @@ namespace QCA { // WRAPNS_LINE
  * (C) 1999-2007 The Botan Project                *
  *************************************************/
 
-} // WRAPNS_LINE
+} // namespace QCA
 #include <botan/util.h>
 namespace QCA { // WRAPNS_LINE
 
@@ -38,10 +38,10 @@ namespace QCA { // WRAPNS_LINE
 #define _POSIX_C_SOURCE 199309
 #endif
 
-} // WRAPNS_LINE
+} // namespace QCA
 #include <sys/types.h>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <sys/mman.h>
 namespace QCA { // WRAPNS_LINE
 
@@ -50,18 +50,16 @@ namespace Botan {
 /*************************************************
  * Lock an area of memory into RAM                *
  *************************************************/
-void lock_mem(void *ptr, u32bit bytes)
-{
-    mlock(ptr, bytes);
+void lock_mem(void *ptr, u32bit bytes) {
+  mlock(ptr, bytes);
 }
 
 /*************************************************
  * Unlock a previously locked region of memory    *
  *************************************************/
-void unlock_mem(void *ptr, u32bit bytes)
-{
-    munlock(ptr, bytes);
+void unlock_mem(void *ptr, u32bit bytes) {
+  munlock(ptr, bytes);
 }
 
-}
-} // WRAPNS_LINE
+} // namespace Botan
+} // namespace QCA

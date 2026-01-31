@@ -41,7 +41,7 @@ namespace QCA { // WRAPNS_LINE
 } // WRAPNS_LINE
 #include <string>
 namespace QCA { // WRAPNS_LINE
-} // WRAPNS_LINE
+} // namespace QCA
 #include <vector>
 namespace QCA { // WRAPNS_LINE
 
@@ -50,62 +50,58 @@ namespace Botan {
 /*************************************************
  * Module Builder Interface                       *
  *************************************************/
-class Modules
-{
+class Modules {
 public:
-    virtual class Mutex_Factory *mutex_factory() const = 0;
+  virtual class Mutex_Factory *mutex_factory() const = 0;
 #ifndef BOTAN_TOOLS_ONLY
-    virtual class Timer              *timer() const      = 0;
-    virtual class Charset_Transcoder *transcoder() const = 0;
+  virtual class Timer *timer() const = 0;
+  virtual class Charset_Transcoder *transcoder() const = 0;
 #endif
 
-    virtual std::string default_allocator() const = 0;
+  virtual std::string default_allocator() const = 0;
 
-    virtual std::vector<class Allocator *> allocators() const = 0;
+  virtual std::vector<class Allocator *> allocators() const = 0;
 #ifndef BOTAN_TOOLS_ONLY
-    virtual std::vector<class EntropySource *> entropy_sources() const = 0;
-    virtual std::vector<class Engine *>        engines() const         = 0;
+  virtual std::vector<class EntropySource *> entropy_sources() const = 0;
+  virtual std::vector<class Engine *> engines() const = 0;
 #endif
 
-    virtual ~Modules()
-    {
-    }
+  virtual ~Modules() {}
 };
 
 /*************************************************
  * Built In Modules                               *
  *************************************************/
-class Builtin_Modules : public Modules
-{
+class Builtin_Modules : public Modules {
 public:
-    class Mutex_Factory *mutex_factory() const override;
+  class Mutex_Factory *mutex_factory() const override;
 #ifndef BOTAN_TOOLS_ONLY
-    class Timer              *timer() const;
-    class Charset_Transcoder *transcoder() const;
+  class Timer *timer() const;
+  class Charset_Transcoder *transcoder() const;
 #endif
 
-    std::string default_allocator() const override;
+  std::string default_allocator() const override;
 
-    std::vector<class Allocator *> allocators() const override;
+  std::vector<class Allocator *> allocators() const override;
 #ifndef BOTAN_TOOLS_ONLY
-    std::vector<class EntropySource *> entropy_sources() const;
-    std::vector<class Engine *>        engines() const;
+  std::vector<class EntropySource *> entropy_sources() const;
+  std::vector<class Engine *> engines() const;
 #endif
 
 #ifdef BOTAN_TOOLS_ONLY
-    Builtin_Modules();
+  Builtin_Modules();
 #else
-    Builtin_Modules(const InitializerOptions &);
+  Builtin_Modules(const InitializerOptions &);
 #endif
 private:
 #ifdef BOTAN_TOOLS_ONLY
-    const bool should_lock;
+  const bool should_lock;
 #else
-    const bool should_lock, use_engines;
+  const bool should_lock, use_engines;
 #endif
 };
 
-}
+} // namespace Botan
 
 #endif
 } // WRAPNS_LINE

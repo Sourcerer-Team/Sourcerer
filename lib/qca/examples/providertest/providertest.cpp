@@ -30,37 +30,38 @@
 #include "import_plugins.h"
 #endif
 
-int main(int argc, char **argv)
-{
-    // the Initializer object sets things up, and
-    // also does cleanup when it goes out of scope
-    QCA::Initializer init;
+int main(int argc, char **argv) {
+  // the Initializer object sets things up, and
+  // also does cleanup when it goes out of scope
+  QCA::Initializer init;
 
-    QCoreApplication app(argc, argv);
+  QCoreApplication app(argc, argv);
 
-    // get all the available providers loaded.
-    // you don't normally need this (because you test using isSupported())
-    // but this is a special case.
-    QCA::scanForPlugins();
+  // get all the available providers loaded.
+  // you don't normally need this (because you test using isSupported())
+  // but this is a special case.
+  QCA::scanForPlugins();
 
-    // this gives us all the plugin providers as a list
-    const QCA::ProviderList qcaProviders = QCA::providers();
-    for (const QCA::Provider *provider : qcaProviders) {
-        // each provider has a name, which we can display
-        std::cout << provider->name().toLatin1().data() << ": ";
-        // ... and also a list of features
-        QStringList capabilities = provider->features();
-        // we turn the string list back into a single string,
-        // and display it as well
-        std::cout << capabilities.join(QStringLiteral(", ")).toLatin1().data() << std::endl;
-    }
+  // this gives us all the plugin providers as a list
+  const QCA::ProviderList qcaProviders = QCA::providers();
+  for (const QCA::Provider *provider : qcaProviders) {
+    // each provider has a name, which we can display
+    std::cout << provider->name().toLatin1().data() << ": ";
+    // ... and also a list of features
+    QStringList capabilities = provider->features();
+    // we turn the string list back into a single string,
+    // and display it as well
+    std::cout << capabilities.join(QStringLiteral(", ")).toLatin1().data()
+              << std::endl;
+  }
 
-    // Note that the default provider isn't included in
-    // the result of QCA::providers()
-    std::cout << "default: ";
-    // However it is still possible to get the features
-    // supported by the default provider
-    QStringList capabilities = QCA::defaultFeatures();
-    std::cout << capabilities.join(QStringLiteral(", ")).toLatin1().data() << std::endl;
-    return 0;
+  // Note that the default provider isn't included in
+  // the result of QCA::providers()
+  std::cout << "default: ";
+  // However it is still possible to get the features
+  // supported by the default provider
+  QStringList capabilities = QCA::defaultFeatures();
+  std::cout << capabilities.join(QStringLiteral(", ")).toLatin1().data()
+            << std::endl;
+  return 0;
 }

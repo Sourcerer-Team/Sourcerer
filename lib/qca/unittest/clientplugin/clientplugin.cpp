@@ -33,64 +33,53 @@
 #include "import_plugins.h"
 #endif
 
-void ClientPlugin::initTestCase()
-{
-    m_init = new QCA::Initializer;
+void ClientPlugin::initTestCase() {
+  m_init = new QCA::Initializer;
 }
 
-void ClientPlugin::cleanupTestCase()
-{
-    delete m_init;
+void ClientPlugin::cleanupTestCase() {
+  delete m_init;
 }
 
 static const QLatin1String providerName("testClientSideProvider");
 
-class TestClientProvider : public QObject, public QCA::Provider
-{
-    Q_OBJECT
+class TestClientProvider : public QObject, public QCA::Provider {
+  Q_OBJECT
 public:
-    int qcaVersion() const override
-    {
-        return QCA_VERSION;
-    }
+  int qcaVersion() const override { return QCA_VERSION; }
 
-    QString name() const override
-    {
-        return providerName;
-    }
+  QString name() const override { return providerName; }
 
-    QStringList features() const override
-    {
-        QStringList list;
-        list += QStringLiteral("testClientSideProviderFeature1");
-        list += QStringLiteral("testClientSideProviderFeature2");
-        return list;
-    }
+  QStringList features() const override {
+    QStringList list;
+    list += QStringLiteral("testClientSideProviderFeature1");
+    list += QStringLiteral("testClientSideProviderFeature2");
+    return list;
+  }
 
-    Provider::Context *createContext(const QString &type) override
-    {
-        if (type == QLatin1String("testClientSideProviderFeature1"))
-            // return new Feature1Context(this);
-            return nullptr;
-        else if (type == QLatin1String("testClientSideProviderFeature2"))
-            //  return new Feature2Context(this);
-            return nullptr;
-        else
-            return nullptr;
-    }
+  Provider::Context *createContext(const QString &type) override {
+    if (type == QLatin1String("testClientSideProviderFeature1"))
+      // return new Feature1Context(this);
+      return nullptr;
+    else if (type == QLatin1String("testClientSideProviderFeature2"))
+      //  return new Feature2Context(this);
+      return nullptr;
+    else
+      return nullptr;
+  }
 };
 
-void ClientPlugin::testInsertRemovePlugin()
-{
-    QPointer<TestClientProvider> provider = new TestClientProvider;
+void ClientPlugin::testInsertRemovePlugin() {
+  QPointer<TestClientProvider> provider = new TestClientProvider;
 
-    QVERIFY(QCA::insertProvider(provider, 10));
-    QCOMPARE(QCA::findProvider(providerName), provider.data());
-    QCOMPARE(QCA::providerPriority(providerName), 10);
+  QVERIFY(QCA::insertProvider(provider, 10));
+  QCOMPARE(QCA::findProvider(providerName), provider.data());
+  QCOMPARE(QCA::providerPriority(providerName), 10);
 
-    QVERIFY(QCA::unloadProvider(providerName));
-    QCOMPARE(QCA::findProvider(providerName), static_cast<QCA::Provider *>(nullptr));
-    QVERIFY(provider.isNull());
+  QVERIFY(QCA::unloadProvider(providerName));
+  QCOMPARE(QCA::findProvider(providerName),
+           static_cast<QCA::Provider *>(nullptr));
+  QVERIFY(provider.isNull());
 }
 
 QTEST_MAIN(ClientPlugin)
