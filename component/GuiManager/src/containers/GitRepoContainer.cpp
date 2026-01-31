@@ -383,6 +383,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   DarkThemeLexersHighlighter highlighter;
   highlighter.applyDarkTheme(ui->scintillaTextEditorUnified);
 
+  ui->scintillaTextEditorUnified->setFolding(QsciScintilla::NoFoldStyle);
+
   // Create scrollbar marks widget for unified diff
   _unifiedDiffMarks = new Widgets::ScrollbarMarksWidget(
       ui->scintillaTextEditorUnified->verticalScrollBar(),

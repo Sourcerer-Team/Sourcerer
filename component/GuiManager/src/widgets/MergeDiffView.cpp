@@ -575,6 +575,10 @@ void MergeDiffView::setupEditors(const QString &extension) {
   _rightEditor->setWrapMode(QsciScintilla::WrapNone);
   _bottomEditor->setWrapMode(QsciScintilla::WrapNone);
 
+  _leftEditor->setFolding(QsciScintilla::NoFoldStyle);
+  _rightEditor->setFolding(QsciScintilla::NoFoldStyle);
+  _rightEditor->setFolding(QsciScintilla::NoFoldStyle);
+
   DarkThemeLexersHighlighter highligheter;
   highligheter.applyDarkTheme(_leftEditor);
   highligheter.applyDarkTheme(_rightEditor);

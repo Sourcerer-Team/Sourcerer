@@ -345,6 +345,9 @@ void SideBySideDiffView::setupEditors(const QString &extension) {
   highligheter.applyDarkTheme(_leftEditor);
   highligheter.applyDarkTheme(_rightEditor);
 
+  _leftEditor->setFolding(QsciScintilla::NoFoldStyle);
+  _rightEditor->setFolding(QsciScintilla::NoFoldStyle);
+
   LOG_PERF(0, "Exit");
 }
 
