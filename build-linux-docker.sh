@@ -17,7 +17,7 @@ for arg in "$@"; do
         --rebuild)
             REBUILD=true
             ;;
-        --appimage|--both)
+        --appimage|--ifw|--both)
             BUILD_MODE="$arg"
             ;;
     esac
@@ -26,10 +26,13 @@ done
 # Determine what we're building
 if [ "$BUILD_MODE" == "--appimage" ]; then
     BUILD_DESC="AppImage"
+elif [ "$BUILD_MODE" == "--ifw" ]; then
+    BUILD_DESC="Qt IFW installer"
 elif [ "$BUILD_MODE" == "--both" ]; then
     BUILD_DESC="Qt IFW installer and AppImage"
 else
-    BUILD_DESC="Qt IFW installer"
+    BUILD_MODE="--appimage"
+    BUILD_DESC="AppImage (default)"
 fi
 
 # Script directory

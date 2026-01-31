@@ -11,7 +11,7 @@ else
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 fi
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_ROOT/src/build/Installer"
+BUILD_DIR="$PROJECT_ROOT/src/build/Installer-Linux"
 APPDIR="$SCRIPT_DIR/Sourcerer.AppDir"
 OUTPUT_DIR="$SCRIPT_DIR"
 
@@ -141,6 +141,35 @@ for base_path in "${QT_PLUGIN_PATHS[@]}"; do
     done
 done
 
+# Copy QCA library plugins
+echo "Copying QCA-Qt6 crypto plugins..."
+QCA_CRYPTO_PATHS=(
+    "$BUILD_DIR/lib/qca-qt6/crypto"
+)   
+
+for base_path in "${QCA_CRYPTO_PATHS[@]}"; do
+    for crypto_dir in $base_path; do
+        if [ -d "$crypto_dir" ]; then
+            mkdir -p "$APPDIR/usr/bin/crypto"
+            cp -r "$crypto_dir"/* "$APPDIR/usr/bin/crypto/" 2>/dev/null || true
+            
+            # Copy dependencies of crypto plugins
+            find "$APPDIR/usr/bin/crypto" -name "*.so" | while read plugin; do
+                ldd "$plugin" 2>/dev/null | grep "=>" | awk '{print $3}' | while read lib; do
+                    if [ -f "$lib" ]; then
+                        copy_lib_dependencies "$lib"
+                    fi
+                done
+            done
+            break
+        fi
+    done
+done
+
+pushd "$APPDIR/usr/lib"
+ln -s  libqca-qt6.so.2 libqca-qt6.so
+popd
+
 # Create qt.conf
 cat > "$APPDIR/usr/bin/qt.conf" << 'QTCONF'
 [Paths]
@@ -199,9 +228,10 @@ APPIMAGE="$(readlink -f "${0}")"
 APPIMAGE_PATH="${ARGV0:-$APPIMAGE}"
 
 # Set up library paths
-export LD_LIBRARY_PATH="$APPDIR/usr/lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/lib/qca-qt6/crypto:$LD_LIBRARY_PATH"
 export QT_PLUGIN_PATH="$APPDIR/usr/lib/qt6/plugins"
 export QT_QPA_PLATFORM_PLUGIN_PATH="$APPDIR/usr/lib/qt6/plugins/platforms"
+export QCA_PLUGIN_PATH="$APPDIR/usr/bin/crypto"
 
 # Handle AppImage standard arguments
 if [ "$1" = "--help-integration" ]; then

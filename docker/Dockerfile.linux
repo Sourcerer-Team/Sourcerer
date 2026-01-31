@@ -86,6 +86,7 @@ RUN wget -q https://download.qt.io/official_releases/online_installers/qt-online
         install qt.qt6.6101.linux_gcc_64 \
         qt.qt6.6101.addons.qtscxml \
         qt.qt6.6101.addons.qtnetworkauth \
+        qt.qt6.6101.addons.qt5compat \
         qt.tools.ifw.410 && \
     rm -f qt-online-installer-linux-x64-online.run
 

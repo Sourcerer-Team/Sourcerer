@@ -5,7 +5,7 @@ setlocal
 
 REM Set paths
 set PROJECT_ROOT=%~dp0..
-set BUILD_DIR=%PROJECT_ROOT%\build
+set BUILD_DIR=%PROJECT_ROOT%\src\build\Installer-Windows
 set RELEASE_DIR=%BUILD_DIR%
 set INSTALLER_DIR=%~dp0
 set DATA_DIR=%INSTALLER_DIR%\packages\com.sourcerer.app\data

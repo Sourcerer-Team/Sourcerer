@@ -36,7 +36,7 @@ fi
 # Set paths
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_ROOT/src/build/Installer"
+BUILD_DIR="$PROJECT_ROOT/src/build/Installer-Linux"
 RELEASE_DIR="$BUILD_DIR"
 INSTALLER_DIR="$SCRIPT_DIR"
 DATA_DIR="$INSTALLER_DIR/packages/com.sourcerer.app/data"
@@ -169,6 +169,9 @@ else
         fi
     done
     
+    mkdir -p "$DATA_DIR/usr/lib/qca-qt6/crypto"
+    cp $RELEASE_DIR/lib/qca-qt6/crypto/*.so "$DATA_DIR/usr/lib/qca-qt6/crypto/"
+   
     # Copy Qt platform plugins
     echo "Copying Qt plugins..."
     if [ -d "/usr/lib64/qt6/plugins" ]; then
@@ -210,9 +213,10 @@ QTCONF
     cat > "$DATA_DIR/Sourcerer-launcher.sh" << 'EOF'
 #!/bin/bash
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-export LD_LIBRARY_PATH="$SCRIPT_DIR/lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$SCRIPT_DIR/lib:$SCRIPT_DIR/usr/lib/qca-qt6/crypto:$LD_LIBRARY_PATH"
 export QT_PLUGIN_PATH="$SCRIPT_DIR/plugins"
 export QT_QPA_PLATFORM_PLUGIN_PATH="$SCRIPT_DIR/plugins/platforms"
+export QCA_PLUGIN_PATH="$SCRIPT_DIR/usr/lib/qca-qt6/crypto"
 exec "$SCRIPT_DIR/Sourcerer" "$@"
 EOF
     chmod +x "$DATA_DIR/Sourcerer-launcher.sh"
