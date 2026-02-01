@@ -161,6 +161,9 @@ void DarkThemeLexersHighlighter::applyEditorColors(QsciScintilla *editor) {
   editor->setCaretLineVisible(true);
   editor->setCaretForegroundColor(colors.caretForeground);
 
+  // Set font
+  editor->setFont(_defaultFont);
+
   // Set selection colors
   editor->setSelectionBackgroundColor(colors.selectionBackground);
   editor->setSelectionForegroundColor(colors.selection);
