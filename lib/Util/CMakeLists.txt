@@ -9,7 +9,7 @@ project(Util)
 set(CMAKE_CXX_STANDARD 17)
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets LinguistTools)
 find_package(Threads REQUIRED)
 
 if(WIN32)
@@ -23,6 +23,7 @@ add_library(Util STATIC
    include/General.h
    include/Graph.h
    include/Git.h
+   include/HttpClient.h
    include/LockGuard.h
    include/ResizableVector.h
    include/ResizableMatrix.h
@@ -32,6 +33,7 @@ add_library(Util STATIC
    src/FileLock.cpp
    src/General.cpp
    src/Git.cpp
+   src/HttpClient.cpp
    src/LockGuard.cpp
    src/TokenString.cpp
    src/Uuid.cpp
@@ -49,6 +51,7 @@ target_link_libraries(Util PRIVATE
     Threads::Threads
     Qt6::Core
     Qt6::Gui
+    Qt6::Network
     Qt6::Widgets
 )
 

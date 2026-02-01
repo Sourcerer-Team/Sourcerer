@@ -34,6 +34,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::GitRepoMaxDiffFileSize, "gitrepo/maxDiffFileSize"},
     {ConfigKey::GitRepoMonospaceFontName, "gitrepo/monospace/fontName"},
     {ConfigKey::GitRepoMonospaceFontSize, "gitrepo/monospace/fontSize"},
+    {ConfigKey::HttpClientCaCertFile, "network/httpClient/caCertFile"},
+    {ConfigKey::HttpClientTimeout, "network/httpClient/timeout"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
     {ConfigKey::MainWindowBorderWidth, "window/borderWidth"},
     {ConfigKey::MainWindowMinimumWidth, "window/minimumWidth"},
@@ -93,6 +95,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout, 2000},
     {ConfigKey::GitRepoMaxDiffFileSize, 1 * 1024 * 1024}, // 1 MB
     {ConfigKey::GitRepoMonospaceFontSize, 10},
+    {ConfigKey::HttpClientTimeout, 30000}, // 30 seconds
     {ConfigKey::InfoToastDisplayTime, 8000},
     {ConfigKey::MainWindowBorderWidth, 2},
     {ConfigKey::MainWindowMinimumWidth, 800},
@@ -110,6 +113,7 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::GitRepoSplitterPos, ""},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
     {ConfigKey::GitRepoMonospaceFontName, "Lucida Console"},
+    {ConfigKey::HttpClientCaCertFile, "ca-certificates.crt"},
     {ConfigKey::RecentlyOpenedRepos, ""},
     {ConfigKey::SettingsSplitterPos, ""}};
 

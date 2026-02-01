@@ -31,6 +31,10 @@ enum class ConfigKey {
   GitRepoServerConnectTimeout,
   GitRepoServerTimeout,
 
+  // HttpClient
+  HttpClientCaCertFile,
+  HttpClientTimeout,
+
   // Settings container
   SettingsSplitterPos,
 
