@@ -120,9 +120,8 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::CloudSigninUrl, "http://localhost:8080/api/v1/signin"},
     {ConfigKey::CloudSignupUrl, "http://localhost:8080/#/signup"},
 #else
-    {ConfigKey::CloudSigninUrl, "https://sourcerer.hr/api/v1/signin"},
-    {ConfigKey::CloudSignupUrl,
-     "https://sourcerer.hr/#/signup},
+    {ConfigKey::CloudSigninUrl, "http://localhost:8080/api/v1/signin"},
+    {ConfigKey::CloudSignupUrl, "http://localhost:8080/#/signup"},
 #endif
     {ConfigKey::GitRepoSplitterPos, ""},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
