@@ -17,7 +17,9 @@ SpinnerOverlayWidget::SpinnerOverlayWidget(QWidget *parent)
   palette.setColor(QPalette::WindowText, Qt::white);
   _labelStatus->setPalette(palette);
 
-  _spinner->setColor(Qt::white);
+  _spinner->setColor(QColor(100, 200, 255));
+  _spinner->setLineLength(3);
+  _spinner->setLineWidth(2);
 
   layout()->addWidget(_spinner);
   layout()->addWidget(_labelStatus);

@@ -2,11 +2,21 @@
 #include "delegates/FixedHeightDelegate.h"
 #include "widgets/ui_ProfileBoardWidget.h"
 
+#include <ConfigManager.h>
 #include <Log.h>
+#include <WaitingSpinnerWidget.h>
 
+#include <QByteArray>
+#include <QDateTime>
+#include <QDesktopServices>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QRegularExpression>
+#include <QUrl>
 
 #define THREAD_ID "ProfileBoardWidget"
 
@@ -16,7 +26,9 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
     : QWidget(parent, Qt::FramelessWindowHint), ui(new Ui::ProfileBoardWidget),
       _arrowX(0), _currentlyEditProfileIndex(-1),
       _operation(OperationType::Unknown), _model(new QStandardItemModel),
-      _userProfileManager(Common::UserProfileManager::instance()) {
+      _userProfileManager(Common::UserProfileManager::instance()),
+      _cloudCredentialStorage(Util::CloudCredentialtorage::getInstance()),
+      _cloudRepo(Util::CloudRepo::getInstance()) {
   LOG_PERF(0, "Enter");
 
 #ifdef Q_OS_WIN
@@ -29,6 +41,12 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
   ui->setupUi(this);
   ui->listViewProfiles->setItemDelegate(
       new Delegates::FixedHeightDelegate(ui->listViewProfiles));
+
+  // Create and configure waiting spinner for signin
+  _signinSpinner = new WaitingSpinnerWidget(this, true, true);
+  _signinSpinner->setColor(QColor(100, 200, 255));
+  _signinSpinner->setLineLength(3);
+  _signinSpinner->setLineWidth(2);
 
   layout()->setContentsMargins(15, 25, 15, 15); // Leave space for arrow
 
@@ -52,11 +70,193 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
           &ProfileBoardWidget::onButtonRemoveYesClicked);
   connect(ui->pushButtonRemoveNo, &QPushButton::clicked, this,
           &ProfileBoardWidget::onButtonBackClicked);
+  connect(ui->pushButtonSigninSubmit, &QPushButton::clicked, this,
+          &ProfileBoardWidget::onButtonSigninSubmitClicked);
+  connect(ui->pushButtonSignout, &QPushButton::clicked, this,
+          &ProfileBoardWidget::onButtonSignoutClicked);
+  connect(ui->labelSignupLink, &QLabel::linkActivated, this,
+          &ProfileBoardWidget::onSignupLinkClicked);
+
+  // Connect Enter key in signin fields to submit button
+  connect(ui->lineEditSigninUser, &QLineEdit::returnPressed, this,
+          &ProfileBoardWidget::onButtonSigninSubmitClicked);
+  connect(ui->lineEditSigninPassword, &QLineEdit::returnPressed, this,
+          &ProfileBoardWidget::onButtonSigninSubmitClicked);
+
+  // Connect to CloudRepo signals
+  connect(&_cloudRepo, &Util::CloudRepo::signinSuccess, this,
+          &ProfileBoardWidget::onCloudSigninSuccess);
+  connect(&_cloudRepo, &Util::CloudRepo::signinFailed, this,
+          &ProfileBoardWidget::onCloudSigninFailed);
+  connect(&_cloudRepo, &Util::CloudRepo::signinError, this,
+          &ProfileBoardWidget::onCloudSigninError);
 
   fillProfiles();
   resetButtons();
 
+  // Try to load stored cloud credentials
+  QString username, password, jwt;
+  if (_cloudCredentialStorage.getCredentials(username, password, jwt)) {
+    // Credentials exist
+    _isLoggedIn = true;
+    _loggedInUser = username;
+    _pendingSigninEmail = username;
+
+    LOG_INFO("Loaded stored cloud credentials for user: {}", username);
+
+    // Extract JWT claims to get user's first and last name
+    QString jwt;
+    qlonglong expiration = -1;
+    if (_cloudCredentialStorage.getJWT(jwt)) {
+      const Util::JWTDecoder::Claims claims =
+          Util::JWTDecoder::decodeClaims(jwt);
+      _userFirstName = claims.givenName;
+      _userLastName = claims.familyName;
+      expiration = claims.exp;
+      LOG_INFO("Extracted JWT claims - FirstName: {}, LastName: {}",
+               _userFirstName, _userLastName);
+    }
+
+    // Check if credentials are expired and try to refresh
+    if (_cloudCredentialStorage.areCredentialsExpired() || expiration == -1 ||
+        expiration < QDateTime::currentSecsSinceEpoch()) {
+      LOG_INFO("Credentials expired, attempting automatic refresh...");
+      tryRefreshExpiredCredentials();
+    }
+  }
+
+  updatePageForLoginState();
+
   LOG_PERF(0, "Exit");
+}
+
+// Dummy login state for demonstration. Replace with real logic as needed.
+bool ProfileBoardWidget::isUserLoggedIn() const {
+  return _isLoggedIn;
+}
+
+void ProfileBoardWidget::updatePageForLoginState() {
+  LOG_INFO("updatePageForLoginState called - _isLoggedIn: {}, firstName: '{}', "
+           "lastName: '{}'",
+           _isLoggedIn, _userFirstName.toStdString(),
+           _userLastName.toStdString());
+  if (isUserLoggedIn()) {
+    ui->stackedWidget->setCurrentWidget(ui->pageProfiles);
+    ui->pushButtonSignout->setVisible(true);
+    ui->labelSignupLink->hide();
+
+    // Update the label with user's name from JWT claims
+    QString labelText = "Profiles";
+    if (!_userFirstName.isEmpty() || !_userLastName.isEmpty()) {
+      labelText = QString("Profile for %1 %2")
+                      .arg(_userFirstName, _userLastName)
+                      .trimmed();
+    }
+    ui->labelProfiles->setText(labelText);
+    LOG_INFO("Updated page - label: '{}', signout button visible: {}",
+             labelText.toStdString(), ui->pushButtonSignout->isVisible());
+  } else {
+    ui->stackedWidget->setCurrentWidget(ui->pageSignin);
+    ui->pushButtonSignout->setVisible(false);
+
+    // Ensure signin form widgets are visible
+    ui->labelSigninIcon->show();
+    ui->labelSigninTitle->show();
+    ui->lineEditSigninUser->show();
+    ui->lineEditSigninPassword->show();
+    ui->pushButtonSigninSubmit->show();
+    ui->labelSignupLink->show();
+
+    ui->lineEditSigninUser->setFocus();
+  }
+}
+
+void ProfileBoardWidget::onButtonSigninSubmitClicked() {
+  QString user = ui->lineEditSigninUser->text().trimmed();
+  QString pass = ui->lineEditSigninPassword->text();
+  QString emailError, passwordError;
+  bool valid = true;
+  if (!validateEmail(user, emailError)) {
+    ui->labelSigninError->setText(emailError);
+    valid = false;
+  } else if (!validatePassword(pass, passwordError)) {
+    ui->labelSigninError->setText(passwordError);
+    valid = false;
+  } else {
+    ui->labelSigninError->clear();
+  }
+  if (valid) {
+    doLogin(user, pass);
+  }
+}
+
+void ProfileBoardWidget::onButtonSignoutClicked() {
+  QMessageBox::StandardButton reply = QMessageBox::question(
+      this, "Confirm sign out", "Are you sure you want to sign out?",
+      QMessageBox::Yes | QMessageBox::No);
+  if (reply == QMessageBox::Yes) {
+    doLogout();
+  }
+}
+
+void ProfileBoardWidget::onSignupLinkClicked() {
+  ::ConfigManager::ConfigManager &configManager =
+      ::ConfigManager::ConfigManager::getInstance();
+
+  const QString signupUrl =
+      configManager.getString(::ConfigManager::ConfigKey::CloudSignupUrl);
+  QDesktopServices::openUrl(QUrl(signupUrl));
+}
+
+void ProfileBoardWidget::doLogin(const QString &user, const QString &password) {
+  // Dummy login: just set login state if user and password are non-empty
+  if (!user.isEmpty() && !password.isEmpty()) {
+    // Hide form widgets and show spinner
+    ui->labelSigninIcon->hide();
+    ui->labelSigninTitle->hide();
+    ui->lineEditSigninUser->hide();
+    ui->lineEditSigninPassword->hide();
+    ui->pushButtonSigninSubmit->hide();
+    ui->labelSignupLink->hide();
+
+    if (_signinSpinner) {
+      _signinSpinner->start();
+    }
+
+    // Request signin from cloud service
+    const QString user_ = user;
+    const QString password_ = password;
+
+    _dispatcher.dispatch([=]() { _cloudRepo.signin(user_, password_); });
+  }
+}
+
+void ProfileBoardWidget::doLogout() {
+  // Clear login state
+  _isLoggedIn = false;
+  _loggedInUser.clear();
+
+  // Clear JWT claims
+  _userFirstName.clear();
+  _userLastName.clear();
+
+  // Clear stored credentials
+  _cloudCredentialStorage.clearAll();
+
+  // Update page and show signin form
+  updatePageForLoginState();
+
+  // Show signin form widgets
+  ui->lineEditSigninUser->show();
+  ui->lineEditSigninPassword->show();
+  ui->pushButtonSigninSubmit->show();
+
+  // Clear input fields for security
+  ui->lineEditSigninUser->clear();
+  ui->lineEditSigninPassword->clear();
+  ui->labelSigninTitle->setText("Sign in to continue");
+
+  ui->lineEditSigninUser->setFocus();
 }
 
 ProfileBoardWidget::~ProfileBoardWidget() {
@@ -141,7 +341,7 @@ void ProfileBoardWidget::onButtonBackClicked() {
   ui->lineEditEmail->setText(QString());
   ui->labelRemoveQuestion->setText(QString());
 
-  ui->stackedWidget->setCurrentIndex(static_cast<int>(ScreenType::Display));
+  ui->stackedWidget->setCurrentIndex(static_cast<int>(ScreenType::Profiles));
 
   LOG_PERF(0, "Exit");
 }
@@ -329,6 +529,164 @@ void ProfileBoardWidget::resetButtons() {
       !ui->listViewProfiles->selectionModel()->selectedIndexes().isEmpty());
   ui->pushButtonRemove->setVisible(
       !ui->listViewProfiles->selectionModel()->selectedIndexes().isEmpty());
+
+  LOG_PERF(0, "Exit");
+}
+
+// Email validation regex: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
+bool ProfileBoardWidget::validateEmail(const QString &email,
+                                       QString &errorMsg) const {
+  if (email.isEmpty()) {
+    errorMsg = "Enter email";
+    return false;
+  }
+
+  const QRegularExpression emailRegex(
+      "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+  if (!emailRegex.match(email).hasMatch()) {
+    errorMsg = "Enter a valid email address";
+    return false;
+  }
+  errorMsg.clear();
+  return true;
+}
+
+// Password validation regex:
+// ^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d!@#\$&*~]{8,}$
+bool ProfileBoardWidget::validatePassword(const QString &password,
+                                          QString &errorMsg) const {
+  if (password.isEmpty()) {
+    errorMsg = "Enter password";
+    return false;
+  }
+
+  const QRegularExpression passwordRegex(
+      "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[a-zA-Z\\d!@#\\$&*~]{8,}$");
+  if (!passwordRegex.match(password).hasMatch()) {
+    errorMsg = "Password must be at least 8 characters, include upper and "
+               "lower case letters, and a number";
+    return false;
+  }
+  errorMsg.clear();
+  return true;
+}
+
+void ProfileBoardWidget::tryRefreshExpiredCredentials() {
+  LOG_PERF(0, "Enter");
+
+  QString username, password, jwt;
+  if (!_cloudCredentialStorage.getCredentials(username, password, jwt)) {
+    LOG_WARN("No credentials to refresh");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  _dispatcher.dispatch([=]() {
+    // Request signin from cloud service
+    _cloudRepo.signin(username, password);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProfileBoardWidget::onCloudSigninSuccess(const QString &email,
+                                              const QString &accessToken,
+                                              const QString &response) {
+  LOG_PERF(0, "Enter");
+  LOG_INFO("Cloud signin success for: {}", email);
+
+  // Hide spinner
+  if (_signinSpinner) {
+    _signinSpinner->stop();
+  }
+
+  // Store credentials with configurable expiration time
+  const QString password = ui->lineEditSigninPassword->text();
+  const qlonglong expirationMinutes =
+      ConfigManager::ConfigManager::getInstance().getLong(
+          ConfigManager::ConfigKey::CloudJwtExpirationMinutes);
+  const qint64 expirationTime =
+      QDateTime::currentMSecsSinceEpoch() + (expirationMinutes * 60 * 1000);
+
+  _cloudCredentialStorage.storeCredentials(email, password, accessToken,
+                                           expirationTime, true);
+
+  LOG_INFO("Credentials stored successfully");
+
+  // Extract JWT claims to get user's first and last name
+  const Util::JWTDecoder::Claims claims =
+      Util::JWTDecoder::decodeClaims(accessToken);
+  _userFirstName = claims.givenName;
+  _userLastName = claims.familyName;
+  LOG_INFO("Updated JWT claims - FirstName: {}, LastName: {}", _userFirstName,
+           _userLastName);
+
+  // Update login state
+  _isLoggedIn = true;
+  _loggedInUser = email;
+  _pendingSigninEmail = email;
+
+  // Clear input fields
+  ui->lineEditSigninUser->clear();
+  ui->lineEditSigninPassword->clear();
+
+  // Switch to profiles page
+  updatePageForLoginState();
+  LOG_PERF(0, "Exit");
+}
+
+void ProfileBoardWidget::onCloudSigninFailed(const QString &email,
+                                             const QString &errorMessage) {
+  LOG_PERF(0, "Enter");
+  LOG_ERROR(Log::ErrorId::Network, "Cloud signin failed: {}", errorMessage);
+
+  // Hide spinner and show form widgets
+  if (_signinSpinner) {
+    _signinSpinner->stop();
+  }
+
+  ui->labelSigninIcon->show();
+  ui->labelSigninTitle->show();
+  ui->lineEditSigninUser->show();
+  ui->lineEditSigninPassword->show();
+  ui->pushButtonSigninSubmit->show();
+  ui->labelSignupLink->show();
+
+  ui->labelSigninError->setText("Login failed: " + errorMessage);
+
+  // Prefill email for retry
+  if (!email.isEmpty()) {
+    ui->lineEditSigninUser->setText(email);
+    ui->lineEditSigninPassword->setFocus();
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProfileBoardWidget::onCloudSigninError(const QString &email,
+                                            QNetworkReply::NetworkError error) {
+  LOG_PERF(0, "Enter");
+  LOG_ERROR(Log::ErrorId::Network, "Cloud signin error: {}", (int)error);
+
+  // Hide spinner and show form widgets
+  if (_signinSpinner) {
+    _signinSpinner->stop();
+  }
+
+  ui->labelSigninIcon->show();
+  ui->labelSigninTitle->show();
+  ui->lineEditSigninUser->show();
+  ui->lineEditSigninPassword->show();
+  ui->pushButtonSigninSubmit->show();
+  ui->labelSignupLink->show();
+
+  ui->labelSigninError->setText("Login error");
+
+  // Prefill email for retry
+  if (!email.isEmpty()) {
+    ui->lineEditSigninUser->setText(email);
+    ui->lineEditSigninPassword->setFocus();
+  }
 
   LOG_PERF(0, "Exit");
 }

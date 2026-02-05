@@ -36,6 +36,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::GitRepoMonospaceFontSize, "gitrepo/monospace/fontSize"},
     {ConfigKey::HttpClientCaCertFile, "network/httpClient/caCertFile"},
     {ConfigKey::HttpClientTimeout, "network/httpClient/timeout"},
+    {ConfigKey::CloudJwtExpirationMinutes, "cloud/jwt/expirationMinutes"},
+    {ConfigKey::CloudSigninUrl, "cloud/signin/url"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
     {ConfigKey::MainWindowBorderWidth, "window/borderWidth"},
     {ConfigKey::MainWindowMinimumWidth, "window/minimumWidth"},
@@ -72,6 +74,9 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::TitleBarMaxTabWidth, {"Maximum width of a title bar tab", ""}},
     {ConfigKey::TitleBarMenuMinimumSize,
      {"Minimum size of the title bar menu", ""}},
+    {ConfigKey::CloudJwtExpirationMinutes,
+     {"Cloud JWT token expiration time in minutes", ""}},
+    {ConfigKey::CloudSigninUrl, {"Cloud service signin URL", ""}},
     {ConfigKey::TestColor, {"Test color", "Test color description"}},
     {ConfigKey::TestDateTime, {"Test dateTime", "Test dateTime description"}}};
 
@@ -87,6 +92,7 @@ QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {
     {ConfigKey::TestDateTime, QDateTime::currentDateTime()}};
 
 QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
+    {ConfigKey::CloudJwtExpirationMinutes, 7 * 24 * 60}, // 7 days in minutes
     {ConfigKey::GitRepoGitCredentialsExpirationTime,
      2592000000LL}, // 30 days in milliseconds
     {ConfigKey::GitRepoServerConnectTimeout, 30000LL}, // 30 seconds
@@ -110,6 +116,14 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::TooltipDisplayTime, 5000}};
 
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
+#ifdef QT_DEBUG
+    {ConfigKey::CloudSigninUrl, "http://localhost:8080/api/v1/signin"},
+    {ConfigKey::CloudSignupUrl, "http://localhost:8080/#/signup"},
+#else
+    {ConfigKey::CloudSigninUrl, "https://sourcerer.hr/api/v1/signin"},
+    {ConfigKey::CloudSignupUrl,
+     "https://sourcerer.hr/#/signup},
+#endif
     {ConfigKey::GitRepoSplitterPos, ""},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
     {ConfigKey::GitRepoMonospaceFontName, "Lucida Console"},

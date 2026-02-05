@@ -60,7 +60,7 @@ HttpReply HttpClientWorker::sendRequest_(
   const qlonglong readTimeout =
       configManager.getLong(::ConfigManager::ConfigKey::HttpClientTimeout);
 
-         // Allow HTTP/2 and HTTP/1.1
+  // Allow HTTP/2 and HTTP/1.1
   QList<QByteArray> protocols;
   protocols << QByteArray("spdy/3") << QByteArray("h2")
             << QByteArray("http/1.1");
@@ -302,8 +302,8 @@ HttpReply HttpClient::sendRequest(
     const QString &url, HttpMethod httpMethod,
     const QMap<QNetworkRequest::KnownHeaders, QString> &httpHeaders,
     const QMap<QString, QString> &rawHeaders, const QByteArray &requestBody) {
-  return emit worker()
-      -> sendRequest(url, httpMethod, httpHeaders, rawHeaders, requestBody);
+  return emit worker() -> sendRequest(url, httpMethod, httpHeaders, rawHeaders,
+                                      requestBody);
 }
 
 void HttpClient::clearConnections() {

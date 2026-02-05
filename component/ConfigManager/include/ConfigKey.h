@@ -35,6 +35,11 @@ enum class ConfigKey {
   HttpClientCaCertFile,
   HttpClientTimeout,
 
+  // Cloud authentication
+  CloudJwtExpirationMinutes,
+  CloudSigninUrl,
+  CloudSignupUrl,
+
   // Settings container
   SettingsSplitterPos,
 

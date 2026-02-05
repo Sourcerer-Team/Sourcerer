@@ -1,8 +1,16 @@
 #pragma once
 
+#include <CloudCredentialStorage.h>
+#include <CloudRepo.h>
+#include <Dispatcher.h>
+#include <JWTDecoder.h>
 #include <UserProfileManager.h>
+#include <WaitingSpinnerWidget.h>
 
+#include <QEnableSharedFromThis>
+#include <QNetworkReply>
 #include <QStandardItemModel>
+#include <QString>
 #include <QWidget>
 
 namespace Ui {
@@ -11,12 +19,18 @@ class ProfileBoardWidget;
 
 namespace GuiManager::Widgets {
 
-class ProfileBoardWidget : public QWidget {
+class ProfileBoardWidget : public QWidget,
+                           QEnableSharedFromThis<ProfileBoardWidget> {
   Q_OBJECT
+
+  typedef QSharedPointer<ProfileBoardWidget> SharedPtr;
+  typedef QWeakPointer<ProfileBoardWidget> WeakPtr;
 
 public:
   explicit ProfileBoardWidget(QWidget *parent = nullptr);
   ~ProfileBoardWidget() override;
+
+  SharedPtr getSelf() { return sharedFromThis(); }
 
   void setArrowTargetX(int x) { _arrowX = x; }
 
@@ -39,20 +53,41 @@ private slots:
   void onButtonRemoveYesClicked();
   void onButtonSaveClicked();
   void onListItemClicked(const QModelIndex &index);
+  void onButtonSigninSubmitClicked();
+  void onButtonSignoutClicked();
+  void onSignupLinkClicked();
+  void onCloudSigninSuccess(const QString &email, const QString &accessToken,
+                            const QString &response);
+  void onCloudSigninFailed(const QString &email, const QString &errorMessage);
+  void onCloudSigninError(const QString &email,
+                          QNetworkReply::NetworkError error);
 
 private:
   enum class ScreenType {
     Unknown = -1,
-    Display = 0,
-    Edit = 1,
-    Remove = 2,
+
+    Signin = 0,
+    Profiles = 1,
+    Edit = 2,
+    Remove = 3,
+
     last
   };
+
+  void updatePageForLoginState();
+  bool isUserLoggedIn() const;
+  void doLogin(const QString &user, const QString &password);
+  void doLogout();
 
   enum class OperationType { Unknown = 0, Add, Edit, last };
 
   void fillProfiles();
   void resetButtons();
+
+  bool validateEmail(const QString &email, QString &errorMsg) const;
+  bool validatePassword(const QString &password, QString &errorMsg) const;
+
+  void tryRefreshExpiredCredentials();
 
 private:
   Ui::ProfileBoardWidget *ui;
@@ -61,6 +96,16 @@ private:
   OperationType _operation;
   QStandardItemModel *_model;
   Common::UserProfileManager &_userProfileManager;
+  Util::CloudCredentialtorage &_cloudCredentialStorage;
+  Util::CloudRepo &_cloudRepo;
+  Util::Dispatcher _dispatcher;
+  // For login state unrelated to UserProfileManager
+  bool _isLoggedIn = false;
+  QString _loggedInUser;
+  QString _pendingSigninEmail; // Store email for retry on refresh failure
+  QString _userFirstName;
+  QString _userLastName;
+  WaitingSpinnerWidget *_signinSpinner = nullptr;
 };
 
 } // namespace GuiManager::Widgets

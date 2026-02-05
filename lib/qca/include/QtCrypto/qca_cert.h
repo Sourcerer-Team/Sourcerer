@@ -346,9 +346,9 @@ enum ConstraintTypeKnown {
   EmailProtection, ///< %Certificate can be used to sign / encrypt email, id =
                    ///< "1.3.6.1.5.5.7.3.4". This is an extended usage
                    ///< constraint.
-  IPSecEndSystem, ///< %Certificate can be used to authenticate a endpoint in
-                  ///< IPSEC, id = "1.3.6.1.5.5.7.3.5". This is an extended
-                  ///< usage constraint.
+  IPSecEndSystem,  ///< %Certificate can be used to authenticate a endpoint in
+                   ///< IPSEC, id = "1.3.6.1.5.5.7.3.5". This is an extended
+                   ///< usage constraint.
   IPSecTunnel, ///< %Certificate can be used to authenticate a tunnel in IPSEC,
                ///< id = "1.3.6.1.5.5.7.3.6". This is an extended usage
                ///< constraint.
@@ -357,9 +357,9 @@ enum ConstraintTypeKnown {
   TimeStamping, ///< %Certificate can be used to create a "time stamp"
                 ///< signature, id = "1.3.6.1.5.5.7.3.8". This is an extended
                 ///< usage constraint.
-  OCSPSigning ///< %Certificate can be used to sign an Online %Certificate
-              ///< Status Protocol (OCSP) assertion, id = "1.3.6.1.5.5.7.3.9".
-              ///< This is an extended usage constraint.
+  OCSPSigning   ///< %Certificate can be used to sign an Online %Certificate
+                ///< Status Protocol (OCSP) assertion, id = "1.3.6.1.5.5.7.3.9".
+                ///< This is an extended usage constraint.
 };
 
 /**
@@ -516,9 +516,9 @@ enum Validity {
   ErrorRevoked,    ///< The certificate has been revoked
   ErrorPathLengthExceeded, ///< The path length from the root CA to this
                            ///< certificate is too long
-  ErrorExpired, ///< The certificate has expired, or is not yet valid (e.g.
-                ///< current time is earlier than notBefore time)
-  ErrorExpiredCA,           ///< The Certificate Authority has expired
+  ErrorExpired,   ///< The certificate has expired, or is not yet valid (e.g.
+                  ///< current time is earlier than notBefore time)
+  ErrorExpiredCA, ///< The Certificate Authority has expired
   ErrorValidityUnknown = 64 ///< Validity is unknown
 };
 
