@@ -12,7 +12,7 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 find_package(libgit2 REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets LinguistTools)
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 
@@ -47,6 +47,7 @@ add_subdirectory(../../lib/qca "QCA")
 target_link_libraries(GitRepo PRIVATE
     Qt6::Core
     Qt6::Gui
+    Qt6::Network
     Qt6::Widgets
     qca-qt6
     Threads::Threads

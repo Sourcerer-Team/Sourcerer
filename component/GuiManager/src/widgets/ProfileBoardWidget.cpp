@@ -99,30 +99,25 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
   if (_cloudCredentialStorage.getCredentials(username, password, jwt)) {
     // Credentials exist
     _isLoggedIn = true;
-    _loggedInUser = username;
-    _pendingSigninEmail = username;
 
     LOG_INFO("Loaded stored cloud credentials for user: {}", username);
 
     // Extract JWT claims to get user's first and last name
     QString jwt;
-    qlonglong expiration = -1;
     if (_cloudCredentialStorage.getJWT(jwt)) {
       const Util::JWTDecoder::Claims claims =
           Util::JWTDecoder::decodeClaims(jwt);
       _userFirstName = claims.givenName;
       _userLastName = claims.familyName;
-      expiration = claims.exp;
-      LOG_INFO("Extracted JWT claims - FirstName: {}, LastName: {}",
-               _userFirstName, _userLastName);
+      _plan = claims.plan;
+
+      LOG_INFO("Extracted JWT claims - FirstName: {}, LastName: {}, Plan: {}",
+               _userFirstName, _userLastName, _plan);
     }
 
-    // Check if credentials are expired and try to refresh
-    if (_cloudCredentialStorage.areCredentialsExpired() || expiration == -1 ||
-        expiration < QDateTime::currentSecsSinceEpoch()) {
-      LOG_INFO("Credentials expired, attempting automatic refresh...");
-      tryRefreshExpiredCredentials();
-    }
+    LOG_INFO("Attempting automatic refresh of credentials...");
+
+    tryRefreshExpiredCredentials();
   }
 
   updatePageForLoginState();
@@ -137,9 +132,8 @@ bool ProfileBoardWidget::isUserLoggedIn() const {
 
 void ProfileBoardWidget::updatePageForLoginState() {
   LOG_INFO("updatePageForLoginState called - _isLoggedIn: {}, firstName: '{}', "
-           "lastName: '{}'",
-           _isLoggedIn, _userFirstName.toStdString(),
-           _userLastName.toStdString());
+           "lastName: '{}', plan: '{}'",
+           _isLoggedIn, _userFirstName, _userLastName, _plan);
   if (isUserLoggedIn()) {
     ui->stackedWidget->setCurrentWidget(ui->pageProfiles);
     ui->pushButtonSignout->setVisible(true);
@@ -148,8 +142,8 @@ void ProfileBoardWidget::updatePageForLoginState() {
     // Update the label with user's name from JWT claims
     QString labelText = "Profiles";
     if (!_userFirstName.isEmpty() || !_userLastName.isEmpty()) {
-      labelText = QString("Profile for %1 %2")
-                      .arg(_userFirstName, _userLastName)
+      labelText = QString("Profile for:\n%1 %2 [%3]")
+                      .arg(_userFirstName, _userLastName, _plan)
                       .trimmed();
     }
     ui->labelProfiles->setText(labelText);
@@ -234,7 +228,6 @@ void ProfileBoardWidget::doLogin(const QString &user, const QString &password) {
 void ProfileBoardWidget::doLogout() {
   // Clear login state
   _isLoggedIn = false;
-  _loggedInUser.clear();
 
   // Clear JWT claims
   _userFirstName.clear();
@@ -582,7 +575,8 @@ void ProfileBoardWidget::tryRefreshExpiredCredentials() {
   }
 
   _dispatcher.dispatch([=]() {
-    // Request signin from cloud service
+    // Request signin from cloud service. Credentials will be stored
+    // automatically on success.
     _cloudRepo.signin(username, password);
   });
 
@@ -590,6 +584,7 @@ void ProfileBoardWidget::tryRefreshExpiredCredentials() {
 }
 
 void ProfileBoardWidget::onCloudSigninSuccess(const QString &email,
+                                              const QString &password,
                                               const QString &accessToken,
                                               const QString &response) {
   LOG_PERF(0, "Enter");
@@ -601,7 +596,6 @@ void ProfileBoardWidget::onCloudSigninSuccess(const QString &email,
   }
 
   // Store credentials with configurable expiration time
-  const QString password = ui->lineEditSigninPassword->text();
   const qlonglong expirationMinutes =
       ConfigManager::ConfigManager::getInstance().getLong(
           ConfigManager::ConfigKey::CloudJwtExpirationMinutes);
@@ -618,13 +612,12 @@ void ProfileBoardWidget::onCloudSigninSuccess(const QString &email,
       Util::JWTDecoder::decodeClaims(accessToken);
   _userFirstName = claims.givenName;
   _userLastName = claims.familyName;
-  LOG_INFO("Updated JWT claims - FirstName: {}, LastName: {}", _userFirstName,
-           _userLastName);
+  _plan = claims.plan;
+  LOG_INFO("Updated JWT claims - FirstName: {}, LastName: {}, Plan: {}",
+           _userFirstName, _userLastName, _plan);
 
   // Update login state
   _isLoggedIn = true;
-  _loggedInUser = email;
-  _pendingSigninEmail = email;
 
   // Clear input fields
   ui->lineEditSigninUser->clear();

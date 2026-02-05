@@ -20,7 +20,7 @@ class ProfileBoardWidget;
 namespace GuiManager::Widgets {
 
 class ProfileBoardWidget : public QWidget,
-                           QEnableSharedFromThis<ProfileBoardWidget> {
+                           public QEnableSharedFromThis<ProfileBoardWidget> {
   Q_OBJECT
 
   typedef QSharedPointer<ProfileBoardWidget> SharedPtr;
@@ -56,7 +56,8 @@ private slots:
   void onButtonSigninSubmitClicked();
   void onButtonSignoutClicked();
   void onSignupLinkClicked();
-  void onCloudSigninSuccess(const QString &email, const QString &accessToken,
+  void onCloudSigninSuccess(const QString &email, const QString &password,
+                            const QString &accessToken,
                             const QString &response);
   void onCloudSigninFailed(const QString &email, const QString &errorMessage);
   void onCloudSigninError(const QString &email,
@@ -101,10 +102,9 @@ private:
   Util::Dispatcher _dispatcher;
   // For login state unrelated to UserProfileManager
   bool _isLoggedIn = false;
-  QString _loggedInUser;
-  QString _pendingSigninEmail; // Store email for retry on refresh failure
   QString _userFirstName;
   QString _userLastName;
+  QString _plan;
   WaitingSpinnerWidget *_signinSpinner = nullptr;
 };
 

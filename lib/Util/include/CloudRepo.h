@@ -40,11 +40,12 @@ signals:
   /**
    * @brief Emitted when signin is successful
    * @param email User email
+   * @param password User password (for potential credential storage)
    * @param accessToken JWT access token returned from server
    * @param response Full response from server
    */
-  void signinSuccess(const QString &email, const QString &accessToken,
-                     const QString &response);
+  void signinSuccess(const QString &email, const QString &password,
+                     const QString &accessToken, const QString &response);
 
   /**
    * @brief Emitted when HTTP error occurs during signin

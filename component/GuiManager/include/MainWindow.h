@@ -112,7 +112,7 @@ private:
   bool _maximized;
   bool _mousePressed;
   HitDetector *_hitDetector;
-  ProfileBoardWidget *_profileBoardWidget;
+  QSharedPointer<ProfileBoardWidget> _profileBoardWidget;
   bool _profileBoardActive;
   QMap<uint, GitCredentialsOverlayWidget *> _credentialsWidgets;
 };

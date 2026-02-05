@@ -50,7 +50,7 @@ MainWindow::MainWindow(QWidget *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
       _maximized(false), _mousePressed(false), _hitDetector(nullptr),
-      _profileBoardWidget(new ProfileBoardWidget(this)),
+      _profileBoardWidget(QSharedPointer<ProfileBoardWidget>::create(this)),
       _profileBoardActive(false) {
   LOG_PERF(0, "Enter");
 
@@ -182,6 +182,9 @@ MainWindow::~MainWindow() {
       EventManager::EventType::GitRepoManagerGetCredentials, callbackFunc));
 
   _toastHost.setParent(nullptr);
+
+  _profileBoardWidget->setParent(nullptr);
+  _profileBoardWidget.clear();
 
   delete _hitDetector;
 

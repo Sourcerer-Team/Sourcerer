@@ -4,8 +4,11 @@
 
 #include "../../../component/GitRepoManager/include/GitRepoManagerStructs.h"
 
+#include <CloudCredentialStorage.h>
+#include <CloudRepo.h>
 #include <ConfigManager.h>
 #include <EventManager.h>
+#include <JWTDecoder.h>
 #include <LockGuard.h>
 #include <Log.h>
 #ifdef _WIN32
@@ -373,6 +376,27 @@ static git_commit *getLastCommit(git_repository *repo, const QString &name) {
 
   LOG_PERF(0, "Exit");
   return commit;
+}
+
+static bool isCommercialPlan() {
+  LOG_PERF(0, "Enter");
+
+  Util::CloudCredentialtorage &credentialStorage =
+      Util::CloudCredentialtorage::getInstance();
+
+  QString jwt;
+  if (!credentialStorage.getJWT(jwt)) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to get JWT for checking commercial plan.");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const Util::JWTDecoder::Claims claims = Util::JWTDecoder::decodeClaims(jwt);
+
+  LOG_PERF(0, "Exit");
+
+  return claims.plan == "Pro" || claims.plan == "Business";
 }
 
 GitError getLastError() {
@@ -1930,6 +1954,15 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
     return false;
   }
 
+  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
+  const bool commercial = isCommercialPlan();
+  if (!commercial && gitSchema) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Cloning git@ repositories is not available on the free plan.");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_repository *repo = nullptr;
   git_clone_options clone_opts = GIT_CLONE_OPTIONS_INIT;
   git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
@@ -1947,7 +1980,8 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
   checkout_opts.progress_payload = &progressData;
   checkout_opts.progress_cb = &checkoutProgressCallback;
-  fetch_opts.callbacks.credentials = &credentialsAcquireCallback;
+  fetch_opts.callbacks.credentials =
+      commercial ? &credentialsAcquireCallback : nullptr;
   fetch_opts.callbacks.transfer_progress = &fetchProgressCallback;
   fetch_opts.callbacks.certificate_check = &certificateCheckCallback;
   fetch_opts.callbacks.payload = &credPayload;
@@ -1962,7 +1996,9 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
     finishFetchProgress(uuid, error != 0, true);
   }
 
-  finishCredentialsAcquiring(uuid);
+  if (commercial) {
+    finishCredentialsAcquiring(uuid);
+  }
 
   if (error || !repo) {
     invalidateCredentials(url);
@@ -3642,14 +3678,16 @@ bool pull(git_repository *repo) {
     return false;
   }
 
+  bool gitSchema = false;
   int retries = 0;
   const char *url = git_remote_url(remote);
 
   // Determine max retries: use 1 if SSH with configured key, otherwise
   // MAX_RETRIES
   int maxRetries = MAX_RETRIES;
-  QString urlStr = QString::fromUtf8(url);
-  if (urlStr.startsWith("git@")) {
+  const QString urlStr = QString::fromUtf8(url);
+  if (urlStr.startsWith("git@") || urlStr.startsWith("git://")) {
+    gitSchema = true;
     // Extract host from git@host:path format
     QRegularExpression hostRegex("^git@([^:]+):");
     QRegularExpressionMatch match = hostRegex.match(urlStr);
@@ -3665,6 +3703,14 @@ bool pull(git_repository *repo) {
     }
   }
 
+  const bool commercial = isCommercialPlan();
+  if (!commercial && gitSchema) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Pulling git@ repositories is not available on the free plan.");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   const QString fetchUuid = Uuid::createUuid();
 
   GitCredentialPayload credPayload;
@@ -3673,7 +3719,8 @@ bool pull(git_repository *repo) {
   credPayload.cloning = false;
 
   git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
-  fetchOpts.callbacks.credentials = &credentialsAcquireCallback;
+  fetchOpts.callbacks.credentials =
+      commercial ? &credentialsAcquireCallback : nullptr;
   fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
   fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
   fetchOpts.callbacks.payload = &credPayload;
@@ -3698,7 +3745,9 @@ bool pull(git_repository *repo) {
     finishFetchProgress(fetchUuid, error != 0, false);
   }
 
-  finishCredentialsAcquiring(url);
+  if (commercial) {
+    finishCredentialsAcquiring(url);
+  }
 
   if (error) {
     logGitError(error);

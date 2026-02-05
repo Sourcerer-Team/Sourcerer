@@ -108,7 +108,7 @@ CloudRepo::processResponse(const QString &response, int statusCode) {
 
   LOG_INFO("Signin successful for user: {}", _pendingEmail);
 
-  emit signinSuccess(_pendingEmail, accessToken, response);
+  emit signinSuccess(_pendingEmail, _pendingPassword, accessToken, response);
 
   LOG_PERF(0, "Exit");
 
