@@ -68,7 +68,7 @@ bool RecentTableView::mouseMove(const QMouseEvent *event) {
   const auto pos = viewport()->mapFromGlobal(event->globalPosition());
 
   if (const auto index = indexAt(pos.toPoint());
-      index.row() == -1 || index.column() != 0) {
+      index.row() == -1) {
     emit hoverLeave(_prev);
     _prev = QModelIndex();
     LOG_DEBUG("emitted hoveLeave");

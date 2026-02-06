@@ -3,6 +3,7 @@
 #include <Log.h>
 
 #include <QTableView>
+#include <QPainter>
 
 #define THREAD_ID "HomeRecentItemDelegate"
 
@@ -24,7 +25,10 @@ void HomeRecentItemDelegate::paint(QPainter *painter,
   QStyleOptionViewItem _option = option;
 
   if (_indexHovered == index) {
-    _option.font.setUnderline(true);
+    // Draw hover background color across the entire row
+    QColor hoverBackground(66, 66, 66);  // Slightly lighter gray from dark theme
+    QRect fullRowRect(0, option.rect.top(), 10000, option.rect.height());
+    painter->fillRect(fullRowRect, hoverBackground);
   }
 
   QStyledItemDelegate::paint(painter, _option, index);

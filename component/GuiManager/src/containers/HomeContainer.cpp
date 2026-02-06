@@ -5,6 +5,7 @@
 #include "containers/ui_HomeContainer.h"
 #include "delegates/HomeRecentItemDelegate.h"
 #include "widgets/RecentTableView.h"
+#include "widgets/WorkspacesTableView.h"
 
 #include <Log.h>
 
@@ -43,6 +44,10 @@ HomeContainer::HomeContainer(QWidget *parent)
   connect(ui->tableViewRecent, &RecentTableView::hoverEnter, this,
           &HomeContainer::hoverEnter);
   connect(ui->tableViewRecent, &RecentTableView::hoverLeave, this,
+          &HomeContainer::hoverLeave);
+  connect(ui->tableViewWorkspaces, &WorkspacesTableView::hoverEnter, this,
+          &HomeContainer::hoverEnter);
+  connect(ui->tableViewWorkspaces, &WorkspacesTableView::hoverLeave, this,
           &HomeContainer::hoverLeave);
   connect(ui->openButton, &QPushButton::clicked, this,
           &HomeContainer::onOpenClicked);
@@ -165,12 +170,6 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
 void HomeContainer::hoverEnter(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
-
-  if (index.column() != 0) {
-    setCursor(Qt::ArrowCursor);
-    LOG_PERF(0, "Exit");
-    return;
-  }
 
   _itemDelegate->setHover(index);
   ui->tableViewRecent->viewport()->update();

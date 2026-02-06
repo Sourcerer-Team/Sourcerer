@@ -113,6 +113,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/PersistentPlaceholderLineEdit.h
         include/widgets/ProfileBoardWidget.h
         include/widgets/RecentTableView.h
+        include/widgets/WorkspacesTableView.h
         include/widgets/RemoteGitBranchesPage.h
         include/widgets/RightClickSelectListView.h
         include/widgets/RightClickSelectTreeView.h
@@ -188,6 +189,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/MouseTrackingSplitter.cpp
         src/widgets/ProfileBoardWidget.cpp
         src/widgets/RecentTableView.cpp
+        src/widgets/WorkspacesTableView.cpp
         src/widgets/RemoteGitBranchesPage.cpp
         src/widgets/SettingsPaneWidget.cpp
         src/widgets/SettingsPaneItemWidget.cpp
