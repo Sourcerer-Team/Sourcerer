@@ -34,6 +34,7 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::GitRepoMaxDiffFileSize, "gitrepo/maxDiffFileSize"},
     {ConfigKey::GitRepoMonospaceFontName, "gitrepo/monospace/fontName"},
     {ConfigKey::GitRepoMonospaceFontSize, "gitrepo/monospace/fontSize"},
+    {ConfigKey::GitRepoDiffViewType, "gitrepo/diffViewType"},
     {ConfigKey::HttpClientCaCertFile, "network/httpClient/caCertFile"},
     {ConfigKey::HttpClientTimeout, "network/httpClient/timeout"},
     {ConfigKey::CloudJwtExpirationMinutes, "cloud/jwt/expirationMinutes"},
@@ -80,7 +81,8 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::TestColor, {"Test color", "Test color description"}},
     {ConfigKey::TestDateTime, {"Test dateTime", "Test dateTime description"}}};
 
-QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {};
+QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {
+    {ConfigKey::GitRepoDiffViewType, false}}; // false = unified, true = side-by-side
 
 QMap<ConfigKey, QColor> DEFAULT_COLORS = {
     {ConfigKey::TestColor, QColor(10, 10, 10)},
@@ -126,6 +128,7 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::GitRepoSplitterPos, ""},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
     {ConfigKey::GitRepoMonospaceFontName, "Lucida Console"},
+
     {ConfigKey::HttpClientCaCertFile, "ca-certificates.crt"},
     {ConfigKey::RecentlyOpenedRepos, ""},
     {ConfigKey::SettingsSplitterPos, ""}};

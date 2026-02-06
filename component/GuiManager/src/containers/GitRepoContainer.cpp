@@ -340,12 +340,18 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonDiffUnified->setIcon(QPixmap(":/icons/diff-unified.png"));
   ui->pushButtonDiffUnified->setMinimumSize(32, 32);
   ui->pushButtonDiffUnified->setMaximumSize(32, 32);
-  ui->pushButtonDiffUnified->setChecked(true);
 
   ui->pushButtonDiffSideBySide->setIcon(
       QPixmap(":/icons/diff-side-by-side.png"));
   ui->pushButtonDiffSideBySide->setMinimumSize(32, 32);
   ui->pushButtonDiffSideBySide->setMaximumSize(32, 32);
+
+  // Load the saved diff view preference from ConfigManager
+  // false = unified (default), true = side-by-side
+  const bool useSideBySideDiff = _configManager.getBoolean(
+      ConfigManager::ConfigKey::GitRepoDiffViewType);
+  ui->pushButtonDiffSideBySide->setChecked(useSideBySideDiff);
+  ui->pushButtonDiffUnified->setChecked(!useSideBySideDiff);
 
   ui->pushButtonMergeDiffClose->setIcon(QPixmap(":/icons/close_button.png"));
   ui->pushButtonMergeDiffClose->setMinimumSize(32, 32);
@@ -1228,6 +1234,11 @@ void GitRepoContainer::onDiffUnifiedClicked() {
   ui->stackedWidgetDiff->setCurrentIndex(
       static_cast<int>(DiffStackIndexes::DiffUnified));
 
+  // Save the preference (false = unified)
+  _configManager.setBoolean(ConfigManager::ConfigKey::GitRepoDiffViewType,
+                           false);
+  _configManager.save();
+
   LOG_PERF(0, "Exit");
 }
 
@@ -1241,6 +1252,11 @@ void GitRepoContainer::onDiffSideBySideClicked() {
 
   ui->stackedWidgetDiff->setCurrentIndex(
       static_cast<int>(DiffStackIndexes::DiffSideBySide));
+
+  // Save the preference (true = side-by-side)
+  _configManager.setBoolean(ConfigManager::ConfigKey::GitRepoDiffViewType,
+                           true);
+  _configManager.save();
 
   LOG_PERF(0, "Exit");
 }
@@ -4948,11 +4964,18 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
     // Update scrollbar marks
     _unifiedDiffMarks->setMarks(deletedLines, addedLines);
 
-    // Only show marks if unified view is selected
-    if (ui->pushButtonDiffUnified->isChecked()) {
-      _unifiedDiffMarks->show();
-    } else {
+    // Load the saved diff view preference from ConfigManager
+    // false = unified (default), true = side-by-side
+    const bool useSideBySideDiff = _configManager.getBoolean(
+        ConfigManager::ConfigKey::GitRepoDiffViewType);
+
+    ui->pushButtonDiffUnified->setChecked(!useSideBySideDiff);
+    ui->pushButtonDiffSideBySide->setChecked(useSideBySideDiff);
+
+    if (useSideBySideDiff) {
       _unifiedDiffMarks->hide();
+    } else {
+      _unifiedDiffMarks->show();
     }
 
     if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
