@@ -82,7 +82,8 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::TestDateTime, {"Test dateTime", "Test dateTime description"}}};
 
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {
-    {ConfigKey::GitRepoDiffViewType, false}}; // false = unified, true = side-by-side
+    {ConfigKey::GitRepoDiffViewType,
+     false}}; // false = unified, true = side-by-side
 
 QMap<ConfigKey, QColor> DEFAULT_COLORS = {
     {ConfigKey::TestColor, QColor(10, 10, 10)},

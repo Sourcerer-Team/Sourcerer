@@ -2,7 +2,7 @@
 <Package>
     <DisplayName>Sourcerer</DisplayName>
     <Description>Sourcerer - Git Repository Viewer and Manager</Description>
-    <Version>0.0.1</Version>
+    <Version>0.2.1</Version>
     <ReleaseDate>2026-01-24</ReleaseDate>
     <Name>com.sourcerer.app</Name>
     <Default>true</Default>

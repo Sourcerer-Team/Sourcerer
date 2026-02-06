@@ -348,8 +348,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   // Load the saved diff view preference from ConfigManager
   // false = unified (default), true = side-by-side
-  const bool useSideBySideDiff = _configManager.getBoolean(
-      ConfigManager::ConfigKey::GitRepoDiffViewType);
+  const bool useSideBySideDiff =
+      _configManager.getBoolean(ConfigManager::ConfigKey::GitRepoDiffViewType);
   ui->pushButtonDiffSideBySide->setChecked(useSideBySideDiff);
   ui->pushButtonDiffUnified->setChecked(!useSideBySideDiff);
 
@@ -1236,7 +1236,7 @@ void GitRepoContainer::onDiffUnifiedClicked() {
 
   // Save the preference (false = unified)
   _configManager.setBoolean(ConfigManager::ConfigKey::GitRepoDiffViewType,
-                           false);
+                            false);
   _configManager.save();
 
   LOG_PERF(0, "Exit");
@@ -1255,7 +1255,7 @@ void GitRepoContainer::onDiffSideBySideClicked() {
 
   // Save the preference (true = side-by-side)
   _configManager.setBoolean(ConfigManager::ConfigKey::GitRepoDiffViewType,
-                           true);
+                            true);
   _configManager.save();
 
   LOG_PERF(0, "Exit");

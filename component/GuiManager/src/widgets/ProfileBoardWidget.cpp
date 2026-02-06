@@ -573,8 +573,7 @@ void ProfileBoardWidget::tryRefreshExpiredCredentials() {
   LOG_PERF(0, "Exit");
 }
 
-void ProfileBoardWidget::hideSigninWidgets()
-{
+void ProfileBoardWidget::hideSigninWidgets() {
   LOG_PERF(0, "Enter");
 
   ui->labelSigninIcon->hide();
@@ -587,8 +586,7 @@ void ProfileBoardWidget::hideSigninWidgets()
   LOG_PERF(0, "Exit");
 }
 
-void ProfileBoardWidget::showSigninWidgets()
-{
+void ProfileBoardWidget::showSigninWidgets() {
   LOG_PERF(0, "Enter");
 
   ui->labelSigninIcon->show();
@@ -659,7 +657,7 @@ void ProfileBoardWidget::onCloudSigninFailed(const QString &email,
 
   showSigninWidgets();
 
-  if(ui->stackedWidget->currentWidget() == ui->pageSignin) {
+  if (ui->stackedWidget->currentWidget() == ui->pageSignin) {
     ui->labelSigninError->setText("Login failed: " + errorMessage);
   }
 
@@ -691,7 +689,7 @@ void ProfileBoardWidget::onCloudSigninError(const QString &email,
 
   showSigninWidgets();
 
-  if(ui->stackedWidget->currentWidget() == ui->pageSignin) {
+  if (ui->stackedWidget->currentWidget() == ui->pageSignin) {
     ui->labelSigninError->setText("Login error");
   }
 

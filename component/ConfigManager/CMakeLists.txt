@@ -35,9 +35,26 @@ target_link_libraries(ConfigManager PRIVATE
 
 target_include_directories(ConfigManager PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-execute_process(COMMAND git describe --tags --always
-    OUTPUT_VARIABLE GIT_REPO_VERSION)
+# Get git version (commit hash) - use repository root working directory
+set(GIT_REPO_ROOT "${PROJECT_SOURCE_DIR}/../..")
+
+# Add repository to git safe directories (required for Docker/isolated environments)
+execute_process(
+    COMMAND git config --global --add safe.directory ${GIT_REPO_ROOT}
+    WORKING_DIRECTORY "${GIT_REPO_ROOT}"
+    ERROR_QUIET)
+
+execute_process(
+    COMMAND git describe --tags --always
+    WORKING_DIRECTORY "${GIT_REPO_ROOT}"
+    OUTPUT_VARIABLE GIT_REPO_VERSION
+    ERROR_QUIET)
 
 string(STRIP "${GIT_REPO_VERSION}" GIT_REPO_VERSION)
+
+# If git command failed or we're not in a git repository, use a default version
+if(NOT GIT_REPO_VERSION)
+    set(GIT_REPO_VERSION "dev")
+endif()
 
 configure_file("GitVersion.h.in" "GitVersion.h")
