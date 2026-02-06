@@ -384,6 +384,17 @@ static bool isCommercialPlan() {
   Util::CloudCredentialtorage &credentialStorage =
       Util::CloudCredentialtorage::getInstance();
 
+  QString username;
+  qint64 creationTime = -1;
+  qint64 expirationTime = -1;
+  if (!credentialStorage.getCredentialsInfo(username, creationTime,
+                                            expirationTime)) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to get creation time for checking commercial plan.");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   QString jwt;
   if (!credentialStorage.getJWT(jwt)) {
     LOG_ERROR(Log::ErrorId::Git,
@@ -393,10 +404,15 @@ static bool isCommercialPlan() {
   }
 
   const Util::JWTDecoder::Claims claims = Util::JWTDecoder::decodeClaims(jwt);
+  const qint64 now = QDateTime::currentMSecsSinceEpoch();
+  const bool creationTimeInTheFuture = creationTime > now;
+  const bool storageExpired = expirationTime < now;
+  const bool jwtExpired = claims.exp < now;
 
   LOG_PERF(0, "Exit");
 
-  return claims.plan == "Pro" || claims.plan == "Business";
+  return !creationTimeInTheFuture && !storageExpired && !jwtExpired &&
+         (claims.plan == "Pro" || claims.plan == "Business");
 }
 
 GitError getLastError() {

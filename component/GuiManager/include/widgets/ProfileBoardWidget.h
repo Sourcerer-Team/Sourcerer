@@ -90,6 +90,9 @@ private:
 
   void tryRefreshExpiredCredentials();
 
+  void hideSigninWidgets();
+  void showSigninWidgets();
+
 private:
   Ui::ProfileBoardWidget *ui;
   int _arrowX; // Default center

@@ -154,12 +154,7 @@ void ProfileBoardWidget::updatePageForLoginState() {
     ui->pushButtonSignout->setVisible(false);
 
     // Ensure signin form widgets are visible
-    ui->labelSigninIcon->show();
-    ui->labelSigninTitle->show();
-    ui->lineEditSigninUser->show();
-    ui->lineEditSigninPassword->show();
-    ui->pushButtonSigninSubmit->show();
-    ui->labelSignupLink->show();
+    showSigninWidgets();
 
     ui->lineEditSigninUser->setFocus();
   }
@@ -206,12 +201,7 @@ void ProfileBoardWidget::doLogin(const QString &user, const QString &password) {
   // Dummy login: just set login state if user and password are non-empty
   if (!user.isEmpty() && !password.isEmpty()) {
     // Hide form widgets and show spinner
-    ui->labelSigninIcon->hide();
-    ui->labelSigninTitle->hide();
-    ui->lineEditSigninUser->hide();
-    ui->lineEditSigninPassword->hide();
-    ui->pushButtonSigninSubmit->hide();
-    ui->labelSignupLink->hide();
+    hideSigninWidgets();
 
     if (_signinSpinner) {
       _signinSpinner->start();
@@ -583,6 +573,34 @@ void ProfileBoardWidget::tryRefreshExpiredCredentials() {
   LOG_PERF(0, "Exit");
 }
 
+void ProfileBoardWidget::hideSigninWidgets()
+{
+  LOG_PERF(0, "Enter");
+
+  ui->labelSigninIcon->hide();
+  ui->labelSigninTitle->hide();
+  ui->lineEditSigninUser->hide();
+  ui->lineEditSigninPassword->hide();
+  ui->pushButtonSigninSubmit->hide();
+  ui->labelSignupLink->hide();
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProfileBoardWidget::showSigninWidgets()
+{
+  LOG_PERF(0, "Enter");
+
+  ui->labelSigninIcon->show();
+  ui->labelSigninTitle->show();
+  ui->lineEditSigninUser->show();
+  ui->lineEditSigninPassword->show();
+  ui->pushButtonSigninSubmit->show();
+  ui->labelSignupLink->show();
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProfileBoardWidget::onCloudSigninSuccess(const QString &email,
                                               const QString &password,
                                               const QString &accessToken,
@@ -625,6 +643,7 @@ void ProfileBoardWidget::onCloudSigninSuccess(const QString &email,
 
   // Switch to profiles page
   updatePageForLoginState();
+
   LOG_PERF(0, "Exit");
 }
 
@@ -638,20 +657,24 @@ void ProfileBoardWidget::onCloudSigninFailed(const QString &email,
     _signinSpinner->stop();
   }
 
-  ui->labelSigninIcon->show();
-  ui->labelSigninTitle->show();
-  ui->lineEditSigninUser->show();
-  ui->lineEditSigninPassword->show();
-  ui->pushButtonSigninSubmit->show();
-  ui->labelSignupLink->show();
+  showSigninWidgets();
 
-  ui->labelSigninError->setText("Login failed: " + errorMessage);
+  if(ui->stackedWidget->currentWidget() == ui->pageSignin) {
+    ui->labelSigninError->setText("Login failed: " + errorMessage);
+  }
+
+  ui->stackedWidget->setCurrentWidget(ui->pageSignin);
 
   // Prefill email for retry
   if (!email.isEmpty()) {
     ui->lineEditSigninUser->setText(email);
     ui->lineEditSigninPassword->setFocus();
+    ui->lineEditSigninPassword->selectAll();
   }
+
+  _userFirstName.clear();
+  _userLastName.clear();
+  _plan = "Community";
 
   LOG_PERF(0, "Exit");
 }
@@ -666,19 +689,17 @@ void ProfileBoardWidget::onCloudSigninError(const QString &email,
     _signinSpinner->stop();
   }
 
-  ui->labelSigninIcon->show();
-  ui->labelSigninTitle->show();
-  ui->lineEditSigninUser->show();
-  ui->lineEditSigninPassword->show();
-  ui->pushButtonSigninSubmit->show();
-  ui->labelSignupLink->show();
+  showSigninWidgets();
 
-  ui->labelSigninError->setText("Login error");
+  if(ui->stackedWidget->currentWidget() == ui->pageSignin) {
+    ui->labelSigninError->setText("Login error");
+  }
 
   // Prefill email for retry
   if (!email.isEmpty()) {
     ui->lineEditSigninUser->setText(email);
     ui->lineEditSigninPassword->setFocus();
+    ui->lineEditSigninPassword->selectAll();
   }
 
   LOG_PERF(0, "Exit");
