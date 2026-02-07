@@ -228,6 +228,7 @@ include(../../cmake/helpers.cmake)
 
 includeComponent(GuiManager ComponentManager)
 includeComponent(GuiManager ConfigManager)
+includeComponent(GuiManager GitRepoManager)
 includeComponent(GuiManager StylesheetManager)
 
 includeLib(GuiManager Common)

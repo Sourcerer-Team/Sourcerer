@@ -326,6 +326,18 @@ void ProfileBoardWidget::onButtonBackClicked() {
 
   ui->stackedWidget->setCurrentIndex(static_cast<int>(ScreenType::Profiles));
 
+  const QVector<Common::UserProfile> profiles = _userProfileManager.profiles();
+
+  ui->pushButtonEdit->setVisible(!profiles.isEmpty());
+  ui->pushButtonRemove->setVisible(!profiles.isEmpty());
+
+  if (profiles.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  selectCurrentProfile();
+
   LOG_PERF(0, "Exit");
 }
 
@@ -470,12 +482,6 @@ void ProfileBoardWidget::onListItemClicked(const QModelIndex &index) {
 
   fillProfiles();
 
-  const QModelIndex selectedIndex = _model->index(profileIndex, 0);
-
-  ui->listViewProfiles->setCurrentIndex(selectedIndex);
-  ui->listViewProfiles->selectionModel()->select(selectedIndex,
-                                                 QItemSelectionModel::Select);
-
   resetButtons();
 
   LOG_PERF(0, "Exit");
@@ -501,6 +507,20 @@ void ProfileBoardWidget::fillProfiles() {
   }
 
   ui->listViewProfiles->setModel(_model);
+
+  selectCurrentProfile();
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProfileBoardWidget::selectCurrentProfile() {
+  LOG_PERF(0, "Enter");
+
+  const int currentIndex = _userProfileManager.currentIndex();
+  const QModelIndex selectedIndex = _model->index(currentIndex, 0);
+  ui->listViewProfiles->setCurrentIndex(selectedIndex);
+  ui->listViewProfiles->selectionModel()->select(selectedIndex,
+                                                 QItemSelectionModel::Select);
 
   LOG_PERF(0, "Exit");
 }

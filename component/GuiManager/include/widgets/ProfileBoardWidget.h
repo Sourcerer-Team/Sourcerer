@@ -83,6 +83,7 @@ private:
   enum class OperationType { Unknown = 0, Add, Edit, last };
 
   void fillProfiles();
+  void selectCurrentProfile();
   void resetButtons();
 
   bool validateEmail(const QString &email, QString &errorMsg) const;
