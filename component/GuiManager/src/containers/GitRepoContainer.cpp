@@ -2359,7 +2359,7 @@ void GitRepoContainer::setUpstream(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString(QString("%1\n%2").arg(
-                         tr("Failed to set upstream."), error.message)),
+                         tr("Failed to set upstream."), translateGitError(error.error))),
                      tr("Error"));
     });
 
@@ -2440,7 +2440,7 @@ void GitRepoContainer::stash(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to stash changes."), error.message),
+          QString("%1\n%2").arg(tr("Failed to stash changes."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -3333,7 +3333,7 @@ void GitRepoContainer::abortMerge(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to abort merge."), error.message),
+          QString("%1\n%2").arg(tr("Failed to abort merge."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -3408,7 +3408,7 @@ void GitRepoContainer::addSubmodule(const WeakPtr &guard, const QString &url,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to add submodule."), error.message),
+          QString("%1\n%2").arg(tr("Failed to add submodule."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -3482,7 +3482,7 @@ void GitRepoContainer::amend(const WeakPtr &guard, const QString &summary,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to amend changes."), error.message),
+          QString("%1\n%2").arg(tr("Failed to amend changes."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -3573,7 +3573,7 @@ void GitRepoContainer::applyPatch(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to apply patch."), error.message),
+          QString("%1\n%2").arg(tr("Failed to apply patch."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -3646,7 +3646,7 @@ void GitRepoContainer::applyStash(
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to apply stash."), error.message),
+          QString("%1\n%2").arg(tr("Failed to apply stash."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -3743,7 +3743,7 @@ void GitRepoContainer::checkoutBranch(
         showSpinnerOverlay(false);
         showErrorToast(QString("%1 %2\n%3")
                            .arg(tr("Failed to checkout branch."),
-                                additionalClarificationMessage, error.message),
+                                additionalClarificationMessage, translateGitError(error.error)),
                        tr("Error"));
       });
 
@@ -3831,7 +3831,7 @@ void GitRepoContainer::checkoutCommit(const WeakPtr &guard,
       showSpinnerOverlay(false);
       showErrorToast(QString("%1 %2\n%3")
                          .arg(tr("Failed to checkout commit."),
-                              additionalClarificationMessage, error.message),
+                              additionalClarificationMessage, translateGitError(error.error)),
                      tr("Error"));
     });
 
@@ -3935,7 +3935,7 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString("%1\n%2").arg(
-                         tr("Failed to commit staged changes."), error.message),
+                         tr("Failed to commit staged changes."), translateGitError(error.error)),
                      tr("Error"));
     });
 
@@ -4017,7 +4017,7 @@ void GitRepoContainer::createBranchFromCommit(
       showSpinnerOverlay(false);
       showErrorToast(
           QString("%1\n%2").arg(tr("Failed to create branch from commit."),
-                                error.message),
+                                translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -4083,7 +4083,7 @@ void GitRepoContainer::createPatchFromCommit(const WeakPtr &guard,
       showSpinnerOverlay(false);
       showErrorToast(
           QString("%1\n%2").arg(tr("Failed to create patch from commit."),
-                                error.message),
+                                translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -4181,7 +4181,7 @@ void GitRepoContainer::createTagFromCommit(const WeakPtr &guard,
       showSpinnerOverlay(false);
       showErrorToast(
           QString("%1\n%2").arg(tr("Failed to create tag from commit."),
-                                error.message),
+                                translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -4243,7 +4243,7 @@ void GitRepoContainer::deleteBranch(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to delete branch."), error.message),
+          QString("%1\n%2").arg(tr("Failed to delete branch."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -4358,7 +4358,7 @@ void GitRepoContainer::deleteStash(
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to delete stash."), error.message),
+          QString("%1\n%2").arg(tr("Failed to delete stash."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -4434,7 +4434,7 @@ void GitRepoContainer::deleteTag(const WeakPtr &guard, const QString &tagName) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to delete tag."), error.message),
+          QString("%1\n%2").arg(tr("Failed to delete tag."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -4507,7 +4507,7 @@ void GitRepoContainer::openSubmodule(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString("%1\n%2").arg(tr("Failed to get submodule path."),
-                                           error.message),
+                                           translateGitError(error.error)),
                      tr("Error"));
     });
 
@@ -4599,7 +4599,7 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString("%1\n%2").arg(tr("Failed to delete submodule."),
-                                           error.message),
+                                           translateGitError(error.error)),
                      tr("Error"));
     });
 
@@ -4684,7 +4684,7 @@ inline void GitRepoContainer::diff(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString("%1\n%2").arg(tr("Failed to create file diff."),
-                                           error.message),
+                                           translateGitError(error.error)),
                      tr("Error"));
     });
 
@@ -4814,7 +4814,7 @@ void GitRepoContainer::diffThreeWay(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString("%1\n%2").arg(tr("Failed to create file diff."),
-                                           error.message),
+                                           translateGitError(error.error)),
                      tr("Error"));
     });
 
@@ -4913,7 +4913,7 @@ void GitRepoContainer::diffFromCommit(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString("%1\n%2").arg(tr("Failed to create file diff."),
-                                           error.message),
+                                           translateGitError(error.error)),
                      tr("Error"));
     });
 
@@ -5036,7 +5036,7 @@ void GitRepoContainer::diffFiles(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString("%1\n%2").arg(tr("Failed to create diff file."),
-                                           error.message),
+                                           translateGitError(error.error)),
                      tr("Error"));
     });
 
@@ -5126,7 +5126,7 @@ void GitRepoContainer::discardFiles(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString("%1\n%2").arg(tr("Failed to discard file(s)."),
-                                           error.message),
+                                           translateGitError(error.error)),
                      tr("Error"));
     });
 
@@ -5203,7 +5203,7 @@ bool GitRepoContainer::getActiveBranchOrTag(
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showErrorToast(
           QString("%1\n%2").arg(
-              tr("Failed to retrieve the active local branch."), error.message),
+              tr("Failed to retrieve the active local branch."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -5300,7 +5300,7 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
       showErrorToast(
           QString("%1 %2\n%3")
               .arg(tr("Failed to retrieve the history of branch %1."),
-                   _activeBranch, error.message),
+                   _activeBranch, translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -5352,7 +5352,7 @@ bool GitRepoContainer::getBranchHistory(const WeakPtr &guard) {
       showSpinnerOverlay(false);
       showErrorToast(
           QString("%1\n%2").arg(tr("Failed to retrieve the repository status."),
-                                error.message),
+                                translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -5639,7 +5639,7 @@ bool GitRepoContainer::getLocalBranches() {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showErrorToast(QString("%1\n%2").arg(
                          tr("Failed to retrieve the list of local branches."),
-                         error.message),
+                         translateGitError(error.error)),
                      tr("Error"));
     });
 
@@ -5702,7 +5702,7 @@ bool GitRepoContainer::getRemoteBranches() {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showErrorToast(QString("%1\n%2").arg(
                          tr("Failed to retrieve the list of remote branches."),
-                         error.message),
+                         translateGitError(error.error)),
                      tr("Error"));
     });
 
@@ -5763,7 +5763,7 @@ bool GitRepoContainer::getStashes(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showErrorToast(
           QString("%1\n%2").arg(tr("Failed to retrieve the list of stashes."),
-                                error.message),
+                                translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -5826,7 +5826,7 @@ bool GitRepoContainer::getSubmodules() {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showErrorToast(
           QString("%1\n%2").arg(
-              tr("Failed to retrieve the list of submodules."), error.message),
+              tr("Failed to retrieve the list of submodules."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -5887,7 +5887,7 @@ bool GitRepoContainer::getTags() {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showErrorToast(
           QString("%1\n%2").arg(tr("Failed to retrieve the list of tags."),
-                                error.message),
+                                translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -6010,7 +6010,7 @@ QPair<QString, QString> GitRepoContainer::getUpstream(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to get upstream."), error.message),
+          QString("%1\n%2").arg(tr("Failed to get upstream."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -6190,7 +6190,7 @@ void GitRepoContainer::merge(const WeakPtr &guard, const QString &sourceBranch,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to merge branches."), error.message),
+          QString("%1\n%2").arg(tr("Failed to merge branches."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -6308,7 +6308,7 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString(tr("Failed to pull from remote.\n%1")).arg(error.message),
+          QString(tr("Failed to pull from remote.\n%1")).arg(translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -6377,7 +6377,7 @@ void GitRepoContainer::push(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString(tr("Failed to push to remote.\n%1")).arg(error.message),
+          QString(tr("Failed to push to remote.\n%1")).arg(translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -6397,7 +6397,7 @@ void GitRepoContainer::push(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString(tr("Failed to pull from remote.\n%1")).arg(error.message),
+          QString(tr("Failed to pull from remote.\n%1")).arg(translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -6456,7 +6456,7 @@ void GitRepoContainer::renameBranch(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to rename branch"), error.message),
+          QString("%1\n%2").arg(tr("Failed to rename branch"), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -6527,7 +6527,7 @@ void GitRepoContainer::renameTag(const WeakPtr &guard, const QString &oldName,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to rename tag"), error.message),
+          QString("%1\n%2").arg(tr("Failed to rename tag"), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -6813,7 +6813,7 @@ void GitRepoContainer::refreshStatus(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showErrorToast(
           QString("%1\n%2").arg(tr("Failed to retrieve the repository status."),
-                                error.message),
+                                translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -7084,7 +7084,7 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
       showSpinnerOverlay(false);
       showErrorToast(
           QString("%1\n%2").arg(tr("Failed to get merge progress status."),
-                                error.message),
+                                translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -7337,7 +7337,7 @@ void GitRepoContainer::stageFiles(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to stage files."), error.message),
+          QString("%1\n%2").arg(tr("Failed to stage files."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -7438,7 +7438,7 @@ void GitRepoContainer::unstageFiles(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to unstage files."), error.message),
+          QString("%1\n%2").arg(tr("Failed to unstage files."), translateGitError(error.error)),
           tr("Error"));
     });
 
@@ -7675,7 +7675,7 @@ void GitRepoContainer::updateSubmodule(const WeakPtr &guard,
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString("%1\n%2").arg(tr("Failed to update submodule."),
-                                           error.message),
+                                           translateGitError(error.error)),
                      tr("Error"));
     });
 

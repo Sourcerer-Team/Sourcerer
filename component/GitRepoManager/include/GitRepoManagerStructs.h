@@ -593,6 +593,18 @@ struct GitRepoError {
   int error = -1;
 };
 
+/**
+ * @brief Translates a libgit2 error code into a user-friendly error message.
+ *
+ * This function takes the combined error code (containing both the error class
+ * and the libgit2 error code) and returns a localized, user-friendly
+ * description of the error.
+ *
+ * @param errorCode The combined error code from GitRepoError::error
+ * @return QString A translated, user-friendly error message
+ */
+QString translateGitError(int errorCode);
+
 struct GitRepoResult {
   QString uuid;
   GitRepoCommandType type = GitRepoCommandType::Unknown;
