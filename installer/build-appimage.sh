@@ -11,24 +11,11 @@ else
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 fi
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_ROOT/src/build/Installer-Linux"
+BUILD_DIR="$PROJECT_ROOT/build/Release"
 APPDIR="$SCRIPT_DIR/Sourcerer.AppDir"
 OUTPUT_DIR="$SCRIPT_DIR"
 
-# Extract version from config.xml
-CONFIG_FILE="$SCRIPT_DIR/config/config.xml"
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Error: Config file not found at $CONFIG_FILE"
-    exit 1
-fi
-
-VERSION=$(sed -n 's/.*<Version>\([^<]\+\)<\/Version>.*/\1/p' "$CONFIG_FILE")
-if [ -z "$VERSION" ]; then
-    echo "Error: Could not extract version from $CONFIG_FILE"
-    exit 1
-fi
-
-echo "Building AppImage for Sourcerer version $VERSION..."
+echo "Building AppImage for Sourcerer..."
 
 # Clean previous AppDir
 rm -rf "$APPDIR"
@@ -457,8 +444,8 @@ fi
 rm -rf "$APPDIR"
 
 echo ""
-echo "AppImage created successfully: $OUTPUT_DIR/Sourcerer-${VERSION}-x86_64.AppImage"
+echo "AppImage created successfully: $OUTPUT_DIR/Sourcerer-Installer.AppImage"
 echo ""
 echo "To test the AppImage, run:"
-echo "  chmod +x Sourcerer-${VERSION}-x86_64.AppImage"
-echo "  ./Sourcerer-${VERSION}-x86_64.AppImage"
+echo "  chmod +x Sourcerer-Installer.AppImage"
+echo "  ./Sourcerer-Installer.AppImage"

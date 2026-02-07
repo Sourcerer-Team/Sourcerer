@@ -1,39 +1,25 @@
 # Docker-based Linux installer builder for Sourcerer (PowerShell)
 # This script runs on Windows to build Linux installer and/or AppImage using Docker
 # Usage:
-#   .\build-installer-docker.ps1                    - Build Qt IFW installer only
-#   .\build-installer-docker.ps1 -AppImage          - Build AppImage only
-#   .\build-installer-docker.ps1 -Both              - Build both formats
+#   .\build-installer-docker.ps1                    - Build AppImage
 #   .\build-installer-docker.ps1 -Rebuild           - Rebuild Docker image first
 #   .\build-installer-docker.ps1 --rebuild          - Rebuild Docker image first (GNU style)
 
 param(
     [switch]$Rebuild,
-    [switch]$AppImage,
-    [switch]$Both
+    [switch]$AppImage
 )
 
 # Support GNU-style --arguments in addition to PowerShell -Arguments
 foreach ($arg in $args) {
     if ($arg -eq "--rebuild") { $Rebuild = $true }
-    if ($arg -eq "--appimage") { $AppImage = $true }
-    if ($arg -eq "--both") { $Both = $true }
 }
 
 $ErrorActionPreference = "Stop"
 
 # Determine build mode
-$BuildMode = ""
-if ($AppImage) {
-    $BuildMode = "--appimage"
-    $BuildDescription = "AppImage"
-} elseif ($Both) {
-    $BuildMode = "--both"
-    $BuildDescription = "Qt IFW installer and AppImage"
-} else {
-    $BuildMode = ""
-    $BuildDescription = "Qt IFW installer"
-}
+$BuildMode = "--appimage"
+$BuildDescription = "AppImage"
 
 # Script directory
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -125,7 +111,7 @@ docker run --rm `
     -v "${MountPath}:/workspace" `
     -w /workspace/installer `
     $ImageName `
-    bash -c "git config --global --add safe.directory /workspace && dos2unix < build-installer.sh | bash -s -- $BuildMode"
+    bash -c "git config --global --add safe.directory /workspace && dos2unix < build-installer.sh | bash -s --"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "=== Build failed ===" -ForegroundColor Red
@@ -136,37 +122,19 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "=== Checking build artifacts ===" -ForegroundColor Blue
 
-$installers = @()
 $appimages = @()
 
-# Check for Qt IFW installers (.run files for Linux)
-$runPattern = "Sourcerer-*.run"
-$runFiles = Get-ChildItem -Path $InstallerDir -Filter $runPattern -ErrorAction SilentlyContinue
-if ($runFiles) {
-    $installers += $runFiles
-}
-
 # Check for AppImages
-$appimagePattern = "Sourcerer-*-x86_64.AppImage"
+$appimagePattern = "Sourcerer-installer.AppImage"
 $appimageFiles = Get-ChildItem -Path $InstallerDir -Filter $appimagePattern -ErrorAction SilentlyContinue
 if ($appimageFiles) {
     $appimages += $appimageFiles
 }
 
 # Display results
-if ($installers.Count -gt 0 -or $appimages.Count -gt 0) {
+if ($appimages.Count -gt 0) {
     Write-Host "=== Success! ===" -ForegroundColor Green
     Write-Host ""
-    
-    if ($installers.Count -gt 0) {
-        Write-Host "Qt IFW Installer(s):" -ForegroundColor Green
-        $installers | ForEach-Object { 
-            $sizeMB = [math]::Round($_.Length/1MB, 2)
-            Write-Host "  $($_.Name) ($sizeMB MB)" -ForegroundColor White
-            Write-Host "  Path: $($_.FullName)" -ForegroundColor Gray
-        }
-        Write-Host ""
-    }
     
     if ($appimages.Count -gt 0) {
         Write-Host "AppImage(s):" -ForegroundColor Green
@@ -183,7 +151,6 @@ if ($installers.Count -gt 0 -or $appimages.Count -gt 0) {
 } else {
     Write-Host "=== Build failed - no artifacts found ===" -ForegroundColor Red
     Write-Host "Expected to find files matching:" -ForegroundColor Yellow
-    Write-Host "  - $installerPattern" -ForegroundColor Yellow
     Write-Host "  - $appimagePattern" -ForegroundColor Yellow
     exit 1
 }

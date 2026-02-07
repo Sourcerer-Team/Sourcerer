@@ -8,62 +8,17 @@
 set -e
 
 # Parse command line arguments
-BUILD_QT_IFW=false
 BUILD_APPIMAGE=true
-
-if [[ "$1" == "--appimage" ]]; then
-    BUILD_QT_IFW=false
-    BUILD_APPIMAGE=true
-elif [[ "$1" == "--ifw" ]]; then
-    BUILD_QT_IFW=true
-    BUILD_APPIMAGE=false
-elif [[ "$1" == "--both" ]]; then
-    BUILD_QT_IFW=true
-    BUILD_APPIMAGE=true
-fi
-
-# Detect OS
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    OS_TYPE="macos"
-    INSTALLER_SUFFIX="macOS"
-    QT_IFW_DIR="/usr/local/Qt/QtIFW-4.0.0"
-else
-    OS_TYPE="linux"
-    INSTALLER_SUFFIX="Linux"
-    QT_IFW_DIR="$HOME/Qt/Tools/QtInstallerFramework/4.10"
-fi
 
 # Set paths
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_ROOT/src/build/Installer-Linux"
+BUILD_DIR="$PROJECT_ROOT/build/Release"
 RELEASE_DIR="$BUILD_DIR"
 INSTALLER_DIR="$SCRIPT_DIR"
 DATA_DIR="$INSTALLER_DIR/packages/com.sourcerer.app/data"
 
-# Extract version from config.xml
-CONFIG_FILE="$INSTALLER_DIR/config/config.xml"
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "Error: Config file not found at $CONFIG_FILE"
-    exit 1
-fi
-
-VERSION=$(grep -oP '(?<=<Version>)[^<]+' "$CONFIG_FILE")
-if [ -z "$VERSION" ]; then
-    echo "Error: Could not extract version from $CONFIG_FILE"
-    exit 1
-fi
-
 echo "Building installer for version $VERSION..."
-
-# Check if Qt IFW is installed (only if we need it)
-if [ "$BUILD_QT_IFW" = true ]; then
-    if [ ! -f "$QT_IFW_DIR/bin/binarycreator" ]; then
-        echo "Error: Qt Installer Framework not found at $QT_IFW_DIR"
-        echo "Please install Qt IFW 4.0 or update QT_IFW_DIR path"
-        exit 1
-    fi
-fi
 
 # Build release version
 echo "Building Sourcerer release version..."
@@ -72,7 +27,7 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 echo "Running CMake configuration..."
-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ../../../src
+cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ../../src
 if [ $? -ne 0 ]; then
     echo "Error: CMake configuration failed"
     exit 1
@@ -233,16 +188,6 @@ EOF
         echo "Warning: Icon file not found at $ICON_SOURCE"
     fi
 
-fi
-
-# Create Qt IFW installer
-if [ "$BUILD_QT_IFW" = true ]; then
-    echo "Creating Qt Installer Framework installer..."
-    cd "$INSTALLER_DIR"
-    "$QT_IFW_DIR/bin/binarycreator" -c config/config.xml -p packages "Sourcerer-${VERSION}-${INSTALLER_SUFFIX}-Installer.run"
-    
-    echo ""
-    echo "Qt IFW Installer created successfully: $INSTALLER_DIR/Sourcerer-${VERSION}-${INSTALLER_SUFFIX}-Installer.run"
 fi
 
 # Create AppImage

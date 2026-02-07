@@ -1,15 +1,12 @@
 #!/bin/bash
 # Docker-based Linux installer builder for Sourcerer
 # Usage:
-#   ./build-installer-docker.sh                    - Build Qt IFW installer only
-#   ./build-installer-docker.sh --appimage         - Build AppImage only
-#   ./build-installer-docker.sh --both             - Build both formats
+#   ./build-installer-docker.sh                    - Build AppImage only
 #   ./build-installer-docker.sh --rebuild          - Rebuild Docker image first
 
 set -e
 
 # Parse arguments
-BUILD_MODE=""
 REBUILD=false
 
 for arg in "$@"; do
@@ -17,23 +14,10 @@ for arg in "$@"; do
         --rebuild)
             REBUILD=true
             ;;
-        --appimage|--ifw|--both)
-            BUILD_MODE="$arg"
-            ;;
     esac
 done
 
-# Determine what we're building
-if [ "$BUILD_MODE" == "--appimage" ]; then
-    BUILD_DESC="AppImage"
-elif [ "$BUILD_MODE" == "--ifw" ]; then
-    BUILD_DESC="Qt IFW installer"
-elif [ "$BUILD_MODE" == "--both" ]; then
-    BUILD_DESC="Qt IFW installer and AppImage"
-else
-    BUILD_MODE="--appimage"
-    BUILD_DESC="AppImage (default)"
-fi
+BUILD_DESC="AppImage (default)"
 
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -112,7 +96,7 @@ docker run --rm \
         cd /workspace/installer
         
         # Run the build-installer.sh script with build mode
-        bash ./build-installer.sh $BUILD_MODE
+        bash ./build-installer.sh
         
         echo '=== Build Complete ==='
         echo 'Build artifacts:'
@@ -132,22 +116,14 @@ echo -e "${BLUE}=== Checking build artifacts ===${NC}"
 INSTALLER_FOUND=false
 APPIMAGE_FOUND=false
 
-# Check for Qt IFW installers
-if ls "$PROJECT_ROOT/installer"/Sourcerer-*-Linux-Installer* 1> /dev/null 2>&1; then
-    INSTALLER_FOUND=true
-    echo -e "${GREEN}Qt IFW Installer(s):${NC}"
-    ls -lh "$PROJECT_ROOT/installer"/Sourcerer-*-Linux-Installer*
-    echo ""
-fi
-
 # Check for AppImages
-if ls "$PROJECT_ROOT/installer"/Sourcerer-*-x86_64.AppImage 1> /dev/null 2>&1; then
+if ls "$PROJECT_ROOT/installer"/Sourcerer-Installer.AppImage 1> /dev/null 2>&1; then
     APPIMAGE_FOUND=true
     echo -e "${GREEN}AppImage(s):${NC}"
-    ls -lh "$PROJECT_ROOT/installer"/Sourcerer-*-x86_64.AppImage
+    ls -lh "$PROJECT_ROOT/installer"/Sourcerer-Installer.AppImage
     echo ""
     echo -e "${YELLOW}To use the AppImage on Linux:${NC}"
-    APPIMAGE_NAME=$(ls "$PROJECT_ROOT/installer"/Sourcerer-*-x86_64.AppImage | head -1 | xargs basename)
+    APPIMAGE_NAME=$(ls "$PROJECT_ROOT/installer"/Sourcerer-Installer.AppImage | head -1 | xargs basename)
     echo -e "  chmod +x $APPIMAGE_NAME"
     echo -e "  ./$APPIMAGE_NAME"
     echo ""

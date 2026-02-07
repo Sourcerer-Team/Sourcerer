@@ -17,11 +17,11 @@ The Docker setup provides consistent build environments with all necessary depen
 - Windows Server Core 2022 base
 - Qt 6.10.1 (MinGW 64-bit) - Qt framework and tools
 - Qt MinGW 13.1.0 64-bit - Compiler and build tools (gcc, g++, mingw32-make)
-- Qt Installer Framework 4.8
-- MSYS2 (installed via Chocolatey at C:\tools\msys64) - Provides runtime libraries only (libgit2, libzip, libssh2, openssl)
+- WiX Toolset v3.14 - MSI installer generation (replaces Qt IFW)
+- MSYS2 (installed via Chocolatey at C:\tools\msys64) - Provides runtime libraries and compiler tools (libgit2, libzip, libssh2, openssl, gcc, make)
 - CMake, Git, 7-Zip, Python (via Chocolatey)
 
-**Note:** The build uses Qt's MinGW compiler, not MSYS2's compiler. MSYS2 is only for runtime libraries.
+**Note:** The build uses Qt's MinGW compiler, not MSYS2's compiler. MSYS2 provides runtime libraries.
 
 ## Files
 
@@ -112,13 +112,13 @@ The Docker setup provides consistent build environments with all necessary depen
 ### Windows Build Process
 1. Builds a Windows Docker image with all dependencies (first run only, or with --rebuild)
    - Installs Qt 6.10.1 via aqtinstall
-   - Installs Qt MinGW compiler tools (version 11.2.0)
-   - Installs Qt IFW 4.7
-   - Installs MSYS2 runtime libraries (not compiler)
+   - Installs Qt MinGW compiler tools
+   - Installs WiX Toolset v3.14 (for MSI generation)
+   - Installs MSYS2 runtime libraries and compiler tools
 2. Mounts the project directory into the container
 3. Builds Sourcerer in Release mode using Qt MinGW compiler
-4. Runs the build-installer.bat script
-5. Outputs the installer in the `installer/` directory
+4. Runs the build-installer-wix.bat script
+5. Outputs the MSI installer in the `installer/` directory
 
 ## Output
 
@@ -129,9 +129,9 @@ The installer will be created as:
 
 ### Windows Build
 The installer will be created as:
-- `installer/Sourcerer-X.Y.Z-Installer.exe`
+- `installer/Sourcerer-0.2.1-Installer.msi`
 
-Where X.Y.Z is the version from `installer/config/config.xml`
+The MSI format is Windows standard installer format compatible with Group Policy deployment and enterprise deployment tools.
 
 ## Troubleshooting
 

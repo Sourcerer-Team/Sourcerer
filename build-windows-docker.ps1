@@ -69,6 +69,7 @@ if ($Rebuild -or -not $imageExists) {
     }
     Write-Host "Building Docker image (this may take 30-60 minutes)..." -ForegroundColor Blue
     Write-Host "Note: Using aqtinstall to download Qt (no account credentials required)" -ForegroundColor Green
+    Write-Host "Note: Using WiX Toolset for MSI generation" -ForegroundColor Green
     
     docker build -t $ImageName -f "$DockerDir/Dockerfile.windows" $DockerDir
     
@@ -87,13 +88,77 @@ if (-not (Test-Path $InstallerDir)) {
 
 Write-Host "Running build in Docker container..." -ForegroundColor Blue
 
-# Run the build in Docker container
+# Run the complete build process in Docker container (build project + create installer)
 docker run --rm `
     --name $ContainerName `
     -v "${ProjectRoot}:C:\workspace" `
-    -w "C:\workspace\installer" `
+    -w "C:\workspace" `
     $ImageName `
-    powershell -Command "& { Set-Location C:\workspace\installer; .\build-installer.bat }"
+    powershell -Command @"
+    Write-Host 'Building Sourcerer project...' -ForegroundColor Blue
+
+    # Create build directory if it doesn't exist
+    if (-not (Test-Path 'C:\workspace\build\Release')) {
+        New-Item -ItemType Directory -Path 'C:\workspace\build\Release' -Force | Out-Null
+    }
+    
+    # Set environment variables for CMake build
+    `$env:MSYS64_DIR = 'C:\tools\msys64'
+    `$env:LIBGIT2_INCLUDEDIR = 'C:\tools\msys64\mingw64\include'
+    `$env:LIBGIT2_LIBDIR = 'C:\tools\msys64\mingw64\lib'
+    `$env:LIBZIP_INCLUDEDIR = 'C:\tools\msys64\mingw64\include'
+    `$env:LIBZIP_LIBDIR = 'C:\tools\msys64\mingw64\lib'
+    `$env:OPENSSL_ROOT_DIR = 'C:\tools\msys64\mingw64'
+    `$env:CMAKE_PREFIX_PATH = 'C:\tools\msys64\mingw64'
+    
+    Write-Host 'Environment variables set:' -ForegroundColor Green
+    Write-Host "  LIBGIT2_INCLUDEDIR = `$(`$env:LIBGIT2_INCLUDEDIR)" -ForegroundColor Gray
+    Write-Host "  LIBGIT2_LIBDIR = `$(`$env:LIBGIT2_LIBDIR)" -ForegroundColor Gray
+    Write-Host "  LIBZIP_INCLUDEDIR = `$(`$env:LIBZIP_INCLUDEDIR)" -ForegroundColor Gray
+    Write-Host "  LIBZIP_LIBDIR = `$(`$env:LIBZIP_LIBDIR)" -ForegroundColor Gray
+    Write-Host "  OPENSSL_ROOT_DIR = `$(`$env:OPENSSL_ROOT_DIR)" -ForegroundColor Gray
+    Write-Host "  CMAKE_PREFIX_PATH = `$(`$env:CMAKE_PREFIX_PATH)" -ForegroundColor Gray
+    
+    # Use MSYS2 bash for building with proper pthread/compiler compatibility
+    Write-Host 'Building via MSYS2 bash shell...' -ForegroundColor Blue
+    `$msys2Bash = 'C:\tools\msys64\usr\bin\bash.exe'
+    
+    & `$msys2Bash -lc 'export PATH=/c/tools/msys64/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin && cd /c/workspace/build/Release && cmake ../../src -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build . --parallel 4'
+    
+    if (`$LASTEXITCODE -ne 0) {
+        Write-Host 'Project build failed' -ForegroundColor Red
+        exit 1
+    }
+    
+    Write-Host 'Project built successfully' -ForegroundColor Green
+    
+    # Copy MSYS2 runtime libraries to Release directory
+    Write-Host 'Copying MSYS2 runtime libraries...' -ForegroundColor Blue
+    `$msys2RuntimeDlls = @(
+        'C:\tools\msys64\mingw64\bin\libstdc++-6.dll',
+        'C:\tools\msys64\mingw64\bin\libgcc_s_seh-1.dll',
+        'C:\tools\msys64\mingw64\bin\libwinpthread-1.dll',
+        'C:\tools\msys64\mingw64\bin\libc++-1.dll'
+    )
+    foreach (`$dll in `$msys2RuntimeDlls) {
+        if (Test-Path `$dll) {
+            Copy-Item `$dll 'C:\workspace\build\Release\' -Force
+            Write-Host "  Copied $(Split-Path `$dll -Leaf)" -ForegroundColor Gray
+        }
+    }
+       
+    Write-Host 'Creating installer...' -ForegroundColor Blue
+    
+    # Run installer build script
+    Set-Location C:\workspace\installer
+    .\build-installer-wix.bat
+    if (`$LASTEXITCODE -ne 0) {
+        Write-Host 'Installer build failed' -ForegroundColor Red
+        exit 1
+    }
+    
+    Write-Host 'Installer created successfully' -ForegroundColor Green
+"@
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "=== Build failed ===" -ForegroundColor Red
@@ -106,11 +171,11 @@ Write-Host "=== Checking build artifacts ===" -ForegroundColor Blue
 
 $installers = @()
 
-# Check for Windows installers (.exe files)
-$exePattern = "Sourcerer-*.exe"
-$exeFiles = Get-ChildItem -Path $InstallerDir -Filter $exePattern -ErrorAction SilentlyContinue
-if ($exeFiles) {
-    $installers += $exeFiles
+# Check for Windows MSI installers
+$msiPattern = "Sourcerer-*.msi"
+$msiFiles = Get-ChildItem -Path $InstallerDir -Filter $msiPattern -ErrorAction SilentlyContinue
+if ($msiFiles) {
+    $installers += $msiFiles
 }
 
 # Display results
@@ -127,6 +192,6 @@ if ($installers.Count -gt 0) {
 } else {
     Write-Host "=== Build failed - no artifacts found ===" -ForegroundColor Red
     Write-Host "Expected to find files matching:" -ForegroundColor Yellow
-    Write-Host "  - $exePattern" -ForegroundColor Yellow
+    Write-Host "  - $msiPattern" -ForegroundColor Yellow
     exit 1
 }

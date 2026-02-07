@@ -19,6 +19,9 @@ public:
   explicit AboutDialog(QWidget *parent = nullptr);
   ~AboutDialog();
 
+private slots:
+  void onShowLicense();
+
 private:
   Ui::AboutDialog *ui;
   ConfigManager::ConfigManager &_configManager;
