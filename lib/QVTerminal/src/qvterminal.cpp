@@ -350,7 +350,8 @@ void QVTerminal::appendData(const QByteArray &data) {
 
           case 3:
             // Clear entire display and scrollback buffer (xterm extension)
-            // For QVTerminal, treat this the same as case 2 (clear entire display)
+            // For QVTerminal, treat this the same as case 2 (clear entire
+            // display)
             clear();
             break;
 
