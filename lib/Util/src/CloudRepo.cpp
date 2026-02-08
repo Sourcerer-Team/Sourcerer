@@ -60,7 +60,7 @@ QString CloudRepo::getMachineToken() const {
   const QByteArray hash =
       QCryptographicHash::hash(combined, QCryptographicHash::Sha256);
 
-  return QString::fromUtf8(hash.toHex());
+  return QString("%1:%2").arg(hostname, QString::fromUtf8(hash.toHex()));
 }
 
 QPair<QNetworkReply::NetworkError, QString>
