@@ -435,11 +435,12 @@ GitError getLastError() {
   LOG_DEBUG("Retrieving last error for current thread");
 
   LOCKGUARD(gErrorMutex);
-  
+
   const auto threadId = std::this_thread::get_id();
   if (gErrorMap.contains(threadId)) {
     const auto &error = gErrorMap[threadId];
-    LOG_DEBUG("Thread error code: {}, message: '{}'", error.errorCode, error.errorMessage.toStdString());
+    LOG_DEBUG("Thread error code: {}, message: '{}'", error.errorCode,
+              error.errorMessage.toStdString());
   } else {
     LOG_DEBUG("No error found for current thread");
   }
@@ -455,7 +456,8 @@ void initForCurrentThread() {
   const int numberOfCalls = git_libgit2_init();
 
   LOG_DEBUG("Number of initializations is {}", numberOfCalls);
-  LOG_DEBUG("libgit2 initialized successfully, total initialization count: {}", numberOfCalls);
+  LOG_DEBUG("libgit2 initialized successfully, total initialization count: {}",
+            numberOfCalls);
 
   // Get timeout values from ConfigManager
   ConfigManager::ConfigManager &configManager =
@@ -485,7 +487,8 @@ void shutdownForCurrentThread() {
   const int numberofRemaining = git_libgit2_shutdown();
 
   LOG_DEBUG("Number of remaining initializations is {}", numberofRemaining);
-  LOG_DEBUG("libgit2 shutdown complete, remaining init count: {}", numberofRemaining);
+  LOG_DEBUG("libgit2 shutdown complete, remaining init count: {}",
+            numberofRemaining);
 
   LOG_PERF(0, "Exit");
 }
@@ -507,7 +510,8 @@ bool applyStash(git_repository *repo, int index) {
   options.flags = GIT_STASH_APPLY_REINSTATE_INDEX; // restores index state
 
   if (const int error = git_stash_apply(repo, index, &options)) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to apply stash at index {}: error={}", index, error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to apply stash at index {}: error={}",
+              index, error);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
@@ -521,10 +525,13 @@ bool applyStash(git_repository *repo, int index) {
 bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
                     const BranchType type) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Attempting to checkout branch/tag: '{}', type: {}", branchOrTagName.toStdString(), static_cast<int>(type));
+  LOG_DEBUG("Attempting to checkout branch/tag: '{}', type: {}",
+            branchOrTagName.toStdString(), static_cast<int>(type));
 
   if (!repo) {
-    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null when checking out branch '{}'", branchOrTagName.toStdString());
+    LOG_ERROR(Log::ErrorId::Git,
+              "Repository pointer is null when checking out branch '{}'",
+              branchOrTagName.toStdString());
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -777,12 +784,14 @@ git_repository *openRepository(const QString &path) {
 
   git_repository *repo = nullptr;
 
-  if (const int error = git_repository_open(&repo, path.toStdString().c_str())) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to open repository at '{}': error={}", path.toStdString(), error);
+  if (const int error =
+          git_repository_open(&repo, path.toStdString().c_str())) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to open repository at '{}': error={}",
+              path.toStdString(), error);
     logGitError(error);
     return nullptr;
   }
-  
+
   LOG_DEBUG("Repository opened successfully at '{}'", path.toStdString());
 
   // Check if repository has no commits (HEAD is unborn)
@@ -1253,7 +1262,9 @@ bool deleteStash(git_repository *repo, int stashIndex) {
   LOG_DEBUG("Attempting to delete stash at index: {}", stashIndex);
 
   if (!repo) {
-    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null when deleting stash at index {}", stashIndex);
+    LOG_ERROR(Log::ErrorId::Git,
+              "Repository pointer is null when deleting stash at index {}",
+              stashIndex);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1952,7 +1963,8 @@ bool checkoutCommit(git_repository *repo, const QString &commit) {
 
   int error = git_oid_fromstr(&oid, commit.toStdString().c_str());
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to parse commit OID '{}': error={}", commit.toStdString(), error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to parse commit OID '{}': error={}",
+              commit.toStdString(), error);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
@@ -1960,7 +1972,8 @@ bool checkoutCommit(git_repository *repo, const QString &commit) {
 
   error = git_commit_lookup(&commit_, repo, &oid);
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup commit '{}': error={}", commit.toStdString(), error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup commit '{}': error={}",
+              commit.toStdString(), error);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
@@ -1970,7 +1983,8 @@ bool checkoutCommit(git_repository *repo, const QString &commit) {
   git_tree *tree = nullptr;
   error = git_commit_tree(&tree, commit_);
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to get tree from commit: error={}", error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get tree from commit: error={}",
+              error);
     logGitError(error);
     git_commit_free(commit_);
     LOG_PERF(0, "Exit");
@@ -1992,10 +2006,13 @@ bool checkoutCommit(git_repository *repo, const QString &commit) {
     return false;
   }
 
-  LOG_DEBUG("Setting HEAD to detached state at commit '{}'", commit.toStdString());
+  LOG_DEBUG("Setting HEAD to detached state at commit '{}'",
+            commit.toStdString());
   error = git_repository_set_head_detached(repo, &oid);
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to set HEAD detached to commit '{}': error={}", commit.toStdString(), error);
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to set HEAD detached to commit '{}': error={}",
+              commit.toStdString(), error);
     logGitError(error);
     git_tree_free(tree);
     git_commit_free(commit_);
@@ -2023,7 +2040,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   const QDir workingDir;
   const bool workingDirExisted = workingDir.exists(destinationDir);
   LOG_DEBUG("Destination directory already existed: {}", workingDirExisted);
-  
+
   if (!workingDir.mkpath(destinationDir)) {
     LOG_ERROR(Log::ErrorId::Git, "can't create destination dir '{}'",
               destinationDir.toStdString());
@@ -2034,8 +2051,9 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
 
   const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
   const bool commercial = isCommercialPlan();
-  LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema, commercial);
-  
+  LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
+            commercial);
+
   if (!commercial && gitSchema) {
     LOG_ERROR(Log::ErrorId::Git,
               "Cloning git@ repositories is not available on the free plan.");
@@ -2072,7 +2090,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   const int error =
       git_clone(&repo, url.toStdString().c_str(),
                 destinationDir.toStdString().c_str(), &clone_opts);
-  
+
   LOG_DEBUG("git_clone returned with error code: {}", error);
 
   if (credPayload.stage != CloneProgressStageType::Unknown) {
@@ -2084,26 +2102,31 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   }
 
   if (error || !repo) {
-    LOG_ERROR(Log::ErrorId::Git, "Clone failed: error code={}, repo pointer null={}", error, !repo);
+    LOG_ERROR(Log::ErrorId::Git,
+              "Clone failed: error code={}, repo pointer null={}", error,
+              !repo);
     invalidateCredentials(url);
 
     if (!workingDirExisted) {
       LOG_DEBUG("Cleaning up destination directory as clone failed");
       QDir dirToRemove(destinationDir);
       if (!dirToRemove.removeRecursively()) {
-        LOG_WARN("Failed to clean up destination directory after clone failure");
+        LOG_WARN(
+            "Failed to clean up destination directory after clone failure");
       }
     }
 
     logGitError(error);
-    LOG_ERROR(Log::ErrorId::Git, "Repository clone failed for URL: {}", url.toStdString());
+    LOG_ERROR(Log::ErrorId::Git, "Repository clone failed for URL: {}",
+              url.toStdString());
     LOG_PERF(0, "Exit");
     return false;
   }
 
   LOG_DEBUG("Repository cloned successfully");
   git_repository_free(repo);
-  LOG_INFO("Clone operation completed successfully for URL: {}", url.toStdString());
+  LOG_INFO("Clone operation completed successfully for URL: {}",
+           url.toStdString());
 
   LOG_PERF(0, "Exit");
   return true;
@@ -2112,7 +2135,8 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
 GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
                             const BranchType type, const bool &quitFlag) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Getting branch history: branchName='{}', type={}", branchName.toStdString(), static_cast<int>(type));
+  LOG_DEBUG("Getting branch history: branchName='{}', type={}",
+            branchName.toStdString(), static_cast<int>(type));
 
   Q_ASSERT(repo != nullptr);
 
@@ -2737,7 +2761,8 @@ GitStatus getStatus(git_repository *repo) {
   git_status_list *statusList = nullptr;
 
   if (const int error = git_status_list_new(&statusList, repo, &opts)) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to create status list: error={}", error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to create status list: error={}",
+              error);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return {};
@@ -3011,7 +3036,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
 bool stageFiles(git_repository *repo, const QStringList &files) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Staging {} files", files.size());
-  
+
   int fileIndex = 0;
   for (const auto &file : files) {
     LOG_DEBUG("  File {}: '{}'", fileIndex++, file.toStdString());
@@ -3029,7 +3054,8 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
 
   int error = git_repository_index(&index, repo);
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository index: error={}", error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository index: error={}",
+              error);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
@@ -3037,19 +3063,23 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
 
   const QString repoPath = git_repository_workdir(repo);
   LOG_DEBUG("Repository working directory: '{}'", repoPath.toStdString());
-  
+
   for (const auto &filePath : files) {
     const QString unixFilePath = QDir::fromNativeSeparators(filePath);
     const QString fullPath = repoPath + unixFilePath;
     const QString relativePath = QDir(repoPath).relativeFilePath(fullPath);
-    LOG_DEBUG("Processing file: '{}' (relative: '{}')", fullPath.toStdString(), relativePath.toStdString());
-    
+    LOG_DEBUG("Processing file: '{}' (relative: '{}')", fullPath.toStdString(),
+              relativePath.toStdString());
+
     if (!QFileInfo::exists(fullPath)) {
-      LOG_DEBUG("File does not exist, removing from index: '{}'", relativePath.toStdString());
+      LOG_DEBUG("File does not exist, removing from index: '{}'",
+                relativePath.toStdString());
       error =
           git_index_remove_bypath(index, relativePath.toStdString().c_str());
       if (error) {
-        LOG_ERROR(Log::ErrorId::Git, "Failed to remove file from index '{}': error={}", relativePath.toStdString(), error);
+        LOG_ERROR(Log::ErrorId::Git,
+                  "Failed to remove file from index '{}': error={}",
+                  relativePath.toStdString(), error);
         logGitError(error);
         git_index_free(index);
         LOG_PERF(0, "Exit");
@@ -3133,7 +3163,7 @@ bool commitStaged(git_repository *repo, const QString &summary,
                   const QString &message, const QString &author,
                   const QString &email, bool cleanup) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Creating commit: summary='{}', author='{}', email='{}'", 
+  LOG_DEBUG("Creating commit: summary='{}', author='{}', email='{}'",
             summary.toStdString(), author.toStdString(), email.toStdString());
   LOG_DEBUG("Message length: {}, cleanup: {}", message.length(), cleanup);
 
@@ -3156,7 +3186,8 @@ bool commitStaged(git_repository *repo, const QString &summary,
   // Load index
   int error = git_repository_index(&index, repo);
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository index: error={}", error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository index: error={}",
+              error);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
@@ -3165,7 +3196,8 @@ bool commitStaged(git_repository *repo, const QString &summary,
   // Write index to tree
   error = git_index_write_tree(&treeId, index);
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to write index to tree: error={}", error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to write index to tree: error={}",
+              error);
     logGitError(error);
     git_index_free(index);
     LOG_PERF(0, "Exit");
@@ -3180,7 +3212,7 @@ bool commitStaged(git_repository *repo, const QString &summary,
     LOG_PERF(0, "Exit");
     return false;
   }
-  
+
   LOG_DEBUG("Tree prepared successfully");
 
   // Create signature
@@ -3796,7 +3828,8 @@ bool pull(git_repository *repo) {
   git_remote *remote = nullptr;
   int error = git_remote_lookup(&remote, repo, "origin");
   if (error != 0) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}", error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
+              error);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
@@ -3808,7 +3841,8 @@ bool pull(git_repository *repo) {
   const char *url = git_remote_url(remote);
   LOG_DEBUG("Remote URL: '{}'", url);
 
-  // Determine max retries: use 1 if SSH with configured key, otherwise MAX_RETRIES
+  // Determine max retries: use 1 if SSH with configured key, otherwise
+  // MAX_RETRIES
   int maxRetries = MAX_RETRIES;
   const QString urlStr = QString::fromUtf8(url);
   if (urlStr.startsWith("git@") || urlStr.startsWith("git://")) {
@@ -3823,14 +3857,15 @@ bool pull(git_repository *repo) {
       GitKeyPair keyPair;
       if (keyStorage.getKeyPairForHost(host, keyPair)) {
         maxRetries = 1; // Key is configured, only try once
-        LOG_DEBUG("SSH key configured for host '{}', setting max retries to 1", host.toStdString());
+        LOG_DEBUG("SSH key configured for host '{}', setting max retries to 1",
+                  host.toStdString());
       }
     }
   }
 
   const bool commercial = isCommercialPlan();
   LOG_DEBUG("Commercial plan: {}, git schema: {}", commercial, gitSchema);
-  
+
   if (!commercial && gitSchema) {
     LOG_ERROR(Log::ErrorId::Git,
               "Pulling git@ repositories is not available on the free plan.");
@@ -4072,7 +4107,8 @@ bool push(git_repository *repo) {
 
   int error = git_repository_head(&headRef, repo);
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository HEAD: error={}", error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository HEAD: error={}",
+              error);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
@@ -4091,7 +4127,8 @@ bool push(git_repository *repo) {
 
   error = git_remote_lookup(&remote, repo, "origin");
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}", error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
+              error);
     logGitError(error);
     git_reference_free(headRef);
     LOG_PERF(0, "Exit");
@@ -4297,13 +4334,15 @@ QPair<QString, QString> getUpstream(git_repository *repo,
 bool resetToCommit(git_repository *repo, const QString &commit,
                    ResetType type) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Resetting to commit '{}' with type {}", commit.toStdString(), static_cast<int>(type));
+  LOG_DEBUG("Resetting to commit '{}' with type {}", commit.toStdString(),
+            static_cast<int>(type));
 
   git_object *target = nullptr;
 
   int error = git_revparse_single(&target, repo, commit.toStdString().c_str());
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to parse commit '{}': error={}", commit.toStdString(), error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to parse commit '{}': error={}",
+              commit.toStdString(), error);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
@@ -4329,7 +4368,8 @@ bool resetToCommit(git_repository *repo, const QString &commit,
     break;
   }
   default: {
-    LOG_ERROR(Log::ErrorId::Git, "Internal error! Unsupported reset type: {}", static_cast<int>(type));
+    LOG_ERROR(Log::ErrorId::Git, "Internal error! Unsupported reset type: {}",
+              static_cast<int>(type));
     break;
   }
   }
@@ -5475,8 +5515,9 @@ bool merge(git_repository *repo, const QString &sourceBranch,
            const QString &destinationBranch, const QString &author,
            const QString &email) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Starting merge operation: source='{}', destination='{}', author='{}', email='{}'",
-            sourceBranch.toStdString(), destinationBranch.toStdString(), 
+  LOG_DEBUG("Starting merge operation: source='{}', destination='{}', "
+            "author='{}', email='{}'",
+            sourceBranch.toStdString(), destinationBranch.toStdString(),
             author.toStdString(), email.toStdString());
 
   git_reference *srcRef = nullptr;
@@ -5486,7 +5527,9 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   int error = git_branch_lookup(
       &srcRef, repo, sourceBranch.toStdString().c_str(), GIT_BRANCH_LOCAL);
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup source branch '{}': error={}", sourceBranch.toStdString(), error);
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to lookup source branch '{}': error={}",
+              sourceBranch.toStdString(), error);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
@@ -5496,19 +5539,23 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   error = git_branch_lookup(
       &dstRef, repo, destinationBranch.toStdString().c_str(), GIT_BRANCH_LOCAL);
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup destination branch '{}': error={}", destinationBranch.toStdString(), error);
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to lookup destination branch '{}': error={}",
+              destinationBranch.toStdString(), error);
     logGitError(error);
     git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
     return false;
   }
-  LOG_DEBUG("Destination branch '{}' lookup successful", destinationBranch.toStdString());
+  LOG_DEBUG("Destination branch '{}' lookup successful",
+            destinationBranch.toStdString());
 
   git_object *dstObj = nullptr;
 
   error = git_reference_peel(&dstObj, dstRef, GIT_OBJECT_COMMIT);
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to peel destination reference: error={}", error);
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to peel destination reference: error={}", error);
     logGitError(error);
     git_reference_free(dstRef);
     git_reference_free(srcRef);
@@ -5519,7 +5566,9 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   LOG_DEBUG("Checking out destination branch");
   error = git_checkout_tree(repo, dstObj, nullptr);
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to checkout tree for destination branch: error={}", error);
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to checkout tree for destination branch: error={}",
+              error);
     logGitError(error);
     git_object_free(dstObj);
     git_reference_free(dstRef);
@@ -5532,7 +5581,8 @@ bool merge(git_repository *repo, const QString &sourceBranch,
 
   error = git_repository_set_head(repo, git_reference_name(dstRef));
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to set repository HEAD: error={}", error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to set repository HEAD: error={}",
+              error);
     logGitError(error);
     git_reference_free(dstRef);
     git_reference_free(srcRef);

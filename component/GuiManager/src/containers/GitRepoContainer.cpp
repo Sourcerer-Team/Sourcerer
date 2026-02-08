@@ -601,7 +601,8 @@ GitRepoContainer::~GitRepoContainer() {
 
 void GitRepoContainer::init() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Initializing GitRepoContainer for repository: '{}'", _path.toStdString());
+  LOG_DEBUG("Initializing GitRepoContainer for repository: '{}'",
+            _path.toStdString());
 
   ContainerWidget::init();
   LOG_DEBUG("Container widget initialized");
@@ -617,7 +618,8 @@ void GitRepoContainer::init() {
     prepareWatcher(guard);
   });
 
-  LOG_INFO("GitRepoContainer initialization completed for: '{}'", _path.toStdString());
+  LOG_INFO("GitRepoContainer initialization completed for: '{}'",
+           _path.toStdString());
   LOG_PERF(0, "Exit");
 }
 
@@ -744,7 +746,8 @@ void GitRepoContainer::showEvent(QShowEvent *event) {
 
 void GitRepoContainer::onAddSubmodule() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Add submodule dialog requested for repository: '{}'", _path.toStdString());
+  LOG_DEBUG("Add submodule dialog requested for repository: '{}'",
+            _path.toStdString());
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -758,7 +761,8 @@ void GitRepoContainer::onAddSubmodule() {
 
   connect(overlayWidget, &AddSubmoduleOverlayWidget::submitted, this,
           [=](const QString &url, const QString &name) {
-            LOG_DEBUG("Adding submodule - URL: '{}', Name: '{}'", url.toStdString(), name.toStdString());
+            LOG_DEBUG("Adding submodule - URL: '{}', Name: '{}'",
+                      url.toStdString(), name.toStdString());
             overlayWidget->hide();
             delete overlayWidget;
 
@@ -776,7 +780,8 @@ void GitRepoContainer::onAddSubmodule() {
 
 void GitRepoContainer::onApplyPatch() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Apply patch dialog requested for repository: '{}'", _path.toStdString());
+  LOG_DEBUG("Apply patch dialog requested for repository: '{}'",
+            _path.toStdString());
 
   const QString filePath = QFileDialog::getOpenFileName(
       this, tr("Select a patch file to open"), QDir::homePath(),
@@ -799,7 +804,8 @@ void GitRepoContainer::onApplyPatch() {
 
 void GitRepoContainer::onApplyStash(const int stashIndex) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Apply stash requested at index: {} for repository: '{}'", stashIndex, _path.toStdString());
+  LOG_DEBUG("Apply stash requested at index: {} for repository: '{}'",
+            stashIndex, _path.toStdString());
 
   const QMessageBox::StandardButton reply =
       QMessageBox::question(this,                               // parent widget
@@ -823,7 +829,8 @@ void GitRepoContainer::onApplyStash(const int stashIndex) {
 
 void GitRepoContainer::onDeleteStash(const int stashIndex) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Delete stash requested at index: {} for repository: '{}'", stashIndex, _path.toStdString());
+  LOG_DEBUG("Delete stash requested at index: {} for repository: '{}'",
+            stashIndex, _path.toStdString());
 
   const QMessageBox::StandardButton reply =
       QMessageBox::question(this,             // parent widget
@@ -847,7 +854,8 @@ void GitRepoContainer::onDeleteStash(const int stashIndex) {
 
 void GitRepoContainer::onPopStash(const int stashIndex) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Pop stash requested at index: {} for repository: '{}'", stashIndex, _path.toStdString());
+  LOG_DEBUG("Pop stash requested at index: {} for repository: '{}'", stashIndex,
+            _path.toStdString());
 
   const QMessageBox::StandardButton reply =
       QMessageBox::question(this,                             // parent widget
@@ -1011,7 +1019,8 @@ void GitRepoContainer::onCheckoutCommit(const QString &commit) {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    LOG_DEBUG("Checking out commit '{}' in repository '{}'", commit.toStdString(), _path.toStdString());
+    LOG_DEBUG("Checking out commit '{}' in repository '{}'",
+              commit.toStdString(), _path.toStdString());
     checkoutCommit(guard, commit);
   });
 
@@ -1021,7 +1030,8 @@ void GitRepoContainer::onCheckoutCommit(const QString &commit) {
 
 void GitRepoContainer::onAbortButtonClicked() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Abort merge button clicked for repository: '{}'", _path.toStdString());
+  LOG_DEBUG("Abort merge button clicked for repository: '{}'",
+            _path.toStdString());
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -1079,7 +1089,7 @@ void GitRepoContainer::onMergeButtonClicked() {
   const QString summary = ui->lineEditSummary->text().trimmed();
   const QString description = ui->textEditDescription->toPlainText().trimmed();
 
-  LOG_DEBUG("Merge details - Author: '{}', Summary length: {}", 
+  LOG_DEBUG("Merge details - Author: '{}', Summary length: {}",
             currentProfile.author.toStdString(), summary.length());
 
   const WeakPtr guard = getSelf().toWeakRef();
@@ -1098,7 +1108,8 @@ void GitRepoContainer::onMergeButtonClicked() {
 
 void GitRepoContainer::onCommitAndMergeIndexTreeUnstageAllButtonClicked() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Unstage all files button clicked for repository: '{}'", _path.toStdString());
+  LOG_DEBUG("Unstage all files button clicked for repository: '{}'",
+            _path.toStdString());
 
   _commitAndMergeIndexTreeUnstageAllButton->setVisible(false);
   LOG_DEBUG("Unstage all button hidden");
@@ -1119,7 +1130,8 @@ void GitRepoContainer::onCommitAndMergeIndexTreeUnstageAllButtonClicked() {
 
 void GitRepoContainer::onCommitAndMergeWorkingTreeTreeStageAllButtonClicked() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Stage all files button clicked for repository: '{}'", _path.toStdString());
+  LOG_DEBUG("Stage all files button clicked for repository: '{}'",
+            _path.toStdString());
 
   _commitAndMergeWorkingDirTreeStageAllButton->setVisible(false);
   LOG_DEBUG("Stage all button hidden");
@@ -1140,7 +1152,8 @@ void GitRepoContainer::onCommitAndMergeWorkingTreeTreeStageAllButtonClicked() {
 
 void GitRepoContainer::onCreateBranchFromCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Create branch from commit requested: '{}' in repository '{}'", commit.toStdString(), _path.toStdString());
+  LOG_DEBUG("Create branch from commit requested: '{}' in repository '{}'",
+            commit.toStdString(), _path.toStdString());
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -1155,7 +1168,8 @@ void GitRepoContainer::onCreateBranchFromCommit(const QString &commit) {
 
   connect(overlayWidget, &TextInputOverlayWidget::submitted, this,
           [=](const QString &branchName) {
-            LOG_DEBUG("Creating branch '{}' from commit '{}'", branchName.toStdString(), commit.toStdString());
+            LOG_DEBUG("Creating branch '{}' from commit '{}'",
+                      branchName.toStdString(), commit.toStdString());
             overlayWidget->hide();
             delete overlayWidget;
 
@@ -1187,7 +1201,8 @@ void GitRepoContainer::onCreateBranchFromCommit(const QString &commit) {
 
 void GitRepoContainer::onCreatePatchFromCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Create patch from commit requested: '{}' in repository '{}'", commit.toStdString(), _path.toStdString());
+  LOG_DEBUG("Create patch from commit requested: '{}' in repository '{}'",
+            commit.toStdString(), _path.toStdString());
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -1202,7 +1217,8 @@ void GitRepoContainer::onCreatePatchFromCommit(const QString &commit) {
 
 void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Create tag from commit requested: '{}' in repository '{}'", commit.toStdString(), _path.toStdString());
+  LOG_DEBUG("Create tag from commit requested: '{}' in repository '{}'",
+            commit.toStdString(), _path.toStdString());
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -1217,7 +1233,8 @@ void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
 
   connect(overlayWidget, &TextInputOverlayWidget::submitted, this,
           [=](const QString &tagName) {
-            LOG_DEBUG("Creating tag '{}' from commit '{}'", tagName.toStdString(), commit.toStdString());
+            LOG_DEBUG("Creating tag '{}' from commit '{}'",
+                      tagName.toStdString(), commit.toStdString());
             overlayWidget->hide();
             delete overlayWidget;
 
@@ -1236,7 +1253,8 @@ void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
 
 void GitRepoContainer::onDeleteBranch(const QString &branchName) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Delete branch requested: '{}' in repository '{}'", branchName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Delete branch requested: '{}' in repository '{}'",
+            branchName.toStdString(), _path.toStdString());
 
   const QString question =
       QString("Are you sure that you want to delete branch '%1'?")
@@ -1263,7 +1281,8 @@ void GitRepoContainer::onDeleteBranch(const QString &branchName) {
 
 void GitRepoContainer::onDeleteTag(const QString &tagName) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Delete tag requested: '{}' in repository '{}'", tagName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Delete tag requested: '{}' in repository '{}'",
+            tagName.toStdString(), _path.toStdString());
 
   const QString question =
       QString("Are you sure that you want to delete tag '%1'?").arg(tagName);
@@ -1389,7 +1408,8 @@ void GitRepoContainer::onDisplayTreeExpandAllButtonClicked() {
 
 void GitRepoContainer::onHardResetToCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Hard reset to commit requested: '{}' in repository '{}'", commit.toStdString(), _path.toStdString());
+  LOG_DEBUG("Hard reset to commit requested: '{}' in repository '{}'",
+            commit.toStdString(), _path.toStdString());
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -1428,15 +1448,14 @@ void GitRepoContainer::onHistorySelectionChanged(
     const QModelIndex shaColumnModelIndex = _historyModel->index(
         index.row(), COLUMN_COMMIT_FULL_SHA, QModelIndex());
     if (shaColumnModelIndex.isValid()) {
-      const QString commitHash = shaColumnModelIndex.data(Qt::DisplayRole).toString();
+      const QString commitHash =
+          shaColumnModelIndex.data(Qt::DisplayRole).toString();
       LOG_DEBUG("Showing commit '{}'", commitHash.toStdString());
       ui->stackedWidgetCommitAndMerge->setCurrentIndex(
           static_cast<int>(CommitAndMergeStackIndexes::Display));
 
       _dispatcher.clearPool();
-      _dispatcher.dispatch([=]() {
-        showCommit(guard, commitHash);
-      });
+      _dispatcher.dispatch([=]() { showCommit(guard, commitHash); });
     }
   } else {
     LOG_DEBUG("Showing commit and merge interface");
@@ -1594,7 +1613,8 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
       _configManager.getLong(ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
 
   if (fileInfo.exists() && fileInfo.size() > maxDiffFileSize) {
-    LOG_DEBUG("File size {} exceeds maximum diff size {}", fileInfo.size(), maxDiffFileSize);
+    LOG_DEBUG("File size {} exceeds maximum diff size {}", fileInfo.size(),
+              maxDiffFileSize);
     showErrorToast(tr("File is too large to be displayed."), tr("Error"));
     LOG_PERF(0, "Exit");
     return;
@@ -1620,7 +1640,8 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
     const bool conflicted =
         modificationType ==
         GuiManager::Models::GitCommitListModificationType::Conflicted;
-    LOG_DEBUG("Showing diff for file '{}' - conflicted: {}", filePath.toStdString(), conflicted);
+    LOG_DEBUG("Showing diff for file '{}' - conflicted: {}",
+              filePath.toStdString(), conflicted);
     if (!conflicted) {
       diff(guard, filePath);
     } else {
@@ -1669,7 +1690,8 @@ void GitRepoContainer::onListViewTabWidgetFlatSelectedFromCommit(
     Util::Dispatcher::dispatchToMainThread(guard,
                                            [=]() { startOverlayTimer(); });
 
-    LOG_DEBUG("Generating diff from commit for file '{}'", filePath.toStdString());
+    LOG_DEBUG("Generating diff from commit for file '{}'",
+              filePath.toStdString());
     diffFromCommit(guard, filePath, commit);
   });
 
@@ -1799,7 +1821,8 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
       _configManager.getLong(ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
 
   if (fileInfo.exists() && fileInfo.size() > maxDiffFileSize) {
-    LOG_DEBUG("File size {} exceeds maximum {}", fileInfo.size(), maxDiffFileSize);
+    LOG_DEBUG("File size {} exceeds maximum {}", fileInfo.size(),
+              maxDiffFileSize);
     showErrorToast(tr("File is too large to be displayed."), tr("Error"));
     LOG_PERF(0, "Exit");
     return;
@@ -1825,7 +1848,8 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
     const bool conflicted =
         modificationType ==
         GuiManager::Models::GitCommitListModificationType::Conflicted;
-    LOG_DEBUG("Showing diff for tree file '{}' - conflicted: {}", filePath.toStdString(), conflicted);
+    LOG_DEBUG("Showing diff for tree file '{}' - conflicted: {}",
+              filePath.toStdString(), conflicted);
     if (!conflicted) {
       diff(guard, filePath);
     } else {
@@ -1841,7 +1865,8 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelectedFromCommit(
     const QModelIndex &index, const Models::GitCommitTreeModel &model,
     const QString &commit) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("File selected from commit tree - commit='{}'", commit.toStdString());
+  LOG_DEBUG("File selected from commit tree - commit='{}'",
+            commit.toStdString());
 
   if (!index.isValid()) {
     LOG_DEBUG("Invalid model index for tree view selection");
@@ -1895,9 +1920,11 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelectedFromCommit(
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() { 
-    LOG_DEBUG("Generating diff from commit for tree file '{}'", filePath.toStdString());
-    diffFromCommit(guard, filePath, commit); });
+  _dispatcher.dispatch([=]() {
+    LOG_DEBUG("Generating diff from commit for tree file '{}'",
+              filePath.toStdString());
+    diffFromCommit(guard, filePath, commit);
+  });
 
   LOG_DEBUG("Tree file diff from commit dispatched");
   LOG_PERF(0, "Exit");
@@ -1906,7 +1933,9 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelectedFromCommit(
 void GitRepoContainer::onLocalBranchMoved(const QString &sourceBranch,
                                           const QString &destBranch) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Branch move requested: '{}' -> '{}' in repository '{}'", sourceBranch.toStdString(), destBranch.toStdString(), _path.toStdString());
+  LOG_DEBUG("Branch move requested: '{}' -> '{}' in repository '{}'",
+            sourceBranch.toStdString(), destBranch.toStdString(),
+            _path.toStdString());
 
   const QString question =
       QString("Are you sure that you want to merge branch '%1' to branch '%2'?")
@@ -1930,7 +1959,8 @@ void GitRepoContainer::onLocalBranchMoved(const QString &sourceBranch,
 
 void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Branch selected: '{}' in repository '{}'", branchName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Branch selected: '{}' in repository '{}'",
+            branchName.toStdString(), _path.toStdString());
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -1949,7 +1979,8 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
 void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
                                                  const QPoint &pos) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Branch right-clicked: '{}' in repository '{}'", branchName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Branch right-clicked: '{}' in repository '{}'",
+            branchName.toStdString(), _path.toStdString());
 
   QAction actionCheckoutBranch(tr("Checkout branch"), this);
   QAction actionRanameBranch(tr("Rename branch"), this);
@@ -1986,7 +2017,8 @@ void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
 
 void GitRepoContainer::onMixedResetToCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Mixed reset to commit requested: '{}' in repository '{}'", commit.toStdString(), _path.toStdString());
+  LOG_DEBUG("Mixed reset to commit requested: '{}' in repository '{}'",
+            commit.toStdString(), _path.toStdString());
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -2002,7 +2034,8 @@ void GitRepoContainer::onMixedResetToCommit(const QString &commit) {
 
 void GitRepoContainer::onPop() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Pop stash operation initiated for repository: '{}'", _path.toStdString());
+  LOG_DEBUG("Pop stash operation initiated for repository: '{}'",
+            _path.toStdString());
 
   const int stashIndex = ui->stashesPage->lastStash();
   if (stashIndex == -1) {
@@ -2025,7 +2058,8 @@ void GitRepoContainer::onPop() {
 
 void GitRepoContainer::onPull() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Pull operation initiated for repository: '{}'", _path.toStdString());
+  LOG_DEBUG("Pull operation initiated for repository: '{}'",
+            _path.toStdString());
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -2040,7 +2074,8 @@ void GitRepoContainer::onPull() {
 
 void GitRepoContainer::onPush() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Push operation initiated for repository: '{}'", _path.toStdString());
+  LOG_DEBUG("Push operation initiated for repository: '{}'",
+            _path.toStdString());
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -2055,7 +2090,8 @@ void GitRepoContainer::onPush() {
 
 void GitRepoContainer::onStash() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Stash operation initiated for repository: '{}'", _path.toStdString());
+  LOG_DEBUG("Stash operation initiated for repository: '{}'",
+            _path.toStdString());
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -2070,7 +2106,8 @@ void GitRepoContainer::onStash() {
 
 void GitRepoContainer::onStashSelected(int stashIndex) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Stash selected at index: {} in repository '{}'", stashIndex, _path.toStdString());
+  LOG_DEBUG("Stash selected at index: {} in repository '{}'", stashIndex,
+            _path.toStdString());
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -2086,7 +2123,8 @@ void GitRepoContainer::onStashSelected(int stashIndex) {
 void GitRepoContainer::onSubmitRenameBranch(const QString &oldName,
                                             const QString &newName) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Submitting branch rename: '{}' -> '{}' in repository '{}'", oldName.toStdString(), newName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Submitting branch rename: '{}' -> '{}' in repository '{}'",
+            oldName.toStdString(), newName.toStdString(), _path.toStdString());
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -2102,7 +2140,8 @@ void GitRepoContainer::onSubmitRenameBranch(const QString &oldName,
 void GitRepoContainer::onSubmitRenameTag(const QString &oldName,
                                          const QString &newName) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Submitting tag rename: '{}' -> '{}' in repository '{}'", oldName.toStdString(), newName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Submitting tag rename: '{}' -> '{}' in repository '{}'",
+            oldName.toStdString(), newName.toStdString(), _path.toStdString());
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -2118,7 +2157,8 @@ void GitRepoContainer::onSubmitRenameTag(const QString &oldName,
 void GitRepoContainer::onSubmoduleRightClicked(const QString &submoduleName,
                                                const QPoint &pos) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Submodule right-clicked: '{}' in repository '{}'", submoduleName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Submodule right-clicked: '{}' in repository '{}'",
+            submoduleName.toStdString(), _path.toStdString());
 
   QAction actionOpenSubmodule(tr("Open"), this);
   QAction actionUpdateSubmodule(tr("Update"), this);
@@ -2159,7 +2199,8 @@ void GitRepoContainer::onSubmoduleRightClicked(const QString &submoduleName,
 
 void GitRepoContainer::onSubmodulePanelRightClicked(const QPoint &pos) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Submodule panel right-clicked for repository: '{}'", _path.toStdString());
+  LOG_DEBUG("Submodule panel right-clicked for repository: '{}'",
+            _path.toStdString());
 
   QAction actionAddSubmodule(tr("Add"), this);
 
@@ -2177,7 +2218,8 @@ void GitRepoContainer::onSubmodulePanelRightClicked(const QPoint &pos) {
 
 void GitRepoContainer::onSubmoduleSelected(const QString &submoduleName) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Submodule selected: '{}' in repository '{}'", submoduleName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Submodule selected: '{}' in repository '{}'",
+            submoduleName.toStdString(), _path.toStdString());
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -2193,7 +2235,8 @@ void GitRepoContainer::onSubmoduleSelected(const QString &submoduleName) {
 void GitRepoContainer::onTagRightClicked(const QString &tagName,
                                          const QPoint &pos) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Tag right-clicked: '{}' in repository '{}'", tagName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Tag right-clicked: '{}' in repository '{}'", tagName.toStdString(),
+            _path.toStdString());
 
   QAction actionCheckoutTag(tr("Checkout tag"), this);
   QAction actionRanameTag(tr("Rename tag"), this);
@@ -2229,7 +2272,8 @@ void GitRepoContainer::onTagRightClicked(const QString &tagName,
 
 void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Remote branch selected: '{}' in repository '{}'", branchName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Remote branch selected: '{}' in repository '{}'",
+            branchName.toStdString(), _path.toStdString());
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -2247,7 +2291,8 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
 void GitRepoContainer::onRemoteBranchRightClicked(const QString &branchName,
                                                   const QPoint &pos) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Remote branch right-clicked: '{}' in repository '{}'", branchName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Remote branch right-clicked: '{}' in repository '{}'",
+            branchName.toStdString(), _path.toStdString());
 
   QAction actionCheckoutBranch(tr("Checkout branch"), this);
 
@@ -2273,7 +2318,8 @@ void GitRepoContainer::onRemoteBranchRightClicked(const QString &branchName,
 
 void GitRepoContainer::onRenameBranch(const QString &branchName) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Rename branch dialog requested for: '{}' in repository '{}'", branchName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Rename branch dialog requested for: '{}' in repository '{}'",
+            branchName.toStdString(), _path.toStdString());
 
   const auto inputOverlay = new TextInputOverlayWidget(this);
   inputOverlay->setPlaceholderText(tr("New branch name"));
@@ -2285,7 +2331,8 @@ void GitRepoContainer::onRenameBranch(const QString &branchName) {
   });
   connect(inputOverlay, &TextInputOverlayWidget::submitted, this,
           [=](const QString &newName) {
-            LOG_DEBUG("Branch rename dialog submitted: new name='{}'", newName.toStdString());
+            LOG_DEBUG("Branch rename dialog submitted: new name='{}'",
+                      newName.toStdString());
             inputOverlay->hide();
             delete inputOverlay;
             onSubmitRenameBranch(branchName, newName);
@@ -2300,7 +2347,8 @@ void GitRepoContainer::onRenameBranch(const QString &branchName) {
 
 void GitRepoContainer::onRenameTag(const QString &tagName) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Rename tag dialog requested for: '{}' in repository '{}'", tagName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Rename tag dialog requested for: '{}' in repository '{}'",
+            tagName.toStdString(), _path.toStdString());
 
   const auto inputOverlay = new TextInputOverlayWidget(this);
   inputOverlay->setPlaceholderText(tr("New tag name"));
@@ -2312,7 +2360,8 @@ void GitRepoContainer::onRenameTag(const QString &tagName) {
   });
   connect(inputOverlay, &TextInputOverlayWidget::submitted, this,
           [=](const QString &newName) {
-            LOG_DEBUG("Tag rename dialog submitted: new name='{}'", newName.toStdString());
+            LOG_DEBUG("Tag rename dialog submitted: new name='{}'",
+                      newName.toStdString());
             inputOverlay->hide();
             delete inputOverlay;
             onSubmitRenameTag(tagName, newName);
@@ -2341,7 +2390,9 @@ void GitRepoContainer::onRepoDirChanged(const QString &path) const {
 
 void GitRepoContainer::onRepoDirChangedTimeout() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Repository directory change timeout triggered for repository: '{}'", _path.toStdString());
+  LOG_DEBUG(
+      "Repository directory change timeout triggered for repository: '{}'",
+      _path.toStdString());
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -2359,7 +2410,8 @@ void GitRepoContainer::onRepoDirChangedTimeout() {
 
 void GitRepoContainer::onRevertCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Revert commit requested: '{}' in repository '{}'", commit.toStdString(), _path.toStdString());
+  LOG_DEBUG("Revert commit requested: '{}' in repository '{}'",
+            commit.toStdString(), _path.toStdString());
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -2374,7 +2426,8 @@ void GitRepoContainer::onRevertCommit(const QString &commit) {
 
 void GitRepoContainer::onSetUpstream() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Set upstream dialog requested for repository: '{}'", _path.toStdString());
+  LOG_DEBUG("Set upstream dialog requested for repository: '{}'",
+            _path.toStdString());
 
   const auto upstreamOverlay = new UpstreamInputOverlayWidget(this);
   upstreamOverlay->setRemotePlaceholderText(tr("Remote name"));
@@ -2391,7 +2444,8 @@ void GitRepoContainer::onSetUpstream() {
   connect(upstreamOverlay, &UpstreamInputOverlayWidget::submitted, this,
           [&, upstreamOverlay, guard](const QString &remote,
                                       const QString &branch) {
-            LOG_DEBUG("Setting upstream: remote='{}', branch='{}'", remote.toStdString(), branch.toStdString());
+            LOG_DEBUG("Setting upstream: remote='{}', branch='{}'",
+                      remote.toStdString(), branch.toStdString());
             upstreamOverlay->hide();
             delete upstreamOverlay;
 
@@ -2415,7 +2469,8 @@ void GitRepoContainer::onSetUpstream() {
 
 void GitRepoContainer::onSoftResetToCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Soft reset to commit requested: '{}' in repository '{}'", commit.toStdString(), _path.toStdString());
+  LOG_DEBUG("Soft reset to commit requested: '{}' in repository '{}'",
+            commit.toStdString(), _path.toStdString());
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -2431,7 +2486,8 @@ void GitRepoContainer::onSoftResetToCommit(const QString &commit) {
 
 void GitRepoContainer::onTagSelected(const QString &tagName) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Tag selected: '{}' in repository '{}'", tagName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Tag selected: '{}' in repository '{}'", tagName.toStdString(),
+            _path.toStdString());
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -2455,7 +2511,8 @@ void GitRepoContainer::onShowSpinnerOverlay() {
 
 void GitRepoContainer::onDeleteSubmodule(const QString &submoduleName) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Delete submodule requested: '{}' in repository '{}'", submoduleName.toStdString(), _path.toStdString());
+  LOG_DEBUG("Delete submodule requested: '{}' in repository '{}'",
+            submoduleName.toStdString(), _path.toStdString());
 
   const QString question =
       QString("Are you sure that you want to delete submodule '%1'?")
