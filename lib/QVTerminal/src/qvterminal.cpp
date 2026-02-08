@@ -348,6 +348,12 @@ void QVTerminal::appendData(const QByteArray &data) {
             clear();
             break;
 
+          case 3:
+            // Clear entire display and scrollback buffer (xterm extension)
+            // For QVTerminal, treat this the same as case 2 (clear entire display)
+            clear();
+            break;
+
           default:
             qDebug() << __FUNCTION__ << "unknown J function:" << _formatValue;
             break;
