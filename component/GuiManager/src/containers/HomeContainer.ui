@@ -129,7 +129,7 @@
            <item>
             <widget class="QLabel" name="labelRecent">
              <property name="text">
-              <string>Recently opened</string>
+              <string>RECENTLY OPENED</string>
              </property>
             </widget>
            </item>
@@ -165,7 +165,7 @@
            <item>
             <widget class="QLabel" name="labelWorkspaces">
              <property name="text">
-              <string>Workspaces</string>
+              <string>WORKSPACES</string>
              </property>
             </widget>
            </item>
