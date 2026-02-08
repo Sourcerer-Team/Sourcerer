@@ -93,6 +93,7 @@ private:
 
   void hideSigninWidgets();
   void showSigninWidgets();
+  void showSigninPage();
 
 private:
   Ui::ProfileBoardWidget *ui;

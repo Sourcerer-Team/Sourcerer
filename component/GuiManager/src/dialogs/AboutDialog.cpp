@@ -65,9 +65,10 @@ AboutDialog::AboutDialog(QWidget *parent)
   ui->websiteLabel->setOpenExternalLinks(true);
 
   // Add License button to the button box
-  QPushButton *licenseButton = ui->buttonBox->addButton(tr("License"), QDialogButtonBox::ActionRole);
-  connect(licenseButton, &QPushButton::clicked,
-          this, &AboutDialog::onShowLicense);
+  QPushButton *licenseButton =
+      ui->buttonBox->addButton(tr("License"), QDialogButtonBox::ActionRole);
+  connect(licenseButton, &QPushButton::clicked, this,
+          &AboutDialog::onShowLicense);
 
   LOG_PERF(0, "Exit");
 }
@@ -82,7 +83,8 @@ void AboutDialog::onShowLicense() {
   // Try to read the license file
   QFile licenseFile(licenseFilePath);
   if (!licenseFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-    LOG_ERROR(Log::ErrorId::FileSystem, "Failed to open license file: {}", licenseFilePath.toStdString());
+    LOG_ERROR(Log::ErrorId::FileSystem, "Failed to open license file: {}",
+              licenseFilePath.toStdString());
     QMessageBox::warning(this, tr("License"),
                          tr("Could not find or read the license file."));
     LOG_PERF(0, "Exit");

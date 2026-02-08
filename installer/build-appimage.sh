@@ -163,6 +163,15 @@ cat > "$APPDIR/usr/bin/qt.conf" << 'QTCONF'
 Plugins = ../lib/qt6/plugins
 QTCONF
 
+# Copy configuration and security files
+echo "Copying JWT public key..."
+mkdir -p "$APPDIR/keys"
+if [ -f "$PROJECT_ROOT/keys/cloud_jwt_public_key.pem" ]; then
+    cp "$PROJECT_ROOT/keys/cloud_jwt_public_key.pem" "$APPDIR/keys/"
+else
+    echo "Warning: JWT public key file not found at $PROJECT_ROOT/keys/cloud_jwt_public_key.pem"
+fi
+
 # Copy application icon
 echo "Copying application icon..."
 ICON_SVG="$PROJECT_ROOT/component/GuiManager/resources/icons/originals/sorcerer-hat.svg"

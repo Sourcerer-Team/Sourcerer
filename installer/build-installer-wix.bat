@@ -157,6 +157,17 @@ echo.
 echo Deploying Qt dependencies...
 call :deployQtDependencies
 
+REM Copy security and configuration files
+echo.
+echo Copying security files...
+if exist "%PROJECT_ROOT%\keys" (
+    if not exist "%BUILD_DIR%\keys" mkdir "%BUILD_DIR%\keys"
+    xcopy "%PROJECT_ROOT%\keys\*" "%BUILD_DIR%\keys\" /Y /I >nul
+    echo [DEBUG] Security files copied to build directory
+) else (
+    echo Warning: Keys directory not found at "%PROJECT_ROOT%\keys"
+)
+
 REM Copy license file to build directory
 echo.
 echo Copying license file...

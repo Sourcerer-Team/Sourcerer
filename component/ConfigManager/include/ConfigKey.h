@@ -38,6 +38,7 @@ enum class ConfigKey {
 
   // Cloud authentication
   CloudJwtExpirationMinutes,
+  CloudJwtPublicKeyPath,
   CloudSigninUrl,
   CloudSignupUrl,
 

@@ -39,6 +39,7 @@
             <ComponentRef Id="QtImageFormatPlugins" />
             <ComponentRef Id="QtStylePlugins" />
             <ComponentRef Id="QtIconEnginePlugins" />
+            <ComponentRef Id="JwtPublicKeyFiles" />
             <ComponentRef Id="DesktopShortcut" />
             <ComponentRef Id="StartMenuShortcut" />
             <ComponentRef Id="UninstallShortcut" />
@@ -187,6 +188,15 @@
                 <Component Id="QtIconEnginePlugins" Guid="a97f470b-58fa-4dea-b32e-37aeab115851" Win64="yes">
                     <File Id="QSvgIconFile" 
                           Source="$(var.SourcererBinPath)\iconengines\qsvgicon.dll"
+                          Vital="no" />
+                </Component>
+            </Directory>
+
+            <!-- JWT Security Files -->
+            <Directory Id="KeysDir" Name="keys">
+                <Component Id="JwtPublicKeyFiles" Guid="f2c3d4e5-f6g7-4h8i-9j0k-1l2m3n4o5p6q" Win64="yes">
+                    <File Id="CloudJwtPublicKeyFile" 
+                          Source="$(var.SourcererBinPath)\keys\cloud_jwt_public_key.pem"
                           Vital="no" />
                 </Component>
             </Directory>

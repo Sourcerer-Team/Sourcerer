@@ -403,6 +403,21 @@ static bool isCommercialPlan() {
     return false;
   }
 
+  // Verify JWT signature using public key before processing claims
+  const QString publicKeyPem = Util::JWTDecoder::getJWTPublicKey();
+  if (publicKeyPem.isEmpty()) {
+    LOG_WARN("JWT public key is not configured, skipping signature "
+             "verification. This should be configured for security.");
+  } else {
+    if (!Util::JWTDecoder::verifySignature(jwt, publicKeyPem)) {
+      LOG_ERROR(Log::ErrorId::Security,
+                "JWT signature verification failed for commercial plan check.");
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+    LOG_DEBUG("JWT signature verification successful");
+  }
+
   const Util::JWTDecoder::Claims claims = Util::JWTDecoder::decodeClaims(jwt);
   const qint64 now = QDateTime::currentMSecsSinceEpoch();
   const bool creationTimeInTheFuture = creationTime > now;

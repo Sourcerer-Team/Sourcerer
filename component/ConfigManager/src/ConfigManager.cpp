@@ -20,6 +20,9 @@ struct KeyDescription {
 
 QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::Unknown, ""},
+    {ConfigKey::CloudJwtExpirationMinutes, "cloud/jwt/expirationMinutes"},
+    {ConfigKey::CloudJwtPublicKeyPath, "cloud/jwt/publicKeyPath"},
+    {ConfigKey::CloudSigninUrl, "cloud/signin/url"},
     {ConfigKey::GitRepoSplitterPos, "window/gitrepo/splitterPos"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos,
      "window/gitrepo/branchRecyclerViewItemsSplitterPos"},
@@ -37,8 +40,6 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::GitRepoDiffViewType, "gitrepo/diffViewType"},
     {ConfigKey::HttpClientCaCertFile, "network/httpClient/caCertFile"},
     {ConfigKey::HttpClientTimeout, "network/httpClient/timeout"},
-    {ConfigKey::CloudJwtExpirationMinutes, "cloud/jwt/expirationMinutes"},
-    {ConfigKey::CloudSigninUrl, "cloud/signin/url"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
     {ConfigKey::MainWindowBorderWidth, "window/borderWidth"},
     {ConfigKey::MainWindowMinimumWidth, "window/minimumWidth"},
@@ -75,9 +76,6 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::TitleBarMaxTabWidth, {"Maximum width of a title bar tab", ""}},
     {ConfigKey::TitleBarMenuMinimumSize,
      {"Minimum size of the title bar menu", ""}},
-    {ConfigKey::CloudJwtExpirationMinutes,
-     {"Cloud JWT token expiration time in minutes", ""}},
-    {ConfigKey::CloudSigninUrl, {"Cloud service signin URL", ""}},
     {ConfigKey::TestColor, {"Test color", "Test color description"}},
     {ConfigKey::TestDateTime, {"Test dateTime", "Test dateTime description"}}};
 
@@ -119,6 +117,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::TooltipDisplayTime, 5000}};
 
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
+    {ConfigKey::CloudJwtPublicKeyPath, "keys/cloud_jwt_public_key.pem"},
 #ifdef QT_DEBUG
     {ConfigKey::CloudSigninUrl, "http://localhost:8080/api/v1/signin"},
     {ConfigKey::CloudSignupUrl, "http://localhost:8080/#/signup"},

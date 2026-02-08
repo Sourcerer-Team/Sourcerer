@@ -88,3 +88,5 @@ build-output.txt
 installer/Sourcerer-Installer.msi
 
 installer/Sourcerer-Installer.wixpdb
+
+keys/**

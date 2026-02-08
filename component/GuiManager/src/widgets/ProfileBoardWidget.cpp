@@ -150,13 +150,7 @@ void ProfileBoardWidget::updatePageForLoginState() {
     LOG_INFO("Updated page - label: '{}', signout button visible: {}",
              labelText.toStdString(), ui->pushButtonSignout->isVisible());
   } else {
-    ui->stackedWidget->setCurrentWidget(ui->pageSignin);
-    ui->pushButtonSignout->setVisible(false);
-
-    // Ensure signin form widgets are visible
-    showSigninWidgets();
-
-    ui->lineEditSigninUser->setFocus();
+    showSigninPage();
   }
 }
 
@@ -619,6 +613,24 @@ void ProfileBoardWidget::showSigninWidgets() {
   LOG_PERF(0, "Exit");
 }
 
+void ProfileBoardWidget::showSigninPage() {
+  LOG_PERF(0, "Enter");
+
+  ui->stackedWidget->setCurrentWidget(ui->pageSignin);
+  ui->pushButtonSignout->setVisible(false);
+
+  // Ensure signin form widgets are visible
+  showSigninWidgets();
+
+  ui->lineEditSigninUser->clear();
+  ui->lineEditSigninPassword->clear();
+  ui->labelSigninError->clear();
+
+  ui->lineEditSigninUser->setFocus();
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProfileBoardWidget::onCloudSigninSuccess(const QString &email,
                                               const QString &password,
                                               const QString &accessToken,
@@ -629,6 +641,37 @@ void ProfileBoardWidget::onCloudSigninSuccess(const QString &email,
   // Hide spinner
   if (_signinSpinner) {
     _signinSpinner->stop();
+  }
+
+  // Verify JWT signature before accepting credentials
+  const QString publicKeyPem = Util::JWTDecoder::getJWTPublicKey();
+  if (publicKeyPem.isEmpty()) {
+    QMessageBox::warning(
+        this, "Signin failed",
+        "JWT signature verification failed. Please try signing in again.");
+    LOG_WARN("JWT public key not configured, skipping signature verification. "
+             "This should be configured for security.");
+
+    showSigninPage();
+
+    LOG_PERF(0, "Exit");
+    return;
+  } else {
+    if (!Util::JWTDecoder::verifySignature(accessToken, publicKeyPem)) {
+      LOG_ERROR(Log::ErrorId::Security,
+                "JWT signature verification failed during signin for user: {}",
+                email);
+
+      QMessageBox::warning(
+          this, "Signin failed",
+          "JWT signature verification failed. Please try signing in again.");
+
+      showSigninPage();
+
+      LOG_PERF(0, "Exit");
+      return;
+    }
+    LOG_DEBUG("JWT signature verification successful for user: {}", email);
   }
 
   // Store credentials with configurable expiration time
