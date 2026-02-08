@@ -110,6 +110,7 @@ private:
   QString _userFirstName;
   QString _userLastName;
   QString _plan;
+  bool _autoLogin;
   WaitingSpinnerWidget *_signinSpinner = nullptr;
 };
 

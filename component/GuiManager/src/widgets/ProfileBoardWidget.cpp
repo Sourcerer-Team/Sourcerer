@@ -28,7 +28,7 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
       _operation(OperationType::Unknown), _model(new QStandardItemModel),
       _userProfileManager(Common::UserProfileManager::instance()),
       _cloudCredentialStorage(Util::CloudCredentialtorage::getInstance()),
-      _cloudRepo(Util::CloudRepo::getInstance()) {
+      _cloudRepo(Util::CloudRepo::getInstance()), _autoLogin(false) {
   LOG_PERF(0, "Enter");
 
 #ifdef Q_OS_WIN
@@ -97,9 +97,6 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
   // Try to load stored cloud credentials
   QString username, password, jwt;
   if (_cloudCredentialStorage.getCredentials(username, password, jwt)) {
-    // Credentials exist
-    _isLoggedIn = true;
-
     LOG_INFO("Loaded stored cloud credentials for user: {}", username);
 
     // Extract JWT claims to get user's first and last name
@@ -233,6 +230,7 @@ void ProfileBoardWidget::doLogout() {
       // Clear JWT claims
       _userFirstName.clear();
       _userLastName.clear();
+      _plan = "Community";
 
       // Clear stored credentials
       _cloudCredentialStorage.clearAll();
@@ -597,6 +595,8 @@ void ProfileBoardWidget::tryRefreshExpiredCredentials() {
     return;
   }
 
+  _autoLogin = true;
+
   _dispatcher.dispatch([=]() {
     // Request signin from cloud service. Credentials will be stored
     // automatically on success.
@@ -656,6 +656,8 @@ void ProfileBoardWidget::onCloudSigninSuccess(const QString &email,
                                               const QString &response) {
   LOG_PERF(0, "Enter");
   LOG_INFO("Cloud signin success for: {}", email);
+
+  _autoLogin = false;
 
   // Hide spinner
   if (_signinSpinner) {
@@ -730,6 +732,13 @@ void ProfileBoardWidget::onCloudSigninFailed(const QString &email,
   LOG_PERF(0, "Enter");
   LOG_ERROR(Log::ErrorId::Network, "Cloud signin failed: {}", errorMessage);
 
+  _isLoggedIn = false;
+  _userFirstName.clear();
+  _userLastName.clear();
+  _plan = "Community";
+
+  _cloudCredentialStorage.clearAll();
+
   // Hide spinner and show form widgets
   if (_signinSpinner) {
     _signinSpinner->stop();
@@ -737,22 +746,14 @@ void ProfileBoardWidget::onCloudSigninFailed(const QString &email,
 
   showSigninWidgets();
 
-  if (ui->stackedWidget->currentWidget() == ui->pageSignin) {
+  if (!_autoLogin && ui->stackedWidget->currentWidget() == ui->pageSignin) {
     ui->labelSigninError->setText("Login failed: " + errorMessage);
   }
 
   ui->stackedWidget->setCurrentWidget(ui->pageSignin);
+  ui->lineEditSigninUser->setFocus();
 
-  // Prefill email for retry
-  if (!email.isEmpty()) {
-    ui->lineEditSigninUser->setText(email);
-    ui->lineEditSigninPassword->setFocus();
-    ui->lineEditSigninPassword->selectAll();
-  }
-
-  _userFirstName.clear();
-  _userLastName.clear();
-  _plan = "Community";
+  _autoLogin = false;
 
   LOG_PERF(0, "Exit");
 }
@@ -762,6 +763,13 @@ void ProfileBoardWidget::onCloudSigninError(const QString &email,
   LOG_PERF(0, "Enter");
   LOG_ERROR(Log::ErrorId::Network, "Cloud signin error: {}", (int)error);
 
+  _isLoggedIn = false;
+  _userFirstName.clear();
+  _userLastName.clear();
+  _plan = "Community";
+
+  _cloudCredentialStorage.clearAll();
+
   // Hide spinner and show form widgets
   if (_signinSpinner) {
     _signinSpinner->stop();
@@ -769,16 +777,14 @@ void ProfileBoardWidget::onCloudSigninError(const QString &email,
 
   showSigninWidgets();
 
-  if (ui->stackedWidget->currentWidget() == ui->pageSignin) {
+  if (!_autoLogin && ui->stackedWidget->currentWidget() == ui->pageSignin) {
     ui->labelSigninError->setText("Login error");
   }
 
-  // Prefill email for retry
-  if (!email.isEmpty()) {
-    ui->lineEditSigninUser->setText(email);
-    ui->lineEditSigninPassword->setFocus();
-    ui->lineEditSigninPassword->selectAll();
-  }
+  ui->stackedWidget->setCurrentWidget(ui->pageSignin);
+  ui->lineEditSigninUser->setFocus();
+
+  _autoLogin = false;
 
   LOG_PERF(0, "Exit");
 }
