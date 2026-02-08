@@ -16,6 +16,7 @@ const char *ENTER_GUARD = "ENTER";
 const char *EXIT_GUARD = "EXIT";
 
 const size_t LOGGER_MAX_FILE_SIZE_IN_MB = 10;
+const size_t LOGGER_MAX_FILES = 10;
 
 std::shared_ptr<spdlog::logger> file_logger;
 
@@ -26,8 +27,8 @@ Log &Log::getInstance() {
 
 Log::Log()
     : _configManager(ConfigManager::ConfigManager::getInstance()),
-      _logFileMaxSize(LOGGER_MAX_FILE_SIZE_IN_MB), _maxLogFiles(5),
-      _shutdown(false) {
+      _logFileMaxSize(LOGGER_MAX_FILE_SIZE_IN_MB),
+      _maxLogFiles(LOGGER_MAX_FILES), _shutdown(false) {
   _logDirectory = _configManager.getLogsDir();
 
   spdlog::enable_backtrace(50);
