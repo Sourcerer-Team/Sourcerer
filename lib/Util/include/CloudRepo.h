@@ -47,6 +47,12 @@ public:
    */
   QString getCloudSignoutUrl() const;
 
+  /**
+   * @brief Calculate machine token from system information
+   * @return Machine token derived from machine ID and app data path
+   */
+  QString getMachineToken() const;
+
 signals:
   /**
    * @brief Emitted when signin is successful

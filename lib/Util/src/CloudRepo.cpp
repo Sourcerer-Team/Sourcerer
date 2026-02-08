@@ -5,8 +5,11 @@
 #include <HttpClient.h>
 #include <Log.h>
 
+#include <QCryptographicHash>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QStandardPaths>
+#include <QSysInfo>
 #include <memory>
 
 #define THREAD_ID "CloudRepo"
@@ -41,6 +44,25 @@ QString CloudRepo::getCloudSignoutUrl() const {
   return configManager.getString(::ConfigManager::ConfigKey::CloudSignoutUrl);
 }
 
+QString CloudRepo::getMachineToken() const {
+  // Generate machine token from multiple unique system identifiers
+  // This ensures the token uniquely identifies a specific machine and user
+  const QString machineId = QSysInfo::machineUniqueId();
+  const QString hostname = QSysInfo::machineHostName();
+  const QString appData =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  const QString osVersion = QSysInfo::kernelVersion();
+  const QString productType = QSysInfo::productType();
+
+  // Combine all unique identifiers
+  const QByteArray combined =
+      (machineId + hostname + appData + osVersion + productType).toUtf8();
+  const QByteArray hash =
+      QCryptographicHash::hash(combined, QCryptographicHash::Sha256);
+
+  return QString::fromUtf8(hash.toHex());
+}
+
 QPair<QNetworkReply::NetworkError, QString>
 CloudRepo::signin(const QString &email, const QString &password) {
   LOG_PERF(0, "Enter");
@@ -53,6 +75,7 @@ CloudRepo::signin(const QString &email, const QString &password) {
   QJsonObject payload;
   payload["email"] = email;
   payload["password"] = password;
+  payload["machine_token"] = getMachineToken();
 
   QJsonDocument doc(payload);
   QByteArray jsonData = doc.toJson(QJsonDocument::Compact);
@@ -103,7 +126,8 @@ QPair<QNetworkReply::NetworkError, QString> CloudRepo::signOut() {
   QMap<QString, QString> rawHttpHeaders;
   rawHttpHeaders["authorization"] = "Bearer " + _accessToken;
 
-  // Send signout request with empty JSON body
+  // Send signout request with empy payload since server only needs the token
+  // for authentication
   QJsonObject payload;
   QJsonDocument doc(payload);
   QByteArray jsonData = doc.toJson(QJsonDocument::Compact);
