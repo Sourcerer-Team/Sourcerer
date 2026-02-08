@@ -210,30 +210,49 @@ void ProfileBoardWidget::doLogin(const QString &user, const QString &password) {
 }
 
 void ProfileBoardWidget::doLogout() {
-  // Clear login state
-  _isLoggedIn = false;
 
-  // Clear JWT claims
-  _userFirstName.clear();
-  _userLastName.clear();
+  const auto guard = getSelf().toWeakRef();
 
-  // Clear stored credentials
-  _cloudCredentialStorage.clearAll();
+  _dispatcher.dispatch([=]() {
+    const auto reply = _cloudRepo.signOut();
+    if (reply.first != QNetworkReply::NoError) {
+      LOG_ERROR(Log::ErrorId::Network,
+                "Signout request failed with error code: {}", (int)reply.first);
+      ::Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        QMessageBox::warning(
+            this, "Sign out failed",
+            "An error occurred while signing out. Please try again.");
+      });
+      return;
+    }
 
-  // Update page and show signin form
-  updatePageForLoginState();
+    ::Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      // Clear login state
+      _isLoggedIn = false;
 
-  // Show signin form widgets
-  ui->lineEditSigninUser->show();
-  ui->lineEditSigninPassword->show();
-  ui->pushButtonSigninSubmit->show();
+      // Clear JWT claims
+      _userFirstName.clear();
+      _userLastName.clear();
 
-  // Clear input fields for security
-  ui->lineEditSigninUser->clear();
-  ui->lineEditSigninPassword->clear();
-  ui->labelSigninTitle->setText("Sign in to continue");
+      // Clear stored credentials
+      _cloudCredentialStorage.clearAll();
 
-  ui->lineEditSigninUser->setFocus();
+      // Update page and show signin form
+      updatePageForLoginState();
+
+      // Show signin form widgets
+      ui->lineEditSigninUser->show();
+      ui->lineEditSigninPassword->show();
+      ui->pushButtonSigninSubmit->show();
+
+      // Clear input fields for security
+      ui->lineEditSigninUser->clear();
+      ui->lineEditSigninPassword->clear();
+      ui->labelSigninTitle->setText("Sign in to continue");
+
+      ui->lineEditSigninUser->setFocus();
+    });
+  });
 }
 
 ProfileBoardWidget::~ProfileBoardWidget() {

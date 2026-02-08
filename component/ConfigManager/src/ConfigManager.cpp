@@ -23,6 +23,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::CloudJwtExpirationMinutes, "cloud/jwt/expirationMinutes"},
     {ConfigKey::CloudJwtPublicKeyPath, "cloud/jwt/publicKeyPath"},
     {ConfigKey::CloudSigninUrl, "cloud/signin/url"},
+    {ConfigKey::CloudSignupUrl, "cloud/signup/url"},
+    {ConfigKey::CloudSignoutUrl, "cloud/signout/url"},
     {ConfigKey::GitRepoSplitterPos, "window/gitrepo/splitterPos"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos,
      "window/gitrepo/branchRecyclerViewItemsSplitterPos"},
@@ -121,9 +123,11 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
 #ifdef QT_DEBUG
     {ConfigKey::CloudSigninUrl, "http://localhost:8080/api/v1/signin"},
     {ConfigKey::CloudSignupUrl, "http://localhost:8080/#/signup"},
+    {ConfigKey::CloudSignoutUrl, "http://localhost:8080/api/v1/logout"},
 #else
     {ConfigKey::CloudSigninUrl, "http://localhost:8080/api/v1/signin"},
     {ConfigKey::CloudSignupUrl, "http://localhost:8080/#/signup"},
+    {ConfigKey::CloudSignoutUrl, "http://localhost:8080/api/v1/logout"},
 #endif
     {ConfigKey::GitRepoSplitterPos, ""},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},

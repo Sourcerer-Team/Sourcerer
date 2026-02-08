@@ -36,6 +36,17 @@ public:
    */
   QString getCloudSigninUrl() const;
 
+  /**
+   * @brief Attempt to signout from cloud service
+   */
+  QPair<QNetworkReply::NetworkError, QString> signOut();
+
+  /**
+   * @brief Get the cloud signout URL
+   * @return URL for cloud signout endpoint
+   */
+  QString getCloudSignoutUrl() const;
+
 signals:
   /**
    * @brief Emitted when signin is successful
@@ -61,6 +72,23 @@ signals:
    */
   void signinFailed(const QString &email, const QString &error);
 
+  /**
+   * @brief Emitted when signout is successful
+   */
+  void signoutSuccess();
+
+  /**
+   * @brief Emitted when HTTP error occurs during signout
+   * @param error Error from HTTP client
+   */
+  void signoutError(QNetworkReply::NetworkError error);
+
+  /**
+   * @brief Emitted when error occurs during signout
+   * @param error Error message from cloud service
+   */
+  void signoutFailed(const QString &error);
+
 private:
   CloudRepo();
   ~CloudRepo() override;
@@ -78,6 +106,7 @@ private:
 private:
   QString _pendingEmail;    // Email for the current signin request
   QString _pendingPassword; // Password for the current signin request
+  QString _accessToken;     // JWT access token for authenticated requests
 };
 
 } // namespace Util

@@ -41,6 +41,7 @@ enum class ConfigKey {
   CloudJwtPublicKeyPath,
   CloudSigninUrl,
   CloudSignupUrl,
+  CloudSignoutUrl,
 
   // Settings container
   SettingsSplitterPos,

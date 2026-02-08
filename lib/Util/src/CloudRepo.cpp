@@ -35,6 +35,12 @@ QString CloudRepo::getCloudSigninUrl() const {
   return configManager.getString(::ConfigManager::ConfigKey::CloudSigninUrl);
 }
 
+QString CloudRepo::getCloudSignoutUrl() const {
+  ::ConfigManager::ConfigManager &configManager =
+      ::ConfigManager::ConfigManager::getInstance();
+  return configManager.getString(::ConfigManager::ConfigKey::CloudSignoutUrl);
+}
+
 QPair<QNetworkReply::NetworkError, QString>
 CloudRepo::signin(const QString &email, const QString &password) {
   LOG_PERF(0, "Enter");
@@ -81,6 +87,47 @@ CloudRepo::signin(const QString &email, const QString &password) {
             // status code should come from HTTP response.
 }
 
+QPair<QNetworkReply::NetworkError, QString> CloudRepo::signOut() {
+  LOG_PERF(0, "Enter");
+  LOG_INFO("Signout requested");
+
+  // Create HTTP client and send request
+  const auto httpClient = std::make_shared<Util::HttpClient>();
+
+  const QString url = getCloudSignoutUrl();
+
+  QMap<QNetworkRequest::KnownHeaders, QString> httpHeaders;
+  httpHeaders[QNetworkRequest::KnownHeaders::ContentTypeHeader] =
+      "application/json";
+
+  QMap<QString, QString> rawHttpHeaders;
+  rawHttpHeaders["authorization"] = "Bearer " + _accessToken;
+
+  // Send signout request with empty JSON body
+  QJsonObject payload;
+  QJsonDocument doc(payload);
+  QByteArray jsonData = doc.toJson(QJsonDocument::Compact);
+
+  const auto httpReply = httpClient->sendRequest(
+      url, HttpMethod::Post, httpHeaders, rawHttpHeaders, jsonData);
+
+  if (httpReply.error() != QNetworkReply::NetworkError::NoError) {
+    LOG_ERROR(Log::ErrorId::Network, "Failed to send signout request: {}",
+              (int)httpReply.error());
+    emit signoutError(httpReply.error());
+    LOG_PERF(0, "Exit");
+    return {httpReply.error(), QString()};
+  }
+
+  LOG_INFO("Signout successful");
+  _accessToken.clear();
+  emit signoutSuccess();
+
+  LOG_PERF(0, "Exit");
+
+  return {QNetworkReply::NetworkError::NoError, QString()};
+}
+
 QPair<QNetworkReply::NetworkError, QString>
 CloudRepo::processResponse(const QString &response, int statusCode) {
   LOG_PERF(0, "Enter");
@@ -107,6 +154,8 @@ CloudRepo::processResponse(const QString &response, int statusCode) {
   }
 
   LOG_INFO("Signin successful for user: {}", _pendingEmail);
+
+  _accessToken = accessToken;
 
   emit signinSuccess(_pendingEmail, _pendingPassword, accessToken, response);
 
