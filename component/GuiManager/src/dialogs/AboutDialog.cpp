@@ -4,10 +4,12 @@
 #include <Log.h>
 #include <QApplication>
 #include <QDate>
+#include <QDialog>
 #include <QDialogButtonBox>
 #include <QFile>
-#include <QMessageBox>
+#include <QPlainTextEdit>
 #include <QPushButton>
+#include <QVBoxLayout>
 #include <qglobal.h>
 
 #define THREAD_ID "AboutDialog"
@@ -85,9 +87,6 @@ void AboutDialog::onShowLicense() {
   if (!licenseFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
     LOG_ERROR(Log::ErrorId::FileSystem, "Failed to open license file: {}",
               licenseFilePath.toStdString());
-    QMessageBox::warning(this, tr("License"),
-                         tr("Could not find or read the license file."));
-    LOG_PERF(0, "Exit");
     return;
   }
 
@@ -95,14 +94,26 @@ void AboutDialog::onShowLicense() {
   QString licenseText = QString::fromUtf8(licenseFile.readAll());
   licenseFile.close();
 
-  // Show the license in a message box
-  QMessageBox licenseBox(this);
-  licenseBox.setWindowTitle(tr("License"));
-  licenseBox.setText(licenseText);
-  licenseBox.setTextFormat(Qt::PlainText);
-  licenseBox.setStandardButtons(QMessageBox::Ok);
-  licenseBox.resize(600, 500);
-  licenseBox.exec();
+  // Create a custom dialog with a scrollable text area
+  QDialog licenseDialog(this);
+  licenseDialog.setWindowTitle(tr("License"));
+  licenseDialog.setMinimumSize(500, 400);
+  licenseDialog.resize(600, 500);
+
+  QVBoxLayout *layout = new QVBoxLayout(&licenseDialog);
+
+  QPlainTextEdit *textEdit = new QPlainTextEdit(&licenseDialog);
+  textEdit->setPlainText(licenseText);
+  textEdit->setReadOnly(true);
+  layout->addWidget(textEdit);
+
+  QDialogButtonBox *buttonBox =
+      new QDialogButtonBox(QDialogButtonBox::Ok, &licenseDialog);
+  connect(buttonBox, &QDialogButtonBox::accepted, &licenseDialog,
+          &QDialog::accept);
+  layout->addWidget(buttonBox);
+
+  licenseDialog.exec();
 
   LOG_PERF(0, "Exit");
 }
