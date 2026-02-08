@@ -646,13 +646,13 @@ void ProfileBoardWidget::onCloudSigninSuccess(const QString &email,
   // Verify JWT signature before accepting credentials
   const QString publicKeyPem = Util::JWTDecoder::getJWTPublicKey();
   if (publicKeyPem.isEmpty()) {
-    QMessageBox::warning(
-        this, "Signin failed",
-        "JWT signature verification failed. Please try signing in again.");
-    LOG_WARN("JWT public key not configured, skipping signature verification. "
-             "This should be configured for security.");
+    LOG_ERROR(Log::ErrorId::Security,
+              "JWT public key not configured, skipping signature verification. "
+              "This should be configured for security.");
 
     showSigninPage();
+
+    ui->labelSigninError->setText("JWT public key not configured");
 
     LOG_PERF(0, "Exit");
     return;
@@ -662,11 +662,9 @@ void ProfileBoardWidget::onCloudSigninSuccess(const QString &email,
                 "JWT signature verification failed during signin for user: {}",
                 email);
 
-      QMessageBox::warning(
-          this, "Signin failed",
-          "JWT signature verification failed. Please try signing in again.");
-
       showSigninPage();
+
+      ui->labelSigninError->setText("JWT signature verification failed");
 
       LOG_PERF(0, "Exit");
       return;
