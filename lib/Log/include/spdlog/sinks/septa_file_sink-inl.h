@@ -20,7 +20,6 @@
 #include <ctime>
 #include <filesystem>
 #include <mutex>
-#include <sstream>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -46,71 +45,49 @@ SPDLOG_INLINE septa_file_sink<Mutex>::septa_file_sink(filename_t base_filename,
 template <typename Mutex>
 SPDLOG_INLINE filename_t septa_file_sink<Mutex>::calc_filename(
     const filename_t &filename, std::size_t index) {
-  // Get current time point
-  auto now = std::chrono::system_clock::now();
+  time_t theTime = time(NULL);
+  struct tm *currentTime = localtime(&theTime);
 
-  // Convert to time_t for calendar breakdown
-  std::time_t t = std::chrono::system_clock::to_time_t(now);
-  std::tm local_tm = *std::localtime(&t);
+  int year = currentTime->tm_year + 1900;
+  int month = currentTime->tm_mon + 1;
+  int day = currentTime->tm_mday;
+  int hour = currentTime->tm_hour;
+  int minute = currentTime->tm_min;
+  int second = currentTime->tm_sec;
 
-  // Extract calendar components
-  int year = local_tm.tm_year + 1900; // tm_year is years since 1900
-  int month = local_tm.tm_mon + 1;    // tm_mon is months since January [0-11]
-  int day = local_tm.tm_mday;
-  int hour = local_tm.tm_hour;
-  int minute = local_tm.tm_min;
-  int second = local_tm.tm_sec;
+  std::string logFileName = std::to_string(year);
 
-  // Extract milliseconds
-  int ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-               now.time_since_epoch())
-               .count() %
-           1000;
+  if (month < 10) {
+    logFileName += "0";
+  }
 
-  std::ostringstream oss;
-  oss << std::setw(2) << std::setfill('0') << year;
+  logFileName += std::to_string(month);
 
-  std::string logFileName = oss.str();
+  if (day < 10) {
+    logFileName += "0";
+  }
 
-  oss.str("");
-
-  oss << std::setw(2) << std::setfill('0') << month;
-
-  logFileName += oss.str();
-
-  oss.str("");
-
-  oss << std::setw(2) << std::setfill('0') << day;
-
-  logFileName += oss.str();
-
-  oss.str("");
+  logFileName += std::to_string(day);
 
   logFileName += "_";
 
-  oss << std::setw(2) << std::setfill('0') << hour;
+  if (hour < 10) {
+    logFileName += "0";
+  }
 
-  logFileName += oss.str();
+  logFileName += std::to_string(hour);
 
-  oss.str("");
+  if (minute < 10) {
+    logFileName += "0";
+  }
 
-  oss << std::setw(2) << std::setfill('0') << minute;
+  logFileName += std::to_string(minute);
 
-  logFileName += oss.str();
+  if (second < 10) {
+    logFileName += "0";
+  }
 
-  oss.str("");
-
-  oss << std::setw(2) << std::setfill('0') << second;
-
-  logFileName += oss.str();
-
-  oss.str("");
-
-  logFileName += ".";
-
-  oss << std::setw(4) << std::setfill('0') << ms;
-
-  logFileName += oss.str();
+  logFileName += std::to_string(second);
 
   filename_t basename, ext;
   std::tie(basename, ext) = details::file_helper::split_by_extension(filename);
@@ -154,11 +131,10 @@ template <typename Mutex> SPDLOG_INLINE void septa_file_sink<Mutex>::rotate_() {
   try {
     namespace fs = std::filesystem;
 
-    // Get the directory and base name
+    // Get the directory and   base name
     fs::path base_path(base_filename_);
     fs::path dir_path = base_path.parent_path();
-    std::string basename =
-        base_path.stem().string(); // Get filename without extension
+    std::string basename = base_path.stem().string();  // Get filename without extension
 
     if (!fs::exists(dir_path)) {
       return;
@@ -169,9 +145,8 @@ template <typename Mutex> SPDLOG_INLINE void septa_file_sink<Mutex>::rotate_() {
     for (const auto &entry : fs::directory_iterator(dir_path)) {
       if (entry.is_regular_file()) {
         std::string filename = entry.path().filename().string();
-        // Check if file matches the pattern: basename_YYYYMMDD_HHMMSS.XXXX.log
-        if (filename.find(basename) == 0 &&
-            filename.length() > basename.length() &&
+        // Check if file matches the pattern: basename_YYYYMMDD_HHMMSS.log
+        if (filename.find(basename) == 0 && filename.length() > basename.length() &&
             filename.compare(filename.length() - 4, 4, ".log") == 0) {
           log_files.push_back(entry.path());
         }
@@ -184,13 +159,11 @@ template <typename Mutex> SPDLOG_INLINE void septa_file_sink<Mutex>::rotate_() {
     // Delete files beyond max_files_ limit
     if (log_files.size() > max_files_) {
       for (size_t i = max_files_; i < log_files.size(); ++i) {
-        details::os::remove_if_exists(
-            std::filesystem::absolute(log_files[i]).string());
+        details::os::remove_if_exists(log_files[i].string());
       }
     }
   } catch (const std::exception &) {
-    // Silently ignore errors during cleanup - don't let file deletion failures
-    // affect logging
+    // Silently ignore errors during cleanup - don't let file deletion failures affect logging
   }
 }
 
