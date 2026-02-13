@@ -281,7 +281,7 @@
                                    Value="Sourcerer Team" />
                     <RegistryValue Type="string" 
                                    Name="URLInfoAbout" 
-                                   Value="https://www.sourcerer.hr" />
+                                   Value="https://www.sourcererapp.com" />
                     <RegistryValue Type="string" 
                                    Name="InstallLocation" 
                                    Value="[INSTALLFOLDER]" />
@@ -310,6 +310,6 @@
         
         <!-- Custom properties -->
         <Property Id="ARPPRODUCTICON" Value="sorcerer-hat.png" />
-        <Property Id="ARPURLINFOABOUT" Value="https://www.sourcerer.hr" />
+        <Property Id="ARPURLINFOABOUT" Value="https://www.sourcererapp.com" />
     </Product>
 </Wix>
