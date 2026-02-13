@@ -191,7 +191,7 @@ EOF
 fi
 
 # Create AppImage
-if [ "$BUILD_APPIMAGE" = true ] && [ "$OS_TYPE" = "linux" ]; then
+if [ "$BUILD_APPIMAGE" = true ]; then
     echo ""
     echo "Building AppImage..."
     cd "$INSTALLER_DIR"

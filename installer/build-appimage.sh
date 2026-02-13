@@ -443,10 +443,10 @@ if [ -f /.dockerenv ] || ! command -v fusermount &> /dev/null || ! [ -c /dev/fus
         "$APPIMAGETOOL" --appimage-extract > /dev/null 2>&1
         mv squashfs-root "$SCRIPT_DIR/appimagetool-extracted"
     fi
-    ARCH=x86_64 "$SCRIPT_DIR/appimagetool-extracted/AppRun" --no-appstream "$APPDIR" "Sourcerer-${VERSION}-x86_64.AppImage"
+    ARCH=x86_64 "$SCRIPT_DIR/appimagetool-extracted/AppRun" --no-appstream "$APPDIR" "Sourcerer-Installer.AppImage"
 else
     # Normal execution with FUSE
-    ARCH=x86_64 "$APPIMAGETOOL" "$APPDIR" "Sourcerer-${VERSION}-x86_64.AppImage"
+    ARCH=x86_64 "$APPIMAGETOOL" "$APPDIR" "Sourcerer-Installer.AppImage"
 fi
 
 # Clean up AppDir
