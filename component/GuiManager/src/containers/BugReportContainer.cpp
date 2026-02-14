@@ -5,24 +5,22 @@
 #include "widgets/InfoToast.h"
 #include "widgets/ToastHostWidget.h"
 
+#include <CloudCredentialStorage.h>
+#include <CloudRepo.h>
+#include <JWTDecoder.h>
 #include <Log.h>
 
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QHttpPart>
 #include <QMessageBox>
-#include <QNetworkRequest>
 #include <QTemporaryFile>
 #include <QTimer>
-#include <QUrl>
 
+#include <chrono>
 #include <zip.h>
 
 #define THREAD_ID "BugReportContainer"
-
-// Configuration: Set your bug report endpoint here
-#define BUG_REPORT_ENDPOINT "https://api.yourcompany.com/bug-reports"
 
 namespace GuiManager::Containers {
 
@@ -30,7 +28,6 @@ BugReportContainer::BugReportContainer(QWidget *parent)
     : ContainerWidget(ContainerType::BugReport, parent),
       ui(new Ui::BugReportContainer),
       _configManager(ConfigManager::ConfigManager::getInstance()),
-      _networkManager(new QNetworkAccessManager(this)), _currentReply(nullptr),
       _spinnerOverlay(new SpinnerOverlayWidget(this)) {
   LOG_PERF(0, "Enter");
 
@@ -52,6 +49,12 @@ BugReportContainer::BugReportContainer(QWidget *parent)
   connect(ui->textEditDescription, &QTextEdit::textChanged, this,
           &BugReportContainer::onInputChanged);
 
+  // Connect to CloudRepo signals for upload status
+  connect(&Util::CloudRepo::getInstance(), &Util::CloudRepo::uploadBugReportSuccess,
+          this, &BugReportContainer::onUploadSuccess);
+  connect(&Util::CloudRepo::getInstance(), &Util::CloudRepo::uploadBugReportFailed,
+          this, &BugReportContainer::onUploadFailed);
+
   LOG_PERF(0, "Exit");
 }
 
@@ -64,11 +67,6 @@ BugReportContainer::~BugReportContainer() {
     _spinnerOverlay->stopSpinning();
     _spinnerOverlay->deleteLater();
     _spinnerOverlay = nullptr;
-  }
-
-  if (_currentReply) {
-    _currentReply->abort();
-    _currentReply->deleteLater();
   }
 
   // Clean up temporary zip file
@@ -142,52 +140,26 @@ void BugReportContainer::onInputChanged() {
   ui->pushButtonSubmit->setEnabled(hasTitle && hasDescription);
 }
 
-void BugReportContainer::onUploadProgress(qint64 bytesSent, qint64 bytesTotal) {
-  if (bytesTotal > 0) {
-    int percentage = static_cast<int>((bytesSent * 100) / bytesTotal);
-    LOG_DEBUG("Upload progress: {}%", percentage);
-    updateProgressLabel(percentage);
-  }
-}
-
-void BugReportContainer::onUploadFinished() {
+void BugReportContainer::onUploadSuccess(const QString &response) {
   LOG_PERF(0, "Enter");
 
-  if (!_currentReply) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
+  LOG_DEBUG("Bug report uploaded successfully");
+  LOG_DEBUG("Server response: {}", response);
 
-  QNetworkReply::NetworkError error = _currentReply->error();
+  showSpinnerOverlay(false);
 
-  if (error == QNetworkReply::NoError) {
-    LOG_DEBUG("Bug report uploaded successfully");
+  // Re-enable inputs
+  ui->lineEditTitle->setEnabled(true);
+  ui->textEditDescription->setEnabled(true);
+  ui->pushButtonSubmit->setEnabled(true);
+  ui->pushButtonCancel->setEnabled(true);
 
-    // Read response
-    QByteArray response = _currentReply->readAll();
-    LOG_DEBUG("Server response: {}", QString::fromUtf8(response));
+  // Clear form
+  ui->lineEditTitle->clear();
+  ui->textEditDescription->clear();
 
-    showSpinnerOverlay(false);
-
-    // Re-enable inputs
-    ui->lineEditTitle->setEnabled(true);
-    ui->textEditDescription->setEnabled(true);
-    ui->pushButtonSubmit->setEnabled(true);
-    ui->pushButtonCancel->setEnabled(true);
-
-    // Clear form
-    ui->lineEditTitle->clear();
-    ui->textEditDescription->clear();
-
-    ToastHostWidget::getInstance().addToast(new InfoToast(
-        tr("Bug report submitted successfully. Thank you!"), tr("Success")));
-  } else {
-    onUploadError(error);
-  }
-
-  // Clean up
-  _currentReply->deleteLater();
-  _currentReply = nullptr;
+  ToastHostWidget::getInstance().addToast(new InfoToast(
+      tr("Bug report submitted successfully. Thank you!"), tr("Success")));
 
   // Remove temporary zip file
   if (!_tempZipFilePath.isEmpty() && QFile::exists(_tempZipFilePath)) {
@@ -198,19 +170,12 @@ void BugReportContainer::onUploadFinished() {
   LOG_PERF(0, "Exit");
 }
 
-void BugReportContainer::onUploadError(QNetworkReply::NetworkError code) {
+void BugReportContainer::onUploadFailed(const QString &error) {
   LOG_PERF(0, "Enter");
 
-  QString errorMessage = tr("Failed to upload bug report: ");
+  QString errorMessage = tr("Failed to upload bug report: ") + error;
 
-  if (_currentReply) {
-    errorMessage += _currentReply->errorString();
-  } else {
-    errorMessage += tr("Unknown error");
-  }
-
-  LOG_ERROR(Log::ErrorId::Network, "Upload error: {} (code: {})", errorMessage,
-            static_cast<int>(code));
+  LOG_ERROR(Log::ErrorId::Network, "Upload error: {}", errorMessage);
 
   showSpinnerOverlay(false);
 
@@ -222,6 +187,12 @@ void BugReportContainer::onUploadError(QNetworkReply::NetworkError code) {
 
   ToastHostWidget::getInstance().addToast(
       new ErrorToast(errorMessage, tr("Upload Error")));
+
+  // Remove temporary zip file
+  if (!_tempZipFilePath.isEmpty() && QFile::exists(_tempZipFilePath)) {
+    QFile::remove(_tempZipFilePath);
+    _tempZipFilePath.clear();
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -269,11 +240,45 @@ QString BugReportContainer::createLogsZipFile() {
 
   LOG_DEBUG("Found {} log files", logFiles.size());
 
+  // Get email, first_name, and last_name from JWT
+  QString email = "unknown";
+  QString firstName = "unknown";
+  QString lastName = "unknown";
+
+  QString jwt;
+  if (Util::CloudCredentialtorage::getInstance().getJWT(jwt)) {
+    const auto claims = Util::JWTDecoder::decodeClaims(jwt);
+    if (!claims.email.isEmpty()) {
+      email = claims.email;
+    }
+    if (!claims.givenName.isEmpty()) {
+      firstName = claims.givenName;
+    }
+    if (!claims.familyName.isEmpty()) {
+      lastName = claims.familyName;
+    }
+    LOG_DEBUG("Retrieved JWT claims - Email: {}, First Name: {}, Last Name: {}",
+              email, firstName, lastName);
+  } else {
+    LOG_WARN("No JWT token found, using default values for filename");
+  }
+
+  // Get current time in UTC epoch (seconds since Jan 1, 1970)
+  auto now = std::chrono::system_clock::now();
+  auto epochSeconds = std::chrono::duration_cast<std::chrono::seconds>(
+                          now.time_since_epoch())
+                          .count();
+
+  // Generate filename: bug_report_<email>_<first_name>_<last_name>_<epoch>.zip
+  QString filename = QString("bug_report_%1_%2_%3_%4.zip")
+                         .arg(email, firstName, lastName,
+                              QString::number(epochSeconds));
+
   QString zipPath;
 
   {
-    // Create temporary zip file
-    QTemporaryFile tempFile(QDir::tempPath() + "/bug_report_XXXXXX.zip");
+    // Create temporary zip file with the new filename format
+    QTemporaryFile tempFile(QDir::tempPath() + "/" + filename);
     if (!tempFile.open()) {
       LOG_ERROR(Log::ErrorId::FileSystem,
                 "Failed to create temporary zip file");
@@ -283,6 +288,7 @@ QString BugReportContainer::createLogsZipFile() {
 
     zipPath = tempFile.fileName();
     tempFile.close();
+    LOG_DEBUG("Created temporary file: {}", zipPath);
   }
 
   LOG_DEBUG("Creating zip file: {}", zipPath);
@@ -387,65 +393,29 @@ void BugReportContainer::onZipCreationFinished(const QString &zipPath) {
   _tempZipFilePath = zipPath;
   if (_tempZipFilePath.isEmpty()) {
     LOG_WARN("No logs to attach, submitting without log files");
+    showSpinnerOverlay(false);
+    ToastHostWidget::getInstance().addToast(
+        new ErrorToast(tr("Failed to create log archive"), tr("Error")));
+    LOG_PERF(0, "Exit");
+    return;
   }
 
   // Update progress message
   updateProgressLabel(0);
+  _spinnerOverlay->setText(tr("Uploading bug report..."));
 
-  // Create multipart form data
-  QHttpMultiPart *multiPart = new QHttpMultiPart(QHttpMultiPart::FormDataType);
+  LOG_DEBUG("Uploading bug report zip: {}", _tempZipFilePath);
 
-  // Add title field
-  QHttpPart titlePart;
-  titlePart.setHeader(QNetworkRequest::ContentDispositionHeader,
-                      QVariant("form-data; name=\"title\""));
-  titlePart.setBody(ui->lineEditTitle->text().toUtf8());
-  multiPart->append(titlePart);
+  // Use CloudRepo to upload the bug report
+  const auto result = Util::CloudRepo::getInstance().uploadBugReport(_tempZipFilePath);
 
-  // Add description field
-  QHttpPart descriptionPart;
-  descriptionPart.setHeader(QNetworkRequest::ContentDispositionHeader,
-                            QVariant("form-data; name=\"description\""));
-  descriptionPart.setBody(ui->textEditDescription->toPlainText().toUtf8());
-  multiPart->append(descriptionPart);
-
-  // Add zip file if available
-  if (!_tempZipFilePath.isEmpty()) {
-    QFile *file = new QFile(_tempZipFilePath);
-    if (file->open(QIODevice::ReadOnly)) {
-      QHttpPart filePart;
-      filePart.setHeader(QNetworkRequest::ContentTypeHeader,
-                         QVariant("application/zip"));
-      filePart.setHeader(
-          QNetworkRequest::ContentDispositionHeader,
-          QVariant(QString("form-data; name=\"logs\"; filename=\"%1\"")
-                       .arg(QFileInfo(_tempZipFilePath).fileName())));
-      filePart.setBodyDevice(file);
-      file->setParent(multiPart); // File will be deleted with multiPart
-      multiPart->append(filePart);
-
-      LOG_DEBUG("Attached log file: {}", _tempZipFilePath);
-    } else {
-      LOG_ERROR(Log::ErrorId::FileSystem, "Failed to open zip file for upload");
-      delete file;
-    }
+  if (result.first != QNetworkReply::NetworkError::NoError) {
+    LOG_ERROR(Log::ErrorId::Network, "Failed to upload bug report: {}",
+              result.second);
+    showSpinnerOverlay(false);
+    ToastHostWidget::getInstance().addToast(
+        new ErrorToast(tr("Failed to upload bug report"), tr("Error")));
   }
-
-  // Create request
-  QNetworkRequest request(QUrl(BUG_REPORT_ENDPOINT));
-  request.setHeader(QNetworkRequest::UserAgentHeader, "Sourcerer/1.0");
-
-  // Send request
-  _currentReply = _networkManager->post(request, multiPart);
-  multiPart->setParent(_currentReply); // Delete multiPart with reply
-
-  // Connect signals
-  connect(_currentReply, &QNetworkReply::uploadProgress, this,
-          &BugReportContainer::onUploadProgress);
-  connect(_currentReply, &QNetworkReply::finished, this,
-          &BugReportContainer::onUploadFinished);
-
-  LOG_DEBUG("Sending bug report to {}", BUG_REPORT_ENDPOINT);
 
   LOG_PERF(0, "Exit");
 }

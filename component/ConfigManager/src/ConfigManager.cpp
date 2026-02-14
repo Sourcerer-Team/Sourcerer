@@ -25,6 +25,7 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::CloudSigninUrl, "cloud/signin/url"},
     {ConfigKey::CloudSignupUrl, "cloud/signup/url"},
     {ConfigKey::CloudSignoutUrl, "cloud/signout/url"},
+    {ConfigKey::CloudUploadBugReportUrl, "cloud/uploadBugReport/url"},
     {ConfigKey::GitRepoSplitterPos, "window/gitrepo/splitterPos"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos,
      "window/gitrepo/branchRecyclerViewItemsSplitterPos"},
@@ -121,13 +122,15 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::CloudJwtPublicKeyPath, "keys/cloud_jwt_public_key.pem"},
 #ifdef QT_DEBUG
-    {ConfigKey::CloudSigninUrl, "http://localhost:8080/api/v1/signin"},
-    {ConfigKey::CloudSignupUrl, "http://localhost:8080/#/signup"},
-    {ConfigKey::CloudSignoutUrl, "http://localhost:8080/api/v1/logout"},
+    {ConfigKey::CloudSigninUrl, "http://developer.sourcererapp.com:8080/api/v1/signin"},
+    {ConfigKey::CloudSignupUrl, "http://developer.sourcererapp.com:8080/#/signup"},
+    {ConfigKey::CloudSignoutUrl, "http://developer.sourcererapp.com:8080/api/v1/logout"},
+    {ConfigKey::CloudUploadBugReportUrl, "http://developer.sourcererapp.com:8080/api/v1/upload_bug_report"},
 #else
-    {ConfigKey::CloudSigninUrl, "http://localhost:8080/api/v1/signin"},
-    {ConfigKey::CloudSignupUrl, "http://localhost:8080/#/signup"},
-    {ConfigKey::CloudSignoutUrl, "http://localhost:8080/api/v1/logout"},
+    {ConfigKey::CloudSigninUrl, "http://developer.sourcererapp.com:8080/api/v1/signin"},
+    {ConfigKey::CloudSignupUrl, "http://developer.sourcererapp.com:8080/#/signup"},
+    {ConfigKey::CloudSignoutUrl, "http://developer.sourcererapp.com:8080/api/v1/logout"},
+    {ConfigKey::CloudUploadBugReportUrl, "http://developer.sourcererapp.com:8080/api/v1/upload_bug_report"},
 #endif
     {ConfigKey::GitRepoSplitterPos, ""},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},

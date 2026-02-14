@@ -42,6 +42,7 @@ enum class ConfigKey {
   CloudSigninUrl,
   CloudSignupUrl,
   CloudSignoutUrl,
+  CloudUploadBugReportUrl,
 
   // Settings container
   SettingsSplitterPos,

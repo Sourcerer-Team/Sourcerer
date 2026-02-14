@@ -53,6 +53,14 @@ public:
    */
   QString getMachineToken() const;
 
+  /**
+   * @brief Upload bug report file to cloud
+   * @param filePath Path to the bug report file (zip archive)
+   * @return Pair of network error and response message
+   */
+  QPair<QNetworkReply::NetworkError, QString> uploadBugReport(
+      const QString &filePath);
+
 signals:
   /**
    * @brief Emitted when signin is successful
@@ -94,6 +102,24 @@ signals:
    * @param error Error message from cloud service
    */
   void signoutFailed(const QString &error);
+
+  /**
+   * @brief Emitted when bug report upload is successful
+   * @param response Response from server
+   */
+  void uploadBugReportSuccess(const QString &response);
+
+  /**
+   * @brief Emitted when HTTP error occurs during bug report upload
+   * @param error Error from HTTP client
+   */
+  void uploadBugReportError(QNetworkReply::NetworkError error);
+
+  /**
+   * @brief Emitted when error occurs during bug report upload
+   * @param error Error message from cloud service
+   */
+  void uploadBugReportFailed(const QString &error);
 
 private:
   CloudRepo();

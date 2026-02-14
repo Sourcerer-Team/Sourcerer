@@ -3,13 +3,11 @@
 #include "widgets/ContainerWidget.h"
 #include "widgets/SpinnerOverlayWidget.h"
 
+#include <CloudRepo.h>
 #include <ConfigManager.h>
 #include <Dispatcher.h>
 
 #include <QEnableSharedFromThis>
-#include <QHttpMultiPart>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
 #include <QWidget>
 
 namespace Ui {
@@ -46,9 +44,8 @@ private slots:
   void onSubmitClicked();
   void onCancelClicked();
   void onInputChanged();
-  void onUploadProgress(qint64 bytesSent, qint64 bytesTotal);
-  void onUploadFinished();
-  void onUploadError(QNetworkReply::NetworkError code);
+  void onUploadSuccess(const QString &response);
+  void onUploadFailed(const QString &error);
 
 private:
   bool validateInputs() const;
@@ -61,8 +58,6 @@ private:
 private:
   Ui::BugReportContainer *ui;
   ConfigManager::ConfigManager &_configManager;
-  QNetworkAccessManager *_networkManager;
-  QNetworkReply *_currentReply;
   SpinnerOverlayWidget *_spinnerOverlay;
   QString _tempZipFilePath;
   Util::Dispatcher _dispatcher;

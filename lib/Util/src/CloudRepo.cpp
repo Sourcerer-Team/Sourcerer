@@ -6,10 +6,13 @@
 #include <Log.h>
 
 #include <QCryptographicHash>
+#include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QStandardPaths>
 #include <QSysInfo>
+#include <QUuid>
 #include <memory>
 
 #define THREAD_ID "CloudRepo"
@@ -188,4 +191,103 @@ CloudRepo::processResponse(const QString &response, int statusCode) {
   return {QNetworkReply::NetworkError::NoError, accessToken};
 }
 
+QPair<QNetworkReply::NetworkError, QString>
+CloudRepo::uploadBugReport(const QString &filePath) {
+  LOG_PERF(0, "Enter");
+  LOG_INFO("Uploading bug report from: {}", filePath);
+
+  // Validate file exists
+  if (!QFile::exists(filePath)) {
+    LOG_ERROR(Log::ErrorId::FileSystem, "Bug report file does not exist: {}",
+              filePath);
+    emit uploadBugReportFailed("File not found: " + filePath);
+    LOG_PERF(0, "Exit");
+    return {QNetworkReply::NetworkError::ContentNotFoundError,
+            "File not found"};
+  }
+
+  // Open and read file
+  QFile file(filePath);
+  if (!file.open(QIODevice::ReadOnly)) {
+    LOG_ERROR(Log::ErrorId::FileSystem,
+              "Failed to open bug report file: {}", filePath);
+    emit uploadBugReportFailed("Failed to open file: " + filePath);
+    LOG_PERF(0, "Exit");
+    return {QNetworkReply::NetworkError::ContentNotFoundError, "Failed to open file"};
+  }
+
+  QByteArray fileData = file.readAll();
+  const QString fileName = QFileInfo(filePath).fileName();
+  file.close();
+
+  if (fileData.isEmpty()) {
+    LOG_WARN("Bug report file is empty: {}", filePath);
+  }
+
+  LOG_DEBUG("Read bug report file: {} bytes", fileData.size());
+
+  // Generate multipart boundary
+  const QString boundary =
+      "----WebKitFormBoundary" + QUuid::createUuid().toString().remove('-');
+
+  // Construct multipart form data
+  QByteArray requestBody;
+
+  // Add boundary start
+  requestBody.append("--" + boundary.toUtf8() + "\r\n");
+
+  // Add file part
+  requestBody.append("Content-Disposition: form-data; name=\"bug_report\"; "
+                     "filename=\"" +
+                     fileName.toUtf8() + "\"\r\n");
+  requestBody.append("Content-Type: application/zip\r\n");
+  requestBody.append("\r\n");
+  requestBody.append(fileData);
+  requestBody.append("\r\n");
+
+  // Add boundary end
+  requestBody.append("--" + boundary.toUtf8() + "--\r\n");
+
+  LOG_DEBUG("Constructed multipart request body: {} bytes", requestBody.size());
+
+  // Create HTTP client and send request
+  const auto httpClient = std::make_shared<Util::HttpClient>();
+
+  ::ConfigManager::ConfigManager &configManager =
+      ::ConfigManager::ConfigManager::getInstance();
+  const QString uploadUrl =
+      configManager.getString(::ConfigManager::ConfigKey::CloudUploadBugReportUrl);
+
+  LOG_DEBUG("Uploading to: {}", uploadUrl);
+
+  QMap<QNetworkRequest::KnownHeaders, QString> httpHeaders;
+  httpHeaders[QNetworkRequest::KnownHeaders::ContentTypeHeader] =
+      "multipart/form-data; boundary=" + boundary;
+
+  QMap<QString, QString> rawHttpHeaders;
+  rawHttpHeaders["authorization"] = "Bearer " + _accessToken;
+
+  const auto httpReply =
+      httpClient->sendRequest(uploadUrl, HttpMethod::Post, httpHeaders,
+                              rawHttpHeaders, requestBody);
+
+  if (httpReply.error() != QNetworkReply::NetworkError::NoError) {
+    LOG_ERROR(Log::ErrorId::Network, "Failed to upload bug report: {}",
+              (int)httpReply.error());
+    emit uploadBugReportError(httpReply.error());
+    LOG_PERF(0, "Exit");
+    return {httpReply.error(), QString()};
+  }
+
+  const QString response = QString::fromUtf8(httpReply.response());
+  LOG_INFO("Bug report uploaded successfully");
+  LOG_DEBUG("Upload response: {}", response);
+
+  emit uploadBugReportSuccess(response);
+
+  LOG_PERF(0, "Exit");
+  return {QNetworkReply::NetworkError::NoError, response};
+}
+
 } // namespace Util
+
