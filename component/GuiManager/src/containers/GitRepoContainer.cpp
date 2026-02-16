@@ -353,6 +353,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonDiffSideBySide->setChecked(useSideBySideDiff);
   ui->pushButtonDiffUnified->setChecked(!useSideBySideDiff);
 
+  ui->stackedWidgetDiff->setCurrentIndex(
+      static_cast<int>(useSideBySideDiff ? DiffStackIndexes::DiffSideBySide
+                                         : DiffStackIndexes::DiffUnified));
+
   ui->pushButtonMergeDiffClose->setIcon(QPixmap(":/icons/close_button.png"));
   ui->pushButtonMergeDiffClose->setMinimumSize(32, 32);
   ui->pushButtonMergeDiffClose->setMaximumSize(32, 32);
