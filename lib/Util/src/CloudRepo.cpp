@@ -209,16 +209,19 @@ CloudRepo::uploadBugReport(const QString &filePath) {
   // Open and read file
   QFile file(filePath);
   if (!file.open(QIODevice::ReadOnly)) {
-    LOG_ERROR(Log::ErrorId::FileSystem,
-              "Failed to open bug report file: {}", filePath);
+    LOG_ERROR(Log::ErrorId::FileSystem, "Failed to open bug report file: {}",
+              filePath);
     emit uploadBugReportFailed("Failed to open file: " + filePath);
     LOG_PERF(0, "Exit");
-    return {QNetworkReply::NetworkError::ContentNotFoundError, "Failed to open file"};
+    return {QNetworkReply::NetworkError::ContentNotFoundError,
+            "Failed to open file"};
   }
 
   QByteArray fileData = file.readAll();
-  const QString fileName = QFileInfo(filePath).fileName();
+  QString fileName = QFileInfo(filePath).fileName();
   file.close();
+
+  fileName = fileName.mid(0, fileName.lastIndexOf('.'));
 
   if (fileData.isEmpty()) {
     LOG_WARN("Bug report file is empty: {}", filePath);
@@ -255,8 +258,8 @@ CloudRepo::uploadBugReport(const QString &filePath) {
 
   ::ConfigManager::ConfigManager &configManager =
       ::ConfigManager::ConfigManager::getInstance();
-  const QString uploadUrl =
-      configManager.getString(::ConfigManager::ConfigKey::CloudUploadBugReportUrl);
+  const QString uploadUrl = configManager.getString(
+      ::ConfigManager::ConfigKey::CloudUploadBugReportUrl);
 
   LOG_DEBUG("Uploading to: {}", uploadUrl);
 
@@ -267,9 +270,8 @@ CloudRepo::uploadBugReport(const QString &filePath) {
   QMap<QString, QString> rawHttpHeaders;
   rawHttpHeaders["authorization"] = "Bearer " + _accessToken;
 
-  const auto httpReply =
-      httpClient->sendRequest(uploadUrl, HttpMethod::Post, httpHeaders,
-                              rawHttpHeaders, requestBody);
+  const auto httpReply = httpClient->sendRequest(
+      uploadUrl, HttpMethod::Post, httpHeaders, rawHttpHeaders, requestBody);
 
   if (httpReply.error() != QNetworkReply::NetworkError::NoError) {
     LOG_ERROR(Log::ErrorId::Network, "Failed to upload bug report: {}",
@@ -290,4 +292,3 @@ CloudRepo::uploadBugReport(const QString &filePath) {
 }
 
 } // namespace Util
-

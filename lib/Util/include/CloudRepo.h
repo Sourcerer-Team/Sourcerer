@@ -58,8 +58,8 @@ public:
    * @param filePath Path to the bug report file (zip archive)
    * @return Pair of network error and response message
    */
-  QPair<QNetworkReply::NetworkError, QString> uploadBugReport(
-      const QString &filePath);
+  QPair<QNetworkReply::NetworkError, QString>
+  uploadBugReport(const QString &filePath);
 
 signals:
   /**

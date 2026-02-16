@@ -54,14 +54,15 @@ JWTDecoder::Claims JWTDecoder::decodeClaims(const QString &jwt) {
   // Extract standard claims
   claims.givenName = claimsObj.value("first_name").toString();
   claims.familyName = claimsObj.value("last_name").toString();
-  claims.email = claimsObj.value("email").toString();
+  claims.email = claimsObj.value("sub").toString();
   claims.plan = claimsObj.value("plan").toString();
-  claims.roles = claimsObj.value("roles").toString();
+  claims.roles = claimsObj.value("roles").toVariant().toStringList().toVector();
   claims.exp = claimsObj.value("exp").toVariant().toLongLong();
 
   LOG_INFO("Extracted JWT claims - Given Name: {}, Family Name: {}, Email: {}, "
            "Roles: {}",
-           claims.givenName, claims.familyName, claims.email, claims.roles);
+           claims.givenName, claims.familyName, claims.email,
+           claims.roles.toList().join(","));
 
   LOG_PERF(0, "Exit");
   return claims;

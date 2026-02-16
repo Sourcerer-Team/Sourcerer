@@ -26,7 +26,9 @@ void CentralWidget::setCentralWidget(QWidget *widget) {
 
   _centralWidget = widget;
 
-  layout()->addWidget(_centralWidget);
+  if (_centralWidget) {
+    layout()->addWidget(_centralWidget);
+  }
 
   LOG_PERF(0, "Exit");
 }

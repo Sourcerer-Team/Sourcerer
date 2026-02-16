@@ -1,18 +1,19 @@
 #pragma once
 
 #include <QString>
+#include <QVector>
 
 namespace Util {
 
 class JWTDecoder {
 public:
   struct Claims {
-    QString givenName;  // given_name claim
-    QString familyName; // family_name claim
-    QString email;      // email claim
-    QString plan;       // subscription plan claim
-    QString roles;      // roles claim
-    qlonglong exp;      // expiration Unix time claim
+    QString givenName;      // given_name claim
+    QString familyName;     // family_name claim
+    QString email;          // email claim
+    QString plan;           // subscription plan claim
+    QVector<QString> roles; // roles claim
+    qlonglong exp;          // expiration Unix time claim
   };
 
   // Decode JWT and extract standard claims

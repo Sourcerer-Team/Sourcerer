@@ -49,9 +49,9 @@ private slots:
 
 private:
   bool validateInputs() const;
-  QString createLogsZipFile();
+  QString createLogsZipFile(const QString &title, const QString &description);
   void submitBugReport();
-  void onZipCreationFinished(const QString &zipPath);
+  void onZipCreationFinished(const WeakPtr &guard, const QString &zipPath);
   void showSpinnerOverlay(bool show = true);
   void updateProgressLabel(int percentage);
 

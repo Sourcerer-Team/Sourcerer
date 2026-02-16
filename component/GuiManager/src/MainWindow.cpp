@@ -186,6 +186,14 @@ MainWindow::~MainWindow() {
   _profileBoardWidget->setParent(nullptr);
   _profileBoardWidget.clear();
 
+  _centralWidget->setCentralWidget(nullptr);
+
+  if (_current >= 0 && _current < _containers.size()) {
+    if (_containers[_current]) {
+      _containers[_current]->setParent(nullptr);
+    }
+  }
+
   delete _hitDetector;
 
   LOG_PERF(0, "Exit");

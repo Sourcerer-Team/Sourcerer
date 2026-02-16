@@ -61,7 +61,8 @@ AboutDialog::AboutDialog(QWidget *parent)
   // Website
   ui->websiteLabel->setText(
       tr("Website: ") +
-      "<a href='https://www.sourcererapp.com'>https://www.sourcererapp.com</a>");
+      "<a "
+      "href='https://www.sourcererapp.com'>https://www.sourcererapp.com</a>");
   ui->websiteLabel->setTextInteractionFlags(Qt::TextBrowserInteraction |
                                             Qt::TextSelectableByMouse);
   ui->websiteLabel->setOpenExternalLinks(true);

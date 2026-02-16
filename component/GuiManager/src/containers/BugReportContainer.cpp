@@ -10,6 +10,7 @@
 #include <JWTDecoder.h>
 #include <Log.h>
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -17,7 +18,6 @@
 #include <QTemporaryFile>
 #include <QTimer>
 
-#include <chrono>
 #include <zip.h>
 
 #define THREAD_ID "BugReportContainer"
@@ -50,10 +50,12 @@ BugReportContainer::BugReportContainer(QWidget *parent)
           &BugReportContainer::onInputChanged);
 
   // Connect to CloudRepo signals for upload status
-  connect(&Util::CloudRepo::getInstance(), &Util::CloudRepo::uploadBugReportSuccess,
-          this, &BugReportContainer::onUploadSuccess);
-  connect(&Util::CloudRepo::getInstance(), &Util::CloudRepo::uploadBugReportFailed,
-          this, &BugReportContainer::onUploadFailed);
+  connect(&Util::CloudRepo::getInstance(),
+          &Util::CloudRepo::uploadBugReportSuccess, this,
+          &BugReportContainer::onUploadSuccess);
+  connect(&Util::CloudRepo::getInstance(),
+          &Util::CloudRepo::uploadBugReportFailed, this,
+          &BugReportContainer::onUploadFailed);
 
   LOG_PERF(0, "Exit");
 }
@@ -61,13 +63,7 @@ BugReportContainer::BugReportContainer(QWidget *parent)
 BugReportContainer::~BugReportContainer() {
   LOG_PERF(0, "Enter");
 
-  // Clean up spinner overlay
-  if (_spinnerOverlay) {
-    _spinnerOverlay->hide();
-    _spinnerOverlay->stopSpinning();
-    _spinnerOverlay->deleteLater();
-    _spinnerOverlay = nullptr;
-  }
+  showSpinnerOverlay(false);
 
   // Clean up temporary zip file
   if (!_tempZipFilePath.isEmpty() && QFile::exists(_tempZipFilePath)) {
@@ -216,7 +212,8 @@ bool BugReportContainer::validateInputs() const {
   return true;
 }
 
-QString BugReportContainer::createLogsZipFile() {
+QString BugReportContainer::createLogsZipFile(const QString &title,
+                                              const QString &description) {
   LOG_PERF(0, "Enter");
 
   const QString logsDir = _configManager.getLogsDir();
@@ -264,15 +261,11 @@ QString BugReportContainer::createLogsZipFile() {
   }
 
   // Get current time in UTC epoch (seconds since Jan 1, 1970)
-  auto now = std::chrono::system_clock::now();
-  auto epochSeconds = std::chrono::duration_cast<std::chrono::seconds>(
-                          now.time_since_epoch())
-                          .count();
+  const auto now = QDateTime::currentDateTime().toUTC().toMSecsSinceEpoch();
 
   // Generate filename: bug_report_<email>_<first_name>_<last_name>_<epoch>.zip
-  QString filename = QString("bug_report_%1_%2_%3_%4.zip")
-                         .arg(email, firstName, lastName,
-                              QString::number(epochSeconds));
+  QString filename = QString("bug-report-%1-%2-%3-%4.zip")
+                         .arg(email, firstName, lastName, QString::number(now));
 
   QString zipPath;
 
@@ -307,6 +300,31 @@ QString BugReportContainer::createLogsZipFile() {
     QFile::remove(zipPath);
     LOG_PERF(0, "Exit");
     return {};
+  }
+
+  // Create BugDescription.txt content
+  QString descriptionContent = QString("Bug Report\n"
+                                       "============\n\n"
+                                       "Title: %1\n\n"
+                                       "Description:\n"
+                                       "%2")
+                                   .arg(title, description);
+
+  QByteArray descriptionBytes = descriptionContent.toUtf8();
+
+  // Add BugDescription.txt to archive
+  zip_source_t *descSource = zip_source_buffer(
+      archive, descriptionBytes.constData(), descriptionBytes.size(), 0);
+  if (!descSource) {
+    LOG_ERROR(Log::ErrorId::FileSystem,
+              "Failed to create zip source for BugDescription.txt: {}",
+              zip_strerror(archive));
+  } else if (zip_file_add(archive, "BugDescription.txt", descSource,
+                          ZIP_FL_ENC_UTF_8) < 0) {
+    LOG_ERROR(Log::ErrorId::FileSystem,
+              "Failed to add BugDescription.txt to archive: {}",
+              zip_strerror(archive));
+    zip_source_free(descSource);
   }
 
   // Add each log file to the archive
@@ -364,6 +382,10 @@ void BugReportContainer::submitBugReport() {
   showSpinnerOverlay(true);
   _spinnerOverlay->setText(tr("Creating log archive..."));
 
+  // Capture title and description on main thread
+  QString title = ui->lineEditTitle->text();
+  QString description = ui->textEditDescription->toPlainText();
+
   // Create weak reference for safe access from background thread
   auto guard = getSelf().toWeakRef();
 
@@ -372,30 +394,29 @@ void BugReportContainer::submitBugReport() {
     LOG_PERF(0, "Enter zip creation thread");
 
     // Create the zip file on background thread
-    QString zipPath = createLogsZipFile();
+    const QString zipPath = createLogsZipFile(title, description);
+
+    ::Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { onZipCreationFinished(guard, zipPath); });
 
     LOG_PERF(0, "Exit zip creation thread");
-
-    // Notify main thread when done
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      if (auto self = guard.lock()) {
-        self->onZipCreationFinished(zipPath);
-      }
-    });
   });
 
   LOG_PERF(0, "Exit");
 }
 
-void BugReportContainer::onZipCreationFinished(const QString &zipPath) {
+void BugReportContainer::onZipCreationFinished(const WeakPtr &guard,
+                                               const QString &zipPath) {
   LOG_PERF(0, "Enter");
 
   _tempZipFilePath = zipPath;
   if (_tempZipFilePath.isEmpty()) {
     LOG_WARN("No logs to attach, submitting without log files");
+
     showSpinnerOverlay(false);
     ToastHostWidget::getInstance().addToast(
         new ErrorToast(tr("Failed to create log archive"), tr("Error")));
+
     LOG_PERF(0, "Exit");
     return;
   }
@@ -406,16 +427,22 @@ void BugReportContainer::onZipCreationFinished(const QString &zipPath) {
 
   LOG_DEBUG("Uploading bug report zip: {}", _tempZipFilePath);
 
-  // Use CloudRepo to upload the bug report
-  const auto result = Util::CloudRepo::getInstance().uploadBugReport(_tempZipFilePath);
+  _dispatcher.dispatch([=]() {
+    // Use CloudRepo to upload the bug report
+    const auto result =
+        Util::CloudRepo::getInstance().uploadBugReport(_tempZipFilePath);
 
-  if (result.first != QNetworkReply::NetworkError::NoError) {
-    LOG_ERROR(Log::ErrorId::Network, "Failed to upload bug report: {}",
-              result.second);
-    showSpinnerOverlay(false);
-    ToastHostWidget::getInstance().addToast(
-        new ErrorToast(tr("Failed to upload bug report"), tr("Error")));
-  }
+    if (result.first != QNetworkReply::NetworkError::NoError) {
+      LOG_ERROR(Log::ErrorId::Network, "Failed to upload bug report: {}",
+                result.second);
+
+      ::Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        showSpinnerOverlay(false);
+        ToastHostWidget::getInstance().addToast(
+            new ErrorToast(tr("Failed to upload bug report"), tr("Error")));
+      });
+    }
+  });
 
   LOG_PERF(0, "Exit");
 }

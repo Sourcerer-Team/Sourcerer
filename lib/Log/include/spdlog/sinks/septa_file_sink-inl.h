@@ -134,7 +134,8 @@ template <typename Mutex> SPDLOG_INLINE void septa_file_sink<Mutex>::rotate_() {
     // Get the directory and   base name
     fs::path base_path(base_filename_);
     fs::path dir_path = base_path.parent_path();
-    std::string basename = base_path.stem().string();  // Get filename without extension
+    std::string basename =
+        base_path.stem().string(); // Get filename without extension
 
     if (!fs::exists(dir_path)) {
       return;
@@ -146,7 +147,8 @@ template <typename Mutex> SPDLOG_INLINE void septa_file_sink<Mutex>::rotate_() {
       if (entry.is_regular_file()) {
         std::string filename = entry.path().filename().string();
         // Check if file matches the pattern: basename_YYYYMMDD_HHMMSS.log
-        if (filename.find(basename) == 0 && filename.length() > basename.length() &&
+        if (filename.find(basename) == 0 &&
+            filename.length() > basename.length() &&
             filename.compare(filename.length() - 4, 4, ".log") == 0) {
           log_files.push_back(entry.path());
         }
@@ -163,7 +165,8 @@ template <typename Mutex> SPDLOG_INLINE void septa_file_sink<Mutex>::rotate_() {
       }
     }
   } catch (const std::exception &) {
-    // Silently ignore errors during cleanup - don't let file deletion failures affect logging
+    // Silently ignore errors during cleanup - don't let file deletion failures
+    // affect logging
   }
 }
 
