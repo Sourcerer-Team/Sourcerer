@@ -123,7 +123,7 @@ docker run --rm `
     Write-Host 'Building via MSYS2 bash shell...' -ForegroundColor Blue
     `$msys2Bash = 'C:\tools\msys64\usr\bin\bash.exe'
     
-    & `$msys2Bash -lc 'export PATH=/c/tools/msys64/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin && cd /c/workspace/build/Release && cmake ../../src -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build . --parallel 4'
+    & `$msys2Bash -lc 'export PATH=/c/tools/msys64/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin && cd /c/workspace/build/Release && cmake ../../src -G Ninja -DCMAKE_BUILD_TYPE=Release && ninja -j4'
     
     if (`$LASTEXITCODE -ne 0) {
         Write-Host 'Project build failed' -ForegroundColor Red
