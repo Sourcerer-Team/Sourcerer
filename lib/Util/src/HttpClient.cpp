@@ -60,16 +60,13 @@ HttpReply HttpClientWorker::sendRequest_(
   const qlonglong readTimeout =
       configManager.getLong(::ConfigManager::ConfigKey::HttpClientTimeout);
 
-  // Allow HTTP/2 and HTTP/1.1
-  QList<QByteArray> protocols;
-  protocols << QByteArray("spdy/3") << QByteArray("h2")
-            << QByteArray("http/1.1");
-
   QSslConfiguration sslConfig = QSslConfiguration::defaultConfiguration();
-  sslConfig.addCaCertificate(_certificate);
-  sslConfig.setAllowedNextProtocols(protocols);
-  sslConfig.setProtocol(QSsl::AnyProtocol);
   sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
+
+  // Only add certificate if it was successfully loaded
+  if(!_certificate.isNull()) {
+    sslConfig.addCaCertificate(_certificate);
+  }
 
   QNetworkRequest request;
   request.setUrl(url);
@@ -224,7 +221,7 @@ void HttpClientWorker::loadClientCertificate() {
   const auto configLocations =
       QStandardPaths::standardLocations(QStandardPaths::AppConfigLocation);
   if (configLocations.isEmpty()) {
-    LOG_ERROR(Log::ErrorId::Network, "No standard config locations found");
+    LOG_DEBUG("No standard config locations found");
     LOG_PERF(0, "Exit");
     return;
   }
@@ -240,17 +237,24 @@ void HttpClientWorker::loadClientCertificate() {
 
   QFile file(clientCertFilePath);
   if (!file.open(QIODevice::ReadOnly)) {
-    LOG_ERROR(Log::ErrorId::Network, "Can't open certificate file '{}'",
+    LOG_DEBUG("Custom certificate file '{}' not found or not accessible. Using system CA certificates.",
               clientCertFilePath.toStdString());
     LOG_PERF(0, "Exit");
     return;
   }
 
   const QByteArray bytes = file.readAll();
-
   file.close();
 
   _certificate = QSslCertificate(bytes);
+  
+  if (_certificate.isNull()) {
+    LOG_DEBUG("Failed to load certificate from '{}'. Using system CA certificates.",
+              clientCertFilePath.toStdString());
+  } else {
+    LOG_DEBUG("Successfully loaded custom CA certificate from '{}'",
+              clientCertFilePath.toStdString());
+  }
 
   LOG_PERF(0, "Exit");
 }

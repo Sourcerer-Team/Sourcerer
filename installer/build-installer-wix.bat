@@ -242,7 +242,8 @@ if not defined WINDEPLOYQT (
 echo Found windeployqt: "%WINDEPLOYQT%"
 echo Deploying to: "%PROJECT_ROOT%\build\Release"
 
-"%WINDEPLOYQT%" --release --no-translations "%PROJECT_ROOT%\build\Release\Sourcerer.exe"
+REM Deploy with OpenSSL support (force OpenSSL to be included)
+"%WINDEPLOYQT%" --release --no-translations --openssl-root "C:\tools\msys64\mingw64" "%PROJECT_ROOT%\build\Release\Sourcerer.exe"
 if errorlevel 1 (
     echo Warning: windeployqt returned an error, but continuing...
 )

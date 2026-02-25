@@ -134,17 +134,66 @@ docker run --rm `
     
     # Copy MSYS2 runtime libraries to Release directory
     Write-Host 'Copying MSYS2 runtime libraries...' -ForegroundColor Blue
+    
+    # Copy specific runtime DLLs
     `$msys2RuntimeDlls = @(
         'C:\tools\msys64\mingw64\bin\libstdc++-6.dll',
         'C:\tools\msys64\mingw64\bin\libgcc_s_seh-1.dll',
-        'C:\tools\msys64\mingw64\bin\libwinpthread-1.dll',
-        'C:\tools\msys64\mingw64\bin\libc++-1.dll'
+        'C:\tools\msys64\mingw64\bin\libwinpthread-1.dll'
     )
     foreach (`$dll in `$msys2RuntimeDlls) {
         if (Test-Path `$dll) {
             Copy-Item `$dll 'C:\workspace\build\Release\' -Force
             Write-Host "  Copied $(Split-Path `$dll -Leaf)" -ForegroundColor Gray
         }
+    }
+    
+    # Find and copy OpenSSL libraries
+    Write-Host 'Finding OpenSSL libraries...' -ForegroundColor Blue
+    `$openssl_bin = 'C:\tools\msys64\mingw64\bin'
+    `$openssl_dlls = @()
+    `$openssl_dlls += @(Get-ChildItem `$openssl_bin -Filter 'libssl*.dll' -ErrorAction SilentlyContinue)
+    `$openssl_dlls += @(Get-ChildItem `$openssl_bin -Filter 'libcrypto*.dll' -ErrorAction SilentlyContinue)
+    
+    if (`$openssl_dlls.Count -eq 0) {
+        Write-Host 'WARNING: OpenSSL DLL files not found in C:\tools\msys64\mingw64\bin' -ForegroundColor Yellow
+        Write-Host 'Available DLL files containing "ssl" or "crypto":' -ForegroundColor Yellow
+        Get-ChildItem `$openssl_bin -Filter '*.dll' -ErrorAction SilentlyContinue | Where-Object { `$_.Name -like '*ssl*' -or `$_.Name -like '*crypto*' } | ForEach-Object {
+            Write-Host "  - $($_.Name)" -ForegroundColor Yellow
+        }
+        Write-Host 'First 30 available DLL files:' -ForegroundColor Yellow
+        Get-ChildItem `$openssl_bin -Filter '*.dll' | Select-Object -First 30 | ForEach-Object {
+            Write-Host "  - $($_.Name)" -ForegroundColor Yellow
+        }
+    } else {
+        foreach (`$dll in `$openssl_dlls) {
+            Copy-Item `$dll.FullName 'C:\workspace\build\Release\' -Force
+            Write-Host "  Copied $($dll.Name)" -ForegroundColor Gray
+        }
+    }
+    
+    # Copy Qt libraries if they exist in mingw64/bin
+    Write-Host 'Copying Qt libraries...' -ForegroundColor Blue
+    Get-ChildItem `$openssl_bin -Filter 'Qt6*.dll' -ErrorAction SilentlyContinue | ForEach-Object {
+        Copy-Item `$_.FullName 'C:\workspace\build\Release\' -Force
+        Write-Host "  Copied $($_.Name)" -ForegroundColor Gray
+    }
+    
+    # Copy libzip and libgit2 libraries
+    Write-Host 'Copying dependency libraries...' -ForegroundColor Blue
+    Get-ChildItem `$openssl_bin -Filter 'libzip*.dll' -ErrorAction SilentlyContinue | ForEach-Object {
+        Copy-Item `$_.FullName 'C:\workspace\build\Release\' -Force
+        Write-Host "  Copied $($_.Name)" -ForegroundColor Gray
+    }
+    Get-ChildItem `$openssl_bin -Filter 'libgit2*.dll' -ErrorAction SilentlyContinue | ForEach-Object {
+        Copy-Item `$_.FullName 'C:\workspace\build\Release\' -Force
+        Write-Host "  Copied $($_.Name)" -ForegroundColor Gray
+    }
+    
+    # List what was actually copied to Release directory
+    Write-Host 'DLL files in Release directory:' -ForegroundColor Blue
+    Get-ChildItem 'C:\workspace\build\Release\' -Filter '*.dll' -ErrorAction SilentlyContinue | ForEach-Object {
+        Write-Host "  - $($_.Name)" -ForegroundColor Gray
     }
        
     Write-Host 'Creating installer...' -ForegroundColor Blue

@@ -43,6 +43,7 @@
             <ComponentRef Id="QtImageFormatPlugins" />
             <ComponentRef Id="QtStylePlugins" />
             <ComponentRef Id="QtIconEnginePlugins" />
+            <ComponentRef Id="QtTlsPlugins" />
             <ComponentRef Id="JwtPublicKeyFiles" />
             <ComponentRef Id="DesktopShortcut" />
             <ComponentRef Id="StartMenuShortcut" />
@@ -133,6 +134,14 @@
                       Source="$(var.MSYS2BinPath)\zlib1.dll"
                       Vital="no" />
                 
+                <!-- OpenSSL Libraries -->
+                <File Id="LibSslFile" 
+                      Source="$(var.MSYS2BinPath)\libssl-3-x64.dll"
+                      Vital="yes" />
+                <File Id="LibCryptoFile" 
+                      Source="$(var.MSYS2BinPath)\libcrypto-3-x64.dll"
+                      Vital="yes" />
+                
                 <!-- MSYS2 C/C++ Runtime Libraries -->
                 <File Id="LibStdCppFile" 
                       Source="$(var.MSYS2BinPath)\libstdc++-6.dll"
@@ -192,6 +201,21 @@
                 <Component Id="QtIconEnginePlugins" Guid="a97f470b-58fa-4dea-b32e-37aeab115851" Win64="yes">
                     <File Id="QSvgIconFile" 
                           Source="$(var.SourcererBinPath)\iconengines\qsvgicon.dll"
+                          Vital="no" />
+                </Component>
+            </Directory>
+            
+            <!-- Qt TLS Plugins -->
+            <Directory Id="TlsDir" Name="tls">
+                <Component Id="QtTlsPlugins" Guid="f8a9c3e2-6d4f-4a5b-9c1a-2e3d4f5a6b7c" Win64="yes">
+                    <File Id="QOpensslBackendFile" 
+                          Source="$(var.SourcererBinPath)\tls\qopensslbackend.dll"
+                          Vital="no" />
+                    <File Id="QCertOnlyBackendFile" 
+                          Source="$(var.SourcererBinPath)\tls\qcertonlybackend.dll"
+                          Vital="no" />
+                    <File Id="QSchannelBackendFile" 
+                          Source="$(var.SourcererBinPath)\tls\qschannelbackend.dll"
                           Vital="no" />
                 </Component>
             </Directory>
