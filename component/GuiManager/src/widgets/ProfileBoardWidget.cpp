@@ -638,6 +638,7 @@ void ProfileBoardWidget::hideSigninWidgets() {
   ui->lineEditSigninPassword->hide();
   ui->pushButtonSigninSubmit->hide();
   ui->labelSignupLink->hide();
+  ui->labelSkipSigninLink->hide();
 
   LOG_PERF(0, "Exit");
 }
@@ -651,6 +652,7 @@ void ProfileBoardWidget::showSigninWidgets() {
   ui->lineEditSigninPassword->show();
   ui->pushButtonSigninSubmit->show();
   ui->labelSignupLink->show();
+  ui->labelSkipSigninLink->show();
 
   LOG_PERF(0, "Exit");
 }
