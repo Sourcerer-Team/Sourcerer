@@ -183,6 +183,22 @@
         </widget>
        </item>
        <item>
+        <widget class="QLabel" name="labelSkipSigninLink">
+         <property name="styleSheet">
+          <string>QLabel { color: #0066cc; text-decoration: underline; }</string>
+         </property>
+         <property name="text">
+          <string>&lt;html&gt;&lt;body&gt;&lt;a href=\&quot;#skip\&quot;&gt;Skip and use Community plan&lt;/a&gt;&lt;/body&gt;&lt;/html&gt;</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignmentFlag::AlignCenter</set>
+         </property>
+         <property name="openExternalLinks">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
         <spacer name="verticalSpacerSigninBottom">
          <property name="orientation">
           <enum>Qt::Orientation::Vertical</enum>

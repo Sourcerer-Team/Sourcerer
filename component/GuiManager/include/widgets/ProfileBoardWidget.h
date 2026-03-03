@@ -56,6 +56,7 @@ private slots:
   void onButtonSigninSubmitClicked();
   void onButtonSignoutClicked();
   void onSignupLinkClicked();
+  void onSkipSigninClicked();
   void onCloudSigninSuccess(const QString &email, const QString &password,
                             const QString &accessToken,
                             const QString &response);

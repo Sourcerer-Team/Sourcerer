@@ -76,6 +76,8 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
           &ProfileBoardWidget::onButtonSignoutClicked);
   connect(ui->labelSignupLink, &QLabel::linkActivated, this,
           &ProfileBoardWidget::onSignupLinkClicked);
+  connect(ui->labelSkipSigninLink, &QLabel::linkActivated, this,
+          &ProfileBoardWidget::onSkipSigninClicked);
 
   // Connect Enter key in signin fields to submit button
   connect(ui->lineEditSigninUser, &QLineEdit::returnPressed, this,
@@ -186,6 +188,27 @@ void ProfileBoardWidget::onSignupLinkClicked() {
   const QString signupUrl =
       configManager.getString(::ConfigManager::ConfigKey::CloudSignupUrl);
   QDesktopServices::openUrl(QUrl(signupUrl));
+}
+
+void ProfileBoardWidget::onSkipSigninClicked() {
+  LOG_INFO("Skip signin clicked - activating Community plan");
+
+  // Set login state to true
+  _isLoggedIn = true;
+
+  // Set plan to Community
+  _plan = "Community";
+
+  // Set some default names if not already set
+  if (_userFirstName.isEmpty()) {
+    _userFirstName = "Guest";
+  }
+  if (_userLastName.isEmpty()) {
+    _userLastName = "User";
+  }
+
+  // Update page to show profiles screen
+  updatePageForLoginState();
 }
 
 void ProfileBoardWidget::doLogin(const QString &user, const QString &password) {
