@@ -1594,15 +1594,18 @@ static std::tuple<bool, GitPlaintextCredentials>
 acquireCredentials(const QString &repoPath, const QString &url,
                    const QString &username, const int allowedTypes) {
   LOG_PERF(0, "Enter");
-  LOG_INFO("acquireCredentials called with repoPath: '{}', url: '{}'", repoPath,
+
+  const QString normalizedRepoPath = QDir::fromNativeSeparators(repoPath);
+
+  LOG_INFO("acquireCredentials called with repoPath: '{}', url: '{}'", normalizedRepoPath,
            url);
 
   // First, try to get stored credentials from encrypted storage
   GitCredentialStorage &credStorage = GitCredentialStorage::getInstance();
 
   QString storedUsername, storedPassword;
-  if (credStorage.getCredentials(repoPath, storedUsername, storedPassword)) {
-    LOG_INFO("Found stored credentials for repository: {}", repoPath);
+  if (credStorage.getCredentials(normalizedRepoPath, storedUsername, storedPassword)) {
+    LOG_INFO("Found stored credentials for repository: {}", normalizedRepoPath);
 
     // Check if credentials are expired
     const qlonglong expirationTimeout =
@@ -1611,17 +1614,17 @@ acquireCredentials(const QString &repoPath, const QString &url,
 
     LOG_INFO("Expiration timeout: {} ms", expirationTimeout);
 
-    if (!credStorage.areCredentialsExpired(repoPath, expirationTimeout)) {
-      LOG_INFO("Using stored credentials for repository: {}", repoPath);
+    if (!credStorage.areCredentialsExpired(normalizedRepoPath, expirationTimeout)) {
+      LOG_INFO("Using stored credentials for repository: {}", normalizedRepoPath);
       LOG_PERF(0, "Exit");
       return std::make_tuple(
           true, GitPlaintextCredentials{storedUsername, storedPassword,
                                         QDateTime::currentMSecsSinceEpoch()});
     } else {
-      LOG_INFO("Stored credentials expired for repository: {}", repoPath);
+      LOG_INFO("Stored credentials expired for repository: {}", normalizedRepoPath);
     }
   } else {
-    LOG_INFO("No stored credentials found for repository: {}", repoPath);
+    LOG_INFO("No stored credentials found for repository: {}", normalizedRepoPath);
   }
 
   // If no stored credentials or expired, request from user
@@ -1635,7 +1638,7 @@ acquireCredentials(const QString &repoPath, const QString &url,
   request.url = url;
   request.username = username;
   request.allowedTypes = allowedTypes;
-  request.repoPath = repoPath;
+  request.repoPath = normalizedRepoPath;
 
   EventManager::Event credentialsEvent(
       EventManager::EventType::GitRepoManagerGetCredentials);
@@ -1690,9 +1693,9 @@ acquireCredentials(const QString &repoPath, const QString &url,
       // Store credentials in encrypted storage if user wants to remember them
       if (response.rememberCredentials) {
         GitCredentialStorage &credStorage = GitCredentialStorage::getInstance();
-        credStorage.storeCredentials(repoPath, response.username,
+        credStorage.storeCredentials(normalizedRepoPath, response.username,
                                      response.password, true);
-        LOG_INFO("Stored credentials for repository: {}", repoPath);
+        LOG_INFO("Stored credentials for repository: {}", normalizedRepoPath);
       } else {
         LOG_INFO("User chose NOT to remember credentials");
       }
