@@ -1415,6 +1415,19 @@ void GitRepoContainer::onHardResetToCommit(const QString &commit) {
   LOG_DEBUG("Hard reset to commit requested: '{}' in repository '{}'",
             commit.toStdString(), _path.toStdString());
 
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+              this,                 // parent widget
+              "Confirm hard reset", // dialog title
+              "Do you want to hard reset to this commit? "
+              "This will discard all uncommitted changes.", // message text
+              QMessageBox::Yes | QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_DEBUG("Hard reset cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
 
@@ -2024,6 +2037,18 @@ void GitRepoContainer::onMixedResetToCommit(const QString &commit) {
   LOG_DEBUG("Mixed reset to commit requested: '{}' in repository '{}'",
             commit.toStdString(), _path.toStdString());
 
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+              this,                                         // parent widget
+              "Confirm mixed reset",                        // dialog title
+              "Do you want to mixed reset to this commit?", // message text
+              QMessageBox::Yes | QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_DEBUG("Mixed reset cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
 
@@ -2475,6 +2500,18 @@ void GitRepoContainer::onSoftResetToCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Soft reset to commit requested: '{}' in repository '{}'",
             commit.toStdString(), _path.toStdString());
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+              this,                                        // parent widget
+              "Confirm soft reset",                        // dialog title
+              "Do you want to soft reset to this commit?", // message text
+              QMessageBox::Yes | QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_DEBUG("Soft reset cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -6906,13 +6943,16 @@ void GitRepoContainer::reset(const WeakPtr &guard, const QString &commit,
   }
 
   if (event.type() != EventManager::EventType::GitRepoManagerResetResult) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
-      showErrorPage();
-    });
+      const auto error = event.data<GitRepoError>();
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+          showSpinnerOverlay(false);
+          showErrorToast(QString("%1\n%2").arg(tr("Failed to reset commit."),
+                                               translateGitError(error.error)),
+                         tr("Error"));
+      });
 
-    LOG_PERF(0, "Exit")
-    return;
+      LOG_PERF(0, "Exit")
+              return;
   }
 
   const auto commandResult = event.data<GitRepoResult>();
@@ -6996,13 +7036,16 @@ void GitRepoContainer::revert(const WeakPtr &guard, const QString &commit) {
   }
 
   if (event.type() != EventManager::EventType::GitRepoManagerRevertResult) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
-      showErrorPage();
-    });
+      const auto error = event.data<GitRepoError>();
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+          showSpinnerOverlay(false);
+          showErrorToast(QString("%1\n%2").arg(tr("Failed to revert commit"),
+                                               translateGitError(error.error)),
+                         tr("Error"));
+      });
 
-    LOG_PERF(0, "Exit")
-    return;
+      LOG_PERF(0, "Exit")
+              return;
   }
 
   const auto commandResult = event.data<GitRepoResult>();
