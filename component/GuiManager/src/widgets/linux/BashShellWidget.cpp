@@ -220,6 +220,11 @@ BashShellWidget::BashShellWidget(QWidget *parent)
 
   _textDisplay->setCrlf(true);
 
+  connect(_textDisplay, &QVTerminal::cleared, this, [this]() {
+    executeCommand("\x03");
+    executeCommand("clear");
+  });
+
   LOG_PERF(0, "Exit");
 }
 
