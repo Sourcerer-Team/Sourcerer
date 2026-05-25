@@ -51,7 +51,10 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   addAction(_pasteAction);
 
   _clearAction = new QAction("Clear all");
-  connect(_clearAction, &QAction::triggered, this, &QVTerminal::clear);
+  connect(_clearAction, &QAction::triggered, this, [this]() {
+      clear();
+      emit cleared();
+  });
   addAction(_clearAction);
 
   _vt = new VT100(this);
@@ -452,6 +455,7 @@ void QVTerminal::clear() {
   verticalScrollBar()->setValue(0);
 
   setUpdatesEnabled(true);
+  update();
 }
 
 QColor QVTerminal::vt100color(char c, bool bright) {

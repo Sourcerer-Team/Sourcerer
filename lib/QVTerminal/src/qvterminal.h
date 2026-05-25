@@ -51,6 +51,7 @@ public:
 
 signals:
   void cursorMoved(QPoint cursorPos);
+  void cleared();
 
 public slots:
   void writeData(const QByteArray &data);
