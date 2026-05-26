@@ -5029,32 +5029,42 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
     }
   }
 
-  git_config *config = nullptr;
-  git_config *localConfig = nullptr;
+  // Remove submodule section from .git/config file
+  const std::string gitDirPath = repositoryPath;
+  const std::string gitConfigFile = gitDirPath + (gitDirPath.back() == '/' || gitDirPath.back() == '\\' ? "" : "/") + "config";
 
-  error = git_repository_config(&config, repo);
-  if (error) {
-    logGitError(error);
-    git_submodule_free(submodule);
-    LOG_PERF(0, "Exit");
-    return false;
+  src = fopen(gitConfigFile.c_str(), "r");
+  if (FILE *dst = fopen((gitConfigFile + ".tmp").c_str(), "w"); src && dst) {
+    char line[1024];
+    int skipSection = 0;
+    while (fgets(line, sizeof(line), src)) {
+      // Check if this is the submodule section header
+      if (strstr(line, "[submodule") && strstr(line, name.c_str())) {
+        skipSection = 1;
+        continue;
+      }
+
+      // Check if we're leaving the submodule section (new section starts)
+      if (skipSection && line[0] == '[') {
+        skipSection = 0;
+      }
+
+      // Only write lines that are not part of the submodule section
+      if (!skipSection) {
+        fputs(line, dst);
+      }
+    }
+
+    fclose(src);
+    fclose(dst);
+
+    remove(gitConfigFile.c_str());
+    rename((gitConfigFile + ".tmp").c_str(), gitConfigFile.c_str());
+  } else {
+    if (src) {
+      fclose(src);
+    }
   }
-
-  error = git_config_open_level(&localConfig, config, GIT_CONFIG_LEVEL_LOCAL);
-  if (error) {
-    logGitError(error);
-    git_config_free(config);
-    git_submodule_free(submodule);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  const QString key = QString("submodule.%1.*").arg(name);
-
-  git_config_delete_multivar(localConfig, key.toStdString().c_str(), nullptr);
-
-  git_config_free(localConfig);
-  git_config_free(config);
 
   git_index *index = nullptr;
 
