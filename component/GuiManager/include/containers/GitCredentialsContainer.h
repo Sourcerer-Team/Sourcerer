@@ -29,6 +29,7 @@ public:
 
 private slots:
   void onDeleteClicked();
+  void onEditClicked();
   void onRefreshClicked();
   void onSelectionChanged();
 

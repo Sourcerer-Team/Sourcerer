@@ -200,6 +200,10 @@ void initForCurrentThread();
 
 void shutdownForCurrentThread();
 
+// Clear cached credentials for a given repository path
+// This should be called after updating credentials to ensure fresh credentials are used
+void clearCachedCredentials(const QString &repoPath);
+
 bool amend(git_repository *repo, const QString &summary, const QString &message,
            const QString &author, const QString &email);
 

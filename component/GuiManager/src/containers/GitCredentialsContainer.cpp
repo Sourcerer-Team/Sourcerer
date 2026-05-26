@@ -1,13 +1,20 @@
 #include "containers/GitCredentialsContainer.h"
 #include "ui_GitCredentialsContainer.h"
 
+#include <GitRepo.h>
 #include <Log.h>
 
 #include <QDateTime>
+#include <QDialog>
 #include <QDir>
 #include <QHeaderView>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLineEdit>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QStandardItemModel>
+#include <QVBoxLayout>
 
 #define THREAD_ID "GitCredentialsContainer"
 
@@ -35,6 +42,8 @@ GitCredentialsContainer::GitCredentialsContainer(QWidget *parent)
   // Connect signals
   connect(ui->refreshButton, &QPushButton::clicked, this,
           &GitCredentialsContainer::onRefreshClicked);
+  connect(ui->editButton, &QPushButton::clicked, this,
+          &GitCredentialsContainer::onEditClicked);
   connect(ui->deleteButton, &QPushButton::clicked, this,
           &GitCredentialsContainer::onDeleteClicked);
   connect(ui->tableView->selectionModel(),
@@ -134,6 +143,132 @@ void GitCredentialsContainer::onDeleteClicked() {
   LOG_PERF(0, "Exit");
 }
 
+void GitCredentialsContainer::onEditClicked() {
+  LOG_PERF(0, "Enter");
+
+  QModelIndexList selected = ui->tableView->selectionModel()->selectedRows();
+  if (selected.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Get the repository path from the selected row
+  int row = selected.first().row();
+  QString displayPath = _model->item(row, 0)->text();
+  QString repoPath = QDir::fromNativeSeparators(displayPath);
+
+  // Retrieve current credentials
+  QString currentUsername;
+  QString currentPassword;
+
+  if (!_credentialStorage.getCredentials(repoPath, currentUsername,
+                                         currentPassword)) {
+    LOG_WARN("Failed to retrieve credentials for repository: {}", repoPath);
+    QMessageBox::warning(this, "Edit credentials",
+                         "Failed to retrieve credentials for editing.");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Create edit dialog
+  QDialog editDialog(this);
+  editDialog.setWindowTitle(QString("Edit Git credentials - %1").arg(displayPath));
+  editDialog.setMinimumWidth(400);
+
+  QVBoxLayout *mainLayout = new QVBoxLayout(&editDialog);
+
+  // Repository path display
+  QLabel *repoLabel = new QLabel("Repository:", &editDialog);
+  QLineEdit *repoEdit = new QLineEdit(&editDialog);
+  repoEdit->setText(displayPath);
+  repoEdit->setReadOnly(true);
+
+  QHBoxLayout *repoLayout = new QHBoxLayout();
+  repoLayout->addWidget(repoLabel);
+  repoLayout->addWidget(repoEdit);
+  mainLayout->addLayout(repoLayout);
+
+  // Username
+  QLabel *usernameLabel = new QLabel("Username:", &editDialog);
+  QLineEdit *usernameEdit = new QLineEdit(&editDialog);
+  usernameEdit->setText(currentUsername);
+
+  QHBoxLayout *usernameLayout = new QHBoxLayout();
+  usernameLayout->addWidget(usernameLabel);
+  usernameLayout->addWidget(usernameEdit);
+  mainLayout->addLayout(usernameLayout);
+
+  // Password
+  QLabel *passwordLabel = new QLabel("Password:", &editDialog);
+  QLineEdit *passwordEdit = new QLineEdit(&editDialog);
+  passwordEdit->setEchoMode(QLineEdit::Password);
+  passwordEdit->setText(currentPassword);
+
+  QPushButton *showPasswordButton = new QPushButton("Show", &editDialog);
+  showPasswordButton->setMaximumWidth(60);
+  showPasswordButton->setFlat(true);
+  
+  bool isPasswordVisible = false;
+  connect(showPasswordButton, &QPushButton::clicked, [&]() {
+    isPasswordVisible = !isPasswordVisible;
+    if (isPasswordVisible) {
+      passwordEdit->setEchoMode(QLineEdit::Normal);
+      showPasswordButton->setText("Hide");
+    } else {
+      passwordEdit->setEchoMode(QLineEdit::Password);
+      showPasswordButton->setText("Show");
+    }
+  });
+
+  QHBoxLayout *passwordLayout = new QHBoxLayout();
+  passwordLayout->addWidget(passwordLabel);
+  passwordLayout->addWidget(passwordEdit);
+  passwordLayout->addWidget(showPasswordButton);
+  mainLayout->addLayout(passwordLayout);
+
+  // Buttons
+  QHBoxLayout *buttonLayout = new QHBoxLayout();
+  QPushButton *okButton = new QPushButton("Save", &editDialog);
+  QPushButton *cancelButton = new QPushButton("Cancel", &editDialog);
+
+  buttonLayout->addStretch();
+  buttonLayout->addWidget(okButton);
+  buttonLayout->addWidget(cancelButton);
+  mainLayout->addLayout(buttonLayout);
+
+  // Connect button signals
+  connect(okButton, &QPushButton::clicked, &editDialog, &QDialog::accept);
+  connect(cancelButton, &QPushButton::clicked, &editDialog, &QDialog::reject);
+
+  // Show dialog
+  if (editDialog.exec() == QDialog::Accepted) {
+    QString newUsername = usernameEdit->text();
+    QString newPassword = passwordEdit->text();
+
+    if (newUsername.isEmpty() || newPassword.isEmpty()) {
+      LOG_WARN("Username or password is empty");
+      QMessageBox::warning(this, "Edit credentials",
+                           "Username and password cannot be empty.");
+    } else {
+      LOG_INFO("Updating credentials for repository: {}", repoPath);
+      _credentialStorage.storeCredentials(repoPath, newUsername, newPassword,
+                                          true);
+
+      // Clear cached credentials to ensure fresh ones are used
+      GitRepo::clearCachedCredentials(repoPath);
+
+      // Reload the table
+      loadCredentials();
+
+      LOG_INFO("Credentials updated successfully");
+      QMessageBox::information(this, "Edit credentials",
+                               "Credentials updated successfully.");
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitCredentialsContainer::onRefreshClicked() {
   LOG_PERF(0, "Enter");
   loadCredentials();
@@ -143,6 +278,7 @@ void GitCredentialsContainer::onRefreshClicked() {
 void GitCredentialsContainer::onSelectionChanged() {
   bool hasSelection =
       !ui->tableView->selectionModel()->selectedRows().isEmpty();
+  ui->editButton->setEnabled(hasSelection);
   ui->deleteButton->setEnabled(hasSelection);
 }
 

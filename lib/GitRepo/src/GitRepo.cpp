@@ -493,6 +493,20 @@ void shutdownForCurrentThread() {
   LOG_PERF(0, "Exit");
 }
 
+void clearCachedCredentials(const QString &repoPath) {
+  LOG_PERF(0, "Enter");
+  LOG_INFO("Clearing cached credentials for repository: {}", repoPath);
+
+  LOCKGUARD(gGitCredentialsMutex);
+  
+  // Clear all cached credentials to ensure fresh ones are loaded from storage
+  // This is necessary when credentials are updated by the user
+  gGitCredentials.clear();
+  
+  LOG_INFO("Cleared all cached credentials");
+  LOG_PERF(0, "Exit");
+}
+
 bool applyStash(git_repository *repo, int index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Applying stash at index: {}", index);
