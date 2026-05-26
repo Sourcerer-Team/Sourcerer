@@ -2,6 +2,9 @@
 #include "MainWindow.h"
 
 #include <Log.h>
+#include <QApplication>
+#include <QCursor>
+#include <QTimer>
 
 #define THREAD_ID "HitDetector"
 
@@ -11,8 +14,8 @@
 
 namespace GuiManager {
 
-HitDetector::HitDetector(MainWindow *window)
-    : _window(window), _pixelRatio(1.0),
+HitDetector::HitDetector(QWidget *window)
+    : _window(window), _pixelRatio(1.0), _lastMargin(Margin::HTNOWHERE),
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
@@ -28,83 +31,101 @@ void HitDetector::init() {
   }
 
   _pixelRatio = _window->devicePixelRatioF();
+  
+  // Use a timer to continuously poll cursor position instead of relying on events
+  // This bypasses event filter chains and works even when overlays are present
+  auto *timer = new QTimer(_window);
+  connect(timer, &QTimer::timeout, this, [this]() {
+    if (!_window || !_window->isVisible()) {
+      return;
+    }
+    
+    // Check cursor position against window edges
+    const QPoint globalPos = QCursor::pos();
+    const HitDetector::Margin margin = ncHitTest(
+        _window->frameGeometry(),
+        qFloor(globalPos.x() * _pixelRatio),
+        qFloor(globalPos.y() * _pixelRatio));
+    
+    // Update cursor based on margin
+    if (margin == HitDetector::Margin::HTNOWHERE) {
+      _window->unsetCursor();
+    } else {
+      switch (margin) {
+      case HitDetector::Margin::HTBOTTOM:
+      case HitDetector::Margin::HTTOP:
+        _window->setCursor(Qt::SizeVerCursor);
+        break;
+      case HitDetector::Margin::HTLEFT:
+      case HitDetector::Margin::HTRIGHT:
+        _window->setCursor(Qt::SizeHorCursor);
+        break;
+      case HitDetector::Margin::HTTOPLEFT:
+      case HitDetector::Margin::HTBOTTOMRIGHT:
+        _window->setCursor(Qt::SizeFDiagCursor);
+        break;
+      case HitDetector::Margin::HTTOPRIGHT:
+      case HitDetector::Margin::HTBOTTOMLEFT:
+        _window->setCursor(Qt::SizeBDiagCursor);
+        break;
+      default:
+        break;
+      }
+    }
+    _lastMargin = margin;
+  });
+  
+  // Poll cursor position 20 times per second (50ms intervals)
+  timer->start(50);
+  qDebug() << "HitDetector: Started cursor polling timer";
 
   LOG_PERF(0, "Exit");
 }
 
 bool HitDetector::eventFilter(QObject *watched, QEvent *event) {
+  // Only handle mouse press events from MainWindow
   if (watched != _window)
     return false;
 
-  switch (event->type()) {
-  case QEvent::MouseButtonPress: {
+  if (event->type() == QEvent::MouseButtonPress) {
     QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-    if (mouseEvent->button() == Qt::LeftButton)
-      emit edgeHit(_lastEdges);
-
-    break;
-  }
-  case QEvent::MouseMove: {
-    const QPoint currentPosition = QCursor::pos();
-    const HitDetector::Margin currentMargin = ncHitTest(
-        _window->frameGeometry(), qFloor(currentPosition.x() * _pixelRatio),
-        qFloor(currentPosition.y() * _pixelRatio));
-
-    switch (currentMargin) {
-    case HitDetector::Margin::HTBOTTOM: {
-      _window->setCursor(Qt::SizeVerCursor);
-      _lastEdges = Qt::BottomEdge;
-      break;
+    if (mouseEvent->button() == Qt::LeftButton && _lastMargin != Margin::HTNOWHERE) {
+      // Convert margin to edges
+      Qt::Edges edges;
+      switch (_lastMargin) {
+      case Margin::HTTOP:
+        edges = Qt::TopEdge;
+        break;
+      case Margin::HTTOPRIGHT:
+        edges = Qt::TopEdge | Qt::RightEdge;
+        break;
+      case Margin::HTRIGHT:
+        edges = Qt::RightEdge;
+        break;
+      case Margin::HTBOTTOMRIGHT:
+        edges = Qt::BottomEdge | Qt::RightEdge;
+        break;
+      case Margin::HTBOTTOM:
+        edges = Qt::BottomEdge;
+        break;
+      case Margin::HTBOTTOMLEFT:
+        edges = Qt::BottomEdge | Qt::LeftEdge;
+        break;
+      case Margin::HTLEFT:
+        edges = Qt::LeftEdge;
+        break;
+      case Margin::HTTOPLEFT:
+        edges = Qt::TopEdge | Qt::LeftEdge;
+        break;
+      default:
+        edges = Qt::Edges();
+      }
+      
+      if (edges != Qt::Edges()) {
+        qDebug() << "HitDetector: MouseButtonPress with edges:" << edges;
+        emit edgeHit(edges);
+      }
     }
-    case HitDetector::Margin::HTRIGHT: {
-      _window->setCursor(Qt::SizeHorCursor);
-      _lastEdges = Qt::RightEdge;
-      break;
-    }
-    case HitDetector::Margin::HTBOTTOMRIGHT: {
-      _window->setCursor(Qt::SizeFDiagCursor);
-      _lastEdges = Qt::BottomEdge | Qt::RightEdge;
-      break;
-    }
-    case HitDetector::Margin::HTBOTTOMLEFT: {
-      _window->setCursor(Qt::SizeBDiagCursor);
-      _lastEdges = Qt::BottomEdge | Qt::LeftEdge;
-      break;
-    }
-    case HitDetector::Margin::HTLEFT: {
-      _window->setCursor(Qt::SizeHorCursor);
-      _lastEdges = Qt::LeftEdge;
-      break;
-    }
-    case HitDetector::Margin::HTTOPLEFT: {
-      _window->setCursor(Qt::SizeFDiagCursor);
-      _lastEdges = Qt::TopEdge | Qt::LeftEdge;
-      break;
-    }
-    case HitDetector::Margin::HTTOP: {
-      _window->setCursor(Qt::SizeVerCursor);
-      _lastEdges = Qt::TopEdge;
-      break;
-    }
-    case HitDetector::Margin::HTTOPRIGHT: {
-      _window->setCursor(Qt::SizeBDiagCursor);
-      _lastEdges = Qt::TopEdge | Qt::RightEdge;
-      break;
-    }
-    case HitDetector::Margin::HTNOWHERE: {
-      _window->unsetCursor();
-      break;
-    }
-    default: {
-      break;
-    }
-    }
-
-    break;
-  }
-  default: {
-    break;
-  }
   }
 
   return false;

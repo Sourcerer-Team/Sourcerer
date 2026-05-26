@@ -13,7 +13,7 @@ class MainWindow;
 class HitDetector : public QObject {
   Q_OBJECT
 public:
-  explicit HitDetector(MainWindow *window);
+  explicit HitDetector(QWidget *window);
   virtual ~HitDetector() {}
 
   // WindowFrame interface
@@ -41,9 +41,10 @@ private:
   Margin ncHitTest(const QRect &frameGeometry, int x, int y);
 
 private:
-  MainWindow *_window;
+  QWidget *_window;
   qreal _pixelRatio;
   Qt::Edges _lastEdges;
+  Margin _lastMargin;
   ConfigManager::ConfigManager &_configManager;
 };
 
