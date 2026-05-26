@@ -23,6 +23,8 @@ StashesPage::StashesPage(QWidget *parent)
           &StashesPage::onListViewDoubleClicked);
   connect(this, &StashesPage::rightClickOnStash, this,
           &StashesPage::onStashRightClicked);
+  connect(this, &StashesPage::rightClickOnEmpty, this,
+          &StashesPage::onEmptySpaceClicked);
 
   ui->listView->viewport()->installEventFilter(this);
 
@@ -102,6 +104,9 @@ bool StashesPage::eventFilter(QObject *obj, QEvent *event) {
         if (const QModelIndex index = listView->indexAt(mouseEvent->pos());
             index.isValid()) {
           emit rightClickOnStash(index.row(), mouseEvent->globalPos());
+        } else {
+          // Right-click on empty space - show clear all stashes option
+          emit rightClickOnEmpty(mouseEvent->globalPos());
         }
       }
     }
@@ -134,6 +139,7 @@ void StashesPage::onStashRightClicked(int stashIndex, const QPoint &pos) {
   QAction actionApply(tr("Apply"), this);
   QAction actionPop(tr("Pop"), this);
   QAction actionDelete(tr("Delete"), this);
+  QAction actionClearAll(tr("Clear all"), this);
 
   connect(&actionApply, &QAction::triggered, this,
           [=]() { emit applyStash(stashIndex); });
@@ -141,12 +147,37 @@ void StashesPage::onStashRightClicked(int stashIndex, const QPoint &pos) {
           [=]() { emit popStash(stashIndex); });
   connect(&actionDelete, &QAction::triggered, this,
           [=]() { emit deleteStash(stashIndex); });
+  connect(&actionClearAll, &QAction::triggered, this,
+          [=]() { emit clearAllStashes(); });
 
   QMenu menu(this);
   menu.addAction(&actionApply);
   menu.addAction(&actionPop);
   menu.addSeparator();
   menu.addAction(&actionDelete);
+  menu.addSeparator();
+  menu.addAction(&actionClearAll);
+
+  menu.exec(pos);
+
+  LOG_PERF(0, "Exit");
+}
+
+void StashesPage::onEmptySpaceClicked(const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  if(lastStash() == -1) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QAction actionClearAll(tr("Clear all"), this);
+
+  connect(&actionClearAll, &QAction::triggered, this,
+          [=]() { emit clearAllStashes(); });
+
+  QMenu menu(this);
+  menu.addAction(&actionClearAll);
 
   menu.exec(pos);
 

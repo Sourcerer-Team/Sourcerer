@@ -439,6 +439,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onPopStash);
   connect(ui->stashesPage, &StashesPage::deleteStash, this,
           &GitRepoContainer::onDeleteStash);
+  connect(ui->stashesPage, &StashesPage::clearAllStashes, this,
+          &GitRepoContainer::onClearAllStashes);
 
   connect(ui->submodulesPage, &GitSubmodulesPage::rightClicked, this,
           &GitRepoContainer::onSubmodulePanelRightClicked);
@@ -878,6 +880,31 @@ void GitRepoContainer::onPopStash(const int stashIndex) {
   _dispatcher.dispatch([=]() { popStash(guard, stashIndex); });
 
   LOG_DEBUG("Pop stash operation dispatched for index: {}", stashIndex);
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onClearAllStashes() {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Clear all stashes requested for repository: '{}'", _path.toStdString());
+
+  const QMessageBox::StandardButton reply =
+      QMessageBox::question(this,                              // parent widget
+                            "Confirm Action",                  // dialog title
+                            "Are you sure you want to delete all stashes?\n\nThis action cannot be undone.", // message text
+                            QMessageBox::Yes | QMessageBox::No,
+                            QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_DEBUG("Clear all stashes cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { deleteAllStashes(guard); });
+
+  LOG_DEBUG("Clear all stashes operation dispatched");
   LOG_PERF(0, "Exit");
 }
 
@@ -2758,10 +2785,10 @@ void GitRepoContainer::stash(const WeakPtr &guard) {
   command.uuid = _uuid;
   command.syncUuid = eventUuid;
 
-  EventManager::Event stageFilesEvent(
+  EventManager::Event stashFilesEvent(
       EventManager::EventType::GitRepoManagerStash, eventUuid);
-  stageFilesEvent.addData(command);
-  _eventManager.send(stageFilesEvent);
+  stashFilesEvent.addData(command);
+  _eventManager.send(stashFilesEvent);
 
   static std::set types = {EventManager::EventType::GitRepoManagerStashError,
                            EventManager::EventType::GitRepoManagerStashResult};
@@ -4737,6 +4764,80 @@ void GitRepoContainer::deleteStash(
     Util::Dispatcher::dispatchToMainThread(
         guard, [&]() { showSpinnerOverlay(false); });
   }
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::deleteAllStashes(const WeakPtr &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoDeleteAllStashesCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event deleteAllStashesEvent(
+      EventManager::EventType::GitRepoManagerDeleteAllStashes, eventUuid);
+  deleteAllStashesEvent.addData(command);
+  _eventManager.send(deleteAllStashesEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerDeleteAllStashesError,
+      EventManager::EventType::GitRepoManagerDeleteAllStashesResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to delete all stashes.")), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerDeleteAllStashesResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString("%1\n%2").arg(tr("Failed to delete all stashes."),
+                                           translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool deleteSuccess = commandResult.value.toBool();
+
+  refreshStatus(guard);
+  getStashes(guard);
+
+  if (!deleteSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to delete all stashes."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
+    showToast(tr("All stashes deleted successfully."), tr("Success"));
+  });
 
   LOG_PERF(0, "Exit")
 }

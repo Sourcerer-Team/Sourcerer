@@ -223,7 +223,8 @@ bool createBranchFromCommit(git_repository *repo, const QString &commit,
                             const QString &branchName);
 
 bool deleteStash(git_repository *repo, int stashIndex);
-
+// Delete all stashes in the repository
+bool deleteAllStashes(git_repository *repo);
 QString getActiveBranch(git_repository *repo, BranchType type,
                         const bool &quitFlag);
 

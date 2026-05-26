@@ -48,6 +48,8 @@ private:
   void destroyContextsMap();
   void deleteBranchWorker(const Structs::GitRepoDeleteBranchCommand &command);
   void deleteStashWorker(const Structs::GitRepoDeleteStashCommand &command);
+  void deleteAllStashesWorker(
+      const Structs::GitRepoDeleteAllStashesCommand &command);
   void
   deleteSubmoduleWorker(const Structs::GitRepoDeleteSubmoduleCommand &command);
   void deleteTagWorker(const Structs::GitRepoDeleteTagCommand &command);
@@ -142,6 +144,8 @@ private:
       const Structs::GitRepoGetSubmodulePathCommand &command);
   void scheduleWorkerForGetUpstream(
       const Structs::GitRepoGetUpstreamCommand &command);
+  void scheduleWorkerForDeleteAllStashes(
+      const Structs::GitRepoDeleteAllStashesCommand &command);
   void scheduleWorkerForDeleteBranch(
       const Structs::GitRepoDeleteBranchCommand &command);
   void scheduleWorkerForDeleteStash(

@@ -28,6 +28,8 @@ signals:
   void applyStash(int stashIndex);
   void deleteStash(int stashIndex);
   void popStash(int stashIndex);
+  void clearAllStashes();
+  void rightClickOnEmpty(const QPoint& pos);
   void rightClickOnStash(int stashIndex, const QPoint &pos);
   void stashSelected(int stashIndex);
 
@@ -37,6 +39,7 @@ protected:
 private slots:
   void onListViewDoubleClicked(const QModelIndex &index);
   void onStashRightClicked(int stashIndex, const QPoint &pos);
+  void onEmptySpaceClicked(const QPoint &pos);
 
 private:
   Models::StashesModel *_model;

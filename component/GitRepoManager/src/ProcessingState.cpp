@@ -151,6 +151,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForCreateTagFromCommit(createTagFromCommitCommand);
     break;
   }
+  case EventType::DeleteAllStashes: {
+    const auto deleteAllStashesCommand =
+        event.nextParam<GitRepoDeleteAllStashesCommand>();
+    scheduleWorkerForDeleteAllStashes(deleteAllStashesCommand);
+    break;
+  }
   case EventType::DeleteBranch: {
     const auto deleteBranchCommand =
         event.nextParam<GitRepoDeleteBranchCommand>();
@@ -1054,6 +1060,44 @@ void ProcessingState::deleteStashWorker(
   } else {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerDeleteStashResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::deleteAllStashesWorker(
+    const Structs::GitRepoDeleteAllStashesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteAllStashesError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  if (const bool success = GitRepo::deleteAllStashes(repo); !success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerDeleteAllStashesError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerDeleteAllStashesResult,
         command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type,
                                       QVariant::fromValue(success)});
@@ -3254,6 +3298,25 @@ void ProcessingState::scheduleWorkerForGetUpstream(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForDeleteAllStashes(const Structs::GitRepoDeleteAllStashesCommand &command)
+{
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteAllStashesError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoDeleteAllStashesCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForDeleteBranch(
     const Structs::GitRepoDeleteBranchCommand &command) {
   LOG_PERF(0, "Enter");
@@ -3711,6 +3774,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoCreateTagFromCommitCommand *>(command);
       if (createTagFromCommitCommand) {
         createTagFromCommitWorker(*createTagFromCommitCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::DeleteAllStashes: {
+      const auto deleteAllStashesCommand =
+          dynamic_cast<const GitRepoDeleteAllStashesCommand *>(command);
+      if (deleteAllStashesCommand) {
+        deleteAllStashesWorker(*deleteAllStashesCommand);
       }
       break;
     }

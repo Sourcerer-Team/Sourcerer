@@ -1294,6 +1294,44 @@ bool deleteStash(git_repository *repo, int stashIndex) {
   return true;
 }
 
+bool deleteAllStashes(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Attempting to delete all stashes");
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null when deleting all stashes");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Get the count of stashes first
+  size_t stashCount = 0;
+  if (const int error = git_stash_foreach(repo, [](size_t index, const char *name, const git_oid *oid, void *payload) -> int {
+    (*static_cast<size_t *>(payload))++;
+    return 0;
+  }, &stashCount)) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Found {} stashes to delete", stashCount);
+
+  // Delete stashes from highest index to lowest to avoid index shifting issues
+  for (int i = static_cast<int>(stashCount) - 1; i >= 0; --i) {
+    if (const int error = git_stash_drop(repo, i)) {
+      LOG_WARN("Failed to delete stash at index {}: error code {}", i, error);
+      logGitError(error);
+      // Continue trying to delete other stashes even if one fails
+    } else {
+      LOG_DEBUG("Deleted stash at index {}", i);
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
 QString getActiveBranch(git_repository *repo, const BranchType type,
                         const bool &quitFlag) {
   LOG_PERF(0, "Enter");

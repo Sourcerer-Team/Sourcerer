@@ -83,6 +83,7 @@ private slots:
   void onApplyPatch();
   void onApplyStash(int stashIndex);
   void onDeleteStash(int stashIndex);
+  void onClearAllStashes();
   void onSplitterMoved(int pos, int index) const;
   void showTooltipForColumnSlice(const QModelIndex &index);
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
@@ -213,6 +214,7 @@ private:
   void deleteStash(
       const WeakPtr &guard, int stashIndex,
       const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
+  void deleteAllStashes(const WeakPtr &guard);
   void deleteTag(const WeakPtr &guard, const QString &tagName);
   void deleteSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void diff(const WeakPtr &guard, const QString &filePath);
