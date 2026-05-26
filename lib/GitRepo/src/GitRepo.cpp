@@ -3942,8 +3942,14 @@ bool pull(git_repository *repo) {
   fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
   fetchOpts.callbacks.payload = &credPayload;
 
+  // Explicitly include tags in fetch operation
+  // Default fetch may not include tags, so we add them explicitly
+  git_strarray refspecs = qstringlist_to_git_strarray(
+      QStringList() << "+refs/heads/*:refs/remotes/origin/*"
+                    << "+refs/tags/*:refs/tags/*");
+
   do {
-    error = git_remote_fetch(remote, nullptr, &fetchOpts, nullptr);
+    error = git_remote_fetch(remote, &refspecs, &fetchOpts, nullptr);
 
     if (error) {
       logGitError(error);
@@ -3968,6 +3974,7 @@ bool pull(git_repository *repo) {
 
   if (error) {
     logGitError(error);
+    git_strarray_destroy(refspecs);
     git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
@@ -3979,6 +3986,7 @@ bool pull(git_repository *repo) {
   error = git_repository_head(&head, repo);
   if (error) {
     logGitError(error);
+    git_strarray_destroy(refspecs);
     git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
@@ -3989,6 +3997,7 @@ bool pull(git_repository *repo) {
   error = git_branch_name(&branchName, head);
   if (error != 0) {
     logGitError(error);
+    git_strarray_destroy(refspecs);
     git_reference_free(head);
     git_remote_free(remote);
     LOG_PERF(0, "Exit");
@@ -3996,6 +4005,7 @@ bool pull(git_repository *repo) {
   }
 
   if (!branchName) {
+    git_strarray_destroy(refspecs);
     git_reference_free(head);
     git_remote_free(remote);
     LOG_PERF(0, "Exit");
@@ -4010,6 +4020,7 @@ bool pull(git_repository *repo) {
       QString("refs/remotes/origin/%1").arg(branchName).toStdString().c_str());
   if (error != 0) {
     logGitError(error);
+    git_strarray_destroy(refspecs);
     git_reference_free(head);
     git_remote_free(remote);
     LOG_PERF(0, "Exit");
@@ -4022,6 +4033,7 @@ bool pull(git_repository *repo) {
   error = git_annotated_commit_from_ref(&upstreamCommit, repo, upstream);
   if (error) {
     logGitError(error);
+    git_strarray_destroy(refspecs);
     git_reference_free(upstream);
     git_reference_free(head);
     git_remote_free(remote);
@@ -4038,6 +4050,7 @@ bool pull(git_repository *repo) {
       const_cast<const git_annotated_commit **>(&upstreamCommit), 1);
   if (error) {
     logGitError(error);
+    git_strarray_destroy(refspecs);
     git_annotated_commit_free(upstreamCommit);
     git_reference_free(upstream);
     git_reference_free(head);
@@ -4050,6 +4063,7 @@ bool pull(git_repository *repo) {
     // Fast-forward
     const git_oid *targetOid = git_annotated_commit_id(upstreamCommit);
     if (!targetOid) {
+      git_strarray_destroy(refspecs);
       git_annotated_commit_free(upstreamCommit);
       git_reference_free(upstream);
       git_reference_free(head);
@@ -4064,6 +4078,7 @@ bool pull(git_repository *repo) {
     error = git_commit_lookup(&targetCommit, repo, targetOid);
     if (error) {
       logGitError(error);
+      git_strarray_destroy(refspecs);
       git_annotated_commit_free(upstreamCommit);
       git_reference_free(upstream);
       git_reference_free(head);
@@ -4078,6 +4093,7 @@ bool pull(git_repository *repo) {
     error = git_checkout_tree(repo, (git_object *)targetCommit, &checkout_opts);
     if (error) {
       logGitError(error);
+      git_strarray_destroy(refspecs);
       git_commit_free(targetCommit);
       git_annotated_commit_free(upstreamCommit);
       git_reference_free(upstream);
@@ -4092,6 +4108,7 @@ bool pull(git_repository *repo) {
     error = git_reference_set_target(&newHead, head, targetOid, "Fast-forward");
     if (error) {
       logGitError(error);
+      git_strarray_destroy(refspecs);
       git_commit_free(targetCommit);
       git_annotated_commit_free(upstreamCommit);
       git_reference_free(upstream);
@@ -4114,6 +4131,7 @@ bool pull(git_repository *repo) {
         &merge_opts, &checkout_opts);
     if (error) {
       logGitError(error);
+      git_strarray_destroy(refspecs);
       git_annotated_commit_free(upstreamCommit);
       git_reference_free(upstream);
       git_reference_free(head);
@@ -4127,6 +4145,7 @@ bool pull(git_repository *repo) {
   }
 
   // Cleanup
+  git_strarray_destroy(refspecs);
   git_annotated_commit_free(upstreamCommit);
   git_reference_free(upstream);
   git_reference_free(head);
