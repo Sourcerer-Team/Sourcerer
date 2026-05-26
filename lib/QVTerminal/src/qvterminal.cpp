@@ -458,35 +458,45 @@ void QVTerminal::copy() {
   }
 
   QString selectedText;
+  int startLine = _startSelectPos.y();
+  int endLine = _endSelectPos.y();
+  int lineCount = _layout->lineCount();
+  
+  // Validate bounds
+  if (startLine >= lineCount || endLine >= lineCount) {
+    return;
+  }
   
   // If selection is on a single line
-  if (_startSelectPos.y() == _endSelectPos.y()) {
-    if (_startSelectPos.y() < _layout->lineCount()) {
-      const QVTLine &line = _layout->lineAt(_startSelectPos.y());
-      selectedText = line.text(_startSelectPos.x(), 
-                              _endSelectPos.x() - _startSelectPos.x());
+  if (startLine == endLine) {
+    const QVTLine &line = _layout->lineAt(startLine);
+    int startCol = _startSelectPos.x();
+    int endCol = _endSelectPos.x();
+    int length = endCol - startCol;
+    if (length > 0) {
+      selectedText = line.text(startCol, length);
     }
   } else {
     // Multi-line selection
     // Add text from the first line (from start position to end of line)
-    if (_startSelectPos.y() < _layout->lineCount()) {
-      const QVTLine &startLine = _layout->lineAt(_startSelectPos.y());
-      selectedText += startLine.text(_startSelectPos.x());
+    const QVTLine &firstLine = _layout->lineAt(startLine);
+    int firstLineLength = firstLine.size() - _startSelectPos.x();
+    if (firstLineLength > 0) {
+      selectedText = firstLine.text(_startSelectPos.x(), firstLineLength);
+    }
+    selectedText += "\n";
+
+    // Add text from middle lines
+    for (int y = startLine + 1; y < endLine; ++y) {
+      selectedText += _layout->lineAt(y).text();
       selectedText += "\n";
     }
 
-    // Add text from middle lines
-    for (int y = _startSelectPos.y() + 1; y < _endSelectPos.y(); ++y) {
-      if (y < _layout->lineCount()) {
-        selectedText += _layout->lineAt(y).text();
-        selectedText += "\n";
-      }
-    }
-
     // Add text from the last line (from start to end position)
-    if (_endSelectPos.y() < _layout->lineCount()) {
-      const QVTLine &endLine = _layout->lineAt(_endSelectPos.y());
-      selectedText += endLine.text(0, _endSelectPos.x());
+    const QVTLine &lastLine = _layout->lineAt(endLine);
+    int endCol = _endSelectPos.x();
+    if (endCol > 0) {
+      selectedText += lastLine.text(0, endCol);
     }
   }
 
@@ -494,6 +504,7 @@ void QVTerminal::copy() {
     QApplication::clipboard()->setText(selectedText);
   }
 }
+
 
 void QVTerminal::clear() {
   setUpdatesEnabled(false);
