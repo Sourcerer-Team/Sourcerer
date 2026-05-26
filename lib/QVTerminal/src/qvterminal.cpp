@@ -50,6 +50,11 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   connect(_pasteAction, &QAction::triggered, this, &QVTerminal::paste);
   addAction(_pasteAction);
 
+  _copyAction = new QAction("Copy");
+  _copyAction->setShortcut(QKeySequence("Ctrl+C"));
+  connect(_copyAction, &QAction::triggered, this, &QVTerminal::copy);
+  addAction(_copyAction);
+
   _clearAction = new QAction("Clear all");
   connect(_clearAction, &QAction::triggered, this, [this]() {
       clear();
@@ -445,6 +450,51 @@ void QVTerminal::paste() {
   writeData(data);
 }
 
+void QVTerminal::copy() {
+  // Check if there's a selection
+  if (_startSelectPos.isNull() || _endSelectPos.isNull() || 
+      _startSelectPos == _endSelectPos) {
+    return;
+  }
+
+  QString selectedText;
+  
+  // If selection is on a single line
+  if (_startSelectPos.y() == _endSelectPos.y()) {
+    if (_startSelectPos.y() < _layout->lineCount()) {
+      const QVTLine &line = _layout->lineAt(_startSelectPos.y());
+      selectedText = line.text(_startSelectPos.x(), 
+                              _endSelectPos.x() - _startSelectPos.x());
+    }
+  } else {
+    // Multi-line selection
+    // Add text from the first line (from start position to end of line)
+    if (_startSelectPos.y() < _layout->lineCount()) {
+      const QVTLine &startLine = _layout->lineAt(_startSelectPos.y());
+      selectedText += startLine.text(_startSelectPos.x());
+      selectedText += "\n";
+    }
+
+    // Add text from middle lines
+    for (int y = _startSelectPos.y() + 1; y < _endSelectPos.y(); ++y) {
+      if (y < _layout->lineCount()) {
+        selectedText += _layout->lineAt(y).text();
+        selectedText += "\n";
+      }
+    }
+
+    // Add text from the last line (from start to end position)
+    if (_endSelectPos.y() < _layout->lineCount()) {
+      const QVTLine &endLine = _layout->lineAt(_endSelectPos.y());
+      selectedText += endLine.text(0, _endSelectPos.x());
+    }
+  }
+
+  if (!selectedText.isEmpty()) {
+    QApplication::clipboard()->setText(selectedText);
+  }
+}
+
 void QVTerminal::clear() {
   setUpdatesEnabled(false);
   _layout->clear();
@@ -794,8 +844,17 @@ void QVTerminal::mouseReleaseEvent(QMouseEvent *event) {
 #ifndef QT_NO_CONTEXTMENU
 void QVTerminal::contextMenuEvent(QContextMenuEvent *event) {
   QMenu menu(this);
+  
+  // Enable paste if clipboard has content
   _pasteAction->setEnabled(!QApplication::clipboard()->text().isEmpty());
   menu.addAction(_pasteAction);
+  
+  // Enable copy if there's selected text
+  bool hasSelection = !_startSelectPos.isNull() && !_endSelectPos.isNull() && 
+                      _startSelectPos != _endSelectPos;
+  _copyAction->setEnabled(hasSelection);
+  menu.addAction(_copyAction);
+  
   menu.addAction(_clearAction);
   menu.exec(event->globalPos());
 }

@@ -57,6 +57,7 @@ public slots:
   void writeData(const QByteArray &data);
 
   void paste();
+  void copy();
   void clear();
 
 protected slots:
@@ -111,6 +112,7 @@ private:
   bool _crlf;
 
   QAction *_pasteAction;
+  QAction *_copyAction;
   QAction *_clearAction;
   VT *_vt;
 
