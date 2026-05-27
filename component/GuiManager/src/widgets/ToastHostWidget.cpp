@@ -668,7 +668,15 @@ bool ToastHostWidget::toastWillFit(const ToastWidget *toast) const {
 void ToastHostWidget::hideAllToasts() {
   LOG_PERF(0, "Enter");
 
+  // Hide toasts from _toasts vector
   for (ToastWidget *toast : _toasts) {
+    if (toast && toast->isVisible()) {
+      toast->hide();
+    }
+  }
+
+  // Hide toasts from _sharedToasts vector
+  for (const QSharedPointer<ToastWidget> &toast : _sharedToasts) {
     if (toast && toast->isVisible()) {
       toast->hide();
     }
@@ -680,7 +688,15 @@ void ToastHostWidget::hideAllToasts() {
 void ToastHostWidget::showAllToasts() {
   LOG_PERF(0, "Enter");
 
+  // Show toasts from _toasts vector
   for (ToastWidget *toast : _toasts) {
+    if (toast && !toast->isVisible()) {
+      toast->show();
+    }
+  }
+
+  // Show toasts from _sharedToasts vector
+  for (const QSharedPointer<ToastWidget> &toast : _sharedToasts) {
     if (toast && !toast->isVisible()) {
       toast->show();
     }

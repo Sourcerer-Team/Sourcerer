@@ -64,6 +64,13 @@ MainWindow::MainWindow(QWidget *parent)
   connect(_hitDetector, &HitDetector::edgeHit, this, &MainWindow::onEdgeHit);
 #endif
 
+  // Start timer to check window activation state (for detecting Alt+Tab
+  // switches)
+  _windowActivationCheckTimer = new QTimer(this);
+  connect(_windowActivationCheckTimer, &QTimer::timeout, this,
+          &MainWindow::checkWindowActivation);
+  _windowActivationCheckTimer->start(250); // Check every 250ms
+
   _profileBoardWidget->hide();
 
   const qlonglong minimumWidth =
@@ -251,6 +258,42 @@ void MainWindow::changeEvent(QEvent *event) {
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
   return _hitDetector->eventFilter(watched, event);
+}
+
+void MainWindow::focusOutEvent(QFocusEvent *event) {
+  LOG_PERF(0, "Enter");
+
+  // Window lost focus (switched to another application)
+  _toastHost.hideAllToasts();
+
+  QMainWindow::focusOutEvent(event);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::focusInEvent(QFocusEvent *event) {
+  LOG_PERF(0, "Enter");
+
+  // Window regained focus
+  _toastHost.showAllToasts();
+
+  QMainWindow::focusInEvent(event);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::checkWindowActivation() {
+  bool isActive = isActiveWindow();
+
+  if (isActive != _windowActive) {
+    _windowActive = isActive;
+
+    if (_windowActive) {
+      _toastHost.showAllToasts();
+    } else {
+      _toastHost.hideAllToasts();
+    }
+  }
 }
 
 void MainWindow::onOpen() {
