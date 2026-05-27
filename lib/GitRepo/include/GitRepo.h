@@ -291,6 +291,8 @@ bool pull(git_repository *rep);
 
 bool push(git_repository *rep);
 
+bool pushTag(git_repository *repo, const QString &tagName);
+
 bool stash(git_repository *repo);
 
 bool setUpstream(git_repository *repo, const QString &remoteName,

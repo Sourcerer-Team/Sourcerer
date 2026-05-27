@@ -317,6 +317,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForPush(pushCommand);
     break;
   }
+  case EventType::PushTag: {
+    const auto pushTagCommand = event.nextParam<GitRepoPushTagCommand>();
+    scheduleWorkerForPushTag(pushTagCommand);
+    break;
+  }
   case EventType::RenameBranch: {
     const auto renameBranchCommand =
         event.nextParam<GitRepoRenameBranchCommand>();
@@ -2158,6 +2163,25 @@ void ProcessingState::scheduleWorkerForPush(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForPushTag(
+    const Structs::GitRepoPushTagCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerPushTagError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoPushTagCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForRenameBranch(
     const Structs::GitRepoRenameBranchCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2480,6 +2504,43 @@ void ProcessingState::pushWorker(const Structs::GitRepoPushCommand &command) {
   } else {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerPushResult, command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::pushTagWorker(
+    const Structs::GitRepoPushTagCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerPushTagError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::pushTag(repo, command.tagName);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerPushTagError, command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerPushTagResult, command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type,
                                       QVariant::fromValue(success)});
     _eventManager.send(resultEvent);
@@ -4006,6 +4067,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoPushCommand *>(command);
       if (pushCommand) {
         pushWorker(*pushCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::PushTag: {
+      const auto *pushTagCommand =
+          dynamic_cast<const GitRepoPushTagCommand *>(command);
+      if (pushTagCommand) {
+        pushTagWorker(*pushTagCommand);
       }
       break;
     }

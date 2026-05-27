@@ -1338,6 +1338,22 @@ void GitRepoContainer::onDeleteTag(const QString &tagName) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onPushTag(const QString &tagName) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Push tag requested: '{}' in repository '{}'",
+            tagName.toStdString(), _path.toStdString());
+
+  startOverlayTimer();
+  LOG_DEBUG("Spinner overlay timer started for tag push");
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { pushTag(guard, tagName); });
+
+  LOG_DEBUG("Push tag operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onDiffCloseClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Diff viewer close requested");
@@ -2297,6 +2313,7 @@ void GitRepoContainer::onTagRightClicked(const QString &tagName,
 
   QAction actionCheckoutTag(tr("Checkout tag"), this);
   QAction actionRanameTag(tr("Rename tag"), this);
+  QAction actionPushTag(tr("Push to Remote"), this);
   QAction actionDeleteTag(tr("Delete tag"), this);
 
   connect(&actionCheckoutTag, &QAction::triggered, this, [=]() {
@@ -2312,12 +2329,16 @@ void GitRepoContainer::onTagRightClicked(const QString &tagName,
   connect(&actionRanameTag, &QAction::triggered, this,
           [=]() { onRenameTag(tagName); });
 
+  connect(&actionPushTag, &QAction::triggered, this,
+          [=]() { onPushTag(tagName); });
+
   connect(&actionDeleteTag, &QAction::triggered, this,
           [=]() { onDeleteTag(tagName); });
 
   QMenu menu;
   menu.addAction(&actionCheckoutTag);
   menu.addAction(&actionRanameTag);
+  menu.addAction(&actionPushTag);
   menu.addSeparator();
   menu.addAction(&actionDeleteTag);
 
@@ -4910,6 +4931,77 @@ void GitRepoContainer::deleteTag(const WeakPtr &guard, const QString &tagName) {
 
   Util::Dispatcher::dispatchToMainThread(guard,
                                          [&]() { showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::pushTag(const WeakPtr &guard, const QString &tagName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoPushTagCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.tagName = tagName;
+
+  EventManager::Event pushTagEvent(
+      EventManager::EventType::GitRepoManagerPushTag, eventUuid);
+  pushTagEvent.addData(command);
+  _eventManager.send(pushTagEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerPushTagError,
+      EventManager::EventType::GitRepoManagerPushTagResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerPushTagResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to push tag to remote.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  if (const bool pushed = commandResult.value.toBool(); !pushed) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to push tag to remote."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Successfully pushed tag to remote."), tr("Info"));
+  });
 
   LOG_PERF(0, "Exit");
 }
