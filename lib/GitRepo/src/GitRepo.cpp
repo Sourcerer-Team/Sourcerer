@@ -4556,17 +4556,19 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
   error = git_branch_set_upstream(
       localRef,
       QString("%1/%2").arg(remoteName, remoteBranchName).toStdString().c_str());
-  
-  // If it fails because the remote branch doesn't exist yet, set it manually in config
-  // This allows users to set upstream on branches that will be created on the next push
+
+  // If it fails because the remote branch doesn't exist yet, set it manually in
+  // config This allows users to set upstream on branches that will be created
+  // on the next push
   if (error == GIT_ENOTFOUND || error == GIT_EINVALIDSPEC) {
-    LOG_WARN("Remote branch '{}' does not exist, setting upstream directly in config", 
+    LOG_WARN("Remote branch '{}' does not exist, setting upstream directly in "
+             "config",
              QString("%1/%2").arg(remoteName, remoteBranchName));
-    
+
     // Get the git config file path
-    const QString configPath = 
+    const QString configPath =
         QString::fromUtf8(git_repository_path(repo)) + "config";
-    
+
     // Read the existing config file
     QString configContent;
     QFile configFile(configPath);
@@ -4574,7 +4576,7 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
       configContent = QString::fromUtf8(configFile.readAll());
       configFile.close();
     }
-    
+
     // Parse and update the config
     QStringList lines = configContent.split('\n');
     bool foundBranchSection = false;
@@ -4582,15 +4584,15 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
     bool foundMerge = false;
     int sectionStart = -1;
     int sectionEnd = -1;
-    
+
     // Find the branch section
     for (int i = 0; i < lines.size(); ++i) {
       const QString line = lines[i].trimmed();
-      
+
       if (line == QString("[branch \"%1\"]").arg(localBranchName)) {
         foundBranchSection = true;
         sectionStart = i;
-        
+
         // Find the end of this section (next [section] or end of file)
         for (int j = i + 1; j < lines.size(); ++j) {
           const QString nextLine = lines[j].trimmed();
@@ -4602,7 +4604,7 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
         if (sectionEnd == -1) {
           sectionEnd = lines.size() - 1;
         }
-        
+
         // Look for remote and merge entries in this section
         for (int j = sectionStart + 1; j <= sectionEnd; ++j) {
           const QString sectionLine = lines[j].trimmed();
@@ -4617,7 +4619,7 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
         break;
       }
     }
-    
+
     // Add missing entries to the section or create the section
     if (foundBranchSection) {
       // Insert missing entries at the end of the section (before sectionEnd)
@@ -4626,39 +4628,40 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
         lines.insert(insertPos++, QString("\tremote = %1").arg(remoteName));
       }
       if (!foundMerge) {
-        lines.insert(insertPos, QString("\tmerge = refs/heads/%1").arg(remoteBranchName));
+        lines.insert(insertPos,
+                     QString("\tmerge = refs/heads/%1").arg(remoteBranchName));
       }
     } else {
       // Create new section at the end of the file
       if (!configContent.isEmpty() && !configContent.endsWith('\n')) {
-        lines.append("");  // Empty line before new section
+        lines.append(""); // Empty line before new section
       }
       lines.append(QString("[branch \"%1\"]").arg(localBranchName));
       lines.append(QString("\tremote = %1").arg(remoteName));
       lines.append(QString("\tmerge = refs/heads/%1").arg(remoteBranchName));
     }
-    
+
     // Write back to config file
     configFile.setFileName(configPath);
     if (!configFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-      LOG_ERROR(Log::ErrorId::Git, 
+      LOG_ERROR(Log::ErrorId::Git,
                 "Failed to write .git/config file when setting upstream");
       git_reference_free(localRef);
       LOG_PERF(0, "Exit");
       return false;
     }
-    
+
     configFile.write(lines.join('\n').toUtf8());
     configFile.close();
-    
+
     LOG_INFO("Set upstream for branch '{}' to '{}/{}' via config file",
              localBranchName, remoteName, remoteBranchName);
-    
+
     git_reference_free(localRef);
     LOG_PERF(0, "Exit");
     return true;
   }
-  
+
   if (error) {
     logGitError(error);
     git_reference_free(localRef);
