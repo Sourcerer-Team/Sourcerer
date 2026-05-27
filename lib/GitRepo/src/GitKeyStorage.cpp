@@ -200,7 +200,6 @@ bool GitKeyStorage::generateKeyPair(const QString &keyName,
                                     QString &errorMessage) {
   LOG_PERF(0, "Enter");
   LOG_INFO("Generating new SSH key pair: {}", keyName);
-
   // Ensure .ssh directory exists
   const QString sshDir = getSshDirectoryPath();
   QDir dir;
@@ -223,6 +222,12 @@ bool GitKeyStorage::generateKeyPair(const QString &keyName,
   }
 
   QCA::Initializer init;
+
+  LOG_INFO("QCA plugin paths: [{}]", QCA::pluginPaths().join(','));
+  LOG_INFO("QCA supported features: [{}]", QCA::supportedFeatures().join(','));
+
+  qDebug() << "Plugin paths: " << QCA::pluginPaths();
+  qDebug() << "Supported features: " << QCA::supportedFeatures();
 
   // Generate RSA 4096-bit key pair
   QCA::PrivateKey priv = QCA::KeyGenerator().createRSA(4096);

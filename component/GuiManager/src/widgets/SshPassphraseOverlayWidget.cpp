@@ -179,6 +179,7 @@ void SshPassphraseOverlayWidget::onSubmitClicked() const {
   response.username = _request.username;
   response.passphrase = _passphraseLineEdit->text();
   response.rememberCredentials = false; // Don't remember passphrases
+  response.needPassphrase = true;
 
   EventManager::Event submitEvent(
       EventManager::EventType::GitRepoManagerGetCredentialsSubmit);

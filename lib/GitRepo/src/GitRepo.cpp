@@ -1776,7 +1776,7 @@ acquireCredentials(const QString &repoPath, const QString &url,
 }
 
 static bool validateSshKey(const QString &privateKeyPath,
-                           const QString &publicKeyPath,
+                           const QString &publicKeyPath, bool passphrasePresent,
                            const QString &passphrase) {
   LOG_PERF(0, "Enter");
 
@@ -1805,8 +1805,7 @@ static bool validateSshKey(const QString &privateKeyPath,
 
   EVP_PKEY *privateKey = PEM_read_PrivateKey(
       privateKeyFile, nullptr, nullptr,
-      passphrase.isEmpty() ? nullptr
-                           : (void *)passphrase.toStdString().c_str());
+      !passphrasePresent ? nullptr : (void *)passphrase.toStdString().c_str());
   fclose(privateKeyFile);
 
   if (!privateKey) {
@@ -1933,6 +1932,7 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
     }
 
     // Check if the private key is encrypted (requires passphrase)
+    bool passphrasePresent = false;
     QString passphrase;
     QFile keyFile(privateKeyPath);
     if (keyFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -2008,6 +2008,7 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
 
             // Use the passphrase field if available, otherwise fall back to
             // password field
+            passphrasePresent = response.needPassphrase;
             passphrase = !response.passphrase.isEmpty() ? response.passphrase
                                                         : response.password;
             LOG_INFO("Received passphrase for SSH key");
@@ -2021,7 +2022,8 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
     }
 
     // Validate SSH keys using OpenSSL before attempting to use them
-    if (!validateSshKey(privateKeyPath, publicKeyPath, passphrase)) {
+    if (!validateSshKey(privateKeyPath, publicKeyPath, passphrasePresent,
+                        passphrase)) {
       LOG_ERROR(Log::ErrorId::Git,
                 "SSH key validation failed for repository: {}", url);
       LOG_PERF(0, "Exit");
@@ -2254,7 +2256,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   }
 
   if (commercial) {
-    finishCredentialsAcquiring(uuid);
+    finishCredentialsAcquiring(url);
   }
 
   if (error || !repo) {

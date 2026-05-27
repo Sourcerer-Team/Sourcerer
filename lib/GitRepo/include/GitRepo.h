@@ -48,6 +48,7 @@ struct GitCredentialsResponse {
   QString username;
   QString password;
   QString passphrase; // For SSH key passphrases
+  bool needPassphrase = false;
   bool rememberCredentials = false;
 };
 
