@@ -26,10 +26,12 @@
 #include <Uuid.h>
 
 #include <QCheckBox>
+#include <QClipboard>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -1549,6 +1551,7 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   QAction actionSetUpstream(tr("Set Upstream"), this);
   QAction actionCheckoutCommit(tr("Checkout commit"), this);
   QAction actionCreateBranchFromCommit(tr("Create branch from commit"), this);
+  QAction actionCopyShaToClipboard(tr("Copy SHA to clipboard"), this);
   QAction actionSoftResetToCommit(tr("Soft reset"), this);
   QAction actionMixedResetToCommit(tr("Mixed reset"), this);
   QAction actionHardResetToCommit(tr("Hard reset"), this);
@@ -1567,6 +1570,10 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
           [=]() { onCheckoutCommit(commit); });
   connect(&actionCreateBranchFromCommit, &QAction::triggered, this,
           [=]() { onCreateBranchFromCommit(commit); });
+  connect(&actionCopyShaToClipboard, &QAction::triggered, this, [=]() {
+    QGuiApplication::clipboard()->setText(commit);
+    showToast(tr("Commit SHA copied to clipboard."), tr("Info"));
+  });
   connect(&actionSoftResetToCommit, &QAction::triggered, this,
           [=]() { onSoftResetToCommit(commit); });
   connect(&actionMixedResetToCommit, &QAction::triggered, this,
@@ -1597,6 +1604,7 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
 
   if (!commit.isEmpty()) {
     menu.addAction(&actionCheckoutCommit);
+    menu.addAction(&actionCopyShaToClipboard);
     menu.addSeparator();
     menu.addAction(&actionCreateBranchFromCommit);
     menu.addMenu(&resetMenu);
