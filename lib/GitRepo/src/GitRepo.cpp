@@ -498,11 +498,11 @@ void clearCachedCredentials(const QString &repoPath) {
   LOG_INFO("Clearing cached credentials for repository: {}", repoPath);
 
   LOCKGUARD(gGitCredentialsMutex);
-  
+
   // Clear all cached credentials to ensure fresh ones are loaded from storage
   // This is necessary when credentials are updated by the user
   gGitCredentials.clear();
-  
+
   LOG_INFO("Cleared all cached credentials");
   LOG_PERF(0, "Exit");
 }
@@ -1299,17 +1299,22 @@ bool deleteAllStashes(git_repository *repo) {
   LOG_DEBUG("Attempting to delete all stashes");
 
   if (!repo) {
-    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null when deleting all stashes");
+    LOG_ERROR(Log::ErrorId::Git,
+              "Repository pointer is null when deleting all stashes");
     LOG_PERF(0, "Exit");
     return false;
   }
 
   // Get the count of stashes first
   size_t stashCount = 0;
-  if (const int error = git_stash_foreach(repo, [](size_t index, const char *name, const git_oid *oid, void *payload) -> int {
-    (*static_cast<size_t *>(payload))++;
-    return 0;
-  }, &stashCount)) {
+  if (const int error = git_stash_foreach(
+          repo,
+          [](size_t index, const char *name, const git_oid *oid,
+             void *payload) -> int {
+            (*static_cast<size_t *>(payload))++;
+            return 0;
+          },
+          &stashCount)) {
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
@@ -1649,14 +1654,15 @@ acquireCredentials(const QString &repoPath, const QString &url,
 
   const QString normalizedRepoPath = QDir::fromNativeSeparators(repoPath);
 
-  LOG_INFO("acquireCredentials called with repoPath: '{}', url: '{}'", normalizedRepoPath,
-           url);
+  LOG_INFO("acquireCredentials called with repoPath: '{}', url: '{}'",
+           normalizedRepoPath, url);
 
   // First, try to get stored credentials from encrypted storage
   GitCredentialStorage &credStorage = GitCredentialStorage::getInstance();
 
   QString storedUsername, storedPassword;
-  if (credStorage.getCredentials(normalizedRepoPath, storedUsername, storedPassword)) {
+  if (credStorage.getCredentials(normalizedRepoPath, storedUsername,
+                                 storedPassword)) {
     LOG_INFO("Found stored credentials for repository: {}", normalizedRepoPath);
 
     // Check if credentials are expired
@@ -1666,17 +1672,21 @@ acquireCredentials(const QString &repoPath, const QString &url,
 
     LOG_INFO("Expiration timeout: {} ms", expirationTimeout);
 
-    if (!credStorage.areCredentialsExpired(normalizedRepoPath, expirationTimeout)) {
-      LOG_INFO("Using stored credentials for repository: {}", normalizedRepoPath);
+    if (!credStorage.areCredentialsExpired(normalizedRepoPath,
+                                           expirationTimeout)) {
+      LOG_INFO("Using stored credentials for repository: {}",
+               normalizedRepoPath);
       LOG_PERF(0, "Exit");
       return std::make_tuple(
           true, GitPlaintextCredentials{storedUsername, storedPassword,
                                         QDateTime::currentMSecsSinceEpoch()});
     } else {
-      LOG_INFO("Stored credentials expired for repository: {}", normalizedRepoPath);
+      LOG_INFO("Stored credentials expired for repository: {}",
+               normalizedRepoPath);
     }
   } else {
-    LOG_INFO("No stored credentials found for repository: {}", normalizedRepoPath);
+    LOG_INFO("No stored credentials found for repository: {}",
+             normalizedRepoPath);
   }
 
   // If no stored credentials or expired, request from user
@@ -1766,7 +1776,8 @@ acquireCredentials(const QString &repoPath, const QString &url,
 }
 
 static bool validateSshKey(const QString &privateKeyPath,
-                           const QString &publicKeyPath) {
+                           const QString &publicKeyPath,
+                           const QString &passphrase) {
   LOG_PERF(0, "Enter");
 
   // Check if files exist
@@ -1792,8 +1803,10 @@ static bool validateSshKey(const QString &privateKeyPath,
     return false;
   }
 
-  EVP_PKEY *privateKey =
-      PEM_read_PrivateKey(privateKeyFile, nullptr, nullptr, nullptr);
+  EVP_PKEY *privateKey = PEM_read_PrivateKey(
+      privateKeyFile, nullptr, nullptr,
+      passphrase.isEmpty() ? nullptr
+                           : (void *)passphrase.toStdString().c_str());
   fclose(privateKeyFile);
 
   if (!privateKey) {
@@ -1919,8 +1932,96 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
           host.isEmpty() ? "unknown" : host, privateKeyPath);
     }
 
+    // Check if the private key is encrypted (requires passphrase)
+    QString passphrase;
+    QFile keyFile(privateKeyPath);
+    if (keyFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+      QString keyContent = QString::fromUtf8(keyFile.readAll());
+      keyFile.close();
+
+      // Check for encryption markers in the key file
+      if (keyContent.contains("ENCRYPTED", Qt::CaseInsensitive)) {
+        // Key is encrypted, need to ask for passphrase
+        LOG_INFO("SSH key is encrypted, requesting passphrase from user");
+
+        // Request passphrase from user using the event system
+        EventManager::EventManager &eventManager =
+            EventManager::EventManager::getInstance();
+
+        const int token = eventManager.startWait();
+
+        GitCredentialsRequest request;
+        request.id = qHash(QString::fromUtf8(url));
+        request.url = url;
+        request.username = username_from_url ? username_from_url : "git";
+        request.allowedTypes = allowed_types;
+        request.repoPath = repoPath;
+        request.needsPassphrase =
+            true; // Signal that this is a passphrase request
+
+        EventManager::Event credentialsEvent(
+            EventManager::EventType::GitRepoManagerGetCredentials);
+        credentialsEvent.addData(request);
+
+        eventManager.send(credentialsEvent);
+
+        const auto predicate = [&](EventManager::Event event) -> bool {
+          bool success = false;
+          switch (event.type()) {
+          case EventManager::EventType::GitRepoManagerGetCredentialsCancel: {
+            const auto [id] = event.data<GitCredentialsErrorResponse>();
+            success = id == request.id;
+            break;
+          }
+          case EventManager::EventType::GitRepoManagerGetCredentialsSubmit: {
+            const GitCredentialsResponse response =
+                event.data<GitCredentialsResponse>();
+            success = response.id == request.id;
+            break;
+          }
+          default: {
+            LOG_ERROR(Log::ErrorId::Git, "Internal error. Unknown event type.");
+            break;
+          }
+          }
+          return success;
+        };
+
+        const std::set<EventManager::EventType> types{
+            EventManager::EventType::GitRepoManagerGetCredentialsCancel,
+            EventManager::EventType::GitRepoManagerGetCredentialsSubmit};
+
+        const auto &[success, event] =
+            eventManager.waitOneOf(token, types, predicate);
+
+        if (success) {
+          if (event.type() ==
+              EventManager::EventType::GitRepoManagerGetCredentialsCancel) {
+            LOG_ERROR(Log::ErrorId::Git,
+                      "User cancelled passphrase request for SSH key");
+            LOG_PERF(0, "Exit");
+            return GIT_EUSER;
+          } else if (event.type() == EventManager::EventType::
+                                         GitRepoManagerGetCredentialsSubmit) {
+            const GitCredentialsResponse response =
+                event.data<GitCredentialsResponse>();
+
+            // Use the passphrase field if available, otherwise fall back to
+            // password field
+            passphrase = !response.passphrase.isEmpty() ? response.passphrase
+                                                        : response.password;
+            LOG_INFO("Received passphrase for SSH key");
+          }
+        } else {
+          LOG_ERROR(Log::ErrorId::Git, "Failed to get passphrase response");
+          LOG_PERF(0, "Exit");
+          return GIT_EUSER;
+        }
+      }
+    }
+
     // Validate SSH keys using OpenSSL before attempting to use them
-    if (!validateSshKey(privateKeyPath, publicKeyPath)) {
+    if (!validateSshKey(privateKeyPath, publicKeyPath, passphrase)) {
       LOG_ERROR(Log::ErrorId::Git,
                 "SSH key validation failed for repository: {}", url);
       LOG_PERF(0, "Exit");
@@ -1930,8 +2031,8 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
     const int error = git_credential_ssh_key_new(
         out, username_from_url ? username_from_url : "git",
         publicKeyPath.toStdString().c_str(),
-        privateKeyPath.toStdString().c_str(), nullptr // passphrase
-    );
+        privateKeyPath.toStdString().c_str(),
+        passphrase.isEmpty() ? nullptr : passphrase.toStdString().c_str());
 
     LOG_PERF(0, "Exit");
     return error;
@@ -5050,7 +5151,10 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
 
   // Remove submodule section from .git/config file
   const std::string gitDirPath = repositoryPath;
-  const std::string gitConfigFile = gitDirPath + (gitDirPath.back() == '/' || gitDirPath.back() == '\\' ? "" : "/") + "config";
+  const std::string gitConfigFile =
+      gitDirPath +
+      (gitDirPath.back() == '/' || gitDirPath.back() == '\\' ? "" : "/") +
+      "config";
 
   src = fopen(gitConfigFile.c_str(), "r");
   if (FILE *dst = fopen((gitConfigFile + ".tmp").c_str(), "w"); src && dst) {

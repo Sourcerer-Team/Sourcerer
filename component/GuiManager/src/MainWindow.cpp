@@ -928,25 +928,48 @@ void MainWindow::eventCallback(EventManager::Event event) {
         LOG_WARN("Parent widget is null.");
         return;
       }
-      GitCredentialsOverlayWidget *overlayWidget = nullptr;
-      if (_credentialsWidgets.contains(request.id)) {
-        overlayWidget = _credentialsWidgets[request.id];
+      if (request.needsPassphrase) {
+        SshPassphraseOverlayWidget *overlayWidget = nullptr;
+        if (_passphraseWidgets.contains(request.id)) {
+          overlayWidget = _passphraseWidgets[request.id];
+        } else {
+          overlayWidget = new SshPassphraseOverlayWidget(request.id, parent);
+          _passphraseWidgets[request.id] = overlayWidget;
+        }
+        connect(overlayWidget, &SshPassphraseOverlayWidget::error, this, [=]() {
+          hidePassphraseOverlay(overlayWidget);
+          _passphraseWidgets.remove(request.id);
+          delete overlayWidget;
+        });
+        connect(overlayWidget, &SshPassphraseOverlayWidget::finished, this,
+                [=]() {
+                  hidePassphraseOverlay(overlayWidget);
+                  _passphraseWidgets.remove(request.id);
+                  delete overlayWidget;
+                });
+        showPassphraseOverlay(request, overlayWidget);
       } else {
-        overlayWidget = new GitCredentialsOverlayWidget(request.id, parent);
-        _credentialsWidgets[request.id] = overlayWidget;
+        GitCredentialsOverlayWidget *overlayWidget = nullptr;
+        if (_credentialsWidgets.contains(request.id)) {
+          overlayWidget = _credentialsWidgets[request.id];
+        } else {
+          overlayWidget = new GitCredentialsOverlayWidget(request.id, parent);
+          _credentialsWidgets[request.id] = overlayWidget;
+        }
+        connect(overlayWidget, &GitCredentialsOverlayWidget::error, this,
+                [=]() {
+                  hideCredentialsOverlay(overlayWidget);
+                  _credentialsWidgets.remove(request.id);
+                  delete overlayWidget;
+                });
+        connect(overlayWidget, &GitCredentialsOverlayWidget::finished, this,
+                [=]() {
+                  hideCredentialsOverlay(overlayWidget);
+                  _credentialsWidgets.remove(request.id);
+                  delete overlayWidget;
+                });
+        showCredentialsOverlay(request, overlayWidget);
       }
-      connect(overlayWidget, &GitCredentialsOverlayWidget::error, this, [=]() {
-        hideCredentialsOverlay(overlayWidget);
-        _credentialsWidgets.remove(request.id);
-        delete overlayWidget;
-      });
-      connect(overlayWidget, &GitCredentialsOverlayWidget::finished, this,
-              [=]() {
-                hideCredentialsOverlay(overlayWidget);
-                _credentialsWidgets.remove(request.id);
-                delete overlayWidget;
-              });
-      showCredentialsOverlay(request, overlayWidget);
     });
     break;
   }
@@ -1029,6 +1052,41 @@ void MainWindow::showCredentialsOverlay(const GitCredentialsRequest &request,
   }
 
   widget->setRepoPath(request.repoPath);
+  widget->setRequest(request);
+  widget->start();
+  widget->show();
+  widget->raise();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::hidePassphraseOverlay(SshPassphraseOverlayWidget *widget) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(widget != nullptr);
+
+  if (!widget) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  widget->stop();
+  widget->hide();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showPassphraseOverlay(const GitCredentialsRequest &request,
+                                       SshPassphraseOverlayWidget *widget) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(widget != nullptr);
+
+  if (!widget) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
   widget->setRequest(request);
   widget->start();
   widget->show();

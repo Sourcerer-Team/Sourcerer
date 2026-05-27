@@ -166,7 +166,7 @@ void StashesPage::onStashRightClicked(int stashIndex, const QPoint &pos) {
 void StashesPage::onEmptySpaceClicked(const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
-  if(lastStash() == -1) {
+  if (lastStash() == -1) {
     LOG_PERF(0, "Exit");
     return;
   }

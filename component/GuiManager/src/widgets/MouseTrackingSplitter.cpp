@@ -1,5 +1,6 @@
 #include "widgets/MouseTrackingSplitter.h"
 
+#include <QMainWindow>
 #include <QMouseEvent>
 
 namespace GuiManager {

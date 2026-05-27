@@ -6,6 +6,7 @@
 #include "widgets/ContainerWidget.h"
 #include "widgets/GitCredentialsOverlayWidget.h"
 #include "widgets/ProfileBoardWidget.h"
+#include "widgets/SshPassphraseOverlayWidget.h"
 #include "widgets/ToastHostWidget.h"
 #include "widgets/TopBarWidget.h"
 
@@ -95,6 +96,9 @@ private:
   static void hideCredentialsOverlay(GitCredentialsOverlayWidget *widget);
   static void showCredentialsOverlay(const GitCredentialsRequest &request,
                                      GitCredentialsOverlayWidget *widget);
+  static void hidePassphraseOverlay(SshPassphraseOverlayWidget *widget);
+  static void showPassphraseOverlay(const GitCredentialsRequest &request,
+                                    SshPassphraseOverlayWidget *widget);
   void showCloneProgressToast(const CloneProgress &data);
   void showToast(const QString &text, const QString &title);
   void showErrorToast(const QString &text, const QString &title);
@@ -115,6 +119,7 @@ private:
   QSharedPointer<ProfileBoardWidget> _profileBoardWidget;
   bool _profileBoardActive;
   QMap<uint, GitCredentialsOverlayWidget *> _credentialsWidgets;
+  QMap<uint, SshPassphraseOverlayWidget *> _passphraseWidgets;
 };
 
 } // namespace GuiManager

@@ -64,7 +64,7 @@ HttpReply HttpClientWorker::sendRequest_(
   sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
 
   // Only add certificate if it was successfully loaded
-  if(!_certificate.isNull()) {
+  if (!_certificate.isNull()) {
     sslConfig.addCaCertificate(_certificate);
   }
 
@@ -237,7 +237,8 @@ void HttpClientWorker::loadClientCertificate() {
 
   QFile file(clientCertFilePath);
   if (!file.open(QIODevice::ReadOnly)) {
-    LOG_DEBUG("Custom certificate file '{}' not found or not accessible. Using system CA certificates.",
+    LOG_DEBUG("Custom certificate file '{}' not found or not accessible. Using "
+              "system CA certificates.",
               clientCertFilePath.toStdString());
     LOG_PERF(0, "Exit");
     return;
@@ -247,10 +248,11 @@ void HttpClientWorker::loadClientCertificate() {
   file.close();
 
   _certificate = QSslCertificate(bytes);
-  
+
   if (_certificate.isNull()) {
-    LOG_DEBUG("Failed to load certificate from '{}'. Using system CA certificates.",
-              clientCertFilePath.toStdString());
+    LOG_DEBUG(
+        "Failed to load certificate from '{}'. Using system CA certificates.",
+        clientCertFilePath.toStdString());
   } else {
     LOG_DEBUG("Successfully loaded custom CA certificate from '{}'",
               clientCertFilePath.toStdString());

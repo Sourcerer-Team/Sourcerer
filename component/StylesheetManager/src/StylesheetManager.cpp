@@ -75,6 +75,14 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border: 2px solid #0078d7;
         border-radius: 5px;
       }
+      QLineEdit#lineEditTextSshPassphraseOverlayWidgetPassphrase{
+        border: 2px solid gray;
+        border-radius: 5px;
+      }
+      QLineEdit#lineEditTextSshPassphraseOverlayWidgetPassphrase:focus{
+        border: 2px solid #0078d7;
+        border-radius: 5px;
+      }
       QLineEdit#lineEditAddSubmoduleOverlayWidgetUrl{
         border: 2px solid gray;
         border-radius: 5px;

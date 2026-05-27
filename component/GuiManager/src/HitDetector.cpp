@@ -31,22 +31,22 @@ void HitDetector::init() {
   }
 
   _pixelRatio = _window->devicePixelRatioF();
-  
-  // Use a timer to continuously poll cursor position instead of relying on events
-  // This bypasses event filter chains and works even when overlays are present
+
+  // Use a timer to continuously poll cursor position instead of relying on
+  // events This bypasses event filter chains and works even when overlays are
+  // present
   auto *timer = new QTimer(_window);
   connect(timer, &QTimer::timeout, this, [this]() {
     if (!_window || !_window->isVisible()) {
       return;
     }
-    
+
     // Check cursor position against window edges
     const QPoint globalPos = QCursor::pos();
-    const HitDetector::Margin margin = ncHitTest(
-        _window->frameGeometry(),
-        qFloor(globalPos.x() * _pixelRatio),
-        qFloor(globalPos.y() * _pixelRatio));
-    
+    const HitDetector::Margin margin =
+        ncHitTest(_window->frameGeometry(), qFloor(globalPos.x() * _pixelRatio),
+                  qFloor(globalPos.y() * _pixelRatio));
+
     // Update cursor based on margin
     if (margin == HitDetector::Margin::HTNOWHERE) {
       _window->unsetCursor();
@@ -74,7 +74,7 @@ void HitDetector::init() {
     }
     _lastMargin = margin;
   });
-  
+
   // Poll cursor position 20 times per second (50ms intervals)
   timer->start(50);
   qDebug() << "HitDetector: Started cursor polling timer";
@@ -89,7 +89,8 @@ bool HitDetector::eventFilter(QObject *watched, QEvent *event) {
 
   if (event->type() == QEvent::MouseButtonPress) {
     QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-    if (mouseEvent->button() == Qt::LeftButton && _lastMargin != Margin::HTNOWHERE) {
+    if (mouseEvent->button() == Qt::LeftButton &&
+        _lastMargin != Margin::HTNOWHERE) {
       // Convert margin to edges
       Qt::Edges edges;
       switch (_lastMargin) {
@@ -120,7 +121,7 @@ bool HitDetector::eventFilter(QObject *watched, QEvent *event) {
       default:
         edges = Qt::Edges();
       }
-      
+
       if (edges != Qt::Edges()) {
         qDebug() << "HitDetector: MouseButtonPress with edges:" << edges;
         emit edgeHit(edges);

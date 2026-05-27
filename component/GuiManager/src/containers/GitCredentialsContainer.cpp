@@ -7,8 +7,8 @@
 #include <QDateTime>
 #include <QDialog>
 #include <QDir>
-#include <QHeaderView>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
@@ -172,7 +172,8 @@ void GitCredentialsContainer::onEditClicked() {
 
   // Create edit dialog
   QDialog editDialog(this);
-  editDialog.setWindowTitle(QString("Edit Git credentials - %1").arg(displayPath));
+  editDialog.setWindowTitle(
+      QString("Edit Git credentials - %1").arg(displayPath));
   editDialog.setMinimumWidth(400);
 
   QVBoxLayout *mainLayout = new QVBoxLayout(&editDialog);
@@ -207,7 +208,7 @@ void GitCredentialsContainer::onEditClicked() {
   QPushButton *showPasswordButton = new QPushButton("Show", &editDialog);
   showPasswordButton->setMaximumWidth(60);
   showPasswordButton->setFlat(true);
-  
+
   bool isPasswordVisible = false;
   connect(showPasswordButton, &QPushButton::clicked, [&]() {
     isPasswordVisible = !isPasswordVisible;

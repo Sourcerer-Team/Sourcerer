@@ -57,8 +57,8 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
 
   _clearAction = new QAction("Clear all");
   connect(_clearAction, &QAction::triggered, this, [this]() {
-      clear();
-      emit cleared();
+    clear();
+    emit cleared();
   });
   addAction(_clearAction);
 
@@ -452,7 +452,7 @@ void QVTerminal::paste() {
 
 void QVTerminal::copy() {
   // Check if there's a selection
-  if (_startSelectPos.isNull() || _endSelectPos.isNull() || 
+  if (_startSelectPos.isNull() || _endSelectPos.isNull() ||
       _startSelectPos == _endSelectPos) {
     return;
   }
@@ -461,12 +461,12 @@ void QVTerminal::copy() {
   int startLine = _startSelectPos.y();
   int endLine = _endSelectPos.y();
   int lineCount = _layout->lineCount();
-  
+
   // Validate bounds
   if (startLine >= lineCount || endLine >= lineCount) {
     return;
   }
-  
+
   // If selection is on a single line
   if (startLine == endLine) {
     const QVTLine &line = _layout->lineAt(startLine);
@@ -504,7 +504,6 @@ void QVTerminal::copy() {
     QApplication::clipboard()->setText(selectedText);
   }
 }
-
 
 void QVTerminal::clear() {
   setUpdatesEnabled(false);
@@ -855,17 +854,17 @@ void QVTerminal::mouseReleaseEvent(QMouseEvent *event) {
 #ifndef QT_NO_CONTEXTMENU
 void QVTerminal::contextMenuEvent(QContextMenuEvent *event) {
   QMenu menu(this);
-  
+
   // Enable paste if clipboard has content
   _pasteAction->setEnabled(!QApplication::clipboard()->text().isEmpty());
   menu.addAction(_pasteAction);
-  
+
   // Enable copy if there's selected text
-  bool hasSelection = !_startSelectPos.isNull() && !_endSelectPos.isNull() && 
+  bool hasSelection = !_startSelectPos.isNull() && !_endSelectPos.isNull() &&
                       _startSelectPos != _endSelectPos;
   _copyAction->setEnabled(hasSelection);
   menu.addAction(_copyAction);
-  
+
   menu.addAction(_clearAction);
   menu.exec(event->globalPos());
 }

@@ -3298,8 +3298,8 @@ void ProcessingState::scheduleWorkerForGetUpstream(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForDeleteAllStashes(const Structs::GitRepoDeleteAllStashesCommand &command)
-{
+void ProcessingState::scheduleWorkerForDeleteAllStashes(
+    const Structs::GitRepoDeleteAllStashesCommand &command) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_contextsMutex);

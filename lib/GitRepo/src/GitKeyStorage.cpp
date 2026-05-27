@@ -244,7 +244,16 @@ bool GitKeyStorage::generateKeyPair(const QString &keyName,
     return false;
   }
 
-  privFile.write(priv.toPEM().toUtf8());
+  if (passphrase.isEmpty()) {
+    privFile.write(priv.toPEM().toUtf8());
+  } else {
+    QCA::ConvertResult result;
+    const QCA::SecureArray saPassphrase(passphrase.toUtf8());
+    privFile.write(
+        priv.toPEM(saPassphrase, QCA::PBEAlgorithm::PBES2_TripleDES_SHA1)
+            .toUtf8());
+  }
+
   privFile.close();
 
   // Save public key in OpenSSH format

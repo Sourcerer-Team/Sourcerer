@@ -40,12 +40,14 @@ struct GitCredentialsRequest {
   QString username;
   int allowedTypes;
   QString repoPath;
+  bool needsPassphrase = false; // True for SSH key passphrase requests
 };
 
 struct GitCredentialsResponse {
   size_t id = -1;
   QString username;
   QString password;
+  QString passphrase; // For SSH key passphrases
   bool rememberCredentials = false;
 };
 
@@ -201,7 +203,8 @@ void initForCurrentThread();
 void shutdownForCurrentThread();
 
 // Clear cached credentials for a given repository path
-// This should be called after updating credentials to ensure fresh credentials are used
+// This should be called after updating credentials to ensure fresh credentials
+// are used
 void clearCachedCredentials(const QString &repoPath);
 
 bool amend(git_repository *repo, const QString &summary, const QString &message,
