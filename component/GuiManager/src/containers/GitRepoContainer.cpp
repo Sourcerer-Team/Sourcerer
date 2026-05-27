@@ -6856,6 +6856,9 @@ void GitRepoContainer::push(const WeakPtr &guard) {
     return;
   }
 
+  refreshHistory(guard);
+  refreshStatus(guard);
+
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
     showToast(tr("Successfully pushed to remote."), tr("Info"));
