@@ -73,6 +73,7 @@ GitProgressToast::~GitProgressToast() {
 void GitProgressToast::onFinished() {
   LOG_PERF(0, "Enter");
 
+  hide();
   stop();
 
   LOG_PERF(0, "Exit");
