@@ -15,12 +15,10 @@
 #include <GitRepo.h>
 
 #include <QEnableSharedFromThis>
-#include <QFocusEvent>
 #include <QMainWindow>
 #include <QMap>
 #include <QResizeEvent>
 #include <QSet>
-#include <QTimer>
 
 namespace GuiManager {
 
@@ -46,15 +44,10 @@ public:
 protected:
   void mouseMoveEvent(QMouseEvent *event) override;
   void changeEvent(QEvent *event) override;
-  void focusOutEvent(QFocusEvent *event) override;
-  void focusInEvent(QFocusEvent *event) override;
 
   // QObject interface
 public:
   bool eventFilter(QObject *watched, QEvent *event) override;
-
-private slots:
-  void checkWindowActivation();
 
 signals:
   void terminal();
@@ -125,8 +118,6 @@ private:
   HitDetector *_hitDetector;
   QSharedPointer<ProfileBoardWidget> _profileBoardWidget;
   bool _profileBoardActive;
-  bool _windowActive = true;
-  QTimer *_windowActivationCheckTimer = nullptr;
   QMap<uint, GitCredentialsOverlayWidget *> _credentialsWidgets;
   QMap<uint, SshPassphraseOverlayWidget *> _passphraseWidgets;
 };
