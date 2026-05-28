@@ -5117,6 +5117,124 @@ bool applyPatch(git_repository *repo, const QString &patchContent) {
   return true;
 }
 
+bool cherryPickCommit(git_repository *repo, const QString &commit,
+                      const QString &author, const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  git_commit *targetCommit = nullptr;
+
+  int error = git_revparse_single((git_object **)&targetCommit, repo,
+                                  commit.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_commit *headCommit = nullptr;
+  git_reference *headRef = nullptr;
+
+  error = git_repository_head(&headRef, repo);
+  if (error) {
+    logGitError(error);
+    git_commit_free(targetCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_commit_lookup(&headCommit, repo, git_reference_target(headRef));
+  if (error) {
+    logGitError(error);
+    git_reference_free(headRef);
+    git_commit_free(targetCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_index *cherryPickIndex = nullptr;
+  git_merge_options mergeOpts = GIT_MERGE_OPTIONS_INIT;
+
+  error = git_cherrypick_commit(&cherryPickIndex, repo, targetCommit,
+                                headCommit, 0, &mergeOpts);
+  if (error) {
+    logGitError(error);
+    git_commit_free(headCommit);
+    git_reference_free(headRef);
+    git_commit_free(targetCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_oid treeOid;
+
+  error = git_index_write_tree_to(&treeOid, cherryPickIndex, repo);
+  if (error) {
+    logGitError(error);
+    git_index_free(cherryPickIndex);
+    git_commit_free(headCommit);
+    git_reference_free(headRef);
+    git_commit_free(targetCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_tree *cherryPickTree = nullptr;
+
+  error = git_tree_lookup(&cherryPickTree, repo, &treeOid);
+  if (error) {
+    logGitError(error);
+    git_index_free(cherryPickIndex);
+    git_commit_free(headCommit);
+    git_reference_free(headRef);
+    git_commit_free(targetCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_signature *sig = nullptr;
+
+  error = git_signature_now(&sig, author.toStdString().c_str(),
+                            email.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    git_tree_free(cherryPickTree);
+    git_index_free(cherryPickIndex);
+    git_commit_free(headCommit);
+    git_reference_free(headRef);
+    git_commit_free(targetCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_oid newCommitOid;
+  const char *commitMessage = git_commit_message(targetCommit);
+
+  error = git_commit_create_v(&newCommitOid, repo, "HEAD", sig, sig, nullptr,
+                              commitMessage, cherryPickTree, 1, headCommit);
+  if (error) {
+    logGitError(error);
+    git_signature_free(sig);
+    git_tree_free(cherryPickTree);
+    git_index_free(cherryPickIndex);
+    git_commit_free(headCommit);
+    git_reference_free(headRef);
+    git_commit_free(targetCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_signature_free(sig);
+  git_tree_free(cherryPickTree);
+  git_index_free(cherryPickIndex);
+  git_commit_free(headCommit);
+  git_reference_free(headRef);
+  git_commit_free(targetCommit);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
 bool renameBranch(git_repository *repo, const QString &oldName,
                   const QString &newName) {
   LOG_PERF(0, "Enter");

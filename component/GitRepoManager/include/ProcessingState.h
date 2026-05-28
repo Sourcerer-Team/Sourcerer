@@ -106,6 +106,9 @@ private:
   void renameTagWorker(const Structs::GitRepoRenameTagCommand &command);
   void resetWorker(const Structs::GitRepoResetCommand &command);
   void revertWorker(const Structs::GitRepoRevertCommand &command);
+  void cherryPickWorker(const Structs::GitRepoCherryPickCommand &command);
+  void
+  scheduleWorkerForCherryPick(const Structs::GitRepoCherryPickCommand &command);
   void setUpstreamWorker(const Structs::GitRepoSetUpstreamCommand &command);
   void stageFilesWorker(const Structs::GitRepoStageFilesCommand &command);
   void stashWorker(const Structs::GitRepoStashCommand &command);

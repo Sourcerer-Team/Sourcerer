@@ -60,6 +60,7 @@ enum class EventType : int {
   RenameTag,
   Reset,
   Revert,
+  CherryPick,
   Setup,
   SetUpstream,
   StageFiles,

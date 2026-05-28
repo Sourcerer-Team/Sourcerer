@@ -367,6 +367,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForRevert(revertCommand);
     break;
   }
+  case EventType::CherryPick: {
+    const auto cherryPickCommand = event.nextParam<GitRepoCherryPickCommand>();
+    scheduleWorkerForCherryPick(cherryPickCommand);
+    break;
+  }
   case EventType::SetUpstream: {
     const auto setUpstreamCommand =
         event.nextParam<GitRepoSetUpstreamCommand>();
@@ -2909,6 +2914,65 @@ void ProcessingState::revertWorker(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::cherryPickWorker(
+    const Structs::GitRepoCherryPickCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerCherryPickError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::cherryPickCommit(repo, command.commit,
+                                                 command.author, command.email);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerCherryPickError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerCherryPickResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForCherryPick(
+    const GitRepoCherryPickCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerCherryPickError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoCherryPickCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::setUpstreamWorker(
     const Structs::GitRepoSetUpstreamCommand &command) {
   LOG_PERF(0, "Enter");
@@ -4404,6 +4468,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoRevertCommand *>(command);
       if (revertCommand) {
         revertWorker(*revertCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::CherryPick: {
+      const auto *cherryPickCommand =
+          dynamic_cast<const GitRepoCherryPickCommand *>(command);
+      if (cherryPickCommand) {
+        cherryPickWorker(*cherryPickCommand);
       }
       break;
     }

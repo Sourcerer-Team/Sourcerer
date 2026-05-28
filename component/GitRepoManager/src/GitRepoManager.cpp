@@ -130,6 +130,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerRevert, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCherryPick, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSetUpstream, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStageFiles, callbackFunc));
@@ -259,6 +261,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerReset, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerRevert, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCherryPick, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSetUpstream, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -702,6 +706,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent revertEvent(EventType::Revert);
     revertEvent.addParam(QVariant::fromValue(revertCommand));
     _fsm.send(revertEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCherryPick: {
+    const auto cherryPickCommand = event.data<GitRepoCherryPickCommand>();
+    GitRepoManagerEvent cherryPickEvent(EventType::CherryPick);
+    cherryPickEvent.addParam(QVariant::fromValue(cherryPickCommand));
+    _fsm.send(cherryPickEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerSetUpstream: {

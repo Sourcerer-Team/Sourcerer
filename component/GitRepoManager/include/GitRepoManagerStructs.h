@@ -65,6 +65,7 @@ enum class GitRepoCommandType : int {
   RenameTag,
   Reset,
   Revert,
+  CherryPick,
   SetUpstream,
   StageFiles,
   Stash,
@@ -583,6 +584,16 @@ struct GitRepoRevertCommand final : GitRepoCommand {
   QString author;
   QString email;
   QString message;
+};
+
+struct GitRepoCherryPickCommand final : GitRepoCommand {
+  GitRepoCherryPickCommand() : GitRepoCommand(GitRepoCommandType::CherryPick) {}
+
+  ~GitRepoCherryPickCommand() override = default;
+
+  QString commit;
+  QString author;
+  QString email;
 };
 
 struct GitRepoSetUpstreamCommand final : GitRepoCommand {

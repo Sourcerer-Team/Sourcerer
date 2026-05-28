@@ -138,6 +138,7 @@ private slots:
   void onRepoDirChanged(const QString &path) const;
   void onRepoDirChangedTimeout();
   void onRevertCommit(const QString &commit);
+  void onCherryPickCommit();
   void onSetUpstream();
   void onSoftResetToCommit(const QString &commit);
   void onStash();
@@ -270,6 +271,7 @@ private:
   void reset(const WeakPtr &guard, const QString &commit,
              GitRepo::ResetType type);
   void revert(const WeakPtr &guard, const QString &commit);
+  void cherryPick(const WeakPtr &guard, const QString &commit);
   void prepareWatcher(const WeakPtr &guard);
   bool refreshHistory(const WeakPtr &guard);
   void refreshStatus(const WeakPtr &guard);

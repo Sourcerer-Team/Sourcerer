@@ -363,6 +363,9 @@ bool revertCommit(git_repository *repo, const QString &commit,
                   const QString &author, const QString &email,
                   const QString &message);
 
+bool cherryPickCommit(git_repository *repo, const QString &commit,
+                      const QString &author, const QString &email);
+
 bool applyPatch(git_repository *repo, const QString &patchContent);
 
 bool renameBranch(git_repository *repo, const QString &oldName,

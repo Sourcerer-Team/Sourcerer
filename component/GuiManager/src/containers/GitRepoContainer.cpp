@@ -1612,6 +1612,7 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   QAction actionMixedResetToCommit(tr("Mixed reset"), this);
   QAction actionHardResetToCommit(tr("Hard reset"), this);
   QAction actionRevertCommit(tr("Revert"), this);
+  QAction actionCherryPickCommit(tr("Cherry-pick"), this);
   QAction actionApplyPatch(tr("Apply patch"), this);
   QAction actionRenameBranch(QString(tr("Rename %1")).arg(_activeBranch), this);
   QAction actionCreateTagFromCommit(tr("Create tag from commit"), this);
@@ -1638,6 +1639,8 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
           [=]() { onHardResetToCommit(commit); });
   connect(&actionRevertCommit, &QAction::triggered, this,
           [=]() { onRevertCommit(commit); });
+  connect(&actionCherryPickCommit, &QAction::triggered, this,
+          [=]() { onCherryPickCommit(); });
   connect(&actionApplyPatch, &QAction::triggered, this,
           &GitRepoContainer::onApplyPatch);
   connect(&actionRenameBranch, &QAction::triggered, this,
@@ -1665,6 +1668,7 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
     menu.addAction(&actionCreateBranchFromCommit);
     menu.addMenu(&resetMenu);
     menu.addAction(&actionRevertCommit);
+    menu.addAction(&actionCherryPickCommit);
     menu.addSeparator();
   }
 
@@ -2574,6 +2578,42 @@ void GitRepoContainer::onRevertCommit(const QString &commit) {
   _dispatcher.dispatch([=]() { revert(guard, commit); });
 
   LOG_DEBUG("Revert commit operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onCherryPickCommit() {
+  LOG_PERF(0, "Enter");
+
+  const auto inputOverlay = new TextInputOverlayWidget(this);
+  inputOverlay->setPlaceholderText(
+      tr("Commit SHA to cherry-pick"));
+
+  connect(inputOverlay, &TextInputOverlayWidget::canceled, this, [=]() {
+    LOG_DEBUG("Cherry-pick dialog cancelled");
+    inputOverlay->hide();
+    delete inputOverlay;
+  });
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  connect(inputOverlay, &TextInputOverlayWidget::submitted, this,
+          [=](const QString &selectedCommit) {
+            LOG_DEBUG("Cherry-picking commit '{}'",
+                      selectedCommit.toStdString());
+            inputOverlay->hide();
+            delete inputOverlay;
+
+            startOverlayTimer();
+            LOG_DEBUG("Spinner overlay timer started");
+
+            _dispatcher.dispatch([=]() { cherryPick(guard, selectedCommit); });
+
+            LOG_DEBUG("Cherry-pick commit operation dispatched");
+          });
+
+  inputOverlay->show();
+  inputOverlay->raise();
+
   LOG_PERF(0, "Exit");
 }
 
@@ -7495,6 +7535,98 @@ void GitRepoContainer::revert(const WeakPtr &guard, const QString &commit) {
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
     showToast(tr("Successfully reverted commit."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::cherryPick(const WeakPtr &guard, const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  QString summaryCherryPick;
+
+  for (int i = 0; i < _historyModel->rowCount(QModelIndex()); ++i) {
+    const QString rowFullSHA =
+        _historyModel
+            ->data(
+                _historyModel->index(i, COLUMN_COMMIT_FULL_SHA, QModelIndex()),
+                Qt::DisplayRole)
+            .toString();
+    if (rowFullSHA == commit) {
+      summaryCherryPick =
+          _historyModel
+              ->data(_historyModel->index(i, COLUMN_SUMMARY, QModelIndex()),
+                     Qt::DisplayRole)
+              .toString();
+      break;
+    }
+  }
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoCherryPickCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+  command.author =
+      Common::UserProfileManager::instance().currentProfile().author;
+  command.email = Common::UserProfileManager::instance().currentProfile().email;
+
+  EventManager::Event cherryPickEvent(
+      EventManager::EventType::GitRepoManagerCherryPick, eventUuid);
+  cherryPickEvent.addData(command);
+  _eventManager.send(cherryPickEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerCherryPickError,
+      EventManager::EventType::GitRepoManagerCherryPickResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerCherryPickResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString("%1\n%2").arg(tr("Failed to cherry-pick commit"),
+                                           translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  if (const bool picked = commandResult.value.toBool(); !picked) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to cherry-pick commit."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Successfully cherry-picked commit."), tr("Info"));
   });
 
   LOG_PERF(0, "Exit")
