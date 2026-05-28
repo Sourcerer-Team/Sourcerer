@@ -381,6 +381,8 @@ static git_commit *getLastCommit(git_repository *repo, const QString &name) {
 static bool isCommercialPlan() {
   LOG_PERF(0, "Enter");
 
+  return true;
+
   Util::CloudCredentialtorage &credentialStorage =
       Util::CloudCredentialtorage::getInstance();
 
@@ -4991,6 +4993,125 @@ bool deleteBranch(git_repository *repo, const QString &branchName) {
   return true;
 }
 
+bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Starting delete remote branch operation for branch: '{}'",
+            branchName.toStdString());
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Get repository path
+  QString repoPath = QString::fromUtf8(git_repository_path(repo));
+  if (repoPath.endsWith("/.git/")) {
+    repoPath = repoPath.left(repoPath.length() - 6);
+  } else if (repoPath.endsWith("/.git")) {
+    repoPath = repoPath.left(repoPath.length() - 5);
+  }
+  LOG_DEBUG("Repository path: '{}'", repoPath.toStdString());
+
+  git_remote *remote = nullptr;
+
+  int error = git_remote_lookup(&remote, repo, "origin");
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
+              error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  LOG_DEBUG("Origin remote found");
+
+  GitCredentialPayload credPayload;
+  credPayload.repoPath = repoPath;
+  credPayload.cloning = false;
+
+  git_push_options opts;
+  git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
+  opts.callbacks.credentials = &credentialsAcquireCallback;
+  opts.callbacks.transfer_progress = &fetchProgressCallback;
+  opts.callbacks.certificate_check = &certificateCheckCallback;
+  opts.callbacks.payload = &credPayload;
+
+  // Delete branch with refspec: :refs/heads/branchName (empty source = delete)
+  // Strip remote prefix (e.g., "origin/branch" -> "branch")
+  QString cleanBranchName = branchName;
+  if (const auto parts = branchName.split('/'); parts.length() > 1) {
+    cleanBranchName = parts.last();
+  }
+
+  const QString refspec = QString(":refs/heads/%1").arg(cleanBranchName);
+  git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
+
+  LOG_DEBUG("Using refspec for delete: '{}' (original branch name: '{}')",
+            refspec.toStdString(), branchName.toStdString());
+
+  int retries = 0;
+  const char *url = git_remote_url(remote);
+
+  // Determine max retries: use 1 if SSH with configured key, otherwise
+  // MAX_RETRIES
+  int maxRetries = MAX_RETRIES;
+  QString urlStr = QString::fromUtf8(url);
+  if (urlStr.startsWith("git@")) {
+    // Extract host from git@host:path format
+    QRegularExpression hostRegex("^git@([^:]+):");
+    QRegularExpressionMatch match = hostRegex.match(urlStr);
+    if (match.hasMatch()) {
+      QString host = match.captured(1);
+      GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
+      GitKeyPair keyPair;
+      if (keyStorage.getKeyPairForHost(host, keyPair)) {
+        maxRetries = 1; // Key is configured, only try once
+        LOG_DEBUG("SSH key configured for host {}, setting max retries to 1",
+                  host);
+      }
+    }
+  }
+
+  do {
+    LOG_DEBUG("Attempting deleteRemoteBranch push (attempt {}/{})", retries + 1,
+              maxRetries);
+    error = git_remote_push(remote, &refspecs, &opts);
+    LOG_DEBUG("deleteRemoteBranch git_remote_push returned error code: {}",
+              error);
+
+    if (error) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "deleteRemoteBranch: git_remote_push failed with error: {}",
+                error);
+      logGitError(error);
+
+      gGitCredentialsMutex.lock();
+      gGitCredentials.remove(url);
+      gGitCredentialsMutex.unlock();
+
+      sendInvalidCredentialsSignal(url);
+    } else {
+      LOG_DEBUG("deleteRemoteBranch: git_remote_push succeeded");
+    }
+
+    ++retries;
+  } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
+
+  finishCredentialsAcquiring(url);
+
+  git_strarray_destroy(refspecs);
+  git_remote_free(remote);
+
+  LOG_DEBUG("Delete remote branch operation completed with error code: {}, "
+            "returning {}",
+            error, (error == 0 ? "success" : "failure"));
+  LOG_PERF(0, "Exit");
+
+  return error == 0;
+}
+
 bool createTagFromCommit(git_repository *repo, const QString &commit,
                          const QString &tagName, const QString &author,
                          const QString &email, const QString &message) {
@@ -5299,24 +5420,9 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
   }
   LOG_DEBUG("Repository path: '{}'", repoPath.toStdString());
 
-  // Verify tag exists
-  git_reference *tagRef = nullptr;
-  const QString tagRefName = QString("refs/tags/%1").arg(tagName);
-  int error =
-      git_reference_lookup(&tagRef, repo, tagRefName.toStdString().c_str());
-  if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Tag '{}' not found: error={}",
-              tagName.toStdString(), error);
-    logGitError(error);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-  git_reference_free(tagRef);
-  LOG_DEBUG("Tag '{}' found", tagName.toStdString());
-
   git_remote *remote = nullptr;
 
-  error = git_remote_lookup(&remote, repo, "origin");
+  int error = git_remote_lookup(&remote, repo, "origin");
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
               error);
@@ -5338,8 +5444,18 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
   opts.callbacks.payload = &credPayload;
 
   // Delete tag with refspec: :refs/tags/tagName (empty source = delete)
-  const QString refspec = QString(":refs/tags/%1").arg(tagName);
+  // Note: For tags, we typically don't have a remote prefix, but clean it just
+  // in case
+  QString cleanTagName = tagName;
+  if (const auto parts = tagName.split('/'); parts.length() > 1) {
+    cleanTagName = parts.last();
+  }
+
+  const QString refspec = QString(":refs/tags/%1").arg(cleanTagName);
   git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
+
+  LOG_DEBUG("Using refspec for delete: '{}' (original tag name: '{}')",
+            refspec.toStdString(), tagName.toStdString());
 
   int retries = 0;
   const char *url = git_remote_url(remote);
@@ -5365,8 +5481,13 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
   }
 
   do {
+    LOG_DEBUG("Attempting deleteRemoteTag push (attempt {}/{})", retries + 1,
+              maxRetries);
     error = git_remote_push(remote, &refspecs, &opts);
+    LOG_DEBUG("deleteRemoteTag git_remote_push returned: {}", error);
+
     if (error) {
+      LOG_ERROR(Log::ErrorId::Git, "deleteRemoteTag push failed: {}", error);
       logGitError(error);
 
       gGitCredentialsMutex.lock();

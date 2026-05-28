@@ -315,6 +315,8 @@ bool renameBranch(git_repository *repo, const QString &oldName,
 
 bool deleteBranch(git_repository *repo, const QString &branchName);
 
+bool deleteRemoteBranch(git_repository *repo, const QString &branchName);
+
 bool createTagFromCommit(git_repository *repo, const QString &commit,
                          const QString &tagName, const QString &author,
                          const QString &email, const QString &message);

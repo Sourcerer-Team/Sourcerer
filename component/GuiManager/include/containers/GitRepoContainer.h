@@ -97,6 +97,7 @@ private slots:
   void onCreatePatchFromCommit(const QString &commit);
   void onCreateTagFromCommit(const QString &commit);
   void onDeleteBranch(const QString &branchName);
+  void onDeleteRemoteBranch(const QString &branchName);
   void onDeleteTag(const QString &tagName);
   void onDeleteRemoteTag(const QString &tagName);
   void onPushTag(const QString &tagName);
@@ -212,6 +213,7 @@ private:
   void createTagFromCommit(const WeakPtr &guard, const QString &commit,
                            const QString &tagName);
   void deleteBranch(const WeakPtr &guard, const QString &branchName);
+  void deleteRemoteBranch(const WeakPtr &guard, const QString &branchName);
   void deleteFiles(const WeakPtr &guard, const QStringList &files);
   void deleteStash(
       const WeakPtr &guard, int stashIndex,

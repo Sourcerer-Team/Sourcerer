@@ -163,6 +163,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForDeleteBranch(deleteBranchCommand);
     break;
   }
+  case EventType::DeleteRemoteBranch: {
+    const auto deleteRemoteBranchCommand =
+        event.nextParam<GitRepoDeleteRemoteBranchCommand>();
+    scheduleWorkerForDeleteRemoteBranch(deleteRemoteBranchCommand);
+    break;
+  }
   case EventType::DeleteStash: {
     const auto deleteStashCommand =
         event.nextParam<GitRepoDeleteStashCommand>();
@@ -1032,6 +1038,46 @@ void ProcessingState::deleteBranchWorker(
   } else {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerDeleteBranchResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::deleteRemoteBranchWorker(
+    const Structs::GitRepoDeleteRemoteBranchCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteRemoteBranchError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  if (const bool success =
+          GitRepo::deleteRemoteBranch(repo, command.branchName);
+      !success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerDeleteRemoteBranchError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerDeleteRemoteBranchResult,
         command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type,
                                       QVariant::fromValue(success)});
@@ -3442,6 +3488,25 @@ void ProcessingState::scheduleWorkerForDeleteBranch(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForDeleteRemoteBranch(
+    const Structs::GitRepoDeleteRemoteBranchCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteRemoteBranchError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoDeleteRemoteBranchCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForDeleteStash(
     const Structs::GitRepoDeleteStashCommand &command) {
   LOG_PERF(0, "Enter");
@@ -3915,6 +3980,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoDeleteBranchCommand *>(command);
       if (deleteBranchCommand) {
         deleteBranchWorker(*deleteBranchCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::DeleteRemoteBranch: {
+      const auto deleteRemoteBranchCommand =
+          dynamic_cast<const GitRepoDeleteRemoteBranchCommand *>(command);
+      if (deleteRemoteBranchCommand) {
+        deleteRemoteBranchWorker(*deleteRemoteBranchCommand);
       }
       break;
     }

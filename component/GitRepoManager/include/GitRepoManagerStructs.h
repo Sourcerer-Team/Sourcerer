@@ -28,6 +28,7 @@ enum class GitRepoCommandType : int {
   CreatePatchFromCommit,
   CreateTagFromCommit,
   DeleteBranch,
+  DeleteRemoteBranch,
   DeleteStash,
   DeleteAllStashes,
   DeleteSubmodule,
@@ -229,6 +230,15 @@ struct GitRepoDeleteBranchCommand final : GitRepoCommand {
       : GitRepoCommand(GitRepoCommandType::DeleteBranch) {}
 
   ~GitRepoDeleteBranchCommand() override = default;
+
+  QString branchName;
+};
+
+struct GitRepoDeleteRemoteBranchCommand final : GitRepoCommand {
+  GitRepoDeleteRemoteBranchCommand()
+      : GitRepoCommand(GitRepoCommandType::DeleteRemoteBranch) {}
+
+  ~GitRepoDeleteRemoteBranchCommand() override = default;
 
   QString branchName;
 };

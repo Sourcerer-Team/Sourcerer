@@ -47,6 +47,8 @@ private:
   void destroyContext(const QString &uuid);
   void destroyContextsMap();
   void deleteBranchWorker(const Structs::GitRepoDeleteBranchCommand &command);
+  void deleteRemoteBranchWorker(
+      const Structs::GitRepoDeleteRemoteBranchCommand &command);
   void deleteStashWorker(const Structs::GitRepoDeleteStashCommand &command);
   void deleteAllStashesWorker(
       const Structs::GitRepoDeleteAllStashesCommand &command);
@@ -151,6 +153,8 @@ private:
       const Structs::GitRepoDeleteAllStashesCommand &command);
   void scheduleWorkerForDeleteBranch(
       const Structs::GitRepoDeleteBranchCommand &command);
+  void scheduleWorkerForDeleteRemoteBranch(
+      const Structs::GitRepoDeleteRemoteBranchCommand &command);
   void scheduleWorkerForDeleteStash(
       const Structs::GitRepoDeleteStashCommand &command);
   void scheduleWorkerForDeleteSubmodule(

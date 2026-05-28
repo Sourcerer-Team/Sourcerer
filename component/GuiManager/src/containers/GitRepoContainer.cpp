@@ -1313,6 +1313,34 @@ void GitRepoContainer::onDeleteBranch(const QString &branchName) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onDeleteRemoteBranch(const QString &branchName) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Delete remote branch requested: '{}' in repository '{}'",
+            branchName.toStdString(), _path.toStdString());
+
+  const QString question =
+      QString("Are you sure that you want to delete branch '%1' from remote?")
+          .arg(branchName);
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_DEBUG("Delete remote branch cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+  LOG_DEBUG("Spinner overlay timer started for remote branch deletion");
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { deleteRemoteBranch(guard, branchName); });
+
+  LOG_DEBUG("Delete remote branch operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onDeleteTag(const QString &tagName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Delete tag requested: '{}' in repository '{}'",
@@ -2414,6 +2442,7 @@ void GitRepoContainer::onRemoteBranchRightClicked(const QString &branchName,
             branchName.toStdString(), _path.toStdString());
 
   QAction actionCheckoutBranch(tr("Checkout branch"), this);
+  QAction actionDeleteRemoteBranch(tr("Delete branch from remote"), this);
 
   connect(&actionCheckoutBranch, &QAction::triggered, this, [=]() {
     LOG_DEBUG("Checkout remote branch action triggered");
@@ -2426,8 +2455,13 @@ void GitRepoContainer::onRemoteBranchRightClicked(const QString &branchName,
     });
   });
 
+  connect(&actionDeleteRemoteBranch, &QAction::triggered, this,
+          [=]() { onDeleteRemoteBranch(branchName); });
+
   QMenu menu;
   menu.addAction(&actionCheckoutBranch);
+  menu.addSeparator();
+  menu.addAction(&actionDeleteRemoteBranch);
 
   menu.exec(pos);
 
@@ -4707,6 +4741,82 @@ void GitRepoContainer::deleteBranch(const WeakPtr &guard,
 
   Util::Dispatcher::dispatchToMainThread(guard,
                                          [&]() { showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::deleteRemoteBranch(const WeakPtr &guard,
+                                          const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoDeleteRemoteBranchCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.branchName = branchName;
+
+  EventManager::Event deleteRemoteBranchEvent(
+      EventManager::EventType::GitRepoManagerDeleteRemoteBranch, eventUuid);
+  deleteRemoteBranchEvent.addData(command);
+  _eventManager.send(deleteRemoteBranchEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerDeleteRemoteBranchError,
+      EventManager::EventType::GitRepoManagerDeleteRemoteBranchResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to delete remote branch.")),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerDeleteRemoteBranchResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to delete remote branch.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool deleteSuccess = commandResult.value.toBool();
+
+  refreshHistory(guard);
+
+  if (!deleteSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to delete remote branch."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Successfully deleted branch from remote."), tr("Info"));
+  });
 
   LOG_PERF(0, "Exit")
 }
