@@ -92,6 +92,10 @@ private:
   void listStashesWorker(const Structs::GitRepoListStashesCommand &command);
   void
   listSubmodulesWorker(const Structs::GitRepoListSubmodulesCommand &command);
+  void listSubmodulesWithStatusWorker(
+      const Structs::GitRepoListSubmodulesWithStatusCommand &command);
+  void scheduleWorkerForListSubmodulesWithStatus(
+      const Structs::GitRepoListSubmodulesWithStatusCommand &command);
   void listTagsWorker(const Structs::GitRepoListTagsCommand &command);
   void mergeWorker(const Structs::GitRepoMergeCommand &command);
   void openRepoWorker(const Structs::GitRepoOpenCommand &command);

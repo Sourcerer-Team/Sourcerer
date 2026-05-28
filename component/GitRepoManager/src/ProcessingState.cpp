@@ -310,6 +310,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForListSubmodules(listSubmodulesCommand);
     break;
   }
+  case EventType::ListSubmodulesWithStatus: {
+    const auto listSubmodulesWithStatusCommand =
+        event.nextParam<GitRepoListSubmodulesWithStatusCommand>();
+    scheduleWorkerForListSubmodulesWithStatus(listSubmodulesWithStatusCommand);
+    break;
+  }
   case EventType::ListTags: {
     const auto listTagsCommand = event.nextParam<GitRepoListTagsCommand>();
     scheduleWorkerForListTags(listTagsCommand);
@@ -2172,6 +2178,62 @@ void ProcessingState::listSubmodulesWorker(
   resultEvent.addData(GitRepoResult{command.uuid, command.type,
                                     QVariant::fromValue(submodules)});
   _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::listSubmodulesWithStatusWorker(
+    const Structs::GitRepoListSubmodulesWithStatusCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(
+        EventManager::EventType::GitRepoManagerListSubmodulesWithStatusError,
+        tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool quit = false;
+
+  const QVector<GitRepo::SubmoduleInfo> submodulesWithStatus =
+      GitRepo::listSubmodulesWithStatus(repo, quit);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerListSubmodulesWithStatusResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                    QVariant::fromValue(submodulesWithStatus)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForListSubmodulesWithStatus(
+    const Structs::GitRepoListSubmodulesWithStatusCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(
+        EventManager::EventType::GitRepoManagerListSubmodulesWithStatusError,
+        tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(
+      new GitRepoListSubmodulesWithStatusCommand(command));
 
   LOG_PERF(0, "Exit");
 }
@@ -4254,6 +4316,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoListSubmodulesCommand *>(command);
       if (listSubmodulesCommand) {
         listSubmodulesWorker(*listSubmodulesCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::ListSubmodulesWithStatus: {
+      const auto *listSubmodulesWithStatusCommand =
+          dynamic_cast<const GitRepoListSubmodulesWithStatusCommand *>(command);
+      if (listSubmodulesWithStatusCommand) {
+        listSubmodulesWithStatusWorker(*listSubmodulesWithStatusCommand);
       }
       break;
     }

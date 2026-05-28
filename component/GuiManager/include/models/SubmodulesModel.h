@@ -3,6 +3,8 @@
 
 #include "BranchesModel.h"
 
+#include <GitRepo.h>
+
 #include <QObject>
 
 namespace GuiManager {
@@ -18,6 +20,9 @@ public:
   // BranchesModel interface
 public:
   QString iconPath() const override;
+  void updateModelWithStatus(
+      const QVector<GitRepo::SubmoduleInfo> &submodulesWithStatus,
+      int activeIndex = -1);
 };
 
 } // namespace Models

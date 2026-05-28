@@ -6563,18 +6563,19 @@ bool GitRepoContainer::getSubmodules() {
 
   const int token = _eventManager.startWait();
 
-  GitRepoListSubmodulesCommand command;
+  GitRepoListSubmodulesWithStatusCommand command;
   command.uuid = _uuid;
   command.syncUuid = eventUuid;
 
   EventManager::Event listSubmodulesEvent(
-      EventManager::EventType::GitRepoManagerListSubmodules, eventUuid);
+      EventManager::EventType::GitRepoManagerListSubmodulesWithStatus,
+      eventUuid);
   listSubmodulesEvent.addData(command);
   _eventManager.send(listSubmodulesEvent);
 
   static std::set types = {
-      EventManager::EventType::GitRepoManagerListSubmodulesError,
-      EventManager::EventType::GitRepoManagerListSubmodulesResult};
+      EventManager::EventType::GitRepoManagerListSubmodulesWithStatusError,
+      EventManager::EventType::GitRepoManagerListSubmodulesWithStatusResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -6594,7 +6595,7 @@ bool GitRepoContainer::getSubmodules() {
   }
 
   if (event.type() !=
-      EventManager::EventType::GitRepoManagerListSubmodulesResult) {
+      EventManager::EventType::GitRepoManagerListSubmodulesWithStatusResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showErrorToast(QString("%1\n%2").arg(
@@ -6609,10 +6610,12 @@ bool GitRepoContainer::getSubmodules() {
 
   const auto commandResult = event.data<GitRepoResult>();
 
-  const auto submodules = commandResult.value.value<QStringList>();
+  const auto submodulesWithStatus =
+      commandResult.value.value<QVector<GitRepo::SubmoduleInfo>>();
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { updateSubmodulesModel(guard, submodules); });
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    updateSubmodulesModelWithStatus(guard, submodulesWithStatus);
+  });
 
   LOG_PERF(0, "Exit")
 
@@ -8516,6 +8519,18 @@ void GitRepoContainer::updateSubmodulesModel(const WeakPtr &guard,
 
   if (const auto locked = guard.lock()) {
     ui->submodulesPage->updateModel(tags);
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::updateSubmodulesModelWithStatus(
+    const WeakPtr &guard,
+    const QVector<GitRepo::SubmoduleInfo> &submodulesWithStatus) const {
+  LOG_PERF(0, "Enter");
+
+  if (const auto locked = guard.lock()) {
+    ui->submodulesPage->updateModelWithStatus(submodulesWithStatus);
   }
 
   LOG_PERF(0, "Exit")

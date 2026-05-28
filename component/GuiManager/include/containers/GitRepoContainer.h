@@ -327,6 +327,9 @@ private:
   void updateSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void updateSubmodulesModel(const WeakPtr &guard,
                              const QStringList &tags) const;
+  void updateSubmodulesModelWithStatus(
+      const WeakPtr &guard,
+      const QVector<GitRepo::SubmoduleInfo> &submodulesWithStatus) const;
   void updateTagsModel(const WeakPtr &guard, const QStringList &tags) const;
 
   qint64 getFileSizeFromCommit(const QString &filePath, const QString &commit);

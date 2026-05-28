@@ -64,6 +64,21 @@ void GitSubmodulesPage::updateModel(const QStringList &submodules) {
   LOG_PERF(0, "Exit");
 }
 
+void GitSubmodulesPage::updateModelWithStatus(
+    const QVector<GitRepo::SubmoduleInfo> &submodulesWithStatus) {
+  LOG_PERF(0, "Enter");
+
+  _model->clear();
+  _model->setActiveIndex(-1);
+  _model->updateModelWithStatus(submodulesWithStatus);
+
+  ui->listView->setModel(_model);
+
+  _previous = -1;
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitSubmodulesPage::onListViewContextMenuRequested(const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
@@ -74,7 +89,12 @@ void GitSubmodulesPage::onListViewContextMenuRequested(const QPoint &pos) {
     return;
   }
 
-  const QString submoduleName = _model->branchForIndex(index.row());
+  QString submoduleName = _model->branchForIndex(index.row());
+
+  const QStringList splitted = submoduleName.split(' ');
+  if (splitted.length() > 1) {
+    submoduleName = splitted[0];
+  }
 
   emit submoduleRightClicked(submoduleName, ui->listView->mapToGlobal(pos));
 
@@ -94,9 +114,16 @@ void GitSubmodulesPage::onListViewDoubleClicked(const QModelIndex &index) {
     return;
   }
 
+  QString submoduleName = _model->branchForIndex(index.row());
+
+  const QStringList splitted = submoduleName.split(' ');
+  if (splitted.length() > 1) {
+    submoduleName = splitted[0];
+  }
+
   LOG_PERF(0, "Exit");
 
-  emit submoduleSelected(_model->branchForIndex(index.row()));
+  emit submoduleSelected(submoduleName);
 }
 
 } // namespace GuiManager::Widgets

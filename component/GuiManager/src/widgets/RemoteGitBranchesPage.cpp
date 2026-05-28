@@ -106,7 +106,12 @@ void RemoteGitBranchesPage::onListViewContextMenuRequested(const QPoint &pos) {
     return;
   }
 
-  const QString branchName = _model->branchForIndex(index.row());
+  QString branchName = _model->branchForIndex(index.row());
+
+  const QStringList splitted = branchName.split(' ');
+  if (splitted.length() > 1) {
+    branchName = splitted[0];
+  }
 
   emit branchRightClicked(branchName, ui->listView->mapToGlobal(pos));
 
@@ -126,7 +131,12 @@ void RemoteGitBranchesPage::onListViewDoubleClicked(const QModelIndex &index) {
     return;
   }
 
-  const QString branchName = _model->branchForIndex(index.row());
+  QString branchName = _model->branchForIndex(index.row());
+
+  const QStringList splitted = branchName.split(' ');
+  if (splitted.length() > 1) {
+    branchName = splitted[0];
+  }
 
   emit branchSelected(branchName);
 

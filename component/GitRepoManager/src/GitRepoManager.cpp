@@ -107,6 +107,9 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListSubmodules, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerListSubmodulesWithStatus,
+      callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListTags, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerMerge, callbackFunc));
@@ -233,6 +236,9 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerListStashes, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListSubmodules, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerListSubmodulesWithStatus,
+      callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListTags, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -616,6 +622,16 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent listSubmodulesEvent(EventType::ListSubmodules);
     listSubmodulesEvent.addParam(QVariant::fromValue(listSubmodulesCommand));
     _fsm.send(listSubmodulesEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerListSubmodulesWithStatus: {
+    const auto listSubmodulesWithStatusCommand =
+        event.data<GitRepoListSubmodulesWithStatusCommand>();
+    GitRepoManagerEvent listSubmodulesWithStatusEvent(
+        EventType::ListSubmodulesWithStatus);
+    listSubmodulesWithStatusEvent.addParam(
+        QVariant::fromValue(listSubmodulesWithStatusCommand));
+    _fsm.send(listSubmodulesWithStatusEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerListTags: {

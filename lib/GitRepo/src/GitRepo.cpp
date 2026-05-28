@@ -1354,6 +1354,62 @@ QStringList listSubmodules(git_repository *repo) {
   return payload.submodules;
 }
 
+QVector<SubmoduleInfo> listSubmodulesWithStatus(git_repository *repo,
+                                                const bool &quitFlag) {
+  LOG_PERF(0, "Enter");
+
+  QVector<SubmoduleInfo> submodulesWithStatus;
+
+  // Get all submodules first
+  const QStringList submodules = listSubmodules(repo);
+
+  for (const QString &submoduleName : submodules) {
+    if (quitFlag) {
+      break;
+    }
+
+    SubmoduleInfo info;
+    info.name = submoduleName;
+    info.statusInfo.status = SubmoduleStatusType::Unknown;
+
+    // Try to get submodule status
+    git_submodule *submodule = nullptr;
+    if (git_submodule_lookup(&submodule, repo,
+                             submoduleName.toStdString().c_str()) != 0) {
+      info.statusInfo.status = SubmoduleStatusType::Error;
+      submodulesWithStatus.push_back(info);
+      continue;
+    }
+
+    // Get the expected commit (from parent repository's index)
+    const git_oid *headId = git_submodule_head_id(submodule);
+
+    // Get the actual commit (from submodule's working directory)
+    const git_oid *workdirId = git_submodule_wd_id(submodule);
+
+    if (!headId || !workdirId) {
+      info.statusInfo.status = SubmoduleStatusType::Error;
+      git_submodule_free(submodule);
+      submodulesWithStatus.push_back(info);
+      continue;
+    }
+
+    // Compare the two OIDs
+    if (git_oid_equal(headId, workdirId)) {
+      info.statusInfo.status = SubmoduleStatusType::UpToDate;
+    } else {
+      info.statusInfo.status = SubmoduleStatusType::Outdated;
+    }
+
+    git_submodule_free(submodule);
+    submodulesWithStatus.push_back(info);
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return submodulesWithStatus;
+}
+
 bool createBranchFromCommit(git_repository *repo, const QString &commit,
                             const QString &branchName) {
   LOG_PERF(0, "Enter");

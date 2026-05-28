@@ -2,6 +2,8 @@
 
 #include "models/SubmodulesModel.h"
 
+#include <GitRepo.h>
+
 #include <QWidget>
 
 namespace Ui {
@@ -19,6 +21,8 @@ public:
 
   void updateActiveBranch(const QString &submoduleName);
   void updateModel(const QStringList &submodules);
+  void updateModelWithStatus(
+      const QVector<GitRepo::SubmoduleInfo> &submodulesWithStatus);
 
 signals:
   void rightClicked(const QPoint &pos);

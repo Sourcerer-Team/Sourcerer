@@ -177,6 +177,28 @@ struct BranchInfo {
   }
 };
 
+enum class SubmoduleStatusType {
+  Unknown = 0,
+  UpToDate, // Submodule is at expected commit
+  Outdated, // Submodule is at different commit than expected
+  Error,    // Error occurred checking submodule status
+
+  last
+};
+
+struct SubmoduleStatus {
+  SubmoduleStatusType status = SubmoduleStatusType::Unknown;
+};
+
+struct SubmoduleInfo {
+  QString name;
+  SubmoduleStatus statusInfo;
+
+  bool operator==(const SubmoduleInfo &other) const {
+    return name == other.name && statusInfo.status == other.statusInfo.status;
+  }
+};
+
 enum class BranchType {
   Unknown = 0,
 
@@ -275,6 +297,8 @@ QVector<BranchInfo> listRemoteBranchesWithStatus(git_repository *repo,
 QStringList listStashes(git_repository *repo, const bool &quitFlag);
 
 QStringList listSubmodules(git_repository *repo);
+QVector<SubmoduleInfo> listSubmodulesWithStatus(git_repository *repo,
+                                                const bool &quitFlag);
 
 QStringList listTags(git_repository *repo);
 

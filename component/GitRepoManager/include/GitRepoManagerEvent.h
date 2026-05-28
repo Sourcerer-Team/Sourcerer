@@ -49,6 +49,7 @@ enum class EventType : int {
   ListRemoteBranchesWithStatus,
   ListStashes,
   ListSubmodules,
+  ListSubmodulesWithStatus,
   ListTags,
   Merge,
   OpenRepo,

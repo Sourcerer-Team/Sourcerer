@@ -54,6 +54,7 @@ enum class GitRepoCommandType : int {
   ListRemoteBranchesWithStatus,
   ListStashes,
   ListSubmodules,
+  ListSubmodulesWithStatus,
   ListTags,
   Merge,
   Open,
@@ -494,6 +495,13 @@ struct GitRepoListSubmodulesCommand final : GitRepoCommand {
   ~GitRepoListSubmodulesCommand() override = default;
 };
 
+struct GitRepoListSubmodulesWithStatusCommand final : GitRepoCommand {
+  GitRepoListSubmodulesWithStatusCommand()
+      : GitRepoCommand(GitRepoCommandType::ListSubmodulesWithStatus) {}
+
+  ~GitRepoListSubmodulesWithStatusCommand() override = default;
+};
+
 struct GitRepoListTagsCommand final : GitRepoCommand {
   GitRepoListTagsCommand() : GitRepoCommand(GitRepoCommandType::ListTags) {}
 
@@ -671,3 +679,7 @@ Q_DECLARE_METATYPE(GitRepo::BranchStatusType)
 Q_DECLARE_METATYPE(GitRepo::BranchStatus)
 Q_DECLARE_METATYPE(GitRepo::BranchInfo)
 Q_DECLARE_METATYPE(QVector<GitRepo::BranchInfo>)
+Q_DECLARE_METATYPE(GitRepo::SubmoduleStatusType)
+Q_DECLARE_METATYPE(GitRepo::SubmoduleStatus)
+Q_DECLARE_METATYPE(GitRepo::SubmoduleInfo)
+Q_DECLARE_METATYPE(QVector<GitRepo::SubmoduleInfo>)
