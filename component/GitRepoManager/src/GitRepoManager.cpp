@@ -61,6 +61,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteTag, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDeleteRemoteTag, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiffFiles, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiffFilesFromCommit,
@@ -182,6 +184,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerDeleteSubmodule, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteTag, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDeleteRemoteTag, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDiffFiles, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -422,6 +426,14 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent deleteTagEvent(EventType::DeleteTag);
     deleteTagEvent.addParam(QVariant::fromValue(deleteTagCommand));
     _fsm.send(deleteTagEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerDeleteRemoteTag: {
+    const auto deleteRemoteTagCommand =
+        event.data<GitRepoDeleteRemoteTagCommand>();
+    GitRepoManagerEvent deleteRemoteTagEvent(EventType::DeleteRemoteTag);
+    deleteRemoteTagEvent.addParam(QVariant::fromValue(deleteRemoteTagCommand));
+    _fsm.send(deleteRemoteTagEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerDiffFiles: {

@@ -1356,6 +1356,34 @@ void GitRepoContainer::onPushTag(const QString &tagName) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onDeleteRemoteTag(const QString &tagName) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Delete remote tag requested: '{}' in repository '{}'",
+            tagName.toStdString(), _path.toStdString());
+
+  const QString question =
+      QString("Are you sure that you want to delete tag '%1' from remote?")
+          .arg(tagName);
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_DEBUG("Delete remote tag cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+  LOG_DEBUG("Spinner overlay timer started for remote tag deletion");
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { deleteRemoteTag(guard, tagName); });
+
+  LOG_DEBUG("Delete remote tag operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onDiffCloseClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Diff viewer close requested");
@@ -2322,6 +2350,7 @@ void GitRepoContainer::onTagRightClicked(const QString &tagName,
   QAction actionCheckoutTag(tr("Checkout tag"), this);
   QAction actionRanameTag(tr("Rename tag"), this);
   QAction actionPushTag(tr("Push to Remote"), this);
+  QAction actionDeleteRemoteTag(tr("Delete from Remote"), this);
   QAction actionDeleteTag(tr("Delete tag"), this);
 
   connect(&actionCheckoutTag, &QAction::triggered, this, [=]() {
@@ -2340,6 +2369,9 @@ void GitRepoContainer::onTagRightClicked(const QString &tagName,
   connect(&actionPushTag, &QAction::triggered, this,
           [=]() { onPushTag(tagName); });
 
+  connect(&actionDeleteRemoteTag, &QAction::triggered, this,
+          [=]() { onDeleteRemoteTag(tagName); });
+
   connect(&actionDeleteTag, &QAction::triggered, this,
           [=]() { onDeleteTag(tagName); });
 
@@ -2347,6 +2379,7 @@ void GitRepoContainer::onTagRightClicked(const QString &tagName,
   menu.addAction(&actionCheckoutTag);
   menu.addAction(&actionRanameTag);
   menu.addAction(&actionPushTag);
+  menu.addAction(&actionDeleteRemoteTag);
   menu.addSeparator();
   menu.addAction(&actionDeleteTag);
 
@@ -5009,6 +5042,81 @@ void GitRepoContainer::pushTag(const WeakPtr &guard, const QString &tagName) {
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
     showToast(tr("Successfully pushed tag to remote."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::deleteRemoteTag(const WeakPtr &guard,
+                                       const QString &tagName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoDeleteRemoteTagCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.tagName = tagName;
+
+  EventManager::Event deleteRemoteTagEvent(
+      EventManager::EventType::GitRepoManagerDeleteRemoteTag, eventUuid);
+  deleteRemoteTagEvent.addData(command);
+  _eventManager.send(deleteRemoteTagEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerDeleteRemoteTagError,
+      EventManager::EventType::GitRepoManagerDeleteRemoteTagResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(QString(tr("Failed to delete remote tag.")), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerDeleteRemoteTagResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to delete remote tag.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool deleteSuccess = commandResult.value.toBool();
+
+  refreshHistory(guard);
+
+  if (!deleteSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to delete remote tag."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Successfully deleted tag from remote."), tr("Info"));
   });
 
   LOG_PERF(0, "Exit");

@@ -326,6 +326,8 @@ bool renameTag(git_repository *repo, const QString &oldName,
 
 bool deleteTag(git_repository *repo, const QString &tagName);
 
+bool deleteRemoteTag(git_repository *repo, const QString &tagName);
+
 QString getSubmodulePath(git_repository *repo, const QString &submoduleName);
 
 bool deleteSubmodule(git_repository *repo, const QString &submoduleName,

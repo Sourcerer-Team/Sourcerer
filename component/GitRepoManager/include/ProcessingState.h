@@ -53,6 +53,8 @@ private:
   void
   deleteSubmoduleWorker(const Structs::GitRepoDeleteSubmoduleCommand &command);
   void deleteTagWorker(const Structs::GitRepoDeleteTagCommand &command);
+  void
+  deleteRemoteTagWorker(const Structs::GitRepoDeleteRemoteTagCommand &command);
   void diffFilesWorker(const Structs::GitRepoDiffFilesCommand &command);
   void diffFilesFromCommitWorker(
       const Structs::GitRepoDiffFilesFromCommitCommand &command);
@@ -155,6 +157,8 @@ private:
       const Structs::GitRepoDeleteSubmoduleCommand &command);
   void
   scheduleWorkerForDeleteTag(const Structs::GitRepoDeleteTagCommand &command);
+  void scheduleWorkerForDeleteRemoteTag(
+      const Structs::GitRepoDeleteRemoteTagCommand &command);
   void
   scheduleWorkerForDiffFiles(const Structs::GitRepoDiffFilesCommand &command);
   void scheduleWorkerForDiffFilesFromCommit(

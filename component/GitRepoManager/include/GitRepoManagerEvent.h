@@ -27,6 +27,7 @@ enum class EventType : int {
   DeleteStash,
   DeleteSubmodule,
   DeleteTag,
+  DeleteRemoteTag,
   DiffFiles,
   DiffFilesFromCommit,
   DiscardFiles,

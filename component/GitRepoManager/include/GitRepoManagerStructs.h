@@ -32,6 +32,7 @@ enum class GitRepoCommandType : int {
   DeleteAllStashes,
   DeleteSubmodule,
   DeleteTag,
+  DeleteRemoteTag,
   DiffFiles,
   DiffFilesFromCommit,
   DiscardFiles,
@@ -262,6 +263,15 @@ struct GitRepoDeleteTagCommand final : GitRepoCommand {
   GitRepoDeleteTagCommand() : GitRepoCommand(GitRepoCommandType::DeleteTag) {}
 
   ~GitRepoDeleteTagCommand() override = default;
+
+  QString tagName;
+};
+
+struct GitRepoDeleteRemoteTagCommand final : GitRepoCommand {
+  GitRepoDeleteRemoteTagCommand()
+      : GitRepoCommand(GitRepoCommandType::DeleteRemoteTag) {}
+
+  ~GitRepoDeleteRemoteTagCommand() override = default;
 
   QString tagName;
 };

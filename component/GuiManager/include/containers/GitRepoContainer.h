@@ -98,6 +98,7 @@ private slots:
   void onCreateTagFromCommit(const QString &commit);
   void onDeleteBranch(const QString &branchName);
   void onDeleteTag(const QString &tagName);
+  void onDeleteRemoteTag(const QString &tagName);
   void onPushTag(const QString &tagName);
   void onDiffCloseClicked();
   void onDiffUnifiedClicked();
@@ -217,6 +218,7 @@ private:
       const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
   void deleteAllStashes(const WeakPtr &guard);
   void deleteTag(const WeakPtr &guard, const QString &tagName);
+  void deleteRemoteTag(const WeakPtr &guard, const QString &tagName);
   void pushTag(const WeakPtr &guard, const QString &tagName);
   void deleteSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void diff(const WeakPtr &guard, const QString &filePath);

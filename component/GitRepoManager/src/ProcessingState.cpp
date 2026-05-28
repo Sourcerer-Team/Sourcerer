@@ -180,6 +180,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForDeleteTag(deleteTagCommand);
     break;
   }
+  case EventType::DeleteRemoteTag: {
+    const auto deleteRemoteTagCommand =
+        event.nextParam<GitRepoDeleteRemoteTagCommand>();
+    scheduleWorkerForDeleteRemoteTag(deleteRemoteTagCommand);
+    break;
+  }
   case EventType::DiffFiles: {
     const auto diffFilesCommand = event.nextParam<GitRepoDiffFilesCommand>();
     scheduleWorkerForDiffFiles(diffFilesCommand);
@@ -1182,6 +1188,45 @@ void ProcessingState::deleteTagWorker(
   } else {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerDeleteTagResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::deleteRemoteTagWorker(
+    const Structs::GitRepoDeleteRemoteTagCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteRemoteTagError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  if (const bool success = GitRepo::deleteRemoteTag(repo, command.tagName);
+      !success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerDeleteRemoteTagError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerDeleteRemoteTagResult,
         command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type,
                                       QVariant::fromValue(success)});
@@ -3454,6 +3499,25 @@ void ProcessingState::scheduleWorkerForDeleteTag(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForDeleteRemoteTag(
+    const Structs::GitRepoDeleteRemoteTagCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteRemoteTagError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoDeleteRemoteTagCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForDiffFiles(
     const Structs::GitRepoDiffFilesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -3875,6 +3939,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoDeleteTagCommand *>(command);
       if (deleteTagCommand) {
         deleteTagWorker(*deleteTagCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::DeleteRemoteTag: {
+      const auto deleteRemoteTagCommand =
+          dynamic_cast<const GitRepoDeleteRemoteTagCommand *>(command);
+      if (deleteRemoteTagCommand) {
+        deleteRemoteTagWorker(*deleteRemoteTagCommand);
       }
       break;
     }
