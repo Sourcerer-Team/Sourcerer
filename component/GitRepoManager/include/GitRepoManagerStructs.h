@@ -51,6 +51,7 @@ enum class GitRepoCommandType : int {
   ListConflicts,
   ListLocalBranches,
   ListRemoteBranches,
+  ListRemoteBranchesWithStatus,
   ListStashes,
   ListSubmodules,
   ListTags,
@@ -472,6 +473,13 @@ struct GitRepoListRemoteBranchesCommand final : GitRepoCommand {
   ~GitRepoListRemoteBranchesCommand() override = default;
 };
 
+struct GitRepoListRemoteBranchesWithStatusCommand final : GitRepoCommand {
+  GitRepoListRemoteBranchesWithStatusCommand()
+      : GitRepoCommand(GitRepoCommandType::ListRemoteBranchesWithStatus) {}
+
+  ~GitRepoListRemoteBranchesWithStatusCommand() override = default;
+};
+
 struct GitRepoListStashesCommand final : GitRepoCommand {
   GitRepoListStashesCommand()
       : GitRepoCommand(GitRepoCommandType::ListStashes) {}
@@ -658,3 +666,8 @@ struct GitRepoContext {
 };
 
 } // namespace GitRepoManager::Structs
+
+Q_DECLARE_METATYPE(GitRepo::BranchStatusType)
+Q_DECLARE_METATYPE(GitRepo::BranchStatus)
+Q_DECLARE_METATYPE(GitRepo::BranchInfo)
+Q_DECLARE_METATYPE(QVector<GitRepo::BranchInfo>)

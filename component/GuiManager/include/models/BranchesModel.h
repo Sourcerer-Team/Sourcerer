@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include <GitRepo.h>
+
 #include <QObject>
 #include <QStandardItemModel>
 
@@ -32,6 +34,9 @@ public:
 
   void setActiveIndex(int index);
   void updateModel(const QStringList &branches, int activeIndex = -1);
+  void
+  updateModelWithStatus(const QVector<GitRepo::BranchInfo> &branchesWithStatus,
+                        int activeIndex = -1);
 
 signals:
   void branchesMoved(const QString &sourceBranch, const QString &destBranch);

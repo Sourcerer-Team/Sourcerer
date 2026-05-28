@@ -292,6 +292,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForListRemoteBranches(listRemoteCommand);
     break;
   }
+  case EventType::ListRemoteBranchesWithStatus: {
+    const auto listRemoteStatusCommand =
+        event.nextParam<GitRepoListRemoteBranchesWithStatusCommand>();
+    scheduleWorkerForListRemoteBranchesWithStatus(listRemoteStatusCommand);
+    break;
+  }
   case EventType::ListStashes: {
     const auto listStashesCommand =
         event.nextParam<GitRepoListStashesCommand>();
@@ -2052,6 +2058,52 @@ void ProcessingState::listRemoteBranchesWorker(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::listRemoteBranchesWithStatusWorker(
+    const Structs::GitRepoListRemoteBranchesWithStatusCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::
+                    GitRepoManagerListRemoteBranchesWithStatusError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+  const bool *quit = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+    quit = &ctx->quit;
+  }
+
+  const QVector<GitRepo::BranchInfo> remoteBranchesWithStatus =
+      GitRepo::listRemoteBranchesWithStatus(repo, *quit);
+
+  if (*quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::
+            GitRepoManagerListRemoteBranchesWithStatusError,
+        command.syncUuid);
+    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    _eventManager.send(resultEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::
+            GitRepoManagerListRemoteBranchesWithStatusResult,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type,
+                      QVariant::fromValue(remoteBranchesWithStatus)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::listStashesWorker(
     const Structs::GitRepoListStashesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -3768,6 +3820,27 @@ void ProcessingState::scheduleWorkerForListRemoteBranches(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForListRemoteBranchesWithStatus(
+    const Structs::GitRepoListRemoteBranchesWithStatusCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::
+                    GitRepoManagerListRemoteBranchesWithStatusError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(
+      new GitRepoListRemoteBranchesWithStatusCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForListStashes(
     const Structs::GitRepoListStashesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -4156,6 +4229,15 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoListRemoteBranchesCommand *>(command);
       if (listRemoteCommand) {
         listRemoteBranchesWorker(*listRemoteCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::ListRemoteBranchesWithStatus: {
+      const auto *listRemoteStatusCommand =
+          dynamic_cast<const GitRepoListRemoteBranchesWithStatusCommand *>(
+              command);
+      if (listRemoteStatusCommand) {
+        listRemoteBranchesWithStatusWorker(*listRemoteStatusCommand);
       }
       break;
     }

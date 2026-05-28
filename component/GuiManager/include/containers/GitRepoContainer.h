@@ -314,6 +314,9 @@ private:
                                             bool updatePages = true);
   void updateRemoteBranchesModel(const WeakPtr &guard,
                                  const QStringList &remoteBranches) const;
+  void updateRemoteBranchesModelWithStatus(
+      const WeakPtr &guard,
+      const QVector<GitRepo::BranchInfo> &branchesWithStatus) const;
   void updateRemoteBranchesModelActiveBranch(const WeakPtr &guard,
                                              const QString &activeBranch,
                                              bool updatePages = true);

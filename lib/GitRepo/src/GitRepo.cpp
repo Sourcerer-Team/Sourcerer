@@ -381,8 +381,6 @@ static git_commit *getLastCommit(git_repository *repo, const QString &name) {
 static bool isCommercialPlan() {
   LOG_PERF(0, "Enter");
 
-  return true;
-
   Util::CloudCredentialtorage &credentialStorage =
       Util::CloudCredentialtorage::getInstance();
 
@@ -1121,6 +1119,133 @@ QStringList listRemoteBranches(git_repository *repo, const bool &quitFlag) {
   LOG_PERF(0, "Exit");
 
   return listBranches(repo, BranchType::Remote, quitFlag);
+}
+
+QVector<BranchInfo> listRemoteBranchesWithStatus(git_repository *repo,
+                                                 const bool &quitFlag) {
+  LOG_PERF(0, "Enter");
+
+  QVector<BranchInfo> branchesWithStatus;
+
+  // First get all remote branches
+  const QStringList remoteBranches = listRemoteBranches(repo, quitFlag);
+
+  if (quitFlag) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  // For each remote branch, calculate its status
+  for (const QString &remoteBranchName : remoteBranches) {
+    if (quitFlag) {
+      break;
+    }
+
+    BranchInfo branchInfo;
+    branchInfo.name = remoteBranchName;
+
+    // Get the remote reference
+    const QString fullRemoteRefName =
+        QString("refs/remotes/%1").arg(remoteBranchName);
+    git_reference *remoteRef = nullptr;
+    int error = git_reference_lookup(&remoteRef, repo,
+                                     fullRemoteRefName.toStdString().c_str());
+    if (error) {
+      branchInfo.statusInfo.status = BranchStatusType::Unknown;
+      git_reference_free(remoteRef);
+      branchesWithStatus.append(branchInfo);
+      continue;
+    }
+
+    const git_oid *remoteRefTargetOid = git_reference_target(remoteRef);
+    if (!remoteRefTargetOid) {
+      // Remote reference does not point to a valid OID
+      branchInfo.statusInfo.status = BranchStatusType::Unknown;
+      git_reference_free(remoteRef);
+      branchesWithStatus.append(branchInfo);
+      continue;
+    }
+
+    // Get the remote OID
+    git_oid remoteOid;
+    git_oid_cpy(&remoteOid, remoteRefTargetOid);
+    git_reference_free(remoteRef);
+
+    // Extract the local branch name from the remote branch name
+    // Remote branches have format: "origin/branchname"
+    const auto parts = remoteBranchName.split('/');
+    QString localBranchName;
+    if (parts.length() > 1) {
+      localBranchName = parts.last();
+    } else {
+      localBranchName = remoteBranchName;
+    }
+
+    // Try to get the local branch that tracks this remote branch
+    git_reference *localRef = nullptr;
+    error = git_branch_lookup(&localRef, repo,
+                              localBranchName.toStdString().c_str(),
+                              GIT_BRANCH_LOCAL);
+
+    if (error) {
+      // No local tracking branch exists
+      branchInfo.statusInfo.status = BranchStatusType::NoUpstream;
+      branchInfo.statusInfo.aheadCount = 0;
+      branchInfo.statusInfo.behindCount = 0;
+      branchesWithStatus.append(branchInfo);
+      continue;
+    }
+
+    const git_oid *localRefTargetOid = git_reference_target(localRef);
+    if (!localRefTargetOid) {
+      // Local reference does not point to a valid OID
+      branchInfo.statusInfo.status = BranchStatusType::Unknown;
+      branchInfo.statusInfo.aheadCount = 0;
+      branchInfo.statusInfo.behindCount = 0;
+      branchesWithStatus.append(branchInfo);
+      git_reference_free(localRef);
+      continue;
+    }
+
+    // Get the local OID
+    git_oid localOid;
+    git_oid_cpy(&localOid, localRefTargetOid);
+    git_reference_free(localRef);
+
+    // Calculate ahead/behind
+    size_t ahead = 0, behind = 0;
+    error =
+        git_graph_ahead_behind(&ahead, &behind, repo, &localOid, &remoteOid);
+
+    if (error) {
+      branchInfo.statusInfo.status = BranchStatusType::Unknown;
+      branchInfo.statusInfo.aheadCount = 0;
+      branchInfo.statusInfo.behindCount = 0;
+      branchesWithStatus.append(branchInfo);
+      logGitError(error);
+      continue;
+    }
+
+    // Determine the status type
+    if (ahead == 0 && behind == 0) {
+      branchInfo.statusInfo.status = BranchStatusType::UpToDate;
+    } else if (ahead > 0 && behind == 0) {
+      branchInfo.statusInfo.status = BranchStatusType::Ahead;
+    } else if (ahead == 0 && behind > 0) {
+      branchInfo.statusInfo.status = BranchStatusType::Behind;
+    } else {
+      branchInfo.statusInfo.status = BranchStatusType::Diverged;
+    }
+
+    branchInfo.statusInfo.aheadCount = ahead;
+    branchInfo.statusInfo.behindCount = behind;
+
+    branchesWithStatus.append(branchInfo);
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return branchesWithStatus;
 }
 
 QStringList listStashes(git_repository *repo, const bool &quitFlag) {

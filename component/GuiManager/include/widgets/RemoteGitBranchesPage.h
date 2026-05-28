@@ -2,6 +2,8 @@
 
 #include "models/BranchesModel.h"
 
+#include <GitRepo.h>
+
 #include <QWidget>
 
 namespace Ui {
@@ -20,6 +22,8 @@ public:
   void clearCached();
   void updateActiveBranch(const QString &branchName);
   void updateModel(const QStringList &localBranches);
+  void
+  updateModelWithStatus(const QVector<GitRepo::BranchInfo> &branchesWithStatus);
 
 signals:
   void branchSelected(const QString &branchName);

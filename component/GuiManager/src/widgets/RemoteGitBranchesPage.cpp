@@ -82,6 +82,21 @@ void RemoteGitBranchesPage::updateModel(const QStringList &remoteBranches) {
   LOG_PERF(0, "Exit");
 }
 
+void RemoteGitBranchesPage::updateModelWithStatus(
+    const QVector<GitRepo::BranchInfo> &branchesWithStatus) {
+  LOG_PERF(0, "Enter");
+
+  _model->clear();
+  _model->setActiveIndex(-1);
+  _model->updateModelWithStatus(branchesWithStatus);
+
+  ui->listView->setModel(_model);
+
+  _previous = -1;
+
+  LOG_PERF(0, "Exit");
+}
+
 void RemoteGitBranchesPage::onListViewContextMenuRequested(const QPoint &pos) {
   LOG_PERF(0, "Enter");
 

@@ -46,6 +46,7 @@ enum class EventType : int {
   ListConflicts,
   ListLocalBranches,
   ListRemoteBranches,
+  ListRemoteBranchesWithStatus,
   ListStashes,
   ListSubmodules,
   ListTags,

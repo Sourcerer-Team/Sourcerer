@@ -149,6 +149,34 @@ struct GitHistoryWithStatus {
   }
 };
 
+enum class BranchStatusType {
+  Unknown = 0,
+  UpToDate,   // Local tracking branch is even with remote
+  Ahead,      // Local tracking branch is ahead of remote
+  Behind,     // Local tracking branch is behind remote
+  Diverged,   // Local tracking branch has diverged from remote
+  NoUpstream, // No tracking branch configured
+
+  last
+};
+
+struct BranchStatus {
+  BranchStatusType status = BranchStatusType::Unknown;
+  size_t aheadCount = 0;  // Commits local is ahead
+  size_t behindCount = 0; // Commits local is behind
+};
+
+struct BranchInfo {
+  QString name;
+  BranchStatus statusInfo;
+
+  bool operator==(const BranchInfo &other) const {
+    return name == other.name && statusInfo.status == other.statusInfo.status &&
+           statusInfo.aheadCount == other.statusInfo.aheadCount &&
+           statusInfo.behindCount == other.statusInfo.behindCount;
+  }
+};
+
 enum class BranchType {
   Unknown = 0,
 
@@ -240,6 +268,9 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath);
 QStringList listLocalBranches(git_repository *repo, const bool &quitFlag);
 
 QStringList listRemoteBranches(git_repository *repo, const bool &quitFlag);
+
+QVector<BranchInfo> listRemoteBranchesWithStatus(git_repository *repo,
+                                                 const bool &quitFlag);
 
 QStringList listStashes(git_repository *repo, const bool &quitFlag);
 

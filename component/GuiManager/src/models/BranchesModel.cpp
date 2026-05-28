@@ -207,4 +207,78 @@ void BranchesModel::updateModel(const QStringList &branches,
   LOG_PERF(0, "Exit");
 }
 
+void BranchesModel::updateModelWithStatus(
+    const QVector<GitRepo::BranchInfo> &branchesWithStatus,
+    const int activeIndex) {
+  LOG_PERF(0, "Enter");
+
+  clear();
+
+  // Add branches in reverse order to maintain the order
+  auto rit = branchesWithStatus.rbegin();
+  while (rit != branchesWithStatus.rend()) {
+    const GitRepo::BranchInfo &branchInfo = *rit;
+
+    // Create the display text with status information
+    QString displayText = branchInfo.name;
+
+    // Add status indicator based on the status type
+    if (branchInfo.statusInfo.status == GitRepo::BranchStatusType::UpToDate) {
+      displayText += " ✓";
+    } else if (branchInfo.statusInfo.status ==
+               GitRepo::BranchStatusType::Ahead) {
+      displayText += QString(" ↑%1").arg(branchInfo.statusInfo.aheadCount);
+    } else if (branchInfo.statusInfo.status ==
+               GitRepo::BranchStatusType::Behind) {
+      displayText += QString(" ↓%1").arg(branchInfo.statusInfo.behindCount);
+    } else if (branchInfo.statusInfo.status ==
+               GitRepo::BranchStatusType::Diverged) {
+      displayText += QString(" ↑↓%1/%2")
+                         .arg(branchInfo.statusInfo.aheadCount)
+                         .arg(branchInfo.statusInfo.behindCount);
+    } else if (branchInfo.statusInfo.status ==
+               GitRepo::BranchStatusType::NoUpstream) {
+      displayText += " ◆"; // No tracking branch
+    }
+
+    QStandardItem *item = new QStandardItem(QIcon(iconPath()), displayText);
+    item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled |
+                   Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
+
+    // Set tooltip with full branch name and status details
+    QString tooltip = branchInfo.name;
+    if (branchInfo.statusInfo.status == GitRepo::BranchStatusType::UpToDate) {
+      tooltip += "\nUp to date with remote";
+    } else if (branchInfo.statusInfo.status ==
+               GitRepo::BranchStatusType::Ahead) {
+      tooltip += QString("\nAhead of remote by %1 commit(s)")
+                     .arg(branchInfo.statusInfo.aheadCount);
+    } else if (branchInfo.statusInfo.status ==
+               GitRepo::BranchStatusType::Behind) {
+      tooltip += QString("\nBehind remote by %1 commit(s)")
+                     .arg(branchInfo.statusInfo.behindCount);
+    } else if (branchInfo.statusInfo.status ==
+               GitRepo::BranchStatusType::Diverged) {
+      tooltip += QString("\nDiverged: Ahead %1, Behind %2")
+                     .arg(branchInfo.statusInfo.aheadCount)
+                     .arg(branchInfo.statusInfo.behindCount);
+    } else if (branchInfo.statusInfo.status ==
+               GitRepo::BranchStatusType::NoUpstream) {
+      tooltip += "\nNo tracking branch configured";
+    }
+
+    item->setToolTip(tooltip);
+
+    // Store the branch name as data for easier retrieval
+    item->setData(branchInfo.name, Qt::UserRole);
+
+    insertRow(0, item);
+    ++rit;
+  }
+
+  setActiveIndex(activeIndex);
+
+  LOG_PERF(0, "Exit");
+}
+
 } // namespace GuiManager::Models

@@ -6437,18 +6437,20 @@ bool GitRepoContainer::getRemoteBranches() {
 
   const int token = _eventManager.startWait();
 
-  GitRepoListRemoteBranchesCommand command;
+  GitRepoListRemoteBranchesWithStatusCommand command;
   command.uuid = _uuid;
   command.syncUuid = eventUuid;
 
   EventManager::Event listRemoteEvent(
-      EventManager::EventType::GitRepoManagerListRemoteBranches, eventUuid);
+      EventManager::EventType::GitRepoManagerListRemoteBranchesWithStatus,
+      eventUuid);
   listRemoteEvent.addData(command);
   _eventManager.send(listRemoteEvent);
 
   static std::set types = {
-      EventManager::EventType::GitRepoManagerListRemoteBranchesError,
-      EventManager::EventType::GitRepoManagerListRemoteBranchesResult};
+      EventManager::EventType::GitRepoManagerListRemoteBranchesWithStatusError,
+      EventManager::EventType::
+          GitRepoManagerListRemoteBranchesWithStatusResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -6465,8 +6467,8 @@ bool GitRepoContainer::getRemoteBranches() {
     return false;
   }
 
-  if (event.type() !=
-      EventManager::EventType::GitRepoManagerListRemoteBranchesResult) {
+  if (event.type() != EventManager::EventType::
+                          GitRepoManagerListRemoteBranchesWithStatusResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showErrorToast(QString("%1\n%2").arg(
@@ -6481,10 +6483,12 @@ bool GitRepoContainer::getRemoteBranches() {
 
   const auto commandResult = event.data<GitRepoResult>();
 
-  const auto localBranches = commandResult.value.value<QStringList>();
+  const auto branchesWithStatus =
+      commandResult.value.value<QVector<GitRepo::BranchInfo>>();
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { updateRemoteBranchesModel(guard, localBranches); });
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    updateRemoteBranchesModelWithStatus(guard, branchesWithStatus);
+  });
 
   LOG_PERF(0, "Exit")
 
@@ -7756,9 +7760,6 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
   const GitRepo::GitHistoryWithStatus &historyAndStatus =
       _historyModel->historyWithStatus();
 
-  Q_ASSERT(historyAndStatus.history.commits.contains(commit));
-  Q_ASSERT(historyAndStatus.history.commitInfos.contains(commit));
-
   if (!historyAndStatus.history.commitInfos.contains(commit)) {
     LOG_PERF(0, "Exit");
     return;
@@ -8335,6 +8336,31 @@ void GitRepoContainer::updateRemoteBranchesModel(
 
   if (const auto locked = guard.lock()) {
     ui->remotePage->updateModel(finalBranches);
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::updateRemoteBranchesModelWithStatus(
+    const WeakPtr &guard,
+    const QVector<GitRepo::BranchInfo> &branchesWithStatus) const {
+  LOG_PERF(0, "Enter");
+
+  // Create a new vector with ALL_BRANCHES entry if there are branches
+  QVector<GitRepo::BranchInfo> finalBranchesWithStatus;
+
+  if (!branchesWithStatus.isEmpty()) {
+    // Add a special entry for "All branches" without status
+    GitRepo::BranchInfo allBranches;
+    allBranches.name = ALL_BRANCHES;
+    allBranches.statusInfo.status = GitRepo::BranchStatusType::Unknown;
+    finalBranchesWithStatus.append(allBranches);
+  }
+
+  finalBranchesWithStatus += branchesWithStatus;
+
+  if (const auto locked = guard.lock()) {
+    ui->remotePage->updateModelWithStatus(finalBranchesWithStatus);
   }
 
   LOG_PERF(0, "Exit")
