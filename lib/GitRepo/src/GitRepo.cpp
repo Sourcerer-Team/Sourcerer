@@ -4720,13 +4720,29 @@ bool push(git_repository *repo) {
   }
   LOG_DEBUG("Origin remote found");
 
+  const QString url = git_remote_url(remote);
+  LOG_DEBUG("Remote URL: '{}'", url);
+
+  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
+  const bool commercial = isCommercialPlan();
+  LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
+            commercial);
+
+  if (!commercial && gitSchema) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Pushing git@ repositories is not available on the free plan.");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   GitCredentialPayload credPayload;
   credPayload.repoPath = repoPath;
   credPayload.cloning = false;
 
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
-  opts.callbacks.credentials = &credentialsAcquireCallback;
+  opts.callbacks.credentials =
+      commercial ? &credentialsAcquireCallback : nullptr;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
   opts.callbacks.certificate_check = &certificateCheckCallback;
   opts.callbacks.payload = &credPayload;
@@ -4735,16 +4751,14 @@ bool push(git_repository *repo) {
       qstringlist_to_git_strarray(QStringList() << branchName);
 
   int retries = 0;
-  const char *url = git_remote_url(remote);
 
   // Determine max retries: use 1 if SSH with configured key, otherwise
   // MAX_RETRIES
   int maxRetries = MAX_RETRIES;
-  QString urlStr = QString::fromUtf8(url);
-  if (urlStr.startsWith("git@")) {
+  if (url.startsWith("git@")) {
     // Extract host from git@host:path format
     QRegularExpression hostRegex("^git@([^:]+):");
-    QRegularExpressionMatch match = hostRegex.match(urlStr);
+    QRegularExpressionMatch match = hostRegex.match(url);
     if (match.hasMatch()) {
       QString host = match.captured(1);
       GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
@@ -4831,13 +4845,30 @@ bool pushTag(git_repository *repo, const QString &tagName) {
   }
   LOG_DEBUG("Origin remote found");
 
+  const QString url = git_remote_url(remote);
+  LOG_DEBUG("Remote URL: '{}'", url);
+
+  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
+  const bool commercial = isCommercialPlan();
+  LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
+            commercial);
+
+  if (!commercial && gitSchema) {
+    LOG_ERROR(
+        Log::ErrorId::Git,
+        "Pushing tags to git@ repositories is not available on the free plan.");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   GitCredentialPayload credPayload;
   credPayload.repoPath = repoPath;
   credPayload.cloning = false;
 
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
-  opts.callbacks.credentials = &credentialsAcquireCallback;
+  opts.callbacks.credentials =
+      commercial ? &credentialsAcquireCallback : nullptr;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
   opts.callbacks.certificate_check = &certificateCheckCallback;
   opts.callbacks.payload = &credPayload;
@@ -4847,16 +4878,14 @@ bool pushTag(git_repository *repo, const QString &tagName) {
   git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
 
   int retries = 0;
-  const char *url = git_remote_url(remote);
 
   // Determine max retries: use 1 if SSH with configured key, otherwise
   // MAX_RETRIES
   int maxRetries = MAX_RETRIES;
-  QString urlStr = QString::fromUtf8(url);
-  if (urlStr.startsWith("git@")) {
+  if (url.startsWith("git@")) {
     // Extract host from git@host:path format
     QRegularExpression hostRegex("^git@([^:]+):");
-    QRegularExpressionMatch match = hostRegex.match(urlStr);
+    QRegularExpressionMatch match = hostRegex.match(url);
     if (match.hasMatch()) {
       QString host = match.captured(1);
       GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
@@ -5550,13 +5579,30 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
   }
   LOG_DEBUG("Origin remote found");
 
+  const QString url = git_remote_url(remote);
+  LOG_DEBUG("Remote URL: '{}'", url);
+
+  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
+  const bool commercial = isCommercialPlan();
+  LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
+            commercial);
+
+  if (!commercial && gitSchema) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Deleting remote branches from git@ repositories is not "
+              "available on the free plan.");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   GitCredentialPayload credPayload;
   credPayload.repoPath = repoPath;
   credPayload.cloning = false;
 
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
-  opts.callbacks.credentials = &credentialsAcquireCallback;
+  opts.callbacks.credentials =
+      commercial ? &credentialsAcquireCallback : nullptr;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
   opts.callbacks.certificate_check = &certificateCheckCallback;
   opts.callbacks.payload = &credPayload;
@@ -5575,16 +5621,14 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
             refspec.toStdString(), branchName.toStdString());
 
   int retries = 0;
-  const char *url = git_remote_url(remote);
 
   // Determine max retries: use 1 if SSH with configured key, otherwise
   // MAX_RETRIES
   int maxRetries = MAX_RETRIES;
-  QString urlStr = QString::fromUtf8(url);
-  if (urlStr.startsWith("git@")) {
+  if (url.startsWith("git@")) {
     // Extract host from git@host:path format
     QRegularExpression hostRegex("^git@([^:]+):");
-    QRegularExpressionMatch match = hostRegex.match(urlStr);
+    QRegularExpressionMatch match = hostRegex.match(url);
     if (match.hasMatch()) {
       QString host = match.captured(1);
       GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
@@ -5955,13 +5999,29 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
   }
   LOG_DEBUG("Origin remote found");
 
+  const QString url = git_remote_url(remote);
+  LOG_DEBUG("Remote URL: '{}'", url);
+
+  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
+  const bool commercial = isCommercialPlan();
+  LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
+            commercial);
+
+  if (!commercial && gitSchema) {
+    LOG_ERROR(Log::ErrorId::Git, "Deleting remote tags from git@ repositories "
+                                 "is not available on the free plan.");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   GitCredentialPayload credPayload;
   credPayload.repoPath = repoPath;
   credPayload.cloning = false;
 
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
-  opts.callbacks.credentials = &credentialsAcquireCallback;
+  opts.callbacks.credentials =
+      commercial ? &credentialsAcquireCallback : nullptr;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
   opts.callbacks.certificate_check = &certificateCheckCallback;
   opts.callbacks.payload = &credPayload;
@@ -5981,16 +6041,14 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
             refspec.toStdString(), tagName.toStdString());
 
   int retries = 0;
-  const char *url = git_remote_url(remote);
 
   // Determine max retries: use 1 if SSH with configured key, otherwise
   // MAX_RETRIES
   int maxRetries = MAX_RETRIES;
-  QString urlStr = QString::fromUtf8(url);
-  if (urlStr.startsWith("git@")) {
+  if (url.startsWith("git@")) {
     // Extract host from git@host:path format
     QRegularExpression hostRegex("^git@([^:]+):");
-    QRegularExpressionMatch match = hostRegex.match(urlStr);
+    QRegularExpressionMatch match = hostRegex.match(url);
     if (match.hasMatch()) {
       QString host = match.captured(1);
       GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
@@ -6267,6 +6325,18 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
     return false;
   }
 
+  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
+  const bool commercial = isCommercialPlan();
+  LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
+            commercial);
+
+  if (!commercial && gitSchema) {
+    LOG_ERROR(Log::ErrorId::Git, "Adding submodules to git@ repositories is "
+                                 "not available on the free plan.");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_repository *subRepo = nullptr;
 
   CloneProgress progressData;
@@ -6279,7 +6349,8 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   checkoutOpts.progress_cb = &checkoutProgressCallback;
 
   git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
-  fetchOpts.callbacks.credentials = &credentialsAcquireCallback;
+  fetchOpts.callbacks.credentials =
+      commercial ? &credentialsAcquireCallback : nullptr;
   fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
   fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
   fetchOpts.callbacks.payload = &progressData;
