@@ -212,7 +212,8 @@ private:
           nullptr);
   void createPatchFromCommit(const WeakPtr &guard, const QString &commit);
   void createTagFromCommit(const WeakPtr &guard, const QString &commit,
-                           const QString &tagName);
+                           const QString &tagName, const QString &message,
+                           bool isAnnotated);
   void deleteBranch(const WeakPtr &guard, const QString &branchName);
   void deleteRemoteBranch(const WeakPtr &guard, const QString &branchName);
   void deleteFiles(const WeakPtr &guard, const QStringList &files);

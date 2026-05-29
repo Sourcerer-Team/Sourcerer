@@ -88,6 +88,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/models/TagsModel.h
         include/models/WorkspacesModel.h
         include/widgets/AddSubmoduleOverlayWidget.h
+        include/widgets/AnnotatedTagOverlayWidget.h
         include/widgets/CentralWidget.h
         include/widgets/ClickableHeaderView.h
         include/widgets/ColorButton.h
@@ -174,6 +175,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/models/WorkspacesModel.cpp
         src/models/TagsModel.cpp
         src/widgets/AddSubmoduleOverlayWidget.cpp
+        src/widgets/AnnotatedTagOverlayWidget.cpp
         src/widgets/CentralWidget.cpp
         src/widgets/ColorButton.cpp
         src/widgets/ConsoleWidget.cpp

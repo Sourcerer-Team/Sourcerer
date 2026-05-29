@@ -9,6 +9,7 @@
 #include "models/GitCommitListModel.h"
 #include "models/GitCommitTreeModel.h"
 #include "widgets/AddSubmoduleOverlayWidget.h"
+#include "widgets/AnnotatedTagOverlayWidget.h"
 #include "widgets/ClickableHeaderView.h"
 #include "widgets/ConsoleWidget.h"
 #include "widgets/ErrorToast.h"
@@ -1256,27 +1257,28 @@ void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  const auto overlayWidget = new TextInputOverlayWidget(this);
-  overlayWidget->setPlaceholderText(tr("Tag name here"));
+  const auto overlayWidget = new AnnotatedTagOverlayWidget(this);
 
-  connect(overlayWidget, &TextInputOverlayWidget::canceled, this, [=]() {
+  connect(overlayWidget, &AnnotatedTagOverlayWidget::canceled, this, [=]() {
     LOG_DEBUG("Create tag dialog cancelled");
     overlayWidget->hide();
     delete overlayWidget;
   });
 
-  connect(overlayWidget, &TextInputOverlayWidget::submitted, this,
-          [=](const QString &tagName) {
-            LOG_DEBUG("Creating tag '{}' from commit '{}'",
-                      tagName.toStdString(), commit.toStdString());
-            overlayWidget->hide();
-            delete overlayWidget;
+  connect(
+      overlayWidget, &AnnotatedTagOverlayWidget::submitted, this,
+      [=](const QString &tagName, const QString &message, bool isAnnotated) {
+        LOG_DEBUG("Creating tag '{}' from commit '{}', annotated: {}",
+                  tagName.toStdString(), commit.toStdString(), isAnnotated);
+        overlayWidget->hide();
+        delete overlayWidget;
 
-            startOverlayTimer();
+        startOverlayTimer();
 
-            _dispatcher.dispatch(
-                [=]() { createTagFromCommit(guard, commit, tagName); });
-          });
+        _dispatcher.dispatch([=]() {
+          createTagFromCommit(guard, commit, tagName, message, isAnnotated);
+        });
+      });
 
   overlayWidget->show();
   overlayWidget->raise();
@@ -2585,8 +2587,7 @@ void GitRepoContainer::onCherryPickCommit() {
   LOG_PERF(0, "Enter");
 
   const auto inputOverlay = new TextInputOverlayWidget(this);
-  inputOverlay->setPlaceholderText(
-      tr("Commit SHA to cherry-pick"));
+  inputOverlay->setPlaceholderText(tr("Commit SHA to cherry-pick"));
 
   connect(inputOverlay, &TextInputOverlayWidget::canceled, this, [=]() {
     LOG_DEBUG("Cherry-pick dialog cancelled");
@@ -4642,7 +4643,9 @@ void GitRepoContainer::createPatchFromCommit(const WeakPtr &guard,
 
 void GitRepoContainer::createTagFromCommit(const WeakPtr &guard,
                                            const QString &commit,
-                                           const QString &tagName) {
+                                           const QString &tagName,
+                                           const QString &message,
+                                           bool isAnnotated) {
   LOG_PERF(0, "Enter");
 
   const QString author =
@@ -4661,7 +4664,7 @@ void GitRepoContainer::createTagFromCommit(const WeakPtr &guard,
   command.tagName = tagName;
   command.author = author;
   command.email = email;
-  command.message = QString();
+  command.message = isAnnotated ? message : QString();
 
   EventManager::Event createTagFromCommitEvent(
       EventManager::EventType::GitRepoManagerCreateTagFromCommit, eventUuid);
