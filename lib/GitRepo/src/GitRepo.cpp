@@ -531,9 +531,62 @@ bool applyStash(git_repository *repo, int index) {
     return false;
   }
 
+  // Check for conflicts after applying stash
+  git_index *index_ptr = nullptr;
+  int error = git_repository_index(&index_ptr, repo);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to get repository index after stash apply: error={}",
+              error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return true; // Stash was applied, just couldn't check for conflicts
+  }
+
+  if (git_index_has_conflicts(index_ptr)) {
+    LOG_DEBUG("Stash at index {} applied but has conflicts - manual resolution "
+              "needed",
+              index);
+    git_index_free(index_ptr);
+    LOG_PERF(0, "Exit");
+    return true; // Return true because stash was applied, conflicts need
+                 // resolution
+  }
+
+  git_index_free(index_ptr);
+
   LOG_DEBUG("Stash at index {} applied successfully", index);
   LOG_PERF(0, "Exit");
   return true;
+}
+
+bool hasConflicts(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_index *index_ptr = nullptr;
+  int error = git_repository_index(&index_ptr, repo);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to get repository index when checking for conflicts: "
+              "error={}",
+              error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const bool hasConflicts_result = git_index_has_conflicts(index_ptr) != 0;
+  git_index_free(index_ptr);
+
+  LOG_DEBUG("Repository has conflicts: {}", hasConflicts_result);
+  LOG_PERF(0, "Exit");
+  return hasConflicts_result;
 }
 
 bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,

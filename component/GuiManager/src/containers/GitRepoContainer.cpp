@@ -4166,7 +4166,11 @@ void GitRepoContainer::applyStash(
   }
 
   const auto commandResult = event.data<GitRepoResult>();
-  const bool applySuccess = commandResult.value.toBool();
+
+  // Extract result data - now contains success and hasConflicts information
+  QMap<QString, QVariant> resultData = commandResult.value.toMap();
+  const bool applySuccess = resultData.value("success", false).toBool();
+  const bool hasConflicts = resultData.value("hasConflicts", false).toBool();
 
   refreshStatus(guard);
   getStashes(guard);
@@ -4177,6 +4181,21 @@ void GitRepoContainer::applyStash(
       showErrorToast(tr("Failed to apply stash."), tr("Error"));
     });
 
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  // If stash was applied but has conflicts, show merge conflict resolution UI
+  if (hasConflicts) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showToast(
+          tr("Stash applied with conflicts. Resolve conflicts to continue."),
+          tr("Conflicts"));
+    });
+
+    // The merge diff viewer is shown as part of refreshStatus since
+    // _mergeInProgress will be detected via the repository state checking
     LOG_PERF(0, "Exit")
     return;
   }

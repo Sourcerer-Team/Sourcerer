@@ -263,6 +263,8 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
 
 bool applyStash(git_repository *repo, int index);
 
+bool hasConflicts(git_repository *repo);
+
 bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
                     BranchType type);
 

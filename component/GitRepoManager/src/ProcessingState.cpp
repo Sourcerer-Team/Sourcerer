@@ -603,11 +603,17 @@ void ProcessingState::applyStashWorker(
     errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
     _eventManager.send(errorEvent);
   } else {
+    // Check if there are conflicts after stash apply
+    const bool hasConflicts = GitRepo::hasConflicts(repo);
+    QMap<QString, QVariant> resultData;
+    resultData["success"] = true;
+    resultData["hasConflicts"] = hasConflicts;
+
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerApplyStashResult,
         command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                      QVariant::fromValue(success)});
+                                      QVariant::fromValue(resultData)});
     _eventManager.send(resultEvent);
   }
 
