@@ -86,6 +86,7 @@ enum class MainViewPanes {
   History = 0,
   Diff = 1,
   ThreeWayDiff = 2,
+  StashContent = 3,
 
   last
 };
@@ -244,6 +245,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->listViewTabWidgetIndexFlat->setContextMenuPolicy(Qt::CustomContextMenu);
   ui->treeViewTabWidgetIndexTree->setContextMenuPolicy(Qt::CustomContextMenu);
 
+  ui->listViewStashFilesFlat->setContextMenuPolicy(Qt::CustomContextMenu);
+  ui->treeViewStashFilesTree->setContextMenuPolicy(Qt::CustomContextMenu);
+
   _displayTreeExpandAllButton =
       new QPushButton(tr("Expand all"), ui->tabWidgetPageDisplayFiles);
   _displayTreeExpandAllButton->setObjectName("displayTreeExpandAllButton");
@@ -376,6 +380,15 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMergeDiffSave->setMinimumHeight(32);
   ui->pushButtonMergeDiffSave->setMaximumHeight(32);
 
+  ui->pushButtonStashDiffUnified->setIcon(QPixmap(":/icons/diff-unified.png"));
+  ui->pushButtonStashDiffUnified->setMinimumSize(32, 32);
+  ui->pushButtonStashDiffUnified->setMaximumSize(32, 32);
+
+  ui->pushButtonStashDiffSideBySide->setIcon(
+      QPixmap(":/icons/diff-side-by-side.png"));
+  ui->pushButtonStashDiffSideBySide->setMinimumSize(32, 32);
+  ui->pushButtonStashDiffSideBySide->setMaximumSize(32, 32);
+
   const QScintillaLexerFactory factory;
 
   QsciLexer *lexerDiffUnified =
@@ -397,6 +410,51 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   highlighter.applyDarkTheme(ui->scintillaTextEditorUnified);
 
   ui->scintillaTextEditorUnified->setFolding(QsciScintilla::NoFoldStyle);
+
+  // Setup stash unified diff viewer with same styling
+  QsciLexer *lexerStashDiffUnified =
+      factory.createLexerByName("Diff", ui->scintillaStashDiffUnified);
+
+  ui->scintillaStashDiffUnified->setSizePolicy(QSizePolicy::Expanding,
+                                               QSizePolicy::Expanding);
+  ui->scintillaStashDiffUnified->setWrapMode(QsciScintilla::WrapWord);
+  ui->scintillaStashDiffUnified->setLexer(lexerStashDiffUnified);
+  ui->scintillaStashDiffUnified->setMarginsBackgroundColor(QColor(0x384D59));
+  ui->scintillaStashDiffUnified->setMarginType(0, QsciScintilla::NumberMargin);
+  ui->scintillaStashDiffUnified->setMarginType(1, QsciScintilla::SymbolMargin);
+  ui->scintillaStashDiffUnified->setMarginWidth(1, 2);
+  ui->scintillaStashDiffUnified->markerDefine(QsciScintilla::Background, 1);
+  ui->scintillaStashDiffUnified->setMarkerBackgroundColor(Qt::darkYellow, 1);
+  ui->scintillaStashDiffUnified->setReadOnly(true);
+
+  DarkThemeLexersHighlighter stashHighlighter;
+  stashHighlighter.applyDarkTheme(ui->scintillaStashDiffUnified);
+
+  ui->scintillaStashDiffUnified->setFolding(QsciScintilla::NoFoldStyle);
+
+  // Setup stash apply and pop buttons as corner widgets
+  _stashApplyButton = new QPushButton(tr("Apply"), ui->tabWidgetStashFiles);
+  _stashApplyButton->setObjectName("stashApplyButton");
+  _stashApplyButton->setFlat(false);
+  _stashApplyButton->setVisible(true);
+  _stashApplyButton->setFixedWidth(65);
+
+  _stashPopButton = new QPushButton(tr("Pop"), ui->tabWidgetStashFiles);
+  _stashPopButton->setObjectName("stashPopButton");
+  _stashPopButton->setFlat(false);
+  _stashPopButton->setVisible(true);
+  _stashPopButton->setFixedWidth(65);
+
+  // Create a container widget for the two buttons
+  QWidget *stashButtonContainer = new QWidget(ui->tabWidgetStashFiles);
+  QHBoxLayout *stashButtonLayout = new QHBoxLayout(stashButtonContainer);
+  stashButtonLayout->setContentsMargins(0, 0, 0, 0);
+  stashButtonLayout->setSpacing(5);
+  stashButtonLayout->addWidget(_stashApplyButton);
+  stashButtonLayout->addWidget(_stashPopButton);
+
+  ui->tabWidgetStashFiles->setCornerWidget(stashButtonContainer,
+                                           Qt::TopRightCorner);
 
   // Create scrollbar marks widget for unified diff
   _unifiedDiffMarks = new Widgets::ScrollbarMarksWidget(
@@ -582,6 +640,17 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onMergeDiffSaveClicked);
   connect(ui->pushButtonMergeDiffClose, &QPushButton::clicked, this,
           &GitRepoContainer::onMergeDiffCloseClicked);
+
+  connect(_stashApplyButton, &QPushButton::clicked, this,
+          &GitRepoContainer::onStashApplyClicked);
+  connect(_stashPopButton, &QPushButton::clicked, this,
+          &GitRepoContainer::onStashPopClicked);
+  connect(ui->pushButtonStashClose, &QPushButton::clicked, this,
+          &GitRepoContainer::onStashContentCloseClicked);
+  connect(ui->pushButtonStashDiffUnified, &QPushButton::clicked, this,
+          &GitRepoContainer::onStashDiffUnifiedClicked);
+  connect(ui->pushButtonStashDiffSideBySide, &QPushButton::clicked, this,
+          &GitRepoContainer::onStashDiffSideBySideClicked);
 
   qApp->setStyleSheet(qApp->styleSheet());
 
@@ -2257,9 +2326,9 @@ void GitRepoContainer::onStashSelected(int stashIndex) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() { applyStash(guard, stashIndex); });
+  _dispatcher.dispatch([=]() { showStashContent(guard, stashIndex); });
 
-  LOG_DEBUG("Apply stash operation dispatched");
+  LOG_DEBUG("Show stash content operation dispatched");
   LOG_PERF(0, "Exit");
 }
 
@@ -5381,6 +5450,323 @@ void GitRepoContainer::popStash(const WeakPtr &guard, int stashIndex) {
   });
 
   LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::showStashContent(const WeakPtr &guard, int stashIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Showing stash content for index: {}", stashIndex);
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoGetStashStatusCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.index = stashIndex;
+
+  EventManager::Event getStashStatusEvent(
+      EventManager::EventType::GitRepoManagerGetStashStatus, eventUuid);
+  getStashStatusEvent.addData(command);
+  _eventManager.send(getStashStatusEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGetStashStatusError,
+      EventManager::EventType::GitRepoManagerGetStashStatusResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to get stash content.")), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerGetStashStatusResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString("%1\n%2").arg(tr("Failed to get stash content."),
+                                           translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto result = event.data<GitRepoResult>();
+  const auto stashStatus = result.value.value<GitRepo::GitCommitStatus>();
+
+  // Store the stash index for later use (for apply/pop buttons)
+  _currentStashIndex = stashIndex;
+  _lastStashCommit = stashStatus.commit;
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    // Populate stash files list
+    QStringList allFiles;
+    allFiles += stashStatus.newFiles;
+    allFiles += stashStatus.modifiedFiles;
+    allFiles += stashStatus.deletedFiles;
+    allFiles += stashStatus.renamedFiles;
+    allFiles += stashStatus.typeChangedFiles;
+
+    // Update flat list view
+    _stashFilesModel.reset(Models::GitCommitListModel::from(stashStatus));
+    if (_stashFilesModel) {
+      ui->listViewStashFilesFlat->setModel(_stashFilesModel.get());
+
+      disconnect(ui->listViewStashFilesFlat,
+                 &GuiManager::Widgets::RightClickSelectListView::pressed, this,
+                 nullptr);
+
+      connect(ui->listViewStashFilesFlat,
+              &GuiManager::Widgets::RightClickSelectListView::pressed, this,
+              [=](const QModelIndex &index) { onStashFileSelected(index); });
+    }
+
+    // Update tree view
+    _stashFilesTreeModel.reset(Models::GitCommitTreeModel::from(stashStatus));
+    if (_stashFilesTreeModel) {
+      ui->treeViewStashFilesTree->setModel(_stashFilesTreeModel.get());
+
+      disconnect(ui->treeViewStashFilesTree,
+                 &GuiManager::Widgets::RightClickSelectTreeView::pressed, this,
+                 nullptr);
+
+      connect(ui->treeViewStashFilesTree,
+              &GuiManager::Widgets::RightClickSelectTreeView::pressed, this,
+              [=](const QModelIndex &index) { onStashFileSelected(index); });
+    }
+
+    // Switch to stash content page
+    ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::StashContent));
+
+    showSpinnerOverlay(false);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onStashFileSelected(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Stash file selected");
+
+  if (!index.isValid() || _lastStashCommit.isEmpty()) {
+    LOG_DEBUG("Invalid index or stash commit");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString filePath = index.data(Qt::DisplayRole).toString();
+  LOG_DEBUG("Stash file path: '{}'", filePath.toStdString());
+
+  filePath = QDir::fromNativeSeparators(filePath);
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {
+    // Check file size from commit before generating diff
+    const qint64 maxDiffFileSize = _configManager.getLong(
+        ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
+    const qint64 fileSize = getFileSizeFromCommit(filePath, _lastStashCommit);
+
+    if (fileSize > 0 && fileSize > maxDiffFileSize) {
+      LOG_DEBUG("File size {} exceeds maximum {}", fileSize, maxDiffFileSize);
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        showErrorToast(tr("File is too large to be displayed."), tr("Error"));
+        return;
+      });
+
+      return;
+    }
+
+    Util::Dispatcher::dispatchToMainThread(guard,
+                                           [=]() { startOverlayTimer(); });
+
+    LOG_DEBUG("Generating diff from stash commit for file '{}'",
+              filePath.toStdString());
+
+    // Send command to get diff
+    const QString eventUuid = Uuid::createUuid();
+    const int token = _eventManager.startWait();
+
+    GitRepoDiffFilesFromCommitCommand command;
+    command.uuid = _uuid;
+    command.syncUuid = eventUuid;
+    command.files += filePath;
+    command.commit = _lastStashCommit;
+
+    EventManager::Event diffFilesFromCommitEvent(
+        EventManager::EventType::GitRepoManagerDiffFilesFromCommit, eventUuid);
+    diffFilesFromCommitEvent.addData(command);
+    _eventManager.send(diffFilesFromCommitEvent);
+
+    static std::set types = {
+        EventManager::EventType::GitRepoManagerDiffFilesFromCommitError,
+        EventManager::EventType::GitRepoManagerDiffFilesFromCommitResult};
+
+    const auto &[success, event] =
+        _eventManager.waitForAnswer(token, eventUuid, types);
+
+    if (!success) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        showSpinnerOverlay(false);
+        showErrorToast(tr("Failed to create file diff."), tr("Error"));
+      });
+
+      LOG_DEBUG("Failed to get diff for stash file");
+      return;
+    }
+
+    if (event.type() !=
+        EventManager::EventType::GitRepoManagerDiffFilesFromCommitResult) {
+      const auto error = event.data<GitRepoError>();
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        showSpinnerOverlay(false);
+        showErrorToast(QString("%1\n%2").arg(tr("Failed to create file diff."),
+                                             translateGitError(error.error)),
+                       tr("Error"));
+      });
+
+      return;
+    }
+
+    const auto commandResult = event.data<GitRepoResult>();
+    const auto filesDiff =
+        commandResult.value.value<GitRepoDiffFilesFromCommitCommandResult>();
+
+    if (filesDiff.diff.isEmpty()) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        showSpinnerOverlay(false);
+        showToast(tr("No difference in stash file."), tr("Info"));
+      });
+
+      return;
+    }
+
+    // Display diff in stash viewers
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      const QString normalized =
+          QString(filesDiff.diff).replace("\r\n", "\n").replace('\r', '\n');
+      const int lineCount = normalized.count('\n') + 1;
+      const int width = QString::number(lineCount).length();
+      const QString mask = QString::number(0).rightJustified(width + 1, '0');
+
+      ui->scintillaStashDiffUnified->setMarginWidth(0, mask);
+      ui->scintillaStashDiffUnified->setText(filesDiff.diff);
+
+      if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
+        const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
+        ui->sideBySideDiffViewerStash->loadAndHighlight(
+            filesDiff.repoContent.first(), filesDiff.deltas.first(),
+            fileInfo.suffix());
+      }
+
+      ui->stackedWidgetStashDiff->setCurrentIndex(
+          0); // Show unified view by default
+      showSpinnerOverlay(false);
+    });
+  });
+
+  LOG_DEBUG("Stash file diff dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onStashApplyClicked() {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Stash apply button clicked");
+
+  if (_currentStashIndex < 0) {
+    LOG_ERROR(Log::ErrorId::Gui, "No stash index available");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {
+    applyStash(guard, _currentStashIndex, [=](const WeakPtr &guard, const int) {
+      Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+        ui->stackedWidgetMiddle->setCurrentIndex(
+            static_cast<int>(MainViewPanes::History));
+        showSpinnerOverlay(false);
+      });
+    });
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onStashPopClicked() {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Stash pop button clicked");
+
+  if (_currentStashIndex < 0) {
+    LOG_ERROR(Log::ErrorId::Gui, "No stash index available");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {
+    popStash(guard, _currentStashIndex);
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      ui->stackedWidgetMiddle->setCurrentIndex(
+          static_cast<int>(MainViewPanes::History));
+      showSpinnerOverlay(false);
+    });
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onStashContentCloseClicked() {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Stash content close button clicked");
+
+  _currentStashIndex = -1;
+  _lastStashCommit.clear();
+
+  ui->stackedWidgetMiddle->setCurrentIndex(
+      static_cast<int>(MainViewPanes::History));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onStashDiffUnifiedClicked() {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Stash unified diff button clicked");
+
+  ui->pushButtonStashDiffUnified->setChecked(true);
+  ui->pushButtonStashDiffSideBySide->setChecked(false);
+  ui->stackedWidgetStashDiff->setCurrentIndex(0); // Unified view
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onStashDiffSideBySideClicked() {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Stash side-by-side diff button clicked");
+
+  ui->pushButtonStashDiffUnified->setChecked(false);
+  ui->pushButtonStashDiffSideBySide->setChecked(true);
+  ui->stackedWidgetStashDiff->setCurrentIndex(1); // Side-by-side view
+
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,

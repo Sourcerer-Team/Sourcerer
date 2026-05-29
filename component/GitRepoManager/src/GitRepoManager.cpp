@@ -88,6 +88,8 @@ GitRepoManager::GitRepoManager()
       EventManager::EventType::GitRepoManagerGetFileSizeFromCommit,
       callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetStashStatus, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetSubmodulePath, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetUpstream, callbackFunc));
@@ -221,6 +223,8 @@ GitRepoManager::~GitRepoManager() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetFileSizeFromCommit,
       callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetStashStatus, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetSubmodulePath, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -556,6 +560,14 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     getFileSizeFromCommitEvent.addParam(
         QVariant::fromValue(getFileSizeFromCommand));
     _fsm.send(getFileSizeFromCommitEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerGetStashStatus: {
+    const auto getSStashStatusCommand =
+        event.data<GitRepoGetStashStatusCommand>();
+    GitRepoManagerEvent getStashStatusEvent(EventType::GetStashStatus);
+    getStashStatusEvent.addParam(QVariant::fromValue(getSStashStatusCommand));
+    _fsm.send(getStashStatusEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerGetSubmodulePath: {

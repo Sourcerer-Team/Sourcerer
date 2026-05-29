@@ -143,6 +143,12 @@ private slots:
   void onSoftResetToCommit(const QString &commit);
   void onStash();
   void onStashSelected(int stashIndex);
+  void onStashFileSelected(const QModelIndex &index);
+  void onStashApplyClicked();
+  void onStashPopClicked();
+  void onStashContentCloseClicked();
+  void onStashDiffUnifiedClicked();
+  void onStashDiffSideBySideClicked();
   void onSubmitRenameBranch(const QString &oldName, const QString &newName);
   void onSubmitRenameTag(const QString &oldName, const QString &newName);
   void onSubmoduleRightClicked(const QString &submoduleName, const QPoint &pos);
@@ -263,6 +269,7 @@ private:
   bool openRepo(const WeakPtr &guard);
   void openSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void popStash(const WeakPtr &guard, int stashIndex);
+  void showStashContent(const WeakPtr &guard, int stashIndex);
   void pull(const WeakPtr &guard);
   void push(const WeakPtr &guard);
   void renameBranch(const WeakPtr &guard, const QString &oldName,
@@ -369,6 +376,8 @@ private:
   QCheckBox *_checkBoxAmend;
   QPushButton *_commitAndMergeWorkingDirTreeStageAllButton;
   QPushButton *_commitAndMergeIndexTreeUnstageAllButton;
+  QPushButton *_stashApplyButton;
+  QPushButton *_stashPopButton;
   QPushButton *_displayTreeExpandAllButton;
   bool _displayTreeExpanded;
   bool _mergeInProgress;
@@ -377,6 +386,11 @@ private:
   QSharedPointer<Models::GitCommitTreeModel> _commitTreeModel;
   QSharedPointer<Models::GitCommitListModel> _commitStagedListModel;
   QSharedPointer<Models::GitCommitTreeModel> _commitStagedTreeModel;
+  QSharedPointer<Models::GitCommitListModel> _stashFilesModel;
+  QSharedPointer<Models::GitCommitTreeModel> _stashFilesTreeModel;
+
+  int _currentStashIndex = -1;
+  QString _lastStashCommit;
 
 #ifdef Q_OS_WIN32
   Util::DirectoryWatcher *_repoDirWatcher;

@@ -134,6 +134,30 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#stashApplyButton{
+        background-color: #006400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#stashApplyButton:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#stashPopButton{
+        background-color: #006400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#stashPopButton:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
       QPushButton#displayTreeExpandAllButton{
         background-color: #006400;
         border: 1px solid gray;
@@ -438,6 +462,42 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#pushButtonStashDiffUnified{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonStashDiffUnified:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonStashDiffUnified:checked{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonStashDiffSideBySide{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonStashDiffSideBySide:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonStashDiffSideBySide:checked{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
       QPushButton#pushButtonTextOverlayWidgetInputSubmit{
         background-color: #006400;
         border: 1px solid gray;
@@ -735,6 +795,30 @@ QMap<StylesheetKey, QString> STYLESHEETS = {{StylesheetKey::Default,
       }
       QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
         background: none;
+      }
+      QTabWidget#tabWidgetStashFiles::pane {
+        border: none;
+        padding: 0px;
+        margin: 0px;
+      }
+      QTabWidget#tabWidgetStashFiles QTabBar::tab {
+        background: transparent;
+        border: 1px solid #6D6E6E;
+        border-radius: 8px;
+        padding: 6px 12px;
+        margin: 4px;
+        font-weight: normal;
+        color: white;
+      }
+      QTabWidget#tabWidgetStashFiles QTabBar::tab:selected {
+        background-color: #384D59;
+        border: 2px solid #6D6E6E;
+        font-weight: bold;
+        color: white;
+      }
+      QTabWidget#tabWidgetStashFiles QTabBar::tab:hover {
+        background-color: #384D59;
+        color: white;
       }
     )"}};
 

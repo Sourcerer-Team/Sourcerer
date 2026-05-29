@@ -45,6 +45,7 @@ enum class GitRepoCommandType : int {
   GetCommitIsHead,
   GetCommitStatus,
   GetIsMergeInProgress,
+  GetStashStatus,
   GetSubmodulePath,
   GetUpstream,
   Init,
@@ -260,6 +261,15 @@ struct GitRepoDeleteAllStashesCommand final : GitRepoCommand {
       : GitRepoCommand(GitRepoCommandType::DeleteAllStashes) {}
 
   ~GitRepoDeleteAllStashesCommand() override = default;
+};
+
+struct GitRepoGetStashStatusCommand final : GitRepoCommand {
+  GitRepoGetStashStatusCommand()
+      : GitRepoCommand(GitRepoCommandType::GetStashStatus) {}
+
+  ~GitRepoGetStashStatusCommand() override = default;
+
+  int index = -1;
 };
 
 struct GitRepoDeleteSubmoduleCommand final : GitRepoCommand {

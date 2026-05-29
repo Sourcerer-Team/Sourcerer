@@ -74,6 +74,8 @@ private:
   getCommitIsHeadWorker(const Structs::GitRepoGetCommitIsHeadCommand &command);
   void
   getCommitStatusWorker(const Structs::GitRepoGetCommitStatusCommand &command);
+  void
+  getStashStatusWorker(const Structs::GitRepoGetStashStatusCommand &command);
   void getIsMergeInProgressWorker(
       const Structs::GitRepoGetIsMergeInProgressCommand &command);
   void getBranchHistoryWorker(
@@ -152,6 +154,8 @@ private:
       const Structs::GitRepoGetCommitIsHeadCommand &command);
   void scheduleWorkerForGetCommitStatus(
       const Structs::GitRepoGetCommitStatusCommand &command);
+  void scheduleWorkerForGetStashStatus(
+      const Structs::GitRepoGetStashStatusCommand &command);
   void scheduleWorkerForGetIsMergeInProgress(
       const Structs::GitRepoGetIsMergeInProgressCommand &command);
   void scheduleWorkerForGetSubmodulePath(

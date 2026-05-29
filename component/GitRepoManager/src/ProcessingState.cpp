@@ -251,6 +251,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForGetCommitStatus(commitStatusCommand);
     break;
   }
+  case EventType::GetStashStatus: {
+    const auto stashStatusCommand =
+        event.nextParam<GitRepoGetStashStatusCommand>();
+    scheduleWorkerForGetStashStatus(stashStatusCommand);
+    break;
+  }
   case EventType::GetIsMergeInProgress: {
     const auto getIsMergeInProgressCommand =
         event.nextParam<GitRepoGetIsMergeInProgressCommand>();
@@ -1742,6 +1748,45 @@ void ProcessingState::getCommitStatusWorker(
         command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type,
                                       QVariant::fromValue(commitStatus)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::getStashStatusWorker(
+    const Structs::GitRepoGetStashStatusCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerGetStashStatusError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  if (const auto stashStatus = GitRepo::getStashStatus(repo, command.index);
+      stashStatus.commit.isEmpty()) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerGetStashStatusError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetStashStatusResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(stashStatus)});
     _eventManager.send(resultEvent);
   }
 
@@ -3576,6 +3621,25 @@ void ProcessingState::scheduleWorkerForGetCommitStatus(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForGetStashStatus(
+    const Structs::GitRepoGetStashStatusCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerGetStashStatusError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoGetStashStatusCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForGetIsMergeInProgress(
     const Structs::GitRepoGetIsMergeInProgressCommand &command) {
   LOG_PERF(0, "Enter");
@@ -4313,6 +4377,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoGetIsMergeInProgressCommand *>(command);
       if (getIsMergeInProgressCommand) {
         getIsMergeInProgressWorker(*getIsMergeInProgressCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::GetStashStatus: {
+      const auto *getStashStatusCommand =
+          dynamic_cast<const GitRepoGetStashStatusCommand *>(command);
+      if (getStashStatusCommand) {
+        getStashStatusWorker(*getStashStatusCommand);
       }
       break;
     }

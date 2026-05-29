@@ -1333,6 +1333,177 @@ QStringList listStashes(git_repository *repo, const bool &quitFlag) {
   return stashes;
 }
 
+GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
+  LOG_PERF(0, "Enter");
+
+  GitCommitStatus status;
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  // Get stash commit object
+  git_object *stash_obj = nullptr;
+  git_commit *stash_commit = nullptr;
+  git_tree *stash_tree = nullptr;
+  git_tree *parent_tree = nullptr;
+  git_commit *parent_commit = nullptr;
+  git_diff *diff = nullptr;
+
+  // Use git_revparse_single to get the stash commit
+  QString stashRef = QString("stash@{%1}").arg(stashIndex);
+  int error =
+      git_revparse_single(&stash_obj, repo, stashRef.toUtf8().constData());
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to get stash ref at index {}: error={}", stashIndex,
+              error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  // Convert to commit
+  git_object *peeled_obj = nullptr;
+  error = git_object_peel(&peeled_obj, stash_obj, GIT_OBJ_COMMIT);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to peel stash object to commit at index {}: error={}",
+              stashIndex, error);
+    logGitError(error);
+    git_object_free(stash_obj);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  stash_commit = (git_commit *)peeled_obj;
+  git_object_free(stash_obj);
+
+  // Get stash tree
+  error = git_commit_tree(&stash_tree, stash_commit);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get stash tree: error={}", error);
+    logGitError(error);
+    git_commit_free(stash_commit);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  // Get parent commit (the commit the stash was based on)
+  error = git_commit_parent(&parent_commit, stash_commit, 0);
+  if (error && error != GIT_ENOTFOUND) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get stash parent: error={}", error);
+    logGitError(error);
+    git_tree_free(stash_tree);
+    git_commit_free(stash_commit);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  if (error == GIT_ENOTFOUND) {
+    parent_tree = nullptr; // Initial stash
+  } else {
+    error = git_commit_tree(&parent_tree, parent_commit);
+    if (error) {
+      LOG_ERROR(Log::ErrorId::Git, "Failed to get parent tree: error={}",
+                error);
+      logGitError(error);
+      git_tree_free(stash_tree);
+      git_commit_free(stash_commit);
+      git_commit_free(parent_commit);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+  }
+
+  // Generate diff
+  git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
+  opts.flags |= GIT_DIFF_INCLUDE_TYPECHANGE;
+
+  error = git_diff_tree_to_tree(&diff, repo, parent_tree, stash_tree, &opts);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to create diff for stash: error={}",
+              error);
+    logGitError(error);
+
+    git_tree_free(stash_tree);
+    if (parent_tree) {
+      git_tree_free(parent_tree);
+    }
+    if (parent_commit) {
+      git_commit_free(parent_commit);
+    }
+    git_commit_free(stash_commit);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  // Get stash commit OID
+  const git_oid *oid = git_commit_id(stash_commit);
+  char oid_str[GIT_OID_HEXSZ + 1] = {0};
+  git_oid_tostr(oid_str, GIT_OID_HEXSZ + 1, oid);
+  status.commit = QString::fromUtf8(oid_str);
+
+  // Walk the diff
+  git_diff_foreach(
+      diff,
+      [](const git_diff_delta *delta, float, void *payload) {
+        auto *status = static_cast<GitCommitStatus *>(payload);
+
+        switch (delta->status) {
+        case GIT_DELTA_ADDED:
+          status->newFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_MODIFIED:
+          status->modifiedFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_DELETED:
+          status->deletedFiles += delta->old_file.path;
+          break;
+        case GIT_DELTA_RENAMED:
+          status->renamedFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_TYPECHANGE:
+          status->typeChangedFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_UNMODIFIED:
+        case GIT_DELTA_IGNORED:
+        case GIT_DELTA_UNTRACKED:
+        case GIT_DELTA_CONFLICTED:
+          break;
+        }
+
+        return 0;
+      },
+      nullptr, // binary_cb
+      nullptr, // hunk_cb
+      nullptr, // line_cb
+      &status);
+
+  // Cleanup
+  git_diff_free(diff);
+  git_tree_free(stash_tree);
+
+  if (parent_tree) {
+    git_tree_free(parent_tree);
+  }
+
+  if (parent_commit) {
+    git_commit_free(parent_commit);
+  }
+
+  git_commit_free(stash_commit);
+
+  LOG_DEBUG(
+      "Stash status retrieved for index {}: {} new, {} modified, {} deleted",
+      stashIndex, status.newFiles.size(), status.modifiedFiles.size(),
+      status.deletedFiles.size());
+  LOG_PERF(0, "Exit");
+  return status;
+}
+
 QStringList listTags(git_repository *repo) {
   LOG_PERF(0, "Enter");
 

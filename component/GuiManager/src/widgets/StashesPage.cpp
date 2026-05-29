@@ -136,11 +136,14 @@ void StashesPage::onListViewDoubleClicked(const QModelIndex &index) {
 void StashesPage::onStashRightClicked(int stashIndex, const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
+  QAction actionOpen(tr("Open"), this);
   QAction actionApply(tr("Apply"), this);
   QAction actionPop(tr("Pop"), this);
   QAction actionDelete(tr("Delete"), this);
   QAction actionClearAll(tr("Clear all"), this);
 
+  connect(&actionOpen, &QAction::triggered, this,
+          [=]() { emit stashSelected(stashIndex); });
   connect(&actionApply, &QAction::triggered, this,
           [=]() { emit applyStash(stashIndex); });
   connect(&actionPop, &QAction::triggered, this,
@@ -151,6 +154,8 @@ void StashesPage::onStashRightClicked(int stashIndex, const QPoint &pos) {
           [=]() { emit clearAllStashes(); });
 
   QMenu menu(this);
+  menu.addAction(&actionOpen);
+  menu.addSeparator();
   menu.addAction(&actionApply);
   menu.addAction(&actionPop);
   menu.addSeparator();

@@ -298,6 +298,8 @@ QVector<BranchInfo> listRemoteBranchesWithStatus(git_repository *repo,
 
 QStringList listStashes(git_repository *repo, const bool &quitFlag);
 
+GitCommitStatus getStashStatus(git_repository *repo, int stashIndex);
+
 QStringList listSubmodules(git_repository *repo);
 QVector<SubmoduleInfo> listSubmodulesWithStatus(git_repository *repo,
                                                 const bool &quitFlag);
