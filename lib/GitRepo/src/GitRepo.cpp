@@ -3747,6 +3747,14 @@ bool commitStaged(git_repository *repo, const QString &summary,
   git_tree *tree = nullptr;
   git_signature *sig = nullptr;
   git_commit *parent = nullptr;
+  git_commit *parent2 = nullptr;
+  bool isMerge = false;
+
+  // Check if merge is in progress
+  if (git_repository_state(repo) == GIT_REPOSITORY_STATE_MERGE) {
+    isMerge = true;
+    LOG_DEBUG("Merge in progress, will create merge commit with 2 parents");
+  }
 
   // Load index
   int error = git_repository_index(&index, repo);
@@ -3817,19 +3825,62 @@ bool commitStaged(git_repository *repo, const QString &summary,
     }
 
     git_reference_free(headRef);
+
+    // If merge in progress, get the MERGE_HEAD as the second parent
+    if (isMerge) {
+      git_reference *mergeHeadRef = nullptr;
+      error = git_reference_dwim(&mergeHeadRef, repo, "MERGE_HEAD");
+      if (error) {
+        LOG_ERROR(Log::ErrorId::Git, "Failed to read MERGE_HEAD during merge: error={}",
+                  error);
+        logGitError(error);
+        git_commit_free(parent);
+        git_signature_free(sig);
+        git_tree_free(tree);
+        git_index_free(index);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      error = git_commit_lookup(&parent2, repo, git_reference_target(mergeHeadRef));
+      if (error) {
+        LOG_ERROR(Log::ErrorId::Git, "Failed to lookup MERGE_HEAD commit: error={}",
+                  error);
+        logGitError(error);
+        git_reference_free(mergeHeadRef);
+        git_commit_free(parent);
+        git_signature_free(sig);
+        git_tree_free(tree);
+        git_index_free(index);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      git_reference_free(mergeHeadRef);
+      LOG_DEBUG("Successfully loaded MERGE_HEAD as second parent");
+    }
   }
 
   const QString fullMessage = summary + "\n\n" + message;
 
-  // Create commit
+  // Create commit with appropriate number of parents
+  size_t parentCount = parent ? 1 : 0;
+  if (isMerge && parent2) {
+    parentCount = 2;
+    LOG_DEBUG("Creating merge commit with 2 parents");
+  }
+
   error = git_commit_create_v(&commitId, repo, "HEAD", sig, sig, nullptr,
                               fullMessage.toStdString().c_str(), tree,
-                              parent ? 1 : 0, parent);
+                              parentCount, parent, parent2);
   if (error) {
     logGitError(error);
 
     if (parent) {
       git_commit_free(parent);
+    }
+    if (parent2) {
+      git_commit_free(parent2);
     }
 
     git_signature_free(sig);
@@ -3842,6 +3893,9 @@ bool commitStaged(git_repository *repo, const QString &summary,
 
   if (parent) {
     git_commit_free(parent);
+  }
+  if (parent2) {
+    git_commit_free(parent2);
   }
 
   git_signature_free(sig);

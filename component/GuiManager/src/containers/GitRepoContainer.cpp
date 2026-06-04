@@ -1161,8 +1161,8 @@ void GitRepoContainer::onCommitButtonClicked() {
   const QString description = ui->textEditDescription->toPlainText().trimmed();
   const bool toAmend = _checkBoxAmend->isChecked();
 
-  LOG_DEBUG("Commit details - Author: '{}', Amend: {}, Summary length: {}",
-            currentProfile.author.toStdString(), toAmend, summary.length());
+  LOG_DEBUG("Commit details - Author: '{}', Amend: {}, Summary length: {}, Merge in progress: {}",
+            currentProfile.author.toStdString(), toAmend, summary.length(), _mergeInProgress);
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -1176,8 +1176,10 @@ void GitRepoContainer::onCommitButtonClicked() {
             currentProfile.email);
     } else {
       LOG_DEBUG("Performing new commit operation");
+      // If merge is in progress, cleanup must be true to conclude the merge
+      const bool cleanup = _mergeInProgress;
       commit(guard, summary, description, currentProfile.author,
-             currentProfile.email, false);
+             currentProfile.email, cleanup);
     }
   });
 
