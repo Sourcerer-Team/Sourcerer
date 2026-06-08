@@ -6341,7 +6341,19 @@ bool updateSubmodule(git_repository *repo, const QString &submoduleName) {
     return false;
   }
 
-  error = git_submodule_update(submodule, 1, nullptr);
+  // Configure fetch and checkout options with certificate checking
+  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+  git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
+  fetchOpts.callbacks.credentials = &credentialsAcquireCallback;
+  fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
+
+  git_submodule_update_options updateOpts = GIT_SUBMODULE_UPDATE_OPTIONS_INIT;
+  updateOpts.fetch_opts = fetchOpts;
+  updateOpts.checkout_opts = checkoutOpts;
+
+  error = git_submodule_update(submodule, 1, &updateOpts);
   if (error) {
     logGitError(error);
     git_submodule_free(submodule);
