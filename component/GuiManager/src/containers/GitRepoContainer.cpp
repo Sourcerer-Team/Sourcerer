@@ -457,9 +457,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   stashButtonLayout->setSpacing(5);
   stashButtonLayout->addWidget(_stashApplyButton);
   stashButtonLayout->addWidget(_stashPopButton);
-  
+
   // Remove close button from toolbar layout and add it to button container
-  ui->horizontalLayoutStashContentButtons->removeWidget(ui->pushButtonStashClose);
+  ui->horizontalLayoutStashContentButtons->removeWidget(
+      ui->pushButtonStashClose);
   stashButtonLayout->addSpacing(2);
   stashButtonLayout->addWidget(ui->pushButtonStashClose);
 

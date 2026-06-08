@@ -1350,6 +1350,10 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
   git_tree *stash_tree = nullptr;
   git_tree *parent_tree = nullptr;
   git_commit *parent_commit = nullptr;
+  git_tree *parent1_tree = nullptr;
+  git_tree *parent2_tree = nullptr;
+  git_commit *parent1_commit = nullptr;
+  git_commit *parent2_commit = nullptr;
   git_diff *diff = nullptr;
 
   // Use git_revparse_single to get the stash commit
@@ -1391,12 +1395,61 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
     return {};
   }
 
+  // Check if stash tree is empty (common for stash commits which are merge
+  // commits) If empty, try to use parent 1 (index state) or parent 2 (untracked
+  // files)
+  git_tree *actual_working_tree = stash_tree;
+
+  if (git_tree_entrycount(stash_tree) == 0) {
+    LOG_DEBUG("Stash tree is empty, trying parent 1 (index state)");
+
+    // Try to get parent 1 commit (the index state in the stash)
+    error = git_commit_parent(&parent1_commit, stash_commit, 1);
+    if (error == 0) {
+      error = git_commit_tree(&parent1_tree, parent1_commit);
+      if (error == 0 && git_tree_entrycount(parent1_tree) > 0) {
+        LOG_DEBUG("Using parent 1 tree (index state) with {} entries",
+                  git_tree_entrycount(parent1_tree));
+        actual_working_tree = parent1_tree;
+      } else if (error == 0) {
+        LOG_DEBUG("Parent 1 tree is also empty, trying parent 2");
+        git_tree_free(parent1_tree);
+        parent1_tree = nullptr;
+        git_commit_free(parent1_commit);
+        parent1_commit = nullptr;
+
+        // Try parent 2 (untracked files)
+        error = git_commit_parent(&parent2_commit, stash_commit, 2);
+        if (error == 0) {
+          error = git_commit_tree(&parent2_tree, parent2_commit);
+          if (error == 0 && git_tree_entrycount(parent2_tree) > 0) {
+            LOG_DEBUG("Using parent 2 tree (untracked files) with {} entries",
+                      git_tree_entrycount(parent2_tree));
+            actual_working_tree = parent2_tree;
+          }
+        }
+      }
+    }
+  }
+
   // Get parent commit (the commit the stash was based on)
   error = git_commit_parent(&parent_commit, stash_commit, 0);
   if (error && error != GIT_ENOTFOUND) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to get stash parent: error={}", error);
     logGitError(error);
     git_tree_free(stash_tree);
+    if (parent1_tree) {
+      git_tree_free(parent1_tree);
+    }
+    if (parent2_tree) {
+      git_tree_free(parent2_tree);
+    }
+    if (parent1_commit) {
+      git_commit_free(parent1_commit);
+    }
+    if (parent2_commit) {
+      git_commit_free(parent2_commit);
+    }
     git_commit_free(stash_commit);
     LOG_PERF(0, "Exit");
     return {};
@@ -1411,8 +1464,20 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
                 error);
       logGitError(error);
       git_tree_free(stash_tree);
+      if (parent1_tree) {
+        git_tree_free(parent1_tree);
+      }
+      if (parent2_tree) {
+        git_tree_free(parent2_tree);
+      }
       git_commit_free(stash_commit);
       git_commit_free(parent_commit);
+      if (parent1_commit) {
+        git_commit_free(parent1_commit);
+      }
+      if (parent2_commit) {
+        git_commit_free(parent2_commit);
+      }
       LOG_PERF(0, "Exit");
       return {};
     }
@@ -1422,20 +1487,33 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
   git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
   opts.flags |= GIT_DIFF_INCLUDE_TYPECHANGE;
 
-  error = git_diff_tree_to_tree(&diff, repo, parent_tree, stash_tree, &opts);
+  error = git_diff_tree_to_tree(&diff, repo, parent_tree, actual_working_tree,
+                                &opts);
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to create diff for stash: error={}",
               error);
     logGitError(error);
 
     git_tree_free(stash_tree);
+    if (parent1_tree) {
+      git_tree_free(parent1_tree);
+    }
+    if (parent2_tree) {
+      git_tree_free(parent2_tree);
+    }
     if (parent_tree) {
       git_tree_free(parent_tree);
+    }
+    git_commit_free(stash_commit);
+    if (parent1_commit) {
+      git_commit_free(parent1_commit);
+    }
+    if (parent2_commit) {
+      git_commit_free(parent2_commit);
     }
     if (parent_commit) {
       git_commit_free(parent_commit);
     }
-    git_commit_free(stash_commit);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -1486,10 +1564,22 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
   git_diff_free(diff);
   git_tree_free(stash_tree);
 
+  if (parent1_tree) {
+    git_tree_free(parent1_tree);
+  }
+  if (parent2_tree) {
+    git_tree_free(parent2_tree);
+  }
   if (parent_tree) {
     git_tree_free(parent_tree);
   }
 
+  if (parent1_commit) {
+    git_commit_free(parent1_commit);
+  }
+  if (parent2_commit) {
+    git_commit_free(parent2_commit);
+  }
   if (parent_commit) {
     git_commit_free(parent_commit);
   }
