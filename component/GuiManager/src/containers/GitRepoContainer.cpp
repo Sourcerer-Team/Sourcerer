@@ -1304,6 +1304,11 @@ void GitRepoContainer::onCreateBranchFromCommit(const QString &commit) {
             overlayWidget->hide();
             delete overlayWidget;
 
+            if (!showWarningForBranchCheckout()) {
+              LOG_DEBUG("Create branch cancelled by user");
+              return;
+            }
+
             startOverlayTimer();
 
             _dispatcher.dispatch([=]() {
@@ -2204,6 +2209,11 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
   LOG_DEBUG("Branch selected: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
 
+  if (!showWarningForBranchCheckout()) {
+    LOG_DEBUG("Create branch cancelled by user");
+    return;
+  }
+
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
 
@@ -2230,6 +2240,12 @@ void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
 
   connect(&actionCheckoutBranch, &QAction::triggered, this, [=]() {
     LOG_DEBUG("Checkout branch action triggered");
+
+    if (!showWarningForBranchCheckout()) {
+      LOG_DEBUG("Create branch cancelled by user");
+      return;
+    }
+
     startOverlayTimer();
 
     const WeakPtr guard = getSelf().toWeakRef();
@@ -2500,6 +2516,12 @@ void GitRepoContainer::onTagRightClicked(const QString &tagName,
 
   connect(&actionCheckoutTag, &QAction::triggered, this, [=]() {
     LOG_DEBUG("Checkout tag action triggered");
+
+    if (!showWarningForBranchCheckout()) {
+      LOG_DEBUG("Create branch cancelled by user");
+      return;
+    }
+
     startOverlayTimer();
 
     const WeakPtr guard = getSelf().toWeakRef();
@@ -2558,6 +2580,11 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
   LOG_DEBUG("Remote branch selected: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
 
+  if (!showWarningForBranchCheckout()) {
+    LOG_DEBUG("Create branch cancelled by user");
+    return;
+  }
+
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
 
@@ -2582,6 +2609,12 @@ void GitRepoContainer::onRemoteBranchRightClicked(const QString &branchName,
 
   connect(&actionCheckoutBranch, &QAction::triggered, this, [=]() {
     LOG_DEBUG("Checkout remote branch action triggered");
+
+    if (!showWarningForBranchCheckout()) {
+      LOG_DEBUG("Create branch cancelled by user");
+      return;
+    }
+
     startOverlayTimer();
 
     const WeakPtr guard = getSelf().toWeakRef();
@@ -2824,6 +2857,11 @@ void GitRepoContainer::onTagSelected(const QString &tagName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Tag selected: '{}' in repository '{}'", tagName.toStdString(),
             _path.toStdString());
+
+  if (!showWarningForBranchCheckout()) {
+    LOG_DEBUG("Create branch cancelled by user");
+    return;
+  }
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -8853,6 +8891,31 @@ void GitRepoContainer::showErrorToast(const QString &message,
   });
 
   LOG_PERF(0, "Exit")
+}
+
+bool GitRepoContainer::showWarningForBranchCheckout() const {
+  LOG_PERF(0, "Enter");
+  if (!_historyModel->hasStatus()) {
+    LOG_PERF(0, "Exit")
+    return true;
+  }
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      ui->historyView, tr("Uncommitted Changes"),
+      tr("You have uncommitted changes on the current branch.\n\n"
+         "Do you really want to switch to the new branch?\n\n"
+         "To keep your changes, stash them before switching."),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_DEBUG("Branch checkout cancelled by user due to uncommitted changes");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit")
+
+  return true;
 }
 
 void GitRepoContainer::simulateClickOnHistoryRow(int row) const {

@@ -315,6 +315,7 @@ private:
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message, const QString &title);
   void showErrorToast(const QString &message, const QString &title);
+  bool showWarningForBranchCheckout() const;
   void simulateClickOnHistoryRow(int row) const;
   void simulateClickOnFirstHistoryRow() const;
   void stageAll(const WeakPtr &guard);
