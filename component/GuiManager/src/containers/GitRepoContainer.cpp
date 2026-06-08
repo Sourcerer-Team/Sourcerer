@@ -5831,6 +5831,13 @@ void GitRepoContainer::showStashContent(const WeakPtr &guard, int stashIndex) {
               [=](const QModelIndex &index) { onStashFileSelected(index); });
     }
 
+    // Preselect the first file and show its diff
+    if (_stashFilesModel && _stashFilesModel->rowCount() > 0) {
+      const QModelIndex firstIndex = _stashFilesModel->index(0, 0);
+      ui->listViewStashFilesFlat->setCurrentIndex(firstIndex);
+      onStashFileSelected(firstIndex);
+    }
+
     // Switch to stash content page
     ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::StashContent));
