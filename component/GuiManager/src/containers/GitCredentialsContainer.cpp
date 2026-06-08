@@ -135,7 +135,8 @@ void GitCredentialsContainer::onDeleteClicked() {
     QString normalizedRepoPath = QDir::fromNativeSeparators(repoPath);
     _credentialStorage.removeCredentials(normalizedRepoPath);
 
-    // Clear cached credentials to ensure next operation prompts for new credentials
+    // Clear cached credentials to ensure next operation prompts for new
+    // credentials
     GitRepo::clearCachedCredentials(normalizedRepoPath);
 
     // Reload the table

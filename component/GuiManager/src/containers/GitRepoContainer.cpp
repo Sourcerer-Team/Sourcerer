@@ -566,8 +566,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected);
   connect(ui->actionWorkingTreeFlatDiscard, &QAction::triggered, this,
           &GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected);
-  connect(ui->actionWorkingTreeFlatShowInFileManager, &QAction::triggered, this,
-          &GitRepoContainer::onWorkingTreeFlatListViewShowInFileManagerSelected);
+  connect(
+      ui->actionWorkingTreeFlatShowInFileManager, &QAction::triggered, this,
+      &GitRepoContainer::onWorkingTreeFlatListViewShowInFileManagerSelected);
 
   connect(ui->treeViewTabWidgetWorkingTreeTree,
           &QTreeView::customContextMenuRequested, this,
@@ -583,8 +584,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected);
   connect(ui->actionWorkingTreeTreeDiscard, &QAction::triggered, this,
           &GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected);
-  connect(ui->actionWorkingTreeTreeShowInFileManager, &QAction::triggered, this,
-          &GitRepoContainer::onWorkingTreeTreeTreeViewShowInFileManagerSelected);
+  connect(
+      ui->actionWorkingTreeTreeShowInFileManager, &QAction::triggered, this,
+      &GitRepoContainer::onWorkingTreeTreeTreeViewShowInFileManagerSelected);
 
   connect(ui->listViewTabWidgetIndexFlat,
           &QListView::customContextMenuRequested, this,
@@ -1170,8 +1172,10 @@ void GitRepoContainer::onCommitButtonClicked() {
   const QString description = ui->textEditDescription->toPlainText().trimmed();
   const bool toAmend = _checkBoxAmend->isChecked();
 
-  LOG_DEBUG("Commit details - Author: '{}', Amend: {}, Summary length: {}, Merge in progress: {}",
-            currentProfile.author.toStdString(), toAmend, summary.length(), _mergeInProgress);
+  LOG_DEBUG("Commit details - Author: '{}', Amend: {}, Summary length: {}, "
+            "Merge in progress: {}",
+            currentProfile.author.toStdString(), toAmend, summary.length(),
+            _mergeInProgress);
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -3898,7 +3902,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewShowInFileManagerSelected(
     }
 
     // Check if selected item is a folder (has children)
-    const int rowCount = ui->treeViewTabWidgetWorkingTreeTree->model()->rowCount(index);
+    const int rowCount =
+        ui->treeViewTabWidgetWorkingTreeTree->model()->rowCount(index);
     if (rowCount > 0) {
       // It's a folder - construct its path without traversing children
       QModelIndex current = index;
@@ -3911,8 +3916,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewShowInFileManagerSelected(
       items += QDir::fromNativeSeparators(fullPath);
     } else {
       // It's a file - use the normal getSelectedFiles logic
-      const QStringList traversedFiles =
-          traverseModelIndexSubtree(index, ui->treeViewTabWidgetWorkingTreeTree->model());
+      const QStringList traversedFiles = traverseModelIndexSubtree(
+          index, ui->treeViewTabWidgetWorkingTreeTree->model());
 
       for (const auto &traversedFile : traversedFiles) {
         items += QDir::fromNativeSeparators(traversedFile);
@@ -3970,7 +3975,8 @@ void GitRepoContainer::onIndexTreeTreeViewShowInFileManagerSelected(
     }
 
     // Check if selected item is a folder (has children)
-    const int rowCount = ui->treeViewTabWidgetIndexTree->model()->rowCount(index);
+    const int rowCount =
+        ui->treeViewTabWidgetIndexTree->model()->rowCount(index);
     if (rowCount > 0) {
       // It's a folder - construct its path without traversing children
       QModelIndex current = index;
@@ -3983,8 +3989,8 @@ void GitRepoContainer::onIndexTreeTreeViewShowInFileManagerSelected(
       items += QDir::fromNativeSeparators(fullPath);
     } else {
       // It's a file - use the normal getSelectedFiles logic
-      const QStringList traversedFiles =
-          traverseModelIndexSubtree(index, ui->treeViewTabWidgetIndexTree->model());
+      const QStringList traversedFiles = traverseModelIndexSubtree(
+          index, ui->treeViewTabWidgetIndexTree->model());
 
       for (const auto &traversedFile : traversedFiles) {
         items += QDir::fromNativeSeparators(traversedFile);

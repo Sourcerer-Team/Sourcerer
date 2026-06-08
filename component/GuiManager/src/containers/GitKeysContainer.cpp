@@ -205,25 +205,26 @@ void GitKeysContainer::onGenerateClicked() {
   QDialog dialog(this);
   dialog.setWindowTitle("SSH Key Generated Successfully");
   dialog.setMinimumWidth(600);
-  
+
   QVBoxLayout *dialogLayout = new QVBoxLayout(&dialog);
-  
-  QLabel *titleLabel = new QLabel("Your SSH key pair has been generated and associated with the host.");
+
+  QLabel *titleLabel = new QLabel(
+      "Your SSH key pair has been generated and associated with the host.");
   QFont titleFont = titleLabel->font();
   titleFont.setPointSize(titleFont.pointSize() + 1);
   titleLabel->setFont(titleFont);
   dialogLayout->addWidget(titleLabel);
-  
+
   QLabel *publicKeyLabel = new QLabel("Public Key:");
   publicKeyLabel->setStyleSheet("font-weight: bold; margin-top: 10px;");
   dialogLayout->addWidget(publicKeyLabel);
-  
+
   QTextEdit *publicKeyDisplay = new QTextEdit();
   publicKeyDisplay->setPlainText(publicKeyContent);
   publicKeyDisplay->setReadOnly(true);
   publicKeyDisplay->setMaximumHeight(150);
   dialogLayout->addWidget(publicKeyDisplay);
-  
+
   QHBoxLayout *buttonLayout = new QHBoxLayout();
   QPushButton *copyButton = new QPushButton("Copy to Clipboard");
   connect(copyButton, &QPushButton::clicked, [publicKeyContent]() {
@@ -232,22 +233,23 @@ void GitKeysContainer::onGenerateClicked() {
   buttonLayout->addWidget(copyButton);
   buttonLayout->addStretch();
   dialogLayout->addLayout(buttonLayout);
-  
+
   QLabel *detailsLabel = new QLabel();
-  detailsLabel->setText(QString("Private key: %1\nPublic key: %2").arg(privateKeyPath, publicKeyPath));
+  detailsLabel->setText(QString("Private key: %1\nPublic key: %2")
+                            .arg(privateKeyPath, publicKeyPath));
   detailsLabel->setStyleSheet("margin-top: 10px; color: gray;");
   detailsLabel->setWordWrap(true);
   dialogLayout->addWidget(detailsLabel);
-  
+
   dialogLayout->addStretch();
-  
+
   QHBoxLayout *closeLayout = new QHBoxLayout();
   QPushButton *okButton = new QPushButton("OK");
   connect(okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
   closeLayout->addStretch();
   closeLayout->addWidget(okButton);
   dialogLayout->addLayout(closeLayout);
-  
+
   dialog.exec();
 
   // Reload the table

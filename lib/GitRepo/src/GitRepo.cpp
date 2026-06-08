@@ -1829,7 +1829,8 @@ static int fetchProgressCallback(const git_indexer_progress *stats,
       EventManager::Event progressEvent(
           EventManager::EventType::GitRepoManagerCloneRepoProgress);
       progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
-          clonePayload.uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
+          clonePayload.uuid,
+          GitRepoManager::Structs::GitRepoCommandType::Unknown,
           QVariant::fromValue(clonePayload)});
       EventManager::EventManager::getInstance().send(progressEvent);
     }
@@ -2644,7 +2645,8 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   credPayload.uuid = uuid;
   credPayload.cloning = true;
 
-  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                  credPayload);
 
   checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
   checkout_opts.progress_payload = &progressData;
@@ -3837,8 +3839,8 @@ bool commitStaged(git_repository *repo, const QString &summary,
       git_reference *mergeHeadRef = nullptr;
       error = git_reference_dwim(&mergeHeadRef, repo, "MERGE_HEAD");
       if (error) {
-        LOG_ERROR(Log::ErrorId::Git, "Failed to read MERGE_HEAD during merge: error={}",
-                  error);
+        LOG_ERROR(Log::ErrorId::Git,
+                  "Failed to read MERGE_HEAD during merge: error={}", error);
         logGitError(error);
         git_commit_free(parent);
         git_signature_free(sig);
@@ -3848,10 +3850,11 @@ bool commitStaged(git_repository *repo, const QString &summary,
         return false;
       }
 
-      error = git_commit_lookup(&parent2, repo, git_reference_target(mergeHeadRef));
+      error =
+          git_commit_lookup(&parent2, repo, git_reference_target(mergeHeadRef));
       if (error) {
-        LOG_ERROR(Log::ErrorId::Git, "Failed to lookup MERGE_HEAD commit: error={}",
-                  error);
+        LOG_ERROR(Log::ErrorId::Git,
+                  "Failed to lookup MERGE_HEAD commit: error={}", error);
         logGitError(error);
         git_reference_free(mergeHeadRef);
         git_commit_free(parent);
@@ -4509,7 +4512,8 @@ bool pull(git_repository *repo) {
   credPayload.uuid = fetchUuid;
   credPayload.cloning = false;
 
-  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                  credPayload);
 
   git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
   fetchOpts.callbacks.credentials =
@@ -4809,7 +4813,8 @@ bool push(git_repository *repo) {
   credPayload.repoPath = repoPath;
   credPayload.cloning = false;
 
-  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                  credPayload);
 
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
@@ -4943,7 +4948,8 @@ bool pushTag(git_repository *repo, const QString &tagName) {
   credPayload.repoPath = repoPath;
   credPayload.cloning = false;
 
-  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                  credPayload);
 
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
@@ -5685,7 +5691,8 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
   credPayload.repoPath = repoPath;
   credPayload.cloning = false;
 
-  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                  credPayload);
 
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
@@ -6112,7 +6119,8 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
   credPayload.repoPath = repoPath;
   credPayload.cloning = false;
 
-  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                  credPayload);
 
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
@@ -6457,7 +6465,8 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   credPayload.repoPath = repoPath;
   credPayload.cloning = false;
 
-  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                  credPayload);
 
   git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
   checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
@@ -6484,10 +6493,12 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   }
 
   // Send completion event to hide progress toast
-  // This is needed even if no progress callbacks were fired (e.g., local path submodules)
+  // This is needed even if no progress callbacks were fired (e.g., local path
+  // submodules)
   finishFetchProgress(uuid, error != 0, false);
 
-  // Dismiss credentials overlay using the URL (same key used for storing the widget)
+  // Dismiss credentials overlay using the URL (same key used for storing the
+  // widget)
   finishCredentialsAcquiring(url);
 
   error = git_submodule_add_finalize(subModule);
