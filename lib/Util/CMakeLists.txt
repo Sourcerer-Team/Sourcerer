@@ -22,6 +22,7 @@ add_library(Util STATIC
    include/CloudCredentialStorage.h
    include/CloudRepo.h
    include/Dispatcher.h
+   include/FileManager.h
    include/FileLock.h
    include/General.h
    include/Graph.h
@@ -36,6 +37,7 @@ add_library(Util STATIC
    src/CloudCredentialStorage.cpp
    src/CloudRepo.cpp
    src/Dispatcher.cpp
+   src/FileManager.cpp
    src/FileLock.cpp
    src/General.cpp
    src/Git.cpp
@@ -63,6 +65,10 @@ target_link_libraries(Util PRIVATE
     OpenSSL::SSL
     OpenSSL::Crypto
 )
+
+if(WIN32)
+    target_link_libraries(Util PRIVATE shell32)
+endif()
 
 target_include_directories(Util PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/include

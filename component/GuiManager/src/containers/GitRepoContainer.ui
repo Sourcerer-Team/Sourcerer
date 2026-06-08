@@ -1861,6 +1861,38 @@
     <enum>QAction::MenuRole::NoRole</enum>
    </property>
   </action>
+  <action name="actionWorkingTreeFlatShowInFileManager">
+   <property name="text">
+    <string>Show in File Manager</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionWorkingTreeTreeShowInFileManager">
+   <property name="text">
+    <string>Show in File Manager</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionIndexFlatShowInFileManager">
+   <property name="text">
+    <string>Show in File Manager</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
+  <action name="actionIndexTreeShowInFileManager">
+   <property name="text">
+    <string>Show in File Manager</string>
+   </property>
+   <property name="menuRole">
+    <enum>QAction::MenuRole::NoRole</enum>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>

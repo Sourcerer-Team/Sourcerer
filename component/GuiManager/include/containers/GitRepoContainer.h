@@ -187,6 +187,10 @@ private slots:
   void onIndexTreeTreeViewCreateFilePatchSelected(bool checked = false);
   void onIndexTreeTreeViewDeleteSelected(bool checked = false);
   void onIndexTreeTreeViewDiscardSelected(bool checked = false);
+  void onWorkingTreeFlatListViewShowInFileManagerSelected(bool checked = false);
+  void onWorkingTreeTreeTreeViewShowInFileManagerSelected(bool checked = false);
+  void onIndexFlatListViewShowInFileManagerSelected(bool checked = false);
+  void onIndexTreeTreeViewShowInFileManagerSelected(bool checked = false);
   void updateModelActiveBranch(const WeakPtr &guard, const QString &branchName,
                                GitRepo::BranchType branchType);
 

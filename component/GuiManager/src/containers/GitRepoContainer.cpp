@@ -22,6 +22,7 @@
 #include "widgets/UpstreamInputOverlayWidget.h"
 
 #include <Dispatcher.h>
+#include <FileManager.h>
 #include <GitRepoManagerStructs.h>
 #include <Log.h>
 #include <Uuid.h>
@@ -565,6 +566,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected);
   connect(ui->actionWorkingTreeFlatDiscard, &QAction::triggered, this,
           &GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected);
+  connect(ui->actionWorkingTreeFlatShowInFileManager, &QAction::triggered, this,
+          &GitRepoContainer::onWorkingTreeFlatListViewShowInFileManagerSelected);
 
   connect(ui->treeViewTabWidgetWorkingTreeTree,
           &QTreeView::customContextMenuRequested, this,
@@ -580,6 +583,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected);
   connect(ui->actionWorkingTreeTreeDiscard, &QAction::triggered, this,
           &GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected);
+  connect(ui->actionWorkingTreeTreeShowInFileManager, &QAction::triggered, this,
+          &GitRepoContainer::onWorkingTreeTreeTreeViewShowInFileManagerSelected);
 
   connect(ui->listViewTabWidgetIndexFlat,
           &QListView::customContextMenuRequested, this,
@@ -595,6 +600,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onIndexFlatListViewDeleteSelected);
   connect(ui->actionIndexFlatDiscard, &QAction::triggered, this,
           &GitRepoContainer::onIndexFlatListViewDiscardSelected);
+  connect(ui->actionIndexFlatShowInFileManager, &QAction::triggered, this,
+          &GitRepoContainer::onIndexFlatListViewShowInFileManagerSelected);
 
   connect(ui->treeViewTabWidgetIndexTree,
           &QTreeView::customContextMenuRequested, this,
@@ -610,6 +617,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onIndexTreeTreeViewDeleteSelected);
   connect(ui->actionIndexTreeDiscard, &QAction::triggered, this,
           &GitRepoContainer::onIndexTreeTreeViewDiscardSelected);
+  connect(ui->actionIndexTreeShowInFileManager, &QAction::triggered, this,
+          &GitRepoContainer::onIndexTreeTreeViewShowInFileManagerSelected);
 
   connect(_repoDirWatcherTimer, &QTimer::timeout, this,
           &GitRepoContainer::onRepoDirChangedTimeout);
@@ -3140,6 +3149,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
       contextMenu.addSeparator();
     }
 
+    contextMenu.addAction(ui->actionWorkingTreeFlatShowInFileManager);
+    contextMenu.addSeparator();
     contextMenu.addAction(ui->actionWorkingTreeFlatDelete);
   }
 
@@ -3339,6 +3350,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
       contextMenu.addSeparator();
     }
 
+    contextMenu.addAction(ui->actionWorkingTreeTreeShowInFileManager);
+    contextMenu.addSeparator();
     contextMenu.addAction(ui->actionWorkingTreeTreeDelete);
   }
 
@@ -3522,6 +3535,8 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexFlatCreateFilePatch);
     contextMenu.addSeparator();
+    contextMenu.addAction(ui->actionIndexFlatShowInFileManager);
+    contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexFlatDelete);
   }
 
@@ -3700,6 +3715,8 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexTreeCreateFilePatch);
     contextMenu.addSeparator();
+    contextMenu.addAction(ui->actionIndexTreeShowInFileManager);
+    contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexTreeDelete);
   }
 
@@ -3843,6 +3860,150 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { discardFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onWorkingTreeFlatListViewShowInFileManagerSelected(
+    bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files =
+      getSelectedFilesWhichExist(ui->listViewTabWidgetWorkingTreeFlat);
+
+  if (!files.isEmpty()) {
+    FileManager::revealInFileManager(files);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onWorkingTreeTreeTreeViewShowInFileManagerSelected(
+    bool checked) {
+  LOG_PERF(0, "Enter");
+
+  QStringList items;
+
+  const QModelIndexList listIndexes =
+      ui->treeViewTabWidgetWorkingTreeTree->selectionModel()->selectedIndexes();
+
+  for (const auto &index : listIndexes) {
+    const GuiManager::Models::GitCommitListModificationType modificationType =
+        static_cast<GuiManager::Models::GitCommitListModificationType>(
+            index.data(Qt::UserRole).toInt());
+
+    if (modificationType ==
+        GuiManager::Models::GitCommitListModificationType::Conflicted) {
+      continue;
+    }
+
+    // Check if selected item is a folder (has children)
+    const int rowCount = ui->treeViewTabWidgetWorkingTreeTree->model()->rowCount(index);
+    if (rowCount > 0) {
+      // It's a folder - construct its path without traversing children
+      QModelIndex current = index;
+      QString fullPath = current.data().toString();
+      while (current.parent().isValid()) {
+        fullPath =
+            current.parent().data().toString() + QDir::separator() + fullPath;
+        current = current.parent();
+      }
+      items += QDir::fromNativeSeparators(fullPath);
+    } else {
+      // It's a file - use the normal getSelectedFiles logic
+      const QStringList traversedFiles =
+          traverseModelIndexSubtree(index, ui->treeViewTabWidgetWorkingTreeTree->model());
+
+      for (const auto &traversedFile : traversedFiles) {
+        items += QDir::fromNativeSeparators(traversedFile);
+      }
+    }
+  }
+
+  // Filter to only existing files/folders
+  QStringList itemsThatExist;
+  for (const auto &item : items) {
+    const QString fullPath = QDir(_path).filePath(item);
+    if (QFileInfo::exists(fullPath)) {
+      itemsThatExist += fullPath;
+    }
+  }
+
+  if (!itemsThatExist.isEmpty()) {
+    FileManager::revealInFileManager(itemsThatExist);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onIndexFlatListViewShowInFileManagerSelected(
+    bool checked) {
+  LOG_PERF(0, "Enter");
+
+  const QStringList files =
+      getSelectedFilesWhichExist(ui->listViewTabWidgetIndexFlat);
+
+  if (!files.isEmpty()) {
+    FileManager::revealInFileManager(files);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onIndexTreeTreeViewShowInFileManagerSelected(
+    bool checked) {
+  LOG_PERF(0, "Enter");
+
+  QStringList items;
+
+  const QModelIndexList listIndexes =
+      ui->treeViewTabWidgetIndexTree->selectionModel()->selectedIndexes();
+
+  for (const auto &index : listIndexes) {
+    const GuiManager::Models::GitCommitListModificationType modificationType =
+        static_cast<GuiManager::Models::GitCommitListModificationType>(
+            index.data(Qt::UserRole).toInt());
+
+    if (modificationType ==
+        GuiManager::Models::GitCommitListModificationType::Conflicted) {
+      continue;
+    }
+
+    // Check if selected item is a folder (has children)
+    const int rowCount = ui->treeViewTabWidgetIndexTree->model()->rowCount(index);
+    if (rowCount > 0) {
+      // It's a folder - construct its path without traversing children
+      QModelIndex current = index;
+      QString fullPath = current.data().toString();
+      while (current.parent().isValid()) {
+        fullPath =
+            current.parent().data().toString() + QDir::separator() + fullPath;
+        current = current.parent();
+      }
+      items += QDir::fromNativeSeparators(fullPath);
+    } else {
+      // It's a file - use the normal getSelectedFiles logic
+      const QStringList traversedFiles =
+          traverseModelIndexSubtree(index, ui->treeViewTabWidgetIndexTree->model());
+
+      for (const auto &traversedFile : traversedFiles) {
+        items += QDir::fromNativeSeparators(traversedFile);
+      }
+    }
+  }
+
+  // Filter to only existing files/folders
+  QStringList itemsThatExist;
+  for (const auto &item : items) {
+    const QString fullPath = QDir(_path).filePath(item);
+    if (QFileInfo::exists(fullPath)) {
+      itemsThatExist += fullPath;
+    }
+  }
+
+  if (!itemsThatExist.isEmpty()) {
+    FileManager::revealInFileManager(itemsThatExist);
+  }
 
   LOG_PERF(0, "Exit");
 }
