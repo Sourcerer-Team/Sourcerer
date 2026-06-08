@@ -26,6 +26,7 @@ public:
 signals:
   void tagSelected(const QString &branchName);
   void tagRightClicked(const QString &tagName, const QPoint &pos);
+  void emptyAreaRightClicked(const QPoint &pos);
 
 private slots:
   void onListViewContextMenuRequested(const QPoint &pos);

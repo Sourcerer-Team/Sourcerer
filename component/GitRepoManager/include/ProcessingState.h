@@ -104,6 +104,7 @@ private:
   void pullWorker(const Structs::GitRepoPullCommand &command);
   void pushWorker(const Structs::GitRepoPushCommand &command);
   void pushTagWorker(const Structs::GitRepoPushTagCommand &command);
+  void pushAllTagsWorker(const Structs::GitRepoPushAllTagsCommand &command);
   void renameBranchWorker(const Structs::GitRepoRenameBranchCommand &command);
   void renameTagWorker(const Structs::GitRepoRenameTagCommand &command);
   void resetWorker(const Structs::GitRepoResetCommand &command);
@@ -207,6 +208,8 @@ private:
   void scheduleWorkerForPull(const Structs::GitRepoPullCommand &command);
   void scheduleWorkerForPush(const Structs::GitRepoPushCommand &command);
   void scheduleWorkerForPushTag(const Structs::GitRepoPushTagCommand &command);
+  void scheduleWorkerForPushAllTags(
+      const Structs::GitRepoPushAllTagsCommand &command);
   void scheduleWorkerForRenameBranch(
       const Structs::GitRepoRenameBranchCommand &command);
   void

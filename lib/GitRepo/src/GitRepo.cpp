@@ -2666,9 +2666,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
 
   LOG_DEBUG("git_clone returned with error code: {}", error);
 
-  if (credPayload.stage != CloneProgressStageType::Unknown) {
-    finishFetchProgress(uuid, error != 0, true);
-  }
+  finishFetchProgress(uuid, error != 0, true);
 
   if (commercial) {
     finishCredentialsAcquiring(url);
@@ -4544,9 +4542,7 @@ bool pull(git_repository *repo) {
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  if (credPayload.stage != CloneProgressStageType::Unknown) {
-    finishFetchProgress(fetchUuid, error != 0, false);
-  }
+  finishFetchProgress(fetchUuid, error != 0, false);
 
   if (commercial) {
     finishCredentialsAcquiring(url);
@@ -5007,6 +5003,140 @@ bool pushTag(git_repository *repo, const QString &tagName) {
   git_remote_free(remote);
 
   LOG_DEBUG("Push tag operation completed with error code: {}", error);
+  LOG_PERF(0, "Exit");
+
+  return error == 0;
+}
+
+bool pushAllTags(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Starting push all tags operation");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Get repository path
+  QString repoPath = QString::fromUtf8(git_repository_path(repo));
+  if (repoPath.endsWith("/.git/")) {
+    repoPath = repoPath.left(repoPath.length() - 6);
+  } else if (repoPath.endsWith("/.git")) {
+    repoPath = repoPath.left(repoPath.length() - 5);
+  }
+  LOG_DEBUG("Repository path: '{}'", repoPath.toStdString());
+
+  // Get list of all tags
+  const QStringList allTags = listTags(repo);
+  if (allTags.isEmpty()) {
+    LOG_INFO("No tags to push");
+    LOG_PERF(0, "Exit");
+    return true;
+  }
+
+  LOG_DEBUG("Found {} tags to push", allTags.size());
+
+  git_remote *remote = nullptr;
+  int error = git_remote_lookup(&remote, repo, "origin");
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
+              error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  LOG_DEBUG("Origin remote found");
+
+  const QString url = git_remote_url(remote);
+  LOG_DEBUG("Remote URL: '{}'", url);
+
+  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
+  const bool commercial = isCommercialPlan();
+  LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
+            commercial);
+
+  if (!commercial && gitSchema) {
+    LOG_ERROR(
+        Log::ErrorId::Git,
+        "Pushing tags to git@ repositories is not available on the free plan.");
+    git_remote_free(remote);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  CloneProgress progressData;
+  progressData.uuid = Uuid::createUuid();
+  progressData.cloning = false;
+
+  GitCredentialPayload credPayload;
+  credPayload.repoPath = repoPath;
+  credPayload.cloning = false;
+
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                  credPayload);
+
+  git_push_options opts;
+  git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
+  opts.callbacks.credentials =
+      commercial ? &credentialsAcquireCallback : nullptr;
+  opts.callbacks.transfer_progress = &fetchProgressCallback;
+  opts.callbacks.certificate_check = &certificateCheckCallback;
+  opts.callbacks.payload = &callbackPayload;
+
+  // Create refspecs for all tags: refs/tags/tagName:refs/tags/tagName
+  QStringList refspecList;
+  for (const auto &tag : allTags) {
+    refspecList += QString("refs/tags/%1:refs/tags/%1").arg(tag);
+  }
+  git_strarray refspecs = qstringlist_to_git_strarray(refspecList);
+
+  int retries = 0;
+
+  // Determine max retries: use 1 if SSH with configured key, otherwise
+  // MAX_RETRIES
+  int maxRetries = MAX_RETRIES;
+  if (url.startsWith("git@")) {
+    // Extract host from git@host:path format
+    QRegularExpression hostRegex("^git@([^:]+):");
+    QRegularExpressionMatch match = hostRegex.match(url);
+    if (match.hasMatch()) {
+      QString host = match.captured(1);
+      GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
+      GitKeyPair keyPair;
+      if (keyStorage.getKeyPairForHost(host, keyPair)) {
+        maxRetries = 1; // Key is configured, only try once
+        LOG_DEBUG("SSH key configured for host {}, setting max retries to 1",
+                  host);
+      }
+    }
+  }
+
+  do {
+    error = git_remote_push(remote, &refspecs, &opts);
+    if (error) {
+      logGitError(error);
+
+      gGitCredentialsMutex.lock();
+      gGitCredentials.remove(url);
+      gGitCredentialsMutex.unlock();
+
+      sendInvalidCredentialsSignal(url);
+    }
+
+    ++retries;
+  } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
+
+  finishCredentialsAcquiring(url);
+
+  git_strarray_destroy(refspecs);
+  git_remote_free(remote);
+
+  LOG_DEBUG("Push all tags operation completed with error code: {}", error);
   LOG_PERF(0, "Exit");
 
   return error == 0;

@@ -492,6 +492,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onTagSelected);
   connect(ui->tagsPage, &GitTagsPage::tagRightClicked, this,
           &GitRepoContainer::onTagRightClicked);
+  connect(ui->tagsPage, &GitTagsPage::emptyAreaRightClicked, this,
+          &GitRepoContainer::onTagsEmptyAreaRightClicked);
 
   connect(ui->stashesPage, &StashesPage::stashSelected, this,
           &GitRepoContainer::onStashSelected);
@@ -1467,6 +1469,21 @@ void GitRepoContainer::onPushTag(const QString &tagName) {
   _dispatcher.dispatch([=]() { pushTag(guard, tagName); });
 
   LOG_DEBUG("Push tag operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onPushAllTags() {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Push all tags requested for repository '{}'", _path.toStdString());
+
+  startOverlayTimer();
+  LOG_DEBUG("Spinner overlay timer started for push all tags");
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { pushAllTags(guard); });
+
+  LOG_DEBUG("Push all tags operation dispatched");
   LOG_PERF(0, "Exit");
 }
 
@@ -2504,6 +2521,25 @@ void GitRepoContainer::onTagRightClicked(const QString &tagName,
   menu.exec(pos);
 
   LOG_DEBUG("Tag context menu closed");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onTagsEmptyAreaRightClicked(const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Empty area in tags panel right-clicked in repository '{}'",
+            _path.toStdString());
+
+  QAction actionPushAllTags(tr("Push all tags"), this);
+
+  connect(&actionPushAllTags, &QAction::triggered, this,
+          [=]() { onPushAllTags(); });
+
+  QMenu menu;
+  menu.addAction(&actionPushAllTags);
+
+  menu.exec(pos);
+
+  LOG_DEBUG("Tags empty area context menu closed");
   LOG_PERF(0, "Exit");
 }
 
@@ -5452,6 +5488,77 @@ void GitRepoContainer::pushTag(const WeakPtr &guard, const QString &tagName) {
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
     showToast(tr("Successfully pushed tag to remote."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::pushAllTags(const WeakPtr &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoPushAllTagsCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event pushAllTagsEvent(
+      EventManager::EventType::GitRepoManagerPushAllTags, eventUuid);
+  pushAllTagsEvent.addData(command);
+  _eventManager.send(pushAllTagsEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerPushAllTagsError,
+      EventManager::EventType::GitRepoManagerPushAllTagsResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerPushAllTagsResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to push all tags to remote.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  if (const bool pushed = commandResult.value.toBool(); !pushed) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to push all tags to remote."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Successfully pushed all tags to remote."), tr("Info"));
   });
 
   LOG_PERF(0, "Exit");

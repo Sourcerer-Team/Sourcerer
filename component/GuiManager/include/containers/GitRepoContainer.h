@@ -101,6 +101,7 @@ private slots:
   void onDeleteTag(const QString &tagName);
   void onDeleteRemoteTag(const QString &tagName);
   void onPushTag(const QString &tagName);
+  void onPushAllTags();
   void onDiffCloseClicked();
   void onDiffUnifiedClicked();
   void onDiffSideBySideClicked();
@@ -155,6 +156,7 @@ private slots:
   void onSubmodulePanelRightClicked(const QPoint &pos);
   void onSubmoduleSelected(const QString &submoduleName);
   void onTagRightClicked(const QString &tagName, const QPoint &pos);
+  void onTagsEmptyAreaRightClicked(const QPoint &pos);
   void onTagSelected(const QString &tagName);
   void onShowSpinnerOverlay();
   void onDeleteSubmodule(const QString &submoduleName);
@@ -234,6 +236,7 @@ private:
   void deleteTag(const WeakPtr &guard, const QString &tagName);
   void deleteRemoteTag(const WeakPtr &guard, const QString &tagName);
   void pushTag(const WeakPtr &guard, const QString &tagName);
+  void pushAllTags(const WeakPtr &guard);
   void deleteSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void diff(const WeakPtr &guard, const QString &filePath);
   void diffThreeWay(const WeakPtr &guard, const QString &filePath);

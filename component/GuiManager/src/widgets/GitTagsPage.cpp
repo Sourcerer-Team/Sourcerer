@@ -77,6 +77,7 @@ void GitTagsPage::onListViewContextMenuRequested(const QPoint &pos) {
 
   const QModelIndex index = ui->listView->indexAt(pos);
   if (!index.isValid()) {
+    emit emptyAreaRightClicked(ui->listView->mapToGlobal(pos));
     LOG_PERF(0, "Exit");
     return;
   }

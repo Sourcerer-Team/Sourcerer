@@ -62,6 +62,7 @@ enum class GitRepoCommandType : int {
   Pull,
   Push,
   PushTag,
+  PushAllTags,
   RenameBranch,
   RenameTag,
   Reset,
@@ -555,6 +556,13 @@ struct GitRepoPushTagCommand final : GitRepoCommand {
   ~GitRepoPushTagCommand() override = default;
 
   QString tagName;
+};
+
+struct GitRepoPushAllTagsCommand final : GitRepoCommand {
+  GitRepoPushAllTagsCommand()
+      : GitRepoCommand(GitRepoCommandType::PushAllTags) {}
+
+  ~GitRepoPushAllTagsCommand() override = default;
 };
 
 struct GitRepoRenameBranchCommand final : GitRepoCommand {
