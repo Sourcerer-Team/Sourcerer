@@ -6451,6 +6451,7 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   if (!commercial && gitSchema) {
     LOG_ERROR(Log::ErrorId::Git, "Adding submodules to git@ repositories is "
                                  "not available on the free plan.");
+    git_submodule_free(subModule);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6487,6 +6488,13 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   error = git_submodule_clone(&subRepo, subModule, &cloneOpts);
   if (error) {
     logGitError(error);
+    finishFetchProgress(uuid, true, false);
+    finishCredentialsAcquiring(url);
+    if (subRepo) {
+      git_repository_free(subRepo);
+    }
+    // Clean up the .gitmodules entry that was added by git_submodule_add_setup
+    deleteSubmodule(repo, name, QString("%1/../%2").arg(repoPath).arg(name));
     git_submodule_free(subModule);
     LOG_PERF(0, "Exit");
     return false;
