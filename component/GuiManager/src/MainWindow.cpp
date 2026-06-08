@@ -991,7 +991,7 @@ void MainWindow::eventCallback(EventManager::Event event) {
     const auto commandResult =
         event.data<GitRepoManager::Structs::GitRepoResult>();
     if (const CloneProgress data = commandResult.value.value<CloneProgress>();
-        !data.error && !_progressing.contains(data.uuid)) {
+        !data.error && !data.finished && !_progressing.contains(data.uuid)) {
       _progressing += data.uuid;
       Util::Dispatcher::dispatchToMainThread(
           getSelf().toWeakRef(), [=]() { showCloneProgressToast(data); });

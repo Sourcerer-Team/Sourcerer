@@ -1811,31 +1811,34 @@ static int fetchProgressCallback(const git_indexer_progress *stats,
     return 0;
   }
 
-  const auto progress = static_cast<CloneProgress *>(payload);
-  progress->completedSteps = stats->indexed_objects;
-  progress->totalSteps = stats->total_objects;
-  progress->started = true;
-  progress->finished = false;
-  progress->stage = CloneProgressStageType::Fetch;
+  std::tuple<CloneProgress, GitCredentialPayload> *callbackPayload =
+      static_cast<std::tuple<CloneProgress, GitCredentialPayload> *>(payload);
+  auto &[clonePayload, _] = *callbackPayload;
+
+  clonePayload.completedSteps = stats->indexed_objects;
+  clonePayload.totalSteps = stats->total_objects;
+  clonePayload.started = true;
+  clonePayload.finished = false;
+  clonePayload.stage = CloneProgressStageType::Fetch;
 
   if (stats->total_objects > 0) {
     const int percentage =
         ((stats->indexed_objects * 1.0f) / stats->total_objects) * 100;
-    if (percentage > progress->lastStepPercentage) {
-      progress->lastStepPercentage = percentage;
+    if (percentage > clonePayload.lastStepPercentage) {
+      clonePayload.lastStepPercentage = percentage;
       EventManager::Event progressEvent(
           EventManager::EventType::GitRepoManagerCloneRepoProgress);
       progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
-          progress->uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
-          QVariant::fromValue(*progress)});
+          clonePayload.uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
+          QVariant::fromValue(clonePayload)});
       EventManager::EventManager::getInstance().send(progressEvent);
     }
   } else {
     EventManager::Event progressEvent(
         EventManager::EventType::GitRepoManagerCloneRepoProgress);
     progressEvent.addData(GitRepoManager::Structs::GitRepoResult{
-        progress->uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
-        QVariant::fromValue(*progress)});
+        clonePayload.uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
+        QVariant::fromValue(clonePayload)});
     EventManager::EventManager::getInstance().send(progressEvent);
   }
 
@@ -2299,9 +2302,10 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
   // Extract repository path from payload
   QString repoPath;
   if (payload) {
-    GitCredentialPayload *credPayload =
-        static_cast<GitCredentialPayload *>(payload);
-    repoPath = credPayload->repoPath;
+    std::tuple<CloneProgress, GitCredentialPayload> *callbackPayload =
+        static_cast<std::tuple<CloneProgress, GitCredentialPayload> *>(payload);
+    const auto &[_, credentialsPayload] = *callbackPayload;
+    repoPath = credentialsPayload.repoPath;
   }
 
   if (const QString urlString = QString::fromUtf8(url);
@@ -2640,6 +2644,8 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   credPayload.uuid = uuid;
   credPayload.cloning = true;
 
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
+
   checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
   checkout_opts.progress_payload = &progressData;
   checkout_opts.progress_cb = &checkoutProgressCallback;
@@ -2647,7 +2653,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
       commercial ? &credentialsAcquireCallback : nullptr;
   fetch_opts.callbacks.transfer_progress = &fetchProgressCallback;
   fetch_opts.callbacks.certificate_check = &certificateCheckCallback;
-  fetch_opts.callbacks.payload = &credPayload;
+  fetch_opts.callbacks.payload = &callbackPayload;
   clone_opts.checkout_opts = checkout_opts;
   clone_opts.fetch_opts = fetch_opts;
 
@@ -4494,10 +4500,16 @@ bool pull(git_repository *repo) {
 
   const QString fetchUuid = Uuid::createUuid();
 
+  CloneProgress progressData;
+  progressData.uuid = fetchUuid;
+  progressData.cloning = false;
+
   GitCredentialPayload credPayload;
   credPayload.repoPath = repoPath;
   credPayload.uuid = fetchUuid;
   credPayload.cloning = false;
+
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
 
   git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
   fetchOpts.callbacks.credentials =
@@ -4789,9 +4801,15 @@ bool push(git_repository *repo) {
     return false;
   }
 
+  CloneProgress progressData;
+  progressData.uuid = Uuid::createUuid();
+  progressData.cloning = false;
+
   GitCredentialPayload credPayload;
   credPayload.repoPath = repoPath;
   credPayload.cloning = false;
+
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
 
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
@@ -4799,7 +4817,7 @@ bool push(git_repository *repo) {
       commercial ? &credentialsAcquireCallback : nullptr;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
   opts.callbacks.certificate_check = &certificateCheckCallback;
-  opts.callbacks.payload = &credPayload;
+  opts.callbacks.payload = &callbackPayload;
 
   git_strarray refspecs =
       qstringlist_to_git_strarray(QStringList() << branchName);
@@ -4839,6 +4857,8 @@ bool push(git_repository *repo) {
 
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
 
   finishCredentialsAcquiring(url);
 
@@ -4915,9 +4935,15 @@ bool pushTag(git_repository *repo, const QString &tagName) {
     return false;
   }
 
+  CloneProgress progressData;
+  progressData.uuid = Uuid::createUuid();
+  progressData.cloning = false;
+
   GitCredentialPayload credPayload;
   credPayload.repoPath = repoPath;
   credPayload.cloning = false;
+
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
 
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
@@ -4925,7 +4951,7 @@ bool pushTag(git_repository *repo, const QString &tagName) {
       commercial ? &credentialsAcquireCallback : nullptr;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
   opts.callbacks.certificate_check = &certificateCheckCallback;
-  opts.callbacks.payload = &credPayload;
+  opts.callbacks.payload = &callbackPayload;
 
   // Push tag with refspec: refs/tags/tagName:refs/tags/tagName
   const QString refspec = QString("refs/tags/%1:refs/tags/%1").arg(tagName);
@@ -4966,6 +4992,8 @@ bool pushTag(git_repository *repo, const QString &tagName) {
 
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
 
   finishCredentialsAcquiring(url);
 
@@ -5649,9 +5677,15 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
     return false;
   }
 
+  CloneProgress progressData;
+  progressData.uuid = Uuid::createUuid();
+  progressData.cloning = false;
+
   GitCredentialPayload credPayload;
   credPayload.repoPath = repoPath;
   credPayload.cloning = false;
+
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
 
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
@@ -5659,7 +5693,7 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
       commercial ? &credentialsAcquireCallback : nullptr;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
   opts.callbacks.certificate_check = &certificateCheckCallback;
-  opts.callbacks.payload = &credPayload;
+  opts.callbacks.payload = &callbackPayload;
 
   // Delete branch with refspec: :refs/heads/branchName (empty source = delete)
   // Strip remote prefix (e.g., "origin/branch" -> "branch")
@@ -5719,6 +5753,8 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
 
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
 
   finishCredentialsAcquiring(url);
 
@@ -6068,9 +6104,15 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
     return false;
   }
 
+  CloneProgress progressData;
+  progressData.uuid = Uuid::createUuid();
+  progressData.cloning = false;
+
   GitCredentialPayload credPayload;
   credPayload.repoPath = repoPath;
   credPayload.cloning = false;
+
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
 
   git_push_options opts;
   git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
@@ -6078,7 +6120,7 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
       commercial ? &credentialsAcquireCallback : nullptr;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
   opts.callbacks.certificate_check = &certificateCheckCallback;
-  opts.callbacks.payload = &credPayload;
+  opts.callbacks.payload = &callbackPayload;
 
   // Delete tag with refspec: :refs/tags/tagName (empty source = delete)
   // Note: For tags, we typically don't have a remote prefix, but clean it just
@@ -6134,6 +6176,8 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
 
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
 
   finishCredentialsAcquiring(url);
 
@@ -6407,7 +6451,13 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 
   CloneProgress progressData;
   progressData.uuid = uuid;
-  progressData.cloning = true;
+  progressData.cloning = false;
+
+  GitCredentialPayload credPayload;
+  credPayload.repoPath = repoPath;
+  credPayload.cloning = false;
+
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData, credPayload);
 
   git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
   checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
@@ -6419,7 +6469,7 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
       commercial ? &credentialsAcquireCallback : nullptr;
   fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
   fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
-  fetchOpts.callbacks.payload = &progressData;
+  fetchOpts.callbacks.payload = &callbackPayload;
 
   git_submodule_update_options cloneOpts = GIT_SUBMODULE_UPDATE_OPTIONS_INIT;
   cloneOpts.fetch_opts = fetchOpts;
@@ -6435,7 +6485,7 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 
   // Send completion event to hide progress toast
   // This is needed even if no progress callbacks were fired (e.g., local path submodules)
-  finishFetchProgress(uuid, error != 0, true);
+  finishFetchProgress(uuid, error != 0, false);
 
   // Dismiss credentials overlay using the URL (same key used for storing the widget)
   finishCredentialsAcquiring(url);
