@@ -6437,7 +6437,8 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   // This is needed even if no progress callbacks were fired (e.g., local path submodules)
   finishFetchProgress(uuid, error != 0, true);
 
-  finishCredentialsAcquiring(uuid);
+  // Dismiss credentials overlay using the URL (same key used for storing the widget)
+  finishCredentialsAcquiring(url);
 
   error = git_submodule_add_finalize(subModule);
   if (error) {
