@@ -6421,9 +6421,9 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
     return false;
   }
 
-  if (progressData.stage != CloneProgressStageType::Unknown) {
-    finishFetchProgress(uuid, error != 0, true);
-  }
+  // Send completion event to hide progress toast
+  // This is needed even if no progress callbacks were fired (e.g., local path submodules)
+  finishFetchProgress(uuid, error != 0, true);
 
   finishCredentialsAcquiring(uuid);
 
