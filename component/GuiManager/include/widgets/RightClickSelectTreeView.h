@@ -20,6 +20,10 @@ protected:
       if (index.isValid()) {
         selectionModel()->select(index, QItemSelectionModel::Select);
       }
+      // Accept the event for right-click to prevent parent class from
+      // deselecting the item when showing context menu
+      event->accept();
+      return;
     }
 
     QTreeView::mousePressEvent(event);
