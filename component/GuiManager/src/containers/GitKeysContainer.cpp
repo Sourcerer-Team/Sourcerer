@@ -3,13 +3,20 @@
 
 #include <Log.h>
 
+#include <QApplication>
+#include <QClipboard>
 #include <QDateTime>
 #include <QDir>
+#include <QFile>
 #include <QFileDialog>
 #include <QHeaderView>
 #include <QInputDialog>
+#include <QLabel>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QStandardItemModel>
+#include <QTextEdit>
+#include <QVBoxLayout>
 
 #define THREAD_ID "GitKeysContainer"
 
@@ -186,12 +193,62 @@ void GitKeysContainer::onGenerateClicked() {
     return;
   }
 
-  QMessageBox::information(
-      this, "Success",
-      QString("SSH key pair generated successfully!\n\nPrivate key: "
-              "%1\nPublic key: %2\n\nThe public key has been saved and can be "
-              "added to your Git hosting service.")
-          .arg(privateKeyPath, publicKeyPath));
+  // Read and display the public key content
+  QFile publicKeyFile(publicKeyPath);
+  QString publicKeyContent;
+  if (publicKeyFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    publicKeyContent = QString::fromUtf8(publicKeyFile.readAll());
+    publicKeyFile.close();
+  }
+
+  // Create a dialog with public key content and copy button
+  QDialog dialog(this);
+  dialog.setWindowTitle("SSH Key Generated Successfully");
+  dialog.setMinimumWidth(600);
+  
+  QVBoxLayout *dialogLayout = new QVBoxLayout(&dialog);
+  
+  QLabel *titleLabel = new QLabel("Your SSH key pair has been generated and associated with the host.");
+  QFont titleFont = titleLabel->font();
+  titleFont.setPointSize(titleFont.pointSize() + 1);
+  titleLabel->setFont(titleFont);
+  dialogLayout->addWidget(titleLabel);
+  
+  QLabel *publicKeyLabel = new QLabel("Public Key:");
+  publicKeyLabel->setStyleSheet("font-weight: bold; margin-top: 10px;");
+  dialogLayout->addWidget(publicKeyLabel);
+  
+  QTextEdit *publicKeyDisplay = new QTextEdit();
+  publicKeyDisplay->setPlainText(publicKeyContent);
+  publicKeyDisplay->setReadOnly(true);
+  publicKeyDisplay->setMaximumHeight(150);
+  dialogLayout->addWidget(publicKeyDisplay);
+  
+  QHBoxLayout *buttonLayout = new QHBoxLayout();
+  QPushButton *copyButton = new QPushButton("Copy to Clipboard");
+  connect(copyButton, &QPushButton::clicked, [publicKeyContent]() {
+    QApplication::clipboard()->setText(publicKeyContent);
+  });
+  buttonLayout->addWidget(copyButton);
+  buttonLayout->addStretch();
+  dialogLayout->addLayout(buttonLayout);
+  
+  QLabel *detailsLabel = new QLabel();
+  detailsLabel->setText(QString("Private key: %1\nPublic key: %2").arg(privateKeyPath, publicKeyPath));
+  detailsLabel->setStyleSheet("margin-top: 10px; color: gray;");
+  detailsLabel->setWordWrap(true);
+  dialogLayout->addWidget(detailsLabel);
+  
+  dialogLayout->addStretch();
+  
+  QHBoxLayout *closeLayout = new QHBoxLayout();
+  QPushButton *okButton = new QPushButton("OK");
+  connect(okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
+  closeLayout->addStretch();
+  closeLayout->addWidget(okButton);
+  dialogLayout->addLayout(closeLayout);
+  
+  dialog.exec();
 
   // Reload the table
   loadKeyPairs();
