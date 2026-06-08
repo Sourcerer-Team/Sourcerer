@@ -381,6 +381,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMergeDiffSave->setMinimumHeight(32);
   ui->pushButtonMergeDiffSave->setMaximumHeight(32);
 
+  ui->pushButtonStashClose->setIcon(QPixmap(":/icons/close_button.png"));
+  ui->pushButtonStashClose->setMinimumSize(32, 32);
+  ui->pushButtonStashClose->setMaximumSize(32, 32);
+
   ui->pushButtonStashDiffUnified->setIcon(QPixmap(":/icons/diff-unified.png"));
   ui->pushButtonStashDiffUnified->setMinimumSize(32, 32);
   ui->pushButtonStashDiffUnified->setMaximumSize(32, 32);
@@ -453,6 +457,11 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   stashButtonLayout->setSpacing(5);
   stashButtonLayout->addWidget(_stashApplyButton);
   stashButtonLayout->addWidget(_stashPopButton);
+  
+  // Remove close button from toolbar layout and add it to button container
+  ui->horizontalLayoutStashContentButtons->removeWidget(ui->pushButtonStashClose);
+  stashButtonLayout->addSpacing(2);
+  stashButtonLayout->addWidget(ui->pushButtonStashClose);
 
   ui->tabWidgetStashFiles->setCornerWidget(stashButtonContainer,
                                            Qt::TopRightCorner);
