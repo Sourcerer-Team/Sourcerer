@@ -1,0 +1,585 @@
+#include "QScintillaLexerFactory.h"
+#include <QDebug>
+#include <QFileInfo>
+#include <Qsci/qscilexer.h>
+#include <Qsci/qscilexerbash.h>
+#include <Qsci/qscilexerbatch.h>
+#include <Qsci/qscilexercmake.h>
+#include <Qsci/qscilexercpp.h>
+#include <Qsci/qscilexercss.h>
+#include <Qsci/qscilexercustom.h>
+#include <Qsci/qscilexerd.h>
+#include <Qsci/qscilexerdiff.h>
+#include <Qsci/qscilexerfortran.h>
+#include <Qsci/qscilexerfortran77.h>
+#include <Qsci/qscilexerhtml.h>
+#include <Qsci/qscilexeridl.h>
+#include <Qsci/qscilexerjavascript.h>
+#include <Qsci/qscilexerjson.h>
+#include <Qsci/qscilexerlua.h>
+#include <Qsci/qscilexermakefile.h>
+#include <Qsci/qscilexermarkdown.h>
+#include <Qsci/qscilexermasm.h>
+#include <Qsci/qscilexermatlab.h>
+#include <Qsci/qscilexernasm.h>
+#include <Qsci/qscilexeroctave.h>
+#include <Qsci/qscilexerpascal.h>
+#include <Qsci/qscilexerperl.h>
+#include <Qsci/qscilexerpostscript.h>
+#include <Qsci/qscilexerpov.h>
+#include <Qsci/qscilexerproperties.h>
+#include <Qsci/qscilexerpython.h>
+#include <Qsci/qscilexerruby.h>
+#include <Qsci/qscilexerspice.h>
+#include <Qsci/qscilexersql.h>
+#include <Qsci/qscilexertcl.h>
+#include <Qsci/qscilexertex.h>
+#include <Qsci/qscilexerverilog.h>
+#include <Qsci/qscilexervhdl.h>
+#include <Qsci/qscilexerxml.h>
+#include <Qsci/qscilexeryaml.h>
+
+using namespace GuiManager;
+
+QScintillaLexerFactory::QScintillaLexerFactory(QObject *parent)
+    : QObject(parent) {
+  initializeExtensionMappings();
+  initializeLexerDescriptions();
+}
+
+QScintillaLexerFactory::~QScintillaLexerFactory() {}
+
+QsciLexer *QScintillaLexerFactory::createLexerForFile(const QString &filePath,
+                                                      QObject *parent) const {
+  QString extension = extractExtension(filePath);
+  return createLexerForExtension(extension, parent);
+}
+
+QsciLexer *
+QScintillaLexerFactory::createLexerForExtension(const QString &extension,
+                                                QObject *parent) const {
+  QString normalizedExt = normalizeExtension(extension);
+
+  if (!_extensionToLexer.contains(normalizedExt)) {
+    qDebug() << "QScintillaLexerFactory: No lexer found for extension:"
+             << normalizedExt;
+    return nullptr;
+  }
+
+  QString lexerName = _extensionToLexer.value(normalizedExt);
+  QsciLexer *lexer = createLexerByName(lexerName, parent);
+
+  if (lexer) {
+    emit lexerCreated(lexer, normalizedExt);
+  }
+
+  return lexer;
+}
+
+QsciLexer *QScintillaLexerFactory::createLexerByName(const QString &lexerName,
+                                                     QObject *parent) const {
+  return createLexerByType(lexerName, parent);
+}
+
+QStringList QScintillaLexerFactory::supportedExtensions() const {
+  return _extensionToLexer.keys();
+}
+
+QStringList QScintillaLexerFactory::supportedLexerNames() const {
+  QStringList names = _extensionToLexer.values();
+  names.removeDuplicates();
+  names.sort();
+  return names;
+}
+
+QString QScintillaLexerFactory::getLexerNameForExtension(
+    const QString &extension) const {
+  QString normalizedExt = normalizeExtension(extension);
+  return _extensionToLexer.value(normalizedExt, QString());
+}
+
+QString QScintillaLexerFactory::getDescriptionForExtension(
+    const QString &extension) const {
+  QString lexerName = getLexerNameForExtension(extension);
+  return _lexerDescriptions.value(lexerName, QString());
+}
+
+bool QScintillaLexerFactory::isExtensionSupported(
+    const QString &extension) const {
+  QString normalizedExt = normalizeExtension(extension);
+  return _extensionToLexer.contains(normalizedExt);
+}
+
+void QScintillaLexerFactory::addExtensionMapping(const QString &extension,
+                                                 const QString &lexerName) {
+  QString normalizedExt = normalizeExtension(extension);
+  _extensionToLexer.insert(normalizedExt, lexerName);
+  emit mappingChanged(normalizedExt, lexerName);
+}
+
+void QScintillaLexerFactory::removeExtensionMapping(const QString &extension) {
+  QString normalizedExt = normalizeExtension(extension);
+  if (_extensionToLexer.remove(normalizedExt)) {
+    emit mappingChanged(normalizedExt, QString());
+  }
+}
+
+void QScintillaLexerFactory::setExtensionMapping(const QString &extension,
+                                                 const QString &lexerName) {
+  QString normalizedExt = normalizeExtension(extension);
+  _extensionToLexer[normalizedExt] = lexerName;
+  emit mappingChanged(normalizedExt, lexerName);
+}
+
+QString QScintillaLexerFactory::extractExtension(const QString &filePath) {
+  QFileInfo fileInfo(filePath);
+  return fileInfo.suffix().toLower();
+}
+
+QString QScintillaLexerFactory::normalizeExtension(const QString &extension) {
+  QString normalized = extension.toLower();
+  if (normalized.startsWith('.')) {
+    normalized = normalized.mid(1);
+  }
+  return normalized;
+}
+
+void QScintillaLexerFactory::refreshMappings() {
+  initializeExtensionMappings();
+  initializeLexerDescriptions();
+}
+
+// Lexer creation methods
+QsciLexer *QScintillaLexerFactory::createCppLexer(QObject *parent) const {
+  return new QsciLexerCPP(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createPythonLexer(QObject *parent) const {
+  return new QsciLexerPython(parent);
+}
+
+QsciLexer *
+QScintillaLexerFactory::createJavaScriptLexer(QObject *parent) const {
+  return new QsciLexerJavaScript(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createHtmlLexer(QObject *parent) const {
+  return new QsciLexerHTML(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createCssLexer(QObject *parent) const {
+  return new QsciLexerCSS(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createXmlLexer(QObject *parent) const {
+  return new QsciLexerXML(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createJsonLexer(QObject *parent) const {
+  return new QsciLexerJSON(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createSqlLexer(QObject *parent) const {
+  return new QsciLexerSQL(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createBashLexer(QObject *parent) const {
+  return new QsciLexerBash(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createBatchLexer(QObject *parent) const {
+  return new QsciLexerBatch(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createMakefileLexer(QObject *parent) const {
+  return new QsciLexerMakefile(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createDiffLexer(QObject *parent) const {
+  return new QsciLexerDiff(parent);
+}
+
+QsciLexer *
+QScintillaLexerFactory::createPropertiesLexer(QObject *parent) const {
+  return new QsciLexerProperties(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createYamlLexer(QObject *parent) const {
+  return new QsciLexerYAML(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createMarkdownLexer(QObject *parent) const {
+  return new QsciLexerMarkdown(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createTexLexer(QObject *parent) const {
+  return new QsciLexerTeX(parent);
+}
+
+QsciLexer *
+QScintillaLexerFactory::createPostScriptLexer(QObject *parent) const {
+  return new QsciLexerPostScript(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createMatlabLexer(QObject *parent) const {
+  return new QsciLexerMatlab(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createOctaveLexer(QObject *parent) const {
+  return new QsciLexerOctave(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createPerlLexer(QObject *parent) const {
+  return new QsciLexerPerl(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createRubyLexer(QObject *parent) const {
+  return new QsciLexerRuby(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createFortranLexer(QObject *parent) const {
+  return new QsciLexerFortran(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createFortran77Lexer(QObject *parent) const {
+  return new QsciLexerFortran77(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createIdlLexer(QObject *parent) const {
+  return new QsciLexerIDL(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createVhdlLexer(QObject *parent) const {
+  return new QsciLexerVHDL(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createVerilogLexer(QObject *parent) const {
+  return new QsciLexerVerilog(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createTclLexer(QObject *parent) const {
+  return new QsciLexerTCL(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createLuaLexer(QObject *parent) const {
+  return new QsciLexerLua(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createPascalLexer(QObject *parent) const {
+  return new QsciLexerPascal(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createMAsmLexer(QObject *parent) const {
+  return new QsciLexerMASM(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createNAsmLexer(QObject *parent) const {
+  return new QsciLexerNASM(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createCMakeLexer(QObject *parent) const {
+  return new QsciLexerCMake(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createDLexer(QObject *parent) const {
+  return new QsciLexerD(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createPovLexer(QObject *parent) const {
+  return new QsciLexerPOV(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createSpiceLexer(QObject *parent) const {
+  return new QsciLexerSpice(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createLexerByType(const QString &lexerName,
+                                                     QObject *parent) const {
+  if (lexerName == "CPP")
+    return createCppLexer(parent);
+  if (lexerName == "Python")
+    return createPythonLexer(parent);
+  if (lexerName == "JavaScript")
+    return createJavaScriptLexer(parent);
+  if (lexerName == "HTML")
+    return createHtmlLexer(parent);
+  if (lexerName == "CSS")
+    return createCssLexer(parent);
+  if (lexerName == "XML")
+    return createXmlLexer(parent);
+  if (lexerName == "JSON")
+    return createJsonLexer(parent);
+  if (lexerName == "SQL")
+    return createSqlLexer(parent);
+  if (lexerName == "Bash")
+    return createBashLexer(parent);
+  if (lexerName == "Batch")
+    return createBatchLexer(parent);
+  if (lexerName == "Makefile")
+    return createMakefileLexer(parent);
+  if (lexerName == "Diff")
+    return createDiffLexer(parent);
+  if (lexerName == "Properties")
+    return createPropertiesLexer(parent);
+  if (lexerName == "YAML")
+    return createYamlLexer(parent);
+  if (lexerName == "Markdown")
+    return createMarkdownLexer(parent);
+  if (lexerName == "TeX")
+    return createTexLexer(parent);
+  if (lexerName == "PostScript")
+    return createPostScriptLexer(parent);
+  if (lexerName == "Matlab")
+    return createMatlabLexer(parent);
+  if (lexerName == "Octave")
+    return createOctaveLexer(parent);
+  if (lexerName == "Perl")
+    return createPerlLexer(parent);
+  if (lexerName == "Ruby")
+    return createRubyLexer(parent);
+  if (lexerName == "Fortran")
+    return createFortranLexer(parent);
+  if (lexerName == "Fortran77")
+    return createFortran77Lexer(parent);
+  if (lexerName == "IDL")
+    return createIdlLexer(parent);
+  if (lexerName == "VHDL")
+    return createVhdlLexer(parent);
+  if (lexerName == "Verilog")
+    return createVerilogLexer(parent);
+  if (lexerName == "TCL")
+    return createTclLexer(parent);
+  if (lexerName == "Lua")
+    return createLuaLexer(parent);
+  if (lexerName == "Pascal")
+    return createPascalLexer(parent);
+  if (lexerName == "MASM")
+    return createMAsmLexer(parent);
+  if (lexerName == "NASM")
+    return createNAsmLexer(parent);
+  if (lexerName == "CMake")
+    return createCMakeLexer(parent);
+  if (lexerName == "D")
+    return createDLexer(parent);
+  if (lexerName == "POV")
+    return createPovLexer(parent);
+  if (lexerName == "Spice")
+    return createSpiceLexer(parent);
+
+  qDebug() << "QScintillaLexerFactory: Unknown lexer name:" << lexerName;
+  return nullptr;
+}
+
+void QScintillaLexerFactory::initializeExtensionMappings() {
+  _extensionToLexer.clear();
+
+  // C/C++ family
+  _extensionToLexer["c"] = "CPP";
+  _extensionToLexer["cpp"] = "CPP";
+  _extensionToLexer["cxx"] = "CPP";
+  _extensionToLexer["cc"] = "CPP";
+  _extensionToLexer["c++"] = "CPP";
+  _extensionToLexer["h"] = "CPP";
+  _extensionToLexer["hpp"] = "CPP";
+  _extensionToLexer["hxx"] = "CPP";
+  _extensionToLexer["hh"] = "CPP";
+  _extensionToLexer["h++"] = "CPP";
+
+  // Python
+  _extensionToLexer["py"] = "Python";
+  _extensionToLexer["pyw"] = "Python";
+  _extensionToLexer["pyi"] = "Python";
+  _extensionToLexer["pyx"] = "Python";
+
+  // JavaScript/TypeScript
+  _extensionToLexer["js"] = "JavaScript";
+  _extensionToLexer["jsx"] = "JavaScript";
+  _extensionToLexer["ts"] = "JavaScript";
+  _extensionToLexer["tsx"] = "JavaScript";
+  _extensionToLexer["mjs"] = "JavaScript";
+
+  // Web Technologies
+  _extensionToLexer["html"] = "HTML";
+  _extensionToLexer["htm"] = "HTML";
+  _extensionToLexer["xhtml"] = "HTML";
+  _extensionToLexer["shtml"] = "HTML";
+  _extensionToLexer["css"] = "CSS";
+  _extensionToLexer["scss"] = "CSS";
+  _extensionToLexer["sass"] = "CSS";
+  _extensionToLexer["less"] = "CSS";
+
+  // XML family
+  _extensionToLexer["xml"] = "XML";
+  _extensionToLexer["xsl"] = "XML";
+  _extensionToLexer["xslt"] = "XML";
+  _extensionToLexer["xsd"] = "XML";
+  _extensionToLexer["svg"] = "XML";
+  _extensionToLexer["xaml"] = "XML";
+
+  // Data formats
+  _extensionToLexer["json"] = "JSON";
+  _extensionToLexer["jsonc"] = "JSON";
+  _extensionToLexer["yaml"] = "YAML";
+  _extensionToLexer["yml"] = "YAML";
+  _extensionToLexer["properties"] = "Properties";
+  _extensionToLexer["ini"] = "Properties";
+  _extensionToLexer["cfg"] = "Properties";
+  _extensionToLexer["conf"] = "Properties";
+
+  // Database
+  _extensionToLexer["sql"] = "SQL";
+  _extensionToLexer["mysql"] = "SQL";
+  _extensionToLexer["pgsql"] = "SQL";
+  _extensionToLexer["plsql"] = "SQL";
+
+  // Shell/Scripting
+  _extensionToLexer["sh"] = "Bash";
+  _extensionToLexer["bash"] = "Bash";
+  _extensionToLexer["zsh"] = "Bash";
+  _extensionToLexer["fish"] = "Bash";
+  _extensionToLexer["bat"] = "Batch";
+  _extensionToLexer["cmd"] = "Batch";
+
+  // Build systems
+  _extensionToLexer["makefile"] = "Makefile";
+  _extensionToLexer["mak"] = "Makefile";
+  _extensionToLexer["mk"] = "Makefile";
+  _extensionToLexer["cmake"] = "CMake";
+  _extensionToLexer["cmakelists"] = "CMake";
+
+  // Documentation
+  _extensionToLexer["md"] = "Markdown";
+  _extensionToLexer["markdown"] = "Markdown";
+  _extensionToLexer["mdown"] = "Markdown";
+  _extensionToLexer["mkd"] = "Markdown";
+  _extensionToLexer["tex"] = "TeX";
+  _extensionToLexer["latex"] = "TeX";
+  _extensionToLexer["sty"] = "TeX";
+  _extensionToLexer["cls"] = "TeX";
+
+  // Version control
+  _extensionToLexer["diff"] = "Diff";
+  _extensionToLexer["patch"] = "Diff";
+
+  // PostScript
+  _extensionToLexer["ps"] = "PostScript";
+  _extensionToLexer["eps"] = "PostScript";
+
+  // Scientific Computing
+  _extensionToLexer["m"] = "Matlab";
+  _extensionToLexer["matlab"] = "Matlab";
+  _extensionToLexer["octave"] = "Octave";
+
+  // Scripting Languages
+  _extensionToLexer["pl"] = "Perl";
+  _extensionToLexer["pm"] = "Perl";
+  _extensionToLexer["perl"] = "Perl";
+  _extensionToLexer["rb"] = "Ruby";
+  _extensionToLexer["ruby"] = "Ruby";
+  _extensionToLexer["rbw"] = "Ruby";
+  _extensionToLexer["lua"] = "Lua";
+  _extensionToLexer["tcl"] = "TCL";
+  _extensionToLexer["tk"] = "TCL";
+
+  // Systems Programming
+  _extensionToLexer["f"] = "Fortran77";
+  _extensionToLexer["for"] = "Fortran77";
+  _extensionToLexer["f77"] = "Fortran77";
+  _extensionToLexer["f90"] = "Fortran";
+  _extensionToLexer["f95"] = "Fortran";
+  _extensionToLexer["f03"] = "Fortran";
+  _extensionToLexer["f08"] = "Fortran";
+  _extensionToLexer["fortran"] = "Fortran";
+
+  // Hardware Description
+  _extensionToLexer["vhd"] = "VHDL";
+  _extensionToLexer["vhdl"] = "VHDL";
+  _extensionToLexer["v"] = "Verilog";
+  _extensionToLexer["vh"] = "Verilog";
+  _extensionToLexer["sv"] = "Verilog";
+
+  // Data Analysis
+  _extensionToLexer["idl"] = "IDL";
+  _extensionToLexer["pro"] = "IDL";
+
+  // Classical Languages
+  _extensionToLexer["pas"] = "Pascal";
+  _extensionToLexer["pascal"] = "Pascal";
+  _extensionToLexer["pp"] = "Pascal";
+  _extensionToLexer["ada"] = "Ada";
+  _extensionToLexer["adb"] = "Ada";
+  _extensionToLexer["ads"] = "Ada";
+
+  // Functional Languages
+  _extensionToLexer["lisp"] = "Lisp";
+  _extensionToLexer["lsp"] = "Lisp";
+  _extensionToLexer["cl"] = "Lisp";
+  _extensionToLexer["scm"] = "Scheme";
+  _extensionToLexer["scheme"] = "Scheme";
+  _extensionToLexer["ss"] = "Scheme";
+
+  // Assembly
+  _extensionToLexer["asm"] = "MASM";
+  _extensionToLexer["s"] = "NASM";
+  _extensionToLexer["inc"] = "NASM";
+
+  // Modern Languages
+  _extensionToLexer["d"] = "D";
+  _extensionToLexer["di"] = "D";
+
+  // 3D Graphics
+  _extensionToLexer["pov"] = "POV";
+  _extensionToLexer["povray"] = "POV";
+  _extensionToLexer["inc"] =
+      "POV"; // Note: conflicts with assembly, POV takes precedence
+
+  // Circuit Simulation
+  _extensionToLexer["sp"] = "Spice";
+  _extensionToLexer["spice"] = "Spice";
+  _extensionToLexer["cir"] = "Spice";
+  _extensionToLexer["net"] = "Spice";
+}
+
+void QScintillaLexerFactory::initializeLexerDescriptions() {
+  _lexerDescriptions.clear();
+
+  _lexerDescriptions["CPP"] = "C/C++ Programming Language";
+  _lexerDescriptions["Python"] = "Python Programming Language";
+  _lexerDescriptions["JavaScript"] = "JavaScript/TypeScript Language";
+  _lexerDescriptions["HTML"] = "HyperText Markup Language";
+  _lexerDescriptions["CSS"] = "Cascading Style Sheets";
+  _lexerDescriptions["XML"] = "Extensible Markup Language";
+  _lexerDescriptions["JSON"] = "JavaScript Object Notation";
+  _lexerDescriptions["SQL"] = "Structured Query Language";
+  _lexerDescriptions["Bash"] = "Bash Shell Script";
+  _lexerDescriptions["Batch"] = "Windows Batch Script";
+  _lexerDescriptions["Makefile"] = "GNU Make Build Script";
+  _lexerDescriptions["Diff"] = "Unified Diff Format";
+  _lexerDescriptions["Properties"] = "Java Properties/INI Configuration";
+  _lexerDescriptions["YAML"] = "YAML Ain't Markup Language";
+  _lexerDescriptions["Markdown"] = "Markdown Documentation";
+  _lexerDescriptions["TeX"] = "TeX/LaTeX Typesetting";
+  _lexerDescriptions["PostScript"] = "PostScript Page Description";
+  _lexerDescriptions["Matlab"] = "MATLAB Programming Language";
+  _lexerDescriptions["Octave"] = "GNU Octave Programming Language";
+  _lexerDescriptions["Perl"] = "Perl Programming Language";
+  _lexerDescriptions["Ruby"] = "Ruby Programming Language";
+  _lexerDescriptions["Fortran"] = "Fortran 90+ Programming Language";
+  _lexerDescriptions["Fortran77"] = "Fortran 77 Programming Language";
+  _lexerDescriptions["IDL"] = "Interactive Data Language";
+  _lexerDescriptions["VHDL"] = "VHSIC Hardware Description Language";
+  _lexerDescriptions["Verilog"] = "Verilog Hardware Description Language";
+  _lexerDescriptions["TCL"] = "Tool Command Language";
+  _lexerDescriptions["Lua"] = "Lua Scripting Language";
+  _lexerDescriptions["Pascal"] = "Pascal Programming Language";
+  _lexerDescriptions["Ada"] = "Ada Programming Language";
+  _lexerDescriptions["Lisp"] = "Lisp Programming Language";
+  _lexerDescriptions["Scheme"] = "Scheme Programming Language";
+  _lexerDescriptions["MASM"] = "MASM Assembly Language";
+  _lexerDescriptions["NASM"] = "NASM Assembly Language";
+  _lexerDescriptions["CMake"] = "CMake Build System";
+  _lexerDescriptions["D"] = "D Programming Language";
+  _lexerDescriptions["POV"] = "POV-Ray Scene Description Language";
+  _lexerDescriptions["Spice"] = "SPICE Circuit Simulation";
+  _lexerDescriptions["Custom"] = "Custom User-Defined Language";
+}

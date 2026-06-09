@@ -1,0 +1,339 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" 
+     xmlns:util="http://schemas.microsoft.com/wix/2006/util">
+    
+    <!-- Product definition -->
+    <!-- Product/@Id="*" allows WiX to generate a new GUID for each version (required for upgrades) -->
+    <!-- UpgradeCode must remain constant to identify the product family for upgrades -->
+    <Product Id="*" 
+             Name="Sourcerer" 
+             Language="1033" 
+             Version="0.2.1" 
+             Manufacturer="Sourcerer Team" 
+             UpgradeCode="c22a2f5d-6d5f-49b4-8e9f-69700eee4929">
+        
+        <Package InstallerVersion="200" 
+                 Compressed="yes" 
+                 InstallScope="perMachine"
+                 Description="Sourcerer Installer"
+                 Manufacturer="Sourcerer Team"
+                 Keywords="Sourcerer,Git,Repository"
+                 Platform="x64" />
+        
+        <!-- Handle upgrade/downgrade of previous versions -->
+        <!-- Schedule="afterInstallInitialize" removes previous version after initialization but before installation -->
+        <MajorUpgrade DowngradeErrorMessage="A newer version of Sourcerer is already installed." 
+                      AllowDowngrades="no"
+                      AllowSameVersionUpgrades="yes"
+                      Schedule="afterInstallInitialize" />
+        
+        <!-- Media -->
+        <Media Id="1" Cabinet="sourcerer.cab" EmbedCab="yes" />
+        
+        <!-- Feature -->
+        <Feature Id="ProductFeature" 
+                 Title="Sourcerer" 
+                 Level="1"
+                 Description="Sourcerer - Git Repository Manager">
+            <ComponentRef Id="SourcererExecutable" />
+            <ComponentRef Id="QtDependencies" />
+            <ComponentRef Id="QcaCryptoPlugin" />
+            <ComponentRef Id="QcaCryptoLibrary" />
+            <ComponentRef Id="QtPlatformPlugins" />
+            <ComponentRef Id="QtImageFormatPlugins" />
+            <ComponentRef Id="QtStylePlugins" />
+            <ComponentRef Id="QtIconEnginePlugins" />
+            <ComponentRef Id="QtTlsPlugins" />
+            <ComponentRef Id="JwtPublicKeyFiles" />
+            <ComponentRef Id="DesktopShortcut" />
+            <ComponentRef Id="StartMenuShortcut" />
+            <ComponentRef Id="UninstallShortcut" />
+            <ComponentRef Id="RegistryEntries" />
+        </Feature>
+        
+        <!-- Install directory structure -->
+        <Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFiles64Folder">
+                <Directory Id="INSTALLFOLDER" Name="Sourcerer" />
+            </Directory>
+            <Directory Id="ProgramMenuFolder">
+                <Directory Id="ApplicationProgramsFolder" Name="Sourcerer" />
+            </Directory>
+            <Directory Id="DesktopFolder" />
+        </Directory>
+        
+        <!-- Components -->
+        <DirectoryRef Id="INSTALLFOLDER">
+            <!-- Main executable -->
+            <Component Id="SourcererExecutable" Guid="627fabc0-fdfb-4b96-ba6a-4d77242b918e" Win64="yes">
+                <File Id="SourcererExe" 
+                      Source="$(var.SourcererBinPath)\Sourcerer.exe" 
+                      KeyPath="yes" />
+                <File Id="SourcererIcon" 
+                      Source="$(var.SourcererBinPath)\..\..\component\GuiManager\resources\icons\sorcerer-hat.png"
+                      Vital="no" />
+                <File Id="LicenseTxtFile" 
+                      Source="$(var.SourcererBinPath)\..\..\installer\LICENSE.txt"
+                      Vital="no" />
+                <File Id="LicenseRtfFile" 
+                      Source="$(var.SourcererBinPath)\..\..\installer\LICENSE.rtf"
+                      Vital="no" />
+            </Component>
+            
+            <!-- Qt and other dependencies -->
+            <Component Id="QtDependencies" Guid="3f91dd74-f81c-48ea-b913-2c7374596519" Win64="yes">
+                <!-- Qt Libraries -->
+                <File Id="QtCoreFile" 
+                      Source="$(var.SourcererBinPath)\Qt6Core.dll"
+                      Vital="no" />
+                <File Id="QtGuiFile" 
+                      Source="$(var.SourcererBinPath)\Qt6Gui.dll"
+                      Vital="no" />
+                <File Id="QtSvgFile" 
+                      Source="$(var.SourcererBinPath)\Qt6Svg.dll"
+                      Vital="no" />
+                <File Id="QtWidgetsFile" 
+                      Source="$(var.SourcererBinPath)\Qt6Widgets.dll"
+                      Vital="no" />
+                <File Id="QtNetworkFile" 
+                      Source="$(var.SourcererBinPath)\Qt6Network.dll"
+                      Vital="no" />
+                <File Id="QtCore5CompatFile" 
+                      Source="$(var.QtMinGWBinPath)\Qt6Core5Compat.dll"
+                      Vital="no" />
+                
+                <!-- MSYS2 Libraries -->
+                <File Id="LibBz2File" 
+                      Source="$(var.MSYS2BinPath)\libbz2-1.dll"
+                      Vital="no" />
+                <File Id="LibGit2File" 
+                      Source="$(var.MSYS2BinPath)\libgit2-1.9.dll"
+                      Vital="no" />
+                <File Id="LibHttpParserFile" 
+                      Source="$(var.MSYS2BinPath)\libhttp_parser-2.dll"
+                      Vital="no" />
+                <File Id="LibIconvFile" 
+                      Source="$(var.MSYS2BinPath)\libiconv-2.dll"
+                      Vital="no" />
+                <File Id="LibLzmaFile" 
+                      Source="$(var.MSYS2BinPath)\liblzma-5.dll"
+                      Vital="no" />
+                <File Id="LibPcre2File" 
+                      Source="$(var.MSYS2BinPath)\libpcre2-8-0.dll"
+                      Vital="no" />
+                <File Id="LibSsh2File" 
+                      Source="$(var.MSYS2BinPath)\libssh2-1.dll"
+                      Vital="no" />
+                <File Id="LibZipFile" 
+                      Source="$(var.MSYS2BinPath)\libzip.dll"
+                      Vital="no" />
+                <File Id="LibZstdFile" 
+                      Source="$(var.MSYS2BinPath)\libzstd.dll"
+                      Vital="no" />
+                <File Id="Zlib1File" 
+                      Source="$(var.MSYS2BinPath)\zlib1.dll"
+                      Vital="no" />
+                
+                <!-- OpenSSL Libraries -->
+                <File Id="LibSslFile" 
+                      Source="$(var.MSYS2BinPath)\libssl-3-x64.dll"
+                      Vital="yes" />
+                <File Id="LibCryptoFile" 
+                      Source="$(var.MSYS2BinPath)\libcrypto-3-x64.dll"
+                      Vital="yes" />
+                
+                <!-- MSYS2 C/C++ Runtime Libraries -->
+                <File Id="LibStdCppFile" 
+                      Source="$(var.MSYS2BinPath)\libstdc++-6.dll"
+                      Vital="yes" />
+                <File Id="LibGccFile" 
+                      Source="$(var.MSYS2BinPath)\libgcc_s_seh-1.dll"
+                      Vital="yes" />
+                <File Id="LibWinpthreadFile" 
+                      Source="$(var.MSYS2BinPath)\libwinpthread-1.dll"
+                      Vital="yes" />
+            </Component>
+            
+            <!-- QCA Crypto Plugin subdirectory -->
+            <Directory Id="CryptoDir" Name="crypto">
+                <Component Id="QcaCryptoPlugin" Guid="e9dbd3f1-7eed-4b56-bf8a-9edfd5dad88d" Win64="yes">
+                    <File Id="LibQcaOsslFile" 
+                          Source="$(var.SourcererBinPath)\lib\qca-qt6\crypto\libqca-ossl.dll"
+                          Vital="no" />
+                </Component>
+            </Directory>
+            
+            <!-- Qt Platform Plugins -->
+            <Directory Id="PlatformsDir" Name="platforms">
+                <Component Id="QtPlatformPlugins" Guid="5c456e93-5954-4b49-a5a0-c067a190c8c4" Win64="yes">
+                    <File Id="QWindowsFile" 
+                          Source="$(var.SourcererBinPath)\platforms\qwindows.dll"
+                          Vital="no" />
+                </Component>
+            </Directory>
+            
+            <!-- Qt Image Format Plugins -->
+            <Directory Id="ImageFormatsDir" Name="imageformats">
+                <Component Id="QtImageFormatPlugins" Guid="e02af9cf-a7d1-46f6-80e1-5166be139f26" Win64="yes">
+                    <File Id="QJpegFile" 
+                          Source="$(var.SourcererBinPath)\imageformats\qjpeg.dll"
+                          Vital="no" />
+                    <File Id="QGifFile" 
+                          Source="$(var.SourcererBinPath)\imageformats\qgif.dll"
+                          Vital="no" />
+                    <File Id="QIcoFile" 
+                          Source="$(var.SourcererBinPath)\imageformats\qico.dll"
+                          Vital="no" />
+                </Component>
+            </Directory>
+            
+            <!-- Qt Style Plugins -->
+            <Directory Id="StylesDir" Name="styles">
+                <Component Id="QtStylePlugins" Guid="1e62ee6c-87ea-4e45-a0f6-914b8f794207" Win64="yes">
+                    <File Id="QModernWindowsStyleFile" 
+                          Source="$(var.SourcererBinPath)\styles\qmodernwindowsstyle.dll"
+                          Vital="no" />
+                </Component>
+            </Directory>
+            
+            <!-- Qt Icon Engine Plugins -->
+            <Directory Id="IconEnginesDir" Name="iconengines">
+                <Component Id="QtIconEnginePlugins" Guid="a97f470b-58fa-4dea-b32e-37aeab115851" Win64="yes">
+                    <File Id="QSvgIconFile" 
+                          Source="$(var.SourcererBinPath)\iconengines\qsvgicon.dll"
+                          Vital="no" />
+                </Component>
+            </Directory>
+            
+            <!-- Qt TLS Plugins -->
+            <Directory Id="TlsDir" Name="tls">
+                <Component Id="QtTlsPlugins" Guid="f8a9c3e2-6d4f-4a5b-9c1a-2e3d4f5a6b7c" Win64="yes">
+                    <File Id="QOpensslBackendFile" 
+                          Source="$(var.SourcererBinPath)\tls\qopensslbackend.dll"
+                          Vital="no" />
+                    <File Id="QCertOnlyBackendFile" 
+                          Source="$(var.SourcererBinPath)\tls\qcertonlybackend.dll"
+                          Vital="no" />
+                    <File Id="QSchannelBackendFile" 
+                          Source="$(var.SourcererBinPath)\tls\qschannelbackend.dll"
+                          Vital="no" />
+                </Component>
+            </Directory>
+
+            <!-- JWT Security Files -->
+            <Directory Id="KeysDir" Name="keys">
+                <Component Id="JwtPublicKeyFiles" Guid="ff6c2354-81d0-4d4b-b67b-27e72b96446d" Win64="yes">
+                    <File Id="CloudJwtPublicKeyFile" 
+                          Source="$(var.SourcererBinPath)\keys\cloud_jwt_public_key.pem"
+                          Vital="no" />
+                </Component>
+            </Directory>
+
+            <Component Id="QcaCryptoLibrary" Guid="1a1661d3-0b93-401e-9bf5-6e6aa45ee4e1" Win64="yes">
+                <File Id="LibQcaQt6File" 
+                        Source="$(var.SourcererBinPath)\bin\libqca-qt6.dll"
+                        Vital="no" />
+            </Component>
+
+        </DirectoryRef>
+        
+        <!-- Start Menu shortcuts -->
+        <DirectoryRef Id="ApplicationProgramsFolder">
+            <Component Id="StartMenuShortcut" Guid="b4f8f40c-991d-4f88-ad56-450846ccdd9a">
+                <Shortcut Id="SourcererShortcut"
+                          Name="Sourcerer"
+                          Description="Launch Sourcerer"
+                          Target="[INSTALLFOLDER]Sourcerer.exe"
+                          WorkingDirectory="INSTALLFOLDER" />
+                <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall" />
+                <RegistryValue Root="HKCU" 
+                               Key="Software\Microsoft\Windows\CurrentVersion\Explorer\MenuOrder\Start Menu\Programs\Sourcerer"
+                               Name="(Default)" 
+                               Value="" 
+                               Type="string" 
+                               KeyPath="yes" />
+            </Component>
+            
+            <!-- Uninstall shortcut -->
+            <Component Id="UninstallShortcut" Guid="d249f58b-8b23-4a67-a22d-9d686d66eba2">
+                <Shortcut Id="UninstallSourcerer"
+                          Name="Uninstall Sourcerer"
+                          Description="Uninstall Sourcerer"
+                          Target="[SystemFolder]msiexec.exe"
+                          Arguments="/x [ProductCode]" />
+                <RegistryValue Root="HKCU" 
+                               Key="Software\Sourcerer\Uninstall"
+                               Name="(Default)" 
+                               Value="" 
+                               Type="string" 
+                               KeyPath="yes" />
+            </Component>
+        </DirectoryRef>
+        
+        <!-- Desktop shortcut -->
+        <DirectoryRef Id="DesktopFolder">
+            <Component Id="DesktopShortcut" Guid="c8a8b1d4-e7f2-4c1a-9d3e-5f6a7b8c9d0e" Win64="yes">
+                <Shortcut Id="SourcererDesktopShortcut"
+                          Name="Sourcerer"
+                          Description="Launch Sourcerer"
+                          Target="[INSTALLFOLDER]Sourcerer.exe"
+                          WorkingDirectory="INSTALLFOLDER" />
+                <RegistryValue Root="HKCU" 
+                               Key="Software\Sourcerer\Desktop"
+                               Name="Installed" 
+                               Value="1" 
+                               Type="integer" 
+                               KeyPath="yes" />
+            </Component>
+        </DirectoryRef>
+        
+        <!-- Registry entries for Add/Remove Programs -->
+        <DirectoryRef Id="INSTALLFOLDER">
+            <Component Id="RegistryEntries" Guid="768a69ae-7464-4ac2-ba50-6a6eadc26d34" Win64="yes">
+                <RegistryKey Root="HKLM" 
+                             Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\Sourcerer"
+                             ForceCreateOnInstall="yes" 
+                             ForceDeleteOnUninstall="yes">
+                    <RegistryValue Type="string" 
+                                   Name="DisplayName" 
+                                   Value="Sourcerer" />
+                    <RegistryValue Type="string" 
+                                   Name="DisplayVersion" 
+                                   Value="0.2.1" />
+                    <RegistryValue Type="string" 
+                                   Name="Publisher" 
+                                   Value="Sourcerer Team" />
+                    <RegistryValue Type="string" 
+                                   Name="URLInfoAbout" 
+                                   Value="https://www.sourcererapp.com" />
+                    <RegistryValue Type="string" 
+                                   Name="InstallLocation" 
+                                   Value="[INSTALLFOLDER]" />
+                </RegistryKey>
+            </Component>
+        </DirectoryRef>
+        
+        <!-- Properties for finish screen options (no Value = unchecked by default) -->
+        <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch Sourcerer" />
+        
+        <!-- Custom action to set WixShellExecTarget and launch Sourcerer after install -->
+        <CustomAction Id="LaunchSourcerer" 
+                      FileKey="SourcererExe"
+                      ExeCommand=""
+                      Return="asyncNoWait"
+                      Impersonate="yes" />
+        
+        <!-- UI - Standard InstallDir with license and exit checkbox -->
+        <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+        <UIRef Id="WixUI_InstallDir" />
+        <WixVariable Id="WixUILicenseRtf" Value="$(var.LicenseRtfPath)" />
+
+            <UI>
+                  <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchSourcerer">WIXUI_EXITDIALOGOPTIONALCHECKBOX=1</Publish>
+            </UI>
+        
+        <!-- Custom properties -->
+        <Property Id="ARPPRODUCTICON" Value="sorcerer-hat.png" />
+        <Property Id="ARPURLINFOABOUT" Value="https://www.sourcererapp.com" />
+    </Product>
+</Wix>

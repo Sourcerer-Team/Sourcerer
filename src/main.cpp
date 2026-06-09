@@ -1,27 +1,13 @@
-#include "mainwindow.h"
+#include <ComponentManager.h>
+#include <GitRepoManager.h>
+#include <GuiManager.h>
 
-#include <QApplication>
-#include <QLocale>
-#include <QTranslator>
+int main(int argc, char *argv[]) {
 
-int main(int argc, char *argv[])
-{
-    QGoodWindow::setup();
+  ComponentManager::ComponentManager componentManager;
+  componentManager.addThread<GitRepoManager::GitRepoManager>();
+  componentManager.startProcess<GuiManager::GuiManager>();
+  componentManager.stopAll();
 
-    QApplication a(argc, argv);
-
-    QTranslator translator;
-    const QStringList uiLanguages = QLocale::system().uiLanguages();
-    for (const QString &locale : uiLanguages) {
-        const QString baseName = "Sourcerer_" + QLocale(locale).name();
-        if (translator.load(":/i18n/" + baseName)) {
-            a.installTranslator(&translator);
-            break;
-        }
-    }
-
-    MainWindow w;
-    w.show();
-
-    return a.exec();
+  return 0;
 }

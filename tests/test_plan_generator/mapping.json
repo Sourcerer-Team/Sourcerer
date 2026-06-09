@@ -1,0 +1,12 @@
+{
+  "sheet_name": "Test plan",
+  "columns": {
+    "Test ID": "B1:B1",
+    "Feature Area": "B2:B2",
+    "Test Case": "B3:B3",
+    "Priority": "B4:B4",
+    "Test Steps": "B5:H11",
+    "Expected Result": "B12:H20",
+    "Notes": "B22:H24"
+  }
+}

@@ -25,15 +25,15 @@ tags
 *.debug
 Makefile*
 *.prl
-*.app
+build*/*.app/
+src/build*/*.app/
 moc_*.cpp
 ui_*.h
 qrc_*.cpp
 Thumbs.db
-*.res
-*.rc
 /.qmake.cache
 /.qmake.stash
+*.run
 
 # qtcreator generated files
 *.pro.user*
@@ -73,3 +73,20 @@ build*/
 *.dll
 *.exe
 
+# Installer data directory
+installer/packages/*/data/
+
+
+installer/appimagetool-extracted/
+
+*.AppImage
+
+installer/Sourcerer.AppDir/
+
+build-output.txt
+
+installer/Sourcerer-Installer.msi
+
+installer/Sourcerer-Installer.wixpdb
+
+keys/**

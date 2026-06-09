@@ -1,0 +1,98 @@
+# Windows Server Core with Qt 6.10.1, MSYS2, and WiX Toolset for Sourcerer build
+# Requires Windows containers mode in Docker Desktop
+
+# Use Windows Server Core 2022 as base
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+# Set up environment
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+# Install Chocolatey package manager
+RUN Set-ExecutionPolicy Bypass -Scope Process -Force; \
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; \
+    iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# Install build tools
+RUN choco install -y cmake --installargs 'ADD_CMAKE_TO_PATH=System'
+RUN choco install -y git
+RUN choco install -y 7zip
+RUN choco install -y python3
+
+# Install WiX Toolset v3.14 (required for MSI generation)
+RUN choco install -y wixtoolset --version=3.14.0
+
+# Install MSYS2
+RUN choco install -y msys2 --params '"/NoUpdate /NoPath"'
+
+# Update MSYS2 and install required runtime libraries and complete build toolchain
+RUN C:\tools\msys64\usr\bin\bash.exe -lc 'pacman -Syu --noconfirm'
+RUN C:\tools\msys64\usr\bin\bash.exe -lc 'pacman -Su --noconfirm'
+RUN C:\tools\msys64\usr\bin\bash.exe -lc 'pacman -S --noconfirm mingw-w64-x86_64-toolchain mingw-w64-x86_64-libzip mingw-w64-x86_64-libgit2 mingw-w64-x86_64-libssh2 mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja'
+
+# Set up MSYS2 environment
+RUN [Environment]::SetEnvironmentVariable('MSYS2_ROOT', 'C:\tools\msys64', 'Machine'); \
+    $path = [Environment]::GetEnvironmentVariable('PATH', 'Machine'); \
+    [Environment]::SetEnvironmentVariable('PATH', 'C:\tools\msys64\mingw64\bin;' + $path, 'Machine')
+
+# Create Qt installation directory
+RUN New-Item -ItemType Directory -Force -Path C:\Qt | Out-Null
+
+# Qt installation parameters
+ENV QT_VERSION=6.10.1
+ENV QT_DIR=C:\Qt
+
+# Install aqtinstall for Qt installation
+RUN python -m pip install --upgrade pip; \
+    pip install aqtinstall
+
+# Install Qt using aqtinstall (no Qt IFW - using WiX Toolset instead)
+RUN Write-Host "Installing Qt $env:QT_VERSION using aqtinstall..."; \
+    aqt install-qt windows desktop $env:QT_VERSION win64_mingw -m qtscxml qtnetworkauth qt5compat --outputdir C:\Qt; \
+    Write-Host 'Installing MinGW tools...'; \
+    aqt install-tool windows desktop tools_mingw90 --outputdir C:\Qt; \
+    Write-Host 'Qt installation completed. Checking installed files...'; \
+    Get-ChildItem -Path C:\Qt -Directory | ForEach-Object { Write-Host $_.Name }; \
+    Get-ChildItem -Path C:\Qt\Tools -Directory -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  Tools/$($_.Name)" }
+
+# Set up Qt environment variables (Qt MinGW tools prioritized in PATH)
+RUN $qtBinPath = ('C:\Qt\' + $env:QT_VERSION + '\mingw_64\bin'); \
+    $mingwPath = (Get-ChildItem 'C:\Qt\Tools' -Directory -Filter 'mingw*' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName; \
+    if ($mingwPath) { $mingwBin = $mingwPath + '\bin' } else { $mingwBin = '' }; \
+    $qt6Dir = ('C:\Qt\' + $env:QT_VERSION + '\mingw_64'); \
+    $msys2Path = 'C:\tools\msys64\mingw64\bin'; \
+    $wixPath = 'C:\Program Files (x86)\WiX Toolset v3.14\bin'; \
+    $path = [Environment]::GetEnvironmentVariable('PATH', 'Machine'); \
+    $path = $path -replace [regex]::Escape($msys2Path + ';'), ''; \
+    if ($mingwBin) { \
+        [Environment]::SetEnvironmentVariable('PATH', $mingwBin + ';' + $qtBinPath + ';' + $wixPath + ';' + $msys2Path + ';' + $path, 'Machine'); \
+    } else { \
+        [Environment]::SetEnvironmentVariable('PATH', $qtBinPath + ';' + $wixPath + ';' + $msys2Path + ';' + $path, 'Machine'); \
+    }; \
+    [Environment]::SetEnvironmentVariable('QT_DIR', 'C:\Qt', 'Machine'); \
+    [Environment]::SetEnvironmentVariable('Qt6_DIR', $qt6Dir, 'Machine'); \
+    [Environment]::SetEnvironmentVariable('OPENSSL_ROOT_DIR', 'C:\tools\msys64\mingw64', 'Machine')
+
+# Verify installations
+RUN Write-Host 'Verifying installations...'; \
+    Write-Host 'System CMake:'; \
+    cmake --version; \
+    Write-Host 'MSYS2 CMake:'; \
+    C:\tools\msys64\usr\bin\bash.exe -lc 'cmake --version'; \
+    git --version; \
+    Write-Host 'MSYS2 Compiler:'; \
+    C:\tools\msys64\usr\bin\bash.exe -lc 'gcc --version'; \
+    Write-Host 'MSYS2 Make:'; \
+    C:\tools\msys64\usr\bin\bash.exe -lc 'make --version'; \
+    $qmakePath = ('C:\Qt\' + $env:QT_VERSION + '\mingw_64\bin\qmake.exe'); \
+    $candlePath = 'C:\Program Files (x86)\WiX Toolset v3.14\bin\candle.exe'; \
+    $lightPath = 'C:\Program Files (x86)\WiX Toolset v3.14\bin\light.exe'; \
+    if (Test-Path $qmakePath) { & $qmakePath --version } else { Write-Host 'WARNING: qmake not found at' $qmakePath }; \
+    if (Test-Path $candlePath) { Write-Host 'WiX Candle found at' $candlePath } else { Write-Host 'WARNING: candle.exe not found' }; \
+    if (Test-Path $lightPath) { Write-Host 'WiX Light found at' $lightPath } else { Write-Host 'WARNING: light.exe not found' }; \
+    Write-Host 'MSYS2 libraries available in: C:\tools\msys64\mingw64\lib'
+
+# Set working directory
+WORKDIR C:\\workspace
+
+# Default command
+CMD ["powershell.exe"]
