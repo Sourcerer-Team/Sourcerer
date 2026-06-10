@@ -123,7 +123,17 @@ docker run --rm `
     Write-Host 'Building via MSYS2 bash shell...' -ForegroundColor Blue
     `$msys2Bash = 'C:\tools\msys64\usr\bin\bash.exe'
     
-    & `$msys2Bash -lc 'export PATH=/c/tools/msys64/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin && cd /c/workspace/build/Release && cmake ../../src -G Ninja -DCMAKE_BUILD_TYPE=Release && ninja -j4'
+    # Verify ninja is available before building
+    Write-Host 'Verifying ninja is available...' -ForegroundColor Gray
+    & `$msys2Bash -lc 'export PATH=/c/tools/msys64/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin && which ninja && ninja --version'
+    if (`$LASTEXITCODE -ne 0) {
+        Write-Host 'ERROR: ninja not found in MSYS2 environment' -ForegroundColor Red
+        Write-Host 'Attempting to list mingw64/bin contents...' -ForegroundColor Gray
+        & `$msys2Bash -lc 'ls -la /c/tools/msys64/mingw64/bin | grep -i ninja || echo "ninja not found in directory"'
+        exit 1
+    }
+    
+    & `$msys2Bash -lc 'export PATH=/c/tools/msys64/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin && cd /c/workspace/build/Release && cmake ../../src -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM=/mingw64/bin/ninja && ninja -j4'
     
     if (`$LASTEXITCODE -ne 0) {
         Write-Host 'Project build failed' -ForegroundColor Red
