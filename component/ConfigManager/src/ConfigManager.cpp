@@ -123,13 +123,13 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::CloudJwtPublicKeyPath, "keys/cloud_jwt_public_key.pem"},
 #ifdef QT_DEBUG
     {ConfigKey::CloudSigninUrl,
-     "https://development.sourcererapp.com/api/v1/signin"},
+     "https://www.sourcererapp.com/api/v1/signin"},
     {ConfigKey::CloudSignupUrl,
-     "https://development.sourcererapp.com/#/signup"},
+     "https://www.sourcererapp.com/#/signup"},
     {ConfigKey::CloudSignoutUrl,
-     "https://development.sourcererapp.com/api/v1/logout"},
+     "https://www.sourcererapp.com/api/v1/logout"},
     {ConfigKey::CloudUploadBugReportUrl,
-     "https://development.sourcererapp.com/api/v1/upload-bug-report"},
+     "https://www.sourcererapp.com/api/v1/upload-bug-report"},
 #else
     {ConfigKey::CloudSigninUrl,
      "https://www.sourcererapp.com/api/v1/signin"},
