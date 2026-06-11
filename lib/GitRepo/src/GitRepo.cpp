@@ -5925,8 +5925,8 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
   // Delete branch with refspec: :refs/heads/branchName (empty source = delete)
   // Strip remote prefix (e.g., "origin/branch" -> "branch")
   QString cleanBranchName = branchName;
-  if (const auto parts = branchName.split('/'); parts.length() > 1) {
-    cleanBranchName = parts.last();
+  if (branchName.startsWith("origin/")) {
+    cleanBranchName = branchName.mid(7); // Remove "origin/" prefix (7 characters)
   }
 
   const QString refspec = QString(":refs/heads/%1").arg(cleanBranchName);
