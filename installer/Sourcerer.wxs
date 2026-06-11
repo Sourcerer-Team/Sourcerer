@@ -8,7 +8,7 @@
     <Product Id="*" 
              Name="Sourcerer" 
              Language="1033" 
-             Version="0.2.1" 
+             Version="1.0.0" 
              Manufacturer="Sourcerer Team" 
              UpgradeCode="c22a2f5d-6d5f-49b4-8e9f-69700eee4929">
         
