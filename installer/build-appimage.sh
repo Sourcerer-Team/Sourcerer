@@ -57,6 +57,9 @@ copy_lib_dependencies() {
         "libdrm.so" "libudev.so" "libdbus-1.so" "libsystemd.so"
     )
     
+    # OpenSSL libraries should be bundled (not excluded)
+    # libssl.so.3 and libcrypto.so.3 are needed for TLS support
+    
     # Check if library should be excluded
     for exclude in "${exclude_libs[@]}"; do
         if [[ "$lib_name" == $exclude* ]]; then
@@ -74,6 +77,8 @@ copy_lib_dependencies() {
         if [ -f "$target" ]; then
             cp "$target" "$APPDIR/usr/lib/"
         fi
+    else
+        echo "Warning: Library $lib_path not found, skipping."
     fi
     
     # Recursively copy dependencies
@@ -108,7 +113,7 @@ for base_path in "${QT_PLUGIN_PATHS[@]}"; do
             echo "Found Qt plugins at: $qt_plugin_dir"
             
             # Copy necessary plugin categories
-            for plugin_cat in platforms xcbglintegrations imageformats iconengines platformthemes; do
+            for plugin_cat in platforms xcbglintegrations imageformats iconengines platformthemes tls; do
                 if [ -d "$qt_plugin_dir/$plugin_cat" ]; then
                     mkdir -p "$APPDIR/usr/lib/qt6/plugins/$plugin_cat"
                     cp -r "$qt_plugin_dir/$plugin_cat"/* "$APPDIR/usr/lib/qt6/plugins/$plugin_cat/" 2>/dev/null || true
@@ -153,21 +158,34 @@ for base_path in "${QCA_CRYPTO_PATHS[@]}"; do
     done
 done
 
+# Explicitly copy OpenSSL libraries required for TLS backend
+echo "Ensuring OpenSSL libraries are included for TLS support..."
+for openssl_lib in libssl.so.3 libcrypto.so.3; do
+    lib_path=$(find /usr/lib -name "$openssl_lib" -type f 2>/dev/null | head -n 1)
+    if [ -f "$lib_path" ]; then
+        cp "$lib_path" "$APPDIR/usr/lib/" 2>/dev/null || true
+        echo "  Copied $openssl_lib"
+    else
+        echo "  Warning: $openssl_lib not found"
+    fi
+done
+
 pushd "$APPDIR/usr/lib"
 ln -s  libqca-qt6.so.2 libqca-qt6.so
 popd
 
-# Create qt.conf
+# Create qt.conf with proper plugin paths for TLS support
 cat > "$APPDIR/usr/bin/qt.conf" << 'QTCONF'
 [Paths]
 Plugins = ../lib/qt6/plugins
+Libraries = ../lib
 QTCONF
 
 # Copy configuration and security files
 echo "Copying JWT public key..."
-mkdir -p "$APPDIR/keys"
+mkdir -p "$APPDIR/usr/bin/keys"
 if [ -f "$PROJECT_ROOT/keys/cloud_jwt_public_key.pem" ]; then
-    cp "$PROJECT_ROOT/keys/cloud_jwt_public_key.pem" "$APPDIR/keys/"
+    cp "$PROJECT_ROOT/keys/cloud_jwt_public_key.pem" "$APPDIR/usr/bin/keys/"
 else
     echo "Warning: JWT public key file not found at $PROJECT_ROOT/keys/cloud_jwt_public_key.pem"
 fi
@@ -227,7 +245,10 @@ APPIMAGE_PATH="${ARGV0:-$APPIMAGE}"
 export LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/lib/qca-qt6/crypto:$LD_LIBRARY_PATH"
 export QT_PLUGIN_PATH="$APPDIR/usr/lib/qt6/plugins"
 export QT_QPA_PLATFORM_PLUGIN_PATH="$APPDIR/usr/lib/qt6/plugins/platforms"
+export QT_TLS_PLUGIN_PATH="$APPDIR/usr/lib/qt6/plugins/tls"
 export QCA_PLUGIN_PATH="$APPDIR/usr/bin/crypto"
+# Ensure OpenSSL libraries are discoverable for TLS backend
+export LD_LIBRARY_PATH="$APPDIR/usr/lib:$LD_LIBRARY_PATH"
 
 # Handle AppImage standard arguments
 if [ "$1" = "--help-integration" ]; then
@@ -419,6 +440,30 @@ if [ "$1" = "--unintegrate" ]; then
 fi
 
 # Launch the application
+# Ensure keys directory is accessible from multiple locations
+SOURCERER_DATA_DIR="$HOME/.local/share/sourcerer"
+mkdir -p "$SOURCERER_DATA_DIR"
+
+# Create symlink to AppImage keys directory in user's local data directory
+if [ ! -e "$SOURCERER_DATA_DIR/keys" ]; then
+    ln -s "$APPDIR/keys" "$SOURCERER_DATA_DIR/keys" 2>/dev/null || true
+fi
+
+# Create symlink in home directory as fallback
+if [ ! -e "$HOME/keys" ] && [ -d "$APPDIR/keys" ]; then
+    ln -s "$APPDIR/keys" "$HOME/keys" 2>/dev/null || true
+fi
+
+# Try to create symlink in current working directory (where AppImage was launched from)
+# This handles the case where user runs: ~/bin/Sourcerer-Installer.AppImage
+if [ -w "$PWD" ] 2>/dev/null && [ ! -e "$PWD/keys" ] && [ -d "$APPDIR/keys" ]; then
+    ln -s "$APPDIR/keys" "$PWD/keys" 2>/dev/null || true
+fi
+
+# Change to AppImage directory for relative path resolution
+cd "$APPDIR/usr/bin" 2>/dev/null || true
+
+# Execute the application
 exec "$APPDIR/usr/bin/Sourcerer" "$@"
 EOF
 chmod +x "$APPDIR/AppRun"

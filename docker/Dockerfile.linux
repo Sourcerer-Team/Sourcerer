@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
     libfuse2 \
     dos2unix \
     libssl-dev \
+    libssl3 \
     libgit2-dev \
     libzip-dev \
     libssh2-1-dev \
@@ -66,7 +67,8 @@ ENV QT_DIR=/opt/Qt
 ENV QT_VERSION=6.10.1
 ENV QT_IFW_VERSION=4.10
 ENV PATH="${QT_DIR}/${QT_VERSION}/gcc_64/bin:${QT_DIR}/Tools/QtInstallerFramework/${QT_IFW_VERSION}/bin:${PATH}"
-ENV LD_LIBRARY_PATH="${QT_DIR}/${QT_VERSION}/gcc_64/lib"
+ENV LD_LIBRARY_PATH="${QT_DIR}/${QT_VERSION}/gcc_64/lib:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
+ENV QT_QPA_PLATFORM_PLUGIN_PATH="${QT_DIR}/${QT_VERSION}/gcc_64/plugins"
 
 # Create directory for Qt installation
 RUN mkdir -p ${QT_DIR}
@@ -93,6 +95,12 @@ RUN wget -q https://download.qt.io/official_releases/online_installers/qt-online
 # Create symbolic link from /opt/Qt to actual installation directory
 RUN mkdir -p /home/ubuntu
 RUN if [ -d /opt/Qt ]; then ln -sf /opt/Qt /home/ubuntu/Qt; fi
+
+# Verify Qt SSL support by checking for SSL plugins and libraries
+RUN echo "Verifying Qt and OpenSSL configuration..." && \
+    ldd ${QT_DIR}/${QT_VERSION}/gcc_64/lib/libQt6Network.so.6 | grep -i ssl || echo "Warning: libssl not directly linked" && \
+    test -f /usr/lib/x86_64-linux-gnu/libssl.so.3 && echo "libssl.so.3 found" || echo "Warning: libssl.so.3 not found" && \
+    test -d ${QT_DIR}/${QT_VERSION}/gcc_64/plugins/tls && echo "Qt TLS plugins found" || echo "Warning: Qt TLS plugins not found"
 
 # Verify installation
 RUN ${QT_IFW_DIR}/bin/binarycreator --version || echo "Warning: binarycreator not found, build may fail"
