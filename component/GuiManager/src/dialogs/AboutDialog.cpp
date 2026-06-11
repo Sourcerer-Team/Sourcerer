@@ -98,8 +98,8 @@ void AboutDialog::onShowLicense() {
   // Create a custom dialog with a scrollable text area
   QDialog licenseDialog(this);
   licenseDialog.setWindowTitle(tr("License"));
-  licenseDialog.setMinimumSize(500, 400);
-  licenseDialog.resize(600, 500);
+  licenseDialog.setMinimumSize(650, 400);
+  licenseDialog.resize(780, 500);
 
   QVBoxLayout *layout = new QVBoxLayout(&licenseDialog);
 

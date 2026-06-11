@@ -190,6 +190,31 @@ else
     echo "Warning: JWT public key file not found at $PROJECT_ROOT/keys/cloud_jwt_public_key.pem"
 fi
 
+# Copy license files
+echo "Copying license files..."
+# Ensure usr/bin directory exists
+mkdir -p "$APPDIR/usr/bin"
+
+# Try both LICENSE and LICENCE spellings
+for license_file in LICENSE.txt LICENCE.txt LICENSE.rtf LICENCE.rtf; do
+    source_file="$SCRIPT_DIR/$license_file"
+    if [ -f "$source_file" ]; then
+        cp "$source_file" "$APPDIR/usr/bin/" 2>/dev/null && \
+        echo "  Copied $license_file" || \
+        echo "  ERROR: Failed to copy $license_file"
+    fi
+done
+
+# Also check in installer directory variants
+for license_file in LICENSE.txt LICENSE.rtf; do
+    source_file="$PROJECT_ROOT/installer/$license_file"
+    if [ -f "$source_file" ] && [ ! -f "$APPDIR/usr/bin/$license_file" ]; then
+        cp "$source_file" "$APPDIR/usr/bin/" 2>/dev/null && \
+        echo "  Copied $license_file from $PROJECT_ROOT/installer/" || \
+        echo "  WARNING: Could not copy $license_file"
+    fi
+done
+
 # Copy application icon
 echo "Copying application icon..."
 ICON_SVG="$PROJECT_ROOT/component/GuiManager/resources/icons/originals/sorcerer-hat.svg"
@@ -280,7 +305,7 @@ if [ ! -f "$INTEGRATION_FLAG" ] && [ -z "$APPIMAGE_SILENT_INSTALL" ]; then
         if command -v zenity &> /dev/null; then
             if zenity --question --title="Desktop Integration" \
                 --text="Would you like to integrate Sourcerer with your desktop?\n\nThis will:\n• Add Sourcerer to your application menu\n• Associate the application icon\n• Allow launching from the desktop\n\nYou can remove it later with:\n$APPIMAGE_NAME --unintegrate" \
-                --width=400 2>/dev/null; then
+                --width=520 2>/dev/null; then
                 
                 # Create desktop file
                 DESKTOP_FILE="$HOME/.local/share/applications/sourcerer-$APPIMAGE_NAME.desktop"
@@ -319,7 +344,7 @@ DESKTOP_EOF
                 
                 zenity --info --title="Integration Complete" \
                     --text="Sourcerer has been added to your application menu!" \
-                    --width=300 2>/dev/null || true
+                    --width=390 2>/dev/null || true
             else
                 # User declined, don't ask again
                 echo "Declined: $(date)" > "$INTEGRATION_FLAG"
