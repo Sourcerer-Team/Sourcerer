@@ -10,6 +10,7 @@ enum class EventType : int {
   Stop = -1,
   ChangeState = 0,
   AbortMerge,
+  AddRemote,
   AddSubmodule,
   Amend,
   ApplyPatch,
@@ -48,6 +49,7 @@ enum class EventType : int {
   ListLocalBranches,
   ListRemoteBranches,
   ListRemoteBranchesWithStatus,
+  ListRemotes,
   ListStashes,
   ListSubmodules,
   ListSubmodulesWithStatus,
@@ -58,11 +60,13 @@ enum class EventType : int {
   Push,
   PushTag,
   PushAllTags,
+  RemoveRemote,
   RenameBranch,
   RenameTag,
   Reset,
   Revert,
   CherryPick,
+  SetDefaultRemote,
   Setup,
   SetUpstream,
   StageFiles,
@@ -70,6 +74,7 @@ enum class EventType : int {
   Status,
   SubmoduleUpdate,
   UnstageFiles,
+  UpdateRemote,
 
   last
 };

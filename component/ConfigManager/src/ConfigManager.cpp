@@ -122,21 +122,15 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::CloudJwtPublicKeyPath, "keys/cloud_jwt_public_key.pem"},
 #ifdef QT_DEBUG
-    {ConfigKey::CloudSigninUrl,
-     "https://www.sourcererapp.com/api/v1/signin"},
-    {ConfigKey::CloudSignupUrl,
-     "https://www.sourcererapp.com/#/signup"},
-    {ConfigKey::CloudSignoutUrl,
-     "https://www.sourcererapp.com/api/v1/logout"},
+    {ConfigKey::CloudSigninUrl, "https://www.sourcererapp.com/api/v1/signin"},
+    {ConfigKey::CloudSignupUrl, "https://www.sourcererapp.com/#/signup"},
+    {ConfigKey::CloudSignoutUrl, "https://www.sourcererapp.com/api/v1/logout"},
     {ConfigKey::CloudUploadBugReportUrl,
      "https://www.sourcererapp.com/api/v1/upload-bug-report"},
 #else
-    {ConfigKey::CloudSigninUrl,
-     "https://www.sourcererapp.com/api/v1/signin"},
-    {ConfigKey::CloudSignupUrl,
-     "https://www.sourcererapp.com/#/signup"},
-    {ConfigKey::CloudSignoutUrl,
-     "https://www.sourcererapp.com/api/v1/logout"},
+    {ConfigKey::CloudSigninUrl, "https://www.sourcererapp.com/api/v1/signin"},
+    {ConfigKey::CloudSignupUrl, "https://www.sourcererapp.com/#/signup"},
+    {ConfigKey::CloudSignoutUrl, "https://www.sourcererapp.com/api/v1/logout"},
     {ConfigKey::CloudUploadBugReportUrl,
      "https://www.sourcererapp.com/api/v1/upload-bug-report"},
 #endif

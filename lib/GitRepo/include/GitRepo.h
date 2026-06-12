@@ -7,6 +7,8 @@
 #include <git2/repository.h>
 #include <git2/status.h>
 
+#include <tuple>
+
 namespace GitRepo {
 
 struct GitError {
@@ -198,7 +200,17 @@ struct SubmoduleInfo {
     return name == other.name && statusInfo.status == other.statusInfo.status;
   }
 };
+struct RemoteInfo {
+  QString name;
+  QString fetchUrl;
+  QString pushUrl;
+  bool isDefault = false;
 
+  bool operator==(const RemoteInfo &other) const {
+    return name == other.name && fetchUrl == other.fetchUrl &&
+           pushUrl == other.pushUrl;
+  }
+};
 enum class BranchType {
   Unknown = 0,
 
@@ -346,7 +358,9 @@ qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
 
 bool discardFiles(git_repository *repo, const QStringList &files);
 
-bool pull(git_repository *rep);
+bool pull(git_repository *rep, const QString &activeBranchName = QString());
+
+bool push(git_repository *repo, const QString &activeBranchName = QString());
 
 bool push(git_repository *rep);
 
@@ -360,8 +374,8 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
                  const QString &remoteBranchName,
                  const QString &localBranchName);
 
-QPair<QString, QString> getUpstream(git_repository *repo,
-                                    const QString &localBranchName);
+std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
+                                               const QString &localBranchName);
 
 bool resetToCommit(git_repository *repo, const QString &commit, ResetType type);
 
@@ -407,5 +421,20 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 bool getIsMergeInProgress(git_repository *repo);
 
 bool abortMerge(git_repository *repo);
+
+// Remote management functions
+QVector<RemoteInfo> listRemotes(git_repository *repo);
+
+QString getDefaultRemote(git_repository *repo);
+
+bool setDefaultRemote(git_repository *repo, const QString &remoteName);
+
+bool addRemote(git_repository *repo, const QString &remoteName,
+               const QString &fetchUrl, const QString &pushUrl);
+
+bool removeRemote(git_repository *repo, const QString &remoteName);
+
+bool updateRemote(git_repository *repo, const QString &remoteName,
+                  const QString &fetchUrl, const QString &pushUrl);
 
 } // namespace GitRepo
