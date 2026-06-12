@@ -33,6 +33,7 @@ set(UI_FILES
         src/widgets/LocalGitBranchesPage.ui
         src/widgets/ProfileBoardWidget.ui
         src/widgets/RemoteGitBranchesPage.ui
+        src/widgets/RemotesPage.ui
         src/widgets/StashesPage.ui
         src/widgets/TitlebarWidget.ui
 )
@@ -83,10 +84,12 @@ set(GUIMANAGER_SOURCE_FILES
         include/models/GitCommitTreeModel.h
         include/models/GitHistoryModel.h
         include/models/RecentlyOpenedReposModel.h
+        include/models/RemotesModel.h
         include/models/StashesModel.h
         include/models/SubmodulesModel.h
         include/models/TagsModel.h
         include/models/WorkspacesModel.h
+        include/widgets/AddRemoteOverlayWidget.h
         include/widgets/AddSubmoduleOverlayWidget.h
         include/widgets/AnnotatedTagOverlayWidget.h
         include/widgets/CentralWidget.h
@@ -94,6 +97,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/ColorButton.h
         include/widgets/ConsoleWidget.h
         include/widgets/ContainerWidget.h
+        include/widgets/EditRemoteOverlayWidget.h
         include/widgets/ElidedLabel.h
         include/widgets/ErrorToast.h
         include/widgets/ExtendedTabBar.h
@@ -119,6 +123,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/RemoteGitBranchesPage.h
         include/widgets/RightClickSelectListView.h
         include/widgets/RightClickSelectTreeView.h
+        include/widgets/RemotesPage.h
         include/widgets/SettingsPaneWidget.h
         include/widgets/SettingsPaneItemWidget.h
         include/widgets/SettingsPaneBooleanWidget.h
@@ -170,16 +175,19 @@ set(GUIMANAGER_SOURCE_FILES
         src/models/GitCommitTreeModel.cpp
         src/models/GitHistoryModel.cpp
         src/models/RecentlyOpenedReposModel.cpp
+        src/models/RemotesModel.cpp
         src/models/StashesModel.cpp
         src/models/SubmodulesModel.cpp
         src/models/WorkspacesModel.cpp
         src/models/TagsModel.cpp
+        src/widgets/AddRemoteOverlayWidget.cpp
         src/widgets/AddSubmoduleOverlayWidget.cpp
         src/widgets/AnnotatedTagOverlayWidget.cpp
         src/widgets/CentralWidget.cpp
         src/widgets/ColorButton.cpp
         src/widgets/ConsoleWidget.cpp
         src/widgets/ContainerWidget.cpp
+        src/widgets/EditRemoteOverlayWidget.cpp
         src/widgets/ElidedLabel.cpp
         src/widgets/ErrorToast.cpp
         src/widgets/GitCredentialsOverlayWidget.cpp
@@ -195,6 +203,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/RecentTableView.cpp
         src/widgets/WorkspacesTableView.cpp
         src/widgets/RemoteGitBranchesPage.cpp
+        src/widgets/RemotesPage.cpp
         src/widgets/SettingsPaneWidget.cpp
         src/widgets/SettingsPaneItemWidget.cpp
         src/widgets/SettingsPaneBooleanWidget.cpp

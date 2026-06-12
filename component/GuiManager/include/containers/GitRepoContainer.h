@@ -84,6 +84,10 @@ private slots:
   void onApplyStash(int stashIndex);
   void onDeleteStash(int stashIndex);
   void onClearAllStashes();
+  void onAddRemote();
+  void onEditRemote(int remoteIndex);
+  void onDeleteRemote(int remoteIndex);
+  void onSetDefaultRemote(int remoteIndex);
   void onSplitterMoved(int pos, int index) const;
   void showTooltipForColumnSlice(const QModelIndex &index);
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
@@ -140,7 +144,7 @@ private slots:
   void onRepoDirChangedTimeout();
   void onRevertCommit(const QString &commit);
   void onCherryPickCommit();
-  void onSetUpstream();
+  void onSetUpstream(const QString &branchName);
   void onSoftResetToCommit(const QString &commit);
   void onStash();
   void onStashSelected(int stashIndex);
@@ -261,6 +265,7 @@ private:
   bool getLocalBranches();
   bool getRemoteBranches();
   bool getStashes(const WeakPtr &guard);
+  bool getRemotes(const WeakPtr &guard);
   bool getSubmodules();
   bool getTags();
   QStringList getSubdirectories(const QString &path,
@@ -268,6 +273,8 @@ private:
   QStringList getAllFiles(const QString &path,
                           const QStringList &excluded) const;
   QPair<QString, QString> getUpstream(const WeakPtr &guard);
+  QPair<QString, QString> getUpstreamForBranch(const WeakPtr &guard,
+                                               const QString &branchName);
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   void ignoreFilesRecursive(const WeakPtr &guard, const QStringList &files);
@@ -279,6 +286,12 @@ private:
   void showStashContent(const WeakPtr &guard, int stashIndex);
   void pull(const WeakPtr &guard);
   void push(const WeakPtr &guard);
+  void addRemote(const WeakPtr &guard, const QString &remoteName,
+                 const QString &fetchUrl, const QString &pushUrl);
+  void editRemote(const WeakPtr &guard, int remoteIndex,
+                  const QString &fetchUrl, const QString &pushUrl);
+  void deleteRemote(const WeakPtr &guard, int remoteIndex);
+  void setDefaultRemote(const WeakPtr &guard, int remoteIndex);
   void renameBranch(const WeakPtr &guard, const QString &oldName,
                     const QString &newName);
   void renameTag(const WeakPtr &guard, const QString &oldName,
@@ -300,7 +313,8 @@ private:
   void saveThreeWayMergeResultFile(const WeakPtr &guard,
                                    const QString &filePath,
                                    const QString &content);
-  void setUpstream(const WeakPtr &guard, const QString &remoteName,
+  void setUpstream(const WeakPtr &guard, const QString &branchName,
+                   const QString &remoteName,
                    const QString &remoteBranchName);
   void startOverlayTimer() const;
   void stash(const WeakPtr &guard);

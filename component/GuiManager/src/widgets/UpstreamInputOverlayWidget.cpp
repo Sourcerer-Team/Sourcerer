@@ -1,5 +1,6 @@
 #include "widgets/UpstreamInputOverlayWidget.h"
 #include "widgets/OpagueGroupBox.h"
+#include "widgets/OpaqueComboBox.h"
 #include "widgets/OpaqueLabel.h"
 #include "widgets/OpaquePushButton.h"
 
@@ -18,8 +19,8 @@ namespace GuiManager::Widgets {
 
 UpstreamInputOverlayWidget::UpstreamInputOverlayWidget(QWidget *parent)
     : OverlayWidget(parent, ALPHA),
-      _lineEditRemoteInput(new PersistentPlaceholderLineEdit(
-          QColor::fromString("#969696"), this)),
+      _comboBoxRemoteInput(new OpaqueComboBox(
+          QColor::fromString("#2a3842"), this)),
       _lineEditBranchInput(new PersistentPlaceholderLineEdit(
           QColor::fromString("#969696"), this)) {
   LOG_PERF(0, "Enter");
@@ -32,14 +33,14 @@ UpstreamInputOverlayWidget::UpstreamInputOverlayWidget(QWidget *parent)
   groupBox->setMinimumHeight(100);
   groupBox->setMaximumHeight(100);
 
-  _lineEditRemoteInput->setParent(groupBox);
-  _lineEditRemoteInput->setObjectName("lineEditTextOverlayWidgetInputRemote");
-  _lineEditRemoteInput->setSizePolicy(QSizePolicy::Expanding,
+  _comboBoxRemoteInput->setParent(groupBox);
+  _comboBoxRemoteInput->setObjectName("comboBoxTextOverlayWidgetInputRemote");
+  _comboBoxRemoteInput->setSizePolicy(QSizePolicy::Expanding,
                                       QSizePolicy::Preferred);
-  _lineEditRemoteInput->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-  _lineEditRemoteInput->setMaximumWidth(250);
-  _lineEditRemoteInput->setMaximumWidth(250);
-  _lineEditRemoteInput->setFocus();
+  _comboBoxRemoteInput->setMaximumWidth(250);
+  _comboBoxRemoteInput->setMinimumHeight(24);
+  _comboBoxRemoteInput->setMaximumHeight(24);
+  _comboBoxRemoteInput->setFocus();
 
   _lineEditBranchInput->setParent(groupBox);
   _lineEditBranchInput->setObjectName("lineEditTextOverlayWidgetInputBranch");
@@ -78,7 +79,7 @@ UpstreamInputOverlayWidget::UpstreamInputOverlayWidget(QWidget *parent)
   horizontalLayout->setAlignment(Qt::AlignCenter);
   horizontalLayout->setContentsMargins(0, 0, 0, 0);
   horizontalLayout->setSpacing(6);
-  horizontalLayout->addWidget(_lineEditRemoteInput);
+  horizontalLayout->addWidget(_comboBoxRemoteInput);
   horizontalLayout->addWidget(labelSlash);
   horizontalLayout->addWidget(_lineEditBranchInput);
   horizontalLayout->addWidget(pushButtonSubmit);
@@ -97,7 +98,7 @@ UpstreamInputOverlayWidget::UpstreamInputOverlayWidget(QWidget *parent)
   connect(pushButtonCancel, &QPushButton::clicked, this,
           &UpstreamInputOverlayWidget::onButtonCanceled);
 
-  _lineEditRemoteInput->installEventFilter(this);
+  _comboBoxRemoteInput->installEventFilter(this);
   _lineEditBranchInput->installEventFilter(this);
 
   LOG_PERF(0, "Exit");
@@ -108,6 +109,31 @@ UpstreamInputOverlayWidget::~UpstreamInputOverlayWidget() {
   LOG_PERF(0, "Exit");
 }
 
+void UpstreamInputOverlayWidget::setRemotes(
+    const QVector<GitRepo::RemoteInfo> &remotes) {
+  LOG_PERF(0, "Enter");
+
+  _comboBoxRemoteInput->clear();
+
+  for (const auto &remote : remotes) {
+    _comboBoxRemoteInput->addItem(remote.name);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void UpstreamInputOverlayWidget::setRemoteName(
+    const QString &remoteName) const {
+  LOG_PERF(0, "Enter");
+
+  const int index = _comboBoxRemoteInput->findText(remoteName);
+  if (index >= 0) {
+    _comboBoxRemoteInput->setCurrentIndex(index);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 bool UpstreamInputOverlayWidget::eventFilter(QObject *obj, QEvent *event) {
   if (event->type() == QEvent::KeyPress) {
     if (const auto *keyEvent = static_cast<QKeyEvent *>(event);
@@ -115,7 +141,7 @@ bool UpstreamInputOverlayWidget::eventFilter(QObject *obj, QEvent *event) {
       emit canceled();
       return true; // Event handled
     } else if (keyEvent->key() == Qt::Key_Return) {
-      emit submitted(_lineEditRemoteInput->text(),
+      emit submitted(_comboBoxRemoteInput->currentText(),
                      _lineEditBranchInput->text());
       return true; // Event handled
     }
@@ -135,7 +161,8 @@ void UpstreamInputOverlayWidget::onButtonCanceled() {
 void UpstreamInputOverlayWidget::onButtonSubmitted() {
   LOG_PERF(0, "Enter");
 
-  emit submitted(_lineEditRemoteInput->text(), _lineEditBranchInput->text());
+  emit submitted(_comboBoxRemoteInput->currentText(),
+                 _lineEditBranchInput->text());
 
   LOG_PERF(0, "Exit");
 }
