@@ -26,7 +26,7 @@ public:
 
   QString activeRemote() const;
 
-  const QVector<GitRepo::RemoteInfo>& remotes() const { return _remotes; }
+  const QVector<GitRepo::RemoteInfo> &remotes() const { return _remotes; }
 
 signals:
   void remoteSelected(int remoteIndex);
