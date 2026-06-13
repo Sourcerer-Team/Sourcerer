@@ -301,23 +301,26 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   const QIcon pullIcon(QPixmap(":icons/pull"));
   const QIcon pushIcon(QPixmap(":icons/push"));
-  const QIcon fetchAllIcon(QPixmap(":icons/fetch")); // Using pull icon for fetch all
   const QIcon popIcon(QPixmap(":icons/pop"));
   const QIcon stashIcon(QPixmap(":icons/stash"));
 
-  auto *pushButtonPull = new QPushButton();
-  pushButtonPull->setObjectName("pushButtonPull");
-  pushButtonPull->setIcon(pullIcon);
-  pushButtonPull->setToolTip(tr("Pull"));
-  pushButtonPull->setMinimumSize(42, 42);
-  pushButtonPull->setMaximumSize(42, 42);
+  // Create dropdown button for Pull/Fetch All
+  auto *pullFetchDropdown = new QToolButton();
+  pullFetchDropdown->setObjectName("pullFetchDropdown");
+  pullFetchDropdown->setIcon(pullIcon);
+  pullFetchDropdown->setToolTip(tr("Pull"));
+  pullFetchDropdown->setMinimumSize(58, 42);
+  pullFetchDropdown->setMaximumSize(58, 42);
+  pullFetchDropdown->setPopupMode(QToolButton::MenuButtonPopup);
 
-  auto *pushButtonFetchAll = new QPushButton();
-  pushButtonFetchAll->setObjectName("pushButtonFetchAll");
-  pushButtonFetchAll->setIcon(fetchAllIcon);
-  pushButtonFetchAll->setToolTip(tr("Fetch All"));
-  pushButtonFetchAll->setMinimumSize(42, 42);
-  pushButtonFetchAll->setMaximumSize(42, 42);
+  auto *pullFetchMenu = new QMenu();
+  auto *actionFetchAllMenu = pullFetchMenu->addAction(tr("Fetch All"));
+  actionFetchAllMenu->setIcon(pullIcon);
+
+  pullFetchDropdown->setMenu(pullFetchMenu);
+
+  auto *pushButtonPull = pullFetchDropdown;
+  auto *pushButtonFetchAll = pullFetchDropdown;
 
   auto *pushButtonPush = new QPushButton();
   pushButtonPush->setObjectName("pushButtonPush");
@@ -340,15 +343,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   pushButtonStash->setMinimumSize(42, 42);
   pushButtonStash->setMaximumSize(42, 42);
 
-  _shortcutsWidget->addShortcutWidget(pushButtonPull);
-  _shortcutsWidget->addShortcutWidget(pushButtonFetchAll);
+  _shortcutsWidget->addShortcutWidget(pullFetchDropdown);
   _shortcutsWidget->addShortcutWidget(pushButtonPush);
   _shortcutsWidget->addShortcutWidget(pushButtonStash);
   _shortcutsWidget->addShortcutWidget(pushButtonPop);
 
   // Explicitly show buttons to ensure they're interactive
-  pushButtonPull->show();
-  pushButtonFetchAll->show();
+  pullFetchDropdown->show();
   pushButtonPush->show();
   pushButtonStash->show();
   pushButtonPop->show();
@@ -660,9 +661,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(_repoDirWatcherTimer, &QTimer::timeout, this,
           &GitRepoContainer::onRepoDirChangedTimeout);
 
-  connect(pushButtonPull, &QPushButton::clicked, this,
+  connect(pullFetchDropdown, &QToolButton::clicked, this,
           &GitRepoContainer::onPull);
-  connect(pushButtonFetchAll, &QPushButton::clicked, this,
+  connect(actionFetchAllMenu, &QAction::triggered, this,
           &GitRepoContainer::onFetchAll);
   connect(pushButtonPush, &QPushButton::clicked, this,
           &GitRepoContainer::onPush);

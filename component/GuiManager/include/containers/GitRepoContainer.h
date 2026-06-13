@@ -22,9 +22,11 @@
 #endif
 #include <QItemSelection>
 #include <QListView>
+#include <QMenu>
 #include <QPushButton>
 #include <QSet>
 #include <QString>
+#include <QToolButton>
 #include <QTreeView>
 #include <QWidget>
 
