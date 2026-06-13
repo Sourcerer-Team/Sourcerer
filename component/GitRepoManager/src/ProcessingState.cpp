@@ -688,6 +688,8 @@ void ProcessingState::checkoutBranchWorker(
         EventManager::EventType::GitRepoManagerCheckoutBranchError,
         command.syncUuid);
     errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    LOG_DEBUG("Sending checkout error event for branch: '{}'",
+              command.branchName.toStdString());
     _eventManager.send(errorEvent);
   } else {
     GitRepoCheckoutBranchCommandResult result;
@@ -699,7 +701,11 @@ void ProcessingState::checkoutBranchWorker(
         command.syncUuid);
     resultEvent.addData(
         GitRepoResult{command.uuid, command.type, QVariant::fromValue(result)});
+    LOG_DEBUG("Sending checkout success event for branch: '{}'",
+              command.branchName.toStdString());
     _eventManager.send(resultEvent);
+    LOG_DEBUG("Checkout success event sent for branch: '{}'",
+              command.branchName.toStdString());
   }
 
   LOG_PERF(0, "Exit");

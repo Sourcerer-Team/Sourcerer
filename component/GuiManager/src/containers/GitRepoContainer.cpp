@@ -4817,6 +4817,7 @@ void GitRepoContainer::checkoutBranch(
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       updateModelActiveBranch(guard, result.branchName, result.branchType);
+      showSpinnerOverlay(false);
     });
 
     prepareWatcher(guard);
