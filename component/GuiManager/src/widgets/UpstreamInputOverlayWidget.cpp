@@ -18,9 +18,8 @@
 namespace GuiManager::Widgets {
 
 UpstreamInputOverlayWidget::UpstreamInputOverlayWidget(QWidget *parent)
-    : OverlayWidget(parent, ALPHA),
-      _comboBoxRemoteInput(new OpaqueComboBox(
-          QColor::fromString("#2a3842"), this)),
+    : OverlayWidget(parent, ALPHA), _comboBoxRemoteInput(new OpaqueComboBox(
+                                        QColor::fromString("#2a3842"), this)),
       _lineEditBranchInput(new PersistentPlaceholderLineEdit(
           QColor::fromString("#969696"), this)) {
   LOG_PERF(0, "Enter");

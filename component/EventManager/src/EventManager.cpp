@@ -86,7 +86,7 @@ std::tuple<bool, Event>
 EventManager::waitOneOf(int token, const std::set<EventType> &eventTypes,
                         std::function<bool(Event)> predicate, ulong timeout) {
   LOG_PERF(0, "Enter");
-  
+
   LOG_DEBUG("waitOneOf: token={}, timeout={}, eventTypes count={}", token,
             timeout, eventTypes.size());
 
@@ -137,7 +137,7 @@ EventManager::waitOneOf(int token, const std::set<EventType> &eventTypes,
     end = QDateTime::currentMSecsSinceEpoch();
 
   } while (!quit && !success && (end - start) < timeout);
-  
+
   LOG_DEBUG("waitOneOf: token={}, success={}, elapsed={}ms", token, success,
             (end - start));
 
@@ -361,7 +361,7 @@ void EventManager::send(Event event) {
     pair.second.push({EventRecordType::Send, event});
     queueCount++;
   }
-  
+
   if (queueCount == 0) {
     LOG_WARN("Event '{}' has no wait queues to deliver to (callbacks: {})",
              eventName(type), callbackSize);
@@ -370,7 +370,6 @@ void EventManager::send(Event event) {
               queueCount);
   }
 }
-
 
 void EventManager::start() {
   if (_thread)

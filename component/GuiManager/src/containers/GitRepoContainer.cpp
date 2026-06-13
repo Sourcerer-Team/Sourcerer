@@ -1162,15 +1162,15 @@ void GitRepoContainer::onSetDefaultRemote(int remoteIndex) {
   connect(upstreamOverlay, &UpstreamInputOverlayWidget::submitted, this,
           [&, upstreamOverlay, guard](const QString &remote,
                                       const QString &branch) {
-            LOG_DEBUG("Setting upstream for branch '{}': remote='{}', branch='{}'",
-                      _activeBranch.toStdString(), remote.toStdString(),
-                      branch.toStdString());
+            LOG_DEBUG(
+                "Setting upstream for branch '{}': remote='{}', branch='{}'",
+                _activeBranch.toStdString(), remote.toStdString(),
+                branch.toStdString());
             upstreamOverlay->hide();
             delete upstreamOverlay;
 
-            _dispatcher.dispatch([=]() {
-              setUpstream(guard, _activeBranch, remote, branch);
-            });
+            _dispatcher.dispatch(
+                [=]() { setUpstream(guard, _activeBranch, remote, branch); });
           });
 
   _dispatcher.dispatch([=]() {
@@ -2993,15 +2993,15 @@ void GitRepoContainer::onSetUpstream(const QString &branchName) {
   connect(upstreamOverlay, &UpstreamInputOverlayWidget::submitted, this,
           [&, upstreamOverlay, guard, branchName](const QString &remote,
                                                   const QString &branch) {
-            LOG_DEBUG("Setting upstream for branch '{}': remote='{}', branch='{}'",
-                      branchName.toStdString(), remote.toStdString(),
-                      branch.toStdString());
+            LOG_DEBUG(
+                "Setting upstream for branch '{}': remote='{}', branch='{}'",
+                branchName.toStdString(), remote.toStdString(),
+                branch.toStdString());
             upstreamOverlay->hide();
             delete upstreamOverlay;
 
-            _dispatcher.dispatch([=]() {
-              setUpstream(guard, branchName, remote, branch);
-            });
+            _dispatcher.dispatch(
+                [=]() { setUpstream(guard, branchName, remote, branch); });
           });
 
   _dispatcher.dispatch([=]() {
@@ -7862,8 +7862,9 @@ QPair<QString, QString> GitRepoContainer::getUpstream(const WeakPtr &guard) {
   return qMakePair(remoteName, remoteBranchName);
 }
 
-QPair<QString, QString> GitRepoContainer::getUpstreamForBranch(
-    const WeakPtr &guard, const QString &branchName) {
+QPair<QString, QString>
+GitRepoContainer::getUpstreamForBranch(const WeakPtr &guard,
+                                       const QString &branchName) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -9823,8 +9824,8 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
       // Update the active remote in RemotesPage to match the branch's upstream
       _dispatcher.dispatch([=]() {
         auto [upstreamRemote, upstreamBranch] = getUpstream(guard);
-        if(upstreamRemote.isEmpty()) {
-            upstreamRemote = ui->remotesPage->activeRemote();
+        if (upstreamRemote.isEmpty()) {
+          upstreamRemote = ui->remotesPage->activeRemote();
         }
         Util::Dispatcher::dispatchToMainThread(guard, [=]() {
           ui->remotesPage->updateActiveRemote(upstreamRemote);

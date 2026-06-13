@@ -314,8 +314,7 @@ private:
                                    const QString &filePath,
                                    const QString &content);
   void setUpstream(const WeakPtr &guard, const QString &branchName,
-                   const QString &remoteName,
-                   const QString &remoteBranchName);
+                   const QString &remoteName, const QString &remoteBranchName);
   void startOverlayTimer() const;
   void stash(const WeakPtr &guard);
   void stopOverlayTimer() const;

@@ -381,8 +381,6 @@ static git_commit *getLastCommit(git_repository *repo, const QString &name) {
 static bool isCommercialPlan() {
   LOG_PERF(0, "Enter");
 
-  return true;
-
   Util::CloudCredentialtorage &credentialStorage =
       Util::CloudCredentialtorage::getInstance();
 
@@ -4671,8 +4669,8 @@ bool pull(git_repository *repo, const QString &activeBranchName) {
   // Fetch all heads and tags
   git_strarray refspecs = qstringlist_to_git_strarray(
       QStringList()
-              << QString("+refs/heads/*:refs/remotes/%1/*").arg(remoteName)
-              << "+refs/tags/*:refs/tags/*");
+      << QString("+refs/heads/*:refs/remotes/%1/*").arg(remoteName)
+      << "+refs/tags/*:refs/tags/*");
 
   do {
     error = git_remote_fetch(remote, &refspecs, &fetchOpts, nullptr);
@@ -4818,8 +4816,8 @@ bool pull(git_repository *repo, const QString &activeBranchName) {
     checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
 
     error = git_merge(
-                repo, const_cast<const git_annotated_commit **>(&upstreamCommit), 1,
-                &merge_opts, &checkout_opts);
+        repo, const_cast<const git_annotated_commit **>(&upstreamCommit), 1,
+        &merge_opts, &checkout_opts);
     if (error) {
       logGitError(error);
       git_annotated_commit_free(upstreamCommit);
@@ -5178,7 +5176,7 @@ bool pushAllTags(git_repository *repo) {
   const QString defaultRemote = getDefaultRemote(repo);
 
   int error =
-          git_remote_lookup(&remote, repo, defaultRemote.toStdString().c_str());
+      git_remote_lookup(&remote, repo, defaultRemote.toStdString().c_str());
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
               error);
@@ -5515,8 +5513,8 @@ std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
       if (firstSlash != -1) {
         remoteName = withoutPrefix.left(firstSlash);
         remoteBranchName = withoutPrefix.mid(firstSlash + 1);
-        LOG_DEBUG("Parsed - Remote: '{}', Branch: '{}'", remoteName.toStdString(),
-                  remoteBranchName.toStdString());
+        LOG_DEBUG("Parsed - Remote: '{}', Branch: '{}'",
+                  remoteName.toStdString(), remoteBranchName.toStdString());
       }
     }
     git_reference_free(upstreamRef);
@@ -5524,7 +5522,7 @@ std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
     // Fallback: git_branch_upstream returned GIT_ENOTFOUND, so read from git
     // config by iterating through all entries
     const QString configPath = QString::fromUtf8(git_repository_workdir(repo)) +
-            ".git" + QDir::separator() + "config";
+                               ".git" + QDir::separator() + "config";
 
     git_config *config = nullptr;
     error = git_config_open_ondisk(&config, configPath.toStdString().c_str());
@@ -5556,7 +5554,7 @@ std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
             QString mergeRef = entryValue;
             if (mergeRef.startsWith("refs/heads/")) {
               remoteBranchName =
-                      mergeRef.mid(11); // Remove "refs/heads/" prefix
+                  mergeRef.mid(11); // Remove "refs/heads/" prefix
             } else {
               remoteBranchName = mergeRef;
             }
@@ -5985,11 +5983,11 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
 
   auto [ok, remoteName, _] = getUpstream(repo, branchName);
   if (!ok || remoteName.isEmpty()) {
-      remoteName = "origin";
+    remoteName = "origin";
   }
 
   int error =
-          git_remote_lookup(&remote, repo, remoteName.toStdString().c_str());
+      git_remote_lookup(&remote, repo, remoteName.toStdString().c_str());
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
               error);
@@ -6421,7 +6419,7 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
   const QString defaultRemoteName = getDefaultRemote(repo);
 
   int error =
-          git_remote_lookup(&remote, repo, defaultRemoteName.toStdString().c_str());
+      git_remote_lookup(&remote, repo, defaultRemoteName.toStdString().c_str());
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
               error);

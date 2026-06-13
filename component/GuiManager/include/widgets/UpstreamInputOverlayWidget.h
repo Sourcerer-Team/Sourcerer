@@ -1,8 +1,8 @@
 #pragma once
 
+#include "OpaqueComboBox.h"
 #include "OverlayWidget.h"
 #include "PersistentPlaceholderLineEdit.h"
-#include "OpaqueComboBox.h"
 
 #include <GitRepo.h>
 
