@@ -4661,12 +4661,15 @@ bool pull(git_repository *repo, const QString &activeBranchName) {
   credPayload.uuid = fetchUuid;
   credPayload.cloning = false;
 
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                  credPayload);
+
   git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
   fetchOpts.callbacks.credentials =
       commercial ? &credentialsAcquireCallback : nullptr;
   fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
   fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
-  fetchOpts.callbacks.payload = &credPayload;
+  fetchOpts.callbacks.payload = &callbackPayload;
 
   // Fetch all heads and tags
   git_strarray refspecs = qstringlist_to_git_strarray(
@@ -4973,12 +4976,15 @@ bool fetchAll(git_repository *repo) {
     credPayload.uuid = fetchUuid;
     credPayload.cloning = false;
 
+    std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                    credPayload);
+
     git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
     fetchOpts.callbacks.credentials =
         commercial ? &credentialsAcquireCallback : nullptr;
     fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
     fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
-    fetchOpts.callbacks.payload = &credPayload;
+    fetchOpts.callbacks.payload = &callbackPayload;
 
     // Fetch all heads and tags
     git_strarray refspecs = qstringlist_to_git_strarray(
@@ -5151,13 +5157,16 @@ bool push(git_repository *repo, const QString &activeBranchName) {
   credPayload.uuid = pushUuid;
   credPayload.cloning = false;
 
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                  credPayload);
+
   git_push_options pushOpts;
   git_push_options_init(&pushOpts, GIT_PUSH_OPTIONS_VERSION);
   pushOpts.callbacks.credentials =
       commercial ? &credentialsAcquireCallback : nullptr;
   pushOpts.callbacks.transfer_progress = &fetchProgressCallback;
   pushOpts.callbacks.certificate_check = &certificateCheckCallback;
-  pushOpts.callbacks.payload = &credPayload;
+  pushOpts.callbacks.payload = &callbackPayload;
 
   // Build refspec for pushing the branch to its upstream
   const QString refspec = QString("refs/heads/%1:refs/heads/%2")
