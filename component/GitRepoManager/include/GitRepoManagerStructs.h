@@ -38,6 +38,7 @@ enum class GitRepoCommandType : int {
   DiffFiles,
   DiffFilesFromCommit,
   DiscardFiles,
+  FetchAll,
   GetActiveBranch,
   GetFileSizeFromCommit,
   GetBranchHistory,
@@ -110,6 +111,16 @@ struct GitRepoAbortMergeCommand final : GitRepoCommand {
   ~GitRepoAbortMergeCommand() override = default;
 };
 
+struct GitRepoAddRemoteCommand final : GitRepoCommand {
+  GitRepoAddRemoteCommand() : GitRepoCommand(GitRepoCommandType::AddRemote) {}
+
+  ~GitRepoAddRemoteCommand() override = default;
+
+  QString remoteName;
+  QString fetchUrl;
+  QString pushUrl;
+};
+
 struct GitRepoAddSubmoduleCommand final : GitRepoCommand {
   GitRepoAddSubmoduleCommand()
       : GitRepoCommand(GitRepoCommandType::AddSubmodule) {}
@@ -169,6 +180,16 @@ struct GitRepoCheckoutCommitCommand final : GitRepoCommand {
   ~GitRepoCheckoutCommitCommand() override = default;
 
   QString commit;
+};
+
+struct GitRepoCherryPickCommand final : GitRepoCommand {
+  GitRepoCherryPickCommand() : GitRepoCommand(GitRepoCommandType::CherryPick) {}
+
+  ~GitRepoCherryPickCommand() override = default;
+
+  QString commit;
+  QString author;
+  QString email;
 };
 
 struct GitRepoCloneCommand final : GitRepoCommand {
@@ -346,6 +367,12 @@ struct GitRepoDiscardFilesCommand final : GitRepoCommand {
   QStringList files;
 };
 
+struct GitRepoFetchAllCommand final : GitRepoCommand {
+  GitRepoFetchAllCommand() : GitRepoCommand(GitRepoCommandType::FetchAll) {}
+
+  ~GitRepoFetchAllCommand() override = default;
+};
+
 struct GitRepoGetFileSizeFromCommitCommand final : GitRepoCommand {
   GitRepoGetFileSizeFromCommitCommand()
       : GitRepoCommand(GitRepoCommandType::GetFileSizeFromCommit) {}
@@ -505,45 +532,6 @@ struct GitRepoListRemotesCommand final : GitRepoCommand {
   ~GitRepoListRemotesCommand() override = default;
 };
 
-struct GitRepoAddRemoteCommand final : GitRepoCommand {
-  GitRepoAddRemoteCommand() : GitRepoCommand(GitRepoCommandType::AddRemote) {}
-
-  ~GitRepoAddRemoteCommand() override = default;
-
-  QString remoteName;
-  QString fetchUrl;
-  QString pushUrl;
-};
-
-struct GitRepoRemoveRemoteCommand final : GitRepoCommand {
-  GitRepoRemoveRemoteCommand()
-      : GitRepoCommand(GitRepoCommandType::RemoveRemote) {}
-
-  ~GitRepoRemoveRemoteCommand() override = default;
-
-  QString remoteName;
-};
-
-struct GitRepoUpdateRemoteCommand final : GitRepoCommand {
-  GitRepoUpdateRemoteCommand()
-      : GitRepoCommand(GitRepoCommandType::UpdateRemote) {}
-
-  ~GitRepoUpdateRemoteCommand() override = default;
-
-  QString remoteName;
-  QString fetchUrl;
-  QString pushUrl;
-};
-
-struct GitRepoSetDefaultRemoteCommand final : GitRepoCommand {
-  GitRepoSetDefaultRemoteCommand()
-      : GitRepoCommand(GitRepoCommandType::SetDefaultRemote) {}
-
-  ~GitRepoSetDefaultRemoteCommand() override = default;
-
-  QString remoteName;
-};
-
 struct GitRepoListStashesCommand final : GitRepoCommand {
   GitRepoListStashesCommand()
       : GitRepoCommand(GitRepoCommandType::ListStashes) {}
@@ -620,6 +608,15 @@ struct GitRepoPushAllTagsCommand final : GitRepoCommand {
   ~GitRepoPushAllTagsCommand() override = default;
 };
 
+struct GitRepoRemoveRemoteCommand final : GitRepoCommand {
+  GitRepoRemoveRemoteCommand()
+      : GitRepoCommand(GitRepoCommandType::RemoveRemote) {}
+
+  ~GitRepoRemoveRemoteCommand() override = default;
+
+  QString remoteName;
+};
+
 struct GitRepoRenameBranchCommand final : GitRepoCommand {
   GitRepoRenameBranchCommand()
       : GitRepoCommand(GitRepoCommandType::RenameBranch) {}
@@ -659,14 +656,13 @@ struct GitRepoRevertCommand final : GitRepoCommand {
   QString message;
 };
 
-struct GitRepoCherryPickCommand final : GitRepoCommand {
-  GitRepoCherryPickCommand() : GitRepoCommand(GitRepoCommandType::CherryPick) {}
+struct GitRepoSetDefaultRemoteCommand final : GitRepoCommand {
+  GitRepoSetDefaultRemoteCommand()
+      : GitRepoCommand(GitRepoCommandType::SetDefaultRemote) {}
 
-  ~GitRepoCherryPickCommand() override = default;
+  ~GitRepoSetDefaultRemoteCommand() override = default;
 
-  QString commit;
-  QString author;
-  QString email;
+  QString remoteName;
 };
 
 struct GitRepoSetUpstreamCommand final : GitRepoCommand {
@@ -716,6 +712,17 @@ struct GitRepoUnstageFilesCommand final : GitRepoCommand {
   ~GitRepoUnstageFilesCommand() override = default;
 
   QStringList files;
+};
+
+struct GitRepoUpdateRemoteCommand final : GitRepoCommand {
+  GitRepoUpdateRemoteCommand()
+      : GitRepoCommand(GitRepoCommandType::UpdateRemote) {}
+
+  ~GitRepoUpdateRemoteCommand() override = default;
+
+  QString remoteName;
+  QString fetchUrl;
+  QString pushUrl;
 };
 
 struct GitRepoQuitCommand final : GitRepoCommand {

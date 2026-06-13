@@ -33,6 +33,7 @@ enum class EventType : int {
   DiffFiles,
   DiffFilesFromCommit,
   DiscardFiles,
+  FetchAll,
   GetActiveBranch,
   GetBranchHistory,
   GetCommitBranches,

@@ -331,6 +331,12 @@ QString EventManager::eventName(EventType type) const {
     return "GitRepoManagerQuitResult";
   case EventType::GitRepoManagerQuitError:
     return "GitRepoManagerQuitError";
+  case EventType::GitRepoManagerFetchAll:
+    return "GitRepoManagerFetchAll";
+  case EventType::GitRepoManagerFetchAllResult:
+    return "GitRepoManagerFetchAllResult";
+  case EventType::GitRepoManagerFetchAllError:
+    return "GitRepoManagerFetchAllError";
   default:
     return QString("Unknown(%1)").arg(static_cast<int>(type));
   }

@@ -135,6 +135,7 @@ private slots:
   void onPop();
   void onPopStash(int stashIndex);
   void onPull();
+  void onFetchAll();
   void onPush();
   void onRemoteBranchSelected(const QString &branchName);
   void onRemoteBranchRightClicked(const QString &branchName, const QPoint &pos);
@@ -285,6 +286,7 @@ private:
   void popStash(const WeakPtr &guard, int stashIndex);
   void showStashContent(const WeakPtr &guard, int stashIndex);
   void pull(const WeakPtr &guard);
+  void fetchAll(const WeakPtr &guard);
   void push(const WeakPtr &guard);
   void addRemote(const WeakPtr &guard, const QString &remoteName,
                  const QString &fetchUrl, const QString &pushUrl);

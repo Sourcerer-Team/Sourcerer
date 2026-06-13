@@ -301,6 +301,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   const QIcon pullIcon(QPixmap(":icons/pull"));
   const QIcon pushIcon(QPixmap(":icons/push"));
+  const QIcon fetchAllIcon(QPixmap(":icons/fetch")); // Using pull icon for fetch all
   const QIcon popIcon(QPixmap(":icons/pop"));
   const QIcon stashIcon(QPixmap(":icons/stash"));
 
@@ -310,6 +311,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   pushButtonPull->setToolTip(tr("Pull"));
   pushButtonPull->setMinimumSize(42, 42);
   pushButtonPull->setMaximumSize(42, 42);
+
+  auto *pushButtonFetchAll = new QPushButton();
+  pushButtonFetchAll->setObjectName("pushButtonFetchAll");
+  pushButtonFetchAll->setIcon(fetchAllIcon);
+  pushButtonFetchAll->setToolTip(tr("Fetch All"));
+  pushButtonFetchAll->setMinimumSize(42, 42);
+  pushButtonFetchAll->setMaximumSize(42, 42);
 
   auto *pushButtonPush = new QPushButton();
   pushButtonPush->setObjectName("pushButtonPush");
@@ -333,12 +341,14 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   pushButtonStash->setMaximumSize(42, 42);
 
   _shortcutsWidget->addShortcutWidget(pushButtonPull);
+  _shortcutsWidget->addShortcutWidget(pushButtonFetchAll);
   _shortcutsWidget->addShortcutWidget(pushButtonPush);
   _shortcutsWidget->addShortcutWidget(pushButtonStash);
   _shortcutsWidget->addShortcutWidget(pushButtonPop);
 
   // Explicitly show buttons to ensure they're interactive
   pushButtonPull->show();
+  pushButtonFetchAll->show();
   pushButtonPush->show();
   pushButtonStash->show();
   pushButtonPop->show();
@@ -652,6 +662,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   connect(pushButtonPull, &QPushButton::clicked, this,
           &GitRepoContainer::onPull);
+  connect(pushButtonFetchAll, &QPushButton::clicked, this,
+          &GitRepoContainer::onFetchAll);
   connect(pushButtonPush, &QPushButton::clicked, this,
           &GitRepoContainer::onPush);
   connect(pushButtonStash, &QPushButton::clicked, this,
@@ -2529,6 +2541,22 @@ void GitRepoContainer::onPull() {
   });
 
   LOG_DEBUG("Pull operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onFetchAll() {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Fetch all operation initiated for repository: '{}'",
+            _path.toStdString());
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {
+    LOG_DEBUG("Executing fetch all operation in dispatcher");
+    fetchAll(guard);
+  });
+
+  LOG_DEBUG("Fetch all operation dispatched");
   LOG_PERF(0, "Exit");
 }
 
@@ -8215,6 +8243,75 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
     showToast(tr("Git repository is up to-date."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::fetchAll(const WeakPtr &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoFetchAllCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event fetchAllEvent(EventManager::EventType::GitRepoManagerFetchAll,
+                                    eventUuid);
+  fetchAllEvent.addData(command);
+  _eventManager.send(fetchAllEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerFetchAllError,
+                           EventManager::EventType::GitRepoManagerFetchAllResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerFetchAllResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to fetch from remotes.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  if (const bool fetched = commandResult.value.toBool(); !fetched) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to fetch from remotes."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+  refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Fetch completed successfully."), tr("Info"));
   });
 
   LOG_PERF(0, "Exit")

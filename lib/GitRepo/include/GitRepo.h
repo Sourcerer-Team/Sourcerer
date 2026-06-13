@@ -360,6 +360,8 @@ bool discardFiles(git_repository *repo, const QStringList &files);
 
 bool pull(git_repository *rep, const QString &activeBranchName = QString());
 
+bool fetchAll(git_repository *repo);
+
 bool push(git_repository *repo, const QString &activeBranchName = QString());
 
 bool push(git_repository *rep);
