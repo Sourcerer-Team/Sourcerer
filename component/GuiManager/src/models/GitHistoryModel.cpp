@@ -282,7 +282,7 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     break;
   }
   case COLUMN_COMMIT_SHORT_SHA: {
-    result = commit.left(6); // Short SHA
+    result = commit.left(7); // Short SHA
     break;
   }
   case COLUMN_COMMIT_FULL_SHA: {

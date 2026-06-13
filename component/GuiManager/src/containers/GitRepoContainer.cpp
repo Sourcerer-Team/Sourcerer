@@ -58,7 +58,7 @@
 #define HEAD "HEAD"
 
 #define MAXIMUM_PARENTS_IN_LABEL 3
-#define MAX_COMMIT_SHA_LENGTH 6
+#define MAX_COMMIT_SHA_LENGTH 7
 
 #define GIT_IGNORE_FILENAME ".gitignore"
 #define GIT_SUBDIR ".git"
@@ -9314,7 +9314,7 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() const {
     colSummary = maxSummaryWidth;
 
   const int remaining = totalWidth - colSummary;
-  const int colSha = charWidth * 7; // Short SHA length
+  const int colSha = charWidth * 8; // Short SHA length
   const int remainingAfterSha = remaining - colSha;
   const int colOther = remainingAfterSha / 4;
 
