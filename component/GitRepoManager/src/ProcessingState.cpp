@@ -214,6 +214,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForDiscardFiles(discardFilesCommand);
     break;
   }
+  case EventType::FetchAll: {
+    const auto fetchAllCommand =
+        event.nextParam<GitRepoFetchAllCommand>();
+    scheduleWorkerForFetchAll(fetchAllCommand);
+    break;
+  }
   case EventType::GetFileSizeFromCommit: {
     const auto getFileSizeFromCommitCommand =
         event.nextParam<GitRepoGetFileSizeFromCommitCommand>();
@@ -1522,6 +1528,64 @@ void ProcessingState::eventCallback(const EventManager::Event event) {
     break;
   }
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::fetchAllWorker(
+    const Structs::GitRepoFetchAllCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerFetchAllError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::fetchAll(repo);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerFetchAllError, command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerFetchAllResult, command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForFetchAll(
+    const Structs::GitRepoFetchAllCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(
+        EventManager::EventType::GitRepoManagerFetchAllError,
+        tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(
+      new GitRepoFetchAllCommand(command));
 
   LOG_PERF(0, "Exit");
 }
@@ -4906,6 +4970,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoPushCommand *>(command);
       if (pushCommand) {
         pushWorker(*pushCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::FetchAll: {
+      const auto *fetchAllCommand =
+          dynamic_cast<const GitRepoFetchAllCommand *>(command);
+      if (fetchAllCommand) {
+        fetchAllWorker(*fetchAllCommand);
       }
       break;
     }
