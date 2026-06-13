@@ -5503,12 +5503,21 @@ std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
 
   if (error != GIT_ENOTFOUND) {
     // Successfully got upstream reference from libgit2
-    remoteName = git_reference_name(upstreamRef);
-    const QStringList remoteNames = remoteName.split('/');
-    Q_ASSERT(remoteNames.size() >= 2);
-    if (remoteNames.size() >= 2) {
-      remoteName = remoteNames[remoteNames.size() - 2];
-      remoteBranchName = remoteNames[remoteNames.size() - 1];
+    const QString refName = git_reference_name(upstreamRef);
+    LOG_DEBUG("Upstream reference: '{}'", refName.toStdString());
+
+    // Parse "refs/remotes/{remoteName}/{remoteBranchName}"
+    // remoteBranchName can contain slashes, so we need to split carefully
+    const QString prefix = "refs/remotes/";
+    if (refName.startsWith(prefix)) {
+      const QString withoutPrefix = refName.mid(prefix.length());
+      const int firstSlash = withoutPrefix.indexOf('/');
+      if (firstSlash != -1) {
+        remoteName = withoutPrefix.left(firstSlash);
+        remoteBranchName = withoutPrefix.mid(firstSlash + 1);
+        LOG_DEBUG("Parsed - Remote: '{}', Branch: '{}'", remoteName.toStdString(),
+                  remoteBranchName.toStdString());
+      }
     }
     git_reference_free(upstreamRef);
   } else {
