@@ -8209,6 +8209,7 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
 
   refreshHistory(guard);
   refreshStatus(guard);
+  getBranchHistory(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
