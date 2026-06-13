@@ -26,7 +26,6 @@
 
 #include <Dispatcher.h>
 #include <FileManager.h>
-#include <GitRepo.h>
 #include <GitRepoManagerStructs.h>
 #include <Log.h>
 #include <Uuid.h>
@@ -6336,6 +6335,9 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
                                        const QString &submoduleName) {
   LOG_PERF(0, "Enter");
 
+  // Stop watcher to release file handles before deletion
+  stopWatcher(guard);
+
   const QString eventUuid = Uuid::createUuid();
 
   const int token = _eventManager.startWait();
@@ -6362,6 +6364,7 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
 
   if (!success) {
     closeRepo();
+    prepareWatcher(guard);
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showSpinnerOverlay(false);
@@ -6376,6 +6379,8 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
   if (event.type() !=
       EventManager::EventType::GitRepoManagerDeleteSubmoduleResult) {
     const auto error = event.data<GitRepoError>();
+    prepareWatcher(guard);
+
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString("%1\n%2").arg(tr("Failed to delete submodule."),
@@ -6391,6 +6396,8 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
   const bool commandSuccess = commandResult.value.toBool();
 
   if (!commandSuccess) {
+    prepareWatcher(guard);
+
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showSpinnerOverlay(false);
       showErrorToast(tr("Failed to delete submodule."), tr("Error"));
@@ -6401,6 +6408,8 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
   }
 
   refreshHistory(guard);
+
+  prepareWatcher(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard,
                                          [=]() { showSpinnerOverlay(false); });

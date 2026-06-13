@@ -6768,14 +6768,18 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
 
   int error = git_submodule_lookup(&submodule, repo, name.c_str());
   if (error) {
-    logGitError(error);
-    LOG_PERF(0, "Exit");
-    return false;
+    // Submodule lookup failed (e.g., after discarding .gitmodules)
+    // Continue with manual cleanup instead of failing
+    LOG_DEBUG("Submodule '{}' not found in metadata, proceeding with manual cleanup",
+              name);
+    submodule = nullptr;
   }
 
   const char *repositoryPath = git_repository_path(repo);
   if (!repositoryPath) {
-    git_submodule_free(submodule);
+    if (submodule) {
+      git_submodule_free(submodule);
+    }
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6786,7 +6790,9 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
       QString("%1/../.gitmodules.tmp").arg(repositoryPath).toStdString();
 
   FILE *src = fopen(gitModulesPath.c_str(), "r");
-  if (FILE *dst = fopen(gitModulesTmpPath.c_str(), "w"); src && dst) {
+  FILE *dst = fopen(gitModulesTmpPath.c_str(), "w");
+  
+  if (src && dst) {
     char line[1024];
     int skip = 0;
     while (fgets(line, sizeof(line), src)) {
@@ -6805,10 +6811,18 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
     }
 
     fclose(src);
+    src = nullptr;
     fclose(dst);
+    dst = nullptr;
 
     remove(gitModulesPath.c_str());
-    rename(gitModulesTmpPath.c_str(), gitModulesPath.c_str());
+    if (rename(gitModulesTmpPath.c_str(), gitModulesPath.c_str()) != 0) {
+      // If rename failed, try to clean up the temp file
+      remove(gitModulesTmpPath.c_str());
+      git_submodule_free(submodule);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
 
     if (const bool staged = stageFiles(repo, QStringList() << ".gitmodules");
         !staged) {
@@ -6820,6 +6834,11 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
     if (src) {
       fclose(src);
     }
+    if (dst) {
+      fclose(dst);
+    }
+    // Clean up temp file if it was created
+    remove(gitModulesTmpPath.c_str());
   }
 
   // Remove submodule section from .git/config file
@@ -6830,7 +6849,9 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
       "config";
 
   src = fopen(gitConfigFile.c_str(), "r");
-  if (FILE *dst = fopen((gitConfigFile + ".tmp").c_str(), "w"); src && dst) {
+  dst = fopen((gitConfigFile + ".tmp").c_str(), "w");
+  
+  if (src && dst) {
     char line[1024];
     int skipSection = 0;
     while (fgets(line, sizeof(line), src)) {
@@ -6852,14 +6873,24 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
     }
 
     fclose(src);
+    src = nullptr;
     fclose(dst);
+    dst = nullptr;
 
     remove(gitConfigFile.c_str());
-    rename((gitConfigFile + ".tmp").c_str(), gitConfigFile.c_str());
+    if (rename((gitConfigFile + ".tmp").c_str(), gitConfigFile.c_str()) != 0) {
+      // If rename failed, try to clean up the temp file
+      remove((gitConfigFile + ".tmp").c_str());
+    }
   } else {
     if (src) {
       fclose(src);
     }
+    if (dst) {
+      fclose(dst);
+    }
+    // Clean up temp file if it was created
+    remove((gitConfigFile + ".tmp").c_str());
   }
 
   git_index *index = nullptr;
@@ -6867,16 +6898,22 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
   error = git_repository_index(&index, repo);
   if (error) {
     logGitError(error);
-    git_submodule_free(submodule);
+    if (submodule) {
+      git_submodule_free(submodule);
+    }
     LOG_PERF(0, "Exit");
     return false;
   }
 
+  // Try to remove from index, but don't fail if it's not there
+  // (user may have already discarded it)
   error = git_index_remove(index, name.c_str(), 0);
-  if (error) {
+  if (error && error != GIT_ENOTFOUND) {
     logGitError(error);
     git_index_free(index);
-    git_submodule_free(submodule);
+    if (submodule) {
+      git_submodule_free(submodule);
+    }
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6885,13 +6922,17 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
   if (error) {
     logGitError(error);
     git_index_free(index);
-    git_submodule_free(submodule);
+    if (submodule) {
+      git_submodule_free(submodule);
+    }
     LOG_PERF(0, "Exit");
     return false;
   }
 
   git_index_free(index);
-  git_submodule_free(submodule);
+  if (submodule) {
+    git_submodule_free(submodule);
+  }
 
   QDir(submodulePath).removeRecursively();
   QDir(QString("%1/modules/%2").arg(repositoryPath).arg(name))
