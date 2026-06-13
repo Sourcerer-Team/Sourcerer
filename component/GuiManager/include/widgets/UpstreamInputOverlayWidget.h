@@ -2,6 +2,9 @@
 
 #include "OverlayWidget.h"
 #include "PersistentPlaceholderLineEdit.h"
+#include "OpaqueComboBox.h"
+
+#include <GitRepo.h>
 
 #include <QLineEdit>
 
@@ -14,21 +17,17 @@ public:
   ~UpstreamInputOverlayWidget() override;
 
   bool showing() const override { return true; }
-  void setRemotePlaceholderText(const QString &text) const {
-    _lineEditRemoteInput->setPlaceholderText(text);
-  }
   void setBranchPlaceholderText(const QString &text) const {
     _lineEditBranchInput->setPlaceholderText(text);
   }
-  void setRemoteName(const QString &remoteName) const {
-    _lineEditRemoteInput->setText(remoteName);
-  }
+  void setRemotes(const QVector<GitRepo::RemoteInfo> &remotes);
+  void setRemoteName(const QString &remoteName) const;
   void setRemoteBranchName(const QString &branchName) const {
     _lineEditBranchInput->setText(branchName);
   }
-  void selectAllRemoteText() const {
-    _lineEditRemoteInput->selectAll();
-    _lineEditRemoteInput->setFocus();
+  void selectAllBranchText() const {
+    _lineEditBranchInput->selectAll();
+    _lineEditBranchInput->setFocus();
   }
 
 signals:
@@ -43,7 +42,7 @@ private slots:
   void onButtonSubmitted();
 
 private:
-  PersistentPlaceholderLineEdit *_lineEditRemoteInput;
+  OpaqueComboBox *_comboBoxRemoteInput;
   PersistentPlaceholderLineEdit *_lineEditBranchInput;
 };
 

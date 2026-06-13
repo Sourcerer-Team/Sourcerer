@@ -90,6 +90,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForAddSubmodule(addSubmoduleCommand);
     break;
   }
+  case EventType::AddRemote: {
+    const auto addRemoteCommand = event.nextParam<GitRepoAddRemoteCommand>();
+    scheduleWorkerForAddRemote(addRemoteCommand);
+    break;
+  }
   case EventType::Amend: {
     const auto amendCommand = event.nextParam<GitRepoAmendCommand>();
     scheduleWorkerForAmend(amendCommand);
@@ -304,6 +309,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForListRemoteBranchesWithStatus(listRemoteStatusCommand);
     break;
   }
+  case EventType::ListRemotes: {
+    const auto listRemotesCommand =
+        event.nextParam<GitRepoListRemotesCommand>();
+    scheduleWorkerForListRemotes(listRemotesCommand);
+    break;
+  }
   case EventType::ListStashes: {
     const auto listStashesCommand =
         event.nextParam<GitRepoListStashesCommand>();
@@ -358,6 +369,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForPushAllTags(pushAllTagsCommand);
     break;
   }
+  case EventType::RemoveRemote: {
+    const auto removeRemoteCommand =
+        event.nextParam<GitRepoRemoveRemoteCommand>();
+    scheduleWorkerForRemoveRemote(removeRemoteCommand);
+    break;
+  }
   case EventType::RenameBranch: {
     const auto renameBranchCommand =
         event.nextParam<GitRepoRenameBranchCommand>();
@@ -382,6 +399,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
   case EventType::CherryPick: {
     const auto cherryPickCommand = event.nextParam<GitRepoCherryPickCommand>();
     scheduleWorkerForCherryPick(cherryPickCommand);
+    break;
+  }
+  case EventType::SetDefaultRemote: {
+    const auto setDefaultRemoteCommand =
+        event.nextParam<GitRepoSetDefaultRemoteCommand>();
+    scheduleWorkerForSetDefaultRemote(setDefaultRemoteCommand);
     break;
   }
   case EventType::SetUpstream: {
@@ -415,6 +438,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     const auto unstageFilesCommand =
         event.nextParam<GitRepoUnstageFilesCommand>();
     scheduleWorkerForUnstageFiles(unstageFilesCommand);
+    break;
+  }
+  case EventType::UpdateRemote: {
+    const auto updateRemoteCommand =
+        event.nextParam<GitRepoUpdateRemoteCommand>();
+    scheduleWorkerForUpdateRemote(updateRemoteCommand);
     break;
   }
   default: {
@@ -1946,9 +1975,9 @@ void ProcessingState::getUpstreamWorker(
     repo = ctx->gitRepo;
   }
 
-  const auto &[remoteName, remoteBranchName] =
+  const auto &[success, remoteName, remoteBranchName] =
       GitRepo::getUpstream(repo, command.localBranchName);
-  if (remoteName.isEmpty()) {
+  if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerGetUpstreamError,
@@ -2658,6 +2687,101 @@ void ProcessingState::scheduleWorkerForUnstageFiles(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForListRemotes(
+    const Structs::GitRepoListRemotesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerListRemotesError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoListRemotesCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForAddRemote(
+    const Structs::GitRepoAddRemoteCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerAddRemoteError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoAddRemoteCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForRemoveRemote(
+    const Structs::GitRepoRemoveRemoteCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerRemoveRemoteError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoRemoveRemoteCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForUpdateRemote(
+    const Structs::GitRepoUpdateRemoteCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerUpdateRemoteError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoUpdateRemoteCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForSetDefaultRemote(
+    const Structs::GitRepoSetDefaultRemoteCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerSetDefaultRemoteError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoSetDefaultRemoteCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForQuit(
     const Structs::GitRepoQuitCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2744,7 +2868,7 @@ void ProcessingState::pullWorker(const Structs::GitRepoPullCommand &command) {
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::pull(repo);
+  const bool success = GitRepo::pull(repo, command.activeBranchName);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
@@ -2780,7 +2904,7 @@ void ProcessingState::pushWorker(const Structs::GitRepoPushCommand &command) {
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::push(repo);
+  const bool success = GitRepo::push(repo, command.activeBranchName);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
@@ -3303,6 +3427,196 @@ void ProcessingState::unstageFilesWorker(
   } else {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerUnstageFilesResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::listRemotesWorker(
+    const Structs::GitRepoListRemotesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerListRemotesError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const auto remotes = GitRepo::listRemotes(repo);
+  {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerListRemotesResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(remotes)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::addRemoteWorker(
+    const Structs::GitRepoAddRemoteCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerAddRemoteError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::addRemote(repo, command.remoteName,
+                                          command.fetchUrl, command.pushUrl);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerAddRemoteError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerAddRemoteResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::removeRemoteWorker(
+    const Structs::GitRepoRemoveRemoteCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerRemoveRemoteError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::removeRemote(repo, command.remoteName);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerRemoveRemoteError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerRemoveRemoteResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::updateRemoteWorker(
+    const Structs::GitRepoUpdateRemoteCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerUpdateRemoteError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::updateRemote(repo, command.remoteName,
+                                             command.fetchUrl, command.pushUrl);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerUpdateRemoteError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerUpdateRemoteResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::setDefaultRemoteWorker(
+    const Structs::GitRepoSetDefaultRemoteCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerSetDefaultRemoteError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::setDefaultRemote(repo, command.remoteName);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerSetDefaultRemoteError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerSetDefaultRemoteResult,
         command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type,
                                       QVariant::fromValue(success)});
@@ -4212,6 +4526,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       }
       break;
     }
+    case GitRepoCommandType::AddRemote: {
+      const auto addRemoteCommand =
+          dynamic_cast<const GitRepoAddRemoteCommand *>(command);
+      if (addRemoteCommand) {
+        addRemoteWorker(*addRemoteCommand);
+      }
+      break;
+    }
     case GitRepoCommandType::Amend: {
       const auto amendCommand =
           dynamic_cast<const GitRepoAmendCommand *>(command);
@@ -4500,6 +4822,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       }
       break;
     }
+    case GitRepoCommandType::ListRemotes: {
+      const auto *listRemotesCommand =
+          dynamic_cast<const GitRepoListRemotesCommand *>(command);
+      if (listRemotesCommand) {
+        listRemotesWorker(*listRemotesCommand);
+      }
+      break;
+    }
     case GitRepoCommandType::ListRemoteBranchesWithStatus: {
       const auto *listRemoteStatusCommand =
           dynamic_cast<const GitRepoListRemoteBranchesWithStatusCommand *>(
@@ -4589,6 +4919,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       }
       break;
     }
+    case GitRepoCommandType::RemoveRemote: {
+      const auto *removeRemoteCommand =
+          dynamic_cast<const GitRepoRemoveRemoteCommand *>(command);
+      if (removeRemoteCommand) {
+        removeRemoteWorker(*removeRemoteCommand);
+      }
+      break;
+    }
     case GitRepoCommandType::RenameBranch: {
       const auto *renameBranchCommand =
           dynamic_cast<const GitRepoRenameBranchCommand *>(command);
@@ -4626,6 +4964,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoCherryPickCommand *>(command);
       if (cherryPickCommand) {
         cherryPickWorker(*cherryPickCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::SetDefaultRemote: {
+      const auto *setDefaultRemoteCommand =
+          dynamic_cast<const GitRepoSetDefaultRemoteCommand *>(command);
+      if (setDefaultRemoteCommand) {
+        setDefaultRemoteWorker(*setDefaultRemoteCommand);
       }
       break;
     }
@@ -4674,6 +5020,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoUnstageFilesCommand *>(command);
       if (unstageFilesCommand) {
         unstageFilesWorker(*unstageFilesCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::UpdateRemote: {
+      const auto *updateRemoteCommand =
+          dynamic_cast<const GitRepoUpdateRemoteCommand *>(command);
+      if (updateRemoteCommand) {
+        updateRemoteWorker(*updateRemoteCommand);
       }
       break;
     }
