@@ -32,14 +32,14 @@ int RemotesModel::indexForRemote(const QString &remoteName) const {
 
   const int _rowCount = rowCount();
   for (int i = 0; i < _rowCount; ++i) {
-    if (index(i, 0).data().toString() == remoteName) {
+    QStandardItem *item = RemotesModel::item(i, 0);
+    if (item && item->data(Qt::UserRole + 2) == remoteName) {
       LOG_PERF(0, "Exit");
       return i;
     }
   }
 
   LOG_PERF(0, "Exit");
-
   return -1;
 }
 
@@ -51,9 +51,82 @@ QString RemotesModel::remoteForIndex(int index) const {
     return {};
   }
 
-  LOG_PERF(0, "Exit");
+  QStandardItem *item = RemotesModel::item(index, 0);
+  if (item) {
+    LOG_PERF(0, "Exit");
+    return item->data(Qt::UserRole + 2).toString();
+  }
 
-  return RemotesModel::index(index, 0).data().toString();
+  LOG_PERF(0, "Exit");
+  return {};
+}
+
+bool RemotesModel::isRemoteItem(const QModelIndex &index) const {
+  if (!index.isValid()) {
+    return false;
+  }
+  QStandardItem *item = RemotesModel::item(index.row(), index.column());
+  return item && item->data(Qt::UserRole + 3).toString() == "remote";
+}
+
+bool RemotesModel::isTargetItem(const QModelIndex &index) const {
+  if (!index.isValid()) {
+    return false;
+  }
+  QStandardItem *item = RemotesModel::item(index.row(), index.column());
+  return item && item->data(Qt::UserRole + 3).toString() == "target";
+}
+
+QString RemotesModel::getRemoteName(const QModelIndex &index) const {
+  if (!index.isValid()) {
+    return {};
+  }
+
+  QStandardItem *item = RemotesModel::item(index.row(), index.column());
+  if (!item) {
+    return {};
+  }
+
+  // If it's a target item, get parent's remote name
+  if (isTargetItem(index)) {
+    QStandardItem *parentItem = item->parent();
+    if (parentItem) {
+      return parentItem->data(Qt::UserRole + 2).toString();
+    }
+  }
+  // If it's a remote item, get its name
+  else if (isRemoteItem(index)) {
+    return item->data(Qt::UserRole + 2).toString();
+  }
+
+  return {};
+}
+
+GitRepo::RemoteTarget RemotesModel::getTargetInfo(const QModelIndex &index) const {
+  GitRepo::RemoteTarget target;
+
+  if (!isTargetItem(index)) {
+    return target;
+  }
+
+  QStandardItem *item = RemotesModel::item(index.row(), index.column());
+  if (!item) {
+    return target;
+  }
+
+  target.name = item->text();
+  target.fetchUrl = item->data(Qt::UserRole + 4).toString();
+  target.pushUrl = item->data(Qt::UserRole + 5).toString();
+
+  return target;
+}
+
+QModelIndex RemotesModel::getRemoteIndex(const QString &remoteName) const {
+  const int row = indexForRemote(remoteName);
+  if (row >= 0) {
+    return index(row, 0);
+  }
+  return {};
 }
 
 void RemotesModel::setActiveIndex(const int index) {
@@ -66,11 +139,10 @@ void RemotesModel::setActiveIndex(const int index) {
 
   if (index == -1) {
     if (_prevIndex != -1 && _prevIndex < rowCount()) {
-      QStandardItem *prevItem = new QStandardItem(
-          QIcon(iconPath()), RemotesModel::index(_prevIndex, 0)
-                                 .data()
-                                 .toString()); // Recreate item with normal icon
-      setItem(_prevIndex, prevItem);
+      QStandardItem *prevItem = item(_prevIndex, 0);
+      if (prevItem) {
+        prevItem->setIcon(QIcon(iconPath()));
+      }
     }
     _prevIndex = -1;
     LOG_PERF(0, "Exit");
@@ -78,19 +150,16 @@ void RemotesModel::setActiveIndex(const int index) {
   }
 
   if (_prevIndex != -1 && _prevIndex < rowCount()) {
-    QStandardItem *prevItem = new QStandardItem(
-        QIcon(iconPath()), RemotesModel::index(_prevIndex, 0)
-                               .data()
-                               .toString()); // Recreate item with normal icon
-    setItem(_prevIndex, prevItem);
+    QStandardItem *prevItem = item(_prevIndex, 0);
+    if (prevItem) {
+      prevItem->setIcon(QIcon(iconPath()));
+    }
   }
 
-  const QString activeIconPath = iconActivePath();
-
-  QStandardItem *activeItem = new QStandardItem(
-      QIcon(activeIconPath), RemotesModel::index(index, 0).data().toString());
-
-  setItem(index, activeItem);
+  QStandardItem *activeItem = item(index, 0);
+  if (activeItem) {
+    activeItem->setIcon(QIcon(iconActivePath()));
+  }
 
   _prevIndex = index;
 
@@ -103,12 +172,29 @@ void RemotesModel::updateModel(const QVector<GitRepo::RemoteInfo> &remotes,
 
   clear();
   _prevIndex = -1;
+  _remoteItems.clear();
 
   for (const auto &remote : remotes) {
-    QStandardItem *item = new QStandardItem(QIcon(iconPath()), remote.name);
-    item->setToolTip(remote.fetchUrl);
-    item->setData(remote.isDefault, Qt::UserRole + 1); // Store default flag
-    insertRow(rowCount(), item);
+    // Create parent item for remote
+    QStandardItem *remoteItem = new QStandardItem(QIcon(iconPath()), remote.name);
+    remoteItem->setToolTip(remote.fetchUrl);
+    remoteItem->setData(remote.isDefault, Qt::UserRole + 1); // Store default flag
+    remoteItem->setData(remote.name, Qt::UserRole + 2);      // Store remote name
+    remoteItem->setData("remote", Qt::UserRole + 3);         // Mark as remote
+    insertRow(rowCount(), remoteItem);
+
+    // Cache the remote item for quick lookups
+    _remoteItems[remote.name] = remoteItem;
+
+    // Create child items for each target
+    for (const auto &target : remote.targets) {
+      QStandardItem *targetItem = new QStandardItem(target.name);
+      targetItem->setData(remote.name, Qt::UserRole + 2);    // Store parent remote name
+      targetItem->setData("target", Qt::UserRole + 3);       // Mark as target
+      targetItem->setData(target.fetchUrl, Qt::UserRole + 4); // Fetch URL
+      targetItem->setData(target.pushUrl, Qt::UserRole + 5);  // Push URL
+      remoteItem->appendRow(targetItem);
+    }
   }
 
   // Set active remote based on default flag or provided index
@@ -116,7 +202,8 @@ void RemotesModel::updateModel(const QVector<GitRepo::RemoteInfo> &remotes,
   if (activeIdx == -1) {
     // Find the default remote
     for (int i = 0; i < rowCount(); ++i) {
-      if (index(i, 0).data(Qt::UserRole + 1).toBool()) {
+      QStandardItem *remoteItem = item(i, 0);
+      if (remoteItem && remoteItem->data(Qt::UserRole + 1).toBool()) {
         activeIdx = i;
         break;
       }

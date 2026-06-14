@@ -413,6 +413,28 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForSetDefaultRemote(setDefaultRemoteCommand);
     break;
   }
+  case EventType::AddTarget: {
+    const auto addTargetCommand = event.nextParam<GitRepoAddTargetCommand>();
+    scheduleWorkerForAddTarget(addTargetCommand);
+    break;
+  }
+  case EventType::EditTarget: {
+    const auto editTargetCommand = event.nextParam<GitRepoEditTargetCommand>();
+    scheduleWorkerForEditTarget(editTargetCommand);
+    break;
+  }
+  case EventType::DeleteTarget: {
+    const auto deleteTargetCommand =
+        event.nextParam<GitRepoDeleteTargetCommand>();
+    scheduleWorkerForDeleteTarget(deleteTargetCommand);
+    break;
+  }
+  case EventType::SetDefaultTarget: {
+    const auto setDefaultTargetCommand =
+        event.nextParam<GitRepoSetDefaultTargetCommand>();
+    scheduleWorkerForSetDefaultTarget(setDefaultTargetCommand);
+    break;
+  }
   case EventType::SetUpstream: {
     const auto setUpstreamCommand =
         event.nextParam<GitRepoSetUpstreamCommand>();
@@ -985,6 +1007,169 @@ void ProcessingState::createTagFromCommitWorker(
   } else {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerCreateTagFromCommitResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::addTargetWorker(
+    const Structs::GitRepoAddTargetCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerAddTargetError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success =
+      GitRepo::addTarget(repo, command.remoteName, command.targetName,
+                         command.fetchUrl, command.pushUrl);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerAddTargetError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerAddTargetResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::editTargetWorker(
+    const Structs::GitRepoEditTargetCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerEditTargetError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::editTarget(repo, command.remoteName,
+                                           command.targetName,
+                                           command.newFetchUrl,
+                                           command.newPushUrl);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerEditTargetError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerEditTargetResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::deleteTargetWorker(
+    const Structs::GitRepoDeleteTargetCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteTargetError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success =
+      GitRepo::deleteTarget(repo, command.remoteName, command.targetName);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerDeleteTargetError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerDeleteTargetResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::setDefaultTargetWorker(
+    const Structs::GitRepoSetDefaultTargetCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerSetDefaultTargetError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::setDefaultTarget(repo, command.remoteName,
+                                                 command.targetName);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerSetDefaultTargetError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerSetDefaultTargetResult,
         command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type,
                                       QVariant::fromValue(success)});
@@ -2848,6 +3033,82 @@ void ProcessingState::scheduleWorkerForSetDefaultRemote(
   }
 
   (*it)->commandsQueue.push(new GitRepoSetDefaultRemoteCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForAddTarget(
+    const Structs::GitRepoAddTargetCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerAddTargetError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoAddTargetCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForEditTarget(
+    const Structs::GitRepoEditTargetCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerEditTargetError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoEditTargetCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForDeleteTarget(
+    const Structs::GitRepoDeleteTargetCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerDeleteTargetError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoDeleteTargetCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForSetDefaultTarget(
+    const Structs::GitRepoSetDefaultTargetCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerSetDefaultTargetError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoSetDefaultTargetCommand(command));
 
   LOG_PERF(0, "Exit");
 }
@@ -5050,6 +5311,38 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoSetDefaultRemoteCommand *>(command);
       if (setDefaultRemoteCommand) {
         setDefaultRemoteWorker(*setDefaultRemoteCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::AddTarget: {
+      const auto *addTargetCommand =
+          dynamic_cast<const GitRepoAddTargetCommand *>(command);
+      if (addTargetCommand) {
+        addTargetWorker(*addTargetCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::EditTarget: {
+      const auto *editTargetCommand =
+          dynamic_cast<const GitRepoEditTargetCommand *>(command);
+      if (editTargetCommand) {
+        editTargetWorker(*editTargetCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::DeleteTarget: {
+      const auto *deleteTargetCommand =
+          dynamic_cast<const GitRepoDeleteTargetCommand *>(command);
+      if (deleteTargetCommand) {
+        deleteTargetWorker(*deleteTargetCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::SetDefaultTarget: {
+      const auto *setDefaultTargetCommand =
+          dynamic_cast<const GitRepoSetDefaultTargetCommand *>(command);
+      if (setDefaultTargetCommand) {
+        setDefaultTargetWorker(*setDefaultTargetCommand);
       }
       break;
     }

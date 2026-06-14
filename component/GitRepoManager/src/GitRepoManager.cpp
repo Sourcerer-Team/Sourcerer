@@ -26,6 +26,14 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAddSubmodule, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerAddTarget, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerEditTarget, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDeleteTarget, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerSetDefaultTarget, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAmend, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyPatch, callbackFunc));
@@ -175,6 +183,14 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerAddRemote, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAddSubmodule, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerAddTarget, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerEditTarget, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerDeleteTarget, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerSetDefaultTarget, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAmend, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -361,6 +377,34 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent addSubmoduleEvent(EventType::AddSubmodule);
     addSubmoduleEvent.addParam(QVariant::fromValue(addSubmoduleCommand));
     _fsm.send(addSubmoduleEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerAddTarget: {
+    const auto addTargetCommand = event.data<GitRepoAddTargetCommand>();
+    GitRepoManagerEvent addTargetEvent(EventType::AddTarget);
+    addTargetEvent.addParam(QVariant::fromValue(addTargetCommand));
+    _fsm.send(addTargetEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerEditTarget: {
+    const auto editTargetCommand = event.data<GitRepoEditTargetCommand>();
+    GitRepoManagerEvent editTargetEvent(EventType::EditTarget);
+    editTargetEvent.addParam(QVariant::fromValue(editTargetCommand));
+    _fsm.send(editTargetEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerDeleteTarget: {
+    const auto deleteTargetCommand = event.data<GitRepoDeleteTargetCommand>();
+    GitRepoManagerEvent deleteTargetEvent(EventType::DeleteTarget);
+    deleteTargetEvent.addParam(QVariant::fromValue(deleteTargetCommand));
+    _fsm.send(deleteTargetEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerSetDefaultTarget: {
+    const auto setDefaultTargetCommand = event.data<GitRepoSetDefaultTargetCommand>();
+    GitRepoManagerEvent setDefaultTargetEvent(EventType::SetDefaultTarget);
+    setDefaultTargetEvent.addParam(QVariant::fromValue(setDefaultTargetCommand));
+    _fsm.send(setDefaultTargetEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerAmend: {

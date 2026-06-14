@@ -19,12 +19,22 @@ public:
 
   [[nodiscard]] QString remoteForIndex(int index) const;
 
+  // Tree structure helpers
+  [[nodiscard]] bool isRemoteItem(const QModelIndex &index) const;
+  [[nodiscard]] bool isTargetItem(const QModelIndex &index) const;
+  [[nodiscard]] QString getRemoteName(const QModelIndex &index) const;
+  [[nodiscard]] GitRepo::RemoteTarget getTargetInfo(const QModelIndex &index) const;
+  [[nodiscard]] QModelIndex getRemoteIndex(const QString &remoteName) const;
+
   void setActiveIndex(int index);
   void updateModel(const QVector<GitRepo::RemoteInfo> &remotes,
                    int activeIndex = -1);
 
 private:
   int _prevIndex;
+  
+  // Cache for quick lookups
+  QMap<QString, QStandardItem *> _remoteItems;  // remoteName -> item pointer
 };
 
 } // namespace GuiManager::Models

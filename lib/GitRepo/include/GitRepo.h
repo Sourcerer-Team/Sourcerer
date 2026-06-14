@@ -200,15 +200,39 @@ struct SubmoduleInfo {
     return name == other.name && statusInfo.status == other.statusInfo.status;
   }
 };
-struct RemoteInfo {
-  QString name;
+struct RemoteTarget {
+  QString name;           // e.g., "Default", "Backup", etc.
   QString fetchUrl;
   QString pushUrl;
+
+  bool operator==(const RemoteTarget &other) const {
+    return name == other.name && fetchUrl == other.fetchUrl &&
+           pushUrl == other.pushUrl;
+  }
+};
+struct RemoteInfo {
+  QString name;
+  QString fetchUrl;       // Kept for backward compatibility
+  QString pushUrl;        // Kept for backward compatibility
   bool isDefault = false;
+  QVector<RemoteTarget> targets;  // Multiple fetch/push URL combinations
 
   bool operator==(const RemoteInfo &other) const {
     return name == other.name && fetchUrl == other.fetchUrl &&
-           pushUrl == other.pushUrl;
+           pushUrl == other.pushUrl && targets == other.targets;
+  }
+
+  // Get the default target
+  RemoteTarget getDefaultTarget() const {
+    if (!targets.isEmpty()) {
+      for (const auto &target : targets) {
+        if (target.name == "Default") {
+          return target;
+        }
+      }
+      return targets.first();
+    }
+    return RemoteTarget{QStringLiteral("Default"), fetchUrl, pushUrl};
   }
 };
 enum class BranchType {
@@ -438,5 +462,20 @@ bool removeRemote(git_repository *repo, const QString &remoteName);
 
 bool updateRemote(git_repository *repo, const QString &remoteName,
                   const QString &fetchUrl, const QString &pushUrl);
+
+// Target management functions (multiple targets per remote)
+bool addTarget(git_repository *repo, const QString &remoteName,
+               const QString &targetName, const QString &fetchUrl,
+               const QString &pushUrl);
+
+bool editTarget(git_repository *repo, const QString &remoteName,
+                const QString &targetName, const QString &newFetchUrl,
+                const QString &newPushUrl);
+
+bool deleteTarget(git_repository *repo, const QString &remoteName,
+                  const QString &targetName);
+
+bool setDefaultTarget(git_repository *repo, const QString &remoteName,
+                      const QString &targetName);
 
 } // namespace GitRepo

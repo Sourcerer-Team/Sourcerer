@@ -73,6 +73,10 @@ enum class GitRepoCommandType : int {
   Revert,
   CherryPick,
   SetDefaultRemote,
+  AddTarget,
+  EditTarget,
+  DeleteTarget,
+  SetDefaultTarget,
   SetUpstream,
   StageFiles,
   Stash,
@@ -665,6 +669,47 @@ struct GitRepoSetDefaultRemoteCommand final : GitRepoCommand {
   QString remoteName;
 };
 
+struct GitRepoAddTargetCommand final : GitRepoCommand {
+  GitRepoAddTargetCommand() : GitRepoCommand(GitRepoCommandType::AddTarget) {}
+
+  ~GitRepoAddTargetCommand() override = default;
+
+  QString remoteName;
+  QString targetName;
+  QString fetchUrl;
+  QString pushUrl;
+};
+
+struct GitRepoEditTargetCommand final : GitRepoCommand {
+  GitRepoEditTargetCommand() : GitRepoCommand(GitRepoCommandType::EditTarget) {}
+
+  ~GitRepoEditTargetCommand() override = default;
+
+  QString remoteName;
+  QString targetName;
+  QString newFetchUrl;
+  QString newPushUrl;
+};
+
+struct GitRepoDeleteTargetCommand final : GitRepoCommand {
+  GitRepoDeleteTargetCommand() : GitRepoCommand(GitRepoCommandType::DeleteTarget) {}
+
+  ~GitRepoDeleteTargetCommand() override = default;
+
+  QString remoteName;
+  QString targetName;
+};
+
+struct GitRepoSetDefaultTargetCommand final : GitRepoCommand {
+  GitRepoSetDefaultTargetCommand()
+      : GitRepoCommand(GitRepoCommandType::SetDefaultTarget) {}
+
+  ~GitRepoSetDefaultTargetCommand() override = default;
+
+  QString remoteName;
+  QString targetName;
+};
+
 struct GitRepoSetUpstreamCommand final : GitRepoCommand {
   GitRepoSetUpstreamCommand()
       : GitRepoCommand(GitRepoCommandType::SetUpstream) {}
@@ -774,5 +819,7 @@ Q_DECLARE_METATYPE(GitRepo::SubmoduleStatusType)
 Q_DECLARE_METATYPE(GitRepo::SubmoduleStatus)
 Q_DECLARE_METATYPE(GitRepo::SubmoduleInfo)
 Q_DECLARE_METATYPE(QVector<GitRepo::SubmoduleInfo>)
+Q_DECLARE_METATYPE(GitRepo::RemoteTarget)
+Q_DECLARE_METATYPE(QVector<GitRepo::RemoteTarget>)
 Q_DECLARE_METATYPE(GitRepo::RemoteInfo)
 Q_DECLARE_METATYPE(QVector<GitRepo::RemoteInfo>)

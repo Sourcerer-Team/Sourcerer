@@ -20,6 +20,7 @@
 #else
 #include <QFileSystemWatcher>
 #endif
+#include <QInputDialog>
 #include <QItemSelection>
 #include <QListView>
 #include <QMenu>
@@ -82,14 +83,18 @@ protected:
 
 private slots:
   void onAddSubmodule();
+  void onAddTarget(int remoteIndex);
   void onApplyPatch();
   void onApplyStash(int stashIndex);
   void onDeleteStash(int stashIndex);
+  void onDeleteTarget(int remoteIndex, int targetIndex);
   void onClearAllStashes();
   void onAddRemote();
   void onEditRemote(int remoteIndex);
+  void onEditTarget(int remoteIndex, int targetIndex);
   void onDeleteRemote(int remoteIndex);
   void onSetDefaultRemote(int remoteIndex);
+  void onSetDefaultTarget(int remoteIndex, int targetIndex);
   void onSplitterMoved(int pos, int index) const;
   void showTooltipForColumnSlice(const QModelIndex &index);
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
@@ -207,6 +212,9 @@ private:
   void abortMerge(const WeakPtr &guard);
   void addSubmodule(const WeakPtr &guard, const QString &url,
                     const QString &name);
+  void addTarget(const WeakPtr &guard, int remoteIndex,
+                 const QString &targetName, const QString &fetchUrl,
+                 const QString &pushUrl);
   void amend(const WeakPtr &guard, const QString &summary,
              const QString &description, const QString &author,
              const QString &email);
@@ -245,12 +253,15 @@ private:
   void pushTag(const WeakPtr &guard, const QString &tagName);
   void pushAllTags(const WeakPtr &guard);
   void deleteSubmodule(const WeakPtr &guard, const QString &submoduleName);
+  void deleteTarget(const WeakPtr &guard, int remoteIndex, int targetIndex);
   void diff(const WeakPtr &guard, const QString &filePath);
   void diffThreeWay(const WeakPtr &guard, const QString &filePath);
   void diffFromCommit(const WeakPtr &guard, const QString &filePath,
                       const QString &commit);
   void diffFiles(const WeakPtr &guard, const QStringList &files);
   void discardFiles(const WeakPtr &guard, const QStringList &files);
+  void editTarget(const WeakPtr &guard, int remoteIndex, int targetIndex,
+                  const QString &newFetchUrl, const QString &newPushUrl);
   bool getActiveBranchOrTag(const WeakPtr &guard,
                             const GitRepo::BranchType branchType);
   bool getActiveLocalBranch();
@@ -317,6 +328,7 @@ private:
   void saveThreeWayMergeResultFile(const WeakPtr &guard,
                                    const QString &filePath,
                                    const QString &content);
+  void setDefaultTarget(const WeakPtr &guard, int remoteIndex, int targetIndex);
   void setUpstream(const WeakPtr &guard, const QString &branchName,
                    const QString &remoteName, const QString &remoteBranchName);
   void startOverlayTimer() const;

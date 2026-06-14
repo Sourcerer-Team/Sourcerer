@@ -10,10 +10,12 @@
 #include "models/GitCommitTreeModel.h"
 #include "widgets/AddRemoteOverlayWidget.h"
 #include "widgets/AddSubmoduleOverlayWidget.h"
+#include "widgets/AddTargetOverlayWidget.h"
 #include "widgets/AnnotatedTagOverlayWidget.h"
 #include "widgets/ClickableHeaderView.h"
 #include "widgets/ConsoleWidget.h"
 #include "widgets/EditRemoteOverlayWidget.h"
+#include "widgets/EditTargetOverlayWidget.h"
 #include "widgets/ErrorToast.h"
 #include "widgets/InfoToast.h"
 #include "widgets/RemotesPage.h"
@@ -538,6 +540,14 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onDeleteRemote);
   connect(ui->remotesPage, &RemotesPage::setDefaultRemote, this,
           &GitRepoContainer::onSetDefaultRemote);
+  connect(ui->remotesPage, &RemotesPage::addTarget, this,
+          &GitRepoContainer::onAddTarget);
+  connect(ui->remotesPage, &RemotesPage::editTarget, this,
+          &GitRepoContainer::onEditTarget);
+  connect(ui->remotesPage, &RemotesPage::deleteTarget, this,
+          &GitRepoContainer::onDeleteTarget);
+  connect(ui->remotesPage, &RemotesPage::setDefaultTarget, this,
+          &GitRepoContainer::onSetDefaultTarget);
 
   connect(ui->submodulesPage, &GitSubmodulesPage::rightClicked, this,
           &GitRepoContainer::onSubmodulePanelRightClicked);
@@ -1202,6 +1212,176 @@ void GitRepoContainer::onSetDefaultRemote(int remoteIndex) {
   });
 
   LOG_DEBUG("Set upstream dialog displayed");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onAddTarget(int remoteIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Add target to remote {} requested", remoteIndex);
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+
+  const auto addTargetOverlay = new AddTargetOverlayWidget(this);
+  addTargetOverlay->setRemoteName(remote.name);
+
+  connect(addTargetOverlay, &AddTargetOverlayWidget::canceled, this, [=]() {
+    LOG_DEBUG("Add target dialog cancelled");
+    addTargetOverlay->hide();
+    delete addTargetOverlay;
+  });
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  connect(addTargetOverlay, &AddTargetOverlayWidget::submitted, this,
+          [=](const QString &targetName, const QString &fetchUrl,
+              const QString &pushUrl) {
+            LOG_DEBUG("Adding target '{}' to remote '{}'",
+                      targetName.toStdString(), remote.name.toStdString());
+            addTargetOverlay->hide();
+            delete addTargetOverlay;
+
+            _dispatcher.dispatch([=]() {
+              addTarget(guard, remoteIndex, targetName, fetchUrl, pushUrl);
+            });
+          });
+
+  addTargetOverlay->show();
+  addTargetOverlay->raise();
+
+  LOG_DEBUG("Add target dialog displayed");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onEditTarget(int remoteIndex, int targetIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Edit target {}/{} requested", remoteIndex, targetIndex);
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &target = remote.targets[targetIndex];
+
+  const auto editTargetOverlay = new EditTargetOverlayWidget(this);
+  editTargetOverlay->setTargetInfo(remote.name, target.name, target.fetchUrl,
+                                   target.pushUrl);
+
+  connect(editTargetOverlay, &EditTargetOverlayWidget::canceled, this, [=]() {
+    LOG_DEBUG("Edit target dialog cancelled");
+    editTargetOverlay->hide();
+    delete editTargetOverlay;
+  });
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  connect(editTargetOverlay, &EditTargetOverlayWidget::submitted, this,
+          [=](const QString &fetchUrl, const QString &pushUrl) {
+            LOG_DEBUG("Editing target '{}' on remote '{}'",
+                      target.name.toStdString(), remote.name.toStdString());
+            editTargetOverlay->hide();
+            delete editTargetOverlay;
+
+            _dispatcher.dispatch([=]() {
+              editTarget(guard, remoteIndex, targetIndex, fetchUrl, pushUrl);
+            });
+          });
+
+  editTargetOverlay->show();
+  editTargetOverlay->raise();
+
+  LOG_DEBUG("Edit target dialog displayed");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onDeleteTarget(int remoteIndex, int targetIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Delete target {}/{} requested", remoteIndex, targetIndex);
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Prevent deletion of the only target
+  if (remote.targets.size() == 1) {
+    showErrorToast(tr("Cannot delete the only target. Delete the remote "
+                      "instead."),
+                   tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &target = remote.targets[targetIndex];
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Confirm Action"),
+      QString(tr("Are you sure you want to delete the target '%1' from "
+                 "remote '%2'?\n\nThis action cannot be undone."))
+          .arg(target.name, remote.name),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_DEBUG("Delete target cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  _dispatcher.dispatch([=]() { deleteTarget(guard, remoteIndex, targetIndex); });
+
+  LOG_DEBUG("Delete target operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onSetDefaultTarget(int remoteIndex, int targetIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Set default target {}/{} requested", remoteIndex, targetIndex);
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  _dispatcher.dispatch(
+      [=]() { setDefaultTarget(guard, remoteIndex, targetIndex); });
+
+  LOG_DEBUG("Set default target operation dispatched");
   LOG_PERF(0, "Exit");
 }
 
@@ -8682,6 +8862,337 @@ void GitRepoContainer::setDefaultRemote(const WeakPtr &guard, int remoteIndex) {
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
     showToast(tr("Default remote set successfully."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::addTarget(const WeakPtr &guard, int remoteIndex,
+                                 const QString &targetName,
+                                 const QString &fetchUrl,
+                                 const QString &pushUrl) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid remote index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  LOG_DEBUG("Adding target '{}' to remote '{}'", targetName.toStdString(),
+            remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoAddTargetCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.targetName = targetName;
+  command.fetchUrl = fetchUrl;
+  command.pushUrl = pushUrl;
+
+  EventManager::Event addTargetEvent(
+      EventManager::EventType::GitRepoManagerAddTarget, eventUuid);
+  addTargetEvent.addData(command);
+  _eventManager.send(addTargetEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerAddTargetError,
+                           EventManager::EventType::GitRepoManagerAddTargetResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to add target."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerAddTargetResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to add target.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Target added successfully."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::editTarget(const WeakPtr &guard, int remoteIndex,
+                                  int targetIndex, const QString &newFetchUrl,
+                                  const QString &newPushUrl) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid remote index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid target index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &target = remote.targets[targetIndex];
+  LOG_DEBUG("Editing target '{}' on remote '{}'", target.name.toStdString(),
+            remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoEditTargetCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.targetName = target.name;
+  command.newFetchUrl = newFetchUrl;
+  command.newPushUrl = newPushUrl;
+
+  EventManager::Event editTargetEvent(
+      EventManager::EventType::GitRepoManagerEditTarget, eventUuid);
+  editTargetEvent.addData(command);
+  _eventManager.send(editTargetEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerEditTargetError,
+                           EventManager::EventType::GitRepoManagerEditTargetResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to edit target."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerEditTargetResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to edit target.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Target edited successfully."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::deleteTarget(const WeakPtr &guard, int remoteIndex,
+                                    int targetIndex) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid remote index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid target index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &target = remote.targets[targetIndex];
+  LOG_DEBUG("Deleting target '{}' from remote '{}'",
+            target.name.toStdString(), remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoDeleteTargetCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.targetName = target.name;
+
+  EventManager::Event deleteTargetEvent(
+      EventManager::EventType::GitRepoManagerDeleteTarget, eventUuid);
+  deleteTargetEvent.addData(command);
+  _eventManager.send(deleteTargetEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerDeleteTargetError,
+      EventManager::EventType::GitRepoManagerDeleteTargetResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to delete target."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerDeleteTargetResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to delete target.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Target deleted successfully."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::setDefaultTarget(const WeakPtr &guard, int remoteIndex,
+                                        int targetIndex) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid remote index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid target index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &target = remote.targets[targetIndex];
+  LOG_DEBUG("Setting default target to '{}' for remote '{}'",
+            target.name.toStdString(), remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoSetDefaultTargetCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.targetName = target.name;
+
+  EventManager::Event setDefaultTargetEvent(
+      EventManager::EventType::GitRepoManagerSetDefaultTarget, eventUuid);
+  setDefaultTargetEvent.addData(command);
+  _eventManager.send(setDefaultTargetEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerSetDefaultTargetError,
+      EventManager::EventType::GitRepoManagerSetDefaultTargetResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to set default target."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerSetDefaultTargetResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to set default target.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Default target set successfully."), tr("Info"));
   });
 
   LOG_PERF(0, "Exit")

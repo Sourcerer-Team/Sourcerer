@@ -126,6 +126,11 @@ private:
   void updateRemoteWorker(const Structs::GitRepoUpdateRemoteCommand &command);
   void setDefaultRemoteWorker(
       const Structs::GitRepoSetDefaultRemoteCommand &command);
+  void addTargetWorker(const Structs::GitRepoAddTargetCommand &command);
+  void editTargetWorker(const Structs::GitRepoEditTargetCommand &command);
+  void deleteTargetWorker(const Structs::GitRepoDeleteTargetCommand &command);
+  void setDefaultTargetWorker(
+      const Structs::GitRepoSetDefaultTargetCommand &command);
   void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
   void reportError(EventManager::EventType eventType, const QString &message,
                    const Structs::GitRepoCommand &command) const;
@@ -245,6 +250,14 @@ private:
       const Structs::GitRepoUpdateRemoteCommand &command);
   void scheduleWorkerForSetDefaultRemote(
       const Structs::GitRepoSetDefaultRemoteCommand &command);
+  void scheduleWorkerForAddTarget(
+      const Structs::GitRepoAddTargetCommand &command);
+  void scheduleWorkerForEditTarget(
+      const Structs::GitRepoEditTargetCommand &command);
+  void scheduleWorkerForDeleteTarget(
+      const Structs::GitRepoDeleteTargetCommand &command);
+  void scheduleWorkerForSetDefaultTarget(
+      const Structs::GitRepoSetDefaultTargetCommand &command);
   void scheduleWorkerForQuit(const Structs::GitRepoQuitCommand &command);
   void workersThreadFunc(const QString &uuid);
 

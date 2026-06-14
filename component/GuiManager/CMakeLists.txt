@@ -91,6 +91,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/models/WorkspacesModel.h
         include/widgets/AddRemoteOverlayWidget.h
         include/widgets/AddSubmoduleOverlayWidget.h
+        include/widgets/AddTargetOverlayWidget.h
         include/widgets/AnnotatedTagOverlayWidget.h
         include/widgets/CentralWidget.h
         include/widgets/ClickableHeaderView.h
@@ -98,6 +99,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/ConsoleWidget.h
         include/widgets/ContainerWidget.h
         include/widgets/EditRemoteOverlayWidget.h
+        include/widgets/EditTargetOverlayWidget.h
         include/widgets/ElidedLabel.h
         include/widgets/ErrorToast.h
         include/widgets/ExtendedTabBar.h
