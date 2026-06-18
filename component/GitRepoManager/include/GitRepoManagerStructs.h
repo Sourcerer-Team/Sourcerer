@@ -692,7 +692,8 @@ struct GitRepoEditTargetCommand final : GitRepoCommand {
 };
 
 struct GitRepoDeleteTargetCommand final : GitRepoCommand {
-  GitRepoDeleteTargetCommand() : GitRepoCommand(GitRepoCommandType::DeleteTarget) {}
+  GitRepoDeleteTargetCommand()
+      : GitRepoCommand(GitRepoCommandType::DeleteTarget) {}
 
   ~GitRepoDeleteTargetCommand() override = default;
 

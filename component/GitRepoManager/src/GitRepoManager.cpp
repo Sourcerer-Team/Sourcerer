@@ -401,9 +401,11 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerSetDefaultTarget: {
-    const auto setDefaultTargetCommand = event.data<GitRepoSetDefaultTargetCommand>();
+    const auto setDefaultTargetCommand =
+        event.data<GitRepoSetDefaultTargetCommand>();
     GitRepoManagerEvent setDefaultTargetEvent(EventType::SetDefaultTarget);
-    setDefaultTargetEvent.addParam(QVariant::fromValue(setDefaultTargetCommand));
+    setDefaultTargetEvent.addParam(
+        QVariant::fromValue(setDefaultTargetCommand));
     _fsm.send(setDefaultTargetEvent);
     break;
   }
@@ -580,8 +582,7 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerFetchAll: {
-    const auto fetchAllCommand =
-        event.data<GitRepoFetchAllCommand>();
+    const auto fetchAllCommand = event.data<GitRepoFetchAllCommand>();
     GitRepoManagerEvent fetchAllEvent(EventType::FetchAll);
     fetchAllEvent.addParam(QVariant::fromValue(fetchAllCommand));
     _fsm.send(fetchAllEvent);

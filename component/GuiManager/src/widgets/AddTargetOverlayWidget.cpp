@@ -16,8 +16,7 @@
 namespace GuiManager::Widgets {
 
 AddTargetOverlayWidget::AddTargetOverlayWidget(QWidget *parent)
-    : OverlayWidget(parent, ALPHA),
-      _lineEditRemoteName(new QLineEdit(this)),
+    : OverlayWidget(parent, ALPHA), _lineEditRemoteName(new QLineEdit(this)),
       _lineEditTargetName(new PersistentPlaceholderLineEdit(
           QColor::fromString("#969696"), this)),
       _lineEditFetchUrl(new PersistentPlaceholderLineEdit(
@@ -35,7 +34,8 @@ AddTargetOverlayWidget::AddTargetOverlayWidget(QWidget *parent)
   groupBox->setMaximumHeight(160);
 
   _lineEditRemoteName->setParent(groupBox);
-  _lineEditRemoteName->setObjectName("lineEditAddTargetOverlayWidgetRemoteName");
+  _lineEditRemoteName->setObjectName(
+      "lineEditAddTargetOverlayWidgetRemoteName");
   _lineEditRemoteName->setSizePolicy(QSizePolicy::Expanding,
                                      QSizePolicy::Preferred);
   _lineEditRemoteName->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
@@ -181,9 +181,8 @@ void AddTargetOverlayWidget::onButtonSubmitted() {
     return;
   }
 
-  emit submitted(targetName, fetchUrl, pushUrl.isEmpty() ? fetchUrl : pushUrl);
-
   reset();
+  emit submitted(targetName, fetchUrl, pushUrl.isEmpty() ? fetchUrl : pushUrl);
 
   LOG_PERF(0, "Exit");
 }

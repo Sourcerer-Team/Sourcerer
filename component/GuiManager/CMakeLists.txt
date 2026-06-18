@@ -184,12 +184,14 @@ set(GUIMANAGER_SOURCE_FILES
         src/models/TagsModel.cpp
         src/widgets/AddRemoteOverlayWidget.cpp
         src/widgets/AddSubmoduleOverlayWidget.cpp
+        src/widgets/AddTargetOverlayWidget.cpp
         src/widgets/AnnotatedTagOverlayWidget.cpp
         src/widgets/CentralWidget.cpp
         src/widgets/ColorButton.cpp
         src/widgets/ConsoleWidget.cpp
         src/widgets/ContainerWidget.cpp
         src/widgets/EditRemoteOverlayWidget.cpp
+        src/widgets/EditTargetOverlayWidget.cpp
         src/widgets/ElidedLabel.cpp
         src/widgets/ErrorToast.cpp
         src/widgets/GitCredentialsOverlayWidget.cpp

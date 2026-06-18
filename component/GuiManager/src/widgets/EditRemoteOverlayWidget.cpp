@@ -175,9 +175,8 @@ void EditRemoteOverlayWidget::onButtonSubmitted() {
     return;
   }
 
-  emit submitted(fetchUrl, pushUrl.isEmpty() ? fetchUrl : pushUrl);
-
   reset();
+  emit submitted(fetchUrl, pushUrl.isEmpty() ? fetchUrl : pushUrl);
 
   LOG_PERF(0, "Exit");
 }

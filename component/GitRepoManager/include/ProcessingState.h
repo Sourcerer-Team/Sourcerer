@@ -159,8 +159,8 @@ private:
       const Structs::GitRepoCreateTagFromCommitCommand &command);
   void scheduleWorkerForGetActiveBranch(
       const Structs::GitRepoGetActiveBranchCommand &command);
-  void scheduleWorkerForFetchAll(
-      const Structs::GitRepoFetchAllCommand &command);
+  void
+  scheduleWorkerForFetchAll(const Structs::GitRepoFetchAllCommand &command);
   void scheduleWorkerForGetCommitBranches(
       const Structs::GitRepoGetCommitBranchesCommand &command);
   void scheduleWorkerForGetCommitHeads(
@@ -250,10 +250,10 @@ private:
       const Structs::GitRepoUpdateRemoteCommand &command);
   void scheduleWorkerForSetDefaultRemote(
       const Structs::GitRepoSetDefaultRemoteCommand &command);
-  void scheduleWorkerForAddTarget(
-      const Structs::GitRepoAddTargetCommand &command);
-  void scheduleWorkerForEditTarget(
-      const Structs::GitRepoEditTargetCommand &command);
+  void
+  scheduleWorkerForAddTarget(const Structs::GitRepoAddTargetCommand &command);
+  void
+  scheduleWorkerForEditTarget(const Structs::GitRepoEditTargetCommand &command);
   void scheduleWorkerForDeleteTarget(
       const Structs::GitRepoDeleteTargetCommand &command);
   void scheduleWorkerForSetDefaultTarget(

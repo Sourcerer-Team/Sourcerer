@@ -1352,7 +1352,8 @@ void GitRepoContainer::onDeleteTarget(int remoteIndex, int targetIndex) {
   startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
-  _dispatcher.dispatch([=]() { deleteTarget(guard, remoteIndex, targetIndex); });
+  _dispatcher.dispatch(
+      [=]() { deleteTarget(guard, remoteIndex, targetIndex); });
 
   LOG_DEBUG("Delete target operation dispatched");
   LOG_PERF(0, "Exit");
@@ -8449,13 +8450,14 @@ void GitRepoContainer::fetchAll(const WeakPtr &guard) {
   command.uuid = _uuid;
   command.syncUuid = eventUuid;
 
-  EventManager::Event fetchAllEvent(EventManager::EventType::GitRepoManagerFetchAll,
-                                    eventUuid);
+  EventManager::Event fetchAllEvent(
+      EventManager::EventType::GitRepoManagerFetchAll, eventUuid);
   fetchAllEvent.addData(command);
   _eventManager.send(fetchAllEvent);
 
-  static std::set types = {EventManager::EventType::GitRepoManagerFetchAllError,
-                           EventManager::EventType::GitRepoManagerFetchAllResult};
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerFetchAllError,
+      EventManager::EventType::GitRepoManagerFetchAllResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -8904,8 +8906,9 @@ void GitRepoContainer::addTarget(const WeakPtr &guard, int remoteIndex,
   addTargetEvent.addData(command);
   _eventManager.send(addTargetEvent);
 
-  static std::set types = {EventManager::EventType::GitRepoManagerAddTargetError,
-                           EventManager::EventType::GitRepoManagerAddTargetResult};
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerAddTargetError,
+      EventManager::EventType::GitRepoManagerAddTargetResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -8990,8 +8993,9 @@ void GitRepoContainer::editTarget(const WeakPtr &guard, int remoteIndex,
   editTargetEvent.addData(command);
   _eventManager.send(editTargetEvent);
 
-  static std::set types = {EventManager::EventType::GitRepoManagerEditTargetError,
-                           EventManager::EventType::GitRepoManagerEditTargetResult};
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerEditTargetError,
+      EventManager::EventType::GitRepoManagerEditTargetResult};
 
   const auto &[success, event] =
       _eventManager.waitForAnswer(token, eventUuid, types);
@@ -9055,8 +9059,8 @@ void GitRepoContainer::deleteTarget(const WeakPtr &guard, int remoteIndex,
   }
 
   const auto &target = remote.targets[targetIndex];
-  LOG_DEBUG("Deleting target '{}' from remote '{}'",
-            target.name.toStdString(), remote.name.toStdString());
+  LOG_DEBUG("Deleting target '{}' from remote '{}'", target.name.toStdString(),
+            remote.name.toStdString());
 
   const QString eventUuid = Uuid::createUuid();
 
@@ -9090,7 +9094,8 @@ void GitRepoContainer::deleteTarget(const WeakPtr &guard, int remoteIndex,
     return;
   }
 
-  if (event.type() != EventManager::EventType::GitRepoManagerDeleteTargetResult) {
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerDeleteTargetResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);

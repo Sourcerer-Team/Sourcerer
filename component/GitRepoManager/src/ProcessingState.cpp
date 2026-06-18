@@ -215,8 +215,7 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     break;
   }
   case EventType::FetchAll: {
-    const auto fetchAllCommand =
-        event.nextParam<GitRepoFetchAllCommand>();
+    const auto fetchAllCommand = event.nextParam<GitRepoFetchAllCommand>();
     scheduleWorkerForFetchAll(fetchAllCommand);
     break;
   }
@@ -1076,10 +1075,9 @@ void ProcessingState::editTargetWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::editTarget(repo, command.remoteName,
-                                           command.targetName,
-                                           command.newFetchUrl,
-                                           command.newPushUrl);
+  const bool success =
+      GitRepo::editTarget(repo, command.remoteName, command.targetName,
+                          command.newFetchUrl, command.newPushUrl);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
@@ -1158,8 +1156,8 @@ void ProcessingState::setDefaultTargetWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::setDefaultTarget(repo, command.remoteName,
-                                                 command.targetName);
+  const bool success =
+      GitRepo::setDefaultTarget(repo, command.remoteName, command.targetName);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
@@ -1745,7 +1743,8 @@ void ProcessingState::fetchAllWorker(
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
-        EventManager::EventType::GitRepoManagerFetchAllResult, command.syncUuid);
+        EventManager::EventType::GitRepoManagerFetchAllResult,
+        command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type,
                                       QVariant::fromValue(success)});
     _eventManager.send(resultEvent);
@@ -1762,15 +1761,13 @@ void ProcessingState::scheduleWorkerForFetchAll(
 
   const auto it = _contexts.constFind(command.uuid);
   if (it == _contexts.constEnd()) {
-    reportError(
-        EventManager::EventType::GitRepoManagerFetchAllError,
-        tr("Git repository has not been opened."), command);
+    reportError(EventManager::EventType::GitRepoManagerFetchAllError,
+                tr("Git repository has not been opened."), command);
     LOG_PERF(0, "Exit");
     return;
   }
 
-  (*it)->commandsQueue.push(
-      new GitRepoFetchAllCommand(command));
+  (*it)->commandsQueue.push(new GitRepoFetchAllCommand(command));
 
   LOG_PERF(0, "Exit");
 }

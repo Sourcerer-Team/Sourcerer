@@ -49,7 +49,8 @@ protected:
 private slots:
   void onListViewDoubleClicked(const QModelIndex &index);
   void onRemoteRightClicked(int remoteIndex, const QPoint &pos);
-  void onTargetRightClicked(int remoteIndex, int targetIndex, const QPoint &pos);
+  void onTargetRightClicked(int remoteIndex, int targetIndex,
+                            const QPoint &pos);
   void onEmptySpaceClicked(const QPoint &pos);
 
 private:

@@ -3,9 +3,9 @@
 
 #include <Log.h>
 
+#include <QMenu>
 #include <QTreeView>
 #include <QVBoxLayout>
-#include <QMenu>
 
 #define THREAD_ID "RemotesPage"
 
@@ -21,12 +21,15 @@ RemotesPage::RemotesPage(QWidget *parent)
   ui->setupUi(this);
 
   // Cast listView to QTreeView (it's now a QTreeView from the .ui file)
-  auto *treeView = qobject_cast<QTreeView *>(ui->listView);
+  auto *treeView = qobject_cast<QTreeView *>(ui->treeView);
   if (!treeView) {
     LOG_ERROR(Log::ErrorId::Gui, "Failed to cast listView to QTreeView");
     LOG_PERF(0, "Exit");
     return;
   }
+
+  // Set the model once during initialization
+  treeView->setModel(_model);
 
   connect(treeView, &QTreeView::doubleClicked, this,
           &RemotesPage::onListViewDoubleClicked);
@@ -73,7 +76,7 @@ void RemotesPage::updateActiveRemote(const QString &remoteName) {
   _model->setActiveIndex(index);
 
   if (index >= 0) {
-    auto *treeView = qobject_cast<QTreeView *>(ui->listView);
+    auto *treeView = qobject_cast<QTreeView *>(ui->treeView);
     if (treeView) {
       treeView->scrollTo(_model->index(index, 0));
     }
@@ -89,15 +92,7 @@ void RemotesPage::updateModel(const QVector<GitRepo::RemoteInfo> &remotes) {
 
   _remotes = remotes;
 
-  _model->clear();
-  _model->setActiveIndex(-1);
   _model->updateModel(remotes);
-
-  auto *treeView = qobject_cast<QTreeView *>(ui->listView);
-  if (treeView) {
-    treeView->setModel(_model);
-    treeView->expandAll(); // Expand all remotes to show targets
-  }
 
   _previous = -1;
 
@@ -240,6 +235,14 @@ void RemotesPage::onTargetRightClicked(int remoteIndex, int targetIndex,
 
   const auto &target = remote.targets[targetIndex];
 
+  if (target.name == "Default") {
+    LOG_PERF(0, "Exit");
+    return; // Do not allow actions on the "Default" target
+  }
+
+  const bool active =
+      (target.fetchUrl == remote.fetchUrl && target.pushUrl == remote.pushUrl);
+
   QMenu contextMenu;
 
   QAction actionEdit(tr("Edit"), this);
@@ -248,17 +251,21 @@ void RemotesPage::onTargetRightClicked(int remoteIndex, int targetIndex,
 
   contextMenu.addAction(&actionEdit);
   contextMenu.addAction(&actionSetDefault);
-  contextMenu.addSeparator();
-  contextMenu.addAction(&actionDelete);
 
-  connect(&actionEdit, &QAction::triggered, this, [=]() {
-    emit editTarget(remoteIndex, targetIndex);
-  });
-  connect(&actionSetDefault, &QAction::triggered, this, [=]() {
-    emit setDefaultTarget(remoteIndex, targetIndex);
-  });
-  connect(&actionDelete, &QAction::triggered, this,
-          [=]() { emit deleteTarget(remoteIndex, targetIndex); });
+  if (!active) {
+    contextMenu.addSeparator();
+    contextMenu.addAction(&actionDelete);
+  }
+
+  connect(&actionEdit, &QAction::triggered, this,
+          [=]() { emit editTarget(remoteIndex, targetIndex); });
+  connect(&actionSetDefault, &QAction::triggered, this,
+          [=]() { emit setDefaultTarget(remoteIndex, targetIndex); });
+
+  if (!active) {
+    connect(&actionDelete, &QAction::triggered, this,
+            [=]() { emit deleteTarget(remoteIndex, targetIndex); });
+  }
 
   contextMenu.exec(pos);
 

@@ -201,7 +201,7 @@ struct SubmoduleInfo {
   }
 };
 struct RemoteTarget {
-  QString name;           // e.g., "Default", "Backup", etc.
+  QString name; // e.g., "Default", "Backup", etc.
   QString fetchUrl;
   QString pushUrl;
 
@@ -212,10 +212,10 @@ struct RemoteTarget {
 };
 struct RemoteInfo {
   QString name;
-  QString fetchUrl;       // Kept for backward compatibility
-  QString pushUrl;        // Kept for backward compatibility
+  QString fetchUrl; // Kept for backward compatibility
+  QString pushUrl;  // Kept for backward compatibility
   bool isDefault = false;
-  QVector<RemoteTarget> targets;  // Multiple fetch/push URL combinations
+  QVector<RemoteTarget> targets; // Multiple fetch/push URL combinations
 
   bool operator==(const RemoteInfo &other) const {
     return name == other.name && fetchUrl == other.fetchUrl &&
