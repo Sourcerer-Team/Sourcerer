@@ -750,8 +750,9 @@ void GitRepoContainer::init() {
 
   _dispatcher.dispatch([=]() {
     LOG_DEBUG("Dispatching openRepo and prepareWatcher tasks");
-    openRepo(guard);
-    prepareWatcher(guard);
+    if (openRepo(guard)) {
+      prepareWatcher(guard);
+    }
   });
 
   LOG_INFO("GitRepoContainer initialization completed for: '{}'",
@@ -8434,6 +8435,8 @@ bool GitRepoContainer::openRepo(const WeakPtr &guard) {
 
   if (refreshHistorySuccess) {
     saveRepoInRecentList();
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { showSpinnerOverlay(false); });
   }
 
   LOG_PERF(0, "Exit")
