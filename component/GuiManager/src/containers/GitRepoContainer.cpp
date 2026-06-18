@@ -2746,11 +2746,83 @@ void GitRepoContainer::onPush() {
   LOG_DEBUG("Push operation initiated for repository: '{}'",
             _path.toStdString());
 
+  if (_activeBranch.isEmpty() || _activeBranch == ALL_BRANCHES) {
+    LOG_DEBUG("No active branch to push");
+    showErrorToast(tr("Please checkout a branch first."), tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const WeakPtr guard = getSelf().toWeakRef();
+  const QString branchName = _activeBranch;
 
   _dispatcher.dispatch([=]() {
-    LOG_DEBUG("Executing push operation in dispatcher");
-    push(guard);
+    const auto [upstreamRemote, upstreamBranch] =
+        getUpstreamForBranch(guard, branchName);
+    if (!upstreamRemote.isEmpty() && !upstreamBranch.isEmpty()) {
+      LOG_DEBUG("Executing push operation in dispatcher");
+      push(guard);
+      return;
+    }
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      const auto remotes = ui->remotesPage->remotes();
+      if (remotes.isEmpty()) {
+        LOG_DEBUG("No remotes available to push branch '{}'",
+                  branchName.toStdString());
+        showErrorToast(tr("Please add a remote before pushing."), tr("Error"));
+        return;
+      }
+
+      const auto upstreamOverlay = new UpstreamInputOverlayWidget(this);
+      upstreamOverlay->setBranchPlaceholderText(tr("Remote branch name"));
+      upstreamOverlay->setRemotes(remotes);
+      upstreamOverlay->setRemoteBranchName(branchName);
+
+      const QString activeRemote = ui->remotesPage->activeRemote();
+      if (!activeRemote.isEmpty()) {
+        upstreamOverlay->setRemoteName(activeRemote);
+      } else {
+        upstreamOverlay->setRemoteName(QStringLiteral("origin"));
+      }
+
+      connect(upstreamOverlay, &UpstreamInputOverlayWidget::canceled, this,
+              [=]() {
+                LOG_DEBUG("Push upstream dialog cancelled");
+                upstreamOverlay->hide();
+                delete upstreamOverlay;
+              });
+
+      connect(upstreamOverlay, &UpstreamInputOverlayWidget::submitted, this,
+              [=](const QString &remote, const QString &branch) {
+                const QString remoteName = remote.trimmed();
+                const QString remoteBranchName = branch.trimmed();
+                if (remoteName.isEmpty() || remoteBranchName.isEmpty()) {
+                  showErrorToast(
+                      tr("Please select a remote and enter a branch name."),
+                      tr("Error"));
+                  return;
+                }
+
+                LOG_DEBUG(
+                    "Setting upstream before push for branch '{}': remote='{}', "
+                    "branch='{}'",
+                    branchName.toStdString(), remoteName.toStdString(),
+                    remoteBranchName.toStdString());
+                upstreamOverlay->hide();
+                delete upstreamOverlay;
+
+                startOverlayTimer();
+                _dispatcher.dispatch([=]() {
+                  setUpstream(guard, branchName, remoteName, remoteBranchName,
+                              [=](const WeakPtr &guard) { push(guard); });
+                });
+              });
+
+      upstreamOverlay->selectAllBranchText();
+      upstreamOverlay->show();
+      upstreamOverlay->raise();
+    });
   });
 
   LOG_DEBUG("Push operation dispatched");
@@ -3395,10 +3467,10 @@ void GitRepoContainer::saveThreeWayMergeResultFile(const WeakPtr &guard,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::setUpstream(const WeakPtr &guard,
-                                   const QString &branchName,
-                                   const QString &remoteName,
-                                   const QString &remoteBranchName) {
+void GitRepoContainer::setUpstream(
+    const WeakPtr &guard, const QString &branchName, const QString &remoteName,
+    const QString &remoteBranchName,
+    const std::function<void(const WeakPtr &)> &onSuccess) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -3472,10 +3544,14 @@ void GitRepoContainer::setUpstream(const WeakPtr &guard,
     getRemotes(guard);
   }
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    showSpinnerOverlay(false);
-    showToast(tr("Successfully set upstream."), tr("Info"));
-  });
+  if (onSuccess) {
+    onSuccess(guard);
+  } else {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showToast(tr("Successfully set upstream."), tr("Info"));
+    });
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -8061,9 +8137,6 @@ QPair<QString, QString> GitRepoContainer::getUpstream(const WeakPtr &guard) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(QString("%1\n%2").arg(tr("Failed to get upstream."),
-                                           translateGitError(error.error)),
-                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
