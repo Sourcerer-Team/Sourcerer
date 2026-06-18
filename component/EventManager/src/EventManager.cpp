@@ -263,6 +263,12 @@ QString EventManager::eventName(EventType type) const {
     return "GitRepoManagerGetCommitStatusResult";
   case EventType::GitRepoManagerGetCommitStatusError:
     return "GitRepoManagerGetCommitStatusError";
+  case EventType::GitRepoManagerGetIsMergeInProgress:
+    return "GitRepoManagerGetIsMergeInProgress";
+  case EventType::GitRepoManagerGetIsMergeInProgressResult:
+    return "GitRepoManagerGetIsMergeInProgressResult";
+  case EventType::GitRepoManagerGetIsMergeInProgressError:
+    return "GitRepoManagerGetIsMergeInProgressError";
   case EventType::GitRepoManagerGetCredentials:
     return "GitRepoManagerGetCredentials";
   case EventType::GitRepoManagerGetCredentialsFinished:
@@ -271,6 +277,12 @@ QString EventManager::eventName(EventType type) const {
     return "GitRepoManagerGetCredentialsSubmit";
   case EventType::GitRepoManagerGetCredentialsCancel:
     return "GitRepoManagerGetCredentialsCancel";
+  case EventType::GitRepoManagerGetUpstream:
+    return "GitRepoManagerGetUpstream";
+  case EventType::GitRepoManagerGetUpstreamResult:
+    return "GitRepoManagerGetUpstreamResult";
+  case EventType::GitRepoManagerGetUpstreamError:
+    return "GitRepoManagerGetUpstreamError";
   case EventType::GitRepoManagerInitRepo:
     return "GitRepoManagerInitRepo";
   case EventType::GitRepoManagerInitRepoResult:
@@ -289,12 +301,36 @@ QString EventManager::eventName(EventType type) const {
     return "GitRepoManagerListRemoteBranchesResult";
   case EventType::GitRepoManagerListRemoteBranchesError:
     return "GitRepoManagerListRemoteBranchesError";
+  case EventType::GitRepoManagerListRemoteBranchesWithStatus:
+    return "GitRepoManagerListRemoteBranchesWithStatus";
+  case EventType::GitRepoManagerListRemoteBranchesWithStatusResult:
+    return "GitRepoManagerListRemoteBranchesWithStatusResult";
+  case EventType::GitRepoManagerListRemoteBranchesWithStatusError:
+    return "GitRepoManagerListRemoteBranchesWithStatusError";
+  case EventType::GitRepoManagerListRemotes:
+    return "GitRepoManagerListRemotes";
+  case EventType::GitRepoManagerListRemotesResult:
+    return "GitRepoManagerListRemotesResult";
+  case EventType::GitRepoManagerListRemotesError:
+    return "GitRepoManagerListRemotesError";
+  case EventType::GitRepoManagerListStashes:
+    return "GitRepoManagerListStashes";
+  case EventType::GitRepoManagerListStashesResult:
+    return "GitRepoManagerListStashesResult";
+  case EventType::GitRepoManagerListStashesError:
+    return "GitRepoManagerListStashesError";
   case EventType::GitRepoManagerListSubmodules:
     return "GitRepoManagerListSubmodules";
   case EventType::GitRepoManagerListSubmodulesResult:
     return "GitRepoManagerListSubmodulesResult";
   case EventType::GitRepoManagerListSubmodulesError:
     return "GitRepoManagerListSubmodulesError";
+  case EventType::GitRepoManagerListSubmodulesWithStatus:
+    return "GitRepoManagerListSubmodulesWithStatus";
+  case EventType::GitRepoManagerListSubmodulesWithStatusResult:
+    return "GitRepoManagerListSubmodulesWithStatusResult";
+  case EventType::GitRepoManagerListSubmodulesWithStatusError:
+    return "GitRepoManagerListSubmodulesWithStatusError";
   case EventType::GitRepoManagerListTags:
     return "GitRepoManagerListTags";
   case EventType::GitRepoManagerListTagsResult:
