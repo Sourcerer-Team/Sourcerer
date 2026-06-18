@@ -33,10 +33,15 @@ signals:
   void remoteDoubleClicked(int remoteIndex);
   void rightClickOnEmpty(const QPoint &pos);
   void rightClickOnRemote(int remoteIndex, const QPoint &pos);
+  void rightClickOnTarget(int remoteIndex, int targetIndex, const QPoint &pos);
   void addRemote();
   void editRemote(int remoteIndex);
   void deleteRemote(int remoteIndex);
   void setDefaultRemote(int remoteIndex);
+  void addTarget(int remoteIndex);
+  void editTarget(int remoteIndex, int targetIndex);
+  void deleteTarget(int remoteIndex, int targetIndex);
+  void setDefaultTarget(int remoteIndex, int targetIndex);
 
 protected:
   bool eventFilter(QObject *obj, QEvent *event) override;
@@ -44,6 +49,8 @@ protected:
 private slots:
   void onListViewDoubleClicked(const QModelIndex &index);
   void onRemoteRightClicked(int remoteIndex, const QPoint &pos);
+  void onTargetRightClicked(int remoteIndex, int targetIndex,
+                            const QPoint &pos);
   void onEmptySpaceClicked(const QPoint &pos);
 
 private:

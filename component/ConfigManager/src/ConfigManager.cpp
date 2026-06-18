@@ -134,7 +134,8 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::CloudUploadBugReportUrl,
      "https://www.sourcererapp.com/api/v1/upload-bug-report"},
 #endif
-    {ConfigKey::GitRepoSplitterPos, "000000ff0000000100000003000000d0000003c30000014101ffffffff010000000100"},
+    {ConfigKey::GitRepoSplitterPos,
+     "000000ff0000000100000003000000d0000003c30000014101ffffffff010000000100"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
     {ConfigKey::GitRepoMonospaceFontName, "Lucida Console"},
 
