@@ -17,6 +17,7 @@
 #define THREAD_ID "MergeDiffView"
 
 #define PLUS_MARKER 3
+#define PLUS_MARKER_MARGIN_WIDTH 28
 
 namespace GuiManager::Widgets {
 
@@ -529,7 +530,8 @@ void MergeDiffView::setupEditors(const QString &extension) {
   _leftEditor->setMarginType(3, QsciScintilla::SymbolMargin);
   _leftEditor->setMarginWidth(1, 0);
   _leftEditor->setMarginWidth(2, 0);
-  _leftEditor->setMarginWidth(3, 16);
+  _leftEditor->setMarginWidth(3, PLUS_MARKER_MARGIN_WIDTH);
+  _leftEditor->setMarginBackgroundColor(3, QColor(0x23272e));
   _leftEditor->setMarginMarkerMask(3, 1 << PLUS_MARKER);
   _leftEditor->setMarginSensitivity(3, true);
 
@@ -539,27 +541,28 @@ void MergeDiffView::setupEditors(const QString &extension) {
   _rightEditor->setMarginType(3, QsciScintilla::SymbolMargin);
   _rightEditor->setMarginWidth(1, 0);
   _rightEditor->setMarginWidth(2, 0);
-  _rightEditor->setMarginWidth(3, 16);
+  _rightEditor->setMarginWidth(3, PLUS_MARKER_MARGIN_WIDTH);
+  _rightEditor->setMarginBackgroundColor(3, QColor(0x23272e));
   _rightEditor->setMarginMarkerMask(3, 1 << PLUS_MARKER);
   _rightEditor->setMarginSensitivity(3, true);
 
   _leftEditor->markerDefine(QsciScintilla::Background, 1);
   _leftEditor->markerDefine(QsciScintilla::Background, 2);
-  _leftEditor->markerDefine(QsciScintilla::SC_MARK_PLUS, PLUS_MARKER);
+  _leftEditor->markerDefine(QsciScintilla::BoxedPlus, PLUS_MARKER);
 
   _rightEditor->markerDefine(QsciScintilla::Background, 1);
   _rightEditor->markerDefine(QsciScintilla::Background, 2);
-  _rightEditor->markerDefine(QsciScintilla::SC_MARK_PLUS, PLUS_MARKER);
+  _rightEditor->markerDefine(QsciScintilla::BoxedPlus, PLUS_MARKER);
 
   _leftEditor->setMarkerBackgroundColor(QColor(0x3b1313), 1);
   _leftEditor->setMarkerBackgroundColor(QColor(0x133b13), 2);
-  _leftEditor->setMarkerForegroundColor(Qt::white, PLUS_MARKER);
-  _leftEditor->setMarkerBackgroundColor(Qt::darkGreen, PLUS_MARKER);
+  _leftEditor->setMarkerForegroundColor(Qt::black, PLUS_MARKER);
+  _leftEditor->setMarkerBackgroundColor(QColor(0xc8e6c9), PLUS_MARKER);
 
   _rightEditor->setMarkerBackgroundColor(QColor(0x133b13), 1);
   _rightEditor->setMarkerBackgroundColor(QColor(0x3b1313), 2);
-  _rightEditor->setMarkerForegroundColor(Qt::white, PLUS_MARKER);
-  _rightEditor->setMarkerBackgroundColor(Qt::darkGreen, PLUS_MARKER);
+  _rightEditor->setMarkerForegroundColor(Qt::black, PLUS_MARKER);
+  _rightEditor->setMarkerBackgroundColor(QColor(0xbbdefb), PLUS_MARKER);
 
   _bottomEditor->setMarginType(0, QsciScintilla::NumberMargin);
   _bottomEditor->setMarginType(1, QsciScintilla::SymbolMargin);
