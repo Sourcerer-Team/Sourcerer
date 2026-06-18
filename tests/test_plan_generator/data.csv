@@ -746,3 +746,97 @@ TC-160,Cross-Platform,Cross-Platform Repository Sharing,"1. Create repository on
 2. Open same repository on different OS","Repository works across platforms
 No line ending issues (if .gitattributes proper)
 Configuration portable",Medium,Not Tested,
+TC-161,Remote Operations,Set Default Remote,"1. Open a repository with at least two remotes
+2. Open the remotes panel
+3. Right-click a non-default remote
+4. Select Set Default Remote
+5. Enter or confirm the remote branch name","Selected remote becomes the default remote
+Active branch upstream is configured for that remote
+Remotes panel highlights the default remote
+Future push/pull operations use the selected remote",Medium,Not Tested,Covers GitRepoCommandType::SetDefaultRemote and upstream overlay flow
+TC-162,Remote Operations,Add Remote Target,"1. Open a repository with an existing remote
+2. Right-click the remote
+3. Select Add Target
+4. Enter target name, fetch URL, and push URL
+5. Submit","New target is added under the remote
+Fetch and push URLs are saved
+Remote target list refreshes without removing existing targets",Medium,Not Tested,Covers multiple targets per remote
+TC-163,Remote Operations,Edit Remote Target,"1. Open a repository with a remote that has a target
+2. Right-click the target
+3. Select Edit Target
+4. Change fetch and push URLs
+5. Submit","Target URLs are updated
+Target name and parent remote are preserved
+Subsequent fetch/push uses the updated URLs when target is active",Medium,Not Tested,
+TC-164,Remote Operations,Delete Remote Target,"1. Open a repository with a remote that has at least two targets
+2. Right-click a non-default or secondary target
+3. Select Delete Target
+4. Confirm deletion","Target is removed from the remote
+Remaining targets stay intact
+Remote list refreshes and no stale target remains visible",Medium,Not Tested,
+TC-165,Remote Operations,Prevent Deleting Only Remote Target,"1. Open a repository with a remote that has exactly one target
+2. Right-click the only target
+3. Select Delete Target","Deletion is blocked
+Error message explains that the only target cannot be deleted
+Remote and target configuration remain unchanged",Medium,Not Tested,
+TC-166,Remote Operations,Set Default Remote Target,"1. Open a repository with a remote that has multiple targets
+2. Right-click a non-default target
+3. Select Set Default Target","Selected target becomes default for that remote
+Target list updates its default indicator
+Existing remote and other targets remain unchanged",Medium,Not Tested,
+TC-167,Remote Operations,Push Branch Without Upstream Prompts for Remote,"1. Create and checkout a local branch with no upstream
+2. Ensure at least one remote exists
+3. Click Push
+4. Select a remote and enter remote branch name in the prompt
+5. Submit","Push asks for remote and remote branch instead of failing
+Upstream is configured for the local branch
+Branch is pushed to the selected remote
+Success notification is shown",High,Not Tested,Covers issue #112
+TC-168,Remote Operations,Push Branch Without Upstream and Without Remotes,"1. Open a repository with no remotes
+2. Create and checkout a local branch with commits
+3. Click Push","Push does not start silently
+Error message asks user to add a remote before pushing
+No upstream configuration is written",Medium,Not Tested,
+TC-169,Commits - Operations,Reset to Commit (Mixed),"1. Select an older commit in history
+2. Right-click and select Reset > Mixed
+3. Confirm the reset","Branch pointer moves to selected commit
+Changes from later commits remain in working directory unstaged
+Staging area is cleared
+History and status refresh correctly",High,Not Tested,Complements existing soft and hard reset cases
+TC-170,Tags,Rename Tag,"1. Open repository with an existing local tag
+2. Right-click the tag
+3. Select Rename Tag
+4. Enter a new valid tag name
+5. Submit","Local tag is renamed
+Old tag name disappears from tag list
+New tag points to the same commit
+Invalid names are rejected with an error",Medium,Not Tested,
+TC-171,Working Directory,Apply Patch File,"1. Create or obtain a valid .patch file
+2. Open a repository where the patch applies cleanly
+3. Select Apply Patch
+4. Choose the patch file","Patch is applied to the working directory
+Changed files appear in status
+No unrelated files are modified
+Success or clear failure message is shown",Medium,Not Tested,Covers GitRepoCommandType::ApplyPatch
+TC-172,Working Directory,Create Patch from Selected Files,"1. Modify one or more files
+2. Select files in the working tree or index list
+3. Right-click and select Create File Patch","Patch content is generated only for selected files
+Patch viewer or save flow opens
+Patch can be applied to reproduce the selected changes",Medium,Not Tested,
+TC-173,Working Directory,Ignore File from Context Menu,"1. Create an untracked file
+2. Right-click the file in working tree or index view
+3. Select Ignore > Ignore this file","Matching ignore entry is added to .gitignore
+File is no longer shown as untracked after refresh
+Existing .gitignore content is preserved",Medium,Not Tested,
+TC-174,Working Directory,Ignore Files Recursively from Context Menu,"1. Create untracked files inside a folder tree
+2. Right-click one file in that folder
+3. Select Ignore > Ignore all files recursively inside file parent folder","Recursive ignore pattern is added to .gitignore
+Files under the selected parent folder are ignored
+Files outside that folder remain visible",Medium,Not Tested,
+TC-175,Working Directory,Delete Selected Files from Changes View,"1. Create or modify multiple working tree files
+2. Select existing files in flat or tree changes view
+3. Right-click and select Delete
+4. Confirm deletion","Selected files are deleted from disk
+Repository status refreshes
+Diff viewer closes if it was open
+User cancellation leaves files untouched",High,Not Tested,
