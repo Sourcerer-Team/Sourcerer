@@ -4,9 +4,11 @@
 #include "widgets/SideBySideDiffView.h"
 
 #include <Log.h>
+#include <StylesheetManager.h>
 
 #include <Qsci/qscilexerdiff.h>
 
+#include <QEvent>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QScrollBar>
@@ -132,6 +134,32 @@ parseContentWithMarkers(const QString &contentWithMarkers) {
   result.bottom = lines.join('\n');
 
   return result;
+}
+
+void MergeDiffView::changeEvent(QEvent *event) {
+  QWidget::changeEvent(event);
+
+  if (!event)
+    return;
+
+  switch (event->type()) {
+  case QEvent::PaletteChange:
+  case QEvent::ApplicationPaletteChange:
+  case QEvent::StyleChange:
+    refreshScintillaTheme();
+    break;
+  default:
+    break;
+  }
+}
+
+void MergeDiffView::refreshScintillaTheme() {
+  DarkThemeLexersHighlighter highlighter;
+  const auto editors = findChildren<QsciScintilla *>();
+
+  for (auto *editor : editors) {
+    highlighter.applyDarkTheme(editor);
+  }
 }
 
 void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
@@ -554,15 +582,31 @@ void MergeDiffView::setupEditors(const QString &extension) {
   _rightEditor->markerDefine(QsciScintilla::Background, 2);
   _rightEditor->markerDefine(QsciScintilla::BoxedPlus, PLUS_MARKER);
 
-  _leftEditor->setMarkerBackgroundColor(QColor(0x3b1313), 1);
-  _leftEditor->setMarkerBackgroundColor(QColor(0x133b13), 2);
-  _leftEditor->setMarkerForegroundColor(Qt::black, PLUS_MARKER);
-  _leftEditor->setMarkerBackgroundColor(QColor(0xc8e6c9), PLUS_MARKER);
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+  const QColor deletedColor =
+      lightTheme ? QColor(255, 231, 231) : QColor(0x3b1313);
+  const QColor addedColor =
+      lightTheme ? QColor(232, 246, 232) : QColor(0x133b13);
+  const QColor plusColor =
+      lightTheme ? QColor(200, 230, 251) : QColor(0xc8e6c9);
+  const QColor rightPlusColor =
+      lightTheme ? QColor(223, 236, 250) : QColor(0xbbdefb);
+  const QColor marginColor =
+      lightTheme ? QColor(243, 246, 248) : QColor(0x23272e);
+  const QColor changedColor =
+      lightTheme ? QColor(255, 241, 201) : QColor(Qt::darkYellow);
 
-  _rightEditor->setMarkerBackgroundColor(QColor(0x133b13), 1);
-  _rightEditor->setMarkerBackgroundColor(QColor(0x3b1313), 2);
+  _leftEditor->setMarkerBackgroundColor(deletedColor, 1);
+  _leftEditor->setMarkerBackgroundColor(addedColor, 2);
+  _leftEditor->setMarkerForegroundColor(Qt::black, PLUS_MARKER);
+  _leftEditor->setMarkerBackgroundColor(plusColor, PLUS_MARKER);
+
+  _rightEditor->setMarkerBackgroundColor(addedColor, 1);
+  _rightEditor->setMarkerBackgroundColor(deletedColor, 2);
   _rightEditor->setMarkerForegroundColor(Qt::black, PLUS_MARKER);
-  _rightEditor->setMarkerBackgroundColor(QColor(0xbbdefb), PLUS_MARKER);
+  _rightEditor->setMarkerBackgroundColor(rightPlusColor, PLUS_MARKER);
 
   _bottomEditor->setMarginType(0, QsciScintilla::NumberMargin);
   _bottomEditor->setMarginType(1, QsciScintilla::SymbolMargin);
@@ -570,9 +614,9 @@ void MergeDiffView::setupEditors(const QString &extension) {
   _bottomEditor->markerDefine(QsciScintilla::Background, 1);
   _bottomEditor->markerDefine(QsciScintilla::Background, 2);
   _bottomEditor->markerDefine(QsciScintilla::Background, 3);
-  _bottomEditor->setMarkerBackgroundColor(Qt::darkYellow, 1);
-  _bottomEditor->setMarkerBackgroundColor(QColor(0x3b1313), 2);
-  _bottomEditor->setMarkerBackgroundColor(QColor(0x133b13), 3);
+  _bottomEditor->setMarkerBackgroundColor(changedColor, 1);
+  _bottomEditor->setMarkerBackgroundColor(deletedColor, 2);
+  _bottomEditor->setMarkerBackgroundColor(addedColor, 3);
 
   _leftEditor->setWrapMode(QsciScintilla::WrapNone);
   _rightEditor->setWrapMode(QsciScintilla::WrapNone);

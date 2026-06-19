@@ -48,13 +48,9 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::MainWindowMinimumWidth, "window/minimumWidth"},
     {ConfigKey::MainWindowMinimumHeight, "window/minimumHeight"},
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
+    {ConfigKey::UiTheme, "window/uiTheme"},
     {ConfigKey::SettingsSplitterPos, "window/settings/splitterPos"},
-    {ConfigKey::TitleBarCloseButtonColor, "window/titlebar/closeButtonColor"},
     {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
-    {ConfigKey::TitleBarMinimizeButtonColor,
-     "window/titlebar/minimizeButtonColor"},
-    {ConfigKey::TitleBarMaximizeButtonColor,
-     "window/titlebar/maximizeButtonColor"},
     {ConfigKey::TitleBarMaxTabWidth, "window/titleBarMaxTabWidth"},
     {ConfigKey::TitleBarMenuMinimumSize, "window/titleBarMenuMinimumWidth"},
     {ConfigKey::TestColor, "test/testColor"},
@@ -75,6 +71,7 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::GitRepoMonospaceFontName, {"Monospace font name", ""}},
     {ConfigKey::GitRepoMonospaceFontSize, {"Monospace font size in pixels"}},
     {ConfigKey::RecentlyOpenedRepos, {"Recently opened repositories list", ""}},
+    {ConfigKey::UiTheme, {"Selected UI theme", ""}},
     {ConfigKey::TitleBarHeight, {"Maximum title bar height", ""}},
     {ConfigKey::TitleBarMaxTabWidth, {"Maximum width of a title bar tab", ""}},
     {ConfigKey::TitleBarMenuMinimumSize,
@@ -88,9 +85,7 @@ QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {
 
 QMap<ConfigKey, QColor> DEFAULT_COLORS = {
     {ConfigKey::TestColor, QColor(10, 10, 10)},
-    {ConfigKey::TitleBarCloseButtonColor, QColor(0xff, 0x00, 0x00)},
-    {ConfigKey::TitleBarMinimizeButtonColor, QColor(0x4b, 0x4b, 0x4b)},
-    {ConfigKey::TitleBarMaximizeButtonColor, QColor(0x4b, 0x4b, 0x4b)}};
+};
 
 QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {
     {ConfigKey::TestDateTime, QDateTime::currentDateTime()}};
@@ -141,6 +136,7 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
 
     {ConfigKey::HttpClientCaCertFile, "ca-certificates.crt"},
     {ConfigKey::RecentlyOpenedRepos, ""},
+    {ConfigKey::UiTheme, "SourcererLight"},
     {ConfigKey::SettingsSplitterPos, ""}};
 
 ConfigManager::ConfigManager()

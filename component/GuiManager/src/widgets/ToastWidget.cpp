@@ -119,13 +119,17 @@ void ToastWidget::onCloseButton() {
 }
 
 void ToastWidget::applyToastColors(const QColor &backgroundColor,
-                                   const QColor &titleColor) {
+                                   const QColor &titleColor,
+                                   const QColor &textColor) {
   LOG_PERF(0, "Enter");
 
   // Use QPalette for background color
   setAutoFillBackground(true);
   QPalette pal = palette();
   pal.setColor(QPalette::Window, backgroundColor);
+  pal.setColor(QPalette::WindowText, textColor);
+  pal.setColor(QPalette::Text, textColor);
+  pal.setColor(QPalette::ButtonText, textColor);
   setPalette(pal);
 
   // Enable styled background for all children so stylesheet works
@@ -137,24 +141,16 @@ void ToastWidget::applyToastColors(const QColor &backgroundColor,
   }
 
   // Force all child widgets to use the background color
-  setStyleSheet(
-      QString("* { font-size:14px; color:white; background-color:%1; }"
-              "QPushButton { background-color: transparent; border: none; }")
-          .arg(backgroundColor.name()));
+  setStyleSheet(QString("* { font-size:14px; color:%2; background-color:%1; }"
+                         "QPushButton { background-color: transparent; border: none; color: %2; }")
+                    .arg(backgroundColor.name(), textColor.name()));
 
   // Update title label to use title color background
   if (getTitleLabel()) {
     getTitleLabel()->setStyleSheet(
         QString("font-size: 16px; font-weight: bold; "
-                "background-color: %1; color: white; padding: 4")
-            .arg(titleColor.name()));
-  }
-
-  // Explicitly set close button background to transparent
-  QList<QPushButton *> buttons = findChildren<QPushButton *>();
-  for (QPushButton *button : buttons) {
-    button->setStyleSheet(
-        "background-color: transparent; border: none; color: white;");
+                "background-color: %1; color: %2; padding: 4")
+            .arg(titleColor.name(), textColor.name()));
   }
 
   // Ensure all QWidget children (including message container) have background
@@ -170,8 +166,8 @@ void ToastWidget::applyToastColors(const QColor &backgroundColor,
   QList<QLabel *> labels = findChildren<QLabel *>();
   for (QLabel *label : labels) {
     if (label != getTitleLabel()) {
-      label->setStyleSheet(QString("background-color: %1; color: white;")
-                               .arg(backgroundColor.name()));
+      label->setStyleSheet(QString("background-color: %1; color: %2;")
+                               .arg(backgroundColor.name(), textColor.name()));
     }
   }
 

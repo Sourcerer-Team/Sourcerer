@@ -6,49 +6,20 @@
 
 namespace GuiManager::Widgets {
 
-TitleBarButton::TitleBarButton(const QPixmap &icon, const QColor &hoverColor,
-                               QWidget *parent)
-    : ColorButton(icon, QColor::Invalid, parent) {
+TitleBarButton::TitleBarButton(const QPixmap &icon, QWidget *parent)
+    : QPushButton{parent} {
   LOG_PERF(0, "Enter");
 
+  setIcon(icon);
+  setFlat(true);
   setMouseTracking(true);
   setAttribute(Qt::WA_Hover, true);
-  installEventFilter(this);
-
-  _hoverColor = hoverColor;
-
-  LOG_PERF(0, "Exit");
-}
-
-bool TitleBarButton::eventFilter(QObject *watched, QEvent *event) {
-  if (!event || this != watched)
-    return false;
-
-  switch (event->type()) {
-  case QEvent::HoverEnter: {
-    return hover(static_cast<QHoverEvent *>(event), true);
-  }
-  case QEvent::HoverLeave: {
-    return hover(static_cast<QHoverEvent *>(event), false);
-  }
-  default: {
-    break;
-  }
-  }
-
-  return QPushButton::eventFilter(watched, event);
-}
-
-bool TitleBarButton::hover(QHoverEvent *event, bool entered) {
-  LOG_PERF(0, "Enter");
-  LOG_DEBUG("Entered is '{}'", entered);
-
-  setColor(entered ? _hoverColor : color());
-  setDown(entered);
+  setAttribute(Qt::WA_StyledBackground, true);
+  setAutoFillBackground(false);
+  setFocusPolicy(Qt::NoFocus);
+  setIconSize(QSize(16, 16));
 
   LOG_PERF(0, "Exit");
-
-  return true;
 }
 
 } // namespace GuiManager::Widgets

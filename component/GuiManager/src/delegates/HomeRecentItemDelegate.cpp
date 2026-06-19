@@ -1,8 +1,11 @@
 #include "delegates/HomeRecentItemDelegate.h"
 
+#include <StylesheetManager.h>
+
 #include <Log.h>
 
 #include <QPainter>
+#include <QAbstractItemView>
 #include <QTableView>
 
 #define THREAD_ID "HomeRecentItemDelegate"
@@ -24,11 +27,17 @@ void HomeRecentItemDelegate::paint(QPainter *painter,
                                    const QModelIndex &index) const {
   QStyleOptionViewItem _option = option;
 
-  if (_indexHovered == index) {
-    // Draw hover background color across the entire row
-    QColor hoverBackground(66, 66, 66); // Slightly lighter gray from dark theme
-    QRect fullRowRect(0, option.rect.top(), 10000, option.rect.height());
-    painter->fillRect(fullRowRect, hoverBackground);
+  if (_indexHovered.isValid() && _indexHovered.model() == index.model() &&
+      _indexHovered.row() == index.row() && index.column() == 0) {
+    const QColor hoverBackground =
+        StylesheetManager::StylesheetManager::currentStylesheet() ==
+                StylesheetManager::StylesheetKey::SourcererLight
+            ? QColor(255, 241, 201)
+            : QColor(66, 66, 66);
+    const auto *view = qobject_cast<const QAbstractItemView *>(option.widget);
+    const int rowWidth = view ? view->viewport()->width() : _option.rect.width();
+    painter->fillRect(QRect(0, _option.rect.top(), rowWidth, _option.rect.height()),
+                      hoverBackground);
   }
 
   QStyledItemDelegate::paint(painter, _option, index);

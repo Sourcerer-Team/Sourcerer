@@ -12,6 +12,8 @@ ColorButton::ColorButton(const QColor &hoverColor, QWidget *parent)
     : QPushButton{parent} {
   LOG_PERF(0, "Enter");
 
+  setAttribute(Qt::WA_StyledBackground, true);
+  setAutoFillBackground(true);
   setColor(hoverColor);
 
   LOG_PERF(0, "Exit");
@@ -22,6 +24,8 @@ ColorButton::ColorButton(const QPixmap &icon, const QColor &hoverColor,
     : QPushButton{parent} {
   LOG_PERF(0, "Enter");
 
+  setAttribute(Qt::WA_StyledBackground, true);
+  setAutoFillBackground(true);
   setIcon(icon);
   setColor(hoverColor);
 
@@ -33,7 +37,9 @@ void ColorButton::setColor(const QColor &color) {
   LOG_DEBUG("Set button color '{}", color.name());
 
   _color = color;
-  setStyleSheet(QString("background-color:%1").arg(_color.name()));
+  setStyleSheet(
+      QString("QPushButton { background-color: %1; border: none; }")
+          .arg(_color.name()));
 
   LOG_PERF(0, "Exit");
 }
