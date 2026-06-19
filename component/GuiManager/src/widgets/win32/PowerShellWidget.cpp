@@ -1,7 +1,9 @@
 #include "widgets/win32/PowerShellWidget.h"
 #include "ConfigManager.h"
 #include "Log.h"
+#include <StylesheetManager.h>
 
+#include <QColor>
 #include <QDir>
 #include <QFont>
 #include <QFontInfo>
@@ -65,6 +67,22 @@ static bool LoadConPtyAPI() {
 using namespace GuiManager::Widgets::Win32;
 
 namespace {
+
+struct TerminalThemeColors {
+  QColor foreground;
+  QColor background;
+};
+
+TerminalThemeColors terminalThemeColors() {
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+
+  return lightTheme ? TerminalThemeColors{QColor(32, 32, 32),
+                                           QColor(255, 250, 242)}
+                    : TerminalThemeColors{QColor(187, 187, 187),
+                                           QColor(0x23, 0x26, 0x29)};
+}
 
 TerminalGeometry calculateTerminalGeometry(QVTerminal *terminal) {
   TerminalGeometry geometry;
@@ -265,12 +283,7 @@ PowerShellWidget::PowerShellWidget(QWidget *parent)
   font.setStyleHint(QFont::Monospace);
   font.setFixedPitch(true);
 
-  QVTCharFormat format;
-  format.setFont(font);
-  format.setForeground(QColor(187, 187, 187));
-  format.setBackground(QColor(0x23, 0x26, 0x29));
-
-  _textDisplay->setFormat(format);
+  applyTheme();
 
   layout->addWidget(_textDisplay);
 
@@ -578,6 +591,23 @@ void PowerShellWidget::setFocusToInput() {
 
 void PowerShellWidget::setWorkingDirectory(const QString &path) {
   _workingDirectory = path;
+}
+
+void PowerShellWidget::applyTheme() {
+  const TerminalThemeColors colors = terminalThemeColors();
+
+  QVTCharFormat format;
+  format.setFont(_textDisplay->format().font());
+  format.setForeground(colors.foreground);
+  format.setBackground(colors.background);
+
+  _textDisplay->setStyleSheet(
+      QString("background-color: %1;").arg(colors.background.name()));
+  _textDisplay->setFormat(format);
+}
+
+void PowerShellWidget::refreshTheme() {
+  applyTheme();
 }
 
 void PowerShellWidget::closeEvent(QCloseEvent *event) {

@@ -6,6 +6,7 @@
 #include <QKeyEvent>
 #include <QMenu>
 #include <QPainter>
+#include <QPalette>
 #include <QScrollBar>
 #include <QStyleHints>
 
@@ -22,6 +23,13 @@ static const int yMargin = 0;
 
 QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   _device = Q_NULLPTR;
+
+  setAutoFillBackground(true);
+  setBackgroundRole(QPalette::Base);
+  setAttribute(Qt::WA_OpaquePaintEvent, true);
+  viewport()->setAutoFillBackground(true);
+  viewport()->setBackgroundRole(QPalette::Base);
+  viewport()->setAttribute(Qt::WA_OpaquePaintEvent, true);
 
   setCursorPos(QPoint(0, 0));
   _savedCursorPos = QPoint(0, 0);
@@ -666,12 +674,33 @@ const QVTCharFormat &QVTerminal::format() const {
 }
 
 void QVTerminal::setFormat(const QVTCharFormat &format) {
+  const QVTCharFormat previousFormat = _format;
   _format = format;
   _curentFormat = format;
+
+  QPalette viewportPalette = viewport()->palette();
+  viewportPalette.setColor(QPalette::Window, _format.background());
+  viewportPalette.setColor(QPalette::Base, _format.background());
+  viewportPalette.setColor(QPalette::Text, _format.foreground());
+  viewport()->setPalette(viewportPalette);
+  viewport()->setAutoFillBackground(true);
+
+  if (_layout) {
+    for (int row = 0; row < _layout->lineCount(); ++row) {
+      QVTLine &line = _layout->lineAt(row);
+      const auto chars = line.chars();
+      for (int col = 0; col < chars.size(); ++col) {
+        if (chars[col].format() == previousFormat) {
+          line.replace(QVTChar(chars[col].c(), format), col);
+        }
+      }
+    }
+  }
 
   QFontMetrics fm(_format.font());
   _cw = fm.boundingRect('M').width();
   _ch = fm.height();
+  update();
 }
 
 void QVTerminal::keyPressEvent(QKeyEvent *event) {
@@ -699,7 +728,7 @@ void QVTerminal::paintEvent(QPaintEvent *paintEvent) {
   QPainter p(viewport());
 
   p.setPen(QPen());
-  p.fillRect(viewport()->rect(), QColor(0x23, 0x26, 0x29));
+  p.fillRect(viewport()->rect(), _format.background());
 
   p.translate(QPoint(xMargin, -verticalScrollBar()->value() + yMargin));
   p.setBrush(_format.background());
