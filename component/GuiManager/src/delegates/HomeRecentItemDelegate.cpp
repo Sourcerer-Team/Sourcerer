@@ -4,8 +4,8 @@
 
 #include <Log.h>
 
-#include <QPainter>
 #include <QAbstractItemView>
+#include <QPainter>
 #include <QTableView>
 
 #define THREAD_ID "HomeRecentItemDelegate"
@@ -35,9 +35,11 @@ void HomeRecentItemDelegate::paint(QPainter *painter,
             ? QColor(255, 241, 201)
             : QColor(66, 66, 66);
     const auto *view = qobject_cast<const QAbstractItemView *>(option.widget);
-    const int rowWidth = view ? view->viewport()->width() : _option.rect.width();
-    painter->fillRect(QRect(0, _option.rect.top(), rowWidth, _option.rect.height()),
-                      hoverBackground);
+    const int rowWidth =
+        view ? view->viewport()->width() : _option.rect.width();
+    painter->fillRect(
+        QRect(0, _option.rect.top(), rowWidth, _option.rect.height()),
+        hoverBackground);
   }
 
   QStyledItemDelegate::paint(painter, _option, index);

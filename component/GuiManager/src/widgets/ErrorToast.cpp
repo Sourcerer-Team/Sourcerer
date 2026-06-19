@@ -17,11 +17,9 @@ ErrorToast::ErrorToast(const QString &message, const QString &title,
       StylesheetManager::StylesheetManager::currentStylesheet() ==
       StylesheetManager::StylesheetKey::SourcererLight;
   if (lightTheme) {
-    applyToastColors(QColor("#FFE7E1"), QColor("#D99A73"),
-                     QColor("#3A241C"));
+    applyToastColors(QColor("#FFE7E1"), QColor("#D99A73"), QColor("#3A241C"));
   } else {
-    applyToastColors(QColor("#4B0000"), QColor("#B8860B"),
-                     QColor("#FFFFFF"));
+    applyToastColors(QColor("#4B0000"), QColor("#B8860B"), QColor("#FFFFFF"));
   }
 
   LOG_PERF(0, "Exit");

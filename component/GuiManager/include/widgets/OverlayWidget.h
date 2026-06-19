@@ -2,6 +2,8 @@
 
 #include "ClickableHeaderView.h"
 
+#include <StylesheetManager.h>
+
 #include <QApplication>
 #include <QEvent>
 #include <QGraphicsOpacityEffect>
@@ -61,6 +63,20 @@ public:
     // QColor::name(QColor::HexArgb) preserves alpha channel
     setStyleSheet(
         QString("background-color: %1;").arg(color.name(QColor::HexArgb)));
+  }
+
+  static QColor overlayBackgroundColor() {
+    return StylesheetManager::StylesheetManager::currentStylesheet() ==
+                   StylesheetManager::StylesheetKey::SourcererLight
+               ? QColor(255, 244, 224)
+               : QColor::fromString("#384D59");
+  }
+
+  static QPixmap overlayButtonIcon(const QString &iconPath) {
+    const QColor iconColor =
+        StylesheetManager::StylesheetManager::menuBarButtonIconColor();
+    return StylesheetManager::StylesheetManager::recolorPixmap(
+        QPixmap(iconPath), iconColor);
   }
 
 protected:

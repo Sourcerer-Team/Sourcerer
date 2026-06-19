@@ -3,8 +3,8 @@
 #include "StylesheetKey.h"
 
 #include <QColor>
-#include <QString>
 #include <QPixmap>
+#include <QString>
 
 class QApplication;
 class QWidget;

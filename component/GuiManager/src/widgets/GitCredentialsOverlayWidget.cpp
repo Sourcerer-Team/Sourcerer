@@ -26,7 +26,7 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
       _holder(QSharedPointer<bool>::create(false)), _id(id) {
   LOG_PERF(0, "Enter");
 
-  const auto groupBox = new OpaqueGroupBox(QColor::fromString("#384D59"), this);
+  const auto groupBox = new OpaqueGroupBox(overlayBackgroundColor(), this);
   groupBox->setObjectName("groupBoxGiCredentialsTextOverlayWidgetCredentials");
   groupBox->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   groupBox->setMinimumWidth(640);
@@ -63,24 +63,24 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   _storeCredentialsCheckBox->setCursor(Qt::PointingHandCursor);
   _storeCredentialsCheckBox->setChecked(false);
 
-  _message = new OpaqueLabel(QColor::fromString("#384D59"), this);
+  _message = new OpaqueLabel(overlayBackgroundColor(), this);
 
   QPalette palette = _message->palette();
   palette.setColor(QPalette::WindowText, Qt::darkRed);
   _message->setPalette(palette);
 
-  _submitButton = new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  _submitButton = new OpaquePushButton(overlayBackgroundColor(), groupBox);
   _submitButton->setObjectName("pushButtonTextOverlayWidgetInputSubmit");
   _submitButton->setMaximumWidth(32);
   _submitButton->setMaximumHeight(32);
-  _submitButton->setIcon(QPixmap(":icons/ok.png"));
+  _submitButton->setIcon(overlayButtonIcon(":icons/ok.png"));
   _submitButton->setFlat(false);
 
-  _cancelButton = new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  _cancelButton = new OpaquePushButton(overlayBackgroundColor(), groupBox);
   _cancelButton->setObjectName("pushButtonTextOverlayWidgetInputCancel");
   _cancelButton->setMaximumWidth(32);
   _cancelButton->setMaximumHeight(32);
-  _cancelButton->setIcon(QPixmap(":icons/cancel.png"));
+  _cancelButton->setIcon(overlayButtonIcon(":icons/cancel.png"));
   _cancelButton->setFlat(false);
 
   const auto horizontalLayout = new QHBoxLayout();
