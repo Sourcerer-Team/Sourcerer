@@ -3743,8 +3743,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
 
   QMenu contextMenu;
 
+  contextMenu.addAction(ui->actionWorkingTreeFlatStage);
   if (!conflicted) {
-    contextMenu.addAction(ui->actionWorkingTreeFlatStage);
     contextMenu.addAction(ui->actionWorkingTreeFlatDiscard);
   }
 
@@ -3944,8 +3944,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
 
   QMenu contextMenu;
 
+  contextMenu.addAction(ui->actionWorkingTreeTreeStage);
   if (!conflicted) {
-    contextMenu.addAction(ui->actionWorkingTreeTreeStage);
     contextMenu.addAction(ui->actionWorkingTreeTreeDiscard);
   }
 
@@ -7578,15 +7578,6 @@ QStringList GitRepoContainer::getSelectedFiles(QListView *listView) {
   QStringList files;
 
   for (const auto &index : listIndexes) {
-    const GuiManager::Models::GitCommitListModificationType modificationType =
-        static_cast<GuiManager::Models::GitCommitListModificationType>(
-            index.data(Qt::UserRole).toInt());
-
-    if (modificationType ==
-        GuiManager::Models::GitCommitListModificationType::Conflicted) {
-      continue;
-    }
-
     files += QDir::fromNativeSeparators(index.data().toString());
   }
 
@@ -7637,15 +7628,6 @@ QStringList GitRepoContainer::getSelectedFiles(QTreeView *treeView) {
   QStringList files;
 
   for (const auto &index : listIndexes) {
-    const GuiManager::Models::GitCommitListModificationType modificationType =
-        static_cast<GuiManager::Models::GitCommitListModificationType>(
-            index.data(Qt::UserRole).toInt());
-
-    if (modificationType ==
-        GuiManager::Models::GitCommitListModificationType::Conflicted) {
-      continue;
-    }
-
     const QStringList traversedFiles =
         traverseModelIndexSubtree(index, treeView->model());
 
@@ -9891,14 +9873,6 @@ void GitRepoContainer::resetCommitAndMergeWorkingTreeTreeStageAllButton() {
 
   if (_commitListModel) {
     for (int i = 0; i < _commitListModel->rowCount(); ++i) {
-      const GuiManager::Models::GitCommitListModificationType modificationType =
-          static_cast<GuiManager::Models::GitCommitListModificationType>(
-              _commitListModel->index(i, 0).data(Qt::UserRole).toInt());
-      if (modificationType ==
-          GuiManager::Models::GitCommitListModificationType::Conflicted) {
-        continue;
-      }
-
       ++rowCount;
     }
   }
@@ -10307,7 +10281,8 @@ void GitRepoContainer::stageAll(const WeakPtr &guard) {
   const QStringList modifiedFiles = historyAndStatus.status.newFiles +
                                     historyAndStatus.status.modifiedFiles +
                                     historyAndStatus.status.deletedFiles +
-                                    historyAndStatus.status.renamedFiles;
+                                    historyAndStatus.status.renamedFiles +
+                                    historyAndStatus.status.conflictedFiles;
 
   if (!modifiedFiles.isEmpty()) {
     stageFiles(guard, modifiedFiles);

@@ -253,28 +253,22 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#pushButtonAbort{
-        background-color: #8b0000;
-        border: 1px solid gray;
-        border-radius: 5px;z
-        padding: 5px;
-      }
-      QPushButton#pushButtonAbort:hover{
-        background-color: #b22222;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#pushButtonCancel{
+      QPushButton#pushButtonAbort,
+      QPushButton#pushButtonCancel,
+      QPushButton#deleteButton{
         background-color: #8b0000;
         border: 1px solid gray;
         border-radius: 5px;
+        color: white;
         padding: 5px;
       }
-      QPushButton#pushButtonCancel:hover{
+      QPushButton#pushButtonAbort:hover,
+      QPushButton#pushButtonCancel:hover,
+      QPushButton#deleteButton:hover{
         background-color: #b22222;
         border: 1px solid gray;
         border-radius: 5px;
+        color: white;
         padding: 5px;
       }
       QPushButton#refreshButton{
@@ -285,18 +279,6 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
       }
       QPushButton#refreshButton:hover{
         background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#deleteButton{
-        background-color: #8b0000;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#deleteButton:hover{
-        background-color: #b22222;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
@@ -1137,28 +1119,22 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#pushButtonAbort{
-        background-color: #8b0000;
-        border: 1px solid gray;
-        border-radius: 5px;z
-        padding: 5px;
-      }
-      QPushButton#pushButtonAbort:hover{
-        background-color: #b22222;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#pushButtonCancel{
+      QPushButton#pushButtonAbort,
+      QPushButton#pushButtonCancel,
+      QPushButton#deleteButton{
         background-color: #8b0000;
         border: 1px solid gray;
         border-radius: 5px;
+        color: white;
         padding: 5px;
       }
-      QPushButton#pushButtonCancel:hover{
+      QPushButton#pushButtonAbort:hover,
+      QPushButton#pushButtonCancel:hover,
+      QPushButton#deleteButton:hover{
         background-color: #b22222;
         border: 1px solid gray;
         border-radius: 5px;
+        color: white;
         padding: 5px;
       }
       QPushButton#refreshButton{
@@ -1169,18 +1145,6 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
       }
       QPushButton#refreshButton:hover{
         background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#deleteButton{
-        background-color: #8b0000;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#deleteButton:hover{
-        background-color: #b22222;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
