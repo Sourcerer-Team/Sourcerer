@@ -49,9 +49,9 @@
 #include <QPixmap>
 #include <QScrollBar>
 #include <QSvgRenderer>
-#include <Qsci/qsciscintilla.h>
 #include <QTextStream>
 #include <QToolTip>
+#include <Qsci/qsciscintilla.h>
 
 #include <functional>
 #include <utility>
@@ -310,8 +310,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   auto *pullFetchDropdown = new QToolButton();
   pullFetchDropdown->setObjectName("pullFetchDropdown");
   pullFetchDropdown->setProperty("iconSource", QStringLiteral(":icons/pull"));
-  pullFetchDropdown->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-      QPixmap(":icons/pull"), shortcutIconColor));
+  pullFetchDropdown->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":icons/pull"), shortcutIconColor));
   pullFetchDropdown->setToolTip(tr("Pull"));
   pullFetchDropdown->setMinimumSize(58, 42);
   pullFetchDropdown->setMaximumSize(58, 42);
@@ -369,8 +370,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->leftVerticalLayout->insertWidget(0, _shortcutsWidget);
 
   const QColor closeButtonIconColor = QColor(Qt::white);
-  ui->pushButtonDiffClose->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-      QPixmap(":/icons/close_button.png"), closeButtonIconColor));
+  ui->pushButtonDiffClose->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/close_button.png"), closeButtonIconColor));
   ui->pushButtonDiffClose->setMinimumSize(32, 32);
   ui->pushButtonDiffClose->setMaximumSize(32, 32);
 
@@ -413,8 +415,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMergeDiffSave->setMinimumHeight(32);
   ui->pushButtonMergeDiffSave->setMaximumHeight(32);
 
-  ui->pushButtonStashClose->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-      QPixmap(":/icons/close_button.png"), closeButtonIconColor));
+  ui->pushButtonStashClose->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/close_button.png"), closeButtonIconColor));
 
   ui->pushButtonStashClose->setMinimumSize(32, 32);
   ui->pushButtonStashClose->setMaximumSize(32, 32);
@@ -2843,31 +2846,32 @@ void GitRepoContainer::onPush() {
                 delete upstreamOverlay;
               });
 
-      connect(upstreamOverlay, &UpstreamInputOverlayWidget::submitted, this,
-              [=](const QString &remote, const QString &branch) {
-                const QString remoteName = remote.trimmed();
-                const QString remoteBranchName = branch.trimmed();
-                if (remoteName.isEmpty() || remoteBranchName.isEmpty()) {
-                  showErrorToast(
-                      tr("Please select a remote and enter a branch name."),
-                      tr("Error"));
-                  return;
-                }
+      connect(
+          upstreamOverlay, &UpstreamInputOverlayWidget::submitted, this,
+          [=](const QString &remote, const QString &branch) {
+            const QString remoteName = remote.trimmed();
+            const QString remoteBranchName = branch.trimmed();
+            if (remoteName.isEmpty() || remoteBranchName.isEmpty()) {
+              showErrorToast(
+                  tr("Please select a remote and enter a branch name."),
+                  tr("Error"));
+              return;
+            }
 
-                LOG_DEBUG(
-                    "Setting upstream before push for branch '{}': remote='{}', "
-                    "branch='{}'",
-                    branchName.toStdString(), remoteName.toStdString(),
-                    remoteBranchName.toStdString());
-                upstreamOverlay->hide();
-                delete upstreamOverlay;
+            LOG_DEBUG(
+                "Setting upstream before push for branch '{}': remote='{}', "
+                "branch='{}'",
+                branchName.toStdString(), remoteName.toStdString(),
+                remoteBranchName.toStdString());
+            upstreamOverlay->hide();
+            delete upstreamOverlay;
 
-                startOverlayTimer();
-                _dispatcher.dispatch([=]() {
-                  setUpstream(guard, branchName, remoteName, remoteBranchName,
-                              [=](const WeakPtr &guard) { push(guard); });
-                });
-              });
+            startOverlayTimer();
+            _dispatcher.dispatch([=]() {
+              setUpstream(guard, branchName, remoteName, remoteBranchName,
+                          [=](const WeakPtr &guard) { push(guard); });
+            });
+          });
 
       upstreamOverlay->selectAllBranchText();
       upstreamOverlay->show();
@@ -8167,9 +8171,8 @@ QPair<QString, QString> GitRepoContainer::getUpstream(const WeakPtr &guard) {
   if (event.type() !=
       EventManager::EventType::GitRepoManagerGetUpstreamResult) {
     const auto error = event.data<GitRepoError>();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { showSpinnerOverlay(false); });
 
     LOG_PERF(0, "Exit")
     return {};

@@ -3,11 +3,11 @@
 
 #include <Git.h>
 
-#include <QGuiApplication>
 #include <QBrush>
 #include <QDir>
 #include <QFileInfo>
 #include <QFont>
+#include <QGuiApplication>
 #include <QPalette>
 #include <QStandardPaths>
 

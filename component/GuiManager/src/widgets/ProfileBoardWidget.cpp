@@ -360,7 +360,6 @@ void ProfileBoardWidget::changeEvent(QEvent *event) {
   }
 }
 
-
 void ProfileBoardWidget::onButtonAddClicked() {
   LOG_PERF(0, "Enter");
 

@@ -108,71 +108,72 @@ const DarkThemeLexersHighlighter::DarkThemeColors
         QColor(255, 138, 101), // warning - orange-red
         QColor(86, 182, 194),  // info - cyan
         QColor(255, 138, 101), // lineChangedText - orange-red
-        QColor(255, 138, 101, 30), // lineChangedBackground - translucent orange-red
-        QColor(152, 195, 121)  // rawString - green
+        QColor(255, 138, 101,
+               30),           // lineChangedBackground - translucent orange-red
+        QColor(152, 195, 121) // rawString - green
 };
 
 const DarkThemeLexersHighlighter::DarkThemeColors
     DarkThemeLexersHighlighter::DEFAULT_LIGHT_COLORS = {
-        QColor(255, 255, 255),    // background
-        QColor(32, 32, 32),       // foreground
-        QColor(32, 32, 32),       // selection
-        QColor(231, 238, 244),    // selectionBackground
-        QColor(248, 250, 252),    // currentLine
-        QColor(96, 96, 96),       // lineNumbers
-        QColor(243, 246, 248),    // lineNumbersBackground
-        QColor(230, 235, 240),    // foldMargin
-        QColor(243, 246, 248),    // foldMarginBackground
-        QColor(220, 226, 232),    // indentationGuides
-        QColor(0, 120, 215),      // braceMatch
-        QColor(224, 108, 117),    // braceUnmatch
-        QColor(248, 250, 252),    // caretLine
-        QColor(32, 32, 32),       // caretForeground
+        QColor(255, 255, 255), // background
+        QColor(32, 32, 32),    // foreground
+        QColor(32, 32, 32),    // selection
+        QColor(231, 238, 244), // selectionBackground
+        QColor(248, 250, 252), // currentLine
+        QColor(96, 96, 96),    // lineNumbers
+        QColor(243, 246, 248), // lineNumbersBackground
+        QColor(230, 235, 240), // foldMargin
+        QColor(243, 246, 248), // foldMarginBackground
+        QColor(220, 226, 232), // indentationGuides
+        QColor(0, 120, 215),   // braceMatch
+        QColor(224, 108, 117), // braceUnmatch
+        QColor(248, 250, 252), // caretLine
+        QColor(32, 32, 32),    // caretForeground
 
-        QColor(0, 90, 150),      // keyword
-        QColor(0, 123, 167),     // keyword2
-        QColor(102, 102, 102),   // comment
-        QColor(102, 102, 102),   // commentLine
-        QColor(102, 102, 102),   // commentDoc
-        QColor(181, 103, 0),     // number
-        QColor(24, 102, 0),      // string
-        QColor(24, 102, 0),      // character
-        QColor(32, 32, 32),      // operator_
-        QColor(32, 32, 32),      // identifier
-        QColor(123, 60, 160),    // preprocessor
-        QColor(164, 38, 44),     // unclosedString
-        QColor(24, 102, 0),      // verbatimString
-        QColor(164, 38, 44),     // regex
-        QColor(24, 102, 0),      // doubleQuotedString
-        QColor(24, 102, 0),      // singleQuotedString
-        QColor(0, 123, 167),     // keywordSet2
-        QColor(130, 98, 0),      // globalClass
-        QColor(0, 90, 150),      // function_
-        QColor(123, 60, 160),    // decorator
-        QColor(130, 98, 0),      // className
-        QColor(0, 90, 150),      // functionMethodName
-        QColor(164, 38, 44),     // tag
-        QColor(181, 103, 0),     // attribute
-        QColor(24, 102, 0),      // value
-        QColor(0, 123, 167),     // entity
-        QColor(123, 60, 160),    // xmlKeyword
-        QColor(181, 103, 0),     // xmlAttribute
-        QColor(0, 90, 150),      // script
-        QColor(123, 60, 160),    // asp
-        QColor(80, 80, 80),      // phpDefault
-        QColor(24, 102, 0),      // phpDoubleQuotedString
-        QColor(24, 102, 0),      // phpSingleQuotedString
-        QColor(123, 60, 160),    // phpKeyword
-        QColor(181, 103, 0),     // phpNumber
-        QColor(164, 38, 44),     // phpVariable
-        QColor(102, 102, 102),   // phpComment
-        QColor(102, 102, 102),   // phpCommentLine
-        QColor(164, 38, 44),     // error
-        QColor(181, 103, 0),     // warning
-        QColor(0, 123, 167),     // info
-        QColor(140, 88, 0),      // lineChangedText - warm brown
-        QColor(255, 241, 201),   // lineChangedBackground - warm highlight
-        QColor(24, 102, 0)      // rawString
+        QColor(0, 90, 150),    // keyword
+        QColor(0, 123, 167),   // keyword2
+        QColor(102, 102, 102), // comment
+        QColor(102, 102, 102), // commentLine
+        QColor(102, 102, 102), // commentDoc
+        QColor(181, 103, 0),   // number
+        QColor(24, 102, 0),    // string
+        QColor(24, 102, 0),    // character
+        QColor(32, 32, 32),    // operator_
+        QColor(32, 32, 32),    // identifier
+        QColor(123, 60, 160),  // preprocessor
+        QColor(164, 38, 44),   // unclosedString
+        QColor(24, 102, 0),    // verbatimString
+        QColor(164, 38, 44),   // regex
+        QColor(24, 102, 0),    // doubleQuotedString
+        QColor(24, 102, 0),    // singleQuotedString
+        QColor(0, 123, 167),   // keywordSet2
+        QColor(130, 98, 0),    // globalClass
+        QColor(0, 90, 150),    // function_
+        QColor(123, 60, 160),  // decorator
+        QColor(130, 98, 0),    // className
+        QColor(0, 90, 150),    // functionMethodName
+        QColor(164, 38, 44),   // tag
+        QColor(181, 103, 0),   // attribute
+        QColor(24, 102, 0),    // value
+        QColor(0, 123, 167),   // entity
+        QColor(123, 60, 160),  // xmlKeyword
+        QColor(181, 103, 0),   // xmlAttribute
+        QColor(0, 90, 150),    // script
+        QColor(123, 60, 160),  // asp
+        QColor(80, 80, 80),    // phpDefault
+        QColor(24, 102, 0),    // phpDoubleQuotedString
+        QColor(24, 102, 0),    // phpSingleQuotedString
+        QColor(123, 60, 160),  // phpKeyword
+        QColor(181, 103, 0),   // phpNumber
+        QColor(164, 38, 44),   // phpVariable
+        QColor(102, 102, 102), // phpComment
+        QColor(102, 102, 102), // phpCommentLine
+        QColor(164, 38, 44),   // error
+        QColor(181, 103, 0),   // warning
+        QColor(0, 123, 167),   // info
+        QColor(140, 88, 0),    // lineChangedText - warm brown
+        QColor(255, 241, 201), // lineChangedBackground - warm highlight
+        QColor(24, 102, 0)     // rawString
 };
 
 DarkThemeLexersHighlighter::DarkThemeLexersHighlighter(QObject *parent)
@@ -211,11 +212,10 @@ void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
     return;
   }
 
-  _currentScheme =
-      StylesheetManager::StylesheetManager::currentStylesheet() ==
-              StylesheetManager::StylesheetKey::SourcererLight
-          ? QStringLiteral("light")
-          : QStringLiteral("default");
+  _currentScheme = StylesheetManager::StylesheetManager::currentStylesheet() ==
+                           StylesheetManager::StylesheetKey::SourcererLight
+                       ? QStringLiteral("light")
+                       : QStringLiteral("default");
 
   applyEditorColors(editor);
 
@@ -1450,8 +1450,7 @@ void DarkThemeLexersHighlighter::configureDiffLexer(QsciLexer *lexer) {
 
   // Diff Line Changed (modifications)
   diffLexer->setColor(colors.lineChangedText, QsciLexerDiff::LineChanged);
-  diffLexer->setPaper(colors.lineChangedBackground,
-                      QsciLexerDiff::LineChanged);
+  diffLexer->setPaper(colors.lineChangedBackground, QsciLexerDiff::LineChanged);
   diffLexer->setFont(_defaultFont, QsciLexerDiff::LineChanged);
 }
 

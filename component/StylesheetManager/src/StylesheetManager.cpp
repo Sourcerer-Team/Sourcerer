@@ -2,8 +2,8 @@
 
 #include <Log.h>
 
-#include <QApplication>
 #include <QAbstractButton>
+#include <QApplication>
 #include <QColor>
 #include <QImage>
 #include <QMap>
@@ -1883,8 +1883,8 @@ QPixmap StylesheetManager::recolorPixmap(const QPixmap &source,
         continue;
 
       image.setPixelColor(
-          x, y, QColor(color.red(), color.green(), color.blue(),
-                       pixelColor.alpha()));
+          x, y,
+          QColor(color.red(), color.green(), color.blue(), pixelColor.alpha()));
     }
   }
 
