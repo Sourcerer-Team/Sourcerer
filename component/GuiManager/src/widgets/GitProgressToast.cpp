@@ -45,11 +45,9 @@ GitProgressToast::GitProgressToast(const CloneProgress &data,
       StylesheetManager::StylesheetManager::currentStylesheet() ==
       StylesheetManager::StylesheetKey::SourcererLight;
   if (lightTheme) {
-    applyToastColors(QColor("#FFF1DE"), QColor("#E3AE5A"),
-                     QColor("#2E2418"));
+    applyToastColors(QColor("#FFF1DE"), QColor("#E3AE5A"), QColor("#2E2418"));
   } else {
-    applyToastColors(QColor("#8B4000"), QColor("#B8860B"),
-                     QColor("#FFFFFF"));
+    applyToastColors(QColor("#8B4000"), QColor("#B8860B"), QColor("#FFFFFF"));
   }
 
   connect(this, &GitProgressToast::finished, this,

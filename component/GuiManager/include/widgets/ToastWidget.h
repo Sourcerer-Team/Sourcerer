@@ -30,8 +30,7 @@ signals:
 
 protected:
   QLabel *getTitleLabel() const { return _titleLabel; }
-  void applyToastColors(const QColor &backgroundColor,
-                        const QColor &titleColor,
+  void applyToastColors(const QColor &backgroundColor, const QColor &titleColor,
                         const QColor &textColor);
 
 private:

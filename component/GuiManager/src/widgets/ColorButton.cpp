@@ -37,9 +37,8 @@ void ColorButton::setColor(const QColor &color) {
   LOG_DEBUG("Set button color '{}", color.name());
 
   _color = color;
-  setStyleSheet(
-      QString("QPushButton { background-color: %1; border: none; }")
-          .arg(_color.name()));
+  setStyleSheet(QString("QPushButton { background-color: %1; border: none; }")
+                    .arg(_color.name()));
 
   LOG_PERF(0, "Exit");
 }

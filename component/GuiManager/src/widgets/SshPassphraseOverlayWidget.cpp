@@ -19,7 +19,7 @@ SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(uint id, QWidget *parent)
       _showing(false), _holder(QSharedPointer<bool>::create(false)), _id(id) {
   LOG_PERF(0, "Enter");
 
-  const auto groupBox = new OpaqueGroupBox(QColor::fromString("#384D59"), this);
+  const auto groupBox = new OpaqueGroupBox(overlayBackgroundColor(), this);
   groupBox->setObjectName("groupBoxSshPassphraseOverlayWidgetPassphrase");
   groupBox->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   groupBox->setMinimumWidth(480);
@@ -39,25 +39,25 @@ SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(uint id, QWidget *parent)
   _passphraseLineEdit->setPlaceholderText(tr("Enter SSH key passphrase"));
   _passphraseLineEdit->setEchoMode(QLineEdit::Password);
 
-  _message = new OpaqueLabel(QColor::fromString("#384D59"), this);
+  _message = new OpaqueLabel(overlayBackgroundColor(), this);
   _message->setText(tr("SSH key is encrypted. Please enter the passphrase."));
 
   QPalette palette = _message->palette();
   palette.setColor(QPalette::WindowText, Qt::gray);
   _message->setPalette(palette);
 
-  _submitButton = new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  _submitButton = new OpaquePushButton(overlayBackgroundColor(), groupBox);
   _submitButton->setObjectName("pushButtonSshPassphraseOverlayWidgetSubmit");
   _submitButton->setMaximumWidth(32);
   _submitButton->setMaximumHeight(32);
-  _submitButton->setIcon(QPixmap(":icons/ok.png"));
+  _submitButton->setIcon(overlayButtonIcon(":icons/ok.png"));
   _submitButton->setFlat(false);
 
-  _cancelButton = new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  _cancelButton = new OpaquePushButton(overlayBackgroundColor(), groupBox);
   _cancelButton->setObjectName("pushButtonSshPassphraseOverlayWidgetCancel");
   _cancelButton->setMaximumWidth(32);
   _cancelButton->setMaximumHeight(32);
-  _cancelButton->setIcon(QPixmap(":icons/cancel.png"));
+  _cancelButton->setIcon(overlayButtonIcon(":icons/cancel.png"));
   _cancelButton->setFlat(false);
 
   const auto horizontalLayout = new QHBoxLayout();

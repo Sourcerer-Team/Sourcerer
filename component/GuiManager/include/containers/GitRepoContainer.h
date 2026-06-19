@@ -335,10 +335,10 @@ private:
                                    const QString &filePath,
                                    const QString &content);
   void setDefaultTarget(const WeakPtr &guard, int remoteIndex, int targetIndex);
-  void setUpstream(const WeakPtr &guard, const QString &branchName,
-                   const QString &remoteName, const QString &remoteBranchName,
-                   const std::function<void(const WeakPtr &)> &onSuccess =
-                       nullptr);
+  void
+  setUpstream(const WeakPtr &guard, const QString &branchName,
+              const QString &remoteName, const QString &remoteBranchName,
+              const std::function<void(const WeakPtr &)> &onSuccess = nullptr);
   void startOverlayTimer() const;
   void stash(const WeakPtr &guard);
   void stopOverlayTimer() const;

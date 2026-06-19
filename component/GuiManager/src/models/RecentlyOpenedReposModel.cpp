@@ -4,11 +4,11 @@
 #include <Log.h>
 #include <TokenString.h>
 
-#include <QGuiApplication>
 #include <QBrush>
 #include <QDir>
 #include <QFileInfo>
 #include <QFont>
+#include <QGuiApplication>
 #include <QPalette>
 
 #define THREAD_ID "RecentlyOpenedReposModel"

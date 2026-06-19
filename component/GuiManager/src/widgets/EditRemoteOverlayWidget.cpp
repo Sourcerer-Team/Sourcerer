@@ -23,7 +23,7 @@ EditRemoteOverlayWidget::EditRemoteOverlayWidget(QWidget *parent)
           QColor::fromString("#969696"), this)) {
   LOG_PERF(0, "Enter");
 
-  const auto groupBox = new OpaqueGroupBox(QColor::fromString("#384D59"), this);
+  const auto groupBox = new OpaqueGroupBox(overlayBackgroundColor(), this);
   groupBox->setObjectName("groupBoxEditRemoteOverlayWidget");
   groupBox->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   groupBox->setMinimumWidth(450);
@@ -59,19 +59,19 @@ EditRemoteOverlayWidget::EditRemoteOverlayWidget(QWidget *parent)
       tr("Push URL (leave empty to use fetch URL)"));
 
   const auto pushButtonSubmit =
-      new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+      new OpaquePushButton(overlayBackgroundColor(), groupBox);
   pushButtonSubmit->setObjectName("pushButtonEditRemoteOverlayWidgetSubmit");
   pushButtonSubmit->setMaximumWidth(32);
   pushButtonSubmit->setMaximumHeight(32);
-  pushButtonSubmit->setIcon(QPixmap(":icons/ok.png"));
+  pushButtonSubmit->setIcon(overlayButtonIcon(":icons/ok.png"));
   pushButtonSubmit->setFlat(false);
 
   const auto pushButtonCancel =
-      new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+      new OpaquePushButton(overlayBackgroundColor(), groupBox);
   pushButtonCancel->setObjectName("pushButtonEditRemoteOverlayWidgetCancel");
   pushButtonCancel->setMaximumWidth(32);
   pushButtonCancel->setMaximumHeight(32);
-  pushButtonCancel->setIcon(QPixmap(":icons/cancel.png"));
+  pushButtonCancel->setIcon(overlayButtonIcon(":icons/cancel.png"));
   pushButtonCancel->setFlat(false);
 
   const auto verticalLayout = new QVBoxLayout();

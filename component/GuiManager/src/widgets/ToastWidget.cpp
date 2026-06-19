@@ -142,7 +142,8 @@ void ToastWidget::applyToastColors(const QColor &backgroundColor,
 
   // Force all child widgets to use the background color
   setStyleSheet(QString("* { font-size:14px; color:%2; background-color:%1; }"
-                         "QPushButton { background-color: transparent; border: none; color: %2; }")
+                        "QPushButton { background-color: transparent; border: "
+                        "none; color: %2; }")
                     .arg(backgroundColor.name(), textColor.name()));
 
   // Update title label to use title color background
