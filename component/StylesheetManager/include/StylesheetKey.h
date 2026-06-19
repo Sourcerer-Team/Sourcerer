@@ -4,7 +4,9 @@ namespace StylesheetManager {
 
 enum class StylesheetKey {
   Unknown = 0,
-  Default,
+  SourcererLight,
+  SourcererDark,
+  Default = SourcererDark,
 
   last
 };

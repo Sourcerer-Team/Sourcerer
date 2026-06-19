@@ -8,6 +8,7 @@
 #include <WaitingSpinnerWidget.h>
 
 #include <QEnableSharedFromThis>
+#include <QEvent>
 #include <QNetworkReply>
 #include <QStandardItemModel>
 #include <QString>
@@ -44,6 +45,7 @@ public:
   // QWidget interface
 protected:
   void paintEvent(QPaintEvent *event) override;
+  void changeEvent(QEvent *event) override;
 
 private slots:
   void onButtonAddClicked();

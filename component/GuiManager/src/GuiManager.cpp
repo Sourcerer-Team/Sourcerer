@@ -50,10 +50,7 @@ void GuiManager::start() {
   QApplication::setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles,
                              true);
 
-  const QString &stylesheet = StylesheetManager::StylesheetManager::stylesheet(
-      StylesheetManager::StylesheetKey::Default);
-
-  app.setStyleSheet(stylesheet);
+  StylesheetManager::StylesheetManager::applyStylesheet(&app);
 
   const auto w = QSharedPointer<MainWindow>::create();
   w->showMaximized();

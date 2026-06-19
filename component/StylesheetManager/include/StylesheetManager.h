@@ -2,7 +2,9 @@
 
 #include "StylesheetKey.h"
 
-#include <QVector>
+#include <QString>
+
+class QApplication;
 
 namespace StylesheetManager {
 
@@ -11,6 +13,9 @@ public:
   static StylesheetManager &getInstance();
 
   static const QString &stylesheet(StylesheetKey key);
+  static StylesheetKey currentStylesheet();
+  static void setCurrentStylesheet(StylesheetKey key);
+  static void applyStylesheet(QApplication *app = nullptr);
 
 private:
   StylesheetManager();
