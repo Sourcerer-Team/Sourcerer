@@ -1334,7 +1334,7 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         padding: 5px;
       }
       QPushButton#pushButtonDiffClose:hover{
-        background-color: #E7EEF4;
+        background-color: #384D59;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
@@ -1388,7 +1388,19 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         padding: 5px;
       }
       QPushButton#pushButtonMergeDiffClose:hover{
-        background-color: #E7EEF4;
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonStashClose{
+        background-color: #353535;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonStashClose:hover{
+        background-color: #384D59;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;

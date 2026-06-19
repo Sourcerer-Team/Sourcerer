@@ -368,7 +368,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->leftVerticalLayout->insertWidget(0, _shortcutsWidget);
 
-  ui->pushButtonDiffClose->setIcon(QPixmap(":/icons/close_button.png"));
+  const QColor closeButtonIconColor = QColor(Qt::white);
+  ui->pushButtonDiffClose->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":/icons/close_button.png"), closeButtonIconColor));
   ui->pushButtonDiffClose->setMinimumSize(32, 32);
   ui->pushButtonDiffClose->setMaximumSize(32, 32);
 
@@ -392,7 +394,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       static_cast<int>(useSideBySideDiff ? DiffStackIndexes::DiffSideBySide
                                          : DiffStackIndexes::DiffUnified));
 
-  ui->pushButtonMergeDiffClose->setIcon(QPixmap(":/icons/close_button.png"));
+  ui->pushButtonMergeDiffClose->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/close_button.png"), closeButtonIconColor));
+
   ui->pushButtonMergeDiffClose->setMinimumSize(32, 32);
   ui->pushButtonMergeDiffClose->setMaximumSize(32, 32);
 
@@ -408,7 +413,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMergeDiffSave->setMinimumHeight(32);
   ui->pushButtonMergeDiffSave->setMaximumHeight(32);
 
-  ui->pushButtonStashClose->setIcon(QPixmap(":/icons/close_button.png"));
+  ui->pushButtonStashClose->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":/icons/close_button.png"), closeButtonIconColor));
+
   ui->pushButtonStashClose->setMinimumSize(32, 32);
   ui->pushButtonStashClose->setMaximumSize(32, 32);
 
