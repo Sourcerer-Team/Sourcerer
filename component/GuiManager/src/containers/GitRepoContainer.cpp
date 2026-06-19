@@ -9938,7 +9938,7 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() const {
     colSummary = maxSummaryWidth;
 
   const int remaining = totalWidth - colSummary;
-  const int colSha = charWidth * 8; // Short SHA length
+  const int colSha = charWidth * 9; // Short SHA length
   const int remainingAfterSha = remaining - colSha;
   const int colOther = remainingAfterSha / 4;
 

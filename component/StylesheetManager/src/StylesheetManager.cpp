@@ -1037,7 +1037,7 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         alternate-background-color: palette(window);
       }
       QListView::item, QTreeView::item, QTableView::item {
-        padding: 3px 6px;
+        padding: 2px 4px;
       }
       QListView::item:selected,
       QTreeView::item:selected,
@@ -1049,7 +1049,7 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         background-color: palette(window);
         color: palette(window-text);
         border: 1px solid #B8C0C8;
-        padding: 4px 6px;
+        padding: 3px 5px;
       }
       QTreeView::branch {
         background: palette(window);
@@ -1511,8 +1511,8 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         background: transparent;
         border: 1px solid #B8C0C8;
         border-radius: 8px;
-        padding: 6px 12px;
-        margin: 4px;
+        padding: 4px 8px;
+        margin: 2px;
         font-weight: normal;
         color: #202020;
       }
@@ -1535,8 +1535,8 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         background: transparent;
         border: 1px solid #B8C0C8;
         border-radius: 8px;
-        padding: 6px 12px;
-        margin: 4px;
+        padding: 4px 8px;
+        margin: 2px;
         font-weight: normal;
         color: #202020;
       }
@@ -1559,8 +1559,8 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         background: transparent;
         border: 1px solid #B8C0C8;
         border-radius: 8px;
-        padding: 6px 12px;
-        margin: 4px;
+        padding: 4px 8px;
+        margin: 2px;
         font-weight: normal;
         color: #202020;
       }
@@ -1583,8 +1583,8 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         background: transparent;
         border: 1px solid #B8C0C8;
         border-radius: 8px;
-        padding: 6px 12px;
-        margin: 4px;
+        padding: 4px 8px;
+        margin: 2px;
         font-weight: normal;
         color: #202020;
       }
@@ -1607,8 +1607,8 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         background: transparent;
         border: 1px solid #B8C0C8;
         border-radius: 8px;
-        padding: 6px 12px;
-        margin: 4px;
+        padding: 4px 8px;
+        margin: 2px;
         font-weight: normal;
         color: #202020;
       }
@@ -1780,8 +1780,8 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         background: transparent;
         border: 1px solid #B8C0C8;
         border-radius: 8px;
-        padding: 6px 12px;
-        margin: 4px;
+        padding: 4px 8px;
+        margin: 2px;
         font-weight: normal;
         color: #202020;
       }
