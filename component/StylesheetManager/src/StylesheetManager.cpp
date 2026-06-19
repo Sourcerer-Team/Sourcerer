@@ -756,16 +756,18 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
         color: white;
       }
       QToolBox::tab{
-        background: #353535;
-        border: 1px solid gray;
-        border-bottom gray: 1px solid;
+        background: #F3F6F8;
+        border: 1px solid #B8C0C8;
+        border-bottom: 1px solid #B8C0C8;
         border-radius: 5px;
         padding: 5px;
+        color: #202020;
       }
       QToolBox::tab:selected{
-        background: #384D59;
-        border-bottom: 1px solid gray;
-        font-weight:bold;
+        background: #E7EEF4;
+        border-bottom: 1px solid #B8C0C8;
+        font-weight: bold;
+        color: #202020;
       }
       QToolTip{
         font-size:14px;
@@ -1638,16 +1640,18 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         color: #202020;
       }
       QToolBox::tab{
-        background: #353535;
-        border: 1px solid gray;
-        border-bottom gray: 1px solid;
+        background: #F3F6F8;
+        border: 1px solid #B8C0C8;
+        border-bottom: 1px solid #B8C0C8;
         border-radius: 5px;
         padding: 5px;
+        color: #202020;
       }
       QToolBox::tab:selected{
-        background: #384D59;
-        border-bottom: 1px solid gray;
-        font-weight:bold;
+        background: #E7EEF4;
+        border-bottom: 1px solid #B8C0C8;
+        font-weight: bold;
+        color: #202020;
       }
       QToolTip{
         font-size:14px;
