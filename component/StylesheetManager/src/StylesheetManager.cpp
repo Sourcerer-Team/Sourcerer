@@ -12,6 +12,9 @@
 
 #define THREAD_ID "StylesheetManager"
 
+#define SOURCERER_DARK_THEME_NAME "SourcererDark"
+#define SOURCERER_LIGHT_THEME_NAME "SourcererLight"
+
 namespace StylesheetManager {
 namespace {
 
@@ -1797,7 +1800,7 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
 QMap<StylesheetKey, QString> STYLESHEETS = {
     {StylesheetKey::SourcererLight, SOURCERER_LIGHT_STYLESHEET},
     {StylesheetKey::SourcererDark, SOURCERER_DARK_STYLESHEET}};
-StylesheetKey CURRENT_STYLESHEET = StylesheetKey::SourcererDark;
+StylesheetKey CURRENT_STYLESHEET = StylesheetKey::SourcererLight;
 
 StylesheetManager::StylesheetManager() {
   LOG_PERF(0, "Enter");
@@ -1843,20 +1846,20 @@ void StylesheetManager::setCurrentStylesheet(StylesheetKey key) {
 QString StylesheetManager::stylesheetKeyName(StylesheetKey key) {
   switch (key) {
   case StylesheetKey::SourcererLight:
-    return QStringLiteral("SourcererLight");
+    return SOURCERER_LIGHT_THEME_NAME;
   case StylesheetKey::SourcererDark:
-    return QStringLiteral("SourcererDark");
+    return SOURCERER_DARK_THEME_NAME;
   default:
-    return QStringLiteral("SourcererDark");
+    return SOURCERER_LIGHT_THEME_NAME;
   }
 }
 
 StylesheetKey StylesheetManager::stylesheetKeyFromName(const QString &name) {
-  if (name == QStringLiteral("SourcererLight"))
+  if (name == SOURCERER_LIGHT_THEME_NAME)
     return StylesheetKey::SourcererLight;
-  if (name == QStringLiteral("SourcererDark"))
+  if (name == SOURCERER_DARK_THEME_NAME)
     return StylesheetKey::SourcererDark;
-  return StylesheetKey::SourcererDark;
+  return StylesheetKey::SourcererLight;
 }
 
 QColor StylesheetManager::menuBarButtonIconColor() {
