@@ -1502,13 +1502,17 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         background-color: #E7EEF4;
       }
       QGroupBox#groupBoxTabCommit{
-        background-color: black;
+        background-color: #F3F6F8;
+        border: 1px solid #B8C0C8;
+        border-radius: 5px;
       }
       QGroupBox#groupBoxInfo{
         border: none;
       }
       QGroupBox#groupBoxSummary{
-        background-color: black;
+        background-color: #F3F6F8;
+        border: 1px solid #B8C0C8;
+        border-radius: 5px;
       }
       QGroupBox#groupBoxFiles{
         border: none;
