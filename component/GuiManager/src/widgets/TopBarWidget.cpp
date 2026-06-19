@@ -3,6 +3,7 @@
 
 #include <ConfigKey.h>
 #include <Log.h>
+#include <StylesheetManager.h>
 
 #include <QEvent>
 #include <QHBoxLayout>
@@ -18,38 +19,46 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   LOG_PERF(0, "Enter");
 
   setMouseTracking(true);
+  const QColor iconColor = StylesheetManager::StylesheetManager::menuBarButtonIconColor();
 
-  const QColor minimizeButtonColor = _configManager.getColor(
-      ConfigManager::ConfigKey::TitleBarMinimizeButtonColor);
-  const QColor maximizeButtonColor = _configManager.getColor(
-      ConfigManager::ConfigKey::TitleBarMaximizeButtonColor);
-  const QColor closeButtonColor = _configManager.getColor(
-      ConfigManager::ConfigKey::TitleBarCloseButtonColor);
-
-  LOG_DEBUG("Minimize button color '{}", minimizeButtonColor.name());
-  LOG_DEBUG("Maximize button color '{}", maximizeButtonColor.name());
-  LOG_DEBUG("Close button color '{}", closeButtonColor.name());
-
-  _profileButton = new TitleBarButton(QPixmap(":/icons/profile.png"),
-                                      minimizeButtonColor, this);
+  _profileButton = new TitleBarButton(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/profile.png"), iconColor),
+      this);
+  _profileButton->setObjectName("titleBarProfileButton");
+  _profileButton->setProperty("iconSource", QStringLiteral(":/icons/profile.png"));
   _profileButton->setFlat(true);
   _profileButton->setMinimumSize(QSize(32, 32));
   _profileButton->setMaximumSize(QSize(32, 32));
 
   auto minimizeButton = new TitleBarButton(
-      QPixmap(":/icons/minimize_button.png"), minimizeButtonColor, this);
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/minimize_button.png"), iconColor),
+      this);
+  minimizeButton->setObjectName("titleBarMinimizeButton");
+  minimizeButton->setProperty("iconSource",
+                              QStringLiteral(":/icons/minimize_button.png"));
   minimizeButton->setFlat(true);
   minimizeButton->setMinimumSize(QSize(32, 32));
   minimizeButton->setMaximumSize(QSize(32, 32));
 
   auto maximizeButton = new TitleBarButton(
-      QPixmap(":/icons/maximize_button.png"), maximizeButtonColor, this);
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/maximize_button.png"), iconColor),
+      this);
+  maximizeButton->setObjectName("titleBarMaximizeButton");
+  maximizeButton->setProperty("iconSource",
+                              QStringLiteral(":/icons/maximize_button.png"));
   maximizeButton->setFlat(true);
   maximizeButton->setMinimumSize(QSize(32, 32));
   maximizeButton->setMaximumSize(QSize(32, 32));
 
-  auto closeButton = new TitleBarButton(QPixmap(":/icons/close_button.png"),
-                                        closeButtonColor, this);
+  auto closeButton = new TitleBarButton(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/close_button.png"), iconColor),
+      this);
+  closeButton->setObjectName("titleBarCloseButton");
+  closeButton->setProperty("iconSource", QStringLiteral(":/icons/close_button.png"));
   closeButton->setFlat(true);
   closeButton->setMinimumSize(QSize(32, 32));
   closeButton->setMaximumSize(QSize(32, 32));

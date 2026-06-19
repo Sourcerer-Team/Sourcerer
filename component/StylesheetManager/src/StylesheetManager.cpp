@@ -3,9 +3,12 @@
 #include <Log.h>
 
 #include <QApplication>
+#include <QAbstractButton>
 #include <QColor>
+#include <QImage>
 #include <QMap>
 #include <QPalette>
+#include <QWidget>
 
 #define THREAD_ID "StylesheetManager"
 
@@ -96,12 +99,14 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
         font-weight:bold;
       }
       QWidget#ProfileBoardWidget {
-        background-color: #353535;
+        background-color: palette(window);
       }
-      QListView#listViewProfiles,
-      QListView#listViewProfiles::viewport {
-        background-color: #353535;
-        color: white;
+      QAbstractItemView {
+        background-color: palette(window);
+        color: palette(window-text);
+      }
+      QAbstractItemView::viewport {
+        background-color: palette(window);
       }
       QListView#listViewProfiles {
         selection-background-color: #4A5A66;
@@ -625,7 +630,6 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
         border: none;
       }
       QListView#listViewProfiles {
-        background-color: #353535;
         border: none;
       }
       QTabBar::tab:selected{
@@ -780,6 +784,28 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
       GuiManager--Widgets--TitleBarMenuButton::menu-indicator{
         width:0px;
       }
+      GuiManager--Widgets--TitleBarButton {
+        border: none;
+        padding: 0px;
+        margin: 0px;
+        background-color: transparent;
+      }
+      GuiManager--Widgets--TitleBarButton#titleBarProfileButton,
+      GuiManager--Widgets--TitleBarButton#titleBarMinimizeButton,
+      GuiManager--Widgets--TitleBarButton#titleBarMaximizeButton {
+        background-color: #353535;
+      }
+      GuiManager--Widgets--TitleBarButton#titleBarProfileButton:hover,
+      GuiManager--Widgets--TitleBarButton#titleBarMinimizeButton:hover,
+      GuiManager--Widgets--TitleBarButton#titleBarMaximizeButton:hover {
+        background-color: #5E5E5E;
+      }
+      GuiManager--Widgets--TitleBarButton#titleBarCloseButton {
+        background-color: #B00020;
+      }
+      GuiManager--Widgets--TitleBarButton#titleBarCloseButton:hover {
+        background-color: #D32F2F;
+      }
       GuiManager--Widgets--TitlebarWidget,GuiManager--Widgets--TitlebarWidget * {
         font-size:14px;
       }
@@ -922,12 +948,14 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         font-weight:bold;
       }
       QWidget#ProfileBoardWidget {
-        background-color: #F4F5F7;
+        background-color: palette(window);
       }
-      QListView#listViewProfiles,
-      QListView#listViewProfiles::viewport {
-        background-color: #F4F5F7;
-        color: #202020;
+      QAbstractItemView {
+        background-color: palette(window);
+        color: palette(window-text);
+      }
+      QAbstractItemView::viewport {
+        background-color: palette(window);
       }
       QListView#listViewProfiles {
         selection-background-color: #E7EEF4;
@@ -1004,21 +1032,22 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         border-radius: 5px;
       }
       QAbstractItemView {
-        background-color: #F4F5F7;
-        color: #202020;
-        alternate-background-color: #F4F5F7;
+        background-color: palette(window);
+        color: palette(window-text);
+        alternate-background-color: palette(window);
         selection-background-color: #E7EEF4;
         selection-color: #202020;
         gridline-color: #D0D7DE;
         outline: 0;
       }
       QListView, QTreeView, QTableView {
-        background-color: #F4F5F7;
-        color: #202020;
+        background-color: palette(window);
+        color: palette(window-text);
       }
       QTableView#tableViewRecent, QTableView#tableViewWorkspaces {
-        background-color: #F4F5F7;
-        alternate-background-color: #F4F5F7;
+        color: palette(window-text);
+        background-color: palette(window);
+        alternate-background-color: palette(window);
       }
       QListView::item, QTreeView::item, QTableView::item {
         padding: 3px 6px;
@@ -1030,13 +1059,13 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         color: #202020;
       }
       QHeaderView::section {
-        background-color: #F4F5F7;
-        color: #202020;
+        background-color: palette(window);
+        color: palette(window-text);
         border: 1px solid #B8C0C8;
         padding: 4px 6px;
       }
       QTreeView::branch {
-        background: #F4F5F7;
+        background: palette(window);
       }
       QPushButton[flat=true]{
         color:#202020;
@@ -1483,7 +1512,6 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         border: none;
       }
       QListView#listViewProfiles {
-        background-color: #F4F5F7;
         border: none;
       }
       QTabBar::tab:selected{
@@ -1638,26 +1666,50 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
       GuiManager--Widgets--TitleBarMenuButton::menu-indicator{
         width:0px;
       }
+      GuiManager--Widgets--TitleBarButton {
+        border: none;
+        padding: 0px;
+        margin: 0px;
+        background-color: transparent;
+      }
+      GuiManager--Widgets--TitleBarButton#titleBarProfileButton {
+        background-color: transparent;
+      }
+      GuiManager--Widgets--TitleBarButton#titleBarMinimizeButton,
+      GuiManager--Widgets--TitleBarButton#titleBarMaximizeButton {
+        background-color: transparent;
+      }
+      GuiManager--Widgets--TitleBarButton#titleBarProfileButton:hover,
+      GuiManager--Widgets--TitleBarButton#titleBarMinimizeButton:hover,
+      GuiManager--Widgets--TitleBarButton#titleBarMaximizeButton:hover {
+        background-color: #c4bbbb;
+      }
+      GuiManager--Widgets--TitleBarButton#titleBarCloseButton {
+        background-color: #C62828;
+      }
+      GuiManager--Widgets--TitleBarButton#titleBarCloseButton:hover {
+        background-color: #E53935;
+      }
       GuiManager--Widgets--TitlebarWidget,GuiManager--Widgets--TitlebarWidget * {
         font-size:14px;
       }
       GuiManager--Containers--GitRepoContainer{
         font-size:14px;
-        background-color:#353535;
+        background-color:#E7EEF4;
       }
       GuiManager--Containers--HomeContainer{
         font-size:14px;
-        background-color:#353535;
+        background-color:#E7EEF4;
       }
       GuiManager--Containers--SettingsContainer{
         font-size:14px;
-        background-color:#353535;
+        background-color:#E7EEF4;
       }
       GuiManager--Containers--SettingsContainer QSplitter{
         margin-top:30px;
       }
       GuiManager--Containers--SettingsContainer QSplitter::handle:horizontal{
-        border:1px solid #353535;
+        border:1px solid #E7EEF4;
       }
       GuiManager--Containers--SettingsContainer QScrollArea{
         margin-top:30px;
@@ -1804,6 +1856,76 @@ void StylesheetManager::setCurrentStylesheet(StylesheetKey key) {
   LOG_PERF(0, "Exit");
 }
 
+QString StylesheetManager::stylesheetKeyName(StylesheetKey key) {
+  switch (key) {
+  case StylesheetKey::SourcererLight:
+    return QStringLiteral("SourcererLight");
+  case StylesheetKey::SourcererDark:
+    return QStringLiteral("SourcererDark");
+  default:
+    return QStringLiteral("SourcererDark");
+  }
+}
+
+StylesheetKey StylesheetManager::stylesheetKeyFromName(const QString &name) {
+  if (name == QStringLiteral("SourcererLight"))
+    return StylesheetKey::SourcererLight;
+  if (name == QStringLiteral("SourcererDark"))
+    return StylesheetKey::SourcererDark;
+  return StylesheetKey::SourcererDark;
+}
+
+QColor StylesheetManager::menuBarButtonIconColor() {
+  if (!qApp)
+    return QColor(Qt::black);
+
+  return qApp->palette().color(QPalette::ButtonText);
+}
+
+QPixmap StylesheetManager::recolorPixmap(const QPixmap &source,
+                                         const QColor &color) {
+  if (source.isNull())
+    return source;
+
+  QImage image = source.toImage().convertToFormat(QImage::Format_ARGB32);
+
+  for (int y = 0; y < image.height(); ++y) {
+    for (int x = 0; x < image.width(); ++x) {
+      const QColor pixelColor = image.pixelColor(x, y);
+      if (pixelColor.alpha() == 0)
+        continue;
+
+      image.setPixelColor(
+          x, y, QColor(color.red(), color.green(), color.blue(),
+                       pixelColor.alpha()));
+    }
+  }
+
+  return QPixmap::fromImage(image);
+}
+
+void StylesheetManager::refreshMenuBarButtonIcons(QWidget *root) {
+  const QColor iconColor = menuBarButtonIconColor();
+
+  const auto widgets =
+      root ? root->findChildren<QWidget *>() : qApp->allWidgets();
+  for (QWidget *widget : widgets) {
+    auto *button = qobject_cast<QAbstractButton *>(widget);
+    if (!button)
+      continue;
+
+    const QVariant iconSourceVariant = button->property("iconSource");
+    if (!iconSourceVariant.isValid())
+      continue;
+
+    const QString iconSource = iconSourceVariant.toString();
+    if (iconSource.isEmpty())
+      continue;
+
+    button->setIcon(recolorPixmap(QPixmap(iconSource), iconColor));
+  }
+}
+
 void StylesheetManager::applyStylesheet(QApplication *app) {
   LOG_PERF(0, "Enter");
 
@@ -1811,6 +1933,7 @@ void StylesheetManager::applyStylesheet(QApplication *app) {
   if (app) {
     applyPalette(app, key);
     app->setStyleSheet(STYLESHEETS.value(key));
+    refreshMenuBarButtonIcons();
   }
 
   LOG_PERF(0, "Exit");

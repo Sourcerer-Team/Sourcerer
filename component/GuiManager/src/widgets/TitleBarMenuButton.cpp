@@ -243,8 +243,12 @@ QMenu *TitleBarMenuButton::createMenu() {
                        key);
     action->setData(static_cast<int>(key));
     themeActions->addAction(action);
-    connect(action, &QAction::triggered, this, [key](bool) {
+    connect(action, &QAction::triggered, this, [this, key](bool) {
       StylesheetManager::StylesheetManager::setCurrentStylesheet(key);
+      _configManager.setString(
+          ConfigManager::ConfigKey::UiTheme,
+          StylesheetManager::StylesheetManager::stylesheetKeyName(key));
+      _configManager.save();
       StylesheetManager::StylesheetManager::applyStylesheet(qApp);
     });
   };

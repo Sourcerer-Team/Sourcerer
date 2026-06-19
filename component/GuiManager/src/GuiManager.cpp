@@ -50,6 +50,13 @@ void GuiManager::start() {
   QApplication::setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles,
                              true);
 
+  ConfigManager::ConfigManager &configManager =
+      ConfigManager::ConfigManager::getInstance();
+  const QString themeName =
+      configManager.getString(ConfigManager::ConfigKey::UiTheme);
+  const StylesheetManager::StylesheetKey themeKey =
+      StylesheetManager::StylesheetManager::stylesheetKeyFromName(themeName);
+  StylesheetManager::StylesheetManager::setCurrentStylesheet(themeKey);
   StylesheetManager::StylesheetManager::applyStylesheet(&app);
 
   const auto w = QSharedPointer<MainWindow>::create();

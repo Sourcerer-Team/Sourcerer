@@ -2,9 +2,11 @@
 #include "ui_TitlebarWidget.h"
 
 #include <Log.h>
+#include <StylesheetManager.h>
 
 #include <QLabel>
 #include <QMouseEvent>
+#include <QPixmap>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTimer>
@@ -23,6 +25,11 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
   ui->setupUi(this);
   ui->tabBar->setUsesScrollButtons(false);
   ui->tabBar->setMouseTracking(true);
+  ui->menuButton->setProperty("iconSource",
+                              QStringLiteral(":/icons/titlebar_menu.png"));
+  ui->menuButton->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":/icons/titlebar_menu.png"),
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor()));
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
