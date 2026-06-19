@@ -30,6 +30,7 @@
 #include <FileManager.h>
 #include <GitRepoManagerStructs.h>
 #include <Log.h>
+#include <StylesheetManager.h>
 #include <Uuid.h>
 
 #include <QCheckBox>
@@ -300,15 +301,15 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _spinnerOverlayTimer->setSingleShot(true);
   _repoDirWatcherTimer->setSingleShot(true);
 
-  const QIcon pullIcon(QPixmap(":icons/pull"));
-  const QIcon pushIcon(QPixmap(":icons/push"));
-  const QIcon popIcon(QPixmap(":icons/pop"));
-  const QIcon stashIcon(QPixmap(":icons/stash"));
+  const QColor shortcutIconColor =
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
 
   // Create dropdown button for Pull/Fetch All
   auto *pullFetchDropdown = new QToolButton();
   pullFetchDropdown->setObjectName("pullFetchDropdown");
-  pullFetchDropdown->setIcon(pullIcon);
+  pullFetchDropdown->setProperty("iconSource", QStringLiteral(":icons/pull"));
+  pullFetchDropdown->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/pull"), shortcutIconColor));
   pullFetchDropdown->setToolTip(tr("Pull"));
   pullFetchDropdown->setMinimumSize(58, 42);
   pullFetchDropdown->setMaximumSize(58, 42);
@@ -316,7 +317,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *pullFetchMenu = new QMenu();
   auto *actionFetchAllMenu = pullFetchMenu->addAction(tr("Fetch All"));
-  actionFetchAllMenu->setIcon(pullIcon);
+  actionFetchAllMenu->setIcon(
+      QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":icons/pull"), shortcutIconColor)));
 
   pullFetchDropdown->setMenu(pullFetchMenu);
 
@@ -325,21 +328,27 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *pushButtonPush = new QPushButton();
   pushButtonPush->setObjectName("pushButtonPush");
-  pushButtonPush->setIcon(pushIcon);
+  pushButtonPush->setProperty("iconSource", QStringLiteral(":icons/push"));
+  pushButtonPush->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/push"), shortcutIconColor));
   pushButtonPush->setToolTip(tr("Push"));
   pushButtonPush->setMinimumSize(42, 42);
   pushButtonPush->setMaximumSize(42, 42);
 
   auto *pushButtonPop = new QPushButton();
   pushButtonPop->setObjectName("pushButtonPop");
-  pushButtonPop->setIcon(popIcon);
+  pushButtonPop->setProperty("iconSource", QStringLiteral(":icons/pop"));
+  pushButtonPop->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/pop"), shortcutIconColor));
   pushButtonPop->setToolTip(tr("Pop"));
   pushButtonPop->setMinimumSize(42, 42);
   pushButtonPop->setMaximumSize(42, 42);
 
   auto *pushButtonStash = new QPushButton();
   pushButtonStash->setObjectName("pushButtonStash");
-  pushButtonStash->setIcon(stashIcon);
+  pushButtonStash->setProperty("iconSource", QStringLiteral(":icons/stash"));
+  pushButtonStash->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/stash"), shortcutIconColor));
   pushButtonStash->setToolTip(tr("Stash"));
   pushButtonStash->setMinimumSize(42, 42);
   pushButtonStash->setMaximumSize(42, 42);
