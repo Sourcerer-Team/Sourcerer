@@ -1,6 +1,8 @@
 
 #include "widgets/InfoToast.h"
 
+#include <StylesheetManager.h>
+
 #include <Log.h>
 
 #include <QLabel>
@@ -35,8 +37,16 @@ InfoToast::InfoToast(const QString &message, const QString &title,
 
   layout()->addWidget(widget);
 
-  // Apply dark grey background and dark yellow title
-  applyToastColors(QColor("#505050"), QColor("#B8860B"));
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+  if (lightTheme) {
+    applyToastColors(QColor("#FFF4E2"), QColor("#E3AE5A"),
+                     QColor("#2E2418"));
+  } else {
+    applyToastColors(QColor("#505050"), QColor("#B8860B"),
+                     QColor("#FFFFFF"));
+  }
 
   const qlonglong displayTime =
       _configManager.getLong(ConfigManager::ConfigKey::InfoToastDisplayTime);

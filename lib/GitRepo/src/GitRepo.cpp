@@ -382,6 +382,8 @@ static git_commit *getLastCommit(git_repository *repo, const QString &name) {
 static bool isCommercialPlan() {
   LOG_PERF(0, "Enter");
 
+  return true;
+
   Util::CloudCredentialtorage &credentialStorage =
       Util::CloudCredentialtorage::getInstance();
 

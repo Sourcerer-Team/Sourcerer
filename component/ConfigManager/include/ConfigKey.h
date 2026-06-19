@@ -5,14 +5,12 @@ namespace ConfigManager {
 enum class ConfigKey {
   Unknown = 0,
   RecentlyOpenedRepos,
+  UiTheme,
 
   // Main window
   TitleBarHeight,
   TitleBarMaxTabWidth,
   TitleBarMenuMinimumSize,
-  TitleBarMinimizeButtonColor,
-  TitleBarMaximizeButtonColor,
-  TitleBarCloseButtonColor,
   MainWindowBorderWidth,
   MainWindowMinimumHeight,
   MainWindowMinimumWidth,

@@ -8,6 +8,8 @@
 #include <QStringList>
 #include <QWidget>
 
+class QEvent;
+
 namespace GuiManager::Widgets {
 
 class ScrollbarMarksWidget;
@@ -64,11 +66,15 @@ private slots:
   void leftMarginClicked(int margin, int line, Qt::KeyboardModifiers state);
   void rightMarginClicked(int margin, int line, Qt::KeyboardModifiers state);
 
+protected:
+  void changeEvent(QEvent *event) override;
+
 private:
   int conflictsBeforeIndex(int index) const;
   void highlightConflictsInBottomEditor();
   int removedLinesBeforeRange(int rangeIndex) const;
   void setupEditors(const QString &extension);
+  void refreshScintillaTheme();
   void syncScrollbars();
   void updateBottomRangesFromIndex(int index,
                                    MergeDiffResolutionType resolution,

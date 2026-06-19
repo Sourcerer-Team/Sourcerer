@@ -30,11 +30,13 @@
 #include <FileManager.h>
 #include <GitRepoManagerStructs.h>
 #include <Log.h>
+#include <StylesheetManager.h>
 #include <Uuid.h>
 
 #include <QCheckBox>
 #include <QClipboard>
 #include <QDirIterator>
+#include <QEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -47,6 +49,7 @@
 #include <QPixmap>
 #include <QScrollBar>
 #include <QSvgRenderer>
+#include <Qsci/qsciscintilla.h>
 #include <QTextStream>
 #include <QToolTip>
 
@@ -300,15 +303,15 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _spinnerOverlayTimer->setSingleShot(true);
   _repoDirWatcherTimer->setSingleShot(true);
 
-  const QIcon pullIcon(QPixmap(":icons/pull"));
-  const QIcon pushIcon(QPixmap(":icons/push"));
-  const QIcon popIcon(QPixmap(":icons/pop"));
-  const QIcon stashIcon(QPixmap(":icons/stash"));
+  const QColor shortcutIconColor =
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
 
   // Create dropdown button for Pull/Fetch All
   auto *pullFetchDropdown = new QToolButton();
   pullFetchDropdown->setObjectName("pullFetchDropdown");
-  pullFetchDropdown->setIcon(pullIcon);
+  pullFetchDropdown->setProperty("iconSource", QStringLiteral(":icons/pull"));
+  pullFetchDropdown->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/pull"), shortcutIconColor));
   pullFetchDropdown->setToolTip(tr("Pull"));
   pullFetchDropdown->setMinimumSize(58, 42);
   pullFetchDropdown->setMaximumSize(58, 42);
@@ -316,7 +319,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *pullFetchMenu = new QMenu();
   auto *actionFetchAllMenu = pullFetchMenu->addAction(tr("Fetch All"));
-  actionFetchAllMenu->setIcon(pullIcon);
+  actionFetchAllMenu->setIcon(
+      QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":icons/pull"), shortcutIconColor)));
 
   pullFetchDropdown->setMenu(pullFetchMenu);
 
@@ -325,21 +330,27 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *pushButtonPush = new QPushButton();
   pushButtonPush->setObjectName("pushButtonPush");
-  pushButtonPush->setIcon(pushIcon);
+  pushButtonPush->setProperty("iconSource", QStringLiteral(":icons/push"));
+  pushButtonPush->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/push"), shortcutIconColor));
   pushButtonPush->setToolTip(tr("Push"));
   pushButtonPush->setMinimumSize(42, 42);
   pushButtonPush->setMaximumSize(42, 42);
 
   auto *pushButtonPop = new QPushButton();
   pushButtonPop->setObjectName("pushButtonPop");
-  pushButtonPop->setIcon(popIcon);
+  pushButtonPop->setProperty("iconSource", QStringLiteral(":icons/pop"));
+  pushButtonPop->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/pop"), shortcutIconColor));
   pushButtonPop->setToolTip(tr("Pop"));
   pushButtonPop->setMinimumSize(42, 42);
   pushButtonPop->setMaximumSize(42, 42);
 
   auto *pushButtonStash = new QPushButton();
   pushButtonStash->setObjectName("pushButtonStash");
-  pushButtonStash->setIcon(stashIcon);
+  pushButtonStash->setProperty("iconSource", QStringLiteral(":icons/stash"));
+  pushButtonStash->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/stash"), shortcutIconColor));
   pushButtonStash->setToolTip(tr("Stash"));
   pushButtonStash->setMinimumSize(42, 42);
   pushButtonStash->setMaximumSize(42, 42);
@@ -357,7 +368,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->leftVerticalLayout->insertWidget(0, _shortcutsWidget);
 
-  ui->pushButtonDiffClose->setIcon(QPixmap(":/icons/close_button.png"));
+  const QColor closeButtonIconColor = QColor(Qt::white);
+  ui->pushButtonDiffClose->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":/icons/close_button.png"), closeButtonIconColor));
   ui->pushButtonDiffClose->setMinimumSize(32, 32);
   ui->pushButtonDiffClose->setMaximumSize(32, 32);
 
@@ -381,7 +394,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       static_cast<int>(useSideBySideDiff ? DiffStackIndexes::DiffSideBySide
                                          : DiffStackIndexes::DiffUnified));
 
-  ui->pushButtonMergeDiffClose->setIcon(QPixmap(":/icons/close_button.png"));
+  ui->pushButtonMergeDiffClose->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/close_button.png"), closeButtonIconColor));
+
   ui->pushButtonMergeDiffClose->setMinimumSize(32, 32);
   ui->pushButtonMergeDiffClose->setMaximumSize(32, 32);
 
@@ -397,7 +413,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMergeDiffSave->setMinimumHeight(32);
   ui->pushButtonMergeDiffSave->setMaximumHeight(32);
 
-  ui->pushButtonStashClose->setIcon(QPixmap(":/icons/close_button.png"));
+  ui->pushButtonStashClose->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":/icons/close_button.png"), closeButtonIconColor));
+
   ui->pushButtonStashClose->setMinimumSize(32, 32);
   ui->pushButtonStashClose->setMaximumSize(32, 32);
 
@@ -424,7 +442,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaTextEditorUnified->setMarginType(1, QsciScintilla::SymbolMargin);
   ui->scintillaTextEditorUnified->setMarginWidth(1, 2);
   ui->scintillaTextEditorUnified->markerDefine(QsciScintilla::Background, 1);
-  ui->scintillaTextEditorUnified->setMarkerBackgroundColor(Qt::darkYellow, 1);
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+  const QColor hunkMarkerColor =
+      lightTheme ? QColor(255, 241, 201) : QColor(Qt::darkYellow);
+  ui->scintillaTextEditorUnified->setMarkerBackgroundColor(hunkMarkerColor, 1);
   ui->scintillaTextEditorUnified->setReadOnly(true);
 
   DarkThemeLexersHighlighter highlighter;
@@ -445,7 +468,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaStashDiffUnified->setMarginType(1, QsciScintilla::SymbolMargin);
   ui->scintillaStashDiffUnified->setMarginWidth(1, 2);
   ui->scintillaStashDiffUnified->markerDefine(QsciScintilla::Background, 1);
-  ui->scintillaStashDiffUnified->setMarkerBackgroundColor(Qt::darkYellow, 1);
+  ui->scintillaStashDiffUnified->setMarkerBackgroundColor(hunkMarkerColor, 1);
   ui->scintillaStashDiffUnified->setReadOnly(true);
 
   DarkThemeLexersHighlighter stashHighlighter;
@@ -869,6 +892,32 @@ void GitRepoContainer::resizeEvent(QResizeEvent *event) {
   stretchBranchHistoryTableColumns();
 
   LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::changeEvent(QEvent *event) {
+  QWidget::changeEvent(event);
+
+  if (!event)
+    return;
+
+  switch (event->type()) {
+  case QEvent::PaletteChange:
+  case QEvent::ApplicationPaletteChange:
+  case QEvent::StyleChange:
+    refreshScintillaTheme();
+    break;
+  default:
+    break;
+  }
+}
+
+void GitRepoContainer::refreshScintillaTheme() {
+  DarkThemeLexersHighlighter highlighter;
+  const auto editors = findChildren<QsciScintilla *>();
+
+  for (auto *editor : editors) {
+    highlighter.applyDarkTheme(editor);
+  }
 }
 
 void GitRepoContainer::showEvent(QShowEvent *event) {
@@ -3701,8 +3750,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
 
   QMenu contextMenu;
 
+  contextMenu.addAction(ui->actionWorkingTreeFlatStage);
   if (!conflicted) {
-    contextMenu.addAction(ui->actionWorkingTreeFlatStage);
     contextMenu.addAction(ui->actionWorkingTreeFlatDiscard);
   }
 
@@ -3902,8 +3951,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
 
   QMenu contextMenu;
 
+  contextMenu.addAction(ui->actionWorkingTreeTreeStage);
   if (!conflicted) {
-    contextMenu.addAction(ui->actionWorkingTreeTreeStage);
     contextMenu.addAction(ui->actionWorkingTreeTreeDiscard);
   }
 
@@ -7536,15 +7585,6 @@ QStringList GitRepoContainer::getSelectedFiles(QListView *listView) {
   QStringList files;
 
   for (const auto &index : listIndexes) {
-    const GuiManager::Models::GitCommitListModificationType modificationType =
-        static_cast<GuiManager::Models::GitCommitListModificationType>(
-            index.data(Qt::UserRole).toInt());
-
-    if (modificationType ==
-        GuiManager::Models::GitCommitListModificationType::Conflicted) {
-      continue;
-    }
-
     files += QDir::fromNativeSeparators(index.data().toString());
   }
 
@@ -7595,15 +7635,6 @@ QStringList GitRepoContainer::getSelectedFiles(QTreeView *treeView) {
   QStringList files;
 
   for (const auto &index : listIndexes) {
-    const GuiManager::Models::GitCommitListModificationType modificationType =
-        static_cast<GuiManager::Models::GitCommitListModificationType>(
-            index.data(Qt::UserRole).toInt());
-
-    if (modificationType ==
-        GuiManager::Models::GitCommitListModificationType::Conflicted) {
-      continue;
-    }
-
     const QStringList traversedFiles =
         traverseModelIndexSubtree(index, treeView->model());
 
@@ -9849,14 +9880,6 @@ void GitRepoContainer::resetCommitAndMergeWorkingTreeTreeStageAllButton() {
 
   if (_commitListModel) {
     for (int i = 0; i < _commitListModel->rowCount(); ++i) {
-      const GuiManager::Models::GitCommitListModificationType modificationType =
-          static_cast<GuiManager::Models::GitCommitListModificationType>(
-              _commitListModel->index(i, 0).data(Qt::UserRole).toInt());
-      if (modificationType ==
-          GuiManager::Models::GitCommitListModificationType::Conflicted) {
-        continue;
-      }
-
       ++rowCount;
     }
   }
@@ -9915,7 +9938,7 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() const {
     colSummary = maxSummaryWidth;
 
   const int remaining = totalWidth - colSummary;
-  const int colSha = charWidth * 8; // Short SHA length
+  const int colSha = charWidth * 9; // Short SHA length
   const int remainingAfterSha = remaining - colSha;
   const int colOther = remainingAfterSha / 4;
 
@@ -10265,7 +10288,8 @@ void GitRepoContainer::stageAll(const WeakPtr &guard) {
   const QStringList modifiedFiles = historyAndStatus.status.newFiles +
                                     historyAndStatus.status.modifiedFiles +
                                     historyAndStatus.status.deletedFiles +
-                                    historyAndStatus.status.renamedFiles;
+                                    historyAndStatus.status.renamedFiles +
+                                    historyAndStatus.status.conflictedFiles;
 
   if (!modifiedFiles.isEmpty()) {
     stageFiles(guard, modifiedFiles);

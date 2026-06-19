@@ -46,6 +46,8 @@ namespace GuiManager::Widgets {
 class ScrollbarMarksWidget;
 }
 
+class QEvent;
+
 namespace GuiManager::Containers {
 
 class GitRepoContainer final : public Widgets::ContainerWidget,
@@ -82,6 +84,7 @@ protected:
   void hideEvent(QHideEvent *event) override;
   void resizeEvent(QResizeEvent *event) override;
   void showEvent(QShowEvent *event) override;
+  void changeEvent(QEvent *event) override;
 
 private slots:
   void onAddSubmodule();
@@ -232,6 +235,7 @@ private:
   void clearSummaryAndDescription();
   void closeDiffViewerIfOpen();
   void closeRepo() const;
+  void refreshScintillaTheme();
   void commit(const WeakPtr &guard, const QString &summary,
               const QString &description, const QString &author,
               const QString &email, bool cleanup);
