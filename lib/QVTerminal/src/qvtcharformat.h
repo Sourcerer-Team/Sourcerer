@@ -18,6 +18,9 @@ public:
   const QColor &background() const;
   void setBackground(const QColor &background);
 
+  bool operator==(const QVTCharFormat &other) const;
+  bool operator!=(const QVTCharFormat &other) const;
+
 protected:
   QFont _font;
   QColor _foreground;
