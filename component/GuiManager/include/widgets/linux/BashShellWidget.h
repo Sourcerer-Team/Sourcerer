@@ -54,6 +54,10 @@ public:
   void terminate();
   void setFocusToInput();
   void setWorkingDirectory(const QString &path);
+  void refreshTheme();
+
+private:
+  void applyTheme();
 
 signals:
   void processStarted();
