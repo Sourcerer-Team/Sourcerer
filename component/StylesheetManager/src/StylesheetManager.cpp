@@ -756,18 +756,18 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
         color: white;
       }
       QToolBox::tab{
-        background: #F3F6F8;
-        border: 1px solid #B8C0C8;
-        border-bottom: 1px solid #B8C0C8;
+        background: #353535;
+        border: 1px solid gray;
+        border-bottom: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
-        color: #202020;
+        color: white;
       }
       QToolBox::tab:selected{
-        background: #E7EEF4;
-        border-bottom: 1px solid #B8C0C8;
-        font-weight: bold;
-        color: #202020;
+        background: #384D59;
+        border-bottom: 1px solid gray;
+        font-weight:bold;
+        color: white;
       }
       QToolTip{
         font-size:14px;

@@ -36,6 +36,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QDirIterator>
+#include <QEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -48,6 +49,7 @@
 #include <QPixmap>
 #include <QScrollBar>
 #include <QSvgRenderer>
+#include <Qsci/qsciscintilla.h>
 #include <QTextStream>
 #include <QToolTip>
 
@@ -433,7 +435,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaTextEditorUnified->setMarginType(1, QsciScintilla::SymbolMargin);
   ui->scintillaTextEditorUnified->setMarginWidth(1, 2);
   ui->scintillaTextEditorUnified->markerDefine(QsciScintilla::Background, 1);
-  ui->scintillaTextEditorUnified->setMarkerBackgroundColor(Qt::darkYellow, 1);
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+  const QColor hunkMarkerColor =
+      lightTheme ? QColor(255, 241, 201) : QColor(Qt::darkYellow);
+  ui->scintillaTextEditorUnified->setMarkerBackgroundColor(hunkMarkerColor, 1);
   ui->scintillaTextEditorUnified->setReadOnly(true);
 
   DarkThemeLexersHighlighter highlighter;
@@ -454,7 +461,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaStashDiffUnified->setMarginType(1, QsciScintilla::SymbolMargin);
   ui->scintillaStashDiffUnified->setMarginWidth(1, 2);
   ui->scintillaStashDiffUnified->markerDefine(QsciScintilla::Background, 1);
-  ui->scintillaStashDiffUnified->setMarkerBackgroundColor(Qt::darkYellow, 1);
+  ui->scintillaStashDiffUnified->setMarkerBackgroundColor(hunkMarkerColor, 1);
   ui->scintillaStashDiffUnified->setReadOnly(true);
 
   DarkThemeLexersHighlighter stashHighlighter;
@@ -878,6 +885,32 @@ void GitRepoContainer::resizeEvent(QResizeEvent *event) {
   stretchBranchHistoryTableColumns();
 
   LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::changeEvent(QEvent *event) {
+  QWidget::changeEvent(event);
+
+  if (!event)
+    return;
+
+  switch (event->type()) {
+  case QEvent::PaletteChange:
+  case QEvent::ApplicationPaletteChange:
+  case QEvent::StyleChange:
+    refreshScintillaTheme();
+    break;
+  default:
+    break;
+  }
+}
+
+void GitRepoContainer::refreshScintillaTheme() {
+  DarkThemeLexersHighlighter highlighter;
+  const auto editors = findChildren<QsciScintilla *>();
+
+  for (auto *editor : editors) {
+    highlighter.applyDarkTheme(editor);
+  }
 }
 
 void GitRepoContainer::showEvent(QShowEvent *event) {
