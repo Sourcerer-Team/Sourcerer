@@ -1,5 +1,5 @@
-#include "MousePositionCorrection.h"
 #include "widgets/WorkspacesTableView.h"
+#include "MousePositionCorrection.h"
 
 #include <Log.h>
 

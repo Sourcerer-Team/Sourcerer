@@ -1,5 +1,5 @@
-#include "MousePositionCorrection.h"
 #include "widgets/RemotesPage.h"
+#include "MousePositionCorrection.h"
 #include "widgets/ui_RemotesPage.h"
 
 #include <Log.h>
@@ -119,8 +119,8 @@ bool RemotesPage::eventFilter(QObject *obj, QEvent *event) {
         const QPoint globalPos =
             MousePositionCorrection::instance().correctedGlobalPosition(
                 mouseEvent);
-        const QModelIndex index = treeView->indexAt(
-            treeView->viewport()->mapFromGlobal(globalPos));
+        const QModelIndex index =
+            treeView->indexAt(treeView->viewport()->mapFromGlobal(globalPos));
         if (index.isValid()) {
           // Check if it's a remote item (parent) or target item (child)
           if (_model->isRemoteItem(index)) {

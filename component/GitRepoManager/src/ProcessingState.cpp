@@ -243,6 +243,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForGetCommitBranches(getCommitBranchesCommand);
     break;
   }
+  case EventType::GetCommitTags: {
+    const auto getCommitTagsCommand =
+        event.nextParam<GitRepoGetCommitTagsCommand>();
+    scheduleWorkerForGetCommitTags(getCommitTagsCommand);
+    break;
+  }
   case EventType::GetCommitHeads: {
     const auto getCommitHeadsCommand =
         event.nextParam<GitRepoGetCommitHeadsCommand>();
@@ -4270,6 +4276,74 @@ void ProcessingState::scheduleWorkerForGetCommitBranches(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::getCommitTagsWorker(
+    const Structs::GitRepoGetCommitTagsCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerGetCommitTagsError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+  const bool *quit = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+    quit = &ctx->quit;
+  }
+
+  const QStringList tags =
+      GitRepo::getCommitTags(repo, command.commitOid, *quit);
+
+  if (*quit) {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetCommitTagsError,
+        command.syncUuid);
+    resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
+    _eventManager.send(resultEvent);
+  } else if (tags.isEmpty()) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerGetCommitTagsError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerGetCommitTagsResult,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type, QVariant::fromValue(tags)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForGetCommitTags(
+    const Structs::GitRepoGetCommitTagsCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerGetCommitTagsError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoGetCommitTagsCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForGetCommitHeads(
     const Structs::GitRepoGetCommitHeadsCommand &command) {
   LOG_PERF(0, "Enter");
@@ -5083,6 +5157,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoGetCommitStatusCommand *>(command);
       if (getCommitStatusCommand) {
         getCommitStatusWorker(*getCommitStatusCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::GetCommitTags: {
+      const auto *getCommitTagsCommand =
+          dynamic_cast<const GitRepoGetCommitTagsCommand *>(command);
+      if (getCommitTagsCommand) {
+        getCommitTagsWorker(*getCommitTagsCommand);
       }
       break;
     }

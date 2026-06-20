@@ -38,10 +38,10 @@ TerminalThemeColors terminalThemeColors() {
       StylesheetManager::StylesheetManager::currentStylesheet() ==
       StylesheetManager::StylesheetKey::SourcererLight;
 
-  return lightTheme ? TerminalThemeColors{QColor(32, 32, 32),
-                                           QColor(255, 250, 242)}
-                    : TerminalThemeColors{QColor(187, 187, 187),
-                                           QColor(0x23, 0x26, 0x29)};
+  return lightTheme
+             ? TerminalThemeColors{QColor(32, 32, 32), QColor(255, 250, 242)}
+             : TerminalThemeColors{QColor(187, 187, 187),
+                                   QColor(0x23, 0x26, 0x29)};
 }
 
 TerminalGeometry calculateTerminalGeometry(QVTerminal *terminal) {

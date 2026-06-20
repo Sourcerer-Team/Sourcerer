@@ -40,6 +40,7 @@ enum class EventType : int {
   GetActiveBranch,
   GetBranchHistory,
   GetCommitBranches,
+  GetCommitTags,
   GetCommitHeads,
   GetCommitIsHead,
   GetCommitStatus,

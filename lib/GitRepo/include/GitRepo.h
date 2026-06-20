@@ -354,6 +354,9 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
 QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
                               const bool &quitFlag);
 
+QStringList getCommitTags(git_repository *repo, const QString &commitOid,
+                          const bool &quitFlag);
+
 QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
                            const bool &quitFlag);
 

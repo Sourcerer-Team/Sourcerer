@@ -1,5 +1,5 @@
-#include "MousePositionCorrection.h"
 #include "widgets/ProfileBoardWidget.h"
+#include "MousePositionCorrection.h"
 #include "delegates/FixedHeightDelegate.h"
 #include "widgets/ui_ProfileBoardWidget.h"
 
