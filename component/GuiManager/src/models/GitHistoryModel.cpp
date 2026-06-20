@@ -70,6 +70,13 @@ void GitHistoryModel::updateStatus(const GitRepo::GitStatus &status) {
   LOG_PERF(0, "Exit");
 }
 
+void GitHistoryModel::updateCommitRefs(
+    const QHash<QString, QStringList> &commitRefs) {
+  LOCKGUARD(_mutex);
+
+  _commitRefs.insert(commitRefs);
+}
+
 void GitHistoryModel::updateHistoryAndStatus(
     const GitRepo::GitHistoryWithStatus &historyWithStatus,
     const std::function<void(int)> &progressCallback) {
@@ -234,6 +241,22 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     }
 
     return {};
+  }
+
+  if (role == CommitRefsRole) {
+    if (_historyWithStatus.status.hasChanges() && index.row() == 0) {
+      return {};
+    }
+
+    const int indexRow =
+        _historyWithStatus.status.hasChanges() ? index.row() - 1 : index.row();
+    if (indexRow < 0 ||
+        indexRow >= _historyWithStatus.history.commits.count()) {
+      return {};
+    }
+
+    const QString &commit = _historyWithStatus.history.commits.at(indexRow);
+    return _commitRefs.value(commit);
   }
 
   if (role != Qt::DisplayRole) {

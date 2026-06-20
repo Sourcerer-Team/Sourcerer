@@ -43,6 +43,7 @@ enum class GitRepoCommandType : int {
   GetFileSizeFromCommit,
   GetBranchHistory,
   GetCommitBranches,
+  GetCommitTags,
   GetCommitHeads,
   GetCommitIsHead,
   GetCommitStatus,
@@ -410,6 +411,15 @@ struct GitRepoGetCommitBranchesCommand final : GitRepoCommand {
       : GitRepoCommand(GitRepoCommandType::GetCommitBranches) {}
 
   ~GitRepoGetCommitBranchesCommand() override = default;
+
+  QString commitOid;
+};
+
+struct GitRepoGetCommitTagsCommand final : GitRepoCommand {
+  GitRepoGetCommitTagsCommand()
+      : GitRepoCommand(GitRepoCommandType::GetCommitTags) {}
+
+  ~GitRepoGetCommitTagsCommand() override = default;
 
   QString commitOid;
 };

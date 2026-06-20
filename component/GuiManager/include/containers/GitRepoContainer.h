@@ -101,9 +101,9 @@ private slots:
   void onSetDefaultRemote(int remoteIndex);
   void onSetDefaultTarget(int remoteIndex, int targetIndex);
   void onSplitterMoved(int pos, int index) const;
-  void showTooltipForColumnSlice(const QModelIndex &index);
+
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
-  void showHistoryCellTooltip(const QModelIndex &index);
+
   void onCheckoutCommit(const QString &commit);
   void onAbortButtonClicked();
   void onCommitButtonClicked();
@@ -277,6 +277,8 @@ private:
   bool getBranchHistory(const WeakPtr &guard);
   [[nodiscard]] QStringList getCommitBranches(const WeakPtr &guard,
                                               const QString &commit) const;
+  [[nodiscard]] QStringList getCommitTags(const WeakPtr &guard,
+                                          const QString &commit) const;
   [[nodiscard]] GitRepo::GitCommitStatus
   getCommitStatus(const WeakPtr &guard, const QString &commit) const;
   static QStringList getSelectedFiles(QListView *listView);
@@ -410,8 +412,6 @@ private:
   Util::Mutex _tooltipsMutex;
   QPoint _mousePos;
   QSet<QString> _tooltipsToShow;
-  QTimer *_historyTooltipTimer;
-  QModelIndex _historyTooltipIndex;
 
   Widgets::SpinnerOverlayWidget *_spinnerOverlay;
   QTimer *_spinnerOverlayTimer;

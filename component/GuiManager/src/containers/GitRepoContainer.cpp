@@ -1,7 +1,7 @@
-#include "MousePositionCorrection.h"
 #include "containers/GitRepoContainer.h"
 #include "DarkThemeLexersHighlighter.h"
 #include "MainWindow.h"
+#include "MousePositionCorrection.h"
 #include "QScintillaLexerFactory.h"
 #include "containers/ui_GitRepoContainer.h"
 #include "delegates/ElidePartialColorDelegate.h"
@@ -144,8 +144,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()), _dispatcher(1),
-      _mousePos(-1, -1), _historyTooltipTimer(new QTimer(this)),
-      _historyTooltipIndex(), _spinnerOverlay(new SpinnerOverlayWidget(this)),
+      _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
       _displayTreeExpanded(false), _mergeInProgress(false),
@@ -178,12 +177,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->viewport()->installEventFilter(this);
   ui->historyView->setAttribute(Qt::WA_Hover, true);
   ui->historyView->viewport()->setAttribute(Qt::WA_Hover, true);
-  _historyTooltipTimer->setSingleShot(true);
-  _historyTooltipTimer->setInterval(static_cast<int>(
-      _configManager.getLong(ConfigManager::ConfigKey::TooltipHistoryTimeout)));
-  connect(_historyTooltipTimer, &QTimer::timeout, this, [this]() {
-    showHistoryCellTooltip(_historyTooltipIndex);
-  });
+
   ui->historyView->setModel(_historyModel.get());
   ui->historyView->setSelectionMode(QAbstractItemView::SingleSelection);
   ui->historyView->setVisible(false);
@@ -800,29 +794,44 @@ void GitRepoContainer::init() {
 bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
   if (watched == ui->historyView->viewport()) {
     if (event->type() == QEvent::MouseMove) {
-      const auto *const mouseEvent = static_cast<QMouseEvent *>(event);
       const QPoint globalPos =
-          MousePositionCorrection::instance().correctedGlobalPosition(mouseEvent);
-      const QModelIndex index =
-          ui->historyView->indexAt(ui->historyView->viewport()->mapFromGlobal(globalPos));
+          MousePositionCorrection::instance().correctedGlobalPosition(
+              static_cast<QMouseEvent *>(event));
+      const QModelIndex index = ui->historyView->indexAt(
+          ui->historyView->viewport()->mapFromGlobal(globalPos));
+      if (index.isValid() && index.column() == COLUMN_HISTORY_SLICE) {
+        const auto guard = getSelf().toWeakRef();
+        const QModelIndex fullShaIndex = index.model()->index(
+            index.row(), COLUMN_COMMIT_FULL_SHA, index.parent());
+        const QString commitOid = fullShaIndex.data(Qt::DisplayRole).toString();
+        QHash<QString, QStringList> commitRefs;
+        QStringList branches = getCommitBranches(guard, commitOid);
+        branches += getCommitTags(guard, commitOid);
+        if (!branches.isEmpty()) {
+          commitRefs.insert(commitOid, branches);
+        }
 
-      LOCKGUARD(_tooltipsMutex);
-      _mousePos = globalPos;
+        _historyModel->updateCommitRefs(commitRefs);
+        _historyModel->dataChanged(index, index);
 
-      if (index.isValid() && index != _historyTooltipIndex) {
-        _historyTooltipIndex = index;
-        _historyTooltipTimer->start();
-      } else if (!index.isValid()) {
-        _historyTooltipTimer->stop();
-        _historyTooltipIndex = QModelIndex();
+        const QString tooltipText = branches.join(", ");
+        const qlonglong tooltipDisplayTime = _configManager.getLong(
+            ConfigManager::ConfigKey::TooltipDisplayTime);
+
+        _mousePos = globalPos;
+        QToolTip::showText(_mousePos, tooltipText, ui->historyView, {},
+                           tooltipDisplayTime);
+      }
+      if (index.isValid() && index.column() != COLUMN_HISTORY_SLICE) {
+        const qlonglong tooltipDisplayTime = _configManager.getLong(
+            ConfigManager::ConfigKey::TooltipDisplayTime);
+
+        _mousePos = globalPos;
+        QToolTip::showText(_mousePos, index.data(Qt::DisplayRole).toString(),
+                           ui->historyView, {}, tooltipDisplayTime);
+      } else {
         QToolTip::hideText();
       }
-    } else if (event->type() == QEvent::Leave) {
-      LOCKGUARD(_tooltipsMutex);
-      _mousePos = QPoint(-1, -1);
-      _historyTooltipTimer->stop();
-      _historyTooltipIndex = QModelIndex();
-      QToolTip::hideText();
     } else if (event->type() == QEvent::MouseButtonPress) {
       if (const auto mouseEvent = static_cast<QMouseEvent *>(event);
           mouseEvent->button() == Qt::RightButton) {
@@ -1480,99 +1489,6 @@ void GitRepoContainer::onSplitterMoved(const int pos, const int index) const {
   _configManager.save();
 
   stretchBranchHistoryTableColumns();
-
-  LOG_PERF(0, "Exit");
-}
-
-void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
-  LOG_PERF(0, "Enter");
-
-  const QModelIndex shaIndex =
-      _historyModel->index(index.row(), COLUMN_COMMIT_FULL_SHA, QModelIndex());
-  if (!shaIndex.isValid()) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  const QString commit = shaIndex.data(Qt::DisplayRole).toString();
-
-  {
-    LOCKGUARD(_tooltipsMutex);
-    _tooltipsToShow.clear();
-    _tooltipsToShow += commit;
-  }
-
-  const auto guard = getSelf().toWeakRef();
-
-  _dispatcher.dispatch([&, commit, index, guard]() {
-    LOG_PERF(0, "Enter");
-
-    const QStringList commitBranches = getCommitBranches(guard, commit);
-
-    if (commitBranches.isEmpty()) {
-      LOG_PERF(0, "Exit");
-      return;
-    }
-
-    {
-      LOCKGUARD(_tooltipsMutex);
-
-      if (!_tooltipsToShow.contains(commit)) {
-        LOG_PERF(0, "Exit");
-        return;
-      }
-    }
-
-    if (const auto locked = guard.lock()) {
-      const QPoint viewportPos =
-          ui->historyView->viewport()->mapFromGlobal(_mousePos);
-
-      if (const QModelIndex idx = ui->historyView->indexAt(viewportPos); idx != index) {
-        LOG_PERF(0, "Exit");
-        return;
-      }
-    }
-
-    const qlonglong tooltipDisplayTime =
-        _configManager.getLong(ConfigManager::ConfigKey::TooltipDisplayTime);
-
-    const QString tooltipText =
-        QString("On branches:\n\n%1").arg(commitBranches.join("\n"));
-
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      QToolTip::showText(_mousePos, tooltipText, ui->historyView, {},
-                         static_cast<int>(tooltipDisplayTime));
-    });
-
-  });
-
-  LOG_PERF(0, "Exit");
-}
-
-void GitRepoContainer::showHistoryCellTooltip(const QModelIndex &index) {
-  LOG_PERF(0, "Enter");
-
-  if (!index.isValid()) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  QString tooltipText;
-  const QVariant displayData = index.data(Qt::DisplayRole);
-  if (displayData.isValid()) {
-    tooltipText = displayData.toString();
-  }
-
-  if (tooltipText.isEmpty()) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  const qlonglong tooltipDisplayTime =
-      _configManager.getLong(ConfigManager::ConfigKey::TooltipDisplayTime);
-
-  QToolTip::showText(_mousePos, tooltipText, ui->historyView, {},
-                     static_cast<int>(tooltipDisplayTime));
 
   LOG_PERF(0, "Exit");
 }
@@ -2295,13 +2211,6 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
   if (!index.isValid()) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  if (index.column() == COLUMN_HISTORY_SLICE) {
-    LOG_DEBUG("History slice column tooltip requested");
-    showTooltipForColumnSlice(index);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -7577,6 +7486,51 @@ QStringList GitRepoContainer::getCommitBranches(const WeakPtr &guard,
   LOG_PERF(0, "Exit");
 
   return branches;
+}
+
+QStringList GitRepoContainer::getCommitTags(const WeakPtr &guard,
+                                            const QString &commit) const {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+  const int token = _eventManager.startWait();
+
+  GitRepoGetCommitTagsCommand command;
+  command.uuid = _uuid;
+  command.commitOid = commit;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event tagsEvent(
+      EventManager::EventType::GitRepoManagerGetCommitTags, eventUuid);
+  tagsEvent.addData(command);
+  _eventManager.send(tagsEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGetCommitTagsError,
+      EventManager::EventType::GitRepoManagerGetCommitTagsResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() { showErrorPage(); });
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerGetCommitTagsResult) {
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const auto tags = commandResult.value.value<QStringList>();
+
+  LOG_PERF(0, "Exit");
+
+  return tags;
 }
 
 GitRepo::GitCommitStatus

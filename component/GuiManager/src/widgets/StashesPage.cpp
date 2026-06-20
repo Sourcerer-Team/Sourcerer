@@ -1,5 +1,5 @@
-#include "MousePositionCorrection.h"
 #include "widgets/StashesPage.h"
+#include "MousePositionCorrection.h"
 #include "widgets/ui_StashesPage.h"
 
 #include <Log.h>

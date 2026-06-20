@@ -61,6 +61,8 @@ QString GitRepoManagerFsm::eventName(int event) const {
     return "GetBranchHistory";
   case EventType::GetCommitBranches:
     return "GetCommitBranches";
+  case EventType::GetCommitTags:
+    return "GetCommitTags";
   case EventType::GetCommitHeads:
     return "GetCommitHeads";
   case EventType::GetCommitIsHead:

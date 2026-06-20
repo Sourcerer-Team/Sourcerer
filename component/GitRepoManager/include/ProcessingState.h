@@ -69,6 +69,7 @@ private:
       const Structs::GitRepoGetFileSizeFromCommitCommand &command);
   void getCommitBranchesWorker(
       const Structs::GitRepoGetCommitBranchesCommand &command);
+  void getCommitTagsWorker(const Structs::GitRepoGetCommitTagsCommand &command);
   void
   getCommitHeadsWorker(const Structs::GitRepoGetCommitHeadsCommand &command);
   void
@@ -163,6 +164,8 @@ private:
   scheduleWorkerForFetchAll(const Structs::GitRepoFetchAllCommand &command);
   void scheduleWorkerForGetCommitBranches(
       const Structs::GitRepoGetCommitBranchesCommand &command);
+  void scheduleWorkerForGetCommitTags(
+      const Structs::GitRepoGetCommitTagsCommand &command);
   void scheduleWorkerForGetCommitHeads(
       const Structs::GitRepoGetCommitHeadsCommand &command);
   void scheduleWorkerForGetCommitIsHead(

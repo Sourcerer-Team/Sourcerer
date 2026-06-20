@@ -245,6 +245,12 @@ QString EventManager::eventName(EventType type) const {
     return "GitRepoManagerGetCommitBranchesResult";
   case EventType::GitRepoManagerGetCommitBranchesError:
     return "GitRepoManagerGetCommitBranchesError";
+  case EventType::GitRepoManagerGetCommitTags:
+    return "GitRepoManagerGetCommitTags";
+  case EventType::GitRepoManagerGetCommitTagsResult:
+    return "GitRepoManagerGetCommitTagsResult";
+  case EventType::GitRepoManagerGetCommitTagsError:
+    return "GitRepoManagerGetCommitTagsError";
   case EventType::GitRepoManagerGetCommitHeads:
     return "GitRepoManagerGetCommitHeads";
   case EventType::GitRepoManagerGetCommitHeadsResult:

@@ -8,6 +8,9 @@
 namespace GuiManager::Delegates {
 
 class HistorySliceTableColumnDelegate final : public QStyledItemDelegate {
+
+  Q_OBJECT
+
 public:
   explicit HistorySliceTableColumnDelegate(QObject *parent = nullptr);
   ~HistorySliceTableColumnDelegate() override = default;

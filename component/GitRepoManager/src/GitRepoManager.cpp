@@ -90,6 +90,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitBranches, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetCommitTags, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitHeads, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitIsHead, callbackFunc));
@@ -247,6 +249,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerGetActiveBranch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitBranches, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetCommitTags, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitHeads, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -611,6 +615,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     getCommitBranchesEvent.addParam(
         QVariant::fromValue(getCommitBranchesCommand));
     _fsm.send(getCommitBranchesEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerGetCommitTags: {
+    const auto getCommitTagsCommand = event.data<GitRepoGetCommitTagsCommand>();
+    GitRepoManagerEvent getCommitTagsEvent(EventType::GetCommitTags);
+    getCommitTagsEvent.addParam(QVariant::fromValue(getCommitTagsCommand));
+    _fsm.send(getCommitTagsEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCommitHeads: {

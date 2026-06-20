@@ -3156,7 +3156,7 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
   git_reference *ref = nullptr;
   git_branch_t type;
 
-  int error = git_branch_iterator_new(&iter, repo, GIT_BRANCH_ALL);
+  int error = git_branch_iterator_new(&iter, repo, GIT_BRANCH_LOCAL);
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
@@ -3247,6 +3247,58 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
   LOG_PERF(0, "Exit");
 
   return branches;
+}
+
+QStringList getCommitTags(git_repository *repo, const QString &commitOid,
+                          const bool &quitFlag) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  QStringList tags;
+  git_strarray array = {nullptr, 0};
+
+  const int error = git_tag_list_match(&array, "", repo);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QByteArray commitOidUtf8 = commitOid.toUtf8();
+
+  for (size_t i = 0; i < array.count && !quitFlag; ++i) {
+    const QString tagName = array.strings[i];
+    git_object *object = nullptr;
+
+    const QString spec = QStringLiteral("refs/tags/") + tagName;
+
+    if (git_revparse_single(&object, repo, spec.toStdString().c_str()) != 0) {
+      continue;
+    }
+
+    git_object *commitObject = nullptr;
+    if (git_object_peel(&commitObject, object, GIT_OBJECT_COMMIT) == 0) {
+      const git_oid *commitOidValue = git_object_id(commitObject);
+      if (commitOidValue &&
+          git_oid_streq(commitOidValue, commitOidUtf8.constData())) {
+        tags.append(tagName);
+      }
+      git_object_free(commitObject);
+    }
+
+    git_object_free(object);
+  }
+
+  git_strarray_dispose(&array);
+
+  LOG_PERF(0, "Exit");
+  return tags;
 }
 
 QStringList getCommitHeads(git_repository *repo, const QString &commitOid,

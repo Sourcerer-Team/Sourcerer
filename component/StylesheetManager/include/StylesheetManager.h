@@ -21,6 +21,8 @@ public:
   static QString stylesheetKeyName(StylesheetKey key);
   static StylesheetKey stylesheetKeyFromName(const QString &name);
   static QColor menuBarButtonIconColor();
+  static QColor historyBadgeFillColor();
+  static QColor historyBadgeTextColor();
   static QPixmap recolorPixmap(const QPixmap &source, const QColor &color);
   static void applyStylesheet(QApplication *app = nullptr);
   static void refreshMenuBarButtonIcons(QWidget *root = nullptr);

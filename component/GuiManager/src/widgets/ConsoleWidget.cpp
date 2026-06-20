@@ -37,19 +37,17 @@ ConsoleThemeColors consoleThemeColors() {
       StylesheetManager::StylesheetManager::currentStylesheet() ==
       StylesheetManager::StylesheetKey::SourcererLight;
 
-  return lightTheme ? ConsoleThemeColors{QColor(245, 235, 220),
-                                         QColor(32, 32, 32),
-                                         QColor(230, 218, 198),
-                                         QColor(214, 198, 176)}
-                    : ConsoleThemeColors{QColor(45, 45, 48), QColor(255, 255, 255),
-                                         QColor(62, 62, 66), QColor(0, 122, 204)};
+  return lightTheme
+             ? ConsoleThemeColors{QColor(245, 235, 220), QColor(32, 32, 32),
+                                  QColor(230, 218, 198), QColor(214, 198, 176)}
+             : ConsoleThemeColors{QColor(45, 45, 48), QColor(255, 255, 255),
+                                  QColor(62, 62, 66), QColor(0, 122, 204)};
 }
 
 QColor consoleCloseButtonIconColor(const ConsoleThemeColors &colors) {
-  const int backgroundLuma =
-      qRound(0.299 * colors.titleBarBackground.red() +
-             0.587 * colors.titleBarBackground.green() +
-             0.114 * colors.titleBarBackground.blue());
+  const int backgroundLuma = qRound(0.299 * colors.titleBarBackground.red() +
+                                    0.587 * colors.titleBarBackground.green() +
+                                    0.114 * colors.titleBarBackground.blue());
 
   // Use a neutral gray that stays readable on both themes.
   return backgroundLuma < 128 ? QColor(220, 220, 220) : QColor(80, 80, 80);
@@ -89,8 +87,9 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
 
   // Add title label
   _titleLabel = new QLabel("Console", _titleBar);
-  _titleLabel->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 12px;")
-                                 .arg(colors.titleBarText.name()));
+  _titleLabel->setStyleSheet(
+      QString("color: %1; font-weight: bold; font-size: 12px;")
+          .arg(colors.titleBarText.name()));
   _titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
   auto *titleBarLayout = new QHBoxLayout(_titleBar);
@@ -107,13 +106,13 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
       QPixmap(":/icons/close_button.png"),
       consoleCloseButtonIconColor(colors)));
   _closeButton->setIconSize(QSize(12, 12));
-  _closeButton->setStyleSheet(QString(
-      "QPushButton { background-color: transparent; border: none; "
-      "border-radius: 2px; }"
-      "QPushButton:hover { background-color: %1; }"
-      "QPushButton:pressed { background-color: %2; }")
-                                   .arg(colors.titleBarButtonHover.name(),
-                                        colors.titleBarButtonPressed.name()));
+  _closeButton->setStyleSheet(
+      QString("QPushButton { background-color: transparent; border: none; "
+              "border-radius: 2px; }"
+              "QPushButton:hover { background-color: %1; }"
+              "QPushButton:pressed { background-color: %2; }")
+          .arg(colors.titleBarButtonHover.name(),
+               colors.titleBarButtonPressed.name()));
   _closeButton->setCursor(Qt::ArrowCursor);
 
   titleBarLayout->addWidget(_closeButton);
@@ -262,18 +261,19 @@ void ConsoleWidget::applyTheme() {
   }
 
   if (_titleLabel) {
-    _titleLabel->setStyleSheet(QString("color: %1; font-weight: bold; font-size: 12px;")
-                                   .arg(colors.titleBarText.name()));
+    _titleLabel->setStyleSheet(
+        QString("color: %1; font-weight: bold; font-size: 12px;")
+            .arg(colors.titleBarText.name()));
   }
 
   if (_closeButton) {
-    _closeButton->setStyleSheet(QString(
-        "QPushButton { background-color: transparent; border: none; "
-        "border-radius: 2px; }"
-        "QPushButton:hover { background-color: %1; }"
-        "QPushButton:pressed { background-color: %2; }")
-                                     .arg(colors.titleBarButtonHover.name(),
-                                          colors.titleBarButtonPressed.name()));
+    _closeButton->setStyleSheet(
+        QString("QPushButton { background-color: transparent; border: none; "
+                "border-radius: 2px; }"
+                "QPushButton:hover { background-color: %1; }"
+                "QPushButton:pressed { background-color: %2; }")
+            .arg(colors.titleBarButtonHover.name(),
+                 colors.titleBarButtonPressed.name()));
   }
 
 #ifdef Q_OS_WIN

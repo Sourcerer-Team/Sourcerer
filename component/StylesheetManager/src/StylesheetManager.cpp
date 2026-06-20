@@ -1869,6 +1869,24 @@ QColor StylesheetManager::menuBarButtonIconColor() {
   return qApp->palette().color(QPalette::ButtonText);
 }
 
+QColor StylesheetManager::historyBadgeFillColor() {
+  switch (currentStylesheet()) {
+  case StylesheetKey::SourcererLight:
+    return QColor("#E7EEF4");
+  case StylesheetKey::SourcererDark:
+  default:
+    return QColor("#4A5A66");
+  }
+}
+
+QColor StylesheetManager::historyBadgeTextColor() {
+  if (!qApp)
+    return QColor(96, 96, 96);
+
+  const QColor text = qApp->palette().color(QPalette::ButtonText);
+  return QColor::fromRgbF(text.redF(), text.greenF(), text.blueF(), 1.0);
+}
+
 QPixmap StylesheetManager::recolorPixmap(const QPixmap &source,
                                          const QColor &color) {
   if (source.isNull())
