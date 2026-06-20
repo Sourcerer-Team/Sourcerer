@@ -1,3 +1,4 @@
+#include "MousePositionCorrection.h"
 #include "containers/HomeContainer.h"
 
 #include "Constants.h"
@@ -106,7 +107,11 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
           viewport->parentWidget() == ui->tableViewRecent) {
         const auto view = qobject_cast<GuiManager::Widgets::RecentTableView *>(
             viewport->parentWidget());
-        if (const QModelIndex index = view->indexAt(mouseEvent->pos());
+        const QPoint globalPos =
+            MousePositionCorrection::instance().correctedGlobalPosition(
+                mouseEvent);
+        if (const QModelIndex index =
+                view->indexAt(viewport->mapFromGlobal(globalPos));
             index.isValid()) {
           ui->tableViewRecent->selectionModel()->select(
               index, QItemSelectionModel::Select);
@@ -119,7 +124,11 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
         }
       } else if (viewport->parentWidget() == ui->tableViewWorkspaces) {
         const auto view = qobject_cast<QTableView *>(viewport->parentWidget());
-        if (const QModelIndex index = view->indexAt(mouseEvent->pos());
+        const QPoint globalPos =
+            MousePositionCorrection::instance().correctedGlobalPosition(
+                mouseEvent);
+        if (const QModelIndex index =
+                view->indexAt(viewport->mapFromGlobal(globalPos));
             index.isValid()) {
           ui->tableViewWorkspaces->selectionModel()->select(
               index, QItemSelectionModel::Select);
@@ -134,7 +143,11 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
           viewport->parentWidget() == ui->tableViewRecent) {
         const auto view = qobject_cast<GuiManager::Widgets::RecentTableView *>(
             viewport->parentWidget());
-        if (const QModelIndex index = view->indexAt(mouseEvent->pos());
+        const QPoint globalPos =
+            MousePositionCorrection::instance().correctedGlobalPosition(
+                mouseEvent);
+        if (const QModelIndex index =
+                view->indexAt(viewport->mapFromGlobal(globalPos));
             index.isValid()) {
           ui->tableViewRecent->selectionModel()->select(
               index, QItemSelectionModel::Select);
@@ -142,20 +155,22 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
           const QModelIndex pathIndex =
               _recentlyOpenedModel->createIndex(index.row(), 1);
           const QString path = pathIndex.data(Qt::DisplayRole).toString();
-          const QPoint globalPos = mouseEvent->globalPos();
           Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
             emit recentRightClicked(path, globalPos);
           });
         }
       } else if (viewport->parentWidget() == ui->tableViewWorkspaces) {
         const auto view = qobject_cast<QTableView *>(viewport->parentWidget());
-        if (const QModelIndex index = view->indexAt(mouseEvent->pos());
+        const QPoint globalPos =
+            MousePositionCorrection::instance().correctedGlobalPosition(
+                mouseEvent);
+        if (const QModelIndex index =
+                view->indexAt(viewport->mapFromGlobal(globalPos));
             index.isValid()) {
           ui->tableViewWorkspaces->selectionModel()->select(
               index, QItemSelectionModel::Select);
           ui->tableViewWorkspaces->setCurrentIndex(index);
           const QString name = index.data(Qt::DisplayRole).toString();
-          const QPoint globalPos = mouseEvent->globalPos();
           Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
             emit workspaceRightClicked(name, globalPos);
           });

@@ -1,6 +1,7 @@
 #include "GuiManager.h"
 #include "DarkStyle.h"
 #include "MainWindow.h"
+#include "MousePositionCorrection.h"
 
 #include <ConfigManager.h>
 #include <EventManager.h>
@@ -31,6 +32,8 @@ void GuiManager::start() {
   int argc = 1;
   auto argv = const_cast<char *>(ConfigManager::APPLICATION_NAME);
   QApplication app(argc, &argv);
+
+  MousePositionCorrection::instance().install(app);
 
   QTranslator translator;
   const QStringList uiLanguages = QLocale::system().uiLanguages();
