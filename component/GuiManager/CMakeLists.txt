@@ -39,15 +39,15 @@ set(UI_FILES
 )
 
 if(WIN32)
-set(PLATFORM_SOURCES 
-        include/widgets/win32/PowerShellWidget.h 
+set(PLATFORM_SOURCES
+        include/widgets/win32/PowerShellWidget.h
         src/widgets/win32/PowerShellWidget.cpp
 )
 endif()
 
 if(UNIX AND NOT APPLE)
-set(PLATFORM_SOURCES 
-        include/widgets/linux/BashShellWidget.h 
+set(PLATFORM_SOURCES
+        include/widgets/linux/BashShellWidget.h
         src/widgets/linux/BashShellWidget.cpp
 )
 endif()
@@ -61,6 +61,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/HitDetector.h
         include/InitResources.h
         include/MainWindow.h
+        include/MousePositionCorrection.h
         include/QScintillaLexerFactory.h
         include/containers/BugReportContainer.h
         include/containers/CloneGitRepoContainer.h
@@ -157,6 +158,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/HitDetector.cpp
         src/InitResources.cpp
         src/MainWindow.cpp
+        src/MousePositionCorrection.cpp
         src/QScintillaLexerFactory.cpp
         src/containers/BugReportContainer.cpp
         src/containers/CloneGitRepoContainer.cpp

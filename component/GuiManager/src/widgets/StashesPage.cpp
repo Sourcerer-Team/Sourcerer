@@ -1,3 +1,4 @@
+#include "MousePositionCorrection.h"
 #include "widgets/StashesPage.h"
 #include "widgets/ui_StashesPage.h"
 
@@ -101,12 +102,16 @@ bool StashesPage::eventFilter(QObject *obj, QEvent *event) {
     if (const auto *mouseEvent = static_cast<QMouseEvent *>(event);
         mouseEvent->button() == Qt::RightButton) {
       if (const auto *listView = qobject_cast<QListView *>(obj->parent())) {
-        if (const QModelIndex index = listView->indexAt(mouseEvent->pos());
+        const QPoint globalPos =
+            MousePositionCorrection::instance().correctedGlobalPosition(
+                mouseEvent);
+        if (const QModelIndex index = listView->indexAt(
+                listView->viewport()->mapFromGlobal(globalPos));
             index.isValid()) {
-          emit rightClickOnStash(index.row(), mouseEvent->globalPos());
+          emit rightClickOnStash(index.row(), globalPos);
         } else {
           // Right-click on empty space - show clear all stashes option
-          emit rightClickOnEmpty(mouseEvent->globalPos());
+          emit rightClickOnEmpty(globalPos);
         }
       }
     }

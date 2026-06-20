@@ -1,3 +1,4 @@
+#include "MousePositionCorrection.h"
 #include "widgets/RemotesPage.h"
 #include "widgets/ui_RemotesPage.h"
 
@@ -115,14 +116,18 @@ bool RemotesPage::eventFilter(QObject *obj, QEvent *event) {
     if (const auto *mouseEvent = static_cast<QMouseEvent *>(event);
         mouseEvent->button() == Qt::RightButton) {
       if (const auto *treeView = qobject_cast<QTreeView *>(obj->parent())) {
-        const QModelIndex index = treeView->indexAt(mouseEvent->pos());
+        const QPoint globalPos =
+            MousePositionCorrection::instance().correctedGlobalPosition(
+                mouseEvent);
+        const QModelIndex index = treeView->indexAt(
+            treeView->viewport()->mapFromGlobal(globalPos));
         if (index.isValid()) {
           // Check if it's a remote item (parent) or target item (child)
           if (_model->isRemoteItem(index)) {
             const QString remoteName = _model->getRemoteName(index);
             // Find the remote index
             const int remoteIndex = _model->indexForRemote(remoteName);
-            emit rightClickOnRemote(remoteIndex, mouseEvent->globalPos());
+            emit rightClickOnRemote(remoteIndex, globalPos);
           } else if (_model->isTargetItem(index)) {
             const QString remoteName = _model->getRemoteName(index);
             const auto targetInfo = _model->getTargetInfo(index);
@@ -138,13 +143,12 @@ bool RemotesPage::eventFilter(QObject *obj, QEvent *event) {
                   break;
                 }
               }
-              emit rightClickOnTarget(remoteIndex, targetIndex,
-                                      mouseEvent->globalPos());
+              emit rightClickOnTarget(remoteIndex, targetIndex, globalPos);
             }
           }
         } else {
           // Right-click on empty space
-          emit rightClickOnEmpty(mouseEvent->globalPos());
+          emit rightClickOnEmpty(globalPos);
         }
       }
     }

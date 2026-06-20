@@ -1,3 +1,4 @@
+#include "MousePositionCorrection.h"
 #include "widgets/WorkspacesTableView.h"
 
 #include <Log.h>
@@ -42,7 +43,11 @@ bool WorkspacesTableView::eventFilter(QObject *watched, QEvent *event) {
 }
 
 void WorkspacesTableView::mouseMoveEvent(QMouseEvent *event) {
-  if (const QModelIndex index = indexAt(event->pos()); index.isValid()) {
+  const QPoint globalPos =
+      MousePositionCorrection::instance().correctedGlobalPosition(event);
+  const QPoint pos = viewport()->mapFromGlobal(globalPos);
+
+  if (const QModelIndex index = indexAt(pos); index.isValid()) {
     setCursor(Qt::PointingHandCursor);
   } else {
     unsetCursor();
@@ -65,9 +70,11 @@ bool WorkspacesTableView::mouseMove(const QMouseEvent *event) {
   if (!event)
     return false;
 
-  const auto pos = viewport()->mapFromGlobal(event->globalPosition());
+  const QPoint globalPos =
+      MousePositionCorrection::instance().correctedGlobalPosition(event);
+  const QPoint pos = viewport()->mapFromGlobal(globalPos);
 
-  if (const auto index = indexAt(pos.toPoint()); index.row() == -1) {
+  if (const auto index = indexAt(pos); index.row() == -1) {
     emit hoverLeave(_prev);
     _prev = QModelIndex();
     LOG_DEBUG("emitted hoverLeave");
