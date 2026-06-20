@@ -40,6 +40,7 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   _echo = false;
   _crlf = false;
   _state = QVTerminal::Text;
+  _layout = new QVTLayout();
 
   QVTCharFormat format;
   QFont font;
@@ -50,8 +51,6 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   format.setForeground(QColor(187, 187, 187));
   format.setBackground(QColor(0x23, 0x26, 0x29));
   setFormat(format);
-
-  _layout = new QVTLayout();
 
   _pasteAction = new QAction("Paste");
   _pasteAction->setShortcut(QKeySequence("Ctrl+V"));
