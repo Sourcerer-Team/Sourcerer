@@ -1,3 +1,4 @@
+#include "MousePositionCorrection.h"
 #include "containers/GitRepoContainer.h"
 #include "DarkThemeLexersHighlighter.h"
 #include "MainWindow.h"
@@ -791,17 +792,21 @@ bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
     if (event->type() == QEvent::MouseMove) {
       LOCKGUARD(_tooltipsMutex);
       const QMouseEvent *const mouseEvent = static_cast<QMouseEvent *>(event);
-      _mousePos = mouseEvent->globalPos();
+      _mousePos =
+          MousePositionCorrection::instance().correctedGlobalPosition(mouseEvent);
     } else if (event->type() == QEvent::Leave) {
       LOCKGUARD(_tooltipsMutex);
       _mousePos = QPoint(-1, -1);
     } else if (event->type() == QEvent::MouseButtonPress) {
       if (const auto mouseEvent = static_cast<QMouseEvent *>(event);
           mouseEvent->button() == Qt::RightButton) {
-        if (const QModelIndex index =
-                ui->historyView->indexAt(mouseEvent->pos());
+        const QPoint globalPos =
+            MousePositionCorrection::instance().correctedGlobalPosition(
+                mouseEvent);
+        if (const QModelIndex index = ui->historyView->indexAt(
+                ui->historyView->viewport()->mapFromGlobal(globalPos));
             index.isValid()) {
-          emit historyViewRightClicked(index, mouseEvent->globalPos());
+          emit historyViewRightClicked(index, globalPos);
         }
       }
     }

@@ -1,3 +1,4 @@
+#include "MousePositionCorrection.h"
 #include "widgets/ProfileBoardWidget.h"
 #include "delegates/FixedHeightDelegate.h"
 #include "widgets/ui_ProfileBoardWidget.h"
@@ -290,10 +291,11 @@ ProfileBoardWidget::~ProfileBoardWidget() {
 bool ProfileBoardWidget::eventFilter(QObject *watched, QEvent *event) {
   if (event->type() == QEvent::MouseButtonPress) {
     const QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-    const QPoint globalPos = mouseEvent->globalPos();
+    const QPoint globalPos =
+        MousePositionCorrection::instance().correctedGlobalPosition(mouseEvent);
 
     // Check if click is outside this widget
-    if (isVisible() && !geometry().contains(globalPos)) {
+    if (isVisible() && !frameGeometry().contains(globalPos)) {
       hide();
       emit hidden();
       LOG_DEBUG("Clicked outside the widget!");
