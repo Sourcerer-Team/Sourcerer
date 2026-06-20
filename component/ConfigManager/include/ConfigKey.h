@@ -54,6 +54,7 @@ enum class ConfigKey {
 
   // Tooltips
   TooltipDisplayTime,
+  TooltipHistoryTimeout,
 
   // Testing
   TestColor,

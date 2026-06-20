@@ -58,7 +58,9 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::ToastAnimationDuration, "window/toasts/toastAnimationDuration"},
     {ConfigKey::ToastSpacing, "window/toasts/toastSpacing"},
     {ConfigKey::ToastWidth, "window/toasts/toastWidth"},
-    {ConfigKey::TooltipDisplayTime, "window/tooltips/tooltipDisplayTime"}};
+    {ConfigKey::TooltipDisplayTime, "window/tooltips/tooltipDisplayTime"},
+    {ConfigKey::TooltipHistoryTimeout,
+     "window/tooltips/tooltipHistoryTimeout"}};
 
 QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::Unknown, {"", ""}},
@@ -76,6 +78,8 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::TitleBarMaxTabWidth, {"Maximum width of a title bar tab", ""}},
     {ConfigKey::TitleBarMenuMinimumSize,
      {"Minimum size of the title bar menu", ""}},
+    {ConfigKey::TooltipHistoryTimeout,
+     {"History tooltip hover timeout in milliseconds", ""}},
     {ConfigKey::TestColor, {"Test color", "Test color description"}},
     {ConfigKey::TestDateTime, {"Test dateTime", "Test dateTime description"}}};
 
@@ -112,7 +116,8 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::ToastHeight, 150},
     {ConfigKey::ToastSpacing, 4},
     {ConfigKey::ToastWidth, 400},
-    {ConfigKey::TooltipDisplayTime, 5000}};
+    {ConfigKey::TooltipDisplayTime, 5000},
+    {ConfigKey::TooltipHistoryTimeout, 3000}};
 
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::CloudJwtPublicKeyPath, "keys/cloud_jwt_public_key.pem"},
