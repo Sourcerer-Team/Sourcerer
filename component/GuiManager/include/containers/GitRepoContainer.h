@@ -103,6 +103,7 @@ private slots:
   void onSplitterMoved(int pos, int index) const;
   void showTooltipForColumnSlice(const QModelIndex &index);
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
+  void showHistoryCellTooltip(const QModelIndex &index);
   void onCheckoutCommit(const QString &commit);
   void onAbortButtonClicked();
   void onCommitButtonClicked();
@@ -409,6 +410,8 @@ private:
   Util::Mutex _tooltipsMutex;
   QPoint _mousePos;
   QSet<QString> _tooltipsToShow;
+  QTimer *_historyTooltipTimer;
+  QModelIndex _historyTooltipIndex;
 
   Widgets::SpinnerOverlayWidget *_spinnerOverlay;
   QTimer *_spinnerOverlayTimer;

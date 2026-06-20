@@ -3213,7 +3213,6 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
 
       git_object_free(branchTip);
       git_reference_free(symbolicRef);
-      git_reference_free(ref);
     } else {
       branchOid = git_reference_target(ref);
     }

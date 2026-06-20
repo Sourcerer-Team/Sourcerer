@@ -51,6 +51,7 @@
 #include <QScrollBar>
 #include <QSvgRenderer>
 #include <QTextStream>
+#include <QTimer>
 #include <QToolTip>
 #include <Qsci/qsciscintilla.h>
 
@@ -143,7 +144,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()), _dispatcher(1),
-      _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
+      _mousePos(-1, -1), _historyTooltipTimer(new QTimer(this)),
+      _historyTooltipIndex(), _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
       _displayTreeExpanded(false), _mergeInProgress(false),
@@ -174,6 +176,14 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->setMouseTracking(true);
   ui->historyView->viewport()->setMouseTracking(true);
   ui->historyView->viewport()->installEventFilter(this);
+  ui->historyView->setAttribute(Qt::WA_Hover, true);
+  ui->historyView->viewport()->setAttribute(Qt::WA_Hover, true);
+  _historyTooltipTimer->setSingleShot(true);
+  _historyTooltipTimer->setInterval(static_cast<int>(
+      _configManager.getLong(ConfigManager::ConfigKey::TooltipHistoryTimeout)));
+  connect(_historyTooltipTimer, &QTimer::timeout, this, [this]() {
+    showHistoryCellTooltip(_historyTooltipIndex);
+  });
   ui->historyView->setModel(_historyModel.get());
   ui->historyView->setSelectionMode(QAbstractItemView::SingleSelection);
   ui->historyView->setVisible(false);
@@ -790,13 +800,29 @@ void GitRepoContainer::init() {
 bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
   if (watched == ui->historyView->viewport()) {
     if (event->type() == QEvent::MouseMove) {
-      LOCKGUARD(_tooltipsMutex);
-      const QMouseEvent *const mouseEvent = static_cast<QMouseEvent *>(event);
-      _mousePos =
+      const auto *const mouseEvent = static_cast<QMouseEvent *>(event);
+      const QPoint globalPos =
           MousePositionCorrection::instance().correctedGlobalPosition(mouseEvent);
+      const QModelIndex index =
+          ui->historyView->indexAt(ui->historyView->viewport()->mapFromGlobal(globalPos));
+
+      LOCKGUARD(_tooltipsMutex);
+      _mousePos = globalPos;
+
+      if (index.isValid() && index != _historyTooltipIndex) {
+        _historyTooltipIndex = index;
+        _historyTooltipTimer->start();
+      } else if (!index.isValid()) {
+        _historyTooltipTimer->stop();
+        _historyTooltipIndex = QModelIndex();
+        QToolTip::hideText();
+      }
     } else if (event->type() == QEvent::Leave) {
       LOCKGUARD(_tooltipsMutex);
       _mousePos = QPoint(-1, -1);
+      _historyTooltipTimer->stop();
+      _historyTooltipIndex = QModelIndex();
+      QToolTip::hideText();
     } else if (event->type() == QEvent::MouseButtonPress) {
       if (const auto mouseEvent = static_cast<QMouseEvent *>(event);
           mouseEvent->button() == Qt::RightButton) {
@@ -1461,7 +1487,6 @@ void GitRepoContainer::onSplitterMoved(const int pos, const int index) const {
 void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
-  /*
   const QModelIndex shaIndex =
       _historyModel->index(index.row(), COLUMN_COMMIT_FULL_SHA, QModelIndex());
   if (!shaIndex.isValid()) {
@@ -1502,8 +1527,7 @@ void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
       const QPoint viewportPos =
           ui->historyView->viewport()->mapFromGlobal(_mousePos);
 
-      if (const QModelIndex idx = ui->historyView->indexAt(viewportPos);
-          idx != index) {
+      if (const QModelIndex idx = ui->historyView->indexAt(viewportPos); idx != index) {
         LOG_PERF(0, "Exit");
         return;
       }
@@ -1520,9 +1544,35 @@ void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
                          static_cast<int>(tooltipDisplayTime));
     });
 
-    LOG_PERF(0, "Exit");
   });
-*/
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::showHistoryCellTooltip(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString tooltipText;
+  const QVariant displayData = index.data(Qt::DisplayRole);
+  if (displayData.isValid()) {
+    tooltipText = displayData.toString();
+  }
+
+  if (tooltipText.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const qlonglong tooltipDisplayTime =
+      _configManager.getLong(ConfigManager::ConfigKey::TooltipDisplayTime);
+
+  QToolTip::showText(_mousePos, tooltipText, ui->historyView, {},
+                     static_cast<int>(tooltipDisplayTime));
 
   LOG_PERF(0, "Exit");
 }
