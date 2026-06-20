@@ -45,6 +45,16 @@ ConsoleThemeColors consoleThemeColors() {
                                          QColor(62, 62, 66), QColor(0, 122, 204)};
 }
 
+QColor consoleCloseButtonIconColor(const ConsoleThemeColors &colors) {
+  const int backgroundLuma =
+      qRound(0.299 * colors.titleBarBackground.red() +
+             0.587 * colors.titleBarBackground.green() +
+             0.114 * colors.titleBarBackground.blue());
+
+  // Use a neutral gray that stays readable on both themes.
+  return backgroundLuma < 128 ? QColor(220, 220, 220) : QColor(80, 80, 80);
+}
+
 } // namespace
 
 namespace GuiManager::Widgets {
@@ -93,7 +103,9 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
   _closeButton = new QPushButton(_titleBar);
   _closeButton->setFlat(true);
   _closeButton->setFixedSize(12, 12);
-  _closeButton->setIcon(QIcon(":/icons/close_button.png"));
+  _closeButton->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":/icons/close_button.png"),
+      consoleCloseButtonIconColor(colors)));
   _closeButton->setIconSize(QSize(12, 12));
   _closeButton->setStyleSheet(QString(
       "QPushButton { background-color: transparent; border: none; "
