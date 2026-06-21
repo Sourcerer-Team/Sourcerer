@@ -17,6 +17,7 @@ public:
   explicit TopBarWidget(QWidget *parent = nullptr);
 
   TitlebarWidget *titleBarWidget() const { return _titleBarWidget; }
+  QPushButton *profileButton() const { return _profileButton; }
 
 signals:
   void minimized();
