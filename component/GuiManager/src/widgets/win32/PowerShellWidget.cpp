@@ -79,7 +79,7 @@ TerminalThemeColors terminalThemeColors() {
       StylesheetManager::StylesheetKey::SourcererLight;
 
   return lightTheme
-             ? TerminalThemeColors{QColor(32, 32, 32), QColor(255, 250, 242)}
+             ? TerminalThemeColors{QColor(48, 48, 48), QColor(245, 238, 228)}
              : TerminalThemeColors{QColor(187, 187, 187),
                                    QColor(0x23, 0x26, 0x29)};
 }
@@ -426,10 +426,10 @@ void PowerShellWidget::startPowerShell() {
   std::wstring cmdLine;
   if (GetFileAttributesW(L"C:\\Program Files\\PowerShell\\7\\pwsh.exe") !=
       INVALID_FILE_ATTRIBUTES) {
-    cmdLine = L"C:\\Program Files\\PowerShell\\7\\pwsh.exe -NoLogo";
+    cmdLine = L"C:\\Program Files\\PowerShell\\7\\pwsh.exe -NoLogo -NoProfile -NoExit";
   } else {
     cmdLine = L"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe "
-              L"-NoLogo -NoExit";
+              L"-NoLogo -NoProfile -NoExit";
   }
 
   // CreateProcessW modifies the command line, so make a mutable copy
@@ -604,6 +604,15 @@ void PowerShellWidget::applyTheme() {
   _textDisplay->setStyleSheet(
       QString("background-color: %1;").arg(colors.background.name()));
   _textDisplay->setFormat(format);
+
+  if (_textDisplay->viewport()) {
+    QPalette viewportPalette = _textDisplay->viewport()->palette();
+    viewportPalette.setColor(QPalette::Window, colors.background);
+    viewportPalette.setColor(QPalette::Base, colors.background);
+    viewportPalette.setColor(QPalette::Text, colors.foreground);
+    _textDisplay->viewport()->setPalette(viewportPalette);
+    _textDisplay->viewport()->setAutoFillBackground(true);
+  }
 }
 
 void PowerShellWidget::refreshTheme() {

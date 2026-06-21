@@ -48,8 +48,8 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   font.setStyleHint(QFont::Monospace);
   font.setPointSize(13);
   format.setFont(font);
-  format.setForeground(QColor(187, 187, 187));
-  format.setBackground(QColor(0x23, 0x26, 0x29));
+  format.setForeground(QColor(70, 70, 70));
+  format.setBackground(QColor(255, 250, 242));
   setFormat(format);
 
   _pasteAction = new QAction("Paste");
@@ -538,7 +538,7 @@ QColor QVTerminal::vt100color(char c, bool bright) {
     color = QColor(Qt::green);
     break;
   case '3':
-    color = QColor(Qt::yellow);
+    color = QColor(Qt::darkYellow);
     break;
   case '4':
     color = QColor(Qt::blue);
@@ -656,7 +656,10 @@ void QVTerminal::writeData(const QByteArray &data) {
     _device->write(data);
   }
   if (_echo) {
+    const QVTCharFormat previousFormat = _curentFormat;
+    _curentFormat = _format;
     appendData(data);
+    _curentFormat = previousFormat;
   }
 }
 
@@ -681,6 +684,8 @@ void QVTerminal::setFormat(const QVTCharFormat &format) {
   viewportPalette.setColor(QPalette::Window, _format.background());
   viewportPalette.setColor(QPalette::Base, _format.background());
   viewportPalette.setColor(QPalette::Text, _format.foreground());
+  viewportPalette.setColor(QPalette::WindowText, _format.foreground());
+  viewportPalette.setColor(QPalette::ButtonText, _format.foreground());
   viewport()->setPalette(viewportPalette);
   viewport()->setAutoFillBackground(true);
 

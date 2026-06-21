@@ -39,7 +39,7 @@ TerminalThemeColors terminalThemeColors() {
       StylesheetManager::StylesheetKey::SourcererLight;
 
   return lightTheme
-             ? TerminalThemeColors{QColor(32, 32, 32), QColor(255, 250, 242)}
+             ? TerminalThemeColors{QColor(48, 48, 48), QColor(245, 238, 228)}
              : TerminalThemeColors{QColor(187, 187, 187),
                                    QColor(0x23, 0x26, 0x29)};
 }
@@ -319,8 +319,6 @@ void BashShellWidget::startBash() {
     // Set environment variables
     setenv("TERM", "xterm-256color", 1);
     setenv("COLORTERM", "truecolor", 1);
-
-    // Disable window title escape sequences that QVTerminal doesn't support
     setenv("PROMPT_COMMAND", "", 1);
 
     // Execute bash
@@ -528,6 +526,15 @@ void BashShellWidget::applyTheme() {
   _textDisplay->setStyleSheet(
       QString("background-color: %1;").arg(colors.background.name()));
   _textDisplay->setFormat(format);
+
+  if (_textDisplay->viewport()) {
+    QPalette viewportPalette = _textDisplay->viewport()->palette();
+    viewportPalette.setColor(QPalette::Window, colors.background);
+    viewportPalette.setColor(QPalette::Base, colors.background);
+    viewportPalette.setColor(QPalette::Text, colors.foreground);
+    _textDisplay->viewport()->setPalette(viewportPalette);
+    _textDisplay->viewport()->setAutoFillBackground(true);
+  }
 }
 
 void BashShellWidget::refreshTheme() {
