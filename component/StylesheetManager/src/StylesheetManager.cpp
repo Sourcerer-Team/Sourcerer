@@ -1872,7 +1872,7 @@ QColor StylesheetManager::menuBarButtonIconColor() {
 QColor StylesheetManager::historyBadgeFillColor() {
   switch (currentStylesheet()) {
   case StylesheetKey::SourcererLight:
-    return QColor("#E7EEF4");
+    return QColor("#F5EEE4");
   case StylesheetKey::SourcererDark:
   default:
     return QColor("#4A5A66");
