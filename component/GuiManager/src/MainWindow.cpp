@@ -41,7 +41,7 @@ using namespace Dialogs;
 using namespace Util;
 
 constexpr int TOP_MARGIN_OFFSET = -55;
-constexpr int PROFILE_WIDGET_ARROW_OFFSET = 30;
+constexpr int PROFILE_WIDGET_ARROW_OFFSET = 32;
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), _current(-1), _centralWidget(new CentralWidget),
@@ -676,13 +676,26 @@ void MainWindow::onEdgeHit(Qt::Edges edges) const {
 void MainWindow::onProfile(int middleX) {
   LOG_PERF(0, "Enter");
 
+  Q_UNUSED(middleX);
+
+  _profileBoardWidget->adjustSize();
+
+  const QPushButton *profileButton = _topBarWidget->profileButton();
+  const QRect profileButtonRect =
+      profileButton ? profileButton->geometry() : QRect();
+  const QPoint popupTopLeft =
+      profileButton
+          ? _topBarWidget->mapToGlobal(QPoint(profileButtonRect.center().x() -
+                                                  _profileBoardWidget->width() +
+                                                  PROFILE_WIDGET_ARROW_OFFSET,
+                                              _topBarWidget->height()))
+          : mapToGlobal(QPoint(width() / 2 - _profileBoardWidget->width() / 2,
+                               _topBarWidget->height()));
+  _profileBoardWidget->move(popupTopLeft);
   _profileBoardWidget->setArrowTargetX(_profileBoardWidget->width() -
                                        PROFILE_WIDGET_ARROW_OFFSET);
   _profileBoardWidget->show();
   _profileBoardWidget->raise();
-  _profileBoardWidget->move(
-      middleX - (_profileBoardWidget->width() - PROFILE_WIDGET_ARROW_OFFSET),
-      y() + _topBarWidget->height());
   _profileBoardActive = true;
 
   LOG_PERF(0, "Exit");

@@ -131,7 +131,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
 void TopBarWidget::onProfileClicked() {
   LOG_PERF(0, "Enter");
 
-  emit profile(_profileButton->x() + _profileButton->width() / 2);
+  emit profile(
+      _profileButton->mapToGlobal(QPoint(_profileButton->width() / 2, 0)).x());
 
   LOG_PERF(0, "Exit");
 }
