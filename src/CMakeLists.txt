@@ -11,7 +11,7 @@ set(QT_NO_PRIVATE_MODULE_WARNING ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
-find_package(libgit2 REQUIRED)
+find_package(LibSSH2 REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets LinguistTools)
 
 set(PROJECT_SOURCES
@@ -42,14 +42,21 @@ includeLib(Sourcerer RecyclerView)
 includeLib(Sourcerer Util)
 
 if (WIN32)
-    set(ADDITIONAL_LIBRARIES user32.lib Dwmapi.lib)
+    set(ADDITIONAL_LIBRARIES user32.lib Dwmapi.lib secur32.lib)
 else ()
     set(ADDITIONAL_LIBRARIES)
 endif ()
 
 target_link_libraries(Sourcerer PRIVATE
         Qt6::Widgets
-        ${LIBGIT2_LIBRARIES}
+        libgit2
+        llhttp
+        pcre2
+        reftable
+        util
+        xdiff
+        zlib
+        ${LIBSSH2_LIBRARIES}
         ${ADDITIONAL_LIBRARIES}
         "${APP_ICON_RES}")
 
