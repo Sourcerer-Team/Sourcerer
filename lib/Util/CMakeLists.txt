@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 if(TARGET Util)
-    return()
+  return()
 endif()
 
 project(Util)
@@ -14,7 +14,7 @@ find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 
 if(WIN32)
-set(PLATFORM_SOURCES include/win32/DirectoryWatcher.h src/win32/DirectoryWatcher.cpp)
+  set(PLATFORM_SOURCES include/win32/DirectoryWatcher.h src/win32/DirectoryWatcher.cpp)
 endif()
 
 add_library(Util STATIC
@@ -32,6 +32,7 @@ add_library(Util STATIC
    include/LockGuard.h
    include/ResizableVector.h
    include/ResizableMatrix.h
+
    include/TokenString.h
    include/Uuid.h
    src/CloudCredentialStorage.cpp
@@ -44,6 +45,7 @@ add_library(Util STATIC
    src/HttpClient.cpp
    src/JWTDecoder.cpp
    src/LockGuard.cpp
+
    src/TokenString.cpp
    src/Uuid.cpp
    ${PLATFORM_SOURCES}
@@ -67,7 +69,7 @@ target_link_libraries(Util PRIVATE
 )
 
 if(WIN32)
-    target_link_libraries(Util PRIVATE shell32)
+  target_link_libraries(Util PRIVATE shell32)
 endif()
 
 target_include_directories(Util PRIVATE

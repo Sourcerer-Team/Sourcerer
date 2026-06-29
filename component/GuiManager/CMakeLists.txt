@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 if (TARGET GuiManager)
-    return()
+  return()
 endif ()
 
 project(GuiManager)
@@ -10,7 +10,6 @@ set(CMAKE_CXX_STANDARD 17)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
-find_package(libgit2 REQUIRED)
 find_package(libzip REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Widgets Network LinguistTools)
 
@@ -39,14 +38,14 @@ set(UI_FILES
 )
 
 if(WIN32)
-set(PLATFORM_SOURCES
+  set(PLATFORM_SOURCES
         include/widgets/win32/PowerShellWidget.h
         src/widgets/win32/PowerShellWidget.cpp
 )
 endif()
 
 if(UNIX AND NOT APPLE)
-set(PLATFORM_SOURCES
+  set(PLATFORM_SOURCES
         include/widgets/linux/BashShellWidget.h
         src/widgets/linux/BashShellWidget.cpp
 )
@@ -265,7 +264,8 @@ target_link_libraries(GuiManager PRIVATE
         Qt6::Svg
         Qt6::Widgets
         Qt6::Network
-        ${LIBGIT2_LIBRARIES}
+        libgit2
+        util
         libzip::zip
         qscintilla
 )
