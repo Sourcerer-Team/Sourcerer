@@ -6114,6 +6114,21 @@ bool revertCommit(git_repository *repo, const QString &commit,
   return true;
 }
 
+static QStringList createPatchTargetFiles(const QString &patchContent) {
+  QStringList files;
+  const QStringList lines = QString(patchContent).replace("\r\n", "\n").split('\n');
+  for (const QString &line : lines) {
+    if (line.startsWith("+++ ")) {
+      const QString path = line.mid(4).trimmed();
+      if (path != "/dev/null" && path.startsWith("b/")) {
+        files.append(path.mid(2));
+      }
+    }
+  }
+  files.removeDuplicates();
+  return files;
+}
+
 bool applyPatch(git_repository *repo, const QString &patchContent) {
   LOG_PERF(0, "Enter");
 
