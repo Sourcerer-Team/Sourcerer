@@ -77,4 +77,3 @@ target_include_directories(GitRepo PRIVATE
    ${CMAKE_CURRENT_BINARY_DIR}/QCA
    ${CMAKE_CURRENT_BINARY_DIR}/..
 )
-��7���
