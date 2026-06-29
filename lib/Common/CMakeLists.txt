@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 if(TARGET Common)
-    return()
+  return()
 endif()
 
 project(Common)
@@ -11,7 +11,6 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
-find_package(libgit2 REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
 find_package(Threads REQUIRED)
 
@@ -35,10 +34,11 @@ target_link_libraries(Common PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
-    ${LIBGIT2_LIBRARIES}
+    libgit2
+    util
 )
 
 target_include_directories(Common PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/include
-   ${LIBGIT2_INCLUDE_DIR}
+   ${CMAKE_CURRENT_SOURCE_DIR}/../libgit2/include
 )

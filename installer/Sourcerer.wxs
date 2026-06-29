@@ -106,9 +106,6 @@
                 <File Id="LibBz2File"
                       Source="$(var.MSYS2BinPath)\libbz2-1.dll"
                       Vital="no" />
-                <File Id="LibGit2File"
-                      Source="$(var.MSYS2BinPath)\libgit2-1.9.dll"
-                      Vital="no" />
                 <File Id="LibHttpParserFile"
                       Source="$(var.MSYS2BinPath)\libhttp_parser-2.dll"
                       Vital="no" />

@@ -11,6 +11,7 @@
 #include <JWTDecoder.h>
 #include <LockGuard.h>
 #include <Log.h>
+#include "PatchFileUtils.h"
 #ifdef _WIN32
 #include <applink.c>
 #endif
@@ -34,6 +35,12 @@
 #include <git2/submodule.h>
 #include <git2/tag.h>
 #include <git2/types.h>
+
+#include <QFile>
+#include <QFileInfo>
+#include <QRegularExpression>
+#include <QSet>
+#include <QTextStream>
 
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -4082,31 +4089,112 @@ bool commitStaged(git_repository *repo, const QString &summary,
 }
 
 static QString createFullPatchFromContent(const QString &filePath,
-                                          const QString &fileContent) {
+                                          const QString &fileContent,
+                                          bool newFile,
+                                          const QString &indexLine) {
   LOG_PERF(0, "Enter");
 
   const QString convertedContent = QString(fileContent).replace("\r\n", "\n");
+  QStringList lines = convertedContent.split('\n');
+  if (!convertedContent.isEmpty() && convertedContent.endsWith('\n')) {
+    lines.removeLast();
+  }
+  const int lineCount = lines.size();
 
   QString patch;
   QTextStream stream(&patch);
 
-  // Diff header
-  stream << "--- " << filePath << "\n";
-  stream << "+++ " << filePath << "\n";
+  if (!indexLine.isEmpty()) {
+    stream << indexLine << "\n";
+  }
 
-  // Hunk header: replace everything (start at line 1)
-  const int newLines = convertedContent.count('\n') + 1;
-  stream << "@@ -1," << newLines << " +1," << newLines << " @@\n";
+  if (newFile) {
+    stream << "--- /dev/null\n";
+  } else {
+    stream << "--- a/" << filePath << "\n";
+  }
 
-  // Emit each line as "added"
-  const QStringList lines = convertedContent.split('\n');
+  stream << "+++ b/" << filePath << "\n";
+  stream << "@@ -1,0 +1," << lineCount << " @@\n";
+
   for (const QString &line : lines) {
-    stream << "+ " << line << "\n";
+    stream << "+" << line << "\n";
   }
 
   LOG_PERF(0, "Exit");
 
   return patch;
+}
+
+static QString createIndexLineFromContent(const QString &oldFileContent,
+                                          const QString &newFileContent) {
+
+    if (oldFileContent.isEmpty() && newFileContent.isEmpty()) {
+        return {};
+    }
+
+    if (oldFileContent.isEmpty()) {
+        const QString normalizedNewContent =
+                QString(newFileContent).replace("\r\n", "\n");
+
+        git_oid newOid;
+
+        const QByteArray newBytes = normalizedNewContent.toUtf8();
+
+        git_odb_hash(&newOid, newBytes.constData(),
+                     static_cast<size_t>(newBytes.size()), GIT_OBJECT_BLOB);
+
+        char newOidStr[GIT_OID_HEXSZ + 1] = {0};
+
+        git_oid_tostr(newOidStr, sizeof(newOidStr), &newOid);
+
+        return QString("index 0000000..%2")
+                .arg(QString::fromUtf8(newOidStr).left(7));
+  }
+
+  if (newFileContent.isEmpty()) {
+      const QString normalizedOldContent =
+              QString(oldFileContent).replace("\r\n", "\n");
+
+      git_oid oldOid;
+
+      const QByteArray oldBytes = normalizedOldContent.toUtf8();
+
+      git_odb_hash(&oldOid, oldBytes.constData(),
+                   static_cast<size_t>(oldBytes.size()), GIT_OBJECT_BLOB);
+
+      char oldOidStr[GIT_OID_HEXSZ + 1] = {0};
+
+      git_oid_tostr(oldOidStr, sizeof(oldOidStr), &oldOid);
+
+      return QString("index %1..0000000")
+              .arg(QString::fromUtf8(oldOidStr).left(7));
+  }
+
+  const QString normalizedOldContent =
+          QString(oldFileContent).replace("\r\n", "\n");
+  const QString normalizedNewContent =
+          QString(newFileContent).replace("\r\n", "\n");
+
+  git_oid oldOid;
+  git_oid newOid;
+
+  const QByteArray oldBytes = normalizedOldContent.toUtf8();
+  const QByteArray newBytes = normalizedNewContent.toUtf8();
+
+  git_odb_hash(&oldOid, oldBytes.constData(),
+               static_cast<size_t>(oldBytes.size()), GIT_OBJECT_BLOB);
+  git_odb_hash(&newOid, newBytes.constData(),
+               static_cast<size_t>(newBytes.size()), GIT_OBJECT_BLOB);
+
+  char oldOidStr[GIT_OID_HEXSZ + 1] = {0};
+  char newOidStr[GIT_OID_HEXSZ + 1] = {0};
+  git_oid_tostr(oldOidStr, sizeof(oldOidStr), &oldOid);
+  git_oid_tostr(newOidStr, sizeof(newOidStr), &newOid);
+
+  return QString("index %1..%2")
+          .arg(QString::fromUtf8(oldOidStr).left(7),
+               QString::fromUtf8(newOidStr).left(7));
 }
 
 static FilesDiffDelta
@@ -4115,21 +4203,24 @@ createFullPatchDeltasFromContent(const QString &filePath,
   LOG_PERF(0, "Enter");
 
   const QString convertedContent = QString(fileContent).replace("\r\n", "\n");
+  QStringList lines = convertedContent.split('\n');
+  if (!convertedContent.isEmpty() && convertedContent.endsWith('\n')) {
+    lines.removeLast();
+  }
 
   FilesDiffDelta delta;
   delta.oldFilePath = filePath;
   delta.newFilePath = filePath;
 
   FilesDiffHunk hunk;
-  hunk.oldStart = 1; // old file starts at line 1
-  hunk.newStart = 1; // new file starts at line 1
-  hunk.oldLines = 0; // old file has 0 lines (empty)
-  hunk.newLines = convertedContent.count('\n') + 1;
+  hunk.oldStart = 1;
+  hunk.newStart = 1;
+  hunk.oldLines = 0;
+  hunk.newLines = lines.size();
 
-  const QStringList lines = convertedContent.split('\n');
   for (const QString &line : lines) {
     FilesDiffLine diffLine;
-    diffLine.origin = '+'; // every line is an addition
+    diffLine.origin = '+';
     diffLine.content = line;
     hunk.lines.append(diffLine);
   }
@@ -4383,13 +4474,18 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
   git_reference_free(headRef);
 
   for (const auto &file : files) {
-    if (!repoContent.value(file).isEmpty()) {
-      continue;
+    const bool newFile = repoContent.value(file).isEmpty();
+    if(!newFile) {
+        continue;
     }
 
-    const QString patch = createFullPatchFromContent(file, filesContent[file]);
+    const QString indexLine =
+            createIndexLineFromContent(repoContent.value(file), filesContent[file]);
+    const QString patch = createFullPatchFromContent(file, filesContent[file],
+                                                     newFile, indexLine);
 
     diffOutput += QString("diff --git a/%1 b/%2\n").arg(file, file);
+    diffOutput += "new file mode 100644\n";
     diffOutput += patch;
 
     const FilesDiffDelta patchDeltas =
@@ -6021,21 +6117,65 @@ bool revertCommit(git_repository *repo, const QString &commit,
 bool applyPatch(git_repository *repo, const QString &patchContent) {
   LOG_PERF(0, "Enter");
 
-  git_diff *diff = nullptr;
-
-  const std::string buffer = patchContent.toStdString();
-
-  int error = git_diff_from_buffer(&diff, buffer.c_str(), buffer.size());
-  if (error) {
-    logGitError(error);
+  Q_ASSERT(repo != nullptr);
+  if (!repo) {
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  error = git_apply(repo, diff, GIT_APPLY_LOCATION_WORKDIR, nullptr);
+  const QString workdirPath = QString::fromUtf8(git_repository_workdir(repo));
+  const QStringList targetFiles = patchTargetFiles(patchContent);
+  QStringList createdFiles;
+  QString errorMessage;
+
+  if (!ensureFilesExistForPatch(workdirPath, targetFiles, createdFiles,
+                                &errorMessage)) {
+    LOG_ERROR(Log::ErrorId::FileSystem, "{}", errorMessage.toStdString());
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  for (const QString &filePath : targetFiles) {
+    const QString fullPath = QDir(workdirPath).filePath(filePath);
+    QFileInfo fileInfo(fullPath);
+    if (fileInfo.exists() && fileInfo.size() > 0) {
+      continue;
+    }
+
+    const QString content = reconstructNewFileContent(patchContent, filePath);
+    QFile file(fullPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+      LOG_ERROR(Log::ErrorId::FileSystem,
+                "Can't write reconstructed file \"{}\" from patch.",
+                fullPath.toStdString());
+      removeFiles(createdFiles);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    QTextStream out(&file);
+    out.setEncoding(QStringConverter::Utf8);
+    out << content;
+    file.close();
+  }
+
+  git_diff *diff = nullptr;
+  const QByteArray buffer = patchContent.toUtf8();
+
+  int error = git_diff_from_buffer(&diff, buffer.constData(), buffer.size());
+  if (error) {
+    logGitError(error);
+    removeFiles(createdFiles);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_apply_options opts = GIT_APPLY_OPTIONS_INIT;
+  error = git_apply(repo, diff, GIT_APPLY_LOCATION_WORKDIR, &opts);
   if (error) {
     logGitError(error);
     git_diff_free(diff);
+    removeFiles(createdFiles);
     LOG_PERF(0, "Exit");
     return false;
   }
