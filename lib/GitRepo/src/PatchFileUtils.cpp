@@ -119,7 +119,8 @@ bool ensureFilesExistForPatch(const QString &workdirPath,
     QDir dir = fileInfo.dir();
     if (!dir.exists() && !dir.mkpath(".")) {
       if (errorMessage) {
-        *errorMessage = QString("Can't create parent directory for %1").arg(fullPath);
+        *errorMessage =
+            QString("Can't create parent directory for %1").arg(fullPath);
       }
       removeFiles(createdFiles);
       return false;

@@ -4,6 +4,7 @@
 
 #include "../../../component/GitRepoManager/include/GitRepoManagerStructs.h"
 
+#include "PatchFileUtils.h"
 #include <CloudCredentialStorage.h>
 #include <CloudRepo.h>
 #include <ConfigManager.h>
@@ -11,7 +12,6 @@
 #include <JWTDecoder.h>
 #include <LockGuard.h>
 #include <Log.h>
-#include "PatchFileUtils.h"
 #ifdef _WIN32
 #include <applink.c>
 #endif
@@ -4129,52 +4129,52 @@ static QString createFullPatchFromContent(const QString &filePath,
 static QString createIndexLineFromContent(const QString &oldFileContent,
                                           const QString &newFileContent) {
 
-    if (oldFileContent.isEmpty() && newFileContent.isEmpty()) {
-        return {};
-    }
+  if (oldFileContent.isEmpty() && newFileContent.isEmpty()) {
+    return {};
+  }
 
-    if (oldFileContent.isEmpty()) {
-        const QString normalizedNewContent =
-                QString(newFileContent).replace("\r\n", "\n");
+  if (oldFileContent.isEmpty()) {
+    const QString normalizedNewContent =
+        QString(newFileContent).replace("\r\n", "\n");
 
-        git_oid newOid;
+    git_oid newOid;
 
-        const QByteArray newBytes = normalizedNewContent.toUtf8();
+    const QByteArray newBytes = normalizedNewContent.toUtf8();
 
-        git_odb_hash(&newOid, newBytes.constData(),
-                     static_cast<size_t>(newBytes.size()), GIT_OBJECT_BLOB);
+    git_odb_hash(&newOid, newBytes.constData(),
+                 static_cast<size_t>(newBytes.size()), GIT_OBJECT_BLOB);
 
-        char newOidStr[GIT_OID_HEXSZ + 1] = {0};
+    char newOidStr[GIT_OID_HEXSZ + 1] = {0};
 
-        git_oid_tostr(newOidStr, sizeof(newOidStr), &newOid);
+    git_oid_tostr(newOidStr, sizeof(newOidStr), &newOid);
 
-        return QString("index 0000000..%2")
-                .arg(QString::fromUtf8(newOidStr).left(7));
+    return QString("index 0000000..%2")
+        .arg(QString::fromUtf8(newOidStr).left(7));
   }
 
   if (newFileContent.isEmpty()) {
-      const QString normalizedOldContent =
-              QString(oldFileContent).replace("\r\n", "\n");
+    const QString normalizedOldContent =
+        QString(oldFileContent).replace("\r\n", "\n");
 
-      git_oid oldOid;
+    git_oid oldOid;
 
-      const QByteArray oldBytes = normalizedOldContent.toUtf8();
+    const QByteArray oldBytes = normalizedOldContent.toUtf8();
 
-      git_odb_hash(&oldOid, oldBytes.constData(),
-                   static_cast<size_t>(oldBytes.size()), GIT_OBJECT_BLOB);
+    git_odb_hash(&oldOid, oldBytes.constData(),
+                 static_cast<size_t>(oldBytes.size()), GIT_OBJECT_BLOB);
 
-      char oldOidStr[GIT_OID_HEXSZ + 1] = {0};
+    char oldOidStr[GIT_OID_HEXSZ + 1] = {0};
 
-      git_oid_tostr(oldOidStr, sizeof(oldOidStr), &oldOid);
+    git_oid_tostr(oldOidStr, sizeof(oldOidStr), &oldOid);
 
-      return QString("index %1..0000000")
-              .arg(QString::fromUtf8(oldOidStr).left(7));
+    return QString("index %1..0000000")
+        .arg(QString::fromUtf8(oldOidStr).left(7));
   }
 
   const QString normalizedOldContent =
-          QString(oldFileContent).replace("\r\n", "\n");
+      QString(oldFileContent).replace("\r\n", "\n");
   const QString normalizedNewContent =
-          QString(newFileContent).replace("\r\n", "\n");
+      QString(newFileContent).replace("\r\n", "\n");
 
   git_oid oldOid;
   git_oid newOid;
@@ -4193,8 +4193,8 @@ static QString createIndexLineFromContent(const QString &oldFileContent,
   git_oid_tostr(newOidStr, sizeof(newOidStr), &newOid);
 
   return QString("index %1..%2")
-          .arg(QString::fromUtf8(oldOidStr).left(7),
-               QString::fromUtf8(newOidStr).left(7));
+      .arg(QString::fromUtf8(oldOidStr).left(7),
+           QString::fromUtf8(newOidStr).left(7));
 }
 
 static FilesDiffDelta
@@ -4475,12 +4475,12 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
 
   for (const auto &file : files) {
     const bool newFile = repoContent.value(file).isEmpty();
-    if(!newFile) {
-        continue;
+    if (!newFile) {
+      continue;
     }
 
     const QString indexLine =
-            createIndexLineFromContent(repoContent.value(file), filesContent[file]);
+        createIndexLineFromContent(repoContent.value(file), filesContent[file]);
     const QString patch = createFullPatchFromContent(file, filesContent[file],
                                                      newFile, indexLine);
 
@@ -5247,11 +5247,12 @@ bool push(git_repository *repo, const QString &activeBranchName) {
   auto [upstreamSuccess, remoteName, remoteBranchName] =
       getUpstream(repo, targetBranchName);
   if (!upstreamSuccess || remoteName.isEmpty()) {
-    logGitError(GIT_ENOTFOUND);
-    LOG_DEBUG("Branch '{}' has no upstream configured",
+    LOG_ERROR(Log::ErrorId::Git,
+              "Branch '{}' has no remote configured. Specify a remote for this "
+              "branch before pushing.",
               targetBranchName.toStdString());
     LOG_PERF(0, "Exit");
-    return false; // Nothing to push, but not an error
+    return false;
   }
 
   LOG_DEBUG("Branch '{}' will be pushed to {}/{}",
@@ -6116,7 +6117,8 @@ bool revertCommit(git_repository *repo, const QString &commit,
 
 static QStringList createPatchTargetFiles(const QString &patchContent) {
   QStringList files;
-  const QStringList lines = QString(patchContent).replace("\r\n", "\n").split('\n');
+  const QStringList lines =
+      QString(patchContent).replace("\r\n", "\n").split('\n');
   for (const QString &line : lines) {
     if (line.startsWith("+++ ")) {
       const QString path = line.mid(4).trimmed();
@@ -6159,7 +6161,8 @@ bool applyPatch(git_repository *repo, const QString &patchContent) {
 
     const QString content = reconstructNewFileContent(patchContent, filePath);
     QFile file(fullPath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate |
+                   QIODevice::Text)) {
       LOG_ERROR(Log::ErrorId::FileSystem,
                 "Can't write reconstructed file \"{}\" from patch.",
                 fullPath.toStdString());
