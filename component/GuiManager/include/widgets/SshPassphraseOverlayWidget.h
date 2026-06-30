@@ -8,6 +8,7 @@
 #include "OverlayWidget.h"
 #include "PersistentPlaceholderLineEdit.h"
 
+#include <QAction>
 #include <QEnableSharedFromThis>
 #include <QKeyEvent>
 #include <QWidget>
@@ -55,6 +56,7 @@ private:
   OpaquePushButton *_submitButton;
   OpaquePushButton *_cancelButton;
   OpaqueLabel *_message;
+  QAction *_passphraseVisibilityAction;
   GitRepo::GitCredentialsRequest _request;
   bool _showing;
   QSharedPointer<bool> _holder;

@@ -5,6 +5,10 @@
 
 #include <Log.h>
 
+#include <QAction>
+#include <QIcon>
+#include <QLineEdit>
+
 #define THREAD_ID "SshPassphraseOverlayWidget"
 
 #define ALPHA 255
@@ -16,7 +20,8 @@ SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(uint id, QWidget *parent)
       _eventManager(::EventManager::EventManager::getInstance()),
       _passphraseLineEdit(new PersistentPlaceholderLineEdit(
           QColor::fromString("#969696"), this)),
-      _showing(false), _holder(QSharedPointer<bool>::create(false)), _id(id) {
+      _passphraseVisibilityAction(nullptr), _showing(false),
+      _holder(QSharedPointer<bool>::create(false)), _id(id) {
   LOG_PERF(0, "Enter");
 
   const auto groupBox = new OpaqueGroupBox(overlayBackgroundColor(), this);
@@ -38,6 +43,21 @@ SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(uint id, QWidget *parent)
   _passphraseLineEdit->setFocus();
   _passphraseLineEdit->setPlaceholderText(tr("Enter SSH key passphrase"));
   _passphraseLineEdit->setEchoMode(QLineEdit::Password);
+
+  _passphraseVisibilityAction = _passphraseLineEdit->addAction(
+      QIcon(overlayButtonIcon(":/icons/eye.svg")),
+      QLineEdit::TrailingPosition);
+  _passphraseVisibilityAction->setCheckable(true);
+  _passphraseVisibilityAction->setToolTip(tr("Show passphrase"));
+  connect(_passphraseVisibilityAction, &QAction::toggled, this,
+          [this](bool visible) {
+            _passphraseLineEdit->setEchoMode(visible ? QLineEdit::Normal
+                                                      : QLineEdit::Password);
+            _passphraseVisibilityAction->setIcon(QIcon(overlayButtonIcon(
+                visible ? ":/icons/eye-off.svg" : ":/icons/eye.svg")));
+            _passphraseVisibilityAction->setToolTip(
+                visible ? tr("Hide passphrase") : tr("Show passphrase"));
+          });
 
   _message = new OpaqueLabel(overlayBackgroundColor(), this);
   _message->setText(tr("SSH key is encrypted. Please enter the passphrase."));
@@ -134,6 +154,9 @@ void SshPassphraseOverlayWidget::setRequest(
   _request = request;
 
   _passphraseLineEdit->clear();
+  if (_passphraseVisibilityAction) {
+    _passphraseVisibilityAction->setChecked(false);
+  }
   _passphraseLineEdit->setFocus();
 
   LOG_PERF(0, "Exit");

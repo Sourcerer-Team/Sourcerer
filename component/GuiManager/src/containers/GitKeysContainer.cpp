@@ -3,20 +3,28 @@
 
 #include <Log.h>
 
+#include <QAction>
 #include <QApplication>
 #include <QClipboard>
+#include <QColor>
 #include <QDateTime>
+#include <QDialog>
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
 #include <QHeaderView>
+#include <QIcon>
 #include <QInputDialog>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMessageBox>
+#include <QPixmap>
 #include <QPushButton>
 #include <QStandardItemModel>
 #include <QTextEdit>
 #include <QVBoxLayout>
+
+#include <StylesheetManager.h>
 
 #define THREAD_ID "GitKeysContainer"
 
@@ -145,16 +153,65 @@ void GitKeysContainer::onGenerateClicked() {
   }
 
   // Ask for passphrase (optional)
-  QString passphrase = QInputDialog::getText(
-      this, "Passphrase (optional)",
-      "Enter a passphrase to protect the private key\n(leave empty for no "
-      "passphrase):",
-      QLineEdit::Password, "", &ok);
+  QDialog passphraseDialog(this);
+  passphraseDialog.setWindowTitle("Passphrase (optional)");
+  passphraseDialog.setMinimumWidth(520);
 
-  if (!ok) {
+  auto *passphraseLayout = new QVBoxLayout(&passphraseDialog);
+  auto *passphraseLabel = new QLabel(
+      "Enter a passphrase to protect the private key\n(leave empty for no passphrase):",
+      &passphraseDialog);
+  passphraseLabel->setWordWrap(true);
+  passphraseLayout->addWidget(passphraseLabel);
+
+  auto *passphraseInputRow = new QHBoxLayout();
+  auto *passphraseEdit = new QLineEdit(&passphraseDialog);
+  passphraseEdit->setEchoMode(QLineEdit::Password);
+  passphraseEdit->setText("");
+  passphraseEdit->setPlaceholderText("Passphrase");
+
+  const QColor eyeIconColor =
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
+  QAction *showPassphraseAction = passphraseEdit->addAction(
+      QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/eye.svg"), eyeIconColor)),
+      QLineEdit::TrailingPosition);
+  showPassphraseAction->setCheckable(true);
+  showPassphraseAction->setToolTip("Show passphrase");
+  connect(showPassphraseAction, &QAction::toggled, &passphraseDialog,
+          [=](bool visible) {
+            passphraseEdit->setEchoMode(visible ? QLineEdit::Normal
+                                                : QLineEdit::Password);
+            showPassphraseAction->setIcon(QIcon(
+                StylesheetManager::StylesheetManager::recolorPixmap(
+                    QPixmap(visible ? ":/icons/eye-off.svg" : ":/icons/eye.svg"),
+                    eyeIconColor)));
+            showPassphraseAction->setToolTip(visible ? "Hide passphrase"
+                                                     : "Show passphrase");
+          });
+
+  passphraseInputRow->addWidget(passphraseEdit);
+  passphraseLayout->addLayout(passphraseInputRow);
+
+  auto *passphraseButtonRow = new QHBoxLayout();
+  auto *passphraseOkButton = new QPushButton("OK", &passphraseDialog);
+  auto *passphraseCancelButton = new QPushButton("Cancel", &passphraseDialog);
+  passphraseButtonRow->addStretch();
+  passphraseButtonRow->addWidget(passphraseOkButton);
+  passphraseButtonRow->addWidget(passphraseCancelButton);
+  passphraseLayout->addLayout(passphraseButtonRow);
+
+  connect(passphraseOkButton, &QPushButton::clicked, &passphraseDialog,
+          &QDialog::accept);
+  connect(passphraseCancelButton, &QPushButton::clicked, &passphraseDialog,
+          &QDialog::reject);
+
+  if (passphraseDialog.exec() != QDialog::Accepted) {
     LOG_PERF(0, "Exit - Cancelled");
     return;
   }
+
+  QString passphrase = passphraseEdit->text();
 
   // Generate the key pair
   QString privateKeyPath, publicKeyPath, errorMessage;
