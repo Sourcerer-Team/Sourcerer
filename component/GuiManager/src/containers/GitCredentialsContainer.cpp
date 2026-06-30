@@ -4,17 +4,22 @@
 #include <GitRepo.h>
 #include <Log.h>
 
+#include <QAction>
 #include <QDateTime>
 #include <QDialog>
 #include <QDir>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QIcon>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QPixmap>
 #include <QPushButton>
 #include <QStandardItemModel>
 #include <QVBoxLayout>
+
+#include <StylesheetManager.h>
 
 #define THREAD_ID "GitCredentialsContainer"
 
@@ -210,26 +215,29 @@ void GitCredentialsContainer::onEditClicked() {
   passwordEdit->setEchoMode(QLineEdit::Password);
   passwordEdit->setText(currentPassword);
 
-  QPushButton *showPasswordButton = new QPushButton("Show", &editDialog);
-  showPasswordButton->setMaximumWidth(60);
-  showPasswordButton->setFlat(true);
-
-  bool isPasswordVisible = false;
-  connect(showPasswordButton, &QPushButton::clicked, [&]() {
-    isPasswordVisible = !isPasswordVisible;
-    if (isPasswordVisible) {
-      passwordEdit->setEchoMode(QLineEdit::Normal);
-      showPasswordButton->setText("Hide");
-    } else {
-      passwordEdit->setEchoMode(QLineEdit::Password);
-      showPasswordButton->setText("Show");
-    }
-  });
+  const QColor eyeIconColor =
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
+  QAction *showPasswordAction = passwordEdit->addAction(
+      QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/eye.svg"), eyeIconColor)),
+      QLineEdit::TrailingPosition);
+  showPasswordAction->setCheckable(true);
+  showPasswordAction->setToolTip("Show password");
+  connect(showPasswordAction, &QAction::toggled, &editDialog,
+          [=](bool visible) {
+            passwordEdit->setEchoMode(visible ? QLineEdit::Normal
+                                              : QLineEdit::Password);
+            showPasswordAction->setIcon(QIcon(
+                StylesheetManager::StylesheetManager::recolorPixmap(
+                    QPixmap(visible ? ":/icons/eye-off.svg" : ":/icons/eye.svg"),
+                    eyeIconColor)));
+            showPasswordAction->setToolTip(visible ? "Hide password"
+                                                   : "Show password");
+          });
 
   QHBoxLayout *passwordLayout = new QHBoxLayout();
   passwordLayout->addWidget(passwordLabel);
   passwordLayout->addWidget(passwordEdit);
-  passwordLayout->addWidget(showPasswordButton);
   mainLayout->addLayout(passwordLayout);
 
   // Buttons

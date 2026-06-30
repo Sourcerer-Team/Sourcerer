@@ -7,6 +7,8 @@
 #include <Log.h>
 
 #include <QCheckBox>
+#include <QIcon>
+#include <QLineEdit>
 
 #define THREAD_ID "GitCredentialsOverlayWidget"
 
@@ -22,8 +24,8 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
           QColor::fromString("#969696"), this)),
       _passwordLineEdit(new PersistentPlaceholderLineEdit(
           QColor::fromString("#969696"), this)),
-      _storeCredentialsCheckBox(new QCheckBox(this)), _showing(false),
-      _holder(QSharedPointer<bool>::create(false)), _id(id) {
+      _storeCredentialsCheckBox(new QCheckBox(this)), _passwordVisibilityAction(nullptr),
+      _showing(false), _holder(QSharedPointer<bool>::create(false)), _id(id) {
   LOG_PERF(0, "Enter");
 
   const auto groupBox = new OpaqueGroupBox(overlayBackgroundColor(), this);
@@ -55,6 +57,21 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   _passwordLineEdit->setMaximumWidth(250);
   _passwordLineEdit->setPlaceholderText(tr("Enter password"));
   _passwordLineEdit->setEchoMode(QLineEdit::Password);
+
+  _passwordVisibilityAction = _passwordLineEdit->addAction(
+      QIcon(overlayButtonIcon(":/icons/eye.svg")),
+      QLineEdit::TrailingPosition);
+  _passwordVisibilityAction->setToolTip(tr("Show password"));
+  connect(_passwordVisibilityAction, &QAction::toggled, this,
+          [this](bool checked) {
+            _passwordLineEdit->setEchoMode(checked ? QLineEdit::Normal
+                                                   : QLineEdit::Password);
+            _passwordVisibilityAction->setIcon(QIcon(overlayButtonIcon(
+                checked ? ":/icons/eye-off.svg" : ":/icons/eye.svg")));
+            _passwordVisibilityAction->setToolTip(
+                checked ? tr("Hide password") : tr("Show password"));
+          });
+  _passwordVisibilityAction->setCheckable(true);
 
   _storeCredentialsCheckBox->setParent(groupBox);
   _storeCredentialsCheckBox->setObjectName(
@@ -188,6 +205,10 @@ void GitCredentialsOverlayWidget::setRequest(
     _usernameLineEdit->setText(request.username);
     _passwordLineEdit->clear();
     _storeCredentialsCheckBox->setChecked(false);
+  }
+
+  if (_passwordVisibilityAction) {
+    _passwordVisibilityAction->setChecked(false);
   }
 
   _usernameLineEdit->setReadOnly(!request.username.isEmpty() &&
