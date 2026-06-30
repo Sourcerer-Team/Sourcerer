@@ -432,16 +432,21 @@ void MainWindow::onTerminal() {
     }
   } else {
     // Show console
-    // Get current container path for working directory
+    QString workingDirectory =
+        QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+
+    // Prefer the current repository directory when one is open.
     if (_current >= 0 && _current < _containers.size()) {
       const auto container = _containers[_current];
       if (container) {
         const QString path = container->path();
         if (!path.isEmpty()) {
-          _consoleWidget->setWorkingDirectory(path);
+          workingDirectory = path;
         }
       }
     }
+
+    _consoleWidget->setWorkingDirectory(workingDirectory);
 
     _consoleWidget->init();
     _consoleWidget->show();
