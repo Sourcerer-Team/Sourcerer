@@ -72,6 +72,7 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   _vt = new VT100(this);
   _useFormaValue_Y = false;
   _viewportRowCountOverride = 0;
+  _selecting = false;
 
   viewport()->setCursor(QCursor(Qt::IBeamCursor));
 
@@ -459,8 +460,7 @@ void QVTerminal::paste() {
 
 void QVTerminal::copy() {
   // Check if there's a selection
-  if (_startSelectPos.isNull() || _endSelectPos.isNull() ||
-      _startSelectPos == _endSelectPos) {
+  if (!_selecting || _startSelectPos == _endSelectPos) {
     return;
   }
 
@@ -639,8 +639,11 @@ QPoint QVTerminal::cursorPos() const {
 }
 
 QPoint QVTerminal::posToCursor(const QPoint &cursorPos) const {
-  return QPoint((cursorPos.x() - xMargin) / _cw,
-                (cursorPos.y() - yMargin + verticalScrollBar()->value()) / _ch);
+  // Clamp to the visible terminal area so dragging from the top-left gutter
+  // still starts at the first cell instead of producing negative coordinates.
+  return QPoint(
+      qMax(0, (cursorPos.x() - xMargin) / _cw),
+      qMax(0, (cursorPos.y() - yMargin + verticalScrollBar()->value()) / _ch));
 }
 
 bool QVTerminal::crlf() const {
@@ -840,6 +843,8 @@ void QVTerminal::focusOutEvent(QFocusEvent *event) {
 
 void QVTerminal::mousePressEvent(QMouseEvent *event) {
   if (event->button() == Qt::LeftButton) {
+    _selecting = true;
+    _startSelectPos = QPoint();
     _endSelectPos = QPoint();
     _startCursorSelectPos = posToCursor(event->pos());
     setMouseTracking(true);
@@ -856,7 +861,7 @@ void QVTerminal::mousePressEvent(QMouseEvent *event) {
 }
 
 void QVTerminal::mouseMoveEvent(QMouseEvent *event) {
-  if (!_startCursorSelectPos.isNull()) {
+  if (_selecting) {
     _endSelectPos = posToCursor(event->pos());
     if ((_startCursorSelectPos.y() > _endSelectPos.y()) ||
         (_startCursorSelectPos.y() == _endSelectPos.y() &&
@@ -874,6 +879,7 @@ void QVTerminal::mouseMoveEvent(QMouseEvent *event) {
 void QVTerminal::mouseReleaseEvent(QMouseEvent *event) {
   if (event->button() == Qt::LeftButton) {
     if (_startCursorSelectPos == _endSelectPos) {
+      _selecting = false;
       _startSelectPos = QPoint();
       _endSelectPos = QPoint();
     }
@@ -893,8 +899,7 @@ void QVTerminal::contextMenuEvent(QContextMenuEvent *event) {
   menu.addAction(_pasteAction);
 
   // Enable copy if there's selected text
-  bool hasSelection = !_startSelectPos.isNull() && !_endSelectPos.isNull() &&
-                      _startSelectPos != _endSelectPos;
+  bool hasSelection = _selecting && _startSelectPos != _endSelectPos;
   _copyAction->setEnabled(hasSelection);
   menu.addAction(_copyAction);
 
