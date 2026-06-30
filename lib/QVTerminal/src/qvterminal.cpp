@@ -892,7 +892,8 @@ void QVTerminal::mouseReleaseEvent(QMouseEvent *event) {
 
 #ifndef QT_NO_CONTEXTMENU
 void QVTerminal::contextMenuEvent(QContextMenuEvent *event) {
-  QMenu menu(this);
+  QMenu menu;
+  menu.setPalette(QApplication::palette());
 
   // Enable paste if clipboard has content
   _pasteAction->setEnabled(!QApplication::clipboard()->text().isEmpty());
