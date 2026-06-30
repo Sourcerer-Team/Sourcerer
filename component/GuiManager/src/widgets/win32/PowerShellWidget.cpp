@@ -426,7 +426,8 @@ void PowerShellWidget::startPowerShell() {
   std::wstring cmdLine;
   if (GetFileAttributesW(L"C:\\Program Files\\PowerShell\\7\\pwsh.exe") !=
       INVALID_FILE_ATTRIBUTES) {
-    cmdLine = L"C:\\Program Files\\PowerShell\\7\\pwsh.exe -NoLogo -NoProfile -NoExit";
+    cmdLine = L"C:\\Program Files\\PowerShell\\7\\pwsh.exe -NoLogo -NoProfile "
+              L"-NoExit";
   } else {
     cmdLine = L"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe "
               L"-NoLogo -NoProfile -NoExit";

@@ -2773,6 +2773,14 @@ void GitRepoContainer::onPush() {
   const WeakPtr guard = getSelf().toWeakRef();
   const QString branchName = _activeBranch;
 
+  const auto remotes = ui->remotesPage->remotes();
+  if (remotes.isEmpty()) {
+    LOG_DEBUG("No remotes available to push branch '{}'",
+              branchName.toStdString());
+    showErrorToast(tr("Please add a remote before pushing."), tr("Error"));
+    return;
+  }
+
   _dispatcher.dispatch([=]() {
     const auto [upstreamRemote, upstreamBranch] =
         getUpstreamForBranch(guard, branchName);
@@ -2783,14 +2791,6 @@ void GitRepoContainer::onPush() {
     }
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      const auto remotes = ui->remotesPage->remotes();
-      if (remotes.isEmpty()) {
-        LOG_DEBUG("No remotes available to push branch '{}'",
-                  branchName.toStdString());
-        showErrorToast(tr("Please add a remote before pushing."), tr("Error"));
-        return;
-      }
-
       const auto upstreamOverlay = new UpstreamInputOverlayWidget(this);
       upstreamOverlay->setBranchPlaceholderText(tr("Remote branch name"));
       upstreamOverlay->setRemotes(remotes);
