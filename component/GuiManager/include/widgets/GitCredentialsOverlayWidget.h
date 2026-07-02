@@ -27,7 +27,7 @@ public:
 
 public:
   explicit GitCredentialsOverlayWidget(uint id, QWidget *parent);
-  ~GitCredentialsOverlayWidget() override;
+  virtual ~GitCredentialsOverlayWidget() override;
 
   SharedPtr getSelf() { return sharedFromThis(); }
 

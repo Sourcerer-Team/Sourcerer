@@ -13,6 +13,15 @@ namespace EventManager {
 
 std::atomic<int> EventManager::_waitId = 0;
 
+static bool callbackComparator(EventCallback &callback0,
+                               const EventCallback &callback1) {
+  return (callback1._callback.target_type() ==
+          callback0._callback.target_type()) &&
+         (callback1._callback.target<void (*)(Event)>() ==
+          callback0._callback.target<void (*)(Event)>()) &&
+         (callback1._receiver == callback0._receiver);
+}
+
 EventManager::EventManager() : _thread(nullptr) {
   start();
 }
@@ -30,9 +39,31 @@ void EventManager::threadLoop() {
   General::setThreadName(THREAD_ID);
 
   while (true) {
+
     const EventRecord record = _eventsQueue.pop();
-    if (record._type == EventRecordType::Quit)
+
+    if (record._type == EventRecordType::Quit) {
       break;
+    }
+
+    const auto predicate = std::bind(
+        &callbackComparator, record._callbackRecord, std::placeholders::_1);
+
+    _queueLocker.lock();
+
+    const auto itSubscribersBegin = _subscribers[record._eventType].begin();
+    const auto itSubscribersEnd = _subscribers[record._eventType].end();
+
+    const auto it =
+        std::find_if(itSubscribersBegin, itSubscribersEnd, predicate);
+
+    if (it == itSubscribersEnd) {
+      _queueLocker.unlock();
+      LOG_DEBUG("Skipping event {}", eventName(record._eventType));
+      continue;
+    }
+
+    _queueLocker.unlock();
 
     const qint64 start = QDateTime::currentMSecsSinceEpoch();
 
@@ -49,23 +80,28 @@ void EventManager::threadLoop() {
 void EventManager::subscribe(EventCallback callback) {
   LOCKGUARD(_queueLocker);
 
+  LOG_DEBUG("Subscribing to event {}", eventName(callback._type));
+
   _subscribers[callback._type].push_back(callback);
 }
 
 void EventManager::unsubscribe(EventCallback callback) {
   LOCKGUARD(_queueLocker);
 
-  _subscribers[callback._type].erase(
+  LOG_DEBUG("Unsubscribing from event {}", eventName(callback._type));
+
+  const auto predicate =
+      std::bind(&callbackComparator, callback, std::placeholders::_1);
+
+  const auto itNewEnd =
       std::remove_if(_subscribers[callback._type].begin(),
-                     _subscribers[callback._type].end(),
-                     [=](const EventCallback &cb) {
-                       return (cb._callback.target_type() ==
-                               callback._callback.target_type()) &&
-                              (cb._callback.target<void (*)(Event)>() ==
-                               callback._callback.target<void (*)(Event)>()) &&
-                              (cb._receiver == callback._receiver);
-                     }),
-      _subscribers[callback._type].end());
+                     _subscribers[callback._type].end(), predicate);
+
+  LOG_DEBUG("Subscription removed: {}",
+            itNewEnd != _subscribers[callback._type].end());
+
+  _subscribers[callback._type].erase(itNewEnd,
+                                     _subscribers[callback._type].end());
 }
 
 int EventManager::startWait() {
@@ -397,7 +433,7 @@ void EventManager::send(Event event) {
       const auto EventDataFunction = std::bind(callbackFunc, event);
 
       _eventsQueue.push(
-          {EventDataFunction, EventRecordType::Send, event.type()});
+          {callback, EventDataFunction, EventRecordType::Send, event.type()});
 
       LOG_DEBUG("Event has been queued: {}", eventName(type));
     }
@@ -436,7 +472,7 @@ void EventManager::stop() {
   {
     LOCKGUARD(_queueLocker);
 
-    _eventsQueue.push({nullptr, EventRecordType::Quit, EventType::Quit});
+    _eventsQueue.push({{}, nullptr, EventRecordType::Quit, EventType::Quit});
   }
 
   _thread->wait();
