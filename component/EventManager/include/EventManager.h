@@ -27,23 +27,28 @@ typedef std::function<void(Event)> CallbackType;
 
 typedef std::function<void()> EventRecordCallbackType;
 
-struct EventRecord {
-  EventRecord(EventRecordCallbackType callback, EventRecordType type,
-              EventType eventType)
-      : _callback(callback), _type(type), _eventType(eventType) {}
-
-  EventRecordType _type;
-  EventRecordCallbackType _callback;
-  EventType _eventType;
-};
-
 struct EventCallback {
+  EventCallback() : _type(EventType::Null), _receiver(nullptr) {}
   EventCallback(EventType type, void *receiver, CallbackType callback)
       : _type(type), _receiver(receiver), _callback(callback) {}
 
   EventType _type;
   void *_receiver;
   CallbackType _callback;
+};
+
+struct EventRecord {
+  EventRecord() : _type(EventRecordType::Quit), _eventType(EventType::Quit) {}
+
+  EventRecord(EventCallback callbackRecord, EventRecordCallbackType callback,
+              EventRecordType type, EventType eventType)
+      : _callbackRecord(callbackRecord), _callback(callback), _type(type),
+        _eventType(eventType) {}
+
+  EventRecordType _type;
+  EventCallback _callbackRecord;
+  EventRecordCallbackType _callback;
+  EventType _eventType;
 };
 
 struct WaitEventRecord {

@@ -42,7 +42,7 @@ public:
     _layout->setSpacing(32);
   }
 
-  ~OverlayWidget() override = default;
+  virtual ~OverlayWidget() override = default;
 
   void setParent(QWidget *parent) {
     QWidget::setParent(parent);
