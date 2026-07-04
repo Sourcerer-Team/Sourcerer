@@ -24,8 +24,9 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
           QColor::fromString("#969696"), this)),
       _passwordLineEdit(new PersistentPlaceholderLineEdit(
           QColor::fromString("#969696"), this)),
-      _storeCredentialsCheckBox(new QCheckBox(this)), _passwordVisibilityAction(nullptr),
-      _showing(false), _holder(QSharedPointer<bool>::create(false)), _id(id) {
+      _storeCredentialsCheckBox(new QCheckBox(this)),
+      _passwordVisibilityAction(nullptr), _showing(false),
+      _holder(QSharedPointer<bool>::create(false)), _id(id) {
   LOG_PERF(0, "Enter");
 
   const auto groupBox = new OpaqueGroupBox(overlayBackgroundColor(), this);
@@ -59,8 +60,7 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   _passwordLineEdit->setEchoMode(QLineEdit::Password);
 
   _passwordVisibilityAction = _passwordLineEdit->addAction(
-      QIcon(overlayButtonIcon(":/icons/eye.svg")),
-      QLineEdit::TrailingPosition);
+      QIcon(overlayButtonIcon(":/icons/eye.svg")), QLineEdit::TrailingPosition);
   _passwordVisibilityAction->setToolTip(tr("Show password"));
   connect(_passwordVisibilityAction, &QAction::toggled, this,
           [this](bool checked) {
