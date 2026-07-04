@@ -65,6 +65,10 @@ MergeDiffView::MergeDiffView(QWidget *parent)
   LOG_PERF(0, "Exit");
 }
 
+static QString markerLabel(const QString &line) {
+  return line.mid(7).trimmed();
+}
+
 static MergeDiffContent
 parseContentWithMarkers(const QString &contentWithMarkers) {
   MergeDiffContent result;
@@ -82,14 +86,16 @@ parseContentWithMarkers(const QString &contentWithMarkers) {
   MergeDiffRange currentRangeBottom;
 
   for (const QString &line : lines) {
-    if (line.startsWith("<<<<<<<")) {
+    if (line.startsWith("<<<<<<<") && state == Normal) {
       state = InOurs;
       currentRangeTop = MergeDiffRange();
       currentRangeTop.leftStart = lineIndexTop; // ours starts after marker
+      currentRangeTop.startMarkerLabel = markerLabel(line);
       currentRangeBottom = MergeDiffRange();
       currentRangeBottom.leftStart =
           lineIndexBottom; // ours starts after marker
-    } else if (line.startsWith("=======")) {
+      currentRangeBottom.startMarkerLabel = currentRangeTop.startMarkerLabel;
+    } else if (line.startsWith("=======") && state == InOurs) {
       state = InTheirs;
       currentRangeTop.leftEnd = lineIndexTop; // ours ended before separator
       currentRangeTop.rightStart =
@@ -98,13 +104,23 @@ parseContentWithMarkers(const QString &contentWithMarkers) {
           lineIndexBottom; // ours ended before separator
       currentRangeBottom.rightStart =
           lineIndexBottom; // theirs starts after separator
-    } else if (line.startsWith(">>>>>>>")) {
-      state = Normal;
-      currentRangeTop.rightEnd = lineIndexTop; // theirs ended before marker
-      currentRangeBottom.rightEnd =
-          lineIndexBottom; // theirs ended before marker
-      result.rangesTop.append(currentRangeTop);
-      result.rangesBottom.append(currentRangeBottom);
+    } else if (line.startsWith(">>>>>>>") && state == InTheirs) {
+      const QString endMarkerLabel = markerLabel(line);
+
+      if (endMarkerLabel == currentRangeTop.startMarkerLabel) {
+        state = Normal;
+        currentRangeTop.rightEnd = lineIndexTop; // theirs ended before marker
+        currentRangeTop.endMarkerLabel = endMarkerLabel;
+        currentRangeBottom.rightEnd =
+            lineIndexBottom; // theirs ended before marker
+        currentRangeBottom.endMarkerLabel = currentRangeTop.endMarkerLabel;
+        result.rangesTop.append(currentRangeTop);
+        result.rangesBottom.append(currentRangeBottom);
+      } else {
+        result.right += line + "\n";
+        result.left += "\n"; // placeholder
+        lineIndexTop++;
+      }
     } else {
       if (state == Normal) {
         // Non-conflicting line goes to bottom and both panes

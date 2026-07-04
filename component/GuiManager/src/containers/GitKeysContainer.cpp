@@ -158,9 +158,10 @@ void GitKeysContainer::onGenerateClicked() {
   passphraseDialog.setMinimumWidth(520);
 
   auto *passphraseLayout = new QVBoxLayout(&passphraseDialog);
-  auto *passphraseLabel = new QLabel(
-      "Enter a passphrase to protect the private key\n(leave empty for no passphrase):",
-      &passphraseDialog);
+  auto *passphraseLabel =
+      new QLabel("Enter a passphrase to protect the private key\n(leave empty "
+                 "for no passphrase):",
+                 &passphraseDialog);
   passphraseLabel->setWordWrap(true);
   passphraseLayout->addWidget(passphraseLabel);
 
@@ -178,17 +179,18 @@ void GitKeysContainer::onGenerateClicked() {
       QLineEdit::TrailingPosition);
   showPassphraseAction->setCheckable(true);
   showPassphraseAction->setToolTip("Show passphrase");
-  connect(showPassphraseAction, &QAction::toggled, &passphraseDialog,
-          [=](bool visible) {
-            passphraseEdit->setEchoMode(visible ? QLineEdit::Normal
-                                                : QLineEdit::Password);
-            showPassphraseAction->setIcon(QIcon(
-                StylesheetManager::StylesheetManager::recolorPixmap(
-                    QPixmap(visible ? ":/icons/eye-off.svg" : ":/icons/eye.svg"),
-                    eyeIconColor)));
-            showPassphraseAction->setToolTip(visible ? "Hide passphrase"
-                                                     : "Show passphrase");
-          });
+  connect(
+      showPassphraseAction, &QAction::toggled, &passphraseDialog,
+      [=](bool visible) {
+        passphraseEdit->setEchoMode(visible ? QLineEdit::Normal
+                                            : QLineEdit::Password);
+        showPassphraseAction->setIcon(
+            QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+                QPixmap(visible ? ":/icons/eye-off.svg" : ":/icons/eye.svg"),
+                eyeIconColor)));
+        showPassphraseAction->setToolTip(visible ? "Hide passphrase"
+                                                 : "Show passphrase");
+      });
 
   passphraseInputRow->addWidget(passphraseEdit);
   passphraseLayout->addLayout(passphraseInputRow);

@@ -29,6 +29,8 @@ struct MergeDiffRange {
   int rightStart = -1;
   int rightEnd = -1;
   int removedCount = -1;
+  QString startMarkerLabel;
+  QString endMarkerLabel;
   MergeDiffResolutionType resolution = MergeDiffResolutionType::Unknown;
 };
 

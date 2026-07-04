@@ -45,14 +45,13 @@ SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(uint id, QWidget *parent)
   _passphraseLineEdit->setEchoMode(QLineEdit::Password);
 
   _passphraseVisibilityAction = _passphraseLineEdit->addAction(
-      QIcon(overlayButtonIcon(":/icons/eye.svg")),
-      QLineEdit::TrailingPosition);
+      QIcon(overlayButtonIcon(":/icons/eye.svg")), QLineEdit::TrailingPosition);
   _passphraseVisibilityAction->setCheckable(true);
   _passphraseVisibilityAction->setToolTip(tr("Show passphrase"));
   connect(_passphraseVisibilityAction, &QAction::toggled, this,
           [this](bool visible) {
             _passphraseLineEdit->setEchoMode(visible ? QLineEdit::Normal
-                                                      : QLineEdit::Password);
+                                                     : QLineEdit::Password);
             _passphraseVisibilityAction->setIcon(QIcon(overlayButtonIcon(
                 visible ? ":/icons/eye-off.svg" : ":/icons/eye.svg")));
             _passphraseVisibilityAction->setToolTip(
