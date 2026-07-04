@@ -1031,6 +1031,18 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         background-color: palette(window);
         color: palette(window-text);
       }
+      QTreeView::branch:closed:has-children {
+        image: url(:/icons/tree_branch_closed.svg);
+      }
+      QTreeView::branch:open:has-children {
+        image: url(:/icons/tree_branch_open.svg);
+      }
+      QTreeView::branch:closed:has-siblings,
+      QTreeView::branch:open:has-siblings,
+      QTreeView::branch:closed:!has-children:!has-siblings,
+      QTreeView::branch:open:!has-children:!has-siblings {
+        background: palette(window);
+      }
       QTableView#tableViewRecent, QTableView#tableViewWorkspaces {
         color: palette(window-text);
         background-color: palette(window);
@@ -1051,9 +1063,7 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         border: 1px solid #B8C0C8;
         padding: 3px 5px;
       }
-      QTreeView::branch {
-        background: palette(window);
-      }
+
       QPushButton[flat=true]{
         color:#202020;
         text-decoration:none;
