@@ -5123,6 +5123,15 @@ void GitRepoContainer::checkoutBranch(
       showSpinnerOverlay(false);
     });
 
+    if (branchType == GitRepo::BranchType::Tag) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        showToast(
+            tr("You are now in detached HEAD state after checking out tag '%1'.")
+                .arg(result.branchName),
+            tr("Warning"));
+      });
+    }
+
     prepareWatcher(guard);
 
     if (onSuccess) {
@@ -5216,8 +5225,13 @@ void GitRepoContainer::checkoutCommit(const WeakPtr &guard,
     return;
   }
 
-  Util::Dispatcher::dispatchToMainThread(guard,
-                                         [=]() { showSpinnerOverlay(false); });
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(
+        tr("You are now in detached HEAD state after checking out commit '%1'.")
+            .arg(commit),
+        tr("Warning"));
+  });
 
   prepareWatcher(guard);
 
