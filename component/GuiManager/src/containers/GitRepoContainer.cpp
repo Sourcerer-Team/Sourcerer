@@ -9064,6 +9064,7 @@ void GitRepoContainer::addTarget(const WeakPtr &guard, int remoteIndex,
   getRemotes(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    ui->remotesPage->expandRemote(remote.name);
     showSpinnerOverlay(false);
     showToast(tr("Target added successfully."), tr("Info"));
   });

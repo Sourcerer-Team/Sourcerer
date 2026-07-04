@@ -22,6 +22,7 @@ public:
 
   void clearCached();
   void updateActiveRemote(const QString &remoteName);
+  void expandRemote(const QString &remoteName);
   void updateModel(const QVector<GitRepo::RemoteInfo> &remotes);
 
   QString activeRemote() const;
@@ -59,6 +60,7 @@ private:
 
   int _previous;
   QVector<GitRepo::RemoteInfo> _remotes;
+  QString _pendingExpandedRemote;
 };
 
 } // namespace GuiManager::Widgets

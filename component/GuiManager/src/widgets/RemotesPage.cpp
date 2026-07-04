@@ -58,6 +58,7 @@ void RemotesPage::clearCached() {
   LOG_PERF(0, "Enter");
 
   _previous = -1;
+  _pendingExpandedRemote.clear();
 
   LOG_PERF(0, "Exit");
 }
@@ -88,12 +89,51 @@ void RemotesPage::updateActiveRemote(const QString &remoteName) {
   LOG_PERF(0, "Exit");
 }
 
+void RemotesPage::expandRemote(const QString &remoteName) {
+  LOG_PERF(0, "Enter");
+
+  _pendingExpandedRemote = remoteName;
+
+  if (!_model) {
+    LOG_ERROR(Log::ErrorId::Gui,
+              "Internal error. Model has not been initialized.");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  auto *treeView = qobject_cast<QTreeView *>(ui->treeView);
+  if (!treeView) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QModelIndex remoteIndex = _model->getRemoteIndex(remoteName);
+  if (remoteIndex.isValid()) {
+    treeView->expand(remoteIndex);
+    _pendingExpandedRemote.clear();
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void RemotesPage::updateModel(const QVector<GitRepo::RemoteInfo> &remotes) {
   LOG_PERF(0, "Enter");
 
   _remotes = remotes;
 
   _model->updateModel(remotes);
+
+  if (!_pendingExpandedRemote.isEmpty()) {
+    auto *treeView = qobject_cast<QTreeView *>(ui->treeView);
+    if (treeView) {
+      const QModelIndex remoteIndex =
+          _model->getRemoteIndex(_pendingExpandedRemote);
+      if (remoteIndex.isValid()) {
+        treeView->expand(remoteIndex);
+        _pendingExpandedRemote.clear();
+      }
+    }
+  }
 
   _previous = -1;
 
