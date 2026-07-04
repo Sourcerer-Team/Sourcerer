@@ -297,8 +297,6 @@ CloudRepo::uploadBugReport(const QString &filePath) {
   LOG_INFO("Bug report uploaded successfully");
   LOG_DEBUG("Upload response: {}", response);
 
-  emit uploadBugReportSuccess(response);
-
   LOG_PERF(0, "Exit");
   return {QNetworkReply::NetworkError::NoError, response};
 }

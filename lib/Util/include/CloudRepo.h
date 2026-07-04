@@ -104,12 +104,6 @@ signals:
   void signoutFailed(const QString &error);
 
   /**
-   * @brief Emitted when bug report upload is successful
-   * @param response Response from server
-   */
-  void uploadBugReportSuccess(const QString &response);
-
-  /**
    * @brief Emitted when HTTP error occurs during bug report upload
    * @param error Error from HTTP client
    */
