@@ -3,6 +3,7 @@
 #include "widgets/OpaquePushButton.h"
 
 #include <Log.h>
+#include <StylesheetManager.h>
 
 #include <QCheckBox>
 #include <QGroupBox>
@@ -55,7 +56,11 @@ AnnotatedTagOverlayWidget::AnnotatedTagOverlayWidget(QWidget *parent)
   _checkBoxAnnotated->setObjectName("checkBoxAnnotatedTag");
   _checkBoxAnnotated->setChecked(
       false); // Default to lightweight tags for better UX
-  _checkBoxAnnotated->setStyleSheet("QCheckBox { color: #FFFFFF; }");
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+  _checkBoxAnnotated->setStyleSheet(QString("QCheckBox { color: %1; }").arg(
+      lightTheme ? QStringLiteral("#000000") : QStringLiteral("#FFFFFF")));
 
   // Submit button
   const auto pushButtonSubmit =
