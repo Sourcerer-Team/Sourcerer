@@ -6353,14 +6353,6 @@ void GitRepoContainer::showStashContent(const WeakPtr &guard, int stashIndex) {
   _lastStashCommit = stashStatus.commit;
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    // Populate stash files list
-    QStringList allFiles;
-    allFiles += stashStatus.newFiles;
-    allFiles += stashStatus.modifiedFiles;
-    allFiles += stashStatus.deletedFiles;
-    allFiles += stashStatus.renamedFiles;
-    allFiles += stashStatus.typeChangedFiles;
-
     // Update flat list view
     _stashFilesModel.reset(Models::GitCommitListModel::from(stashStatus));
     if (_stashFilesModel) {
