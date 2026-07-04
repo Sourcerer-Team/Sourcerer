@@ -44,7 +44,6 @@ private slots:
   void onSubmitClicked();
   void onCancelClicked();
   void onInputChanged();
-  void onUploadSuccess(const QString &response);
   void onUploadFailed(const QString &error);
 
 private:
