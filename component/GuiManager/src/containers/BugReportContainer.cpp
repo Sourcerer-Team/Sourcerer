@@ -145,10 +145,7 @@ void BugReportContainer::onUploadSuccess(const QString &response) {
   showSpinnerOverlay(false);
 
   // Re-enable inputs
-  ui->lineEditTitle->setEnabled(true);
-  ui->textEditDescription->setEnabled(true);
-  ui->pushButtonSubmit->setEnabled(true);
-  ui->pushButtonCancel->setEnabled(true);
+  restoreSubmissionUi();
 
   // Clear form
   ui->lineEditTitle->clear();
@@ -174,12 +171,7 @@ void BugReportContainer::onUploadFailed(const QString &error) {
   LOG_ERROR(Log::ErrorId::Network, "Upload error: {}", errorMessage);
 
   showSpinnerOverlay(false);
-
-  // Re-enable inputs
-  ui->lineEditTitle->setEnabled(true);
-  ui->textEditDescription->setEnabled(true);
-  ui->pushButtonSubmit->setEnabled(true);
-  ui->pushButtonCancel->setEnabled(true);
+  restoreSubmissionUi();
 
   ToastHostWidget::getInstance().addToast(
       new ErrorToast(errorMessage, tr("Upload Error")));
@@ -438,11 +430,26 @@ void BugReportContainer::onZipCreationFinished(const WeakPtr &guard,
 
       ::Util::Dispatcher::dispatchToMainThread(guard, [=]() {
         showSpinnerOverlay(false);
-        ToastHostWidget::getInstance().addToast(
-            new ErrorToast(tr("Failed to upload bug report"), tr("Error")));
+        restoreSubmissionUi();
+        ToastHostWidget::getInstance().addToast(new ErrorToast(
+            result.second.isEmpty()
+                ? tr("Failed to upload bug report")
+                : QString(tr("Failed to upload bug report: %1")).arg(result.second),
+            tr("Error")));
       });
     }
   });
+
+  LOG_PERF(0, "Exit");
+}
+
+void BugReportContainer::restoreSubmissionUi() {
+  LOG_PERF(0, "Enter");
+
+  ui->lineEditTitle->setEnabled(true);
+  ui->textEditDescription->setEnabled(true);
+  ui->pushButtonSubmit->setEnabled(true);
+  ui->pushButtonCancel->setEnabled(true);
 
   LOG_PERF(0, "Exit");
 }
