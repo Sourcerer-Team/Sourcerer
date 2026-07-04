@@ -1031,17 +1031,18 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         background-color: palette(window);
         color: palette(window-text);
       }
+      QTreeView::branch {
+        background: palette(window);
+      }
       QTreeView::branch:closed:has-children {
         image: url(:/icons/tree_branch_closed.svg);
+        width: 12px;
+        height: 12px;
       }
       QTreeView::branch:open:has-children {
         image: url(:/icons/tree_branch_open.svg);
-      }
-      QTreeView::branch:closed:has-siblings,
-      QTreeView::branch:open:has-siblings,
-      QTreeView::branch:closed:!has-children:!has-siblings,
-      QTreeView::branch:open:!has-children:!has-siblings {
-        background: palette(window);
+        width: 12px;
+        height: 12px;
       }
       QTableView#tableViewRecent, QTableView#tableViewWorkspaces {
         color: palette(window-text);
