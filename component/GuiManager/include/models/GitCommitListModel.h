@@ -18,6 +18,7 @@ enum class GitCommitListModificationType {
   Renamed,
   TypeChanged,
   Unreadable,
+  Untracked,
 
   last
 };

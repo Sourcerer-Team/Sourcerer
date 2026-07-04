@@ -35,6 +35,8 @@ public:
          QPixmap(":/icons/file-conflict.png")},
         {GuiManager::Models::GitCommitListModificationType::Ignored,
          QPixmap(":/icons/file-add.png")},
+        {GuiManager::Models::GitCommitListModificationType::Untracked,
+         QPixmap(":/icons/file-add.png")},
     };
   }
 

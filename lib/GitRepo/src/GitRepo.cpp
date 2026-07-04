@@ -136,6 +136,117 @@ static void logGitError(const int error) {
             gitError->klass, gitError->message);
 }
 
+static void collectCommitStatusFromDiff(git_diff *diff,
+                                        GitCommitStatus *status) {
+  if (!diff || !status) {
+    return;
+  }
+
+  git_diff_foreach(
+      diff,
+      [](const git_diff_delta *delta, float, void *payload) {
+        auto *status = static_cast<GitCommitStatus *>(payload);
+
+        switch (delta->status) {
+        case GIT_DELTA_ADDED:
+        case GIT_DELTA_UNTRACKED:
+          status->newFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_MODIFIED:
+          status->modifiedFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_DELETED:
+          status->deletedFiles += delta->old_file.path;
+          break;
+        case GIT_DELTA_RENAMED:
+          status->renamedFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_TYPECHANGE:
+          status->typeChangedFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_UNMODIFIED:
+        case GIT_DELTA_IGNORED:
+        case GIT_DELTA_CONFLICTED:
+          break;
+        }
+
+        return 0;
+      },
+      nullptr, // binary_cb
+      nullptr, // hunk_cb
+      nullptr, // line_cb
+      status);
+}
+
+struct CollectTreePathsPayload {
+  GitCommitStatus *status = nullptr;
+  QStringList *paths = nullptr;
+};
+
+static int collectTreePathsCallback(const char *root,
+                                    const git_tree_entry *entry,
+                                    void *payload) {
+  auto *data = static_cast<CollectTreePathsPayload *>(payload);
+  if (!data || !data->status || !data->paths || !entry) {
+    return -1;
+  }
+
+  if (git_tree_entry_type(entry) == GIT_OBJECT_TREE) {
+    return 0;
+  }
+
+  const QString path = QString::fromUtf8(root ? root : "") +
+                       QString::fromUtf8(git_tree_entry_name(entry));
+  data->paths->append(path);
+
+  return 0;
+}
+
+static bool readTreeFileContent(git_repository *repo, git_tree *tree,
+                                const QString &filePath,
+                                const qint64 maxBlobSize,
+                                QString *content) {
+  if (!repo || !tree || !content) {
+    return false;
+  }
+
+  git_tree_entry *entry = nullptr;
+  const int error =
+      git_tree_entry_bypath(&entry, tree, filePath.toStdString().c_str());
+  if (error) {
+    return false;
+  }
+
+  const git_oid *fullOid = git_tree_entry_id(entry);
+  if (!fullOid) {
+    git_tree_entry_free(entry);
+    return false;
+  }
+
+  git_blob *blob = nullptr;
+  int blobError = git_blob_lookup(&blob, repo, fullOid);
+  if (blobError) {
+    git_tree_entry_free(entry);
+    return false;
+  }
+
+  const size_t blobSize = git_blob_rawsize(blob);
+  if (blobSize > static_cast<size_t>(maxBlobSize)) {
+    *content = QString("[[FILE SIZE EXCEEDS LIMIT OF %1 BYTES]]")
+                   .arg(maxBlobSize);
+    git_blob_free(blob);
+    git_tree_entry_free(entry);
+    return true;
+  }
+
+  const char *blobContent = static_cast<const char *>(git_blob_rawcontent(blob));
+  *content = QString::fromUtf8(blobContent, blobSize);
+
+  git_blob_free(blob);
+  git_tree_entry_free(entry);
+  return true;
+}
+
 static void invalidateCredentials(const QString &url) {
   LOCKGUARD(gGitCredentialsMutex);
 
@@ -1406,9 +1517,9 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
   }
 
   // Check if stash tree is empty (common for stash commits which are merge
-  // commits) If empty, try to use parent 1 (index state) or parent 2 (untracked
-  // files)
-  git_tree *actual_working_tree = stash_tree;
+  // commits). If empty, try to use parent 1 (index state) for tracked changes.
+  // Parent 2 contains untracked files and is handled separately below.
+  git_tree *tracked_working_tree = stash_tree;
 
   if (git_tree_entrycount(stash_tree) == 0) {
     LOG_DEBUG("Stash tree is empty, trying parent 1 (index state)");
@@ -1420,25 +1531,19 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
       if (error == 0 && git_tree_entrycount(parent1_tree) > 0) {
         LOG_DEBUG("Using parent 1 tree (index state) with {} entries",
                   git_tree_entrycount(parent1_tree));
-        actual_working_tree = parent1_tree;
+        tracked_working_tree = parent1_tree;
       } else if (error == 0) {
-        LOG_DEBUG("Parent 1 tree is also empty, trying parent 2");
+        LOG_DEBUG("Parent 1 tree is also empty");
         git_tree_free(parent1_tree);
         parent1_tree = nullptr;
         git_commit_free(parent1_commit);
         parent1_commit = nullptr;
-
-        // Try parent 2 (untracked files)
-        error = git_commit_parent(&parent2_commit, stash_commit, 2);
-        if (error == 0) {
-          error = git_commit_tree(&parent2_tree, parent2_commit);
-          if (error == 0 && git_tree_entrycount(parent2_tree) > 0) {
-            LOG_DEBUG("Using parent 2 tree (untracked files) with {} entries",
-                      git_tree_entrycount(parent2_tree));
-            actual_working_tree = parent2_tree;
-          }
-        }
+        tracked_working_tree = nullptr;
+      } else {
+        tracked_working_tree = nullptr;
       }
+    } else {
+      tracked_working_tree = nullptr;
     }
   }
 
@@ -1493,23 +1598,46 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
     }
   }
 
-  // Generate diff
-  git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
-  opts.flags |= GIT_DIFF_INCLUDE_TYPECHANGE;
-
-  error = git_diff_tree_to_tree(&diff, repo, parent_tree, actual_working_tree,
-                                &opts);
-  if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to create diff for stash: error={}",
+  // Load the untracked-files commit if it exists. It is separate from the
+  // tracked-worktree diff and should be shown in the stash viewer as added
+  // files.
+  error = git_commit_parent(&parent2_commit, stash_commit, 2);
+  if (!error) {
+    error = git_commit_tree(&parent2_tree, parent2_commit);
+    if (error) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Failed to get untracked stash tree: error={}", error);
+      logGitError(error);
+      git_tree_free(stash_tree);
+      if (parent1_tree) {
+        git_tree_free(parent1_tree);
+      }
+      if (parent2_tree) {
+        git_tree_free(parent2_tree);
+      }
+      if (parent_tree) {
+        git_tree_free(parent_tree);
+      }
+      git_commit_free(stash_commit);
+      if (parent1_commit) {
+        git_commit_free(parent1_commit);
+      }
+      if (parent2_commit) {
+        git_commit_free(parent2_commit);
+      }
+      if (parent_commit) {
+        git_commit_free(parent_commit);
+      }
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+  } else if (error != GIT_ENOTFOUND) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get untracked stash parent: error={}",
               error);
     logGitError(error);
-
     git_tree_free(stash_tree);
     if (parent1_tree) {
       git_tree_free(parent1_tree);
-    }
-    if (parent2_tree) {
-      git_tree_free(parent2_tree);
     }
     if (parent_tree) {
       git_tree_free(parent_tree);
@@ -1518,14 +1646,96 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
     if (parent1_commit) {
       git_commit_free(parent1_commit);
     }
-    if (parent2_commit) {
-      git_commit_free(parent2_commit);
-    }
     if (parent_commit) {
       git_commit_free(parent_commit);
     }
     LOG_PERF(0, "Exit");
     return {};
+  }
+
+  // Generate diff for tracked changes.
+  git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
+  opts.flags |= GIT_DIFF_INCLUDE_TYPECHANGE | GIT_DIFF_RECURSE_UNTRACKED_DIRS |
+          GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_IGNORE_CASE |
+          GIT_DIFF_INCLUDE_CASECHANGE | GIT_DIFF_SHOW_UNTRACKED_CONTENT;
+
+  if (tracked_working_tree) {
+    error = git_diff_tree_to_tree(&diff, repo, parent_tree,
+                                  tracked_working_tree, &opts);
+    if (error) {
+      LOG_ERROR(Log::ErrorId::Git, "Failed to create diff for stash: error={}",
+                error);
+      logGitError(error);
+
+      git_tree_free(stash_tree);
+      if (parent1_tree) {
+        git_tree_free(parent1_tree);
+      }
+      if (parent2_tree) {
+        git_tree_free(parent2_tree);
+      }
+      if (parent_tree) {
+        git_tree_free(parent_tree);
+      }
+      git_commit_free(stash_commit);
+      if (parent1_commit) {
+        git_commit_free(parent1_commit);
+      }
+      if (parent2_commit) {
+        git_commit_free(parent2_commit);
+      }
+      if (parent_commit) {
+        git_commit_free(parent_commit);
+      }
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    collectCommitStatusFromDiff(diff, &status);
+    git_diff_free(diff);
+    diff = nullptr;
+  }
+
+  // Untracked files are stored in parent 2. Walk that tree directly so the
+  // stash viewer shows them as files in the stash content list.
+  if (parent2_tree) {
+    QStringList untrackedFiles;
+    CollectTreePathsPayload treePayload{&status, &untrackedFiles};
+    error = git_tree_walk(parent2_tree, GIT_TREEWALK_PRE,
+                          collectTreePathsCallback, &treePayload);
+    if (error) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Failed to walk stash untracked tree: error={}", error);
+      logGitError(error);
+
+      git_tree_free(stash_tree);
+      if (parent1_tree) {
+        git_tree_free(parent1_tree);
+      }
+      if (parent2_tree) {
+        git_tree_free(parent2_tree);
+      }
+      if (parent_tree) {
+        git_tree_free(parent_tree);
+      }
+      git_commit_free(stash_commit);
+      if (parent1_commit) {
+        git_commit_free(parent1_commit);
+      }
+      if (parent2_commit) {
+        git_commit_free(parent2_commit);
+      }
+      if (parent_commit) {
+        git_commit_free(parent_commit);
+      }
+      if (diff) {
+        git_diff_free(diff);
+      }
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    status.untrackedFiles += untrackedFiles;
   }
 
   // Get stash commit OID
@@ -1534,44 +1744,7 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
   git_oid_tostr(oid_str, GIT_OID_HEXSZ + 1, oid);
   status.commit = QString::fromUtf8(oid_str);
 
-  // Walk the diff
-  git_diff_foreach(
-      diff,
-      [](const git_diff_delta *delta, float, void *payload) {
-        auto *status = static_cast<GitCommitStatus *>(payload);
-
-        switch (delta->status) {
-        case GIT_DELTA_ADDED:
-          status->newFiles += delta->new_file.path;
-          break;
-        case GIT_DELTA_MODIFIED:
-          status->modifiedFiles += delta->new_file.path;
-          break;
-        case GIT_DELTA_DELETED:
-          status->deletedFiles += delta->old_file.path;
-          break;
-        case GIT_DELTA_RENAMED:
-          status->renamedFiles += delta->new_file.path;
-          break;
-        case GIT_DELTA_TYPECHANGE:
-          status->typeChangedFiles += delta->new_file.path;
-          break;
-        case GIT_DELTA_UNMODIFIED:
-        case GIT_DELTA_IGNORED:
-        case GIT_DELTA_UNTRACKED:
-        case GIT_DELTA_CONFLICTED:
-          break;
-        }
-
-        return 0;
-      },
-      nullptr, // binary_cb
-      nullptr, // hunk_cb
-      nullptr, // line_cb
-      &status);
-
   // Cleanup
-  git_diff_free(diff);
   git_tree_free(stash_tree);
 
   if (parent1_tree) {
@@ -7358,6 +7531,8 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
   git_commit *parent = nullptr;
   git_tree *parentTree = nullptr;
+  git_commit *parent2 = nullptr;
+  git_tree *parent2Tree = nullptr;
 
   if (git_commit_parentcount(commit_) > 0) {
     error = git_commit_parent(&parent, commit_, 0);
@@ -7373,6 +7548,41 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
     if (error) {
       logGitError(error);
       git_commit_free(parent);
+      git_tree_free(tree);
+      git_commit_free(commit_);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+  }
+
+  if (git_commit_parentcount(commit_) > 2) {
+    error = git_commit_parent(&parent2, commit_, 2);
+    if (error) {
+      logGitError(error);
+      if (parentTree) {
+        git_tree_free(parentTree);
+      }
+      if (parent) {
+        git_commit_free(parent);
+      }
+      git_tree_free(tree);
+      git_commit_free(commit_);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    error = git_commit_tree(&parent2Tree, parent2);
+    if (error) {
+      logGitError(error);
+      if (parent2) {
+        git_commit_free(parent2);
+      }
+      if (parentTree) {
+        git_tree_free(parentTree);
+      }
+      if (parent) {
+        git_commit_free(parent);
+      }
       git_tree_free(tree);
       git_commit_free(commit_);
       LOG_PERF(0, "Exit");
@@ -7496,70 +7706,43 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
   QMap<QString, QString> filesContent;
   QMap<QString, QString> repoContent;
+  QSet<QString> stashUntrackedFiles;
 
   for (const auto &file : files) {
-    const QString repoPath = git_repository_workdir(repo);
     const QString filePath = QDir::fromNativeSeparators(file);
-    const QString fullPath = repoPath + filePath;
 
-    QFile fileObj(fullPath);
-    if (fileObj.open(QIODevice::ReadOnly)) {
-      const QByteArray content = fileObj.readAll();
-      filesContent.insert(file, QString::fromUtf8(content));
-      fileObj.close();
+    QString repoFileContent;
+    if (parentTree && readTreeFileContent(repo, parentTree, filePath,
+                                         maxBlobSize, &repoFileContent)) {
+      repoContent.insert(file, repoFileContent);
     } else {
-      filesContent.insert(file, QString());
-    }
-
-    git_tree_entry *entry = nullptr;
-
-    if (!parentTree) {
       repoContent.insert(file, QString());
+    }
+
+    QString filesFileContent;
+    if (tree && readTreeFileContent(repo, tree, filePath, maxBlobSize,
+                                    &filesFileContent)) {
+      filesContent.insert(file, filesFileContent);
       continue;
     }
 
-    error = git_tree_entry_bypath(&entry, parentTree,
-                                  filePath.toStdString().c_str());
-    if (error) {
-      logGitError(error);
-      repoContent.insert(file, QString());
+    if (parent2Tree && readTreeFileContent(repo, parent2Tree, filePath,
+                                           maxBlobSize,
+                                           &filesFileContent)) {
+      filesContent.insert(file, filesFileContent);
+      stashUntrackedFiles.insert(file);
       continue;
     }
 
-    const git_oid *fullOid = git_tree_entry_id(entry);
-    if (!fullOid) {
-      logGitError(error);
-      git_tree_entry_free(entry);
-      repoContent.insert(file, QString());
-      continue;
-    }
+    filesContent.insert(file, QString());
+  }
 
-    git_blob *blob = nullptr;
-    error = git_blob_lookup(&blob, repo, fullOid);
-    if (error) {
-      logGitError(error);
-      git_tree_entry_free(entry);
-      repoContent.insert(file, QString());
-      continue;
-    }
+  if (parent2Tree) {
+    git_tree_free(parent2Tree);
+  }
 
-    const char *blobContent =
-        static_cast<const char *>(git_blob_rawcontent(blob));
-    const size_t blobSize = git_blob_rawsize(blob);
-
-    if (blobSize > static_cast<size_t>(maxBlobSize)) {
-      repoContent.insert(
-          file,
-          QString("[[FILE SIZE EXCEEDS LIMIT OF %1 BYTES]]").arg(maxBlobSize));
-      git_blob_free(blob);
-      git_tree_entry_free(entry);
-      continue;
-    }
-
-    repoContent.insert(file, QString::fromUtf8(blobContent, blobSize));
-
-    git_blob_free(blob);
-    git_tree_entry_free(entry);
+  if (parent2) {
+    git_commit_free(parent2);
   }
 
   if (parentTree) {
@@ -7572,6 +7755,25 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
   git_tree_free(tree);
   git_commit_free(commit_);
+
+  for (const auto &file : files) {
+    if (!stashUntrackedFiles.contains(file)) {
+      continue;
+    }
+
+    const QString indexLine =
+        createIndexLineFromContent(QString(), filesContent[file]);
+    const QString patch = createFullPatchFromContent(file, filesContent[file],
+                                                     true, indexLine);
+
+    diffOutput += QString("diff --git a/%1 b/%2\n").arg(file, file);
+    diffOutput += "new file mode 100644\n";
+    diffOutput += patch;
+
+    const FilesDiffDelta patchDeltas =
+        createFullPatchDeltasFromContent(file, filesContent[file]);
+    filesDeltas += patchDeltas;
+  }
 
   FilesDiff filesDiff;
   filesDiff.diff = diffOutput;

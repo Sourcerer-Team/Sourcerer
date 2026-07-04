@@ -139,6 +139,7 @@ struct GitCommitStatus {
   QStringList deletedFiles;
   QStringList typeChangedFiles;
   QStringList renamedFiles;
+  QStringList untrackedFiles;
 };
 
 struct GitHistoryWithStatus {
