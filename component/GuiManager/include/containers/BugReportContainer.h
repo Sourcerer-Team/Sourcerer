@@ -54,6 +54,7 @@ private:
   void onZipCreationFinished(const WeakPtr &guard, const QString &zipPath);
   void showSpinnerOverlay(bool show = true);
   void updateProgressLabel(int percentage);
+  void restoreSubmissionUi();
 
 private:
   Ui::BugReportContainer *ui;
