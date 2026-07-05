@@ -285,6 +285,16 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->listViewPageDisplayFilesFlat->setHorizontalScrollBarPolicy(
       Qt::ScrollBarAlwaysOff);
 
+  ui->listViewPageDisplayFilesFlat->setContextMenuPolicy(Qt::CustomContextMenu);
+  ui->treeViewPageDisplayFilesTree->setContextMenuPolicy(Qt::CustomContextMenu);
+
+  connect(ui->listViewPageDisplayFilesFlat,
+          &QListView::customContextMenuRequested, this,
+          &GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested);
+  connect(ui->treeViewPageDisplayFilesTree,
+          &QTreeView::customContextMenuRequested, this,
+          &GitRepoContainer::onPageDisplayFilesTreeViewContextMenuRequested);
+
   // Set placeholder text color via palette
   QPalette palette = ui->textEditDescription->palette();
   palette.setColor(QPalette::PlaceholderText, QColor(0x808080)); // Bright blue
@@ -3713,17 +3723,27 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
       modificationType ==
       GuiManager::Models::GitCommitListModificationType::Conflicted;
 
-  const QStringList files =
+  const QStringList files = getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
+  const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->listViewTabWidgetWorkingTreeFlat);
 
   QMenu contextMenu;
+
+  if (!files.isEmpty()) {
+    QAction *copyPathAction =
+        contextMenu.addAction(tr("Copy file path to clipboard"));
+    connect(copyPathAction, &QAction::triggered, this, [=]() {
+      copyFilePathsToClipboard(files);
+    });
+    contextMenu.addSeparator();
+  }
 
   contextMenu.addAction(ui->actionWorkingTreeFlatStage);
   if (!conflicted) {
     contextMenu.addAction(ui->actionWorkingTreeFlatDiscard);
   }
 
-  if (!files.isEmpty()) {
+  if (!existingFiles.isEmpty()) {
     QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
     QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
     QAction *ignoreRecursiveAction = ignoreMenu->addAction(
@@ -3914,17 +3934,27 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
       modificationType ==
       GuiManager::Models::GitCommitListModificationType::Conflicted;
 
-  const QStringList files =
+  const QStringList files = getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
+  const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->treeViewTabWidgetWorkingTreeTree);
 
   QMenu contextMenu;
+
+  if (!files.isEmpty()) {
+    QAction *copyPathAction =
+        contextMenu.addAction(tr("Copy file path to clipboard"));
+    connect(copyPathAction, &QAction::triggered, this, [=]() {
+      copyFilePathsToClipboard(files);
+    });
+    contextMenu.addSeparator();
+  }
 
   contextMenu.addAction(ui->actionWorkingTreeTreeStage);
   if (!conflicted) {
     contextMenu.addAction(ui->actionWorkingTreeTreeDiscard);
   }
 
-  if (!files.isEmpty()) {
+  if (!existingFiles.isEmpty()) {
     QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
     QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
     QAction *ignoreRecursiveAction = ignoreMenu->addAction(
@@ -4107,14 +4137,24 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
     return;
   }
 
-  const QStringList files =
+  const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
+  const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->listViewTabWidgetIndexFlat);
 
   QMenu contextMenu;
+  if (!files.isEmpty()) {
+    QAction *copyPathAction =
+        contextMenu.addAction(tr("Copy file path to clipboard"));
+    connect(copyPathAction, &QAction::triggered, this, [=]() {
+      copyFilePathsToClipboard(files);
+    });
+    contextMenu.addSeparator();
+  }
+
   contextMenu.addAction(ui->actionIndexFlatUnstage);
   contextMenu.addAction(ui->actionIndexFlatDiscard);
 
-  if (!files.isEmpty()) {
+  if (!existingFiles.isEmpty()) {
     QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
     QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
     QAction *ignoreRecursiveAction = ignoreMenu->addAction(
@@ -4287,14 +4327,24 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
     return;
   }
 
-  const QStringList files =
+  const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
+  const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->treeViewTabWidgetIndexTree);
 
   QMenu contextMenu;
+  if (!files.isEmpty()) {
+    QAction *copyPathAction =
+        contextMenu.addAction(tr("Copy file path to clipboard"));
+    connect(copyPathAction, &QAction::triggered, this, [=]() {
+      copyFilePathsToClipboard(files);
+    });
+    contextMenu.addSeparator();
+  }
+
   contextMenu.addAction(ui->actionIndexTreeUnstage);
   contextMenu.addAction(ui->actionIndexTreeDiscard);
 
-  if (!files.isEmpty()) {
+  if (!existingFiles.isEmpty()) {
     QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
     QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
     QAction *ignoreRecursiveAction = ignoreMenu->addAction(
@@ -4453,6 +4503,62 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { discardFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
+    const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndex index = ui->listViewPageDisplayFilesFlat->indexAt(pos);
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QStringList files = getSelectedFiles(ui->listViewPageDisplayFilesFlat);
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QMenu contextMenu;
+  QAction *copyPathAction =
+      contextMenu.addAction(tr("Copy file path to clipboard"));
+  connect(copyPathAction, &QAction::triggered, this, [=]() {
+    copyFilePathsToClipboard(files);
+  });
+
+  contextMenu.exec(ui->listViewPageDisplayFilesFlat->mapToGlobal(pos));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onPageDisplayFilesTreeViewContextMenuRequested(
+    const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndex index = ui->treeViewPageDisplayFilesTree->indexAt(pos);
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QStringList files = getSelectedFiles(ui->treeViewPageDisplayFilesTree);
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QMenu contextMenu;
+  QAction *copyPathAction =
+      contextMenu.addAction(tr("Copy file path to clipboard"));
+  connect(copyPathAction, &QAction::triggered, this, [=]() {
+    copyFilePathsToClipboard(files);
+  });
+
+  contextMenu.exec(ui->treeViewPageDisplayFilesTree->mapToGlobal(pos));
 
   LOG_PERF(0, "Exit");
 }
@@ -7586,6 +7692,36 @@ GitRepoContainer::getCommitStatus(const WeakPtr &guard,
   LOG_PERF(0, "Exit");
 
   return commitStatus;
+}
+
+void GitRepoContainer::copyFilePathsToClipboard(
+    const QStringList &filePaths) {
+  LOG_PERF(0, "Enter");
+
+  QStringList uniqueFilePaths = filePaths;
+  uniqueFilePaths.removeDuplicates();
+
+  if (uniqueFilePaths.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QStringList absoluteFilePaths;
+  absoluteFilePaths.reserve(uniqueFilePaths.size());
+  for (const auto &filePath : uniqueFilePaths) {
+    absoluteFilePaths += QDir(_path).filePath(filePath);
+  }
+
+  QGuiApplication::clipboard()->setText(absoluteFilePaths.join("\n"));
+
+  if (uniqueFilePaths.size() == 1) {
+    showToast(tr("File path copied to clipboard."), tr("Info"));
+  } else {
+    showToast(tr("%1 file paths copied to clipboard.").arg(uniqueFilePaths.size()),
+              tr("Info"));
+  }
+
+  LOG_PERF(0, "Exit");
 }
 
 QStringList GitRepoContainer::getSelectedFiles(QListView *listView) {

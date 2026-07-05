@@ -123,6 +123,8 @@ private slots:
   void onDiffUnifiedClicked();
   void onDiffSideBySideClicked();
   void onDisplayTreeExpandAllButtonClicked();
+  void onPageDisplayFilesFlatListViewContextMenuRequested(const QPoint &pos);
+  void onPageDisplayFilesTreeViewContextMenuRequested(const QPoint &pos);
   void onHardResetToCommit(const QString &commit);
   void onHistorySelectionChanged(const QItemSelection &selected,
                                  const QItemSelection &deselected);
@@ -259,6 +261,7 @@ private:
   void deleteRemoteTag(const WeakPtr &guard, const QString &tagName);
   void pushTag(const WeakPtr &guard, const QString &tagName);
   void pushAllTags(const WeakPtr &guard);
+  void copyFilePathsToClipboard(const QStringList &filePaths) const;
   void deleteSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void deleteTarget(const WeakPtr &guard, int remoteIndex, int targetIndex);
   void diff(const WeakPtr &guard, const QString &filePath);
@@ -355,6 +358,7 @@ private:
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message, const QString &title);
   void showErrorToast(const QString &message, const QString &title);
+  void copyFilePathsToClipboard(const QStringList &filePaths);
   bool showWarningForBranchCheckout() const;
   void simulateClickOnHistoryRow(int row) const;
   void simulateClickOnFirstHistoryRow() const;
