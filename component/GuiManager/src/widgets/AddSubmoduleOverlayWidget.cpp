@@ -123,7 +123,7 @@ bool AddSubmoduleOverlayWidget::eventFilter(QObject *obj, QEvent *event) {
       return true; // Event handled
     } else if (keyEvent->key() == Qt::Key_Return) {
       emit submitted(_lineEditUrl->text(), _lineEditName->text(),
-                    _lineEditBranch->text());
+                     _lineEditBranch->text());
       return true; // Event handled
     }
   }
@@ -143,7 +143,7 @@ void AddSubmoduleOverlayWidget::onButtonSubmitted() {
   LOG_PERF(0, "Enter");
 
   emit submitted(_lineEditUrl->text(), _lineEditName->text(),
-                _lineEditBranch->text());
+                 _lineEditBranch->text());
 
   LOG_PERF(0, "Exit");
 }

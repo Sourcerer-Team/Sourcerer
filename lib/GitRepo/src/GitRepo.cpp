@@ -232,14 +232,14 @@ static bool readTreeFileContent(git_repository *repo, git_tree *tree,
   const size_t blobSize = git_blob_rawsize(blob);
   if (blobSize > static_cast<size_t>(maxBlobSize)) {
     *content =
-              QString("[[FILE SIZE EXCEEDS LIMIT OF %1 BYTES]]").arg(maxBlobSize);
+        QString("[[FILE SIZE EXCEEDS LIMIT OF %1 BYTES]]").arg(maxBlobSize);
     git_blob_free(blob);
     git_tree_entry_free(entry);
     return true;
   }
 
   const char *blobContent =
-          static_cast<const char *>(git_blob_rawcontent(blob));
+      static_cast<const char *>(git_blob_rawcontent(blob));
   *content = QString::fromUtf8(blobContent, blobSize);
 
   git_blob_free(blob);
@@ -1656,8 +1656,8 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
   // Generate diff for tracked changes.
   git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
   opts.flags |= GIT_DIFF_INCLUDE_TYPECHANGE | GIT_DIFF_RECURSE_UNTRACKED_DIRS |
-          GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_IGNORE_CASE |
-          GIT_DIFF_INCLUDE_CASECHANGE | GIT_DIFF_SHOW_UNTRACKED_CONTENT;
+                GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_IGNORE_CASE |
+                GIT_DIFF_INCLUDE_CASECHANGE | GIT_DIFF_SHOW_UNTRACKED_CONTENT;
 
   if (tracked_working_tree) {
     error = git_diff_tree_to_tree(&diff, repo, parent_tree,
@@ -7420,7 +7420,7 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
   fetchOpts.callbacks.payload = &callbackPayload;
 
   const QString refspec =
-          QString("+refs/heads/%1:refs/remotes/%2/%1").arg(branchName, remoteName);
+      QString("+refs/heads/%1:refs/remotes/%2/%1").arg(branchName, remoteName);
   git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
 
   int retries = 0;
@@ -7478,8 +7478,8 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
                             branchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
   if (error == GIT_ENOTFOUND) {
     error =
-            git_branch_create(&localRef, submoduleRepo,
-                              branchName.toStdString().c_str(), targetCommit, 0);
+        git_branch_create(&localRef, submoduleRepo,
+                          branchName.toStdString().c_str(), targetCommit, 0);
   }
 
   if (error) {
@@ -7507,7 +7507,7 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
 
   const QString headRefName = QString("refs/heads/%1").arg(branchName);
   error =
-          git_repository_set_head(submoduleRepo, headRefName.toStdString().c_str());
+      git_repository_set_head(submoduleRepo, headRefName.toStdString().c_str());
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
@@ -7542,8 +7542,9 @@ static bool checkoutLocalSubmoduleBranch(git_repository *submoduleRepo,
   }
 
   git_reference *localRef = nullptr;
-  int error = git_branch_lookup(&localRef, submoduleRepo,
-                                branchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
+  int error =
+      git_branch_lookup(&localRef, submoduleRepo,
+                        branchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
@@ -7551,8 +7552,8 @@ static bool checkoutLocalSubmoduleBranch(git_repository *submoduleRepo,
   }
 
   const QString headRefName = QString("refs/heads/%1").arg(branchName);
-  error = git_repository_set_head(submoduleRepo,
-                                  headRefName.toStdString().c_str());
+  error =
+      git_repository_set_head(submoduleRepo, headRefName.toStdString().c_str());
   if (error) {
     logGitError(error);
     git_reference_free(localRef);
@@ -8101,7 +8102,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
     const QString indexLine =
         createIndexLineFromContent(QString(), filesContent[file]);
     const QString patch =
-            createFullPatchFromContent(file, filesContent[file], true, indexLine);
+        createFullPatchFromContent(file, filesContent[file], true, indexLine);
 
     diffOutput += QString("diff --git a/%1 b/%2\n").arg(file, file);
     diffOutput += "new file mode 100644\n";
@@ -9096,12 +9097,12 @@ bool updateRemote(git_repository *repo, const QString &remoteName,
   if (newRemoteName != remoteName) {
     git_strarray problems = {0};
     const int renameError =
-            git_remote_rename(&problems, repo, remoteName.toUtf8().constData(),
-                              newRemoteName.toUtf8().constData());
+        git_remote_rename(&problems, repo, remoteName.toUtf8().constData(),
+                          newRemoteName.toUtf8().constData());
     if (renameError) {
       LOG_ERROR(
-                  Log::ErrorId::Git, "Failed to rename remote '{}' to '{}': error={}",
-                  remoteName.toStdString(), newRemoteName.toStdString(), renameError);
+          Log::ErrorId::Git, "Failed to rename remote '{}' to '{}': error={}",
+          remoteName.toStdString(), newRemoteName.toStdString(), renameError);
       logGitError(renameError);
       LOG_PERF(0, "Exit");
       return false;

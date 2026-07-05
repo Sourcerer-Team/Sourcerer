@@ -133,8 +133,6 @@ void BugReportContainer::onInputChanged() {
   ui->pushButtonSubmit->setEnabled(hasTitle && hasDescription);
 }
 
-
-
 void BugReportContainer::onUploadFailed(const QString &error) {
   LOG_PERF(0, "Enter");
 
@@ -403,11 +401,12 @@ void BugReportContainer::onZipCreationFinished(const WeakPtr &guard,
         LOG_ERROR(Log::ErrorId::Network, "Failed to upload bug report: {}",
                   result.second);
         restoreSubmissionUi();
-        ToastHostWidget::getInstance().addToast(new ErrorToast(
-            result.second.isEmpty()
-                ? tr("Failed to upload bug report")
-                : QString(tr("Failed to upload bug report: %1")).arg(result.second),
-            tr("Error")));
+        ToastHostWidget::getInstance().addToast(
+            new ErrorToast(result.second.isEmpty()
+                               ? tr("Failed to upload bug report")
+                               : QString(tr("Failed to upload bug report: %1"))
+                                     .arg(result.second),
+                           tr("Error")));
         return;
       }
 

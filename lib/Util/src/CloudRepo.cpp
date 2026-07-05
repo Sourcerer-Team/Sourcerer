@@ -273,7 +273,7 @@ CloudRepo::uploadBugReport(const QString &filePath) {
     QString storedJwt;
     if (CloudCredentialtorage::getInstance().isJWTValid() &&
         CloudCredentialtorage::getInstance().getCredentials(username, password,
-                                                           storedJwt)) {
+                                                            storedJwt)) {
       accessToken = storedJwt;
     }
   }

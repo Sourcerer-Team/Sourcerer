@@ -14,11 +14,11 @@
 #include <EventManager.h>
 #include <GitRepo.h>
 
+#include <QCloseEvent>
 #include <QEnableSharedFromThis>
 #include <QMainWindow>
 #include <QMap>
 #include <QResizeEvent>
-#include <QCloseEvent>
 #include <QSet>
 
 namespace GuiManager {
