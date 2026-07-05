@@ -17,6 +17,11 @@ public:
   void setPlaceholderText(const QString &text) const {
     _lineEditInput->setPlaceholderText(text);
   }
+  void setText(const QString &text) const { _lineEditInput->setText(text); }
+  void focusAndSelectAll() const {
+    _lineEditInput->setFocus();
+    _lineEditInput->selectAll();
+  }
 
 signals:
   void canceled();
