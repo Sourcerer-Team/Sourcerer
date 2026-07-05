@@ -22,6 +22,7 @@
 #include <Log.h>
 
 #include <QCloseEvent>
+#include <QEnterEvent>
 #include <QFileDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -29,6 +30,47 @@
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QWindow>
+
+namespace {
+class BottomResizeGripWidget final : public QWidget {
+public:
+  explicit BottomResizeGripWidget(QWidget *parent = nullptr)
+      : QWidget(parent) {
+    setMouseTracking(true);
+    setCursor(Qt::SizeVerCursor);
+    setAttribute(Qt::WA_StyledBackground, true);
+    setStyleSheet("background: transparent;");
+  }
+
+protected:
+  void enterEvent(QEnterEvent *) override { setCursor(Qt::SizeVerCursor); }
+
+  void leaveEvent(QEvent *) override { unsetCursor(); }
+
+  void mousePressEvent(QMouseEvent *event) override {
+    if (event->button() != Qt::LeftButton) {
+      QWidget::mousePressEvent(event);
+      return;
+    }
+
+    QWidget *parentWindow = window();
+    if (parentWindow && parentWindow->windowHandle()) {
+      Qt::Edges edges = Qt::BottomEdge;
+      if (event->pos().x() <= 6) {
+        edges |= Qt::LeftEdge;
+      } else if (event->pos().x() >= width() - 6) {
+        edges |= Qt::RightEdge;
+      }
+      parentWindow->windowHandle()->startSystemResize(edges);
+    }
+  }
+
+  void mouseMoveEvent(QMouseEvent *event) override {
+    Q_UNUSED(event);
+    setCursor(Qt::SizeVerCursor);
+  }
+};
+} // namespace
 
 #include <QMessageBox>
 #include <functional>
@@ -51,6 +93,7 @@ MainWindow::MainWindow(QWidget *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
       _maximized(false), _mousePressed(false), _hitDetector(nullptr),
+      _bottomResizeGrip(nullptr),
       _profileBoardWidget(QSharedPointer<ProfileBoardWidget>::create(this)),
       _profileBoardActive(false) {
   LOG_PERF(0, "Enter");
@@ -104,6 +147,9 @@ MainWindow::MainWindow(QWidget *parent)
   _consoleWidget->hide();
 
   setCentralWidget(widget);
+
+  _bottomResizeGrip = new BottomResizeGripWidget(this);
+  _bottomResizeGrip->raise();
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
@@ -195,6 +241,7 @@ MainWindow::~MainWindow() {
     }
   }
 
+  delete _bottomResizeGrip;
   delete _hitDetector;
 
   LOG_PERF(0, "Exit");
@@ -230,6 +277,18 @@ void MainWindow::mouseMoveEvent(QMouseEvent *event) {
     return;
 
   event->ignore();
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event) {
+  QMainWindow::resizeEvent(event);
+
+  if (_bottomResizeGrip) {
+    const qlonglong borderWidth =
+        _configManager.getLong(ConfigManager::ConfigKey::MainWindowBorderWidth);
+    const int gripHeight = qMax<qlonglong>(borderWidth, 6);
+    _bottomResizeGrip->setGeometry(0, height() - gripHeight, width(), gripHeight);
+    _bottomResizeGrip->raise();
+  }
 }
 
 void MainWindow::changeEvent(QEvent *event) {

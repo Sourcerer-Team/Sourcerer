@@ -7,6 +7,7 @@
 
 #include <QEvent>
 #include <QHBoxLayout>
+#include <QWindow>
 
 #define THREAD_ID "TopBarWidget"
 
@@ -155,6 +156,23 @@ void TopBarWidget::mousePressEvent(QMouseEvent *event) {
   LOG_PERF(0, "Enter");
 
   if (event->button() == Qt::LeftButton) {
+    const qlonglong borderWidth =
+        _configManager.getLong(ConfigManager::ConfigKey::MainWindowBorderWidth);
+    if (event->pos().y() <= borderWidth) {
+      QWidget *parentWindow = window();
+      if (parentWindow && parentWindow->windowHandle()) {
+        Qt::Edges edges = Qt::TopEdge;
+        if (event->pos().x() <= borderWidth) {
+          edges |= Qt::LeftEdge;
+        } else if (event->pos().x() >= width() - borderWidth) {
+          edges |= Qt::RightEdge;
+        }
+        parentWindow->windowHandle()->startSystemResize(edges);
+      }
+      LOG_PERF(0, "Exit");
+      return;
+    }
+
     emit dragged();
     LOG_PERF(0, "Exit");
     return;
