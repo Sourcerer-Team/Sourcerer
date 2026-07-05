@@ -1881,6 +1881,13 @@ QVector<SubmoduleInfo> listSubmodulesWithStatus(git_repository *repo,
     // Get the expected commit (from parent repository's index)
     const git_oid *headId = git_submodule_head_id(submodule);
 
+    if (headId) {
+      const char *headIdStr = git_oid_tostr_s(headId);
+      if (headIdStr) {
+        info.commit = QString::fromUtf8(headIdStr);
+      }
+    }
+
     // Get the actual commit (from submodule's working directory)
     const git_oid *workdirId = git_submodule_wd_id(submodule);
 
@@ -1891,7 +1898,6 @@ QVector<SubmoduleInfo> listSubmodulesWithStatus(git_repository *repo,
       continue;
     }
 
-    // Compare the two OIDs
     if (git_oid_equal(headId, workdirId)) {
       info.statusInfo.status = SubmoduleStatusType::UpToDate;
     } else {
