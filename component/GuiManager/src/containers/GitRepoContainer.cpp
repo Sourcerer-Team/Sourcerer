@@ -288,9 +288,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->listViewPageDisplayFilesFlat->setContextMenuPolicy(Qt::CustomContextMenu);
   ui->treeViewPageDisplayFilesTree->setContextMenuPolicy(Qt::CustomContextMenu);
 
-  connect(ui->listViewPageDisplayFilesFlat,
-          &QListView::customContextMenuRequested, this,
-          &GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested);
+  connect(
+      ui->listViewPageDisplayFilesFlat, &QListView::customContextMenuRequested,
+      this,
+      &GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested);
   connect(ui->treeViewPageDisplayFilesTree,
           &QTreeView::customContextMenuRequested, this,
           &GitRepoContainer::onPageDisplayFilesTreeViewContextMenuRequested);
@@ -998,17 +999,18 @@ void GitRepoContainer::onAddSubmodule() {
     delete overlayWidget;
   });
 
-  connect(overlayWidget, &AddSubmoduleOverlayWidget::submitted, this,
-          [=](const QString &url, const QString &name) {
-            LOG_DEBUG("Adding submodule - URL: '{}', Name: '{}'",
-                      url.toStdString(), name.toStdString());
-            overlayWidget->hide();
-            delete overlayWidget;
+  connect(
+      overlayWidget, &AddSubmoduleOverlayWidget::submitted, this,
+      [=](const QString &url, const QString &name, const QString &branch) {
+        LOG_DEBUG("Adding submodule - URL: '{}', Name: '{}', Branch: '{}'",
+                  url.toStdString(), name.toStdString(), branch.toStdString());
+        overlayWidget->hide();
+        delete overlayWidget;
 
-            // startOverlayTimer();
+        // startOverlayTimer();
 
-            _dispatcher.dispatch([=]() { addSubmodule(guard, url, name); });
-          });
+        _dispatcher.dispatch([=]() { addSubmodule(guard, url, name, branch); });
+      });
 
   overlayWidget->show();
   overlayWidget->raise();
@@ -3166,9 +3168,8 @@ void GitRepoContainer::onRenameBranch(const QString &branchName) {
   inputOverlay->show();
   inputOverlay->raise();
 
-  QTimer::singleShot(0, inputOverlay, [inputOverlay]() {
-    inputOverlay->focusAndSelectAll();
-  });
+  QTimer::singleShot(0, inputOverlay,
+                     [inputOverlay]() { inputOverlay->focusAndSelectAll(); });
 
   LOG_DEBUG("Rename branch dialog displayed");
   LOG_PERF(0, "Exit");
@@ -3731,7 +3732,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
       modificationType ==
       GuiManager::Models::GitCommitListModificationType::Conflicted;
 
-  const QStringList files = getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
+  const QStringList files =
+      getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
   const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->listViewTabWidgetWorkingTreeFlat);
 
@@ -3740,9 +3742,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
   if (!files.isEmpty()) {
     QAction *copyPathAction =
         contextMenu.addAction(tr("Copy file path to clipboard"));
-    connect(copyPathAction, &QAction::triggered, this, [=]() {
-      copyFilePathsToClipboard(files);
-    });
+    connect(copyPathAction, &QAction::triggered, this,
+            [=]() { copyFilePathsToClipboard(files); });
   }
 
   contextMenu.addAction(ui->actionWorkingTreeFlatShowInFileManager);
@@ -3942,7 +3943,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
       modificationType ==
       GuiManager::Models::GitCommitListModificationType::Conflicted;
 
-  const QStringList files = getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
+  const QStringList files =
+      getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
   const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->treeViewTabWidgetWorkingTreeTree);
 
@@ -3951,9 +3953,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
   if (!files.isEmpty()) {
     QAction *copyPathAction =
         contextMenu.addAction(tr("Copy file path to clipboard"));
-    connect(copyPathAction, &QAction::triggered, this, [=]() {
-      copyFilePathsToClipboard(files);
-    });
+    connect(copyPathAction, &QAction::triggered, this,
+            [=]() { copyFilePathsToClipboard(files); });
   }
 
   contextMenu.addAction(ui->actionWorkingTreeTreeShowInFileManager);
@@ -4153,9 +4154,8 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
   if (!files.isEmpty()) {
     QAction *copyPathAction =
         contextMenu.addAction(tr("Copy file path to clipboard"));
-    connect(copyPathAction, &QAction::triggered, this, [=]() {
-      copyFilePathsToClipboard(files);
-    });
+    connect(copyPathAction, &QAction::triggered, this,
+            [=]() { copyFilePathsToClipboard(files); });
   }
 
   contextMenu.addAction(ui->actionIndexFlatShowInFileManager);
@@ -4343,9 +4343,8 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
   if (!files.isEmpty()) {
     QAction *copyPathAction =
         contextMenu.addAction(tr("Copy file path to clipboard"));
-    connect(copyPathAction, &QAction::triggered, this, [=]() {
-      copyFilePathsToClipboard(files);
-    });
+    connect(copyPathAction, &QAction::triggered, this,
+            [=]() { copyFilePathsToClipboard(files); });
   }
 
   contextMenu.addAction(ui->actionIndexTreeShowInFileManager);
@@ -4536,16 +4535,14 @@ void GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
   QMenu contextMenu;
   QAction *copyPathAction =
       contextMenu.addAction(tr("Copy file path to clipboard"));
-  connect(copyPathAction, &QAction::triggered, this, [=]() {
-    copyFilePathsToClipboard(files);
-  });
+  connect(copyPathAction, &QAction::triggered, this,
+          [=]() { copyFilePathsToClipboard(files); });
 
   if (!existingFiles.isEmpty()) {
     QAction *showInFileManagerAction =
         contextMenu.addAction(tr("Show in File manager"));
-    connect(showInFileManagerAction, &QAction::triggered, this, [=]() {
-      FileManager::revealInFileManager(existingFiles);
-    });
+    connect(showInFileManagerAction, &QAction::triggered, this,
+            [=]() { FileManager::revealInFileManager(existingFiles); });
   }
 
   contextMenu.exec(ui->listViewPageDisplayFilesFlat->mapToGlobal(pos));
@@ -4574,15 +4571,15 @@ void GitRepoContainer::onPageDisplayFilesTreeViewContextMenuRequested(
       ui->treeViewPageDisplayFilesTree->selectionModel()->selectedIndexes();
 
   for (const auto &selectedIndex : listIndexes) {
-    const int rowCount = ui->treeViewPageDisplayFilesTree->model()->rowCount(
-        selectedIndex);
+    const int rowCount =
+        ui->treeViewPageDisplayFilesTree->model()->rowCount(selectedIndex);
 
     if (rowCount > 0) {
       QModelIndex current = selectedIndex;
       QString fullPath = current.data().toString();
       while (current.parent().isValid()) {
-        fullPath = current.parent().data().toString() + QDir::separator() +
-                   fullPath;
+        fullPath =
+            current.parent().data().toString() + QDir::separator() + fullPath;
         current = current.parent();
       }
       items += QDir::fromNativeSeparators(fullPath);
@@ -4606,16 +4603,14 @@ void GitRepoContainer::onPageDisplayFilesTreeViewContextMenuRequested(
   QMenu contextMenu;
   QAction *copyPathAction =
       contextMenu.addAction(tr("Copy file path to clipboard"));
-  connect(copyPathAction, &QAction::triggered, this, [=]() {
-    copyFilePathsToClipboard(files);
-  });
+  connect(copyPathAction, &QAction::triggered, this,
+          [=]() { copyFilePathsToClipboard(files); });
 
   if (!itemsThatExist.isEmpty()) {
     QAction *showInFileManagerAction =
         contextMenu.addAction(tr("Show in File manager"));
-    connect(showInFileManagerAction, &QAction::triggered, this, [=]() {
-      FileManager::revealInFileManager(itemsThatExist);
-    });
+    connect(showInFileManagerAction, &QAction::triggered, this,
+            [=]() { FileManager::revealInFileManager(itemsThatExist); });
   }
 
   contextMenu.exec(ui->treeViewPageDisplayFilesTree->mapToGlobal(pos));
@@ -4870,7 +4865,8 @@ void GitRepoContainer::abortMerge(const WeakPtr &guard) {
 }
 
 void GitRepoContainer::addSubmodule(const WeakPtr &guard, const QString &url,
-                                    const QString &name) {
+                                    const QString &name,
+                                    const QString &branch) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -4882,6 +4878,7 @@ void GitRepoContainer::addSubmodule(const WeakPtr &guard, const QString &url,
   command.syncUuid = eventUuid;
   command.url = url;
   command.name = name;
+  command.branch = branch;
 
   EventManager::Event addSubmoduleEvent(
       EventManager::EventType::GitRepoManagerAddSubmodule, eventUuid);
@@ -5291,10 +5288,10 @@ void GitRepoContainer::checkoutBranch(
 
     if (branchType == GitRepo::BranchType::Tag) {
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        showToast(
-            tr("You are now in detached HEAD state after checking out tag '%1'.")
-                .arg(result.branchName),
-            tr("Warning"));
+        showToast(tr("You are now in detached HEAD state after checking out "
+                     "tag '%1'.")
+                      .arg(result.branchName),
+                  tr("Warning"));
       });
     }
 
@@ -7754,8 +7751,7 @@ GitRepoContainer::getCommitStatus(const WeakPtr &guard,
   return commitStatus;
 }
 
-void GitRepoContainer::copyFilePathsToClipboard(
-    const QStringList &filePaths) {
+void GitRepoContainer::copyFilePathsToClipboard(const QStringList &filePaths) {
   LOG_PERF(0, "Enter");
 
   QStringList uniqueFilePaths = filePaths;
@@ -7777,8 +7773,9 @@ void GitRepoContainer::copyFilePathsToClipboard(
   if (uniqueFilePaths.size() == 1) {
     showToast(tr("File path copied to clipboard."), tr("Info"));
   } else {
-    showToast(tr("%1 file paths copied to clipboard.").arg(uniqueFilePaths.size()),
-              tr("Info"));
+    showToast(
+        tr("%1 file paths copied to clipboard.").arg(uniqueFilePaths.size()),
+        tr("Info"));
   }
 
   LOG_PERF(0, "Exit");

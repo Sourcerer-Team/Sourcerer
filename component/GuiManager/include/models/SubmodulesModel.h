@@ -19,6 +19,7 @@ public:
 
   // BranchesModel interface
 public:
+  QString iconActivePath() const override;
   QString iconPath() const override;
   void updateModelWithStatus(
       const QVector<GitRepo::SubmoduleInfo> &submodulesWithStatus,

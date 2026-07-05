@@ -17,7 +17,8 @@ public:
 
 signals:
   void canceled();
-  void submitted(const QString &url, const QString &name);
+  void submitted(const QString &url, const QString &name,
+                 const QString &branch);
 
 protected:
   bool eventFilter(QObject *obj, QEvent *event) override;
@@ -29,6 +30,7 @@ private slots:
 private:
   PersistentPlaceholderLineEdit *_lineEditUrl;
   PersistentPlaceholderLineEdit *_lineEditName;
+  PersistentPlaceholderLineEdit *_lineEditBranch;
 };
 
 } // namespace GuiManager::Widgets

@@ -34,8 +34,7 @@
 namespace {
 class BottomResizeGripWidget final : public QWidget {
 public:
-  explicit BottomResizeGripWidget(QWidget *parent = nullptr)
-      : QWidget(parent) {
+  explicit BottomResizeGripWidget(QWidget *parent = nullptr) : QWidget(parent) {
     setMouseTracking(true);
     setCursor(Qt::SizeVerCursor);
     setAttribute(Qt::WA_StyledBackground, true);
@@ -286,7 +285,8 @@ void MainWindow::resizeEvent(QResizeEvent *event) {
     const qlonglong borderWidth =
         _configManager.getLong(ConfigManager::ConfigKey::MainWindowBorderWidth);
     const int gripHeight = qMax<qlonglong>(borderWidth, 6);
-    _bottomResizeGrip->setGeometry(0, height() - gripHeight, width(), gripHeight);
+    _bottomResizeGrip->setGeometry(0, height() - gripHeight, width(),
+                                   gripHeight);
     _bottomResizeGrip->raise();
   }
 }
@@ -320,8 +320,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showEvent(QShowEvent *event)
-{
+void MainWindow::showEvent(QShowEvent *event) {
   LOG_PERF(0, "Enter");
 
   QMainWindow::showEvent(event);

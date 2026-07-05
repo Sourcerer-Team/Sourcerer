@@ -19,6 +19,10 @@ SubmodulesModel::SubmodulesModel(QObject *parent) : BranchesModel{parent} {}
 
 SubmodulesModel::~SubmodulesModel() {}
 
+QString SubmodulesModel::iconActivePath() const {
+  return ICON_PATH;
+}
+
 QString SubmodulesModel::iconPath() const {
   return ICON_PATH;
 }
@@ -38,8 +42,7 @@ void SubmodulesModel::updateModelWithStatus(
     // Create the display text with status information
     QString displayText = submoduleInfo.name;
     if (!submoduleInfo.commit.isEmpty()) {
-      displayText += QStringLiteral(" @%1")
-                         .arg(submoduleInfo.commit.left(7));
+      displayText += QStringLiteral(" @%1").arg(submoduleInfo.commit.left(7));
     }
 
     // Add status indicator based on the status type
@@ -48,7 +51,7 @@ void SubmodulesModel::updateModelWithStatus(
       displayText += " ✓";
     } else if (submoduleInfo.statusInfo.status ==
                GitRepo::SubmoduleStatusType::Outdated) {
-      displayText += " ⬆"; // Outdated symbol
+      displayText += " ↑";
     } else if (submoduleInfo.statusInfo.status ==
                GitRepo::SubmoduleStatusType::Error) {
       displayText += " ✗"; // Error symbol

@@ -554,8 +554,8 @@ void ProcessingState::addSubmoduleWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success =
-      GitRepo::addSubmodule(repo, command.url, command.name, command.uuid);
+  const bool success = GitRepo::addSubmodule(repo, command.url, command.name,
+                                             command.branch, command.uuid);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
@@ -3900,9 +3900,9 @@ void ProcessingState::updateRemoteWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::updateRemote(repo, command.remoteName,
-                                             command.newRemoteName,
-                                             command.fetchUrl, command.pushUrl);
+  const bool success =
+      GitRepo::updateRemote(repo, command.remoteName, command.newRemoteName,
+                            command.fetchUrl, command.pushUrl);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(

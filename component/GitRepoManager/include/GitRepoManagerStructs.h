@@ -134,6 +134,7 @@ struct GitRepoAddSubmoduleCommand final : GitRepoCommand {
 
   QString url;
   QString name;
+  QString branch;
 };
 
 struct GitRepoAmendCommand final : GitRepoCommand {

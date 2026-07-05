@@ -48,8 +48,8 @@ void HitDetector::init() {
                   qFloor(globalPos.y() * _pixelRatio));
 
     // Update cursor based on margin.
-    // Use the global override cursor so child widgets cannot mask resize cursors
-    // near the bottom edge.
+    // Use the global override cursor so child widgets cannot mask resize
+    // cursors near the bottom edge.
     const Qt::CursorShape cursorShape = [&]() {
       switch (margin) {
       case HitDetector::Margin::HTBOTTOM:
