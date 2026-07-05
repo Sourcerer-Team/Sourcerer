@@ -3901,6 +3901,7 @@ void ProcessingState::updateRemoteWorker(
   }
 
   const bool success = GitRepo::updateRemote(repo, command.remoteName,
+                                             command.newRemoteName,
                                              command.fetchUrl, command.pushUrl);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();

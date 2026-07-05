@@ -777,6 +777,7 @@ struct GitRepoUpdateRemoteCommand final : GitRepoCommand {
   ~GitRepoUpdateRemoteCommand() override = default;
 
   QString remoteName;
+  QString newRemoteName;
   QString fetchUrl;
   QString pushUrl;
 };

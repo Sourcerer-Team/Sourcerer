@@ -316,7 +316,8 @@ private:
   void addRemote(const WeakPtr &guard, const QString &remoteName,
                  const QString &fetchUrl, const QString &pushUrl);
   void editRemote(const WeakPtr &guard, int remoteIndex,
-                  const QString &fetchUrl, const QString &pushUrl);
+                  const QString &remoteName, const QString &fetchUrl,
+                  const QString &pushUrl);
   void deleteRemote(const WeakPtr &guard, int remoteIndex);
   void setDefaultRemote(const WeakPtr &guard, int remoteIndex);
   void renameBranch(const WeakPtr &guard, const QString &oldName,

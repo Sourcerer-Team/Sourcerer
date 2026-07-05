@@ -467,7 +467,8 @@ bool addRemote(git_repository *repo, const QString &remoteName,
 bool removeRemote(git_repository *repo, const QString &remoteName);
 
 bool updateRemote(git_repository *repo, const QString &remoteName,
-                  const QString &fetchUrl, const QString &pushUrl);
+                  const QString &newRemoteName, const QString &fetchUrl,
+                  const QString &pushUrl);
 
 // Target management functions (multiple targets per remote)
 bool addTarget(git_repository *repo, const QString &remoteName,
