@@ -3735,8 +3735,10 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
     connect(copyPathAction, &QAction::triggered, this, [=]() {
       copyFilePathsToClipboard(files);
     });
-    contextMenu.addSeparator();
   }
+
+  contextMenu.addAction(ui->actionWorkingTreeFlatShowInFileManager);
+  contextMenu.addSeparator();
 
   contextMenu.addAction(ui->actionWorkingTreeFlatStage);
   if (!conflicted) {
@@ -3762,8 +3764,6 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
       contextMenu.addSeparator();
     }
 
-    contextMenu.addAction(ui->actionWorkingTreeFlatShowInFileManager);
-    contextMenu.addSeparator();
     contextMenu.addAction(ui->actionWorkingTreeFlatDelete);
   }
 
@@ -3946,8 +3946,10 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
     connect(copyPathAction, &QAction::triggered, this, [=]() {
       copyFilePathsToClipboard(files);
     });
-    contextMenu.addSeparator();
   }
+
+  contextMenu.addAction(ui->actionWorkingTreeTreeShowInFileManager);
+  contextMenu.addSeparator();
 
   contextMenu.addAction(ui->actionWorkingTreeTreeStage);
   if (!conflicted) {
@@ -3973,8 +3975,6 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
       contextMenu.addSeparator();
     }
 
-    contextMenu.addAction(ui->actionWorkingTreeTreeShowInFileManager);
-    contextMenu.addSeparator();
     contextMenu.addAction(ui->actionWorkingTreeTreeDelete);
   }
 
@@ -4148,8 +4148,10 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
     connect(copyPathAction, &QAction::triggered, this, [=]() {
       copyFilePathsToClipboard(files);
     });
-    contextMenu.addSeparator();
   }
+
+  contextMenu.addAction(ui->actionIndexFlatShowInFileManager);
+  contextMenu.addSeparator();
 
   contextMenu.addAction(ui->actionIndexFlatUnstage);
   contextMenu.addAction(ui->actionIndexFlatDiscard);
@@ -4167,8 +4169,6 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
 
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexFlatCreateFilePatch);
-    contextMenu.addSeparator();
-    contextMenu.addAction(ui->actionIndexFlatShowInFileManager);
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexFlatDelete);
   }
@@ -4338,8 +4338,10 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
     connect(copyPathAction, &QAction::triggered, this, [=]() {
       copyFilePathsToClipboard(files);
     });
-    contextMenu.addSeparator();
   }
+
+  contextMenu.addAction(ui->actionIndexTreeShowInFileManager);
+  contextMenu.addSeparator();
 
   contextMenu.addAction(ui->actionIndexTreeUnstage);
   contextMenu.addAction(ui->actionIndexTreeDiscard);
@@ -4357,8 +4359,6 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
 
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexTreeCreateFilePatch);
-    contextMenu.addSeparator();
-    contextMenu.addAction(ui->actionIndexTreeShowInFileManager);
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexTreeDelete);
   }
@@ -4518,6 +4518,8 @@ void GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
   }
 
   const QStringList files = getSelectedFiles(ui->listViewPageDisplayFilesFlat);
+  const QStringList existingFiles =
+      getSelectedFilesWhichExist(ui->listViewPageDisplayFilesFlat);
   if (files.isEmpty()) {
     LOG_PERF(0, "Exit");
     return;
@@ -4529,6 +4531,14 @@ void GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
   connect(copyPathAction, &QAction::triggered, this, [=]() {
     copyFilePathsToClipboard(files);
   });
+
+  if (!existingFiles.isEmpty()) {
+    QAction *showInFileManagerAction =
+        contextMenu.addAction(tr("Show in File manager"));
+    connect(showInFileManagerAction, &QAction::triggered, this, [=]() {
+      FileManager::revealInFileManager(existingFiles);
+    });
+  }
 
   contextMenu.exec(ui->listViewPageDisplayFilesFlat->mapToGlobal(pos));
 
@@ -4551,12 +4561,54 @@ void GitRepoContainer::onPageDisplayFilesTreeViewContextMenuRequested(
     return;
   }
 
+  QStringList items;
+  const QModelIndexList listIndexes =
+      ui->treeViewPageDisplayFilesTree->selectionModel()->selectedIndexes();
+
+  for (const auto &selectedIndex : listIndexes) {
+    const int rowCount = ui->treeViewPageDisplayFilesTree->model()->rowCount(
+        selectedIndex);
+
+    if (rowCount > 0) {
+      QModelIndex current = selectedIndex;
+      QString fullPath = current.data().toString();
+      while (current.parent().isValid()) {
+        fullPath = current.parent().data().toString() + QDir::separator() +
+                   fullPath;
+        current = current.parent();
+      }
+      items += QDir::fromNativeSeparators(fullPath);
+    } else {
+      const QStringList traversedFiles = traverseModelIndexSubtree(
+          selectedIndex, ui->treeViewPageDisplayFilesTree->model());
+      for (const auto &traversedFile : traversedFiles) {
+        items += QDir::fromNativeSeparators(traversedFile);
+      }
+    }
+  }
+
+  QStringList itemsThatExist;
+  for (const auto &item : items) {
+    const QString fullPath = QDir(_path).filePath(item);
+    if (QFileInfo::exists(fullPath)) {
+      itemsThatExist += fullPath;
+    }
+  }
+
   QMenu contextMenu;
   QAction *copyPathAction =
       contextMenu.addAction(tr("Copy file path to clipboard"));
   connect(copyPathAction, &QAction::triggered, this, [=]() {
     copyFilePathsToClipboard(files);
   });
+
+  if (!itemsThatExist.isEmpty()) {
+    QAction *showInFileManagerAction =
+        contextMenu.addAction(tr("Show in File manager"));
+    connect(showInFileManagerAction, &QAction::triggered, this, [=]() {
+      FileManager::revealInFileManager(itemsThatExist);
+    });
+  }
 
   contextMenu.exec(ui->treeViewPageDisplayFilesTree->mapToGlobal(pos));
 
@@ -9881,12 +9933,12 @@ void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
             &GitRepoContainer::onRepoDirChanged);
     connect(_repoDirWatcher, &QFileSystemWatcher::fileChanged, this,
             &GitRepoContainer::onRepoDirChanged);
-    
+
     // Watch all subdirectories except .git to detect file additions/deletions
     const QStringList directories =
         getSubdirectories(_path, QStringList() << GIT_SUBDIR);
     _repoDirWatcher->addPaths(directories);
-    
+
     // Watch all files recursively (excluding .git directory) to detect modifications
     const QStringList files = getAllFiles(_path, QStringList() << GIT_SUBDIR);
     _repoDirWatcher->addPaths(files);
