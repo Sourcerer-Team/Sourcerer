@@ -21,7 +21,8 @@ public:
 
 signals:
   void canceled();
-  void submitted(const QString &fetchUrl, const QString &pushUrl);
+  void submitted(const QString &remoteName, const QString &fetchUrl,
+                 const QString &pushUrl);
 
 protected:
   bool eventFilter(QObject *obj, QEvent *event) override;

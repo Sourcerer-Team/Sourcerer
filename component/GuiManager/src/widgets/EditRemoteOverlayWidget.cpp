@@ -37,8 +37,9 @@ EditRemoteOverlayWidget::EditRemoteOverlayWidget(QWidget *parent)
                                      QSizePolicy::Preferred);
   _lineEditRemoteName->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
   _lineEditRemoteName->setMaximumWidth(300);
-  _lineEditRemoteName->setReadOnly(true);
+  _lineEditRemoteName->setReadOnly(false);
   _lineEditRemoteName->setPlaceholderText(tr("Remote name"));
+  _lineEditRemoteName->setFocus();
 
   _lineEditFetchUrl->setParent(groupBox);
   _lineEditFetchUrl->setObjectName("lineEditEditRemoteOverlayWidgetFetchUrl");
@@ -103,6 +104,7 @@ EditRemoteOverlayWidget::EditRemoteOverlayWidget(QWidget *parent)
   connect(pushButtonCancel, &QPushButton::clicked, this,
           &EditRemoteOverlayWidget::onButtonCanceled);
 
+  _lineEditRemoteName->installEventFilter(this);
   _lineEditFetchUrl->installEventFilter(this);
   _lineEditPushUrl->installEventFilter(this);
 
@@ -123,7 +125,7 @@ void EditRemoteOverlayWidget::setRemoteInfo(const QString &remoteName,
   _lineEditRemoteName->setText(remoteName);
   _lineEditFetchUrl->setText(fetchUrl);
   _lineEditPushUrl->setText(pushUrl);
-  _lineEditFetchUrl->setFocus();
+  _lineEditRemoteName->setFocus();
 
   LOG_PERF(0, "Exit");
 }
@@ -166,17 +168,18 @@ void EditRemoteOverlayWidget::onButtonCanceled() {
 void EditRemoteOverlayWidget::onButtonSubmitted() {
   LOG_PERF(0, "Enter");
 
+  const QString remoteName = _lineEditRemoteName->text().trimmed();
   const QString fetchUrl = _lineEditFetchUrl->text().trimmed();
   const QString pushUrl = _lineEditPushUrl->text().trimmed();
 
-  if (fetchUrl.isEmpty()) {
-    LOG_DEBUG("Fetch URL is empty");
+  if (remoteName.isEmpty() || fetchUrl.isEmpty()) {
+    LOG_DEBUG("Remote name or fetch URL is empty");
     LOG_PERF(0, "Exit");
     return;
   }
 
   reset();
-  emit submitted(fetchUrl, pushUrl.isEmpty() ? fetchUrl : pushUrl);
+  emit submitted(remoteName, fetchUrl, pushUrl.isEmpty() ? fetchUrl : pushUrl);
 
   LOG_PERF(0, "Exit");
 }

@@ -1191,17 +1191,20 @@ void GitRepoContainer::onEditRemote(int remoteIndex) {
   overlayWidget->setRemoteInfo(remote.name, remote.fetchUrl, remote.pushUrl);
 
   connect(overlayWidget, &Widgets::EditRemoteOverlayWidget::submitted, this,
-          [=](const QString &fetchUrl, const QString &pushUrl) {
-            LOG_DEBUG("Edit remote submitted: name='{}', fetchUrl='{}'",
-                      remote.name.toStdString(), fetchUrl.toStdString());
+          [=](const QString &remoteName, const QString &fetchUrl,
+              const QString &pushUrl) {
+            LOG_DEBUG("Edit remote submitted: name='{}' -> '{}', fetchUrl='{}'",
+                      remote.name.toStdString(), remoteName.toStdString(),
+                      fetchUrl.toStdString());
 
             overlayWidget->deleteLater();
 
             startOverlayTimer();
 
             const WeakPtr guard = getSelf().toWeakRef();
-            _dispatcher.dispatch(
-                [=]() { editRemote(guard, remoteIndex, fetchUrl, pushUrl); });
+            _dispatcher.dispatch([=]() {
+              editRemote(guard, remoteIndex, remoteName, fetchUrl, pushUrl);
+            });
           });
 
   connect(overlayWidget, &Widgets::EditRemoteOverlayWidget::canceled, this,
@@ -8965,6 +8968,7 @@ void GitRepoContainer::addRemote(const WeakPtr &guard,
 }
 
 void GitRepoContainer::editRemote(const WeakPtr &guard, int remoteIndex,
+                                  const QString &remoteName,
                                   const QString &fetchUrl,
                                   const QString &pushUrl) {
   LOG_PERF(0, "Enter");
@@ -8991,6 +8995,7 @@ void GitRepoContainer::editRemote(const WeakPtr &guard, int remoteIndex,
   command.uuid = _uuid;
   command.syncUuid = eventUuid;
   command.remoteName = remote.name;
+  command.newRemoteName = remoteName;
   command.fetchUrl = fetchUrl;
   command.pushUrl = pushUrl;
 

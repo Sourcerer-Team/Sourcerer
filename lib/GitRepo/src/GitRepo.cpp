@@ -8740,10 +8740,12 @@ bool removeRemote(git_repository *repo, const QString &remoteName) {
 }
 
 bool updateRemote(git_repository *repo, const QString &remoteName,
-                  const QString &fetchUrl, const QString &pushUrl) {
+                  const QString &newRemoteName, const QString &fetchUrl,
+                  const QString &pushUrl) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Updating remote '{}' with fetch URL: '{}'",
-            remoteName.toStdString(), fetchUrl.toStdString());
+  LOG_DEBUG("Updating remote '{}' -> '{}' with fetch URL: '{}'",
+            remoteName.toStdString(), newRemoteName.toStdString(),
+            fetchUrl.toStdString());
 
   Q_ASSERT(repo != nullptr);
 
@@ -8753,14 +8755,33 @@ bool updateRemote(git_repository *repo, const QString &remoteName,
     return false;
   }
 
-  if (remoteName.isEmpty() || fetchUrl.isEmpty()) {
-    LOG_ERROR(Log::ErrorId::Git, "Remote name and fetch URL cannot be empty");
+  if (remoteName.isEmpty() || newRemoteName.isEmpty() || fetchUrl.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Remote names and fetch URL cannot be empty");
     LOG_PERF(0, "Exit");
     return false;
   }
 
+  QString effectiveRemoteName = remoteName;
+  if (newRemoteName != remoteName) {
+    git_strarray problems = {0};
+    const int renameError = git_remote_rename(
+        &problems, repo, remoteName.toUtf8().constData(),
+        newRemoteName.toUtf8().constData());
+    if (renameError) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Failed to rename remote '{}' to '{}': error={}",
+                remoteName.toStdString(), newRemoteName.toStdString(),
+                renameError);
+      logGitError(renameError);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+    effectiveRemoteName = newRemoteName;
+  }
+
   // Set fetch URL
-  int error = git_remote_set_url(repo, remoteName.toUtf8().constData(),
+  int error = git_remote_set_url(repo, effectiveRemoteName.toUtf8().constData(),
                                  fetchUrl.toUtf8().constData());
   if (error) {
     LOG_ERROR(Log::ErrorId::Git,
@@ -8772,7 +8793,7 @@ bool updateRemote(git_repository *repo, const QString &remoteName,
   }
 
   // Set push URL
-  error = git_remote_set_pushurl(repo, remoteName.toUtf8().constData(),
+  error = git_remote_set_pushurl(repo, effectiveRemoteName.toUtf8().constData(),
                                  pushUrl.toUtf8().constData());
   if (error) {
     LOG_ERROR(Log::ErrorId::Git,
