@@ -3147,6 +3147,7 @@ void GitRepoContainer::onRenameBranch(const QString &branchName) {
 
   const auto inputOverlay = new TextInputOverlayWidget(this);
   inputOverlay->setPlaceholderText(tr("New branch name"));
+  inputOverlay->setText(branchName);
 
   connect(inputOverlay, &TextInputOverlayWidget::canceled, this, [=]() {
     LOG_DEBUG("Rename branch dialog cancelled");
@@ -3164,6 +3165,10 @@ void GitRepoContainer::onRenameBranch(const QString &branchName) {
 
   inputOverlay->show();
   inputOverlay->raise();
+
+  QTimer::singleShot(0, inputOverlay, [inputOverlay]() {
+    inputOverlay->focusAndSelectAll();
+  });
 
   LOG_DEBUG("Rename branch dialog displayed");
   LOG_PERF(0, "Exit");
