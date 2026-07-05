@@ -45,6 +45,7 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::HttpClientTimeout, "network/httpClient/timeout"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
     {ConfigKey::MainWindowBorderWidth, "window/borderWidth"},
+    {ConfigKey::MainWindowGeometry, "window/geometry"},
     {ConfigKey::MainWindowMinimumWidth, "window/minimumWidth"},
     {ConfigKey::MainWindowMinimumHeight, "window/minimumHeight"},
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
@@ -142,6 +143,7 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::HttpClientCaCertFile, "ca-certificates.crt"},
     {ConfigKey::RecentlyOpenedRepos, ""},
     {ConfigKey::UiTheme, "SourcererLight"},
+    {ConfigKey::MainWindowGeometry, ""},
     {ConfigKey::SettingsSplitterPos, ""}};
 
 ConfigManager::ConfigManager()

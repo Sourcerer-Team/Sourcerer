@@ -21,6 +21,7 @@
 #include <Dispatcher.h>
 #include <Log.h>
 
+#include <QCloseEvent>
 #include <QFileDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -103,6 +104,13 @@ MainWindow::MainWindow(QWidget *parent)
   _consoleWidget->hide();
 
   setCentralWidget(widget);
+
+  const QString savedGeometry =
+      _configManager.getString(ConfigManager::ConfigKey::MainWindowGeometry);
+  if (!savedGeometry.isEmpty()) {
+    restoreGeometry(QByteArray::fromHex(savedGeometry.toUtf8()));
+    _maximized = windowState().testFlag(Qt::WindowMaximized);
+  }
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
@@ -245,6 +253,17 @@ void MainWindow::changeEvent(QEvent *event) {
   }
 
   QMainWindow::changeEvent(event);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::closeEvent(QCloseEvent *event) {
+  LOG_PERF(0, "Enter");
+
+  _configManager.setString(ConfigManager::ConfigKey::MainWindowGeometry,
+                           saveGeometry().toHex());
+
+  QMainWindow::closeEvent(event);
 
   LOG_PERF(0, "Exit");
 }

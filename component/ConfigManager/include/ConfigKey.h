@@ -12,6 +12,7 @@ enum class ConfigKey {
   TitleBarMaxTabWidth,
   TitleBarMenuMinimumSize,
   MainWindowBorderWidth,
+  MainWindowGeometry,
   MainWindowMinimumHeight,
   MainWindowMinimumWidth,
 

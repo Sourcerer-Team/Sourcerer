@@ -18,6 +18,7 @@
 #include <QMainWindow>
 #include <QMap>
 #include <QResizeEvent>
+#include <QCloseEvent>
 #include <QSet>
 
 namespace GuiManager {
@@ -44,6 +45,7 @@ public:
 protected:
   void mouseMoveEvent(QMouseEvent *event) override;
   void changeEvent(QEvent *event) override;
+  void closeEvent(QCloseEvent *event) override;
 
   // QObject interface
 public:

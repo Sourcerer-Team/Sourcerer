@@ -63,7 +63,13 @@ void GuiManager::start() {
   StylesheetManager::StylesheetManager::applyStylesheet(&app);
 
   const auto w = QSharedPointer<MainWindow>::create();
-  w->showMaximized();
+  const QString savedGeometry =
+      configManager.getString(ConfigManager::ConfigKey::MainWindowGeometry);
+  if (savedGeometry.isEmpty()) {
+    w->showMaximized();
+  } else {
+    w->show();
+  }
 
   EventManager::Event startedEvent(EventManager::EventType::ComponentStarted);
   EventManager::EventManager &eventManager =
