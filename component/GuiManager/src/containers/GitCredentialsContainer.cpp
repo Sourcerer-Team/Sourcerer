@@ -51,6 +51,8 @@ GitCredentialsContainer::GitCredentialsContainer(QWidget *parent)
           &GitCredentialsContainer::onEditClicked);
   connect(ui->deleteButton, &QPushButton::clicked, this,
           &GitCredentialsContainer::onDeleteClicked);
+  connect(ui->tableView, &QTableView::doubleClicked, this,
+          [this](const QModelIndex &) { onEditClicked(); });
   connect(ui->tableView->selectionModel(),
           &QItemSelectionModel::selectionChanged, this,
           &GitCredentialsContainer::onSelectionChanged);
