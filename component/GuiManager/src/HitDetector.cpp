@@ -47,29 +47,39 @@ void HitDetector::init() {
         ncHitTest(_window->frameGeometry(), qFloor(globalPos.x() * _pixelRatio),
                   qFloor(globalPos.y() * _pixelRatio));
 
-    // Update cursor based on margin
-    if (margin == HitDetector::Margin::HTNOWHERE) {
-      _window->unsetCursor();
-    } else {
+    // Update cursor based on margin.
+    // Use the global override cursor so child widgets cannot mask resize cursors
+    // near the bottom edge.
+    const Qt::CursorShape cursorShape = [&]() {
       switch (margin) {
       case HitDetector::Margin::HTBOTTOM:
       case HitDetector::Margin::HTTOP:
-        _window->setCursor(Qt::SizeVerCursor);
-        break;
+        return Qt::SizeVerCursor;
       case HitDetector::Margin::HTLEFT:
       case HitDetector::Margin::HTRIGHT:
-        _window->setCursor(Qt::SizeHorCursor);
-        break;
+        return Qt::SizeHorCursor;
       case HitDetector::Margin::HTTOPLEFT:
       case HitDetector::Margin::HTBOTTOMRIGHT:
-        _window->setCursor(Qt::SizeFDiagCursor);
-        break;
+        return Qt::SizeFDiagCursor;
       case HitDetector::Margin::HTTOPRIGHT:
       case HitDetector::Margin::HTBOTTOMLEFT:
-        _window->setCursor(Qt::SizeBDiagCursor);
-        break;
+        return Qt::SizeBDiagCursor;
       default:
-        break;
+        return Qt::ArrowCursor;
+      }
+    }();
+
+    if (margin == HitDetector::Margin::HTNOWHERE) {
+      if (_lastMargin != HitDetector::Margin::HTNOWHERE &&
+          QApplication::overrideCursor()) {
+        QApplication::restoreOverrideCursor();
+      }
+    } else {
+      if (_lastMargin == HitDetector::Margin::HTNOWHERE) {
+        QApplication::setOverrideCursor(QCursor(cursorShape));
+      } else if (QApplication::overrideCursor() &&
+                 QApplication::overrideCursor()->shape() != cursorShape) {
+        QApplication::changeOverrideCursor(QCursor(cursorShape));
       }
     }
     _lastMargin = margin;
@@ -139,6 +149,7 @@ HitDetector::Margin HitDetector::ncHitTest(const QRect &frameGeometry, int x,
 
   const qlonglong borderWidth =
       _configManager.getLong(ConfigManager::ConfigKey::MainWindowBorderWidth);
+  const qlonglong hitBorderWidth = qMax<qlonglong>(borderWidth, 6);
 
   // Get the point coordinates for the hit test.
   const QPoint cursorPos =
@@ -149,16 +160,18 @@ HitDetector::Margin HitDetector::ncHitTest(const QRect &frameGeometry, int x,
   int col = 1;
 
   // Determine if the point is at the top or bottom of the window.
-  if (cursorPos.y() < frameGeometry.top() + borderWidth) {
+  if (cursorPos.y() <= frameGeometry.top() + hitBorderWidth - 1) {
     row = 0; // top border.
-  } else if (cursorPos.y() > frameGeometry.bottom() - borderWidth)
+  } else if (cursorPos.y() >= frameGeometry.bottom() - hitBorderWidth + 1) {
     row = 2; // bottom border.
+  }
 
   // Determine if the point is at the left or right of the window.
-  if (cursorPos.x() < frameGeometry.left() + borderWidth)
+  if (cursorPos.x() <= frameGeometry.left() + hitBorderWidth - 1) {
     col = 0; // left border.
-  else if (cursorPos.x() > frameGeometry.right() - borderWidth)
+  } else if (cursorPos.x() >= frameGeometry.right() - hitBorderWidth + 1) {
     col = 2; // right border.
+  }
 
   // Hit test (HTTOPLEFT, ... HTBOTTOMRIGHT)
   const HitDetector::Margin hitTests[3][3] = {
