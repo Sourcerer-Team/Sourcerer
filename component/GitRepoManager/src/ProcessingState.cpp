@@ -555,7 +555,8 @@ void ProcessingState::addSubmoduleWorker(
   }
 
   const bool success =
-      GitRepo::addSubmodule(repo, command.url, command.name, command.uuid);
+      GitRepo::addSubmodule(repo, command.url, command.name, command.branch,
+                            command.uuid);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(

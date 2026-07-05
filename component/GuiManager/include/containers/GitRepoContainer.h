@@ -219,7 +219,7 @@ private slots:
 private:
   void abortMerge(const WeakPtr &guard);
   void addSubmodule(const WeakPtr &guard, const QString &url,
-                    const QString &name);
+                    const QString &name, const QString &branch);
   void addTarget(const WeakPtr &guard, int remoteIndex,
                  const QString &targetName, const QString &fetchUrl,
                  const QString &pushUrl);

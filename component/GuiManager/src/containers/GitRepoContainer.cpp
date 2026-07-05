@@ -999,15 +999,18 @@ void GitRepoContainer::onAddSubmodule() {
   });
 
   connect(overlayWidget, &AddSubmoduleOverlayWidget::submitted, this,
-          [=](const QString &url, const QString &name) {
-            LOG_DEBUG("Adding submodule - URL: '{}', Name: '{}'",
-                      url.toStdString(), name.toStdString());
+          [=](const QString &url, const QString &name,
+              const QString &branch) {
+            LOG_DEBUG("Adding submodule - URL: '{}', Name: '{}', Branch: '{}'",
+                      url.toStdString(), name.toStdString(),
+                      branch.toStdString());
             overlayWidget->hide();
             delete overlayWidget;
 
             // startOverlayTimer();
 
-            _dispatcher.dispatch([=]() { addSubmodule(guard, url, name); });
+            _dispatcher.dispatch(
+                [=]() { addSubmodule(guard, url, name, branch); });
           });
 
   overlayWidget->show();
@@ -4870,7 +4873,8 @@ void GitRepoContainer::abortMerge(const WeakPtr &guard) {
 }
 
 void GitRepoContainer::addSubmodule(const WeakPtr &guard, const QString &url,
-                                    const QString &name) {
+                                    const QString &name,
+                                    const QString &branch) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -4882,6 +4886,7 @@ void GitRepoContainer::addSubmodule(const WeakPtr &guard, const QString &url,
   command.syncUuid = eventUuid;
   command.url = url;
   command.name = name;
+  command.branch = branch;
 
   EventManager::Event addSubmoduleEvent(
       EventManager::EventType::GitRepoManagerAddSubmodule, eventUuid);

@@ -448,7 +448,7 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
 bool updateSubmodule(git_repository *repo, const QString &submoduleName);
 
 bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
-                  const QString &uuid);
+                  const QString &branch, const QString &uuid);
 
 bool getIsMergeInProgress(git_repository *repo);
 
