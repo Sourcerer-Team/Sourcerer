@@ -195,10 +195,12 @@ struct SubmoduleStatus {
 
 struct SubmoduleInfo {
   QString name;
+  QString commit;
   SubmoduleStatus statusInfo;
 
   bool operator==(const SubmoduleInfo &other) const {
-    return name == other.name && statusInfo.status == other.statusInfo.status;
+    return name == other.name && commit == other.commit &&
+           statusInfo.status == other.statusInfo.status;
   }
 };
 struct RemoteTarget {

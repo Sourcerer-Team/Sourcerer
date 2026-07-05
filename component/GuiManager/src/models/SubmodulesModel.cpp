@@ -37,6 +37,10 @@ void SubmodulesModel::updateModelWithStatus(
 
     // Create the display text with status information
     QString displayText = submoduleInfo.name;
+    if (!submoduleInfo.commit.isEmpty()) {
+      displayText += QStringLiteral(" @%1")
+                         .arg(submoduleInfo.commit.left(7));
+    }
 
     // Add status indicator based on the status type
     if (submoduleInfo.statusInfo.status ==
@@ -56,6 +60,9 @@ void SubmodulesModel::updateModelWithStatus(
 
     // Set tooltip with full submodule name and status details
     QString tooltip = submoduleInfo.name;
+    if (!submoduleInfo.commit.isEmpty()) {
+      tooltip += QStringLiteral("\nCommit: %1").arg(submoduleInfo.commit);
+    }
     if (submoduleInfo.statusInfo.status ==
         GitRepo::SubmoduleStatusType::UpToDate) {
       tooltip += tr("\nSubmodule is up to date");
