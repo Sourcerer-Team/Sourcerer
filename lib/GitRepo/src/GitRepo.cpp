@@ -1881,15 +1881,15 @@ QVector<SubmoduleInfo> listSubmodulesWithStatus(git_repository *repo,
     // Get the expected commit (from parent repository's index)
     const git_oid *headId = git_submodule_head_id(submodule);
 
-    if (headId) {
-      const char *headIdStr = git_oid_tostr_s(headId);
-      if (headIdStr) {
-        info.commit = QString::fromUtf8(headIdStr);
-      }
-    }
-
     // Get the actual commit (from submodule's working directory)
     const git_oid *workdirId = git_submodule_wd_id(submodule);
+
+    if (workdirId) {
+      const char *workdirIdStr = git_oid_tostr_s(workdirId);
+      if (workdirIdStr) {
+        info.commit = QString::fromUtf8(workdirIdStr);
+      }
+    }
 
     if (!headId || !workdirId) {
       info.statusInfo.status = SubmoduleStatusType::Error;
@@ -7354,43 +7354,260 @@ bool updateSubmodule(git_repository *repo, const QString &submoduleName) {
   const std::string name = submoduleName.toStdString();
 
   git_submodule *submodule = nullptr;
+  git_repository *submoduleRepo = nullptr;
+  git_remote *remote = nullptr;
+  git_reference *remoteRef = nullptr;
+  git_commit *targetCommit = nullptr;
+
+  auto cleanup = [&]() {
+    if (targetCommit) {
+      git_commit_free(targetCommit);
+      targetCommit = nullptr;
+    }
+
+    if (remoteRef) {
+      git_reference_free(remoteRef);
+      remoteRef = nullptr;
+    }
+
+    if (remote) {
+      git_remote_free(remote);
+      remote = nullptr;
+    }
+
+    if (submoduleRepo) {
+      git_repository_free(submoduleRepo);
+      submoduleRepo = nullptr;
+    }
+
+    if (submodule) {
+      git_submodule_free(submodule);
+      submodule = nullptr;
+    }
+  };
+
+  auto fail = [&](const int error) {
+    if (error) {
+      logGitError(error);
+    }
+
+    cleanup();
+    LOG_PERF(0, "Exit");
+    return false;
+  };
 
   int error = git_submodule_lookup(&submodule, repo, name.c_str());
   if (error) {
-    logGitError(error);
-    LOG_PERF(0, "Exit");
-    return false;
+    return fail(error);
   }
 
-  error = git_submodule_init(submodule, 0);
+  error = git_submodule_open(&submoduleRepo, submodule);
   if (error) {
-    logGitError(error);
-    git_submodule_free(submodule);
-    LOG_PERF(0, "Exit");
-    return false;
+    return fail(error);
   }
 
-  // Configure fetch and checkout options with certificate checking
-  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
-  checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
+  QString repoPath;
+  if (const char *workdir = git_repository_workdir(submoduleRepo)) {
+    repoPath = QString::fromUtf8(workdir);
+  } else if (const char *path = git_repository_path(submoduleRepo)) {
+    repoPath = QString::fromUtf8(path);
+  }
+
+  if (repoPath.endsWith("/.git/")) {
+    repoPath = repoPath.left(repoPath.length() - 6);
+  } else if (repoPath.endsWith("/.git")) {
+    repoPath = repoPath.left(repoPath.length() - 5);
+  }
+
+  QString remoteName = getDefaultRemote(submoduleRepo);
+  if (remoteName.isEmpty()) {
+    remoteName = "origin";
+  }
+
+  QString branchName;
+  if (const char *configuredBranch = git_submodule_branch(submodule);
+      configuredBranch && configuredBranch[0]) {
+    branchName = QString::fromUtf8(configuredBranch);
+    if (branchName == "HEAD" || branchName == ".") {
+      branchName.clear();
+    }
+  }
+
+  if (branchName.isEmpty()) {
+    git_reference *head = nullptr;
+    if (const int headError = git_repository_head(&head, repo); !headError) {
+      const char *currentBranch = nullptr;
+      if (!git_branch_name(&currentBranch, head) && currentBranch &&
+          currentBranch[0]) {
+        branchName = QString::fromUtf8(currentBranch);
+      }
+      git_reference_free(head);
+    }
+  }
+
+  if (branchName.isEmpty()) {
+    git_remote *resolveRemote = nullptr;
+    error = git_remote_lookup(&resolveRemote, submoduleRepo,
+                              remoteName.toStdString().c_str());
+    if (error) {
+      return fail(error);
+    }
+
+    CloneProgress progressData;
+    progressData.uuid = Uuid::createUuid();
+    progressData.cloning = false;
+
+    GitCredentialPayload credPayload;
+    credPayload.repoPath = repoPath;
+    credPayload.cloning = false;
+
+    std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(
+        progressData, credPayload);
+
+    git_remote_callbacks callbacks = GIT_REMOTE_CALLBACKS_INIT;
+    callbacks.credentials = &credentialsAcquireCallback;
+    callbacks.certificate_check = &certificateCheckCallback;
+    callbacks.payload = &callbackPayload;
+
+    error = git_remote_connect(resolveRemote, GIT_DIRECTION_FETCH, &callbacks,
+                               nullptr, nullptr);
+    if (error) {
+      git_remote_free(resolveRemote);
+      return fail(error);
+    }
+
+    const git_remote_head **heads = nullptr;
+    size_t headCount = 0;
+    error = git_remote_ls(&heads, &headCount, resolveRemote);
+    if (error) {
+      git_remote_disconnect(resolveRemote);
+      git_remote_free(resolveRemote);
+      return fail(error);
+    }
+
+    const QString headsPrefix = QStringLiteral("refs/heads/");
+    for (size_t i = 0; i < headCount && branchName.isEmpty(); ++i) {
+      const git_remote_head *head = heads[i];
+      if (!head || !head->name) {
+        continue;
+      }
+
+      const QString headName = QString::fromUtf8(head->name);
+      if (headName == QStringLiteral("HEAD") && head->symref_target) {
+        const QString symrefTarget = QString::fromUtf8(head->symref_target);
+        if (symrefTarget.startsWith(headsPrefix)) {
+          branchName = symrefTarget.mid(headsPrefix.length());
+        }
+      } else if (headName.startsWith(headsPrefix)) {
+        branchName = headName.mid(headsPrefix.length());
+      }
+    }
+
+    git_remote_disconnect(resolveRemote);
+    git_remote_free(resolveRemote);
+
+    if (branchName.isEmpty()) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Can't determine target commit for submodule '{}': remote head not found",
+                submoduleName.toStdString());
+      cleanup();
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  error = git_remote_lookup(&remote, submoduleRepo,
+                            remoteName.toStdString().c_str());
+  if (error) {
+    return fail(error);
+  }
+
+  const char *remoteUrl = git_remote_url(remote);
+  const QString urlStr = remoteUrl ? QString::fromUtf8(remoteUrl) : QString();
+  LOG_DEBUG("Updating submodule '{}' from {}/{} ({})",
+            submoduleName.toStdString(), remoteName.toStdString(),
+            branchName.toStdString(), urlStr.toStdString());
+
+  CloneProgress progressData;
+  progressData.uuid = Uuid::createUuid();
+  progressData.cloning = false;
+
+  GitCredentialPayload credPayload;
+  credPayload.repoPath = repoPath;
+  credPayload.cloning = false;
+
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                  credPayload);
 
   git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
   fetchOpts.callbacks.credentials = &credentialsAcquireCallback;
+  fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
   fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
+  fetchOpts.callbacks.payload = &callbackPayload;
 
-  git_submodule_update_options updateOpts = GIT_SUBMODULE_UPDATE_OPTIONS_INIT;
-  updateOpts.fetch_opts = fetchOpts;
-  updateOpts.checkout_opts = checkoutOpts;
+  const QString refspec = QString("+refs/heads/%1:refs/remotes/%2/%1")
+                              .arg(branchName, remoteName);
+  git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
 
-  error = git_submodule_update(submodule, 1, &updateOpts);
+  int retries = 0;
+  const int maxRetries = MAX_RETRIES;
+
+  do {
+    error = git_remote_fetch(remote, &refspecs, &fetchOpts, nullptr);
+
+    if (error) {
+      logGitError(error);
+      gGitCredentialsMutex.lock();
+      gGitCredentials.remove(urlStr);
+      gGitCredentialsMutex.unlock();
+      sendInvalidCredentialsSignal(urlStr);
+    }
+
+    ++retries;
+  } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
+  finishCredentialsAcquiring(urlStr);
+
+  git_strarray_destroy(refspecs);
+
   if (error) {
-    logGitError(error);
-    git_submodule_free(submodule);
+    cleanup();
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  git_submodule_free(submodule);
+  const QString remoteRefName = QString("refs/remotes/%1/%2")
+                                    .arg(remoteName, branchName);
+  error = git_reference_lookup(&remoteRef, submoduleRepo,
+                               remoteRefName.toStdString().c_str());
+  if (error) {
+    return fail(error);
+  }
+
+  error = git_reference_peel(reinterpret_cast<git_object **>(&targetCommit),
+                             remoteRef, GIT_OBJECT_COMMIT);
+  if (error) {
+    return fail(error);
+  }
+
+  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+  error = git_checkout_tree(submoduleRepo,
+                            reinterpret_cast<git_object *>(targetCommit),
+                            &checkoutOpts);
+  if (error) {
+    return fail(error);
+  }
+
+  error = git_repository_set_head_detached(submoduleRepo,
+                                           git_commit_id(targetCommit));
+  if (error) {
+    return fail(error);
+  }
+
+  cleanup();
 
   LOG_PERF(0, "Exit");
 

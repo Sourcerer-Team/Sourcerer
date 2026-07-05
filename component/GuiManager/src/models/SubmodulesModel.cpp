@@ -19,6 +19,10 @@ SubmodulesModel::SubmodulesModel(QObject *parent) : BranchesModel{parent} {}
 
 SubmodulesModel::~SubmodulesModel() {}
 
+QString SubmodulesModel::iconActivePath() const {
+  return ICON_PATH;
+}
+
 QString SubmodulesModel::iconPath() const {
   return ICON_PATH;
 }
@@ -48,7 +52,7 @@ void SubmodulesModel::updateModelWithStatus(
       displayText += " ✓";
     } else if (submoduleInfo.statusInfo.status ==
                GitRepo::SubmoduleStatusType::Outdated) {
-      displayText += " ⬆"; // Outdated symbol
+      displayText += " ↑";
     } else if (submoduleInfo.statusInfo.status ==
                GitRepo::SubmoduleStatusType::Error) {
       displayText += " ✗"; // Error symbol
