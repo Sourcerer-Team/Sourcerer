@@ -105,13 +105,6 @@ MainWindow::MainWindow(QWidget *parent)
 
   setCentralWidget(widget);
 
-  const QString savedGeometry =
-      _configManager.getString(ConfigManager::ConfigKey::MainWindowGeometry);
-  if (!savedGeometry.isEmpty()) {
-    restoreGeometry(QByteArray::fromHex(savedGeometry.toUtf8()));
-    _maximized = windowState().testFlag(Qt::WindowMaximized);
-  }
-
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
 
@@ -264,6 +257,22 @@ void MainWindow::closeEvent(QCloseEvent *event) {
                            saveGeometry().toHex());
 
   QMainWindow::closeEvent(event);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showEvent(QShowEvent *event)
+{
+  LOG_PERF(0, "Enter");
+
+  QMainWindow::showEvent(event);
+
+  const QString savedGeometry =
+      _configManager.getString(ConfigManager::ConfigKey::MainWindowGeometry);
+  if (!savedGeometry.isEmpty()) {
+    restoreGeometry(QByteArray::fromHex(savedGeometry.toUtf8()));
+    _maximized = windowState().testFlag(Qt::WindowMaximized);
+  }
 
   LOG_PERF(0, "Exit");
 }
