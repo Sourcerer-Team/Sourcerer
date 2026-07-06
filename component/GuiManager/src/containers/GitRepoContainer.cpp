@@ -1085,9 +1085,20 @@ void GitRepoContainer::onDeleteStash(const int stashIndex) {
     return;
   }
 
+  const bool closeStashViewer = (stashIndex == _currentStashIndex);
+
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() { deleteStash(guard, stashIndex); });
+  _dispatcher.dispatch([=]() {
+    deleteStash(guard, stashIndex, [=](const WeakPtr &guard, const int) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        if (closeStashViewer) {
+          onStashContentCloseClicked();
+        }
+        showSpinnerOverlay(false);
+      });
+    });
+  });
 
   LOG_DEBUG("Delete stash operation dispatched for index: {}", stashIndex);
   LOG_PERF(0, "Exit");
@@ -1138,7 +1149,15 @@ void GitRepoContainer::onClearAllStashes() {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() { deleteAllStashes(guard); });
+  _dispatcher.dispatch([=]() {
+    deleteAllStashes(guard, [=](const WeakPtr &guard) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        if (_currentStashIndex >= 0) {
+          onStashContentCloseClicked();
+        }
+      });
+    });
+  });
 
   LOG_DEBUG("Clear all stashes operation dispatched");
   LOG_PERF(0, "Exit");
@@ -6029,7 +6048,9 @@ void GitRepoContainer::deleteStash(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::deleteAllStashes(const WeakPtr &guard) {
+void GitRepoContainer::deleteAllStashes(
+    const WeakPtr &guard,
+    const std::function<void(const WeakPtr &)> &onSuccess) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -6099,6 +6120,10 @@ void GitRepoContainer::deleteAllStashes(const WeakPtr &guard) {
     showSpinnerOverlay(false);
     showToast(tr("All stashes deleted successfully."), tr("Success"));
   });
+
+  if (onSuccess) {
+    onSuccess(guard);
+  }
 
   LOG_PERF(0, "Exit")
 }

@@ -256,7 +256,9 @@ private:
   void deleteStash(
       const WeakPtr &guard, int stashIndex,
       const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
-  void deleteAllStashes(const WeakPtr &guard);
+  void deleteAllStashes(
+      const WeakPtr &guard,
+      const std::function<void(const WeakPtr &)> &onSuccess = nullptr);
   void deleteTag(const WeakPtr &guard, const QString &tagName);
   void deleteRemoteTag(const WeakPtr &guard, const QString &tagName);
   void pushTag(const WeakPtr &guard, const QString &tagName);
