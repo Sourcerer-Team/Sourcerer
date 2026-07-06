@@ -1897,6 +1897,17 @@ void GitRepoContainer::onPushTag(const QString &tagName) {
   LOG_DEBUG("Push tag requested: '{}' in repository '{}'",
             tagName.toStdString(), _path.toStdString());
 
+  const auto reply = QMessageBox::question(
+      this, tr("Confirm action"),
+      QString(tr("Are you sure that you want to push tag '%1' to the remote?"))
+          .arg(tagName),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (reply != QMessageBox::Yes) {
+    LOG_DEBUG("Push tag cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started for tag push");
 
