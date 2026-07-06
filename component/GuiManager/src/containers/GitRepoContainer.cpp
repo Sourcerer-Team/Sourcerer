@@ -1912,6 +1912,16 @@ void GitRepoContainer::onPushAllTags() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Push all tags requested for repository '{}'", _path.toStdString());
 
+  const auto reply = QMessageBox::question(
+      this, tr("Confirm action"),
+      tr("Are you sure that you want to push all tags to the remote?"),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (reply != QMessageBox::Yes) {
+    LOG_DEBUG("Push all tags cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started for push all tags");
 
