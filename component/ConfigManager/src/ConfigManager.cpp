@@ -29,6 +29,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::GitRepoSplitterPos, "window/gitrepo/splitterPos"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos,
      "window/gitrepo/branchRecyclerViewItemsSplitterPos"},
+    {ConfigKey::GitRepoHistoryViewColumnWidths,
+     "window/gitrepo/historyViewColumnWidths"},
     {ConfigKey::GitRepoGitCredentialsExpirationTime,
      "gitrepo/credentials/credentialsExpirationTime"},
     {ConfigKey::GitRepoServerConnectTimeout, "gitrepo/server/connectTimeout"},
@@ -138,6 +140,7 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::GitRepoSplitterPos,
      "000000ff0000000100000003000000d0000003c30000014101ffffffff010000000100"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
+    {ConfigKey::GitRepoHistoryViewColumnWidths, ""},
     {ConfigKey::GitRepoMonospaceFontName, "Lucida Console"},
 
     {ConfigKey::HttpClientCaCertFile, "ca-certificates.crt"},
