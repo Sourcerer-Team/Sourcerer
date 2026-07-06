@@ -7617,55 +7617,8 @@ bool updateSubmodule(git_repository *repo, const QString &submoduleName) {
     return fail(error);
   }
 
-  // Prefer the configured submodule branch from .gitmodules. If that is not
-  // configured yet, fall back to the currently checked out local branch.
-  bool branchWasConfigured = false;
-  QString branchName;
-  if (const char *configuredBranch = git_submodule_branch(submodule);
-      configuredBranch && configuredBranch[0]) {
-    branchName = QString::fromUtf8(configuredBranch);
-    if (branchName == "HEAD" || branchName == ".") {
-      branchName.clear();
-    } else {
-      branchWasConfigured = true;
-    }
-  }
-
-  if (branchName.isEmpty()) {
-    git_reference *head = nullptr;
-    if (!git_repository_head(&head, submoduleRepo)) {
-      const char *currentBranch = nullptr;
-      if (!git_branch_name(&currentBranch, head) && currentBranch &&
-          currentBranch[0]) {
-        branchName = QString::fromUtf8(currentBranch);
-      }
-      git_reference_free(head);
-    }
-  }
-
-  if (branchName.isEmpty()) {
-    LOG_ERROR(Log::ErrorId::Git,
-              "Can't determine local branch for submodule '{}'.",
-              submoduleName.toStdString());
-    cleanup();
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  LOG_DEBUG("Updating submodule '{}' from local branch '{}'",
-            submoduleName.toStdString(), branchName.toStdString());
-
-  if (!checkoutLocalSubmoduleBranch(submoduleRepo, branchName)) {
-    cleanup();
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  if (!branchWasConfigured) {
-    git_submodule_set_branch(repo, name.c_str(),
-                             branchName.toStdString().c_str());
-  }
-
+  // Stage the current local submodule HEAD into the parent repository index.
+  // This uses the submodule's working tree state, not the remote branch tip.
   error = git_submodule_add_to_index(submodule, 1);
   if (error) {
     logGitError(error);

@@ -278,6 +278,19 @@ void SideBySideDiffView::refreshScintillaTheme() {
   }
 }
 
+void SideBySideDiffView::clearContent() {
+  LOG_PERF(0, "Enter");
+
+  _leftEditor->clear();
+  _rightEditor->clear();
+  _leftEditor->markerDeleteAll();
+  _rightEditor->markerDeleteAll();
+  _leftMarks->setMarks({}, {});
+  _rightMarks->setMarks({}, {});
+
+  LOG_PERF(0, "Exit");
+}
+
 void SideBySideDiffView::loadAndHighlight(
     const QString &leftContent, const GitRepo::FilesDiffDelta &rightDelta,
     const QString &extension) {

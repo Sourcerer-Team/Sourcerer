@@ -6747,6 +6747,13 @@ void GitRepoContainer::onStashContentCloseClicked() {
   _currentStashIndex = -1;
   _lastStashCommit.clear();
 
+  ui->scintillaStashDiffUnified->clear();
+  ui->scintillaStashDiffUnified->markerDeleteAll();
+  ui->sideBySideDiffViewerStash->clearContent();
+  ui->stackedWidgetStashDiff->setCurrentIndex(0);
+  ui->pushButtonStashDiffUnified->setChecked(true);
+  ui->pushButtonStashDiffSideBySide->setChecked(false);
+
   ui->stackedWidgetMiddle->setCurrentIndex(
       static_cast<int>(MainViewPanes::History));
 
