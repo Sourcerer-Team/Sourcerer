@@ -147,6 +147,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
+      _applyingHistoryColumnWidths(false),
       _displayTreeExpanded(false), _mergeInProgress(false),
       _commitListModel(nullptr), _commitTreeModel(nullptr),
       _repoDirWatcher(nullptr), _repoDirWatcherTimer(new QTimer(this)),
@@ -186,7 +187,11 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   auto *header = new ClickableHeaderView(Qt::Horizontal, ui->historyView);
   ui->historyView->setHorizontalHeader(header);
   ui->historyView->horizontalHeader()->setSectionResizeMode(
-      QHeaderView::Stretch);
+      QHeaderView::Interactive);
+
+  connect(header, &QHeaderView::sectionResized, this,
+          &GitRepoContainer::onHistoryHeaderSectionResized);
+
   ui->pushButtonAbort->setVisible(false);
   ui->pushButtonAbort->setEnabled(false);
   ui->pushButtonAbort->setMinimumHeight(32);
@@ -1513,7 +1518,7 @@ void GitRepoContainer::onSetDefaultTarget(int remoteIndex, int targetIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSplitterMoved(const int pos, const int index) const {
+void GitRepoContainer::onSplitterMoved(const int pos, const int index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("pos = {}, index = {}", pos, index);
 
@@ -1523,6 +1528,33 @@ void GitRepoContainer::onSplitterMoved(const int pos, const int index) const {
   _configManager.save();
 
   stretchBranchHistoryTableColumns();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onHistoryHeaderSectionResized(const int logicalIndex,
+                                                     const int oldSize,
+                                                     const int newSize) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("logicalIndex = {}, oldSize = {}, newSize = {}", logicalIndex,
+            oldSize, newSize);
+
+  if (_applyingHistoryColumnWidths) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QHeaderView *header = ui->historyView->horizontalHeader();
+  QStringList widths;
+  widths.reserve(header->count());
+  for (int column = 0; column < header->count(); ++column) {
+    widths << QString::number(header->sectionSize(column));
+  }
+
+  _configManager.setString(
+      ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths,
+      widths.join(','));
+  _configManager.save();
 
   LOG_PERF(0, "Exit");
 }
@@ -10188,11 +10220,40 @@ void GitRepoContainer::resetDisplayTreeExpandedButton() {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::stretchBranchHistoryTableColumns() const {
+void GitRepoContainer::stretchBranchHistoryTableColumns() {
   LOG_PERF(0, "Enter");
 
   ui->historyView->horizontalHeader()->setSectionResizeMode(
       QHeaderView::Interactive);
+
+  const QString savedWidths = _configManager.getString(
+      ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths);
+  const QStringList widthValues = savedWidths.split(',', Qt::SkipEmptyParts);
+  const int columnCount = ui->historyView->model()
+                              ? ui->historyView->model()->columnCount()
+                              : 0;
+
+  if (widthValues.size() == columnCount && columnCount > 0) {
+    bool restoreOk = true;
+    _applyingHistoryColumnWidths = true;
+    for (int column = 0; column < columnCount; ++column) {
+      bool ok = false;
+      const int width = widthValues[column].toInt(&ok);
+      if (!ok || width <= 0) {
+        restoreOk = false;
+        break;
+      }
+      ui->historyView->setColumnWidth(column, width);
+    }
+    _applyingHistoryColumnWidths = false;
+
+    if (restoreOk) {
+      LOG_PERF(0, "Exit")
+      return;
+    }
+
+    LOG_WARN("Invalid saved history view column widths, falling back to defaults");
+  }
 
   const QFont font = ui->historyView->font();
   const QFontMetrics fontMetrics(font);
@@ -10208,12 +10269,14 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() const {
   const int remainingAfterSha = remaining - colSha;
   const int colOther = remainingAfterSha / 4;
 
+  _applyingHistoryColumnWidths = true;
   ui->historyView->setColumnWidth(0, colOther);
   ui->historyView->setColumnWidth(1, colSummary);
   ui->historyView->setColumnWidth(2, colOther);
   ui->historyView->setColumnWidth(3, colOther);
   ui->historyView->setColumnWidth(4, colOther);
   ui->historyView->setColumnWidth(5, colSha);
+  _applyingHistoryColumnWidths = false;
 
   LOG_PERF(0, "Exit")
 }

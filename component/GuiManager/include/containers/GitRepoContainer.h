@@ -100,7 +100,9 @@ private slots:
   void onDeleteRemote(int remoteIndex);
   void onSetDefaultRemote(int remoteIndex);
   void onSetDefaultTarget(int remoteIndex, int targetIndex);
-  void onSplitterMoved(int pos, int index) const;
+  void onSplitterMoved(int pos, int index);
+  void onHistoryHeaderSectionResized(int logicalIndex, int oldSize,
+                                     int newSize);
 
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
 
@@ -352,7 +354,7 @@ private:
   void stash(const WeakPtr &guard);
   void stopOverlayTimer() const;
   void stopWatcher(const WeakPtr &guard);
-  void stretchBranchHistoryTableColumns() const;
+  void stretchBranchHistoryTableColumns();
   void showAllWidgets() const;
   void showCommit(const WeakPtr &guard, const QString &commit);
   void showCommitAndMerge(WeakPtr guard);
@@ -427,6 +429,8 @@ private:
 
   int _resizedHeaderSection;
   int _resizedHeaderSectionPreviousWidth;
+
+  bool _applyingHistoryColumnWidths;
 
   QCheckBox *_checkBoxAmend;
   QPushButton *_commitAndMergeWorkingDirTreeStageAllButton;
