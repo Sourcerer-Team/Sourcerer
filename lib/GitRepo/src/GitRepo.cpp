@@ -6633,6 +6633,7 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
     LOG_ERROR(Log::ErrorId::Git,
               "Deleting remote branches from git@ repositories is not "
               "available on the free plan.");
+    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -7064,6 +7065,7 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
   if (!commercial && gitSchema) {
     LOG_ERROR(Log::ErrorId::Git, "Deleting remote tags from git@ repositories "
                                  "is not available on the free plan.");
+    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
