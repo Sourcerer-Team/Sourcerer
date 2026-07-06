@@ -5817,18 +5817,17 @@ void GitRepoContainer::deleteBranch(const WeakPtr &guard,
 
   refreshHistory(guard);
 
+  Util::Dispatcher::dispatchToMainThread(guard,
+                                         [&]() { showSpinnerOverlay(false); });
+
   if (!deleteSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showSpinnerOverlay(false);
       showErrorToast(tr("Failed to delete branch."), tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
     return;
   }
-
-  Util::Dispatcher::dispatchToMainThread(guard,
-                                         [&]() { showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit")
 }
