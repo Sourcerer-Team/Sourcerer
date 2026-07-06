@@ -54,6 +54,7 @@ public:
   void loadAndHighlight(const QString &leftContent,
                         const GitRepo::FilesDiffDelta &rightDelta,
                         const QString &extension);
+  void clearContent();
 
 protected:
   void changeEvent(QEvent *event) override;
