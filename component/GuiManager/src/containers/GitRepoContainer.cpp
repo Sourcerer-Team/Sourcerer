@@ -6745,7 +6745,20 @@ void GitRepoContainer::onStashFileSelected(const QModelIndex &index) {
     return;
   }
 
+  if (index.model() && index.model()->hasChildren(index)) {
+    LOG_DEBUG("Ignoring folder node selection in stash tree view");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   QString filePath = index.data(Qt::DisplayRole).toString();
+  QModelIndex current = index;
+  while (current.parent().isValid()) {
+    current = current.parent();
+    filePath =
+        current.data(Qt::DisplayRole).toString() + QDir::separator() + filePath;
+  }
+
   LOG_DEBUG("Stash file path: '{}'", filePath.toStdString());
 
   filePath = QDir::fromNativeSeparators(filePath);
