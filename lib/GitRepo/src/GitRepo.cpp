@@ -28,6 +28,7 @@
 #include <git2/graph.h>
 #include <git2/index.h>
 #include <git2/patch.h>
+#include <git2/rebase.h>
 #include <git2/refs.h>
 #include <git2/revparse.h>
 #include <git2/revwalk.h>
@@ -4884,9 +4885,10 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
   return true;
 }
 
-bool pull(git_repository *repo, const QString &activeBranchName) {
+bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Starting pull operation for active branch: '{}'",
+  LOG_DEBUG("Starting {} operation for active branch: '{}'",
+            rebase ? "pull with rebase" : "pull",
             activeBranchName.isEmpty() ? "(none)"
                                        : activeBranchName.toStdString());
 
@@ -5071,7 +5073,7 @@ bool pull(git_repository *repo, const QString &activeBranchName) {
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
 
-  // Merge the upstream branch into the active branch
+  // Merge/rebase the upstream branch into the active branch
   git_reference *head = nullptr;
   error = git_repository_head(&head, repo);
   if (error) {
@@ -5080,7 +5082,7 @@ bool pull(git_repository *repo, const QString &activeBranchName) {
     return false;
   }
 
-  LOG_DEBUG("Merging upstream branch {}/{} into current branch '{}'",
+  LOG_DEBUG("Resolving upstream branch {}/{} for current branch '{}'",
             remoteName.toStdString(), remoteBranchName.toStdString(),
             targetBranchName.toStdString());
 
@@ -5110,36 +5112,14 @@ bool pull(git_repository *repo, const QString &activeBranchName) {
     return false;
   }
 
-  // Analyze merge
-  git_merge_analysis_t analysis;
-  git_merge_preference_t preference;
+  bool result = false;
 
-  error = git_merge_analysis(
-      &analysis, &preference, repo,
-      const_cast<const git_annotated_commit **>(&upstreamCommit), 1);
-  if (error) {
-    logGitError(error);
-    git_annotated_commit_free(upstreamCommit);
-    git_reference_free(upstream);
-    git_reference_free(head);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
+  if (rebase) {
+    git_rebase_options rebaseOpts = GIT_REBASE_OPTIONS_INIT;
+    rebaseOpts.checkout_options.checkout_strategy = GIT_CHECKOUT_SAFE;
 
-  if (analysis & GIT_MERGE_ANALYSIS_FASTFORWARD) {
-    // Fast-forward
-    const git_oid *targetOid = git_annotated_commit_id(upstreamCommit);
-    if (!targetOid) {
-      git_annotated_commit_free(upstreamCommit);
-      git_reference_free(upstream);
-      git_reference_free(head);
-      LOG_ERROR(Log::ErrorId::Git, "Can't get target OID for fast-forward");
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
-    git_commit *targetCommit = nullptr;
-    error = git_commit_lookup(&targetCommit, repo, targetOid);
+    git_signature *signature = nullptr;
+    error = git_signature_default(&signature, repo);
     if (error) {
       logGitError(error);
       git_annotated_commit_free(upstreamCommit);
@@ -5149,50 +5129,148 @@ bool pull(git_repository *repo, const QString &activeBranchName) {
       return false;
     }
 
-    git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
-    checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
-
-    error = git_checkout_tree(repo, (git_object *)targetCommit, &checkout_opts);
+    git_rebase *rebaseSession = nullptr;
+    error = git_rebase_init(&rebaseSession, repo, nullptr, upstreamCommit,
+                            nullptr, &rebaseOpts);
     if (error) {
       logGitError(error);
+      git_signature_free(signature);
+      git_annotated_commit_free(upstreamCommit);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    bool rebaseSuccess = true;
+    git_rebase_operation *operation = nullptr;
+    git_oid commitId{};
+
+    while ((error = git_rebase_next(&operation, rebaseSession)) == 0) {
+      error = git_rebase_commit(&commitId, rebaseSession, nullptr, signature,
+                                nullptr, nullptr);
+      if (error == 0) {
+        continue;
+      }
+
+      if (error == GIT_EUNMERGED) {
+        LOG_ERROR(Log::ErrorId::Git,
+                  "Rebase stopped because conflicts must be resolved manually");
+      } else {
+        logGitError(error);
+      }
+      git_rebase_abort(rebaseSession);
+      rebaseSuccess = false;
+      break;
+    }
+
+    if (rebaseSuccess && error == GIT_ITEROVER) {
+      error = git_rebase_finish(rebaseSession, signature);
+      if (error) {
+        logGitError(error);
+        git_rebase_abort(rebaseSession);
+        rebaseSuccess = false;
+      }
+    } else if (rebaseSuccess) {
+      logGitError(error);
+      rebaseSuccess = false;
+    }
+
+    git_rebase_free(rebaseSession);
+    git_signature_free(signature);
+    result = rebaseSuccess;
+  } else {
+    // Analyze merge
+    git_merge_analysis_t analysis;
+    git_merge_preference_t preference;
+
+    error = git_merge_analysis(
+        &analysis, &preference, repo,
+        const_cast<const git_annotated_commit **>(&upstreamCommit), 1);
+    if (error) {
+      logGitError(error);
+      git_annotated_commit_free(upstreamCommit);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    if (analysis & GIT_MERGE_ANALYSIS_FASTFORWARD) {
+      // Fast-forward
+      const git_oid *targetOid = git_annotated_commit_id(upstreamCommit);
+      if (!targetOid) {
+        git_annotated_commit_free(upstreamCommit);
+        git_reference_free(upstream);
+        git_reference_free(head);
+        LOG_ERROR(Log::ErrorId::Git, "Can't get target OID for fast-forward");
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      git_commit *targetCommit = nullptr;
+      error = git_commit_lookup(&targetCommit, repo, targetOid);
+      if (error) {
+        logGitError(error);
+        git_annotated_commit_free(upstreamCommit);
+        git_reference_free(upstream);
+        git_reference_free(head);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
+      checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+      error =
+          git_checkout_tree(repo, (git_object *)targetCommit, &checkout_opts);
+      if (error) {
+        logGitError(error);
+        git_commit_free(targetCommit);
+        git_annotated_commit_free(upstreamCommit);
+        git_reference_free(upstream);
+        git_reference_free(head);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      git_reference *newHead = nullptr;
+      error =
+          git_reference_set_target(&newHead, head, targetOid, "Fast-forward");
+      if (error) {
+        logGitError(error);
+        git_commit_free(targetCommit);
+        git_annotated_commit_free(upstreamCommit);
+        git_reference_free(upstream);
+        git_reference_free(head);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      git_reference_free(newHead);
       git_commit_free(targetCommit);
-      git_annotated_commit_free(upstreamCommit);
-      git_reference_free(upstream);
-      git_reference_free(head);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
+      result = true;
+    } else if (analysis & GIT_MERGE_ANALYSIS_NORMAL) {
+      // Normal merge
+      git_merge_options merge_opts = GIT_MERGE_OPTIONS_INIT;
+      git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
+      checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
 
-    git_reference *newHead = nullptr;
-    error = git_reference_set_target(&newHead, head, targetOid, "Fast-forward");
-    if (error) {
-      logGitError(error);
-      git_commit_free(targetCommit);
-      git_annotated_commit_free(upstreamCommit);
-      git_reference_free(upstream);
-      git_reference_free(head);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
+      error = git_merge(
+          repo, const_cast<const git_annotated_commit **>(&upstreamCommit), 1,
+          &merge_opts, &checkout_opts);
+      if (error) {
+        logGitError(error);
+        git_annotated_commit_free(upstreamCommit);
+        git_reference_free(upstream);
+        git_reference_free(head);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
 
-    git_reference_free(newHead);
-    git_commit_free(targetCommit);
-  } else if (analysis & GIT_MERGE_ANALYSIS_NORMAL) {
-    // Normal merge
-    git_merge_options merge_opts = GIT_MERGE_OPTIONS_INIT;
-    git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
-    checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
-
-    error = git_merge(
-        repo, const_cast<const git_annotated_commit **>(&upstreamCommit), 1,
-        &merge_opts, &checkout_opts);
-    if (error) {
-      logGitError(error);
-      git_annotated_commit_free(upstreamCommit);
-      git_reference_free(upstream);
-      git_reference_free(head);
-      LOG_PERF(0, "Exit");
-      return false;
+      result = true;
+    } else {
+      result = true;
     }
   }
 
@@ -5201,7 +5279,7 @@ bool pull(git_repository *repo, const QString &activeBranchName) {
   git_reference_free(head);
 
   LOG_PERF(0, "Exit");
-  return true;
+  return result;
 }
 
 bool fetchAll(git_repository *repo) {
@@ -5395,8 +5473,7 @@ bool fetchAll(git_repository *repo) {
   return true; // Success if we completed the operation
 }
 
-bool push(git_repository *repo, const QString &activeBranchName,
-          bool force) {
+bool push(git_repository *repo, const QString &activeBranchName, bool force) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Starting {}push operation for active branch: '{}'",
             force ? "force " : "",
@@ -5537,8 +5614,7 @@ bool push(git_repository *repo, const QString &activeBranchName,
 
   // Build refspec for pushing the branch to its upstream
   const QString refspec = QString("%1refs/heads/%2:refs/heads/%3")
-                              .arg(force ? QStringLiteral("+")
-                                         : QString(),
+                              .arg(force ? QStringLiteral("+") : QString(),
                                    targetBranchName, remoteBranchName);
   git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
   LOG_DEBUG("Using push refspec: '{}'", refspec.toStdString());
