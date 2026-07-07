@@ -49,6 +49,7 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QScrollBar>
+#include <QSignalBlocker>
 #include <QSvgRenderer>
 #include <QTextStream>
 #include <QTimer>
@@ -147,10 +148,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
-      _applyingHistoryColumnWidths(false),
-      _displayTreeExpanded(false), _mergeInProgress(false),
-      _commitListModel(nullptr), _commitTreeModel(nullptr),
-      _repoDirWatcher(nullptr), _repoDirWatcherTimer(new QTimer(this)),
+      _applyingHistoryColumnWidths(false), _displayTreeExpanded(false),
+      _mergeInProgress(false), _commitListModel(nullptr),
+      _commitTreeModel(nullptr), _repoDirWatcher(nullptr),
+      _repoDirWatcherTimer(new QTimer(this)),
       _shortcutsWidget(new GuiManager::Widgets::ShortcutsToolbarWidget(this)),
       _selected(false) {
   LOG_PERF(0, "Enter");
@@ -181,6 +182,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->historyView->setModel(_historyModel.get());
   ui->historyView->setSelectionMode(QAbstractItemView::SingleSelection);
+
   ui->historyView->setVisible(false);
   ui->spinner->setColor(Qt::lightGray);
 
@@ -189,8 +191,15 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->horizontalHeader()->setSectionResizeMode(
       QHeaderView::Interactive);
 
+  ui->historyView->horizontalHeader()->setContextMenuPolicy(
+      Qt::CustomContextMenu);
+  connect(ui->historyView->horizontalHeader(),
+          &QWidget::customContextMenuRequested, this,
+          &GitRepoContainer::onHistoryHeaderContextMenuRequested);
   connect(header, &QHeaderView::sectionResized, this,
           &GitRepoContainer::onHistoryHeaderSectionResized);
+
+  applyHistoryColumnVisibility();
 
   ui->pushButtonAbort->setVisible(false);
   ui->pushButtonAbort->setEnabled(false);
@@ -3523,6 +3532,94 @@ void GitRepoContainer::restorePreviousSectionWidth() {
   ui->historyView->setColumnWidth(_resizedHeaderSection,
                                   _resizedHeaderSectionPreviousWidth);
   _resizedHeaderSection = -1;
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::persistHistoryColumnVisibility() {
+  LOG_PERF(0, "Enter");
+
+  const QHeaderView *header = ui->historyView->horizontalHeader();
+  QStringList hiddenColumns;
+  hiddenColumns.reserve(header->count());
+  for (int column = 0; column < header->count(); ++column) {
+    if (header->isSectionHidden(column)) {
+      hiddenColumns << QString::number(column);
+    }
+  }
+
+  _configManager.setString(
+      ConfigManager::ConfigKey::GitRepoHistoryViewHiddenColumns,
+      hiddenColumns.join(','));
+  _configManager.save();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::applyHistoryColumnVisibility() {
+  LOG_PERF(0, "Enter");
+
+  const QString savedHiddenColumns = _configManager.getString(
+      ConfigManager::ConfigKey::GitRepoHistoryViewHiddenColumns);
+
+  QSet<int> hiddenColumns;
+  for (const QString &value :
+       savedHiddenColumns.split(',', Qt::SkipEmptyParts)) {
+    bool ok = false;
+    const int column = value.toInt(&ok);
+    if (ok) {
+      hiddenColumns.insert(column);
+    }
+  }
+
+  QHeaderView *header = ui->historyView->horizontalHeader();
+  QSignalBlocker blocker(header);
+  for (int column = 0; column < header->count(); ++column) {
+    header->setSectionHidden(column, hiddenColumns.contains(column));
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onHistoryHeaderContextMenuRequested(const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  QMenu menu(ui->historyView->horizontalHeader());
+  const QHeaderView *header = ui->historyView->horizontalHeader();
+  const int historyColumnCount = header->count();
+
+  for (int column = 0; column < historyColumnCount; ++column) {
+    const QString columnName =
+        header->model()
+            ? header->model()
+                  ->headerData(column, Qt::Horizontal, Qt::DisplayRole)
+                  .toString()
+            : QString();
+    QAction *action = menu.addAction(
+        columnName.isEmpty() ? tr("Column %1").arg(column + 1) : columnName);
+    action->setCheckable(true);
+    action->setChecked(!header->isSectionHidden(column));
+    connect(action, &QAction::toggled, this,
+            [this, column](const bool checked) {
+              QSignalBlocker headerBlocker(ui->historyView->horizontalHeader());
+              ui->historyView->horizontalHeader()->setSectionHidden(column,
+                                                                    !checked);
+              persistHistoryColumnVisibility();
+            });
+  }
+
+  menu.addSeparator();
+  QAction *showAllAction = menu.addAction(tr("Show all columns"));
+  connect(showAllAction, &QAction::triggered, this, [this]() {
+    QSignalBlocker headerBlocker(ui->historyView->horizontalHeader());
+    QHeaderView *header = ui->historyView->horizontalHeader();
+    for (int column = 0; column < header->count(); ++column) {
+      header->setSectionHidden(column, false);
+    }
+    persistHistoryColumnVisibility();
+  });
+
+  menu.exec(ui->historyView->horizontalHeader()->mapToGlobal(pos));
 
   LOG_PERF(0, "Exit");
 }
@@ -10223,62 +10320,121 @@ void GitRepoContainer::resetDisplayTreeExpandedButton() {
 void GitRepoContainer::stretchBranchHistoryTableColumns() {
   LOG_PERF(0, "Enter");
 
-  ui->historyView->horizontalHeader()->setSectionResizeMode(
-      QHeaderView::Interactive);
+  QHeaderView *header = ui->historyView->horizontalHeader();
+  header->setSectionResizeMode(QHeaderView::Interactive);
+
+  const int columnCount = header->count();
+  if (columnCount <= 0) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  int visibleColumnCount = 0;
+  for (int column = 0; column < columnCount; ++column) {
+    if (!header->isSectionHidden(column)) {
+      ++visibleColumnCount;
+    }
+  }
 
   const QString savedWidths = _configManager.getString(
       ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths);
   const QStringList widthValues = savedWidths.split(',', Qt::SkipEmptyParts);
-  const int columnCount = ui->historyView->model()
-                              ? ui->historyView->model()->columnCount()
-                              : 0;
 
-  if (widthValues.size() == columnCount && columnCount > 0) {
+  if (widthValues.size() == columnCount) {
     bool restoreOk = true;
     _applyingHistoryColumnWidths = true;
     for (int column = 0; column < columnCount; ++column) {
+      if (header->isSectionHidden(column)) {
+        continue;
+      }
+
       bool ok = false;
       const int width = widthValues[column].toInt(&ok);
       if (!ok || width <= 0) {
         restoreOk = false;
         break;
       }
+
       ui->historyView->setColumnWidth(column, width);
     }
     _applyingHistoryColumnWidths = false;
 
     if (restoreOk) {
-      LOG_PERF(0, "Exit")
+      LOG_PERF(0, "Exit");
       return;
     }
 
-    LOG_WARN("Invalid saved history view column widths, falling back to defaults");
+    LOG_WARN(
+        "Invalid saved history view column widths, falling back to defaults");
   }
 
-  const QFont font = ui->historyView->font();
-  const QFontMetrics fontMetrics(font);
+  if (visibleColumnCount <= 0) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QFontMetrics fontMetrics(ui->historyView->font());
   const int charWidth = fontMetrics.horizontalAdvance('0');
-
   const int totalWidth = ui->historyView->viewport()->width();
-  int colSummary = totalWidth / 2;
-  if (constexpr int maxSummaryWidth = 600; colSummary > maxSummaryWidth)
-    colSummary = maxSummaryWidth;
 
-  const int remaining = totalWidth - colSummary;
-  const int colSha = charWidth * 9; // Short SHA length
-  const int remainingAfterSha = remaining - colSha;
-  const int colOther = remainingAfterSha / 4;
+  int summaryWidth = 0;
+  if (!header->isSectionHidden(COLUMN_SUMMARY)) {
+    summaryWidth = totalWidth / 2;
+    if (constexpr int maxSummaryWidth = 600; summaryWidth > maxSummaryWidth) {
+      summaryWidth = maxSummaryWidth;
+    }
+  }
+
+  int shaWidth = 0;
+  if (!header->isSectionHidden(COLUMN_COMMIT_SHORT_SHA)) {
+    shaWidth = charWidth * 9;
+  }
+
+  int remainingWidth = totalWidth - summaryWidth - shaWidth;
+  if (remainingWidth < 0) {
+    remainingWidth = 0;
+  }
+
+  int flexibleVisibleColumnCount = visibleColumnCount;
+  if (!header->isSectionHidden(COLUMN_SUMMARY)) {
+    --flexibleVisibleColumnCount;
+  }
+  if (!header->isSectionHidden(COLUMN_COMMIT_SHORT_SHA)) {
+    --flexibleVisibleColumnCount;
+  }
+  if (flexibleVisibleColumnCount < 0) {
+    flexibleVisibleColumnCount = 0;
+  }
+
+  int otherWidth = flexibleVisibleColumnCount > 0
+                       ? remainingWidth / flexibleVisibleColumnCount
+                       : remainingWidth;
+  if (otherWidth < 1 && flexibleVisibleColumnCount > 0) {
+    otherWidth = 1;
+  }
 
   _applyingHistoryColumnWidths = true;
-  ui->historyView->setColumnWidth(0, colOther);
-  ui->historyView->setColumnWidth(1, colSummary);
-  ui->historyView->setColumnWidth(2, colOther);
-  ui->historyView->setColumnWidth(3, colOther);
-  ui->historyView->setColumnWidth(4, colOther);
-  ui->historyView->setColumnWidth(5, colSha);
+  for (int column = 0; column < columnCount; ++column) {
+    if (header->isSectionHidden(column)) {
+      continue;
+    }
+
+    int width = otherWidth;
+    if (column == COLUMN_SUMMARY) {
+      width = summaryWidth;
+    } else if (column == COLUMN_COMMIT_SHORT_SHA) {
+      width = shaWidth;
+    }
+
+    if (width < 1) {
+      width = 1;
+    }
+
+    ui->historyView->setColumnWidth(column, width);
+  }
   _applyingHistoryColumnWidths = false;
 
-  LOG_PERF(0, "Exit")
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::showAllWidgets() const {
