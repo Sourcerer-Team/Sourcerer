@@ -606,6 +606,7 @@ struct GitRepoPushCommand final : GitRepoCommand {
   ~GitRepoPushCommand() override = default;
 
   QString activeBranchName; // The currently checked out branch name
+  bool force = false;
 };
 
 struct GitRepoPushTagCommand final : GitRepoCommand {

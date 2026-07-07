@@ -5395,9 +5395,11 @@ bool fetchAll(git_repository *repo) {
   return true; // Success if we completed the operation
 }
 
-bool push(git_repository *repo, const QString &activeBranchName) {
+bool push(git_repository *repo, const QString &activeBranchName,
+          bool force) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Starting push operation for active branch: '{}'",
+  LOG_DEBUG("Starting {}push operation for active branch: '{}'",
+            force ? "force " : "",
             activeBranchName.isEmpty() ? "(none)"
                                        : activeBranchName.toStdString());
 
@@ -5534,8 +5536,10 @@ bool push(git_repository *repo, const QString &activeBranchName) {
   pushOpts.callbacks.payload = &callbackPayload;
 
   // Build refspec for pushing the branch to its upstream
-  const QString refspec = QString("refs/heads/%1:refs/heads/%2")
-                              .arg(targetBranchName, remoteBranchName);
+  const QString refspec = QString("%1refs/heads/%2:refs/heads/%3")
+                              .arg(force ? QStringLiteral("+")
+                                         : QString(),
+                                   targetBranchName, remoteBranchName);
   git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
   LOG_DEBUG("Using push refspec: '{}'", refspec.toStdString());
 

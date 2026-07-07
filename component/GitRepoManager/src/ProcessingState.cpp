@@ -3238,7 +3238,8 @@ void ProcessingState::pushWorker(const Structs::GitRepoPushCommand &command) {
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::push(repo, command.activeBranchName);
+  const bool success =
+      GitRepo::push(repo, command.activeBranchName, command.force);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
