@@ -349,6 +349,14 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   pullFetchDropdown->setPopupMode(QToolButton::MenuButtonPopup);
 
   auto *pullFetchMenu = new QMenu();
+  auto *actionPullMenu = pullFetchMenu->addAction(tr("Pull"));
+  actionPullMenu->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/pull"), shortcutIconColor));
+  auto *actionPullWithRebaseMenu =
+      pullFetchMenu->addAction(tr("Pull with rebase"));
+  actionPullWithRebaseMenu->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":icons/pull"), shortcutIconColor));
   auto *actionFetchAllMenu = pullFetchMenu->addAction(tr("Fetch All"));
   actionFetchAllMenu->setIcon(
       QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
@@ -740,15 +748,16 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   connect(pullFetchDropdown, &QToolButton::clicked, this,
           &GitRepoContainer::onPull);
+  connect(actionPullMenu, &QAction::triggered, this, &GitRepoContainer::onPull);
+  connect(actionPullWithRebaseMenu, &QAction::triggered, this,
+          [=](bool) { onPull(true); });
   connect(actionFetchAllMenu, &QAction::triggered, this,
           &GitRepoContainer::onFetchAll);
   connect(pushButtonPush, &QToolButton::clicked, this,
           &GitRepoContainer::onPush);
-  connect(actionPushMenu, &QAction::triggered, this,
-          &GitRepoContainer::onPush);
-  connect(actionForcePushMenu, &QAction::triggered, this, [=](bool) {
-    onPush(true);
-  });
+  connect(actionPushMenu, &QAction::triggered, this, &GitRepoContainer::onPush);
+  connect(actionForcePushMenu, &QAction::triggered, this,
+          [=](bool) { onPush(true); });
   connect(pushButtonStash, &QPushButton::clicked, this,
           &GitRepoContainer::onStash);
   connect(pushButtonPop, &QPushButton::clicked, this, &GitRepoContainer::onPop);
@@ -2839,19 +2848,20 @@ void GitRepoContainer::onPop() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onPull() {
+void GitRepoContainer::onPull(bool rebase) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Pull operation initiated for repository: '{}'",
-            _path.toStdString());
+  LOG_DEBUG("{} operation initiated for repository: '{}'",
+            rebase ? "Pull with rebase" : "Pull", _path.toStdString());
 
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    LOG_DEBUG("Executing pull operation in dispatcher");
-    pull(guard);
+    LOG_DEBUG("Executing {} operation in dispatcher",
+              rebase ? "pull with rebase" : "pull");
+    pull(guard, rebase);
   });
 
-  LOG_DEBUG("Pull operation dispatched");
+  LOG_DEBUG("{} operation dispatched", rebase ? "Pull with rebase" : "Pull");
   LOG_PERF(0, "Exit");
 }
 
@@ -8912,7 +8922,7 @@ bool GitRepoContainer::openRepo(const WeakPtr &guard) {
   return refreshHistorySuccess;
 }
 
-void GitRepoContainer::pull(const WeakPtr &guard) {
+void GitRepoContainer::pull(const WeakPtr &guard, bool rebase) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -8923,6 +8933,7 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
   command.uuid = _uuid;
   command.syncUuid = eventUuid;
   command.activeBranchName = _activeBranch;
+  command.rebase = rebase;
 
   EventManager::Event pullEvent(EventManager::EventType::GitRepoManagerPull,
                                 eventUuid);
@@ -8950,7 +8961,8 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(QString(tr("Failed to pull from remote.\n%1"))
+      showErrorToast(QString(tr("Failed to %1 from remote.\n%2"))
+                         .arg(rebase ? tr("pull with rebase") : tr("pull"))
                          .arg(translateGitError(error.error)),
                      tr("Error"));
     });
@@ -8962,9 +8974,13 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
   const auto commandResult = event.data<GitRepoResult>();
 
   if (const bool pulled = commandResult.value.toBool(); !pulled) {
+    const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(tr("Failed to pull from remote."), tr("Error"));
+      showErrorToast(QString(tr("Failed to %1 from remote.\n%2"))
+                         .arg(rebase ? tr("pull with rebase") : tr("pull"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -8977,7 +8993,9 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
-    showToast(tr("Git repository is up to-date."), tr("Info"));
+    showToast(rebase ? tr("Pull with rebase completed successfully.")
+                     : tr("Git repository is up to-date."),
+              tr("Info"));
   });
 
   LOG_PERF(0, "Exit")
@@ -9124,7 +9142,7 @@ void GitRepoContainer::push(const WeakPtr &guard, bool force) {
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
     showToast(force ? tr("Successfully force-pushed to remote.")
-                  : tr("Successfully pushed to remote."),
+                    : tr("Successfully pushed to remote."),
               tr("Info"));
   });
 

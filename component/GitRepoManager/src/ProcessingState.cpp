@@ -3202,7 +3202,8 @@ void ProcessingState::pullWorker(const Structs::GitRepoPullCommand &command) {
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::pull(repo, command.activeBranchName);
+  const bool success =
+      GitRepo::pull(repo, command.activeBranchName, command.rebase);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(

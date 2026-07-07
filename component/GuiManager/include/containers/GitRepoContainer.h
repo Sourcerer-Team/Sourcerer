@@ -153,7 +153,7 @@ private slots:
   void onMixedResetToCommit(const QString &commit);
   void onPop();
   void onPopStash(int stashIndex);
-  void onPull();
+  void onPull(bool rebase = false);
   void onFetchAll();
   void onPush(bool force = false);
   void onRemoteBranchSelected(const QString &branchName);
@@ -316,7 +316,7 @@ private:
   void openSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void popStash(const WeakPtr &guard, int stashIndex);
   void showStashContent(const WeakPtr &guard, int stashIndex);
-  void pull(const WeakPtr &guard);
+  void pull(const WeakPtr &guard, bool rebase = false);
   void fetchAll(const WeakPtr &guard);
   void push(const WeakPtr &guard, bool force = false);
   void addRemote(const WeakPtr &guard, const QString &remoteName,
