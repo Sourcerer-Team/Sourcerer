@@ -8858,8 +8858,6 @@ bool GitRepoContainer::openRepo(const WeakPtr &guard) {
 
   if (refreshHistorySuccess) {
     saveRepoInRecentList();
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [=]() { showSpinnerOverlay(false); });
   }
 
   LOG_PERF(0, "Exit")
