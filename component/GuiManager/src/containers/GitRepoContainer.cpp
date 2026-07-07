@@ -359,14 +359,26 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   auto *pushButtonPull = pullFetchDropdown;
   auto *pushButtonFetchAll = pullFetchDropdown;
 
-  auto *pushButtonPush = new QPushButton();
+  // Create dropdown button for Push/Force Push
+  auto *pushButtonPush = new QToolButton();
   pushButtonPush->setObjectName("pushButtonPush");
   pushButtonPush->setProperty("iconSource", QStringLiteral(":icons/push"));
   pushButtonPush->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
       QPixmap(":icons/push"), shortcutIconColor));
   pushButtonPush->setToolTip(tr("Push"));
-  pushButtonPush->setMinimumSize(42, 42);
-  pushButtonPush->setMaximumSize(42, 42);
+  pushButtonPush->setMinimumSize(58, 42);
+  pushButtonPush->setMaximumSize(58, 42);
+  pushButtonPush->setPopupMode(QToolButton::MenuButtonPopup);
+
+  auto *pushMenu = new QMenu();
+  auto *actionPushMenu = pushMenu->addAction(tr("Push"));
+  actionPushMenu->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/push"), shortcutIconColor));
+  auto *actionForcePushMenu = pushMenu->addAction(tr("Force push"));
+  actionForcePushMenu->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":icons/push"), shortcutIconColor));
+  pushButtonPush->setMenu(pushMenu);
 
   auto *pushButtonPop = new QPushButton();
   pushButtonPop->setObjectName("pushButtonPop");
@@ -730,8 +742,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onPull);
   connect(actionFetchAllMenu, &QAction::triggered, this,
           &GitRepoContainer::onFetchAll);
-  connect(pushButtonPush, &QPushButton::clicked, this,
+  connect(pushButtonPush, &QToolButton::clicked, this,
           &GitRepoContainer::onPush);
+  connect(actionPushMenu, &QAction::triggered, this,
+          &GitRepoContainer::onPush);
+  connect(actionForcePushMenu, &QAction::triggered, this, [=](bool) {
+    onPush(true);
+  });
   connect(pushButtonStash, &QPushButton::clicked, this,
           &GitRepoContainer::onStash);
   connect(pushButtonPop, &QPushButton::clicked, this, &GitRepoContainer::onPop);
@@ -2854,10 +2871,10 @@ void GitRepoContainer::onFetchAll() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onPush() {
+void GitRepoContainer::onPush(bool force) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Push operation initiated for repository: '{}'",
-            _path.toStdString());
+  LOG_DEBUG("{}push operation initiated for repository: '{}'",
+            force ? "Force " : "", _path.toStdString());
 
   if (_activeBranch.isEmpty() || _activeBranch == ALL_BRANCHES) {
     LOG_DEBUG("No active branch to push");
@@ -2877,12 +2894,29 @@ void GitRepoContainer::onPush() {
     return;
   }
 
+  if (force) {
+    const auto reply = QMessageBox::question(
+        this, tr("Confirm force push"),
+        QString(tr("Force pushing branch '%1' rewrites the remote history and "
+                   "can overwrite commits on the server.\n\nDo you want to "
+                   "continue?"))
+            .arg(branchName),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+    if (reply == QMessageBox::No) {
+      LOG_DEBUG("Force push cancelled by user");
+      LOG_PERF(0, "Exit");
+      return;
+    }
+  }
+
   _dispatcher.dispatch([=]() {
     const auto [upstreamRemote, upstreamBranch] =
         getUpstreamForBranch(guard, branchName);
     if (!upstreamRemote.isEmpty() && !upstreamBranch.isEmpty()) {
-      LOG_DEBUG("Executing push operation in dispatcher");
-      push(guard);
+      LOG_DEBUG("Executing {}push operation in dispatcher",
+                force ? "force " : "");
+      push(guard, force);
       return;
     }
 
@@ -2919,17 +2953,17 @@ void GitRepoContainer::onPush() {
             }
 
             LOG_DEBUG(
-                "Setting upstream before push for branch '{}': remote='{}', "
+                "Setting upstream before {}push for branch '{}': remote='{}', "
                 "branch='{}'",
-                branchName.toStdString(), remoteName.toStdString(),
-                remoteBranchName.toStdString());
+                force ? "force " : "", branchName.toStdString(),
+                remoteName.toStdString(), remoteBranchName.toStdString());
             upstreamOverlay->hide();
             delete upstreamOverlay;
 
             startOverlayTimer();
             _dispatcher.dispatch([=]() {
               setUpstream(guard, branchName, remoteName, remoteBranchName,
-                          [=](const WeakPtr &guard) { push(guard); });
+                          [=](const WeakPtr &guard) { push(guard, force); });
             });
           });
 
@@ -2939,7 +2973,7 @@ void GitRepoContainer::onPush() {
     });
   });
 
-  LOG_DEBUG("Push operation dispatched");
+  LOG_DEBUG("{}push operation dispatched", force ? "Force " : "");
   LOG_PERF(0, "Exit");
 }
 
@@ -9019,7 +9053,7 @@ void GitRepoContainer::fetchAll(const WeakPtr &guard) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::push(const WeakPtr &guard) {
+void GitRepoContainer::push(const WeakPtr &guard, bool force) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -9030,6 +9064,7 @@ void GitRepoContainer::push(const WeakPtr &guard) {
   command.uuid = _uuid;
   command.syncUuid = eventUuid;
   command.activeBranchName = _activeBranch;
+  command.force = force;
 
   EventManager::Event pushEvent(EventManager::EventType::GitRepoManagerPush,
                                 eventUuid);
@@ -9057,7 +9092,8 @@ void GitRepoContainer::push(const WeakPtr &guard) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(QString(tr("Failed to push to remote.\n%1"))
+      showErrorToast(QString(tr("Failed to %1 to remote.\n%2"))
+                         .arg(force ? tr("force push") : tr("push"))
                          .arg(translateGitError(error.error)),
                      tr("Error"));
     });
@@ -9069,15 +9105,11 @@ void GitRepoContainer::push(const WeakPtr &guard) {
   const auto commandResult = event.data<GitRepoResult>();
 
   if (const bool pushed = commandResult.value.toBool(); !pushed) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
-      showErrorToast(tr("Failed to push to remote."), tr("Error"));
-    });
-
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(QString(tr("Failed to pull from remote.\n%1"))
+      showErrorToast(QString(tr("Failed to %1 to remote.\n%2"))
+                         .arg(force ? tr("force push") : tr("push"))
                          .arg(translateGitError(error.error)),
                      tr("Error"));
     });
@@ -9091,7 +9123,9 @@ void GitRepoContainer::push(const WeakPtr &guard) {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
-    showToast(tr("Successfully pushed to remote."), tr("Info"));
+    showToast(force ? tr("Successfully force-pushed to remote.")
+                  : tr("Successfully pushed to remote."),
+              tr("Info"));
   });
 
   LOG_PERF(0, "Exit")
