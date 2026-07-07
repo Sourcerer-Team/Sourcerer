@@ -13,6 +13,7 @@
 #include <LockGuard.h>
 #include <UserProfileManager.h>
 
+#include <QAction>
 #include <QCheckBox>
 #include <QEnableSharedFromThis>
 #ifdef Q_OS_WIN32
@@ -101,6 +102,7 @@ private slots:
   void onSetDefaultRemote(int remoteIndex);
   void onSetDefaultTarget(int remoteIndex, int targetIndex);
   void onSplitterMoved(int pos, int index);
+  void onHistoryHeaderContextMenuRequested(const QPoint &pos);
   void onHistoryHeaderSectionResized(int logicalIndex, int oldSize,
                                      int newSize);
 
@@ -341,6 +343,8 @@ private:
   void resetDisplayTreeExpandedButton();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
+  void applyHistoryColumnVisibility();
+  void persistHistoryColumnVisibility();
   void saveRepoInRecentList() const;
   void saveThreeWayMergeResultFile(const WeakPtr &guard,
                                    const QString &filePath,

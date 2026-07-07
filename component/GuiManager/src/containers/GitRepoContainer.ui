@@ -260,7 +260,7 @@
                  <number>0</number>
                 </property>
                 <widget class="QWidget" name="pageHistory">
-                 <layout class="QVBoxLayout" name="verticalLayout10" stretch="0">
+                 <layout class="QVBoxLayout" name="verticalLayout10">
                   <property name="spacing">
                    <number>0</number>
                   </property>

@@ -20,6 +20,7 @@ enum class ConfigKey {
   GitRepoSplitterPos,
   GitRepoBranchRecyclerViewItemsSplitterPos,
   GitRepoHistoryViewColumnWidths,
+  GitRepoHistoryViewHiddenColumns,
   GitRepoSpinnerOverlayTimerTimeout,
   GitRepoDirWatcherHoldbackTimeout,
   GitRepoMaxDiffFileSize,
