@@ -71,6 +71,10 @@ ENV LD_LIBRARY_PATH="${QT_DIR}/${QT_VERSION}/gcc_64/lib:/usr/lib/x86_64-linux-gn
 ENV QT_QPA_PLATFORM_PLUGIN_PATH="${QT_DIR}/${QT_VERSION}/gcc_64/plugins"
 ENV LIBSSH2_INCLUDEDIR="/usr/include"
 ENV LIBSSH2_LIBDIR="/usr/lib/x86_64-linux-gnu"
+ENV PCRE2_INCLUDEDIR="/usr/include"
+ENV PCRE2_LIBDIR="/usr/lib/x86_64-linux-gnu"
+ENV ZLIB_INCLUDEDIR="/usr/include"
+ENV ZLIB_LIBDIR="/usr/lib/x86_64-linux-gnu"
 
 # Create directory for Qt installation
 RUN mkdir -p ${QT_DIR}
