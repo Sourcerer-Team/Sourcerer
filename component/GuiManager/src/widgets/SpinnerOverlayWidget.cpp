@@ -1,6 +1,9 @@
 #include "widgets/SpinnerOverlayWidget.h"
 
 #include <Log.h>
+#include <StylesheetManager.h>
+
+#include <QColor>
 
 #define THREAD_ID "SpinnerOverlayWidget"
 
@@ -13,13 +16,18 @@ SpinnerOverlayWidget::SpinnerOverlayWidget(QWidget *parent)
       _labelStatus(new QLabel(this)) {
   _labelStatus->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
 
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+
   QPalette palette = _labelStatus->palette();
-  palette.setColor(QPalette::WindowText, Qt::white);
+  palette.setColor(QPalette::WindowText,
+                   lightTheme ? QColor(38, 38, 38) : Qt::white);
   _labelStatus->setPalette(palette);
 
-  _spinner->setColor(QColor(100, 200, 255));
-  _spinner->setLineLength(3);
-  _spinner->setLineWidth(2);
+  _spinner->setColor(lightTheme ? QColor(44, 84, 150) : QColor(100, 200, 255));
+  _spinner->setLineLength(lightTheme ? 5 : 3);
+  _spinner->setLineWidth(lightTheme ? 3 : 2);
 
   layout()->addWidget(_spinner);
   layout()->addWidget(_labelStatus);
