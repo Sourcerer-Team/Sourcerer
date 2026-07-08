@@ -211,10 +211,8 @@ EventManager::waitForAnswer(int token, const QString &uuid,
       timeout);
 }
 
-QString EventManager::eventName(EventType type) const {
+QString EventManager::eventName(const EventType type) const {
   switch (type) {
-  case EventType::Null:
-    return "Null";
   case EventType::Quit:
     return "Quit";
   case EventType::Error:
@@ -225,12 +223,84 @@ QString EventManager::eventName(EventType type) const {
     return "ComponentStarted";
   case EventType::ComponentStopped:
     return "ComponentStopped";
+  case EventType::GitRepoManagerAbortMerge:
+    return "GitRepoManagerAbortMerge";
+  case EventType::GitRepoManagerAbortMergeResult:
+    return "GitRepoManagerAbortMergeResult";
+  case EventType::GitRepoManagerAbortMergeError:
+    return "GitRepoManagerAbortMergeError";
+  case EventType::GitRepoManagerAddRemote:
+    return "GitRepoManagerAddRemote";
+  case EventType::GitRepoManagerAddRemoteResult:
+    return "GitRepoManagerAddRemoteResult";
+  case EventType::GitRepoManagerAddRemoteError:
+    return "GitRepoManagerAddRemoteError";
+  case EventType::GitRepoManagerAddSubmodule:
+    return "GitRepoManagerAddSubmodule";
+  case EventType::GitRepoManagerAddSubmoduleResult:
+    return "GitRepoManagerAddSubmoduleResult";
+  case EventType::GitRepoManagerAddSubmoduleError:
+    return "GitRepoManagerAddSubmoduleError";
+  case EventType::GitRepoManagerAddTarget:
+    return "GitRepoManagerAddTarget";
+  case EventType::GitRepoManagerAddTargetResult:
+    return "GitRepoManagerAddTargetResult";
+  case EventType::GitRepoManagerAddTargetError:
+    return "GitRepoManagerAddTargetError";
+  case EventType::GitRepoManagerEditTarget:
+    return "GitRepoManagerEditTarget";
+  case EventType::GitRepoManagerEditTargetResult:
+    return "GitRepoManagerEditTargetResult";
+  case EventType::GitRepoManagerEditTargetError:
+    return "GitRepoManagerEditTargetError";
+  case EventType::GitRepoManagerDeleteTarget:
+    return "GitRepoManagerDeleteTarget";
+  case EventType::GitRepoManagerDeleteTargetResult:
+    return "GitRepoManagerDeleteTargetResult";
+  case EventType::GitRepoManagerDeleteTargetError:
+    return "GitRepoManagerDeleteTargetError";
+  case EventType::GitRepoManagerSetDefaultTarget:
+    return "GitRepoManagerSetDefaultTarget";
+  case EventType::GitRepoManagerSetDefaultTargetResult:
+    return "GitRepoManagerSetDefaultTargetResult";
+  case EventType::GitRepoManagerSetDefaultTargetError:
+    return "GitRepoManagerSetDefaultTargetError";
+  case EventType::GitRepoManagerAmend:
+    return "GitRepoManagerAmend";
+  case EventType::GitRepoManagerAmendResult:
+    return "GitRepoManagerAmendResult";
+  case EventType::GitRepoManagerAmendError:
+    return "GitRepoManagerAmendError";
+  case EventType::GitRepoManagerApplyPatch:
+    return "GitRepoManagerApplyPatch";
+  case EventType::GitRepoManagerApplyPatchResult:
+    return "GitRepoManagerApplyPatchResult";
+  case EventType::GitRepoManagerApplyPatchError:
+    return "GitRepoManagerApplyPatchError";
+  case EventType::GitRepoManagerApplyStash:
+    return "GitRepoManagerApplyStash";
+  case EventType::GitRepoManagerApplyStashResult:
+    return "GitRepoManagerApplyStashResult";
+  case EventType::GitRepoManagerApplyStashError:
+    return "GitRepoManagerApplyStashError";
   case EventType::GitRepoManagerCheckoutBranch:
     return "GitRepoManagerCheckoutBranch";
   case EventType::GitRepoManagerCheckoutBranchResult:
     return "GitRepoManagerCheckoutBranchResult";
   case EventType::GitRepoManagerCheckoutBranchError:
     return "GitRepoManagerCheckoutBranchError";
+  case EventType::GitRepoManagerCheckoutCommit:
+    return "GitRepoManagerCheckoutCommit";
+  case EventType::GitRepoManagerCheckoutCommitResult:
+    return "GitRepoManagerCheckoutCommitResult";
+  case EventType::GitRepoManagerCheckoutCommitError:
+    return "GitRepoManagerCheckoutCommitError";
+  case EventType::GitRepoManagerCherryPick:
+    return "GitRepoManagerCherryPick";
+  case EventType::GitRepoManagerCherryPickResult:
+    return "GitRepoManagerCherryPickResult";
+  case EventType::GitRepoManagerCherryPickError:
+    return "GitRepoManagerCherryPickError";
   case EventType::GitRepoManagerCloneRepo:
     return "GitRepoManagerCloneRepo";
   case EventType::GitRepoManagerCloneRepoResult:
@@ -251,18 +321,90 @@ QString EventManager::eventName(EventType type) const {
     return "GitRepoManagerCommitStagedResult";
   case EventType::GitRepoManagerCommitStagedError:
     return "GitRepoManagerCommitStagedError";
+  case EventType::GitRepoManagerCreateBranchFromCommit:
+    return "GitRepoManagerCreateBranchFromCommit";
+  case EventType::GitRepoManagerCreateBranchFromCommitResult:
+    return "GitRepoManagerCreateBranchFromCommitResult";
+  case EventType::GitRepoManagerCreateBranchFromCommitError:
+    return "GitRepoManagerCreateBranchFromCommitError";
+  case EventType::GitRepoManagerCreatePatchFromCommit:
+    return "GitRepoManagerCreatePatchFromCommit";
+  case EventType::GitRepoManagerCreatePatchFromCommitResult:
+    return "GitRepoManagerCreatePatchFromCommitResult";
+  case EventType::GitRepoManagerCreatePatchFromCommitError:
+    return "GitRepoManagerCreatePatchFromCommitError";
+  case EventType::GitRepoManagerCreateTagFromCommit:
+    return "GitRepoManagerCreateTagFromCommit";
+  case EventType::GitRepoManagerCreateTagFromCommitResult:
+    return "GitRepoManagerCreateTagFromCommitResult";
+  case EventType::GitRepoManagerCreateTagFromCommitError:
+    return "GitRepoManagerCreateTagFromCommitError";
+  case EventType::GitRepoManagerDeleteBranch:
+    return "GitRepoManagerDeleteBranch";
+  case EventType::GitRepoManagerDeleteBranchResult:
+    return "GitRepoManagerDeleteBranchResult";
+  case EventType::GitRepoManagerDeleteBranchError:
+    return "GitRepoManagerDeleteBranchError";
+  case EventType::GitRepoManagerDeleteRemoteBranch:
+    return "GitRepoManagerDeleteRemoteBranch";
+  case EventType::GitRepoManagerDeleteRemoteBranchResult:
+    return "GitRepoManagerDeleteRemoteBranchResult";
+  case EventType::GitRepoManagerDeleteRemoteBranchError:
+    return "GitRepoManagerDeleteRemoteBranchError";
+  case EventType::GitRepoManagerDeleteStash:
+    return "GitRepoManagerDeleteStash";
+  case EventType::GitRepoManagerDeleteStashResult:
+    return "GitRepoManagerDeleteStashResult";
+  case EventType::GitRepoManagerDeleteStashError:
+    return "GitRepoManagerDeleteStashError";
+  case EventType::GitRepoManagerDeleteAllStashes:
+    return "GitRepoManagerDeleteAllStashes";
+  case EventType::GitRepoManagerDeleteAllStashesResult:
+    return "GitRepoManagerDeleteAllStashesResult";
+  case EventType::GitRepoManagerDeleteAllStashesError:
+    return "GitRepoManagerDeleteAllStashesError";
+  case EventType::GitRepoManagerDeleteSubmodule:
+    return "GitRepoManagerDeleteSubmodule";
+  case EventType::GitRepoManagerDeleteSubmoduleResult:
+    return "GitRepoManagerDeleteSubmoduleResult";
+  case EventType::GitRepoManagerDeleteSubmoduleError:
+    return "GitRepoManagerDeleteSubmoduleError";
+  case EventType::GitRepoManagerDeleteTag:
+    return "GitRepoManagerDeleteTag";
+  case EventType::GitRepoManagerDeleteTagResult:
+    return "GitRepoManagerDeleteTagResult";
+  case EventType::GitRepoManagerDeleteTagError:
+    return "GitRepoManagerDeleteTagError";
+  case EventType::GitRepoManagerDeleteRemoteTag:
+    return "GitRepoManagerDeleteRemoteTag";
+  case EventType::GitRepoManagerDeleteRemoteTagResult:
+    return "GitRepoManagerDeleteRemoteTagResult";
+  case EventType::GitRepoManagerDeleteRemoteTagError:
+    return "GitRepoManagerDeleteRemoteTagError";
   case EventType::GitRepoManagerDiffFiles:
     return "GitRepoManagerDiffFiles";
   case EventType::GitRepoManagerDiffFilesResult:
     return "GitRepoManagerDiffFilesResult";
   case EventType::GitRepoManagerDiffFilesError:
     return "GitRepoManagerDiffFilesError";
+  case EventType::GitRepoManagerDiffFilesFromCommit:
+    return "GitRepoManagerDiffFilesFromCommit";
+  case EventType::GitRepoManagerDiffFilesFromCommitResult:
+    return "GitRepoManagerDiffFilesFromCommitResult";
+  case EventType::GitRepoManagerDiffFilesFromCommitError:
+    return "GitRepoManagerDiffFilesFromCommitError";
   case EventType::GitRepoManagerDiscardFiles:
     return "GitRepoManagerDiscardFiles";
   case EventType::GitRepoManagerDiscardFilesResult:
     return "GitRepoManagerDiscardFilesResult";
   case EventType::GitRepoManagerDiscardFilesError:
     return "GitRepoManagerDiscardFilesError";
+  case EventType::GitRepoManagerGetFileSizeFromCommit:
+    return "GitRepoManagerGetFileSizeFromCommit";
+  case EventType::GitRepoManagerGetFileSizeFromCommitResult:
+    return "GitRepoManagerGetFileSizeFromCommitResult";
+  case EventType::GitRepoManagerGetFileSizeFromCommitError:
+    return "GitRepoManagerGetFileSizeFromCommitError";
   case EventType::GitRepoManagerGetActiveBranch:
     return "GitRepoManagerGetActiveBranch";
   case EventType::GitRepoManagerGetActiveBranchResult:
@@ -299,20 +441,34 @@ QString EventManager::eventName(EventType type) const {
     return "GitRepoManagerGetCommitIsHeadResult";
   case EventType::GitRepoManagerGetCommitIsHeadError:
     return "GitRepoManagerGetCommitIsHeadError";
-  case EventType::GitRepoManagerGetCommitStatus:
-    return "GitRepoManagerGetCommitStatus";
-  case EventType::GitRepoManagerGetCommitStatusResult:
-    return "GitRepoManagerGetCommitStatusResult";
-  case EventType::GitRepoManagerGetCommitStatusError:
-    return "GitRepoManagerGetCommitStatusError";
   case EventType::GitRepoManagerGetIsMergeInProgress:
     return "GitRepoManagerGetIsMergeInProgress";
   case EventType::GitRepoManagerGetIsMergeInProgressResult:
     return "GitRepoManagerGetIsMergeInProgressResult";
   case EventType::GitRepoManagerGetIsMergeInProgressError:
     return "GitRepoManagerGetIsMergeInProgressError";
+  case EventType::GitRepoManagerGetCommitStatus:
+    return "GitRepoManagerGetCommitStatus";
+  case EventType::GitRepoManagerGetCommitStatusResult:
+    return "GitRepoManagerGetCommitStatusResult";
+  case EventType::GitRepoManagerGetCommitStatusError:
+    return "GitRepoManagerGetCommitStatusError";
+  case EventType::GitRepoManagerGetStashStatus:
+    return "GitRepoManagerGetStashStatus";
+  case EventType::GitRepoManagerGetStashStatusResult:
+    return "GitRepoManagerGetStashStatusResult";
+  case EventType::GitRepoManagerGetStashStatusError:
+    return "GitRepoManagerGetStashStatusError";
+  case EventType::GitRepoManagerGetSubmodulePath:
+    return "GitRepoManagerGetSubmodulePath";
+  case EventType::GitRepoManagerGetSubmodulePathResult:
+    return "GitRepoManagerGetSubmodulePathResult";
+  case EventType::GitRepoManagerGetSubmodulePathError:
+    return "GitRepoManagerGetSubmodulePathError";
   case EventType::GitRepoManagerGetCredentials:
     return "GitRepoManagerGetCredentials";
+  case EventType::GitRepoManagerGetCredentialsInvalid:
+    return "GitRepoManagerGetCredentialsInvalid";
   case EventType::GitRepoManagerGetCredentialsFinished:
     return "GitRepoManagerGetCredentialsFinished";
   case EventType::GitRepoManagerGetCredentialsSubmit:
@@ -331,6 +487,12 @@ QString EventManager::eventName(EventType type) const {
     return "GitRepoManagerInitRepoResult";
   case EventType::GitRepoManagerInitRepoError:
     return "GitRepoManagerInitRepoError";
+  case EventType::GitRepoManagerListConflicts:
+    return "GitRepoManagerListConflicts";
+  case EventType::GitRepoManagerListConflictsResult:
+    return "GitRepoManagerListConflictsResult";
+  case EventType::GitRepoManagerListConflictsError:
+    return "GitRepoManagerListConflictsError";
   case EventType::GitRepoManagerListLocalBranches:
     return "GitRepoManagerListLocalBranches";
   case EventType::GitRepoManagerListLocalBranchesResult:
@@ -379,45 +541,135 @@ QString EventManager::eventName(EventType type) const {
     return "GitRepoManagerListTagsResult";
   case EventType::GitRepoManagerListTagsError:
     return "GitRepoManagerListTagsError";
+  case EventType::GitRepoManagerMerge:
+    return "GitRepoManagerMerge";
+  case EventType::GitRepoManagerMergeResult:
+    return "GitRepoManagerMergeResult";
+  case EventType::GitRepoManagerMergeError:
+    return "GitRepoManagerMergeError";
   case EventType::GitRepoManagerOpenRepo:
     return "GitRepoManagerOpenRepo";
   case EventType::GitRepoManagerOpenRepoResult:
     return "GitRepoManagerOpenRepoResult";
   case EventType::GitRepoManagerOpenRepoError:
     return "GitRepoManagerOpenRepoError";
-  case EventType::GitRepoManagerStageFiles:
-    return "GitRepoManagerStageFiles";
-  case EventType::GitRepoManagerStageFilesResult:
-    return "GitRepoManagerStageFilesResult";
-  case EventType::GitRepoManagerStageFilesError:
-    return "GitRepoManagerStageFilesError";
-  case EventType::GitRepoManagerStatus:
-    return "GitRepoManagerStatus";
-  case EventType::GitRepoManagerStatusResult:
-    return "GitRepoManagerStatusResult";
-  case EventType::GitRepoManagerStatusError:
-    return "GitRepoManagerStatusError";
-  case EventType::GitRepoManagerUnstageFiles:
-    return "GitRepoManagerUnstageFiles";
-  case EventType::GitRepoManagerUnstageFilesResult:
-    return "GitRepoManagerUnstageFilesResult";
-  case EventType::GitRepoManagerUnstageFilesError:
-    return "GitRepoManagerUnstageFilesError";
-  case EventType::GitRepoManagerQuit:
-    return "GitRepoManagerQuit";
-  case EventType::GitRepoManagerQuitResult:
-    return "GitRepoManagerQuitResult";
-  case EventType::GitRepoManagerQuitError:
-    return "GitRepoManagerQuitError";
+  case EventType::GitRepoManagerPull:
+    return "GitRepoManagerPull";
+  case EventType::GitRepoManagerPullResult:
+    return "GitRepoManagerPullResult";
+  case EventType::GitRepoManagerPullError:
+    return "GitRepoManagerPullError";
+  case EventType::GitRepoManagerPush:
+    return "GitRepoManagerPush";
+  case EventType::GitRepoManagerPushResult:
+    return "GitRepoManagerPushResult";
+  case EventType::GitRepoManagerPushError:
+    return "GitRepoManagerPushError";
+  case EventType::GitRepoManagerPushTag:
+    return "GitRepoManagerPushTag";
+  case EventType::GitRepoManagerPushTagResult:
+    return "GitRepoManagerPushTagResult";
+  case EventType::GitRepoManagerPushTagError:
+    return "GitRepoManagerPushTagError";
+  case EventType::GitRepoManagerPushAllTags:
+    return "GitRepoManagerPushAllTags";
+  case EventType::GitRepoManagerPushAllTagsResult:
+    return "GitRepoManagerPushAllTagsResult";
+  case EventType::GitRepoManagerPushAllTagsError:
+    return "GitRepoManagerPushAllTagsError";
   case EventType::GitRepoManagerFetchAll:
     return "GitRepoManagerFetchAll";
   case EventType::GitRepoManagerFetchAllResult:
     return "GitRepoManagerFetchAllResult";
   case EventType::GitRepoManagerFetchAllError:
     return "GitRepoManagerFetchAllError";
-  default:
-    return QString("Unknown(%1)").arg(static_cast<int>(type));
+  case EventType::GitRepoManagerRemoveRemote:
+    return "GitRepoManagerRemoveRemote";
+  case EventType::GitRepoManagerRemoveRemoteResult:
+    return "GitRepoManagerRemoveRemoteResult";
+  case EventType::GitRepoManagerRemoveRemoteError:
+    return "GitRepoManagerRemoveRemoteError";
+  case EventType::GitRepoManagerRenameBranch:
+    return "GitRepoManagerRenameBranch";
+  case EventType::GitRepoManagerRenameBranchResult:
+    return "GitRepoManagerRenameBranchResult";
+  case EventType::GitRepoManagerRenameBranchError:
+    return "GitRepoManagerRenameBranchError";
+  case EventType::GitRepoManagerRenameTag:
+    return "GitRepoManagerRenameTag";
+  case EventType::GitRepoManagerRenameTagResult:
+    return "GitRepoManagerRenameTagResult";
+  case EventType::GitRepoManagerRenameTagError:
+    return "GitRepoManagerRenameTagError";
+  case EventType::GitRepoManagerReset:
+    return "GitRepoManagerReset";
+  case EventType::GitRepoManagerResetResult:
+    return "GitRepoManagerResetResult";
+  case EventType::GitRepoManagerResetError:
+    return "GitRepoManagerResetError";
+  case EventType::GitRepoManagerRevert:
+    return "GitRepoManagerRevert";
+  case EventType::GitRepoManagerRevertResult:
+    return "GitRepoManagerRevertResult";
+  case EventType::GitRepoManagerRevertError:
+    return "GitRepoManagerRevertError";
+  case EventType::GitRepoManagerSetDefaultRemote:
+    return "GitRepoManagerSetDefaultRemote";
+  case EventType::GitRepoManagerSetDefaultRemoteResult:
+    return "GitRepoManagerSetDefaultRemoteResult";
+  case EventType::GitRepoManagerSetDefaultRemoteError:
+    return "GitRepoManagerSetDefaultRemoteError";
+  case EventType::GitRepoManagerSetUpstream:
+    return "GitRepoManagerSetUpstream";
+  case EventType::GitRepoManagerSetUpstreamResult:
+    return "GitRepoManagerSetUpstreamResult";
+  case EventType::GitRepoManagerSetUpstreamError:
+    return "GitRepoManagerSetUpstreamError";
+  case EventType::GitRepoManagerStageFiles:
+    return "GitRepoManagerStageFiles";
+  case EventType::GitRepoManagerStageFilesResult:
+    return "GitRepoManagerStageFilesResult";
+  case EventType::GitRepoManagerStageFilesError:
+    return "GitRepoManagerStageFilesError";
+  case EventType::GitRepoManagerStash:
+    return "GitRepoManagerStash";
+  case EventType::GitRepoManagerStashResult:
+    return "GitRepoManagerStashResult";
+  case EventType::GitRepoManagerStashError:
+    return "GitRepoManagerStashError";
+  case EventType::GitRepoManagerStatus:
+    return "GitRepoManagerStatus";
+  case EventType::GitRepoManagerStatusResult:
+    return "GitRepoManagerStatusResult";
+  case EventType::GitRepoManagerStatusError:
+    return "GitRepoManagerStatusError";
+  case EventType::GitRepoManagerSubmoduleUpdate:
+    return "GitRepoManagerSubmoduleUpdate";
+  case EventType::GitRepoManagerSubmoduleUpdateResult:
+    return "GitRepoManagerSubmoduleUpdateResult";
+  case EventType::GitRepoManagerSubmoduleUpdateError:
+    return "GitRepoManagerSubmoduleUpdateError";
+  case EventType::GitRepoManagerUnstageFiles:
+    return "GitRepoManagerUnstageFiles";
+  case EventType::GitRepoManagerUnstageFilesResult:
+    return "GitRepoManagerUnstageFilesResult";
+  case EventType::GitRepoManagerUnstageFilesError:
+    return "GitRepoManagerUnstageFilesError";
+  case EventType::GitRepoManagerUpdateRemote:
+    return "GitRepoManagerUpdateRemote";
+  case EventType::GitRepoManagerUpdateRemoteResult:
+    return "GitRepoManagerUpdateRemoteResult";
+  case EventType::GitRepoManagerUpdateRemoteError:
+    return "GitRepoManagerUpdateRemoteError";
+  case EventType::GitRepoManagerQuit:
+    return "GitRepoManagerQuit";
+  case EventType::GitRepoManagerQuitResult:
+    return "GitRepoManagerQuitResult";
+  case EventType::GitRepoManagerQuitError:
+    return "GitRepoManagerQuitError";
   }
+
+  return QString("Unknown(%1)").arg(static_cast<int>(type));
 }
 
 void EventManager::send(Event event) {
