@@ -3648,7 +3648,7 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
   return false;
 }
 
-GitStatus getStatus(git_repository *repo) {
+GitStatus getStatus(git_repository *repo, const bool &quitFlag) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Getting repository status");
 
@@ -3687,7 +3687,19 @@ GitStatus getStatus(git_repository *repo) {
   size_t count = git_status_list_entrycount(statusList);
   LOG_DEBUG("Found {} status entries", count);
 
+  if (quitFlag) {
+    LOG_DEBUG("Repository status loading cancelled");
+    git_status_list_free(statusList);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
   for (size_t i = 0; i < count; ++i) {
+    if (quitFlag) {
+      LOG_DEBUG("Repository status loading cancelled");
+      break;
+    }
+
     const git_status_entry *entry = git_status_byindex(statusList, i);
 
     Q_ASSERT(entry != nullptr);

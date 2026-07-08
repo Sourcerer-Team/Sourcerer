@@ -2131,14 +2131,16 @@ void ProcessingState::getBranchHistoryWorker(
   }
 
   git_repository *repo = nullptr;
+  const bool *pQuit = nullptr;
 
   {
     LOCKGUARD(_contextsMutex);
     repo = ctx->gitRepo;
+    pQuit = &ctx->quit;
   }
 
   const GitRepo::GitHistory history = GitRepo::getBranchHistory(
-      repo, command.branchName, command.branchType, ctx->quit);
+      repo, command.branchName, command.branchType, *pQuit);
 
   bool quit = false;
 
@@ -3677,13 +3679,20 @@ void ProcessingState::statusWorker(
   }
 
   git_repository *repo = nullptr;
+  const bool *quit = nullptr;
 
   {
     LOCKGUARD(_contextsMutex);
     repo = ctx->gitRepo;
+    quit = &ctx->quit;
   }
 
-  const GitRepo::GitStatus status = GitRepo::getStatus(repo);
+  const GitRepo::GitStatus status = GitRepo::getStatus(repo, *quit);
+
+  if (*quit) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   EventManager::Event resultEvent(
       EventManager::EventType::GitRepoManagerStatusResult, command.syncUuid);
