@@ -174,10 +174,7 @@ QModelIndex GitHistoryModel::index(const int row, const int column,
 }
 
 int GitHistoryModel::rowCount(const QModelIndex &parent) const {
-  LOG_PERF(0, "Enter");
-
   if (parent.isValid()) {
-    LOG_PERF(0, "Exit");
     return 0;
   }
 
@@ -187,15 +184,10 @@ int GitHistoryModel::rowCount(const QModelIndex &parent) const {
                         ? _historyWithStatus.history.commits.size() + 1
                         : _historyWithStatus.history.commits.size();
 
-  LOG_PERF(0, "Exit");
-
   return count;
 }
 
 int GitHistoryModel::columnCount(const QModelIndex &parent) const {
-  LOG_PERF(0, "Enter");
-  LOG_PERF(0, "Exit");
-
   return COLUMN_LAST - COLUMN_FIRST + 1;
 }
 
