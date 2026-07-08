@@ -12,6 +12,8 @@ set(QT_NO_PRIVATE_MODULE_WARNING ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 find_package(LibSSH2 REQUIRED)
+find_package(pcre2 REQUIRED)
+find_package(zlib REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets LinguistTools)
 
 set(PROJECT_SOURCES
@@ -49,13 +51,13 @@ endif ()
 
 target_link_libraries(Sourcerer PRIVATE
         Qt6::Widgets
+        PCRE2::PCRE2
+        ZLIB::ZLIB
         libgit2
         llhttp
-        pcre2
         reftable
         util
         xdiff
-        z
         ${LIBSSH2_LIBRARIES}
         ${ADDITIONAL_LIBRARIES}
         "${APP_ICON_RES}")

@@ -15,6 +15,7 @@ find_package(LibSSH2 REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets LinguistTools)
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
+find_package(zlib REQUIRED)
 
 add_compile_definitions(QT_USE_STRING_BUILDER)
 
@@ -54,6 +55,8 @@ set(USE_SSH ON CACHE BOOL "Enable SSH" FORCE)
 set(USE_HTTP ON CACHE BOOL "Enable HTTP" FORCE)
 set(USE_HTTPS OpenSSL CACHE BOOL "Enable HTTPS" FORCE)
 set(USE_AUTH_NTLM OFF CACHE BOOL "Enable NTLM authentication" FORCE)
+set(USE_COMPRESSION "zlib" CACHE STRING "Selects compression backend.")
+set(USE_REGEX "pcre2" CACHE STRING "Selects regex provider.")
 add_subdirectory(../../lib/libgit2 "libgit2")
 
 target_link_libraries(GitRepo PRIVATE

@@ -70,9 +70,9 @@ if ($Rebuild -or -not $imageExists) {
     Write-Host "Building Docker image (this may take 30-60 minutes)..." -ForegroundColor Blue
     Write-Host "Note: Using aqtinstall to download Qt (no account credentials required)" -ForegroundColor Green
     Write-Host "Note: Using WiX Toolset for MSI generation" -ForegroundColor Green
-    
+
     docker build -t $ImageName -f "$DockerDir/Dockerfile.windows" $DockerDir
-    
+
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to build Docker image" -ForegroundColor Red
         exit 1
@@ -101,16 +101,20 @@ docker run --rm `
     if (-not (Test-Path 'C:\workspace\build\Release')) {
         New-Item -ItemType Directory -Path 'C:\workspace\build\Release' -Force | Out-Null
     }
-    
+
     # Set environment variables for CMake build
     `$env:MSYS64_DIR = 'C:\tools\msys64'
     `$env:LIBGIT2_INCLUDEDIR = 'C:\tools\msys64\mingw64\include'
     `$env:LIBGIT2_LIBDIR = 'C:\tools\msys64\mingw64\lib'
     `$env:LIBZIP_INCLUDEDIR = 'C:\tools\msys64\mingw64\include'
     `$env:LIBZIP_LIBDIR = 'C:\tools\msys64\mingw64\lib'
+    `$env:PCRE2_INCLUDEDIR = 'C:\tools\msys64\mingw64\include'
+    `$env:PCRE2_LIBDIR = 'C:\tools\msys64\mingw64\lib'
+    `$env:ZLIB_INCLUDEDIR = 'C:\tools\msys64\mingw64\include'
+    `$env:ZLIB_LIBDIR = 'C:\tools\msys64\mingw64\lib'
     `$env:OPENSSL_ROOT_DIR = 'C:\tools\msys64\mingw64'
     `$env:CMAKE_PREFIX_PATH = 'C:\tools\msys64\mingw64'
-    
+
     Write-Host 'Environment variables set:' -ForegroundColor Green
     Write-Host "  LIBGIT2_INCLUDEDIR = `$(`$env:LIBGIT2_INCLUDEDIR)" -ForegroundColor Gray
     Write-Host "  LIBGIT2_LIBDIR = `$(`$env:LIBGIT2_LIBDIR)" -ForegroundColor Gray
@@ -118,11 +122,11 @@ docker run --rm `
     Write-Host "  LIBZIP_LIBDIR = `$(`$env:LIBZIP_LIBDIR)" -ForegroundColor Gray
     Write-Host "  OPENSSL_ROOT_DIR = `$(`$env:OPENSSL_ROOT_DIR)" -ForegroundColor Gray
     Write-Host "  CMAKE_PREFIX_PATH = `$(`$env:CMAKE_PREFIX_PATH)" -ForegroundColor Gray
-    
+
     # Use MSYS2 bash for building with proper pthread/compiler compatibility
     Write-Host 'Building via MSYS2 bash shell...' -ForegroundColor Blue
     `$msys2Bash = 'C:\tools\msys64\usr\bin\bash.exe'
-    
+
     # Verify ninja is available before building
     Write-Host 'Verifying ninja is available...' -ForegroundColor Gray
     & `$msys2Bash -lc 'export PATH=/c/tools/msys64/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin && which ninja && ninja --version'
@@ -132,19 +136,19 @@ docker run --rm `
         & `$msys2Bash -lc 'ls -la /c/tools/msys64/mingw64/bin | grep -i ninja || echo "ninja not found in directory"'
         exit 1
     }
-    
+
     & `$msys2Bash -lc 'export PATH=/c/tools/msys64/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin && cd /c/workspace/build/Release && cmake ../../src -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM=/mingw64/bin/ninja && ninja -j4'
-    
+
     if (`$LASTEXITCODE -ne 0) {
         Write-Host 'Project build failed' -ForegroundColor Red
         exit 1
     }
-    
+
     Write-Host 'Project built successfully' -ForegroundColor Green
-    
+
     # Copy MSYS2 runtime libraries to Release directory
     Write-Host 'Copying MSYS2 runtime libraries...' -ForegroundColor Blue
-    
+
     # Copy specific runtime DLLs
     `$msys2RuntimeDlls = @(
         'C:\tools\msys64\mingw64\bin\libstdc++-6.dll',
@@ -157,14 +161,14 @@ docker run --rm `
             Write-Host "  Copied $(Split-Path `$dll -Leaf)" -ForegroundColor Gray
         }
     }
-    
+
     # Find and copy OpenSSL libraries
     Write-Host 'Finding OpenSSL libraries...' -ForegroundColor Blue
     `$openssl_bin = 'C:\tools\msys64\mingw64\bin'
     `$openssl_dlls = @()
     `$openssl_dlls += @(Get-ChildItem `$openssl_bin -Filter 'libssl*.dll' -ErrorAction SilentlyContinue)
     `$openssl_dlls += @(Get-ChildItem `$openssl_bin -Filter 'libcrypto*.dll' -ErrorAction SilentlyContinue)
-    
+
     if (`$openssl_dlls.Count -eq 0) {
         Write-Host 'WARNING: OpenSSL DLL files not found in C:\tools\msys64\mingw64\bin' -ForegroundColor Yellow
         Write-Host 'Available DLL files containing "ssl" or "crypto":' -ForegroundColor Yellow
@@ -181,14 +185,14 @@ docker run --rm `
             Write-Host "  Copied $($dll.Name)" -ForegroundColor Gray
         }
     }
-    
+
     # Copy Qt libraries if they exist in mingw64/bin
     Write-Host 'Copying Qt libraries...' -ForegroundColor Blue
     Get-ChildItem `$openssl_bin -Filter 'Qt6*.dll' -ErrorAction SilentlyContinue | ForEach-Object {
         Copy-Item `$_.FullName 'C:\workspace\build\Release\' -Force
         Write-Host "  Copied $($_.Name)" -ForegroundColor Gray
     }
-    
+
     # Copy libzip and libgit2 libraries
     Write-Host 'Copying dependency libraries...' -ForegroundColor Blue
     Get-ChildItem `$openssl_bin -Filter 'libzip*.dll' -ErrorAction SilentlyContinue | ForEach-Object {
@@ -199,15 +203,15 @@ docker run --rm `
         Copy-Item `$_.FullName 'C:\workspace\build\Release\' -Force
         Write-Host "  Copied $($_.Name)" -ForegroundColor Gray
     }
-    
+
     # List what was actually copied to Release directory
     Write-Host 'DLL files in Release directory:' -ForegroundColor Blue
     Get-ChildItem 'C:\workspace\build\Release\' -Filter '*.dll' -ErrorAction SilentlyContinue | ForEach-Object {
         Write-Host "  - $($_.Name)" -ForegroundColor Gray
     }
-       
+
     Write-Host 'Creating installer...' -ForegroundColor Blue
-    
+
     # Run installer build script
     Set-Location C:\workspace\installer
     .\build-installer-wix.bat
@@ -215,7 +219,7 @@ docker run --rm `
         Write-Host 'Installer build failed' -ForegroundColor Red
         exit 1
     }
-    
+
     Write-Host 'Installer created successfully' -ForegroundColor Green
 "@
 
@@ -242,7 +246,7 @@ if ($installers.Count -gt 0) {
     Write-Host "=== Success! ===" -ForegroundColor Green
     Write-Host ""
     Write-Host "Windows Installer(s):" -ForegroundColor Green
-    $installers | ForEach-Object { 
+    $installers | ForEach-Object {
         $sizeMB = [math]::Round($_.Length/1MB, 2)
         Write-Host "  $($_.Name) ($sizeMB MB)" -ForegroundColor White
         Write-Host "  Path: $($_.FullName)" -ForegroundColor Gray
