@@ -366,7 +366,7 @@ QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
 bool getCommitIsHead(git_repository *repo, const QString &commitOid,
                      const bool &quitFlag);
 
-GitStatus getStatus(git_repository *repo);
+GitStatus getStatus(git_repository *repo, const bool &quitFlag);
 
 GitCommitStatus getCommitStatus(git_repository *repo, const QString &commitOid);
 
