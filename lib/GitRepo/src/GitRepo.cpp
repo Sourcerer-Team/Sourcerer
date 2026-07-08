@@ -3329,6 +3329,7 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -3445,6 +3446,7 @@ QStringList getCommitTags(git_repository *repo, const QString &commitOid,
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -3493,10 +3495,10 @@ QStringList getCommitTags(git_repository *repo, const QString &commitOid,
 QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
                            const bool &quitFlag) {
   LOG_PERF(0, "Enter");
-
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -3575,6 +3577,7 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -3804,6 +3807,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -4069,6 +4073,7 @@ bool unstageFiles(git_repository *repo, const QStringList &files) {
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4452,6 +4457,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -4725,6 +4731,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5939,6 +5946,7 @@ bool stash(git_repository *repo) {
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5984,6 +5992,7 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6128,6 +6137,7 @@ std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -6233,6 +6243,15 @@ std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
 bool resetToCommit(git_repository *repo, const QString &commit,
                    ResetType type) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   LOG_DEBUG("Resetting to commit '{}' with type {}", commit.toStdString(),
             static_cast<int>(type));
 
@@ -6292,6 +6311,14 @@ bool revertCommit(git_repository *repo, const QString &commit,
                   const QString &author, const QString &email,
                   const QString &message) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   git_commit *targetCommit = nullptr;
 
@@ -6428,7 +6455,9 @@ bool applyPatch(git_repository *repo, const QString &patchContent) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
+
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6501,6 +6530,14 @@ bool applyPatch(git_repository *repo, const QString &patchContent) {
 bool cherryPickCommit(git_repository *repo, const QString &commit,
                       const QString &author, const QString &email) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   git_commit *targetCommit = nullptr;
 
@@ -6620,6 +6657,14 @@ bool renameBranch(git_repository *repo, const QString &oldName,
                   const QString &newName) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_reference *ref = nullptr;
 
   int error = git_branch_lookup(&ref, repo, oldName.toStdString().c_str(),
@@ -6647,6 +6692,14 @@ bool renameBranch(git_repository *repo, const QString &oldName,
 
 bool deleteBranch(git_repository *repo, const QString &branchName) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   git_reference *ref = nullptr;
 
@@ -6829,6 +6882,14 @@ bool createTagFromCommit(git_repository *repo, const QString &commit,
                          const QString &email, const QString &message) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_oid targetOid;
 
   int error = git_oid_fromstr(&targetOid, commit.toStdString().c_str());
@@ -6880,6 +6941,14 @@ bool createTagFromCommit(git_repository *repo, const QString &commit,
 
 QString createPatchFromCommit(git_repository *repo, const QString &commit) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
 
   git_oid oid;
 
@@ -7004,6 +7073,14 @@ bool renameTag(git_repository *repo, const QString &oldName,
                const QString &newName) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_reference *tagRef = nullptr;
   git_object *target = nullptr;
   git_oid newOid;
@@ -7098,6 +7175,14 @@ bool renameTag(git_repository *repo, const QString &oldName,
 
 bool deleteTag(git_repository *repo, const QString &tagName) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   if (const int error = git_tag_delete(repo, tagName.toStdString().c_str())) {
     logGitError(error);
@@ -7252,6 +7337,14 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
 QString getSubmodulePath(git_repository *repo, const QString &submoduleName) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
   git_submodule *submodule = nullptr;
 
   if (const int error = git_submodule_lookup(
@@ -7280,6 +7373,14 @@ QString getSubmodulePath(git_repository *repo, const QString &submoduleName) {
 bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
                      const QString &submodulePath) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   const std::string name = submoduleName.toStdString();
   const std::string path = submodulePath.toStdString();
@@ -7476,6 +7577,8 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
                                     const QString &uuid) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(submoduleRepo != nullptr);
+
   if (!submoduleRepo) {
     LOG_PERF(0, "Exit");
     return false;
@@ -7630,6 +7733,8 @@ static bool checkoutLocalSubmoduleBranch(git_repository *submoduleRepo,
                                          const QString &branchName) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(submoduleRepo != nullptr);
+
   if (!submoduleRepo) {
     LOG_PERF(0, "Exit");
     return false;
@@ -7673,6 +7778,14 @@ static bool checkoutLocalSubmoduleBranch(git_repository *submoduleRepo,
 
 bool updateSubmodule(git_repository *repo, const QString &submoduleName) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   const std::string name = submoduleName.toStdString();
 
@@ -7731,6 +7844,14 @@ bool updateSubmodule(git_repository *repo, const QString &submoduleName) {
 bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
                   const QString &branch, const QString &uuid) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   const char *repoPath = git_repository_path(repo);
   if (!repoPath) {
@@ -7886,6 +8007,14 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
                               const QString &commit) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
 
   git_oid oid;
 
@@ -8176,6 +8305,14 @@ qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
                              const QString &commit) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
+
   git_oid oid;
   int error;
 
@@ -8273,6 +8410,15 @@ bool merge(git_repository *repo, const QString &sourceBranch,
            const QString &destinationBranch, const QString &author,
            const QString &email) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   LOG_DEBUG("Starting merge operation: source='{}', destination='{}', "
             "author='{}', email='{}'",
             sourceBranch.toStdString(), destinationBranch.toStdString(),
@@ -8633,6 +8779,14 @@ bool merge(git_repository *repo, const QString &sourceBranch,
 QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
   git_index *index = nullptr;
 
   int error = git_repository_index(&index, repo);
@@ -8747,6 +8901,14 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
 bool getIsMergeInProgress(git_repository *repo) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   const int state = git_repository_state(repo);
 
   LOG_PERF(0, "Exit");
@@ -8756,6 +8918,14 @@ bool getIsMergeInProgress(git_repository *repo) {
 
 bool abortMerge(git_repository *repo) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   if (git_repository_state(repo) != GIT_REPOSITORY_STATE_MERGE) {
     LOG_PERF(0, "Exit");
@@ -8799,12 +8969,10 @@ QVector<RemoteInfo> listRemotes(git_repository *repo) {
 
   Q_ASSERT(repo != nullptr);
 
-  QVector<RemoteInfo> remotes;
-
   if (!repo) {
     LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
-    return remotes;
+    return {};
   }
 
   git_strarray remote_list;
@@ -8813,12 +8981,13 @@ QVector<RemoteInfo> listRemotes(git_repository *repo) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to list remotes: error={}", error);
     logGitError(error);
     LOG_PERF(0, "Exit");
-    return remotes;
+    return {};
   }
 
   // Get default remote
   const QString defaultRemote = getDefaultRemote(repo);
 
+  QVector<RemoteInfo> remotes;
   QSet<QString> processedRemotes;
 
   for (size_t i = 0; i < remote_list.count; ++i) {
@@ -9654,6 +9823,14 @@ bool setDefaultTarget(git_repository *repo, const QString &remoteName,
 bool amend(git_repository *repo, const QString &summary, const QString &message,
            const QString &author, const QString &email) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   git_commit *commitToAmend = nullptr;
   git_oid commitOid;
