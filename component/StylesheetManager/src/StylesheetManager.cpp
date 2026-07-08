@@ -1839,8 +1839,6 @@ const QString &StylesheetManager::stylesheet(StylesheetKey key) {
 }
 
 StylesheetKey StylesheetManager::currentStylesheet() {
-  LOG_PERF(0, "Enter");
-  LOG_PERF(0, "Exit");
   return CURRENT_STYLESHEET;
 }
 
