@@ -28,33 +28,83 @@ void GitRepoManagerFsm::start() {
 
 QString GitRepoManagerFsm::stateName(int state) const {
   switch (static_cast<StateType>(state)) {
+  case StateType::Unknown:
+    return "Unknown";
   case StateType::Initialization:
     return "Initialization";
   case StateType::Processing:
     return "Processing";
-  default:
-    return "Unknown";
+  case StateType::last:
+    return "last";
   }
+
+  return "Unknown";
 }
 
 QString GitRepoManagerFsm::eventName(int event) const {
   switch (static_cast<EventType>(event)) {
-  case EventType::ChangeState:
-    return "ChangeState";
+  case EventType::Unknown:
+    return "Unknown";
   case EventType::Stop:
     return "Stop";
+  case EventType::ChangeState:
+    return "ChangeState";
+  case EventType::AbortMerge:
+    return "AbortMerge";
+  case EventType::AddRemote:
+    return "AddRemote";
+  case EventType::AddSubmodule:
+    return "AddSubmodule";
+  case EventType::AddTarget:
+    return "AddTarget";
+  case EventType::Amend:
+    return "Amend";
+  case EventType::ApplyPatch:
+    return "ApplyPatch";
+  case EventType::ApplyStash:
+    return "ApplyStash";
   case EventType::CheckoutBranch:
     return "CheckoutBranch";
+  case EventType::CheckoutCommit:
+    return "CheckoutCommit";
   case EventType::CloneRepo:
     return "CloneRepo";
   case EventType::CloseRepo:
     return "CloseRepo";
   case EventType::CommitStaged:
     return "CommitStaged";
+  case EventType::CreateBranchFromCommit:
+    return "CreateBranchFromCommit";
+  case EventType::CreatePatchFromCommit:
+    return "CreatePatchFromCommit";
+  case EventType::CreateTagFromCommit:
+    return "CreateTagFromCommit";
+  case EventType::DeleteAllStashes:
+    return "DeleteAllStashes";
+  case EventType::DeleteBranch:
+    return "DeleteBranch";
+  case EventType::DeleteRemoteBranch:
+    return "DeleteRemoteBranch";
+  case EventType::DeleteStash:
+    return "DeleteStash";
+  case EventType::DeleteSubmodule:
+    return "DeleteSubmodule";
+  case EventType::DeleteTag:
+    return "DeleteTag";
+  case EventType::DeleteTarget:
+    return "DeleteTarget";
+  case EventType::DeleteRemoteTag:
+    return "DeleteRemoteTag";
   case EventType::DiffFiles:
     return "DiffFiles";
+  case EventType::DiffFilesFromCommit:
+    return "DiffFilesFromCommit";
   case EventType::DiscardFiles:
     return "DiscardFiles";
+  case EventType::EditTarget:
+    return "EditTarget";
+  case EventType::FetchAll:
+    return "FetchAll";
   case EventType::GetActiveBranch:
     return "GetActiveBranch";
   case EventType::GetBranchHistory:
@@ -69,31 +119,83 @@ QString GitRepoManagerFsm::eventName(int event) const {
     return "GetCommitIsHead";
   case EventType::GetCommitStatus:
     return "GetCommitStatus";
+  case EventType::GetFileSizeFromCommit:
+    return "GetFileSizeFromCommit";
+  case EventType::GetIsMergeInProgress:
+    return "GetIsMergeInProgress";
+  case EventType::GetStashStatus:
+    return "GetStashStatus";
+  case EventType::GetSubmodulePath:
+    return "GetSubmodulePath";
+  case EventType::GetUpstream:
+    return "GetUpstream";
   case EventType::Init:
     return "Init";
+  case EventType::ListConflicts:
+    return "ListConflicts";
   case EventType::ListLocalBranches:
     return "ListLocalBranches";
   case EventType::ListRemoteBranches:
     return "ListRemoteBranches";
+  case EventType::ListRemoteBranchesWithStatus:
+    return "ListRemoteBranchesWithStatus";
+  case EventType::ListRemotes:
+    return "ListRemotes";
+  case EventType::ListStashes:
+    return "ListStashes";
   case EventType::ListSubmodules:
     return "ListSubmodules";
+  case EventType::ListSubmodulesWithStatus:
+    return "ListSubmodulesWithStatus";
   case EventType::ListTags:
     return "ListTags";
+  case EventType::Merge:
+    return "Merge";
   case EventType::OpenRepo:
     return "OpenRepo";
   case EventType::Pull:
     return "Pull";
+  case EventType::Push:
+    return "Push";
+  case EventType::PushTag:
+    return "PushTag";
+  case EventType::PushAllTags:
+    return "PushAllTags";
+  case EventType::RemoveRemote:
+    return "RemoveRemote";
+  case EventType::RenameBranch:
+    return "RenameBranch";
+  case EventType::RenameTag:
+    return "RenameTag";
+  case EventType::Reset:
+    return "Reset";
+  case EventType::Revert:
+    return "Revert";
+  case EventType::CherryPick:
+    return "CherryPick";
+  case EventType::SetDefaultRemote:
+    return "SetDefaultRemote";
+  case EventType::SetDefaultTarget:
+    return "SetDefaultTarget";
   case EventType::Setup:
     return "Setup";
+  case EventType::SetUpstream:
+    return "SetUpstream";
   case EventType::StageFiles:
     return "StageFiles";
+  case EventType::Stash:
+    return "Stash";
   case EventType::Status:
     return "Status";
+  case EventType::SubmoduleUpdate:
+    return "SubmoduleUpdate";
   case EventType::UnstageFiles:
     return "UnstageFiles";
-  default:
-    return "Unknown";
+  case EventType::UpdateRemote:
+    return "UpdateRemote";
   }
+
+  return "Unknown";
 }
 
 void GitRepoManagerFsm::initStateTable(QMap<int, Fsm::FsmState *> &table) {
