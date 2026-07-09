@@ -152,16 +152,23 @@ bool Dispatcher::dispatch(
     return false;
   }
 
-  for (int i = 0; i < _pool[index]->_queue->size(); ++i) {
-    const auto *queue = _pool[index]->_queue;
-    Q_ASSERT(queue != nullptr);
-    if (!queue) {
-      LOG_ERROR(Log::ErrorId::Generic,
-                "Internal error! Invalid pool element queue!");
-      continue;
-    }
-    LOG_DEBUG("Task with id of {} is in the choosen pool queue {}",
-              (*queue)[i]._taskId, index);
+  const auto poolElement = _pool[index];
+
+  Q_ASSERT(poolElement);
+
+  if (!poolElement) {
+    LOG_ERROR(Log::ErrorId::Generic, "Internal error! Invalid pool element!");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  Q_ASSERT(poolElement->_queue);
+
+  if (!poolElement->_queue) {
+    LOG_ERROR(Log::ErrorId::Generic,
+              "Internal error! Invalid pool element's queue!");
+    LOG_PERF(0, "Exit");
+    return false;
   }
 
   const auto compositeTask = [=]() {
@@ -187,25 +194,6 @@ bool Dispatcher::dispatch(
   runRecord._command = DispatcherCommand::Run;
   runRecord._task = compositeTask;
   runRecord._taskId = taskIdCounter++;
-
-  const auto poolElement = _pool[index];
-
-  Q_ASSERT(poolElement);
-
-  if (!poolElement) {
-    LOG_ERROR(Log::ErrorId::Generic, "Internal error! Invalid pool element!");
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  Q_ASSERT(poolElement->_queue);
-
-  if (!poolElement->_queue) {
-    LOG_ERROR(Log::ErrorId::Generic,
-              "Internal error! Invalid pool element's queue!");
-    LOG_PERF(0, "Exit");
-    return false;
-  }
 
   LOG_DEBUG("Enqueing task with id {}", runRecord._taskId);
 

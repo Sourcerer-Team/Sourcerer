@@ -88,11 +88,7 @@ public:
 
   void updateCommitRefs(const QHash<QString, QStringList> &commitRefs);
 
-<<<<<<< HEAD
   GitRepo::GitHistoryWithStatus historyWithStatus() const {
-=======
-  const GitRepo::GitHistoryWithStatus &historyWithStatus() const {
->>>>>>> main
     return _historyWithStatus;
   }
 
