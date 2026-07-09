@@ -3,8 +3,11 @@
 
 #include <Log.h>
 
+#include <QActionGroup>
 #include <QApplication>
 #include <QKeySequence>
+
+#include <StylesheetManager.h>
 
 #define THREAD_ID "TitleBarMenuButton"
 
@@ -225,6 +228,36 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addAction(_initAction);
   menu->addSeparator();
   menu->addAction(_saveWorkspaceAction);
+  menu->addSeparator();
+
+  auto *themesMenu = menu->addMenu(tr("Themes"));
+  auto *themeActions = new QActionGroup(menu);
+  themeActions->setExclusive(true);
+
+  const auto addThemeAction =
+      [this, themesMenu, themeActions](const QString &text,
+                                       StylesheetManager::StylesheetKey key) {
+        auto *action = themesMenu->addAction(text);
+        action->setCheckable(true);
+        action->setChecked(
+            StylesheetManager::StylesheetManager::currentStylesheet() == key);
+        action->setData(static_cast<int>(key));
+        themeActions->addAction(action);
+        connect(action, &QAction::triggered, this, [this, key](bool) {
+          StylesheetManager::StylesheetManager::setCurrentStylesheet(key);
+          _configManager.setString(
+              ConfigManager::ConfigKey::UiTheme,
+              StylesheetManager::StylesheetManager::stylesheetKeyName(key));
+          _configManager.save();
+          StylesheetManager::StylesheetManager::applyStylesheet(qApp);
+        });
+      };
+
+  addThemeAction(tr("Sourcerer Light"),
+                 StylesheetManager::StylesheetKey::SourcererLight);
+  addThemeAction(tr("Sourcerer Dark"),
+                 StylesheetManager::StylesheetKey::SourcererDark);
+
   menu->addSeparator();
   // menu->addAction(_settingsAction);
   menu->addAction(_terminalAction);

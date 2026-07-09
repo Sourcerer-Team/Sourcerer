@@ -7,6 +7,8 @@
 
 #include <QEnableSharedFromThis>
 
+#include <QHash>
+#include <QStringList>
 #include <atomic>
 #include <functional>
 #include <qitemselectionmodel.h>
@@ -23,6 +25,7 @@
 
 #define HistorySliceWidthRole Qt::UserRole
 #define StatusRole (Qt::UserRole + 1)
+#define CommitRefsRole (Qt::UserRole + 2)
 
 namespace GuiManager::Models {
 
@@ -83,6 +86,8 @@ public:
       const GitRepo::GitHistoryWithStatus &historyWithStatus,
       const std::function<void(int)> &progressCallback = nullptr);
 
+  void updateCommitRefs(const QHash<QString, QStringList> &commitRefs);
+
   const GitRepo::GitHistoryWithStatus &historyWithStatus() const {
     return _historyWithStatus;
   }
@@ -116,6 +121,7 @@ private:
   mutable Util::RecursiveMutex _mutex;
   GitRepo::GitHistoryWithStatus _historyWithStatus;
   mutable Util::ResizableMatrix<Slice> _drawableSlices;
+  QHash<QString, QStringList> _commitRefs;
   std::atomic_bool _quitUpdate;
   QItemSelectionModel *_selectionModel;
 };

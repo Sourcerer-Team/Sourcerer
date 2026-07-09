@@ -3,9 +3,11 @@
 
 #include <ConfigKey.h>
 #include <Log.h>
+#include <StylesheetManager.h>
 
 #include <QEvent>
 #include <QHBoxLayout>
+#include <QWindow>
 
 #define THREAD_ID "TopBarWidget"
 
@@ -18,38 +20,49 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   LOG_PERF(0, "Enter");
 
   setMouseTracking(true);
+  const QColor iconColor =
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
 
-  const QColor minimizeButtonColor = _configManager.getColor(
-      ConfigManager::ConfigKey::TitleBarMinimizeButtonColor);
-  const QColor maximizeButtonColor = _configManager.getColor(
-      ConfigManager::ConfigKey::TitleBarMaximizeButtonColor);
-  const QColor closeButtonColor = _configManager.getColor(
-      ConfigManager::ConfigKey::TitleBarCloseButtonColor);
-
-  LOG_DEBUG("Minimize button color '{}", minimizeButtonColor.name());
-  LOG_DEBUG("Maximize button color '{}", maximizeButtonColor.name());
-  LOG_DEBUG("Close button color '{}", closeButtonColor.name());
-
-  _profileButton = new TitleBarButton(QPixmap(":/icons/profile.png"),
-                                      minimizeButtonColor, this);
+  _profileButton =
+      new TitleBarButton(StylesheetManager::StylesheetManager::recolorPixmap(
+                             QPixmap(":/icons/profile.png"), iconColor),
+                         this);
+  _profileButton->setObjectName("titleBarProfileButton");
+  _profileButton->setProperty("iconSource",
+                              QStringLiteral(":/icons/profile.png"));
   _profileButton->setFlat(true);
   _profileButton->setMinimumSize(QSize(32, 32));
   _profileButton->setMaximumSize(QSize(32, 32));
 
-  auto minimizeButton = new TitleBarButton(
-      QPixmap(":/icons/minimize_button.png"), minimizeButtonColor, this);
+  auto minimizeButton =
+      new TitleBarButton(StylesheetManager::StylesheetManager::recolorPixmap(
+                             QPixmap(":/icons/minimize_button.png"), iconColor),
+                         this);
+  minimizeButton->setObjectName("titleBarMinimizeButton");
+  minimizeButton->setProperty("iconSource",
+                              QStringLiteral(":/icons/minimize_button.png"));
   minimizeButton->setFlat(true);
   minimizeButton->setMinimumSize(QSize(32, 32));
   minimizeButton->setMaximumSize(QSize(32, 32));
 
-  auto maximizeButton = new TitleBarButton(
-      QPixmap(":/icons/maximize_button.png"), maximizeButtonColor, this);
+  auto maximizeButton =
+      new TitleBarButton(StylesheetManager::StylesheetManager::recolorPixmap(
+                             QPixmap(":/icons/maximize_button.png"), iconColor),
+                         this);
+  maximizeButton->setObjectName("titleBarMaximizeButton");
+  maximizeButton->setProperty("iconSource",
+                              QStringLiteral(":/icons/maximize_button.png"));
   maximizeButton->setFlat(true);
   maximizeButton->setMinimumSize(QSize(32, 32));
   maximizeButton->setMaximumSize(QSize(32, 32));
 
-  auto closeButton = new TitleBarButton(QPixmap(":/icons/close_button.png"),
-                                        closeButtonColor, this);
+  auto closeButton =
+      new TitleBarButton(StylesheetManager::StylesheetManager::recolorPixmap(
+                             QPixmap(":/icons/close_button.png"), iconColor),
+                         this);
+  closeButton->setObjectName("titleBarCloseButton");
+  closeButton->setProperty("iconSource",
+                           QStringLiteral(":/icons/close_button.png"));
   closeButton->setFlat(true);
   closeButton->setMinimumSize(QSize(32, 32));
   closeButton->setMaximumSize(QSize(32, 32));
@@ -119,7 +132,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
 void TopBarWidget::onProfileClicked() {
   LOG_PERF(0, "Enter");
 
-  emit profile(_profileButton->x() + _profileButton->width() / 2);
+  emit profile(
+      _profileButton->mapToGlobal(QPoint(_profileButton->width() / 2, 0)).x());
 
   LOG_PERF(0, "Exit");
 }
@@ -142,6 +156,23 @@ void TopBarWidget::mousePressEvent(QMouseEvent *event) {
   LOG_PERF(0, "Enter");
 
   if (event->button() == Qt::LeftButton) {
+    const qlonglong borderWidth =
+        _configManager.getLong(ConfigManager::ConfigKey::MainWindowBorderWidth);
+    if (event->pos().y() <= borderWidth) {
+      QWidget *parentWindow = window();
+      if (parentWindow && parentWindow->windowHandle()) {
+        Qt::Edges edges = Qt::TopEdge;
+        if (event->pos().x() <= borderWidth) {
+          edges |= Qt::LeftEdge;
+        } else if (event->pos().x() >= width() - borderWidth) {
+          edges |= Qt::RightEdge;
+        }
+        parentWindow->windowHandle()->startSystemResize(edges);
+      }
+      LOG_PERF(0, "Exit");
+      return;
+    }
+
     emit dragged();
     LOG_PERF(0, "Exit");
     return;

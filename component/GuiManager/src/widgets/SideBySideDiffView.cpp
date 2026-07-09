@@ -3,6 +3,7 @@
 #include "QScintillaLexerFactory.h"
 
 #include <Log.h>
+#include <StylesheetManager.h>
 
 #include <Qsci/qscilexerdiff.h>
 
@@ -251,6 +252,45 @@ createContent(const QString &leftContent,
   return content;
 }
 
+void SideBySideDiffView::changeEvent(QEvent *event) {
+  QWidget::changeEvent(event);
+
+  if (!event)
+    return;
+
+  switch (event->type()) {
+  case QEvent::PaletteChange:
+  case QEvent::ApplicationPaletteChange:
+  case QEvent::StyleChange:
+    refreshScintillaTheme();
+    break;
+  default:
+    break;
+  }
+}
+
+void SideBySideDiffView::refreshScintillaTheme() {
+  DarkThemeLexersHighlighter highlighter;
+  const auto editors = findChildren<QsciScintilla *>();
+
+  for (auto *editor : editors) {
+    highlighter.applyDarkTheme(editor);
+  }
+}
+
+void SideBySideDiffView::clearContent() {
+  LOG_PERF(0, "Enter");
+
+  _leftEditor->clear();
+  _rightEditor->clear();
+  _leftEditor->markerDeleteAll();
+  _rightEditor->markerDeleteAll();
+  _leftMarks->setMarks({}, {});
+  _rightMarks->setMarks({}, {});
+
+  LOG_PERF(0, "Exit");
+}
+
 void SideBySideDiffView::loadAndHighlight(
     const QString &leftContent, const GitRepo::FilesDiffDelta &rightDelta,
     const QString &extension) {
@@ -285,10 +325,19 @@ void SideBySideDiffView::loadAndHighlight(
   _leftEditor->markerDefine(QsciScintilla::Background, 2);
   _rightEditor->markerDefine(QsciScintilla::Background, 1);
   _rightEditor->markerDefine(QsciScintilla::Background, 2);
-  _leftEditor->setMarkerBackgroundColor(QColor(0x3b1313), 1);
-  _leftEditor->setMarkerBackgroundColor(QColor(0x133b13), 2);
-  _rightEditor->setMarkerBackgroundColor(QColor(0x133b13), 1);
-  _rightEditor->setMarkerBackgroundColor(QColor(0x3b1313), 2);
+
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+  const QColor deletedColor =
+      lightTheme ? QColor(255, 231, 231) : QColor(0x3b1313);
+  const QColor addedColor =
+      lightTheme ? QColor(232, 246, 232) : QColor(0x133b13);
+
+  _leftEditor->setMarkerBackgroundColor(deletedColor, 1);
+  _leftEditor->setMarkerBackgroundColor(addedColor, 2);
+  _rightEditor->setMarkerBackgroundColor(addedColor, 1);
+  _rightEditor->setMarkerBackgroundColor(deletedColor, 2);
 
   for (const int line : content.leftMarks0) {
     _leftEditor->markerAdd(line, 1);

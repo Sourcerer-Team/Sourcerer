@@ -1,5 +1,6 @@
 #include "CloudRepo.h"
 
+#include <CloudCredentialStorage.h>
 #include <ConfigManager.h>
 #include <Dispatcher.h>
 #include <HttpClient.h>
@@ -200,7 +201,6 @@ CloudRepo::uploadBugReport(const QString &filePath) {
   if (!QFile::exists(filePath)) {
     LOG_ERROR(Log::ErrorId::FileSystem, "Bug report file does not exist: {}",
               filePath);
-    emit uploadBugReportFailed("File not found: " + filePath);
     LOG_PERF(0, "Exit");
     return {QNetworkReply::NetworkError::ContentNotFoundError,
             "File not found"};
@@ -211,7 +211,6 @@ CloudRepo::uploadBugReport(const QString &filePath) {
   if (!file.open(QIODevice::ReadOnly)) {
     LOG_ERROR(Log::ErrorId::FileSystem, "Failed to open bug report file: {}",
               filePath);
-    emit uploadBugReportFailed("Failed to open file: " + filePath);
     LOG_PERF(0, "Exit");
     return {QNetworkReply::NetworkError::ContentNotFoundError,
             "Failed to open file"};
@@ -267,8 +266,22 @@ CloudRepo::uploadBugReport(const QString &filePath) {
   httpHeaders[QNetworkRequest::KnownHeaders::ContentTypeHeader] =
       "multipart/form-data; boundary=" + boundary;
 
+  QString accessToken = _accessToken;
+  if (accessToken.isEmpty()) {
+    QString username;
+    QString password;
+    QString storedJwt;
+    if (CloudCredentialtorage::getInstance().isJWTValid() &&
+        CloudCredentialtorage::getInstance().getCredentials(username, password,
+                                                            storedJwt)) {
+      accessToken = storedJwt;
+    }
+  }
+
   QMap<QString, QString> rawHttpHeaders;
-  rawHttpHeaders["authorization"] = "Bearer " + _accessToken;
+  if (!accessToken.isEmpty()) {
+    rawHttpHeaders["authorization"] = "Bearer " + accessToken;
+  }
 
   const auto httpReply = httpClient->sendRequest(
       uploadUrl, HttpMethod::Post, httpHeaders, rawHttpHeaders, requestBody);
@@ -276,7 +289,6 @@ CloudRepo::uploadBugReport(const QString &filePath) {
   if (httpReply.error() != QNetworkReply::NetworkError::NoError) {
     LOG_ERROR(Log::ErrorId::Network, "Failed to upload bug report: {}",
               (int)httpReply.error());
-    emit uploadBugReportError(httpReply.error());
     LOG_PERF(0, "Exit");
     return {httpReply.error(), QString()};
   }
@@ -284,8 +296,6 @@ CloudRepo::uploadBugReport(const QString &filePath) {
   const QString response = QString::fromUtf8(httpReply.response());
   LOG_INFO("Bug report uploaded successfully");
   LOG_DEBUG("Upload response: {}", response);
-
-  emit uploadBugReportSuccess(response);
 
   LOG_PERF(0, "Exit");
   return {QNetworkReply::NetworkError::NoError, response};

@@ -130,6 +130,8 @@ private:
     QColor error;
     QColor warning;
     QColor info;
+    QColor lineChangedText;
+    QColor lineChangedBackground;
     QColor rawString;
   };
 
@@ -149,6 +151,7 @@ private:
 
   // Constants
   static const DarkThemeColors DEFAULT_DARK_COLORS;
+  static const DarkThemeColors DEFAULT_LIGHT_COLORS;
   static const DarkThemeColors MONOKAI_COLORS;
   static const DarkThemeColors DRACULA_COLORS;
   static const DarkThemeColors SOLARIZED_DARK_COLORS;

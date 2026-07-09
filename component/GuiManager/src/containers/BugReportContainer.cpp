@@ -51,9 +51,6 @@ BugReportContainer::BugReportContainer(QWidget *parent)
 
   // Connect to CloudRepo signals for upload status
   connect(&Util::CloudRepo::getInstance(),
-          &Util::CloudRepo::uploadBugReportSuccess, this,
-          &BugReportContainer::onUploadSuccess);
-  connect(&Util::CloudRepo::getInstance(),
           &Util::CloudRepo::uploadBugReportFailed, this,
           &BugReportContainer::onUploadFailed);
 
@@ -136,36 +133,6 @@ void BugReportContainer::onInputChanged() {
   ui->pushButtonSubmit->setEnabled(hasTitle && hasDescription);
 }
 
-void BugReportContainer::onUploadSuccess(const QString &response) {
-  LOG_PERF(0, "Enter");
-
-  LOG_DEBUG("Bug report uploaded successfully");
-  LOG_DEBUG("Server response: {}", response);
-
-  showSpinnerOverlay(false);
-
-  // Re-enable inputs
-  ui->lineEditTitle->setEnabled(true);
-  ui->textEditDescription->setEnabled(true);
-  ui->pushButtonSubmit->setEnabled(true);
-  ui->pushButtonCancel->setEnabled(true);
-
-  // Clear form
-  ui->lineEditTitle->clear();
-  ui->textEditDescription->clear();
-
-  ToastHostWidget::getInstance().addToast(new InfoToast(
-      tr("Bug report submitted successfully. Thank you!"), tr("Success")));
-
-  // Remove temporary zip file
-  if (!_tempZipFilePath.isEmpty() && QFile::exists(_tempZipFilePath)) {
-    QFile::remove(_tempZipFilePath);
-    _tempZipFilePath.clear();
-  }
-
-  LOG_PERF(0, "Exit");
-}
-
 void BugReportContainer::onUploadFailed(const QString &error) {
   LOG_PERF(0, "Enter");
 
@@ -174,12 +141,7 @@ void BugReportContainer::onUploadFailed(const QString &error) {
   LOG_ERROR(Log::ErrorId::Network, "Upload error: {}", errorMessage);
 
   showSpinnerOverlay(false);
-
-  // Re-enable inputs
-  ui->lineEditTitle->setEnabled(true);
-  ui->textEditDescription->setEnabled(true);
-  ui->pushButtonSubmit->setEnabled(true);
-  ui->pushButtonCancel->setEnabled(true);
+  restoreSubmissionUi();
 
   ToastHostWidget::getInstance().addToast(
       new ErrorToast(errorMessage, tr("Upload Error")));
@@ -432,17 +394,45 @@ void BugReportContainer::onZipCreationFinished(const WeakPtr &guard,
     const auto result =
         Util::CloudRepo::getInstance().uploadBugReport(_tempZipFilePath);
 
-    if (result.first != QNetworkReply::NetworkError::NoError) {
-      LOG_ERROR(Log::ErrorId::Network, "Failed to upload bug report: {}",
-                result.second);
+    ::Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
 
-      ::Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        showSpinnerOverlay(false);
+      if (result.first != QNetworkReply::NetworkError::NoError) {
+        LOG_ERROR(Log::ErrorId::Network, "Failed to upload bug report: {}",
+                  result.second);
+        restoreSubmissionUi();
         ToastHostWidget::getInstance().addToast(
-            new ErrorToast(tr("Failed to upload bug report"), tr("Error")));
-      });
-    }
+            new ErrorToast(result.second.isEmpty()
+                               ? tr("Failed to upload bug report")
+                               : QString(tr("Failed to upload bug report: %1"))
+                                     .arg(result.second),
+                           tr("Error")));
+        return;
+      }
+
+      LOG_DEBUG("Bug report uploaded successfully");
+      restoreSubmissionUi();
+      ui->lineEditTitle->clear();
+      ui->textEditDescription->clear();
+      if (!_tempZipFilePath.isEmpty() && QFile::exists(_tempZipFilePath)) {
+        QFile::remove(_tempZipFilePath);
+        _tempZipFilePath.clear();
+      }
+      ToastHostWidget::getInstance().addToast(new InfoToast(
+          tr("Bug report submitted successfully. Thank you!"), tr("Success")));
+    });
   });
+
+  LOG_PERF(0, "Exit");
+}
+
+void BugReportContainer::restoreSubmissionUi() {
+  LOG_PERF(0, "Enter");
+
+  ui->lineEditTitle->setEnabled(true);
+  ui->textEditDescription->setEnabled(true);
+  ui->pushButtonSubmit->setEnabled(true);
+  ui->pushButtonCancel->setEnabled(true);
 
   LOG_PERF(0, "Exit");
 }

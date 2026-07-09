@@ -16,6 +16,7 @@ enum class GitRepoCommandType : int {
   Unknown = 0,
   AbortMerge,
   AddSubmodule,
+  AddRemote,
   Amend,
   ApplyPatch,
   ApplyStash,
@@ -37,10 +38,12 @@ enum class GitRepoCommandType : int {
   DiffFiles,
   DiffFilesFromCommit,
   DiscardFiles,
+  FetchAll,
   GetActiveBranch,
   GetFileSizeFromCommit,
   GetBranchHistory,
   GetCommitBranches,
+  GetCommitTags,
   GetCommitHeads,
   GetCommitIsHead,
   GetCommitStatus,
@@ -53,6 +56,7 @@ enum class GitRepoCommandType : int {
   ListLocalBranches,
   ListRemoteBranches,
   ListRemoteBranchesWithStatus,
+  ListRemotes,
   ListStashes,
   ListSubmodules,
   ListSubmodulesWithStatus,
@@ -63,17 +67,24 @@ enum class GitRepoCommandType : int {
   Push,
   PushTag,
   PushAllTags,
+  RemoveRemote,
   RenameBranch,
   RenameTag,
   Reset,
   Revert,
   CherryPick,
+  SetDefaultRemote,
+  AddTarget,
+  EditTarget,
+  DeleteTarget,
+  SetDefaultTarget,
   SetUpstream,
   StageFiles,
   Stash,
   Status,
   SubmoduleUpdate,
   UnstageFiles,
+  UpdateRemote,
   Quit,
   Last
 };
@@ -105,6 +116,16 @@ struct GitRepoAbortMergeCommand final : GitRepoCommand {
   ~GitRepoAbortMergeCommand() override = default;
 };
 
+struct GitRepoAddRemoteCommand final : GitRepoCommand {
+  GitRepoAddRemoteCommand() : GitRepoCommand(GitRepoCommandType::AddRemote) {}
+
+  ~GitRepoAddRemoteCommand() override = default;
+
+  QString remoteName;
+  QString fetchUrl;
+  QString pushUrl;
+};
+
 struct GitRepoAddSubmoduleCommand final : GitRepoCommand {
   GitRepoAddSubmoduleCommand()
       : GitRepoCommand(GitRepoCommandType::AddSubmodule) {}
@@ -113,6 +134,7 @@ struct GitRepoAddSubmoduleCommand final : GitRepoCommand {
 
   QString url;
   QString name;
+  QString branch;
 };
 
 struct GitRepoAmendCommand final : GitRepoCommand {
@@ -164,6 +186,16 @@ struct GitRepoCheckoutCommitCommand final : GitRepoCommand {
   ~GitRepoCheckoutCommitCommand() override = default;
 
   QString commit;
+};
+
+struct GitRepoCherryPickCommand final : GitRepoCommand {
+  GitRepoCherryPickCommand() : GitRepoCommand(GitRepoCommandType::CherryPick) {}
+
+  ~GitRepoCherryPickCommand() override = default;
+
+  QString commit;
+  QString author;
+  QString email;
 };
 
 struct GitRepoCloneCommand final : GitRepoCommand {
@@ -341,6 +373,12 @@ struct GitRepoDiscardFilesCommand final : GitRepoCommand {
   QStringList files;
 };
 
+struct GitRepoFetchAllCommand final : GitRepoCommand {
+  GitRepoFetchAllCommand() : GitRepoCommand(GitRepoCommandType::FetchAll) {}
+
+  ~GitRepoFetchAllCommand() override = default;
+};
+
 struct GitRepoGetFileSizeFromCommitCommand final : GitRepoCommand {
   GitRepoGetFileSizeFromCommitCommand()
       : GitRepoCommand(GitRepoCommandType::GetFileSizeFromCommit) {}
@@ -374,6 +412,15 @@ struct GitRepoGetCommitBranchesCommand final : GitRepoCommand {
       : GitRepoCommand(GitRepoCommandType::GetCommitBranches) {}
 
   ~GitRepoGetCommitBranchesCommand() override = default;
+
+  QString commitOid;
+};
+
+struct GitRepoGetCommitTagsCommand final : GitRepoCommand {
+  GitRepoGetCommitTagsCommand()
+      : GitRepoCommand(GitRepoCommandType::GetCommitTags) {}
+
+  ~GitRepoGetCommitTagsCommand() override = default;
 
   QString commitOid;
 };
@@ -493,6 +540,13 @@ struct GitRepoListRemoteBranchesWithStatusCommand final : GitRepoCommand {
   ~GitRepoListRemoteBranchesWithStatusCommand() override = default;
 };
 
+struct GitRepoListRemotesCommand final : GitRepoCommand {
+  GitRepoListRemotesCommand()
+      : GitRepoCommand(GitRepoCommandType::ListRemotes) {}
+
+  ~GitRepoListRemotesCommand() override = default;
+};
+
 struct GitRepoListStashesCommand final : GitRepoCommand {
   GitRepoListStashesCommand()
       : GitRepoCommand(GitRepoCommandType::ListStashes) {}
@@ -542,12 +596,18 @@ struct GitRepoPullCommand final : GitRepoCommand {
   GitRepoPullCommand() : GitRepoCommand(GitRepoCommandType::Pull) {}
 
   ~GitRepoPullCommand() override = default;
+
+  QString activeBranchName; // The currently checked out branch name
+  bool rebase = false;
 };
 
 struct GitRepoPushCommand final : GitRepoCommand {
   GitRepoPushCommand() : GitRepoCommand(GitRepoCommandType::Push) {}
 
   ~GitRepoPushCommand() override = default;
+
+  QString activeBranchName; // The currently checked out branch name
+  bool force = false;
 };
 
 struct GitRepoPushTagCommand final : GitRepoCommand {
@@ -563,6 +623,15 @@ struct GitRepoPushAllTagsCommand final : GitRepoCommand {
       : GitRepoCommand(GitRepoCommandType::PushAllTags) {}
 
   ~GitRepoPushAllTagsCommand() override = default;
+};
+
+struct GitRepoRemoveRemoteCommand final : GitRepoCommand {
+  GitRepoRemoveRemoteCommand()
+      : GitRepoCommand(GitRepoCommandType::RemoveRemote) {}
+
+  ~GitRepoRemoveRemoteCommand() override = default;
+
+  QString remoteName;
 };
 
 struct GitRepoRenameBranchCommand final : GitRepoCommand {
@@ -604,14 +673,55 @@ struct GitRepoRevertCommand final : GitRepoCommand {
   QString message;
 };
 
-struct GitRepoCherryPickCommand final : GitRepoCommand {
-  GitRepoCherryPickCommand() : GitRepoCommand(GitRepoCommandType::CherryPick) {}
+struct GitRepoSetDefaultRemoteCommand final : GitRepoCommand {
+  GitRepoSetDefaultRemoteCommand()
+      : GitRepoCommand(GitRepoCommandType::SetDefaultRemote) {}
 
-  ~GitRepoCherryPickCommand() override = default;
+  ~GitRepoSetDefaultRemoteCommand() override = default;
 
-  QString commit;
-  QString author;
-  QString email;
+  QString remoteName;
+};
+
+struct GitRepoAddTargetCommand final : GitRepoCommand {
+  GitRepoAddTargetCommand() : GitRepoCommand(GitRepoCommandType::AddTarget) {}
+
+  ~GitRepoAddTargetCommand() override = default;
+
+  QString remoteName;
+  QString targetName;
+  QString fetchUrl;
+  QString pushUrl;
+};
+
+struct GitRepoEditTargetCommand final : GitRepoCommand {
+  GitRepoEditTargetCommand() : GitRepoCommand(GitRepoCommandType::EditTarget) {}
+
+  ~GitRepoEditTargetCommand() override = default;
+
+  QString remoteName;
+  QString targetName;
+  QString newFetchUrl;
+  QString newPushUrl;
+};
+
+struct GitRepoDeleteTargetCommand final : GitRepoCommand {
+  GitRepoDeleteTargetCommand()
+      : GitRepoCommand(GitRepoCommandType::DeleteTarget) {}
+
+  ~GitRepoDeleteTargetCommand() override = default;
+
+  QString remoteName;
+  QString targetName;
+};
+
+struct GitRepoSetDefaultTargetCommand final : GitRepoCommand {
+  GitRepoSetDefaultTargetCommand()
+      : GitRepoCommand(GitRepoCommandType::SetDefaultTarget) {}
+
+  ~GitRepoSetDefaultTargetCommand() override = default;
+
+  QString remoteName;
+  QString targetName;
 };
 
 struct GitRepoSetUpstreamCommand final : GitRepoCommand {
@@ -663,6 +773,18 @@ struct GitRepoUnstageFilesCommand final : GitRepoCommand {
   QStringList files;
 };
 
+struct GitRepoUpdateRemoteCommand final : GitRepoCommand {
+  GitRepoUpdateRemoteCommand()
+      : GitRepoCommand(GitRepoCommandType::UpdateRemote) {}
+
+  ~GitRepoUpdateRemoteCommand() override = default;
+
+  QString remoteName;
+  QString newRemoteName;
+  QString fetchUrl;
+  QString pushUrl;
+};
+
 struct GitRepoQuitCommand final : GitRepoCommand {
   GitRepoQuitCommand() : GitRepoCommand(GitRepoCommandType::Quit) {}
 
@@ -712,3 +834,7 @@ Q_DECLARE_METATYPE(GitRepo::SubmoduleStatusType)
 Q_DECLARE_METATYPE(GitRepo::SubmoduleStatus)
 Q_DECLARE_METATYPE(GitRepo::SubmoduleInfo)
 Q_DECLARE_METATYPE(QVector<GitRepo::SubmoduleInfo>)
+Q_DECLARE_METATYPE(GitRepo::RemoteTarget)
+Q_DECLARE_METATYPE(QVector<GitRepo::RemoteTarget>)
+Q_DECLARE_METATYPE(GitRepo::RemoteInfo)
+Q_DECLARE_METATYPE(QVector<GitRepo::RemoteInfo>)

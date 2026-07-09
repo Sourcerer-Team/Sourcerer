@@ -225,6 +225,25 @@
                  <string>Page</string>
                 </attribute>
                </widget>
+               <widget class="GuiManager::Widgets::RemotesPage" name="remotesPage">
+                <property name="geometry">
+                 <rect>
+                  <x>0</x>
+                  <y>0</y>
+                  <width>73</width>
+                  <height>185</height>
+                 </rect>
+                </property>
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <attribute name="label">
+                 <string>Remotes</string>
+                </attribute>
+               </widget>
               </widget>
              </item>
             </layout>
@@ -241,7 +260,7 @@
                  <number>0</number>
                 </property>
                 <widget class="QWidget" name="pageHistory">
-                 <layout class="QVBoxLayout" name="verticalLayout10" stretch="0">
+                 <layout class="QVBoxLayout" name="verticalLayout10">
                   <property name="spacing">
                    <number>0</number>
                   </property>
@@ -1951,6 +1970,12 @@
    <class>GuiManager::Widgets::StashesPage</class>
    <extends>QWidget</extends>
    <header>widgets/StashesPage.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>GuiManager::Widgets::RemotesPage</class>
+   <extends>QWidget</extends>
+   <header>widgets/RemotesPage.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>

@@ -8,6 +8,8 @@
 #include <QStringList>
 #include <QWidget>
 
+class QEvent;
+
 namespace GuiManager::Widgets {
 
 struct SideBySideDiffContent {
@@ -52,9 +54,14 @@ public:
   void loadAndHighlight(const QString &leftContent,
                         const GitRepo::FilesDiffDelta &rightDelta,
                         const QString &extension);
+  void clearContent();
+
+protected:
+  void changeEvent(QEvent *event) override;
 
 private:
   void setupEditors(const QString &extension);
+  void refreshScintillaTheme();
   void syncScrollbars();
 
 private:

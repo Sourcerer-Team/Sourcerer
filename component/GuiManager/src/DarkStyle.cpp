@@ -169,9 +169,7 @@ void DarkStyle::polish(QApplication *app) {
   if (!app)
     return;
 
-  QFont defaultFont = app->font();
-  defaultFont.setPointSize(defaultFont.pointSize() + 2);
-  app->setFont(defaultFont);
+  // Keep the application font size unchanged so themes only affect colors.
 
   if (QFile file(QStringLiteral(":/darkstyle.qss"));
       file.open(QFile::ReadOnly | QFile::Text)) {
@@ -185,9 +183,7 @@ void DarkStyle::unpolish(QApplication *app) {
   if (!app)
     return;
 
-  QFont defaultFont = app->font();
-  defaultFont.setPointSize(defaultFont.pointSize() - 2);
-  app->setFont(defaultFont);
+  // No font adjustment was applied in polish().
 }
 
 QStyle *DarkStyle::baseStyle() {

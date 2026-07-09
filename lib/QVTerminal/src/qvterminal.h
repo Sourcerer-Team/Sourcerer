@@ -103,6 +103,7 @@ private:
   QPoint _startCursorSelectPos;
   QPoint _startSelectPos;
   QPoint _endSelectPos;
+  bool _selecting;
 
   // data
   QVTLayout *_layout;

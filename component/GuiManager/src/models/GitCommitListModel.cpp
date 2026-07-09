@@ -47,6 +47,13 @@ GitCommitListModel::from(const GitRepo::GitCommitStatus &commitStatus) {
     modifications.append(modification);
   }
 
+  for (const auto &file : commitStatus.untrackedFiles) {
+    GitCommitListModification modification;
+    modification._filePath = file;
+    modification._type = GitCommitListModificationType::Untracked;
+    modifications.append(modification);
+  }
+
   QList<GitCommitListModification> transformedModifications;
   transformedModifications.resize(modifications.size());
 

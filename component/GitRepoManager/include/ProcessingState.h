@@ -62,12 +62,14 @@ private:
       const Structs::GitRepoDiffFilesFromCommitCommand &command);
   void discardFilesWorker(const Structs::GitRepoDiscardFilesCommand &command);
   void eventCallback(const EventManager::Event event);
+  void fetchAllWorker(const Structs::GitRepoFetchAllCommand &command);
   void
   getActiveBranchWorker(const Structs::GitRepoGetActiveBranchCommand &command);
   void getFileSizeFromCommitWorker(
       const Structs::GitRepoGetFileSizeFromCommitCommand &command);
   void getCommitBranchesWorker(
       const Structs::GitRepoGetCommitBranchesCommand &command);
+  void getCommitTagsWorker(const Structs::GitRepoGetCommitTagsCommand &command);
   void
   getCommitHeadsWorker(const Structs::GitRepoGetCommitHeadsCommand &command);
   void
@@ -119,6 +121,17 @@ private:
   void
   submoduleUpdateWorker(const Structs::GitRepoSubmoduleUpdateCommand &command);
   void unstageFilesWorker(const Structs::GitRepoUnstageFilesCommand &command);
+  void listRemotesWorker(const Structs::GitRepoListRemotesCommand &command);
+  void addRemoteWorker(const Structs::GitRepoAddRemoteCommand &command);
+  void removeRemoteWorker(const Structs::GitRepoRemoveRemoteCommand &command);
+  void updateRemoteWorker(const Structs::GitRepoUpdateRemoteCommand &command);
+  void setDefaultRemoteWorker(
+      const Structs::GitRepoSetDefaultRemoteCommand &command);
+  void addTargetWorker(const Structs::GitRepoAddTargetCommand &command);
+  void editTargetWorker(const Structs::GitRepoEditTargetCommand &command);
+  void deleteTargetWorker(const Structs::GitRepoDeleteTargetCommand &command);
+  void setDefaultTargetWorker(
+      const Structs::GitRepoSetDefaultTargetCommand &command);
   void quitRepoWorker(const Structs::GitRepoQuitCommand &command);
   void reportError(EventManager::EventType eventType, const QString &message,
                    const Structs::GitRepoCommand &command) const;
@@ -147,8 +160,12 @@ private:
       const Structs::GitRepoCreateTagFromCommitCommand &command);
   void scheduleWorkerForGetActiveBranch(
       const Structs::GitRepoGetActiveBranchCommand &command);
+  void
+  scheduleWorkerForFetchAll(const Structs::GitRepoFetchAllCommand &command);
   void scheduleWorkerForGetCommitBranches(
       const Structs::GitRepoGetCommitBranchesCommand &command);
+  void scheduleWorkerForGetCommitTags(
+      const Structs::GitRepoGetCommitTagsCommand &command);
   void scheduleWorkerForGetCommitHeads(
       const Structs::GitRepoGetCommitHeadsCommand &command);
   void scheduleWorkerForGetCommitIsHead(
@@ -226,6 +243,24 @@ private:
       const Structs::GitRepoSubmoduleUpdateCommand &command);
   void scheduleWorkerForUnstageFiles(
       const Structs::GitRepoUnstageFilesCommand &command);
+  void scheduleWorkerForListRemotes(
+      const Structs::GitRepoListRemotesCommand &command);
+  void
+  scheduleWorkerForAddRemote(const Structs::GitRepoAddRemoteCommand &command);
+  void scheduleWorkerForRemoveRemote(
+      const Structs::GitRepoRemoveRemoteCommand &command);
+  void scheduleWorkerForUpdateRemote(
+      const Structs::GitRepoUpdateRemoteCommand &command);
+  void scheduleWorkerForSetDefaultRemote(
+      const Structs::GitRepoSetDefaultRemoteCommand &command);
+  void
+  scheduleWorkerForAddTarget(const Structs::GitRepoAddTargetCommand &command);
+  void
+  scheduleWorkerForEditTarget(const Structs::GitRepoEditTargetCommand &command);
+  void scheduleWorkerForDeleteTarget(
+      const Structs::GitRepoDeleteTargetCommand &command);
+  void scheduleWorkerForSetDefaultTarget(
+      const Structs::GitRepoSetDefaultTargetCommand &command);
   void scheduleWorkerForQuit(const Structs::GitRepoQuitCommand &command);
   void workersThreadFunc(const QString &uuid);
 

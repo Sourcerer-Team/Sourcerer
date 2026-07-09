@@ -18,9 +18,9 @@ ToastCloseButton::ToastCloseButton(QWidget *parent) : QPushButton{parent} {
   setAttribute(Qt::WA_TransparentForMouseEvents, false);
 
   setText(tr("x"));
-  setStyleSheet("QPushButton { text-align: center top; } QPushButton:hover { "
-                "background-color: "
-                "rgba(255,255,255,0.2); }");
+  setStyleSheet(
+      "QPushButton { text-align: center top; color: palette(window-text); } "
+      "QPushButton:hover { background-color: rgba(127,127,127,0.2); }");
 
   LOG_PERF(0, "Exit");
 }

@@ -14,6 +14,7 @@
 #include <EventManager.h>
 #include <GitRepo.h>
 
+#include <QCloseEvent>
 #include <QEnableSharedFromThis>
 #include <QMainWindow>
 #include <QMap>
@@ -44,6 +45,9 @@ public:
 protected:
   void mouseMoveEvent(QMouseEvent *event) override;
   void changeEvent(QEvent *event) override;
+  void resizeEvent(QResizeEvent *event) override;
+  void closeEvent(QCloseEvent *event) override;
+  void showEvent(QShowEvent *event) override;
 
   // QObject interface
 public:
@@ -116,6 +120,7 @@ private:
   bool _maximized;
   bool _mousePressed;
   HitDetector *_hitDetector;
+  QWidget *_bottomResizeGrip;
   QSharedPointer<ProfileBoardWidget> _profileBoardWidget;
   bool _profileBoardActive;
   QMap<uint, GitCredentialsOverlayWidget *> _credentialsWidgets;

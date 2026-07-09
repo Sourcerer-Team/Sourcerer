@@ -3,6 +3,9 @@
 #include <QPushButton>
 #include <QWidget>
 
+class QEvent;
+class QLabel;
+
 namespace GuiManager::Widgets {
 
 namespace Win32 {
@@ -61,6 +64,12 @@ public:
    */
   void setWorkingDirectory(const QString &path);
 
+protected:
+  void changeEvent(QEvent *event) override;
+
+private:
+  void applyTheme();
+
 #ifdef Q_OS_WIN
   /**
    * @brief Gets the PowerShell widget instance (Windows only)
@@ -87,6 +96,7 @@ private slots:
 
 private:
   QWidget *_titleBar;
+  QLabel *_titleLabel;
   QPushButton *_closeButton;
 
 #ifdef Q_OS_WIN

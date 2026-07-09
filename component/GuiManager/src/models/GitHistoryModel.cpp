@@ -70,6 +70,13 @@ void GitHistoryModel::updateStatus(const GitRepo::GitStatus &status) {
   LOG_PERF(0, "Exit");
 }
 
+void GitHistoryModel::updateCommitRefs(
+    const QHash<QString, QStringList> &commitRefs) {
+  LOCKGUARD(_mutex);
+
+  _commitRefs.insert(commitRefs);
+}
+
 void GitHistoryModel::updateHistoryAndStatus(
     const GitRepo::GitHistoryWithStatus &historyWithStatus,
     const std::function<void(int)> &progressCallback) {
@@ -167,10 +174,7 @@ QModelIndex GitHistoryModel::index(const int row, const int column,
 }
 
 int GitHistoryModel::rowCount(const QModelIndex &parent) const {
-  LOG_PERF(0, "Enter");
-
   if (parent.isValid()) {
-    LOG_PERF(0, "Exit");
     return 0;
   }
 
@@ -180,15 +184,10 @@ int GitHistoryModel::rowCount(const QModelIndex &parent) const {
                         ? _historyWithStatus.history.commits.size() + 1
                         : _historyWithStatus.history.commits.size();
 
-  LOG_PERF(0, "Exit");
-
   return count;
 }
 
 int GitHistoryModel::columnCount(const QModelIndex &parent) const {
-  LOG_PERF(0, "Enter");
-  LOG_PERF(0, "Exit");
-
   return COLUMN_LAST - COLUMN_FIRST + 1;
 }
 
@@ -234,6 +233,22 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     }
 
     return {};
+  }
+
+  if (role == CommitRefsRole) {
+    if (_historyWithStatus.status.hasChanges() && index.row() == 0) {
+      return {};
+    }
+
+    const int indexRow =
+        _historyWithStatus.status.hasChanges() ? index.row() - 1 : index.row();
+    if (indexRow < 0 ||
+        indexRow >= _historyWithStatus.history.commits.count()) {
+      return {};
+    }
+
+    const QString &commit = _historyWithStatus.history.commits.at(indexRow);
+    return _commitRefs.value(commit);
   }
 
   if (role != Qt::DisplayRole) {
@@ -282,7 +297,7 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     break;
   }
   case COLUMN_COMMIT_SHORT_SHA: {
-    result = commit.left(6); // Short SHA
+    result = commit.left(7); // Short SHA
     break;
   }
   case COLUMN_COMMIT_FULL_SHA: {

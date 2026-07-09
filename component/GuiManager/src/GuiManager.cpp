@@ -1,6 +1,7 @@
 #include "GuiManager.h"
 #include "DarkStyle.h"
 #include "MainWindow.h"
+#include "MousePositionCorrection.h"
 
 #include <ConfigManager.h>
 #include <EventManager.h>
@@ -32,6 +33,8 @@ void GuiManager::start() {
   auto argv = const_cast<char *>(ConfigManager::APPLICATION_NAME);
   QApplication app(argc, &argv);
 
+  MousePositionCorrection::instance().install(app);
+
   QTranslator translator;
   const QStringList uiLanguages = QLocale::system().uiLanguages();
   for (const QString &locale : uiLanguages) {
@@ -50,13 +53,23 @@ void GuiManager::start() {
   QApplication::setAttribute(Qt::AA_UseStyleSheetPropagationInWidgetStyles,
                              true);
 
-  const QString &stylesheet = StylesheetManager::StylesheetManager::stylesheet(
-      StylesheetManager::StylesheetKey::Default);
-
-  app.setStyleSheet(stylesheet);
+  ConfigManager::ConfigManager &configManager =
+      ConfigManager::ConfigManager::getInstance();
+  const QString themeName =
+      configManager.getString(ConfigManager::ConfigKey::UiTheme);
+  const StylesheetManager::StylesheetKey themeKey =
+      StylesheetManager::StylesheetManager::stylesheetKeyFromName(themeName);
+  StylesheetManager::StylesheetManager::setCurrentStylesheet(themeKey);
+  StylesheetManager::StylesheetManager::applyStylesheet(&app);
 
   const auto w = QSharedPointer<MainWindow>::create();
-  w->showMaximized();
+  const QString savedGeometry =
+      configManager.getString(ConfigManager::ConfigKey::MainWindowGeometry);
+  if (savedGeometry.isEmpty()) {
+    w->showMaximized();
+  } else {
+    w->show();
+  }
 
   EventManager::Event startedEvent(EventManager::EventType::ComponentStarted);
   EventManager::EventManager &eventManager =

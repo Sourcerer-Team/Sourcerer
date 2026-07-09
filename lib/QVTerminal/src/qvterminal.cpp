@@ -6,6 +6,7 @@
 #include <QKeyEvent>
 #include <QMenu>
 #include <QPainter>
+#include <QPalette>
 #include <QScrollBar>
 #include <QStyleHints>
 
@@ -23,6 +24,13 @@ static const int yMargin = 0;
 QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   _device = Q_NULLPTR;
 
+  setAutoFillBackground(true);
+  setBackgroundRole(QPalette::Base);
+  setAttribute(Qt::WA_OpaquePaintEvent, true);
+  viewport()->setAutoFillBackground(true);
+  viewport()->setBackgroundRole(QPalette::Base);
+  viewport()->setAttribute(Qt::WA_OpaquePaintEvent, true);
+
   setCursorPos(QPoint(0, 0));
   _savedCursorPos = QPoint(0, 0);
   _cursorTimer.start(QGuiApplication::styleHints()->cursorFlashTime() / 2);
@@ -32,6 +40,7 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   _echo = false;
   _crlf = false;
   _state = QVTerminal::Text;
+  _layout = new QVTLayout();
 
   QVTCharFormat format;
   QFont font;
@@ -39,11 +48,9 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   font.setStyleHint(QFont::Monospace);
   font.setPointSize(13);
   format.setFont(font);
-  format.setForeground(QColor(187, 187, 187));
-  format.setBackground(QColor(0x23, 0x26, 0x29));
+  format.setForeground(QColor(70, 70, 70));
+  format.setBackground(QColor(255, 250, 242));
   setFormat(format);
-
-  _layout = new QVTLayout();
 
   _pasteAction = new QAction("Paste");
   _pasteAction->setShortcut(QKeySequence("Ctrl+V"));
@@ -65,6 +72,7 @@ QVTerminal::QVTerminal(QWidget *parent) : QAbstractScrollArea(parent) {
   _vt = new VT100(this);
   _useFormaValue_Y = false;
   _viewportRowCountOverride = 0;
+  _selecting = false;
 
   viewport()->setCursor(QCursor(Qt::IBeamCursor));
 
@@ -452,8 +460,7 @@ void QVTerminal::paste() {
 
 void QVTerminal::copy() {
   // Check if there's a selection
-  if (_startSelectPos.isNull() || _endSelectPos.isNull() ||
-      _startSelectPos == _endSelectPos) {
+  if (!_selecting || _startSelectPos == _endSelectPos) {
     return;
   }
 
@@ -531,7 +538,7 @@ QColor QVTerminal::vt100color(char c, bool bright) {
     color = QColor(Qt::green);
     break;
   case '3':
-    color = QColor(Qt::yellow);
+    color = QColor(Qt::darkYellow);
     break;
   case '4':
     color = QColor(Qt::blue);
@@ -632,8 +639,11 @@ QPoint QVTerminal::cursorPos() const {
 }
 
 QPoint QVTerminal::posToCursor(const QPoint &cursorPos) const {
-  return QPoint((cursorPos.x() - xMargin) / _cw,
-                (cursorPos.y() - yMargin + verticalScrollBar()->value()) / _ch);
+  // Clamp to the visible terminal area so dragging from the top-left gutter
+  // still starts at the first cell instead of producing negative coordinates.
+  return QPoint(
+      qMax(0, (cursorPos.x() - xMargin) / _cw),
+      qMax(0, (cursorPos.y() - yMargin + verticalScrollBar()->value()) / _ch));
 }
 
 bool QVTerminal::crlf() const {
@@ -649,7 +659,10 @@ void QVTerminal::writeData(const QByteArray &data) {
     _device->write(data);
   }
   if (_echo) {
+    const QVTCharFormat previousFormat = _curentFormat;
+    _curentFormat = _format;
     appendData(data);
+    _curentFormat = previousFormat;
   }
 }
 
@@ -666,12 +679,35 @@ const QVTCharFormat &QVTerminal::format() const {
 }
 
 void QVTerminal::setFormat(const QVTCharFormat &format) {
+  const QVTCharFormat previousFormat = _format;
   _format = format;
   _curentFormat = format;
+
+  QPalette viewportPalette = viewport()->palette();
+  viewportPalette.setColor(QPalette::Window, _format.background());
+  viewportPalette.setColor(QPalette::Base, _format.background());
+  viewportPalette.setColor(QPalette::Text, _format.foreground());
+  viewportPalette.setColor(QPalette::WindowText, _format.foreground());
+  viewportPalette.setColor(QPalette::ButtonText, _format.foreground());
+  viewport()->setPalette(viewportPalette);
+  viewport()->setAutoFillBackground(true);
+
+  if (_layout) {
+    for (int row = 0; row < _layout->lineCount(); ++row) {
+      QVTLine &line = _layout->lineAt(row);
+      const auto chars = line.chars();
+      for (int col = 0; col < chars.size(); ++col) {
+        if (chars[col].format() == previousFormat) {
+          line.replace(QVTChar(chars[col].c(), format), col);
+        }
+      }
+    }
+  }
 
   QFontMetrics fm(_format.font());
   _cw = fm.boundingRect('M').width();
   _ch = fm.height();
+  update();
 }
 
 void QVTerminal::keyPressEvent(QKeyEvent *event) {
@@ -699,7 +735,7 @@ void QVTerminal::paintEvent(QPaintEvent *paintEvent) {
   QPainter p(viewport());
 
   p.setPen(QPen());
-  p.fillRect(viewport()->rect(), QColor(0x23, 0x26, 0x29));
+  p.fillRect(viewport()->rect(), _format.background());
 
   p.translate(QPoint(xMargin, -verticalScrollBar()->value() + yMargin));
   p.setBrush(_format.background());
@@ -807,6 +843,8 @@ void QVTerminal::focusOutEvent(QFocusEvent *event) {
 
 void QVTerminal::mousePressEvent(QMouseEvent *event) {
   if (event->button() == Qt::LeftButton) {
+    _selecting = true;
+    _startSelectPos = QPoint();
     _endSelectPos = QPoint();
     _startCursorSelectPos = posToCursor(event->pos());
     setMouseTracking(true);
@@ -823,7 +861,7 @@ void QVTerminal::mousePressEvent(QMouseEvent *event) {
 }
 
 void QVTerminal::mouseMoveEvent(QMouseEvent *event) {
-  if (!_startCursorSelectPos.isNull()) {
+  if (_selecting) {
     _endSelectPos = posToCursor(event->pos());
     if ((_startCursorSelectPos.y() > _endSelectPos.y()) ||
         (_startCursorSelectPos.y() == _endSelectPos.y() &&
@@ -841,6 +879,7 @@ void QVTerminal::mouseMoveEvent(QMouseEvent *event) {
 void QVTerminal::mouseReleaseEvent(QMouseEvent *event) {
   if (event->button() == Qt::LeftButton) {
     if (_startCursorSelectPos == _endSelectPos) {
+      _selecting = false;
       _startSelectPos = QPoint();
       _endSelectPos = QPoint();
     }
@@ -853,15 +892,15 @@ void QVTerminal::mouseReleaseEvent(QMouseEvent *event) {
 
 #ifndef QT_NO_CONTEXTMENU
 void QVTerminal::contextMenuEvent(QContextMenuEvent *event) {
-  QMenu menu(this);
+  QMenu menu;
+  menu.setPalette(QApplication::palette());
 
   // Enable paste if clipboard has content
   _pasteAction->setEnabled(!QApplication::clipboard()->text().isEmpty());
   menu.addAction(_pasteAction);
 
   // Enable copy if there's selected text
-  bool hasSelection = !_startSelectPos.isNull() && !_endSelectPos.isNull() &&
-                      _startSelectPos != _endSelectPos;
+  bool hasSelection = _selecting && _startSelectPos != _endSelectPos;
   _copyAction->setEnabled(hasSelection);
   menu.addAction(_copyAction);
 

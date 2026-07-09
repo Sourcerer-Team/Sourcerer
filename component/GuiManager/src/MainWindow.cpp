@@ -21,6 +21,8 @@
 #include <Dispatcher.h>
 #include <Log.h>
 
+#include <QCloseEvent>
+#include <QEnterEvent>
 #include <QFileDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -28,6 +30,46 @@
 #include <QSplitter>
 #include <QStandardPaths>
 #include <QWindow>
+
+namespace {
+class BottomResizeGripWidget final : public QWidget {
+public:
+  explicit BottomResizeGripWidget(QWidget *parent = nullptr) : QWidget(parent) {
+    setMouseTracking(true);
+    setCursor(Qt::SizeVerCursor);
+    setAttribute(Qt::WA_StyledBackground, true);
+    setStyleSheet("background: transparent;");
+  }
+
+protected:
+  void enterEvent(QEnterEvent *) override { setCursor(Qt::SizeVerCursor); }
+
+  void leaveEvent(QEvent *) override { unsetCursor(); }
+
+  void mousePressEvent(QMouseEvent *event) override {
+    if (event->button() != Qt::LeftButton) {
+      QWidget::mousePressEvent(event);
+      return;
+    }
+
+    QWidget *parentWindow = window();
+    if (parentWindow && parentWindow->windowHandle()) {
+      Qt::Edges edges = Qt::BottomEdge;
+      if (event->pos().x() <= 6) {
+        edges |= Qt::LeftEdge;
+      } else if (event->pos().x() >= width() - 6) {
+        edges |= Qt::RightEdge;
+      }
+      parentWindow->windowHandle()->startSystemResize(edges);
+    }
+  }
+
+  void mouseMoveEvent(QMouseEvent *event) override {
+    Q_UNUSED(event);
+    setCursor(Qt::SizeVerCursor);
+  }
+};
+} // namespace
 
 #include <QMessageBox>
 #include <functional>
@@ -41,7 +83,7 @@ using namespace Dialogs;
 using namespace Util;
 
 constexpr int TOP_MARGIN_OFFSET = -55;
-constexpr int PROFILE_WIDGET_ARROW_OFFSET = 30;
+constexpr int PROFILE_WIDGET_ARROW_OFFSET = 32;
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), _current(-1), _centralWidget(new CentralWidget),
@@ -50,6 +92,7 @@ MainWindow::MainWindow(QWidget *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
       _maximized(false), _mousePressed(false), _hitDetector(nullptr),
+      _bottomResizeGrip(nullptr),
       _profileBoardWidget(QSharedPointer<ProfileBoardWidget>::create(this)),
       _profileBoardActive(false) {
   LOG_PERF(0, "Enter");
@@ -103,6 +146,9 @@ MainWindow::MainWindow(QWidget *parent)
   _consoleWidget->hide();
 
   setCentralWidget(widget);
+
+  _bottomResizeGrip = new BottomResizeGripWidget(this);
+  _bottomResizeGrip->raise();
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
@@ -194,6 +240,7 @@ MainWindow::~MainWindow() {
     }
   }
 
+  delete _bottomResizeGrip;
   delete _hitDetector;
 
   LOG_PERF(0, "Exit");
@@ -231,6 +278,19 @@ void MainWindow::mouseMoveEvent(QMouseEvent *event) {
   event->ignore();
 }
 
+void MainWindow::resizeEvent(QResizeEvent *event) {
+  QMainWindow::resizeEvent(event);
+
+  if (_bottomResizeGrip) {
+    const qlonglong borderWidth =
+        _configManager.getLong(ConfigManager::ConfigKey::MainWindowBorderWidth);
+    const int gripHeight = qMax<qlonglong>(borderWidth, 6);
+    _bottomResizeGrip->setGeometry(0, height() - gripHeight, width(),
+                                   gripHeight);
+    _bottomResizeGrip->raise();
+  }
+}
+
 void MainWindow::changeEvent(QEvent *event) {
   LOG_PERF(0, "Enter");
 
@@ -245,6 +305,32 @@ void MainWindow::changeEvent(QEvent *event) {
   }
 
   QMainWindow::changeEvent(event);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::closeEvent(QCloseEvent *event) {
+  LOG_PERF(0, "Enter");
+
+  _configManager.setString(ConfigManager::ConfigKey::MainWindowGeometry,
+                           saveGeometry().toHex());
+
+  QMainWindow::closeEvent(event);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showEvent(QShowEvent *event) {
+  LOG_PERF(0, "Enter");
+
+  QMainWindow::showEvent(event);
+
+  const QString savedGeometry =
+      _configManager.getString(ConfigManager::ConfigKey::MainWindowGeometry);
+  if (!savedGeometry.isEmpty()) {
+    restoreGeometry(QByteArray::fromHex(savedGeometry.toUtf8()));
+    _maximized = windowState().testFlag(Qt::WindowMaximized);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -432,16 +518,21 @@ void MainWindow::onTerminal() {
     }
   } else {
     // Show console
-    // Get current container path for working directory
+    QString workingDirectory =
+        QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+
+    // Prefer the current repository directory when one is open.
     if (_current >= 0 && _current < _containers.size()) {
       const auto container = _containers[_current];
       if (container) {
         const QString path = container->path();
         if (!path.isEmpty()) {
-          _consoleWidget->setWorkingDirectory(path);
+          workingDirectory = path;
         }
       }
     }
+
+    _consoleWidget->setWorkingDirectory(workingDirectory);
 
     _consoleWidget->init();
     _consoleWidget->show();
@@ -676,13 +767,26 @@ void MainWindow::onEdgeHit(Qt::Edges edges) const {
 void MainWindow::onProfile(int middleX) {
   LOG_PERF(0, "Enter");
 
+  Q_UNUSED(middleX);
+
+  _profileBoardWidget->adjustSize();
+
+  const QPushButton *profileButton = _topBarWidget->profileButton();
+  const QRect profileButtonRect =
+      profileButton ? profileButton->geometry() : QRect();
+  const QPoint popupTopLeft =
+      profileButton
+          ? _topBarWidget->mapToGlobal(QPoint(profileButtonRect.center().x() -
+                                                  _profileBoardWidget->width() +
+                                                  PROFILE_WIDGET_ARROW_OFFSET,
+                                              _topBarWidget->height()))
+          : mapToGlobal(QPoint(width() / 2 - _profileBoardWidget->width() / 2,
+                               _topBarWidget->height()));
+  _profileBoardWidget->move(popupTopLeft);
   _profileBoardWidget->setArrowTargetX(_profileBoardWidget->width() -
                                        PROFILE_WIDGET_ARROW_OFFSET);
   _profileBoardWidget->show();
   _profileBoardWidget->raise();
-  _profileBoardWidget->move(
-      middleX - (_profileBoardWidget->width() - PROFILE_WIDGET_ARROW_OFFSET),
-      y() + _topBarWidget->height());
   _profileBoardActive = true;
 
   LOG_PERF(0, "Exit");

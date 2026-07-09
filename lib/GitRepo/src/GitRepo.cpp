@@ -4,6 +4,7 @@
 
 #include "../../../component/GitRepoManager/include/GitRepoManagerStructs.h"
 
+#include "PatchFileUtils.h"
 #include <CloudCredentialStorage.h>
 #include <CloudRepo.h>
 #include <ConfigManager.h>
@@ -27,6 +28,7 @@
 #include <git2/graph.h>
 #include <git2/index.h>
 #include <git2/patch.h>
+#include <git2/rebase.h>
 #include <git2/refs.h>
 #include <git2/revparse.h>
 #include <git2/revwalk.h>
@@ -34,6 +36,12 @@
 #include <git2/submodule.h>
 #include <git2/tag.h>
 #include <git2/types.h>
+
+#include <QFile>
+#include <QFileInfo>
+#include <QRegularExpression>
+#include <QSet>
+#include <QTextStream>
 
 #include <openssl/err.h>
 #include <openssl/evp.h>
@@ -47,6 +55,7 @@
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QString>
+#include <QStringList>
 
 #include <cstring>
 #include <set>
@@ -126,6 +135,117 @@ static void logGitError(const int error) {
   LOG_ERROR(Log::ErrorId::Git,
             "Error is {}, error klass is {}, error message is '{}'", error,
             gitError->klass, gitError->message);
+}
+
+static void collectCommitStatusFromDiff(git_diff *diff,
+                                        GitCommitStatus *status) {
+  if (!diff || !status) {
+    return;
+  }
+
+  git_diff_foreach(
+      diff,
+      [](const git_diff_delta *delta, float, void *payload) {
+        auto *status = static_cast<GitCommitStatus *>(payload);
+
+        switch (delta->status) {
+        case GIT_DELTA_ADDED:
+        case GIT_DELTA_UNTRACKED:
+          status->newFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_MODIFIED:
+          status->modifiedFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_DELETED:
+          status->deletedFiles += delta->old_file.path;
+          break;
+        case GIT_DELTA_RENAMED:
+          status->renamedFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_TYPECHANGE:
+          status->typeChangedFiles += delta->new_file.path;
+          break;
+        case GIT_DELTA_UNMODIFIED:
+        case GIT_DELTA_IGNORED:
+        case GIT_DELTA_CONFLICTED:
+          break;
+        }
+
+        return 0;
+      },
+      nullptr, // binary_cb
+      nullptr, // hunk_cb
+      nullptr, // line_cb
+      status);
+}
+
+struct CollectTreePathsPayload {
+  GitCommitStatus *status = nullptr;
+  QStringList *paths = nullptr;
+};
+
+static int collectTreePathsCallback(const char *root,
+                                    const git_tree_entry *entry,
+                                    void *payload) {
+  auto *data = static_cast<CollectTreePathsPayload *>(payload);
+  if (!data || !data->status || !data->paths || !entry) {
+    return -1;
+  }
+
+  if (git_tree_entry_type(entry) == GIT_OBJECT_TREE) {
+    return 0;
+  }
+
+  const QString path = QString::fromUtf8(root ? root : "") +
+                       QString::fromUtf8(git_tree_entry_name(entry));
+  data->paths->append(path);
+
+  return 0;
+}
+
+static bool readTreeFileContent(git_repository *repo, git_tree *tree,
+                                const QString &filePath,
+                                const qint64 maxBlobSize, QString *content) {
+  if (!repo || !tree || !content) {
+    return false;
+  }
+
+  git_tree_entry *entry = nullptr;
+  const int error =
+      git_tree_entry_bypath(&entry, tree, filePath.toStdString().c_str());
+  if (error) {
+    return false;
+  }
+
+  const git_oid *fullOid = git_tree_entry_id(entry);
+  if (!fullOid) {
+    git_tree_entry_free(entry);
+    return false;
+  }
+
+  git_blob *blob = nullptr;
+  int blobError = git_blob_lookup(&blob, repo, fullOid);
+  if (blobError) {
+    git_tree_entry_free(entry);
+    return false;
+  }
+
+  const size_t blobSize = git_blob_rawsize(blob);
+  if (blobSize > static_cast<size_t>(maxBlobSize)) {
+    *content =
+        QString("[[FILE SIZE EXCEEDS LIMIT OF %1 BYTES]]").arg(maxBlobSize);
+    git_blob_free(blob);
+    git_tree_entry_free(entry);
+    return true;
+  }
+
+  const char *blobContent =
+      static_cast<const char *>(git_blob_rawcontent(blob));
+  *content = QString::fromUtf8(blobContent, blobSize);
+
+  git_blob_free(blob);
+  git_tree_entry_free(entry);
+  return true;
 }
 
 static void invalidateCredentials(const QString &url) {
@@ -1396,9 +1516,9 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
   }
 
   // Check if stash tree is empty (common for stash commits which are merge
-  // commits) If empty, try to use parent 1 (index state) or parent 2 (untracked
-  // files)
-  git_tree *actual_working_tree = stash_tree;
+  // commits). If empty, try to use parent 1 (index state) for tracked changes.
+  // Parent 2 contains untracked files and is handled separately below.
+  git_tree *tracked_working_tree = stash_tree;
 
   if (git_tree_entrycount(stash_tree) == 0) {
     LOG_DEBUG("Stash tree is empty, trying parent 1 (index state)");
@@ -1410,25 +1530,19 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
       if (error == 0 && git_tree_entrycount(parent1_tree) > 0) {
         LOG_DEBUG("Using parent 1 tree (index state) with {} entries",
                   git_tree_entrycount(parent1_tree));
-        actual_working_tree = parent1_tree;
+        tracked_working_tree = parent1_tree;
       } else if (error == 0) {
-        LOG_DEBUG("Parent 1 tree is also empty, trying parent 2");
+        LOG_DEBUG("Parent 1 tree is also empty");
         git_tree_free(parent1_tree);
         parent1_tree = nullptr;
         git_commit_free(parent1_commit);
         parent1_commit = nullptr;
-
-        // Try parent 2 (untracked files)
-        error = git_commit_parent(&parent2_commit, stash_commit, 2);
-        if (error == 0) {
-          error = git_commit_tree(&parent2_tree, parent2_commit);
-          if (error == 0 && git_tree_entrycount(parent2_tree) > 0) {
-            LOG_DEBUG("Using parent 2 tree (untracked files) with {} entries",
-                      git_tree_entrycount(parent2_tree));
-            actual_working_tree = parent2_tree;
-          }
-        }
+        tracked_working_tree = nullptr;
+      } else {
+        tracked_working_tree = nullptr;
       }
+    } else {
+      tracked_working_tree = nullptr;
     }
   }
 
@@ -1483,23 +1597,46 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
     }
   }
 
-  // Generate diff
-  git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
-  opts.flags |= GIT_DIFF_INCLUDE_TYPECHANGE;
-
-  error = git_diff_tree_to_tree(&diff, repo, parent_tree, actual_working_tree,
-                                &opts);
-  if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to create diff for stash: error={}",
-              error);
+  // Load the untracked-files commit if it exists. It is separate from the
+  // tracked-worktree diff and should be shown in the stash viewer as added
+  // files.
+  error = git_commit_parent(&parent2_commit, stash_commit, 2);
+  if (!error) {
+    error = git_commit_tree(&parent2_tree, parent2_commit);
+    if (error) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Failed to get untracked stash tree: error={}", error);
+      logGitError(error);
+      git_tree_free(stash_tree);
+      if (parent1_tree) {
+        git_tree_free(parent1_tree);
+      }
+      if (parent2_tree) {
+        git_tree_free(parent2_tree);
+      }
+      if (parent_tree) {
+        git_tree_free(parent_tree);
+      }
+      git_commit_free(stash_commit);
+      if (parent1_commit) {
+        git_commit_free(parent1_commit);
+      }
+      if (parent2_commit) {
+        git_commit_free(parent2_commit);
+      }
+      if (parent_commit) {
+        git_commit_free(parent_commit);
+      }
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+  } else if (error != GIT_ENOTFOUND) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to get untracked stash parent: error={}", error);
     logGitError(error);
-
     git_tree_free(stash_tree);
     if (parent1_tree) {
       git_tree_free(parent1_tree);
-    }
-    if (parent2_tree) {
-      git_tree_free(parent2_tree);
     }
     if (parent_tree) {
       git_tree_free(parent_tree);
@@ -1508,14 +1645,96 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
     if (parent1_commit) {
       git_commit_free(parent1_commit);
     }
-    if (parent2_commit) {
-      git_commit_free(parent2_commit);
-    }
     if (parent_commit) {
       git_commit_free(parent_commit);
     }
     LOG_PERF(0, "Exit");
     return {};
+  }
+
+  // Generate diff for tracked changes.
+  git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
+  opts.flags |= GIT_DIFF_INCLUDE_TYPECHANGE | GIT_DIFF_RECURSE_UNTRACKED_DIRS |
+                GIT_DIFF_INCLUDE_UNTRACKED | GIT_DIFF_IGNORE_CASE |
+                GIT_DIFF_INCLUDE_CASECHANGE | GIT_DIFF_SHOW_UNTRACKED_CONTENT;
+
+  if (tracked_working_tree) {
+    error = git_diff_tree_to_tree(&diff, repo, parent_tree,
+                                  tracked_working_tree, &opts);
+    if (error) {
+      LOG_ERROR(Log::ErrorId::Git, "Failed to create diff for stash: error={}",
+                error);
+      logGitError(error);
+
+      git_tree_free(stash_tree);
+      if (parent1_tree) {
+        git_tree_free(parent1_tree);
+      }
+      if (parent2_tree) {
+        git_tree_free(parent2_tree);
+      }
+      if (parent_tree) {
+        git_tree_free(parent_tree);
+      }
+      git_commit_free(stash_commit);
+      if (parent1_commit) {
+        git_commit_free(parent1_commit);
+      }
+      if (parent2_commit) {
+        git_commit_free(parent2_commit);
+      }
+      if (parent_commit) {
+        git_commit_free(parent_commit);
+      }
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    collectCommitStatusFromDiff(diff, &status);
+    git_diff_free(diff);
+    diff = nullptr;
+  }
+
+  // Untracked files are stored in parent 2. Walk that tree directly so the
+  // stash viewer shows them as files in the stash content list.
+  if (parent2_tree) {
+    QStringList untrackedFiles;
+    CollectTreePathsPayload treePayload{&status, &untrackedFiles};
+    error = git_tree_walk(parent2_tree, GIT_TREEWALK_PRE,
+                          collectTreePathsCallback, &treePayload);
+    if (error) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Failed to walk stash untracked tree: error={}", error);
+      logGitError(error);
+
+      git_tree_free(stash_tree);
+      if (parent1_tree) {
+        git_tree_free(parent1_tree);
+      }
+      if (parent2_tree) {
+        git_tree_free(parent2_tree);
+      }
+      if (parent_tree) {
+        git_tree_free(parent_tree);
+      }
+      git_commit_free(stash_commit);
+      if (parent1_commit) {
+        git_commit_free(parent1_commit);
+      }
+      if (parent2_commit) {
+        git_commit_free(parent2_commit);
+      }
+      if (parent_commit) {
+        git_commit_free(parent_commit);
+      }
+      if (diff) {
+        git_diff_free(diff);
+      }
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    status.untrackedFiles += untrackedFiles;
   }
 
   // Get stash commit OID
@@ -1524,44 +1743,7 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
   git_oid_tostr(oid_str, GIT_OID_HEXSZ + 1, oid);
   status.commit = QString::fromUtf8(oid_str);
 
-  // Walk the diff
-  git_diff_foreach(
-      diff,
-      [](const git_diff_delta *delta, float, void *payload) {
-        auto *status = static_cast<GitCommitStatus *>(payload);
-
-        switch (delta->status) {
-        case GIT_DELTA_ADDED:
-          status->newFiles += delta->new_file.path;
-          break;
-        case GIT_DELTA_MODIFIED:
-          status->modifiedFiles += delta->new_file.path;
-          break;
-        case GIT_DELTA_DELETED:
-          status->deletedFiles += delta->old_file.path;
-          break;
-        case GIT_DELTA_RENAMED:
-          status->renamedFiles += delta->new_file.path;
-          break;
-        case GIT_DELTA_TYPECHANGE:
-          status->typeChangedFiles += delta->new_file.path;
-          break;
-        case GIT_DELTA_UNMODIFIED:
-        case GIT_DELTA_IGNORED:
-        case GIT_DELTA_UNTRACKED:
-        case GIT_DELTA_CONFLICTED:
-          break;
-        }
-
-        return 0;
-      },
-      nullptr, // binary_cb
-      nullptr, // hunk_cb
-      nullptr, // line_cb
-      &status);
-
   // Cleanup
-  git_diff_free(diff);
   git_tree_free(stash_tree);
 
   if (parent1_tree) {
@@ -1701,6 +1883,13 @@ QVector<SubmoduleInfo> listSubmodulesWithStatus(git_repository *repo,
     // Get the actual commit (from submodule's working directory)
     const git_oid *workdirId = git_submodule_wd_id(submodule);
 
+    if (workdirId) {
+      const char *workdirIdStr = git_oid_tostr_s(workdirId);
+      if (workdirIdStr) {
+        info.commit = QString::fromUtf8(workdirIdStr);
+      }
+    }
+
     if (!headId || !workdirId) {
       info.statusInfo.status = SubmoduleStatusType::Error;
       git_submodule_free(submodule);
@@ -1708,7 +1897,6 @@ QVector<SubmoduleInfo> listSubmodulesWithStatus(git_repository *repo,
       continue;
     }
 
-    // Compare the two OIDs
     if (git_oid_equal(headId, workdirId)) {
       info.statusInfo.status = SubmoduleStatusType::UpToDate;
     } else {
@@ -1762,6 +1950,20 @@ bool createBranchFromCommit(git_repository *repo, const QString &commit,
 
   git_reference_free(ref);
   git_commit_free(commit_);
+
+  // Set upstream to default repository remote with same branch name
+  const QString defaultRemote = getDefaultRemote(repo);
+  if (!defaultRemote.isEmpty()) {
+    LOG_DEBUG("Setting upstream for new branch '{}' to {}/{}",
+              branchName.toStdString(), defaultRemote.toStdString(),
+              branchName.toStdString());
+    setUpstream(repo, defaultRemote, branchName, branchName);
+  } else {
+    LOG_DEBUG(
+        "No default remote configured, skipping upstream setup for new branch "
+        "'{}'",
+        branchName.toStdString());
+  }
 
   LOG_PERF(0, "Exit");
 
@@ -3125,6 +3327,7 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -3141,7 +3344,7 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
   git_reference *ref = nullptr;
   git_branch_t type;
 
-  int error = git_branch_iterator_new(&iter, repo, GIT_BRANCH_ALL);
+  int error = git_branch_iterator_new(&iter, repo, GIT_BRANCH_LOCAL);
   if (error) {
     logGitError(error);
     LOG_PERF(0, "Exit");
@@ -3198,7 +3401,6 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
 
       git_object_free(branchTip);
       git_reference_free(symbolicRef);
-      git_reference_free(ref);
     } else {
       branchOid = git_reference_target(ref);
     }
@@ -3235,13 +3437,66 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
   return branches;
 }
 
-QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
-                           const bool &quitFlag) {
+QStringList getCommitTags(git_repository *repo, const QString &commitOid,
+                          const bool &quitFlag) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  QStringList tags;
+  git_strarray array = {nullptr, 0};
+
+  const int error = git_tag_list_match(&array, "", repo);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QByteArray commitOidUtf8 = commitOid.toUtf8();
+
+  for (size_t i = 0; i < array.count && !quitFlag; ++i) {
+    const QString tagName = array.strings[i];
+    git_object *object = nullptr;
+
+    const QString spec = QStringLiteral("refs/tags/") + tagName;
+
+    if (git_revparse_single(&object, repo, spec.toStdString().c_str()) != 0) {
+      continue;
+    }
+
+    git_object *commitObject = nullptr;
+    if (git_object_peel(&commitObject, object, GIT_OBJECT_COMMIT) == 0) {
+      const git_oid *commitOidValue = git_object_id(commitObject);
+      if (commitOidValue &&
+          git_oid_streq(commitOidValue, commitOidUtf8.constData())) {
+        tags.append(tagName);
+      }
+      git_object_free(commitObject);
+    }
+
+    git_object_free(object);
+  }
+
+  git_strarray_dispose(&array);
+
+  LOG_PERF(0, "Exit");
+  return tags;
+}
+
+QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
+                           const bool &quitFlag) {
+  LOG_PERF(0, "Enter");
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -3320,6 +3575,7 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -3393,7 +3649,7 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
   return false;
 }
 
-GitStatus getStatus(git_repository *repo) {
+GitStatus getStatus(git_repository *repo, const bool &quitFlag) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Getting repository status");
 
@@ -3432,7 +3688,19 @@ GitStatus getStatus(git_repository *repo) {
   size_t count = git_status_list_entrycount(statusList);
   LOG_DEBUG("Found {} status entries", count);
 
+  if (quitFlag) {
+    LOG_DEBUG("Repository status loading cancelled");
+    git_status_list_free(statusList);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
   for (size_t i = 0; i < count; ++i) {
+    if (quitFlag) {
+      LOG_DEBUG("Repository status loading cancelled");
+      break;
+    }
+
     const git_status_entry *entry = git_status_byindex(statusList, i);
 
     Q_ASSERT(entry != nullptr);
@@ -3537,6 +3805,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -3750,8 +4019,30 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
       continue;
     }
 
-    error = git_index_add_bypath(index, relativePath.toStdString().c_str());
-    if (error) {
+    git_submodule *submodule = nullptr;
+    error = git_submodule_lookup(&submodule, repo,
+                                 relativePath.toStdString().c_str());
+    if (!error) {
+      LOG_DEBUG("Path is a submodule, staging gitlink: '{}'",
+                relativePath.toStdString());
+      error = git_submodule_add_to_index(submodule, 0);
+      git_submodule_free(submodule);
+      if (error) {
+        logGitError(error);
+        git_index_free(index);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+    } else if (error == GIT_ENOTFOUND) {
+      giterr_clear();
+      error = git_index_add_bypath(index, relativePath.toStdString().c_str());
+      if (error) {
+        logGitError(error);
+        git_index_free(index);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+    } else {
       logGitError(error);
       git_index_free(index);
       LOG_PERF(0, "Exit");
@@ -3780,6 +4071,7 @@ bool unstageFiles(git_repository *repo, const QStringList &files) {
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4014,31 +4306,112 @@ bool commitStaged(git_repository *repo, const QString &summary,
 }
 
 static QString createFullPatchFromContent(const QString &filePath,
-                                          const QString &fileContent) {
+                                          const QString &fileContent,
+                                          bool newFile,
+                                          const QString &indexLine) {
   LOG_PERF(0, "Enter");
 
   const QString convertedContent = QString(fileContent).replace("\r\n", "\n");
+  QStringList lines = convertedContent.split('\n');
+  if (!convertedContent.isEmpty() && convertedContent.endsWith('\n')) {
+    lines.removeLast();
+  }
+  const int lineCount = lines.size();
 
   QString patch;
   QTextStream stream(&patch);
 
-  // Diff header
-  stream << "--- " << filePath << "\n";
-  stream << "+++ " << filePath << "\n";
+  if (!indexLine.isEmpty()) {
+    stream << indexLine << "\n";
+  }
 
-  // Hunk header: replace everything (start at line 1)
-  const int newLines = convertedContent.count('\n') + 1;
-  stream << "@@ -1," << newLines << " +1," << newLines << " @@\n";
+  if (newFile) {
+    stream << "--- /dev/null\n";
+  } else {
+    stream << "--- a/" << filePath << "\n";
+  }
 
-  // Emit each line as "added"
-  const QStringList lines = convertedContent.split('\n');
+  stream << "+++ b/" << filePath << "\n";
+  stream << "@@ -1,0 +1," << lineCount << " @@\n";
+
   for (const QString &line : lines) {
-    stream << "+ " << line << "\n";
+    stream << "+" << line << "\n";
   }
 
   LOG_PERF(0, "Exit");
 
   return patch;
+}
+
+static QString createIndexLineFromContent(const QString &oldFileContent,
+                                          const QString &newFileContent) {
+
+  if (oldFileContent.isEmpty() && newFileContent.isEmpty()) {
+    return {};
+  }
+
+  if (oldFileContent.isEmpty()) {
+    const QString normalizedNewContent =
+        QString(newFileContent).replace("\r\n", "\n");
+
+    git_oid newOid;
+
+    const QByteArray newBytes = normalizedNewContent.toUtf8();
+
+    git_odb_hash(&newOid, newBytes.constData(),
+                 static_cast<size_t>(newBytes.size()), GIT_OBJECT_BLOB);
+
+    char newOidStr[GIT_OID_HEXSZ + 1] = {0};
+
+    git_oid_tostr(newOidStr, sizeof(newOidStr), &newOid);
+
+    return QString("index 0000000..%2")
+        .arg(QString::fromUtf8(newOidStr).left(7));
+  }
+
+  if (newFileContent.isEmpty()) {
+    const QString normalizedOldContent =
+        QString(oldFileContent).replace("\r\n", "\n");
+
+    git_oid oldOid;
+
+    const QByteArray oldBytes = normalizedOldContent.toUtf8();
+
+    git_odb_hash(&oldOid, oldBytes.constData(),
+                 static_cast<size_t>(oldBytes.size()), GIT_OBJECT_BLOB);
+
+    char oldOidStr[GIT_OID_HEXSZ + 1] = {0};
+
+    git_oid_tostr(oldOidStr, sizeof(oldOidStr), &oldOid);
+
+    return QString("index %1..0000000")
+        .arg(QString::fromUtf8(oldOidStr).left(7));
+  }
+
+  const QString normalizedOldContent =
+      QString(oldFileContent).replace("\r\n", "\n");
+  const QString normalizedNewContent =
+      QString(newFileContent).replace("\r\n", "\n");
+
+  git_oid oldOid;
+  git_oid newOid;
+
+  const QByteArray oldBytes = normalizedOldContent.toUtf8();
+  const QByteArray newBytes = normalizedNewContent.toUtf8();
+
+  git_odb_hash(&oldOid, oldBytes.constData(),
+               static_cast<size_t>(oldBytes.size()), GIT_OBJECT_BLOB);
+  git_odb_hash(&newOid, newBytes.constData(),
+               static_cast<size_t>(newBytes.size()), GIT_OBJECT_BLOB);
+
+  char oldOidStr[GIT_OID_HEXSZ + 1] = {0};
+  char newOidStr[GIT_OID_HEXSZ + 1] = {0};
+  git_oid_tostr(oldOidStr, sizeof(oldOidStr), &oldOid);
+  git_oid_tostr(newOidStr, sizeof(newOidStr), &newOid);
+
+  return QString("index %1..%2")
+      .arg(QString::fromUtf8(oldOidStr).left(7),
+           QString::fromUtf8(newOidStr).left(7));
 }
 
 static FilesDiffDelta
@@ -4047,21 +4420,24 @@ createFullPatchDeltasFromContent(const QString &filePath,
   LOG_PERF(0, "Enter");
 
   const QString convertedContent = QString(fileContent).replace("\r\n", "\n");
+  QStringList lines = convertedContent.split('\n');
+  if (!convertedContent.isEmpty() && convertedContent.endsWith('\n')) {
+    lines.removeLast();
+  }
 
   FilesDiffDelta delta;
   delta.oldFilePath = filePath;
   delta.newFilePath = filePath;
 
   FilesDiffHunk hunk;
-  hunk.oldStart = 1; // old file starts at line 1
-  hunk.newStart = 1; // new file starts at line 1
-  hunk.oldLines = 0; // old file has 0 lines (empty)
-  hunk.newLines = convertedContent.count('\n') + 1;
+  hunk.oldStart = 1;
+  hunk.newStart = 1;
+  hunk.oldLines = 0;
+  hunk.newLines = lines.size();
 
-  const QStringList lines = convertedContent.split('\n');
   for (const QString &line : lines) {
     FilesDiffLine diffLine;
-    diffLine.origin = '+'; // every line is an addition
+    diffLine.origin = '+';
     diffLine.content = line;
     hunk.lines.append(diffLine);
   }
@@ -4079,6 +4455,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -4315,13 +4692,18 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
   git_reference_free(headRef);
 
   for (const auto &file : files) {
-    if (!repoContent.value(file).isEmpty()) {
+    const bool newFile = repoContent.value(file).isEmpty();
+    if (!newFile) {
       continue;
     }
 
-    const QString patch = createFullPatchFromContent(file, filesContent[file]);
+    const QString indexLine =
+        createIndexLineFromContent(repoContent.value(file), filesContent[file]);
+    const QString patch = createFullPatchFromContent(file, filesContent[file],
+                                                     newFile, indexLine);
 
     diffOutput += QString("diff --git a/%1 b/%2\n").arg(file, file);
+    diffOutput += "new file mode 100644\n";
     diffOutput += patch;
 
     const FilesDiffDelta patchDeltas =
@@ -4347,6 +4729,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4519,9 +4902,12 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
   return true;
 }
 
-bool pull(git_repository *repo) {
+bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Starting pull operation");
+  LOG_DEBUG("Starting {} operation for active branch: '{}'",
+            rebase ? "pull with rebase" : "pull",
+            activeBranchName.isEmpty() ? "(none)"
+                                       : activeBranchName.toStdString());
 
   Q_ASSERT(repo != nullptr);
 
@@ -4540,31 +4926,75 @@ bool pull(git_repository *repo) {
   }
   LOG_DEBUG("Repository path: '{}'", repoPath.toStdString());
 
-  // Step 1: Fetch from remote
+  // If no active branch provided, get current branch from HEAD
+  QString targetBranchName = activeBranchName;
+  if (targetBranchName.isEmpty()) {
+    git_reference *head = nullptr;
+    int error = git_repository_head(&head, repo);
+    if (error) {
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    const char *branchNameC = nullptr;
+    error = git_branch_name(&branchNameC, head);
+    if (error != 0 || !branchNameC) {
+      logGitError(error);
+      git_reference_free(head);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    targetBranchName = QString::fromUtf8(branchNameC);
+    git_reference_free(head);
+  }
+
+  LOG_DEBUG("Target branch for pull: '{}'", targetBranchName.toStdString());
+
+  // Get upstream for the active branch
+  auto [upstreamSuccess, remoteName, remoteBranchName] =
+      getUpstream(repo, targetBranchName);
+  if (!upstreamSuccess || remoteName.isEmpty()) {
+    logGitError(GIT_ENOTFOUND);
+    LOG_DEBUG("Branch '{}' has no upstream configured",
+              targetBranchName.toStdString());
+    LOG_PERF(0, "Exit");
+    return false; // Nothing to pull, but not an error
+  }
+
+  LOG_DEBUG("Branch '{}' will be pulled from {}/{}",
+            targetBranchName.toStdString(), remoteName.toStdString(),
+            remoteBranchName.toStdString());
+
+  // Fetch from the upstream remote
+  const bool commercial = isCommercialPlan();
+  int error = 0;
+
   git_remote *remote = nullptr;
-  int error = git_remote_lookup(&remote, repo, "origin");
-  if (error != 0) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
-              error);
+  error = git_remote_lookup(&remote, repo, remoteName.toStdString().c_str());
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup remote '{}': error={}",
+              remoteName.toStdString(), error);
     logGitError(error);
     LOG_PERF(0, "Exit");
     return false;
   }
-  LOG_DEBUG("Successfully looked up 'origin' remote");
+
+  const char *url = git_remote_url(remote);
+  LOG_DEBUG("Fetching from remote '{}' at URL: '{}'", remoteName.toStdString(),
+            url);
 
   bool gitSchema = false;
   int retries = 0;
-  const char *url = git_remote_url(remote);
-  LOG_DEBUG("Remote URL: '{}'", url);
-
-  // Determine max retries: use 1 if SSH with configured key, otherwise
-  // MAX_RETRIES
-  int maxRetries = MAX_RETRIES;
   const QString urlStr = QString::fromUtf8(url);
   if (urlStr.startsWith("git@") || urlStr.startsWith("git://")) {
     gitSchema = true;
     LOG_DEBUG("Using git schema for authentication");
-    // Extract host from git@host:path format
+  }
+
+  int maxRetries = MAX_RETRIES;
+  if (gitSchema) {
     QRegularExpression hostRegex("^git@([^:]+):");
     QRegularExpressionMatch match = hostRegex.match(urlStr);
     if (match.hasMatch()) {
@@ -4572,19 +5002,18 @@ bool pull(git_repository *repo) {
       GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
       GitKeyPair keyPair;
       if (keyStorage.getKeyPairForHost(host, keyPair)) {
-        maxRetries = 1; // Key is configured, only try once
+        maxRetries = 1;
         LOG_DEBUG("SSH key configured for host '{}', setting max retries to 1",
                   host.toStdString());
       }
     }
   }
 
-  const bool commercial = isCommercialPlan();
-  LOG_DEBUG("Commercial plan: {}, git schema: {}", commercial, gitSchema);
-
   if (!commercial && gitSchema) {
     LOG_ERROR(Log::ErrorId::Git,
-              "Pulling git@ repositories is not available on the free plan.");
+              "Pulling from git@ repositories is not available on the free "
+              "plan.");
+    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4608,25 +5037,37 @@ bool pull(git_repository *repo) {
       commercial ? &credentialsAcquireCallback : nullptr;
   fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
   fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
-  fetchOpts.callbacks.payload = &credPayload;
+  fetchOpts.callbacks.payload = &callbackPayload;
 
-  // Explicitly include tags in fetch operation
-  // Default fetch may not include tags, so we add them explicitly
+  // Fetch all heads and tags
   git_strarray refspecs = qstringlist_to_git_strarray(
-      QStringList() << "+refs/heads/*:refs/remotes/origin/*"
-                    << "+refs/tags/*:refs/tags/*");
+      QStringList()
+      << QString("+refs/heads/*:refs/remotes/%1/*").arg(remoteName)
+      << "+refs/tags/*:refs/tags/*");
+
+  // Fetch URL
+  const char *fetchUrl = git_remote_url(remote);
+
+  if (fetchUrl) {
+    LOG_INFO("Fetch URL: {}", fetchUrl);
+  }
+
+  // Push URL (may be NULL if not set separately)
+  const char *pushUrl = git_remote_pushurl(remote);
+
+  if (pushUrl) {
+    LOG_INFO("Push URL: {}", pushUrl);
+  }
 
   do {
     error = git_remote_fetch(remote, &refspecs, &fetchOpts, nullptr);
 
     if (error) {
       logGitError(error);
-
       gGitCredentialsMutex.lock();
-      gGitCredentials.remove(url);
+      gGitCredentials.remove(urlStr);
       gGitCredentialsMutex.unlock();
-
-      sendInvalidCredentialsSignal(url);
+      sendInvalidCredentialsSignal(urlStr);
     }
 
     ++retries;
@@ -4635,7 +5076,7 @@ bool pull(git_repository *repo) {
   finishFetchProgress(fetchUuid, error != 0, false);
 
   if (commercial) {
-    finishCredentialsAcquiring(url);
+    finishCredentialsAcquiring(urlStr);
   }
 
   if (error) {
@@ -4646,185 +5087,221 @@ bool pull(git_repository *repo) {
     return false;
   }
 
-  // Step 2: Get current branch
-  git_reference *head = nullptr;
+  git_strarray_destroy(refspecs);
+  git_remote_free(remote);
 
+  // Merge/rebase the upstream branch into the active branch
+  git_reference *head = nullptr;
   error = git_repository_head(&head, repo);
   if (error) {
     logGitError(error);
-    git_strarray_destroy(refspecs);
-    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  const char *branchName = nullptr;
+  LOG_DEBUG("Resolving upstream branch {}/{} for current branch '{}'",
+            remoteName.toStdString(), remoteBranchName.toStdString(),
+            targetBranchName.toStdString());
 
-  error = git_branch_name(&branchName, head);
-  if (error != 0) {
-    logGitError(error);
-    git_strarray_destroy(refspecs);
-    git_reference_free(head);
-    git_remote_free(remote);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  if (!branchName) {
-    git_strarray_destroy(refspecs);
-    git_reference_free(head);
-    git_remote_free(remote);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  // Step 3: Get upstream tracking branch
+  // Get upstream tracking reference
   git_reference *upstream = nullptr;
-
-  error = git_reference_lookup(
-      &upstream, repo,
-      QString("refs/remotes/origin/%1").arg(branchName).toStdString().c_str());
+  const QString upstreamRefName =
+      QString("refs/remotes/%1/%2").arg(remoteName, remoteBranchName);
+  error = git_reference_lookup(&upstream, repo,
+                               upstreamRefName.toStdString().c_str());
   if (error != 0) {
+    LOG_DEBUG("Failed to lookup upstream reference '{}'",
+              upstreamRefName.toStdString());
     logGitError(error);
-    git_strarray_destroy(refspecs);
     git_reference_free(head);
-    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  // Step 4: Get annotated commit from upstream
+  // Get annotated commit from upstream
   git_annotated_commit *upstreamCommit = nullptr;
-
   error = git_annotated_commit_from_ref(&upstreamCommit, repo, upstream);
   if (error) {
     logGitError(error);
-    git_strarray_destroy(refspecs);
     git_reference_free(upstream);
     git_reference_free(head);
-    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  // Step 5: Analyze merge
-  git_merge_analysis_t analysis;
-  git_merge_preference_t preference;
+  bool result = false;
 
-  error = git_merge_analysis(
-      &analysis, &preference, repo,
-      const_cast<const git_annotated_commit **>(&upstreamCommit), 1);
-  if (error) {
-    logGitError(error);
-    git_strarray_destroy(refspecs);
-    git_annotated_commit_free(upstreamCommit);
-    git_reference_free(upstream);
-    git_reference_free(head);
-    git_remote_free(remote);
-    LOG_PERF(0, "Exit");
-    return false;
+  if (rebase) {
+    git_rebase_options rebaseOpts = GIT_REBASE_OPTIONS_INIT;
+    rebaseOpts.checkout_options.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+    git_signature *signature = nullptr;
+    error = git_signature_default(&signature, repo);
+    if (error) {
+      logGitError(error);
+      git_annotated_commit_free(upstreamCommit);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_rebase *rebaseSession = nullptr;
+    error = git_rebase_init(&rebaseSession, repo, nullptr, upstreamCommit,
+                            nullptr, &rebaseOpts);
+    if (error) {
+      logGitError(error);
+      git_signature_free(signature);
+      git_annotated_commit_free(upstreamCommit);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    bool rebaseSuccess = true;
+    git_rebase_operation *operation = nullptr;
+    git_oid commitId{};
+
+    while ((error = git_rebase_next(&operation, rebaseSession)) == 0) {
+      error = git_rebase_commit(&commitId, rebaseSession, nullptr, signature,
+                                nullptr, nullptr);
+      if (error == 0) {
+        continue;
+      }
+
+      if (error == GIT_EUNMERGED) {
+        LOG_ERROR(Log::ErrorId::Git,
+                  "Rebase stopped because conflicts must be resolved manually");
+      } else {
+        logGitError(error);
+      }
+      git_rebase_abort(rebaseSession);
+      rebaseSuccess = false;
+      break;
+    }
+
+    if (rebaseSuccess && error == GIT_ITEROVER) {
+      error = git_rebase_finish(rebaseSession, signature);
+      if (error) {
+        logGitError(error);
+        git_rebase_abort(rebaseSession);
+        rebaseSuccess = false;
+      }
+    } else if (rebaseSuccess) {
+      logGitError(error);
+      rebaseSuccess = false;
+    }
+
+    git_rebase_free(rebaseSession);
+    git_signature_free(signature);
+    result = rebaseSuccess;
+  } else {
+    // Analyze merge
+    git_merge_analysis_t analysis;
+    git_merge_preference_t preference;
+
+    error = git_merge_analysis(
+        &analysis, &preference, repo,
+        const_cast<const git_annotated_commit **>(&upstreamCommit), 1);
+    if (error) {
+      logGitError(error);
+      git_annotated_commit_free(upstreamCommit);
+      git_reference_free(upstream);
+      git_reference_free(head);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    if (analysis & GIT_MERGE_ANALYSIS_FASTFORWARD) {
+      // Fast-forward
+      const git_oid *targetOid = git_annotated_commit_id(upstreamCommit);
+      if (!targetOid) {
+        git_annotated_commit_free(upstreamCommit);
+        git_reference_free(upstream);
+        git_reference_free(head);
+        LOG_ERROR(Log::ErrorId::Git, "Can't get target OID for fast-forward");
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      git_commit *targetCommit = nullptr;
+      error = git_commit_lookup(&targetCommit, repo, targetOid);
+      if (error) {
+        logGitError(error);
+        git_annotated_commit_free(upstreamCommit);
+        git_reference_free(upstream);
+        git_reference_free(head);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
+      checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+      error =
+          git_checkout_tree(repo, (git_object *)targetCommit, &checkout_opts);
+      if (error) {
+        logGitError(error);
+        git_commit_free(targetCommit);
+        git_annotated_commit_free(upstreamCommit);
+        git_reference_free(upstream);
+        git_reference_free(head);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      git_reference *newHead = nullptr;
+      error =
+          git_reference_set_target(&newHead, head, targetOid, "Fast-forward");
+      if (error) {
+        logGitError(error);
+        git_commit_free(targetCommit);
+        git_annotated_commit_free(upstreamCommit);
+        git_reference_free(upstream);
+        git_reference_free(head);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      git_reference_free(newHead);
+      git_commit_free(targetCommit);
+      result = true;
+    } else if (analysis & GIT_MERGE_ANALYSIS_NORMAL) {
+      // Normal merge
+      git_merge_options merge_opts = GIT_MERGE_OPTIONS_INIT;
+      git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
+      checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+      error = git_merge(
+          repo, const_cast<const git_annotated_commit **>(&upstreamCommit), 1,
+          &merge_opts, &checkout_opts);
+      if (error) {
+        logGitError(error);
+        git_annotated_commit_free(upstreamCommit);
+        git_reference_free(upstream);
+        git_reference_free(head);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      result = true;
+    } else {
+      result = true;
+    }
   }
 
-  if (analysis & GIT_MERGE_ANALYSIS_FASTFORWARD) {
-    // Fast-forward
-    const git_oid *targetOid = git_annotated_commit_id(upstreamCommit);
-    if (!targetOid) {
-      git_strarray_destroy(refspecs);
-      git_annotated_commit_free(upstreamCommit);
-      git_reference_free(upstream);
-      git_reference_free(head);
-      git_remote_free(remote);
-      LOG_ERROR(Log::ErrorId::Git, "Can't get target OID for fast-forward");
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
-    git_commit *targetCommit = nullptr;
-
-    error = git_commit_lookup(&targetCommit, repo, targetOid);
-    if (error) {
-      logGitError(error);
-      git_strarray_destroy(refspecs);
-      git_annotated_commit_free(upstreamCommit);
-      git_reference_free(upstream);
-      git_reference_free(head);
-      git_remote_free(remote);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
-    git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
-    checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
-
-    error = git_checkout_tree(repo, (git_object *)targetCommit, &checkout_opts);
-    if (error) {
-      logGitError(error);
-      git_strarray_destroy(refspecs);
-      git_commit_free(targetCommit);
-      git_annotated_commit_free(upstreamCommit);
-      git_reference_free(upstream);
-      git_reference_free(head);
-      git_remote_free(remote);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
-    git_reference *newHead = nullptr;
-
-    error = git_reference_set_target(&newHead, head, targetOid, "Fast-forward");
-    if (error) {
-      logGitError(error);
-      git_strarray_destroy(refspecs);
-      git_commit_free(targetCommit);
-      git_annotated_commit_free(upstreamCommit);
-      git_reference_free(upstream);
-      git_reference_free(head);
-      git_remote_free(remote);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
-    git_reference_free(newHead);
-    git_commit_free(targetCommit);
-  } else if (analysis & GIT_MERGE_ANALYSIS_NORMAL) {
-    // Normal merge
-    git_merge_options merge_opts = GIT_MERGE_OPTIONS_INIT;
-    git_checkout_options checkout_opts = GIT_CHECKOUT_OPTIONS_INIT;
-    checkout_opts.checkout_strategy = GIT_CHECKOUT_SAFE;
-
-    error = git_merge(
-        repo, const_cast<const git_annotated_commit **>(&upstreamCommit), 1,
-        &merge_opts, &checkout_opts);
-    if (error) {
-      logGitError(error);
-      git_strarray_destroy(refspecs);
-      git_annotated_commit_free(upstreamCommit);
-      git_reference_free(upstream);
-      git_reference_free(head);
-      git_remote_free(remote);
-      LOG_PERF(0, "Exit");
-      return false;
-    }
-
-    // You must commit manually after resolving conflicts
-    // Or use git_commit_create() if no conflicts
-  }
-
-  // Cleanup
-  git_strarray_destroy(refspecs);
   git_annotated_commit_free(upstreamCommit);
   git_reference_free(upstream);
   git_reference_free(head);
-  git_remote_free(remote);
 
   LOG_PERF(0, "Exit");
-
-  return true;
+  return result;
 }
 
-bool push(git_repository *repo) {
+bool fetchAll(git_repository *repo) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Starting push operation");
+  LOG_DEBUG("Starting fetch all operation");
 
   Q_ASSERT(repo != nullptr);
 
@@ -4843,119 +5320,344 @@ bool push(git_repository *repo) {
   }
   LOG_DEBUG("Repository path: '{}'", repoPath.toStdString());
 
-  git_reference *headRef = nullptr;
+  // Collect unique remotes by iterating through local branches and their
+  // upstream remotes
+  QSet<QString> remotesToFetch;
 
-  int error = git_repository_head(&headRef, repo);
+  git_branch_iterator *it = nullptr;
+  int error = git_branch_iterator_new(&it, repo, GIT_BRANCH_LOCAL);
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository HEAD: error={}",
-              error);
+    LOG_DEBUG("Failed to create branch iterator: error={}", error);
     logGitError(error);
+    // Not an error - repo might have no branches
+    LOG_PERF(0, "Exit");
+    return true;
+  }
+
+  git_reference *ref = nullptr;
+  git_branch_t branchType;
+
+  while (git_branch_next(&ref, &branchType, it) == 0) {
+    if (branchType != GIT_BRANCH_LOCAL) {
+      git_reference_free(ref);
+      continue;
+    }
+
+    const char *branchNameC = git_reference_shorthand(ref);
+    if (!branchNameC) {
+      git_reference_free(ref);
+      continue;
+    }
+
+    QString branchName = QString::fromUtf8(branchNameC);
+    LOG_DEBUG("Checking branch '{}'", branchName.toStdString());
+
+    // Get upstream for this branch
+    auto [upstreamSuccess, remoteName, remoteBranchName] =
+        getUpstream(repo, branchName);
+
+    if (upstreamSuccess && !remoteName.isEmpty()) {
+      remotesToFetch.insert(remoteName);
+      LOG_DEBUG("Adding remote '{}' to fetch list", remoteName.toStdString());
+    }
+
+    git_reference_free(ref);
+  }
+
+  git_branch_iterator_free(it);
+
+  if (remotesToFetch.isEmpty()) {
+    LOG_DEBUG("No remotes with configured upstreams found");
+    LOG_PERF(0, "Exit");
+    return true; // No remotes to fetch is not an error
+  }
+
+  LOG_DEBUG("Found {} unique remotes to fetch", remotesToFetch.size());
+
+  const bool commercial = isCommercialPlan();
+
+  // Fetch from each collected remote
+  for (const QString &remoteName : remotesToFetch) {
+    git_remote *remote = nullptr;
+    error = git_remote_lookup(&remote, repo, remoteName.toStdString().c_str());
+    if (error) {
+      LOG_ERROR(Log::ErrorId::Git, "Failed to lookup remote '{}': error={}",
+                remoteName.toStdString(), error);
+      logGitError(error);
+      continue;
+    }
+
+    const char *url = git_remote_url(remote);
+    LOG_DEBUG("Fetching from remote '{}' at URL: '{}'",
+              remoteName.toStdString(), url);
+
+    bool gitSchema = false;
+    const QString urlStr = QString::fromUtf8(url);
+    if (urlStr.startsWith("git@") || urlStr.startsWith("git://")) {
+      gitSchema = true;
+      LOG_DEBUG("Using git schema for authentication");
+    }
+
+    int maxRetries = MAX_RETRIES;
+    if (gitSchema) {
+      QRegularExpression hostRegex("^git@([^:]+):");
+      QRegularExpressionMatch match = hostRegex.match(urlStr);
+      if (match.hasMatch()) {
+        QString host = match.captured(1);
+        GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
+        GitKeyPair keyPair;
+        if (keyStorage.getKeyPairForHost(host, keyPair)) {
+          maxRetries = 1;
+          LOG_DEBUG(
+              "SSH key configured for host '{}', setting max retries to 1",
+              host.toStdString());
+        }
+      }
+    }
+
+    if (!commercial && gitSchema) {
+      logGitError(GIT_EAUTH);
+      LOG_ERROR(Log::ErrorId::Git,
+                "Fetching from git@ repositories is not available on the free "
+                "plan.");
+      git_remote_free(remote);
+      return false;
+    }
+
+    const QString fetchUuid = Uuid::createUuid();
+
+    CloneProgress progressData;
+    progressData.uuid = fetchUuid;
+    progressData.cloning = false;
+
+    GitCredentialPayload credPayload;
+    credPayload.repoPath = repoPath;
+    credPayload.uuid = fetchUuid;
+    credPayload.cloning = false;
+
+    std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(
+        progressData, credPayload);
+
+    git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
+    fetchOpts.callbacks.credentials =
+        commercial ? &credentialsAcquireCallback : nullptr;
+    fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
+    fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
+    fetchOpts.callbacks.payload = &callbackPayload;
+
+    // Fetch all heads and tags
+    git_strarray refspecs = qstringlist_to_git_strarray(
+        QStringList()
+        << QString("+refs/heads/*:refs/remotes/%1/*").arg(remoteName)
+        << "+refs/tags/*:refs/tags/*");
+
+    int retries = 0;
+    error = 0;
+    do {
+      error = git_remote_fetch(remote, &refspecs, &fetchOpts, nullptr);
+
+      if (error) {
+        logGitError(error);
+        gGitCredentialsMutex.lock();
+        gGitCredentials.remove(urlStr);
+        gGitCredentialsMutex.unlock();
+        sendInvalidCredentialsSignal(urlStr);
+      }
+
+      ++retries;
+    } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
+
+    finishFetchProgress(fetchUuid, error != 0, false);
+
+    if (commercial) {
+      finishCredentialsAcquiring(urlStr);
+    }
+
+    if (error) {
+      LOG_ERROR(Log::ErrorId::Git, "Failed to fetch from remote '{}': error={}",
+                remoteName.toStdString(), error);
+      logGitError(error);
+      git_strarray_destroy(refspecs);
+      git_remote_free(remote);
+      continue; // Continue with next remote even if one fails
+    }
+
+    git_strarray_destroy(refspecs);
+    git_remote_free(remote);
+  }
+
+  LOG_PERF(0, "Exit");
+  return true; // Success if we completed the operation
+}
+
+bool push(git_repository *repo, const QString &activeBranchName, bool force) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Starting {}push operation for active branch: '{}'",
+            force ? "force " : "",
+            activeBranchName.isEmpty() ? "(none)"
+                                       : activeBranchName.toStdString());
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  const char *branchName = git_reference_name(headRef);
-  if (!branchName) {
-    git_reference_free(headRef);
-    LOG_ERROR(Log::ErrorId::Git, "Can't get branch name");
+  // Get repository path
+  QString repoPath = QString::fromUtf8(git_repository_path(repo));
+  if (repoPath.endsWith("/.git/")) {
+    repoPath = repoPath.left(repoPath.length() - 6);
+  } else if (repoPath.endsWith("/.git")) {
+    repoPath = repoPath.left(repoPath.length() - 5);
+  }
+  LOG_DEBUG("Repository path: '{}'", repoPath.toStdString());
+
+  // If no active branch provided, get current branch from HEAD
+  QString targetBranchName = activeBranchName;
+  if (targetBranchName.isEmpty()) {
+    git_reference *head = nullptr;
+    int error = git_repository_head(&head, repo);
+    if (error) {
+      logGitError(error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    const char *branchNameC = nullptr;
+    error = git_branch_name(&branchNameC, head);
+    if (error != 0 || !branchNameC) {
+      logGitError(error);
+      git_reference_free(head);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    targetBranchName = QString::fromUtf8(branchNameC);
+    git_reference_free(head);
+  }
+
+  LOG_DEBUG("Target branch for push: '{}'", targetBranchName.toStdString());
+
+  // Get upstream for the active branch
+  auto [upstreamSuccess, remoteName, remoteBranchName] =
+      getUpstream(repo, targetBranchName);
+  if (!upstreamSuccess || remoteName.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Branch '{}' has no remote configured. Specify a remote for this "
+              "branch before pushing.",
+              targetBranchName.toStdString());
     LOG_PERF(0, "Exit");
     return false;
   }
-  LOG_DEBUG("Current branch: '{}'", branchName);
+
+  LOG_DEBUG("Branch '{}' will be pushed to {}/{}",
+            targetBranchName.toStdString(), remoteName.toStdString(),
+            remoteBranchName.toStdString());
+
+  // Push to the upstream remote
+  const bool commercial = isCommercialPlan();
+  int error = 0;
 
   git_remote *remote = nullptr;
-
-  error = git_remote_lookup(&remote, repo, "origin");
+  error = git_remote_lookup(&remote, repo, remoteName.toStdString().c_str());
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
-              error);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to lookup remote '{}': error={}",
+              remoteName.toStdString(), error);
     logGitError(error);
-    git_reference_free(headRef);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-  LOG_DEBUG("Origin remote found");
-
-  const QString url = git_remote_url(remote);
-  LOG_DEBUG("Remote URL: '{}'", url);
-
-  const bool gitSchema = url.startsWith("git://") || url.startsWith("git@");
-  const bool commercial = isCommercialPlan();
-  LOG_DEBUG("URL uses git schema: {}, Commercial plan: {}", gitSchema,
-            commercial);
-
-  if (!commercial && gitSchema) {
-    LOG_ERROR(Log::ErrorId::Git,
-              "Pushing git@ repositories is not available on the free plan.");
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  CloneProgress progressData;
-  progressData.uuid = Uuid::createUuid();
-  progressData.cloning = false;
+  const char *url = git_remote_url(remote);
+  LOG_DEBUG("Pushing to remote '{}' at URL: '{}'", remoteName.toStdString(),
+            url);
 
-  GitCredentialPayload credPayload;
-  credPayload.repoPath = repoPath;
-  credPayload.cloning = false;
-
-  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
-                                                                  credPayload);
-
-  git_push_options opts;
-  git_push_options_init(&opts, GIT_PUSH_OPTIONS_VERSION);
-  opts.callbacks.credentials =
-      commercial ? &credentialsAcquireCallback : nullptr;
-  opts.callbacks.transfer_progress = &fetchProgressCallback;
-  opts.callbacks.certificate_check = &certificateCheckCallback;
-  opts.callbacks.payload = &callbackPayload;
-
-  git_strarray refspecs =
-      qstringlist_to_git_strarray(QStringList() << branchName);
-
+  bool gitSchema = false;
   int retries = 0;
+  const QString urlStr = QString::fromUtf8(url);
+  if (urlStr.startsWith("git@") || urlStr.startsWith("git://")) {
+    gitSchema = true;
+    LOG_DEBUG("Using git schema for authentication");
+  }
 
-  // Determine max retries: use 1 if SSH with configured key, otherwise
-  // MAX_RETRIES
   int maxRetries = MAX_RETRIES;
-  if (url.startsWith("git@")) {
-    // Extract host from git@host:path format
+  if (gitSchema) {
     QRegularExpression hostRegex("^git@([^:]+):");
-    QRegularExpressionMatch match = hostRegex.match(url);
+    QRegularExpressionMatch match = hostRegex.match(urlStr);
     if (match.hasMatch()) {
       QString host = match.captured(1);
       GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
       GitKeyPair keyPair;
       if (keyStorage.getKeyPairForHost(host, keyPair)) {
-        maxRetries = 1; // Key is configured, only try once
-        LOG_DEBUG("SSH key configured for host {}, setting max retries to 1",
-                  host);
+        maxRetries = 1;
+        LOG_DEBUG("SSH key configured for host '{}', setting max retries to 1",
+                  host.toStdString());
       }
     }
   }
 
+  if (!commercial && gitSchema) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Pushing to git@ repositories is not available on the free "
+              "plan.");
+    git_remote_free(remote);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString pushUuid = Uuid::createUuid();
+
+  CloneProgress progressData;
+  progressData.uuid = pushUuid;
+  progressData.cloning = false;
+
+  GitCredentialPayload credPayload;
+  credPayload.repoPath = repoPath;
+  credPayload.uuid = pushUuid;
+  credPayload.cloning = false;
+
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                  credPayload);
+
+  git_push_options pushOpts;
+  git_push_options_init(&pushOpts, GIT_PUSH_OPTIONS_VERSION);
+  pushOpts.callbacks.credentials =
+      commercial ? &credentialsAcquireCallback : nullptr;
+  pushOpts.callbacks.transfer_progress = &fetchProgressCallback;
+  pushOpts.callbacks.certificate_check = &certificateCheckCallback;
+  pushOpts.callbacks.payload = &callbackPayload;
+
+  // Build refspec for pushing the branch to its upstream
+  const QString refspec = QString("%1refs/heads/%2:refs/heads/%3")
+                              .arg(force ? QStringLiteral("+") : QString(),
+                                   targetBranchName, remoteBranchName);
+  git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
+  LOG_DEBUG("Using push refspec: '{}'", refspec.toStdString());
+
   do {
-    error = git_remote_push(remote, &refspecs, &opts);
+    error = git_remote_push(remote, &refspecs, &pushOpts);
+
     if (error) {
       logGitError(error);
-
       gGitCredentialsMutex.lock();
-      gGitCredentials.remove(url);
+      gGitCredentials.remove(urlStr);
       gGitCredentialsMutex.unlock();
-
-      sendInvalidCredentialsSignal(url);
+      sendInvalidCredentialsSignal(urlStr);
     }
 
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(progressData.uuid, error != 0, false);
+  finishFetchProgress(pushUuid, error != 0, false);
 
-  finishCredentialsAcquiring(url);
+  if (commercial) {
+    finishCredentialsAcquiring(urlStr);
+  }
 
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
-  git_reference_free(headRef);
 
   LOG_PERF(0, "Exit");
 
@@ -4999,8 +5701,9 @@ bool pushTag(git_repository *repo, const QString &tagName) {
   LOG_DEBUG("Tag '{}' found", tagName.toStdString());
 
   git_remote *remote = nullptr;
+  const QString defaultRemote = getDefaultRemote(repo);
 
-  error = git_remote_lookup(&remote, repo, "origin");
+  error = git_remote_lookup(&remote, repo, defaultRemote.toStdString().c_str());
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
               error);
@@ -5130,7 +5833,10 @@ bool pushAllTags(git_repository *repo) {
   LOG_DEBUG("Found {} tags to push", allTags.size());
 
   git_remote *remote = nullptr;
-  int error = git_remote_lookup(&remote, repo, "origin");
+  const QString defaultRemote = getDefaultRemote(repo);
+
+  int error =
+      git_remote_lookup(&remote, repo, defaultRemote.toStdString().c_str());
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
               error);
@@ -5238,6 +5944,7 @@ bool stash(git_repository *repo) {
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5283,6 +5990,7 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5420,13 +6128,14 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
   return true;
 }
 
-QPair<QString, QString> getUpstream(git_repository *repo,
-                                    const QString &localBranchName) {
+std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
+                                               const QString &localBranchName) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
 
   if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -5442,6 +6151,10 @@ QPair<QString, QString> getUpstream(git_repository *repo,
 
   git_reference *upstreamRef = nullptr;
   error = git_branch_upstream(&upstreamRef, localRef);
+
+  QString remoteName;
+  QString remoteBranchName;
+
   if (error && error != GIT_ENOTFOUND) {
     logGitError(error);
     git_reference_free(localRef);
@@ -5449,31 +6162,94 @@ QPair<QString, QString> getUpstream(git_repository *repo,
     return {};
   }
 
-  git_reference_free(localRef);
-
-  QString remoteName;
-  QString remoteBranchName;
-
   if (error != GIT_ENOTFOUND) {
-    remoteName = git_reference_name(upstreamRef);
-    const QStringList remoteNames = remoteName.split('/');
-    Q_ASSERT(remoteNames.size() >= 2);
-    if (remoteNames.size() >= 2) {
-      remoteName = remoteNames[remoteNames.size() - 2];
-      remoteBranchName = remoteNames[remoteNames.size() - 1];
+    // Successfully got upstream reference from libgit2
+    const QString refName = git_reference_name(upstreamRef);
+    LOG_DEBUG("Upstream reference: '{}'", refName.toStdString());
+
+    // Parse "refs/remotes/{remoteName}/{remoteBranchName}"
+    // remoteBranchName can contain slashes, so we need to split carefully
+    const QString prefix = "refs/remotes/";
+    if (refName.startsWith(prefix)) {
+      const QString withoutPrefix = refName.mid(prefix.length());
+      const int firstSlash = withoutPrefix.indexOf('/');
+      if (firstSlash != -1) {
+        remoteName = withoutPrefix.left(firstSlash);
+        remoteBranchName = withoutPrefix.mid(firstSlash + 1);
+        LOG_DEBUG("Parsed - Remote: '{}', Branch: '{}'",
+                  remoteName.toStdString(), remoteBranchName.toStdString());
+      }
     }
+    git_reference_free(upstreamRef);
+  } else {
+    // Fallback: git_branch_upstream returned GIT_ENOTFOUND, so read from git
+    // config by iterating through all entries
+    const QString configPath = QString::fromUtf8(git_repository_workdir(repo)) +
+                               ".git" + QDir::separator() + "config";
+
+    git_config *config = nullptr;
+    error = git_config_open_ondisk(&config, configPath.toStdString().c_str());
+    if (error) {
+      logGitError(error);
+      git_reference_free(localRef);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    const QString remoteConfigKey =
+        QString("branch.%1.remote").arg(localBranchName);
+    const QString mergeConfigKey =
+        QString("branch.%1.merge").arg(localBranchName);
+
+    // Iterate through config entries to find the keys we're looking for
+    git_config_iterator *iterator = nullptr;
+    error = git_config_iterator_new(&iterator, config);
+    if (!error) {
+      git_config_entry *entry = nullptr;
+      while (!git_config_next(&entry, iterator)) {
+        if (entry && entry->name && entry->value) {
+          const QString entryName = QString::fromUtf8(entry->name);
+          const QString entryValue = QString::fromUtf8(entry->value);
+
+          if (entryName == remoteConfigKey) {
+            remoteName = entryValue;
+          } else if (entryName == mergeConfigKey) {
+            QString mergeRef = entryValue;
+            if (mergeRef.startsWith("refs/heads/")) {
+              remoteBranchName =
+                  mergeRef.mid(11); // Remove "refs/heads/" prefix
+            } else {
+              remoteBranchName = mergeRef;
+            }
+          }
+        }
+      }
+      git_config_iterator_free(iterator);
+    }
+
+    git_config_free(config);
   }
 
-  git_reference_free(upstreamRef);
+  git_reference_free(localRef);
 
   LOG_PERF(0, "Exit");
 
-  return qMakePair(remoteName, remoteBranchName);
+  return std::make_tuple(!remoteName.isEmpty() && !remoteBranchName.isEmpty(),
+                         remoteName, remoteBranchName);
 }
 
 bool resetToCommit(git_repository *repo, const QString &commit,
                    ResetType type) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   LOG_DEBUG("Resetting to commit '{}' with type {}", commit.toStdString(),
             static_cast<int>(type));
 
@@ -5533,6 +6309,14 @@ bool revertCommit(git_repository *repo, const QString &commit,
                   const QString &author, const QString &email,
                   const QString &message) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   git_commit *targetCommit = nullptr;
 
@@ -5649,24 +6433,87 @@ bool revertCommit(git_repository *repo, const QString &commit,
   return true;
 }
 
+static QStringList createPatchTargetFiles(const QString &patchContent) {
+  QStringList files;
+  const QStringList lines =
+      QString(patchContent).replace("\r\n", "\n").split('\n');
+  for (const QString &line : lines) {
+    if (line.startsWith("+++ ")) {
+      const QString path = line.mid(4).trimmed();
+      if (path != "/dev/null" && path.startsWith("b/")) {
+        files.append(path.mid(2));
+      }
+    }
+  }
+  files.removeDuplicates();
+  return files;
+}
+
 bool applyPatch(git_repository *repo, const QString &patchContent) {
   LOG_PERF(0, "Enter");
 
-  git_diff *diff = nullptr;
+  Q_ASSERT(repo != nullptr);
 
-  const std::string buffer = patchContent.toStdString();
-
-  int error = git_diff_from_buffer(&diff, buffer.c_str(), buffer.size());
-  if (error) {
-    logGitError(error);
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  error = git_apply(repo, diff, GIT_APPLY_LOCATION_WORKDIR, nullptr);
+  const QString workdirPath = QString::fromUtf8(git_repository_workdir(repo));
+  const QStringList targetFiles = patchTargetFiles(patchContent);
+  QStringList createdFiles;
+  QString errorMessage;
+
+  if (!ensureFilesExistForPatch(workdirPath, targetFiles, createdFiles,
+                                &errorMessage)) {
+    LOG_ERROR(Log::ErrorId::FileSystem, "{}", errorMessage.toStdString());
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  for (const QString &filePath : targetFiles) {
+    const QString fullPath = QDir(workdirPath).filePath(filePath);
+    QFileInfo fileInfo(fullPath);
+    if (fileInfo.exists() && fileInfo.size() > 0) {
+      continue;
+    }
+
+    const QString content = reconstructNewFileContent(patchContent, filePath);
+    QFile file(fullPath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate |
+                   QIODevice::Text)) {
+      LOG_ERROR(Log::ErrorId::FileSystem,
+                "Can't write reconstructed file \"{}\" from patch.",
+                fullPath.toStdString());
+      removeFiles(createdFiles);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    QTextStream out(&file);
+    out.setEncoding(QStringConverter::Utf8);
+    out << content;
+    file.close();
+  }
+
+  git_diff *diff = nullptr;
+  const QByteArray buffer = patchContent.toUtf8();
+
+  int error = git_diff_from_buffer(&diff, buffer.constData(), buffer.size());
+  if (error) {
+    logGitError(error);
+    removeFiles(createdFiles);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_apply_options opts = GIT_APPLY_OPTIONS_INIT;
+  error = git_apply(repo, diff, GIT_APPLY_LOCATION_WORKDIR, &opts);
   if (error) {
     logGitError(error);
     git_diff_free(diff);
+    removeFiles(createdFiles);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5681,6 +6528,14 @@ bool applyPatch(git_repository *repo, const QString &patchContent) {
 bool cherryPickCommit(git_repository *repo, const QString &commit,
                       const QString &author, const QString &email) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   git_commit *targetCommit = nullptr;
 
@@ -5800,6 +6655,14 @@ bool renameBranch(git_repository *repo, const QString &oldName,
                   const QString &newName) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_reference *ref = nullptr;
 
   int error = git_branch_lookup(&ref, repo, oldName.toStdString().c_str(),
@@ -5827,6 +6690,14 @@ bool renameBranch(git_repository *repo, const QString &oldName,
 
 bool deleteBranch(git_repository *repo, const QString &branchName) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   git_reference *ref = nullptr;
 
@@ -5877,7 +6748,13 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
 
   git_remote *remote = nullptr;
 
-  int error = git_remote_lookup(&remote, repo, "origin");
+  auto [ok, remoteName, _] = getUpstream(repo, branchName);
+  if (!ok || remoteName.isEmpty()) {
+    remoteName = "origin";
+  }
+
+  int error =
+      git_remote_lookup(&remote, repo, remoteName.toStdString().c_str());
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
               error);
@@ -5899,6 +6776,7 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
     LOG_ERROR(Log::ErrorId::Git,
               "Deleting remote branches from git@ repositories is not "
               "available on the free plan.");
+    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5925,8 +6803,9 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
   // Delete branch with refspec: :refs/heads/branchName (empty source = delete)
   // Strip remote prefix (e.g., "origin/branch" -> "branch")
   QString cleanBranchName = branchName;
-  if (const auto parts = branchName.split('/'); parts.length() > 1) {
-    cleanBranchName = parts.last();
+  if (branchName.startsWith("origin/")) {
+    cleanBranchName =
+        branchName.mid(7); // Remove "origin/" prefix (7 characters)
   }
 
   const QString refspec = QString(":refs/heads/%1").arg(cleanBranchName);
@@ -6001,6 +6880,14 @@ bool createTagFromCommit(git_repository *repo, const QString &commit,
                          const QString &email, const QString &message) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_oid targetOid;
 
   int error = git_oid_fromstr(&targetOid, commit.toStdString().c_str());
@@ -6052,6 +6939,14 @@ bool createTagFromCommit(git_repository *repo, const QString &commit,
 
 QString createPatchFromCommit(git_repository *repo, const QString &commit) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
 
   git_oid oid;
 
@@ -6176,6 +7071,14 @@ bool renameTag(git_repository *repo, const QString &oldName,
                const QString &newName) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   git_reference *tagRef = nullptr;
   git_object *target = nullptr;
   git_oid newOid;
@@ -6271,6 +7174,14 @@ bool renameTag(git_repository *repo, const QString &oldName,
 bool deleteTag(git_repository *repo, const QString &tagName) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   if (const int error = git_tag_delete(repo, tagName.toStdString().c_str())) {
     logGitError(error);
     LOG_PERF(0, "Exit");
@@ -6305,8 +7216,10 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
   LOG_DEBUG("Repository path: '{}'", repoPath.toStdString());
 
   git_remote *remote = nullptr;
+  const QString defaultRemoteName = getDefaultRemote(repo);
 
-  int error = git_remote_lookup(&remote, repo, "origin");
+  int error =
+      git_remote_lookup(&remote, repo, defaultRemoteName.toStdString().c_str());
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
               error);
@@ -6327,6 +7240,7 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
   if (!commercial && gitSchema) {
     LOG_ERROR(Log::ErrorId::Git, "Deleting remote tags from git@ repositories "
                                  "is not available on the free plan.");
+    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6421,6 +7335,14 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
 QString getSubmodulePath(git_repository *repo, const QString &submoduleName) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
   git_submodule *submodule = nullptr;
 
   if (const int error = git_submodule_lookup(
@@ -6450,6 +7372,14 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
                      const QString &submodulePath) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   const std::string name = submoduleName.toStdString();
   const std::string path = submodulePath.toStdString();
 
@@ -6457,14 +7387,19 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
 
   int error = git_submodule_lookup(&submodule, repo, name.c_str());
   if (error) {
-    logGitError(error);
-    LOG_PERF(0, "Exit");
-    return false;
+    // Submodule lookup failed (e.g., after discarding .gitmodules)
+    // Continue with manual cleanup instead of failing
+    LOG_DEBUG(
+        "Submodule '{}' not found in metadata, proceeding with manual cleanup",
+        name);
+    submodule = nullptr;
   }
 
   const char *repositoryPath = git_repository_path(repo);
   if (!repositoryPath) {
-    git_submodule_free(submodule);
+    if (submodule) {
+      git_submodule_free(submodule);
+    }
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6475,7 +7410,9 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
       QString("%1/../.gitmodules.tmp").arg(repositoryPath).toStdString();
 
   FILE *src = fopen(gitModulesPath.c_str(), "r");
-  if (FILE *dst = fopen(gitModulesTmpPath.c_str(), "w"); src && dst) {
+  FILE *dst = fopen(gitModulesTmpPath.c_str(), "w");
+
+  if (src && dst) {
     char line[1024];
     int skip = 0;
     while (fgets(line, sizeof(line), src)) {
@@ -6494,10 +7431,18 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
     }
 
     fclose(src);
+    src = nullptr;
     fclose(dst);
+    dst = nullptr;
 
     remove(gitModulesPath.c_str());
-    rename(gitModulesTmpPath.c_str(), gitModulesPath.c_str());
+    if (rename(gitModulesTmpPath.c_str(), gitModulesPath.c_str()) != 0) {
+      // If rename failed, try to clean up the temp file
+      remove(gitModulesTmpPath.c_str());
+      git_submodule_free(submodule);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
 
     if (const bool staged = stageFiles(repo, QStringList() << ".gitmodules");
         !staged) {
@@ -6509,6 +7454,11 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
     if (src) {
       fclose(src);
     }
+    if (dst) {
+      fclose(dst);
+    }
+    // Clean up temp file if it was created
+    remove(gitModulesTmpPath.c_str());
   }
 
   // Remove submodule section from .git/config file
@@ -6519,7 +7469,9 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
       "config";
 
   src = fopen(gitConfigFile.c_str(), "r");
-  if (FILE *dst = fopen((gitConfigFile + ".tmp").c_str(), "w"); src && dst) {
+  dst = fopen((gitConfigFile + ".tmp").c_str(), "w");
+
+  if (src && dst) {
     char line[1024];
     int skipSection = 0;
     while (fgets(line, sizeof(line), src)) {
@@ -6541,14 +7493,24 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
     }
 
     fclose(src);
+    src = nullptr;
     fclose(dst);
+    dst = nullptr;
 
     remove(gitConfigFile.c_str());
-    rename((gitConfigFile + ".tmp").c_str(), gitConfigFile.c_str());
+    if (rename((gitConfigFile + ".tmp").c_str(), gitConfigFile.c_str()) != 0) {
+      // If rename failed, try to clean up the temp file
+      remove((gitConfigFile + ".tmp").c_str());
+    }
   } else {
     if (src) {
       fclose(src);
     }
+    if (dst) {
+      fclose(dst);
+    }
+    // Clean up temp file if it was created
+    remove((gitConfigFile + ".tmp").c_str());
   }
 
   git_index *index = nullptr;
@@ -6556,16 +7518,22 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
   error = git_repository_index(&index, repo);
   if (error) {
     logGitError(error);
-    git_submodule_free(submodule);
+    if (submodule) {
+      git_submodule_free(submodule);
+    }
     LOG_PERF(0, "Exit");
     return false;
   }
 
+  // Try to remove from index, but don't fail if it's not there
+  // (user may have already discarded it)
   error = git_index_remove(index, name.c_str(), 0);
-  if (error) {
+  if (error && error != GIT_ENOTFOUND) {
     logGitError(error);
     git_index_free(index);
-    git_submodule_free(submodule);
+    if (submodule) {
+      git_submodule_free(submodule);
+    }
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6574,13 +7542,17 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
   if (error) {
     logGitError(error);
     git_index_free(index);
-    git_submodule_free(submodule);
+    if (submodule) {
+      git_submodule_free(submodule);
+    }
     LOG_PERF(0, "Exit");
     return false;
   }
 
   git_index_free(index);
-  git_submodule_free(submodule);
+  if (submodule) {
+    git_submodule_free(submodule);
+  }
 
   QDir(submodulePath).removeRecursively();
   QDir(QString("%1/modules/%2").arg(repositoryPath).arg(name))
@@ -6591,49 +7563,276 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
   return true;
 }
 
+// Fetches `branchName` from `remoteName` into `submoduleRepo`, then checks out
+// a local branch of the same name tracking the fetched remote branch (never
+// leaving the submodule in a detached HEAD state). Submodules must always
+// track a branch, whether it was chosen explicitly when the submodule was
+// added, or resolved automatically as a sensible default.
+static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
+                                    const QString &repoPath,
+                                    const QString &remoteName,
+                                    const QString &branchName,
+                                    const QString &uuid) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(submoduleRepo != nullptr);
+
+  if (!submoduleRepo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_remote *remote = nullptr;
+  int error = git_remote_lookup(&remote, submoduleRepo,
+                                remoteName.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const char *remoteUrl = git_remote_url(remote);
+  const QString urlStr = remoteUrl ? QString::fromUtf8(remoteUrl) : QString();
+  LOG_DEBUG("Checking out submodule branch '{}' from {}/{} ({})",
+            branchName.toStdString(), remoteName.toStdString(),
+            branchName.toStdString(), urlStr.toStdString());
+
+  CloneProgress progressData;
+  progressData.uuid = uuid;
+  progressData.cloning = false;
+
+  GitCredentialPayload credPayload;
+  credPayload.repoPath = repoPath;
+  credPayload.cloning = false;
+
+  std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
+                                                                  credPayload);
+
+  git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
+  fetchOpts.callbacks.credentials = &credentialsAcquireCallback;
+  fetchOpts.callbacks.transfer_progress = &fetchProgressCallback;
+  fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
+  fetchOpts.callbacks.payload = &callbackPayload;
+
+  const QString refspec =
+      QString("+refs/heads/%1:refs/remotes/%2/%1").arg(branchName, remoteName);
+  git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
+
+  int retries = 0;
+  const int maxRetries = MAX_RETRIES;
+
+  do {
+    error = git_remote_fetch(remote, &refspecs, &fetchOpts, nullptr);
+
+    if (error) {
+      logGitError(error);
+      gGitCredentialsMutex.lock();
+      gGitCredentials.remove(urlStr);
+      gGitCredentialsMutex.unlock();
+      sendInvalidCredentialsSignal(urlStr);
+    }
+
+    ++retries;
+  } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
+
+  finishFetchProgress(uuid, error != 0, false);
+  finishCredentialsAcquiring(urlStr);
+
+  git_strarray_destroy(refspecs);
+  git_remote_free(remote);
+
+  if (error) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString remoteRefName =
+      QString("refs/remotes/%1/%2").arg(remoteName, branchName);
+
+  git_reference *remoteRef = nullptr;
+  error = git_reference_lookup(&remoteRef, submoduleRepo,
+                               remoteRefName.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_commit *targetCommit = nullptr;
+  error = git_reference_peel(reinterpret_cast<git_object **>(&targetCommit),
+                             remoteRef, GIT_OBJECT_COMMIT);
+  git_reference_free(remoteRef);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference *localRef = nullptr;
+  error = git_branch_lookup(&localRef, submoduleRepo,
+                            branchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
+  if (error == GIT_ENOTFOUND) {
+    error =
+        git_branch_create(&localRef, submoduleRepo,
+                          branchName.toStdString().c_str(), targetCommit, 0);
+  }
+
+  if (error) {
+    logGitError(error);
+    git_commit_free(targetCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference *updatedLocalRef = nullptr;
+  error = git_reference_set_target(&updatedLocalRef, localRef,
+                                   git_commit_id(targetCommit),
+                                   "Update submodule branch");
+  git_reference_free(localRef);
+  localRef = updatedLocalRef;
+  if (error) {
+    logGitError(error);
+    git_commit_free(targetCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference_free(localRef);
+  git_commit_free(targetCommit);
+
+  const QString headRefName = QString("refs/heads/%1").arg(branchName);
+  error =
+      git_repository_set_head(submoduleRepo, headRefName.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  checkoutOpts.checkout_strategy =
+      GIT_CHECKOUT_SAFE | GIT_CHECKOUT_RECREATE_MISSING;
+
+  error = git_checkout_head(submoduleRepo, &checkoutOpts);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  setUpstream(submoduleRepo, remoteName, branchName, branchName);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+static bool checkoutLocalSubmoduleBranch(git_repository *submoduleRepo,
+                                         const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(submoduleRepo != nullptr);
+
+  if (!submoduleRepo) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference *localRef = nullptr;
+  int error =
+      git_branch_lookup(&localRef, submoduleRepo,
+                        branchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString headRefName = QString("refs/heads/%1").arg(branchName);
+  error =
+      git_repository_set_head(submoduleRepo, headRefName.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    git_reference_free(localRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  checkoutOpts.checkout_strategy =
+      GIT_CHECKOUT_SAFE | GIT_CHECKOUT_RECREATE_MISSING;
+
+  error = git_checkout_head(submoduleRepo, &checkoutOpts);
+  git_reference_free(localRef);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
 bool updateSubmodule(git_repository *repo, const QString &submoduleName) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   const std::string name = submoduleName.toStdString();
 
   git_submodule *submodule = nullptr;
+  git_repository *submoduleRepo = nullptr;
+
+  auto cleanup = [&]() {
+    if (submoduleRepo) {
+      git_repository_free(submoduleRepo);
+      submoduleRepo = nullptr;
+    }
+
+    if (submodule) {
+      git_submodule_free(submodule);
+      submodule = nullptr;
+    }
+  };
+
+  auto fail = [&](const int error) {
+    if (error) {
+      logGitError(error);
+    }
+
+    cleanup();
+    LOG_PERF(0, "Exit");
+    return false;
+  };
 
   int error = git_submodule_lookup(&submodule, repo, name.c_str());
   if (error) {
-    logGitError(error);
-    LOG_PERF(0, "Exit");
-    return false;
+    return fail(error);
   }
 
-  error = git_submodule_init(submodule, 0);
+  error = git_submodule_open(&submoduleRepo, submodule);
+  if (error) {
+    return fail(error);
+  }
+
+  // Stage the current local submodule HEAD into the parent repository index.
+  // This uses the submodule's working tree state, not the remote branch tip.
+  error = git_submodule_add_to_index(submodule, 1);
   if (error) {
     logGitError(error);
-    git_submodule_free(submodule);
+    cleanup();
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  // Configure fetch and checkout options with certificate checking
-  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
-  checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
-
-  git_fetch_options fetchOpts = GIT_FETCH_OPTIONS_INIT;
-  fetchOpts.callbacks.credentials = &credentialsAcquireCallback;
-  fetchOpts.callbacks.certificate_check = &certificateCheckCallback;
-
-  git_submodule_update_options updateOpts = GIT_SUBMODULE_UPDATE_OPTIONS_INIT;
-  updateOpts.fetch_opts = fetchOpts;
-  updateOpts.checkout_opts = checkoutOpts;
-
-  error = git_submodule_update(submodule, 1, &updateOpts);
-  if (error) {
-    logGitError(error);
-    git_submodule_free(submodule);
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  git_submodule_free(submodule);
+  cleanup();
 
   LOG_PERF(0, "Exit");
 
@@ -6641,8 +7840,16 @@ bool updateSubmodule(git_repository *repo, const QString &submoduleName) {
 }
 
 bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
-                  const QString &uuid) {
+                  const QString &branch, const QString &uuid) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   const char *repoPath = git_repository_path(repo);
   if (!repoPath) {
@@ -6729,6 +7936,55 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   // widget)
   finishCredentialsAcquiring(url);
 
+  // Submodules must always track a branch. Use the branch chosen in the add
+  // submodule dialog; if none was provided, fall back to whatever branch the
+  // clone above already checked out (the remote's default branch).
+  QString trackedBranch = branch.trimmed();
+  if (trackedBranch.isEmpty()) {
+    git_reference *head = nullptr;
+    if (!git_repository_head(&head, subRepo)) {
+      const char *currentBranch = nullptr;
+      if (!git_branch_name(&currentBranch, head) && currentBranch &&
+          currentBranch[0]) {
+        trackedBranch = QString::fromUtf8(currentBranch);
+      }
+      git_reference_free(head);
+    }
+  }
+
+  if (trackedBranch.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Can't determine a branch to track for submodule '{}'",
+              name.toStdString());
+    git_repository_free(subRepo);
+    deleteSubmodule(repo, name, QString("%1/../%2").arg(repoPath).arg(name));
+    git_submodule_free(subModule);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  QString subRepoPath;
+  if (const char *workdir = git_repository_workdir(subRepo)) {
+    subRepoPath = QString::fromUtf8(workdir);
+  }
+
+  if (!checkoutSubmoduleBranch(subRepo, subRepoPath, "origin", trackedBranch,
+                               uuid)) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to check out tracked branch '{}' for submodule '{}'",
+              trackedBranch.toStdString(), name.toStdString());
+    git_repository_free(subRepo);
+    deleteSubmodule(repo, name, QString("%1/../%2").arg(repoPath).arg(name));
+    git_submodule_free(subModule);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Persist the tracked branch in .gitmodules so future updates keep
+  // tracking the same branch.
+  git_submodule_set_branch(repo, name.toStdString().c_str(),
+                           trackedBranch.toStdString().c_str());
+
   error = git_submodule_add_finalize(subModule);
   if (error) {
     logGitError(error);
@@ -6749,6 +8005,14 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
                               const QString &commit) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
 
   git_oid oid;
 
@@ -6780,6 +8044,8 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
   git_commit *parent = nullptr;
   git_tree *parentTree = nullptr;
+  git_commit *parent2 = nullptr;
+  git_tree *parent2Tree = nullptr;
 
   if (git_commit_parentcount(commit_) > 0) {
     error = git_commit_parent(&parent, commit_, 0);
@@ -6795,6 +8061,41 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
     if (error) {
       logGitError(error);
       git_commit_free(parent);
+      git_tree_free(tree);
+      git_commit_free(commit_);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+  }
+
+  if (git_commit_parentcount(commit_) > 2) {
+    error = git_commit_parent(&parent2, commit_, 2);
+    if (error) {
+      logGitError(error);
+      if (parentTree) {
+        git_tree_free(parentTree);
+      }
+      if (parent) {
+        git_commit_free(parent);
+      }
+      git_tree_free(tree);
+      git_commit_free(commit_);
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    error = git_commit_tree(&parent2Tree, parent2);
+    if (error) {
+      logGitError(error);
+      if (parent2) {
+        git_commit_free(parent2);
+      }
+      if (parentTree) {
+        git_tree_free(parentTree);
+      }
+      if (parent) {
+        git_commit_free(parent);
+      }
       git_tree_free(tree);
       git_commit_free(commit_);
       LOG_PERF(0, "Exit");
@@ -6918,70 +8219,42 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
   QMap<QString, QString> filesContent;
   QMap<QString, QString> repoContent;
+  QSet<QString> stashUntrackedFiles;
 
   for (const auto &file : files) {
-    const QString repoPath = git_repository_workdir(repo);
     const QString filePath = QDir::fromNativeSeparators(file);
-    const QString fullPath = repoPath + filePath;
 
-    QFile fileObj(fullPath);
-    if (fileObj.open(QIODevice::ReadOnly)) {
-      const QByteArray content = fileObj.readAll();
-      filesContent.insert(file, QString::fromUtf8(content));
-      fileObj.close();
+    QString repoFileContent;
+    if (parentTree && readTreeFileContent(repo, parentTree, filePath,
+                                          maxBlobSize, &repoFileContent)) {
+      repoContent.insert(file, repoFileContent);
     } else {
-      filesContent.insert(file, QString());
-    }
-
-    git_tree_entry *entry = nullptr;
-
-    if (!parentTree) {
       repoContent.insert(file, QString());
+    }
+
+    QString filesFileContent;
+    if (tree && readTreeFileContent(repo, tree, filePath, maxBlobSize,
+                                    &filesFileContent)) {
+      filesContent.insert(file, filesFileContent);
       continue;
     }
 
-    error = git_tree_entry_bypath(&entry, parentTree,
-                                  filePath.toStdString().c_str());
-    if (error) {
-      logGitError(error);
-      repoContent.insert(file, QString());
+    if (parent2Tree && readTreeFileContent(repo, parent2Tree, filePath,
+                                           maxBlobSize, &filesFileContent)) {
+      filesContent.insert(file, filesFileContent);
+      stashUntrackedFiles.insert(file);
       continue;
     }
 
-    const git_oid *fullOid = git_tree_entry_id(entry);
-    if (!fullOid) {
-      logGitError(error);
-      git_tree_entry_free(entry);
-      repoContent.insert(file, QString());
-      continue;
-    }
+    filesContent.insert(file, QString());
+  }
 
-    git_blob *blob = nullptr;
-    error = git_blob_lookup(&blob, repo, fullOid);
-    if (error) {
-      logGitError(error);
-      git_tree_entry_free(entry);
-      repoContent.insert(file, QString());
-      continue;
-    }
+  if (parent2Tree) {
+    git_tree_free(parent2Tree);
+  }
 
-    const char *blobContent =
-        static_cast<const char *>(git_blob_rawcontent(blob));
-    const size_t blobSize = git_blob_rawsize(blob);
-
-    if (blobSize > static_cast<size_t>(maxBlobSize)) {
-      repoContent.insert(
-          file,
-          QString("[[FILE SIZE EXCEEDS LIMIT OF %1 BYTES]]").arg(maxBlobSize));
-      git_blob_free(blob);
-      git_tree_entry_free(entry);
-      continue;
-    }
-
-    repoContent.insert(file, QString::fromUtf8(blobContent, blobSize));
-
-    git_blob_free(blob);
-    git_tree_entry_free(entry);
+  if (parent2) {
+    git_commit_free(parent2);
   }
 
   if (parentTree) {
@@ -6994,6 +8267,25 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
   git_tree_free(tree);
   git_commit_free(commit_);
+
+  for (const auto &file : files) {
+    if (!stashUntrackedFiles.contains(file)) {
+      continue;
+    }
+
+    const QString indexLine =
+        createIndexLineFromContent(QString(), filesContent[file]);
+    const QString patch =
+        createFullPatchFromContent(file, filesContent[file], true, indexLine);
+
+    diffOutput += QString("diff --git a/%1 b/%2\n").arg(file, file);
+    diffOutput += "new file mode 100644\n";
+    diffOutput += patch;
+
+    const FilesDiffDelta patchDeltas =
+        createFullPatchDeltasFromContent(file, filesContent[file]);
+    filesDeltas += patchDeltas;
+  }
 
   FilesDiff filesDiff;
   filesDiff.diff = diffOutput;
@@ -7010,6 +8302,14 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
                              const QString &commit) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
 
   git_oid oid;
   int error;
@@ -7108,6 +8408,15 @@ bool merge(git_repository *repo, const QString &sourceBranch,
            const QString &destinationBranch, const QString &author,
            const QString &email) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   LOG_DEBUG("Starting merge operation: source='{}', destination='{}', "
             "author='{}', email='{}'",
             sourceBranch.toStdString(), destinationBranch.toStdString(),
@@ -7468,6 +8777,14 @@ bool merge(git_repository *repo, const QString &sourceBranch,
 QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
   git_index *index = nullptr;
 
   int error = git_repository_index(&index, repo);
@@ -7582,6 +8899,14 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
 bool getIsMergeInProgress(git_repository *repo) {
   LOG_PERF(0, "Enter");
 
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   const int state = git_repository_state(repo);
 
   LOG_PERF(0, "Exit");
@@ -7591,6 +8916,14 @@ bool getIsMergeInProgress(git_repository *repo) {
 
 bool abortMerge(git_repository *repo) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   if (git_repository_state(repo) != GIT_REPOSITORY_STATE_MERGE) {
     LOG_PERF(0, "Exit");
@@ -7628,9 +8961,874 @@ bool abortMerge(git_repository *repo) {
   return true;
 }
 
+QVector<RemoteInfo> listRemotes(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Listing remotes");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_strarray remote_list;
+  int error = git_remote_list(&remote_list, repo);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to list remotes: error={}", error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  // Get default remote
+  const QString defaultRemote = getDefaultRemote(repo);
+
+  QVector<RemoteInfo> remotes;
+  QSet<QString> processedRemotes;
+
+  for (size_t i = 0; i < remote_list.count; ++i) {
+    const QString remoteName = QString::fromUtf8(remote_list.strings[i]);
+
+    const QStringList splitRemoteName = remoteName.split('.');
+
+    if (splitRemoteName.isEmpty()) {
+      LOG_DEBUG("Skipping empty remote name");
+      continue;
+    }
+
+    if (splitRemoteName.length() >= 2 &&
+        processedRemotes.contains(splitRemoteName[0]) &&
+        splitRemoteName[1] == "target") {
+      LOG_DEBUG("Skipping duplicate remote '{}'", remoteName.toStdString());
+      continue;
+    }
+
+    processedRemotes.insert(splitRemoteName[0]);
+
+    git_remote *remote = nullptr;
+    error = git_remote_lookup(&remote, repo, remote_list.strings[i]);
+    if (error) {
+      LOG_DEBUG("Failed to lookup remote '{}': error={}",
+                remoteName.toStdString(), error);
+      continue;
+    }
+
+    const QString fetchUrl = QString::fromUtf8(git_remote_url(remote));
+    const QString pushUrl = git_remote_pushurl(remote) != nullptr
+                                ? QString::fromUtf8(git_remote_pushurl(remote))
+                                : fetchUrl;
+
+    // Create default target for backward compatibility
+    QVector<RemoteTarget> targets;
+    targets.append(RemoteTarget{QStringLiteral("Default"), fetchUrl, pushUrl});
+
+    // Load additional targets from git config
+    git_config *config = nullptr;
+    error = git_repository_config(&config, repo);
+    if (!error && config) {
+      git_config_iterator *iterator = nullptr;
+      error = git_config_iterator_new(&iterator, config);
+      if (!error) {
+        git_config_entry *entry = nullptr;
+        const QString targetPrefix =
+            QString("remote.%1.target.").arg(remoteName);
+
+        // Map to collect targets: targetName -> (fetchUrl, pushUrl)
+        QMap<QString, QPair<QString, QString>> targetMap;
+
+        while (!git_config_next(&entry, iterator)) {
+          if (entry && entry->name && entry->value) {
+            const QString entryName = QString::fromUtf8(entry->name);
+            const QString entryValue = QString::fromUtf8(entry->value);
+
+            // Check if this entry is for a target of this remote
+            if (entryName.startsWith(targetPrefix)) {
+              // Extract target name and property (fetchUrl or pushUrl)
+              const QString suffix = entryName.mid(targetPrefix.length());
+              const QStringList parts = suffix.split('.');
+
+              if (parts.size() >= 2) {
+                const QString targetName = parts[0];
+                const QString property = parts[1];
+
+                if (!targetMap.contains(targetName)) {
+                  targetMap[targetName] = {QString(), QString()};
+                }
+
+                if (property == "fetchurl") {
+                  targetMap[targetName].first = entryValue;
+                } else if (property == "pushurl") {
+                  targetMap[targetName].second = entryValue;
+                }
+              }
+            }
+          }
+        }
+
+        // Add all collected targets
+        for (auto it = targetMap.constBegin(); it != targetMap.constEnd();
+             ++it) {
+          const QString targetName = it.key();
+          const QString targetFetchUrl = it.value().first;
+          const QString targetPushUrl =
+              it.value().second.isEmpty() ? targetFetchUrl : it.value().second;
+
+          if (!targetFetchUrl.isEmpty() && targetName != "Default") {
+            targets.append(
+                RemoteTarget{targetName, targetFetchUrl, targetPushUrl});
+          }
+        }
+
+        git_config_iterator_free(iterator);
+      }
+      git_config_free(config);
+    }
+
+    remotes.append(RemoteInfo{remoteName, fetchUrl, pushUrl,
+                              remoteName == defaultRemote, targets});
+
+    git_remote_free(remote);
+  }
+
+  git_strarray_dispose(&remote_list);
+
+  LOG_DEBUG("Listed {} remotes", remotes.size());
+  LOG_PERF(0, "Exit");
+
+  return remotes;
+}
+
+QString getDefaultRemote(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Getting default remote");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return "";
+  }
+
+  git_branch_t branch_type = GIT_BRANCH_LOCAL;
+  git_reference *ref = nullptr;
+
+  // Try to get the upstream branch of the current branch
+  git_reference *current_ref = nullptr;
+  int error = git_repository_head(&current_ref, repo);
+
+  if (error == 0 && current_ref != nullptr) {
+    const char *shorthand = nullptr;
+    error = git_branch_upstream(&ref, current_ref);
+
+    if (error == 0 && ref != nullptr) {
+      const char *upstream_name = git_reference_shorthand(ref);
+      if (upstream_name != nullptr) {
+        const QString upstream = QString::fromUtf8(upstream_name);
+        const QStringList parts = upstream.split('/');
+        if (parts.size() >= 2) {
+          const QString remoteName = parts.first();
+          LOG_DEBUG("Found upstream remote: '{}'", remoteName.toStdString());
+          git_reference_free(ref);
+          git_reference_free(current_ref);
+          LOG_PERF(0, "Exit");
+          return remoteName;
+        }
+      }
+      git_reference_free(ref);
+    }
+
+    git_reference_free(current_ref);
+  }
+
+  // Fall back to "origin" if upstream not found
+  LOG_DEBUG("Using fallback default remote: 'origin'");
+  LOG_PERF(0, "Exit");
+  return "origin";
+}
+
+bool setDefaultRemote(git_repository *repo, const QString &remoteName) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Setting default remote to: '{}'", remoteName.toStdString());
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Verify the remote exists
+  git_remote *remote = nullptr;
+  int error = git_remote_lookup(&remote, repo, remoteName.toUtf8().constData());
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Remote '{}' not found: error={}",
+              remoteName.toStdString(), error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_remote_free(remote);
+
+  // Set by updating configuration - set the push.default option or store in a
+  // custom config We'll use a simple approach: store the default remote name in
+  // a custom config variable
+  git_config *config = nullptr;
+  error = git_repository_config(&config, repo);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository config: error={}",
+              error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_config_set_string(config, "sourcerer.defaultremote",
+                                remoteName.toUtf8().constData());
+  git_config_free(config);
+
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to set default remote in config: error={}", error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Successfully set default remote to: '{}'",
+            remoteName.toStdString());
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool addRemote(git_repository *repo, const QString &remoteName,
+               const QString &fetchUrl, const QString &pushUrl) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Adding remote '{}' with fetch URL: '{}'", remoteName.toStdString(),
+            fetchUrl.toStdString());
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (remoteName.isEmpty() || fetchUrl.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git, "Remote name and fetch URL cannot be empty");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Create the remote
+  git_remote *remote = nullptr;
+  int error = git_remote_create(&remote, repo, remoteName.toUtf8().constData(),
+                                fetchUrl.toUtf8().constData());
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to create remote '{}': error={}",
+              remoteName.toStdString(), error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Set push URL if different from fetch URL
+  if (!pushUrl.isEmpty() && pushUrl != fetchUrl) {
+    error = git_remote_set_pushurl(repo, remoteName.toUtf8().constData(),
+                                   pushUrl.toUtf8().constData());
+    if (error) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Failed to set push URL for remote '{}': error={}",
+                remoteName.toStdString(), error);
+      logGitError(error);
+      git_remote_free(remote);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  git_remote_free(remote);
+
+  LOG_DEBUG("Successfully added remote '{}'", remoteName.toStdString());
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool removeRemote(git_repository *repo, const QString &remoteName) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Removing remote: '{}'", remoteName.toStdString());
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  int error = git_remote_delete(repo, remoteName.toUtf8().constData());
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to delete remote '{}': error={}",
+              remoteName.toStdString(), error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Successfully removed remote '{}'", remoteName.toStdString());
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool updateRemote(git_repository *repo, const QString &remoteName,
+                  const QString &newRemoteName, const QString &fetchUrl,
+                  const QString &pushUrl) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Updating remote '{}' -> '{}' with fetch URL: '{}'",
+            remoteName.toStdString(), newRemoteName.toStdString(),
+            fetchUrl.toStdString());
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (remoteName.isEmpty() || newRemoteName.isEmpty() || fetchUrl.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git, "Remote names and fetch URL cannot be empty");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  QString effectiveRemoteName = remoteName;
+  if (newRemoteName != remoteName) {
+    git_strarray problems = {0};
+    const int renameError =
+        git_remote_rename(&problems, repo, remoteName.toUtf8().constData(),
+                          newRemoteName.toUtf8().constData());
+    if (renameError) {
+      LOG_ERROR(
+          Log::ErrorId::Git, "Failed to rename remote '{}' to '{}': error={}",
+          remoteName.toStdString(), newRemoteName.toStdString(), renameError);
+      logGitError(renameError);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+    effectiveRemoteName = newRemoteName;
+  }
+
+  // Set fetch URL
+  int error = git_remote_set_url(repo, effectiveRemoteName.toUtf8().constData(),
+                                 fetchUrl.toUtf8().constData());
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to set fetch URL for remote '{}': error={}",
+              remoteName.toStdString(), error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Set push URL
+  error = git_remote_set_pushurl(repo, effectiveRemoteName.toUtf8().constData(),
+                                 pushUrl.toUtf8().constData());
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to set push URL for remote '{}': error={}",
+              remoteName.toStdString(), error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Successfully updated remote '{}'", remoteName.toStdString());
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool addTarget(git_repository *repo, const QString &remoteName,
+               const QString &targetName, const QString &fetchUrl,
+               const QString &pushUrl) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Adding target '{}' to remote '{}' with fetch URL: '{}'",
+            targetName.toStdString(), remoteName.toStdString(),
+            fetchUrl.toStdString());
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (remoteName.isEmpty() || targetName.isEmpty() || fetchUrl.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Remote name, target name, and fetch URL cannot be empty");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Prevent overwriting Default target
+  if (targetName == QStringLiteral("Default")) {
+    LOG_ERROR(
+        Log::ErrorId::Git,
+        "Cannot add target with name 'Default' - use updateRemote instead");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Get config
+  git_config *config = nullptr;
+  int error = git_repository_config(&config, repo);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository config: error={}",
+              error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Set fetch URL
+  const QString fetchConfigKey = QStringLiteral("remote.%1.target.%2.fetchUrl")
+                                     .arg(remoteName, targetName);
+  error = git_config_set_string(config, fetchConfigKey.toUtf8().constData(),
+                                fetchUrl.toUtf8().constData());
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to set fetch URL for target '{}' on remote '{}': "
+              "error={}",
+              targetName.toStdString(), remoteName.toStdString(), error);
+    logGitError(error);
+    git_config_free(config);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Set push URL
+  const QString pushConfigKey =
+      QStringLiteral("remote.%1.target.%2.pushUrl").arg(remoteName, targetName);
+  error = git_config_set_string(config, pushConfigKey.toUtf8().constData(),
+                                pushUrl.toUtf8().constData());
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to set push URL for target '{}' on remote '{}': "
+              "error={}",
+              targetName.toStdString(), remoteName.toStdString(), error);
+    logGitError(error);
+    git_config_free(config);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_config_free(config);
+
+  LOG_DEBUG("Successfully added target '{}' to remote '{}'",
+            targetName.toStdString(), remoteName.toStdString());
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool editTarget(git_repository *repo, const QString &remoteName,
+                const QString &targetName, const QString &newFetchUrl,
+                const QString &newPushUrl) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Editing target '{}' on remote '{}' with new fetch URL: '{}'",
+            targetName.toStdString(), remoteName.toStdString(),
+            newFetchUrl.toStdString());
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (remoteName.isEmpty() || targetName.isEmpty() || newFetchUrl.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Remote name, target name, and fetch URL cannot be empty");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Cannot edit Default target via this function
+  if (targetName == QStringLiteral("Default")) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Cannot edit 'Default' target - use updateRemote instead");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Get config
+  git_config *config = nullptr;
+  int error = git_repository_config(&config, repo);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository config: error={}",
+              error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Set fetch URL
+  const QString fetchConfigKey = QStringLiteral("remote.%1.target.%2.fetchUrl")
+                                     .arg(remoteName, targetName);
+  error = git_config_set_string(config, fetchConfigKey.toUtf8().constData(),
+                                newFetchUrl.toUtf8().constData());
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to set fetch URL for target '{}' on remote '{}': "
+              "error={}",
+              targetName.toStdString(), remoteName.toStdString(), error);
+    logGitError(error);
+    git_config_free(config);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Set push URL
+  const QString pushConfigKey =
+      QStringLiteral("remote.%1.target.%2.pushUrl").arg(remoteName, targetName);
+  error = git_config_set_string(config, pushConfigKey.toUtf8().constData(),
+                                newPushUrl.toUtf8().constData());
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to set push URL for target '{}' on remote '{}': "
+              "error={}",
+              targetName.toStdString(), remoteName.toStdString(), error);
+    logGitError(error);
+    git_config_free(config);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_config_free(config);
+
+  LOG_DEBUG("Successfully edited target '{}' on remote '{}'",
+            targetName.toStdString(), remoteName.toStdString());
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool deleteTarget(git_repository *repo, const QString &remoteName,
+                  const QString &targetName) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Deleting target '{}' from remote '{}'", targetName.toStdString(),
+            remoteName.toStdString());
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (remoteName.isEmpty() || targetName.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git, "Remote name and target name cannot be empty");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Cannot delete Default target via this function
+  if (targetName == QStringLiteral("Default")) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Cannot delete 'Default' target - use removeRemote instead");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Get config
+  git_config *config = nullptr;
+  int error = git_repository_config(&config, repo);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository config: error={}",
+              error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Delete fetch URL
+  const QString fetchConfigKey = QStringLiteral("remote.%1.target.%2.fetchUrl")
+                                     .arg(remoteName, targetName);
+  error = git_config_delete_entry(config, fetchConfigKey.toUtf8().constData());
+  if (error && error != GIT_ENOTFOUND) {
+    LOG_WARN("Failed to delete fetch URL config for target '{}' on remote "
+             "'{}': error={}",
+             targetName.toStdString(), remoteName.toStdString(), error);
+    logGitError(error);
+  }
+
+  // Delete push URL
+  const QString pushConfigKey =
+      QStringLiteral("remote.%1.target.%2.pushUrl").arg(remoteName, targetName);
+  error = git_config_delete_entry(config, pushConfigKey.toUtf8().constData());
+  if (error && error != GIT_ENOTFOUND) {
+    LOG_WARN("Failed to delete push URL config for target '{}' on remote "
+             "'{}': error={}",
+             targetName.toStdString(), remoteName.toStdString(), error);
+    logGitError(error);
+  }
+
+  git_config_free(config);
+
+  LOG_DEBUG("Successfully deleted target '{}' from remote '{}'",
+            targetName.toStdString(), remoteName.toStdString());
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool setDefaultTarget(git_repository *repo, const QString &remoteName,
+                      const QString &targetName) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Setting default target '{}' for remote '{}'",
+            targetName.toStdString(), remoteName.toStdString());
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (remoteName.isEmpty() || targetName.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git, "Remote name and target name cannot be empty");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (targetName == QStringLiteral("Default")) {
+    LOG_DEBUG("Target '{}' is already the default", targetName.toStdString());
+    LOG_PERF(0, "Exit");
+    return true;
+  }
+
+  // Get config
+  git_config *config = nullptr;
+  int error = git_repository_config(&config, repo);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository config: error={}",
+              error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Get the new default target's fetch and push URLs
+  const QString fetchConfigKey = QStringLiteral("remote.%1.target.%2.fetchUrl")
+                                     .arg(remoteName, targetName);
+  const QString pushConfigKey =
+      QStringLiteral("remote.%1.target.%2.pushUrl").arg(remoteName, targetName);
+
+  git_config_iterator *iter = nullptr;
+
+  error = git_config_iterator_new(&iter, config);
+  if (error) {
+    logGitError(error);
+    git_config_free(config);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Find the actual stored keys (they might be lowercase due to git config
+  // normalization)
+  char *newFetchUrl = nullptr;
+  char *newPushUrl = nullptr;
+  git_config_entry *entry = nullptr;
+
+  const QString targetPrefix =
+      QString("remote.%1.target.%2.").arg(remoteName, targetName);
+
+  while ((error = git_config_next(&entry, iter)) == 0) {
+    if (entry && entry->name) {
+      const QString entryName = QString::fromUtf8(entry->name);
+      LOG_DEBUG("Config entry: {}", entryName.toStdString());
+
+      if (entryName.startsWith(targetPrefix, Qt::CaseInsensitive)) {
+        const QString suffix = entryName.mid(targetPrefix.length());
+        if (suffix.compare("fetchUrl", Qt::CaseInsensitive) == 0) {
+          newFetchUrl = strdup(entry->value);
+          LOG_DEBUG("Found fetch URL: {}", newFetchUrl ? newFetchUrl : "null");
+        } else if (suffix.compare("pushUrl", Qt::CaseInsensitive) == 0) {
+          newPushUrl = strdup(entry->value);
+          LOG_DEBUG("Found push URL: {}", newPushUrl ? newPushUrl : "null");
+        }
+      }
+    }
+  }
+
+  git_config_iterator_free(iter);
+
+  if (!newFetchUrl) {
+    if (newPushUrl) {
+      free(newPushUrl);
+    }
+    LOG_ERROR(
+        Log::ErrorId::Git,
+        "Failed to get fetch URL for target '{}' on remote '{}': key not found",
+        targetName.toStdString(), remoteName.toStdString());
+    git_config_free(config);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // If push URL not found, use fetch URL as fallback
+  if (!newPushUrl) {
+    newPushUrl = newFetchUrl;
+    LOG_DEBUG("Push URL not set, using fetch URL as fallback");
+  }
+
+  // Save current default target's URLs before switching
+  char *currentFetchUrl = nullptr;
+  char *currentPushUrl = nullptr;
+
+  // Iterate config to find current fetch and push URLs
+  git_config_iterator *defaultIter = nullptr;
+  error = git_config_iterator_new(&defaultIter, config);
+  if (error) {
+    LOG_WARN("Failed to create config iterator for default URLs: error={}",
+             error);
+  } else {
+    git_config_entry *defaultEntry = nullptr;
+    const QString defaultPrefix = QString("remote.%1.").arg(remoteName);
+
+    while ((error = git_config_next(&defaultEntry, defaultIter)) == 0) {
+      if (defaultEntry && defaultEntry->name) {
+        const QString entryName = QString::fromUtf8(defaultEntry->name);
+
+        if (entryName.startsWith(defaultPrefix, Qt::CaseInsensitive)) {
+          const QString suffix = entryName.mid(defaultPrefix.length());
+          if (suffix.compare("url", Qt::CaseInsensitive) == 0) {
+            currentFetchUrl = strdup(defaultEntry->value);
+            LOG_DEBUG("Found current fetch URL: {}",
+                      currentFetchUrl ? currentFetchUrl : "null");
+          } else if (suffix.compare("pushurl", Qt::CaseInsensitive) == 0) {
+            currentPushUrl = strdup(defaultEntry->value);
+            LOG_DEBUG("Found current push URL: {}",
+                      currentPushUrl ? currentPushUrl : "null");
+          }
+        }
+      }
+    }
+    git_config_iterator_free(defaultIter);
+  }
+
+  if (!currentFetchUrl) {
+    if (newFetchUrl) {
+      free(newFetchUrl);
+    }
+    if (newPushUrl) {
+      free(newPushUrl);
+    }
+    if (currentPushUrl) {
+      free(currentPushUrl);
+    }
+
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to get current fetch URL for remote '{}': key not found",
+              remoteName.toStdString());
+    git_config_free(config);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Set the old default target as a named target
+  const QString oldFetchKey =
+      QStringLiteral("remote.%1.target.Default.fetchUrl").arg(remoteName);
+  error = git_config_set_string(config, oldFetchKey.toUtf8().constData(),
+                                currentFetchUrl);
+  if (error) {
+    LOG_WARN("Failed to backup old default target for remote '{}': error={}",
+             remoteName.toStdString(), error);
+  }
+
+  if (currentPushUrl) {
+    const QString oldPushKey =
+        QStringLiteral("remote.%1.target.Default.pushUrl").arg(remoteName);
+    git_config_set_string(config, oldPushKey.toUtf8().constData(),
+                          currentPushUrl);
+  }
+
+  // Set the new target as the default
+  const QString defaultFetchKey =
+      QStringLiteral("remote.%1.url").arg(remoteName);
+  error = git_config_set_string(config, defaultFetchKey.toUtf8().constData(),
+                                newFetchUrl);
+  if (error) {
+    if (newFetchUrl) {
+      free(newFetchUrl);
+    }
+    if (newPushUrl) {
+      free(newPushUrl);
+    }
+    if (currentFetchUrl) {
+      free(currentFetchUrl);
+    }
+    if (currentPushUrl) {
+      free(currentPushUrl);
+    }
+
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to set default fetch URL for remote '{}': error={}",
+              remoteName.toStdString(), error);
+    logGitError(error);
+    git_config_free(config);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString defaultPushKey =
+      QStringLiteral("remote.%1.pushurl").arg(remoteName);
+  error = git_config_set_string(config, defaultPushKey.toUtf8().constData(),
+                                newPushUrl);
+  if (error) {
+    LOG_WARN("Failed to set default push URL for remote '{}': error={}",
+             remoteName.toStdString(), error);
+    // Continue even if push URL setting fails
+  }
+
+  if (newFetchUrl) {
+    free(newFetchUrl);
+  }
+  if (newPushUrl) {
+    free(newPushUrl);
+  }
+  if (currentFetchUrl) {
+    free(currentFetchUrl);
+  }
+  if (currentPushUrl) {
+    free(currentPushUrl);
+  }
+
+  git_config_free(config);
+
+  LOG_DEBUG("Successfully set default target to '{}' for remote '{}'",
+            targetName.toStdString(), remoteName.toStdString());
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
 bool amend(git_repository *repo, const QString &summary, const QString &message,
            const QString &author, const QString &email) {
   LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
 
   git_commit *commitToAmend = nullptr;
   git_oid commitOid;

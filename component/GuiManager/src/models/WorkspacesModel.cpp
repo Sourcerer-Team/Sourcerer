@@ -7,6 +7,8 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QFont>
+#include <QGuiApplication>
+#include <QPalette>
 #include <QStandardPaths>
 
 #define THREAD_ID "WorkspacesModel"
@@ -33,7 +35,7 @@ int WorkspacesModel::rowCount(const QModelIndex &parent) const {
 QVariant WorkspacesModel::data(const QModelIndex &index, const int role) const {
   const int column = index.column();
   if (role == Qt::ForegroundRole && column == 0) {
-    return QBrush(QColor::fromString("#384D59")); // or any QColor
+    return QBrush(QGuiApplication::palette().color(QPalette::WindowText));
   }
 
   if (role == Qt::FontRole && column == 0) {

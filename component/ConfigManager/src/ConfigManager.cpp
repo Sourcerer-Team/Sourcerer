@@ -29,6 +29,10 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::GitRepoSplitterPos, "window/gitrepo/splitterPos"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos,
      "window/gitrepo/branchRecyclerViewItemsSplitterPos"},
+    {ConfigKey::GitRepoHistoryViewColumnWidths,
+     "window/gitrepo/historyViewColumnWidths"},
+    {ConfigKey::GitRepoHistoryViewHiddenColumns,
+     "window/gitrepo/historyViewHiddenColumns"},
     {ConfigKey::GitRepoGitCredentialsExpirationTime,
      "gitrepo/credentials/credentialsExpirationTime"},
     {ConfigKey::GitRepoServerConnectTimeout, "gitrepo/server/connectTimeout"},
@@ -45,16 +49,13 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::HttpClientTimeout, "network/httpClient/timeout"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
     {ConfigKey::MainWindowBorderWidth, "window/borderWidth"},
+    {ConfigKey::MainWindowGeometry, "window/geometry"},
     {ConfigKey::MainWindowMinimumWidth, "window/minimumWidth"},
     {ConfigKey::MainWindowMinimumHeight, "window/minimumHeight"},
     {ConfigKey::RecentlyOpenedRepos, "workspace/recentlyOpened"},
+    {ConfigKey::UiTheme, "window/uiTheme"},
     {ConfigKey::SettingsSplitterPos, "window/settings/splitterPos"},
-    {ConfigKey::TitleBarCloseButtonColor, "window/titlebar/closeButtonColor"},
     {ConfigKey::TitleBarHeight, "window/titleBarHeight"},
-    {ConfigKey::TitleBarMinimizeButtonColor,
-     "window/titlebar/minimizeButtonColor"},
-    {ConfigKey::TitleBarMaximizeButtonColor,
-     "window/titlebar/maximizeButtonColor"},
     {ConfigKey::TitleBarMaxTabWidth, "window/titleBarMaxTabWidth"},
     {ConfigKey::TitleBarMenuMinimumSize, "window/titleBarMenuMinimumWidth"},
     {ConfigKey::TestColor, "test/testColor"},
@@ -62,7 +63,9 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::ToastAnimationDuration, "window/toasts/toastAnimationDuration"},
     {ConfigKey::ToastSpacing, "window/toasts/toastSpacing"},
     {ConfigKey::ToastWidth, "window/toasts/toastWidth"},
-    {ConfigKey::TooltipDisplayTime, "window/tooltips/tooltipDisplayTime"}};
+    {ConfigKey::TooltipDisplayTime, "window/tooltips/tooltipDisplayTime"},
+    {ConfigKey::TooltipHistoryTimeout,
+     "window/tooltips/tooltipHistoryTimeout"}};
 
 QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::Unknown, {"", ""}},
@@ -75,10 +78,13 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::GitRepoMonospaceFontName, {"Monospace font name", ""}},
     {ConfigKey::GitRepoMonospaceFontSize, {"Monospace font size in pixels"}},
     {ConfigKey::RecentlyOpenedRepos, {"Recently opened repositories list", ""}},
+    {ConfigKey::UiTheme, {"Selected UI theme", ""}},
     {ConfigKey::TitleBarHeight, {"Maximum title bar height", ""}},
     {ConfigKey::TitleBarMaxTabWidth, {"Maximum width of a title bar tab", ""}},
     {ConfigKey::TitleBarMenuMinimumSize,
      {"Minimum size of the title bar menu", ""}},
+    {ConfigKey::TooltipHistoryTimeout,
+     {"History tooltip hover timeout in milliseconds", ""}},
     {ConfigKey::TestColor, {"Test color", "Test color description"}},
     {ConfigKey::TestDateTime, {"Test dateTime", "Test dateTime description"}}};
 
@@ -88,9 +94,7 @@ QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {
 
 QMap<ConfigKey, QColor> DEFAULT_COLORS = {
     {ConfigKey::TestColor, QColor(10, 10, 10)},
-    {ConfigKey::TitleBarCloseButtonColor, QColor(0xff, 0x00, 0x00)},
-    {ConfigKey::TitleBarMinimizeButtonColor, QColor(0x4b, 0x4b, 0x4b)},
-    {ConfigKey::TitleBarMaximizeButtonColor, QColor(0x4b, 0x4b, 0x4b)}};
+};
 
 QMap<ConfigKey, QDateTime> DEFAULT_DATETIMES = {
     {ConfigKey::TestDateTime, QDateTime::currentDateTime()}};
@@ -101,7 +105,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
      2592000000LL}, // 30 days in milliseconds
     {ConfigKey::GitRepoServerConnectTimeout, 30000LL}, // 30 seconds
     {ConfigKey::GitRepoServerTimeout, 30000LL},        // 30 seconds
-    {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 1000},
+    {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 0},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout, 2000},
     {ConfigKey::GitRepoMaxDiffFileSize, 1 * 1024 * 1024}, // 1 MB
     {ConfigKey::GitRepoMonospaceFontSize, 10},
@@ -117,35 +121,35 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::ToastHeight, 150},
     {ConfigKey::ToastSpacing, 4},
     {ConfigKey::ToastWidth, 400},
-    {ConfigKey::TooltipDisplayTime, 5000}};
+    {ConfigKey::TooltipDisplayTime, 5000},
+    {ConfigKey::TooltipHistoryTimeout, 3000}};
 
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::CloudJwtPublicKeyPath, "keys/cloud_jwt_public_key.pem"},
 #ifdef QT_DEBUG
-    {ConfigKey::CloudSigninUrl,
-     "https://development.sourcererapp.com/api/v1/signin"},
-    {ConfigKey::CloudSignupUrl,
-     "https://development.sourcererapp.com/#/signup"},
-    {ConfigKey::CloudSignoutUrl,
-     "https://development.sourcererapp.com/api/v1/logout"},
+    {ConfigKey::CloudSigninUrl, "https://www.sourcererapp.com/api/v1/signin"},
+    {ConfigKey::CloudSignupUrl, "https://www.sourcererapp.com/#/signup"},
+    {ConfigKey::CloudSignoutUrl, "https://www.sourcererapp.com/api/v1/logout"},
     {ConfigKey::CloudUploadBugReportUrl,
-     "https://development.sourcererapp.com/api/v1/upload-bug-report"},
+     "https://www.sourcererapp.com/api/v1/upload-bug-report"},
 #else
-    {ConfigKey::CloudSigninUrl,
-     "https://www.sourcererapp.com/api/v1/signin"},
-    {ConfigKey::CloudSignupUrl,
-     "https://www.sourcererapp.com/#/signup"},
-    {ConfigKey::CloudSignoutUrl,
-     "https://www.sourcererapp.com/api/v1/logout"},
+    {ConfigKey::CloudSigninUrl, "https://www.sourcererapp.com/api/v1/signin"},
+    {ConfigKey::CloudSignupUrl, "https://www.sourcererapp.com/#/signup"},
+    {ConfigKey::CloudSignoutUrl, "https://www.sourcererapp.com/api/v1/logout"},
     {ConfigKey::CloudUploadBugReportUrl,
      "https://www.sourcererapp.com/api/v1/upload-bug-report"},
 #endif
-    {ConfigKey::GitRepoSplitterPos, ""},
+    {ConfigKey::GitRepoSplitterPos,
+     "000000ff0000000100000003000000de000003b50000014101ffffffff010000000100"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
+    {ConfigKey::GitRepoHistoryViewColumnWidths, ""},
+    {ConfigKey::GitRepoHistoryViewHiddenColumns, "2,3"},
     {ConfigKey::GitRepoMonospaceFontName, "Lucida Console"},
 
     {ConfigKey::HttpClientCaCertFile, "ca-certificates.crt"},
     {ConfigKey::RecentlyOpenedRepos, ""},
+    {ConfigKey::UiTheme, "SourcererLight"},
+    {ConfigKey::MainWindowGeometry, ""},
     {ConfigKey::SettingsSplitterPos, ""}};
 
 ConfigManager::ConfigManager()

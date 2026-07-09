@@ -1,5 +1,7 @@
 #include "widgets/ErrorToast.h"
 
+#include <StylesheetManager.h>
+
 #include <Log.h>
 
 #define THREAD_ID "ErrorToast"
@@ -11,8 +13,14 @@ ErrorToast::ErrorToast(const QString &message, const QString &title,
     : InfoToast(message, title, parent) {
   LOG_PERF(0, "Enter");
 
-  // Apply dark red background and dark yellow title
-  applyToastColors(QColor("#4B0000"), QColor("#B8860B"));
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+  if (lightTheme) {
+    applyToastColors(QColor("#FFE7E1"), QColor("#D99A73"), QColor("#3A241C"));
+  } else {
+    applyToastColors(QColor("#4B0000"), QColor("#B8860B"), QColor("#FFFFFF"));
+  }
 
   LOG_PERF(0, "Exit");
 }

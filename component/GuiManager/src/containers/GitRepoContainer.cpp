@@ -1,6 +1,7 @@
 #include "containers/GitRepoContainer.h"
 #include "DarkThemeLexersHighlighter.h"
 #include "MainWindow.h"
+#include "MousePositionCorrection.h"
 #include "QScintillaLexerFactory.h"
 #include "containers/ui_GitRepoContainer.h"
 #include "delegates/ElidePartialColorDelegate.h"
@@ -8,12 +9,17 @@
 #include "delegates/HistorySummaryTableColumnDelegate.h"
 #include "models/GitCommitListModel.h"
 #include "models/GitCommitTreeModel.h"
+#include "widgets/AddRemoteOverlayWidget.h"
 #include "widgets/AddSubmoduleOverlayWidget.h"
+#include "widgets/AddTargetOverlayWidget.h"
 #include "widgets/AnnotatedTagOverlayWidget.h"
 #include "widgets/ClickableHeaderView.h"
 #include "widgets/ConsoleWidget.h"
+#include "widgets/EditRemoteOverlayWidget.h"
+#include "widgets/EditTargetOverlayWidget.h"
 #include "widgets/ErrorToast.h"
 #include "widgets/InfoToast.h"
+#include "widgets/RemotesPage.h"
 #include "widgets/ShortcutsToolbarWidget.h"
 #include "widgets/SideBySideDiffView.h"
 #include "widgets/StashesPage.h"
@@ -25,11 +31,13 @@
 #include <FileManager.h>
 #include <GitRepoManagerStructs.h>
 #include <Log.h>
+#include <StylesheetManager.h>
 #include <Uuid.h>
 
 #include <QCheckBox>
 #include <QClipboard>
 #include <QDirIterator>
+#include <QEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -41,9 +49,12 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QScrollBar>
+#include <QSignalBlocker>
 #include <QSvgRenderer>
 #include <QTextStream>
+#include <QTimer>
 #include <QToolTip>
+#include <Qsci/qsciscintilla.h>
 
 #include <functional>
 #include <utility>
@@ -54,7 +65,7 @@
 #define HEAD "HEAD"
 
 #define MAXIMUM_PARENTS_IN_LABEL 3
-#define MAX_COMMIT_SHA_LENGTH 6
+#define MAX_COMMIT_SHA_LENGTH 7
 
 #define GIT_IGNORE_FILENAME ".gitignore"
 #define GIT_SUBDIR ".git"
@@ -137,9 +148,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
-      _displayTreeExpanded(false), _mergeInProgress(false),
-      _commitListModel(nullptr), _commitTreeModel(nullptr),
-      _repoDirWatcher(nullptr), _repoDirWatcherTimer(new QTimer(this)),
+      _applyingHistoryColumnWidths(false), _displayTreeExpanded(false),
+      _mergeInProgress(false), _commitListModel(nullptr),
+      _commitTreeModel(nullptr), _repoDirWatcher(nullptr),
+      _repoDirWatcherTimer(new QTimer(this)),
       _shortcutsWidget(new GuiManager::Widgets::ShortcutsToolbarWidget(this)),
       _selected(false) {
   LOG_PERF(0, "Enter");
@@ -165,15 +177,30 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->setMouseTracking(true);
   ui->historyView->viewport()->setMouseTracking(true);
   ui->historyView->viewport()->installEventFilter(this);
+  ui->historyView->setAttribute(Qt::WA_Hover, true);
+  ui->historyView->viewport()->setAttribute(Qt::WA_Hover, true);
+
   ui->historyView->setModel(_historyModel.get());
   ui->historyView->setSelectionMode(QAbstractItemView::SingleSelection);
+
   ui->historyView->setVisible(false);
   ui->spinner->setColor(Qt::lightGray);
 
   auto *header = new ClickableHeaderView(Qt::Horizontal, ui->historyView);
   ui->historyView->setHorizontalHeader(header);
   ui->historyView->horizontalHeader()->setSectionResizeMode(
-      QHeaderView::Stretch);
+      QHeaderView::Interactive);
+
+  ui->historyView->horizontalHeader()->setContextMenuPolicy(
+      Qt::CustomContextMenu);
+  connect(ui->historyView->horizontalHeader(),
+          &QWidget::customContextMenuRequested, this,
+          &GitRepoContainer::onHistoryHeaderContextMenuRequested);
+  connect(header, &QHeaderView::sectionResized, this,
+          &GitRepoContainer::onHistoryHeaderSectionResized);
+
+  applyHistoryColumnVisibility();
+
   ui->pushButtonAbort->setVisible(false);
   ui->pushButtonAbort->setEnabled(false);
   ui->pushButtonAbort->setMinimumHeight(32);
@@ -272,6 +299,17 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->listViewPageDisplayFilesFlat->setHorizontalScrollBarPolicy(
       Qt::ScrollBarAlwaysOff);
 
+  ui->listViewPageDisplayFilesFlat->setContextMenuPolicy(Qt::CustomContextMenu);
+  ui->treeViewPageDisplayFilesTree->setContextMenuPolicy(Qt::CustomContextMenu);
+
+  connect(
+      ui->listViewPageDisplayFilesFlat, &QListView::customContextMenuRequested,
+      this,
+      &GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested);
+  connect(ui->treeViewPageDisplayFilesTree,
+          &QTreeView::customContextMenuRequested, this,
+          &GitRepoContainer::onPageDisplayFilesTreeViewContextMenuRequested);
+
   // Set placeholder text color via palette
   QPalette palette = ui->textEditDescription->palette();
   palette.setColor(QPalette::PlaceholderText, QColor(0x808080)); // Bright blue
@@ -295,53 +333,96 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _spinnerOverlayTimer->setSingleShot(true);
   _repoDirWatcherTimer->setSingleShot(true);
 
-  const QIcon pullIcon(QPixmap(":icons/pull"));
-  const QIcon pushIcon(QPixmap(":icons/push"));
-  const QIcon popIcon(QPixmap(":icons/pop"));
-  const QIcon stashIcon(QPixmap(":icons/stash"));
+  const QColor shortcutIconColor =
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
 
-  auto *pushButtonPull = new QPushButton();
-  pushButtonPull->setObjectName("pushButtonPull");
-  pushButtonPull->setIcon(pullIcon);
-  pushButtonPull->setToolTip(tr("Pull"));
-  pushButtonPull->setMinimumSize(42, 42);
-  pushButtonPull->setMaximumSize(42, 42);
+  // Create dropdown button for Pull/Fetch All
+  auto *pullFetchDropdown = new QToolButton();
+  pullFetchDropdown->setObjectName("pullFetchDropdown");
+  pullFetchDropdown->setProperty("iconSource", QStringLiteral(":icons/pull"));
+  pullFetchDropdown->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":icons/pull"), shortcutIconColor));
+  pullFetchDropdown->setToolTip(tr("Pull"));
+  pullFetchDropdown->setMinimumSize(58, 42);
+  pullFetchDropdown->setMaximumSize(58, 42);
+  pullFetchDropdown->setPopupMode(QToolButton::MenuButtonPopup);
 
-  auto *pushButtonPush = new QPushButton();
+  auto *pullFetchMenu = new QMenu();
+  auto *actionPullMenu = pullFetchMenu->addAction(tr("Pull"));
+  actionPullMenu->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/pull"), shortcutIconColor));
+  auto *actionPullWithRebaseMenu =
+      pullFetchMenu->addAction(tr("Pull with rebase"));
+  actionPullWithRebaseMenu->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":icons/pull"), shortcutIconColor));
+  auto *actionFetchAllMenu = pullFetchMenu->addAction(tr("Fetch All"));
+  actionFetchAllMenu->setIcon(
+      QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":icons/pull"), shortcutIconColor)));
+
+  pullFetchDropdown->setMenu(pullFetchMenu);
+
+  auto *pushButtonPull = pullFetchDropdown;
+  auto *pushButtonFetchAll = pullFetchDropdown;
+
+  // Create dropdown button for Push/Force Push
+  auto *pushButtonPush = new QToolButton();
   pushButtonPush->setObjectName("pushButtonPush");
-  pushButtonPush->setIcon(pushIcon);
+  pushButtonPush->setProperty("iconSource", QStringLiteral(":icons/push"));
+  pushButtonPush->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/push"), shortcutIconColor));
   pushButtonPush->setToolTip(tr("Push"));
-  pushButtonPush->setMinimumSize(42, 42);
-  pushButtonPush->setMaximumSize(42, 42);
+  pushButtonPush->setMinimumSize(58, 42);
+  pushButtonPush->setMaximumSize(58, 42);
+  pushButtonPush->setPopupMode(QToolButton::MenuButtonPopup);
+
+  auto *pushMenu = new QMenu();
+  auto *actionPushMenu = pushMenu->addAction(tr("Push"));
+  actionPushMenu->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/push"), shortcutIconColor));
+  auto *actionForcePushMenu = pushMenu->addAction(tr("Force push"));
+  actionForcePushMenu->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":icons/push"), shortcutIconColor));
+  pushButtonPush->setMenu(pushMenu);
 
   auto *pushButtonPop = new QPushButton();
   pushButtonPop->setObjectName("pushButtonPop");
-  pushButtonPop->setIcon(popIcon);
+  pushButtonPop->setProperty("iconSource", QStringLiteral(":icons/pop"));
+  pushButtonPop->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/pop"), shortcutIconColor));
   pushButtonPop->setToolTip(tr("Pop"));
   pushButtonPop->setMinimumSize(42, 42);
   pushButtonPop->setMaximumSize(42, 42);
 
   auto *pushButtonStash = new QPushButton();
   pushButtonStash->setObjectName("pushButtonStash");
-  pushButtonStash->setIcon(stashIcon);
+  pushButtonStash->setProperty("iconSource", QStringLiteral(":icons/stash"));
+  pushButtonStash->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/stash"), shortcutIconColor));
   pushButtonStash->setToolTip(tr("Stash"));
   pushButtonStash->setMinimumSize(42, 42);
   pushButtonStash->setMaximumSize(42, 42);
 
-  _shortcutsWidget->addShortcutWidget(pushButtonPull);
+  _shortcutsWidget->addShortcutWidget(pullFetchDropdown);
   _shortcutsWidget->addShortcutWidget(pushButtonPush);
   _shortcutsWidget->addShortcutWidget(pushButtonStash);
   _shortcutsWidget->addShortcutWidget(pushButtonPop);
 
   // Explicitly show buttons to ensure they're interactive
-  pushButtonPull->show();
+  pullFetchDropdown->show();
   pushButtonPush->show();
   pushButtonStash->show();
   pushButtonPop->show();
 
   ui->leftVerticalLayout->insertWidget(0, _shortcutsWidget);
 
-  ui->pushButtonDiffClose->setIcon(QPixmap(":/icons/close_button.png"));
+  const QColor closeButtonIconColor = QColor(Qt::white);
+  ui->pushButtonDiffClose->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/close_button.png"), closeButtonIconColor));
   ui->pushButtonDiffClose->setMinimumSize(32, 32);
   ui->pushButtonDiffClose->setMaximumSize(32, 32);
 
@@ -365,7 +446,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       static_cast<int>(useSideBySideDiff ? DiffStackIndexes::DiffSideBySide
                                          : DiffStackIndexes::DiffUnified));
 
-  ui->pushButtonMergeDiffClose->setIcon(QPixmap(":/icons/close_button.png"));
+  ui->pushButtonMergeDiffClose->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/close_button.png"), closeButtonIconColor));
+
   ui->pushButtonMergeDiffClose->setMinimumSize(32, 32);
   ui->pushButtonMergeDiffClose->setMaximumSize(32, 32);
 
@@ -381,7 +465,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMergeDiffSave->setMinimumHeight(32);
   ui->pushButtonMergeDiffSave->setMaximumHeight(32);
 
-  ui->pushButtonStashClose->setIcon(QPixmap(":/icons/close_button.png"));
+  ui->pushButtonStashClose->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/close_button.png"), closeButtonIconColor));
+
   ui->pushButtonStashClose->setMinimumSize(32, 32);
   ui->pushButtonStashClose->setMaximumSize(32, 32);
 
@@ -408,7 +495,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaTextEditorUnified->setMarginType(1, QsciScintilla::SymbolMargin);
   ui->scintillaTextEditorUnified->setMarginWidth(1, 2);
   ui->scintillaTextEditorUnified->markerDefine(QsciScintilla::Background, 1);
-  ui->scintillaTextEditorUnified->setMarkerBackgroundColor(Qt::darkYellow, 1);
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+  const QColor hunkMarkerColor =
+      lightTheme ? QColor(255, 241, 201) : QColor(Qt::darkYellow);
+  ui->scintillaTextEditorUnified->setMarkerBackgroundColor(hunkMarkerColor, 1);
   ui->scintillaTextEditorUnified->setReadOnly(true);
 
   DarkThemeLexersHighlighter highlighter;
@@ -429,7 +521,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaStashDiffUnified->setMarginType(1, QsciScintilla::SymbolMargin);
   ui->scintillaStashDiffUnified->setMarginWidth(1, 2);
   ui->scintillaStashDiffUnified->markerDefine(QsciScintilla::Background, 1);
-  ui->scintillaStashDiffUnified->setMarkerBackgroundColor(Qt::darkYellow, 1);
+  ui->scintillaStashDiffUnified->setMarkerBackgroundColor(hunkMarkerColor, 1);
   ui->scintillaStashDiffUnified->setReadOnly(true);
 
   DarkThemeLexersHighlighter stashHighlighter;
@@ -515,6 +607,23 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onDeleteStash);
   connect(ui->stashesPage, &StashesPage::clearAllStashes, this,
           &GitRepoContainer::onClearAllStashes);
+
+  connect(ui->remotesPage, &RemotesPage::addRemote, this,
+          &GitRepoContainer::onAddRemote);
+  connect(ui->remotesPage, &RemotesPage::editRemote, this,
+          &GitRepoContainer::onEditRemote);
+  connect(ui->remotesPage, &RemotesPage::deleteRemote, this,
+          &GitRepoContainer::onDeleteRemote);
+  connect(ui->remotesPage, &RemotesPage::setDefaultRemote, this,
+          &GitRepoContainer::onSetDefaultRemote);
+  connect(ui->remotesPage, &RemotesPage::addTarget, this,
+          &GitRepoContainer::onAddTarget);
+  connect(ui->remotesPage, &RemotesPage::editTarget, this,
+          &GitRepoContainer::onEditTarget);
+  connect(ui->remotesPage, &RemotesPage::deleteTarget, this,
+          &GitRepoContainer::onDeleteTarget);
+  connect(ui->remotesPage, &RemotesPage::setDefaultTarget, this,
+          &GitRepoContainer::onSetDefaultTarget);
 
   connect(ui->submodulesPage, &GitSubmodulesPage::rightClicked, this,
           &GitRepoContainer::onSubmodulePanelRightClicked);
@@ -637,10 +746,18 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(_repoDirWatcherTimer, &QTimer::timeout, this,
           &GitRepoContainer::onRepoDirChangedTimeout);
 
-  connect(pushButtonPull, &QPushButton::clicked, this,
+  connect(pullFetchDropdown, &QToolButton::clicked, this,
           &GitRepoContainer::onPull);
-  connect(pushButtonPush, &QPushButton::clicked, this,
+  connect(actionPullMenu, &QAction::triggered, this, &GitRepoContainer::onPull);
+  connect(actionPullWithRebaseMenu, &QAction::triggered, this,
+          [=](bool) { onPull(true); });
+  connect(actionFetchAllMenu, &QAction::triggered, this,
+          &GitRepoContainer::onFetchAll);
+  connect(pushButtonPush, &QToolButton::clicked, this,
           &GitRepoContainer::onPush);
+  connect(actionPushMenu, &QAction::triggered, this, &GitRepoContainer::onPush);
+  connect(actionForcePushMenu, &QAction::triggered, this,
+          [=](bool) { onPush(true); });
   connect(pushButtonStash, &QPushButton::clicked, this,
           &GitRepoContainer::onStash);
   connect(pushButtonPop, &QPushButton::clicked, this, &GitRepoContainer::onPop);
@@ -715,8 +832,9 @@ void GitRepoContainer::init() {
 
   _dispatcher.dispatch([=]() {
     LOG_DEBUG("Dispatching openRepo and prepareWatcher tasks");
-    openRepo(guard);
-    prepareWatcher(guard);
+    if (openRepo(guard)) {
+      prepareWatcher(guard);
+    }
   });
 
   LOG_INFO("GitRepoContainer initialization completed for: '{}'",
@@ -727,19 +845,54 @@ void GitRepoContainer::init() {
 bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
   if (watched == ui->historyView->viewport()) {
     if (event->type() == QEvent::MouseMove) {
-      LOCKGUARD(_tooltipsMutex);
-      const QMouseEvent *const mouseEvent = static_cast<QMouseEvent *>(event);
-      _mousePos = mouseEvent->globalPos();
-    } else if (event->type() == QEvent::Leave) {
-      LOCKGUARD(_tooltipsMutex);
-      _mousePos = QPoint(-1, -1);
+      const QPoint globalPos =
+          MousePositionCorrection::instance().correctedGlobalPosition(
+              static_cast<QMouseEvent *>(event));
+      const QModelIndex index = ui->historyView->indexAt(
+          ui->historyView->viewport()->mapFromGlobal(globalPos));
+      if (index.isValid() && index.column() == COLUMN_HISTORY_SLICE) {
+        const auto guard = getSelf().toWeakRef();
+        const QModelIndex fullShaIndex = index.model()->index(
+            index.row(), COLUMN_COMMIT_FULL_SHA, index.parent());
+        const QString commitOid = fullShaIndex.data(Qt::DisplayRole).toString();
+        QHash<QString, QStringList> commitRefs;
+        QStringList branches = getCommitBranches(guard, commitOid);
+        branches += getCommitTags(guard, commitOid);
+        if (!branches.isEmpty()) {
+          commitRefs.insert(commitOid, branches);
+        }
+
+        _historyModel->updateCommitRefs(commitRefs);
+        _historyModel->dataChanged(index, index);
+
+        const QString tooltipText = branches.join(", ");
+        const qlonglong tooltipDisplayTime = _configManager.getLong(
+            ConfigManager::ConfigKey::TooltipDisplayTime);
+
+        _mousePos = globalPos;
+        QToolTip::showText(_mousePos, tooltipText, ui->historyView, {},
+                           tooltipDisplayTime);
+      }
+      if (index.isValid() && index.column() != COLUMN_HISTORY_SLICE) {
+        const qlonglong tooltipDisplayTime = _configManager.getLong(
+            ConfigManager::ConfigKey::TooltipDisplayTime);
+
+        _mousePos = globalPos;
+        QToolTip::showText(_mousePos, index.data(Qt::DisplayRole).toString(),
+                           ui->historyView, {}, tooltipDisplayTime);
+      } else {
+        QToolTip::hideText();
+      }
     } else if (event->type() == QEvent::MouseButtonPress) {
       if (const auto mouseEvent = static_cast<QMouseEvent *>(event);
           mouseEvent->button() == Qt::RightButton) {
-        if (const QModelIndex index =
-                ui->historyView->indexAt(mouseEvent->pos());
+        const QPoint globalPos =
+            MousePositionCorrection::instance().correctedGlobalPosition(
+                mouseEvent);
+        if (const QModelIndex index = ui->historyView->indexAt(
+                ui->historyView->viewport()->mapFromGlobal(globalPos));
             index.isValid()) {
-          emit historyViewRightClicked(index, mouseEvent->globalPos());
+          emit historyViewRightClicked(index, globalPos);
         }
       }
     }
@@ -835,6 +988,32 @@ void GitRepoContainer::resizeEvent(QResizeEvent *event) {
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::changeEvent(QEvent *event) {
+  QWidget::changeEvent(event);
+
+  if (!event)
+    return;
+
+  switch (event->type()) {
+  case QEvent::PaletteChange:
+  case QEvent::ApplicationPaletteChange:
+  case QEvent::StyleChange:
+    refreshScintillaTheme();
+    break;
+  default:
+    break;
+  }
+}
+
+void GitRepoContainer::refreshScintillaTheme() {
+  DarkThemeLexersHighlighter highlighter;
+  const auto editors = findChildren<QsciScintilla *>();
+
+  for (auto *editor : editors) {
+    highlighter.applyDarkTheme(editor);
+  }
+}
+
 void GitRepoContainer::showEvent(QShowEvent *event) {
   LOG_PERF(0, "Enter");
 
@@ -860,17 +1039,18 @@ void GitRepoContainer::onAddSubmodule() {
     delete overlayWidget;
   });
 
-  connect(overlayWidget, &AddSubmoduleOverlayWidget::submitted, this,
-          [=](const QString &url, const QString &name) {
-            LOG_DEBUG("Adding submodule - URL: '{}', Name: '{}'",
-                      url.toStdString(), name.toStdString());
-            overlayWidget->hide();
-            delete overlayWidget;
+  connect(
+      overlayWidget, &AddSubmoduleOverlayWidget::submitted, this,
+      [=](const QString &url, const QString &name, const QString &branch) {
+        LOG_DEBUG("Adding submodule - URL: '{}', Name: '{}', Branch: '{}'",
+                  url.toStdString(), name.toStdString(), branch.toStdString());
+        overlayWidget->hide();
+        delete overlayWidget;
 
-            // startOverlayTimer();
+        // startOverlayTimer();
 
-            _dispatcher.dispatch([=]() { addSubmodule(guard, url, name); });
-          });
+        _dispatcher.dispatch([=]() { addSubmodule(guard, url, name, branch); });
+      });
 
   overlayWidget->show();
   overlayWidget->raise();
@@ -945,9 +1125,20 @@ void GitRepoContainer::onDeleteStash(const int stashIndex) {
     return;
   }
 
+  const bool closeStashViewer = (stashIndex == _currentStashIndex);
+
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() { deleteStash(guard, stashIndex); });
+  _dispatcher.dispatch([=]() {
+    deleteStash(guard, stashIndex, [=](const WeakPtr &guard, const int) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        if (closeStashViewer) {
+          onStashContentCloseClicked();
+        }
+        showSpinnerOverlay(false);
+      });
+    });
+  });
 
   LOG_DEBUG("Delete stash operation dispatched for index: {}", stashIndex);
   LOG_PERF(0, "Exit");
@@ -998,13 +1189,371 @@ void GitRepoContainer::onClearAllStashes() {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() { deleteAllStashes(guard); });
+  _dispatcher.dispatch([=]() {
+    deleteAllStashes(guard, [=](const WeakPtr &guard) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        if (_currentStashIndex >= 0) {
+          onStashContentCloseClicked();
+        }
+      });
+    });
+  });
 
   LOG_DEBUG("Clear all stashes operation dispatched");
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSplitterMoved(const int pos, const int index) const {
+void GitRepoContainer::onAddRemote() {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Add remote requested for repository: '{}'", _path.toStdString());
+
+  auto overlayWidget = new Widgets::AddRemoteOverlayWidget(this);
+
+  connect(overlayWidget, &Widgets::AddRemoteOverlayWidget::submitted, this,
+          [=](const QString &remoteName, const QString &fetchUrl,
+              const QString &pushUrl) {
+            LOG_DEBUG("Add remote submitted: name='{}', fetchUrl='{}'",
+                      remoteName.toStdString(), fetchUrl.toStdString());
+
+            overlayWidget->deleteLater();
+
+            startOverlayTimer();
+
+            const WeakPtr guard = getSelf().toWeakRef();
+            _dispatcher.dispatch(
+                [=]() { addRemote(guard, remoteName, fetchUrl, pushUrl); });
+          });
+
+  connect(overlayWidget, &Widgets::AddRemoteOverlayWidget::canceled, this,
+          [=]() {
+            LOG_DEBUG("Add remote dialog cancelled");
+            overlayWidget->deleteLater();
+          });
+
+  overlayWidget->show();
+  overlayWidget->raise();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onEditRemote(int remoteIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Edit remote {} requested", remoteIndex);
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+
+  auto overlayWidget = new Widgets::EditRemoteOverlayWidget(this);
+  overlayWidget->setRemoteInfo(remote.name, remote.fetchUrl, remote.pushUrl);
+
+  connect(overlayWidget, &Widgets::EditRemoteOverlayWidget::submitted, this,
+          [=](const QString &remoteName, const QString &fetchUrl,
+              const QString &pushUrl) {
+            LOG_DEBUG("Edit remote submitted: name='{}' -> '{}', fetchUrl='{}'",
+                      remote.name.toStdString(), remoteName.toStdString(),
+                      fetchUrl.toStdString());
+
+            overlayWidget->deleteLater();
+
+            startOverlayTimer();
+
+            const WeakPtr guard = getSelf().toWeakRef();
+            _dispatcher.dispatch([=]() {
+              editRemote(guard, remoteIndex, remoteName, fetchUrl, pushUrl);
+            });
+          });
+
+  connect(overlayWidget, &Widgets::EditRemoteOverlayWidget::canceled, this,
+          [=]() {
+            LOG_DEBUG("Edit remote dialog cancelled");
+            overlayWidget->deleteLater();
+          });
+
+  overlayWidget->show();
+  overlayWidget->raise();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onDeleteRemote(int remoteIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Delete remote {} requested", remoteIndex);
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Confirm Action"),
+      QString(tr("Are you sure you want to delete the remote '%1'?\n\nThis "
+                 "action cannot be undone."))
+          .arg(remote.name),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_DEBUG("Delete remote cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  _dispatcher.dispatch([=]() { deleteRemote(guard, remoteIndex); });
+
+  LOG_DEBUG("Delete remote operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onSetDefaultRemote(int remoteIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Set default remote {} requested", remoteIndex);
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (_activeBranch.isEmpty() || _activeBranch == ALL_BRANCHES) {
+    LOG_DEBUG("No active branch to set upstream for");
+    showErrorToast(tr("Please checkout a branch first."), tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString remoteName = ui->remotesPage->remotes()[remoteIndex].name;
+
+  const auto upstreamOverlay = new UpstreamInputOverlayWidget(this);
+  upstreamOverlay->setBranchPlaceholderText(tr("Remote branch name"));
+
+  // Populate the combo box with available remotes
+  upstreamOverlay->setRemotes(ui->remotesPage->remotes());
+  upstreamOverlay->setRemoteName(remoteName);
+
+  connect(upstreamOverlay, &UpstreamInputOverlayWidget::canceled, this, [=]() {
+    LOG_DEBUG("Set upstream dialog cancelled");
+    upstreamOverlay->hide();
+    delete upstreamOverlay;
+  });
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  connect(upstreamOverlay, &UpstreamInputOverlayWidget::submitted, this,
+          [&, upstreamOverlay, guard](const QString &remote,
+                                      const QString &branch) {
+            LOG_DEBUG(
+                "Setting upstream for branch '{}': remote='{}', branch='{}'",
+                _activeBranch.toStdString(), remote.toStdString(),
+                branch.toStdString());
+            upstreamOverlay->hide();
+            delete upstreamOverlay;
+
+            _dispatcher.dispatch(
+                [=]() { setUpstream(guard, _activeBranch, remote, branch); });
+          });
+
+  _dispatcher.dispatch([=]() {
+    const auto [upstreamRemote, upstreamBranch] =
+        getUpstreamForBranch(guard, _activeBranch);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      upstreamOverlay->setRemoteName(remoteName);
+      if (!upstreamBranch.isEmpty()) {
+        upstreamOverlay->setRemoteBranchName(upstreamBranch);
+      } else {
+        upstreamOverlay->setRemoteBranchName(_activeBranch);
+      }
+      upstreamOverlay->selectAllBranchText();
+      upstreamOverlay->show();
+      upstreamOverlay->raise();
+    });
+  });
+
+  LOG_DEBUG("Set upstream dialog displayed");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onAddTarget(int remoteIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Add target to remote {} requested", remoteIndex);
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+
+  const auto addTargetOverlay = new AddTargetOverlayWidget(this);
+  addTargetOverlay->setRemoteName(remote.name);
+
+  connect(addTargetOverlay, &AddTargetOverlayWidget::canceled, this, [=]() {
+    LOG_DEBUG("Add target dialog cancelled");
+    addTargetOverlay->hide();
+    delete addTargetOverlay;
+  });
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  connect(addTargetOverlay, &AddTargetOverlayWidget::submitted, this,
+          [=](const QString &targetName, const QString &fetchUrl,
+              const QString &pushUrl) {
+            LOG_DEBUG("Adding target '{}' to remote '{}'",
+                      targetName.toStdString(), remote.name.toStdString());
+            addTargetOverlay->hide();
+            delete addTargetOverlay;
+
+            _dispatcher.dispatch([=]() {
+              addTarget(guard, remoteIndex, targetName, fetchUrl, pushUrl);
+            });
+          });
+
+  addTargetOverlay->show();
+  addTargetOverlay->raise();
+
+  LOG_DEBUG("Add target dialog displayed");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onEditTarget(int remoteIndex, int targetIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Edit target {}/{} requested", remoteIndex, targetIndex);
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &target = remote.targets[targetIndex];
+
+  const auto editTargetOverlay = new EditTargetOverlayWidget(this);
+  editTargetOverlay->setTargetInfo(remote.name, target.name, target.fetchUrl,
+                                   target.pushUrl);
+
+  connect(editTargetOverlay, &EditTargetOverlayWidget::canceled, this, [=]() {
+    LOG_DEBUG("Edit target dialog cancelled");
+    editTargetOverlay->hide();
+    delete editTargetOverlay;
+  });
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  connect(editTargetOverlay, &EditTargetOverlayWidget::submitted, this,
+          [=](const QString &fetchUrl, const QString &pushUrl) {
+            LOG_DEBUG("Editing target '{}' on remote '{}'",
+                      target.name.toStdString(), remote.name.toStdString());
+            editTargetOverlay->hide();
+            delete editTargetOverlay;
+
+            _dispatcher.dispatch([=]() {
+              editTarget(guard, remoteIndex, targetIndex, fetchUrl, pushUrl);
+            });
+          });
+
+  editTargetOverlay->show();
+  editTargetOverlay->raise();
+
+  LOG_DEBUG("Edit target dialog displayed");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onDeleteTarget(int remoteIndex, int targetIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Delete target {}/{} requested", remoteIndex, targetIndex);
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Prevent deletion of the only target
+  if (remote.targets.size() == 1) {
+    showErrorToast(tr("Cannot delete the only target. Delete the remote "
+                      "instead."),
+                   tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &target = remote.targets[targetIndex];
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Confirm Action"),
+      QString(tr("Are you sure you want to delete the target '%1' from "
+                 "remote '%2'?\n\nThis action cannot be undone."))
+          .arg(target.name, remote.name),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_DEBUG("Delete target cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  _dispatcher.dispatch(
+      [=]() { deleteTarget(guard, remoteIndex, targetIndex); });
+
+  LOG_DEBUG("Delete target operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onSetDefaultTarget(int remoteIndex, int targetIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Set default target {}/{} requested", remoteIndex, targetIndex);
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  _dispatcher.dispatch(
+      [=]() { setDefaultTarget(guard, remoteIndex, targetIndex); });
+
+  LOG_DEBUG("Set default target operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onSplitterMoved(const int pos, const int index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("pos = {}, index = {}", pos, index);
 
@@ -1018,71 +1567,29 @@ void GitRepoContainer::onSplitterMoved(const int pos, const int index) const {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::showTooltipForColumnSlice(const QModelIndex &index) {
+void GitRepoContainer::onHistoryHeaderSectionResized(const int logicalIndex,
+                                                     const int oldSize,
+                                                     const int newSize) {
   LOG_PERF(0, "Enter");
+  LOG_DEBUG("logicalIndex = {}, oldSize = {}, newSize = {}", logicalIndex,
+            oldSize, newSize);
 
-  /*
-  const QModelIndex shaIndex =
-      _historyModel->index(index.row(), COLUMN_COMMIT_FULL_SHA, QModelIndex());
-  if (!shaIndex.isValid()) {
+  if (_applyingHistoryColumnWidths) {
     LOG_PERF(0, "Exit");
     return;
   }
 
-  const QString commit = shaIndex.data(Qt::DisplayRole).toString();
-
-  {
-    LOCKGUARD(_tooltipsMutex);
-    _tooltipsToShow.clear();
-    _tooltipsToShow += commit;
+  const QHeaderView *header = ui->historyView->horizontalHeader();
+  QStringList widths;
+  widths.reserve(header->count());
+  for (int column = 0; column < header->count(); ++column) {
+    widths << QString::number(header->sectionSize(column));
   }
 
-  const auto guard = getSelf().toWeakRef();
-
-  _dispatcher.dispatch([&, commit, index, guard]() {
-    LOG_PERF(0, "Enter");
-
-    const QStringList commitBranches = getCommitBranches(guard, commit);
-
-    if (commitBranches.isEmpty()) {
-      LOG_PERF(0, "Exit");
-      return;
-    }
-
-    {
-      LOCKGUARD(_tooltipsMutex);
-
-      if (!_tooltipsToShow.contains(commit)) {
-        LOG_PERF(0, "Exit");
-        return;
-      }
-    }
-
-    if (const auto locked = guard.lock()) {
-      const QPoint viewportPos =
-          ui->historyView->viewport()->mapFromGlobal(_mousePos);
-
-      if (const QModelIndex idx = ui->historyView->indexAt(viewportPos);
-          idx != index) {
-        LOG_PERF(0, "Exit");
-        return;
-      }
-    }
-
-    const qlonglong tooltipDisplayTime =
-        _configManager.getLong(ConfigManager::ConfigKey::TooltipDisplayTime);
-
-    const QString tooltipText =
-        QString("On branches:\n\n%1").arg(commitBranches.join("\n"));
-
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      QToolTip::showText(_mousePos, tooltipText, ui->historyView, {},
-                         static_cast<int>(tooltipDisplayTime));
-    });
-
-    LOG_PERF(0, "Exit");
-  });
-*/
+  _configManager.setString(
+      ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths,
+      widths.join(','));
+  _configManager.save();
 
   LOG_PERF(0, "Exit");
 }
@@ -1476,6 +1983,17 @@ void GitRepoContainer::onPushTag(const QString &tagName) {
   LOG_DEBUG("Push tag requested: '{}' in repository '{}'",
             tagName.toStdString(), _path.toStdString());
 
+  const auto reply = QMessageBox::question(
+      this, tr("Confirm action"),
+      QString(tr("Are you sure that you want to push tag '%1' to the remote?"))
+          .arg(tagName),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (reply != QMessageBox::Yes) {
+    LOG_DEBUG("Push tag cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started for tag push");
 
@@ -1490,6 +2008,16 @@ void GitRepoContainer::onPushTag(const QString &tagName) {
 void GitRepoContainer::onPushAllTags() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Push all tags requested for repository '{}'", _path.toStdString());
+
+  const auto reply = QMessageBox::question(
+      this, tr("Confirm action"),
+      tr("Are you sure that you want to push all tags to the remote?"),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (reply != QMessageBox::Yes) {
+    LOG_DEBUG("Push all tags cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started for push all tags");
@@ -1722,7 +2250,6 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
 
   QAction actionPull(tr("Pull"), this);
   QAction actionPush(tr("Push"), this);
-  QAction actionSetUpstream(tr("Set Upstream"), this);
   QAction actionCheckoutCommit(tr("Checkout commit"), this);
   QAction actionCreateBranchFromCommit(tr("Create branch from commit"), this);
   QAction actionCopyShaToClipboard(tr("Copy SHA to clipboard"), this);
@@ -1738,8 +2265,6 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
 
   connect(&actionPull, &QAction::triggered, this, &GitRepoContainer::onPull);
   connect(&actionPush, &QAction::triggered, this, &GitRepoContainer::onPush);
-  connect(&actionSetUpstream, &QAction::triggered, this,
-          &GitRepoContainer::onSetUpstream);
 
   connect(&actionCheckoutCommit, &QAction::triggered, this,
           [=]() { onCheckoutCommit(commit); });
@@ -1776,7 +2301,6 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   QMenu menu(this);
   menu.addAction(&actionPull);
   menu.addAction(&actionPush);
-  menu.addAction(&actionSetUpstream);
   menu.addSeparator();
 
   if (!commit.isEmpty()) {
@@ -1809,13 +2333,6 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
   if (!index.isValid()) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  if (index.column() == COLUMN_HISTORY_SLICE) {
-    LOG_DEBUG("History slice column tooltip requested");
-    showTooltipForColumnSlice(index);
     LOG_PERF(0, "Exit");
     return;
   }
@@ -2236,6 +2753,7 @@ void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
 
   QAction actionCheckoutBranch(tr("Checkout branch"), this);
   QAction actionRanameBranch(tr("Rename branch"), this);
+  QAction actionSetUpstream(tr("Set Upstream"), this);
   QAction actionDeleteBranch(tr("Delete branch"), this);
 
   connect(&actionCheckoutBranch, &QAction::triggered, this, [=]() {
@@ -2258,12 +2776,16 @@ void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
   connect(&actionRanameBranch, &QAction::triggered, this,
           [=]() { onRenameBranch(branchName); });
 
+  connect(&actionSetUpstream, &QAction::triggered, this,
+          [=]() { onSetUpstream(branchName); });
+
   connect(&actionDeleteBranch, &QAction::triggered, this,
           [=]() { onDeleteBranch(branchName); });
 
   QMenu menu;
   menu.addAction(&actionCheckoutBranch);
   menu.addAction(&actionRanameBranch);
+  menu.addAction(&actionSetUpstream);
   menu.addSeparator();
   menu.addAction(&actionDeleteBranch);
 
@@ -2326,35 +2848,142 @@ void GitRepoContainer::onPop() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onPull() {
+void GitRepoContainer::onPull(bool rebase) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Pull operation initiated for repository: '{}'",
-            _path.toStdString());
+  LOG_DEBUG("{} operation initiated for repository: '{}'",
+            rebase ? "Pull with rebase" : "Pull", _path.toStdString());
 
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    LOG_DEBUG("Executing pull operation in dispatcher");
-    pull(guard);
+    LOG_DEBUG("Executing {} operation in dispatcher",
+              rebase ? "pull with rebase" : "pull");
+    pull(guard, rebase);
   });
 
-  LOG_DEBUG("Pull operation dispatched");
+  LOG_DEBUG("{} operation dispatched", rebase ? "Pull with rebase" : "Pull");
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onPush() {
+void GitRepoContainer::onFetchAll() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Push operation initiated for repository: '{}'",
+  LOG_DEBUG("Fetch all operation initiated for repository: '{}'",
             _path.toStdString());
 
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    LOG_DEBUG("Executing push operation in dispatcher");
-    push(guard);
+    LOG_DEBUG("Executing fetch all operation in dispatcher");
+    fetchAll(guard);
   });
 
-  LOG_DEBUG("Push operation dispatched");
+  LOG_DEBUG("Fetch all operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onPush(bool force) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("{}push operation initiated for repository: '{}'",
+            force ? "Force " : "", _path.toStdString());
+
+  if (_activeBranch.isEmpty() || _activeBranch == ALL_BRANCHES) {
+    LOG_DEBUG("No active branch to push");
+    showErrorToast(tr("Please checkout a branch first."), tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  const QString branchName = _activeBranch;
+
+  const auto remotes = ui->remotesPage->remotes();
+  if (remotes.isEmpty()) {
+    LOG_DEBUG("No remotes available to push branch '{}'",
+              branchName.toStdString());
+    showErrorToast(tr("Please add a remote before pushing."), tr("Error"));
+    return;
+  }
+
+  if (force) {
+    const auto reply = QMessageBox::question(
+        this, tr("Confirm force push"),
+        QString(tr("Force pushing branch '%1' rewrites the remote history and "
+                   "can overwrite commits on the server.\n\nDo you want to "
+                   "continue?"))
+            .arg(branchName),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+    if (reply == QMessageBox::No) {
+      LOG_DEBUG("Force push cancelled by user");
+      LOG_PERF(0, "Exit");
+      return;
+    }
+  }
+
+  _dispatcher.dispatch([=]() {
+    const auto [upstreamRemote, upstreamBranch] =
+        getUpstreamForBranch(guard, branchName);
+    if (!upstreamRemote.isEmpty() && !upstreamBranch.isEmpty()) {
+      LOG_DEBUG("Executing {}push operation in dispatcher",
+                force ? "force " : "");
+      push(guard, force);
+      return;
+    }
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      const auto upstreamOverlay = new UpstreamInputOverlayWidget(this);
+      upstreamOverlay->setBranchPlaceholderText(tr("Remote branch name"));
+      upstreamOverlay->setRemotes(remotes);
+      upstreamOverlay->setRemoteBranchName(branchName);
+
+      const QString activeRemote = ui->remotesPage->activeRemote();
+      if (!activeRemote.isEmpty()) {
+        upstreamOverlay->setRemoteName(activeRemote);
+      } else {
+        upstreamOverlay->setRemoteName(QStringLiteral("origin"));
+      }
+
+      connect(upstreamOverlay, &UpstreamInputOverlayWidget::canceled, this,
+              [=]() {
+                LOG_DEBUG("Push upstream dialog cancelled");
+                upstreamOverlay->hide();
+                delete upstreamOverlay;
+              });
+
+      connect(
+          upstreamOverlay, &UpstreamInputOverlayWidget::submitted, this,
+          [=](const QString &remote, const QString &branch) {
+            const QString remoteName = remote.trimmed();
+            const QString remoteBranchName = branch.trimmed();
+            if (remoteName.isEmpty() || remoteBranchName.isEmpty()) {
+              showErrorToast(
+                  tr("Please select a remote and enter a branch name."),
+                  tr("Error"));
+              return;
+            }
+
+            LOG_DEBUG(
+                "Setting upstream before {}push for branch '{}': remote='{}', "
+                "branch='{}'",
+                force ? "force " : "", branchName.toStdString(),
+                remoteName.toStdString(), remoteBranchName.toStdString());
+            upstreamOverlay->hide();
+            delete upstreamOverlay;
+
+            startOverlayTimer();
+            _dispatcher.dispatch([=]() {
+              setUpstream(guard, branchName, remoteName, remoteBranchName,
+                          [=](const WeakPtr &guard) { push(guard, force); });
+            });
+          });
+
+      upstreamOverlay->selectAllBranchText();
+      upstreamOverlay->show();
+      upstreamOverlay->raise();
+    });
+  });
+
+  LOG_DEBUG("{}push operation dispatched", force ? "Force " : "");
   LOG_PERF(0, "Exit");
 }
 
@@ -2645,6 +3274,7 @@ void GitRepoContainer::onRenameBranch(const QString &branchName) {
 
   const auto inputOverlay = new TextInputOverlayWidget(this);
   inputOverlay->setPlaceholderText(tr("New branch name"));
+  inputOverlay->setText(branchName);
 
   connect(inputOverlay, &TextInputOverlayWidget::canceled, this, [=]() {
     LOG_DEBUG("Rename branch dialog cancelled");
@@ -2662,6 +3292,9 @@ void GitRepoContainer::onRenameBranch(const QString &branchName) {
 
   inputOverlay->show();
   inputOverlay->raise();
+
+  QTimer::singleShot(0, inputOverlay,
+                     [inputOverlay]() { inputOverlay->focusAndSelectAll(); });
 
   LOG_DEBUG("Rename branch dialog displayed");
   LOG_PERF(0, "Exit");
@@ -2781,14 +3414,16 @@ void GitRepoContainer::onCherryPickCommit() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSetUpstream() {
+void GitRepoContainer::onSetUpstream(const QString &branchName) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Set upstream dialog requested for repository: '{}'",
-            _path.toStdString());
+  LOG_DEBUG("Set upstream dialog requested for branch '{}' in repository '{}'",
+            branchName.toStdString(), _path.toStdString());
 
   const auto upstreamOverlay = new UpstreamInputOverlayWidget(this);
-  upstreamOverlay->setRemotePlaceholderText(tr("Remote name"));
   upstreamOverlay->setBranchPlaceholderText(tr("Remote branch name"));
+
+  // Populate the combo box with available remotes
+  upstreamOverlay->setRemotes(ui->remotesPage->remotes());
 
   connect(upstreamOverlay, &UpstreamInputOverlayWidget::canceled, this, [=]() {
     LOG_DEBUG("Set upstream dialog cancelled");
@@ -2799,22 +3434,26 @@ void GitRepoContainer::onSetUpstream() {
   const WeakPtr guard = getSelf().toWeakRef();
 
   connect(upstreamOverlay, &UpstreamInputOverlayWidget::submitted, this,
-          [&, upstreamOverlay, guard](const QString &remote,
-                                      const QString &branch) {
-            LOG_DEBUG("Setting upstream: remote='{}', branch='{}'",
-                      remote.toStdString(), branch.toStdString());
+          [&, upstreamOverlay, guard, branchName](const QString &remote,
+                                                  const QString &branch) {
+            LOG_DEBUG(
+                "Setting upstream for branch '{}': remote='{}', branch='{}'",
+                branchName.toStdString(), remote.toStdString(),
+                branch.toStdString());
             upstreamOverlay->hide();
             delete upstreamOverlay;
 
-            _dispatcher.dispatch([=]() { setUpstream(guard, remote, branch); });
+            _dispatcher.dispatch(
+                [=]() { setUpstream(guard, branchName, remote, branch); });
           });
 
   _dispatcher.dispatch([=]() {
-    const auto result = getUpstream(guard);
+    const auto [upstreamRemote, upstreamBranch] =
+        getUpstreamForBranch(guard, branchName);
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      upstreamOverlay->setRemoteName(result.first);
-      upstreamOverlay->setRemoteBranchName(result.second);
-      upstreamOverlay->selectAllRemoteText();
+      upstreamOverlay->setRemoteName(upstreamRemote);
+      upstreamOverlay->setRemoteBranchName(upstreamBranch);
+      upstreamOverlay->selectAllBranchText();
       upstreamOverlay->show();
       upstreamOverlay->raise();
     });
@@ -2941,6 +3580,94 @@ void GitRepoContainer::restorePreviousSectionWidth() {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::persistHistoryColumnVisibility() {
+  LOG_PERF(0, "Enter");
+
+  const QHeaderView *header = ui->historyView->horizontalHeader();
+  QStringList hiddenColumns;
+  hiddenColumns.reserve(header->count());
+  for (int column = 0; column < header->count(); ++column) {
+    if (header->isSectionHidden(column)) {
+      hiddenColumns << QString::number(column);
+    }
+  }
+
+  _configManager.setString(
+      ConfigManager::ConfigKey::GitRepoHistoryViewHiddenColumns,
+      hiddenColumns.join(','));
+  _configManager.save();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::applyHistoryColumnVisibility() {
+  LOG_PERF(0, "Enter");
+
+  const QString savedHiddenColumns = _configManager.getString(
+      ConfigManager::ConfigKey::GitRepoHistoryViewHiddenColumns);
+
+  QSet<int> hiddenColumns;
+  for (const QString &value :
+       savedHiddenColumns.split(',', Qt::SkipEmptyParts)) {
+    bool ok = false;
+    const int column = value.toInt(&ok);
+    if (ok) {
+      hiddenColumns.insert(column);
+    }
+  }
+
+  QHeaderView *header = ui->historyView->horizontalHeader();
+  QSignalBlocker blocker(header);
+  for (int column = 0; column < header->count(); ++column) {
+    header->setSectionHidden(column, hiddenColumns.contains(column));
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onHistoryHeaderContextMenuRequested(const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  QMenu menu(ui->historyView->horizontalHeader());
+  const QHeaderView *header = ui->historyView->horizontalHeader();
+  const int historyColumnCount = header->count();
+
+  for (int column = 0; column < historyColumnCount; ++column) {
+    const QString columnName =
+        header->model()
+            ? header->model()
+                  ->headerData(column, Qt::Horizontal, Qt::DisplayRole)
+                  .toString()
+            : QString();
+    QAction *action = menu.addAction(
+        columnName.isEmpty() ? tr("Column %1").arg(column + 1) : columnName);
+    action->setCheckable(true);
+    action->setChecked(!header->isSectionHidden(column));
+    connect(action, &QAction::toggled, this,
+            [this, column](const bool checked) {
+              QSignalBlocker headerBlocker(ui->historyView->horizontalHeader());
+              ui->historyView->horizontalHeader()->setSectionHidden(column,
+                                                                    !checked);
+              persistHistoryColumnVisibility();
+            });
+  }
+
+  menu.addSeparator();
+  QAction *showAllAction = menu.addAction(tr("Show all columns"));
+  connect(showAllAction, &QAction::triggered, this, [this]() {
+    QSignalBlocker headerBlocker(ui->historyView->horizontalHeader());
+    QHeaderView *header = ui->historyView->horizontalHeader();
+    for (int column = 0; column < header->count(); ++column) {
+      header->setSectionHidden(column, false);
+    }
+    persistHistoryColumnVisibility();
+  });
+
+  menu.exec(ui->historyView->horizontalHeader()->mapToGlobal(pos));
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::saveRepoInRecentList() const {
   LOG_PERF(0, "Enter");
 
@@ -2990,9 +3717,10 @@ void GitRepoContainer::saveThreeWayMergeResultFile(const WeakPtr &guard,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::setUpstream(const WeakPtr &guard,
-                                   const QString &remoteName,
-                                   const QString &remoteBranchName) {
+void GitRepoContainer::setUpstream(
+    const WeakPtr &guard, const QString &branchName, const QString &remoteName,
+    const QString &remoteBranchName,
+    const std::function<void(const WeakPtr &)> &onSuccess) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -3004,7 +3732,7 @@ void GitRepoContainer::setUpstream(const WeakPtr &guard,
   command.syncUuid = eventUuid;
   command.remoteName = remoteName;
   command.remoteBranchName = remoteBranchName;
-  command.localBranchName = _activeBranch;
+  command.localBranchName = branchName;
 
   EventManager::Event setUpstreamStashEvent(
       EventManager::EventType::GitRepoManagerSetUpstream, eventUuid);
@@ -3061,10 +3789,19 @@ void GitRepoContainer::setUpstream(const WeakPtr &guard,
     return;
   }
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    showSpinnerOverlay(false);
-    showToast(tr("Successfully set upstream."), tr("Info"));
-  });
+  // Only refresh the remotes if we're setting upstream for the active branch
+  if (branchName == _activeBranch) {
+    getRemotes(guard);
+  }
+
+  if (onSuccess) {
+    onSuccess(guard);
+  } else {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showToast(tr("Successfully set upstream."), tr("Info"));
+    });
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -3209,16 +3946,28 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
       GuiManager::Models::GitCommitListModificationType::Conflicted;
 
   const QStringList files =
+      getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
+  const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->listViewTabWidgetWorkingTreeFlat);
 
   QMenu contextMenu;
 
+  if (!files.isEmpty()) {
+    QAction *copyPathAction =
+        contextMenu.addAction(tr("Copy file path to clipboard"));
+    connect(copyPathAction, &QAction::triggered, this,
+            [=]() { copyFilePathsToClipboard(files); });
+  }
+
+  contextMenu.addAction(ui->actionWorkingTreeFlatShowInFileManager);
+  contextMenu.addSeparator();
+
+  contextMenu.addAction(ui->actionWorkingTreeFlatStage);
   if (!conflicted) {
-    contextMenu.addAction(ui->actionWorkingTreeFlatStage);
     contextMenu.addAction(ui->actionWorkingTreeFlatDiscard);
   }
 
-  if (!files.isEmpty()) {
+  if (!existingFiles.isEmpty()) {
     QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
     QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
     QAction *ignoreRecursiveAction = ignoreMenu->addAction(
@@ -3237,8 +3986,6 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
       contextMenu.addSeparator();
     }
 
-    contextMenu.addAction(ui->actionWorkingTreeFlatShowInFileManager);
-    contextMenu.addSeparator();
     contextMenu.addAction(ui->actionWorkingTreeFlatDelete);
   }
 
@@ -3410,16 +4157,28 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
       GuiManager::Models::GitCommitListModificationType::Conflicted;
 
   const QStringList files =
+      getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
+  const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->treeViewTabWidgetWorkingTreeTree);
 
   QMenu contextMenu;
 
+  if (!files.isEmpty()) {
+    QAction *copyPathAction =
+        contextMenu.addAction(tr("Copy file path to clipboard"));
+    connect(copyPathAction, &QAction::triggered, this,
+            [=]() { copyFilePathsToClipboard(files); });
+  }
+
+  contextMenu.addAction(ui->actionWorkingTreeTreeShowInFileManager);
+  contextMenu.addSeparator();
+
+  contextMenu.addAction(ui->actionWorkingTreeTreeStage);
   if (!conflicted) {
-    contextMenu.addAction(ui->actionWorkingTreeTreeStage);
     contextMenu.addAction(ui->actionWorkingTreeTreeDiscard);
   }
 
-  if (!files.isEmpty()) {
+  if (!existingFiles.isEmpty()) {
     QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
     QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
     QAction *ignoreRecursiveAction = ignoreMenu->addAction(
@@ -3438,8 +4197,6 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
       contextMenu.addSeparator();
     }
 
-    contextMenu.addAction(ui->actionWorkingTreeTreeShowInFileManager);
-    contextMenu.addSeparator();
     contextMenu.addAction(ui->actionWorkingTreeTreeDelete);
   }
 
@@ -3602,14 +4359,25 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
     return;
   }
 
-  const QStringList files =
+  const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
+  const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->listViewTabWidgetIndexFlat);
 
   QMenu contextMenu;
+  if (!files.isEmpty()) {
+    QAction *copyPathAction =
+        contextMenu.addAction(tr("Copy file path to clipboard"));
+    connect(copyPathAction, &QAction::triggered, this,
+            [=]() { copyFilePathsToClipboard(files); });
+  }
+
+  contextMenu.addAction(ui->actionIndexFlatShowInFileManager);
+  contextMenu.addSeparator();
+
   contextMenu.addAction(ui->actionIndexFlatUnstage);
   contextMenu.addAction(ui->actionIndexFlatDiscard);
 
-  if (!files.isEmpty()) {
+  if (!existingFiles.isEmpty()) {
     QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
     QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
     QAction *ignoreRecursiveAction = ignoreMenu->addAction(
@@ -3622,8 +4390,6 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
 
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexFlatCreateFilePatch);
-    contextMenu.addSeparator();
-    contextMenu.addAction(ui->actionIndexFlatShowInFileManager);
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexFlatDelete);
   }
@@ -3782,14 +4548,25 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
     return;
   }
 
-  const QStringList files =
+  const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
+  const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->treeViewTabWidgetIndexTree);
 
   QMenu contextMenu;
+  if (!files.isEmpty()) {
+    QAction *copyPathAction =
+        contextMenu.addAction(tr("Copy file path to clipboard"));
+    connect(copyPathAction, &QAction::triggered, this,
+            [=]() { copyFilePathsToClipboard(files); });
+  }
+
+  contextMenu.addAction(ui->actionIndexTreeShowInFileManager);
+  contextMenu.addSeparator();
+
   contextMenu.addAction(ui->actionIndexTreeUnstage);
   contextMenu.addAction(ui->actionIndexTreeDiscard);
 
-  if (!files.isEmpty()) {
+  if (!existingFiles.isEmpty()) {
     QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
     QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
     QAction *ignoreRecursiveAction = ignoreMenu->addAction(
@@ -3802,8 +4579,6 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
 
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexTreeCreateFilePatch);
-    contextMenu.addSeparator();
-    contextMenu.addAction(ui->actionIndexTreeShowInFileManager);
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexTreeDelete);
   }
@@ -3948,6 +4723,110 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
   const WeakPtr &guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() { discardFiles(guard, files); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
+    const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndex index = ui->listViewPageDisplayFilesFlat->indexAt(pos);
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QStringList files = getSelectedFiles(ui->listViewPageDisplayFilesFlat);
+  const QStringList existingFiles =
+      getSelectedFilesWhichExist(ui->listViewPageDisplayFilesFlat);
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QMenu contextMenu;
+  QAction *copyPathAction =
+      contextMenu.addAction(tr("Copy file path to clipboard"));
+  connect(copyPathAction, &QAction::triggered, this,
+          [=]() { copyFilePathsToClipboard(files); });
+
+  if (!existingFiles.isEmpty()) {
+    QAction *showInFileManagerAction =
+        contextMenu.addAction(tr("Show in File manager"));
+    connect(showInFileManagerAction, &QAction::triggered, this,
+            [=]() { FileManager::revealInFileManager(existingFiles); });
+  }
+
+  contextMenu.exec(ui->listViewPageDisplayFilesFlat->mapToGlobal(pos));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onPageDisplayFilesTreeViewContextMenuRequested(
+    const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  const QModelIndex index = ui->treeViewPageDisplayFilesTree->indexAt(pos);
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QStringList files = getSelectedFiles(ui->treeViewPageDisplayFilesTree);
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QStringList items;
+  const QModelIndexList listIndexes =
+      ui->treeViewPageDisplayFilesTree->selectionModel()->selectedIndexes();
+
+  for (const auto &selectedIndex : listIndexes) {
+    const int rowCount =
+        ui->treeViewPageDisplayFilesTree->model()->rowCount(selectedIndex);
+
+    if (rowCount > 0) {
+      QModelIndex current = selectedIndex;
+      QString fullPath = current.data().toString();
+      while (current.parent().isValid()) {
+        fullPath =
+            current.parent().data().toString() + QDir::separator() + fullPath;
+        current = current.parent();
+      }
+      items += QDir::fromNativeSeparators(fullPath);
+    } else {
+      const QStringList traversedFiles = traverseModelIndexSubtree(
+          selectedIndex, ui->treeViewPageDisplayFilesTree->model());
+      for (const auto &traversedFile : traversedFiles) {
+        items += QDir::fromNativeSeparators(traversedFile);
+      }
+    }
+  }
+
+  QStringList itemsThatExist;
+  for (const auto &item : items) {
+    const QString fullPath = QDir(_path).filePath(item);
+    if (QFileInfo::exists(fullPath)) {
+      itemsThatExist += fullPath;
+    }
+  }
+
+  QMenu contextMenu;
+  QAction *copyPathAction =
+      contextMenu.addAction(tr("Copy file path to clipboard"));
+  connect(copyPathAction, &QAction::triggered, this,
+          [=]() { copyFilePathsToClipboard(files); });
+
+  if (!itemsThatExist.isEmpty()) {
+    QAction *showInFileManagerAction =
+        contextMenu.addAction(tr("Show in File manager"));
+    connect(showInFileManagerAction, &QAction::triggered, this,
+            [=]() { FileManager::revealInFileManager(itemsThatExist); });
+  }
+
+  contextMenu.exec(ui->treeViewPageDisplayFilesTree->mapToGlobal(pos));
 
   LOG_PERF(0, "Exit");
 }
@@ -4199,7 +5078,8 @@ void GitRepoContainer::abortMerge(const WeakPtr &guard) {
 }
 
 void GitRepoContainer::addSubmodule(const WeakPtr &guard, const QString &url,
-                                    const QString &name) {
+                                    const QString &name,
+                                    const QString &branch) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -4211,6 +5091,7 @@ void GitRepoContainer::addSubmodule(const WeakPtr &guard, const QString &url,
   command.syncUuid = eventUuid;
   command.url = url;
   command.name = name;
+  command.branch = branch;
 
   EventManager::Event addSubmoduleEvent(
       EventManager::EventType::GitRepoManagerAddSubmodule, eventUuid);
@@ -4615,7 +5496,17 @@ void GitRepoContainer::checkoutBranch(
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       updateModelActiveBranch(guard, result.branchName, result.branchType);
+      showSpinnerOverlay(false);
     });
+
+    if (branchType == GitRepo::BranchType::Tag) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        showToast(tr("You are now in detached HEAD state after checking out "
+                     "tag '%1'.")
+                      .arg(result.branchName),
+                  tr("Warning"));
+      });
+    }
 
     prepareWatcher(guard);
 
@@ -4710,8 +5601,13 @@ void GitRepoContainer::checkoutCommit(const WeakPtr &guard,
     return;
   }
 
-  Util::Dispatcher::dispatchToMainThread(guard,
-                                         [=]() { showSpinnerOverlay(false); });
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(
+        tr("You are now in detached HEAD state after checking out commit '%1'.")
+            .arg(commit),
+        tr("Warning"));
+  });
 
   prepareWatcher(guard);
 
@@ -5113,18 +6009,17 @@ void GitRepoContainer::deleteBranch(const WeakPtr &guard,
 
   refreshHistory(guard);
 
+  Util::Dispatcher::dispatchToMainThread(guard,
+                                         [&]() { showSpinnerOverlay(false); });
+
   if (!deleteSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showSpinnerOverlay(false);
       showErrorToast(tr("Failed to delete branch."), tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
     return;
   }
-
-  Util::Dispatcher::dispatchToMainThread(guard,
-                                         [&]() { showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit")
 }
@@ -5325,7 +6220,9 @@ void GitRepoContainer::deleteStash(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::deleteAllStashes(const WeakPtr &guard) {
+void GitRepoContainer::deleteAllStashes(
+    const WeakPtr &guard,
+    const std::function<void(const WeakPtr &)> &onSuccess) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -5395,6 +6292,10 @@ void GitRepoContainer::deleteAllStashes(const WeakPtr &guard) {
     showSpinnerOverlay(false);
     showToast(tr("All stashes deleted successfully."), tr("Success"));
   });
+
+  if (onSuccess) {
+    onSuccess(guard);
+  }
 
   LOG_PERF(0, "Exit")
 }
@@ -5833,14 +6734,6 @@ void GitRepoContainer::showStashContent(const WeakPtr &guard, int stashIndex) {
   _lastStashCommit = stashStatus.commit;
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    // Populate stash files list
-    QStringList allFiles;
-    allFiles += stashStatus.newFiles;
-    allFiles += stashStatus.modifiedFiles;
-    allFiles += stashStatus.deletedFiles;
-    allFiles += stashStatus.renamedFiles;
-    allFiles += stashStatus.typeChangedFiles;
-
     // Update flat list view
     _stashFilesModel.reset(Models::GitCommitListModel::from(stashStatus));
     if (_stashFilesModel) {
@@ -5896,7 +6789,20 @@ void GitRepoContainer::onStashFileSelected(const QModelIndex &index) {
     return;
   }
 
+  if (index.model() && index.model()->hasChildren(index)) {
+    LOG_DEBUG("Ignoring folder node selection in stash tree view");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   QString filePath = index.data(Qt::DisplayRole).toString();
+  QModelIndex current = index;
+  while (current.parent().isValid()) {
+    current = current.parent();
+    filePath =
+        current.data(Qt::DisplayRole).toString() + QDir::separator() + filePath;
+  }
+
   LOG_DEBUG("Stash file path: '{}'", filePath.toStdString());
 
   filePath = QDir::fromNativeSeparators(filePath);
@@ -6072,6 +6978,13 @@ void GitRepoContainer::onStashContentCloseClicked() {
   _currentStashIndex = -1;
   _lastStashCommit.clear();
 
+  ui->scintillaStashDiffUnified->clear();
+  ui->scintillaStashDiffUnified->markerDeleteAll();
+  ui->sideBySideDiffViewerStash->clearContent();
+  ui->stackedWidgetStashDiff->setCurrentIndex(0);
+  ui->pushButtonStashDiffUnified->setChecked(true);
+  ui->pushButtonStashDiffSideBySide->setChecked(false);
+
   ui->stackedWidgetMiddle->setCurrentIndex(
       static_cast<int>(MainViewPanes::History));
 
@@ -6104,6 +7017,9 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
                                        const QString &submoduleName) {
   LOG_PERF(0, "Enter");
 
+  // Stop watcher to release file handles before deletion
+  stopWatcher(guard);
+
   const QString eventUuid = Uuid::createUuid();
 
   const int token = _eventManager.startWait();
@@ -6130,6 +7046,7 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
 
   if (!success) {
     closeRepo();
+    prepareWatcher(guard);
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showSpinnerOverlay(false);
@@ -6144,6 +7061,8 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
   if (event.type() !=
       EventManager::EventType::GitRepoManagerDeleteSubmoduleResult) {
     const auto error = event.data<GitRepoError>();
+    prepareWatcher(guard);
+
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(QString("%1\n%2").arg(tr("Failed to delete submodule."),
@@ -6159,6 +7078,8 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
   const bool commandSuccess = commandResult.value.toBool();
 
   if (!commandSuccess) {
+    prepareWatcher(guard);
+
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       showSpinnerOverlay(false);
       showErrorToast(tr("Failed to delete submodule."), tr("Error"));
@@ -6169,6 +7090,8 @@ void GitRepoContainer::deleteSubmodule(const WeakPtr &guard,
   }
 
   refreshHistory(guard);
+
+  prepareWatcher(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard,
                                          [=]() { showSpinnerOverlay(false); });
@@ -6972,6 +7895,51 @@ QStringList GitRepoContainer::getCommitBranches(const WeakPtr &guard,
   return branches;
 }
 
+QStringList GitRepoContainer::getCommitTags(const WeakPtr &guard,
+                                            const QString &commit) const {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+  const int token = _eventManager.startWait();
+
+  GitRepoGetCommitTagsCommand command;
+  command.uuid = _uuid;
+  command.commitOid = commit;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event tagsEvent(
+      EventManager::EventType::GitRepoManagerGetCommitTags, eventUuid);
+  tagsEvent.addData(command);
+  _eventManager.send(tagsEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGetCommitTagsError,
+      EventManager::EventType::GitRepoManagerGetCommitTagsResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() { showErrorPage(); });
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerGetCommitTagsResult) {
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const auto tags = commandResult.value.value<QStringList>();
+
+  LOG_PERF(0, "Exit");
+
+  return tags;
+}
+
 GitRepo::GitCommitStatus
 GitRepoContainer::getCommitStatus(const WeakPtr &guard,
                                   const QString &commit) const {
@@ -7021,6 +7989,36 @@ GitRepoContainer::getCommitStatus(const WeakPtr &guard,
   return commitStatus;
 }
 
+void GitRepoContainer::copyFilePathsToClipboard(const QStringList &filePaths) {
+  LOG_PERF(0, "Enter");
+
+  QStringList uniqueFilePaths = filePaths;
+  uniqueFilePaths.removeDuplicates();
+
+  if (uniqueFilePaths.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QStringList absoluteFilePaths;
+  absoluteFilePaths.reserve(uniqueFilePaths.size());
+  for (const auto &filePath : uniqueFilePaths) {
+    absoluteFilePaths += QDir(_path).filePath(filePath);
+  }
+
+  QGuiApplication::clipboard()->setText(absoluteFilePaths.join("\n"));
+
+  if (uniqueFilePaths.size() == 1) {
+    showToast(tr("File path copied to clipboard."), tr("Info"));
+  } else {
+    showToast(
+        tr("%1 file paths copied to clipboard.").arg(uniqueFilePaths.size()),
+        tr("Info"));
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 QStringList GitRepoContainer::getSelectedFiles(QListView *listView) {
   LOG_PERF(0, "Enter");
 
@@ -7037,15 +8035,6 @@ QStringList GitRepoContainer::getSelectedFiles(QListView *listView) {
   QStringList files;
 
   for (const auto &index : listIndexes) {
-    const GuiManager::Models::GitCommitListModificationType modificationType =
-        static_cast<GuiManager::Models::GitCommitListModificationType>(
-            index.data(Qt::UserRole).toInt());
-
-    if (modificationType ==
-        GuiManager::Models::GitCommitListModificationType::Conflicted) {
-      continue;
-    }
-
     files += QDir::fromNativeSeparators(index.data().toString());
   }
 
@@ -7096,15 +8085,6 @@ QStringList GitRepoContainer::getSelectedFiles(QTreeView *treeView) {
   QStringList files;
 
   for (const auto &index : listIndexes) {
-    const GuiManager::Models::GitCommitListModificationType modificationType =
-        static_cast<GuiManager::Models::GitCommitListModificationType>(
-            index.data(Qt::UserRole).toInt());
-
-    if (modificationType ==
-        GuiManager::Models::GitCommitListModificationType::Conflicted) {
-      continue;
-    }
-
     const QStringList traversedFiles =
         traverseModelIndexSubtree(index, treeView->model());
 
@@ -7329,6 +8309,81 @@ bool GitRepoContainer::getStashes(const WeakPtr &guard) {
 
   Util::Dispatcher::dispatchToMainThread(
       guard, [=]() { updateStashesModel(guard, stashes); });
+
+  LOG_PERF(0, "Exit")
+
+  return true;
+}
+
+bool GitRepoContainer::getRemotes(const WeakPtr &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoListRemotesCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event listRemotesEvent(
+      EventManager::EventType::GitRepoManagerListRemotes, eventUuid);
+  listRemotesEvent.addData(command);
+  _eventManager.send(listRemotesEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerListRemotesError,
+      EventManager::EventType::GitRepoManagerListRemotesResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showErrorPage();
+      showErrorToast(tr("Failed to retrieve the list of remotes."),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerListRemotesResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showErrorToast(
+          QString("%1\n%2").arg(tr("Failed to retrieve the list of remotes."),
+                                translateGitError(error.error)),
+          tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const auto remotes =
+      commandResult.value.value<QVector<GitRepo::RemoteInfo>>();
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    ui->remotesPage->updateModel(remotes);
+
+    // Set the active remote to the current branch's upstream remote
+    if (!_activeBranch.isEmpty() && _activeBranch != ALL_BRANCHES) {
+      _dispatcher.dispatch([=]() {
+        auto [upstreamRemote, upstreamBranch] = getUpstream(guard);
+        if (!upstreamRemote.isEmpty()) {
+          Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+            ui->remotesPage->updateActiveRemote(upstreamRemote);
+          });
+        }
+      });
+    }
+  });
 
   LOG_PERF(0, "Exit")
 
@@ -7562,12 +8617,8 @@ QPair<QString, QString> GitRepoContainer::getUpstream(const WeakPtr &guard) {
   if (event.type() !=
       EventManager::EventType::GitRepoManagerGetUpstreamResult) {
     const auto error = event.data<GitRepoError>();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
-      showErrorToast(QString("%1\n%2").arg(tr("Failed to get upstream."),
-                                           translateGitError(error.error)),
-                     tr("Error"));
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { showSpinnerOverlay(false); });
 
     LOG_PERF(0, "Exit")
     return {};
@@ -7578,6 +8629,52 @@ QPair<QString, QString> GitRepoContainer::getUpstream(const WeakPtr &guard) {
       commandResult.value.value<GitRepoGetUpstreamCommandResult>();
 
   refreshStatus(guard);
+
+  LOG_PERF(0, "Exit")
+
+  return qMakePair(remoteName, remoteBranchName);
+}
+
+QPair<QString, QString>
+GitRepoContainer::getUpstreamForBranch(const WeakPtr &guard,
+                                       const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoGetUpstreamCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.localBranchName = branchName;
+
+  EventManager::Event getUpstreamStashEvent(
+      EventManager::EventType::GitRepoManagerGetUpstream, eventUuid);
+  getUpstreamStashEvent.addData(command);
+  _eventManager.send(getUpstreamStashEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGetUpstreamError,
+      EventManager::EventType::GitRepoManagerGetUpstreamResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerGetUpstreamResult) {
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const auto [remoteName, remoteBranchName] =
+      commandResult.value.value<GitRepoGetUpstreamCommandResult>();
 
   LOG_PERF(0, "Exit")
 
@@ -7825,7 +8922,7 @@ bool GitRepoContainer::openRepo(const WeakPtr &guard) {
   return refreshHistorySuccess;
 }
 
-void GitRepoContainer::pull(const WeakPtr &guard) {
+void GitRepoContainer::pull(const WeakPtr &guard, bool rebase) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -7835,6 +8932,8 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
   GitRepoPullCommand command;
   command.uuid = _uuid;
   command.syncUuid = eventUuid;
+  command.activeBranchName = _activeBranch;
+  command.rebase = rebase;
 
   EventManager::Event pullEvent(EventManager::EventType::GitRepoManagerPull,
                                 eventUuid);
@@ -7862,7 +8961,8 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(QString(tr("Failed to pull from remote.\n%1"))
+      showErrorToast(QString(tr("Failed to %1 from remote.\n%2"))
+                         .arg(rebase ? tr("pull with rebase") : tr("pull"))
                          .arg(translateGitError(error.error)),
                      tr("Error"));
     });
@@ -7874,9 +8974,86 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
   const auto commandResult = event.data<GitRepoResult>();
 
   if (const bool pulled = commandResult.value.toBool(); !pulled) {
+    const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(tr("Failed to pull from remote."), tr("Error"));
+      showErrorToast(QString(tr("Failed to %1 from remote.\n%2"))
+                         .arg(rebase ? tr("pull with rebase") : tr("pull"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+  refreshStatus(guard);
+  getBranchHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(rebase ? tr("Pull with rebase completed successfully.")
+                     : tr("Git repository is up to-date."),
+              tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::fetchAll(const WeakPtr &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoFetchAllCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event fetchAllEvent(
+      EventManager::EventType::GitRepoManagerFetchAll, eventUuid);
+  fetchAllEvent.addData(command);
+  _eventManager.send(fetchAllEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerFetchAllError,
+      EventManager::EventType::GitRepoManagerFetchAllResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerFetchAllResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to fetch from remotes.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  if (const bool fetched = commandResult.value.toBool(); !fetched) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to fetch from remotes."), tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -7888,13 +9065,13 @@ void GitRepoContainer::pull(const WeakPtr &guard) {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
-    showToast(tr("Git repository is up to-date."), tr("Info"));
+    showToast(tr("Fetch completed successfully."), tr("Info"));
   });
 
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::push(const WeakPtr &guard) {
+void GitRepoContainer::push(const WeakPtr &guard, bool force) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -7904,6 +9081,8 @@ void GitRepoContainer::push(const WeakPtr &guard) {
   GitRepoPushCommand command;
   command.uuid = _uuid;
   command.syncUuid = eventUuid;
+  command.activeBranchName = _activeBranch;
+  command.force = force;
 
   EventManager::Event pushEvent(EventManager::EventType::GitRepoManagerPush,
                                 eventUuid);
@@ -7931,7 +9110,8 @@ void GitRepoContainer::push(const WeakPtr &guard) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(QString(tr("Failed to push to remote.\n%1"))
+      showErrorToast(QString(tr("Failed to %1 to remote.\n%2"))
+                         .arg(force ? tr("force push") : tr("push"))
                          .arg(translateGitError(error.error)),
                      tr("Error"));
     });
@@ -7943,15 +9123,11 @@ void GitRepoContainer::push(const WeakPtr &guard) {
   const auto commandResult = event.data<GitRepoResult>();
 
   if (const bool pushed = commandResult.value.toBool(); !pushed) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
-      showErrorToast(tr("Failed to push to remote."), tr("Error"));
-    });
-
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(QString(tr("Failed to pull from remote.\n%1"))
+      showErrorToast(QString(tr("Failed to %1 to remote.\n%2"))
+                         .arg(force ? tr("force push") : tr("push"))
                          .arg(translateGitError(error.error)),
                      tr("Error"));
     });
@@ -7965,7 +9141,628 @@ void GitRepoContainer::push(const WeakPtr &guard) {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     showSpinnerOverlay(false);
-    showToast(tr("Successfully pushed to remote."), tr("Info"));
+    showToast(force ? tr("Successfully force-pushed to remote.")
+                    : tr("Successfully pushed to remote."),
+              tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::addRemote(const WeakPtr &guard,
+                                 const QString &remoteName,
+                                 const QString &fetchUrl,
+                                 const QString &pushUrl) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Adding remote '{}' with fetch URL '{}'", remoteName.toStdString(),
+            fetchUrl.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoAddRemoteCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remoteName;
+  command.fetchUrl = fetchUrl;
+  command.pushUrl = pushUrl;
+
+  EventManager::Event addRemoteEvent(
+      EventManager::EventType::GitRepoManagerAddRemote, eventUuid);
+  addRemoteEvent.addData(command);
+  _eventManager.send(addRemoteEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerAddRemoteError,
+      EventManager::EventType::GitRepoManagerAddRemoteResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to add remote."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerAddRemoteResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to add remote.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Remote added successfully."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::editRemote(const WeakPtr &guard, int remoteIndex,
+                                  const QString &remoteName,
+                                  const QString &fetchUrl,
+                                  const QString &pushUrl) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid remote index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  LOG_DEBUG("Updating remote '{}' with fetch URL '{}'",
+            remote.name.toStdString(), fetchUrl.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoUpdateRemoteCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.newRemoteName = remoteName;
+  command.fetchUrl = fetchUrl;
+  command.pushUrl = pushUrl;
+
+  EventManager::Event updateRemoteEvent(
+      EventManager::EventType::GitRepoManagerUpdateRemote, eventUuid);
+  updateRemoteEvent.addData(command);
+  _eventManager.send(updateRemoteEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerUpdateRemoteError,
+      EventManager::EventType::GitRepoManagerUpdateRemoteResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to update remote."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerUpdateRemoteResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to update remote.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Remote updated successfully."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::deleteRemote(const WeakPtr &guard, int remoteIndex) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid remote index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  LOG_DEBUG("Deleting remote '{}'", remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoRemoveRemoteCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+
+  EventManager::Event removeRemoteEvent(
+      EventManager::EventType::GitRepoManagerRemoveRemote, eventUuid);
+  removeRemoteEvent.addData(command);
+  _eventManager.send(removeRemoteEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerRemoveRemoteError,
+      EventManager::EventType::GitRepoManagerRemoveRemoteResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to delete remote."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerRemoveRemoteResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to delete remote.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Remote deleted successfully."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::setDefaultRemote(const WeakPtr &guard, int remoteIndex) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid remote index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  LOG_DEBUG("Setting default remote to '{}'", remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoSetDefaultRemoteCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+
+  EventManager::Event setDefaultRemoteEvent(
+      EventManager::EventType::GitRepoManagerSetDefaultRemote, eventUuid);
+  setDefaultRemoteEvent.addData(command);
+  _eventManager.send(setDefaultRemoteEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerSetDefaultRemoteError,
+      EventManager::EventType::GitRepoManagerSetDefaultRemoteResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to set default remote."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerSetDefaultRemoteResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to set default remote.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Default remote set successfully."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::addTarget(const WeakPtr &guard, int remoteIndex,
+                                 const QString &targetName,
+                                 const QString &fetchUrl,
+                                 const QString &pushUrl) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid remote index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  LOG_DEBUG("Adding target '{}' to remote '{}'", targetName.toStdString(),
+            remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoAddTargetCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.targetName = targetName;
+  command.fetchUrl = fetchUrl;
+  command.pushUrl = pushUrl;
+
+  EventManager::Event addTargetEvent(
+      EventManager::EventType::GitRepoManagerAddTarget, eventUuid);
+  addTargetEvent.addData(command);
+  _eventManager.send(addTargetEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerAddTargetError,
+      EventManager::EventType::GitRepoManagerAddTargetResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to add target."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerAddTargetResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to add target.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    ui->remotesPage->expandRemote(remote.name);
+    showSpinnerOverlay(false);
+    showToast(tr("Target added successfully."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::editTarget(const WeakPtr &guard, int remoteIndex,
+                                  int targetIndex, const QString &newFetchUrl,
+                                  const QString &newPushUrl) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid remote index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid target index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &target = remote.targets[targetIndex];
+  LOG_DEBUG("Editing target '{}' on remote '{}'", target.name.toStdString(),
+            remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoEditTargetCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.targetName = target.name;
+  command.newFetchUrl = newFetchUrl;
+  command.newPushUrl = newPushUrl;
+
+  EventManager::Event editTargetEvent(
+      EventManager::EventType::GitRepoManagerEditTarget, eventUuid);
+  editTargetEvent.addData(command);
+  _eventManager.send(editTargetEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerEditTargetError,
+      EventManager::EventType::GitRepoManagerEditTargetResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to edit target."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerEditTargetResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to edit target.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Target edited successfully."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::deleteTarget(const WeakPtr &guard, int remoteIndex,
+                                    int targetIndex) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid remote index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid target index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &target = remote.targets[targetIndex];
+  LOG_DEBUG("Deleting target '{}' from remote '{}'", target.name.toStdString(),
+            remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoDeleteTargetCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.targetName = target.name;
+
+  EventManager::Event deleteTargetEvent(
+      EventManager::EventType::GitRepoManagerDeleteTarget, eventUuid);
+  deleteTargetEvent.addData(command);
+  _eventManager.send(deleteTargetEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerDeleteTargetError,
+      EventManager::EventType::GitRepoManagerDeleteTargetResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to delete target."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerDeleteTargetResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to delete target.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Target deleted successfully."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::setDefaultTarget(const WeakPtr &guard, int remoteIndex,
+                                        int targetIndex) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid remote index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Invalid target index."), tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &target = remote.targets[targetIndex];
+  LOG_DEBUG("Setting default target to '{}' for remote '{}'",
+            target.name.toStdString(), remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoSetDefaultTargetCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.targetName = target.name;
+
+  EventManager::Event setDefaultTargetEvent(
+      EventManager::EventType::GitRepoManagerSetDefaultTarget, eventUuid);
+  setDefaultTargetEvent.addData(command);
+  _eventManager.send(setDefaultTargetEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerSetDefaultTargetError,
+      EventManager::EventType::GitRepoManagerSetDefaultTargetResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to set default target."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerSetDefaultTargetResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to set default target.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Default target set successfully."), tr("Info"));
   });
 
   LOG_PERF(0, "Exit")
@@ -8387,12 +10184,12 @@ void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
             &GitRepoContainer::onRepoDirChanged);
     connect(_repoDirWatcher, &QFileSystemWatcher::fileChanged, this,
             &GitRepoContainer::onRepoDirChanged);
-    
+
     // Watch all subdirectories except .git to detect file additions/deletions
     const QStringList directories =
         getSubdirectories(_path, QStringList() << GIT_SUBDIR);
     _repoDirWatcher->addPaths(directories);
-    
+
     // Watch all files recursively (excluding .git directory) to detect modifications
     const QStringList files = getAllFiles(_path, QStringList() << GIT_SUBDIR);
     _repoDirWatcher->addPaths(files);
@@ -8414,6 +10211,7 @@ bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
   ok &= ok && getTags();
   ok &= ok && getActiveTag();
   ok &= ok && getSubmodules();
+  ok &= ok && getRemotes(guard);
   ok &= ok && getStashes(guard);
 
   if (!ok) {
@@ -8540,14 +10338,6 @@ void GitRepoContainer::resetCommitAndMergeWorkingTreeTreeStageAllButton() {
 
   if (_commitListModel) {
     for (int i = 0; i < _commitListModel->rowCount(); ++i) {
-      const GuiManager::Models::GitCommitListModificationType modificationType =
-          static_cast<GuiManager::Models::GitCommitListModificationType>(
-              _commitListModel->index(i, 0).data(Qt::UserRole).toInt());
-      if (modificationType ==
-          GuiManager::Models::GitCommitListModificationType::Conflicted) {
-        continue;
-      }
-
       ++rowCount;
     }
   }
@@ -8590,34 +10380,124 @@ void GitRepoContainer::resetDisplayTreeExpandedButton() {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::stretchBranchHistoryTableColumns() const {
+void GitRepoContainer::stretchBranchHistoryTableColumns() {
   LOG_PERF(0, "Enter");
 
-  ui->historyView->horizontalHeader()->setSectionResizeMode(
-      QHeaderView::Interactive);
+  QHeaderView *header = ui->historyView->horizontalHeader();
+  header->setSectionResizeMode(QHeaderView::Interactive);
 
-  const QFont font = ui->historyView->font();
-  const QFontMetrics fontMetrics(font);
+  const int columnCount = header->count();
+  if (columnCount <= 0) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  int visibleColumnCount = 0;
+  for (int column = 0; column < columnCount; ++column) {
+    if (!header->isSectionHidden(column)) {
+      ++visibleColumnCount;
+    }
+  }
+
+  const QString savedWidths = _configManager.getString(
+      ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths);
+  const QStringList widthValues = savedWidths.split(',', Qt::SkipEmptyParts);
+
+  if (widthValues.size() == columnCount) {
+    bool restoreOk = true;
+    _applyingHistoryColumnWidths = true;
+    for (int column = 0; column < columnCount; ++column) {
+      if (header->isSectionHidden(column)) {
+        continue;
+      }
+
+      bool ok = false;
+      const int width = widthValues[column].toInt(&ok);
+      if (!ok || width <= 0) {
+        restoreOk = false;
+        break;
+      }
+
+      ui->historyView->setColumnWidth(column, width);
+    }
+    _applyingHistoryColumnWidths = false;
+
+    if (restoreOk) {
+      LOG_PERF(0, "Exit");
+      return;
+    }
+
+    LOG_WARN(
+        "Invalid saved history view column widths, falling back to defaults");
+  }
+
+  if (visibleColumnCount <= 0) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QFontMetrics fontMetrics(ui->historyView->font());
   const int charWidth = fontMetrics.horizontalAdvance('0');
-
   const int totalWidth = ui->historyView->viewport()->width();
-  int colSummary = totalWidth / 2;
-  if (constexpr int maxSummaryWidth = 600; colSummary > maxSummaryWidth)
-    colSummary = maxSummaryWidth;
 
-  const int remaining = totalWidth - colSummary;
-  const int colSha = charWidth * 7; // Short SHA length
-  const int remainingAfterSha = remaining - colSha;
-  const int colOther = remainingAfterSha / 4;
+  int summaryWidth = 0;
+  if (!header->isSectionHidden(COLUMN_SUMMARY)) {
+    summaryWidth = totalWidth / 2;
+    if (constexpr int maxSummaryWidth = 600; summaryWidth > maxSummaryWidth) {
+      summaryWidth = maxSummaryWidth;
+    }
+  }
 
-  ui->historyView->setColumnWidth(0, colOther);
-  ui->historyView->setColumnWidth(1, colSummary);
-  ui->historyView->setColumnWidth(2, colOther);
-  ui->historyView->setColumnWidth(3, colOther);
-  ui->historyView->setColumnWidth(4, colOther);
-  ui->historyView->setColumnWidth(5, colSha);
+  int shaWidth = 0;
+  if (!header->isSectionHidden(COLUMN_COMMIT_SHORT_SHA)) {
+    shaWidth = charWidth * 9;
+  }
 
-  LOG_PERF(0, "Exit")
+  int remainingWidth = totalWidth - summaryWidth - shaWidth;
+  if (remainingWidth < 0) {
+    remainingWidth = 0;
+  }
+
+  int flexibleVisibleColumnCount = visibleColumnCount;
+  if (!header->isSectionHidden(COLUMN_SUMMARY)) {
+    --flexibleVisibleColumnCount;
+  }
+  if (!header->isSectionHidden(COLUMN_COMMIT_SHORT_SHA)) {
+    --flexibleVisibleColumnCount;
+  }
+  if (flexibleVisibleColumnCount < 0) {
+    flexibleVisibleColumnCount = 0;
+  }
+
+  int otherWidth = flexibleVisibleColumnCount > 0
+                       ? remainingWidth / flexibleVisibleColumnCount
+                       : remainingWidth;
+  if (otherWidth < 1 && flexibleVisibleColumnCount > 0) {
+    otherWidth = 1;
+  }
+
+  _applyingHistoryColumnWidths = true;
+  for (int column = 0; column < columnCount; ++column) {
+    if (header->isSectionHidden(column)) {
+      continue;
+    }
+
+    int width = otherWidth;
+    if (column == COLUMN_SUMMARY) {
+      width = summaryWidth;
+    } else if (column == COLUMN_COMMIT_SHORT_SHA) {
+      width = shaWidth;
+    }
+
+    if (width < 1) {
+      width = 1;
+    }
+
+    ui->historyView->setColumnWidth(column, width);
+  }
+  _applyingHistoryColumnWidths = false;
+
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::showAllWidgets() const {
@@ -8956,7 +10836,8 @@ void GitRepoContainer::stageAll(const WeakPtr &guard) {
   const QStringList modifiedFiles = historyAndStatus.status.newFiles +
                                     historyAndStatus.status.modifiedFiles +
                                     historyAndStatus.status.deletedFiles +
-                                    historyAndStatus.status.renamedFiles;
+                                    historyAndStatus.status.renamedFiles +
+                                    historyAndStatus.status.conflictedFiles;
 
   if (!modifiedFiles.isEmpty()) {
     stageFiles(guard, modifiedFiles);
@@ -9210,6 +11091,17 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
       ui->remotePage->updateActiveBranch(
           QString());                           // deselect remote branch if any
       ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
+
+      // Update the active remote in RemotesPage to match the branch's upstream
+      _dispatcher.dispatch([=]() {
+        auto [upstreamRemote, upstreamBranch] = getUpstream(guard);
+        if (upstreamRemote.isEmpty()) {
+          upstreamRemote = ui->remotesPage->activeRemote();
+        }
+        Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+          ui->remotesPage->updateActiveRemote(upstreamRemote);
+        });
+      });
     } else {
       ui->remotePage->clearCached();
       ui->tagsPage->clearCached();

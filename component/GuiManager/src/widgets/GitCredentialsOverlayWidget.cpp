@@ -7,6 +7,8 @@
 #include <Log.h>
 
 #include <QCheckBox>
+#include <QIcon>
+#include <QLineEdit>
 
 #define THREAD_ID "GitCredentialsOverlayWidget"
 
@@ -22,11 +24,12 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
           QColor::fromString("#969696"), this)),
       _passwordLineEdit(new PersistentPlaceholderLineEdit(
           QColor::fromString("#969696"), this)),
-      _storeCredentialsCheckBox(new QCheckBox(this)), _showing(false),
+      _storeCredentialsCheckBox(new QCheckBox(this)),
+      _passwordVisibilityAction(nullptr), _showing(false),
       _holder(QSharedPointer<bool>::create(false)), _id(id) {
   LOG_PERF(0, "Enter");
 
-  const auto groupBox = new OpaqueGroupBox(QColor::fromString("#384D59"), this);
+  const auto groupBox = new OpaqueGroupBox(overlayBackgroundColor(), this);
   groupBox->setObjectName("groupBoxGiCredentialsTextOverlayWidgetCredentials");
   groupBox->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   groupBox->setMinimumWidth(640);
@@ -56,6 +59,20 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   _passwordLineEdit->setPlaceholderText(tr("Enter password"));
   _passwordLineEdit->setEchoMode(QLineEdit::Password);
 
+  _passwordVisibilityAction = _passwordLineEdit->addAction(
+      QIcon(overlayButtonIcon(":/icons/eye.svg")), QLineEdit::TrailingPosition);
+  _passwordVisibilityAction->setToolTip(tr("Show password"));
+  connect(_passwordVisibilityAction, &QAction::toggled, this,
+          [this](bool checked) {
+            _passwordLineEdit->setEchoMode(checked ? QLineEdit::Normal
+                                                   : QLineEdit::Password);
+            _passwordVisibilityAction->setIcon(QIcon(overlayButtonIcon(
+                checked ? ":/icons/eye-off.svg" : ":/icons/eye.svg")));
+            _passwordVisibilityAction->setToolTip(
+                checked ? tr("Hide password") : tr("Show password"));
+          });
+  _passwordVisibilityAction->setCheckable(true);
+
   _storeCredentialsCheckBox->setParent(groupBox);
   _storeCredentialsCheckBox->setObjectName(
       "checkBoxGitCredentialsOverlayWidgetStore");
@@ -63,24 +80,24 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   _storeCredentialsCheckBox->setCursor(Qt::PointingHandCursor);
   _storeCredentialsCheckBox->setChecked(false);
 
-  _message = new OpaqueLabel(QColor::fromString("#384D59"), this);
+  _message = new OpaqueLabel(overlayBackgroundColor(), this);
 
   QPalette palette = _message->palette();
   palette.setColor(QPalette::WindowText, Qt::darkRed);
   _message->setPalette(palette);
 
-  _submitButton = new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  _submitButton = new OpaquePushButton(overlayBackgroundColor(), groupBox);
   _submitButton->setObjectName("pushButtonTextOverlayWidgetInputSubmit");
   _submitButton->setMaximumWidth(32);
   _submitButton->setMaximumHeight(32);
-  _submitButton->setIcon(QPixmap(":icons/ok.png"));
+  _submitButton->setIcon(overlayButtonIcon(":icons/ok.png"));
   _submitButton->setFlat(false);
 
-  _cancelButton = new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  _cancelButton = new OpaquePushButton(overlayBackgroundColor(), groupBox);
   _cancelButton->setObjectName("pushButtonTextOverlayWidgetInputCancel");
   _cancelButton->setMaximumWidth(32);
   _cancelButton->setMaximumHeight(32);
-  _cancelButton->setIcon(QPixmap(":icons/cancel.png"));
+  _cancelButton->setIcon(overlayButtonIcon(":icons/cancel.png"));
   _cancelButton->setFlat(false);
 
   const auto horizontalLayout = new QHBoxLayout();
@@ -188,6 +205,10 @@ void GitCredentialsOverlayWidget::setRequest(
     _usernameLineEdit->setText(request.username);
     _passwordLineEdit->clear();
     _storeCredentialsCheckBox->setChecked(false);
+  }
+
+  if (_passwordVisibilityAction) {
+    _passwordVisibilityAction->setChecked(false);
   }
 
   _usernameLineEdit->setReadOnly(!request.username.isEmpty() &&

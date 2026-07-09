@@ -8,6 +8,8 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QFont>
+#include <QGuiApplication>
+#include <QPalette>
 
 #define THREAD_ID "RecentlyOpenedReposModel"
 
@@ -35,7 +37,7 @@ QVariant RecentlyOpenedReposModel::data(const QModelIndex &index,
                                         const int role) const {
   const int column = index.column();
   if (role == Qt::ForegroundRole && column == 0) {
-    return QBrush(QColor::fromString("#384D59")); // or any QColor
+    return QBrush(QGuiApplication::palette().color(QPalette::WindowText));
   }
 
   if (role == Qt::FontRole && column == 0) {

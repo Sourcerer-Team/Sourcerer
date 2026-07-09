@@ -4,6 +4,7 @@
 
 #include <Dispatcher.h>
 #include <Log.h>
+#include <StylesheetManager.h>
 
 #include <QVBoxLayout>
 
@@ -40,7 +41,14 @@ GitProgressToast::GitProgressToast(const CloneProgress &data,
 
   layout()->addWidget(widget);
 
-  setStyleSheet("font-size:14px;color:white;background-color:#8B4000;");
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+  if (lightTheme) {
+    applyToastColors(QColor("#FFF1DE"), QColor("#E3AE5A"), QColor("#2E2418"));
+  } else {
+    applyToastColors(QColor("#8B4000"), QColor("#B8860B"), QColor("#FFFFFF"));
+  }
 
   connect(this, &GitProgressToast::finished, this,
           &GitProgressToast::onFinished);

@@ -5,6 +5,10 @@
 
 #include <Log.h>
 
+#include <QAction>
+#include <QIcon>
+#include <QLineEdit>
+
 #define THREAD_ID "SshPassphraseOverlayWidget"
 
 #define ALPHA 255
@@ -16,10 +20,11 @@ SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(uint id, QWidget *parent)
       _eventManager(::EventManager::EventManager::getInstance()),
       _passphraseLineEdit(new PersistentPlaceholderLineEdit(
           QColor::fromString("#969696"), this)),
-      _showing(false), _holder(QSharedPointer<bool>::create(false)), _id(id) {
+      _passphraseVisibilityAction(nullptr), _showing(false),
+      _holder(QSharedPointer<bool>::create(false)), _id(id) {
   LOG_PERF(0, "Enter");
 
-  const auto groupBox = new OpaqueGroupBox(QColor::fromString("#384D59"), this);
+  const auto groupBox = new OpaqueGroupBox(overlayBackgroundColor(), this);
   groupBox->setObjectName("groupBoxSshPassphraseOverlayWidgetPassphrase");
   groupBox->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
   groupBox->setMinimumWidth(480);
@@ -39,25 +44,39 @@ SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(uint id, QWidget *parent)
   _passphraseLineEdit->setPlaceholderText(tr("Enter SSH key passphrase"));
   _passphraseLineEdit->setEchoMode(QLineEdit::Password);
 
-  _message = new OpaqueLabel(QColor::fromString("#384D59"), this);
+  _passphraseVisibilityAction = _passphraseLineEdit->addAction(
+      QIcon(overlayButtonIcon(":/icons/eye.svg")), QLineEdit::TrailingPosition);
+  _passphraseVisibilityAction->setCheckable(true);
+  _passphraseVisibilityAction->setToolTip(tr("Show passphrase"));
+  connect(_passphraseVisibilityAction, &QAction::toggled, this,
+          [this](bool visible) {
+            _passphraseLineEdit->setEchoMode(visible ? QLineEdit::Normal
+                                                     : QLineEdit::Password);
+            _passphraseVisibilityAction->setIcon(QIcon(overlayButtonIcon(
+                visible ? ":/icons/eye-off.svg" : ":/icons/eye.svg")));
+            _passphraseVisibilityAction->setToolTip(
+                visible ? tr("Hide passphrase") : tr("Show passphrase"));
+          });
+
+  _message = new OpaqueLabel(overlayBackgroundColor(), this);
   _message->setText(tr("SSH key is encrypted. Please enter the passphrase."));
 
   QPalette palette = _message->palette();
   palette.setColor(QPalette::WindowText, Qt::gray);
   _message->setPalette(palette);
 
-  _submitButton = new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  _submitButton = new OpaquePushButton(overlayBackgroundColor(), groupBox);
   _submitButton->setObjectName("pushButtonSshPassphraseOverlayWidgetSubmit");
   _submitButton->setMaximumWidth(32);
   _submitButton->setMaximumHeight(32);
-  _submitButton->setIcon(QPixmap(":icons/ok.png"));
+  _submitButton->setIcon(overlayButtonIcon(":icons/ok.png"));
   _submitButton->setFlat(false);
 
-  _cancelButton = new OpaquePushButton(QColor::fromString("#384D59"), groupBox);
+  _cancelButton = new OpaquePushButton(overlayBackgroundColor(), groupBox);
   _cancelButton->setObjectName("pushButtonSshPassphraseOverlayWidgetCancel");
   _cancelButton->setMaximumWidth(32);
   _cancelButton->setMaximumHeight(32);
-  _cancelButton->setIcon(QPixmap(":icons/cancel.png"));
+  _cancelButton->setIcon(overlayButtonIcon(":icons/cancel.png"));
   _cancelButton->setFlat(false);
 
   const auto horizontalLayout = new QHBoxLayout();
@@ -134,6 +153,9 @@ void SshPassphraseOverlayWidget::setRequest(
   _request = request;
 
   _passphraseLineEdit->clear();
+  if (_passphraseVisibilityAction) {
+    _passphraseVisibilityAction->setChecked(false);
+  }
   _passphraseLineEdit->setFocus();
 
   LOG_PERF(0, "Exit");

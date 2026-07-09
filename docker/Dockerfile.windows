@@ -29,7 +29,7 @@ RUN choco install -y msys2 --params '"/NoUpdate /NoPath"'
 RUN C:\tools\msys64\usr\bin\bash.exe -lc 'pacman -Syy --noconfirm'
 
 # Install required runtime libraries and complete build toolchain
-RUN C:\tools\msys64\usr\bin\bash.exe -lc 'pacman -S --noconfirm mingw-w64-x86_64-toolchain mingw-w64-x86_64-libzip mingw-w64-x86_64-libgit2 mingw-w64-x86_64-libssh2 mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja'
+RUN C:\tools\msys64\usr\bin\bash.exe -lc 'pacman -S --noconfirm mingw-w64-x86_64-toolchain mingw-w64-x86_64-libzip mingw-w64-x86_64-libgit2 mingw-w64-x86_64-libssh2 mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-zlib mingw-w64-x86_64-pcre2'
 
 # Verify ninja installation in MSYS2
 RUN C:\tools\msys64\usr\bin\bash.exe -lc 'export PATH=/mingw64/bin:$PATH && which ninja && ninja --version'

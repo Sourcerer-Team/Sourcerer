@@ -7,6 +7,8 @@
 #include <git2/repository.h>
 #include <git2/status.h>
 
+#include <tuple>
+
 namespace GitRepo {
 
 struct GitError {
@@ -137,6 +139,7 @@ struct GitCommitStatus {
   QStringList deletedFiles;
   QStringList typeChangedFiles;
   QStringList renamedFiles;
+  QStringList untrackedFiles;
 };
 
 struct GitHistoryWithStatus {
@@ -192,13 +195,49 @@ struct SubmoduleStatus {
 
 struct SubmoduleInfo {
   QString name;
+  QString commit;
   SubmoduleStatus statusInfo;
 
   bool operator==(const SubmoduleInfo &other) const {
-    return name == other.name && statusInfo.status == other.statusInfo.status;
+    return name == other.name && commit == other.commit &&
+           statusInfo.status == other.statusInfo.status;
   }
 };
+struct RemoteTarget {
+  QString name; // e.g., "Default", "Backup", etc.
+  QString fetchUrl;
+  QString pushUrl;
 
+  bool operator==(const RemoteTarget &other) const {
+    return name == other.name && fetchUrl == other.fetchUrl &&
+           pushUrl == other.pushUrl;
+  }
+};
+struct RemoteInfo {
+  QString name;
+  QString fetchUrl; // Kept for backward compatibility
+  QString pushUrl;  // Kept for backward compatibility
+  bool isDefault = false;
+  QVector<RemoteTarget> targets; // Multiple fetch/push URL combinations
+
+  bool operator==(const RemoteInfo &other) const {
+    return name == other.name && fetchUrl == other.fetchUrl &&
+           pushUrl == other.pushUrl && targets == other.targets;
+  }
+
+  // Get the default target
+  RemoteTarget getDefaultTarget() const {
+    if (!targets.isEmpty()) {
+      for (const auto &target : targets) {
+        if (target.name == "Default") {
+          return target;
+        }
+      }
+      return targets.first();
+    }
+    return RemoteTarget{QStringLiteral("Default"), fetchUrl, pushUrl};
+  }
+};
 enum class BranchType {
   Unknown = 0,
 
@@ -318,13 +357,16 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
 QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
                               const bool &quitFlag);
 
+QStringList getCommitTags(git_repository *repo, const QString &commitOid,
+                          const bool &quitFlag);
+
 QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
                            const bool &quitFlag);
 
 bool getCommitIsHead(git_repository *repo, const QString &commitOid,
                      const bool &quitFlag);
 
-GitStatus getStatus(git_repository *repo);
+GitStatus getStatus(git_repository *repo, const bool &quitFlag);
 
 GitCommitStatus getCommitStatus(git_repository *repo, const QString &commitOid);
 
@@ -346,7 +388,13 @@ qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
 
 bool discardFiles(git_repository *repo, const QStringList &files);
 
-bool pull(git_repository *rep);
+bool pull(git_repository *rep, const QString &activeBranchName = QString(),
+          bool rebase = false);
+
+bool fetchAll(git_repository *repo);
+
+bool push(git_repository *repo, const QString &activeBranchName = QString(),
+          bool force = false);
 
 bool push(git_repository *rep);
 
@@ -360,8 +408,8 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
                  const QString &remoteBranchName,
                  const QString &localBranchName);
 
-QPair<QString, QString> getUpstream(git_repository *repo,
-                                    const QString &localBranchName);
+std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
+                                               const QString &localBranchName);
 
 bool resetToCommit(git_repository *repo, const QString &commit, ResetType type);
 
@@ -402,10 +450,41 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
 bool updateSubmodule(git_repository *repo, const QString &submoduleName);
 
 bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
-                  const QString &uuid);
+                  const QString &branch, const QString &uuid);
 
 bool getIsMergeInProgress(git_repository *repo);
 
 bool abortMerge(git_repository *repo);
+
+// Remote management functions
+QVector<RemoteInfo> listRemotes(git_repository *repo);
+
+QString getDefaultRemote(git_repository *repo);
+
+bool setDefaultRemote(git_repository *repo, const QString &remoteName);
+
+bool addRemote(git_repository *repo, const QString &remoteName,
+               const QString &fetchUrl, const QString &pushUrl);
+
+bool removeRemote(git_repository *repo, const QString &remoteName);
+
+bool updateRemote(git_repository *repo, const QString &remoteName,
+                  const QString &newRemoteName, const QString &fetchUrl,
+                  const QString &pushUrl);
+
+// Target management functions (multiple targets per remote)
+bool addTarget(git_repository *repo, const QString &remoteName,
+               const QString &targetName, const QString &fetchUrl,
+               const QString &pushUrl);
+
+bool editTarget(git_repository *repo, const QString &remoteName,
+                const QString &targetName, const QString &newFetchUrl,
+                const QString &newPushUrl);
+
+bool deleteTarget(git_repository *repo, const QString &remoteName,
+                  const QString &targetName);
+
+bool setDefaultTarget(git_repository *repo, const QString &remoteName,
+                      const QString &targetName);
 
 } // namespace GitRepo

@@ -5,21 +5,22 @@ namespace ConfigManager {
 enum class ConfigKey {
   Unknown = 0,
   RecentlyOpenedRepos,
+  UiTheme,
 
   // Main window
   TitleBarHeight,
   TitleBarMaxTabWidth,
   TitleBarMenuMinimumSize,
-  TitleBarMinimizeButtonColor,
-  TitleBarMaximizeButtonColor,
-  TitleBarCloseButtonColor,
   MainWindowBorderWidth,
+  MainWindowGeometry,
   MainWindowMinimumHeight,
   MainWindowMinimumWidth,
 
   // GitRepo container
   GitRepoSplitterPos,
   GitRepoBranchRecyclerViewItemsSplitterPos,
+  GitRepoHistoryViewColumnWidths,
+  GitRepoHistoryViewHiddenColumns,
   GitRepoSpinnerOverlayTimerTimeout,
   GitRepoDirWatcherHoldbackTimeout,
   GitRepoMaxDiffFileSize,
@@ -56,6 +57,7 @@ enum class ConfigKey {
 
   // Tooltips
   TooltipDisplayTime,
+  TooltipHistoryTimeout,
 
   // Testing
   TestColor,

@@ -29,3 +29,12 @@ const QColor &QVTCharFormat::background() const {
 void QVTCharFormat::setBackground(const QColor &background) {
   _background = background;
 }
+
+bool QVTCharFormat::operator==(const QVTCharFormat &other) const {
+  return _font == other._font && _foreground == other._foreground &&
+         _background == other._background;
+}
+
+bool QVTCharFormat::operator!=(const QVTCharFormat &other) const {
+  return !(*this == other);
+}

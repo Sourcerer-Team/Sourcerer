@@ -4,9 +4,11 @@
 #include "widgets/SideBySideDiffView.h"
 
 #include <Log.h>
+#include <StylesheetManager.h>
 
 #include <Qsci/qscilexerdiff.h>
 
+#include <QEvent>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QScrollBar>
@@ -17,6 +19,7 @@
 #define THREAD_ID "MergeDiffView"
 
 #define PLUS_MARKER 3
+#define PLUS_MARKER_MARGIN_WIDTH 28
 
 namespace GuiManager::Widgets {
 
@@ -62,6 +65,10 @@ MergeDiffView::MergeDiffView(QWidget *parent)
   LOG_PERF(0, "Exit");
 }
 
+static QString markerLabel(const QString &line) {
+  return line.mid(7).trimmed();
+}
+
 static MergeDiffContent
 parseContentWithMarkers(const QString &contentWithMarkers) {
   MergeDiffContent result;
@@ -79,14 +86,16 @@ parseContentWithMarkers(const QString &contentWithMarkers) {
   MergeDiffRange currentRangeBottom;
 
   for (const QString &line : lines) {
-    if (line.startsWith("<<<<<<<")) {
+    if (line.startsWith("<<<<<<<") && state == Normal) {
       state = InOurs;
       currentRangeTop = MergeDiffRange();
       currentRangeTop.leftStart = lineIndexTop; // ours starts after marker
+      currentRangeTop.startMarkerLabel = markerLabel(line);
       currentRangeBottom = MergeDiffRange();
       currentRangeBottom.leftStart =
           lineIndexBottom; // ours starts after marker
-    } else if (line.startsWith("=======")) {
+      currentRangeBottom.startMarkerLabel = currentRangeTop.startMarkerLabel;
+    } else if (line.startsWith("=======") && state == InOurs) {
       state = InTheirs;
       currentRangeTop.leftEnd = lineIndexTop; // ours ended before separator
       currentRangeTop.rightStart =
@@ -95,13 +104,23 @@ parseContentWithMarkers(const QString &contentWithMarkers) {
           lineIndexBottom; // ours ended before separator
       currentRangeBottom.rightStart =
           lineIndexBottom; // theirs starts after separator
-    } else if (line.startsWith(">>>>>>>")) {
-      state = Normal;
-      currentRangeTop.rightEnd = lineIndexTop; // theirs ended before marker
-      currentRangeBottom.rightEnd =
-          lineIndexBottom; // theirs ended before marker
-      result.rangesTop.append(currentRangeTop);
-      result.rangesBottom.append(currentRangeBottom);
+    } else if (line.startsWith(">>>>>>>") && state == InTheirs) {
+      const QString endMarkerLabel = markerLabel(line);
+
+      if (endMarkerLabel == currentRangeTop.startMarkerLabel) {
+        state = Normal;
+        currentRangeTop.rightEnd = lineIndexTop; // theirs ended before marker
+        currentRangeTop.endMarkerLabel = endMarkerLabel;
+        currentRangeBottom.rightEnd =
+            lineIndexBottom; // theirs ended before marker
+        currentRangeBottom.endMarkerLabel = currentRangeTop.endMarkerLabel;
+        result.rangesTop.append(currentRangeTop);
+        result.rangesBottom.append(currentRangeBottom);
+      } else {
+        result.right += line + "\n";
+        result.left += "\n"; // placeholder
+        lineIndexTop++;
+      }
     } else {
       if (state == Normal) {
         // Non-conflicting line goes to bottom and both panes
@@ -131,6 +150,32 @@ parseContentWithMarkers(const QString &contentWithMarkers) {
   result.bottom = lines.join('\n');
 
   return result;
+}
+
+void MergeDiffView::changeEvent(QEvent *event) {
+  QWidget::changeEvent(event);
+
+  if (!event)
+    return;
+
+  switch (event->type()) {
+  case QEvent::PaletteChange:
+  case QEvent::ApplicationPaletteChange:
+  case QEvent::StyleChange:
+    refreshScintillaTheme();
+    break;
+  default:
+    break;
+  }
+}
+
+void MergeDiffView::refreshScintillaTheme() {
+  DarkThemeLexersHighlighter highlighter;
+  const auto editors = findChildren<QsciScintilla *>();
+
+  for (auto *editor : editors) {
+    highlighter.applyDarkTheme(editor);
+  }
 }
 
 void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
@@ -529,7 +574,8 @@ void MergeDiffView::setupEditors(const QString &extension) {
   _leftEditor->setMarginType(3, QsciScintilla::SymbolMargin);
   _leftEditor->setMarginWidth(1, 0);
   _leftEditor->setMarginWidth(2, 0);
-  _leftEditor->setMarginWidth(3, 16);
+  _leftEditor->setMarginWidth(3, PLUS_MARKER_MARGIN_WIDTH);
+  _leftEditor->setMarginBackgroundColor(3, QColor(0x23272e));
   _leftEditor->setMarginMarkerMask(3, 1 << PLUS_MARKER);
   _leftEditor->setMarginSensitivity(3, true);
 
@@ -539,27 +585,44 @@ void MergeDiffView::setupEditors(const QString &extension) {
   _rightEditor->setMarginType(3, QsciScintilla::SymbolMargin);
   _rightEditor->setMarginWidth(1, 0);
   _rightEditor->setMarginWidth(2, 0);
-  _rightEditor->setMarginWidth(3, 16);
+  _rightEditor->setMarginWidth(3, PLUS_MARKER_MARGIN_WIDTH);
+  _rightEditor->setMarginBackgroundColor(3, QColor(0x23272e));
   _rightEditor->setMarginMarkerMask(3, 1 << PLUS_MARKER);
   _rightEditor->setMarginSensitivity(3, true);
 
   _leftEditor->markerDefine(QsciScintilla::Background, 1);
   _leftEditor->markerDefine(QsciScintilla::Background, 2);
-  _leftEditor->markerDefine(QsciScintilla::SC_MARK_PLUS, PLUS_MARKER);
+  _leftEditor->markerDefine(QsciScintilla::BoxedPlus, PLUS_MARKER);
 
   _rightEditor->markerDefine(QsciScintilla::Background, 1);
   _rightEditor->markerDefine(QsciScintilla::Background, 2);
-  _rightEditor->markerDefine(QsciScintilla::SC_MARK_PLUS, PLUS_MARKER);
+  _rightEditor->markerDefine(QsciScintilla::BoxedPlus, PLUS_MARKER);
 
-  _leftEditor->setMarkerBackgroundColor(QColor(0x3b1313), 1);
-  _leftEditor->setMarkerBackgroundColor(QColor(0x133b13), 2);
-  _leftEditor->setMarkerForegroundColor(Qt::white, PLUS_MARKER);
-  _leftEditor->setMarkerBackgroundColor(Qt::darkGreen, PLUS_MARKER);
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+  const QColor deletedColor =
+      lightTheme ? QColor(255, 231, 231) : QColor(0x3b1313);
+  const QColor addedColor =
+      lightTheme ? QColor(232, 246, 232) : QColor(0x133b13);
+  const QColor plusColor =
+      lightTheme ? QColor(200, 230, 251) : QColor(0xc8e6c9);
+  const QColor rightPlusColor =
+      lightTheme ? QColor(223, 236, 250) : QColor(0xbbdefb);
+  const QColor marginColor =
+      lightTheme ? QColor(243, 246, 248) : QColor(0x23272e);
+  const QColor changedColor =
+      lightTheme ? QColor(255, 241, 201) : QColor(Qt::darkYellow);
 
-  _rightEditor->setMarkerBackgroundColor(QColor(0x133b13), 1);
-  _rightEditor->setMarkerBackgroundColor(QColor(0x3b1313), 2);
-  _rightEditor->setMarkerForegroundColor(Qt::white, PLUS_MARKER);
-  _rightEditor->setMarkerBackgroundColor(Qt::darkGreen, PLUS_MARKER);
+  _leftEditor->setMarkerBackgroundColor(deletedColor, 1);
+  _leftEditor->setMarkerBackgroundColor(addedColor, 2);
+  _leftEditor->setMarkerForegroundColor(Qt::black, PLUS_MARKER);
+  _leftEditor->setMarkerBackgroundColor(plusColor, PLUS_MARKER);
+
+  _rightEditor->setMarkerBackgroundColor(addedColor, 1);
+  _rightEditor->setMarkerBackgroundColor(deletedColor, 2);
+  _rightEditor->setMarkerForegroundColor(Qt::black, PLUS_MARKER);
+  _rightEditor->setMarkerBackgroundColor(rightPlusColor, PLUS_MARKER);
 
   _bottomEditor->setMarginType(0, QsciScintilla::NumberMargin);
   _bottomEditor->setMarginType(1, QsciScintilla::SymbolMargin);
@@ -567,9 +630,9 @@ void MergeDiffView::setupEditors(const QString &extension) {
   _bottomEditor->markerDefine(QsciScintilla::Background, 1);
   _bottomEditor->markerDefine(QsciScintilla::Background, 2);
   _bottomEditor->markerDefine(QsciScintilla::Background, 3);
-  _bottomEditor->setMarkerBackgroundColor(Qt::darkYellow, 1);
-  _bottomEditor->setMarkerBackgroundColor(QColor(0x3b1313), 2);
-  _bottomEditor->setMarkerBackgroundColor(QColor(0x133b13), 3);
+  _bottomEditor->setMarkerBackgroundColor(changedColor, 1);
+  _bottomEditor->setMarkerBackgroundColor(deletedColor, 2);
+  _bottomEditor->setMarkerBackgroundColor(addedColor, 3);
 
   _leftEditor->setWrapMode(QsciScintilla::WrapNone);
   _rightEditor->setWrapMode(QsciScintilla::WrapNone);

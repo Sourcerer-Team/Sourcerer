@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 if (TARGET GuiManager)
-    return()
+  return()
 endif ()
 
 project(GuiManager)
@@ -10,7 +10,6 @@ set(CMAKE_CXX_STANDARD 17)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
-find_package(libgit2 REQUIRED)
 find_package(libzip REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Widgets Network LinguistTools)
 
@@ -33,20 +32,21 @@ set(UI_FILES
         src/widgets/LocalGitBranchesPage.ui
         src/widgets/ProfileBoardWidget.ui
         src/widgets/RemoteGitBranchesPage.ui
+        src/widgets/RemotesPage.ui
         src/widgets/StashesPage.ui
         src/widgets/TitlebarWidget.ui
 )
 
 if(WIN32)
-set(PLATFORM_SOURCES 
-        include/widgets/win32/PowerShellWidget.h 
+  set(PLATFORM_SOURCES
+        include/widgets/win32/PowerShellWidget.h
         src/widgets/win32/PowerShellWidget.cpp
 )
 endif()
 
 if(UNIX AND NOT APPLE)
-set(PLATFORM_SOURCES 
-        include/widgets/linux/BashShellWidget.h 
+  set(PLATFORM_SOURCES
+        include/widgets/linux/BashShellWidget.h
         src/widgets/linux/BashShellWidget.cpp
 )
 endif()
@@ -60,6 +60,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/HitDetector.h
         include/InitResources.h
         include/MainWindow.h
+        include/MousePositionCorrection.h
         include/QScintillaLexerFactory.h
         include/containers/BugReportContainer.h
         include/containers/CloneGitRepoContainer.h
@@ -83,17 +84,22 @@ set(GUIMANAGER_SOURCE_FILES
         include/models/GitCommitTreeModel.h
         include/models/GitHistoryModel.h
         include/models/RecentlyOpenedReposModel.h
+        include/models/RemotesModel.h
         include/models/StashesModel.h
         include/models/SubmodulesModel.h
         include/models/TagsModel.h
         include/models/WorkspacesModel.h
+        include/widgets/AddRemoteOverlayWidget.h
         include/widgets/AddSubmoduleOverlayWidget.h
+        include/widgets/AddTargetOverlayWidget.h
         include/widgets/AnnotatedTagOverlayWidget.h
         include/widgets/CentralWidget.h
         include/widgets/ClickableHeaderView.h
         include/widgets/ColorButton.h
         include/widgets/ConsoleWidget.h
         include/widgets/ContainerWidget.h
+        include/widgets/EditRemoteOverlayWidget.h
+        include/widgets/EditTargetOverlayWidget.h
         include/widgets/ElidedLabel.h
         include/widgets/ErrorToast.h
         include/widgets/ExtendedTabBar.h
@@ -119,6 +125,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/RemoteGitBranchesPage.h
         include/widgets/RightClickSelectListView.h
         include/widgets/RightClickSelectTreeView.h
+        include/widgets/RemotesPage.h
         include/widgets/SettingsPaneWidget.h
         include/widgets/SettingsPaneItemWidget.h
         include/widgets/SettingsPaneBooleanWidget.h
@@ -150,6 +157,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/HitDetector.cpp
         src/InitResources.cpp
         src/MainWindow.cpp
+        src/MousePositionCorrection.cpp
         src/QScintillaLexerFactory.cpp
         src/containers/BugReportContainer.cpp
         src/containers/CloneGitRepoContainer.cpp
@@ -170,16 +178,21 @@ set(GUIMANAGER_SOURCE_FILES
         src/models/GitCommitTreeModel.cpp
         src/models/GitHistoryModel.cpp
         src/models/RecentlyOpenedReposModel.cpp
+        src/models/RemotesModel.cpp
         src/models/StashesModel.cpp
         src/models/SubmodulesModel.cpp
         src/models/WorkspacesModel.cpp
         src/models/TagsModel.cpp
+        src/widgets/AddRemoteOverlayWidget.cpp
         src/widgets/AddSubmoduleOverlayWidget.cpp
+        src/widgets/AddTargetOverlayWidget.cpp
         src/widgets/AnnotatedTagOverlayWidget.cpp
         src/widgets/CentralWidget.cpp
         src/widgets/ColorButton.cpp
         src/widgets/ConsoleWidget.cpp
         src/widgets/ContainerWidget.cpp
+        src/widgets/EditRemoteOverlayWidget.cpp
+        src/widgets/EditTargetOverlayWidget.cpp
         src/widgets/ElidedLabel.cpp
         src/widgets/ErrorToast.cpp
         src/widgets/GitCredentialsOverlayWidget.cpp
@@ -195,6 +208,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/RecentTableView.cpp
         src/widgets/WorkspacesTableView.cpp
         src/widgets/RemoteGitBranchesPage.cpp
+        src/widgets/RemotesPage.cpp
         src/widgets/SettingsPaneWidget.cpp
         src/widgets/SettingsPaneItemWidget.cpp
         src/widgets/SettingsPaneBooleanWidget.cpp
@@ -250,7 +264,8 @@ target_link_libraries(GuiManager PRIVATE
         Qt6::Svg
         Qt6::Widgets
         Qt6::Network
-        ${LIBGIT2_LIBRARIES}
+        libgit2
+        util
         libzip::zip
         qscintilla
 )

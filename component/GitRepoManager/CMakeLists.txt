@@ -10,7 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
-find_package(libgit2 REQUIRED)
+find_package(LibSSH2 REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets LinguistTools)
 
 set(GITREPOMANAGER_SOURCE_FILES
@@ -47,10 +47,12 @@ target_link_libraries(GitRepoManager PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
-    ${LIBGIT2_LIBRARIES}
+    libgit2
+    util
+    ${LIBSSH2_LIBRARY}
 )
 
 target_include_directories(GitRepoManager PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
-  ${LIBGIT2_INCLUDE_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}../../lib/libgit2/include
 )

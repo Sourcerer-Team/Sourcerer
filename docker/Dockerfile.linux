@@ -51,7 +51,7 @@ RUN apt-get update && apt-get install -y \
     libfreetype6 \
     libdouble-conversion3 \
     libgl1-mesa-dev \
-    libglu1-mesa-dev \ 
+    libglu1-mesa-dev \
     libx11-dev \
     libxext-dev \
     libxfixes-dev \
@@ -69,6 +69,12 @@ ENV QT_IFW_VERSION=4.10
 ENV PATH="${QT_DIR}/${QT_VERSION}/gcc_64/bin:${QT_DIR}/Tools/QtInstallerFramework/${QT_IFW_VERSION}/bin:${PATH}"
 ENV LD_LIBRARY_PATH="${QT_DIR}/${QT_VERSION}/gcc_64/lib:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
 ENV QT_QPA_PLATFORM_PLUGIN_PATH="${QT_DIR}/${QT_VERSION}/gcc_64/plugins"
+ENV LIBSSH2_INCLUDEDIR="/usr/include"
+ENV LIBSSH2_LIBDIR="/usr/lib/x86_64-linux-gnu"
+ENV PCRE2_INCLUDEDIR="/usr/include"
+ENV PCRE2_LIBDIR="/usr/lib/x86_64-linux-gnu"
+ENV ZLIB_INCLUDEDIR="/usr/include"
+ENV ZLIB_LIBDIR="/usr/lib/x86_64-linux-gnu"
 
 # Create directory for Qt installation
 RUN mkdir -p ${QT_DIR}
@@ -112,4 +118,3 @@ WORKDIR /workspace
 
 # Default command
 CMD ["/bin/bash"]
-

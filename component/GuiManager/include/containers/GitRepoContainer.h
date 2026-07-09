@@ -13,6 +13,7 @@
 #include <LockGuard.h>
 #include <UserProfileManager.h>
 
+#include <QAction>
 #include <QCheckBox>
 #include <QEnableSharedFromThis>
 #ifdef Q_OS_WIN32
@@ -20,13 +21,18 @@
 #else
 #include <QFileSystemWatcher>
 #endif
+#include <QInputDialog>
 #include <QItemSelection>
 #include <QListView>
+#include <QMenu>
 #include <QPushButton>
 #include <QSet>
 #include <QString>
+#include <QToolButton>
 #include <QTreeView>
 #include <QWidget>
+
+#include <functional>
 
 namespace Ui {
 class GitRepoContainer;
@@ -40,6 +46,8 @@ class GitCommitTreeModel;
 namespace GuiManager::Widgets {
 class ScrollbarMarksWidget;
 }
+
+class QEvent;
 
 namespace GuiManager::Containers {
 
@@ -77,16 +85,29 @@ protected:
   void hideEvent(QHideEvent *event) override;
   void resizeEvent(QResizeEvent *event) override;
   void showEvent(QShowEvent *event) override;
+  void changeEvent(QEvent *event) override;
 
 private slots:
   void onAddSubmodule();
+  void onAddTarget(int remoteIndex);
   void onApplyPatch();
   void onApplyStash(int stashIndex);
   void onDeleteStash(int stashIndex);
+  void onDeleteTarget(int remoteIndex, int targetIndex);
   void onClearAllStashes();
-  void onSplitterMoved(int pos, int index) const;
-  void showTooltipForColumnSlice(const QModelIndex &index);
+  void onAddRemote();
+  void onEditRemote(int remoteIndex);
+  void onEditTarget(int remoteIndex, int targetIndex);
+  void onDeleteRemote(int remoteIndex);
+  void onSetDefaultRemote(int remoteIndex);
+  void onSetDefaultTarget(int remoteIndex, int targetIndex);
+  void onSplitterMoved(int pos, int index);
+  void onHistoryHeaderContextMenuRequested(const QPoint &pos);
+  void onHistoryHeaderSectionResized(int logicalIndex, int oldSize,
+                                     int newSize);
+
   void showTooltipForSummaryColumn(const QModelIndex &index) const;
+
   void onCheckoutCommit(const QString &commit);
   void onAbortButtonClicked();
   void onCommitButtonClicked();
@@ -106,6 +127,8 @@ private slots:
   void onDiffUnifiedClicked();
   void onDiffSideBySideClicked();
   void onDisplayTreeExpandAllButtonClicked();
+  void onPageDisplayFilesFlatListViewContextMenuRequested(const QPoint &pos);
+  void onPageDisplayFilesTreeViewContextMenuRequested(const QPoint &pos);
   void onHardResetToCommit(const QString &commit);
   void onHistorySelectionChanged(const QItemSelection &selected,
                                  const QItemSelection &deselected);
@@ -130,8 +153,9 @@ private slots:
   void onMixedResetToCommit(const QString &commit);
   void onPop();
   void onPopStash(int stashIndex);
-  void onPull();
-  void onPush();
+  void onPull(bool rebase = false);
+  void onFetchAll();
+  void onPush(bool force = false);
   void onRemoteBranchSelected(const QString &branchName);
   void onRemoteBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onRenameBranch(const QString &branchName);
@@ -140,7 +164,7 @@ private slots:
   void onRepoDirChangedTimeout();
   void onRevertCommit(const QString &commit);
   void onCherryPickCommit();
-  void onSetUpstream();
+  void onSetUpstream(const QString &branchName);
   void onSoftResetToCommit(const QString &commit);
   void onStash();
   void onStashSelected(int stashIndex);
@@ -199,7 +223,10 @@ private slots:
 private:
   void abortMerge(const WeakPtr &guard);
   void addSubmodule(const WeakPtr &guard, const QString &url,
-                    const QString &name);
+                    const QString &name, const QString &branch);
+  void addTarget(const WeakPtr &guard, int remoteIndex,
+                 const QString &targetName, const QString &fetchUrl,
+                 const QString &pushUrl);
   void amend(const WeakPtr &guard, const QString &summary,
              const QString &description, const QString &author,
              const QString &email);
@@ -215,6 +242,7 @@ private:
   void clearSummaryAndDescription();
   void closeDiffViewerIfOpen();
   void closeRepo() const;
+  void refreshScintillaTheme();
   void commit(const WeakPtr &guard, const QString &summary,
               const QString &description, const QString &author,
               const QString &email, bool cleanup);
@@ -232,18 +260,24 @@ private:
   void deleteStash(
       const WeakPtr &guard, int stashIndex,
       const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
-  void deleteAllStashes(const WeakPtr &guard);
+  void deleteAllStashes(
+      const WeakPtr &guard,
+      const std::function<void(const WeakPtr &)> &onSuccess = nullptr);
   void deleteTag(const WeakPtr &guard, const QString &tagName);
   void deleteRemoteTag(const WeakPtr &guard, const QString &tagName);
   void pushTag(const WeakPtr &guard, const QString &tagName);
   void pushAllTags(const WeakPtr &guard);
+  void copyFilePathsToClipboard(const QStringList &filePaths) const;
   void deleteSubmodule(const WeakPtr &guard, const QString &submoduleName);
+  void deleteTarget(const WeakPtr &guard, int remoteIndex, int targetIndex);
   void diff(const WeakPtr &guard, const QString &filePath);
   void diffThreeWay(const WeakPtr &guard, const QString &filePath);
   void diffFromCommit(const WeakPtr &guard, const QString &filePath,
                       const QString &commit);
   void diffFiles(const WeakPtr &guard, const QStringList &files);
   void discardFiles(const WeakPtr &guard, const QStringList &files);
+  void editTarget(const WeakPtr &guard, int remoteIndex, int targetIndex,
+                  const QString &newFetchUrl, const QString &newPushUrl);
   bool getActiveBranchOrTag(const WeakPtr &guard,
                             const GitRepo::BranchType branchType);
   bool getActiveLocalBranch();
@@ -252,6 +286,8 @@ private:
   bool getBranchHistory(const WeakPtr &guard);
   [[nodiscard]] QStringList getCommitBranches(const WeakPtr &guard,
                                               const QString &commit) const;
+  [[nodiscard]] QStringList getCommitTags(const WeakPtr &guard,
+                                          const QString &commit) const;
   [[nodiscard]] GitRepo::GitCommitStatus
   getCommitStatus(const WeakPtr &guard, const QString &commit) const;
   static QStringList getSelectedFiles(QListView *listView);
@@ -261,6 +297,7 @@ private:
   bool getLocalBranches();
   bool getRemoteBranches();
   bool getStashes(const WeakPtr &guard);
+  bool getRemotes(const WeakPtr &guard);
   bool getSubmodules();
   bool getTags();
   QStringList getSubdirectories(const QString &path,
@@ -268,6 +305,8 @@ private:
   QStringList getAllFiles(const QString &path,
                           const QStringList &excluded) const;
   QPair<QString, QString> getUpstream(const WeakPtr &guard);
+  QPair<QString, QString> getUpstreamForBranch(const WeakPtr &guard,
+                                               const QString &branchName);
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   void ignoreFilesRecursive(const WeakPtr &guard, const QStringList &files);
@@ -277,8 +316,16 @@ private:
   void openSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void popStash(const WeakPtr &guard, int stashIndex);
   void showStashContent(const WeakPtr &guard, int stashIndex);
-  void pull(const WeakPtr &guard);
-  void push(const WeakPtr &guard);
+  void pull(const WeakPtr &guard, bool rebase = false);
+  void fetchAll(const WeakPtr &guard);
+  void push(const WeakPtr &guard, bool force = false);
+  void addRemote(const WeakPtr &guard, const QString &remoteName,
+                 const QString &fetchUrl, const QString &pushUrl);
+  void editRemote(const WeakPtr &guard, int remoteIndex,
+                  const QString &remoteName, const QString &fetchUrl,
+                  const QString &pushUrl);
+  void deleteRemote(const WeakPtr &guard, int remoteIndex);
+  void setDefaultRemote(const WeakPtr &guard, int remoteIndex);
   void renameBranch(const WeakPtr &guard, const QString &oldName,
                     const QString &newName);
   void renameTag(const WeakPtr &guard, const QString &oldName,
@@ -296,17 +343,22 @@ private:
   void resetDisplayTreeExpandedButton();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
+  void applyHistoryColumnVisibility();
+  void persistHistoryColumnVisibility();
   void saveRepoInRecentList() const;
   void saveThreeWayMergeResultFile(const WeakPtr &guard,
                                    const QString &filePath,
                                    const QString &content);
-  void setUpstream(const WeakPtr &guard, const QString &remoteName,
-                   const QString &remoteBranchName);
+  void setDefaultTarget(const WeakPtr &guard, int remoteIndex, int targetIndex);
+  void
+  setUpstream(const WeakPtr &guard, const QString &branchName,
+              const QString &remoteName, const QString &remoteBranchName,
+              const std::function<void(const WeakPtr &)> &onSuccess = nullptr);
   void startOverlayTimer() const;
   void stash(const WeakPtr &guard);
   void stopOverlayTimer() const;
   void stopWatcher(const WeakPtr &guard);
-  void stretchBranchHistoryTableColumns() const;
+  void stretchBranchHistoryTableColumns();
   void showAllWidgets() const;
   void showCommit(const WeakPtr &guard, const QString &commit);
   void showCommitAndMerge(WeakPtr guard);
@@ -315,6 +367,7 @@ private:
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message, const QString &title);
   void showErrorToast(const QString &message, const QString &title);
+  void copyFilePathsToClipboard(const QStringList &filePaths);
   bool showWarningForBranchCheckout() const;
   void simulateClickOnHistoryRow(int row) const;
   void simulateClickOnFirstHistoryRow() const;
@@ -380,6 +433,8 @@ private:
 
   int _resizedHeaderSection;
   int _resizedHeaderSectionPreviousWidth;
+
+  bool _applyingHistoryColumnWidths;
 
   QCheckBox *_checkBoxAmend;
   QPushButton *_commitAndMergeWorkingDirTreeStageAllButton;

@@ -2,8 +2,9 @@
     <qresource prefix="/">
         <file>icons/titlebar_menu.png</file>
         <file>icons/git_branch.png</file>
-        <file>icons/git_tag.png</file>
+        <file>icons/git_remote.png</file>
         <file>icons/git_submodule.png</file>
+        <file>icons/git_tag.png</file>
         <file>icons/git_branch_active.png</file>
         <file>icons/close_button.png</file>
         <file>icons/maximize_button.png</file>
@@ -20,6 +21,7 @@
         <file>icons/file-unreadable.png</file>
         <file>icons/profile.png</file>
         <file>icons/profile-default.png</file>
+        <file>icons/fetch.png</file>
         <file>icons/pull.png</file>
         <file>icons/push.png</file>
         <file>icons/pop.png</file>
@@ -28,9 +30,13 @@
         <file>icons/id-card.png</file>
         <file>icons/ok.png</file>
         <file>icons/cancel.png</file>
+        <file>icons/eye.svg</file>
+        <file>icons/eye-off.svg</file>
         <file>icons/diff-unified.png</file>
         <file>icons/diff-side-by-side.png</file>
         <file>icons/down_arrow.png</file>
         <file>icons/up_arrow.png</file>
+        <file>icons/tree_branch_closed.svg</file>
+        <file>icons/tree_branch_open.svg</file>
     </qresource>
 </RCC>

@@ -3,12 +3,18 @@
 #include "widgets/win32/PowerShellWidget.h"
 #endif
 
+#include <StylesheetManager.h>
+
+#include <QColor>
+#include <QEvent>
+
 #ifdef Q_OS_LINUX
 #include "widgets/linux/BashShellWidget.h"
 #endif
 
 #include <Log.h>
 
+#include <QColor>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -17,10 +23,43 @@
 
 #define THREAD_ID "ConsoleWidget"
 
+namespace {
+
+struct ConsoleThemeColors {
+  QColor titleBarBackground;
+  QColor titleBarText;
+  QColor titleBarButtonHover;
+  QColor titleBarButtonPressed;
+};
+
+ConsoleThemeColors consoleThemeColors() {
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+
+  return lightTheme
+             ? ConsoleThemeColors{QColor(245, 235, 220), QColor(32, 32, 32),
+                                  QColor(230, 218, 198), QColor(214, 198, 176)}
+             : ConsoleThemeColors{QColor(45, 45, 48), QColor(255, 255, 255),
+                                  QColor(62, 62, 66), QColor(0, 122, 204)};
+}
+
+QColor consoleCloseButtonIconColor(const ConsoleThemeColors &colors) {
+  const int backgroundLuma = qRound(0.299 * colors.titleBarBackground.red() +
+                                    0.587 * colors.titleBarBackground.green() +
+                                    0.114 * colors.titleBarBackground.blue());
+
+  // Use a neutral gray that stays readable on both themes.
+  return backgroundLuma < 128 ? QColor(220, 220, 220) : QColor(80, 80, 80);
+}
+
+} // namespace
+
 namespace GuiManager::Widgets {
 
 ConsoleWidget::ConsoleWidget(QWidget *parent)
-    : QWidget(parent), _titleBar(nullptr), _closeButton(nullptr)
+    : QWidget(parent), _titleBar(nullptr), _titleLabel(nullptr),
+      _closeButton(nullptr)
 #ifdef Q_OS_WIN
       ,
       _powerShellWidget(nullptr)
@@ -37,35 +76,43 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(0);
 
+  const ConsoleThemeColors colors = consoleThemeColors();
+
   // Create title bar
   _titleBar = new QWidget(this);
-  _titleBar->setStyleSheet("background-color: #2d2d30; padding: 4px;");
+  _titleBar->setStyleSheet(QString("background-color: %1; padding: 4px;")
+                               .arg(colors.titleBarBackground.name()));
   _titleBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   _titleBar->setFixedHeight(28); // Fixed height for title bar
 
   // Add title label
-  auto *titleLabel = new QLabel("Console", _titleBar);
-  titleLabel->setStyleSheet(
-      "color: white; font-weight: bold; font-size: 12px;");
-  titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+  _titleLabel = new QLabel("Console", _titleBar);
+  _titleLabel->setStyleSheet(
+      QString("color: %1; font-weight: bold; font-size: 12px;")
+          .arg(colors.titleBarText.name()));
+  _titleLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
   auto *titleBarLayout = new QHBoxLayout(_titleBar);
   titleBarLayout->setContentsMargins(8, 4, 4, 4);
   titleBarLayout->setSpacing(4);
-  titleBarLayout->addWidget(titleLabel);
+  titleBarLayout->addWidget(_titleLabel);
   titleBarLayout->addStretch();
 
   // Create minimize button with icon
   _closeButton = new QPushButton(_titleBar);
   _closeButton->setFlat(true);
   _closeButton->setFixedSize(12, 12);
-  _closeButton->setIcon(QIcon(":/icons/close_button.png"));
+  _closeButton->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":/icons/close_button.png"),
+      consoleCloseButtonIconColor(colors)));
   _closeButton->setIconSize(QSize(12, 12));
   _closeButton->setStyleSheet(
-      "QPushButton { background-color: transparent; border: none; "
-      "border-radius: 2px; }"
-      "QPushButton:hover { background-color: #3e3e42; }"
-      "QPushButton:pressed { background-color: #007acc; }");
+      QString("QPushButton { background-color: transparent; border: none; "
+              "border-radius: 2px; }"
+              "QPushButton:hover { background-color: %1; }"
+              "QPushButton:pressed { background-color: %2; }")
+          .arg(colors.titleBarButtonHover.name(),
+               colors.titleBarButtonPressed.name()));
   _closeButton->setCursor(Qt::ArrowCursor);
 
   titleBarLayout->addWidget(_closeButton);
@@ -203,6 +250,60 @@ void ConsoleWidget::setWorkingDirectory(const QString &path) {
 #endif
 
   LOG_PERF(0, "Exit");
+}
+
+void ConsoleWidget::applyTheme() {
+  const ConsoleThemeColors colors = consoleThemeColors();
+
+  if (_titleBar) {
+    _titleBar->setStyleSheet(QString("background-color: %1; padding: 4px;")
+                                 .arg(colors.titleBarBackground.name()));
+  }
+
+  if (_titleLabel) {
+    _titleLabel->setStyleSheet(
+        QString("color: %1; font-weight: bold; font-size: 12px;")
+            .arg(colors.titleBarText.name()));
+  }
+
+  if (_closeButton) {
+    _closeButton->setStyleSheet(
+        QString("QPushButton { background-color: transparent; border: none; "
+                "border-radius: 2px; }"
+                "QPushButton:hover { background-color: %1; }"
+                "QPushButton:pressed { background-color: %2; }")
+            .arg(colors.titleBarButtonHover.name(),
+                 colors.titleBarButtonPressed.name()));
+  }
+
+#ifdef Q_OS_WIN
+  if (_powerShellWidget) {
+    _powerShellWidget->refreshTheme();
+  }
+#elif defined(Q_OS_LINUX)
+  if (_bashShellWidget) {
+    _bashShellWidget->refreshTheme();
+  }
+#endif
+}
+
+void ConsoleWidget::changeEvent(QEvent *event) {
+  if (!event) {
+    QWidget::changeEvent(event);
+    return;
+  }
+
+  switch (event->type()) {
+  case QEvent::StyleChange:
+  case QEvent::PaletteChange:
+  case QEvent::ApplicationPaletteChange:
+    applyTheme();
+    break;
+  default:
+    break;
+  }
+
+  QWidget::changeEvent(event);
 }
 #ifdef Q_OS_WIN
 Win32::PowerShellWidget *ConsoleWidget::getPowerShellWidget() const {

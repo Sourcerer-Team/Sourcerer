@@ -1,4 +1,5 @@
 #include "widgets/ProfileBoardWidget.h"
+#include "MousePositionCorrection.h"
 #include "delegates/FixedHeightDelegate.h"
 #include "widgets/ui_ProfileBoardWidget.h"
 
@@ -15,6 +16,7 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPalette>
 #include <QRegularExpression>
 #include <QUrl>
 
@@ -39,12 +41,14 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
   setMouseTracking(true);
 
   ui->setupUi(this);
+
+  ui->listViewProfiles->setAttribute(Qt::WA_StyledBackground, true);
+  ui->listViewProfiles->setAutoFillBackground(true);
   ui->listViewProfiles->setItemDelegate(
       new Delegates::FixedHeightDelegate(ui->listViewProfiles));
 
   // Create and configure waiting spinner for signin
   _signinSpinner = new WaitingSpinnerWidget(this, true, true);
-  _signinSpinner->setColor(QColor(100, 200, 255));
   _signinSpinner->setLineLength(3);
   _signinSpinner->setLineWidth(2);
 
@@ -287,10 +291,11 @@ ProfileBoardWidget::~ProfileBoardWidget() {
 bool ProfileBoardWidget::eventFilter(QObject *watched, QEvent *event) {
   if (event->type() == QEvent::MouseButtonPress) {
     const QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-    const QPoint globalPos = mouseEvent->globalPos();
+    const QPoint globalPos =
+        MousePositionCorrection::instance().correctedGlobalPosition(mouseEvent);
 
     // Check if click is outside this widget
-    if (isVisible() && !geometry().contains(globalPos)) {
+    if (isVisible() && !frameGeometry().contains(globalPos)) {
       hide();
       emit hidden();
       LOG_DEBUG("Clicked outside the widget!");
@@ -332,9 +337,29 @@ void ProfileBoardWidget::paintEvent(QPaintEvent *event) {
   path.arcTo(0, arrowHeight, 2 * radius, 2 * radius, 180, -90);
   path.closeSubpath();
 
-  painter.setBrush(QColor(80, 80, 80, 255)); // Semi-transparent
-  painter.setPen(Qt::NoPen);
+  const QColor fillColor = palette().color(QPalette::Window);
+  const QColor borderColor = palette().color(QPalette::Mid);
+
+  painter.setBrush(fillColor);
+  painter.setPen(QPen(borderColor, 1));
   painter.drawPath(path);
+}
+
+void ProfileBoardWidget::changeEvent(QEvent *event) {
+  QWidget::changeEvent(event);
+
+  if (!event)
+    return;
+
+  switch (event->type()) {
+  case QEvent::PaletteChange:
+  case QEvent::ApplicationPaletteChange:
+  case QEvent::StyleChange:
+    update();
+    break;
+  default:
+    break;
+  }
 }
 
 void ProfileBoardWidget::onButtonAddClicked() {
