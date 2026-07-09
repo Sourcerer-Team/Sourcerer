@@ -10511,7 +10511,7 @@ void GitRepoContainer::showAllWidgets() const {
 void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
   LOG_PERF(0, "Enter");
 
-  const GitRepo::GitHistoryWithStatus &historyAndStatus =
+  const GitRepo::GitHistoryWithStatus historyAndStatus =
       _historyModel->historyWithStatus();
 
   if (!historyAndStatus.history.commitInfos.contains(commit)) {
@@ -10521,7 +10521,7 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
 
   const GitRepo::GitCommitStatus commitStatus = getCommitStatus(guard, commit);
 
-  const GitRepo::GitCommitInfo &commitInfo =
+  const GitRepo::GitCommitInfo commitInfo =
       historyAndStatus.history.commitInfos[commit];
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
@@ -10629,7 +10629,7 @@ void GitRepoContainer::showCommitAndMerge(WeakPtr guard) {
 
   _mergeInProgress = commandResult.value.toBool();
 
-  const GitRepo::GitHistoryWithStatus &historyAndStatus =
+  const GitRepo::GitHistoryWithStatus historyAndStatus =
       _historyModel->historyWithStatus();
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
@@ -10830,7 +10830,7 @@ void GitRepoContainer::simulateClickOnFirstHistoryRow() const {
 void GitRepoContainer::stageAll(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
-  const GitRepo::GitHistoryWithStatus &historyAndStatus =
+  const GitRepo::GitHistoryWithStatus historyAndStatus =
       _historyModel->historyWithStatus();
 
   const QStringList modifiedFiles = historyAndStatus.status.newFiles +
@@ -10931,7 +10931,7 @@ void GitRepoContainer::stageFiles(const WeakPtr &guard,
 void GitRepoContainer::unstageAll(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
-  const GitRepo::GitHistoryWithStatus &historyAndStatus =
+  const GitRepo::GitHistoryWithStatus historyAndStatus =
       _historyModel->historyWithStatus();
 
   const QStringList stagedFiles = historyAndStatus.status.newStagedFiles +
