@@ -148,7 +148,7 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
 
     {ConfigKey::HttpClientCaCertFile, "ca-certificates.crt"},
     {ConfigKey::RecentlyOpenedRepos, ""},
-    {ConfigKey::UiTheme, "SourcererLight"},
+    {ConfigKey::UiTheme, "SourcererDark"},
     {ConfigKey::MainWindowGeometry, ""},
     {ConfigKey::SettingsSplitterPos, ""}};
 
