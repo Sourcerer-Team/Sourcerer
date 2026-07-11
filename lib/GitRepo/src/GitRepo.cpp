@@ -234,9 +234,9 @@ static bool file_has_conflict_markers(const QString &path) {
                                           ">>>>>>>");
 }
 
-static bool collectCherryPickConflictedFilePaths(git_repository *repo,
-                                                  git_index *index,
-                                                  QStringList *filePaths) {
+static bool collectConflictedFilePathsFromResultIndex(git_repository *repo,
+                                                      git_index *index,
+                                                      QStringList *filePaths) {
   LOG_PERF(0, "Enter");
 
   if (!repo || !index || !filePaths) {
@@ -6633,6 +6633,7 @@ bool revertCommit(git_repository *repo, const QString &commit,
 
   git_index *revertIndex = nullptr;
   git_merge_options mergeOpts = GIT_MERGE_OPTIONS_INIT;
+  mergeOpts.file_flags |= GIT_MERGE_FILE_ACCEPT_CONFLICTS;
 
   error = git_revert_commit(&revertIndex, repo, targetCommit, headCommit,
                             0, // mainline = 0 for non-merge commits
@@ -6644,6 +6645,52 @@ bool revertCommit(git_repository *repo, const QString &commit,
     git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
+  }
+
+  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  checkoutOpts.checkout_strategy |= GIT_CHECKOUT_ALLOW_CONFLICTS;
+
+  error = git_checkout_index(repo, revertIndex, &checkoutOpts);
+  if (error) {
+    logGitError(error);
+    git_index_free(revertIndex);
+    git_commit_free(headCommit);
+    git_reference_free(headRef);
+    git_commit_free(targetCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  QStringList conflictedFiles;
+  if (!collectConflictedFilePathsFromResultIndex(repo, revertIndex,
+                                                &conflictedFiles)) {
+    git_index_free(revertIndex);
+    git_commit_free(headCommit);
+    git_reference_free(headRef);
+    git_commit_free(targetCommit);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!conflictedFiles.isEmpty()) {
+    git_index_free(revertIndex);
+
+    if (!markConflictedFiles(repo, conflictedFiles)) {
+      git_commit_free(headCommit);
+      git_reference_free(headRef);
+      git_commit_free(targetCommit);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    git_commit_free(headCommit);
+    git_reference_free(headRef);
+    git_commit_free(targetCommit);
+
+    LOG_DEBUG("Revert of commit '{}' completed with conflicts",
+              commit.toStdString());
+    LOG_PERF(0, "Exit");
+    return true;
   }
 
   git_oid treeOid;
@@ -6880,8 +6927,8 @@ bool cherryPickCommit(git_repository *repo, const QString &commit,
   }
 
   QStringList conflictedFiles;
-  if (!collectCherryPickConflictedFilePaths(repo, cherryPickIndex,
-                                             &conflictedFiles)) {
+  if (!collectConflictedFilePathsFromResultIndex(repo, cherryPickIndex,
+                                                 &conflictedFiles)) {
     git_index_free(cherryPickIndex);
     git_commit_free(headCommit);
     git_reference_free(headRef);
@@ -10302,3 +10349,4 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
 }
 
 } // namespace GitRepo
+me.�_
