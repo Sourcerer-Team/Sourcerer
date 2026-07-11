@@ -2854,6 +2854,8 @@ void GitRepoContainer::onPull(bool rebase) {
   LOG_DEBUG("{} operation initiated for repository: '{}'",
             rebase ? "Pull with rebase" : "Pull", _path.toStdString());
 
+  startOverlayTimer();
+
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
@@ -2870,6 +2872,8 @@ void GitRepoContainer::onFetchAll() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Fetch all operation initiated for repository: '{}'",
             _path.toStdString());
+
+  startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
 
