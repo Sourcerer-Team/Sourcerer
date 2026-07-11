@@ -8,15 +8,7 @@ namespace GitRepoManager {
 namespace Structs {
 
 QString translateGitError(int errorCode) {
-  // Extract the actual libgit2 error code from the combined error code.
-  // The error code is encoded as: (klass & 0x00ff) << 16 | (error & 0xffff)
-  // We need the low 16 bits which contain the git_error_code value.
-  const int gitErrorCode = errorCode & 0xffff;
-
-  // Handle negative error codes (libgit2 uses negative values for errors)
-  // Convert from stored unsigned to signed
-  const int signedErrorCode =
-      (gitErrorCode > 0x7fff) ? gitErrorCode - 0x10000 : gitErrorCode;
+  const int signedErrorCode = decodeGitError(errorCode);
 
   switch (signedErrorCode) {
   case 0: // GIT_OK
@@ -129,6 +121,20 @@ QString translateGitError(int errorCode) {
                "GitRepoError", "An unexpected error occurred (code: %1).")
         .arg(signedErrorCode);
   }
+}
+
+int decodeGitError(int errorCode) {
+  // Extract the actual libgit2 error code from the combined error code.
+  // The error code is encoded as: (klass & 0x00ff) << 16 | (error & 0xffff)
+  // We need the low 16 bits which contain the git_error_code value.
+  const int gitErrorCode = errorCode & 0xffff;
+
+  // Handle negative error codes (libgit2 uses negative values for errors)
+  // Convert from stored unsigned to signed
+  const int signedErrorCode =
+      (gitErrorCode > 0x7fff) ? gitErrorCode - 0x10000 : gitErrorCode;
+
+  return signedErrorCode;
 }
 
 } // namespace Structs

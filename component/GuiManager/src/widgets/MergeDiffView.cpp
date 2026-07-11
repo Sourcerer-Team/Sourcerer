@@ -20,6 +20,8 @@
 
 #define PLUS_MARKER 3
 #define PLUS_MARKER_MARGIN_WIDTH 28
+#define STASHED_CHANGES "Stashed changes"
+#define UPDATED_UPSTREAM "Updated upstream"
 
 namespace GuiManager::Widgets {
 
@@ -107,7 +109,9 @@ parseContentWithMarkers(const QString &contentWithMarkers) {
     } else if (line.startsWith(">>>>>>>") && state == InTheirs) {
       const QString endMarkerLabel = markerLabel(line);
 
-      if (endMarkerLabel == currentRangeTop.startMarkerLabel) {
+      if (endMarkerLabel == currentRangeTop.startMarkerLabel ||
+          (currentRangeTop.startMarkerLabel == UPDATED_UPSTREAM &&
+           endMarkerLabel == STASHED_CHANGES)) {
         state = Normal;
         currentRangeTop.rightEnd = lineIndexTop; // theirs ended before marker
         currentRangeTop.endMarkerLabel = endMarkerLabel;
