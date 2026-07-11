@@ -2993,6 +2993,8 @@ void GitRepoContainer::onStash() {
   LOG_DEBUG("Stash operation initiated for repository: '{}'",
             _path.toStdString());
 
+  startOverlayTimer();
+
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
@@ -5394,11 +5396,6 @@ void GitRepoContainer::applyStash(
           tr("Stash applied with conflicts. Resolve conflicts to continue."),
           tr("Conflicts"));
     });
-
-    // The merge diff viewer is shown as part of refreshStatus since
-    // _mergeInProgress will be detected via the repository state checking
-    LOG_PERF(0, "Exit")
-    return;
   }
 
   if (onSuccess) {
