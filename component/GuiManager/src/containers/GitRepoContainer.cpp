@@ -185,6 +185,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->historyView->setVisible(false);
   ui->spinner->setColor(Qt::lightGray);
+  _spinnerOverlay->setParent(ui->pageMain);
 
   auto *header = new ClickableHeaderView(Qt::Horizontal, ui->historyView);
   ui->historyView->setHorizontalHeader(header);
@@ -3809,10 +3810,7 @@ void GitRepoContainer::setUpstream(
 void GitRepoContainer::startOverlayTimer() const {
   LOG_PERF(0, "Enter");
 
-  const qlonglong timerTimeout = _configManager.getLong(
-      ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
-
-  _spinnerOverlayTimer->start(static_cast<int>(timerTimeout));
+  _spinnerOverlayTimer->start(0);
 
   LOG_PERF(0, "Exit");
 }
@@ -10734,7 +10732,6 @@ void GitRepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {
   LOG_PERF(0, "Enter");
 
   if (spinnerEnabled) {
-    hideAllWidgets();
     _spinnerOverlay->startSpinning();
     _spinnerOverlay->setText("");
     _spinnerOverlay->raise();
@@ -10744,7 +10741,6 @@ void GitRepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {
     _spinnerOverlay->hide();
     _spinnerOverlay->stopSpinning();
     _spinnerOverlay->setText("");
-    showAllWidgets();
   }
 
   LOG_PERF(0, "Exit")

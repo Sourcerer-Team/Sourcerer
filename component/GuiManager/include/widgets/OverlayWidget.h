@@ -1,7 +1,5 @@
 #pragma once
 
-#include "ClickableHeaderView.h"
-
 #include <StylesheetManager.h>
 
 #include <QApplication>
@@ -16,11 +14,17 @@ namespace GuiManager::Widgets {
 
 class OverlayWidget : public QWidget {
 public:
-  explicit OverlayWidget(QWidget *parent, const int alpha) : QWidget(parent) {
+  explicit OverlayWidget(QWidget *parent, const int alpha,
+                         const bool nativeWindow = true)
+      : QWidget(parent) {
     setAttribute(Qt::WA_TransparentForMouseEvents, false);
 
 #ifdef Q_OS_WIN
-    setAttribute(Qt::WA_NativeWindow);
+    if (nativeWindow) {
+      setAttribute(Qt::WA_NativeWindow);
+    }
+#else
+    Q_UNUSED(nativeWindow);
 #endif
 
     const auto effect = new QGraphicsOpacityEffect(this);
