@@ -1859,7 +1859,7 @@ QString StylesheetManager::stylesheetKeyName(StylesheetKey key) {
   case StylesheetKey::SourcererDark:
     return SOURCERER_DARK_THEME_NAME;
   default:
-    return SOURCERER_LIGHT_THEME_NAME;
+    return SOURCERER_DARK_THEME_NAME;
   }
 }
 
@@ -1868,7 +1868,7 @@ StylesheetKey StylesheetManager::stylesheetKeyFromName(const QString &name) {
     return StylesheetKey::SourcererLight;
   if (name == SOURCERER_DARK_THEME_NAME)
     return StylesheetKey::SourcererDark;
-  return StylesheetKey::SourcererLight;
+  return StylesheetKey::SourcererDark;
 }
 
 QColor StylesheetManager::menuBarButtonIconColor() {

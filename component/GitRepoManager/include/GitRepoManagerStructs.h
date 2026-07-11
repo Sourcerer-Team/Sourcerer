@@ -797,6 +797,8 @@ struct GitRepoError {
   int error = -1;
 };
 
+int decodeGitError(int errorCode);
+
 /**
  * @brief Translates a libgit2 error code into a user-friendly error message.
  *

@@ -105,7 +105,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
      2592000000LL}, // 30 days in milliseconds
     {ConfigKey::GitRepoServerConnectTimeout, 30000LL}, // 30 seconds
     {ConfigKey::GitRepoServerTimeout, 30000LL},        // 30 seconds
-    {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 0},
+    {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 1000},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout, 2000},
     {ConfigKey::GitRepoMaxDiffFileSize, 1 * 1024 * 1024}, // 1 MB
     {ConfigKey::GitRepoMonospaceFontSize, 10},
@@ -148,7 +148,7 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
 
     {ConfigKey::HttpClientCaCertFile, "ca-certificates.crt"},
     {ConfigKey::RecentlyOpenedRepos, ""},
-    {ConfigKey::UiTheme, "SourcererLight"},
+    {ConfigKey::UiTheme, "SourcererDark"},
     {ConfigKey::MainWindowGeometry, ""},
     {ConfigKey::SettingsSplitterPos, ""}};
 

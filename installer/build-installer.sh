@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build script for Linux/macOS installer
-# Usage: 
+# Usage:
 #   ./build-installer.sh              - Build Qt IFW installer only
 #   ./build-installer.sh --appimage   - Build AppImage only
 #   ./build-installer.sh --both       - Build both formats
@@ -27,7 +27,7 @@ mkdir -p "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 echo "Running CMake configuration..."
-cmake -G Ninja -DCMAKE_BUILD_TYPE=Release ../../src
+cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -Wno-dev ../../src
 if [ $? -ne 0 ]; then
     echo "Error: CMake configuration failed"
     exit 1
@@ -49,15 +49,15 @@ if [ "$OS_TYPE" == "macos" ]; then
     # macOS: Copy .app bundle
     echo "Copying macOS application bundle..."
     cp -R "$RELEASE_DIR/Sourcerer.app" "$DATA_DIR/"
-    
+
     # Deploy Qt dependencies using macdeployqt
     echo "Deploying Qt dependencies..."
     macdeployqt "$DATA_DIR/Sourcerer.app"
-    
+
 else
     # Linux: Copy executable
     echo "Copying application files..."
-    
+
     if [ ! -f "$RELEASE_DIR/Sourcerer" ]; then
         echo "Error: Sourcerer executable not found at $RELEASE_DIR/Sourcerer"
         echo "Build directory contents:"
@@ -70,20 +70,20 @@ else
         fi
         exit 1
     fi
-    
+
     cp "$RELEASE_DIR/Sourcerer" "$DATA_DIR/"
-    
+
     # Create lib directory
     mkdir -p "$DATA_DIR/lib"
-    
+
     # Copy all shared library dependencies
     echo "Deploying shared libraries..."
-    
+
     # Function to copy a library and its dependencies recursively
     copy_lib_dependencies() {
         local lib_path="$1"
         local lib_name=$(basename "$lib_path")
-        
+
         # Skip if library is in system directories that should not be bundled
         if [[ "$lib_path" =~ ^/lib64/ld-linux ]] || \
            [[ "$lib_path" =~ linux-vdso ]] || \
@@ -96,17 +96,17 @@ else
            [[ "$lib_name" == "libgcc_s.so"* ]]; then
             return
         fi
-        
+
         # Skip if already copied
         if [ -f "$DATA_DIR/lib/$lib_name" ]; then
             return
         fi
-        
+
         # Copy the library if it exists and is a file
         if [ -f "$lib_path" ]; then
             echo "  Copying $lib_name"
             cp -L "$lib_path" "$DATA_DIR/lib/"
-            
+
             # Recursively copy dependencies of this library
             ldd "$lib_path" 2>/dev/null | grep "=>" | awk '{print $3}' | while read dep; do
                 if [ -f "$dep" ]; then
@@ -115,7 +115,7 @@ else
             done
         fi
     }
-    
+
     # Get all direct dependencies of Sourcerer executable
     echo "Analyzing dependencies of Sourcerer executable..."
     ldd "$DATA_DIR/Sourcerer" | grep "=>" | awk '{print $3}' | while read lib; do
@@ -123,10 +123,10 @@ else
             copy_lib_dependencies "$lib"
         fi
     done
-    
+
     mkdir -p "$DATA_DIR/usr/lib/qca-qt6/crypto"
     cp $RELEASE_DIR/lib/qca-qt6/crypto/*.so "$DATA_DIR/usr/lib/qca-qt6/crypto/"
-   
+
     # Copy Qt platform plugins
     echo "Copying Qt plugins..."
     if [ -d "/usr/lib64/qt6/plugins" ]; then
@@ -136,10 +136,10 @@ else
     elif [ -d "$HOME/Qt/6.*/gcc_64/plugins" ]; then
         QT_PLUGINS_DIR=$(ls -d $HOME/Qt/6.*/gcc_64/plugins | head -1)
     fi
-    
+
     if [ -n "$QT_PLUGINS_DIR" ] && [ -d "$QT_PLUGINS_DIR" ]; then
         mkdir -p "$DATA_DIR/plugins"
-        
+
         # Copy essential Qt plugins
         for plugin_dir in platforms xcbglintegrations imageformats iconengines platformthemes; do
             if [ -d "$QT_PLUGINS_DIR/$plugin_dir" ]; then
@@ -147,7 +147,7 @@ else
                 cp -r "$QT_PLUGINS_DIR/$plugin_dir" "$DATA_DIR/plugins/"
             fi
         done
-        
+
         # Copy dependencies of plugins
         find "$DATA_DIR/plugins" -name "*.so" | while read plugin; do
             ldd "$plugin" 2>/dev/null | grep "=>" | awk '{print $3}' | while read lib; do
@@ -157,13 +157,13 @@ else
             done
         done
     fi
-    
+
     # Create qt.conf to help Qt find plugins
     cat > "$DATA_DIR/qt.conf" << 'QTCONF'
 [Paths]
 Plugins = plugins
 QTCONF
-    
+
     # Create startup script
     cat > "$DATA_DIR/Sourcerer-launcher.sh" << 'EOF'
 #!/bin/bash
@@ -175,10 +175,10 @@ export QCA_PLUGIN_PATH="$SCRIPT_DIR/usr/lib/qca-qt6/crypto"
 exec "$SCRIPT_DIR/Sourcerer" "$@"
 EOF
     chmod +x "$DATA_DIR/Sourcerer-launcher.sh"
-    
+
     # Make main executable executable
     chmod +x "$DATA_DIR/Sourcerer"
-    
+
     # Copy application icon
     echo "Copying application icon..."
     ICON_SOURCE="$PROJECT_ROOT/component/GuiManager/resources/icons/originals/sorcerer-hat.svg"

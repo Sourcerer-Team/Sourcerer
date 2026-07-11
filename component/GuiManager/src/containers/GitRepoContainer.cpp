@@ -185,6 +185,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->historyView->setVisible(false);
   ui->spinner->setColor(Qt::lightGray);
+  _spinnerOverlay->setParent(ui->pageMain);
 
   auto *header = new ClickableHeaderView(Qt::Horizontal, ui->historyView);
   ui->historyView->setHorizontalHeader(header);
@@ -2992,6 +2993,8 @@ void GitRepoContainer::onStash() {
   LOG_DEBUG("Stash operation initiated for repository: '{}'",
             _path.toStdString());
 
+  startOverlayTimer();
+
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
@@ -3363,10 +3366,53 @@ void GitRepoContainer::onRepoDirChangedTimeout() {
   LOG_PERF(0, "Exit");
 }
 
+static QString
+commitSummaryFromHistoryModel(const Models::GitHistoryModel *historyModel,
+                              const QString &commit) {
+  if (!historyModel || commit.isEmpty()) {
+    return {};
+  }
+
+  for (int i = 0; i < historyModel->rowCount(QModelIndex()); ++i) {
+    const QString rowFullSHA =
+        historyModel
+            ->data(
+                historyModel->index(i, COLUMN_COMMIT_FULL_SHA, QModelIndex()),
+                Qt::DisplayRole)
+            .toString();
+    if (rowFullSHA == commit) {
+      return historyModel
+          ->data(historyModel->index(i, COLUMN_SUMMARY, QModelIndex()),
+                 Qt::DisplayRole)
+          .toString();
+    }
+  }
+
+  return {};
+}
+
 void GitRepoContainer::onRevertCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Revert commit requested: '{}' in repository '{}'",
             commit.toStdString(), _path.toStdString());
+
+  const QString summaryToRevert =
+      commitSummaryFromHistoryModel(_historyModel.data(), commit);
+
+  const QString question =
+          QString(tr("Do you want to revert commit '%1'?\n\nThis will create a new "
+                     "commit that reverses the changes."))
+          .arg(summaryToRevert.isEmpty() ? commit : summaryToRevert);
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+              this, tr("Confirm revert"), question, QMessageBox::Yes | QMessageBox::No,
+              QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_DEBUG("Revert commit cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
@@ -3809,10 +3855,7 @@ void GitRepoContainer::setUpstream(
 void GitRepoContainer::startOverlayTimer() const {
   LOG_PERF(0, "Enter");
 
-  const qlonglong timerTimeout = _configManager.getLong(
-      ConfigManager::ConfigKey::GitRepoSpinnerOverlayTimerTimeout);
-
-  _spinnerOverlayTimer->start(static_cast<int>(timerTimeout));
+  _spinnerOverlayTimer->start(0);
 
   LOG_PERF(0, "Exit");
 }
@@ -5396,11 +5439,6 @@ void GitRepoContainer::applyStash(
           tr("Stash applied with conflicts. Resolve conflicts to continue."),
           tr("Conflicts"));
     });
-
-    // The merge diff viewer is shown as part of refreshStatus since
-    // _mergeInProgress will be detected via the repository state checking
-    LOG_PERF(0, "Exit")
-    return;
   }
 
   if (onSuccess) {
@@ -9986,24 +10024,8 @@ void GitRepoContainer::reset(const WeakPtr &guard, const QString &commit,
 void GitRepoContainer::revert(const WeakPtr &guard, const QString &commit) {
   LOG_PERF(0, "Enter");
 
-  QString summaryToRevert;
-
-  for (int i = 0; i < _historyModel->rowCount(QModelIndex()); ++i) {
-    const QString rowFullSHA =
-        _historyModel
-            ->data(
-                _historyModel->index(i, COLUMN_COMMIT_FULL_SHA, QModelIndex()),
-                Qt::DisplayRole)
-            .toString();
-    if (rowFullSHA == commit) {
-      summaryToRevert =
-          _historyModel
-              ->data(_historyModel->index(i, COLUMN_SUMMARY, QModelIndex()),
-                     Qt::DisplayRole)
-              .toString();
-      break;
-    }
-  }
+  const QString summaryToRevert =
+      commitSummaryFromHistoryModel(_historyModel.data(), commit);
 
   const QString eventUuid = Uuid::createUuid();
 
@@ -10734,7 +10756,6 @@ void GitRepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {
   LOG_PERF(0, "Enter");
 
   if (spinnerEnabled) {
-    hideAllWidgets();
     _spinnerOverlay->startSpinning();
     _spinnerOverlay->setText("");
     _spinnerOverlay->raise();
@@ -10744,7 +10765,6 @@ void GitRepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {
     _spinnerOverlay->hide();
     _spinnerOverlay->stopSpinning();
     _spinnerOverlay->setText("");
-    showAllWidgets();
   }
 
   LOG_PERF(0, "Exit")
