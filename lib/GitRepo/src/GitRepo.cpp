@@ -78,38 +78,11 @@ struct GitPlaintextCredentials {
   qint64 createdTime;
 };
 
-struct GitCredentialPayload : public CloneProgress {
-  QString repoPath;
-};
-
 Util::Mutex gGitCredentialsMutex;
 QMap<QString, GitPlaintextCredentials> gGitCredentials;
 
 Util::Mutex gErrorMutex;
 QMap<std::thread::id, GitError> gErrorMap;
-
-static void git_strarray_destroy(git_strarray &arr) {
-  for (int i = 0; i < arr.count; ++i) {
-    free(arr.strings[i]);
-  }
-
-  free(arr.strings);
-
-  arr.strings = nullptr;
-  arr.count = 0;
-}
-
-static git_strarray qstringlist_to_git_strarray(const QStringList &list) {
-  git_strarray arr;
-  arr.count = static_cast<size_t>(list.length());
-  arr.strings = static_cast<char **>(malloc(arr.count * sizeof(char *)));
-
-  for (size_t i = 0; i < arr.count; ++i) {
-    arr.strings[i] = strdup(list[i].toStdString().c_str()); // allocates a copy
-  }
-
-  return arr;
-}
 
 static QString capitalizeFirst(const QString &str) {
   QString capitalized = str;
@@ -135,6 +108,100 @@ static void logGitError(const int error) {
   LOG_ERROR(Log::ErrorId::Git,
             "Error is {}, error klass is {}, error message is '{}'", error,
             gitError->klass, gitError->message);
+}
+
+static bool markConflictedFiles(git_repository *repo,
+                                const QStringList &filePaths) {
+  LOG_PERF(0, "Enter");
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (filePaths.isEmpty()) {
+    LOG_DEBUG("No conflicted files to mark in the index");
+    LOG_PERF(0, "Exit");
+    return true;
+  }
+
+  git_index *index = nullptr;
+  int error = git_repository_index(&index, repo);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to get repository index when marking conflicts: "
+              "error={}",
+              error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  for (const auto &filePath : filePaths) {
+    if (filePath.isEmpty()) {
+      continue;
+    }
+
+    const QByteArray pathBytes = filePath.toUtf8();
+    git_index_entry conflictEntry = {};
+    conflictEntry.mode = GIT_FILEMODE_BLOB;
+    conflictEntry.path = pathBytes.constData();
+
+    error = git_index_conflict_add(index, nullptr, &conflictEntry, nullptr);
+    if (error) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Failed to mark conflicted file '{}': error={}",
+                filePath.toStdString(), error);
+      logGitError(error);
+      git_index_free(index);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  error = git_index_write(index);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to write conflicted files to the index: error={}", error);
+    logGitError(error);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_index_free(index);
+
+  LOG_DEBUG("Marked {} conflicted files in the index", filePaths.size());
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+struct GitCredentialPayload : public CloneProgress {
+  QString repoPath;
+};
+
+static void git_strarray_destroy(git_strarray &arr) {
+  for (int i = 0; i < arr.count; ++i) {
+    free(arr.strings[i]);
+  }
+
+  free(arr.strings);
+
+  arr.strings = nullptr;
+  arr.count = 0;
+}
+
+static git_strarray qstringlist_to_git_strarray(const QStringList &list) {
+  git_strarray arr;
+  arr.count = static_cast<size_t>(list.length());
+  arr.strings = static_cast<char **>(malloc(arr.count * sizeof(char *)));
+
+  for (size_t i = 0; i < arr.count; ++i) {
+    arr.strings[i] = strdup(list[i].toStdString().c_str()); // allocates a copy
+  }
+
+  return arr;
 }
 
 static void collectCommitStatusFromDiff(git_diff *diff,
@@ -627,6 +694,37 @@ void clearCachedCredentials(const QString &repoPath) {
   LOG_PERF(0, "Exit");
 }
 
+static bool file_has_conflict_markers_for_apply_stash(const QString &path) {
+  if (path.isEmpty()) {
+    return false;
+  }
+
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    return false;
+  }
+
+  QTextStream stream(&file);
+  stream.setEncoding(QStringConverter::Utf8);
+
+  bool foundStart = false;
+  bool foundMiddle = false;
+  bool foundEnd = false;
+
+  while (!stream.atEnd()) {
+    const QString line = stream.readLine();
+    foundStart |= line.contains("<<<<<<< Updated upstream", Qt::CaseSensitive);
+    foundMiddle |= line.contains("=======", Qt::CaseSensitive);
+    foundEnd |= line.contains(">>>>>>> Stashed changes", Qt::CaseSensitive);
+
+    if (foundStart && foundMiddle && foundEnd) {
+      break;
+    }
+  }
+
+  return foundStart && foundMiddle && foundEnd;
+}
+
 bool applyStash(git_repository *repo, int index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Applying stash at index: {}", index);
@@ -642,8 +740,12 @@ bool applyStash(git_repository *repo, int index) {
 
   // Optional: customize behavior
   options.flags = GIT_STASH_APPLY_REINSTATE_INDEX; // restores index state
+  options.checkout_options.checkout_strategy |= GIT_CHECKOUT_ALLOW_CONFLICTS;
 
-  if (const int error = git_stash_apply(repo, index, &options)) {
+  int error = 0;
+
+  error = git_stash_apply(repo, index, &options);
+  if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to apply stash at index {}: error={}",
               index, error);
     logGitError(error);
@@ -651,29 +753,92 @@ bool applyStash(git_repository *repo, int index) {
     return false;
   }
 
-  // Check for conflicts after applying stash
-  git_index *index_ptr = nullptr;
-  int error = git_repository_index(&index_ptr, repo);
+  // Detect conflicts by diffing index vs workdir
+  git_diff *workdir_diff = NULL;
+  git_diff_options diff_opts = GIT_DIFF_OPTIONS_INIT;
+
+  error = git_diff_index_to_workdir(&workdir_diff, repo, NULL, &diff_opts);
   if (error) {
-    LOG_ERROR(Log::ErrorId::Git,
-              "Failed to get repository index after stash apply: error={}",
-              error);
     logGitError(error);
     LOG_PERF(0, "Exit");
-    return true; // Stash was applied, just couldn't check for conflicts
+    return false;
   }
 
-  if (git_index_has_conflicts(index_ptr)) {
-    LOG_DEBUG("Stash at index {} applied but has conflicts - manual resolution "
-              "needed",
-              index);
-    git_index_free(index_ptr);
+  const size_t num_deltas = git_diff_num_deltas(workdir_diff);
+
+  git_index *repo_index = nullptr;
+
+  error = git_repository_index(&repo_index, repo);
+  if (error) {
+    logGitError(error);
+    git_diff_free(workdir_diff);
     LOG_PERF(0, "Exit");
-    return true; // Return true because stash was applied, conflicts need
-                 // resolution
+    return false;
   }
 
-  git_index_free(index_ptr);
+  const char *repo_workdir = git_repository_workdir(repo);
+
+  QString workDir;
+  if (repo_workdir) {
+    workDir = repo_workdir;
+  }
+
+  for (size_t i = 0; i < num_deltas; i++) {
+    const git_diff_delta *delta = git_diff_get_delta(workdir_diff, i);
+
+    if (!delta->new_file.path) {
+      LOG_WARN("New file path is not defined for delta {}", i);
+      continue;
+    }
+
+    QString filePath = QDir(workDir).absoluteFilePath(delta->new_file.path);
+    filePath = QDir::toNativeSeparators(filePath);
+
+    if (file_has_conflict_markers_for_apply_stash(filePath)) {
+      LOG_INFO("Marking conflict in: {}", delta->new_file.path);
+
+      // Add conflict entry manually
+      git_index_entry ancestor = {0}, ours = {0}, theirs = {0};
+      ancestor.path = delta->new_file.path;
+      ancestor.mode = GIT_FILEMODE_BLOB;
+
+      error = git_blob_create_fromworkdir(&ancestor.id, repo, ancestor.path);
+      if (error) {
+        logGitError(error);
+      }
+
+      ours.path = delta->new_file.path;
+      ours.mode = GIT_FILEMODE_BLOB;
+
+      error = git_blob_create_fromworkdir(&ours.id, repo, ours.path);
+      if (error) {
+        logGitError(error);
+      }
+
+      theirs.path = delta->new_file.path;
+      theirs.mode = GIT_FILEMODE_BLOB;
+
+      error = git_blob_create_fromworkdir(&theirs.id, repo, theirs.path);
+      if (error) {
+        logGitError(error);
+      }
+
+      error = git_index_conflict_add(repo_index, &ancestor, &ours, &theirs);
+      if (error) {
+        logGitError(error);
+      }
+    }
+  }
+
+  error = git_index_write(repo_index);
+  if (error) {
+    logGitError(error);
+    git_diff_free(workdir_diff);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_diff_free(workdir_diff);
 
   LOG_DEBUG("Stash at index {} applied successfully", index);
   LOG_PERF(0, "Exit");
@@ -8772,6 +8937,46 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   LOG_PERF(0, "Exit");
 
   return true;
+}
+
+QString listConflictsForStashFile(git_repository *repo, int stashIndex,
+                                  const QString &filePath) {
+  LOG_PERF(0, "Enter");
+
+  (void)stashIndex;
+
+  if (!repo || filePath.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Repository pointer or file path is null when reading stash "
+              "conflict markers");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const char *workdir = git_repository_workdir(repo);
+  if (!workdir) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Repository working directory is unavailable when reading stash "
+              "conflict markers");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QString fullPath = QDir::fromNativeSeparators(
+      QString::fromUtf8(workdir) + QDir::separator() + filePath);
+  QFile file(fullPath);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    LOG_DEBUG("Could not read stash conflict file '{}': '{}'",
+              filePath.toStdString(), fullPath.toStdString());
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QString content = QString::fromUtf8(file.readAll());
+  file.close();
+
+  LOG_PERF(0, "Exit");
+  return content;
 }
 
 QString listConflictsForAFile(git_repository *repo, const QString &filePath) {

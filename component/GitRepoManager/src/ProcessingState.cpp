@@ -678,10 +678,22 @@ void ProcessingState::applyStashWorker(
     _eventManager.send(errorEvent);
   } else {
     // Check if there are conflicts after stash apply
-    const bool hasConflicts = GitRepo::hasConflicts(repo);
+    const auto status = GitRepo::getStatus(repo, false);
+    const bool hasConflicts = !status.conflictedFiles.isEmpty();
+    QVariantMap conflictedFiles;
+
+    for (const auto &filePath : status.conflictedFiles) {
+      const QString fileContentWithMarkers =
+          GitRepo::listConflictsForStashFile(repo, command.index, filePath);
+      if (!fileContentWithMarkers.isEmpty()) {
+        conflictedFiles.insert(filePath, fileContentWithMarkers);
+      }
+    }
+
     QMap<QString, QVariant> resultData;
     resultData["success"] = true;
     resultData["hasConflicts"] = hasConflicts;
+    resultData["conflictedFiles"] = conflictedFiles;
 
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerApplyStashResult,
