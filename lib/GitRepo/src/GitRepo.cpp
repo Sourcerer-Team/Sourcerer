@@ -196,9 +196,10 @@ static bool markConflictedFiles(git_repository *repo,
   return true;
 }
 
-static bool file_has_conflict_marker_triplet(
-    const QString &path, const QString &startMarker,
-    const QString &middleMarker, const QString &endMarker) {
+static bool file_has_conflict_marker_triplet(const QString &path,
+                                             const QString &startMarker,
+                                             const QString &middleMarker,
+                                             const QString &endMarker) {
   if (path.isEmpty()) {
     return false;
   }
@@ -230,8 +231,8 @@ static bool file_has_conflict_marker_triplet(
 }
 
 static bool file_has_conflict_markers(const QString &path) {
-  return file_has_conflict_marker_triplet(path, "<<<<<<<", "=======",
-                                          ">>>>>>>");
+  return file_has_conflict_marker_triplet(path, "<<<<<<<",
+                                          "=======", ">>>>>>>");
 }
 
 static bool collectConflictedFilePathsFromResultIndex(git_repository *repo,
@@ -328,7 +329,8 @@ static bool collectConflictedFilePathsFromResultIndex(git_repository *repo,
     const git_index_entry *ours = nullptr;
     const git_index_entry *theirs = nullptr;
 
-    while (!git_index_conflict_next(&ancestor, &ours, &theirs, conflictIterator)) {
+    while (
+           !git_index_conflict_next(&ancestor, &ours, &theirs, conflictIterator)) {
       const git_index_entry *entry = ours ? ours : (theirs ? theirs : ancestor);
       if (!entry) {
         continue;
@@ -349,7 +351,8 @@ static bool collectConflictedFilePathsFromResultIndex(git_repository *repo,
     QString filePath = QDir(workDir).absoluteFilePath(relativePath);
     filePath = QDir::toNativeSeparators(filePath);
 
-    if (!file_has_conflict_markers(filePath) || uniquePaths.contains(relativePath)) {
+    if (!file_has_conflict_markers(filePath) ||
+            uniquePaths.contains(relativePath)) {
       continue;
     }
 
@@ -884,8 +887,7 @@ void clearCachedCredentials(const QString &repoPath) {
 
 static bool file_has_conflict_markers_for_apply_stash(const QString &path) {
   return file_has_conflict_marker_triplet(path, "<<<<<<< Updated upstream",
-                                          "=======",
-                                          ">>>>>>> Stashed changes");
+                                          "=======", ">>>>>>> Stashed changes");
 }
 
 bool applyStash(git_repository *repo, int index) {
@@ -6663,7 +6665,7 @@ bool revertCommit(git_repository *repo, const QString &commit,
 
   QStringList conflictedFiles;
   if (!collectConflictedFilePathsFromResultIndex(repo, revertIndex,
-                                                &conflictedFiles)) {
+                                                 &conflictedFiles)) {
     git_index_free(revertIndex);
     git_commit_free(headCommit);
     git_reference_free(headRef);
@@ -9328,7 +9330,10 @@ bool getIsMergeInProgress(git_repository *repo) {
 
   LOG_PERF(0, "Exit");
 
-  return state == GIT_REPOSITORY_STATE_MERGE;
+  return state == GIT_REPOSITORY_STATE_MERGE ||
+          state == GIT_REPOSITORY_STATE_REVERT ||
+          state == GIT_REPOSITORY_STATE_CHERRYPICK;
+  ;
 }
 
 bool abortMerge(git_repository *repo) {
@@ -10349,4 +10354,3 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
 }
 
 } // namespace GitRepo
-me.�_
