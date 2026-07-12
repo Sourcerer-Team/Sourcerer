@@ -35,6 +35,7 @@ signals:
   void settings();
   void credentials();
   void sshKeys();
+  void signing();
   void terminal();
   void bugReport();
   void about();
@@ -51,6 +52,7 @@ private slots:
   void onSettings();
   void onCredentials();
   void onSshKeys();
+  void onSigning();
   void onTerminal();
   void onBugReport();
   void onAbout();

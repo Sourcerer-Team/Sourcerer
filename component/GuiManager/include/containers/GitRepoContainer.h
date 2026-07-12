@@ -229,7 +229,7 @@ private:
                  const QString &pushUrl);
   void amend(const WeakPtr &guard, const QString &summary,
              const QString &description, const QString &author,
-             const QString &email, bool signoff);
+             const QString &email, bool signoff, bool signCommit);
   void applyPatch(const WeakPtr &guard, const QString &filePath);
   void applyStash(
       const WeakPtr &guard, int stashIndex,
@@ -243,9 +243,11 @@ private:
   void closeDiffViewerIfOpen();
   void closeRepo() const;
   void refreshScintillaTheme();
+  void refreshSigningControls();
   void commit(const WeakPtr &guard, const QString &summary,
               const QString &description, const QString &author,
-              const QString &email, bool cleanup, bool signoff);
+              const QString &email, bool cleanup, bool signoff,
+              bool signCommit);
   void createBranchFromCommit(
       const WeakPtr &guard, const QString &commit, const QString &branchName,
       const std::function<void(const WeakPtr &, const QString &)> &onSuccess =
@@ -436,6 +438,7 @@ private:
 
   bool _applyingHistoryColumnWidths;
 
+  QCheckBox *_checkBoxSignCommit;
   QCheckBox *_checkBoxSignOff;
   QCheckBox *_checkBoxAmend;
   QPushButton *_commitAndMergeWorkingDirTreeStageAllButton;

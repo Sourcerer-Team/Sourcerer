@@ -11,6 +11,7 @@ enum class ContainerType {
   GitCredentials,
   GitKeys,
   GitRepo,
+  GitSigning,
   Home,
   InitGitRepo,
   PleaseWait,

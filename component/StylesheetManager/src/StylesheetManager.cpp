@@ -274,49 +274,27 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
         color: white;
         padding: 5px;
       }
-      QPushButton#refreshButton{
+      QPushButton#refreshButton,
+      QPushButton#generateButton,
+      QPushButton#addButton,
+      QPushButton#editButton,
+      QPushButton#signingKeyBrowseButton,
+      QPushButton#signingProgramBrowseButton,
+      QPushButton#signingResetButton,
+      QPushButton#signingSaveButton{
         background-color: #384D59;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#refreshButton:hover{
-        background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#generateButton{
-        background-color: #384D59;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#generateButton:hover{
-        background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#addButton{
-        background-color: #384D59;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#addButton:hover{
-        background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#editButton{
-        background-color: #384D59;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#editButton:hover{
+      QPushButton#refreshButton:hover,
+      QPushButton#generateButton:hover,
+      QPushButton#addButton:hover,
+      QPushButton#editButton:hover,
+      QPushButton#signingKeyBrowseButton:hover,
+      QPushButton#signingProgramBrowseButton:hover,
+      QPushButton#signingResetButton:hover,
+      QPushButton#signingSaveButton:hover{
         background-color: #4a6070;
         border: 1px solid gray;
         border-radius: 5px;
@@ -1151,49 +1129,27 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         color: white;
         padding: 5px;
       }
-      QPushButton#refreshButton{
+      QPushButton#refreshButton,
+      QPushButton#generateButton,
+      QPushButton#addButton,
+      QPushButton#editButton,
+      QPushButton#signingKeyBrowseButton,
+      QPushButton#signingProgramBrowseButton,
+      QPushButton#signingResetButton,
+      QPushButton#signingSaveButton{
         background-color: #E7EEF4;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#refreshButton:hover{
-        background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#generateButton{
-        background-color: #E7EEF4;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#generateButton:hover{
-        background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#addButton{
-        background-color: #E7EEF4;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#addButton:hover{
-        background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#editButton{
-        background-color: #E7EEF4;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#editButton:hover{
+      QPushButton#refreshButton:hover,
+      QPushButton#generateButton:hover,
+      QPushButton#addButton:hover,
+      QPushButton#editButton:hover,
+      QPushButton#signingKeyBrowseButton:hover,
+      QPushButton#signingProgramBrowseButton:hover,
+      QPushButton#signingResetButton:hover,
+      QPushButton#signingSaveButton:hover{
         background-color: #4a6070;
         border: 1px solid gray;
         border-radius: 5px;
