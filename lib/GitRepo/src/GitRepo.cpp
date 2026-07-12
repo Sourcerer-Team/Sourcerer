@@ -93,6 +93,37 @@ static QString capitalizeFirst(const QString &str) {
   return capitalized;
 }
 
+static QString buildCommitMessage(const QString &summary,
+                                  const QString &message,
+                                  const QString &author,
+                                  const QString &email,
+                                  bool signoff) {
+  QString commitMessage = summary;
+
+  if (!message.isEmpty()) {
+    commitMessage += "\n\n" + message;
+  }
+
+  if (!signoff) {
+    return commitMessage;
+  }
+
+  const QString signoffLine =
+      QString("Signed-off-by: %1 <%2>").arg(author, email);
+
+  while (!commitMessage.isEmpty() &&
+         (commitMessage.endsWith('\n') || commitMessage.endsWith('\r'))) {
+    commitMessage.chop(1);
+  }
+
+  if (!commitMessage.isEmpty()) {
+    commitMessage += "\n\n";
+  }
+
+  commitMessage += signoffLine;
+  return commitMessage;
+}
+
 static void logGitError(const int error) {
   const git_error *gitError = git_error_last();
   if (!gitError || !gitError->message)
@@ -4399,11 +4430,12 @@ bool unstageFiles(git_repository *repo, const QStringList &files) {
 
 bool commitStaged(git_repository *repo, const QString &summary,
                   const QString &message, const QString &author,
-                  const QString &email, bool cleanup) {
+                  const QString &email, bool cleanup, bool signoff) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Creating commit: summary='{}', author='{}', email='{}'",
             summary.toStdString(), author.toStdString(), email.toStdString());
-  LOG_DEBUG("Message length: {}, cleanup: {}", message.length(), cleanup);
+  LOG_DEBUG("Message length: {}, cleanup: {}, signoff: {}", message.length(),
+            cleanup, signoff);
 
   Q_ASSERT(repo != nullptr);
 
@@ -4535,7 +4567,8 @@ bool commitStaged(git_repository *repo, const QString &summary,
     }
   }
 
-  const QString fullMessage = summary + "\n\n" + message;
+  const QString fullMessage =
+      buildCommitMessage(summary, message, author, email, signoff);
 
   // Create commit with appropriate number of parents
   size_t parentCount = parent ? 1 : 0;
@@ -10241,7 +10274,7 @@ bool setDefaultTarget(git_repository *repo, const QString &remoteName,
 }
 
 bool amend(git_repository *repo, const QString &summary, const QString &message,
-           const QString &author, const QString &email) {
+           const QString &author, const QString &email, bool signoff) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
@@ -10319,7 +10352,9 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
 
   authorSig = git_commit_author(commitToAmend);
 
-  // 4. Amend the commit
+  // 4. Amend the commit with the updated message and optional signoff
+  const QString fullMessage =
+      buildCommitMessage(summary, message, author, email, signoff);
   error = git_commit_amend(
       &newCommitOid,
       commitToAmend, // Commit to amend
@@ -10327,8 +10362,7 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
       authorSig,     // Keep original author (or provide new one)
       committerSig,  // New committer (or nullptr to keep original)
       nullptr,       // Use default encoding
-      summary.toStdString()
-          .c_str(), // Keep original message (or provide new one)
+      fullMessage.toStdString().c_str(), // Use updated message
       tree          // New tree (or nullptr to keep original)
   );
   if (error) {

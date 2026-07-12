@@ -298,7 +298,7 @@ void shutdownForCurrentThread();
 void clearCachedCredentials(const QString &repoPath);
 
 bool amend(git_repository *repo, const QString &summary, const QString &message,
-           const QString &author, const QString &email);
+           const QString &author, const QString &email, bool signoff);
 
 bool applyStash(git_repository *repo, int index);
 
@@ -378,7 +378,7 @@ bool unstageFiles(git_repository *repo, const QStringList &files);
 
 bool commitStaged(git_repository *repo, const QString &summary,
                   const QString &message, const QString &author,
-                  const QString &email, bool cleanup);
+                  const QString &email, bool cleanup, bool signoff);
 
 FilesDiff diffFiles(git_repository *repo, const QStringList &files);
 

@@ -36,6 +36,7 @@
 
 #include <QCheckBox>
 #include <QClipboard>
+#include <QHBoxLayout>
 #include <QDirIterator>
 #include <QEvent>
 #include <QFile>
@@ -46,6 +47,7 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QMovie>
+#include <QWidget>
 #include <QPainter>
 #include <QPixmap>
 #include <QScrollBar>
@@ -214,10 +216,22 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMerge->setMinimumHeight(32);
   ui->pushButtonMerge->setMaximumHeight(32);
 
-  _checkBoxAmend =
-      new QCheckBox(tr("Amend previous commit"), ui->tabWidgetCommit);
+  QWidget *commitButtonContainer = new QWidget(ui->tabWidgetCommit);
+  QHBoxLayout *commitButtonLayout = new QHBoxLayout(commitButtonContainer);
+  commitButtonLayout->setContentsMargins(0, 0, 0, 0);
+  commitButtonLayout->setSpacing(8);
 
-  ui->tabWidgetCommit->setCornerWidget(_checkBoxAmend);
+  _checkBoxSignOff =
+      new QCheckBox(tr("Sign-off"), commitButtonContainer);
+  _checkBoxAmend =
+      new QCheckBox(tr("Amend previous commit"), commitButtonContainer);
+
+  commitButtonLayout->addWidget(_checkBoxSignOff);
+  commitButtonLayout->addWidget(_checkBoxAmend);
+  commitButtonLayout->addStretch();
+
+  ui->tabWidgetCommit->setCornerWidget(commitButtonContainer,
+                                       Qt::TopRightCorner);
   ui->tabWidgetCommit->tabBar()->setObjectName("tabWidgetCommitTabBar");
   ui->tabWidgetIndex->tabBar()->setObjectName("tabWidgetIndexTabBar");
   ui->tabWidgetWorkingTree->tabBar()->setObjectName(
@@ -1691,11 +1705,12 @@ void GitRepoContainer::onCommitButtonClicked() {
   const QString summary = ui->lineEditSummary->text().trimmed();
   const QString description = ui->textEditDescription->toPlainText().trimmed();
   const bool toAmend = _checkBoxAmend->isChecked();
+  const bool signoff = _checkBoxSignOff->isChecked();
 
-  LOG_DEBUG("Commit details - Author: '{}', Amend: {}, Summary length: {}, "
+  LOG_DEBUG("Commit details - Author: '{}', Amend: {}, Sign-off: {}, Summary length: {}, "
             "Merge in progress: {}",
-            currentProfile.author.toStdString(), toAmend, summary.length(),
-            _mergeInProgress);
+            currentProfile.author.toStdString(), toAmend, signoff,
+            summary.length(), _mergeInProgress);
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -1706,13 +1721,13 @@ void GitRepoContainer::onCommitButtonClicked() {
     if (toAmend) {
       LOG_DEBUG("Performing amend operation");
       amend(guard, summary, description, currentProfile.author,
-            currentProfile.email);
+            currentProfile.email, signoff);
     } else {
       LOG_DEBUG("Performing new commit operation");
       // If merge is in progress, cleanup must be true to conclude the merge
       const bool cleanup = _mergeInProgress;
       commit(guard, summary, description, currentProfile.author,
-             currentProfile.email, cleanup);
+             currentProfile.email, cleanup, signoff);
     }
   });
 
@@ -1727,9 +1742,10 @@ void GitRepoContainer::onMergeButtonClicked() {
       _userProfileManager.currentProfile();
   const QString summary = ui->lineEditSummary->text().trimmed();
   const QString description = ui->textEditDescription->toPlainText().trimmed();
+  const bool signoff = _checkBoxSignOff->isChecked();
 
-  LOG_DEBUG("Merge details - Author: '{}', Summary length: {}",
-            currentProfile.author.toStdString(), summary.length());
+  LOG_DEBUG("Merge details - Author: '{}', Sign-off: {}, Summary length: {}",
+            currentProfile.author.toStdString(), signoff, summary.length());
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -1739,7 +1755,7 @@ void GitRepoContainer::onMergeButtonClicked() {
   _dispatcher.dispatch([=]() {
     LOG_DEBUG("Performing merge commit operation");
     commit(guard, summary, description, currentProfile.author,
-           currentProfile.email, true);
+           currentProfile.email, true, signoff);
   });
 
   LOG_PERF(0, "Exit");
@@ -5200,7 +5216,7 @@ void GitRepoContainer::addSubmodule(const WeakPtr &guard, const QString &url,
 
 void GitRepoContainer::amend(const WeakPtr &guard, const QString &summary,
                              const QString &description, const QString &author,
-                             const QString &email) {
+                             const QString &email, bool signoff) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -5214,6 +5230,7 @@ void GitRepoContainer::amend(const WeakPtr &guard, const QString &summary,
   command.email = email;
   command.summary = summary;
   command.message = description;
+  command.signoff = signoff;
 
   EventManager::Event amendEvent(EventManager::EventType::GitRepoManagerAmend,
                                  eventUuid);
@@ -5681,7 +5698,7 @@ void GitRepoContainer::closeRepo() const {
 
 void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
                               const QString &description, const QString &author,
-                              const QString &email, bool cleanup) {
+                              const QString &email, bool cleanup, bool signoff) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -5696,6 +5713,7 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
   command.summary = summary;
   command.message = description;
   command.cleanup = cleanup;
+  command.signoff = signoff;
 
   EventManager::Event commitStagedEvent(
       EventManager::EventType::GitRepoManagerCommitStaged, eventUuid);

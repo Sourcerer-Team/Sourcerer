@@ -594,7 +594,8 @@ void ProcessingState::amendWorker(const Structs::GitRepoAmendCommand &command) {
   }
 
   const bool success = GitRepo::amend(repo, command.summary, command.message,
-                                      command.author, command.email);
+                                      command.author, command.email,
+                                      command.signoff);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
@@ -887,7 +888,8 @@ void ProcessingState::commitStagedWorker(
 
   const bool success =
       GitRepo::commitStaged(repo, command.summary, command.message,
-                            command.author, command.email, command.cleanup);
+                            command.author, command.email, command.cleanup,
+                            command.signoff);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
