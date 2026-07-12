@@ -39,8 +39,10 @@
 
 #include <QFile>
 #include <QFileInfo>
+#include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
+#include <QTemporaryDir>
 #include <QTextStream>
 
 #include <openssl/err.h>
@@ -122,6 +124,409 @@ static QString buildCommitMessage(const QString &summary,
 
   commitMessage += signoffLine;
   return commitMessage;
+}
+
+enum class CommitSignatureType {
+  Unknown = 0,
+  OpenPgp,
+  Ssh,
+};
+
+static QString commitSignatureTypeToString(CommitSignatureType type) {
+  switch (type) {
+  case CommitSignatureType::OpenPgp:
+    return QStringLiteral("OpenPGP");
+  case CommitSignatureType::Ssh:
+    return QStringLiteral("SSH");
+  case CommitSignatureType::Unknown:
+  default:
+    return QStringLiteral("Unknown");
+  }
+}
+
+static CommitSignatureType detectCommitSignatureType(const QString &signature) {
+  if (signature.contains(QStringLiteral("BEGIN SSH SIGNATURE"),
+                         Qt::CaseInsensitive)) {
+    return CommitSignatureType::Ssh;
+  }
+
+  if (signature.contains(QStringLiteral("BEGIN PGP SIGNATURE"),
+                         Qt::CaseInsensitive)) {
+    return CommitSignatureType::OpenPgp;
+  }
+
+  return CommitSignatureType::Unknown;
+}
+
+static bool loadCommitSignatureInfo(git_repository *repo, const git_oid *oid,
+                                    QString *signature,
+                                    QString *signatureType) {
+  if (!repo || !oid || !signature || !signatureType) {
+    return false;
+  }
+
+  git_buf signatureBuf = {nullptr};
+  git_buf signedDataBuf = {nullptr};
+
+  const int error =
+      git_commit_extract_signature(&signatureBuf, &signedDataBuf, repo,
+                                   const_cast<git_oid *>(oid), nullptr);
+  if (error == GIT_ENOTFOUND) {
+    *signature = QString();
+    *signatureType = QStringLiteral("Unsigned");
+    git_buf_dispose(&signatureBuf);
+    git_buf_dispose(&signedDataBuf);
+    return true;
+  }
+
+  if (error) {
+    LOG_WARN_ID(Log::ErrorId::Git,
+                "Failed to extract commit signature for display (error {})",
+                error);
+    *signature = QString();
+    *signatureType = QStringLiteral("Unavailable");
+    git_buf_dispose(&signatureBuf);
+    git_buf_dispose(&signedDataBuf);
+    return false;
+  }
+
+  if (signatureBuf.ptr && signatureBuf.size > 0) {
+    *signature = QString::fromUtf8(signatureBuf.ptr, signatureBuf.size);
+  } else {
+    signature->clear();
+  }
+
+  *signatureType = commitSignatureTypeToString(
+      detectCommitSignatureType(*signature));
+
+  git_buf_dispose(&signatureBuf);
+  git_buf_dispose(&signedDataBuf);
+  return true;
+}
+
+enum class CommitSigningFormat {
+  Unknown = 0,
+  OpenPgp,
+  Ssh,
+};
+
+struct CommitSigningConfig {
+  bool enabled = false;
+  CommitSigningFormat format = CommitSigningFormat::OpenPgp;
+  QString program;
+  QString signingKey;
+};
+
+struct CommitSigningPayload {
+  CommitSigningConfig config;
+  QString *errorMessage = nullptr;
+};
+
+static QString expandUserPath(const QString &path) {
+  if (path == "~") {
+    return QDir::homePath();
+  }
+
+  if (path.startsWith("~/")) {
+    return QDir::homePath() + path.mid(1);
+  }
+
+  return path;
+}
+
+static bool isPassphraseProtectedSshPrivateKey(const QString &program,
+                                               const QString &privateKeyPath) {
+  if (program.isEmpty() || privateKeyPath.isEmpty() ||
+      !QFile::exists(privateKeyPath)) {
+    return false;
+  }
+
+  QProcess process;
+  process.start(program,
+                {QStringLiteral("-y"), QStringLiteral("-f"), privateKeyPath,
+                 QStringLiteral("-P"), QString()});
+
+  if (!process.waitForStarted()) {
+    return false;
+  }
+
+  if (!process.waitForFinished(-1)) {
+    process.kill();
+    process.waitForFinished();
+    return false;
+  }
+
+  if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
+    return false;
+  }
+
+  const QString output = QString::fromUtf8(process.readAllStandardError()) +
+                         QString::fromUtf8(process.readAllStandardOutput());
+  return output.contains(QStringLiteral("incorrect passphrase"),
+                         Qt::CaseInsensitive) ||
+         output.contains(QStringLiteral("enter passphrase"),
+                         Qt::CaseInsensitive) ||
+         (output.contains(QStringLiteral("passphrase"), Qt::CaseInsensitive) &&
+          (output.contains(QStringLiteral("decrypt"), Qt::CaseInsensitive) ||
+           output.contains(QStringLiteral("encrypted"), Qt::CaseInsensitive)));
+}
+
+static bool loadCommitSigningConfig(CommitSigningConfig *config,
+                                    QString *errorMessage) {
+  if (!config) {
+    return false;
+  }
+
+  auto &configManager = ConfigManager::ConfigManager::getInstance();
+  config->enabled = configManager.getBoolean(
+      ConfigManager::ConfigKey::GitRepoSigningEnabled);
+  if (!config->enabled) {
+    return true;
+  }
+
+  const QString formatValue =
+      configManager.getString(ConfigManager::ConfigKey::GitRepoSigningFormat)
+          .trimmed();
+  if (formatValue.compare(QStringLiteral("ssh"), Qt::CaseInsensitive) == 0) {
+    config->format = CommitSigningFormat::Ssh;
+  } else {
+    config->format = CommitSigningFormat::OpenPgp;
+  }
+
+  config->signingKey =
+      expandUserPath(configManager
+                         .getString(ConfigManager::ConfigKey::GitRepoSigningKey)
+                         .trimmed());
+  config->program = expandUserPath(
+      configManager.getString(ConfigManager::ConfigKey::GitRepoSigningProgram)
+          .trimmed());
+
+  if (config->program.isEmpty()) {
+    config->program = config->format == CommitSigningFormat::Ssh
+                          ? QStringLiteral("ssh-keygen")
+                          : QStringLiteral("gpg");
+  }
+
+  if (config->format == CommitSigningFormat::Ssh) {
+    if (config->signingKey.endsWith(QStringLiteral(".pub"))) {
+      const QString privateKeyPath =
+          config->signingKey.left(config->signingKey.length() - 4);
+      if (QFile::exists(privateKeyPath)) {
+        config->signingKey = privateKeyPath;
+      }
+    }
+
+    if (config->signingKey.isEmpty()) {
+      if (errorMessage) {
+        *errorMessage = QStringLiteral(
+            "SSH commit signing requires a private key path.");
+      }
+      return false;
+    }
+
+    if (isPassphraseProtectedSshPrivateKey(config->program,
+                                           config->signingKey)) {
+      if (errorMessage) {
+        *errorMessage = QStringLiteral(
+            "SSH commit signing does not support passphrase-protected private keys.");
+      }
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool writeTextFile(const QString &path, const QString &content,
+                          QString *errorMessage) {
+  QFile file(path);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    if (errorMessage) {
+      *errorMessage = QString("Failed to open file for writing: %1")
+                         .arg(path);
+    }
+    return false;
+  }
+
+  const QByteArray bytes = content.toUtf8();
+  if (file.write(bytes) != bytes.size()) {
+    if (errorMessage) {
+      *errorMessage = QString("Failed to write file: %1").arg(path);
+    }
+    return false;
+  }
+
+  return true;
+}
+
+static bool readTextFile(const QString &path, QString *content,
+                         QString *errorMessage) {
+  if (!content) {
+    return false;
+  }
+
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    if (errorMessage) {
+      *errorMessage = QString("Failed to open signature file: %1").arg(path);
+    }
+    return false;
+  }
+
+  *content = QString::fromUtf8(file.readAll());
+  while (!content->isEmpty() &&
+         (content->endsWith('\n') || content->endsWith('\r'))) {
+    content->chop(1);
+  }
+
+  return true;
+}
+
+static bool runProcess(const QString &program, const QStringList &arguments,
+                       const QString &workingDirectory, QString *errorMessage) {
+  QProcess process;
+  process.setWorkingDirectory(workingDirectory);
+  process.start(program, arguments);
+
+  if (!process.waitForStarted()) {
+    if (errorMessage) {
+      *errorMessage = QString("Failed to start '%1': %2")
+                         .arg(program, process.errorString());
+    }
+    return false;
+  }
+
+  if (!process.waitForFinished(-1)) {
+    if (errorMessage) {
+      *errorMessage = QString("Signing command '%1' did not finish: %2")
+                         .arg(program, process.errorString());
+    }
+    return false;
+  }
+
+  if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
+    const QString stderrOutput =
+        QString::fromUtf8(process.readAllStandardError()).trimmed();
+    if (errorMessage) {
+      *errorMessage = QString("Signing command '%1' failed (exit code %2)%3")
+                         .arg(program)
+                         .arg(process.exitCode())
+                         .arg(stderrOutput.isEmpty()
+                                  ? QString()
+                                  : QStringLiteral(": %1").arg(stderrOutput));
+    }
+    return false;
+  }
+
+  return true;
+}
+
+static bool createCommitSignature(const QString &commitContent,
+                                  const CommitSigningConfig &config,
+                                  QString *signature,
+                                  QString *errorMessage) {
+  if (!signature) {
+    return false;
+  }
+
+  QTemporaryDir tempDir;
+  if (!tempDir.isValid()) {
+    if (errorMessage) {
+      *errorMessage = QStringLiteral("Failed to create a temporary directory for commit signing.");
+    }
+    return false;
+  }
+
+  const QString contentPath = tempDir.filePath(QStringLiteral("commit.txt"));
+  if (!writeTextFile(contentPath, commitContent, errorMessage)) {
+    return false;
+  }
+
+  const QString workingDirectory = tempDir.path();
+  QString signErrorMessage;
+
+  if (config.format == CommitSigningFormat::Ssh) {
+    const QString signaturePath = contentPath + QStringLiteral(".sig");
+    QStringList arguments;
+    arguments << QStringLiteral("-Y") << QStringLiteral("sign")
+              << QStringLiteral("-n") << QStringLiteral("git")
+              << QStringLiteral("-f") << config.signingKey << contentPath;
+
+    if (!runProcess(config.program, arguments, workingDirectory,
+                    &signErrorMessage)) {
+      if (errorMessage) {
+        *errorMessage = signErrorMessage;
+      }
+      return false;
+    }
+
+    return readTextFile(signaturePath, signature, errorMessage);
+  }
+
+  const QString signaturePath = tempDir.filePath(QStringLiteral("commit.asc"));
+  QStringList arguments;
+  arguments << QStringLiteral("--batch") << QStringLiteral("--yes")
+            << QStringLiteral("--armor")
+            << QStringLiteral("--detach-sign") << QStringLiteral("--output")
+            << signaturePath;
+
+  if (!config.signingKey.isEmpty()) {
+    arguments << QStringLiteral("--local-user") << config.signingKey;
+  }
+
+  arguments << contentPath;
+
+  if (!runProcess(config.program, arguments, workingDirectory, &signErrorMessage)) {
+    if (errorMessage) {
+      *errorMessage = signErrorMessage;
+    }
+    return false;
+  }
+
+  return readTextFile(signaturePath, signature, errorMessage);
+}
+
+static int commitSigningCallback(git_commitbuilder *builder,
+                                 git_repository *repo,
+                                 const char *commit_content, void *payload) {
+  Q_UNUSED(repo);
+
+  if (!builder || !commit_content || !payload) {
+    return -1;
+  }
+
+  auto *signingPayload = static_cast<CommitSigningPayload *>(payload);
+  QString errorMessage;
+  QString signature;
+
+  if (!createCommitSignature(QString::fromUtf8(commit_content),
+                             signingPayload->config, &signature,
+                             &errorMessage)) {
+    if (signingPayload->errorMessage) {
+      *signingPayload->errorMessage = errorMessage;
+    }
+    LOG_ERROR(Log::ErrorId::Git, "Failed to create commit signature: {}",
+              errorMessage.toStdString());
+    return -1;
+  }
+
+  const QByteArray signatureUtf8 = signature.toUtf8();
+  if (git_commitbuilder_add_header(builder, "gpgsig",
+                                   signatureUtf8.constData()) < 0) {
+    errorMessage = QStringLiteral("Failed to add commit signature header.");
+    if (signingPayload->errorMessage) {
+      *signingPayload->errorMessage = errorMessage;
+    }
+    LOG_ERROR(Log::ErrorId::Git, "Failed to add commit signature header");
+    return -1;
+  }
+
+  return 0;
+}
+
+static void setLastError(const int errorCode, const QString &message) {
+  LOCKGUARD(gErrorMutex);
+  gErrorMap[std::this_thread::get_id()] = {errorCode, message};
 }
 
 static void logGitError(const int error) {
@@ -3601,6 +4006,17 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
       return {};
     }
 
+    QString commitSignature;
+    QString commitSignatureType;
+    loadCommitSignatureInfo(repo, &oid, &commitSignature,
+                            &commitSignatureType);
+    history_.commitInfos[oidStr].signedCommit =
+        commitSignatureType != QStringLiteral("Unsigned") &&
+        commitSignatureType != QStringLiteral("Unavailable") &&
+        !commitSignature.isEmpty();
+    history_.commitInfos[oidStr].signatureType = commitSignatureType;
+    history_.commitInfos[oidStr].signature = commitSignature;
+
     history_.commitInfos[oidStr].branches += branchName;
 
     git_commit_free(commit);
@@ -4430,7 +4846,8 @@ bool unstageFiles(git_repository *repo, const QStringList &files) {
 
 bool commitStaged(git_repository *repo, const QString &summary,
                   const QString &message, const QString &author,
-                  const QString &email, bool cleanup, bool signoff) {
+                  const QString &email, bool cleanup, bool signoff,
+                  bool signCommit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Creating commit: summary='{}', author='{}', email='{}'",
             summary.toStdString(), author.toStdString(), email.toStdString());
@@ -4577,25 +4994,90 @@ bool commitStaged(git_repository *repo, const QString &summary,
     LOG_DEBUG("Creating merge commit with 2 parents");
   }
 
-  error = git_commit_create_v(&commitId, repo, "HEAD", sig, sig, nullptr,
-                              fullMessage.toStdString().c_str(), tree,
-                              parentCount, parent, parent2);
-  if (error) {
-    logGitError(error);
+  CommitSigningConfig signingConfig;
+  QString signingError;
+  bool signingConfigLoaded = true;
+  if (signCommit) {
+    signingConfigLoaded = loadCommitSigningConfig(&signingConfig, &signingError);
+    if (!signingConfigLoaded) {
+      LOG_ERROR(Log::ErrorId::Git, "{}", signingError.toStdString());
+      setLastError(-1, signingError);
 
-    if (parent) {
-      git_commit_free(parent);
+      if (parent) {
+        git_commit_free(parent);
+      }
+      if (parent2) {
+        git_commit_free(parent2);
+      }
+
+      git_signature_free(sig);
+      git_tree_free(tree);
+      git_index_free(index);
+
+      LOG_PERF(0, "Exit");
+      return false;
     }
-    if (parent2) {
-      git_commit_free(parent2);
+  }
+
+  const bool doSigning = signCommit && signingConfig.enabled;
+  if (doSigning) {
+    CommitSigningPayload signingPayload;
+    signingPayload.config = signingConfig;
+    signingPayload.errorMessage = &signingError;
+
+    git_commit_create_options commitOpts = GIT_COMMIT_CREATE_OPTIONS_INIT;
+    commitOpts.allow_empty_commit = 1;
+    commitOpts.author = sig;
+    commitOpts.committer = sig;
+    commitOpts.sign = commitSigningCallback;
+    commitOpts.payload = &signingPayload;
+
+    error = git_commit_create_from_stage(
+        &commitId, repo, fullMessage.toStdString().c_str(), &commitOpts);
+    if (error) {
+      if (!signingError.isEmpty()) {
+        LOG_ERROR(Log::ErrorId::Git, "Failed to sign commit: {}",
+                  signingError.toStdString());
+        setLastError(-1, signingError);
+      } else {
+        logGitError(error);
+      }
+
+      if (parent) {
+        git_commit_free(parent);
+      }
+      if (parent2) {
+        git_commit_free(parent2);
+      }
+
+      git_signature_free(sig);
+      git_tree_free(tree);
+      git_index_free(index);
+
+      LOG_PERF(0, "Exit");
+      return false;
     }
+  } else {
+    error = git_commit_create_v(&commitId, repo, "HEAD", sig, sig, nullptr,
+                                fullMessage.toStdString().c_str(), tree,
+                                parentCount, parent, parent2);
+    if (error) {
+      logGitError(error);
 
-    git_signature_free(sig);
-    git_tree_free(tree);
-    git_index_free(index);
+      if (parent) {
+        git_commit_free(parent);
+      }
+      if (parent2) {
+        git_commit_free(parent2);
+      }
 
-    LOG_PERF(0, "Exit");
-    return false;
+      git_signature_free(sig);
+      git_tree_free(tree);
+      git_index_free(index);
+
+      LOG_PERF(0, "Exit");
+      return false;
+    }
   }
 
   if (parent) {
@@ -10274,7 +10756,8 @@ bool setDefaultTarget(git_repository *repo, const QString &remoteName,
 }
 
 bool amend(git_repository *repo, const QString &summary, const QString &message,
-           const QString &author, const QString &email, bool signoff) {
+           const QString &author, const QString &email, bool signoff,
+           bool signCommit) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
@@ -10355,25 +10838,131 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
   // 4. Amend the commit with the updated message and optional signoff
   const QString fullMessage =
       buildCommitMessage(summary, message, author, email, signoff);
-  error = git_commit_amend(
-      &newCommitOid,
-      commitToAmend, // Commit to amend
-      "HEAD",        // Update HEAD reference
-      authorSig,     // Keep original author (or provide new one)
-      committerSig,  // New committer (or nullptr to keep original)
-      nullptr,       // Use default encoding
-      fullMessage.toStdString().c_str(), // Use updated message
-      tree          // New tree (or nullptr to keep original)
-  );
-  if (error) {
-    logGitError(error);
-    git_signature_free(committerSig);
-    git_tree_free(tree);
 
-    git_index_free(index);
-    git_commit_free(commitToAmend);
-    LOG_PERF(0, "Exit");
-    return false;
+  if (signCommit) {
+    QVector<git_commit *> parents;
+    const unsigned int parentCount = git_commit_parentcount(commitToAmend);
+    parents.reserve(static_cast<int>(parentCount));
+
+    for (unsigned int i = 0; i < parentCount; ++i) {
+      git_commit *parent = nullptr;
+      error = git_commit_parent(&parent, commitToAmend, i);
+      if (error) {
+        logGitError(error);
+        for (git_commit *loadedParent : parents) {
+          git_commit_free(loadedParent);
+        }
+        git_signature_free(committerSig);
+        git_tree_free(tree);
+        git_index_free(index);
+        git_commit_free(commitToAmend);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      parents.push_back(parent);
+    }
+
+    CommitSigningConfig signingConfig;
+    QString signingError;
+    const bool signingConfigLoaded =
+        loadCommitSigningConfig(&signingConfig, &signingError);
+    if (!signingConfigLoaded) {
+      LOG_ERROR(Log::ErrorId::Git, "{}", signingError.toStdString());
+      setLastError(-1, signingError);
+      for (git_commit *loadedParent : parents) {
+        git_commit_free(loadedParent);
+      }
+      git_signature_free(committerSig);
+      git_tree_free(tree);
+      git_index_free(index);
+      git_commit_free(commitToAmend);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    const bool doSigning = signingConfig.enabled;
+    if (doSigning) {
+      CommitSigningPayload signingPayload;
+      signingPayload.config = signingConfig;
+      signingPayload.errorMessage = &signingError;
+
+      git_commit_create_ext_options commitOpts =
+          GIT_COMMIT_CREATE_EXT_OPTIONS_INIT;
+      commitOpts.sign = commitSigningCallback;
+      commitOpts.payload = &signingPayload;
+
+      error = git_commit_create_ext(
+          &newCommitOid, repo, authorSig, committerSig,
+          fullMessage.toStdString().c_str(), tree, parents.size(),
+          parents.isEmpty() ? nullptr : parents.data(), &commitOpts);
+      if (!error) {
+        git_reference *headRef = nullptr;
+        error = git_repository_head(&headRef, repo);
+        if (!error) {
+          git_reference *updatedRef = nullptr;
+          error = git_reference_set_target(&updatedRef, headRef, &newCommitOid,
+                                           "Amend commit");
+          if (updatedRef) {
+            git_reference_free(updatedRef);
+          }
+          git_reference_free(headRef);
+        }
+      }
+    } else {
+      error = git_commit_amend(
+          &newCommitOid,
+          commitToAmend, // Commit to amend
+          "HEAD",        // Update HEAD reference
+          authorSig,      // Keep original author (or provide new one)
+          committerSig,   // New committer (or nullptr to keep original)
+          nullptr,        // Use default encoding
+          fullMessage.toStdString().c_str(), // Use updated message
+          tree            // New tree (or nullptr to keep original)
+      );
+    }
+
+    for (git_commit *loadedParent : parents) {
+      git_commit_free(loadedParent);
+    }
+
+    if (error) {
+      if (doSigning && !signingError.isEmpty()) {
+        LOG_ERROR(Log::ErrorId::Git, "Failed to sign commit: {}",
+                  signingError.toStdString());
+        setLastError(-1, signingError);
+      } else {
+        logGitError(error);
+      }
+
+      git_signature_free(committerSig);
+      git_tree_free(tree);
+      git_index_free(index);
+      git_commit_free(commitToAmend);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  } else {
+    error = git_commit_amend(
+        &newCommitOid,
+        commitToAmend, // Commit to amend
+        "HEAD",        // Update HEAD reference
+        authorSig,      // Keep original author (or provide new one)
+        committerSig,   // New committer (or nullptr to keep original)
+        nullptr,        // Use default encoding
+        fullMessage.toStdString().c_str(), // Use updated message
+        tree            // New tree (or nullptr to keep original)
+    );
+    if (error) {
+      logGitError(error);
+      git_signature_free(committerSig);
+      git_tree_free(tree);
+
+      git_index_free(index);
+      git_commit_free(commitToAmend);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
   }
 
   // Cleanup

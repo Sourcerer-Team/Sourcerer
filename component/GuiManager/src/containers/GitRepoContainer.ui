@@ -1456,6 +1456,64 @@
                          </item>
                         </layout>
                        </item>
+                       <item>
+                        <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoSigned">
+                         <item>
+                          <widget class="QLabel" name="labelPageDisplaySignedLabel">
+                           <property name="text">
+                            <string>signed:</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QLabel" name="labelPageDisplaySignedValue">
+                           <property name="text">
+                            <string/>
+                           </property>
+                           <property name="indent">
+                            <number>4</number>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                       <item>
+                        <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoSignatureType">
+                         <item>
+                          <widget class="QLabel" name="labelPageDisplaySignatureTypeLabel">
+                           <property name="text">
+                            <string>signature type:</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QLabel" name="labelPageDisplaySignatureTypeValue">
+                           <property name="text">
+                            <string/>
+                           </property>
+                           <property name="indent">
+                            <number>4</number>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                       <item>
+                        <widget class="QPlainTextEdit" name="plainTextEditPageDisplaySignature">
+                         <property name="minimumSize">
+                          <size>
+                           <width>0</width>
+                           <height>100</height>
+                          </size>
+                         </property>
+                         <property name="readOnly">
+                          <bool>true</bool>
+                         </property>
+                         <property name="lineWrapMode">
+                          <enum>QPlainTextEdit::LineWrapMode::NoWrap</enum>
+                         </property>
+                        </widget>
+                       </item>
                       </layout>
                      </item>
                     </layout>
