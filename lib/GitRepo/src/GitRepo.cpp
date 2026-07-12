@@ -218,9 +218,9 @@ static bool file_has_conflict_marker_triplet(const QString &path,
 
   while (!stream.atEnd()) {
     const QString line = stream.readLine();
-    foundStart |= line.contains(startMarker, Qt::CaseSensitive);
-    foundMiddle |= line.contains(middleMarker, Qt::CaseSensitive);
-    foundEnd |= line.contains(endMarker, Qt::CaseSensitive);
+    foundStart |= line.startsWith(startMarker, Qt::CaseSensitive);
+    foundMiddle |= line.startsWith(middleMarker, Qt::CaseSensitive);
+    foundEnd |= line.startsWith(endMarker, Qt::CaseSensitive);
 
     if (foundStart && foundMiddle && foundEnd) {
       break;
