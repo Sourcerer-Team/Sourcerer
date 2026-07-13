@@ -65,6 +65,9 @@ struct GitCommitInfo {
   QString authorName;
   QString authorEmail;
   qint64 timeStamp = -1;
+  bool signedCommit = false;
+  QString signatureType;
+  QString signature;
   QVector<QString> branches;
   QVector<QString> parents;
   QVector<QString> children;
@@ -73,6 +76,8 @@ struct GitCommitInfo {
     return git_oid_equal(&oid, &other.oid) == 1 && message == other.message &&
            summary == other.summary && authorName == other.authorName &&
            authorEmail == other.authorEmail && timeStamp == other.timeStamp &&
+           signedCommit == other.signedCommit &&
+           signatureType == other.signatureType && signature == other.signature &&
            branches == other.branches && parents == other.parents &&
            children == other.children;
   }
@@ -298,7 +303,8 @@ void shutdownForCurrentThread();
 void clearCachedCredentials(const QString &repoPath);
 
 bool amend(git_repository *repo, const QString &summary, const QString &message,
-           const QString &author, const QString &email);
+           const QString &author, const QString &email, bool signoff,
+           bool signCommit);
 
 bool applyStash(git_repository *repo, int index);
 
@@ -378,7 +384,8 @@ bool unstageFiles(git_repository *repo, const QStringList &files);
 
 bool commitStaged(git_repository *repo, const QString &summary,
                   const QString &message, const QString &author,
-                  const QString &email, bool cleanup);
+                  const QString &email, bool cleanup, bool signoff,
+                  bool signCommit);
 
 FilesDiff diffFiles(git_repository *repo, const QStringList &files);
 

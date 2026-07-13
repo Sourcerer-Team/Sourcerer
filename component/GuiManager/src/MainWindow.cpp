@@ -7,6 +7,7 @@
 #include "containers/GitCredentialsContainer.h"
 #include "containers/GitKeysContainer.h"
 #include "containers/GitRepoContainer.h"
+#include "containers/GitSigningContainer.h"
 #include "containers/HomeContainer.h"
 #include "containers/InitGitRepoContainer.h"
 #include "containers/SettingsContainer.h"
@@ -168,6 +169,7 @@ MainWindow::MainWindow(QWidget *parent)
   connect(_topBarWidget, &TopBarWidget::credentials, this,
           &MainWindow::onCredentials);
   connect(_topBarWidget, &TopBarWidget::sshKeys, this, &MainWindow::onSshKeys);
+  connect(_topBarWidget, &TopBarWidget::signing, this, &MainWindow::onSigning);
   connect(_topBarWidget, &TopBarWidget::terminal, this,
           &MainWindow::onTerminal);
   connect(_topBarWidget, &TopBarWidget::bugReport, this,
@@ -263,7 +265,12 @@ QStringList MainWindow::containerPaths() const {
       continue;
     }
 
-    paths += container->path();
+    const QString path = container->path();
+    if (path.isEmpty()) {
+      continue;
+    }
+
+    paths += path;
   }
 
   LOG_PERF(0, "Exit");
@@ -434,6 +441,14 @@ void MainWindow::onSshKeys() {
   LOG_PERF(0, "Enter");
 
   addGitKeysContainer();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onSigning() {
+  LOG_PERF(0, "Enter");
+
+  addGitSigningContainer();
 
   LOG_PERF(0, "Exit");
 }
@@ -968,6 +983,24 @@ void MainWindow::addGitKeysContainer() {
   container->setupShortcuts();
   _containers += container;
   _topBarWidget->titleBarWidget()->addTab(tr("SSH keys"));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addGitSigningContainer() {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<GitSigningContainer>::create(this);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+  _containers += container;
+  _topBarWidget->titleBarWidget()->addTab(tr("Signing"));
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 

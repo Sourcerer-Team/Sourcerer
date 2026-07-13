@@ -18,8 +18,8 @@ TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _openAction(nullptr), _cloneAction(nullptr), _initAction(nullptr),
       _saveWorkspaceAction(nullptr), _settingsAction(nullptr),
-      _credentialsAction(nullptr), _terminalAction(nullptr),
-      _aboutAction(nullptr) {
+      _credentialsAction(nullptr), _sshKeysAction(nullptr),
+      _signingAction(nullptr), _terminalAction(nullptr), _aboutAction(nullptr) {
   LOG_PERF(0, "Enter");
 
   setMouseTracking(true);
@@ -119,6 +119,14 @@ void TitleBarMenuButton::onSshKeys() {
   LOG_PERF(0, "Exit");
 }
 
+void TitleBarMenuButton::onSigning() {
+  LOG_PERF(0, "Enter");
+
+  emit signing();
+
+  LOG_PERF(0, "Exit");
+}
+
 void TitleBarMenuButton::onTerminal() {
   LOG_PERF(0, "Enter");
 
@@ -192,6 +200,11 @@ void TitleBarMenuButton::createActions() {
   connect(_sshKeysAction, &QAction::triggered, this,
           &TitleBarMenuButton::onSshKeys);
 
+  _signingAction = new QAction(this);
+  _signingAction->setText(tr("Commit signing"));
+  connect(_signingAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onSigning);
+
   _bugReportAction = new QAction(this);
   _bugReportAction->setText(tr("Report bug"));
   connect(_bugReportAction, &QAction::triggered, this,
@@ -264,6 +277,7 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addSeparator();
   menu->addAction(_credentialsAction);
   menu->addAction(_sshKeysAction);
+  menu->addAction(_signingAction);
   menu->addSeparator();
   menu->addAction(_bugReportAction);
   menu->addAction(_aboutAction);

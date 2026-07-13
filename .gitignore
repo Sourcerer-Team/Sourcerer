@@ -90,3 +90,6 @@ installer/Sourcerer-Installer.msi
 installer/Sourcerer-Installer.wixpdb
 
 keys/**
+
+.idea/
+.vscode/

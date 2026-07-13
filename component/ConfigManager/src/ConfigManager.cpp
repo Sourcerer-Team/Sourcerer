@@ -37,6 +37,10 @@ QMap<ConfigKey, QString> KEY_NAMES = {
      "gitrepo/credentials/credentialsExpirationTime"},
     {ConfigKey::GitRepoServerConnectTimeout, "gitrepo/server/connectTimeout"},
     {ConfigKey::GitRepoServerTimeout, "gitrepo/server/timeout"},
+    {ConfigKey::GitRepoSigningEnabled, "gitrepo/signing/enabled"},
+    {ConfigKey::GitRepoSigningFormat, "gitrepo/signing/format"},
+    {ConfigKey::GitRepoSigningKey, "gitrepo/signing/key"},
+    {ConfigKey::GitRepoSigningProgram, "gitrepo/signing/program"},
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout,
      "gitrepo/spinnerOverlay/timer"},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout,
@@ -75,6 +79,14 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
      {"Server connection timeout in milliseconds", ""}},
     {ConfigKey::GitRepoServerTimeout,
      {"Server operation timeout in milliseconds", ""}},
+    {ConfigKey::GitRepoSigningEnabled,
+     {"Commit signing enabled", "Show the Sign commit checkbox in commit panels"}},
+    {ConfigKey::GitRepoSigningFormat,
+     {"Commit signing format", "GPG/OpenPGP or SSH"}},
+    {ConfigKey::GitRepoSigningKey,
+     {"Commit signing key", "Key ID/fingerprint or SSH private key path"}},
+    {ConfigKey::GitRepoSigningProgram,
+     {"Commit signing program", "Optional path to the signing executable"}},
     {ConfigKey::GitRepoMonospaceFontName, {"Monospace font name", ""}},
     {ConfigKey::GitRepoMonospaceFontSize, {"Monospace font size in pixels"}},
     {ConfigKey::RecentlyOpenedRepos, {"Recently opened repositories list", ""}},
@@ -90,7 +102,8 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
 
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {
     {ConfigKey::GitRepoDiffViewType,
-     false}}; // false = unified, true = side-by-side
+     false}, // false = unified, true = side-by-side
+    {ConfigKey::GitRepoSigningEnabled, false}};
 
 QMap<ConfigKey, QColor> DEFAULT_COLORS = {
     {ConfigKey::TestColor, QColor(10, 10, 10)},
@@ -126,6 +139,8 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
 
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::CloudJwtPublicKeyPath, "keys/cloud_jwt_public_key.pem"},
+    {ConfigKey::GitRepoSigningFormat, "gpg"},
+    {ConfigKey::GitRepoSigningProgram, "gpg"},
 #ifdef QT_DEBUG
     {ConfigKey::CloudSigninUrl, "https://www.sourcererapp.com/api/v1/signin"},
     {ConfigKey::CloudSignupUrl, "https://www.sourcererapp.com/#/signup"},
@@ -150,7 +165,29 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::RecentlyOpenedRepos, ""},
     {ConfigKey::UiTheme, "SourcererDark"},
     {ConfigKey::MainWindowGeometry, ""},
+    {ConfigKey::GitRepoSigningKey, ""},
     {ConfigKey::SettingsSplitterPos, ""}};
+
+static QString resolveSigningProgramDefault(const QString &signingFormat) {
+  if (signingFormat.trimmed().compare(QStringLiteral("ssh"), Qt::CaseInsensitive) == 0) {
+    return QStringLiteral("ssh-keygen");
+  }
+
+  return QStringLiteral("gpg");
+}
+
+static QString defaultStringForKey(ConfigKey key, const QSettings *settings) {
+  if (key == ConfigKey::GitRepoSigningProgram) {
+    const QString formatKey = KEY_NAMES.value(ConfigKey::GitRepoSigningFormat);
+    const QString signingFormat =
+        settings && settings->contains(formatKey)
+            ? settings->value(formatKey).toString()
+            : DEFAULT_STRINGS.value(ConfigKey::GitRepoSigningFormat);
+    return resolveSigningProgramDefault(signingFormat);
+  }
+
+  return DEFAULT_STRINGS.value(key);
+}
 
 ConfigManager::ConfigManager()
     : _settings(ORGANIZATION_NAME, APPLICATION_NAME) {
@@ -201,18 +238,36 @@ qlonglong ConfigManager::getLong(ConfigKey key) const {
 
 QString ConfigManager::getString(ConfigKey key) const {
   LOCKGUARD(_mutex);
-  if (_settings.contains(KEY_NAMES[key]))
-    return _settings.value(KEY_NAMES[key]).toString();
-  else
-    return DEFAULT_STRINGS[key];
+  const QString keyName = KEY_NAMES.value(key);
+  if (_settings.contains(keyName)) {
+    const QString value = _settings.value(keyName).toString();
+    if (key == ConfigKey::GitRepoSigningProgram && value.trimmed().isEmpty()) {
+      return defaultStringForKey(key, &_settings);
+    }
+
+    return value;
+  }
+
+  return defaultStringForKey(key, &_settings);
 }
 
 QString ConfigManager::getString(const QString &key) const {
   LOCKGUARD(_mutex);
-  if (_settings.contains(key))
-    return _settings.value(key).toString();
-  else
-    return QString();
+  if (_settings.contains(key)) {
+    const QString value = _settings.value(key).toString();
+    if (getKey(key) == ConfigKey::GitRepoSigningProgram &&
+        value.trimmed().isEmpty()) {
+      return defaultStringForKey(ConfigKey::GitRepoSigningProgram, &_settings);
+    }
+
+    return value;
+  }
+
+  if (getKey(key) == ConfigKey::GitRepoSigningProgram) {
+    return defaultStringForKey(ConfigKey::GitRepoSigningProgram, &_settings);
+  }
+
+  return QString();
 }
 
 void ConfigManager::setBoolean(ConfigKey key, bool value) {

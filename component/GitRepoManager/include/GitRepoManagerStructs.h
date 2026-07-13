@@ -146,6 +146,8 @@ struct GitRepoAmendCommand final : GitRepoCommand {
   QString email;
   QString summary;
   QString message;
+  bool signoff = false;
+  bool signCommit = false;
 };
 
 struct GitRepoApplyPatchCommand final : GitRepoCommand {
@@ -224,6 +226,8 @@ struct GitRepoCommitStagedCommand final : GitRepoCommand {
   QString summary;
   QString message;
   bool cleanup = false;
+  bool signoff = false;
+  bool signCommit = false;
 };
 
 struct GitRepoCreateBranchFromCommitCommand final : GitRepoCommand {

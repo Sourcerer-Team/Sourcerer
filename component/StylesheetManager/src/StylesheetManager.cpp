@@ -188,6 +188,25 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
       QListView::item:selected {
         background-color: #384D59;
       }
+      QCheckBox {
+        color: palette(window-text);
+        spacing: 6px;
+      }
+      QCheckBox::indicator {
+        width: 13px;
+        height: 13px;
+        border: 1px solid palette(button-text);
+        border-radius: 3px;
+        background-color: transparent;
+      }
+      QCheckBox::indicator:checked {
+        border: 1px solid palette(highlight);
+        background-color: palette(highlight);
+      }
+      QCheckBox::indicator:disabled {
+        border: 1px solid palette(mid);
+        background-color: palette(button);
+      }
       QPushButton[flat=true]{
         color:white;
         text-decoration:none;
@@ -274,49 +293,27 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
         color: white;
         padding: 5px;
       }
-      QPushButton#refreshButton{
+      QPushButton#refreshButton,
+      QPushButton#generateButton,
+      QPushButton#addButton,
+      QPushButton#editButton,
+      QPushButton#signingKeyBrowseButton,
+      QPushButton#signingProgramBrowseButton,
+      QPushButton#signingResetButton,
+      QPushButton#signingSaveButton{
         background-color: #384D59;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#refreshButton:hover{
-        background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#generateButton{
-        background-color: #384D59;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#generateButton:hover{
-        background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#addButton{
-        background-color: #384D59;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#addButton:hover{
-        background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#editButton{
-        background-color: #384D59;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#editButton:hover{
+      QPushButton#refreshButton:hover,
+      QPushButton#generateButton:hover,
+      QPushButton#addButton:hover,
+      QPushButton#editButton:hover,
+      QPushButton#signingKeyBrowseButton:hover,
+      QPushButton#signingProgramBrowseButton:hover,
+      QPushButton#signingResetButton:hover,
+      QPushButton#signingSaveButton:hover{
         background-color: #4a6070;
         border: 1px solid gray;
         border-radius: 5px;
@@ -624,6 +621,17 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
         border: none;
         padding: 0px;
         margin: 0px;
+      }
+      QToolButton#toolButtonCommitSigningBlockToggle,
+      QToolButton#toolButtonPageDisplaySignatureToggle {
+        background: transparent;
+        border: none;
+        padding: 0px;
+        margin: 0px;
+      }
+      QToolButton#toolButtonCommitSigningBlockToggle:hover,
+      QToolButton#toolButtonPageDisplaySignatureToggle:hover {
+        background: transparent;
       }
       QTabBar#tabWidgetCommitTabBar::tab {
         background: transparent;
@@ -1027,6 +1035,25 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         gridline-color: #D0D7DE;
         outline: 0;
       }
+      QCheckBox {
+        color: palette(window-text);
+        spacing: 6px;
+      }
+      QCheckBox::indicator {
+        width: 13px;
+        height: 13px;
+        border: 1px solid palette(button-text);
+        border-radius: 3px;
+        background-color: transparent;
+      }
+      QCheckBox::indicator:checked {
+        border: 1px solid palette(highlight);
+        background-color: palette(highlight);
+      }
+      QCheckBox::indicator:disabled {
+        border: 1px solid palette(mid);
+        background-color: palette(button);
+      }
       QListView, QTreeView, QTableView {
         background-color: palette(window);
         color: palette(window-text);
@@ -1151,49 +1178,27 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         color: white;
         padding: 5px;
       }
-      QPushButton#refreshButton{
+      QPushButton#refreshButton,
+      QPushButton#generateButton,
+      QPushButton#addButton,
+      QPushButton#editButton,
+      QPushButton#signingKeyBrowseButton,
+      QPushButton#signingProgramBrowseButton,
+      QPushButton#signingResetButton,
+      QPushButton#signingSaveButton{
         background-color: #E7EEF4;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#refreshButton:hover{
-        background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#generateButton{
-        background-color: #E7EEF4;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#generateButton:hover{
-        background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#addButton{
-        background-color: #E7EEF4;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#addButton:hover{
-        background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#editButton{
-        background-color: #E7EEF4;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#editButton:hover{
+      QPushButton#refreshButton:hover,
+      QPushButton#generateButton:hover,
+      QPushButton#addButton:hover,
+      QPushButton#editButton:hover,
+      QPushButton#signingKeyBrowseButton:hover,
+      QPushButton#signingProgramBrowseButton:hover,
+      QPushButton#signingResetButton:hover,
+      QPushButton#signingSaveButton:hover{
         background-color: #4a6070;
         border: 1px solid gray;
         border-radius: 5px;
@@ -1517,6 +1522,17 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         border: none;
         padding: 0px;
         margin: 0px;
+      }
+      QToolButton#toolButtonCommitSigningBlockToggle,
+      QToolButton#toolButtonPageDisplaySignatureToggle {
+        background: transparent;
+        border: none;
+        padding: 0px;
+        margin: 0px;
+      }
+      QToolButton#toolButtonCommitSigningBlockToggle:hover,
+      QToolButton#toolButtonPageDisplaySignatureToggle:hover {
+        background: transparent;
       }
       QTabBar#tabWidgetCommitTabBar::tab {
         background: transparent;

@@ -36,6 +36,7 @@
 
 #include <QCheckBox>
 #include <QClipboard>
+#include <QHBoxLayout>
 #include <QDirIterator>
 #include <QEvent>
 #include <QFile>
@@ -53,6 +54,7 @@
 #include <QSvgRenderer>
 #include <QTextStream>
 #include <QTimer>
+#include <QToolButton>
 #include <QToolTip>
 #include <Qsci/qsciscintilla.h>
 
@@ -183,6 +185,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->setModel(_historyModel.get());
   ui->historyView->setSelectionMode(QAbstractItemView::SingleSelection);
 
+  connect(ui->toolButtonPageDisplaySignature, &QToolButton::toggled, this,
+          [this](bool checked) {
+            ui->widgetPageDisplaySignatureContent->setVisible(checked);
+            ui->toolButtonPageDisplaySignature->setArrowType(
+                checked ? Qt::DownArrow : Qt::RightArrow);
+          });
+
   ui->historyView->setVisible(false);
   ui->spinner->setColor(Qt::lightGray);
   _spinnerOverlay->setParent(ui->pageMain);
@@ -214,11 +223,27 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMerge->setMinimumHeight(32);
   ui->pushButtonMerge->setMaximumHeight(32);
 
-  _checkBoxAmend =
-      new QCheckBox(tr("Amend previous commit"), ui->tabWidgetCommit);
+  QWidget *commitButtonContainer = new QWidget(ui->tabWidgetCommit);
+  QHBoxLayout *commitButtonLayout = new QHBoxLayout(commitButtonContainer);
+  commitButtonLayout->setContentsMargins(0, 0, 0, 0);
+  commitButtonLayout->setSpacing(8);
 
-  ui->tabWidgetCommit->setCornerWidget(_checkBoxAmend);
+  _checkBoxAmend =
+      new QCheckBox(tr("Amend"), commitButtonContainer);
+  _checkBoxSignOff =
+      new QCheckBox(tr("Sign-off"), commitButtonContainer);
+  _checkBoxSignCommit =
+      new QCheckBox(tr("Sign"), commitButtonContainer);
+
+  commitButtonLayout->addWidget(_checkBoxAmend);
+  commitButtonLayout->addWidget(_checkBoxSignOff);
+  commitButtonLayout->addWidget(_checkBoxSignCommit);
+  commitButtonLayout->addStretch();
+
+  ui->tabWidgetCommit->setCornerWidget(commitButtonContainer,
+                                       Qt::TopRightCorner);
   ui->tabWidgetCommit->tabBar()->setObjectName("tabWidgetCommitTabBar");
+  refreshSigningControls();
   ui->tabWidgetIndex->tabBar()->setObjectName("tabWidgetIndexTabBar");
   ui->tabWidgetWorkingTree->tabBar()->setObjectName(
       "tabWidgetWorkingTreeTabBar");
@@ -915,6 +940,8 @@ void GitRepoContainer::deselected() {
 void GitRepoContainer::selected() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Container selected: '{}'", _path.toStdString());
+
+  refreshSigningControls();
 
   _selected = true;
   LOG_DEBUG("Container marked as selected");
@@ -1691,11 +1718,14 @@ void GitRepoContainer::onCommitButtonClicked() {
   const QString summary = ui->lineEditSummary->text().trimmed();
   const QString description = ui->textEditDescription->toPlainText().trimmed();
   const bool toAmend = _checkBoxAmend->isChecked();
+  const bool signoff = _checkBoxSignOff->isChecked();
+  const bool signCommit = _checkBoxSignCommit->isVisible() &&
+                          _checkBoxSignCommit->isChecked();
 
-  LOG_DEBUG("Commit details - Author: '{}', Amend: {}, Summary length: {}, "
+  LOG_DEBUG("Commit details - Author: '{}', Amend: {}, Sign-off: {}, Sign commit: {}, Summary length: {}, "
             "Merge in progress: {}",
-            currentProfile.author.toStdString(), toAmend, summary.length(),
-            _mergeInProgress);
+            currentProfile.author.toStdString(), toAmend, signoff,
+            signCommit, summary.length(), _mergeInProgress);
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -1706,13 +1736,13 @@ void GitRepoContainer::onCommitButtonClicked() {
     if (toAmend) {
       LOG_DEBUG("Performing amend operation");
       amend(guard, summary, description, currentProfile.author,
-            currentProfile.email);
+            currentProfile.email, signoff, signCommit);
     } else {
       LOG_DEBUG("Performing new commit operation");
       // If merge is in progress, cleanup must be true to conclude the merge
       const bool cleanup = _mergeInProgress;
       commit(guard, summary, description, currentProfile.author,
-             currentProfile.email, cleanup);
+             currentProfile.email, cleanup, signoff, signCommit);
     }
   });
 
@@ -1727,9 +1757,13 @@ void GitRepoContainer::onMergeButtonClicked() {
       _userProfileManager.currentProfile();
   const QString summary = ui->lineEditSummary->text().trimmed();
   const QString description = ui->textEditDescription->toPlainText().trimmed();
+  const bool signoff = _checkBoxSignOff->isChecked();
+  const bool signCommit = _checkBoxSignCommit->isVisible() &&
+                          _checkBoxSignCommit->isChecked();
 
-  LOG_DEBUG("Merge details - Author: '{}', Summary length: {}",
-            currentProfile.author.toStdString(), summary.length());
+  LOG_DEBUG("Merge details - Author: '{}', Sign-off: {}, Sign commit: {}, Summary length: {}",
+            currentProfile.author.toStdString(), signoff, signCommit,
+            summary.length());
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -1739,7 +1773,7 @@ void GitRepoContainer::onMergeButtonClicked() {
   _dispatcher.dispatch([=]() {
     LOG_DEBUG("Performing merge commit operation");
     commit(guard, summary, description, currentProfile.author,
-           currentProfile.email, true);
+           currentProfile.email, true, signoff, signCommit);
   });
 
   LOG_PERF(0, "Exit");
@@ -2854,6 +2888,8 @@ void GitRepoContainer::onPull(bool rebase) {
   LOG_DEBUG("{} operation initiated for repository: '{}'",
             rebase ? "Pull with rebase" : "Pull", _path.toStdString());
 
+  startOverlayTimer();
+
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
@@ -2870,6 +2906,8 @@ void GitRepoContainer::onFetchAll() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Fetch all operation initiated for repository: '{}'",
             _path.toStdString());
+
+  startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -5196,7 +5234,8 @@ void GitRepoContainer::addSubmodule(const WeakPtr &guard, const QString &url,
 
 void GitRepoContainer::amend(const WeakPtr &guard, const QString &summary,
                              const QString &description, const QString &author,
-                             const QString &email) {
+                             const QString &email, bool signoff,
+                             bool signCommit) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -5210,6 +5249,8 @@ void GitRepoContainer::amend(const WeakPtr &guard, const QString &summary,
   command.email = email;
   command.summary = summary;
   command.message = description;
+  command.signoff = signoff;
+  command.signCommit = signCommit;
 
   EventManager::Event amendEvent(EventManager::EventType::GitRepoManagerAmend,
                                  eventUuid);
@@ -5238,9 +5279,13 @@ void GitRepoContainer::amend(const WeakPtr &guard, const QString &summary,
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(QString("%1\n%2").arg(tr("Failed to amend changes."),
-                                           translateGitError(error.error)),
-                     tr("Error"));
+      const QString detail =
+          (error.error == -1 && !error.message.isEmpty())
+              ? error.message
+              : translateGitError(error.error);
+      showErrorToast(
+          QString("%1\n%2").arg(tr("Failed to amend changes."), detail),
+          tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -5675,9 +5720,21 @@ void GitRepoContainer::closeRepo() const {
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::refreshSigningControls() {
+  LOG_PERF(0, "Enter");
+
+  const bool signingEnabled = _configManager.getBoolean(
+      ConfigManager::ConfigKey::GitRepoSigningEnabled);
+  _checkBoxSignCommit->setVisible(signingEnabled);
+  _checkBoxSignCommit->setChecked(signingEnabled && _checkBoxSignCommit->isChecked());
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
                               const QString &description, const QString &author,
-                              const QString &email, bool cleanup) {
+                              const QString &email, bool cleanup, bool signoff,
+                              bool signCommit) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -5692,6 +5749,8 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
   command.summary = summary;
   command.message = description;
   command.cleanup = cleanup;
+  command.signoff = signoff;
+  command.signCommit = signCommit;
 
   EventManager::Event commitStagedEvent(
       EventManager::EventType::GitRepoManagerCommitStaged, eventUuid);
@@ -5722,10 +5781,13 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      showErrorToast(
-          QString("%1\n%2").arg(tr("Failed to commit staged changes."),
-                                translateGitError(error.error)),
-          tr("Error"));
+      const QString detail =
+          (error.error == -1 && !error.message.isEmpty())
+              ? error.message
+              : translateGitError(error.error);
+      showErrorToast(QString("%1\n%2").arg(tr("Failed to commit staged changes."),
+                                            detail),
+                     tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -10559,6 +10621,19 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
                       .left(MAX_COMMIT_SHA_LENGTH) +
                   (commitInfo.parents.size() > MAXIMUM_PARENTS_IN_LABEL ? "..."
                                                                         : ""));
+    ui->labelPageDisplaySignedValue->setText(
+        commitInfo.signedCommit ? tr("Yes") : tr("No"));
+    const QString signatureType =
+        commitInfo.signatureType.isEmpty() ? tr("Unknown")
+                                            : commitInfo.signatureType;
+    ui->labelPageDisplaySignatureTypeValue->setText(signatureType);
+    const bool hasSignatureBlock = commitInfo.signedCommit &&
+                                   !commitInfo.signature.isEmpty();
+    ui->widgetPageDisplaySignatureSection->setVisible(hasSignatureBlock);
+    ui->toolButtonPageDisplaySignature->setChecked(false);
+    ui->widgetPageDisplaySignatureContent->setVisible(false);
+    ui->plainTextEditPageDisplaySignature->setPlainText(
+        hasSignatureBlock ? commitInfo.signature : QString());
 
     QTextCursor cursor = ui->textEditPageDisplayDescription->textCursor();
     QTextBlockFormat format = cursor.blockFormat();

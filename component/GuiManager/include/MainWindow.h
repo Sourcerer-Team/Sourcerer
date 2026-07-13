@@ -5,6 +5,7 @@
 #include "widgets/ConsoleWidget.h"
 #include "widgets/ContainerWidget.h"
 #include "widgets/GitCredentialsOverlayWidget.h"
+#include "containers/GitSigningContainer.h"
 #include "widgets/ProfileBoardWidget.h"
 #include "widgets/SshPassphraseOverlayWidget.h"
 #include "widgets/ToastHostWidget.h"
@@ -68,6 +69,7 @@ private slots:
   void onSettings();
   void onCredentials();
   void onSshKeys();
+  void onSigning();
   void onSubmitWorkspace(const QString &name);
   void onTerminal();
   void onWorkspaceClicked(const QString &name);
@@ -89,6 +91,7 @@ private:
   void addGitRepoContainer(const QString &path);
   void addGitCredentialsContainer();
   void addGitKeysContainer();
+  void addGitSigningContainer();
   void addHomeContainer();
   void addInitGitRepoContainer();
   void addSettingsContainer();

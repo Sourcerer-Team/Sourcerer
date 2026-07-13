@@ -32,6 +32,10 @@ enum class ConfigKey {
   GitRepoGitCredentialsExpirationTime,
   GitRepoServerConnectTimeout,
   GitRepoServerTimeout,
+  GitRepoSigningEnabled,
+  GitRepoSigningFormat,
+  GitRepoSigningKey,
+  GitRepoSigningProgram,
 
   // HttpClient
   HttpClientCaCertFile,
