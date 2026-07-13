@@ -188,6 +188,25 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
       QListView::item:selected {
         background-color: #384D59;
       }
+      QCheckBox {
+        color: palette(window-text);
+        spacing: 6px;
+      }
+      QCheckBox::indicator {
+        width: 13px;
+        height: 13px;
+        border: 1px solid palette(button-text);
+        border-radius: 3px;
+        background-color: transparent;
+      }
+      QCheckBox::indicator:checked {
+        border: 1px solid palette(highlight);
+        background-color: palette(highlight);
+      }
+      QCheckBox::indicator:disabled {
+        border: 1px solid palette(mid);
+        background-color: palette(button);
+      }
       QPushButton[flat=true]{
         color:white;
         text-decoration:none;
@@ -603,6 +622,17 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
         padding: 0px;
         margin: 0px;
       }
+      QToolButton#toolButtonCommitSigningBlockToggle,
+      QToolButton#toolButtonPageDisplaySignatureToggle {
+        background: transparent;
+        border: none;
+        padding: 0px;
+        margin: 0px;
+      }
+      QToolButton#toolButtonCommitSigningBlockToggle:hover,
+      QToolButton#toolButtonPageDisplaySignatureToggle:hover {
+        background: transparent;
+      }
       QTabBar#tabWidgetCommitTabBar::tab {
         background: transparent;
         border: 1px solid #6D6E6E;
@@ -1004,6 +1034,25 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         selection-color: #202020;
         gridline-color: #D0D7DE;
         outline: 0;
+      }
+      QCheckBox {
+        color: palette(window-text);
+        spacing: 6px;
+      }
+      QCheckBox::indicator {
+        width: 13px;
+        height: 13px;
+        border: 1px solid palette(button-text);
+        border-radius: 3px;
+        background-color: transparent;
+      }
+      QCheckBox::indicator:checked {
+        border: 1px solid palette(highlight);
+        background-color: palette(highlight);
+      }
+      QCheckBox::indicator:disabled {
+        border: 1px solid palette(mid);
+        background-color: palette(button);
       }
       QListView, QTreeView, QTableView {
         background-color: palette(window);
@@ -1473,6 +1522,17 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         border: none;
         padding: 0px;
         margin: 0px;
+      }
+      QToolButton#toolButtonCommitSigningBlockToggle,
+      QToolButton#toolButtonPageDisplaySignatureToggle {
+        background: transparent;
+        border: none;
+        padding: 0px;
+        margin: 0px;
+      }
+      QToolButton#toolButtonCommitSigningBlockToggle:hover,
+      QToolButton#toolButtonPageDisplaySignatureToggle:hover {
+        background: transparent;
       }
       QTabBar#tabWidgetCommitTabBar::tab {
         background: transparent;

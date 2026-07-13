@@ -47,7 +47,6 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QMovie>
-#include <QWidget>
 #include <QPainter>
 #include <QPixmap>
 #include <QScrollBar>
@@ -55,6 +54,7 @@
 #include <QSvgRenderer>
 #include <QTextStream>
 #include <QTimer>
+#include <QToolButton>
 #include <QToolTip>
 #include <Qsci/qsciscintilla.h>
 
@@ -185,6 +185,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->setModel(_historyModel.get());
   ui->historyView->setSelectionMode(QAbstractItemView::SingleSelection);
 
+  connect(ui->toolButtonPageDisplaySignature, &QToolButton::toggled, this,
+          [this](bool checked) {
+            ui->widgetPageDisplaySignatureContent->setVisible(checked);
+            ui->toolButtonPageDisplaySignature->setArrowType(
+                checked ? Qt::DownArrow : Qt::RightArrow);
+          });
+
   ui->historyView->setVisible(false);
   ui->spinner->setColor(Qt::lightGray);
   _spinnerOverlay->setParent(ui->pageMain);
@@ -221,16 +228,16 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   commitButtonLayout->setContentsMargins(0, 0, 0, 0);
   commitButtonLayout->setSpacing(8);
 
-  _checkBoxSignCommit =
-      new QCheckBox(tr("Sign commit"), commitButtonContainer);
+  _checkBoxAmend =
+      new QCheckBox(tr("Amend"), commitButtonContainer);
   _checkBoxSignOff =
       new QCheckBox(tr("Sign-off"), commitButtonContainer);
-  _checkBoxAmend =
-      new QCheckBox(tr("Amend previous commit"), commitButtonContainer);
+  _checkBoxSignCommit =
+      new QCheckBox(tr("Sign"), commitButtonContainer);
 
-  commitButtonLayout->addWidget(_checkBoxSignCommit);
-  commitButtonLayout->addWidget(_checkBoxSignOff);
   commitButtonLayout->addWidget(_checkBoxAmend);
+  commitButtonLayout->addWidget(_checkBoxSignOff);
+  commitButtonLayout->addWidget(_checkBoxSignCommit);
   commitButtonLayout->addStretch();
 
   ui->tabWidgetCommit->setCornerWidget(commitButtonContainer,
@@ -10622,7 +10629,9 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     ui->labelPageDisplaySignatureTypeValue->setText(signatureType);
     const bool hasSignatureBlock = commitInfo.signedCommit &&
                                    !commitInfo.signature.isEmpty();
-    ui->plainTextEditPageDisplaySignature->setVisible(hasSignatureBlock);
+    ui->widgetPageDisplaySignatureSection->setVisible(hasSignatureBlock);
+    ui->toolButtonPageDisplaySignature->setChecked(false);
+    ui->widgetPageDisplaySignatureContent->setVisible(false);
     ui->plainTextEditPageDisplaySignature->setPlainText(
         hasSignatureBlock ? commitInfo.signature : QString());
 
