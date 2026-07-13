@@ -831,6 +831,291 @@ static git_strarray qstringlist_to_git_strarray(const QStringList &list) {
   return arr;
 }
 
+static bool markConflictedFiles(git_repository *repo,
+                                const QStringList &filePaths) {
+  LOG_PERF(0, "Enter");
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (filePaths.isEmpty()) {
+    LOG_DEBUG("No conflicted files to mark in the index");
+    LOG_PERF(0, "Exit");
+    return true;
+  }
+
+  git_index *index = nullptr;
+  int error = git_repository_index(&index, repo);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to get repository index when marking conflicts: "
+              "error={}",
+              error);
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  for (const auto &filePath : filePaths) {
+    if (filePath.isEmpty()) {
+      continue;
+    }
+
+    const QByteArray data = filePath.toUtf8();
+
+    LOG_INFO("Marking conflict in: {}", filePath);
+
+    // Add conflict entry manually
+    git_index_entry ancestor = {0}, ours = {0}, theirs = {0};
+    ancestor.path = data.constData();
+    ancestor.mode = GIT_FILEMODE_BLOB;
+
+    error = git_blob_create_fromworkdir(&ancestor.id, repo, ancestor.path);
+    if (error) {
+      logGitError(error);
+    }
+
+    ours.path = data.constData();
+    ours.mode = GIT_FILEMODE_BLOB;
+
+    error = git_blob_create_fromworkdir(&ours.id, repo, ours.path);
+    if (error) {
+      logGitError(error);
+    }
+
+    theirs.path = data.constData();
+    theirs.mode = GIT_FILEMODE_BLOB;
+
+    error = git_blob_create_fromworkdir(&theirs.id, repo, theirs.path);
+    if (error) {
+      logGitError(error);
+    }
+
+    error = git_index_conflict_add(index, &ancestor, &ours, &theirs);
+    if (error) {
+      logGitError(error);
+    }
+  }
+
+  error = git_index_write(index);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Failed to write conflicted files to the index: error={}", error);
+    logGitError(error);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_index_free(index);
+
+  LOG_DEBUG("Marked {} conflicted files in the index", filePaths.size());
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+static bool file_has_conflict_marker_triplet(const QString &path,
+                                             const QString &startMarker,
+                                             const QString &middleMarker,
+                                             const QString &endMarker) {
+  if (path.isEmpty()) {
+    return false;
+  }
+
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    return false;
+  }
+
+  QTextStream stream(&file);
+  stream.setEncoding(QStringConverter::Utf8);
+
+  bool foundStart = false;
+  bool foundMiddle = false;
+  bool foundEnd = false;
+
+  while (!stream.atEnd()) {
+    const QString line = stream.readLine();
+    foundStart |= line.contains(startMarker, Qt::CaseSensitive);
+    foundMiddle |= line.contains(middleMarker, Qt::CaseSensitive);
+    foundEnd |= line.contains(endMarker, Qt::CaseSensitive);
+
+    if (foundStart && foundMiddle && foundEnd) {
+      break;
+    }
+  }
+
+  return foundStart && foundMiddle && foundEnd;
+}
+
+static bool file_has_conflict_markers(const QString &path) {
+  return file_has_conflict_marker_triplet(path, "<<<<<<<",
+                                          "=======", ">>>>>>>");
+}
+
+static bool collectConflictedFilePathsFromResultIndex(git_repository *repo,
+                                                      git_index *index,
+                                                      QStringList *filePaths) {
+  LOG_PERF(0, "Enter");
+
+  if (!repo || !index || !filePaths) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Repository, index pointer or file paths container is null when "
+              "collecting conflicted files");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference *headRef = nullptr;
+  git_commit *headCommit = nullptr;
+  git_tree *headTree = nullptr;
+  git_diff *candidateDiff = nullptr;
+  git_index_conflict_iterator *conflictIterator = nullptr;
+  QStringList candidatePaths;
+  QSet<QString> uniqueCandidatePaths;
+
+  int error = git_repository_head(&headRef, repo);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_reference_peel(reinterpret_cast<git_object **>(&headCommit),
+                             headRef, GIT_OBJECT_COMMIT);
+  if (error) {
+    logGitError(error);
+    git_reference_free(headRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_commit_tree(&headTree, headCommit);
+  if (error) {
+    logGitError(error);
+    git_commit_free(headCommit);
+    git_reference_free(headRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_diff_tree_to_index(&candidateDiff, repo, headTree, index, NULL);
+  git_tree_free(headTree);
+  git_commit_free(headCommit);
+  git_reference_free(headRef);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const auto appendCandidatePath = [&](const char *relativePathCstr) {
+    if (!relativePathCstr) {
+      return;
+    }
+
+    const QString relativePath = QString::fromUtf8(relativePathCstr);
+    if (relativePath.isEmpty() || uniqueCandidatePaths.contains(relativePath)) {
+      return;
+    }
+
+    uniqueCandidatePaths.insert(relativePath);
+    candidatePaths.push_back(relativePath);
+  };
+
+  const size_t numDeltas = git_diff_num_deltas(candidateDiff);
+  for (size_t i = 0; i < numDeltas; ++i) {
+    const git_diff_delta *delta = git_diff_get_delta(candidateDiff, i);
+    if (!delta) {
+      continue;
+    }
+
+    appendCandidatePath(delta->new_file.path ? delta->new_file.path
+                                             : delta->old_file.path);
+  }
+
+  if (candidatePaths.isEmpty()) {
+    error = git_index_conflict_iterator_new(&conflictIterator, index);
+    if (error) {
+      logGitError(error);
+      git_diff_free(candidateDiff);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    const git_index_entry *ancestor = nullptr;
+    const git_index_entry *ours = nullptr;
+    const git_index_entry *theirs = nullptr;
+
+    while (
+           !git_index_conflict_next(&ancestor, &ours, &theirs, conflictIterator)) {
+      const git_index_entry *entry = ours ? ours : (theirs ? theirs : ancestor);
+      if (!entry) {
+        continue;
+      }
+
+      appendCandidatePath(entry->path);
+    }
+  }
+
+  const char *repoWorkdir = git_repository_workdir(repo);
+  QString workDir;
+  if (repoWorkdir) {
+    workDir = repoWorkdir;
+  }
+
+  QSet<QString> uniquePaths;
+  for (const QString &relativePath : candidatePaths) {
+    QString filePath = QDir(workDir).absoluteFilePath(relativePath);
+    filePath = QDir::toNativeSeparators(filePath);
+
+    if (!file_has_conflict_markers(filePath) ||
+            uniquePaths.contains(relativePath)) {
+      continue;
+    }
+
+    uniquePaths.insert(relativePath);
+    filePaths->push_back(relativePath);
+  }
+
+  git_index_conflict_iterator_free(conflictIterator);
+  git_diff_free(candidateDiff);
+
+  LOG_DEBUG("Collected {} conflicted files", filePaths->size());
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+struct GitCredentialPayload : public CloneProgress {
+  QString repoPath;
+};
+
+static void git_strarray_destroy(git_strarray &arr) {
+  for (int i = 0; i < arr.count; ++i) {
+    free(arr.strings[i]);
+  }
+
+  free(arr.strings);
+
+  arr.strings = nullptr;
+  arr.count = 0;
+}
+
+static git_strarray qstringlist_to_git_strarray(const QStringList &list) {
+  git_strarray arr;
+  arr.count = static_cast<size_t>(list.length());
+  arr.strings = static_cast<char **>(malloc(arr.count * sizeof(char *)));
+
+  for (size_t i = 0; i < arr.count; ++i) {
+    arr.strings[i] = strdup(list[i].toStdString().c_str()); // allocates a copy
+  }
+
+  return arr;
+}
+
 static void collectCommitStatusFromDiff(git_diff *diff,
                                         GitCommitStatus *status) {
   if (!diff || !status) {
