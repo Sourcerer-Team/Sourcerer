@@ -603,6 +603,17 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
         padding: 0px;
         margin: 0px;
       }
+      QToolButton#toolButtonCommitSigningBlockToggle,
+      QToolButton#toolButtonPageDisplaySignatureToggle {
+        background: transparent;
+        border: none;
+        padding: 0px;
+        margin: 0px;
+      }
+      QToolButton#toolButtonCommitSigningBlockToggle:hover,
+      QToolButton#toolButtonPageDisplaySignatureToggle:hover {
+        background: transparent;
+      }
       QTabBar#tabWidgetCommitTabBar::tab {
         background: transparent;
         border: 1px solid #6D6E6E;
@@ -1473,6 +1484,17 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         border: none;
         padding: 0px;
         margin: 0px;
+      }
+      QToolButton#toolButtonCommitSigningBlockToggle,
+      QToolButton#toolButtonPageDisplaySignatureToggle {
+        background: transparent;
+        border: none;
+        padding: 0px;
+        margin: 0px;
+      }
+      QToolButton#toolButtonCommitSigningBlockToggle:hover,
+      QToolButton#toolButtonPageDisplaySignatureToggle:hover {
+        background: transparent;
       }
       QTabBar#tabWidgetCommitTabBar::tab {
         background: transparent;

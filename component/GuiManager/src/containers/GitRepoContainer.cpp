@@ -221,16 +221,16 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   commitButtonLayout->setContentsMargins(0, 0, 0, 0);
   commitButtonLayout->setSpacing(8);
 
-  _checkBoxSignCommit =
-      new QCheckBox(tr("Sign commit"), commitButtonContainer);
+  _checkBoxAmend =
+      new QCheckBox(tr("Amend"), commitButtonContainer);
   _checkBoxSignOff =
       new QCheckBox(tr("Sign-off"), commitButtonContainer);
-  _checkBoxAmend =
-      new QCheckBox(tr("Amend previous commit"), commitButtonContainer);
+  _checkBoxSignCommit =
+      new QCheckBox(tr("Sign commit"), commitButtonContainer);
 
-  commitButtonLayout->addWidget(_checkBoxSignCommit);
-  commitButtonLayout->addWidget(_checkBoxSignOff);
   commitButtonLayout->addWidget(_checkBoxAmend);
+  commitButtonLayout->addWidget(_checkBoxSignOff);
+  commitButtonLayout->addWidget(_checkBoxSignCommit);
   commitButtonLayout->addStretch();
 
   ui->tabWidgetCommit->setCornerWidget(commitButtonContainer,
