@@ -1480,6 +1480,8 @@ static git_commit *getLastCommit(git_repository *repo, const QString &name) {
 static bool isCommercialPlan() {
   LOG_PERF(0, "Enter");
 
+  //return true;
+
   Util::CloudCredentialtorage &credentialStorage =
       Util::CloudCredentialtorage::getInstance();
 
@@ -6405,56 +6407,31 @@ bool fetchAll(git_repository *repo) {
   }
   LOG_DEBUG("Repository path: '{}'", repoPath.toStdString());
 
-  // Collect unique remotes by iterating through local branches and their
-  // upstream remotes
-  QSet<QString> remotesToFetch;
-
-  git_branch_iterator *it = nullptr;
-  int error = git_branch_iterator_new(&it, repo, GIT_BRANCH_LOCAL);
-  if (error) {
-    LOG_DEBUG("Failed to create branch iterator: error={}", error);
-    logGitError(error);
-    // Not an error - repo might have no branches
+  // Fetch every configured remote, not just remotes referenced by local
+  // branch upstreams. This keeps Fetch All aligned with the UI expectation
+  // that all remotes are refreshed.
+  const auto remotes = listRemotes(repo);
+  int error = 0;
+  if (remotes.isEmpty()) {
+    LOG_DEBUG("No remotes found in repository");
     LOG_PERF(0, "Exit");
     return true;
   }
 
-  git_reference *ref = nullptr;
-  git_branch_t branchType;
-
-  while (git_branch_next(&ref, &branchType, it) == 0) {
-    if (branchType != GIT_BRANCH_LOCAL) {
-      git_reference_free(ref);
+  QSet<QString> remotesToFetch;
+  for (const auto &remote : remotes) {
+    if (remote.name.isEmpty()) {
       continue;
     }
 
-    const char *branchNameC = git_reference_shorthand(ref);
-    if (!branchNameC) {
-      git_reference_free(ref);
-      continue;
-    }
-
-    QString branchName = QString::fromUtf8(branchNameC);
-    LOG_DEBUG("Checking branch '{}'", branchName.toStdString());
-
-    // Get upstream for this branch
-    auto [upstreamSuccess, remoteName, remoteBranchName] =
-        getUpstream(repo, branchName);
-
-    if (upstreamSuccess && !remoteName.isEmpty()) {
-      remotesToFetch.insert(remoteName);
-      LOG_DEBUG("Adding remote '{}' to fetch list", remoteName.toStdString());
-    }
-
-    git_reference_free(ref);
+    remotesToFetch.insert(remote.name);
+    LOG_DEBUG("Adding remote '{}' to fetch list", remote.name.toStdString());
   }
 
-  git_branch_iterator_free(it);
-
   if (remotesToFetch.isEmpty()) {
-    LOG_DEBUG("No remotes with configured upstreams found");
+    LOG_DEBUG("No fetchable remotes found");
     LOG_PERF(0, "Exit");
-    return true; // No remotes to fetch is not an error
+    return true;
   }
 
   LOG_DEBUG("Found {} unique remotes to fetch", remotesToFetch.size());
