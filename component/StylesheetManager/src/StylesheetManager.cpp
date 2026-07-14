@@ -1739,7 +1739,6 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
       }
       GuiManager--Containers--SettingsContainer{
         font-size:14px;
-        background-color:#E7EEF4;
       }
       GuiManager--Containers--SettingsContainer QSplitter{
         margin-top:30px;
@@ -1760,7 +1759,7 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
       GuiManager--Containers--SettingsContainer QLabel#groupLabel{
         font-size:20px;
         font-weight:bold;
-        background-color:#202020;
+        background-color:#E7EEF4;
         padding:8px;
       }
       GuiManager--Containers--SettingsContainer QLabel#nameLabel{
@@ -1774,7 +1773,7 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
       }
       GuiManager--Containers--SettingsContainer GuiManager--Widgets--SettingsPaneItemWidget{
         padding:0px;
-        qproperty-hoverColor:#282828;
+        qproperty-hoverColor:#F7FAFC;
       }
       GuiManager--Widgets--ToastWidget{
         font-size:14px;
