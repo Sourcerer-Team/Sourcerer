@@ -37,6 +37,7 @@ signals:
   void rightClickOnTarget(int remoteIndex, int targetIndex, const QPoint &pos);
   void addRemote();
   void editRemote(int remoteIndex);
+  void fetchRemote(int remoteIndex);
   void deleteRemote(int remoteIndex);
   void setDefaultRemote(int remoteIndex);
   void addTarget(int remoteIndex);

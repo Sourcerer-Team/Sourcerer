@@ -615,6 +615,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onRemoteBranchSelected);
   connect(ui->remotePage, &RemoteGitBranchesPage::branchRightClicked, this,
           &GitRepoContainer::onRemoteBranchRightClicked);
+  connect(ui->remotesPage, &Widgets::RemotesPage::fetchRemote, this,
+          &GitRepoContainer::onFetchRemote);
 
   connect(ui->tagsPage, &GitTagsPage::tagSelected, this,
           &GitRepoContainer::onTagSelected);
@@ -1305,6 +1307,37 @@ void GitRepoContainer::onEditRemote(int remoteIndex) {
   overlayWidget->show();
   overlayWidget->raise();
 
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onFetchRemote(int remoteIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Fetch remote {} requested", remoteIndex);
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (remote.name.isEmpty()) {
+    LOG_DEBUG("Remote name is empty");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {
+    LOG_DEBUG("Executing fetch for remote '{}' in dispatcher",
+              remote.name.toStdString());
+    fetchRemote(guard, remote.name);
+  });
+
+  LOG_DEBUG("Fetch remote operation dispatched");
   LOG_PERF(0, "Exit");
 }
 
@@ -3293,6 +3326,8 @@ void GitRepoContainer::onRemoteBranchRightClicked(const QString &branchName,
       checkoutBranch(guard, branchName, GitRepo::BranchType::Remote);
     });
   });
+
+
 
   connect(&actionDeleteRemoteBranch, &QAction::triggered, this,
           [=]() { onDeleteRemoteBranch(branchName); });
@@ -9154,6 +9189,78 @@ void GitRepoContainer::fetchAll(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(tr("Failed to fetch from remotes."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+  refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Fetch completed successfully."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::fetchRemote(const WeakPtr &guard,
+                                   const QString &remoteName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoFetchRemoteCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remoteName;
+
+  EventManager::Event fetchRemoteEvent(
+      EventManager::EventType::GitRepoManagerFetchRemote, eventUuid);
+  fetchRemoteEvent.addData(command);
+  _eventManager.send(fetchRemoteEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerFetchRemoteError,
+      EventManager::EventType::GitRepoManagerFetchRemoteResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerFetchRemoteResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to fetch from remote.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  if (const bool fetched = commandResult.value.toBool(); !fetched) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to fetch from remote."), tr("Error"));
     });
 
     LOG_PERF(0, "Exit")

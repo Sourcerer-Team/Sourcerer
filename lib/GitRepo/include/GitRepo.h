@@ -401,6 +401,7 @@ bool pull(git_repository *rep, const QString &activeBranchName = QString(),
           bool rebase = false);
 
 bool fetchAll(git_repository *repo);
+bool fetchRemote(git_repository *repo, const QString &remoteName);
 
 bool push(git_repository *repo, const QString &activeBranchName = QString(),
           bool force = false);

@@ -97,6 +97,7 @@ private slots:
   void onClearAllStashes();
   void onAddRemote();
   void onEditRemote(int remoteIndex);
+  void onFetchRemote(int remoteIndex);
   void onEditTarget(int remoteIndex, int targetIndex);
   void onDeleteRemote(int remoteIndex);
   void onSetDefaultRemote(int remoteIndex);
@@ -320,6 +321,7 @@ private:
   void showStashContent(const WeakPtr &guard, int stashIndex);
   void pull(const WeakPtr &guard, bool rebase = false);
   void fetchAll(const WeakPtr &guard);
+  void fetchRemote(const WeakPtr &guard, const QString &remoteName);
   void push(const WeakPtr &guard, bool force = false);
   void addRemote(const WeakPtr &guard, const QString &remoteName,
                  const QString &fetchUrl, const QString &pushUrl);
