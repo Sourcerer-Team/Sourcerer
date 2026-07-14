@@ -30,6 +30,8 @@
         <file>icons/id-card.png</file>
         <file>icons/ok.png</file>
         <file>icons/cancel.png</file>
+        <file>icons/checkbox-check-dark.svg</file>
+        <file>icons/checkbox-check-light.svg</file>
         <file>icons/eye.svg</file>
         <file>icons/eye-off.svg</file>
         <file>icons/diff-unified.png</file>

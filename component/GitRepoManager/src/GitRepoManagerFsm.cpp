@@ -105,6 +105,8 @@ QString GitRepoManagerFsm::eventName(int event) const {
     return "EditTarget";
   case EventType::FetchAll:
     return "FetchAll";
+  case EventType::FetchRemote:
+    return "FetchRemote";
   case EventType::GetActiveBranch:
     return "GetActiveBranch";
   case EventType::GetBranchHistory:
@@ -151,6 +153,8 @@ QString GitRepoManagerFsm::eventName(int event) const {
     return "ListTags";
   case EventType::Merge:
     return "Merge";
+  case EventType::Rebase:
+    return "Rebase";
   case EventType::OpenRepo:
     return "OpenRepo";
   case EventType::Pull:

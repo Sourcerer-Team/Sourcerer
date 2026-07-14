@@ -36,8 +36,11 @@ QWidget *SettingsPaneBooleanWidget::createWidget() {
   descriptionLabel->setWordWrap(true);
 
   QHBoxLayout *innerLayout = new QHBoxLayout;
+  innerLayout->setContentsMargins(0, 0, 0, 0);
+  innerLayout->setSpacing(4);
   innerLayout->addWidget(checkBox);
   innerLayout->addWidget(descriptionLabel);
+  innerLayout->addStretch();
 
   QLabel *nameLabel = new QLabel(item().name(), placeholderWidget);
   nameLabel->setObjectName("nameLabel");

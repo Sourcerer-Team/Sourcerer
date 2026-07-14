@@ -86,6 +86,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerFetchAll, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerFetchRemote, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranch, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitBranches, callbackFunc));
@@ -133,6 +135,8 @@ GitRepoManager::GitRepoManager()
       EventManager::EventType::GitRepoManagerListTags, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerMerge, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerRebase, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
@@ -246,6 +250,8 @@ GitRepoManager::~GitRepoManager() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerFetchAll, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerFetchRemote, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitBranches, callbackFunc));
@@ -291,6 +297,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerListTags, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerMerge, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerRebase, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -592,6 +600,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     _fsm.send(fetchAllEvent);
     break;
   }
+  case EventManager::EventType::GitRepoManagerFetchRemote: {
+    const auto fetchRemoteCommand = event.data<GitRepoFetchRemoteCommand>();
+    GitRepoManagerEvent fetchRemoteEvent(EventType::FetchRemote);
+    fetchRemoteEvent.addParam(QVariant::fromValue(fetchRemoteCommand));
+    _fsm.send(fetchRemoteEvent);
+    break;
+  }
   case EventManager::EventType::GitRepoManagerGetActiveBranch: {
     const auto getActiveBranchCommand =
         event.data<GitRepoGetActiveBranchCommand>();
@@ -775,6 +790,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent mergeEvent(EventType::Merge);
     mergeEvent.addParam(QVariant::fromValue(mergeCommand));
     _fsm.send(mergeEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerRebase: {
+    const auto rebaseCommand = event.data<GitRepoRebaseCommand>();
+    GitRepoManagerEvent rebaseEvent(EventType::Rebase);
+    rebaseEvent.addParam(QVariant::fromValue(rebaseCommand));
+    _fsm.send(rebaseEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepo: {

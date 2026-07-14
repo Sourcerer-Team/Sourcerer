@@ -36,13 +36,14 @@
 
 #include <QCheckBox>
 #include <QClipboard>
-#include <QHBoxLayout>
+#include <QCursor>
 #include <QDirIterator>
 #include <QEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QGuiApplication>
+#include <QHBoxLayout>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -228,16 +229,22 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   commitButtonLayout->setContentsMargins(0, 0, 0, 0);
   commitButtonLayout->setSpacing(8);
 
-  _checkBoxAmend =
-      new QCheckBox(tr("Amend"), commitButtonContainer);
-  _checkBoxSignOff =
-      new QCheckBox(tr("Sign-off"), commitButtonContainer);
-  _checkBoxSignCommit =
-      new QCheckBox(tr("Sign"), commitButtonContainer);
+  _commitAmendSignButton = new QToolButton(commitButtonContainer);
+  _commitAmendSignButton->setText(tr("Amend and Sign"));
+  _commitAmendSignButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  _commitAmendSignButton->setPopupMode(QToolButton::InstantPopup);
 
-  commitButtonLayout->addWidget(_checkBoxAmend);
-  commitButtonLayout->addWidget(_checkBoxSignOff);
-  commitButtonLayout->addWidget(_checkBoxSignCommit);
+  auto *commitAmendSignMenu = new QMenu(_commitAmendSignButton);
+  _actionCommitAmend =
+      commitAmendSignMenu->addAction(tr("Amend previous commit"));
+  _actionCommitAmend->setCheckable(true);
+  _actionCommitSignOff = commitAmendSignMenu->addAction(tr("Sign-off commit"));
+  _actionCommitSignOff->setCheckable(true);
+  _actionCommitSign = commitAmendSignMenu->addAction(tr("Sign commit"));
+  _actionCommitSign->setCheckable(true);
+  _commitAmendSignButton->setMenu(commitAmendSignMenu);
+
+  commitButtonLayout->addWidget(_commitAmendSignButton);
   commitButtonLayout->addStretch();
 
   ui->tabWidgetCommit->setCornerWidget(commitButtonContainer,
@@ -615,6 +622,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onRemoteBranchSelected);
   connect(ui->remotePage, &RemoteGitBranchesPage::branchRightClicked, this,
           &GitRepoContainer::onRemoteBranchRightClicked);
+  connect(ui->remotesPage, &Widgets::RemotesPage::fetchRemote, this,
+          &GitRepoContainer::onFetchRemote);
 
   connect(ui->tagsPage, &GitTagsPage::tagSelected, this,
           &GitRepoContainer::onTagSelected);
@@ -1308,6 +1317,37 @@ void GitRepoContainer::onEditRemote(int remoteIndex) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onFetchRemote(int remoteIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Fetch remote {} requested", remoteIndex);
+
+  if (remoteIndex < 0 || remoteIndex >= ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &remote = ui->remotesPage->remotes()[remoteIndex];
+  if (remote.name.isEmpty()) {
+    LOG_DEBUG("Remote name is empty");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {
+    LOG_DEBUG("Executing fetch for remote '{}' in dispatcher",
+              remote.name.toStdString());
+    fetchRemote(guard, remote.name);
+  });
+
+  LOG_DEBUG("Fetch remote operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onDeleteRemote(int remoteIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Delete remote {} requested", remoteIndex);
@@ -1717,15 +1757,16 @@ void GitRepoContainer::onCommitButtonClicked() {
       _userProfileManager.currentProfile();
   const QString summary = ui->lineEditSummary->text().trimmed();
   const QString description = ui->textEditDescription->toPlainText().trimmed();
-  const bool toAmend = _checkBoxAmend->isChecked();
-  const bool signoff = _checkBoxSignOff->isChecked();
-  const bool signCommit = _checkBoxSignCommit->isVisible() &&
-                          _checkBoxSignCommit->isChecked();
+  const bool toAmend = _actionCommitAmend->isChecked();
+  const bool signoff = _actionCommitSignOff->isChecked();
+  const bool signCommit =
+      _actionCommitSign->isVisible() && _actionCommitSign->isChecked();
 
-  LOG_DEBUG("Commit details - Author: '{}', Amend: {}, Sign-off: {}, Sign commit: {}, Summary length: {}, "
+  LOG_DEBUG("Commit details - Author: '{}', Amend: {}, Sign-off: {}, Sign "
+            "commit: {}, Summary length: {}, "
             "Merge in progress: {}",
-            currentProfile.author.toStdString(), toAmend, signoff,
-            signCommit, summary.length(), _mergeInProgress);
+            currentProfile.author.toStdString(), toAmend, signoff, signCommit,
+            summary.length(), _mergeInProgress);
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -1757,11 +1798,12 @@ void GitRepoContainer::onMergeButtonClicked() {
       _userProfileManager.currentProfile();
   const QString summary = ui->lineEditSummary->text().trimmed();
   const QString description = ui->textEditDescription->toPlainText().trimmed();
-  const bool signoff = _checkBoxSignOff->isChecked();
-  const bool signCommit = _checkBoxSignCommit->isVisible() &&
-                          _checkBoxSignCommit->isChecked();
+  const bool signoff = _actionCommitSignOff->isChecked();
+  const bool signCommit =
+      _actionCommitSign->isVisible() && _actionCommitSign->isChecked();
 
-  LOG_DEBUG("Merge details - Author: '{}', Sign-off: {}, Sign commit: {}, Summary length: {}",
+  LOG_DEBUG("Merge details - Author: '{}', Sign-off: {}, Sign commit: {}, "
+            "Summary length: {}",
             currentProfile.author.toStdString(), signoff, signCommit,
             summary.length());
 
@@ -2736,23 +2778,49 @@ void GitRepoContainer::onLocalBranchMoved(const QString &sourceBranch,
             sourceBranch.toStdString(), destBranch.toStdString(),
             _path.toStdString());
 
-  const QString question =
-      QString("Are you sure that you want to merge branch '%1' to branch '%2'?")
-          .arg(sourceBranch, destBranch);
+  QMenu menu(this);
+  QAction actionMerge(tr("Merge"), this);
+  QAction actionRebase(tr("Rebase"), this);
 
-  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
-                                           QMessageBox::Yes, QMessageBox::No);
-  if (reply == QMessageBox::No) {
+  menu.addAction(&actionMerge);
+  menu.addAction(&actionRebase);
+
+  const QAction *selectedAction = menu.exec(QCursor::pos());
+  if (!selectedAction) {
     LOG_DEBUG("Branch move cancelled by user");
     LOG_PERF(0, "Exit");
     return;
   }
 
+  const QString question = selectedAction == &actionMerge
+                               ? QString("Are you sure that you want to merge "
+                                         "branch '%1' to branch '%2'?")
+                                     .arg(sourceBranch, destBranch)
+                               : QString("Are you sure that you want to rebase "
+                                         "branch '%1' onto branch '%2'?")
+                                     .arg(sourceBranch, destBranch);
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_DEBUG("Branch move operation cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+  LOG_DEBUG("Spinner overlay timer started");
+
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() { merge(guard, sourceBranch, destBranch); });
+  if (selectedAction == &actionMerge) {
+    _dispatcher.dispatch([=]() { merge(guard, sourceBranch, destBranch); });
+    LOG_DEBUG("Branch merge operation dispatched");
+  } else if (selectedAction == &actionRebase) {
+    _dispatcher.dispatch([=]() { rebase(guard, sourceBranch, destBranch); });
+    LOG_DEBUG("Branch rebase operation dispatched");
+  }
 
-  LOG_DEBUG("Branch merge operation dispatched");
   LOG_PERF(0, "Exit");
 }
 
@@ -3438,13 +3506,13 @@ void GitRepoContainer::onRevertCommit(const QString &commit) {
       commitSummaryFromHistoryModel(_historyModel.data(), commit);
 
   const QString question =
-          QString(tr("Do you want to revert commit '%1'?\n\nThis will create a new "
-                     "commit that reverses the changes."))
+      QString(tr("Do you want to revert commit '%1'?\n\nThis will create a new "
+                 "commit that reverses the changes."))
           .arg(summaryToRevert.isEmpty() ? commit : summaryToRevert);
 
   const QMessageBox::StandardButton reply = QMessageBox::question(
-              this, tr("Confirm revert"), question, QMessageBox::Yes | QMessageBox::No,
-              QMessageBox::No);
+      this, tr("Confirm revert"), question, QMessageBox::Yes | QMessageBox::No,
+      QMessageBox::No);
 
   if (reply != QMessageBox::Yes) {
     LOG_DEBUG("Revert commit cancelled by user");
@@ -5279,10 +5347,9 @@ void GitRepoContainer::amend(const WeakPtr &guard, const QString &summary,
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      const QString detail =
-          (error.error == -1 && !error.message.isEmpty())
-              ? error.message
-              : translateGitError(error.error);
+      const QString detail = (error.error == -1 && !error.message.isEmpty())
+                                 ? error.message
+                                 : translateGitError(error.error);
       showErrorToast(
           QString("%1\n%2").arg(tr("Failed to amend changes."), detail),
           tr("Error"));
@@ -5725,8 +5792,7 @@ void GitRepoContainer::refreshSigningControls() {
 
   const bool signingEnabled = _configManager.getBoolean(
       ConfigManager::ConfigKey::GitRepoSigningEnabled);
-  _checkBoxSignCommit->setVisible(signingEnabled);
-  _checkBoxSignCommit->setChecked(signingEnabled && _checkBoxSignCommit->isChecked());
+  _actionCommitSign->setVisible(signingEnabled);
 
   LOG_PERF(0, "Exit");
 }
@@ -5781,13 +5847,12 @@ void GitRepoContainer::commit(const WeakPtr &guard, const QString &summary,
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
-      const QString detail =
-          (error.error == -1 && !error.message.isEmpty())
-              ? error.message
-              : translateGitError(error.error);
-      showErrorToast(QString("%1\n%2").arg(tr("Failed to commit staged changes."),
-                                            detail),
-                     tr("Error"));
+      const QString detail = (error.error == -1 && !error.message.isEmpty())
+                                 ? error.message
+                                 : translateGitError(error.error);
+      showErrorToast(
+          QString("%1\n%2").arg(tr("Failed to commit staged changes."), detail),
+          tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -8966,6 +9031,78 @@ void GitRepoContainer::merge(const WeakPtr &guard, const QString &sourceBranch,
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoContainer::rebase(const WeakPtr &guard, const QString &sourceBranch,
+                              const QString &destBranch) {
+  LOG_PERF(0, "Enter");
+
+  const QString author = _userProfileManager.currentProfile().author;
+  const QString email = _userProfileManager.currentProfile().email;
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoRebaseCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.sourceBranch = sourceBranch;
+  command.destinationBranch = destBranch;
+  command.author = author;
+  command.email = email;
+
+  EventManager::Event rebaseEvent(EventManager::EventType::GitRepoManagerRebase,
+                                  eventUuid);
+  rebaseEvent.addData(command);
+  _eventManager.send(rebaseEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerRebaseError,
+                           EventManager::EventType::GitRepoManagerRebaseResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+      showErrorToast(tr("Failed to rebase branches."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerRebaseResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString("%1\n%2").arg(tr("Failed to rebase branches."),
+                                           translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const auto rebased = commandResult.value.toBool();
+
+  if (!rebased) {
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { showToast(tr("Rebase has failed."), tr("Info")); });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
 bool GitRepoContainer::openRepo(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
@@ -9154,6 +9291,79 @@ void GitRepoContainer::fetchAll(const WeakPtr &guard) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       showErrorToast(tr("Failed to fetch from remotes."), tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshHistory(guard);
+  refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    showSpinnerOverlay(false);
+    showToast(tr("Fetch completed successfully."), tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::fetchRemote(const WeakPtr &guard,
+                                   const QString &remoteName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _eventManager.startWait();
+
+  GitRepoFetchRemoteCommand command;
+  command.uuid = _uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remoteName;
+
+  EventManager::Event fetchRemoteEvent(
+      EventManager::EventType::GitRepoManagerFetchRemote, eventUuid);
+  fetchRemoteEvent.addData(command);
+  _eventManager.send(fetchRemoteEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerFetchRemoteError,
+      EventManager::EventType::GitRepoManagerFetchRemoteResult};
+
+  const auto &[success, event] =
+      _eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerFetchRemoteResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to fetch from remote.\n%1"))
+                         .arg(translateGitError(error.error)),
+                     tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  if (const bool fetched = commandResult.value.toBool(); !fetched) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(tr("Failed to fetch from remote."), tr("Error"));
     });
 
     LOG_PERF(0, "Exit")
@@ -10450,7 +10660,7 @@ void GitRepoContainer::resetCommitButton() const {
       _commitStagedListModel->rowCount() > 0 &&
       (!ui->lineEditSummary->text().isEmpty() ||
        !ui->textEditDescription->toPlainText().isEmpty()));
-  _checkBoxAmend->setVisible(!_mergeInProgress);
+  _actionCommitAmend->setVisible(!_mergeInProgress);
 
   LOG_PERF(0, "Exit")
 }
@@ -10623,12 +10833,12 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
                                                                         : ""));
     ui->labelPageDisplaySignedValue->setText(
         commitInfo.signedCommit ? tr("Yes") : tr("No"));
-    const QString signatureType =
-        commitInfo.signatureType.isEmpty() ? tr("Unknown")
-                                            : commitInfo.signatureType;
+    const QString signatureType = commitInfo.signatureType.isEmpty()
+                                      ? tr("Unknown")
+                                      : commitInfo.signatureType;
     ui->labelPageDisplaySignatureTypeValue->setText(signatureType);
-    const bool hasSignatureBlock = commitInfo.signedCommit &&
-                                   !commitInfo.signature.isEmpty();
+    const bool hasSignatureBlock =
+        commitInfo.signedCommit && !commitInfo.signature.isEmpty();
     ui->widgetPageDisplaySignatureSection->setVisible(hasSignatureBlock);
     ui->toolButtonPageDisplaySignature->setChecked(false);
     ui->widgetPageDisplaySignatureContent->setVisible(false);

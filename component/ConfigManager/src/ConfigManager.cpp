@@ -37,17 +37,17 @@ QMap<ConfigKey, QString> KEY_NAMES = {
      "gitrepo/credentials/credentialsExpirationTime"},
     {ConfigKey::GitRepoServerConnectTimeout, "gitrepo/server/connectTimeout"},
     {ConfigKey::GitRepoServerTimeout, "gitrepo/server/timeout"},
-    {ConfigKey::GitRepoSigningEnabled, "gitrepo/signing/enabled"},
-    {ConfigKey::GitRepoSigningFormat, "gitrepo/signing/format"},
-    {ConfigKey::GitRepoSigningKey, "gitrepo/signing/key"},
-    {ConfigKey::GitRepoSigningProgram, "gitrepo/signing/program"},
+    {ConfigKey::GitRepoSigningEnabled, "signing/enabled"},
+    {ConfigKey::GitRepoSigningFormat, "signing/format"},
+    {ConfigKey::GitRepoSigningKey, "signing/key"},
+    {ConfigKey::GitRepoSigningProgram, "signing/program"},
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout,
      "gitrepo/spinnerOverlay/timer"},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout,
      "gitrepo/dirWatcher/holdbackTimeout"},
     {ConfigKey::GitRepoMaxDiffFileSize, "gitrepo/maxDiffFileSize"},
-    {ConfigKey::GitRepoMonospaceFontName, "gitrepo/monospace/fontName"},
-    {ConfigKey::GitRepoMonospaceFontSize, "gitrepo/monospace/fontSize"},
+    {ConfigKey::GitRepoMonospaceFontName, "UI/monospace/fontName"},
+    {ConfigKey::GitRepoMonospaceFontSize, "UI/monospace/fontSize"},
     {ConfigKey::GitRepoDiffViewType, "gitrepo/diffViewType"},
     {ConfigKey::HttpClientCaCertFile, "network/httpClient/caCertFile"},
     {ConfigKey::HttpClientTimeout, "network/httpClient/timeout"},
@@ -73,37 +73,21 @@ QMap<ConfigKey, QString> KEY_NAMES = {
 
 QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::Unknown, {"", ""}},
-    {ConfigKey::GitRepoGitCredentialsExpirationTime,
-     {"Credentials expiration time", ""}},
-    {ConfigKey::GitRepoServerConnectTimeout,
-     {"Server connection timeout in milliseconds", ""}},
-    {ConfigKey::GitRepoServerTimeout,
-     {"Server operation timeout in milliseconds", ""}},
     {ConfigKey::GitRepoSigningEnabled,
-     {"Commit signing enabled", "Show the Sign commit checkbox in commit panels"}},
-    {ConfigKey::GitRepoSigningFormat,
-     {"Commit signing format", "GPG/OpenPGP or SSH"}},
+     {"Commit signing enabled",
+      "Show the Sign commit checkbox in commit panels"}},
+    {ConfigKey::GitRepoSigningFormat, {"Commit signing format", "gpg or ssh"}},
     {ConfigKey::GitRepoSigningKey,
      {"Commit signing key", "Key ID/fingerprint or SSH private key path"}},
     {ConfigKey::GitRepoSigningProgram,
      {"Commit signing program", "Optional path to the signing executable"}},
     {ConfigKey::GitRepoMonospaceFontName, {"Monospace font name", ""}},
-    {ConfigKey::GitRepoMonospaceFontSize, {"Monospace font size in pixels"}},
-    {ConfigKey::RecentlyOpenedRepos, {"Recently opened repositories list", ""}},
-    {ConfigKey::UiTheme, {"Selected UI theme", ""}},
-    {ConfigKey::TitleBarHeight, {"Maximum title bar height", ""}},
-    {ConfigKey::TitleBarMaxTabWidth, {"Maximum width of a title bar tab", ""}},
-    {ConfigKey::TitleBarMenuMinimumSize,
-     {"Minimum size of the title bar menu", ""}},
-    {ConfigKey::TooltipHistoryTimeout,
-     {"History tooltip hover timeout in milliseconds", ""}},
-    {ConfigKey::TestColor, {"Test color", "Test color description"}},
-    {ConfigKey::TestDateTime, {"Test dateTime", "Test dateTime description"}}};
+    {ConfigKey::GitRepoMonospaceFontSize, {"Monospace font size in pixels"}}};
 
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {
     {ConfigKey::GitRepoDiffViewType,
      false}, // false = unified, true = side-by-side
-    {ConfigKey::GitRepoSigningEnabled, false}};
+    {ConfigKey::GitRepoSigningEnabled, true}};
 
 QMap<ConfigKey, QColor> DEFAULT_COLORS = {
     {ConfigKey::TestColor, QColor(10, 10, 10)},
@@ -139,8 +123,8 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
 
 QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::CloudJwtPublicKeyPath, "keys/cloud_jwt_public_key.pem"},
-    {ConfigKey::GitRepoSigningFormat, "gpg"},
-    {ConfigKey::GitRepoSigningProgram, "gpg"},
+    {ConfigKey::GitRepoSigningFormat, "ssh"},
+    {ConfigKey::GitRepoSigningProgram, "ssh-keygen"},
 #ifdef QT_DEBUG
     {ConfigKey::CloudSigninUrl, "https://www.sourcererapp.com/api/v1/signin"},
     {ConfigKey::CloudSignupUrl, "https://www.sourcererapp.com/#/signup"},
@@ -169,7 +153,8 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::SettingsSplitterPos, ""}};
 
 static QString resolveSigningProgramDefault(const QString &signingFormat) {
-  if (signingFormat.trimmed().compare(QStringLiteral("ssh"), Qt::CaseInsensitive) == 0) {
+  if (signingFormat.trimmed().compare(QStringLiteral("ssh"),
+                                      Qt::CaseInsensitive) == 0) {
     return QStringLiteral("ssh-keygen");
   }
 
@@ -331,6 +316,7 @@ static ConfigGroup createPathGroup(const QString &path, size_t from) {
     const ConfigKey key = KEY_NAMES.key(path);
     const QString &name = KEY_DESCRIPTIONS[key].name;
     const QString &description = KEY_DESCRIPTIONS[key].description;
+    const int orderNumber = static_cast<int>(key);
     if (name.isEmpty())
       return ConfigGroup();
 
@@ -338,6 +324,7 @@ static ConfigGroup createPathGroup(const QString &path, size_t from) {
     item.setKey(path);
     item.setName(name);
     item.setDescription(description);
+    item.setOrderNumber(orderNumber);
 
     if (DEFAULT_BOOLEANS.contains(key)) {
       item.setType(ConfigKeyType::Boolean);

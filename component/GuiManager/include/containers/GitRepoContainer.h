@@ -14,7 +14,6 @@
 #include <UserProfileManager.h>
 
 #include <QAction>
-#include <QCheckBox>
 #include <QEnableSharedFromThis>
 #ifdef Q_OS_WIN32
 #include <win32/DirectoryWatcher.h>
@@ -97,6 +96,7 @@ private slots:
   void onClearAllStashes();
   void onAddRemote();
   void onEditRemote(int remoteIndex);
+  void onFetchRemote(int remoteIndex);
   void onEditTarget(int remoteIndex, int targetIndex);
   void onDeleteRemote(int remoteIndex);
   void onSetDefaultRemote(int remoteIndex);
@@ -314,12 +314,15 @@ private:
   void ignoreFilesRecursive(const WeakPtr &guard, const QStringList &files);
   void merge(const WeakPtr &guard, const QString &sourceBranch,
              const QString &destBranch);
+  void rebase(const WeakPtr &guard, const QString &sourceBranch,
+              const QString &destBranch);
   bool openRepo(const WeakPtr &guard);
   void openSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void popStash(const WeakPtr &guard, int stashIndex);
   void showStashContent(const WeakPtr &guard, int stashIndex);
   void pull(const WeakPtr &guard, bool rebase = false);
   void fetchAll(const WeakPtr &guard);
+  void fetchRemote(const WeakPtr &guard, const QString &remoteName);
   void push(const WeakPtr &guard, bool force = false);
   void addRemote(const WeakPtr &guard, const QString &remoteName,
                  const QString &fetchUrl, const QString &pushUrl);
@@ -438,9 +441,10 @@ private:
 
   bool _applyingHistoryColumnWidths;
 
-  QCheckBox *_checkBoxSignCommit;
-  QCheckBox *_checkBoxSignOff;
-  QCheckBox *_checkBoxAmend;
+  QToolButton *_commitAmendSignButton;
+  QAction *_actionCommitAmend;
+  QAction *_actionCommitSignOff;
+  QAction *_actionCommitSign;
   QPushButton *_commitAndMergeWorkingDirTreeStageAllButton;
   QPushButton *_commitAndMergeIndexTreeUnstageAllButton;
   QPushButton *_stashApplyButton;

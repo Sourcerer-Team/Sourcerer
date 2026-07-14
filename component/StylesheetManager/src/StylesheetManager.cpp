@@ -200,8 +200,9 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
         background-color: transparent;
       }
       QCheckBox::indicator:checked {
-        border: 1px solid palette(highlight);
-        background-color: palette(highlight);
+        border: 1px solid #0078d7;
+        background-color: transparent;
+        image: url(:/icons/checkbox-check-dark.svg);
       }
       QCheckBox::indicator:disabled {
         border: 1px solid palette(mid);
@@ -1047,8 +1048,9 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         background-color: transparent;
       }
       QCheckBox::indicator:checked {
-        border: 1px solid palette(highlight);
-        background-color: palette(highlight);
+        border: 1px solid #0078d7;
+        background-color: transparent;
+        image: url(:/icons/checkbox-check-light.svg);
       }
       QCheckBox::indicator:disabled {
         border: 1px solid palette(mid);
@@ -1090,6 +1092,26 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         color: palette(window-text);
         border: 1px solid #B8C0C8;
         padding: 3px 5px;
+      }
+      QCheckBox {
+        color: palette(window-text);
+        spacing: 6px;
+      }
+      QCheckBox::indicator {
+        width: 13px;
+        height: 13px;
+        border: 1px solid palette(button-text);
+        border-radius: 3px;
+        background-color: transparent;
+      }
+      QCheckBox::indicator:checked {
+        border: 1px solid palette(highlight);
+        background-color: transparent;
+        image: url(:/icons/checkbox-check-light.svg);
+      }
+      QCheckBox::indicator:disabled {
+        border: 1px solid palette(mid);
+        background-color: palette(button);
       }
 
       QPushButton[flat=true]{
@@ -1717,7 +1739,6 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
       }
       GuiManager--Containers--SettingsContainer{
         font-size:14px;
-        background-color:#E7EEF4;
       }
       GuiManager--Containers--SettingsContainer QSplitter{
         margin-top:30px;
@@ -1738,7 +1759,7 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
       GuiManager--Containers--SettingsContainer QLabel#groupLabel{
         font-size:20px;
         font-weight:bold;
-        background-color:#202020;
+        background-color:#E7EEF4;
         padding:8px;
       }
       GuiManager--Containers--SettingsContainer QLabel#nameLabel{
@@ -1752,7 +1773,7 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
       }
       GuiManager--Containers--SettingsContainer GuiManager--Widgets--SettingsPaneItemWidget{
         padding:0px;
-        qproperty-hoverColor:#282828;
+        qproperty-hoverColor:#F7FAFC;
       }
       GuiManager--Widgets--ToastWidget{
         font-size:14px;

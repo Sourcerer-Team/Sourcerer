@@ -2,7 +2,7 @@
 
 namespace ConfigManager {
 
-ConfigItem::ConfigItem() : _type(ConfigKeyType::Unknown) {}
+ConfigItem::ConfigItem() : _orderNumber(-1), _type(ConfigKeyType::Unknown) {}
 
 ConfigGroup::ConfigGroup(const QString &name) : _name(name) {}
 
@@ -12,7 +12,7 @@ void ConfigGroup::merge(const ConfigGroup &group) {
 
     std::sort(_items.begin(), _items.end(),
               [](const ConfigItem &x, const ConfigItem &y) {
-                return x.key().compare(y.key());
+                return x.orderNumber() <= y.orderNumber();
               });
 
     for (const auto &s0 : group.subgroups()) {
