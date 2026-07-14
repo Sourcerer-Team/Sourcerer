@@ -32,7 +32,6 @@ signals:
   void settings();
   void credentials();
   void sshKeys();
-  void signing();
   void terminal();
   void bugReport();
   void about();
@@ -46,7 +45,6 @@ private slots:
   void onSettings();
   void onCredentials();
   void onSshKeys();
-  void onSigning();
   void onTerminal();
   void onBugReport();
   void onAbout();
@@ -66,7 +64,6 @@ private:
   QAction *_settingsAction;
   QAction *_credentialsAction;
   QAction *_sshKeysAction;
-  QAction *_signingAction;
   QAction *_terminalAction;
   QAction *_bugReportAction;
   QAction *_aboutAction;

@@ -33,7 +33,6 @@ signals:
   void settings();
   void credentials();
   void sshKeys();
-  void signing();
   void terminal();
   void bugReport();
   void about();
