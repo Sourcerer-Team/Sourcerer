@@ -233,15 +233,16 @@ void RemotesPage::onRemoteRightClicked(int remoteIndex, const QPoint &pos) {
     return;
   }
 
-  const auto &remote = _remotes[remoteIndex];
-
   QMenu contextMenu;
 
+  QAction actionFetch(tr("Fetch"), this);
   QAction actionEdit(tr("Edit"), this);
   QAction actionAddTarget(tr("Add target"), this);
   QAction actionSetDefault(tr("Set as default"), this);
   QAction actionDelete(tr("Delete"), this);
 
+  contextMenu.addAction(&actionFetch);
+  contextMenu.addSeparator();
   contextMenu.addAction(&actionEdit);
   contextMenu.addAction(&actionAddTarget);
   contextMenu.addAction(&actionSetDefault);
@@ -250,6 +251,8 @@ void RemotesPage::onRemoteRightClicked(int remoteIndex, const QPoint &pos) {
 
   connect(&actionEdit, &QAction::triggered, this,
           [=]() { emit editRemote(remoteIndex); });
+  connect(&actionFetch, &QAction::triggered, this,
+          [=]() { emit fetchRemote(remoteIndex); });
   connect(&actionAddTarget, &QAction::triggered, this,
           [=]() { emit addTarget(remoteIndex); });
   connect(&actionSetDefault, &QAction::triggered, this,

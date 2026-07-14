@@ -63,6 +63,7 @@ private:
   void discardFilesWorker(const Structs::GitRepoDiscardFilesCommand &command);
   void eventCallback(const EventManager::Event event);
   void fetchAllWorker(const Structs::GitRepoFetchAllCommand &command);
+  void fetchRemoteWorker(const Structs::GitRepoFetchRemoteCommand &command);
   void
   getActiveBranchWorker(const Structs::GitRepoGetActiveBranchCommand &command);
   void getFileSizeFromCommitWorker(
@@ -162,6 +163,8 @@ private:
       const Structs::GitRepoGetActiveBranchCommand &command);
   void
   scheduleWorkerForFetchAll(const Structs::GitRepoFetchAllCommand &command);
+  void scheduleWorkerForFetchRemote(
+      const Structs::GitRepoFetchRemoteCommand &command);
   void scheduleWorkerForGetCommitBranches(
       const Structs::GitRepoGetCommitBranchesCommand &command);
   void scheduleWorkerForGetCommitTags(

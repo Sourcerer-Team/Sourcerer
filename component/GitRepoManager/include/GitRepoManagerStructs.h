@@ -39,6 +39,7 @@ enum class GitRepoCommandType : int {
   DiffFilesFromCommit,
   DiscardFiles,
   FetchAll,
+  FetchRemote,
   GetActiveBranch,
   GetFileSizeFromCommit,
   GetBranchHistory,
@@ -381,6 +382,15 @@ struct GitRepoFetchAllCommand final : GitRepoCommand {
   GitRepoFetchAllCommand() : GitRepoCommand(GitRepoCommandType::FetchAll) {}
 
   ~GitRepoFetchAllCommand() override = default;
+};
+
+struct GitRepoFetchRemoteCommand final : GitRepoCommand {
+  GitRepoFetchRemoteCommand()
+      : GitRepoCommand(GitRepoCommandType::FetchRemote) {}
+
+  ~GitRepoFetchRemoteCommand() override = default;
+
+  QString remoteName;
 };
 
 struct GitRepoGetFileSizeFromCommitCommand final : GitRepoCommand {

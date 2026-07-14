@@ -86,6 +86,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerFetchAll, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerFetchRemote, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranch, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitBranches, callbackFunc));
@@ -245,6 +247,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerDiscardFiles, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerFetchAll, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerFetchRemote, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetActiveBranch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -590,6 +594,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent fetchAllEvent(EventType::FetchAll);
     fetchAllEvent.addParam(QVariant::fromValue(fetchAllCommand));
     _fsm.send(fetchAllEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerFetchRemote: {
+    const auto fetchRemoteCommand = event.data<GitRepoFetchRemoteCommand>();
+    GitRepoManagerEvent fetchRemoteEvent(EventType::FetchRemote);
+    fetchRemoteEvent.addParam(QVariant::fromValue(fetchRemoteCommand));
+    _fsm.send(fetchRemoteEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerGetActiveBranch: {

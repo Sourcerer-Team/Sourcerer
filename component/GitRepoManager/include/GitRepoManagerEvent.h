@@ -37,6 +37,7 @@ enum class EventType : int {
   DiscardFiles,
   EditTarget,
   FetchAll,
+  FetchRemote,
   GetActiveBranch,
   GetBranchHistory,
   GetCommitBranches,
