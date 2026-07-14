@@ -77,9 +77,9 @@ struct GitCommitInfo {
            summary == other.summary && authorName == other.authorName &&
            authorEmail == other.authorEmail && timeStamp == other.timeStamp &&
            signedCommit == other.signedCommit &&
-           signatureType == other.signatureType && signature == other.signature &&
-           branches == other.branches && parents == other.parents &&
-           children == other.children;
+           signatureType == other.signatureType &&
+           signature == other.signature && branches == other.branches &&
+           parents == other.parents && children == other.children;
   }
 };
 
@@ -356,6 +356,9 @@ QStringList listTags(git_repository *repo);
 bool merge(git_repository *repo, const QString &sourceBranch,
            const QString &destinationBranch, const QString &author,
            const QString &email);
+bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
+                    const QString &destinationBranch, const QString &author,
+                    const QString &email);
 
 git_repository *openRepository(const QString &path);
 
@@ -402,6 +405,9 @@ bool pull(git_repository *rep, const QString &activeBranchName = QString(),
 
 bool fetchAll(git_repository *repo);
 bool fetchRemote(git_repository *repo, const QString &remoteName);
+bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
+                    const QString &destinationBranch, const QString &author,
+                    const QString &email);
 
 bool push(git_repository *repo, const QString &activeBranchName = QString(),
           bool force = false);

@@ -96,10 +96,8 @@ static QString capitalizeFirst(const QString &str) {
 }
 
 static QString buildCommitMessage(const QString &summary,
-                                  const QString &message,
-                                  const QString &author,
-                                  const QString &email,
-                                  bool signoff) {
+                                  const QString &message, const QString &author,
+                                  const QString &email, bool signoff) {
   QString commitMessage = summary;
 
   if (!message.isEmpty()) {
@@ -168,9 +166,8 @@ static bool loadCommitSignatureInfo(git_repository *repo, const git_oid *oid,
   git_buf signatureBuf = {nullptr};
   git_buf signedDataBuf = {nullptr};
 
-  const int error =
-      git_commit_extract_signature(&signatureBuf, &signedDataBuf, repo,
-                                   const_cast<git_oid *>(oid), nullptr);
+  const int error = git_commit_extract_signature(
+      &signatureBuf, &signedDataBuf, repo, const_cast<git_oid *>(oid), nullptr);
   if (error == GIT_ENOTFOUND) {
     *signature = QString();
     *signatureType = QStringLiteral("Unsigned");
@@ -196,8 +193,8 @@ static bool loadCommitSignatureInfo(git_repository *repo, const git_oid *oid,
     signature->clear();
   }
 
-  *signatureType = commitSignatureTypeToString(
-      detectCommitSignatureType(*signature));
+  *signatureType =
+      commitSignatureTypeToString(detectCommitSignatureType(*signature));
 
   git_buf_dispose(&signatureBuf);
   git_buf_dispose(&signedDataBuf);
@@ -242,9 +239,8 @@ static bool isPassphraseProtectedSshPrivateKey(const QString &program,
   }
 
   QProcess process;
-  process.start(program,
-                {QStringLiteral("-y"), QStringLiteral("-f"), privateKeyPath,
-                 QStringLiteral("-P"), QString()});
+  process.start(program, {QStringLiteral("-y"), QStringLiteral("-f"),
+                          privateKeyPath, QStringLiteral("-P"), QString()});
 
   if (!process.waitForStarted()) {
     return false;
@@ -278,8 +274,8 @@ static bool loadCommitSigningConfig(CommitSigningConfig *config,
   }
 
   auto &configManager = ConfigManager::ConfigManager::getInstance();
-  config->enabled = configManager.getBoolean(
-      ConfigManager::ConfigKey::GitRepoSigningEnabled);
+  config->enabled =
+      configManager.getBoolean(ConfigManager::ConfigKey::GitRepoSigningEnabled);
   if (!config->enabled) {
     return true;
   }
@@ -293,10 +289,9 @@ static bool loadCommitSigningConfig(CommitSigningConfig *config,
     config->format = CommitSigningFormat::OpenPgp;
   }
 
-  config->signingKey =
-      expandUserPath(configManager
-                         .getString(ConfigManager::ConfigKey::GitRepoSigningKey)
-                         .trimmed());
+  config->signingKey = expandUserPath(
+      configManager.getString(ConfigManager::ConfigKey::GitRepoSigningKey)
+          .trimmed());
   config->program = expandUserPath(
       configManager.getString(ConfigManager::ConfigKey::GitRepoSigningProgram)
           .trimmed());
@@ -318,8 +313,8 @@ static bool loadCommitSigningConfig(CommitSigningConfig *config,
 
     if (config->signingKey.isEmpty()) {
       if (errorMessage) {
-        *errorMessage = QStringLiteral(
-            "SSH commit signing requires a private key path.");
+        *errorMessage =
+            QStringLiteral("SSH commit signing requires a private key path.");
       }
       return false;
     }
@@ -327,8 +322,8 @@ static bool loadCommitSigningConfig(CommitSigningConfig *config,
     if (isPassphraseProtectedSshPrivateKey(config->program,
                                            config->signingKey)) {
       if (errorMessage) {
-        *errorMessage = QStringLiteral(
-            "SSH commit signing does not support passphrase-protected private keys.");
+        *errorMessage = QStringLiteral("SSH commit signing does not support "
+                                       "passphrase-protected private keys.");
       }
       return false;
     }
@@ -342,8 +337,7 @@ static bool writeTextFile(const QString &path, const QString &content,
   QFile file(path);
   if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
     if (errorMessage) {
-      *errorMessage = QString("Failed to open file for writing: %1")
-                         .arg(path);
+      *errorMessage = QString("Failed to open file for writing: %1").arg(path);
     }
     return false;
   }
@@ -391,7 +385,7 @@ static bool runProcess(const QString &program, const QStringList &arguments,
   if (!process.waitForStarted()) {
     if (errorMessage) {
       *errorMessage = QString("Failed to start '%1': %2")
-                         .arg(program, process.errorString());
+                          .arg(program, process.errorString());
     }
     return false;
   }
@@ -399,7 +393,7 @@ static bool runProcess(const QString &program, const QStringList &arguments,
   if (!process.waitForFinished(-1)) {
     if (errorMessage) {
       *errorMessage = QString("Signing command '%1' did not finish: %2")
-                         .arg(program, process.errorString());
+                          .arg(program, process.errorString());
     }
     return false;
   }
@@ -409,11 +403,11 @@ static bool runProcess(const QString &program, const QStringList &arguments,
         QString::fromUtf8(process.readAllStandardError()).trimmed();
     if (errorMessage) {
       *errorMessage = QString("Signing command '%1' failed (exit code %2)%3")
-                         .arg(program)
-                         .arg(process.exitCode())
-                         .arg(stderrOutput.isEmpty()
-                                  ? QString()
-                                  : QStringLiteral(": %1").arg(stderrOutput));
+                          .arg(program)
+                          .arg(process.exitCode())
+                          .arg(stderrOutput.isEmpty()
+                                   ? QString()
+                                   : QStringLiteral(": %1").arg(stderrOutput));
     }
     return false;
   }
@@ -423,8 +417,7 @@ static bool runProcess(const QString &program, const QStringList &arguments,
 
 static bool createCommitSignature(const QString &commitContent,
                                   const CommitSigningConfig &config,
-                                  QString *signature,
-                                  QString *errorMessage) {
+                                  QString *signature, QString *errorMessage) {
   if (!signature) {
     return false;
   }
@@ -432,7 +425,8 @@ static bool createCommitSignature(const QString &commitContent,
   QTemporaryDir tempDir;
   if (!tempDir.isValid()) {
     if (errorMessage) {
-      *errorMessage = QStringLiteral("Failed to create a temporary directory for commit signing.");
+      *errorMessage = QStringLiteral(
+          "Failed to create a temporary directory for commit signing.");
     }
     return false;
   }
@@ -466,9 +460,8 @@ static bool createCommitSignature(const QString &commitContent,
   const QString signaturePath = tempDir.filePath(QStringLiteral("commit.asc"));
   QStringList arguments;
   arguments << QStringLiteral("--batch") << QStringLiteral("--yes")
-            << QStringLiteral("--armor")
-            << QStringLiteral("--detach-sign") << QStringLiteral("--output")
-            << signaturePath;
+            << QStringLiteral("--armor") << QStringLiteral("--detach-sign")
+            << QStringLiteral("--output") << signaturePath;
 
   if (!config.signingKey.isEmpty()) {
     arguments << QStringLiteral("--local-user") << config.signingKey;
@@ -476,7 +469,8 @@ static bool createCommitSignature(const QString &commitContent,
 
   arguments << contentPath;
 
-  if (!runProcess(config.program, arguments, workingDirectory, &signErrorMessage)) {
+  if (!runProcess(config.program, arguments, workingDirectory,
+                  &signErrorMessage)) {
     if (errorMessage) {
       *errorMessage = signErrorMessage;
     }
@@ -766,7 +760,7 @@ static bool collectConflictedFilePathsFromResultIndex(git_repository *repo,
     const git_index_entry *theirs = nullptr;
 
     while (
-           !git_index_conflict_next(&ancestor, &ours, &theirs, conflictIterator)) {
+        !git_index_conflict_next(&ancestor, &ours, &theirs, conflictIterator)) {
       const git_index_entry *entry = ours ? ours : (theirs ? theirs : ancestor);
       if (!entry) {
         continue;
@@ -788,7 +782,7 @@ static bool collectConflictedFilePathsFromResultIndex(git_repository *repo,
     filePath = QDir::toNativeSeparators(filePath);
 
     if (!file_has_conflict_markers(filePath) ||
-            uniquePaths.contains(relativePath)) {
+        uniquePaths.contains(relativePath)) {
       continue;
     }
 
@@ -1195,7 +1189,7 @@ static git_commit *getLastCommit(git_repository *repo, const QString &name) {
 static bool isCommercialPlan() {
   LOG_PERF(0, "Enter");
 
-  //return true;
+  // return true;
 
   Util::CloudCredentialtorage &credentialStorage =
       Util::CloudCredentialtorage::getInstance();
@@ -1390,7 +1384,7 @@ bool applyStash(git_repository *repo, int index) {
     filePath = QDir::toNativeSeparators(filePath);
 
     if (file_has_conflict_markers_for_apply_stash(filePath)) {
-        conflictedFiles += filePath;
+      conflictedFiles += filePath;
     }
   }
 
@@ -4010,8 +4004,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
 
     QString commitSignature;
     QString commitSignatureType;
-    loadCommitSignatureInfo(repo, &oid, &commitSignature,
-                            &commitSignatureType);
+    loadCommitSignatureInfo(repo, &oid, &commitSignature, &commitSignatureType);
     history_.commitInfos[oidStr].signedCommit =
         commitSignatureType != QStringLiteral("Unsigned") &&
         commitSignatureType != QStringLiteral("Unavailable") &&
@@ -5000,7 +4993,8 @@ bool commitStaged(git_repository *repo, const QString &summary,
   QString signingError;
   bool signingConfigLoaded = true;
   if (signCommit) {
-    signingConfigLoaded = loadCommitSigningConfig(&signingConfig, &signingError);
+    signingConfigLoaded =
+        loadCommitSigningConfig(&signingConfig, &signingError);
     if (!signingConfigLoaded) {
       LOG_ERROR(Log::ErrorId::Git, "{}", signingError.toStdString());
       setLastError(-1, signingError);
@@ -6125,7 +6119,8 @@ static bool fetchRemoteInternal(git_repository *repo,
   LOG_DEBUG("Repository path: '{}'", repoPath.toStdString());
 
   git_remote *remote = nullptr;
-  int error = git_remote_lookup(&remote, repo, remoteName.toStdString().c_str());
+  int error =
+      git_remote_lookup(&remote, repo, remoteName.toStdString().c_str());
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup remote '{}': error={}",
               remoteName.toStdString(), error);
@@ -6154,9 +6149,8 @@ static bool fetchRemoteInternal(git_repository *repo,
       GitKeyPair keyPair;
       if (keyStorage.getKeyPairForHost(host, keyPair)) {
         maxRetries = 1;
-        LOG_DEBUG(
-            "SSH key configured for host '{}', setting max retries to 1",
-            host.toStdString());
+        LOG_DEBUG("SSH key configured for host '{}', setting max retries to 1",
+                  host.toStdString());
       }
     }
   }
@@ -6194,8 +6188,9 @@ static bool fetchRemoteInternal(git_repository *repo,
 
   // Fetch all heads and tags
   git_strarray refspecs = qstringlist_to_git_strarray(
-      QStringList() << QString("+refs/heads/*:refs/remotes/%1/*").arg(remoteName)
-                    << "+refs/tags/*:refs/tags/*");
+      QStringList()
+      << QString("+refs/heads/*:refs/remotes/%1/*").arg(remoteName)
+      << "+refs/tags/*:refs/tags/*");
 
   int retries = 0;
   error = 0;
@@ -9668,8 +9663,169 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   }
 
   LOG_PERF(0, "Exit");
-
   return true;
+}
+
+bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
+                    const QString &destinationBranch, const QString &author,
+                    const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (sourceBranch.isEmpty() || destinationBranch.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git, "Source or destination branch is empty");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference *srcRef = nullptr;
+  git_reference *dstRef = nullptr;
+  int error = git_branch_lookup(
+      &srcRef, repo, sourceBranch.toStdString().c_str(), GIT_BRANCH_LOCAL);
+  if (error) {
+    logGitError(error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_branch_lookup(
+      &dstRef, repo, destinationBranch.toStdString().c_str(), GIT_BRANCH_LOCAL);
+  if (error) {
+    logGitError(error);
+    git_reference_free(srcRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_annotated_commit *srcCommit = nullptr;
+  error = git_annotated_commit_from_ref(&srcCommit, repo, srcRef);
+  if (error) {
+    logGitError(error);
+    git_reference_free(dstRef);
+    git_reference_free(srcRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_annotated_commit *dstCommit = nullptr;
+  error = git_annotated_commit_from_ref(&dstCommit, repo, dstRef);
+  if (error) {
+    logGitError(error);
+    git_annotated_commit_free(srcCommit);
+    git_reference_free(dstRef);
+    git_reference_free(srcRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_oid baseOid;
+  error = git_merge_base(&baseOid, repo, git_annotated_commit_id(srcCommit),
+                         git_annotated_commit_id(dstCommit));
+  if (error) {
+    logGitError(error);
+    git_annotated_commit_free(dstCommit);
+    git_annotated_commit_free(srcCommit);
+    git_reference_free(dstRef);
+    git_reference_free(srcRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_annotated_commit *baseCommit = nullptr;
+  error = git_annotated_commit_lookup(&baseCommit, repo, &baseOid);
+  if (error) {
+    logGitError(error);
+    git_annotated_commit_free(dstCommit);
+    git_annotated_commit_free(srcCommit);
+    git_reference_free(dstRef);
+    git_reference_free(srcRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_signature *signature = nullptr;
+  error = git_signature_now(&signature, author.toStdString().c_str(),
+                            email.toStdString().c_str());
+  if (error) {
+    logGitError(error);
+    git_annotated_commit_free(baseCommit);
+    git_annotated_commit_free(dstCommit);
+    git_annotated_commit_free(srcCommit);
+    git_reference_free(dstRef);
+    git_reference_free(srcRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_rebase_options rebaseOpts = GIT_REBASE_OPTIONS_INIT;
+  rebaseOpts.checkout_options.checkout_strategy = GIT_CHECKOUT_SAFE;
+
+  git_rebase *rebaseSession = nullptr;
+  error = git_rebase_init(&rebaseSession, repo, srcCommit, baseCommit,
+                          dstCommit, &rebaseOpts);
+  if (error) {
+    logGitError(error);
+    git_signature_free(signature);
+    git_annotated_commit_free(baseCommit);
+    git_annotated_commit_free(dstCommit);
+    git_annotated_commit_free(srcCommit);
+    git_reference_free(dstRef);
+    git_reference_free(srcRef);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  bool rebaseSuccess = true;
+  git_rebase_operation *operation = nullptr;
+  git_oid commitId{};
+
+  while ((error = git_rebase_next(&operation, rebaseSession)) == 0) {
+    error = git_rebase_commit(&commitId, rebaseSession, nullptr, signature,
+                              nullptr, nullptr);
+    if (error == 0) {
+      continue;
+    }
+
+    if (error == GIT_EUNMERGED) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Rebase stopped because conflicts must be resolved manually");
+    } else {
+      logGitError(error);
+    }
+    git_rebase_abort(rebaseSession);
+    rebaseSuccess = false;
+    break;
+  }
+
+  if (rebaseSuccess && error == GIT_ITEROVER) {
+    error = git_rebase_finish(rebaseSession, signature);
+    if (error) {
+      logGitError(error);
+      git_rebase_abort(rebaseSession);
+      rebaseSuccess = false;
+    }
+  } else if (rebaseSuccess) {
+    logGitError(error);
+    rebaseSuccess = false;
+  }
+
+  git_rebase_free(rebaseSession);
+  git_signature_free(signature);
+  git_annotated_commit_free(baseCommit);
+  git_annotated_commit_free(dstCommit);
+  git_annotated_commit_free(srcCommit);
+  git_reference_free(dstRef);
+  git_reference_free(srcRef);
+
+  LOG_PERF(0, "Exit");
+  return rebaseSuccess;
 }
 
 QString listConflictsForStashFile(git_repository *repo, int stashIndex,
@@ -9850,8 +10006,8 @@ bool getIsMergeInProgress(git_repository *repo) {
   LOG_PERF(0, "Exit");
 
   return state == GIT_REPOSITORY_STATE_MERGE ||
-          state == GIT_REPOSITORY_STATE_REVERT ||
-          state == GIT_REPOSITORY_STATE_CHERRYPICK;
+         state == GIT_REPOSITORY_STATE_REVERT ||
+         state == GIT_REPOSITORY_STATE_CHERRYPICK;
   ;
 }
 
@@ -10918,11 +11074,11 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
           &newCommitOid,
           commitToAmend, // Commit to amend
           "HEAD",        // Update HEAD reference
-          authorSig,      // Keep original author (or provide new one)
-          committerSig,   // New committer (or nullptr to keep original)
-          nullptr,        // Use default encoding
+          authorSig,     // Keep original author (or provide new one)
+          committerSig,  // New committer (or nullptr to keep original)
+          nullptr,       // Use default encoding
           fullMessage.toStdString().c_str(), // Use updated message
-          tree            // New tree (or nullptr to keep original)
+          tree // New tree (or nullptr to keep original)
       );
     }
 
@@ -10951,11 +11107,11 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
         &newCommitOid,
         commitToAmend, // Commit to amend
         "HEAD",        // Update HEAD reference
-        authorSig,      // Keep original author (or provide new one)
-        committerSig,   // New committer (or nullptr to keep original)
-        nullptr,        // Use default encoding
+        authorSig,     // Keep original author (or provide new one)
+        committerSig,  // New committer (or nullptr to keep original)
+        nullptr,       // Use default encoding
         fullMessage.toStdString().c_str(), // Use updated message
-        tree            // New tree (or nullptr to keep original)
+        tree // New tree (or nullptr to keep original)
     );
     if (error) {
       logGitError(error);

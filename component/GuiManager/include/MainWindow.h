@@ -1,11 +1,11 @@
 #pragma once
 
 #include "HitDetector.h"
+#include "containers/GitSigningContainer.h"
 #include "widgets/CentralWidget.h"
 #include "widgets/ConsoleWidget.h"
 #include "widgets/ContainerWidget.h"
 #include "widgets/GitCredentialsOverlayWidget.h"
-#include "containers/GitSigningContainer.h"
 #include "widgets/ProfileBoardWidget.h"
 #include "widgets/SshPassphraseOverlayWidget.h"
 #include "widgets/ToastHostWidget.h"
