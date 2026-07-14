@@ -80,7 +80,8 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::GitRepoServerTimeout,
      {"Server operation timeout in milliseconds", ""}},
     {ConfigKey::GitRepoSigningEnabled,
-     {"Commit signing enabled", "Show the Sign commit checkbox in commit panels"}},
+     {"Commit signing enabled",
+      "Show the Sign commit checkbox in commit panels"}},
     {ConfigKey::GitRepoSigningFormat,
      {"Commit signing format", "GPG/OpenPGP or SSH"}},
     {ConfigKey::GitRepoSigningKey,
@@ -169,7 +170,8 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::SettingsSplitterPos, ""}};
 
 static QString resolveSigningProgramDefault(const QString &signingFormat) {
-  if (signingFormat.trimmed().compare(QStringLiteral("ssh"), Qt::CaseInsensitive) == 0) {
+  if (signingFormat.trimmed().compare(QStringLiteral("ssh"),
+                                      Qt::CaseInsensitive) == 0) {
     return QStringLiteral("ssh-keygen");
   }
 

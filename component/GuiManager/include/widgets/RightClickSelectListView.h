@@ -39,9 +39,8 @@ protected:
 
     if (const QModelIndex index = indexAt(event->pos()); index.isValid()) {
       selectionModel()->clearSelection();
-      selectionModel()->select(index,
-                               QItemSelectionModel::ClearAndSelect |
-                                   QItemSelectionModel::Current);
+      selectionModel()->select(index, QItemSelectionModel::ClearAndSelect |
+                                          QItemSelectionModel::Current);
       setCurrentIndex(index);
     }
 

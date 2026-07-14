@@ -314,6 +314,8 @@ private:
   void ignoreFilesRecursive(const WeakPtr &guard, const QStringList &files);
   void merge(const WeakPtr &guard, const QString &sourceBranch,
              const QString &destBranch);
+  void rebase(const WeakPtr &guard, const QString &sourceBranch,
+              const QString &destBranch);
   bool openRepo(const WeakPtr &guard);
   void openSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void popStash(const WeakPtr &guard, int stashIndex);

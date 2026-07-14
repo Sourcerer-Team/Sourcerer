@@ -589,6 +589,12 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerFetchRemoteResult";
   case EventType::GitRepoManagerFetchRemoteError:
     return "GitRepoManagerFetchRemoteError";
+  case EventType::GitRepoManagerRebase:
+    return "GitRepoManagerRebase";
+  case EventType::GitRepoManagerRebaseResult:
+    return "GitRepoManagerRebaseResult";
+  case EventType::GitRepoManagerRebaseError:
+    return "GitRepoManagerRebaseError";
   case EventType::GitRepoManagerRemoveRemote:
     return "GitRepoManagerRemoveRemote";
   case EventType::GitRepoManagerRemoveRemoteResult:

@@ -20,11 +20,12 @@ GitSigningContainer::GitSigningContainer(QWidget *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _enabledCheckBox(nullptr), _formatComboBox(nullptr),
       _signingKeyEdit(nullptr), _signingKeyBrowseButton(nullptr),
-      _programEdit(nullptr), _programBrowseButton(nullptr), _saveButton(nullptr),
-      _resetButton(nullptr), _titleLabel(nullptr), _descriptionLabel(nullptr),
-      _formatLabel(nullptr), _keyLabel(nullptr), _programLabel(nullptr),
-      _savedEnabled(false), _savedFormat(QStringLiteral("gpg")),
-      _savedSigningKey(), _savedProgram(QStringLiteral("gpg")) {
+      _programEdit(nullptr), _programBrowseButton(nullptr),
+      _saveButton(nullptr), _resetButton(nullptr), _titleLabel(nullptr),
+      _descriptionLabel(nullptr), _formatLabel(nullptr), _keyLabel(nullptr),
+      _programLabel(nullptr), _savedEnabled(false),
+      _savedFormat(QStringLiteral("gpg")), _savedSigningKey(),
+      _savedProgram(QStringLiteral("gpg")) {
   LOG_PERF(0, "Enter");
 
   auto *mainLayout = new QVBoxLayout(this);
@@ -101,15 +102,14 @@ GitSigningContainer::GitSigningContainer(QWidget *parent)
 
   connect(_enabledCheckBox, &QCheckBox::toggled, this,
           &GitSigningContainer::onEnabledToggled);
-  connect(_formatComboBox,
-          static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
-          this, &GitSigningContainer::onFormatChanged);
-  connect(_signingKeyEdit, &QLineEdit::textChanged, this, [this](const QString &) {
-    updateSaveButtonState();
-  });
-  connect(_programEdit, &QLineEdit::textChanged, this, [this](const QString &) {
-    updateSaveButtonState();
-  });
+  connect(
+      _formatComboBox,
+      static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+      this, &GitSigningContainer::onFormatChanged);
+  connect(_signingKeyEdit, &QLineEdit::textChanged, this,
+          [this](const QString &) { updateSaveButtonState(); });
+  connect(_programEdit, &QLineEdit::textChanged, this,
+          [this](const QString &) { updateSaveButtonState(); });
   connect(_signingKeyBrowseButton, &QPushButton::clicked, this,
           &GitSigningContainer::onBrowseKeyClicked);
   connect(_programBrowseButton, &QPushButton::clicked, this,
@@ -163,9 +163,8 @@ void GitSigningContainer::onBrowseKeyClicked() {
 
   const QString currentPath = _signingKeyEdit->text().trimmed();
   const QString path = QFileDialog::getOpenFileName(
-      this, tr("Select signing key"), currentPath.isEmpty() ? QString()
-                                                             : currentPath,
-      tr("All files (*)"));
+      this, tr("Select signing key"),
+      currentPath.isEmpty() ? QString() : currentPath, tr("All files (*)"));
 
   if (!path.isEmpty()) {
     _signingKeyEdit->setText(path);
@@ -179,8 +178,8 @@ void GitSigningContainer::onBrowseProgramClicked() {
 
   const QString currentPath = _programEdit->text().trimmed();
   const QString path = QFileDialog::getOpenFileName(
-      this, tr("Select signing program"), currentPath.isEmpty() ? QString()
-                                                                 : currentPath,
+      this, tr("Select signing program"),
+      currentPath.isEmpty() ? QString() : currentPath,
       tr("Executable files (*)"));
 
   if (!path.isEmpty()) {
@@ -210,8 +209,8 @@ void GitSigningContainer::loadSettings() {
   QSignalBlocker keyBlocker(_signingKeyEdit);
   QSignalBlocker programBlocker(_programEdit);
 
-  _enabledCheckBox->setChecked(
-      _configManager.getBoolean(ConfigManager::ConfigKey::GitRepoSigningEnabled));
+  _enabledCheckBox->setChecked(_configManager.getBoolean(
+      ConfigManager::ConfigKey::GitRepoSigningEnabled));
 
   const QString format =
       _configManager.getString(ConfigManager::ConfigKey::GitRepoSigningFormat)
@@ -272,8 +271,8 @@ void GitSigningContainer::saveSettings() {
   _savedProgram = program;
   updateSaveButtonState();
 
-  LOG_DEBUG("Commit signing settings saved: enabled={}, format='{}'",
-            enabled, format.toStdString());
+  LOG_DEBUG("Commit signing settings saved: enabled={}, format='{}'", enabled,
+            format.toStdString());
 
   LOG_PERF(0, "Exit");
 }
@@ -297,7 +296,8 @@ void GitSigningContainer::updateFormatUi() {
   if (sshFormat) {
     _keyLabel->setText(tr("SSH private key path"));
     _signingKeyEdit->setPlaceholderText(tr("Path to the private SSH key"));
-    _programEdit->setPlaceholderText(tr("Optional path to ssh-keygen executable"));
+    _programEdit->setPlaceholderText(
+        tr("Optional path to ssh-keygen executable"));
   } else {
     _keyLabel->setText(tr("Signing key"));
     _signingKeyEdit->setPlaceholderText(tr("Key ID or fingerprint"));
@@ -336,10 +336,9 @@ void GitSigningContainer::updateSaveButtonState() {
   const QString currentFormatValue = currentFormat();
   const QString currentSigningKey = _signingKeyEdit->text().trimmed();
   const QString currentProgram = _programEdit->text().trimmed();
-  const bool dirty = currentEnabled != _savedEnabled ||
-                     currentFormatValue != _savedFormat ||
-                     currentSigningKey != _savedSigningKey ||
-                     currentProgram != _savedProgram;
+  const bool dirty =
+      currentEnabled != _savedEnabled || currentFormatValue != _savedFormat ||
+      currentSigningKey != _savedSigningKey || currentProgram != _savedProgram;
   _saveButton->setEnabled(dirty);
 
   LOG_PERF(0, "Exit");

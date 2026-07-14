@@ -41,6 +41,7 @@ enum class GitRepoCommandType : int {
   FetchAll,
   FetchRemote,
   GetActiveBranch,
+  Rebase,
   GetFileSizeFromCommit,
   GetBranchHistory,
   GetCommitBranches,
@@ -592,6 +593,17 @@ struct GitRepoMergeCommand final : GitRepoCommand {
   GitRepoMergeCommand() : GitRepoCommand(GitRepoCommandType::Merge) {}
 
   ~GitRepoMergeCommand() override = default;
+
+  QString sourceBranch;
+  QString destinationBranch;
+  QString author;
+  QString email;
+};
+
+struct GitRepoRebaseCommand final : GitRepoCommand {
+  GitRepoRebaseCommand() : GitRepoCommand(GitRepoCommandType::Rebase) {}
+
+  ~GitRepoRebaseCommand() override = default;
 
   QString sourceBranch;
   QString destinationBranch;

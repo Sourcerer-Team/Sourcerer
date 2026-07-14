@@ -209,7 +209,8 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     break;
   }
   case EventType::DiscardFiles: {
-    const auto discardFilesCommand = event.nextParam<GitRepoDiscardFilesCommand>();
+    const auto discardFilesCommand =
+        event.nextParam<GitRepoDiscardFilesCommand>();
     scheduleWorkerForDiscardFiles(discardFilesCommand);
     break;
   }
@@ -219,7 +220,8 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     break;
   }
   case EventType::FetchRemote: {
-    const auto fetchRemoteCommand = event.nextParam<GitRepoFetchRemoteCommand>();
+    const auto fetchRemoteCommand =
+        event.nextParam<GitRepoFetchRemoteCommand>();
     scheduleWorkerForFetchRemote(fetchRemoteCommand);
     break;
   }
@@ -356,6 +358,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
   case EventType::Merge: {
     const auto mergeCommand = event.nextParam<GitRepoMergeCommand>();
     scheduleWorkerForMerge(mergeCommand);
+    break;
+  }
+  case EventType::Rebase: {
+    const auto rebaseCommand = event.nextParam<GitRepoRebaseCommand>();
+    scheduleWorkerForRebase(rebaseCommand);
     break;
   }
   case EventType::OpenRepo: {
@@ -597,9 +604,9 @@ void ProcessingState::amendWorker(const Structs::GitRepoAmendCommand &command) {
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::amend(repo, command.summary, command.message,
-                                      command.author, command.email,
-                                      command.signoff, command.signCommit);
+  const bool success =
+      GitRepo::amend(repo, command.summary, command.message, command.author,
+                     command.email, command.signoff, command.signCommit);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
@@ -890,10 +897,9 @@ void ProcessingState::commitStagedWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success =
-      GitRepo::commitStaged(repo, command.summary, command.message,
-                            command.author, command.email, command.cleanup,
-                            command.signoff, command.signCommit);
+  const bool success = GitRepo::commitStaged(
+      repo, command.summary, command.message, command.author, command.email,
+      command.cleanup, command.signoff, command.signCommit);
   if (!success) {
     const auto [errorCode, errorMessage] = GitRepo::getLastError();
     EventManager::Event errorEvent(
@@ -1816,6 +1822,45 @@ void ProcessingState::fetchRemoteWorker(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::rebaseWorker(
+    const Structs::GitRepoRebaseCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerRebaseError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::rebaseBranches(repo, command.sourceBranch,
+                                               command.destinationBranch,
+                                               command.author, command.email);
+  if (!success) {
+    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerRebaseError, command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerRebaseResult, command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForFetchAll(
     const Structs::GitRepoFetchAllCommand &command) {
   LOG_PERF(0, "Enter");
@@ -1850,6 +1895,25 @@ void ProcessingState::scheduleWorkerForFetchRemote(
   }
 
   (*it)->commandsQueue.push(new GitRepoFetchRemoteCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForRebase(
+    const Structs::GitRepoRebaseCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerRebaseError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoRebaseCommand(command));
 
   LOG_PERF(0, "Exit");
 }
@@ -5374,6 +5438,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoMergeCommand *>(command);
       if (mergeCommand) {
         mergeWorker(*mergeCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::Rebase: {
+      const auto *rebaseCommand =
+          dynamic_cast<const GitRepoRebaseCommand *>(command);
+      if (rebaseCommand) {
+        rebaseWorker(*rebaseCommand);
       }
       break;
     }
