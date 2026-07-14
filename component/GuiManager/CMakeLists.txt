@@ -67,7 +67,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/containers/GitCredentialsContainer.h
         include/containers/GitKeysContainer.h
         include/containers/GitRepoContainer.h
-        include/containers/GitSigningContainer.h
+
         include/containers/HomeContainer.h
         include/containers/InitGitRepoContainer.h
         include/containers/PleaseWaitContainer.h
@@ -165,7 +165,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/containers/GitCredentialsContainer.cpp
         src/containers/GitKeysContainer.cpp
         src/containers/GitRepoContainer.cpp
-        src/containers/GitSigningContainer.cpp
+
         src/containers/HomeContainer.cpp
         src/containers/InitGitRepoContainer.cpp
         src/containers/PleaseWaitContainer.cpp

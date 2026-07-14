@@ -15,6 +15,7 @@ public:
   const QString &description() const { return _description; }
   const QString &key() const { return _key; }
   const QString &name() const { return _name; }
+  int orderNumber() const { return _orderNumber; }
   ConfigKeyType type() const { return _type; }
   const QVariant &value() const { return _value; }
 
@@ -23,6 +24,7 @@ public:
   }
   void setKey(const QString &key) { _key = key; }
   void setName(const QString &name) { _name = name; }
+  void setOrderNumber(int orderNumber) { _orderNumber = orderNumber; }
   void setType(ConfigKeyType type) { _type = type; }
   void setValue(const QVariant &value) { _value = value; }
 
@@ -32,6 +34,7 @@ private:
   QString _name;
   QString _description;
   QString _key;
+  int _orderNumber;
 };
 
 class ConfigGroup {

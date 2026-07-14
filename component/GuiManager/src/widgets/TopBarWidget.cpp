@@ -114,8 +114,6 @@ TopBarWidget::TopBarWidget(QWidget *parent)
           &TopBarWidget::credentials);
   connect(_titleBarWidget, &TitlebarWidget::sshKeys, this,
           &TopBarWidget::sshKeys);
-  connect(_titleBarWidget, &TitlebarWidget::signing, this,
-          &TopBarWidget::signing);
   connect(_titleBarWidget, &TitlebarWidget::terminal, this,
           &TopBarWidget::terminal);
   connect(_titleBarWidget, &TitlebarWidget::bugReport, this,
