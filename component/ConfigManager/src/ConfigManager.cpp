@@ -87,7 +87,7 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {
     {ConfigKey::GitRepoDiffViewType,
      false}, // false = unified, true = side-by-side
-    {ConfigKey::GitRepoSigningEnabled, false}};
+    {ConfigKey::GitRepoSigningEnabled, true}};
 
 QMap<ConfigKey, QColor> DEFAULT_COLORS = {
     {ConfigKey::TestColor, QColor(10, 10, 10)},
