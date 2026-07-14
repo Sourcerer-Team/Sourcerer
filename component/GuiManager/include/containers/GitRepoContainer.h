@@ -14,7 +14,6 @@
 #include <UserProfileManager.h>
 
 #include <QAction>
-#include <QCheckBox>
 #include <QEnableSharedFromThis>
 #ifdef Q_OS_WIN32
 #include <win32/DirectoryWatcher.h>
@@ -440,9 +439,10 @@ private:
 
   bool _applyingHistoryColumnWidths;
 
-  QCheckBox *_checkBoxSignCommit;
-  QCheckBox *_checkBoxSignOff;
-  QCheckBox *_checkBoxAmend;
+  QToolButton *_commitAmendSignButton;
+  QAction *_actionCommitAmend;
+  QAction *_actionCommitSignOff;
+  QAction *_actionCommitSign;
   QPushButton *_commitAndMergeWorkingDirTreeStageAllButton;
   QPushButton *_commitAndMergeIndexTreeUnstageAllButton;
   QPushButton *_stashApplyButton;

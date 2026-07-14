@@ -228,16 +228,21 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   commitButtonLayout->setContentsMargins(0, 0, 0, 0);
   commitButtonLayout->setSpacing(8);
 
-  _checkBoxAmend =
-      new QCheckBox(tr("Amend"), commitButtonContainer);
-  _checkBoxSignOff =
-      new QCheckBox(tr("Sign-off"), commitButtonContainer);
-  _checkBoxSignCommit =
-      new QCheckBox(tr("Sign"), commitButtonContainer);
+  _commitAmendSignButton = new QToolButton(commitButtonContainer);
+  _commitAmendSignButton->setText(tr("Amend and Sign"));
+  _commitAmendSignButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+  _commitAmendSignButton->setPopupMode(QToolButton::InstantPopup);
 
-  commitButtonLayout->addWidget(_checkBoxAmend);
-  commitButtonLayout->addWidget(_checkBoxSignOff);
-  commitButtonLayout->addWidget(_checkBoxSignCommit);
+  auto *commitAmendSignMenu = new QMenu(_commitAmendSignButton);
+  _actionCommitAmend = commitAmendSignMenu->addAction(tr("Amend previous commit"));
+  _actionCommitAmend->setCheckable(true);
+  _actionCommitSignOff = commitAmendSignMenu->addAction(tr("Sign-off commit"));
+  _actionCommitSignOff->setCheckable(true);
+  _actionCommitSign = commitAmendSignMenu->addAction(tr("Sign commit"));
+  _actionCommitSign->setCheckable(true);
+  _commitAmendSignButton->setMenu(commitAmendSignMenu);
+
+  commitButtonLayout->addWidget(_commitAmendSignButton);
   commitButtonLayout->addStretch();
 
   ui->tabWidgetCommit->setCornerWidget(commitButtonContainer,
@@ -1750,10 +1755,10 @@ void GitRepoContainer::onCommitButtonClicked() {
       _userProfileManager.currentProfile();
   const QString summary = ui->lineEditSummary->text().trimmed();
   const QString description = ui->textEditDescription->toPlainText().trimmed();
-  const bool toAmend = _checkBoxAmend->isChecked();
-  const bool signoff = _checkBoxSignOff->isChecked();
-  const bool signCommit = _checkBoxSignCommit->isVisible() &&
-                          _checkBoxSignCommit->isChecked();
+  const bool toAmend = _actionCommitAmend->isChecked();
+  const bool signoff = _actionCommitSignOff->isChecked();
+  const bool signCommit = _actionCommitSign->isVisible() &&
+                          _actionCommitSign->isChecked();
 
   LOG_DEBUG("Commit details - Author: '{}', Amend: {}, Sign-off: {}, Sign commit: {}, Summary length: {}, "
             "Merge in progress: {}",
@@ -1790,9 +1795,9 @@ void GitRepoContainer::onMergeButtonClicked() {
       _userProfileManager.currentProfile();
   const QString summary = ui->lineEditSummary->text().trimmed();
   const QString description = ui->textEditDescription->toPlainText().trimmed();
-  const bool signoff = _checkBoxSignOff->isChecked();
-  const bool signCommit = _checkBoxSignCommit->isVisible() &&
-                          _checkBoxSignCommit->isChecked();
+  const bool signoff = _actionCommitSignOff->isChecked();
+  const bool signCommit = _actionCommitSign->isVisible() &&
+                          _actionCommitSign->isChecked();
 
   LOG_DEBUG("Merge details - Author: '{}', Sign-off: {}, Sign commit: {}, Summary length: {}",
             currentProfile.author.toStdString(), signoff, signCommit,
@@ -5760,8 +5765,7 @@ void GitRepoContainer::refreshSigningControls() {
 
   const bool signingEnabled = _configManager.getBoolean(
       ConfigManager::ConfigKey::GitRepoSigningEnabled);
-  _checkBoxSignCommit->setVisible(signingEnabled);
-  _checkBoxSignCommit->setChecked(signingEnabled && _checkBoxSignCommit->isChecked());
+  _actionCommitSign->setVisible(signingEnabled);
 
   LOG_PERF(0, "Exit");
 }
@@ -10557,7 +10561,7 @@ void GitRepoContainer::resetCommitButton() const {
       _commitStagedListModel->rowCount() > 0 &&
       (!ui->lineEditSummary->text().isEmpty() ||
        !ui->textEditDescription->toPlainText().isEmpty()));
-  _checkBoxAmend->setVisible(!_mergeInProgress);
+  _actionCommitAmend->setVisible(!_mergeInProgress);
 
   LOG_PERF(0, "Exit")
 }
