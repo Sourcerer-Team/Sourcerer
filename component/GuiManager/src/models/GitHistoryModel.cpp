@@ -5,6 +5,7 @@
 #include <Log.h>
 
 #include <QFont>
+#include <QLocale>
 #include <QQueue>
 #include <QSet>
 
@@ -292,8 +293,10 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     break;
   }
   case COLUMN_COMMIT_DATETIME: {
-    result = QDateTime::fromMSecsSinceEpoch(commitInfo.timeStamp)
-                 .toString("yyyy-MM-dd HH:mm:ss");
+    // commitInfo.timeStamp is already in local time
+    result = QLocale::system().toString(
+        QDateTime::fromMSecsSinceEpoch(commitInfo.timeStamp).toUTC(),
+        QLocale::ShortFormat);
     break;
   }
   case COLUMN_COMMIT_SHORT_SHA: {

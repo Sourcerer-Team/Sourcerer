@@ -34,6 +34,7 @@
 #include <StylesheetManager.h>
 #include <Uuid.h>
 
+#include <QAbstractItemDelegate>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCursor>
@@ -52,6 +53,7 @@
 #include <QPixmap>
 #include <QScrollBar>
 #include <QSignalBlocker>
+#include <QStyleOptionViewItem>
 #include <QSvgRenderer>
 #include <QTextStream>
 #include <QTimer>
@@ -59,6 +61,7 @@
 #include <QToolTip>
 #include <Qsci/qsciscintilla.h>
 
+#include <algorithm>
 #include <functional>
 #include <utility>
 
@@ -10686,13 +10689,6 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() {
     return;
   }
 
-  int visibleColumnCount = 0;
-  for (int column = 0; column < columnCount; ++column) {
-    if (!header->isSectionHidden(column)) {
-      ++visibleColumnCount;
-    }
-  }
-
   const QString savedWidths = _configManager.getString(
       ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths);
   const QStringList widthValues = savedWidths.split(',', Qt::SkipEmptyParts);
@@ -10725,70 +10721,78 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() {
         "Invalid saved history view column widths, falling back to defaults");
   }
 
-  if (visibleColumnCount <= 0) {
+  QAbstractItemModel *model = ui->historyView->model();
+  if (!model) {
     LOG_PERF(0, "Exit");
     return;
   }
 
-  const QFontMetrics fontMetrics(ui->historyView->font());
-  const int charWidth = fontMetrics.horizontalAdvance('0');
-  const int totalWidth = ui->historyView->viewport()->width();
+  const int rowCount = model->rowCount();
 
-  int summaryWidth = 0;
-  if (!header->isSectionHidden(COLUMN_SUMMARY)) {
-    summaryWidth = totalWidth / 2;
-    if (constexpr int maxSummaryWidth = 600; summaryWidth > maxSummaryWidth) {
-      summaryWidth = maxSummaryWidth;
-    }
-  }
+  QStyleOptionViewItem option;
+  option.initFrom(ui->historyView);
+  option.font = ui->historyView->font();
 
-  int shaWidth = 0;
-  if (!header->isSectionHidden(COLUMN_COMMIT_SHORT_SHA)) {
-    shaWidth = charWidth * 9;
-  }
+  const QFontMetrics headerMetrics(ui->historyView->font());
+  const int viewportWidth = ui->historyView->viewport()->width();
 
-  int remainingWidth = totalWidth - summaryWidth - shaWidth;
-  if (remainingWidth < 0) {
-    remainingWidth = 0;
-  }
-
-  int flexibleVisibleColumnCount = visibleColumnCount;
-  if (!header->isSectionHidden(COLUMN_SUMMARY)) {
-    --flexibleVisibleColumnCount;
-  }
-  if (!header->isSectionHidden(COLUMN_COMMIT_SHORT_SHA)) {
-    --flexibleVisibleColumnCount;
-  }
-  if (flexibleVisibleColumnCount < 0) {
-    flexibleVisibleColumnCount = 0;
-  }
-
-  int otherWidth = flexibleVisibleColumnCount > 0
-                       ? remainingWidth / flexibleVisibleColumnCount
-                       : remainingWidth;
-  if (otherWidth < 1 && flexibleVisibleColumnCount > 0) {
-    otherWidth = 1;
-  }
+  int occupiedWidth = 0;
+  int summaryColumnWidth = 0;
 
   _applyingHistoryColumnWidths = true;
   for (int column = 0; column < columnCount; ++column) {
-    if (header->isSectionHidden(column)) {
+    if (header->isSectionHidden(column) || column == COLUMN_SUMMARY) {
       continue;
     }
 
-    int width = otherWidth;
-    if (column == COLUMN_SUMMARY) {
-      width = summaryWidth;
-    } else if (column == COLUMN_COMMIT_SHORT_SHA) {
-      width = shaWidth;
+    int width = 0;
+    QAbstractItemDelegate *delegate =
+        ui->historyView->itemDelegateForColumn(column);
+    if (!delegate) {
+      delegate = ui->historyView->itemDelegate();
     }
 
-    if (width < 1) {
-      width = 1;
+    for (int row = 0; row < rowCount; ++row) {
+      const QModelIndex index = model->index(row, column);
+      if (!index.isValid()) {
+        continue;
+      }
+
+      int cellWidth = 0;
+      if (delegate) {
+        cellWidth = delegate->sizeHint(option, index).width();
+      }
+
+      if (column == COLUMN_HISTORY_SLICE) {
+        const qsizetype sliceCount =
+            index.data(HistorySliceWidthRole).value<qsizetype>();
+        const int rowHeight = std::max(
+            1, ui->historyView->rowHeight(row) > 0
+                   ? ui->historyView->rowHeight(row)
+                   : ui->historyView->verticalHeader()->defaultSectionSize());
+        cellWidth = std::max(cellWidth,
+                             static_cast<int>(sliceCount) * rowHeight);
+      }
+
+      width = std::max(width, cellWidth);
     }
 
+    const QString headerText =
+        model->headerData(column, Qt::Horizontal, Qt::DisplayRole).toString();
+    if (!headerText.isEmpty()) {
+      width = std::max(width, headerMetrics.horizontalAdvance(headerText));
+    }
+
+    width = std::max(1, width);
     ui->historyView->setColumnWidth(column, width);
+    occupiedWidth += width;
   }
+
+  if (!header->isSectionHidden(COLUMN_SUMMARY)) {
+    summaryColumnWidth = std::max(1, viewportWidth - occupiedWidth);
+    ui->historyView->setColumnWidth(COLUMN_SUMMARY, summaryColumnWidth);
+  }
+
   _applyingHistoryColumnWidths = false;
 
   LOG_PERF(0, "Exit");
