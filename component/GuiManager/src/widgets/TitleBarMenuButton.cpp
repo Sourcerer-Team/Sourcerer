@@ -119,8 +119,6 @@ void TitleBarMenuButton::onSshKeys() {
   LOG_PERF(0, "Exit");
 }
 
-
-
 void TitleBarMenuButton::onTerminal() {
   LOG_PERF(0, "Enter");
 
@@ -193,8 +191,6 @@ void TitleBarMenuButton::createActions() {
   _sshKeysAction->setText(tr("SSH keys manager"));
   connect(_sshKeysAction, &QAction::triggered, this,
           &TitleBarMenuButton::onSshKeys);
-
-
 
   _bugReportAction = new QAction(this);
   _bugReportAction->setText(tr("Report bug"));
