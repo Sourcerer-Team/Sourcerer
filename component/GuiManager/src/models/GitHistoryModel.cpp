@@ -293,8 +293,9 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     break;
   }
   case COLUMN_COMMIT_DATETIME: {
+    // commitInfo.timeStamp is already in local time
     result = QLocale::system().toString(
-        QDateTime::fromMSecsSinceEpoch(commitInfo.timeStamp).toLocalTime(),
+        QDateTime::fromMSecsSinceEpoch(commitInfo.timeStamp),
         QLocale::ShortFormat);
     break;
   }
