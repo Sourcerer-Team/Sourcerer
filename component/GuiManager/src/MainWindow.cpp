@@ -168,8 +168,7 @@ MainWindow::MainWindow(QWidget *parent)
           &MainWindow::onSettings);
   connect(_topBarWidget, &TopBarWidget::credentials, this,
           &MainWindow::onCredentials);
-  connect(_topBarWidget, &TopBarWidget::sshKeys, this,
-          &MainWindow::onSshKeys);
+  connect(_topBarWidget, &TopBarWidget::sshKeys, this, &MainWindow::onSshKeys);
   connect(_topBarWidget, &TopBarWidget::terminal, this,
           &MainWindow::onTerminal);
   connect(_topBarWidget, &TopBarWidget::bugReport, this,
@@ -444,8 +443,6 @@ void MainWindow::onSshKeys() {
 
   LOG_PERF(0, "Exit");
 }
-
-
 
 void MainWindow::onSubmitWorkspace(const QString &name) {
   LOG_PERF(0, "Enter");
@@ -982,8 +979,6 @@ void MainWindow::addGitKeysContainer() {
 
   LOG_PERF(0, "Exit");
 }
-
-
 
 void MainWindow::closeContainer(const ContainerWidget *container) {
   LOG_PERF(0, "Enter");
