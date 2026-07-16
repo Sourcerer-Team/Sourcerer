@@ -4,13 +4,19 @@
 #include <Graph.h>
 #include <Log.h>
 
+#include <QDateTime>
 #include <QFont>
+#include <QFontMetrics>
+#include <QGuiApplication>
+#include <QLocale>
 #include <QQueue>
 #include <QSet>
 
 #include <iostream>
 
 #define THREAD_ID "GitHistoryModel"
+
+#define MULTIPLIER 5
 
 namespace GuiManager::Models {
 
@@ -46,6 +52,17 @@ GitHistoryModel::GitHistoryModel(QObject *parent)
     : QAbstractTableModel(parent), _quitUpdate(false),
       _selectionModel(nullptr) {
   LOG_PERF(0, "Enter");
+
+  _columnWidths = QVector<int>(COLUMN_LAST + 1, 1);
+  const QFontMetrics metrics(QGuiApplication::font());
+  const QStringList headers = {tr("Graph"), tr("Summary"), tr("Author"),
+                               tr("Email"), tr("Date"),    tr("SHA")};
+  const qsizetype one0 = metrics.horizontalAdvance("0");
+  for (int column = COLUMN_FIRST; column <= COLUMN_LAST; ++column) {
+    _columnWidths[column] = std::max(
+        qsizetype(1),
+        metrics.horizontalAdvance(headers.value(column)) + MULTIPLIER * one0);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -104,12 +121,14 @@ void GitHistoryModel::updateHistoryAndStatus(
 
   GitRepo::GitHistoryWithStatus newHistoryWithStatus = historyWithStatus;
 
-  Util::ResizableMatrix<Slice> newDrawableSlices = createDrawableSlices(
-      newHistoryWithStatus, _quitUpdate, [&](const int progress) {
-        if (progressCallback) {
-          progressCallback(progress / 2);
-        }
-      });
+  QVector<int> newColumnWidths(COLUMN_LAST + 1, 0);
+  Util::ResizableMatrix<Slice> newDrawableSlices =
+      createDrawableSlices(newHistoryWithStatus, _quitUpdate, &newColumnWidths,
+                           [&](const int progress) {
+                             if (progressCallback) {
+                               progressCallback(progress / 2);
+                             }
+                           });
 
   std::reverse(newHistoryWithStatus.history.commits.begin(),
                newHistoryWithStatus.history.commits.end());
@@ -142,6 +161,7 @@ void GitHistoryModel::updateHistoryAndStatus(
 
     _drawableSlices = newDrawableSlices;
     _historyWithStatus = newHistoryWithStatus;
+    _columnWidths = newColumnWidths;
 
     endResetModel();
   }
@@ -292,8 +312,10 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     break;
   }
   case COLUMN_COMMIT_DATETIME: {
-    result = QDateTime::fromMSecsSinceEpoch(commitInfo.timeStamp)
-                 .toString("yyyy-MM-dd HH:mm:ss");
+    // commitInfo.timeStamp is already in local time
+    result = QLocale::system().toString(
+        QDateTime::fromMSecsSinceEpoch(commitInfo.timeStamp).toUTC(),
+        QLocale::ShortFormat);
     break;
   }
   case COLUMN_COMMIT_SHORT_SHA: {
@@ -359,10 +381,27 @@ QVariant GitHistoryModel::headerData(const int section,
 
 Util::ResizableMatrix<Slice> GitHistoryModel::createDrawableSlices(
     GitRepo::GitHistoryWithStatus &historyWithStatus, const bool &quitUpdate,
+    QVector<int> *columnWidths,
     const std::function<void(int)> &progressCallback) {
   LOG_PERF(0, "Enter");
 
   Util::ResizableMatrix<Slice> drawableSlices;
+  QVector<int> widths(COLUMN_LAST + 1, 0);
+  const QFontMetrics metrics(QGuiApplication::font());
+  const qsizetype one0 = metrics.horizontalAdvance("0");
+  const auto textWidth = [&](const QString &text) {
+    return std::max(qsizetype(1),
+                    metrics.horizontalAdvance(text) + MULTIPLIER * one0);
+  };
+  const auto updateWidth = [&](const int column, const int width) {
+    if (column >= 0 && column < widths.size()) {
+      widths[column] = std::max(widths[column], width);
+    }
+  };
+  const auto updateSliceWidth = [&]() {
+    updateWidth(COLUMN_HISTORY_SLICE, static_cast<int>(drawableSlices.sizeX()) *
+                                          std::max(1, metrics.height()));
+  };
 
   try {
     QMap<QString, QPair<int, int>> commitPositions;
@@ -389,6 +428,19 @@ Util::ResizableMatrix<Slice> GitHistoryModel::createDrawableSlices(
 
       const auto &commitInfo = it.value();
 
+      updateWidth(COLUMN_SUMMARY, textWidth(commitInfo.summary.trimmed()));
+      updateWidth(COLUMN_AUTHOR_NAME,
+                  textWidth(commitInfo.authorName.trimmed()));
+      updateWidth(COLUMN_AUTHOR_EMAIL,
+                  textWidth(commitInfo.authorEmail.trimmed()));
+      updateWidth(
+          COLUMN_COMMIT_DATETIME,
+          textWidth(QLocale::system().toString(
+              QDateTime::fromMSecsSinceEpoch(commitInfo.timeStamp).toUTC(),
+              QLocale::ShortFormat)));
+      updateWidth(COLUMN_COMMIT_SHORT_SHA, textWidth(currentCommit.left(7)));
+      updateWidth(COLUMN_COMMIT_FULL_SHA, textWidth(currentCommit));
+
       if (commitInfo.parents.empty()) {
         drawableSlices.insertRow(0);
         drawableSlices.insertColumn(0);
@@ -400,6 +452,7 @@ Util::ResizableMatrix<Slice> GitHistoryModel::createDrawableSlices(
         };
 
         commitPositions[currentCommit] = qMakePair(0, 0);
+        updateSliceWidth();
 
         continue;
       }
@@ -569,6 +622,8 @@ Util::ResizableMatrix<Slice> GitHistoryModel::createDrawableSlices(
           drawableSlices[j][i].right = j != lastIndex;
         }
       }
+
+      updateSliceWidth();
     }
   } catch (const std::out_of_range &e) {
     LOG_ERROR(Log::ErrorId::Generic, "Exception: {}", e.what());
@@ -577,6 +632,16 @@ Util::ResizableMatrix<Slice> GitHistoryModel::createDrawableSlices(
 
   if (quitUpdate) {
     drawableSlices.clear();
+  }
+
+  if (columnWidths) {
+    const QStringList headers = {tr("Graph"), tr("Summary"), tr("Author"),
+                                 tr("Email"), tr("Date"),    tr("SHA")};
+    for (int column = COLUMN_FIRST; column <= COLUMN_LAST; ++column) {
+      updateWidth(column, textWidth(headers.value(column)));
+    }
+
+    *columnWidths = widths;
   }
 
   LOG_PERF(0, "Exit");

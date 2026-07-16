@@ -9,6 +9,7 @@
 
 #include <QHash>
 #include <QStringList>
+#include <QVector>
 #include <atomic>
 #include <functional>
 #include <qitemselectionmodel.h>
@@ -92,6 +93,9 @@ public:
     return _historyWithStatus;
   }
 
+  QVector<int> columnWidths() const { return _columnWidths; }
+  int columnWidth(int section) const { return _columnWidths.value(section); }
+
   void quitUpdate() { _quitUpdate = true; }
 
   bool hasStatus() const;
@@ -109,7 +113,7 @@ public:
 private:
   static Util::ResizableMatrix<Slice>
   createDrawableSlices(GitRepo::GitHistoryWithStatus &historyWithStatus,
-                       const bool &quitUpdate,
+                       const bool &quitUpdate, QVector<int> *columnWidths,
                        const std::function<void(int)> &progressCallback);
 
 private:
@@ -121,6 +125,7 @@ private:
   mutable Util::RecursiveMutex _mutex;
   GitRepo::GitHistoryWithStatus _historyWithStatus;
   mutable Util::ResizableMatrix<Slice> _drawableSlices;
+  QVector<int> _columnWidths;
   QHash<QString, QStringList> _commitRefs;
   std::atomic_bool _quitUpdate;
   QItemSelectionModel *_selectionModel;

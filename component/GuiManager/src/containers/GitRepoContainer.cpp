@@ -34,6 +34,7 @@
 #include <StylesheetManager.h>
 #include <Uuid.h>
 
+#include <QAbstractItemDelegate>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCursor>
@@ -52,6 +53,7 @@
 #include <QPixmap>
 #include <QScrollBar>
 #include <QSignalBlocker>
+#include <QStyleOptionViewItem>
 #include <QSvgRenderer>
 #include <QTextStream>
 #include <QTimer>
@@ -59,6 +61,7 @@
 #include <QToolTip>
 #include <Qsci/qsciscintilla.h>
 
+#include <algorithm>
 #include <functional>
 #include <utility>
 
@@ -230,7 +233,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   commitButtonLayout->setSpacing(8);
 
   _commitAmendSignButton = new QToolButton(commitButtonContainer);
-  _commitAmendSignButton->setText(tr("Amend and Sign"));
+  // Make some space between label text and dropdown arrow
+  _commitAmendSignButton->setText(tr("Amend and Sign") + QString(" "));
   _commitAmendSignButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
   _commitAmendSignButton->setPopupMode(QToolButton::InstantPopup);
 
@@ -10686,13 +10690,6 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() {
     return;
   }
 
-  int visibleColumnCount = 0;
-  for (int column = 0; column < columnCount; ++column) {
-    if (!header->isSectionHidden(column)) {
-      ++visibleColumnCount;
-    }
-  }
-
   const QString savedWidths = _configManager.getString(
       ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths);
   const QStringList widthValues = savedWidths.split(',', Qt::SkipEmptyParts);
@@ -10725,70 +10722,41 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() {
         "Invalid saved history view column widths, falling back to defaults");
   }
 
-  if (visibleColumnCount <= 0) {
+  const auto *historyModel =
+      qobject_cast<Models::GitHistoryModel *>(ui->historyView->model());
+  if (!historyModel) {
     LOG_PERF(0, "Exit");
     return;
   }
 
-  const QFontMetrics fontMetrics(ui->historyView->font());
-  const int charWidth = fontMetrics.horizontalAdvance('0');
-  const int totalWidth = ui->historyView->viewport()->width();
-
-  int summaryWidth = 0;
-  if (!header->isSectionHidden(COLUMN_SUMMARY)) {
-    summaryWidth = totalWidth / 2;
-    if (constexpr int maxSummaryWidth = 600; summaryWidth > maxSummaryWidth) {
-      summaryWidth = maxSummaryWidth;
-    }
-  }
-
-  int shaWidth = 0;
-  if (!header->isSectionHidden(COLUMN_COMMIT_SHORT_SHA)) {
-    shaWidth = charWidth * 9;
-  }
-
-  int remainingWidth = totalWidth - summaryWidth - shaWidth;
-  if (remainingWidth < 0) {
-    remainingWidth = 0;
-  }
-
-  int flexibleVisibleColumnCount = visibleColumnCount;
-  if (!header->isSectionHidden(COLUMN_SUMMARY)) {
-    --flexibleVisibleColumnCount;
-  }
-  if (!header->isSectionHidden(COLUMN_COMMIT_SHORT_SHA)) {
-    --flexibleVisibleColumnCount;
-  }
-  if (flexibleVisibleColumnCount < 0) {
-    flexibleVisibleColumnCount = 0;
-  }
-
-  int otherWidth = flexibleVisibleColumnCount > 0
-                       ? remainingWidth / flexibleVisibleColumnCount
-                       : remainingWidth;
-  if (otherWidth < 1 && flexibleVisibleColumnCount > 0) {
-    otherWidth = 1;
-  }
+  const int viewportWidth = ui->historyView->viewport()->width();
+  int occupiedWidth = 0;
 
   _applyingHistoryColumnWidths = true;
+
+  if (!header->isSectionHidden(COLUMN_HISTORY_SLICE)) {
+    const int sliceWidth =
+        std::max(1, historyModel->columnWidth(COLUMN_HISTORY_SLICE));
+    ui->historyView->setColumnWidth(COLUMN_HISTORY_SLICE, sliceWidth);
+    occupiedWidth += sliceWidth;
+  }
+
   for (int column = 0; column < columnCount; ++column) {
-    if (header->isSectionHidden(column)) {
+    if (column == COLUMN_HISTORY_SLICE || column == COLUMN_SUMMARY ||
+        header->isSectionHidden(column)) {
       continue;
     }
 
-    int width = otherWidth;
-    if (column == COLUMN_SUMMARY) {
-      width = summaryWidth;
-    } else if (column == COLUMN_COMMIT_SHORT_SHA) {
-      width = shaWidth;
-    }
-
-    if (width < 1) {
-      width = 1;
-    }
-
+    const int width = std::max(1, historyModel->columnWidth(column));
     ui->historyView->setColumnWidth(column, width);
+    occupiedWidth += width;
   }
+
+  if (!header->isSectionHidden(COLUMN_SUMMARY)) {
+    const int summaryWidth = std::max(1, viewportWidth - occupiedWidth);
+    ui->historyView->setColumnWidth(COLUMN_SUMMARY, summaryWidth);
+  }
+
   _applyingHistoryColumnWidths = false;
 
   LOG_PERF(0, "Exit");

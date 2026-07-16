@@ -89,7 +89,7 @@ if (-not (Test-Path $InstallerDir)) {
 Write-Host "Running build in Docker container..." -ForegroundColor Blue
 
 # Run the complete build process in Docker container (build project + create installer)
-docker run --rm `
+docker run --cpus 20 --memory 16g --rm `
     --name $ContainerName `
     -v "${ProjectRoot}:C:\workspace" `
     -w "C:\workspace" `
@@ -137,7 +137,7 @@ docker run --rm `
         exit 1
     }
 
-    & `$msys2Bash -lc 'export PATH=/c/tools/msys64/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin && cd /c/workspace/build/Release && cmake ../../src -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM=/mingw64/bin/ninja && ninja -j4'
+    & `$msys2Bash -lc 'export PATH=/c/tools/msys64/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin && cd /c/workspace/build/Release && cmake ../../src -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM=/mingw64/bin/ninja -Wno-dev && ninja -j20'
 
     if (`$LASTEXITCODE -ne 0) {
         Write-Host 'Project build failed' -ForegroundColor Red

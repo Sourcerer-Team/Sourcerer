@@ -181,8 +181,6 @@ void TitlebarWidget::onSshKeys() {
   LOG_PERF(0, "Exit");
 }
 
-
-
 void TitlebarWidget::onTerminal() {
   LOG_PERF(0, "Enter");
 
