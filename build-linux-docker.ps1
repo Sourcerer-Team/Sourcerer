@@ -63,24 +63,24 @@ if ($Rebuild -or -not $imageExists) {
         Write-Host "Docker image '$ImageName' not found. Building it now..." -ForegroundColor Yellow
     }
     Write-Host "Building Docker image..." -ForegroundColor Blue
-    
+
     # Prompt for Qt account credentials
     Write-Host "Qt account credentials are required for downloading Qt components." -ForegroundColor Blue
     $QtEmail = Read-Host "Qt Account Email"
     $QtPasswordSecure = Read-Host "Qt Account Password" -AsSecureString
     $QtPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto(
         [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($QtPasswordSecure))
-    
+
     if ([string]::IsNullOrWhiteSpace($QtEmail) -or [string]::IsNullOrWhiteSpace($QtPassword)) {
         Write-Host "Error: Qt account credentials are required." -ForegroundColor Red
         exit 1
     }
-    
+
     docker build -t $ImageName `
         --build-arg QT_ACCOUNT_EMAIL="$QtEmail" `
         --build-arg QT_ACCOUNT_PASSWORD="$QtPassword" `
         -f "$DockerDir/Dockerfile.linux" $DockerDir
-    
+
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to build Docker image" -ForegroundColor Red
         exit 1
@@ -105,7 +105,7 @@ $MountPath = $ProjectRoot
 $UserId = "1000:1000"
 
 # Run the build in Docker container as user 1000:1000 (standard Docker Desktop user)
-docker run --rm `
+docker run --cpus 20 --memory 16g --memory-swap 16g --rm `
     --name $ContainerName `
     --user $UserId `
     -v "${MountPath}:/workspace" `
@@ -135,10 +135,10 @@ if ($appimageFiles) {
 if ($appimages.Count -gt 0) {
     Write-Host "=== Success! ===" -ForegroundColor Green
     Write-Host ""
-    
+
     if ($appimages.Count -gt 0) {
         Write-Host "AppImage(s):" -ForegroundColor Green
-        $appimages | ForEach-Object { 
+        $appimages | ForEach-Object {
             $sizeMB = [math]::Round($_.Length/1MB, 2)
             Write-Host "  $($_.Name) ($sizeMB MB)" -ForegroundColor White
             Write-Host "  Path: $($_.FullName)" -ForegroundColor Gray

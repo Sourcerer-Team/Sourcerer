@@ -53,28 +53,28 @@ fi
 # Build Docker image if it doesn't exist or if --rebuild flag is passed
 if [ "$REBUILD" = true ] || ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
     echo -e "${BLUE}Building Docker image...${NC}"
-    
+
     # Prompt for Qt account credentials
     echo -e "${BLUE}Qt account credentials are required for downloading Qt components.${NC}"
     read -p "Qt Account Email: " QT_EMAIL
     read -sp "Qt Account Password: " QT_PASSWORD
     echo ""
-    
+
     if [[ -z "$QT_EMAIL" ]] || [[ -z "$QT_PASSWORD" ]]; then
         echo -e "${RED}Error: Qt account credentials are required.${NC}"
         exit 1
     fi
-    
+
     docker build -t "$IMAGE_NAME" \
         --build-arg QT_ACCOUNT_EMAIL="$QT_EMAIL" \
         --build-arg QT_ACCOUNT_PASSWORD="$QT_PASSWORD" \
         -f "$DOCKER_DIR/Dockerfile.linux" "$DOCKER_DIR"
-    
+
     if [[ $? -ne 0 ]]; then
         echo -e "${RED}Docker image build failed.${NC}"
         exit 1
     fi
-    
+
     echo -e "${GREEN}Docker image built successfully.${NC}"
 fi
 
@@ -84,7 +84,7 @@ mkdir -p "$PROJECT_ROOT/installer"
 echo -e "${BLUE}Running build in Docker container...${NC}"
 
 # Run the build in Docker container as current user
-docker run --rm \
+docker run --cpus 20 docker run --memory 16g --memory-swap 16g --rm \
     --name "$CONTAINER_NAME" \
     --user "$(id -u):$(id -g)" \
     -v "$PROJECT_ROOT:/workspace:z" \
@@ -94,10 +94,10 @@ docker run --rm \
         set -e
         echo '=== Building Sourcerer ==='
         cd /workspace/installer
-        
+
         # Run the build-installer.sh script with build mode
         bash ./build-installer.sh
-        
+
         echo '=== Build Complete ==='
         echo 'Build artifacts:'
         ls -lh Sourcerer-* 2>/dev/null || echo 'No artifacts found'
