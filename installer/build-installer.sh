@@ -34,7 +34,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Building project..."
-cmake --build . --config Release
+cmake --build . --config Release --parallel 20
 if [ $? -ne 0 ]; then
     echo "Error: Build failed"
     exit 1
