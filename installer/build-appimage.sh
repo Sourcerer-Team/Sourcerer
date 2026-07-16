@@ -11,7 +11,7 @@ else
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 fi
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_ROOT/build/Release"
+BUILD_DIR="$PROJECT_ROOT/build/Release-Linux"
 APPDIR="$SCRIPT_DIR/Sourcerer.AppDir"
 OUTPUT_DIR="$SCRIPT_DIR"
 
@@ -43,12 +43,12 @@ echo "Copying libraries..."
 copy_lib_dependencies() {
     local lib_path="$1"
     local lib_name=$(basename "$lib_path")
-    
+
     # Skip if already copied
     if [ -f "$APPDIR/usr/lib/$lib_name" ]; then
         return
     fi
-    
+
     # List of system libraries to exclude (provided by base system)
     local exclude_libs=(
         "libc.so" "libm.so" "libdl.so" "libpthread.so" "librt.so"
@@ -56,17 +56,17 @@ copy_lib_dependencies() {
         "libX11.so" "libxcb.so" "libGL.so" "libGLX.so" "libEGL.so"
         "libdrm.so" "libudev.so" "libdbus-1.so" "libsystemd.so"
     )
-    
+
     # OpenSSL libraries should be bundled (not excluded)
     # libssl.so.3 and libcrypto.so.3 are needed for TLS support
-    
+
     # Check if library should be excluded
     for exclude in "${exclude_libs[@]}"; do
         if [[ "$lib_name" == $exclude* ]]; then
             return
         fi
     done
-    
+
     # Copy the library
     if [ -f "$lib_path" ] && [ ! -L "$lib_path" ]; then
         cp "$lib_path" "$APPDIR/usr/lib/"
@@ -80,7 +80,7 @@ copy_lib_dependencies() {
     else
         echo "Warning: Library $lib_path not found, skipping."
     fi
-    
+
     # Recursively copy dependencies
     if [ -f "$lib_path" ]; then
         ldd "$lib_path" 2>/dev/null | grep "=>" | awk '{print $3}' | while read dep; do
@@ -111,13 +111,13 @@ for base_path in "${QT_PLUGIN_PATHS[@]}"; do
     for qt_plugin_dir in $base_path; do
         if [ -d "$qt_plugin_dir" ]; then
             echo "Found Qt plugins at: $qt_plugin_dir"
-            
+
             # Copy necessary plugin categories
             for plugin_cat in platforms xcbglintegrations imageformats iconengines platformthemes tls; do
                 if [ -d "$qt_plugin_dir/$plugin_cat" ]; then
                     mkdir -p "$APPDIR/usr/lib/qt6/plugins/$plugin_cat"
                     cp -r "$qt_plugin_dir/$plugin_cat"/* "$APPDIR/usr/lib/qt6/plugins/$plugin_cat/" 2>/dev/null || true
-                    
+
                     # Copy plugin dependencies
                     find "$APPDIR/usr/lib/qt6/plugins/$plugin_cat" -name "*.so" | while read plugin; do
                         ldd "$plugin" 2>/dev/null | grep "=>" | awk '{print $3}' | while read lib; do
@@ -137,14 +137,14 @@ done
 echo "Copying QCA-Qt6 crypto plugins..."
 QCA_CRYPTO_PATHS=(
     "$BUILD_DIR/lib/qca-qt6/crypto"
-)   
+)
 
 for base_path in "${QCA_CRYPTO_PATHS[@]}"; do
     for crypto_dir in $base_path; do
         if [ -d "$crypto_dir" ]; then
             mkdir -p "$APPDIR/usr/bin/crypto"
             cp -r "$crypto_dir"/* "$APPDIR/usr/bin/crypto/" 2>/dev/null || true
-            
+
             # Copy dependencies of crypto plugins
             find "$APPDIR/usr/bin/crypto" -name "*.so" | while read plugin; do
                 ldd "$plugin" 2>/dev/null | grep "=>" | awk '{print $3}' | while read lib; do
@@ -300,17 +300,17 @@ if [ ! -f "$INTEGRATION_FLAG" ] && [ -z "$APPIMAGE_SILENT_INSTALL" ]; then
     if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
         # Create integration flag directory
         mkdir -p "$(dirname "$INTEGRATION_FLAG")"
-        
+
         # Check if zenity or kdialog is available for GUI prompts
         if command -v zenity &> /dev/null; then
             if zenity --question --title="Desktop Integration" \
                 --text="Would you like to integrate Sourcerer with your desktop?\n\nThis will:\n• Add Sourcerer to your application menu\n• Associate the application icon\n• Allow launching from the desktop\n\nYou can remove it later with:\n$APPIMAGE_NAME --unintegrate" \
                 --width=520 2>/dev/null; then
-                
+
                 # Create desktop file
                 DESKTOP_FILE="$HOME/.local/share/applications/sourcerer-$APPIMAGE_NAME.desktop"
                 mkdir -p "$HOME/.local/share/applications"
-                
+
                 cat > "$DESKTOP_FILE" << DESKTOP_EOF
 [Desktop Entry]
 Version=1.0
@@ -326,22 +326,22 @@ StartupWMClass=Sourcerer
 X-AppImage-Name=Sourcerer
 X-AppImage-Version=$(basename "$APPIMAGE_PATH" | sed -n 's/.*\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p' || echo "unknown")
 DESKTOP_EOF
-                
+
                 # Copy icon
                 mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"
                 if [ -f "$APPDIR/sourcerer.png" ]; then
                     cp "$APPDIR/sourcerer.png" "$HOME/.local/share/icons/hicolor/256x256/apps/sourcerer.png"
                 fi
-                
+
                 # Update desktop database
                 if command -v update-desktop-database &> /dev/null; then
                     update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
                 fi
-                
+
                 # Mark as integrated
                 echo "Integrated: $(date)" > "$INTEGRATION_FLAG"
                 echo "AppImage: $APPIMAGE" >> "$INTEGRATION_FLAG"
-                
+
                 zenity --info --title="Integration Complete" \
                     --text="Sourcerer has been added to your application menu!" \
                     --width=390 2>/dev/null || true
@@ -351,11 +351,11 @@ DESKTOP_EOF
             fi
         elif command -v kdialog &> /dev/null; then
             if kdialog --yesno "Would you like to integrate Sourcerer with your desktop?\n\nThis will add Sourcerer to your application menu.\n\nYou can remove it later with:\n$APPIMAGE_NAME --unintegrate" 2>/dev/null; then
-                
+
                 # Create desktop file (same as zenity case)
                 DESKTOP_FILE="$HOME/.local/share/applications/sourcerer-$APPIMAGE_NAME.desktop"
                 mkdir -p "$HOME/.local/share/applications"
-                
+
                 cat > "$DESKTOP_FILE" << DESKTOP_EOF
 [Desktop Entry]
 Version=1.0
@@ -371,22 +371,22 @@ StartupWMClass=Sourcerer
 X-AppImage-Name=Sourcerer
 X-AppImage-Version=$(basename "$APPIMAGE_PATH" | sed -n 's/.*\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p' || echo "unknown")
 DESKTOP_EOF
-                
+
                 # Copy icon
                 mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"
                 if [ -f "$APPDIR/sourcerer.png" ]; then
                     cp "$APPDIR/sourcerer.png" "$HOME/.local/share/icons/hicolor/256x256/apps/sourcerer.png"
                 fi
-                
+
                 # Update desktop database
                 if command -v update-desktop-database &> /dev/null; then
                     update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
                 fi
-                
+
                 # Mark as integrated
                 echo "Integrated: $(date)" > "$INTEGRATION_FLAG"
                 echo "AppImage: $APPIMAGE" >> "$INTEGRATION_FLAG"
-                
+
                 kdialog --msgbox "Sourcerer has been added to your application menu!" 2>/dev/null || true
             else
                 # User declined, don't ask again
@@ -403,7 +403,7 @@ fi
 if [ "$1" = "--integrate" ]; then
     DESKTOP_FILE="$HOME/.local/share/applications/sourcerer-$APPIMAGE_NAME.desktop"
     mkdir -p "$HOME/.local/share/applications"
-    
+
     cat > "$DESKTOP_FILE" << DESKTOP_EOF
 [Desktop Entry]
 Version=1.0
@@ -419,23 +419,23 @@ StartupWMClass=Sourcerer
 X-AppImage-Name=Sourcerer
 X-AppImage-Version=$(basename "$APPIMAGE_PATH" | sed -n 's/.*\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/p' || echo "unknown")
 DESKTOP_EOF
-    
+
     # Copy icon
     mkdir -p "$HOME/.local/share/icons/hicolor/256x256/apps"
     if [ -f "$APPDIR/sourcerer.png" ]; then
         cp "$APPDIR/sourcerer.png" "$HOME/.local/share/icons/hicolor/256x256/apps/sourcerer.png"
     fi
-    
+
     # Update desktop database
     if command -v update-desktop-database &> /dev/null; then
         update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
     fi
-    
+
     # Mark as integrated
     mkdir -p "$(dirname "$INTEGRATION_FLAG")"
     echo "Integrated: $(date)" > "$INTEGRATION_FLAG"
     echo "AppImage: $APPIMAGE" >> "$INTEGRATION_FLAG"
-    
+
     echo "Desktop integration complete!"
     echo "Sourcerer has been added to your application menu."
     exit 0
@@ -443,22 +443,22 @@ fi
 
 if [ "$1" = "--unintegrate" ]; then
     DESKTOP_FILE="$HOME/.local/share/applications/sourcerer-$APPIMAGE_NAME.desktop"
-    
+
     if [ -f "$DESKTOP_FILE" ]; then
         rm "$DESKTOP_FILE"
         echo "Removed: $DESKTOP_FILE"
     fi
-    
+
     # Remove integration flag
     if [ -f "$INTEGRATION_FLAG" ]; then
         rm "$INTEGRATION_FLAG"
     fi
-    
+
     # Update desktop database
     if command -v update-desktop-database &> /dev/null; then
         update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
     fi
-    
+
     echo "Desktop integration removed."
     echo "You can re-integrate with: $APPIMAGE_NAME --integrate"
     exit 0
