@@ -5,7 +5,7 @@ setlocal enabledelayedexpansion
 
 REM Set paths
 set "PROJECT_ROOT=%~dp0.."
-set "BUILD_DIR=%PROJECT_ROOT%\build\Release"
+set "BUILD_DIR=%PROJECT_ROOT%\build\Release-Windows"
 set "INSTALLER_DIR=%~dp0"
 set "WXS_FILE=%INSTALLER_DIR%Sourcerer.wxs"
 
@@ -48,7 +48,7 @@ if not defined CANDLE_PATH (
         echo Please install WiX Toolset v3.11 or later from https://wixtoolset.org/
         exit /b 1
     )
-    
+
     set "CANDLE_PATH=!WIX_DIR!\bin\candle.exe"
     set "LIGHT_PATH=!WIX_DIR!\bin\light.exe"
 ) else (
@@ -66,8 +66,8 @@ echo [DEBUG] Light:  "!LIGHT_PATH!"
 REM Verify required files and directories exist
 echo.
 echo Checking required files and directories...
-if not exist "%PROJECT_ROOT%\build\Release\Sourcerer.exe" (
-    echo Error: Sourcerer.exe not found at "%PROJECT_ROOT%\build\Release\Sourcerer.exe"
+if not exist "%PROJECT_ROOT%\build\Release-Windows\Sourcerer.exe" (
+    echo Error: Sourcerer.exe not found at "%PROJECT_ROOT%\build\Release-Windows\Sourcerer.exe"
     echo Please build the Sourcerer project first
     exit /b 1
 )
@@ -186,7 +186,7 @@ echo [DEBUG] Running candle: "!CANDLE_PATH!" -out "!WXO_FILE!" -d"SourcererBinPa
 
 "!CANDLE_PATH!" ^
     -out "!WXO_FILE!" ^
-    -d"SourcererBinPath=%PROJECT_ROOT%\build\Release" ^
+    -d"SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows" ^
     -d"MSYS2BinPath=!MSYS2_BIN_PATH!" ^
     -d"QtMinGWBinPath=!QT_MINGW_BIN_PATH!" ^
     -d"LicenseRtfPath=%BUILD_DIR%\LICENSE.rtf" ^
@@ -240,10 +240,10 @@ if not defined WINDEPLOYQT (
 )
 
 echo Found windeployqt: "%WINDEPLOYQT%"
-echo Deploying to: "%PROJECT_ROOT%\build\Release"
+echo Deploying to: "%PROJECT_ROOT%\build\Release-Windows"
 
 REM Deploy with OpenSSL support (force OpenSSL to be included)
-"%WINDEPLOYQT%" --release --no-translations --openssl-root "C:\tools\msys64\mingw64" "%PROJECT_ROOT%\build\Release\Sourcerer.exe"
+"%WINDEPLOYQT%" --release --no-translations --openssl-root "C:\tools\msys64\mingw64" "%PROJECT_ROOT%\build\Release-Windows\Sourcerer.exe"
 if errorlevel 1 (
     echo Warning: windeployqt returned an error, but continuing...
 )
