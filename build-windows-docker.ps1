@@ -98,8 +98,8 @@ docker run --cpus 20 --memory 16g --rm `
     Write-Host 'Building Sourcerer project...' -ForegroundColor Blue
 
     # Create build directory if it doesn't exist
-    if (-not (Test-Path 'C:\workspace\build\Release')) {
-        New-Item -ItemType Directory -Path 'C:\workspace\build\Release' -Force | Out-Null
+    if (-not (Test-Path 'C:\workspace\build\Release-Windows')) {
+        New-Item -ItemType Directory -Path 'C:\workspace\build\Release-Windows' -Force | Out-Null
     }
 
     # Set environment variables for CMake build
@@ -137,7 +137,7 @@ docker run --cpus 20 --memory 16g --rm `
         exit 1
     }
 
-    & `$msys2Bash -lc 'export PATH=/c/tools/msys64/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin && cd /c/workspace/build/Release && cmake ../../src -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM=/mingw64/bin/ninja -Wno-dev && ninja -j20'
+    & `$msys2Bash -lc 'export PATH=/c/tools/msys64/mingw64/bin:/usr/local/bin:/usr/bin:/bin:/mingw64/bin && cd /c/workspace/build/Release-Windows && cmake ../../src -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_MAKE_PROGRAM=/mingw64/bin/ninja -Wno-dev && ninja -j20'
 
     if (`$LASTEXITCODE -ne 0) {
         Write-Host 'Project build failed' -ForegroundColor Red
@@ -157,7 +157,7 @@ docker run --cpus 20 --memory 16g --rm `
     )
     foreach (`$dll in `$msys2RuntimeDlls) {
         if (Test-Path `$dll) {
-            Copy-Item `$dll 'C:\workspace\build\Release\' -Force
+            Copy-Item `$dll 'C:\workspace\build\Release-Windows\' -Force
             Write-Host "  Copied $(Split-Path `$dll -Leaf)" -ForegroundColor Gray
         }
     }
@@ -181,7 +181,7 @@ docker run --cpus 20 --memory 16g --rm `
         }
     } else {
         foreach (`$dll in `$openssl_dlls) {
-            Copy-Item `$dll.FullName 'C:\workspace\build\Release\' -Force
+            Copy-Item `$dll.FullName 'C:\workspace\build\Release-Windows\' -Force
             Write-Host "  Copied $($dll.Name)" -ForegroundColor Gray
         }
     }
@@ -189,24 +189,24 @@ docker run --cpus 20 --memory 16g --rm `
     # Copy Qt libraries if they exist in mingw64/bin
     Write-Host 'Copying Qt libraries...' -ForegroundColor Blue
     Get-ChildItem `$openssl_bin -Filter 'Qt6*.dll' -ErrorAction SilentlyContinue | ForEach-Object {
-        Copy-Item `$_.FullName 'C:\workspace\build\Release\' -Force
+        Copy-Item `$_.FullName 'C:\workspace\build\Release-Windows\' -Force
         Write-Host "  Copied $($_.Name)" -ForegroundColor Gray
     }
 
     # Copy libzip and libgit2 libraries
     Write-Host 'Copying dependency libraries...' -ForegroundColor Blue
     Get-ChildItem `$openssl_bin -Filter 'libzip*.dll' -ErrorAction SilentlyContinue | ForEach-Object {
-        Copy-Item `$_.FullName 'C:\workspace\build\Release\' -Force
+        Copy-Item `$_.FullName 'C:\workspace\build\Release-Windows\' -Force
         Write-Host "  Copied $($_.Name)" -ForegroundColor Gray
     }
     Get-ChildItem `$openssl_bin -Filter 'libgit2*.dll' -ErrorAction SilentlyContinue | ForEach-Object {
-        Copy-Item `$_.FullName 'C:\workspace\build\Release\' -Force
+        Copy-Item `$_.FullName 'C:\workspace\build\Release-Windows\' -Force
         Write-Host "  Copied $($_.Name)" -ForegroundColor Gray
     }
 
     # List what was actually copied to Release directory
     Write-Host 'DLL files in Release directory:' -ForegroundColor Blue
-    Get-ChildItem 'C:\workspace\build\Release\' -Filter '*.dll' -ErrorAction SilentlyContinue | ForEach-Object {
+    Get-ChildItem 'C:\workspace\build\Release-Windows\' -Filter '*.dll' -ErrorAction SilentlyContinue | ForEach-Object {
         Write-Host "  - $($_.Name)" -ForegroundColor Gray
     }
 
