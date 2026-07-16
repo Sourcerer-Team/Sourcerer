@@ -380,9 +380,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   pullFetchDropdown->setIcon(
       StylesheetManager::StylesheetManager::recolorPixmap(
           QPixmap(":icons/pull"), shortcutIconColor));
+  pullFetchDropdown->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  pullFetchDropdown->setIconSize(QSize(18, 18));
+  pullFetchDropdown->setAttribute(Qt::WA_StyledBackground, true);
   pullFetchDropdown->setToolTip(tr("Pull"));
-  pullFetchDropdown->setMinimumSize(58, 42);
-  pullFetchDropdown->setMaximumSize(58, 42);
+  pullFetchDropdown->setMinimumSize(42, 42);
+  pullFetchDropdown->setMaximumSize(42, 42);
   pullFetchDropdown->setPopupMode(QToolButton::MenuButtonPopup);
 
   auto *pullFetchMenu = new QMenu();
@@ -410,9 +413,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   pushButtonPush->setProperty("iconSource", QStringLiteral(":icons/push"));
   pushButtonPush->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
       QPixmap(":icons/push"), shortcutIconColor));
+  pushButtonPush->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  pushButtonPush->setIconSize(QSize(18, 18));
+  pushButtonPush->setAttribute(Qt::WA_StyledBackground, true);
   pushButtonPush->setToolTip(tr("Push"));
-  pushButtonPush->setMinimumSize(58, 42);
-  pushButtonPush->setMaximumSize(58, 42);
+  pushButtonPush->setMinimumSize(42, 42);
+  pushButtonPush->setMaximumSize(42, 42);
   pushButtonPush->setPopupMode(QToolButton::MenuButtonPopup);
 
   auto *pushMenu = new QMenu();
@@ -433,6 +439,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   pushButtonPop->setToolTip(tr("Pop"));
   pushButtonPop->setMinimumSize(42, 42);
   pushButtonPop->setMaximumSize(42, 42);
+  pushButtonPop->setAttribute(Qt::WA_StyledBackground, true);
+
 
   auto *pushButtonStash = new QPushButton();
   pushButtonStash->setObjectName("pushButtonStash");
@@ -442,6 +450,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   pushButtonStash->setToolTip(tr("Stash"));
   pushButtonStash->setMinimumSize(42, 42);
   pushButtonStash->setMaximumSize(42, 42);
+  pushButtonStash->setAttribute(Qt::WA_StyledBackground, true);
+
 
   _shortcutsWidget->addShortcutWidget(pullFetchDropdown);
   _shortcutsWidget->addShortcutWidget(pushButtonPush);
