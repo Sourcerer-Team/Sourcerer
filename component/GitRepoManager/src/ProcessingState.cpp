@@ -528,11 +528,12 @@ void ProcessingState::abortMergeWorker(
 
   const bool success = GitRepo::abortMerge(repo);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerAbortMergeError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -568,11 +569,12 @@ void ProcessingState::addSubmoduleWorker(
   const bool success = GitRepo::addSubmodule(repo, command.url, command.name,
                                              command.branch, command.uuid);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerAddSubmoduleError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -608,10 +610,11 @@ void ProcessingState::amendWorker(const Structs::GitRepoAmendCommand &command) {
       GitRepo::amend(repo, command.summary, command.message, command.author,
                      command.email, command.signoff, command.signCommit);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerAmendError, command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -644,11 +647,12 @@ void ProcessingState::applyPatchWorker(
 
   if (const bool success = GitRepo::applyPatch(repo, command.patchContent);
       !success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerApplyPatchError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -682,11 +686,12 @@ void ProcessingState::applyStashWorker(
   }
 
   if (const bool success = GitRepo::applyStash(repo, command.index); !success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerApplyStashError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     // Check if there are conflicts after stash apply
@@ -740,11 +745,12 @@ void ProcessingState::checkoutBranchWorker(
   const bool success =
       GitRepo::checkoutBranch(repo, command.branchName, command.branchType);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerCheckoutBranchError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     LOG_DEBUG("Sending checkout error event for branch: '{}'",
               command.branchName.toStdString());
     _eventManager.send(errorEvent);
@@ -789,11 +795,12 @@ void ProcessingState::checkoutCommitWorker(
 
   if (const bool success = GitRepo::checkoutCommit(repo, command.commit);
       !success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerCheckoutCommitError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -821,11 +828,12 @@ void ProcessingState::cloneRepoWorker(const GitRepoCloneCommand &command) {
   const bool success = GitRepo::cloneRepository(
       command.url, command.destinationDir, command.uuid);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerCloneRepoError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -901,11 +909,12 @@ void ProcessingState::commitStagedWorker(
       repo, command.summary, command.message, command.author, command.email,
       command.cleanup, command.signoff, command.signCommit);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerCommitStagedError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -942,11 +951,12 @@ void ProcessingState::createBranchFromCommitWorker(
   const bool success =
       GitRepo::createBranchFromCommit(repo, command.commit, command.branchName);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerCreateBranchFromCommitError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -983,11 +993,12 @@ void ProcessingState::createPatchFromCommitWorker(
   const QString patchContent =
       GitRepo::createPatchFromCommit(repo, command.commit);
   if (patchContent.isEmpty()) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerCreatePatchFromCommitError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     GitRepoCreatePatchFromCommitCommandResult result;
@@ -1027,11 +1038,12 @@ void ProcessingState::createTagFromCommitWorker(
       repo, command.commit, command.tagName, command.author, command.email,
       command.message);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerCreateTagFromCommitError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1068,11 +1080,12 @@ void ProcessingState::addTargetWorker(
       GitRepo::addTarget(repo, command.remoteName, command.targetName,
                          command.fetchUrl, command.pushUrl);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerAddTargetError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1109,11 +1122,12 @@ void ProcessingState::editTargetWorker(
       GitRepo::editTarget(repo, command.remoteName, command.targetName,
                           command.newFetchUrl, command.newPushUrl);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerEditTargetError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1149,11 +1163,12 @@ void ProcessingState::deleteTargetWorker(
   const bool success =
       GitRepo::deleteTarget(repo, command.remoteName, command.targetName);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDeleteTargetError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1189,11 +1204,12 @@ void ProcessingState::setDefaultTargetWorker(
   const bool success =
       GitRepo::setDefaultTarget(repo, command.remoteName, command.targetName);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerSetDefaultTargetError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1318,11 +1334,12 @@ void ProcessingState::deleteBranchWorker(
 
   if (const bool success = GitRepo::deleteBranch(repo, command.branchName);
       !success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDeleteBranchError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1358,11 +1375,12 @@ void ProcessingState::deleteRemoteBranchWorker(
   if (const bool success =
           GitRepo::deleteRemoteBranch(repo, command.branchName);
       !success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDeleteRemoteBranchError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1397,11 +1415,12 @@ void ProcessingState::deleteStashWorker(
 
   if (const bool success = GitRepo::deleteStash(repo, command.index);
       !success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDeleteStashError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1435,11 +1454,12 @@ void ProcessingState::deleteAllStashesWorker(
   }
 
   if (const bool success = GitRepo::deleteAllStashes(repo); !success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDeleteAllStashesError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1475,11 +1495,12 @@ void ProcessingState::deleteSubmoduleWorker(
   const bool success = GitRepo::deleteSubmodule(repo, command.submoduleName,
                                                 command.submodulePath);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDeleteSubmoduleError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1514,11 +1535,12 @@ void ProcessingState::deleteTagWorker(
 
   if (const bool success = GitRepo::deleteTag(repo, command.tagName);
       !success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDeleteTagError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1553,11 +1575,12 @@ void ProcessingState::deleteRemoteTagWorker(
 
   if (const bool success = GitRepo::deleteRemoteTag(repo, command.tagName);
       !success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDeleteRemoteTagError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1593,11 +1616,12 @@ void ProcessingState::diffFilesWorker(
   const GitRepo::FilesDiff filesDiff = GitRepo::diffFiles(repo, command.files);
 
   if (!filesDiff.valid) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDiffFilesError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     GitRepoDiffFilesCommandResult commandResult;
@@ -1640,11 +1664,12 @@ void ProcessingState::diffFilesFromCommitWorker(
       GitRepo::diffFilesFromCommit(repo, command.files, command.commit);
 
   if (!filesDiff.valid) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDiffFilesFromCommitError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     GitRepoDiffFilesFromCommitCommandResult commandResult;
@@ -1685,11 +1710,12 @@ void ProcessingState::discardFilesWorker(
 
   if (const bool success = GitRepo::discardFiles(repo, command.files);
       !success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerDiscardFilesError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1766,10 +1792,11 @@ void ProcessingState::fetchAllWorker(
 
   const bool success = GitRepo::fetchAll(repo);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerFetchAllError, command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1804,11 +1831,12 @@ void ProcessingState::fetchRemoteWorker(
 
   const bool success = GitRepo::fetchRemote(repo, command.remoteName);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerFetchRemoteError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1845,10 +1873,11 @@ void ProcessingState::rebaseWorker(
                                                command.destinationBranch,
                                                command.author, command.email);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerRebaseError, command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -1942,11 +1971,12 @@ void ProcessingState::getFileSizeFromCommitWorker(
       GitRepo::getFileSizeFromCommit(repo, command.filePath, command.commit);
 
   if (fileSize < 0) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerGetFileSizeFromCommitError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     GitRepoGetFileSizeFromCommitCommandResult commandResult;
@@ -2040,11 +2070,12 @@ void ProcessingState::getCommitBranchesWorker(
     resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
     _eventManager.send(resultEvent);
   } else if (branches.isEmpty()) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerGetCommitBranchesError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -2088,11 +2119,12 @@ void ProcessingState::getCommitHeadsWorker(
     resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
     _eventManager.send(resultEvent);
   } else if (branches.isEmpty()) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerGetCommitHeadsError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -2169,11 +2201,12 @@ void ProcessingState::getCommitStatusWorker(
   if (const auto commitStatus =
           GitRepo::getCommitStatus(repo, command.commitOid);
       commitStatus.commit.isEmpty()) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerGetCommitStatusError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -2208,11 +2241,12 @@ void ProcessingState::getStashStatusWorker(
 
   if (const auto stashStatus = GitRepo::getStashStatus(repo, command.index);
       stashStatus.commit.isEmpty()) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerGetStashStatusError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -2296,11 +2330,12 @@ void ProcessingState::getBranchHistoryWorker(
     resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
     _eventManager.send(resultEvent);
   } else if (!history.valid) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerGetBranchHistoryError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -2335,11 +2370,12 @@ void ProcessingState::getSubmodulePathWorker(
 
   const auto path = GitRepo::getSubmodulePath(repo, command.submoduleName);
   if (path.isEmpty()) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerGetSubmodulePathError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     GitRepoGetSubmodulePathCommandResult result;
@@ -2378,11 +2414,12 @@ void ProcessingState::getUpstreamWorker(
   const auto &[success, remoteName, remoteBranchName] =
       GitRepo::getUpstream(repo, command.localBranchName);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerGetUpstreamError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     GitRepoGetUpstreamCommandResult result;
@@ -2415,10 +2452,11 @@ void ProcessingState::initRepoWorker(
   const bool success = GitRepo::initRepository(
       command.repoName, command.workingDir, command.defaultBranch);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerInitRepoError, command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     const QString repoPath = command.workingDir + "/" + command.repoName;
@@ -3347,10 +3385,11 @@ void ProcessingState::pullWorker(const Structs::GitRepoPullCommand &command) {
   const bool success =
       GitRepo::pull(repo, command.activeBranchName, command.rebase);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerPullError, command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3384,10 +3423,11 @@ void ProcessingState::pushWorker(const Structs::GitRepoPushCommand &command) {
   const bool success =
       GitRepo::push(repo, command.activeBranchName, command.force);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerPushError, command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3421,10 +3461,11 @@ void ProcessingState::pushTagWorker(
 
   const bool success = GitRepo::pushTag(repo, command.tagName);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerPushTagError, command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3458,11 +3499,12 @@ void ProcessingState::pushAllTagsWorker(
 
   const bool success = GitRepo::pushAllTags(repo);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerPushAllTagsError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3498,11 +3540,12 @@ void ProcessingState::renameBranchWorker(
   const bool success =
       GitRepo::renameBranch(repo, command.oldBranchName, command.newBranchName);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerRenameBranchError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3538,11 +3581,12 @@ void ProcessingState::renameTagWorker(
   const bool success =
       GitRepo::renameTag(repo, command.oldTagName, command.newTagName);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerRenameTagError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3577,10 +3621,11 @@ void ProcessingState::resetWorker(const Structs::GitRepoResetCommand &command) {
   const bool success =
       GitRepo::resetToCommit(repo, command.commit, command.resetType);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerResetError, command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3615,10 +3660,11 @@ void ProcessingState::revertWorker(
   const bool success = GitRepo::revertCommit(
       repo, command.commit, command.author, command.email, command.message);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerRevertError, command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3653,11 +3699,12 @@ void ProcessingState::cherryPickWorker(
   const bool success = GitRepo::cherryPickCommit(repo, command.commit,
                                                  command.author, command.email);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerCherryPickError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3713,11 +3760,12 @@ void ProcessingState::setUpstreamWorker(
       GitRepo::setUpstream(repo, command.remoteName, command.remoteBranchName,
                            command.localBranchName);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerSetUpstreamError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3752,11 +3800,12 @@ void ProcessingState::stageFilesWorker(
 
   const bool success = GitRepo::stageFiles(repo, command.files);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerStageFilesError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3790,10 +3839,11 @@ void ProcessingState::stashWorker(const Structs::GitRepoStashCommand &command) {
 
   const bool success = GitRepo::stash(repo);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerStashError, command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3864,11 +3914,12 @@ void ProcessingState::submoduleUpdateWorker(
 
   const bool success = GitRepo::updateSubmodule(repo, command.submoduleName);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerSubmoduleUpdateError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3903,11 +3954,12 @@ void ProcessingState::unstageFilesWorker(
 
   const bool success = GitRepo::unstageFiles(repo, command.files);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerUnstageFilesError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -3975,11 +4027,12 @@ void ProcessingState::addRemoteWorker(
   const bool success = GitRepo::addRemote(repo, command.remoteName,
                                           command.fetchUrl, command.pushUrl);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerAddRemoteError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -4014,11 +4067,12 @@ void ProcessingState::removeRemoteWorker(
 
   const bool success = GitRepo::removeRemote(repo, command.remoteName);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerRemoveRemoteError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -4055,11 +4109,12 @@ void ProcessingState::updateRemoteWorker(
       GitRepo::updateRemote(repo, command.remoteName, command.newRemoteName,
                             command.fetchUrl, command.pushUrl);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerUpdateRemoteError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -4094,11 +4149,12 @@ void ProcessingState::setDefaultRemoteWorker(
 
   const bool success = GitRepo::setDefaultRemote(repo, command.remoteName);
   if (!success) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerSetDefaultRemoteError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
@@ -4459,11 +4515,12 @@ void ProcessingState::getCommitTagsWorker(
     resultEvent.addData(GitRepoError{command.uuid, QString(), -1});
     _eventManager.send(resultEvent);
   } else if (tags.isEmpty()) {
-    const auto [errorCode, errorMessage] = GitRepo::getLastError();
+    const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
         EventManager::EventType::GitRepoManagerGetCommitTagsError,
         command.syncUuid);
-    errorEvent.addData(GitRepoError{command.uuid, errorMessage, errorCode});
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
     EventManager::Event resultEvent(
