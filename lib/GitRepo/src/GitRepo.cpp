@@ -50,6 +50,7 @@
 #include <openssl/pem.h>
 #include <openssl/x509.h>
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -84,7 +85,7 @@ Util::Mutex gGitCredentialsMutex;
 QMap<QString, GitPlaintextCredentials> gGitCredentials;
 
 Util::Mutex gErrorMutex;
-QMap<std::thread::id, GitError> gErrorMap;
+QMap<std::thread::id, GitErrorContext> gErrorMap;
 
 static QString capitalizeFirst(const QString &str) {
   QString capitalized = str;
@@ -518,26 +519,1372 @@ static int commitSigningCallback(git_commitbuilder *builder,
   return 0;
 }
 
-static void setLastError(const int errorCode, const QString &message) {
-  LOCKGUARD(gErrorMutex);
-  gErrorMap[std::this_thread::get_id()] = {errorCode, message};
+static int encodeLibgitError(const int error, const int klass) {
+  return (klass & 0x00ff) << 16 | (error & 0xffff);
 }
 
-static void logGitError(const int error) {
-  const git_error *gitError = git_error_last();
-  if (!gitError || !gitError->message)
-    return;
-
-  {
-    LOCKGUARD(gErrorMutex);
-    gErrorMap[std::this_thread::get_id()] = {
-        (gitError->klass & 0x00ff) << 16 | (error & 0xffff),
-        capitalizeFirst(gitError->message)};
+static QString gitErrorName(const GitError errorType) {
+  switch (errorType) {
+  case GitError::Unknown:
+    return QCoreApplication::translate("GitRepoError",
+                                       "An unknown Git error occurred.");
+  case GitError::MarkConflictedFilesFailedToGetRepositoryIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository index while marking conflicted files.");
+  case GitError::MarkConflictedFilesFailedToCreateAncestorBlobFromWorkdir:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create ancestor blob from workdir while "
+                        "marking conflicted files.");
+  case GitError::MarkConflictedFilesFailedToCreateOursBlobFromWorkdir:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create ours blob from workdir while "
+                        "marking conflicted files.");
+  case GitError::MarkConflictedFilesFailedToCreateTheirsBlobFromWorkdir:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create theirs blob from workdir while "
+                        "marking conflicted files.");
+  case GitError::MarkConflictedFilesFailedToAddConflictToIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to add conflict to index while marking conflicted files.");
+  case GitError::MarkConflictedFilesFailedToWriteIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to write index while marking conflicted files.");
+  case GitError::
+      CollectConflictedFilePathsFromResultIndexFailedToGetRepositoryHead:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to get repository head while collecting "
+                        "conflicted file paths from the result index.");
+  case GitError::CollectConflictedFilePathsFailedToPeelHeadToCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to peel head to commit while collecting "
+                        "conflicted file paths.");
+  case GitError::CollectConflictedFilePathsFromResultIndexFailedToGetCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to get commit tree while collecting "
+                        "conflicted file paths from the result index.");
+  case GitError::
+      CollectConflictedFilePathsFromResultIndexFailedToDiffTreeAgainstIndex:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to diff tree against index while collecting "
+                        "conflicted file paths from the result index.");
+  case GitError::
+      CollectConflictedFilePathsFromResultIndexFailedToCreateConflictIterator:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create conflict iterator while collecting "
+                        "conflicted file paths from the result index.");
+  case GitError::CreateInitialCommitFailedToGetDefaultSignature:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get default signature while creating the initial commit.");
+  case GitError::CreateInitialCommitFailedToGetRepositoryIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository index while creating the initial commit.");
+  case GitError::CreateInitialCommitFailedToWriteIndexTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to write index tree while creating the initial commit.");
+  case GitError::CreateInitialCommitFailedToLookupTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup tree while creating the initial commit.");
+  case GitError::CreateInitialCommitFailedToCreateCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create commit while creating the initial commit.");
+  case GitError::CreateInitialCommitFailedToCreateBranchIterator:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create branch iterator while creating the initial commit.");
+  case GitError::CreateInitialCommitFailedToReadNextBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to read next branch while creating the initial commit.");
+  case GitError::CreateInitialCommitFailedToReadBranchName:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to read branch name while creating the initial commit.");
+  case GitError::CreateInitialCommitFailedToRenameBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to rename branch while creating the initial commit.");
+  case GitError::CreateInitialCommitWithoutStagingFailedToGetDefaultSignature:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to get default signature while creating the "
+                        "initial commit without staging.");
+  case GitError::CreateInitialCommitWithoutStagingFailedToCreateTreeBuilder:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create tree builder while creating the "
+                        "initial commit without staging.");
+  case GitError::CreateInitialCommitWithoutStagingFailedToWriteTreeBuilder:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to write tree builder while creating the "
+                        "initial commit without staging.");
+  case GitError::CreateInitialCommitWithoutStagingFailedToLookupTree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup tree while creating the initial "
+                        "commit without staging.");
+  case GitError::CreateInitialCommitWithoutStagingFailedToCreateCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create commit while creating the initial "
+                        "commit without staging.");
+  case GitError::GetLastCommitFailedToResolveReferenceNameToId:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to resolve reference name to id while "
+                        "getting the last commit.");
+  case GitError::GetLastCommitFailedToLookupCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup commit while getting the last commit.");
+  case GitError::ApplyStashFailedToApplyStash:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to apply stash while applying the stash.");
+  case GitError::ApplyStashFailedToDiffIndexAgainstWorkdir:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to diff index against workdir while applying the stash.");
+  case GitError::HasConflictsFailedToGetRepositoryIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository index while checking for conflicts.");
+  case GitError::CheckoutBranchFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup branch while checking out the branch.");
+  case GitError::CheckoutBranchFailedToPeelLocalBranchToCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to peel local branch to commit while checking out the branch.");
+  case GitError::CheckoutBranchFailedToGetCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get commit tree while checking out the branch.");
+  case GitError::CheckoutBranchFailedToCheckoutLocalBranchTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to checkout local branch tree while checking out the branch.");
+  case GitError::CheckoutBranchFailedToGetReferenceName:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get reference name while checking out the branch.");
+  case GitError::CheckoutBranchFailedToLookupReference:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup reference while checking out the branch.");
+  case GitError::CheckoutBranchFailedToPeelRemoteBranchToCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to peel remote branch to commit while "
+                        "checking out the branch.");
+  case GitError::CheckoutBranchFailedToLookupDestinationBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup destination branch while checking out the branch.");
+  case GitError::CheckoutBranchFailedToCreateLocalBranchFromRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create local branch from remote while "
+                        "checking out the branch.");
+  case GitError::CheckoutBranchFailedToSetBranchUpstream:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to set branch upstream while checking out the branch.");
+  case GitError::CheckoutBranchFailedToGetSecondCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get second commit tree while checking out the branch.");
+  case GitError::CheckoutBranchFailedToCheckoutTagTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to checkout tag tree while checking out the branch.");
+  case GitError::CheckoutBranchFailedToSetHeadToTagReference:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to set head to tag reference while checking out the branch.");
+  case GitError::CheckoutBranchFailedToResolveRevision:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to resolve revision while checking out the branch.");
+  case GitError::CheckoutBranchFailedToCheckoutTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to checkout tree while checking out the branch.");
+  case GitError::CheckoutBranchFailedToSetHeadDetachedAtTag:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to set head detached at tag while checking out the branch.");
+  case GitError::OpenRepositoryFailedToOpenRepository:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to open repository while opening the repository.");
+  case GitError::ListCheckoutBranchesFailedToCreateBranchIterator:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create branch iterator while listing checkout branches.");
+  case GitError::ListCheckoutBranchesFailedToReadNextBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to read next branch while listing checkout branches.");
+  case GitError::ListCheckoutBranchesFailedToReadBranchName:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to read branch name while listing checkout branches.");
+  case GitError::ListCheckoutBranchesFailedToCheckIfBranchIsCheckedOut:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to check if branch is checked out while "
+                        "listing checkout branches.");
+  case GitError::ListCheckoutBranchesFailedToGetRepositoryHead:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository head while listing checkout branches.");
+  case GitError::ListCheckoutBranchesFailedToListTags:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to list tags while listing checkout branches.");
+  case GitError::ListCheckoutBranchesFailedToResolveRevision:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to resolve revision while listing checkout branches.");
+  case GitError::ListBranchesFailedToGetRepositoryHead:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository head while listing branches.");
+  case GitError::ListBranchesFailedToCreateBranchIterator:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create branch iterator while listing branches.");
+  case GitError::ListBranchesFailedToReadNextBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read next branch while listing branches.");
+  case GitError::ListBranchesFailedToReadBranchName:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read branch name while listing branches.");
+  case GitError::ListRemoteBranchesWithStatusFailedToCalculateAheadBehind:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to calculate ahead behind while listing "
+                        "remote branches with status.");
+  case GitError::ListStashesFailedToListStashes:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to list stashes while listing stashes.");
+  case GitError::GetStashStatusFailedToResolveRevision:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to resolve revision while getting stash status.");
+  case GitError::GetStashStatusFailedToPeelObjectToCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to peel object to commit while getting stash status.");
+  case GitError::GetStashStatusFailedToGetCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get commit tree while getting stash status.");
+  case GitError::GetStashStatusFailedToGetBaseParentCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get base parent commit while getting stash status.");
+  case GitError::GetStashStatusFailedToGetSecondCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get second commit tree while getting stash status.");
+  case GitError::GetStashStatusFailedToGetThirdCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get third commit tree while getting stash status.");
+  case GitError::GetStashStatusFailedToGetFourthCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get fourth commit tree while getting stash status.");
+  case GitError::GetStashStatusFailedToCreateStashDiff:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create stash diff while getting stash status.");
+  case GitError::GetStashStatusFailedToWalkUntrackedStashTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to walk untracked stash tree while getting stash status.");
+  case GitError::ListTagsFailedToListTags:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to list tags while listing tags.");
+  case GitError::ListSubmodulesFailedToIterateSubmodules:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to iterate submodules while listing submodules.");
+  case GitError::CreateBranchFromCommitFailedToParseObjectId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to parse object id while creating a branch from a commit.");
+  case GitError::CreateBranchFromCommitFailedToLookupCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup commit while creating a branch from a commit.");
+  case GitError::CreateBranchFromCommitFailedToCreateBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create branch while creating a branch from a commit.");
+  case GitError::DeleteStashFailedToDropStash:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to drop stash while delete stash.");
+  case GitError::DeleteAllStashesFailedToReadObjectId:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read object id while deleting all stashes.");
+  case GitError::DeleteAllStashesFailedToDropStash:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to drop stash while deleting all stashes.");
+  case GitError::InitRepositoryFailedToInitializeRepositoryOptions:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to initialize repository options while "
+                        "initializing the repository.");
+  case GitError::InitRepositoryFailedToInitializeRepository:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to initialize repository while initializing the repository.");
+  case GitError::CredentialsAcquireCallbackFailedToCreatePlaintextCredentials:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create plaintext credentials while acquiring credentials.");
+  case GitError::CheckoutCommitFailedToParseObjectId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to parse object id while checking out the commit.");
+  case GitError::CheckoutCommitFailedToLookupCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup commit while checking out the commit.");
+  case GitError::CheckoutCommitFailedToGetCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get commit tree while checking out the commit.");
+  case GitError::CheckoutCommitFailedToCheckoutCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to checkout commit tree while checking out the commit.");
+  case GitError::CheckoutCommitFailedToDetachHead:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to detach head while checking out the commit.");
+  case GitError::CloneRepositoryFailedToCloneRepository:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to clone repository while cloning the repository.");
+  case GitError::GetBranchHistoryFailedToCreateRevwalk:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create revwalk while getting branch history.");
+  case GitError::GetBranchHistoryFailedToConfigureRevwalkSorting:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to configure revwalk sorting while getting branch history.");
+  case GitError::GetBranchHistoryFailedToCreateBranchIterator:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create branch iterator while getting branch history.");
+  case GitError::GetBranchHistoryFailedToReadBranchName:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to read branch name while getting branch history.");
+  case GitError::GetBranchHistoryFailedToAddReferenceToRevwalk:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to add reference to revwalk while getting branch history.");
+  case GitError::GetBranchHistoryFailedToAddLocalBranchToRevwalk:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to add local branch to revwalk while getting branch history.");
+  case GitError::GetBranchHistoryFailedToAddRemoteBranchToRevwalk:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to add remote branch to revwalk while getting branch history.");
+  case GitError::GetBranchHistoryFailedToAddTagToRevwalk:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to add tag to revwalk while getting branch history.");
+  case GitError::GetBranchHistoryFailedToLookupCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup commit while getting branch history.");
+  case GitError::GetCommitBranchesFailedToCreateBranchIterator:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create branch iterator while getting commit branches.");
+  case GitError::GetCommitBranchesFailedToReadBranchName:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to read branch name while getting commit branches.");
+  case GitError::GetCommitBranchesFailedToResolveReference:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to resolve reference while getting commit branches.");
+  case GitError::GetCommitBranchesFailedToPeelReference:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to peel reference while getting commit branches.");
+  case GitError::GetCommitBranchesFailedToParseObjectId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to parse object id while getting commit branches.");
+  case GitError::GetCommitTagsFailedToListMatchingTags:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to list matching tags while get commit tags.");
+  case GitError::GetCommitHeadsFailedToCreateBranchIterator:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create branch iterator while getting commit heads.");
+  case GitError::GetCommitHeadsFailedToPeelReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to peel reference while getting commit heads.");
+  case GitError::GetCommitHeadsFailedToReadBranchName:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to read branch name while getting commit heads.");
+  case GitError::GetCommitHeadsFailedToParseObjectId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to parse object id while getting commit heads.");
+  case GitError::GetCommitIsHeadFailedToCreateBranchIterator:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create branch iterator while checking "
+                        "whether the commit is a branch head.");
+  case GitError::GetCommitIsHeadFailedToPeelReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to peel reference while checking whether the "
+                        "commit is a branch head.");
+  case GitError::GetCommitIsHeadFailedToReadBranchName:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read branch name while checking whether "
+                        "the commit is a branch head.");
+  case GitError::GetCommitIsHeadFailedToParseObjectId:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to parse object id while checking whether "
+                        "the commit is a branch head.");
+  case GitError::GetStatusFailedToCreateStatusList:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create status list while get status.");
+  case GitError::GetCommitStatusFailedToLookupCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup commit while getting commit status.");
+  case GitError::GetCommitStatusFailedToGetCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get commit tree while getting commit status.");
+  case GitError::GetCommitStatusFailedToGetParentCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get parent commit while getting commit status.");
+  case GitError::GetCommitStatusFailedToGetSecondCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get second commit tree while getting commit status.");
+  case GitError::GetCommitStatusFailedToCreateCommitDiff:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create commit diff while getting commit status.");
+  case GitError::GetCommitStatusFailedToDetectRenames:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to detect renames while getting commit status.");
+  case GitError::StageFilesFailedToGetRepositoryIndex:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to get repository index while stage files.");
+  case GitError::StageFilesFailedToRemovePathFromIndex:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to remove path from index while stage files.");
+  case GitError::StageFilesFailedToAddSubmoduleToIndex:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to add submodule to index while stage files.");
+  case GitError::StageFilesFailedToAddPathToIndex:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to add path to index while stage files.");
+  case GitError::StageFilesFailedToAddMissingPathToIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to add missing path to index while stage files.");
+  case GitError::StageFilesFailedToWriteIndex:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to write index while stage files.");
+  case GitError::UnstageFilesFailedToResolveRevision:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to resolve revision while unstage files.");
+  case GitError::UnstageFilesFailedToResetPathsToHead:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to reset paths to head while unstage files.");
+  case GitError::CommitStagedFailedToGetRepositoryIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository index while committing staged changes.");
+  case GitError::CommitStagedFailedToWriteIndexTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to write index tree while committing staged changes.");
+  case GitError::CommitStagedFailedToLookupTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup tree while committing staged changes.");
+  case GitError::CommitStagedFailedToCreateSignature:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create signature while committing staged changes.");
+  case GitError::CommitStagedFailedToGetRepositoryHead:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository head while committing staged changes.");
+  case GitError::CommitStagedFailedToGetReferenceTarget:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get reference target while committing staged changes.");
+  case GitError::CommitStagedFailedToResolveMergeHeadReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to resolve merge head reference while "
+                        "committing staged changes.");
+  case GitError::CommitStagedFailedToGetSecondReferenceTarget:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to get second reference target while "
+                        "committing staged changes.");
+  case GitError::CommitStagedFailedToLoadSigningConfiguration:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to load signing configuration while "
+                        "committing staged changes.");
+  case GitError::CommitStagedFailedToSignCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to sign commit while committing staged changes.");
+  case GitError::CommitStagedFailedToCreateCommitFromStagedChanges:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create commit from staged changes while "
+                        "committing staged changes.");
+  case GitError::CommitStagedFailedToCreateCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create commit while committing staged changes.");
+  case GitError::CommitStagedFailedToCleanupRepositoryState:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to cleanup repository state while committing staged changes.");
+  case GitError::DiffFilesFailedToResolveRevision:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to resolve revision while diffing files.");
+  case GitError::DiffFilesFailedToGetHeadObjectId:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to get head object id while diffing files.");
+  case GitError::DiffFilesFailedToGetCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to get commit tree while diffing files.");
+  case GitError::DiffFilesFailedToDiffTreeAgainstWorkdir:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to diff tree against workdir while diffing files.");
+  case GitError::DiffFilesFailedToCreatePatchFromDiff:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create patch from diff while diffing files.");
+  case GitError::DiffFilesFailedToReadPatchHunk:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read patch hunk while diffing files.");
+  case GitError::DiffFilesFailedToReadPatchLine:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read patch line while diffing files.");
+  case GitError::DiffFilesFailedToGetRepositoryHead:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to get repository head while diffing files.");
+  case GitError::DiffFilesFailedToPeelReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to peel reference while diffing files.");
+  case GitError::DiffFilesFailedToReadHeadCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read head commit while diffing files.");
+  case GitError::DiffFilesFailedToLookupTreeEntryByPath:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup tree entry by path while diffing files.");
+  case GitError::DiffFilesFailedToReadTreeEntryId:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read tree entry id while diffing files.");
+  case GitError::DiffFilesFailedToLookupBlobByPrefix:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup blob by prefix while diffing files.");
+  case GitError::DiscardFilesFailedToResolveRevision:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to resolve revision while discarding files.");
+  case GitError::DiscardFilesFailedToCheckoutTree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to checkout tree while discarding files.");
+  case GitError::DiscardFilesFailedToGetRepositoryIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository index while discarding files.");
+  case GitError::DiscardFilesFailedToResolveHeadRevision:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to resolve head revision while discarding files.");
+  case GitError::DiscardFilesFailedToGetHeadTreeObjectId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get head tree object id while discarding files.");
+  case GitError::DiscardFilesFailedToLookupTreeEntryByPath:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup tree entry by path while discarding files.");
+  case GitError::DiscardFilesFailedToReadTreeEntryId:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read tree entry id while discarding files.");
+  case GitError::DiscardFilesFailedToRemoveIndexEntry:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to remove index entry while discarding files.");
+  case GitError::DiscardFilesFailedToAddIndexEntry:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to add index entry while discarding files.");
+  case GitError::DiscardFilesFailedToRemoveDeletedIndexEntry:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to remove deleted index entry while discarding files.");
+  case GitError::DiscardFilesFailedToWriteIndex:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to write index while discarding files.");
+  case GitError::PullFailedToGetRepositoryHead:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to get repository head while pulling changes.");
+  case GitError::PullFailedToReadBranchName:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read branch name while pulling changes.");
+  case GitError::PullNoUpstreamConfigured:
+    return QCoreApplication::translate(
+        "GitRepoError", "No upstream is configured while pulling changes.");
+  case GitError::PullFailedToLookupRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup remote while pulling changes.");
+  case GitError::PullFailedToFetchRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to fetch remote while pulling changes.");
+  case GitError::PullFailedToFetchRemoteWithCredentials:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to fetch remote with credentials while pulling changes.");
+  case GitError::PullFailedToGetRepositoryHeadAfterFetch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository head after fetch while pulling changes.");
+  case GitError::PullFailedToLookupReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup reference while pulling changes.");
+  case GitError::PullFailedToCreateAnnotatedCommitFromReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create annotated commit from reference "
+                        "while pulling changes.");
+  case GitError::PullFailedToGetDefaultSignature:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get default signature while pulling changes.");
+  case GitError::PullFailedToStartRebase:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to start rebase while pulling changes.");
+  case GitError::PullFailedToCommitRebaseStep:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to commit rebase step while pulling changes.");
+  case GitError::PullFailedToFinishRebase:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to finish rebase while pulling changes.");
+  case GitError::PullFailedToAbortRebase:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to abort rebase while pulling changes.");
+  case GitError::PullFailedToCreateAnnotatedCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create annotated commit while pulling changes.");
+  case GitError::PullFailedToLookupCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup commit while pulling changes.");
+  case GitError::PullFailedToPeelFetchedTargetCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to peel fetched target commit while pulling changes.");
+  case GitError::PullFailedToSetReferenceTarget:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to set reference target while pulling changes.");
+  case GitError::PullFailedToCreateMergeAnnotatedCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create merge annotated commit while pulling changes.");
+  case GitError::FetchRemoteInternalFailedToLookupRemote:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup remote while fetching from the remote.");
+  case GitError::FetchRemoteGitSshUrlRequiresCommercialPlan:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        " requires a commercial plan while fetch remote Git SSH URL.");
+  case GitError::FetchRemoteInternalFailedToFetchRemote:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to fetch remote while fetching from the remote.");
+  case GitError::FetchRemoteInternalFailedToFetchRemoteWithCredentials:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to fetch remote with credentials while "
+                        "fetching from the remote.");
+  case GitError::PushFailedToGetRepositoryHead:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to get repository head while pushing changes.");
+  case GitError::PushFailedToReadBranchName:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read branch name while pushing changes.");
+  case GitError::PushFailedToLookupRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup remote while pushing changes.");
+  case GitError::PushFailedToPushRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to push remote while pushing changes.");
+  case GitError::PushTagFailedToLookupReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup reference while pushing the tag.");
+  case GitError::PushTagFailedToLookupRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup remote while pushing the tag.");
+  case GitError::PushTagFailedToPushRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to push remote while pushing the tag.");
+  case GitError::PushAllTagsFailedToLookupRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup remote while pushing all tags.");
+  case GitError::PushAllTagsFailedToPushRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to push remote while pushing all tags.");
+  case GitError::StashFailedToGetDefaultSignature:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get default signature while creating a stash.");
+  case GitError::StashFailedToCreateStash:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create stash while creating a stash.");
+  case GitError::SetUpstreamFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup branch while setting upstream.");
+  case GitError::SetUpstreamFailedToSetBranchUpstream:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to set branch upstream while setting upstream.");
+  case GitError::GetUpstreamFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup branch while getting upstream.");
+  case GitError::GetUpstreamFailedToGetBranchUpstream:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get branch upstream while getting upstream.");
+  case GitError::GetUpstreamFailedToOpenGitConfig:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to open git config while getting upstream.");
+  case GitError::ResetToCommitFailedToResolveRevision:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to resolve revision while resetting to the commit.");
+  case GitError::ResetToCommitFailedToResetRepository:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to reset repository while resetting to the commit.");
+  case GitError::RevertCommitFailedToLookupTargetCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup target commit while reverting the commit.");
+  case GitError::RevertCommitFailedToGetRepositoryHead:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository head while reverting the commit.");
+  case GitError::RevertCommitFailedToGetReferenceTarget:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get reference target while reverting the commit.");
+  case GitError::RevertCommitFailedToPrepareRevertCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to prepare revert commit while reverting the commit.");
+  case GitError::RevertCommitFailedToCheckoutIndex:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to checkout index while reverting the commit.");
+  case GitError::RevertCommitFailedToWriteIndexTreeToRepository:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to write index tree to repository while reverting the commit.");
+  case GitError::RevertCommitFailedToLookupTree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup tree while reverting the commit.");
+  case GitError::RevertCommitFailedToCreateSignature:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create signature while reverting the commit.");
+  case GitError::RevertCommitFailedToCreateCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create commit while reverting the commit.");
+  case GitError::ApplyPatchFailedToParsePatchBuffer:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to parse patch buffer while applying the patch.");
+  case GitError::ApplyPatchFailedToApplyPatch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to apply patch while applying the patch.");
+  case GitError::CherryPickCommitFailedToLookupTargetCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup target commit while cherry-picking the commit.");
+  case GitError::CherryPickCommitFailedToGetRepositoryHead:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository head while cherry-picking the commit.");
+  case GitError::CherryPickCommitFailedToGetReferenceTarget:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get reference target while cherry-picking the commit.");
+  case GitError::CherryPickCommitFailedToPrepareCherryPickCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to prepare cherry pick commit while "
+                        "cherry-picking the commit.");
+  case GitError::CherryPickCommitFailedToCheckoutIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to checkout index while cherry-picking the commit.");
+  case GitError::CherryPickCommitFailedToWriteIndexTreeToRepository:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to write index tree to repository while "
+                        "cherry-picking the commit.");
+  case GitError::CherryPickCommitFailedToLookupTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup tree while cherry-picking the commit.");
+  case GitError::CherryPickCommitFailedToCreateSignature:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create signature while cherry-picking the commit.");
+  case GitError::CherryPickCommitFailedToCreateCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create commit while cherry-picking the commit.");
+  case GitError::RenameBranchFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup branch while renaming the branch.");
+  case GitError::RenameBranchFailedToRenameBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to rename branch while renaming the branch.");
+  case GitError::DeleteBranchFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup branch while deleting the branch.");
+  case GitError::DeleteBranchFailedToDeleteBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to delete branch while deleting the branch.");
+  case GitError::DeleteRemoteBranchFailedToLookupRemote:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup remote while deleting the remote branch.");
+  case GitError::DeleteRemoteBranchFailedToPushRemote:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to push remote while deleting the remote branch.");
+  case GitError::CreateTagFromCommitFailedToParseObjectId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to parse object id while creating a tag from a commit.");
+  case GitError::CreateTagFromCommitFailedToLookupCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup commit while creating a tag from a commit.");
+  case GitError::CreateTagFromCommitFailedToCreateSignature:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create signature while creating a tag from a commit.");
+  case GitError::CreateTagFromCommitFailedToPeelCommitForTag:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to peel commit for tag while creating a tag from a commit.");
+  case GitError::CreatePatchFromCommitFailedToParseObjectId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to parse object id while creating a patch from a commit.");
+  case GitError::CreatePatchFromCommitFailedToLookupCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup commit while creating a patch from a commit.");
+  case GitError::CreatePatchFromCommitFailedToGetCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get commit tree while creating a patch from a commit.");
+  case GitError::CreatePatchFromCommitFailedToGetParentCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get parent commit while creating a patch from a commit.");
+  case GitError::CreatePatchFromCommitFailedToGetSecondCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to get second commit tree while creating a "
+                        "patch from a commit.");
+  case GitError::CreatePatchFromCommitFailedToCreateCommitDiff:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create commit diff while creating a patch from a commit.");
+  case GitError::CreatePatchFromCommitFailedToCreatePatchFromDiff:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create patch from diff while creating a "
+                        "patch from a commit.");
+  case GitError::CreatePatchFromCommitFailedToRenderPatchToBuffer:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to render patch to buffer while creating a "
+                        "patch from a commit.");
+  case GitError::RenameTagFailedToLookupReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup reference while renaming the tag.");
+  case GitError::RenameTagFailedToPeelReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to peel reference while renaming the tag.");
+  case GitError::RenameTagFailedToReadTagTarget:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read tag target while renaming the tag.");
+  case GitError::RenameTagFailedToCreateAnnotatedTag:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create annotated tag while renaming the tag.");
+  case GitError::RenameTagFailedToCreateLightweightTag:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create lightweight tag while renaming the tag.");
+  case GitError::RenameTagFailedToDeleteTag:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to delete tag while renaming the tag.");
+  case GitError::DeleteTagFailedToDeleteTag:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to delete tag while deleting the tag.");
+  case GitError::DeleteRemoteTagFailedToLookupRemote:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup remote while deleting the remote tag.");
+  case GitError::DeleteRemoteTagFailedToPushRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to push remote while deleting the remote tag.");
+  case GitError::GetSubmodulePathFailedToLookupSubmodule:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup submodule while getting the submodule path.");
+  case GitError::DeleteSubmoduleFailedToGetRepositoryIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository index while deleting the submodule.");
+  case GitError::DeleteSubmoduleFailedToRemoveIndexEntry:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to remove index entry while deleting the submodule.");
+  case GitError::DeleteSubmoduleFailedToWriteIndex:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to write index while deleting the submodule.");
+  case GitError::CheckoutSubmoduleBranchFailedToLookupRemote:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup remote while checking out the submodule branch.");
+  case GitError::CheckoutSubmoduleBranchFailedToFetchRemote:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to fetch remote while checking out the submodule branch.");
+  case GitError::CheckoutSubmoduleBranchFailedToLookupReference:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup reference while checking out the submodule branch.");
+  case GitError::CheckoutSubmoduleBranchFailedToPeelReferenceToCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to peel reference to commit while checking "
+                        "out the submodule branch.");
+  case GitError::CheckoutSubmoduleBranchFailedToCreateLocalBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create local branch while checking out "
+                        "the submodule branch.");
+  case GitError::CheckoutSubmoduleBranchFailedToReadCommitId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to read commit id while checking out the submodule branch.");
+  case GitError::CheckoutSubmoduleBranchFailedToSetHeadToBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to set head to branch while checking out the "
+                        "submodule branch.");
+  case GitError::CheckoutSubmoduleBranchFailedToCheckoutHead:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to checkout head while checking out the submodule branch.");
+  case GitError::CheckoutLocalSubmoduleBranchFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup branch while checking out the "
+                        "local submodule branch.");
+  case GitError::CheckoutLocalSubmoduleBranchFailedToSetHeadToBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to set head to branch while checking out the "
+                        "local submodule branch.");
+  case GitError::CheckoutLocalSubmoduleBranchFailedToCheckoutHead:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to checkout head while checking out the "
+                        "local submodule branch.");
+  case GitError::UpdateSubmoduleFailedToUpdateSubmodule:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to update submodule while updating the submodule.");
+  case GitError::UpdateSubmoduleFailedToAddSubmoduleToIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to add submodule to index while updating the submodule.");
+  case GitError::AddSubmoduleFailedToSetupSubmodule:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to setup submodule while adding the submodule.");
+  case GitError::AddSubmoduleFailedToCloneSubmodule:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to clone submodule while adding the submodule.");
+  case GitError::AddSubmoduleFailedToFinalizeSubmoduleAdd:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to finalize submodule add while adding the submodule.");
+  case GitError::DiffFilesFromCommitFailedToParseObjectId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to parse object id while diffing files from a commit.");
+  case GitError::DiffFilesFromCommitFailedToLookupCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup commit while diffing files from a commit.");
+  case GitError::DiffFilesFromCommitFailedToGetCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get commit tree while diffing files from a commit.");
+  case GitError::DiffFilesFromCommitFailedToGetParentCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get parent commit while diffing files from a commit.");
+  case GitError::DiffFilesFromCommitFailedToGetSecondCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get second commit tree while diffing files from a commit.");
+  case GitError::DiffFilesFromCommitFailedToGetSecondParentCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to get second parent commit while diffing "
+                        "files from a commit.");
+  case GitError::DiffFilesFromCommitFailedToGetThirdCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get third commit tree while diffing files from a commit.");
+  case GitError::DiffFilesFromCommitFailedToCreateCommitDiff:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create commit diff while diffing files from a commit.");
+  case GitError::DiffFilesFromCommitFailedToCreatePatchFromDiff:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create patch from diff while diffing files from a commit.");
+  case GitError::DiffFilesFromCommitFailedToReadPatchHunk:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to read patch hunk while diffing files from a commit.");
+  case GitError::DiffFilesFromCommitFailedToReadPatchLine:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to read patch line while diffing files from a commit.");
+  case GitError::GetFileSizeFromCommitFailedToGetRepositoryHead:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository head while getting file size from a commit.");
+  case GitError::GetFileSizeFromCommitFailedToGetReferenceName:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get reference name while getting file size from a commit.");
+  case GitError::GetFileSizeFromCommitFailedToParseObjectId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to parse object id while getting file size from a commit.");
+  case GitError::GetFileSizeFromCommitFailedToLookupCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup commit while getting file size from a commit.");
+  case GitError::GetFileSizeFromCommitFailedToGetCommitTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get commit tree while getting file size from a commit.");
+  case GitError::GetFileSizeFromCommitFailedToLookupTreeEntryByPath:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup tree entry by path while getting "
+                        "file size from a commit.");
+  case GitError::GetFileSizeFromCommitFailedToLookupBlob:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup blob while getting file size from a commit.");
+  case GitError::MergeFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup branch while merging branches.");
+  case GitError::MergeFailedToLookupDestinationBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup destination branch while merging branches.");
+  case GitError::MergeFailedToPeelReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to peel reference while merging branches.");
+  case GitError::MergeFailedToCheckoutTree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to checkout tree while merging branches.");
+  case GitError::MergeFailedToGetReferenceName:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to get reference name while merging branches.");
+  case GitError::MergeFailedToCreateAnnotatedCommitFromReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create annotated commit from reference "
+                        "while merging branches.");
+  case GitError::MergeFailedToCreateSecondAnnotatedCommitFromReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create second annotated commit from "
+                        "reference while merging branches.");
+  case GitError::MergeFailedToAnalyzeMerge:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to analyze merge while merging branches.");
+  case GitError::MergeFailedToReadAnnotatedCommitId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to read annotated commit id while merging branches.");
+  case GitError::MergeFailedToReadCommitId:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read commit id while merging branches.");
+  case GitError::MergeFailedToReadSecondCommitId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to read second commit id while merging branches.");
+  case GitError::MergeFailedToCheckoutDestinationTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to checkout destination tree while merging branches.");
+  case GitError::MergeFailedToMerge:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to merge while merging branches.");
+  case GitError::MergeFailedToGetRepositoryIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository index while merging branches.");
+  case GitError::MergeFailedToWriteIndexTree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to write index tree while merging branches.");
+  case GitError::MergeFailedToLookupTree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup tree while merging branches.");
+  case GitError::MergeFailedToCreateSignature:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create signature while merging branches.");
+  case GitError::MergeFailedToGetReferenceTarget:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get reference target while merging branches.");
+  case GitError::MergeFailedToGetSecondReferenceTarget:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get second reference target while merging branches.");
+  case GitError::MergeFailedToCreateCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create commit while merging branches.");
+  case GitError::RebaseBranchesFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup branch while rebasing branches.");
+  case GitError::RebaseBranchesFailedToLookupDestinationBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup destination branch while rebasing branches.");
+  case GitError::RebaseBranchesFailedToCreateAnnotatedCommitFromReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create annotated commit from reference "
+                        "while rebasing branches.");
+  case GitError::RebaseBranchesFailedToCreateSecondAnnotatedCommitFromReference:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create second annotated commit from "
+                        "reference while rebasing branches.");
+  case GitError::RebaseBranchesFailedToReadAnnotatedCommitId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to read annotated commit id while rebasing branches.");
+  case GitError::RebaseBranchesFailedToLookupAnnotatedCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup annotated commit while rebasing branches.");
+  case GitError::RebaseBranchesFailedToCreateSignature:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create signature while rebasing branches.");
+  case GitError::RebaseBranchesFailedToStartRebase:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to start rebase while rebasing branches.");
+  case GitError::RebaseBranchesFailedToCommitRebaseStep:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to commit rebase step while rebasing branches.");
+  case GitError::RebaseBranchesFailedToFinishRebase:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to finish rebase while rebasing branches.");
+  case GitError::RebaseBranchesFailedToAbortRebase:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to abort rebase while rebasing branches.");
+  case GitError::ListConflictsForAFileFailedToGetRepositoryIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository index while listing conflicts for a file.");
+  case GitError::ListConflictsForAFileFailedToCreateConflictIterator:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create conflict iterator while listing "
+                        "conflicts for a file.");
+  case GitError::AbortMergeFailedToCleanupRepositoryState:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to cleanup repository state while aborting the merge.");
+  case GitError::AbortMergeFailedToResolveRevision:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to resolve revision while aborting the merge.");
+  case GitError::AbortMergeFailedToResetRepository:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to reset repository while aborting the merge.");
+  case GitError::ListRemotesFailedToListRemotes:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to list remotes while listing remotes.");
+  case GitError::SetDefaultRemoteFailedToLookupRemote:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup remote while setting the default remote.");
+  case GitError::SetDefaultRemoteFailedToGetRepositoryConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository config while setting the default remote.");
+  case GitError::SetDefaultRemoteFailedToWriteDefaultRemoteConfig:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to write default remote config while setting "
+                        "the default remote.");
+  case GitError::AddRemoteFailedToCreateRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create remote while adding the remote.");
+  case GitError::AddRemoteFailedToSetPushUrl:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to set push url while adding the remote.");
+  case GitError::RemoveRemoteFailedToDeleteRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to delete remote while removing the remote.");
+  case GitError::UpdateRemoteFailedToRenameRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to rename remote while updating the remote.");
+  case GitError::UpdateRemoteFailedToSetFetchUrl:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to set fetch url while updating the remote.");
+  case GitError::UpdateRemoteFailedToSetPushUrl:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to set push url while updating the remote.");
+  case GitError::AddTargetFailedToGetRepositoryConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository config while adding the target.");
+  case GitError::AddTargetFailedToSetFetchUrlConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to set fetch url config while adding the target.");
+  case GitError::AddTargetFailedToSetPushUrlConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to set push url config while adding the target.");
+  case GitError::EditTargetFailedToGetRepositoryConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository config while editing the target.");
+  case GitError::EditTargetFailedToSetFetchUrlConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to set fetch url config while editing the target.");
+  case GitError::EditTargetFailedToSetPushUrlConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to set push url config while editing the target.");
+  case GitError::DeleteTargetFailedToGetRepositoryConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository config while deleting the target.");
+  case GitError::DeleteTargetFailedToDeleteFetchUrlConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to delete fetch url config while deleting the target.");
+  case GitError::DeleteTargetFailedToDeletePushUrlConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to delete push url config while deleting the target.");
+  case GitError::SetDefaultTargetFailedToGetRepositoryConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository config while setting the default target.");
+  case GitError::SetDefaultTargetFailedToCreateConfigIterator:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create config iterator while setting the default target.");
+  case GitError::SetDefaultTargetFailedToSetDefaultFetchUrl:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to set default fetch url while setting the default target.");
+  case GitError::AmendFailedToResolveReferenceNameToId:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to resolve reference name to id while amending the commit.");
+  case GitError::AmendFailedToLookupCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup commit while amending the commit.");
+  case GitError::AmendFailedToGetRepositoryIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository index while amending the commit.");
+  case GitError::AmendFailedToWriteIndexTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to write index tree while amending the commit.");
+  case GitError::AmendFailedToLookupTree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup tree while amending the commit.");
+  case GitError::AmendFailedToCreateSignature:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create signature while amending the commit.");
+  case GitError::AmendFailedToGetParentCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get parent commit while amending the commit.");
+  case GitError::AmendFailedToLoadSigningConfiguration:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to load signing configuration while amending the commit.");
+  case GitError::AmendFailedToSignCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to sign commit while amending the commit.");
+  case GitError::AmendFailedToCreateSignedAmendCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create signed amend commit while amending the commit.");
+  case GitError::AmendFailedToAmendCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to amend commit while amending the commit.");
+  case GitError::Last:
+    return QCoreApplication::translate("GitRepoError",
+                                       "Invalid Git error marker.");
   }
 
-  LOG_ERROR(Log::ErrorId::Git,
-            "Error is {}, error klass is {}, error message is '{}'", error,
-            gitError->klass, gitError->message);
+  return QCoreApplication::translate("GitRepoError",
+                                     "An unknown Git error occurred.");
+}
+
+static QString gitErrorMessage(const GitError errorType) {
+  return gitErrorName(errorType);
+}
+
+static void setErrorContext(const GitError errorType, const int errorCode) {
+  LOCKGUARD(gErrorMutex);
+  gErrorMap[std::this_thread::get_id()] = {errorType, errorCode,
+                                           gitErrorMessage(errorType)};
+}
+
+static void setError(const GitError errorType, const int error) {
+  const git_error *gitError = git_error_last();
+  const int klass = gitError ? gitError->klass : 0;
+  const QString libgitMessage =
+      gitError && gitError->message
+          ? capitalizeFirst(QString::fromUtf8(gitError->message))
+          : QString();
+
+  setErrorContext(errorType, encodeLibgitError(error, klass));
+
+  LOG_ERROR(
+      Log::ErrorId::Git,
+      "Error type is {}, error is {}, error klass is {}, error message is "
+      "'{}', libgit message is '{}'",
+      static_cast<int>(errorType), error, klass,
+      gitErrorMessage(errorType).toStdString(), libgitMessage.toStdString());
 }
 
 static bool markConflictedFiles(git_repository *repo,
@@ -563,7 +1910,7 @@ static bool markConflictedFiles(git_repository *repo,
               "Failed to get repository index when marking conflicts: "
               "error={}",
               error);
-    logGitError(error);
+    setError(GitError::MarkConflictedFilesFailedToGetRepositoryIndex, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -584,7 +1931,9 @@ static bool markConflictedFiles(git_repository *repo,
 
     error = git_blob_create_fromworkdir(&ancestor.id, repo, ancestor.path);
     if (error) {
-      logGitError(error);
+      setError(
+          GitError::MarkConflictedFilesFailedToCreateAncestorBlobFromWorkdir,
+          error);
     }
 
     ours.path = data.constData();
@@ -592,7 +1941,8 @@ static bool markConflictedFiles(git_repository *repo,
 
     error = git_blob_create_fromworkdir(&ours.id, repo, ours.path);
     if (error) {
-      logGitError(error);
+      setError(GitError::MarkConflictedFilesFailedToCreateOursBlobFromWorkdir,
+               error);
     }
 
     theirs.path = data.constData();
@@ -600,12 +1950,13 @@ static bool markConflictedFiles(git_repository *repo,
 
     error = git_blob_create_fromworkdir(&theirs.id, repo, theirs.path);
     if (error) {
-      logGitError(error);
+      setError(GitError::MarkConflictedFilesFailedToCreateTheirsBlobFromWorkdir,
+               error);
     }
 
     error = git_index_conflict_add(index, &ancestor, &ours, &theirs);
     if (error) {
-      logGitError(error);
+      setError(GitError::MarkConflictedFilesFailedToAddConflictToIndex, error);
     }
   }
 
@@ -613,7 +1964,7 @@ static bool markConflictedFiles(git_repository *repo,
   if (error) {
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to write conflicted files to the index: error={}", error);
-    logGitError(error);
+    setError(GitError::MarkConflictedFilesFailedToWriteIndex, error);
     git_index_free(index);
     LOG_PERF(0, "Exit");
     return false;
@@ -688,7 +2039,10 @@ static bool collectConflictedFilePathsFromResultIndex(git_repository *repo,
 
   int error = git_repository_head(&headRef, repo);
   if (error) {
-    logGitError(error);
+    setError(
+        GitError::
+            CollectConflictedFilePathsFromResultIndexFailedToGetRepositoryHead,
+        error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -696,7 +2050,8 @@ static bool collectConflictedFilePathsFromResultIndex(git_repository *repo,
   error = git_reference_peel(reinterpret_cast<git_object **>(&headCommit),
                              headRef, GIT_OBJECT_COMMIT);
   if (error) {
-    logGitError(error);
+    setError(GitError::CollectConflictedFilePathsFailedToPeelHeadToCommit,
+             error);
     git_reference_free(headRef);
     LOG_PERF(0, "Exit");
     return false;
@@ -704,7 +2059,9 @@ static bool collectConflictedFilePathsFromResultIndex(git_repository *repo,
 
   error = git_commit_tree(&headTree, headCommit);
   if (error) {
-    logGitError(error);
+    setError(GitError::
+                 CollectConflictedFilePathsFromResultIndexFailedToGetCommitTree,
+             error);
     git_commit_free(headCommit);
     git_reference_free(headRef);
     LOG_PERF(0, "Exit");
@@ -716,7 +2073,10 @@ static bool collectConflictedFilePathsFromResultIndex(git_repository *repo,
   git_commit_free(headCommit);
   git_reference_free(headRef);
   if (error) {
-    logGitError(error);
+    setError(
+        GitError::
+            CollectConflictedFilePathsFromResultIndexFailedToDiffTreeAgainstIndex,
+        error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -749,7 +2109,10 @@ static bool collectConflictedFilePathsFromResultIndex(git_repository *repo,
   if (candidatePaths.isEmpty()) {
     error = git_index_conflict_iterator_new(&conflictIterator, index);
     if (error) {
-      logGitError(error);
+      setError(
+          GitError::
+              CollectConflictedFilePathsFromResultIndexFailedToCreateConflictIterator,
+          error);
       git_diff_free(candidateDiff);
       LOG_PERF(0, "Exit");
       return false;
@@ -963,7 +2326,7 @@ static bool createInitialCommit(git_repository *repo,
 
   int error = git_signature_default(&sig, repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::CreateInitialCommitFailedToGetDefaultSignature, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -973,7 +2336,7 @@ static bool createInitialCommit(git_repository *repo,
   error = git_repository_index(&index, repo);
   if (error) {
     git_signature_free(sig);
-    logGitError(error);
+    setError(GitError::CreateInitialCommitFailedToGetRepositoryIndex, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -984,7 +2347,7 @@ static bool createInitialCommit(git_repository *repo,
   if (error) {
     git_index_free(index);
     git_signature_free(sig);
-    logGitError(error);
+    setError(GitError::CreateInitialCommitFailedToWriteIndexTree, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -996,7 +2359,7 @@ static bool createInitialCommit(git_repository *repo,
   error = git_tree_lookup(&tree, repo, &tree_id);
   if (error) {
     git_signature_free(sig);
-    logGitError(error);
+    setError(GitError::CreateInitialCommitFailedToLookupTree, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1008,7 +2371,7 @@ static bool createInitialCommit(git_repository *repo,
   if (error) {
     git_tree_free(tree);
     git_signature_free(sig);
-    logGitError(error);
+    setError(GitError::CreateInitialCommitFailedToCreateCommit, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1020,7 +2383,7 @@ static bool createInitialCommit(git_repository *repo,
 
   error = git_branch_iterator_new(&it, repo, GIT_BRANCH_LOCAL);
   if (error) {
-    logGitError(error);
+    setError(GitError::CreateInitialCommitFailedToCreateBranchIterator, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1041,7 +2404,7 @@ static bool createInitialCommit(git_repository *repo,
       break;
 
     if (error) {
-      logGitError(error);
+      setError(GitError::CreateInitialCommitFailedToReadNextBranch, error);
       break;
     }
 
@@ -1062,7 +2425,7 @@ static bool createInitialCommit(git_repository *repo,
 
     if (error) {
       git_reference_free(branchRef);
-      logGitError(error);
+      setError(GitError::CreateInitialCommitFailedToReadBranchName, error);
       break;
     }
 
@@ -1084,7 +2447,7 @@ static bool createInitialCommit(git_repository *repo,
   error = git_branch_move(&newRef, branchRef,
                           defaultBranchName.toStdString().c_str(), false);
   if (error) {
-    logGitError(error);
+    setError(GitError::CreateInitialCommitFailedToRenameBranch, error);
     git_reference_free(branchRef);
     LOG_PERF(0, "Exit");
     return false;
@@ -1104,7 +2467,9 @@ static bool createInitialCommitWithoutStaging(git_repository *repo) {
   int error = git_signature_default(&sig, repo);
 
   if (error) {
-    logGitError(error);
+    setError(
+        GitError::CreateInitialCommitWithoutStagingFailedToGetDefaultSignature,
+        error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1115,7 +2480,9 @@ static bool createInitialCommitWithoutStaging(git_repository *repo) {
 
   if (error) {
     git_signature_free(sig);
-    logGitError(error);
+    setError(
+        GitError::CreateInitialCommitWithoutStagingFailedToCreateTreeBuilder,
+        error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1127,7 +2494,9 @@ static bool createInitialCommitWithoutStaging(git_repository *repo) {
 
   if (error) {
     git_signature_free(sig);
-    logGitError(error);
+    setError(
+        GitError::CreateInitialCommitWithoutStagingFailedToWriteTreeBuilder,
+        error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1138,7 +2507,8 @@ static bool createInitialCommitWithoutStaging(git_repository *repo) {
 
   if (error) {
     git_signature_free(sig);
-    logGitError(error);
+    setError(GitError::CreateInitialCommitWithoutStagingFailedToLookupTree,
+             error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1152,7 +2522,8 @@ static bool createInitialCommitWithoutStaging(git_repository *repo) {
   git_signature_free(sig);
 
   if (error) {
-    logGitError(error);
+    setError(GitError::CreateInitialCommitWithoutStagingFailedToCreateCommit,
+             error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1170,14 +2541,14 @@ static git_commit *getLastCommit(git_repository *repo, const QString &name) {
   int error = git_reference_name_to_id(&oid_parent_commit, repo,
                                        name.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::GetLastCommitFailedToResolveReferenceNameToId, error);
     LOG_PERF(0, "Exit");
     return nullptr;
   }
 
   error = git_commit_lookup(&commit, repo, &oid_parent_commit);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetLastCommitFailedToLookupCommit, error);
     LOG_PERF(0, "Exit");
     return nullptr;
   }
@@ -1240,7 +2611,7 @@ static bool isCommercialPlan() {
          (claims.plan == "Pro" || claims.plan == "Business");
 }
 
-GitError getLastError() {
+GitErrorContext getLastError() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Retrieving last error for current thread");
 
@@ -1249,7 +2620,8 @@ GitError getLastError() {
   const auto threadId = std::this_thread::get_id();
   if (gErrorMap.contains(threadId)) {
     const auto &error = gErrorMap[threadId];
-    LOG_DEBUG("Thread error code: {}, message: '{}'", error.errorCode,
+    LOG_DEBUG("Thread error type: {}, code: {}, message: '{}'",
+              static_cast<int>(error.error), error.errorCode,
               error.errorMessage.toStdString());
   } else {
     LOG_DEBUG("No error found for current thread");
@@ -1345,7 +2717,7 @@ bool applyStash(git_repository *repo, int index) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to apply stash at index {}: error={}",
               index, error);
-    logGitError(error);
+    setError(GitError::ApplyStashFailedToApplyStash, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1356,7 +2728,7 @@ bool applyStash(git_repository *repo, int index) {
 
   error = git_diff_index_to_workdir(&workdir_diff, repo, NULL, &diff_opts);
   if (error) {
-    logGitError(error);
+    setError(GitError::ApplyStashFailedToDiffIndexAgainstWorkdir, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1413,7 +2785,7 @@ bool hasConflicts(git_repository *repo) {
               "Failed to get repository index when checking for conflicts: "
               "error={}",
               error);
-    logGitError(error);
+    setError(GitError::HasConflictsFailedToGetRepositoryIndex, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -1450,7 +2822,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
                                   branchOrTagName.toStdString().c_str(),
                                   GIT_BRANCH_LOCAL);
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToLookupBranch, error);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -1460,7 +2832,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     error = git_reference_peel(reinterpret_cast<git_object **>(&targetCommit),
                                localRef, GIT_OBJECT_COMMIT);
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToPeelLocalBranchToCommit, error);
       git_reference_free(localRef);
       LOG_PERF(0, "Exit");
       return false;
@@ -1469,7 +2841,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     // 3. Get the tree from the commit
     error = git_commit_tree(&tree, targetCommit);
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToGetCommitTree, error);
       git_commit_free(targetCommit);
       git_reference_free(localRef);
       LOG_PERF(0, "Exit");
@@ -1483,7 +2855,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     error =
         git_checkout_tree(repo, reinterpret_cast<git_object *>(tree), &opts);
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToCheckoutLocalBranchTree, error);
       git_commit_free(targetCommit);
       git_reference_free(localRef);
       git_tree_free(tree);
@@ -1494,7 +2866,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     // 6. Move HEAD to the branch
     error = git_repository_set_head(repo, git_reference_name(localRef));
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToGetReferenceName, error);
       git_commit_free(targetCommit);
       git_reference_free(localRef);
       git_tree_free(tree);
@@ -1526,7 +2898,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     int error = git_reference_lookup(&remoteRef, repo,
                                      fullBranchName.toStdString().c_str());
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToLookupReference, error);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -1536,7 +2908,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     error = git_reference_peel(reinterpret_cast<git_object **>(&targetCommit),
                                remoteRef, GIT_OBJECT_COMMIT);
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToPeelRemoteBranchToCommit, error);
       git_reference_free(remoteRef);
       LOG_PERF(0, "Exit");
       return false;
@@ -1551,14 +2923,16 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
         error = git_branch_lookup(
             &localRef, repo, localName.toStdString().c_str(), GIT_BRANCH_LOCAL);
         if (error) {
-          logGitError(error);
+          setError(GitError::CheckoutBranchFailedToLookupDestinationBranch,
+                   error);
           git_commit_free(targetCommit);
           git_reference_free(remoteRef);
           LOG_PERF(0, "Exit");
           return false;
         }
       } else {
-        logGitError(error);
+        setError(GitError::CheckoutBranchFailedToCreateLocalBranchFromRemote,
+                 error);
         git_commit_free(targetCommit);
         git_reference_free(remoteRef);
         LOG_PERF(0, "Exit");
@@ -1570,7 +2944,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     error = git_branch_set_upstream(localRef,
                                     branchOrTagName.toStdString().c_str());
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToSetBranchUpstream, error);
       git_reference_free(localRef);
       git_commit_free(targetCommit);
       git_reference_free(remoteRef);
@@ -1581,7 +2955,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     // 5. Get the tree from the commit
     error = git_commit_tree(&tree, targetCommit);
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToGetSecondCommitTree, error);
       git_reference_free(localRef);
       git_commit_free(targetCommit);
       git_reference_free(remoteRef);
@@ -1596,7 +2970,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     error =
         git_checkout_tree(repo, reinterpret_cast<git_object *>(tree), &opts);
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToCheckoutTagTree, error);
       git_tree_free(tree);
       git_reference_free(localRef);
       git_commit_free(targetCommit);
@@ -1608,7 +2982,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     // 6. Move HEAD to the branch
     error = git_repository_set_head(repo, git_reference_name(localRef));
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToSetHeadToTagReference, error);
       git_tree_free(tree);
       git_reference_free(localRef);
       git_commit_free(targetCommit);
@@ -1630,7 +3004,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     int error = git_revparse_single(&tagTarget, repo,
                                     branchOrTagName.toStdString().c_str());
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToResolveRevision, error);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -1641,7 +3015,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     // 3. Checkout the tree
     error = git_checkout_tree(repo, tagTarget, &opts);
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToCheckoutTree, error);
       git_object_free(tagTarget);
       LOG_PERF(0, "Exit");
       return false;
@@ -1650,7 +3024,7 @@ bool checkoutBranch(git_repository *repo, const QString &branchOrTagName,
     // 4. Detach HEAD to the tag's commit
     error = git_repository_set_head_detached(repo, git_object_id(tagTarget));
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutBranchFailedToSetHeadDetachedAtTag, error);
       git_object_free(tagTarget);
       LOG_PERF(0, "Exit");
       return false;
@@ -1692,7 +3066,7 @@ git_repository *openRepository(const QString &path) {
           git_repository_open(&repo, path.toStdString().c_str())) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to open repository at '{}': error={}",
               path.toStdString(), error);
-    logGitError(error);
+    setError(GitError::OpenRepositoryFailedToOpenRepository, error);
     return nullptr;
   }
 
@@ -1754,7 +3128,8 @@ static QStringList listCheckoutBranches(git_repository *repo,
 
     int error = git_branch_iterator_new(&it, repo, branchType);
     if (error) {
-      logGitError(error);
+      setError(GitError::ListCheckoutBranchesFailedToCreateBranchIterator,
+               error);
       return {};
     }
 
@@ -1771,7 +3146,7 @@ static QStringList listCheckoutBranches(git_repository *repo,
         break;
 
       if (error) {
-        logGitError(error);
+        setError(GitError::ListCheckoutBranchesFailedToReadNextBranch, error);
         break;
       }
 
@@ -1792,7 +3167,7 @@ static QStringList listCheckoutBranches(git_repository *repo,
 
       if (error) {
         git_reference_free(ref);
-        logGitError(error);
+        setError(GitError::ListCheckoutBranchesFailedToReadBranchName, error);
         break;
       }
 
@@ -1807,7 +3182,9 @@ static QStringList listCheckoutBranches(git_repository *repo,
         activeBranches += branchName;
       } else if (error != 0) {
         git_reference_free(ref);
-        logGitError(error);
+        setError(
+            GitError::ListCheckoutBranchesFailedToCheckIfBranchIsCheckedOut,
+            error);
         break;
       }
 
@@ -1823,7 +3200,7 @@ static QStringList listCheckoutBranches(git_repository *repo,
 
     int error = git_repository_head(&headRef, repo);
     if (error) {
-      logGitError(error);
+      setError(GitError::ListCheckoutBranchesFailedToGetRepositoryHead, error);
       LOG_PERF(0, "Exit");
       return {};
     }
@@ -1835,7 +3212,7 @@ static QStringList listCheckoutBranches(git_repository *repo,
 
         error = git_tag_list(&tags, repo);
         if (error) {
-          logGitError(error);
+          setError(GitError::ListCheckoutBranchesFailedToListTags, error);
           git_reference_free(headRef);
           LOG_PERF(0, "Exit");
           return {};
@@ -1846,7 +3223,8 @@ static QStringList listCheckoutBranches(git_repository *repo,
 
           error = git_revparse_single(&tagObj, repo, tags.strings[i]);
           if (error) {
-            logGitError(error);
+            setError(GitError::ListCheckoutBranchesFailedToResolveRevision,
+                     error);
             continue;
           }
 
@@ -1915,7 +3293,7 @@ static QStringList listBranches(git_repository *repo, const BranchType type,
     git_reference *headRef = nullptr;
 
     if (const int error = git_repository_head(&headRef, repo)) {
-      logGitError(error);
+      setError(GitError::ListBranchesFailedToGetRepositoryHead, error);
       LOG_PERF(0, "Exit");
       return {};
     }
@@ -1935,7 +3313,7 @@ static QStringList listBranches(git_repository *repo, const BranchType type,
 
   int error = git_branch_iterator_new(&it, repo, branchType);
   if (error) {
-    logGitError(error);
+    setError(GitError::ListBranchesFailedToCreateBranchIterator, error);
     return {};
   }
 
@@ -1952,7 +3330,7 @@ static QStringList listBranches(git_repository *repo, const BranchType type,
       break;
 
     if (error) {
-      logGitError(error);
+      setError(GitError::ListBranchesFailedToReadNextBranch, error);
       break;
     }
 
@@ -1973,7 +3351,7 @@ static QStringList listBranches(git_repository *repo, const BranchType type,
 
     if (error) {
       git_reference_free(ref);
-      logGitError(error);
+      setError(GitError::ListBranchesFailedToReadBranchName, error);
       break;
     }
 
@@ -2112,7 +3490,9 @@ QVector<BranchInfo> listRemoteBranchesWithStatus(git_repository *repo,
       branchInfo.statusInfo.aheadCount = 0;
       branchInfo.statusInfo.behindCount = 0;
       branchesWithStatus.append(branchInfo);
-      logGitError(error);
+      setError(
+          GitError::ListRemoteBranchesWithStatusFailedToCalculateAheadBehind,
+          error);
       continue;
     }
 
@@ -2160,7 +3540,7 @@ QStringList listStashes(git_repository *repo, const bool &quitFlag) {
   };
 
   if (const int error = git_stash_foreach(repo, callback, &stashes)) {
-    logGitError(error);
+    setError(GitError::ListStashesFailedToListStashes, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -2201,7 +3581,7 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to get stash ref at index {}: error={}", stashIndex,
               error);
-    logGitError(error);
+    setError(GitError::GetStashStatusFailedToResolveRevision, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -2213,7 +3593,7 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to peel stash object to commit at index {}: error={}",
               stashIndex, error);
-    logGitError(error);
+    setError(GitError::GetStashStatusFailedToPeelObjectToCommit, error);
     git_object_free(stash_obj);
     LOG_PERF(0, "Exit");
     return {};
@@ -2226,7 +3606,7 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
   error = git_commit_tree(&stash_tree, stash_commit);
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to get stash tree: error={}", error);
-    logGitError(error);
+    setError(GitError::GetStashStatusFailedToGetCommitTree, error);
     git_commit_free(stash_commit);
     LOG_PERF(0, "Exit");
     return {};
@@ -2267,7 +3647,7 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
   error = git_commit_parent(&parent_commit, stash_commit, 0);
   if (error && error != GIT_ENOTFOUND) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to get stash parent: error={}", error);
-    logGitError(error);
+    setError(GitError::GetStashStatusFailedToGetBaseParentCommit, error);
     git_tree_free(stash_tree);
     if (parent1_tree) {
       git_tree_free(parent1_tree);
@@ -2293,7 +3673,7 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
     if (error) {
       LOG_ERROR(Log::ErrorId::Git, "Failed to get parent tree: error={}",
                 error);
-      logGitError(error);
+      setError(GitError::GetStashStatusFailedToGetSecondCommitTree, error);
       git_tree_free(stash_tree);
       if (parent1_tree) {
         git_tree_free(parent1_tree);
@@ -2323,7 +3703,7 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
     if (error) {
       LOG_ERROR(Log::ErrorId::Git,
                 "Failed to get untracked stash tree: error={}", error);
-      logGitError(error);
+      setError(GitError::GetStashStatusFailedToGetThirdCommitTree, error);
       git_tree_free(stash_tree);
       if (parent1_tree) {
         git_tree_free(parent1_tree);
@@ -2350,7 +3730,7 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
   } else if (error != GIT_ENOTFOUND) {
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to get untracked stash parent: error={}", error);
-    logGitError(error);
+    setError(GitError::GetStashStatusFailedToGetFourthCommitTree, error);
     git_tree_free(stash_tree);
     if (parent1_tree) {
       git_tree_free(parent1_tree);
@@ -2381,7 +3761,7 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
     if (error) {
       LOG_ERROR(Log::ErrorId::Git, "Failed to create diff for stash: error={}",
                 error);
-      logGitError(error);
+      setError(GitError::GetStashStatusFailedToCreateStashDiff, error);
 
       git_tree_free(stash_tree);
       if (parent1_tree) {
@@ -2422,7 +3802,7 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
     if (error) {
       LOG_ERROR(Log::ErrorId::Git,
                 "Failed to walk stash untracked tree: error={}", error);
-      logGitError(error);
+      setError(GitError::GetStashStatusFailedToWalkUntrackedStashTree, error);
 
       git_tree_free(stash_tree);
       if (parent1_tree) {
@@ -2499,7 +3879,7 @@ QStringList listTags(git_repository *repo) {
   git_strarray tagNames = {0};
   const int error = git_tag_list(&tagNames, repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::ListTagsFailedToListTags, error);
     return {};
   }
 
@@ -2558,7 +3938,7 @@ QStringList listSubmodules(git_repository *repo) {
   const int error =
       git_submodule_foreach(repo, &listSubmodulesCallback, &payload);
   if (error) {
-    logGitError(error);
+    setError(GitError::ListSubmodulesFailedToIterateSubmodules, error);
     return {};
   }
 
@@ -2643,14 +4023,14 @@ bool createBranchFromCommit(git_repository *repo, const QString &commit,
 
   int error = git_oid_fromstr(&oid, commit.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::CreateBranchFromCommitFailedToParseObjectId, error);
     LOG_PERF(0, "Exit");
     return false;
   }
 
   error = git_commit_lookup(&commit_, repo, &oid);
   if (error) {
-    logGitError(error);
+    setError(GitError::CreateBranchFromCommitFailedToLookupCommit, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -2659,7 +4039,7 @@ bool createBranchFromCommit(git_repository *repo, const QString &commit,
   error = git_branch_create(&ref, repo, branchName.toStdString().c_str(),
                             commit_, 0);
   if (error) {
-    logGitError(error);
+    setError(GitError::CreateBranchFromCommitFailedToCreateBranch, error);
     git_commit_free(commit_);
     LOG_PERF(0, "Exit");
     return false;
@@ -2700,7 +4080,7 @@ bool deleteStash(git_repository *repo, int stashIndex) {
   }
 
   if (const int error = git_stash_drop(repo, stashIndex)) {
-    logGitError(error);
+    setError(GitError::DeleteStashFailedToDropStash, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -2731,7 +4111,7 @@ bool deleteAllStashes(git_repository *repo) {
             return 0;
           },
           &stashCount)) {
-    logGitError(error);
+    setError(GitError::DeleteAllStashesFailedToReadObjectId, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -2742,7 +4122,7 @@ bool deleteAllStashes(git_repository *repo) {
   for (int i = static_cast<int>(stashCount) - 1; i >= 0; --i) {
     if (const int error = git_stash_drop(repo, i)) {
       LOG_WARN("Failed to delete stash at index {}: error code {}", i, error);
-      logGitError(error);
+      setError(GitError::DeleteAllStashesFailedToDropStash, error);
       // Continue trying to delete other stashes even if one fails
     } else {
       LOG_DEBUG("Deleted stash at index {}", i);
@@ -2774,7 +4154,8 @@ bool initRepository(const QString &repoName, const QString &workingDir,
   int error = git_repository_init_options_init(
       &opts, GIT_REPOSITORY_INIT_OPTIONS_VERSION);
   if (error) {
-    logGitError(error);
+    setError(GitError::InitRepositoryFailedToInitializeRepositoryOptions,
+             error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -2787,7 +4168,7 @@ bool initRepository(const QString &repoName, const QString &workingDir,
 
   error = git_repository_init_ext(&repo, repoPath.toStdString().c_str(), &opts);
   if (error) {
-    logGitError(error);
+    setError(GitError::InitRepositoryFailedToInitializeRepository, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -3517,7 +4898,9 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
       out, credentials.username.toStdString().c_str(),
       credentials.password.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(
+        GitError::CredentialsAcquireCallbackFailedToCreatePlaintextCredentials,
+        error);
     LOG_PERF(0, "Exit");
     return error;
   }
@@ -3544,7 +4927,7 @@ bool checkoutCommit(git_repository *repo, const QString &commit) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to parse commit OID '{}': error={}",
               commit.toStdString(), error);
-    logGitError(error);
+    setError(GitError::CheckoutCommitFailedToParseObjectId, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -3553,7 +4936,7 @@ bool checkoutCommit(git_repository *repo, const QString &commit) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup commit '{}': error={}",
               commit.toStdString(), error);
-    logGitError(error);
+    setError(GitError::CheckoutCommitFailedToLookupCommit, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -3564,7 +4947,7 @@ bool checkoutCommit(git_repository *repo, const QString &commit) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to get tree from commit: error={}",
               error);
-    logGitError(error);
+    setError(GitError::CheckoutCommitFailedToGetCommitTree, error);
     git_commit_free(commit_);
     LOG_PERF(0, "Exit");
     return false;
@@ -3578,7 +4961,7 @@ bool checkoutCommit(git_repository *repo, const QString &commit) {
                             &opts);
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to checkout tree: error={}", error);
-    logGitError(error);
+    setError(GitError::CheckoutCommitFailedToCheckoutCommitTree, error);
     git_tree_free(tree);
     git_commit_free(commit_);
     LOG_PERF(0, "Exit");
@@ -3592,7 +4975,7 @@ bool checkoutCommit(git_repository *repo, const QString &commit) {
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to set HEAD detached to commit '{}': error={}",
               commit.toStdString(), error);
-    logGitError(error);
+    setError(GitError::CheckoutCommitFailedToDetachHead, error);
     git_tree_free(tree);
     git_commit_free(commit_);
     LOG_PERF(0, "Exit");
@@ -3696,7 +5079,7 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
       }
     }
 
-    logGitError(error);
+    setError(GitError::CloneRepositoryFailedToCloneRepository, error);
     LOG_ERROR(Log::ErrorId::Git, "Repository clone failed for URL: {}",
               url.toStdString());
     LOG_PERF(0, "Exit");
@@ -3732,14 +5115,14 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
 
   int error = git_revwalk_new(&walker, repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetBranchHistoryFailedToCreateRevwalk, error);
     LOG_PERF(0, "Exit");
     return {};
   }
 
   error = git_revwalk_sorting(walker, GIT_SORT_TOPOLOGICAL | GIT_SORT_TIME);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetBranchHistoryFailedToConfigureRevwalkSorting, error);
     git_revwalk_free(walker);
     LOG_PERF(0, "Exit");
     return {};
@@ -3766,7 +5149,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
 
     error = git_branch_iterator_new(&it, repo, branchType);
     if (error) {
-      logGitError(error);
+      setError(GitError::GetBranchHistoryFailedToCreateBranchIterator, error);
       git_revwalk_free(walker);
       LOG_PERF(0, "Exit");
       return {};
@@ -3777,7 +5160,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
 
       error = git_branch_name(&currentBranchName, ref);
       if (error) {
-        logGitError(error);
+        setError(GitError::GetBranchHistoryFailedToReadBranchName, error);
         git_reference_free(ref);
         git_revwalk_free(walker);
         git_branch_iterator_free(it);
@@ -3812,7 +5195,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
       error =
           git_revwalk_push_ref(walker, fullBranchName.toStdString().c_str());
       if (error) {
-        logGitError(error);
+        setError(GitError::GetBranchHistoryFailedToAddReferenceToRevwalk,
+                 error);
         git_reference_free(ref);
         git_branch_iterator_free(it);
         git_revwalk_free(walker);
@@ -3839,7 +5223,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
           QString("refs/heads/%1").arg(branchName).toStdString().c_str());
     }
     if (error) {
-      logGitError(error);
+      setError(GitError::GetBranchHistoryFailedToAddLocalBranchToRevwalk,
+               error);
       git_revwalk_free(walker);
       LOG_PERF(0, "Exit");
       return {};
@@ -3855,7 +5240,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
         walker,
         QString("refs/remotes/%1").arg(branchName).toStdString().c_str());
     if (error) {
-      logGitError(error);
+      setError(GitError::GetBranchHistoryFailedToAddRemoteBranchToRevwalk,
+               error);
       git_revwalk_free(walker);
       LOG_PERF(0, "Exit");
       return {};
@@ -3870,7 +5256,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
     error = git_revwalk_push_ref(
         walker, QString("refs/tags/%1").arg(branchName).toStdString().c_str());
     if (error) {
-      logGitError(error);
+      setError(GitError::GetBranchHistoryFailedToAddTagToRevwalk, error);
       git_revwalk_free(walker);
       LOG_PERF(0, "Exit");
       return {};
@@ -3900,7 +5286,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
 
     error = git_commit_lookup(&commit, repo, &oid);
     if (error) {
-      logGitError(error);
+      setError(GitError::GetBranchHistoryFailedToLookupCommit, error);
       git_revwalk_free(walker);
       LOG_PERF(0, "Exit");
       return {};
@@ -4073,7 +5459,7 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
 
   int error = git_branch_iterator_new(&iter, repo, GIT_BRANCH_LOCAL);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetCommitBranchesFailedToCreateBranchIterator, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -4084,7 +5470,7 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
 
     error = git_branch_name(&branchName, ref);
     if (error) {
-      logGitError(error);
+      setError(GitError::GetCommitBranchesFailedToReadBranchName, error);
       git_reference_free(ref);
       git_branch_iterator_free(iter);
       LOG_PERF(0, "Exit");
@@ -4105,7 +5491,7 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
       git_reference *symbolicRef = nullptr;
       error = git_reference_resolve(&symbolicRef, ref);
       if (error) {
-        logGitError(error);
+        setError(GitError::GetCommitBranchesFailedToResolveReference, error);
         git_reference_free(ref);
         git_branch_iterator_free(iter);
         LOG_PERF(0, "Exit");
@@ -4116,7 +5502,7 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
 
       error = git_reference_peel(&branchTip, symbolicRef, GIT_OBJECT_COMMIT);
       if (error) {
-        logGitError(error);
+        setError(GitError::GetCommitBranchesFailedToPeelReference, error);
         git_reference_free(symbolicRef);
         git_reference_free(ref);
         git_branch_iterator_free(iter);
@@ -4142,7 +5528,7 @@ QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
     git_oid oid;
     error = git_oid_fromstr(&oid, commitOid.toStdString().c_str());
     if (error) {
-      logGitError(error);
+      setError(GitError::GetCommitBranchesFailedToParseObjectId, error);
       git_reference_free(ref);
       git_branch_iterator_free(iter);
       LOG_PERF(0, "Exit");
@@ -4181,7 +5567,7 @@ QStringList getCommitTags(git_repository *repo, const QString &commitOid,
 
   const int error = git_tag_list_match(&array, "", repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetCommitTagsFailedToListMatchingTags, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -4236,7 +5622,7 @@ QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
 
   int error = git_branch_iterator_new(&iter, repo, GIT_BRANCH_ALL);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetCommitHeadsFailedToCreateBranchIterator, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -4246,7 +5632,7 @@ QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
     git_object *branchTip = nullptr;
     error = git_reference_peel(&branchTip, ref, GIT_OBJECT_COMMIT);
     if (error) {
-      logGitError(error);
+      setError(GitError::GetCommitHeadsFailedToPeelReference, error);
       git_reference_free(ref);
       git_branch_iterator_free(iter);
       LOG_PERF(0, "Exit");
@@ -4256,7 +5642,7 @@ QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
     const char *branchName = nullptr;
     error = git_branch_name(&branchName, ref);
     if (error) {
-      logGitError(error);
+      setError(GitError::GetCommitHeadsFailedToReadBranchName, error);
       git_reference_free(ref);
       git_branch_iterator_free(iter);
       git_object_free(branchTip);
@@ -4267,7 +5653,7 @@ QStringList getCommitHeads(git_repository *repo, const QString &commitOid,
     git_oid oid;
     error = git_oid_fromstr(&oid, commitOid.toStdString().c_str());
     if (error) {
-      logGitError(error);
+      setError(GitError::GetCommitHeadsFailedToParseObjectId, error);
       git_reference_free(ref);
       git_branch_iterator_free(iter);
       git_object_free(branchTip);
@@ -4313,7 +5699,7 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
 
   int error = git_branch_iterator_new(&iter, repo, GIT_BRANCH_ALL);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetCommitIsHeadFailedToCreateBranchIterator, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4323,7 +5709,7 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
     git_object *branchTip = nullptr;
     error = git_reference_peel(&branchTip, ref, GIT_OBJECT_COMMIT);
     if (error) {
-      logGitError(error);
+      setError(GitError::GetCommitIsHeadFailedToPeelReference, error);
       git_reference_free(ref);
       git_branch_iterator_free(iter);
       LOG_PERF(0, "Exit");
@@ -4333,7 +5719,7 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
     const char *branchName = nullptr;
     error = git_branch_name(&branchName, ref);
     if (error) {
-      logGitError(error);
+      setError(GitError::GetCommitIsHeadFailedToReadBranchName, error);
       git_reference_free(ref);
       git_branch_iterator_free(iter);
       git_object_free(branchTip);
@@ -4344,7 +5730,7 @@ bool getCommitIsHead(git_repository *repo, const QString &commitOid,
     git_oid oid;
     error = git_oid_fromstr(&oid, commitOid.toStdString().c_str());
     if (error) {
-      logGitError(error);
+      setError(GitError::GetCommitIsHeadFailedToParseObjectId, error);
       git_reference_free(ref);
       git_branch_iterator_free(iter);
       git_object_free(branchTip);
@@ -4407,7 +5793,7 @@ GitStatus getStatus(git_repository *repo, const bool &quitFlag) {
   if (const int error = git_status_list_new(&statusList, repo, &opts)) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to create status list: error={}",
               error);
-    logGitError(error);
+    setError(GitError::GetStatusFailedToCreateStatusList, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -4551,7 +5937,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
 
   int error = git_commit_lookup(&commit, repo, &oid);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetCommitStatusFailedToLookupCommit, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -4559,7 +5945,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   // Get commit tree
   error = git_commit_tree(&tree, commit);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetCommitStatusFailedToGetCommitTree, error);
     git_commit_free(commit);
     LOG_PERF(0, "Exit");
     return {};
@@ -4571,7 +5957,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   if (parentCount > 0) {
     error = git_commit_parent(&parent, commit, 0);
     if (error) {
-      logGitError(error);
+      setError(GitError::GetCommitStatusFailedToGetParentCommit, error);
       git_tree_free(tree);
       git_commit_free(commit);
       LOG_PERF(0, "Exit");
@@ -4580,7 +5966,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
 
     error = git_commit_tree(&parent_tree, parent);
     if (error) {
-      logGitError(error);
+      setError(GitError::GetCommitStatusFailedToGetSecondCommitTree, error);
       git_tree_free(tree);
       git_commit_free(parent);
       git_commit_free(commit);
@@ -4598,7 +5984,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
 
   error = git_diff_tree_to_tree(&diff, repo, parent_tree, tree, &opts);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetCommitStatusFailedToCreateCommitDiff, error);
 
     git_tree_free(tree);
 
@@ -4621,7 +6007,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
 
   error = git_diff_find_similar(diff, &find_opts);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetCommitStatusFailedToDetectRenames, error);
 
     git_diff_free(diff);
 
@@ -4713,7 +6099,7 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to get repository index: error={}",
               error);
-    logGitError(error);
+    setError(GitError::StageFilesFailedToGetRepositoryIndex, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4737,7 +6123,7 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
         LOG_ERROR(Log::ErrorId::Git,
                   "Failed to remove file from index '{}': error={}",
                   relativePath.toStdString(), error);
-        logGitError(error);
+        setError(GitError::StageFilesFailedToRemovePathFromIndex, error);
         git_index_free(index);
         LOG_PERF(0, "Exit");
         return false;
@@ -4755,7 +6141,7 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
       error = git_submodule_add_to_index(submodule, 0);
       git_submodule_free(submodule);
       if (error) {
-        logGitError(error);
+        setError(GitError::StageFilesFailedToAddSubmoduleToIndex, error);
         git_index_free(index);
         LOG_PERF(0, "Exit");
         return false;
@@ -4764,13 +6150,13 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
       giterr_clear();
       error = git_index_add_bypath(index, relativePath.toStdString().c_str());
       if (error) {
-        logGitError(error);
+        setError(GitError::StageFilesFailedToAddPathToIndex, error);
         git_index_free(index);
         LOG_PERF(0, "Exit");
         return false;
       }
     } else {
-      logGitError(error);
+      setError(GitError::StageFilesFailedToAddMissingPathToIndex, error);
       git_index_free(index);
       LOG_PERF(0, "Exit");
       return false;
@@ -4779,7 +6165,7 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
 
   error = git_index_write(index);
   if (error) {
-    logGitError(error);
+    setError(GitError::StageFilesFailedToWriteIndex, error);
     git_index_free(index);
     LOG_PERF(0, "Exit");
     return false;
@@ -4808,7 +6194,7 @@ bool unstageFiles(git_repository *repo, const QStringList &files) {
   // Lookup HEAD commit
   int error = git_revparse_single(&headCommit, repo, "HEAD");
   if (error) {
-    logGitError(error);
+    setError(GitError::UnstageFilesFailedToResolveRevision, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4824,7 +6210,7 @@ bool unstageFiles(git_repository *repo, const QStringList &files) {
   // Reset index entries for selected paths to match HEAD
   error = git_reset_default(repo, headCommit, &arr);
   if (error) {
-    logGitError(error);
+    setError(GitError::UnstageFilesFailedToResetPathsToHead, error);
     git_object_free(headCommit);
     git_strarray_destroy(arr);
     LOG_PERF(0, "Exit");
@@ -4878,7 +6264,7 @@ bool commitStaged(git_repository *repo, const QString &summary,
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to get repository index: error={}",
               error);
-    logGitError(error);
+    setError(GitError::CommitStagedFailedToGetRepositoryIndex, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -4888,7 +6274,7 @@ bool commitStaged(git_repository *repo, const QString &summary,
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to write index to tree: error={}",
               error);
-    logGitError(error);
+    setError(GitError::CommitStagedFailedToWriteIndexTree, error);
     git_index_free(index);
     LOG_PERF(0, "Exit");
     return false;
@@ -4897,7 +6283,7 @@ bool commitStaged(git_repository *repo, const QString &summary,
   error = git_tree_lookup(&tree, repo, &treeId);
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup tree: error={}", error);
-    logGitError(error);
+    setError(GitError::CommitStagedFailedToLookupTree, error);
     git_index_free(index);
     LOG_PERF(0, "Exit");
     return false;
@@ -4909,7 +6295,7 @@ bool commitStaged(git_repository *repo, const QString &summary,
   error = git_signature_now(&sig, author.toStdString().c_str(),
                             email.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::CommitStagedFailedToCreateSignature, error);
     git_tree_free(tree);
     git_index_free(index);
     LOG_PERF(0, "Exit");
@@ -4922,7 +6308,7 @@ bool commitStaged(git_repository *repo, const QString &summary,
     git_reference *headRef = nullptr;
     error = git_repository_head(&headRef, repo);
     if (error) {
-      logGitError(error);
+      setError(GitError::CommitStagedFailedToGetRepositoryHead, error);
       git_signature_free(sig);
       git_tree_free(tree);
       git_index_free(index);
@@ -4932,7 +6318,7 @@ bool commitStaged(git_repository *repo, const QString &summary,
 
     error = git_commit_lookup(&parent, repo, git_reference_target(headRef));
     if (error) {
-      logGitError(error);
+      setError(GitError::CommitStagedFailedToGetReferenceTarget, error);
       git_reference_free(headRef);
       git_signature_free(sig);
       git_tree_free(tree);
@@ -4950,7 +6336,8 @@ bool commitStaged(git_repository *repo, const QString &summary,
       if (error) {
         LOG_ERROR(Log::ErrorId::Git,
                   "Failed to read MERGE_HEAD during merge: error={}", error);
-        logGitError(error);
+        setError(GitError::CommitStagedFailedToResolveMergeHeadReference,
+                 error);
         git_commit_free(parent);
         git_signature_free(sig);
         git_tree_free(tree);
@@ -4964,7 +6351,7 @@ bool commitStaged(git_repository *repo, const QString &summary,
       if (error) {
         LOG_ERROR(Log::ErrorId::Git,
                   "Failed to lookup MERGE_HEAD commit: error={}", error);
-        logGitError(error);
+        setError(GitError::CommitStagedFailedToGetSecondReferenceTarget, error);
         git_reference_free(mergeHeadRef);
         git_commit_free(parent);
         git_signature_free(sig);
@@ -4997,7 +6384,7 @@ bool commitStaged(git_repository *repo, const QString &summary,
         loadCommitSigningConfig(&signingConfig, &signingError);
     if (!signingConfigLoaded) {
       LOG_ERROR(Log::ErrorId::Git, "{}", signingError.toStdString());
-      setLastError(-1, signingError);
+      setError(GitError::CommitStagedFailedToLoadSigningConfiguration, -1);
 
       if (parent) {
         git_commit_free(parent);
@@ -5034,9 +6421,10 @@ bool commitStaged(git_repository *repo, const QString &summary,
       if (!signingError.isEmpty()) {
         LOG_ERROR(Log::ErrorId::Git, "Failed to sign commit: {}",
                   signingError.toStdString());
-        setLastError(-1, signingError);
+        setError(GitError::CommitStagedFailedToSignCommit, -1);
       } else {
-        logGitError(error);
+        setError(GitError::CommitStagedFailedToCreateCommitFromStagedChanges,
+                 error);
       }
 
       if (parent) {
@@ -5058,7 +6446,7 @@ bool commitStaged(git_repository *repo, const QString &summary,
                                 fullMessage.toStdString().c_str(), tree,
                                 parentCount, parent, parent2);
     if (error) {
-      logGitError(error);
+      setError(GitError::CommitStagedFailedToCreateCommit, error);
 
       if (parent) {
         git_commit_free(parent);
@@ -5090,7 +6478,7 @@ bool commitStaged(git_repository *repo, const QString &summary,
   if (cleanup) {
     error = git_repository_state_cleanup(repo);
     if (error) {
-      logGitError(error);
+      setError(GitError::CommitStagedFailedToCleanupRepositoryState, error);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -5262,14 +6650,14 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
 
   int error = git_revparse_single(&headCommit, repo, "HEAD");
   if (error) {
-    logGitError(error);
+    setError(GitError::DiffFilesFailedToResolveRevision, error);
     LOG_PERF(0, "Exit");
     return {};
   }
 
   error = git_commit_lookup(&commit, repo, git_object_id(headCommit));
   if (error) {
-    logGitError(error);
+    setError(GitError::DiffFilesFailedToGetHeadObjectId, error);
     git_object_free(headCommit);
     LOG_PERF(0, "Exit");
     return {};
@@ -5277,7 +6665,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
 
   error = git_commit_tree(&headTree, commit);
   if (error) {
-    logGitError(error);
+    setError(GitError::DiffFilesFailedToGetCommitTree, error);
     git_commit_free(commit);
     git_object_free(headCommit);
     LOG_PERF(0, "Exit");
@@ -5295,7 +6683,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
   git_diff *diff = nullptr;
   error = git_diff_tree_to_workdir(&diff, repo, headTree, &opts);
   if (error) {
-    logGitError(error);
+    setError(GitError::DiffFilesFailedToDiffTreeAgainstWorkdir, error);
     git_tree_free(headTree);
     git_strarray_destroy(arr);
     LOG_PERF(0, "Exit");
@@ -5322,7 +6710,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
     git_patch *patch;
     error = git_patch_from_diff(&patch, diff, i);
     if (error) {
-      logGitError(error);
+      setError(GitError::DiffFilesFailedToCreatePatchFromDiff, error);
       continue;
     }
 
@@ -5331,7 +6719,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
       const git_diff_hunk *hunk;
       error = git_patch_get_hunk(&hunk, NULL, patch, h);
       if (error) {
-        logGitError(error);
+        setError(GitError::DiffFilesFailedToReadPatchHunk, error);
         continue;
       }
 
@@ -5352,7 +6740,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
         const git_diff_line *line;
         error = git_patch_get_line_in_hunk(&line, patch, h, l);
         if (error) {
-          logGitError(error);
+          setError(GitError::DiffFilesFailedToReadPatchLine, error);
           continue;
         }
 
@@ -5389,7 +6777,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
 
   error = git_repository_head(&headRef, repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::DiffFilesFailedToGetRepositoryHead, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -5398,7 +6786,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
 
   error = git_reference_peel(&headCommit, headRef, GIT_OBJECT_COMMIT);
   if (error) {
-    logGitError(error);
+    setError(GitError::DiffFilesFailedToPeelReference, error);
     git_reference_free(headRef);
     LOG_PERF(0, "Exit");
     return {};
@@ -5409,7 +6797,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
   error =
       git_commit_tree(&tree, reinterpret_cast<const git_commit *>(headCommit));
   if (error) {
-    logGitError(error);
+    setError(GitError::DiffFilesFailedToReadHeadCommit, error);
     git_reference_free(headRef);
     git_commit_free(reinterpret_cast<git_commit *>(headCommit));
     LOG_PERF(0, "Exit");
@@ -5442,14 +6830,14 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
 
     error = git_tree_entry_bypath(&entry, tree, filePath.toStdString().c_str());
     if (error) {
-      logGitError(error);
+      setError(GitError::DiffFilesFailedToLookupTreeEntryByPath, error);
       repoContent.insert(file, QString());
       continue;
     }
 
     const git_oid *fullOid = git_tree_entry_id(entry);
     if (!fullOid) {
-      logGitError(error);
+      setError(GitError::DiffFilesFailedToReadTreeEntryId, error);
       git_tree_entry_free(entry);
       repoContent.insert(file, QString());
       continue;
@@ -5458,7 +6846,7 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files) {
     git_blob *blob = nullptr;
     error = git_blob_lookup_prefix(&blob, repo, fullOid, 7);
     if (error) {
-      logGitError(error);
+      setError(GitError::DiffFilesFailedToLookupBlobByPrefix, error);
       git_tree_entry_free(entry);
       repoContent.insert(file, QString());
       continue;
@@ -5534,7 +6922,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
     git_object *headTree = nullptr;
     int error = git_revparse_single(&headTree, repo, "HEAD^{tree}");
     if (error) {
-      logGitError(error);
+      setError(GitError::DiscardFilesFailedToResolveRevision, error);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -5549,7 +6937,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
 
     error = git_checkout_tree(repo, headTree, &checkoutOpts);
     if (error) {
-      logGitError(error);
+      setError(GitError::DiscardFilesFailedToCheckoutTree, error);
       git_strarray_destroy(arr);
       git_object_free(headTree);
       LOG_PERF(0, "Exit");
@@ -5563,7 +6951,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
     git_index *index = nullptr;
     error = git_repository_index(&index, repo);
     if (error) {
-      logGitError(error);
+      setError(GitError::DiscardFilesFailedToGetRepositoryIndex, error);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -5571,7 +6959,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
     git_object *headTree2 = nullptr;
     error = git_revparse_single(&headTree2, repo, "HEAD^{tree}");
     if (error) {
-      logGitError(error);
+      setError(GitError::DiscardFilesFailedToResolveHeadRevision, error);
       git_index_free(index);
       LOG_PERF(0, "Exit");
       return false;
@@ -5580,7 +6968,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
     git_tree *tree = nullptr;
     error = git_tree_lookup(&tree, repo, git_object_id(headTree2));
     if (error) {
-      logGitError(error);
+      setError(GitError::DiscardFilesFailedToGetHeadTreeObjectId, error);
       git_object_free(headTree2);
       git_index_free(index);
       LOG_PERF(0, "Exit");
@@ -5592,7 +6980,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
     git_tree_entry *entry = nullptr;
     error = git_tree_entry_bypath(&entry, tree, path.c_str());
     if (error) {
-      logGitError(error);
+      setError(GitError::DiscardFilesFailedToLookupTreeEntryByPath, error);
       git_tree_free(tree);
       git_object_free(headTree2);
       git_index_free(index);
@@ -5603,7 +6991,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
       git_blob *blob = nullptr;
       error = git_blob_lookup(&blob, repo, git_tree_entry_id(entry));
       if (error) {
-        logGitError(error);
+        setError(GitError::DiscardFilesFailedToReadTreeEntryId, error);
         git_tree_entry_free(entry);
         git_tree_free(tree);
         git_object_free(headTree2);
@@ -5650,7 +7038,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
 
       error = git_index_remove(index, path.c_str(), 0); // Remove old entry
       if (error) {
-        logGitError(error);
+        setError(GitError::DiscardFilesFailedToRemoveIndexEntry, error);
         git_tree_free(tree);
         git_object_free(headTree2);
         git_index_free(index);
@@ -5660,7 +7048,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
 
       error = git_index_add(index, &newEntry); // Add fresh entry
       if (error) {
-        logGitError(error);
+        setError(GitError::DiscardFilesFailedToAddIndexEntry, error);
         git_tree_free(tree);
         git_object_free(headTree2);
         git_index_free(index);
@@ -5670,7 +7058,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
     } else {
       error = git_index_remove(index, path.c_str(), 0); // Remove if not in HEAD
       if (error) {
-        logGitError(error);
+        setError(GitError::DiscardFilesFailedToRemoveDeletedIndexEntry, error);
         git_tree_free(tree);
         git_object_free(headTree2);
         git_index_free(index);
@@ -5684,7 +7072,7 @@ bool discardFiles(git_repository *repo, const QStringList &files) {
 
     error = git_index_write(index);
     if (error) {
-      logGitError(error);
+      setError(GitError::DiscardFilesFailedToWriteIndex, error);
       git_index_free(index);
       LOG_PERF(0, "Exit");
       return false;
@@ -5728,7 +7116,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
     git_reference *head = nullptr;
     int error = git_repository_head(&head, repo);
     if (error) {
-      logGitError(error);
+      setError(GitError::PullFailedToGetRepositoryHead, error);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -5736,7 +7124,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
     const char *branchNameC = nullptr;
     error = git_branch_name(&branchNameC, head);
     if (error != 0 || !branchNameC) {
-      logGitError(error);
+      setError(GitError::PullFailedToReadBranchName, error);
       git_reference_free(head);
       LOG_PERF(0, "Exit");
       return false;
@@ -5752,7 +7140,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
   auto [upstreamSuccess, remoteName, remoteBranchName] =
       getUpstream(repo, targetBranchName);
   if (!upstreamSuccess || remoteName.isEmpty()) {
-    logGitError(GIT_ENOTFOUND);
+    setError(GitError::PullNoUpstreamConfigured, GIT_ENOTFOUND);
     LOG_DEBUG("Branch '{}' has no upstream configured",
               targetBranchName.toStdString());
     LOG_PERF(0, "Exit");
@@ -5772,7 +7160,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup remote '{}': error={}",
               remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::PullFailedToLookupRemote, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5859,7 +7247,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
     error = git_remote_fetch(remote, &refspecs, &fetchOpts, nullptr);
 
     if (error) {
-      logGitError(error);
+      setError(GitError::PullFailedToFetchRemote, error);
       gGitCredentialsMutex.lock();
       gGitCredentials.remove(urlStr);
       gGitCredentialsMutex.unlock();
@@ -5876,7 +7264,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
   }
 
   if (error) {
-    logGitError(error);
+    setError(GitError::PullFailedToFetchRemoteWithCredentials, error);
     git_strarray_destroy(refspecs);
     git_remote_free(remote);
     LOG_PERF(0, "Exit");
@@ -5890,7 +7278,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
   git_reference *head = nullptr;
   error = git_repository_head(&head, repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::PullFailedToGetRepositoryHeadAfterFetch, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5908,7 +7296,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
   if (error != 0) {
     LOG_DEBUG("Failed to lookup upstream reference '{}'",
               upstreamRefName.toStdString());
-    logGitError(error);
+    setError(GitError::PullFailedToLookupReference, error);
     git_reference_free(head);
     LOG_PERF(0, "Exit");
     return false;
@@ -5918,7 +7306,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
   git_annotated_commit *upstreamCommit = nullptr;
   error = git_annotated_commit_from_ref(&upstreamCommit, repo, upstream);
   if (error) {
-    logGitError(error);
+    setError(GitError::PullFailedToCreateAnnotatedCommitFromReference, error);
     git_reference_free(upstream);
     git_reference_free(head);
     LOG_PERF(0, "Exit");
@@ -5934,7 +7322,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
     git_signature *signature = nullptr;
     error = git_signature_default(&signature, repo);
     if (error) {
-      logGitError(error);
+      setError(GitError::PullFailedToGetDefaultSignature, error);
       git_annotated_commit_free(upstreamCommit);
       git_reference_free(upstream);
       git_reference_free(head);
@@ -5946,7 +7334,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
     error = git_rebase_init(&rebaseSession, repo, nullptr, upstreamCommit,
                             nullptr, &rebaseOpts);
     if (error) {
-      logGitError(error);
+      setError(GitError::PullFailedToStartRebase, error);
       git_signature_free(signature);
       git_annotated_commit_free(upstreamCommit);
       git_reference_free(upstream);
@@ -5970,7 +7358,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
         LOG_ERROR(Log::ErrorId::Git,
                   "Rebase stopped because conflicts must be resolved manually");
       } else {
-        logGitError(error);
+        setError(GitError::PullFailedToCommitRebaseStep, error);
       }
       git_rebase_abort(rebaseSession);
       rebaseSuccess = false;
@@ -5980,12 +7368,12 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
     if (rebaseSuccess && error == GIT_ITEROVER) {
       error = git_rebase_finish(rebaseSession, signature);
       if (error) {
-        logGitError(error);
+        setError(GitError::PullFailedToFinishRebase, error);
         git_rebase_abort(rebaseSession);
         rebaseSuccess = false;
       }
     } else if (rebaseSuccess) {
-      logGitError(error);
+      setError(GitError::PullFailedToAbortRebase, error);
       rebaseSuccess = false;
     }
 
@@ -6001,7 +7389,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
         &analysis, &preference, repo,
         const_cast<const git_annotated_commit **>(&upstreamCommit), 1);
     if (error) {
-      logGitError(error);
+      setError(GitError::PullFailedToCreateAnnotatedCommit, error);
       git_annotated_commit_free(upstreamCommit);
       git_reference_free(upstream);
       git_reference_free(head);
@@ -6024,7 +7412,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
       git_commit *targetCommit = nullptr;
       error = git_commit_lookup(&targetCommit, repo, targetOid);
       if (error) {
-        logGitError(error);
+        setError(GitError::PullFailedToLookupCommit, error);
         git_annotated_commit_free(upstreamCommit);
         git_reference_free(upstream);
         git_reference_free(head);
@@ -6038,7 +7426,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
       error =
           git_checkout_tree(repo, (git_object *)targetCommit, &checkout_opts);
       if (error) {
-        logGitError(error);
+        setError(GitError::PullFailedToPeelFetchedTargetCommit, error);
         git_commit_free(targetCommit);
         git_annotated_commit_free(upstreamCommit);
         git_reference_free(upstream);
@@ -6051,7 +7439,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
       error =
           git_reference_set_target(&newHead, head, targetOid, "Fast-forward");
       if (error) {
-        logGitError(error);
+        setError(GitError::PullFailedToSetReferenceTarget, error);
         git_commit_free(targetCommit);
         git_annotated_commit_free(upstreamCommit);
         git_reference_free(upstream);
@@ -6073,7 +7461,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
           repo, const_cast<const git_annotated_commit **>(&upstreamCommit), 1,
           &merge_opts, &checkout_opts);
       if (error) {
-        logGitError(error);
+        setError(GitError::PullFailedToCreateMergeAnnotatedCommit, error);
         git_annotated_commit_free(upstreamCommit);
         git_reference_free(upstream);
         git_reference_free(head);
@@ -6124,7 +7512,7 @@ static bool fetchRemoteInternal(git_repository *repo,
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup remote '{}': error={}",
               remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::FetchRemoteInternalFailedToLookupRemote, error);
     return false;
   }
 
@@ -6157,7 +7545,7 @@ static bool fetchRemoteInternal(git_repository *repo,
 
   const bool commercial = isCommercialPlan();
   if (!commercial && gitSchema) {
-    logGitError(GIT_EAUTH);
+    setError(GitError::FetchRemoteGitSshUrlRequiresCommercialPlan, GIT_EAUTH);
     LOG_ERROR(Log::ErrorId::Git,
               "Fetching from git@ repositories is not available on the free "
               "plan.");
@@ -6198,7 +7586,7 @@ static bool fetchRemoteInternal(git_repository *repo,
     error = git_remote_fetch(remote, &refspecs, &fetchOpts, nullptr);
 
     if (error) {
-      logGitError(error);
+      setError(GitError::FetchRemoteInternalFailedToFetchRemote, error);
       gGitCredentialsMutex.lock();
       gGitCredentials.remove(urlStr);
       gGitCredentialsMutex.unlock();
@@ -6217,7 +7605,8 @@ static bool fetchRemoteInternal(git_repository *repo,
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to fetch from remote '{}': error={}",
               remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::FetchRemoteInternalFailedToFetchRemoteWithCredentials,
+             error);
     git_strarray_destroy(refspecs);
     git_remote_free(remote);
     return false;
@@ -6319,7 +7708,7 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
     git_reference *head = nullptr;
     int error = git_repository_head(&head, repo);
     if (error) {
-      logGitError(error);
+      setError(GitError::PushFailedToGetRepositoryHead, error);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -6327,7 +7716,7 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
     const char *branchNameC = nullptr;
     error = git_branch_name(&branchNameC, head);
     if (error != 0 || !branchNameC) {
-      logGitError(error);
+      setError(GitError::PushFailedToReadBranchName, error);
       git_reference_free(head);
       LOG_PERF(0, "Exit");
       return false;
@@ -6364,7 +7753,7 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup remote '{}': error={}",
               remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::PushFailedToLookupRemote, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6439,7 +7828,7 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
     error = git_remote_push(remote, &refspecs, &pushOpts);
 
     if (error) {
-      logGitError(error);
+      setError(GitError::PushFailedToPushRemote, error);
       gGitCredentialsMutex.lock();
       gGitCredentials.remove(urlStr);
       gGitCredentialsMutex.unlock();
@@ -6492,7 +7881,7 @@ bool pushTag(git_repository *repo, const QString &tagName) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Tag '{}' not found: error={}",
               tagName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::PushTagFailedToLookupReference, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6506,7 +7895,7 @@ bool pushTag(git_repository *repo, const QString &tagName) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
               error);
-    logGitError(error);
+    setError(GitError::PushTagFailedToLookupRemote, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6575,7 +7964,7 @@ bool pushTag(git_repository *repo, const QString &tagName) {
   do {
     error = git_remote_push(remote, &refspecs, &opts);
     if (error) {
-      logGitError(error);
+      setError(GitError::PushTagFailedToPushRemote, error);
 
       gGitCredentialsMutex.lock();
       gGitCredentials.remove(url);
@@ -6639,7 +8028,7 @@ bool pushAllTags(git_repository *repo) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
               error);
-    logGitError(error);
+    setError(GitError::PushAllTagsFailedToLookupRemote, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6712,7 +8101,7 @@ bool pushAllTags(git_repository *repo) {
   do {
     error = git_remote_push(remote, &refspecs, &opts);
     if (error) {
-      logGitError(error);
+      setError(GitError::PushAllTagsFailedToPushRemote, error);
 
       gGitCredentialsMutex.lock();
       gGitCredentials.remove(url);
@@ -6754,7 +8143,7 @@ bool stash(git_repository *repo) {
   // Get default signature (author info)
   int error = git_signature_default(&signature, repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::StashFailedToGetDefaultSignature, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6768,7 +8157,7 @@ bool stash(git_repository *repo) {
       // GIT_STASH_INCLUDE_UNTRACKED, etc.)
   );
   if (error) {
-    logGitError(error);
+    setError(GitError::StashFailedToCreateStash, error);
     git_signature_free(signature);
     LOG_PERF(0, "Exit");
     return false;
@@ -6798,7 +8187,7 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
   int error = git_branch_lookup(
       &localRef, repo, localBranchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
   if (error) {
-    logGitError(error);
+    setError(GitError::SetUpstreamFailedToLookupBranch, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -6914,7 +8303,7 @@ bool setUpstream(git_repository *repo, const QString &remoteName,
   }
 
   if (error) {
-    logGitError(error);
+    setError(GitError::SetUpstreamFailedToSetBranchUpstream, error);
     git_reference_free(localRef);
     LOG_PERF(0, "Exit");
     return false;
@@ -6943,7 +8332,7 @@ std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
   int error = git_branch_lookup(
       &localRef, repo, localBranchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetUpstreamFailedToLookupBranch, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -6955,7 +8344,7 @@ std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
   QString remoteBranchName;
 
   if (error && error != GIT_ENOTFOUND) {
-    logGitError(error);
+    setError(GitError::GetUpstreamFailedToGetBranchUpstream, error);
     git_reference_free(localRef);
     LOG_PERF(0, "Exit");
     return {};
@@ -6989,7 +8378,7 @@ std::tuple<bool, QString, QString> getUpstream(git_repository *repo,
     git_config *config = nullptr;
     error = git_config_open_ondisk(&config, configPath.toStdString().c_str());
     if (error) {
-      logGitError(error);
+      setError(GitError::GetUpstreamFailedToOpenGitConfig, error);
       git_reference_free(localRef);
       LOG_PERF(0, "Exit");
       return {};
@@ -7058,7 +8447,7 @@ bool resetToCommit(git_repository *repo, const QString &commit,
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to parse commit '{}': error={}",
               commit.toStdString(), error);
-    logGitError(error);
+    setError(GitError::ResetToCommitFailedToResolveRevision, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -7093,7 +8482,7 @@ bool resetToCommit(git_repository *repo, const QString &commit,
 
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Reset operation failed: error={}", error);
-    logGitError(error);
+    setError(GitError::ResetToCommitFailedToResetRepository, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -7122,7 +8511,7 @@ bool revertCommit(git_repository *repo, const QString &commit,
   int error = git_revparse_single((git_object **)&targetCommit, repo,
                                   commit.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::RevertCommitFailedToLookupTargetCommit, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -7132,7 +8521,7 @@ bool revertCommit(git_repository *repo, const QString &commit,
 
   error = git_repository_head(&headRef, repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::RevertCommitFailedToGetRepositoryHead, error);
     git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
@@ -7140,7 +8529,7 @@ bool revertCommit(git_repository *repo, const QString &commit,
 
   error = git_commit_lookup(&headCommit, repo, git_reference_target(headRef));
   if (error) {
-    logGitError(error);
+    setError(GitError::RevertCommitFailedToGetReferenceTarget, error);
     git_reference_free(headRef);
     git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
@@ -7155,7 +8544,7 @@ bool revertCommit(git_repository *repo, const QString &commit,
                             0, // mainline = 0 for non-merge commits
                             &mergeOpts);
   if (error) {
-    logGitError(error);
+    setError(GitError::RevertCommitFailedToPrepareRevertCommit, error);
     git_commit_free(headCommit);
     git_reference_free(headRef);
     git_commit_free(targetCommit);
@@ -7168,7 +8557,7 @@ bool revertCommit(git_repository *repo, const QString &commit,
 
   error = git_checkout_index(repo, revertIndex, &checkoutOpts);
   if (error) {
-    logGitError(error);
+    setError(GitError::RevertCommitFailedToCheckoutIndex, error);
     git_index_free(revertIndex);
     git_commit_free(headCommit);
     git_reference_free(headRef);
@@ -7213,7 +8602,7 @@ bool revertCommit(git_repository *repo, const QString &commit,
 
   error = git_index_write_tree_to(&treeOid, revertIndex, repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::RevertCommitFailedToWriteIndexTreeToRepository, error);
     git_index_free(revertIndex);
     git_commit_free(headCommit);
     git_reference_free(headRef);
@@ -7226,7 +8615,7 @@ bool revertCommit(git_repository *repo, const QString &commit,
 
   error = git_tree_lookup(&revertTree, repo, &treeOid);
   if (error) {
-    logGitError(error);
+    setError(GitError::RevertCommitFailedToLookupTree, error);
     git_index_free(revertIndex);
     git_commit_free(headCommit);
     git_reference_free(headRef);
@@ -7240,7 +8629,7 @@ bool revertCommit(git_repository *repo, const QString &commit,
   error = git_signature_now(&sig, author.toStdString().c_str(),
                             email.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::RevertCommitFailedToCreateSignature, error);
     git_tree_free(revertTree);
     git_index_free(revertIndex);
     git_commit_free(headCommit);
@@ -7256,7 +8645,7 @@ bool revertCommit(git_repository *repo, const QString &commit,
                               message.toStdString().c_str(), revertTree, 1,
                               headCommit);
   if (error) {
-    logGitError(error);
+    setError(GitError::RevertCommitFailedToCreateCommit, error);
     git_signature_free(sig);
     git_tree_free(revertTree);
     git_index_free(revertIndex);
@@ -7348,7 +8737,7 @@ bool applyPatch(git_repository *repo, const QString &patchContent) {
 
   int error = git_diff_from_buffer(&diff, buffer.constData(), buffer.size());
   if (error) {
-    logGitError(error);
+    setError(GitError::ApplyPatchFailedToParsePatchBuffer, error);
     removeFiles(createdFiles);
     LOG_PERF(0, "Exit");
     return false;
@@ -7357,7 +8746,7 @@ bool applyPatch(git_repository *repo, const QString &patchContent) {
   git_apply_options opts = GIT_APPLY_OPTIONS_INIT;
   error = git_apply(repo, diff, GIT_APPLY_LOCATION_WORKDIR, &opts);
   if (error) {
-    logGitError(error);
+    setError(GitError::ApplyPatchFailedToApplyPatch, error);
     git_diff_free(diff);
     removeFiles(createdFiles);
     LOG_PERF(0, "Exit");
@@ -7388,7 +8777,7 @@ bool cherryPickCommit(git_repository *repo, const QString &commit,
   int error = git_revparse_single((git_object **)&targetCommit, repo,
                                   commit.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::CherryPickCommitFailedToLookupTargetCommit, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -7398,7 +8787,7 @@ bool cherryPickCommit(git_repository *repo, const QString &commit,
 
   error = git_repository_head(&headRef, repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::CherryPickCommitFailedToGetRepositoryHead, error);
     git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
@@ -7406,7 +8795,7 @@ bool cherryPickCommit(git_repository *repo, const QString &commit,
 
   error = git_commit_lookup(&headCommit, repo, git_reference_target(headRef));
   if (error) {
-    logGitError(error);
+    setError(GitError::CherryPickCommitFailedToGetReferenceTarget, error);
     git_reference_free(headRef);
     git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
@@ -7420,7 +8809,7 @@ bool cherryPickCommit(git_repository *repo, const QString &commit,
   error = git_cherrypick_commit(&cherryPickIndex, repo, targetCommit,
                                 headCommit, 0, &mergeOpts);
   if (error) {
-    logGitError(error);
+    setError(GitError::CherryPickCommitFailedToPrepareCherryPickCommit, error);
     git_commit_free(headCommit);
     git_reference_free(headRef);
     git_commit_free(targetCommit);
@@ -7433,7 +8822,7 @@ bool cherryPickCommit(git_repository *repo, const QString &commit,
 
   error = git_checkout_index(repo, cherryPickIndex, &checkoutOpts);
   if (error) {
-    logGitError(error);
+    setError(GitError::CherryPickCommitFailedToCheckoutIndex, error);
     git_index_free(cherryPickIndex);
     git_commit_free(headCommit);
     git_reference_free(headRef);
@@ -7478,7 +8867,8 @@ bool cherryPickCommit(git_repository *repo, const QString &commit,
 
   error = git_index_write_tree_to(&treeOid, cherryPickIndex, repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::CherryPickCommitFailedToWriteIndexTreeToRepository,
+             error);
     git_index_free(cherryPickIndex);
     git_commit_free(headCommit);
     git_reference_free(headRef);
@@ -7491,7 +8881,7 @@ bool cherryPickCommit(git_repository *repo, const QString &commit,
 
   error = git_tree_lookup(&cherryPickTree, repo, &treeOid);
   if (error) {
-    logGitError(error);
+    setError(GitError::CherryPickCommitFailedToLookupTree, error);
     git_index_free(cherryPickIndex);
     git_commit_free(headCommit);
     git_reference_free(headRef);
@@ -7505,7 +8895,7 @@ bool cherryPickCommit(git_repository *repo, const QString &commit,
   error = git_signature_now(&sig, author.toStdString().c_str(),
                             email.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::CherryPickCommitFailedToCreateSignature, error);
     git_tree_free(cherryPickTree);
     git_index_free(cherryPickIndex);
     git_commit_free(headCommit);
@@ -7521,7 +8911,7 @@ bool cherryPickCommit(git_repository *repo, const QString &commit,
   error = git_commit_create_v(&newCommitOid, repo, "HEAD", sig, sig, nullptr,
                               commitMessage, cherryPickTree, 1, headCommit);
   if (error) {
-    logGitError(error);
+    setError(GitError::CherryPickCommitFailedToCreateCommit, error);
     git_signature_free(sig);
     git_tree_free(cherryPickTree);
     git_index_free(cherryPickIndex);
@@ -7561,14 +8951,14 @@ bool renameBranch(git_repository *repo, const QString &oldName,
   int error = git_branch_lookup(&ref, repo, oldName.toStdString().c_str(),
                                 GIT_BRANCH_LOCAL);
   if (error) {
-    logGitError(error);
+    setError(GitError::RenameBranchFailedToLookupBranch, error);
     LOG_PERF(0, "Exit");
     return false;
   }
 
   error = git_branch_move(&ref, ref, newName.toStdString().c_str(), 0);
   if (error) {
-    logGitError(error);
+    setError(GitError::RenameBranchFailedToRenameBranch, error);
     git_reference_free(ref);
     LOG_PERF(0, "Exit");
     return false;
@@ -7597,14 +8987,14 @@ bool deleteBranch(git_repository *repo, const QString &branchName) {
   int error = git_branch_lookup(&ref, repo, branchName.toStdString().c_str(),
                                 GIT_BRANCH_LOCAL);
   if (error) {
-    logGitError(error);
+    setError(GitError::DeleteBranchFailedToLookupBranch, error);
     LOG_PERF(0, "Exit");
     return false;
   }
 
   error = git_branch_delete(ref);
   if (error) {
-    logGitError(error);
+    setError(GitError::DeleteBranchFailedToDeleteBranch, error);
     git_reference_free(ref);
     LOG_PERF(0, "Exit");
     return false;
@@ -7651,7 +9041,7 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
               error);
-    logGitError(error);
+    setError(GitError::DeleteRemoteBranchFailedToLookupRemote, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -7739,7 +9129,7 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
       LOG_ERROR(Log::ErrorId::Git,
                 "deleteRemoteBranch: git_remote_push failed with error: {}",
                 error);
-      logGitError(error);
+      setError(GitError::DeleteRemoteBranchFailedToPushRemote, error);
 
       gGitCredentialsMutex.lock();
       gGitCredentials.remove(url);
@@ -7785,7 +9175,7 @@ bool createTagFromCommit(git_repository *repo, const QString &commit,
 
   int error = git_oid_fromstr(&targetOid, commit.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::CreateTagFromCommitFailedToParseObjectId, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -7793,7 +9183,7 @@ bool createTagFromCommit(git_repository *repo, const QString &commit,
   git_commit *targetCommit = nullptr;
   error = git_commit_lookup(&targetCommit, repo, &targetOid);
   if (error) {
-    logGitError(error);
+    setError(GitError::CreateTagFromCommitFailedToLookupCommit, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -7803,7 +9193,7 @@ bool createTagFromCommit(git_repository *repo, const QString &commit,
   error = git_signature_now(&sig, author.toStdString().c_str(),
                             email.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::CreateTagFromCommitFailedToCreateSignature, error);
     git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
@@ -7815,7 +9205,7 @@ bool createTagFromCommit(git_repository *repo, const QString &commit,
                          reinterpret_cast<git_object *>(targetCommit), sig,
                          message.toStdString().c_str(), 0);
   if (error) {
-    logGitError(error);
+    setError(GitError::CreateTagFromCommitFailedToPeelCommitForTag, error);
     git_signature_free(sig);
     git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
@@ -7845,7 +9235,7 @@ QString createPatchFromCommit(git_repository *repo, const QString &commit) {
 
   int error = git_oid_fromstr(&oid, commit.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::CreatePatchFromCommitFailedToParseObjectId, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -7854,7 +9244,7 @@ QString createPatchFromCommit(git_repository *repo, const QString &commit) {
 
   error = git_commit_lookup(&commit_, repo, &oid);
   if (error) {
-    logGitError(error);
+    setError(GitError::CreatePatchFromCommitFailedToLookupCommit, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -7863,7 +9253,7 @@ QString createPatchFromCommit(git_repository *repo, const QString &commit) {
 
   error = git_commit_tree(&tree, commit_);
   if (error) {
-    logGitError(error);
+    setError(GitError::CreatePatchFromCommitFailedToGetCommitTree, error);
     git_commit_free(commit_);
     LOG_PERF(0, "Exit");
     return {};
@@ -7876,7 +9266,7 @@ QString createPatchFromCommit(git_repository *repo, const QString &commit) {
       parentCount > 0) {
     error = git_commit_parent(&parent, commit_, 0);
     if (error) {
-      logGitError(error);
+      setError(GitError::CreatePatchFromCommitFailedToGetParentCommit, error);
       git_tree_free(tree);
       git_commit_free(commit_);
       LOG_PERF(0, "Exit");
@@ -7885,7 +9275,8 @@ QString createPatchFromCommit(git_repository *repo, const QString &commit) {
 
     error = git_commit_tree(&parentTree, parent);
     if (error) {
-      logGitError(error);
+      setError(GitError::CreatePatchFromCommitFailedToGetSecondCommitTree,
+               error);
       git_commit_free(parent);
       git_tree_free(tree);
       git_commit_free(commit_);
@@ -7898,7 +9289,7 @@ QString createPatchFromCommit(git_repository *repo, const QString &commit) {
 
   error = git_diff_tree_to_tree(&diff, repo, parentTree, tree, nullptr);
   if (error) {
-    logGitError(error);
+    setError(GitError::CreatePatchFromCommitFailedToCreateCommitDiff, error);
 
     if (parentTree) {
       git_tree_free(parentTree);
@@ -7921,7 +9312,8 @@ QString createPatchFromCommit(git_repository *repo, const QString &commit) {
 
     error = git_patch_from_diff(&patch_, diff, i);
     if (error) {
-      logGitError(error);
+      setError(GitError::CreatePatchFromCommitFailedToCreatePatchFromDiff,
+               error);
       continue;
     }
 
@@ -7929,7 +9321,8 @@ QString createPatchFromCommit(git_repository *repo, const QString &commit) {
 
     error = git_patch_to_buf(&buf, patch_);
     if (error) {
-      logGitError(error);
+      setError(GitError::CreatePatchFromCommitFailedToRenderPatchToBuffer,
+               error);
       git_patch_free(patch_);
       continue;
     }
@@ -7980,7 +9373,7 @@ bool renameTag(git_repository *repo, const QString &oldName,
       &tagRef, repo,
       QString("refs/tags/%1").arg(oldName).toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::RenameTagFailedToLookupReference, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -7990,7 +9383,7 @@ bool renameTag(git_repository *repo, const QString &oldName,
     // Might be a lightweight tag — try commit or tree
     error = git_reference_peel(&target, tagRef, GIT_OBJECT_ANY);
     if (error) {
-      logGitError(error);
+      setError(GitError::RenameTagFailedToPeelReference, error);
       git_reference_free(tagRef);
       LOG_PERF(0, "Exit");
       return false;
@@ -8015,7 +9408,7 @@ bool renameTag(git_repository *repo, const QString &oldName,
 
     error = git_tag_target(&tagTarget, tag);
     if (error) {
-      logGitError(error);
+      setError(GitError::RenameTagFailedToReadTagTarget, error);
       git_object_free(target);
       git_reference_free(tagRef);
       LOG_PERF(0, "Exit");
@@ -8025,7 +9418,7 @@ bool renameTag(git_repository *repo, const QString &oldName,
     error = git_tag_create(&newOid, repo, newName.toStdString().c_str(),
                            tagTarget, tagger, message, 0);
     if (error) {
-      logGitError(error);
+      setError(GitError::RenameTagFailedToCreateAnnotatedTag, error);
       git_object_free(tagTarget);
       git_object_free(target);
       git_reference_free(tagRef);
@@ -8039,7 +9432,7 @@ bool renameTag(git_repository *repo, const QString &oldName,
     error = git_tag_create_lightweight(
         &newOid, repo, newName.toStdString().c_str(), target, 0);
     if (error) {
-      logGitError(error);
+      setError(GitError::RenameTagFailedToCreateLightweightTag, error);
       git_object_free(target);
       git_reference_free(tagRef);
       LOG_PERF(0, "Exit");
@@ -8049,7 +9442,7 @@ bool renameTag(git_repository *repo, const QString &oldName,
 
   error = git_tag_delete(repo, oldName.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::RenameTagFailedToDeleteTag, error);
     git_object_free(target);
     git_reference_free(tagRef);
     LOG_PERF(0, "Exit");
@@ -8076,7 +9469,7 @@ bool deleteTag(git_repository *repo, const QString &tagName) {
   }
 
   if (const int error = git_tag_delete(repo, tagName.toStdString().c_str())) {
-    logGitError(error);
+    setError(GitError::DeleteTagFailedToDeleteTag, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -8116,7 +9509,7 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to lookup 'origin' remote: error={}",
               error);
-    logGitError(error);
+    setError(GitError::DeleteRemoteTagFailedToLookupRemote, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -8200,7 +9593,7 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
 
     if (error) {
       LOG_ERROR(Log::ErrorId::Git, "deleteRemoteTag push failed: {}", error);
-      logGitError(error);
+      setError(GitError::DeleteRemoteTagFailedToPushRemote, error);
 
       gGitCredentialsMutex.lock();
       gGitCredentials.remove(url);
@@ -8240,7 +9633,7 @@ QString getSubmodulePath(git_repository *repo, const QString &submoduleName) {
 
   if (const int error = git_submodule_lookup(
           &submodule, repo, submoduleName.toStdString().c_str())) {
-    logGitError(error);
+    setError(GitError::GetSubmodulePathFailedToLookupSubmodule, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -8410,7 +9803,7 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
 
   error = git_repository_index(&index, repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::DeleteSubmoduleFailedToGetRepositoryIndex, error);
     if (submodule) {
       git_submodule_free(submodule);
     }
@@ -8422,7 +9815,7 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
   // (user may have already discarded it)
   error = git_index_remove(index, name.c_str(), 0);
   if (error && error != GIT_ENOTFOUND) {
-    logGitError(error);
+    setError(GitError::DeleteSubmoduleFailedToRemoveIndexEntry, error);
     git_index_free(index);
     if (submodule) {
       git_submodule_free(submodule);
@@ -8433,7 +9826,7 @@ bool deleteSubmodule(git_repository *repo, const QString &submoduleName,
 
   error = git_index_write(index);
   if (error) {
-    logGitError(error);
+    setError(GitError::DeleteSubmoduleFailedToWriteIndex, error);
     git_index_free(index);
     if (submodule) {
       git_submodule_free(submodule);
@@ -8479,7 +9872,7 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
   int error = git_remote_lookup(&remote, submoduleRepo,
                                 remoteName.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::CheckoutSubmoduleBranchFailedToLookupRemote, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -8518,7 +9911,7 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
     error = git_remote_fetch(remote, &refspecs, &fetchOpts, nullptr);
 
     if (error) {
-      logGitError(error);
+      setError(GitError::CheckoutSubmoduleBranchFailedToFetchRemote, error);
       gGitCredentialsMutex.lock();
       gGitCredentials.remove(urlStr);
       gGitCredentialsMutex.unlock();
@@ -8546,7 +9939,7 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
   error = git_reference_lookup(&remoteRef, submoduleRepo,
                                remoteRefName.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::CheckoutSubmoduleBranchFailedToLookupReference, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -8556,7 +9949,8 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
                              remoteRef, GIT_OBJECT_COMMIT);
   git_reference_free(remoteRef);
   if (error) {
-    logGitError(error);
+    setError(GitError::CheckoutSubmoduleBranchFailedToPeelReferenceToCommit,
+             error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -8571,7 +9965,7 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
   }
 
   if (error) {
-    logGitError(error);
+    setError(GitError::CheckoutSubmoduleBranchFailedToCreateLocalBranch, error);
     git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
@@ -8584,7 +9978,7 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
   git_reference_free(localRef);
   localRef = updatedLocalRef;
   if (error) {
-    logGitError(error);
+    setError(GitError::CheckoutSubmoduleBranchFailedToReadCommitId, error);
     git_commit_free(targetCommit);
     LOG_PERF(0, "Exit");
     return false;
@@ -8597,7 +9991,7 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
   error =
       git_repository_set_head(submoduleRepo, headRefName.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::CheckoutSubmoduleBranchFailedToSetHeadToBranch, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -8608,7 +10002,7 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
 
   error = git_checkout_head(submoduleRepo, &checkoutOpts);
   if (error) {
-    logGitError(error);
+    setError(GitError::CheckoutSubmoduleBranchFailedToCheckoutHead, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -8636,7 +10030,7 @@ static bool checkoutLocalSubmoduleBranch(git_repository *submoduleRepo,
       git_branch_lookup(&localRef, submoduleRepo,
                         branchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
   if (error) {
-    logGitError(error);
+    setError(GitError::CheckoutLocalSubmoduleBranchFailedToLookupBranch, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -8645,7 +10039,8 @@ static bool checkoutLocalSubmoduleBranch(git_repository *submoduleRepo,
   error =
       git_repository_set_head(submoduleRepo, headRefName.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::CheckoutLocalSubmoduleBranchFailedToSetHeadToBranch,
+             error);
     git_reference_free(localRef);
     LOG_PERF(0, "Exit");
     return false;
@@ -8658,7 +10053,7 @@ static bool checkoutLocalSubmoduleBranch(git_repository *submoduleRepo,
   error = git_checkout_head(submoduleRepo, &checkoutOpts);
   git_reference_free(localRef);
   if (error) {
-    logGitError(error);
+    setError(GitError::CheckoutLocalSubmoduleBranchFailedToCheckoutHead, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -8697,7 +10092,7 @@ bool updateSubmodule(git_repository *repo, const QString &submoduleName) {
 
   auto fail = [&](const int error) {
     if (error) {
-      logGitError(error);
+      setError(GitError::UpdateSubmoduleFailedToUpdateSubmodule, error);
     }
 
     cleanup();
@@ -8719,7 +10114,7 @@ bool updateSubmodule(git_repository *repo, const QString &submoduleName) {
   // This uses the submodule's working tree state, not the remote branch tip.
   error = git_submodule_add_to_index(submodule, 1);
   if (error) {
-    logGitError(error);
+    setError(GitError::UpdateSubmoduleFailedToAddSubmoduleToIndex, error);
     cleanup();
     LOG_PERF(0, "Exit");
     return false;
@@ -8758,7 +10153,7 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
       git_submodule_add_setup(&subModule, repo, url.toStdString().c_str(),
                               name.toStdString().c_str(), 1);
   if (error) {
-    logGitError(error);
+    setError(GitError::AddSubmoduleFailedToSetupSubmodule, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -8807,7 +10202,7 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 
   error = git_submodule_clone(&subRepo, subModule, &cloneOpts);
   if (error) {
-    logGitError(error);
+    setError(GitError::AddSubmoduleFailedToCloneSubmodule, error);
     finishFetchProgress(uuid, true, false);
     finishCredentialsAcquiring(url);
     if (subRepo) {
@@ -8880,7 +10275,7 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 
   error = git_submodule_add_finalize(subModule);
   if (error) {
-    logGitError(error);
+    setError(GitError::AddSubmoduleFailedToFinalizeSubmoduleAdd, error);
     git_repository_free(subRepo);
     git_submodule_free(subModule);
     LOG_PERF(0, "Exit");
@@ -8911,7 +10306,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
   int error = git_oid_fromstr(&oid, commit.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::DiffFilesFromCommitFailedToParseObjectId, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -8920,7 +10315,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
   error = git_commit_lookup(&commit_, repo, &oid);
   if (error) {
-    logGitError(error);
+    setError(GitError::DiffFilesFromCommitFailedToLookupCommit, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -8929,7 +10324,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
   error = git_commit_tree(&tree, commit_);
   if (error) {
-    logGitError(error);
+    setError(GitError::DiffFilesFromCommitFailedToGetCommitTree, error);
     git_commit_free(commit_);
     LOG_PERF(0, "Exit");
     return {};
@@ -8943,7 +10338,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
   if (git_commit_parentcount(commit_) > 0) {
     error = git_commit_parent(&parent, commit_, 0);
     if (error) {
-      logGitError(error);
+      setError(GitError::DiffFilesFromCommitFailedToGetParentCommit, error);
       git_tree_free(tree);
       git_commit_free(commit_);
       LOG_PERF(0, "Exit");
@@ -8952,7 +10347,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
     error = git_commit_tree(&parentTree, parent);
     if (error) {
-      logGitError(error);
+      setError(GitError::DiffFilesFromCommitFailedToGetSecondCommitTree, error);
       git_commit_free(parent);
       git_tree_free(tree);
       git_commit_free(commit_);
@@ -8964,7 +10359,8 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
   if (git_commit_parentcount(commit_) > 2) {
     error = git_commit_parent(&parent2, commit_, 2);
     if (error) {
-      logGitError(error);
+      setError(GitError::DiffFilesFromCommitFailedToGetSecondParentCommit,
+               error);
       if (parentTree) {
         git_tree_free(parentTree);
       }
@@ -8979,7 +10375,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
     error = git_commit_tree(&parent2Tree, parent2);
     if (error) {
-      logGitError(error);
+      setError(GitError::DiffFilesFromCommitFailedToGetThirdCommitTree, error);
       if (parent2) {
         git_commit_free(parent2);
       }
@@ -9005,7 +10401,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
 
   error = git_diff_tree_to_tree(&diff, repo, parentTree, tree, &opts);
   if (error) {
-    logGitError(error);
+    setError(GitError::DiffFilesFromCommitFailedToCreateCommitDiff, error);
 
     git_strarray_destroy(arr);
 
@@ -9041,7 +10437,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
     git_patch *patch;
     error = git_patch_from_diff(&patch, diff, i);
     if (error) {
-      logGitError(error);
+      setError(GitError::DiffFilesFromCommitFailedToCreatePatchFromDiff, error);
       continue;
     }
 
@@ -9050,7 +10446,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
       const git_diff_hunk *hunk;
       error = git_patch_get_hunk(&hunk, NULL, patch, h);
       if (error) {
-        logGitError(error);
+        setError(GitError::DiffFilesFromCommitFailedToReadPatchHunk, error);
         continue;
       }
 
@@ -9071,7 +10467,7 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
         const git_diff_line *line;
         error = git_patch_get_line_in_hunk(&line, patch, h, l);
         if (error) {
-          logGitError(error);
+          setError(GitError::DiffFilesFromCommitFailedToReadPatchLine, error);
           continue;
         }
 
@@ -9212,7 +10608,7 @@ qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
     git_reference *head = nullptr;
     error = git_repository_head(&head, repo);
     if (error) {
-      logGitError(error);
+      setError(GitError::GetFileSizeFromCommitFailedToGetRepositoryHead, error);
       LOG_PERF(0, "Exit");
       return -1;
     }
@@ -9220,14 +10616,14 @@ qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
     error = git_reference_name_to_id(&oid, repo, git_reference_name(head));
     git_reference_free(head);
     if (error) {
-      logGitError(error);
+      setError(GitError::GetFileSizeFromCommitFailedToGetReferenceName, error);
       LOG_PERF(0, "Exit");
       return -1;
     }
   } else {
     error = git_oid_fromstr(&oid, commit.toStdString().c_str());
     if (error) {
-      logGitError(error);
+      setError(GitError::GetFileSizeFromCommitFailedToParseObjectId, error);
       LOG_PERF(0, "Exit");
       return -1;
     }
@@ -9237,7 +10633,7 @@ qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
 
   error = git_commit_lookup(&commit_, repo, &oid);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetFileSizeFromCommitFailedToLookupCommit, error);
     LOG_PERF(0, "Exit");
     return -1;
   }
@@ -9246,7 +10642,7 @@ qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
 
   error = git_commit_tree(&tree, commit_);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetFileSizeFromCommitFailedToGetCommitTree, error);
     git_commit_free(commit_);
     LOG_PERF(0, "Exit");
     return -1;
@@ -9258,7 +10654,8 @@ qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
   error =
       git_tree_entry_bypath(&entry, tree, normalizedPath.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::GetFileSizeFromCommitFailedToLookupTreeEntryByPath,
+             error);
     git_tree_free(tree);
     git_commit_free(commit_);
     LOG_PERF(0, "Exit");
@@ -9277,7 +10674,7 @@ qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
   git_blob *blob = nullptr;
   error = git_blob_lookup(&blob, repo, blobOid);
   if (error) {
-    logGitError(error);
+    setError(GitError::GetFileSizeFromCommitFailedToLookupBlob, error);
     git_tree_entry_free(entry);
     git_tree_free(tree);
     git_commit_free(commit_);
@@ -9325,7 +10722,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to lookup source branch '{}': error={}",
               sourceBranch.toStdString(), error);
-    logGitError(error);
+    setError(GitError::MergeFailedToLookupBranch, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -9337,7 +10734,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to lookup destination branch '{}': error={}",
               destinationBranch.toStdString(), error);
-    logGitError(error);
+    setError(GitError::MergeFailedToLookupDestinationBranch, error);
     git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
     return false;
@@ -9351,7 +10748,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   if (error) {
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to peel destination reference: error={}", error);
-    logGitError(error);
+    setError(GitError::MergeFailedToPeelReference, error);
     git_reference_free(dstRef);
     git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
@@ -9364,7 +10761,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to checkout tree for destination branch: error={}",
               error);
-    logGitError(error);
+    setError(GitError::MergeFailedToCheckoutTree, error);
     git_object_free(dstObj);
     git_reference_free(dstRef);
     git_reference_free(srcRef);
@@ -9378,7 +10775,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to set repository HEAD: error={}",
               error);
-    logGitError(error);
+    setError(GitError::MergeFailedToGetReferenceName, error);
     git_reference_free(dstRef);
     git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
@@ -9391,7 +10788,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
 
   error = git_annotated_commit_from_ref(&srcCommit, repo, srcRef);
   if (error) {
-    logGitError(error);
+    setError(GitError::MergeFailedToCreateAnnotatedCommitFromReference, error);
     git_reference_free(dstRef);
     git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
@@ -9402,7 +10799,8 @@ bool merge(git_repository *repo, const QString &sourceBranch,
 
   error = git_annotated_commit_from_ref(&dstCommit, repo, dstRef);
   if (error) {
-    logGitError(error);
+    setError(GitError::MergeFailedToCreateSecondAnnotatedCommitFromReference,
+             error);
     git_annotated_commit_free(srcCommit);
     git_reference_free(dstRef);
     git_reference_free(srcRef);
@@ -9418,7 +10816,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   // Merge analysis
   error = git_merge_analysis(&analysis, &preference, repo, commits, 1);
   if (error) {
-    logGitError(error);
+    setError(GitError::MergeFailedToAnalyzeMerge, error);
     git_annotated_commit_free(dstCommit);
     git_annotated_commit_free(srcCommit);
     git_reference_free(dstRef);
@@ -9443,7 +10841,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     error = git_commit_lookup(&srcCommitObj, repo,
                               git_annotated_commit_id(srcCommit));
     if (error) {
-      logGitError(error);
+      setError(GitError::MergeFailedToReadAnnotatedCommitId, error);
       git_annotated_commit_free(dstCommit);
       git_annotated_commit_free(srcCommit);
       git_reference_free(dstRef);
@@ -9458,7 +10856,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     error = git_reference_set_target(
         &updatedRef, dstRef, git_commit_id(srcCommitObj), "Fast-forward merge");
     if (error) {
-      logGitError(error);
+      setError(GitError::MergeFailedToReadCommitId, error);
       git_commit_free(srcCommitObj);
       git_annotated_commit_free(dstCommit);
       git_annotated_commit_free(srcCommit);
@@ -9472,7 +10870,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
 
     error = git_commit_lookup(&newCommit, repo, git_commit_id(srcCommitObj));
     if (error) {
-      logGitError(error);
+      setError(GitError::MergeFailedToReadSecondCommitId, error);
       git_reference_free(updatedRef);
       git_commit_free(srcCommitObj);
       git_annotated_commit_free(dstCommit);
@@ -9497,7 +10895,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     error = git_reset(repo, reinterpret_cast<git_object *>(newCommit),
                       GIT_RESET_HARD, &ffOpts);
     if (error) {
-      logGitError(error);
+      setError(GitError::MergeFailedToCheckoutDestinationTree, error);
       git_commit_free(newCommit);
       LOG_PERF(0, "Exit");
       return false;
@@ -9515,7 +10913,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
 
     error = git_merge(repo, commits, 1, &mergeOpts, &checkoutOpts);
     if (error) {
-      logGitError(error);
+      setError(GitError::MergeFailedToMerge, error);
       git_annotated_commit_free(dstCommit);
       git_annotated_commit_free(srcCommit);
       git_reference_free(dstRef);
@@ -9527,7 +10925,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     git_index *index = NULL;
     error = git_repository_index(&index, repo);
     if (error) {
-      logGitError(error);
+      setError(GitError::MergeFailedToGetRepositoryIndex, error);
       git_annotated_commit_free(dstCommit);
       git_annotated_commit_free(srcCommit);
       git_reference_free(dstRef);
@@ -9553,7 +10951,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
 
     error = git_index_write_tree(&treeOid, index);
     if (error) {
-      logGitError(error);
+      setError(GitError::MergeFailedToWriteIndexTree, error);
       git_index_free(index);
       git_annotated_commit_free(dstCommit);
       git_annotated_commit_free(srcCommit);
@@ -9565,7 +10963,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
 
     error = git_tree_lookup(&tree, repo, &treeOid);
     if (error) {
-      logGitError(error);
+      setError(GitError::MergeFailedToLookupTree, error);
       git_index_free(index);
       git_annotated_commit_free(dstCommit);
       git_annotated_commit_free(srcCommit);
@@ -9581,7 +10979,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     error = git_signature_now(&sig, author.toStdString().c_str(),
                               email.toStdString().c_str());
     if (error) {
-      logGitError(error);
+      setError(GitError::MergeFailedToCreateSignature, error);
       git_tree_free(tree);
       git_index_free(index);
       git_annotated_commit_free(dstCommit);
@@ -9599,7 +10997,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     error =
         git_commit_lookup(&dstCommitObj, repo, git_reference_target(dstRef));
     if (error) {
-      logGitError(error);
+      setError(GitError::MergeFailedToGetReferenceTarget, error);
       git_signature_free(sig);
       git_tree_free(tree);
       git_index_free(index);
@@ -9614,7 +11012,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     error =
         git_commit_lookup(&srcCommitObj, repo, git_reference_target(srcRef));
     if (error) {
-      logGitError(error);
+      setError(GitError::MergeFailedToGetSecondReferenceTarget, error);
       git_commit_free(dstCommitObj);
       git_signature_free(sig);
       git_tree_free(tree);
@@ -9635,7 +11033,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
     error = git_commit_create(&commitOid, repo, "HEAD", sig, sig, NULL,
                               comment.toStdString().c_str(), tree, 2, parents);
     if (error) {
-      logGitError(error);
+      setError(GitError::MergeFailedToCreateCommit, error);
       git_commit_free(srcCommitObj);
       git_commit_free(dstCommitObj);
       git_signature_free(sig);
@@ -9690,7 +11088,7 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
   int error = git_branch_lookup(
       &srcRef, repo, sourceBranch.toStdString().c_str(), GIT_BRANCH_LOCAL);
   if (error) {
-    logGitError(error);
+    setError(GitError::RebaseBranchesFailedToLookupBranch, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -9698,7 +11096,7 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
   error = git_branch_lookup(
       &dstRef, repo, destinationBranch.toStdString().c_str(), GIT_BRANCH_LOCAL);
   if (error) {
-    logGitError(error);
+    setError(GitError::RebaseBranchesFailedToLookupDestinationBranch, error);
     git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
     return false;
@@ -9707,7 +11105,8 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
   git_annotated_commit *srcCommit = nullptr;
   error = git_annotated_commit_from_ref(&srcCommit, repo, srcRef);
   if (error) {
-    logGitError(error);
+    setError(GitError::RebaseBranchesFailedToCreateAnnotatedCommitFromReference,
+             error);
     git_reference_free(dstRef);
     git_reference_free(srcRef);
     LOG_PERF(0, "Exit");
@@ -9717,7 +11116,9 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
   git_annotated_commit *dstCommit = nullptr;
   error = git_annotated_commit_from_ref(&dstCommit, repo, dstRef);
   if (error) {
-    logGitError(error);
+    setError(GitError::
+                 RebaseBranchesFailedToCreateSecondAnnotatedCommitFromReference,
+             error);
     git_annotated_commit_free(srcCommit);
     git_reference_free(dstRef);
     git_reference_free(srcRef);
@@ -9729,7 +11130,7 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
   error = git_merge_base(&baseOid, repo, git_annotated_commit_id(srcCommit),
                          git_annotated_commit_id(dstCommit));
   if (error) {
-    logGitError(error);
+    setError(GitError::RebaseBranchesFailedToReadAnnotatedCommitId, error);
     git_annotated_commit_free(dstCommit);
     git_annotated_commit_free(srcCommit);
     git_reference_free(dstRef);
@@ -9741,7 +11142,7 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
   git_annotated_commit *baseCommit = nullptr;
   error = git_annotated_commit_lookup(&baseCommit, repo, &baseOid);
   if (error) {
-    logGitError(error);
+    setError(GitError::RebaseBranchesFailedToLookupAnnotatedCommit, error);
     git_annotated_commit_free(dstCommit);
     git_annotated_commit_free(srcCommit);
     git_reference_free(dstRef);
@@ -9754,7 +11155,7 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
   error = git_signature_now(&signature, author.toStdString().c_str(),
                             email.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::RebaseBranchesFailedToCreateSignature, error);
     git_annotated_commit_free(baseCommit);
     git_annotated_commit_free(dstCommit);
     git_annotated_commit_free(srcCommit);
@@ -9771,7 +11172,7 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
   error = git_rebase_init(&rebaseSession, repo, srcCommit, baseCommit,
                           dstCommit, &rebaseOpts);
   if (error) {
-    logGitError(error);
+    setError(GitError::RebaseBranchesFailedToStartRebase, error);
     git_signature_free(signature);
     git_annotated_commit_free(baseCommit);
     git_annotated_commit_free(dstCommit);
@@ -9797,7 +11198,7 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
       LOG_ERROR(Log::ErrorId::Git,
                 "Rebase stopped because conflicts must be resolved manually");
     } else {
-      logGitError(error);
+      setError(GitError::RebaseBranchesFailedToCommitRebaseStep, error);
     }
     git_rebase_abort(rebaseSession);
     rebaseSuccess = false;
@@ -9807,12 +11208,12 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
   if (rebaseSuccess && error == GIT_ITEROVER) {
     error = git_rebase_finish(rebaseSession, signature);
     if (error) {
-      logGitError(error);
+      setError(GitError::RebaseBranchesFailedToFinishRebase, error);
       git_rebase_abort(rebaseSession);
       rebaseSuccess = false;
     }
   } else if (rebaseSuccess) {
-    logGitError(error);
+    setError(GitError::RebaseBranchesFailedToAbortRebase, error);
     rebaseSuccess = false;
   }
 
@@ -9883,7 +11284,7 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
 
   int error = git_repository_index(&index, repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::ListConflictsForAFileFailedToGetRepositoryIndex, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -9892,7 +11293,8 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
 
   error = git_index_conflict_iterator_new(&iterator, index);
   if (error) {
-    logGitError(error);
+    setError(GitError::ListConflictsForAFileFailedToCreateConflictIterator,
+             error);
     git_index_free(index);
     LOG_PERF(0, "Exit");
     return {};
@@ -10029,7 +11431,7 @@ bool abortMerge(git_repository *repo) {
 
   int error = git_repository_state_cleanup(repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::AbortMergeFailedToCleanupRepositoryState, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -10038,14 +11440,14 @@ bool abortMerge(git_repository *repo) {
 
   error = git_revparse_single(&head, repo, "HEAD");
   if (error) {
-    logGitError(error);
+    setError(GitError::AbortMergeFailedToResolveRevision, error);
     LOG_PERF(0, "Exit");
     return false;
   }
 
   error = git_reset(repo, head, GIT_RESET_HARD, NULL);
   if (error) {
-    logGitError(error);
+    setError(GitError::AbortMergeFailedToResetRepository, error);
     git_object_free(head);
     LOG_PERF(0, "Exit");
     return false;
@@ -10074,7 +11476,7 @@ QVector<RemoteInfo> listRemotes(git_repository *repo) {
   int error = git_remote_list(&remote_list, repo);
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to list remotes: error={}", error);
-    logGitError(error);
+    setError(GitError::ListRemotesFailedToListRemotes, error);
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -10264,7 +11666,7 @@ bool setDefaultRemote(git_repository *repo, const QString &remoteName) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Remote '{}' not found: error={}",
               remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::SetDefaultRemoteFailedToLookupRemote, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -10279,7 +11681,7 @@ bool setDefaultRemote(git_repository *repo, const QString &remoteName) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to get repository config: error={}",
               error);
-    logGitError(error);
+    setError(GitError::SetDefaultRemoteFailedToGetRepositoryConfig, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -10291,7 +11693,7 @@ bool setDefaultRemote(git_repository *repo, const QString &remoteName) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to set default remote in config: error={}", error);
-    logGitError(error);
+    setError(GitError::SetDefaultRemoteFailedToWriteDefaultRemoteConfig, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -10329,7 +11731,7 @@ bool addRemote(git_repository *repo, const QString &remoteName,
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to create remote '{}': error={}",
               remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::AddRemoteFailedToCreateRemote, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -10342,7 +11744,7 @@ bool addRemote(git_repository *repo, const QString &remoteName,
       LOG_ERROR(Log::ErrorId::Git,
                 "Failed to set push URL for remote '{}': error={}",
                 remoteName.toStdString(), error);
-      logGitError(error);
+      setError(GitError::AddRemoteFailedToSetPushUrl, error);
       git_remote_free(remote);
       LOG_PERF(0, "Exit");
       return false;
@@ -10372,7 +11774,7 @@ bool removeRemote(git_repository *repo, const QString &remoteName) {
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to delete remote '{}': error={}",
               remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::RemoveRemoteFailedToDeleteRemote, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -10414,7 +11816,7 @@ bool updateRemote(git_repository *repo, const QString &remoteName,
       LOG_ERROR(
           Log::ErrorId::Git, "Failed to rename remote '{}' to '{}': error={}",
           remoteName.toStdString(), newRemoteName.toStdString(), renameError);
-      logGitError(renameError);
+      setError(GitError::UpdateRemoteFailedToRenameRemote, renameError);
       LOG_PERF(0, "Exit");
       return false;
     }
@@ -10428,7 +11830,7 @@ bool updateRemote(git_repository *repo, const QString &remoteName,
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to set fetch URL for remote '{}': error={}",
               remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::UpdateRemoteFailedToSetFetchUrl, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -10440,7 +11842,7 @@ bool updateRemote(git_repository *repo, const QString &remoteName,
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to set push URL for remote '{}': error={}",
               remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::UpdateRemoteFailedToSetPushUrl, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -10488,7 +11890,7 @@ bool addTarget(git_repository *repo, const QString &remoteName,
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to get repository config: error={}",
               error);
-    logGitError(error);
+    setError(GitError::AddTargetFailedToGetRepositoryConfig, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -10503,7 +11905,7 @@ bool addTarget(git_repository *repo, const QString &remoteName,
               "Failed to set fetch URL for target '{}' on remote '{}': "
               "error={}",
               targetName.toStdString(), remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::AddTargetFailedToSetFetchUrlConfig, error);
     git_config_free(config);
     LOG_PERF(0, "Exit");
     return false;
@@ -10519,7 +11921,7 @@ bool addTarget(git_repository *repo, const QString &remoteName,
               "Failed to set push URL for target '{}' on remote '{}': "
               "error={}",
               targetName.toStdString(), remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::AddTargetFailedToSetPushUrlConfig, error);
     git_config_free(config);
     LOG_PERF(0, "Exit");
     return false;
@@ -10570,7 +11972,7 @@ bool editTarget(git_repository *repo, const QString &remoteName,
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to get repository config: error={}",
               error);
-    logGitError(error);
+    setError(GitError::EditTargetFailedToGetRepositoryConfig, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -10585,7 +11987,7 @@ bool editTarget(git_repository *repo, const QString &remoteName,
               "Failed to set fetch URL for target '{}' on remote '{}': "
               "error={}",
               targetName.toStdString(), remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::EditTargetFailedToSetFetchUrlConfig, error);
     git_config_free(config);
     LOG_PERF(0, "Exit");
     return false;
@@ -10601,7 +12003,7 @@ bool editTarget(git_repository *repo, const QString &remoteName,
               "Failed to set push URL for target '{}' on remote '{}': "
               "error={}",
               targetName.toStdString(), remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::EditTargetFailedToSetPushUrlConfig, error);
     git_config_free(config);
     LOG_PERF(0, "Exit");
     return false;
@@ -10649,7 +12051,7 @@ bool deleteTarget(git_repository *repo, const QString &remoteName,
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to get repository config: error={}",
               error);
-    logGitError(error);
+    setError(GitError::DeleteTargetFailedToGetRepositoryConfig, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -10662,7 +12064,7 @@ bool deleteTarget(git_repository *repo, const QString &remoteName,
     LOG_WARN("Failed to delete fetch URL config for target '{}' on remote "
              "'{}': error={}",
              targetName.toStdString(), remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::DeleteTargetFailedToDeleteFetchUrlConfig, error);
   }
 
   // Delete push URL
@@ -10673,7 +12075,7 @@ bool deleteTarget(git_repository *repo, const QString &remoteName,
     LOG_WARN("Failed to delete push URL config for target '{}' on remote "
              "'{}': error={}",
              targetName.toStdString(), remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::DeleteTargetFailedToDeletePushUrlConfig, error);
   }
 
   git_config_free(config);
@@ -10716,7 +12118,7 @@ bool setDefaultTarget(git_repository *repo, const QString &remoteName,
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to get repository config: error={}",
               error);
-    logGitError(error);
+    setError(GitError::SetDefaultTargetFailedToGetRepositoryConfig, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -10731,7 +12133,7 @@ bool setDefaultTarget(git_repository *repo, const QString &remoteName,
 
   error = git_config_iterator_new(&iter, config);
   if (error) {
-    logGitError(error);
+    setError(GitError::SetDefaultTargetFailedToCreateConfigIterator, error);
     git_config_free(config);
     LOG_PERF(0, "Exit");
     return false;
@@ -10878,7 +12280,7 @@ bool setDefaultTarget(git_repository *repo, const QString &remoteName,
     LOG_ERROR(Log::ErrorId::Git,
               "Failed to set default fetch URL for remote '{}': error={}",
               remoteName.toStdString(), error);
-    logGitError(error);
+    setError(GitError::SetDefaultTargetFailedToSetDefaultFetchUrl, error);
     git_config_free(config);
     LOG_PERF(0, "Exit");
     return false;
@@ -10938,14 +12340,14 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
   // 1. Get the HEAD commit (the one to amend)
   int error = git_reference_name_to_id(&commitOid, repo, "HEAD");
   if (error) {
-    logGitError(error);
+    setError(GitError::AmendFailedToResolveReferenceNameToId, error);
     LOG_PERF(0, "Exit");
     return false;
   }
 
   error = git_commit_lookup(&commitToAmend, repo, &commitOid);
   if (error) {
-    logGitError(error);
+    setError(GitError::AmendFailedToLookupCommit, error);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -10955,7 +12357,7 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
 
   error = git_repository_index(&index, repo);
   if (error) {
-    logGitError(error);
+    setError(GitError::AmendFailedToGetRepositoryIndex, error);
     git_commit_free(commitToAmend);
     LOG_PERF(0, "Exit");
     return false;
@@ -10965,7 +12367,7 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
 
   error = git_index_write_tree(&treeOid, index);
   if (error) {
-    logGitError(error);
+    setError(GitError::AmendFailedToWriteIndexTree, error);
     git_index_free(index);
     git_commit_free(commitToAmend);
     LOG_PERF(0, "Exit");
@@ -10974,7 +12376,7 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
 
   error = git_tree_lookup(&tree, repo, &treeOid);
   if (error) {
-    logGitError(error);
+    setError(GitError::AmendFailedToLookupTree, error);
     git_index_free(index);
     git_commit_free(commitToAmend);
     LOG_PERF(0, "Exit");
@@ -10985,7 +12387,7 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
   error = git_signature_now(&committerSig, author.toStdString().c_str(),
                             email.toStdString().c_str());
   if (error) {
-    logGitError(error);
+    setError(GitError::AmendFailedToCreateSignature, error);
     git_tree_free(tree);
     git_index_free(index);
     git_commit_free(commitToAmend);
@@ -11008,7 +12410,7 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
       git_commit *parent = nullptr;
       error = git_commit_parent(&parent, commitToAmend, i);
       if (error) {
-        logGitError(error);
+        setError(GitError::AmendFailedToGetParentCommit, error);
         for (git_commit *loadedParent : parents) {
           git_commit_free(loadedParent);
         }
@@ -11029,7 +12431,7 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
         loadCommitSigningConfig(&signingConfig, &signingError);
     if (!signingConfigLoaded) {
       LOG_ERROR(Log::ErrorId::Git, "{}", signingError.toStdString());
-      setLastError(-1, signingError);
+      setError(GitError::AmendFailedToLoadSigningConfiguration, -1);
       for (git_commit *loadedParent : parents) {
         git_commit_free(loadedParent);
       }
@@ -11090,9 +12492,9 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
       if (doSigning && !signingError.isEmpty()) {
         LOG_ERROR(Log::ErrorId::Git, "Failed to sign commit: {}",
                   signingError.toStdString());
-        setLastError(-1, signingError);
+        setError(GitError::AmendFailedToSignCommit, -1);
       } else {
-        logGitError(error);
+        setError(GitError::AmendFailedToCreateSignedAmendCommit, error);
       }
 
       git_signature_free(committerSig);
@@ -11114,7 +12516,7 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
         tree // New tree (or nullptr to keep original)
     );
     if (error) {
-      logGitError(error);
+      setError(GitError::AmendFailedToAmendCommit, error);
       git_signature_free(committerSig);
       git_tree_free(tree);
 
