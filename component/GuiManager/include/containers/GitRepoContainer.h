@@ -51,6 +51,7 @@ class QEvent;
 
 namespace GuiManager::Containers {
 
+class GitRepoManagerBridge;
 class GitRepoManagerBridgeImpl;
 
 class GitRepoContainer final : public Widgets::ContainerWidget,
@@ -315,7 +316,7 @@ private:
   GitRepo::BranchType _activeBranchType;
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
-  std::unique_ptr<GitRepoManagerBridgeImpl> _bridge;
+  std::unique_ptr<GitRepoManagerBridge> _bridge;
   Common::UserProfileManager &_userProfileManager;
   Widgets::ToastHostWidget &_toastHost;
   QSharedPointer<Models::GitHistoryModel> _historyModel;
