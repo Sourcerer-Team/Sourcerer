@@ -270,6 +270,19 @@ void SideBySideDiffView::changeEvent(QEvent *event) {
 }
 
 void SideBySideDiffView::refreshScintillaTheme() {
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+  const QColor deletedColor = lightTheme ? QColor(255, 231, 231)
+                                         : QColor(0x3b1313);
+  const QColor addedColor = lightTheme ? QColor(232, 246, 232)
+                                       : QColor(0x133b13);
+
+  _leftEditor->setMarkerBackgroundColor(deletedColor, 1);
+  _leftEditor->setMarkerBackgroundColor(addedColor, 2);
+  _rightEditor->setMarkerBackgroundColor(addedColor, 1);
+  _rightEditor->setMarkerBackgroundColor(deletedColor, 2);
+
   DarkThemeLexersHighlighter highlighter;
   const auto editors = findChildren<QsciScintilla *>();
 
@@ -326,18 +339,7 @@ void SideBySideDiffView::loadAndHighlight(
   _rightEditor->markerDefine(QsciScintilla::Background, 1);
   _rightEditor->markerDefine(QsciScintilla::Background, 2);
 
-  const bool lightTheme =
-      StylesheetManager::StylesheetManager::currentStylesheet() ==
-      StylesheetManager::StylesheetKey::SourcererLight;
-  const QColor deletedColor =
-      lightTheme ? QColor(255, 231, 231) : QColor(0x3b1313);
-  const QColor addedColor =
-      lightTheme ? QColor(232, 246, 232) : QColor(0x133b13);
-
-  _leftEditor->setMarkerBackgroundColor(deletedColor, 1);
-  _leftEditor->setMarkerBackgroundColor(addedColor, 2);
-  _rightEditor->setMarkerBackgroundColor(addedColor, 1);
-  _rightEditor->setMarkerBackgroundColor(deletedColor, 2);
+  refreshScintillaTheme();
 
   for (const int line : content.leftMarks0) {
     _leftEditor->markerAdd(line, 1);
