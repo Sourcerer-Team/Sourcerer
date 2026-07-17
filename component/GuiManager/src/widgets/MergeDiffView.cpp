@@ -255,6 +255,10 @@ void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
   _rightEditor->setText(_content.right);
   _bottomEditor->setText(_content.bottom);
 
+  // Reapply the theme after setting text so the editor foreground colors
+  // are refreshed with the loaded document contents.
+  refreshScintillaTheme();
+
   for (const int line : _content.leftMarks0) {
     _leftEditor->markerAdd(line, 1);
   }
