@@ -5417,6 +5417,33 @@ QStringList GitRepoContainer::getSelectedFilesWhichExist(QTreeView *treeView) {
   return filesThatExist;
 }
 
+QStringList
+GitRepoContainer::getSubdirectories(const QString &path,
+                                    const QStringList &excluded) const {
+  LOG_PERF(0, "Enter");
+
+  QStringList paths;
+
+  paths += path;
+
+  QDirIterator it(path, QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks,
+                  QDirIterator::Subdirectories);
+
+  while (it.hasNext()) {
+    const QString filePath = it.next();
+    const QString relativePath = QDir(_path).relativeFilePath(filePath);
+    if (excluded.contains(relativePath)) {
+      continue;
+    }
+
+    paths += filePath;
+  }
+
+  LOG_PERF(0, "Exit")
+
+  return paths;
+}
+
 QStringList GitRepoContainer::getAllFiles(const QString &path,
                                           const QStringList &excluded) const {
   LOG_PERF(0, "Enter");
