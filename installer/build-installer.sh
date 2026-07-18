@@ -13,7 +13,7 @@ BUILD_APPIMAGE=true
 # Set paths
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BUILD_DIR="$PROJECT_ROOT/build/Release"
+BUILD_DIR="$PROJECT_ROOT/build/Release-Linux"
 RELEASE_DIR="$BUILD_DIR"
 INSTALLER_DIR="$SCRIPT_DIR"
 DATA_DIR="$INSTALLER_DIR/packages/com.sourcerer.app/data"

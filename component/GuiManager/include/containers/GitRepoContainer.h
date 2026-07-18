@@ -32,6 +32,7 @@
 #include <QWidget>
 
 #include <functional>
+#include <memory>
 
 namespace Ui {
 class GitRepoContainer;
@@ -50,9 +51,14 @@ class QEvent;
 
 namespace GuiManager::Containers {
 
+class GitRepoManagerBridge;
+class GitRepoManagerBridgeImpl;
+
 class GitRepoContainer final : public Widgets::ContainerWidget,
                                public QEnableSharedFromThis<GitRepoContainer> {
   Q_OBJECT
+
+  friend class GitRepoManagerBridgeImpl;
 
   typedef QWeakPointer<GitRepoContainer> WeakPtr;
   typedef QSharedPointer<GitRepoContainer> SharedPtr;
@@ -168,7 +174,6 @@ private slots:
   void onSoftResetToCommit(const QString &commit);
   void onStash();
   void onStashSelected(int stashIndex);
-  void onStashFileSelected(const QModelIndex &index);
   void onStashApplyClicked();
   void onStashPopClicked();
   void onStashContentCloseClicked();
@@ -221,127 +226,29 @@ private slots:
                                GitRepo::BranchType branchType);
 
 private:
-  void abortMerge(const WeakPtr &guard);
-  void addSubmodule(const WeakPtr &guard, const QString &url,
-                    const QString &name, const QString &branch);
-  void addTarget(const WeakPtr &guard, int remoteIndex,
-                 const QString &targetName, const QString &fetchUrl,
-                 const QString &pushUrl);
-  void amend(const WeakPtr &guard, const QString &summary,
-             const QString &description, const QString &author,
-             const QString &email, bool signoff, bool signCommit);
-  void applyPatch(const WeakPtr &guard, const QString &filePath);
-  void applyStash(
-      const WeakPtr &guard, int stashIndex,
-      const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
-  void checkoutBranch(
-      const WeakPtr &guard, const QString &branchName,
-      GitRepo::BranchType branchType,
-      const std::function<void(const WeakPtr &)> &onSuccess = nullptr);
-  void checkoutCommit(const WeakPtr &guard, const QString &commit);
   void clearSummaryAndDescription();
   void closeDiffViewerIfOpen();
-  void closeRepo() const;
   void refreshScintillaTheme();
   void refreshSigningControls();
-  void commit(const WeakPtr &guard, const QString &summary,
-              const QString &description, const QString &author,
-              const QString &email, bool cleanup, bool signoff,
-              bool signCommit);
-  void createBranchFromCommit(
-      const WeakPtr &guard, const QString &commit, const QString &branchName,
-      const std::function<void(const WeakPtr &, const QString &)> &onSuccess =
-          nullptr);
-  void createPatchFromCommit(const WeakPtr &guard, const QString &commit);
-  void createTagFromCommit(const WeakPtr &guard, const QString &commit,
-                           const QString &tagName, const QString &message,
-                           bool isAnnotated);
-  void deleteBranch(const WeakPtr &guard, const QString &branchName);
-  void deleteRemoteBranch(const WeakPtr &guard, const QString &branchName);
   void deleteFiles(const WeakPtr &guard, const QStringList &files);
-  void deleteStash(
-      const WeakPtr &guard, int stashIndex,
-      const std::function<void(const WeakPtr &, int)> &onSuccess = nullptr);
-  void deleteAllStashes(
-      const WeakPtr &guard,
-      const std::function<void(const WeakPtr &)> &onSuccess = nullptr);
-  void deleteTag(const WeakPtr &guard, const QString &tagName);
-  void deleteRemoteTag(const WeakPtr &guard, const QString &tagName);
-  void pushTag(const WeakPtr &guard, const QString &tagName);
-  void pushAllTags(const WeakPtr &guard);
   void copyFilePathsToClipboard(const QStringList &filePaths) const;
-  void deleteSubmodule(const WeakPtr &guard, const QString &submoduleName);
-  void deleteTarget(const WeakPtr &guard, int remoteIndex, int targetIndex);
-  void diff(const WeakPtr &guard, const QString &filePath);
-  void diffThreeWay(const WeakPtr &guard, const QString &filePath);
-  void diffFromCommit(const WeakPtr &guard, const QString &filePath,
-                      const QString &commit);
-  void diffFiles(const WeakPtr &guard, const QStringList &files);
-  void discardFiles(const WeakPtr &guard, const QStringList &files);
-  void editTarget(const WeakPtr &guard, int remoteIndex, int targetIndex,
-                  const QString &newFetchUrl, const QString &newPushUrl);
-  bool getActiveBranchOrTag(const WeakPtr &guard,
-                            const GitRepo::BranchType branchType);
   bool getActiveLocalBranch();
   bool getActiveRemoteBranch();
   bool getActiveTag();
-  bool getBranchHistory(const WeakPtr &guard);
-  [[nodiscard]] QStringList getCommitBranches(const WeakPtr &guard,
-                                              const QString &commit) const;
-  [[nodiscard]] QStringList getCommitTags(const WeakPtr &guard,
-                                          const QString &commit) const;
-  [[nodiscard]] GitRepo::GitCommitStatus
-  getCommitStatus(const WeakPtr &guard, const QString &commit) const;
   static QStringList getSelectedFiles(QListView *listView);
   QStringList getSelectedFilesWhichExist(QListView *listView);
   QStringList getSelectedFiles(QTreeView *treeView);
   QStringList getSelectedFilesWhichExist(QTreeView *treeView);
-  bool getLocalBranches();
-  bool getRemoteBranches();
-  bool getStashes(const WeakPtr &guard);
-  bool getRemotes(const WeakPtr &guard);
-  bool getSubmodules();
-  bool getTags();
   QStringList getSubdirectories(const QString &path,
                                 const QStringList &excluded) const;
   QStringList getAllFiles(const QString &path,
                           const QStringList &excluded) const;
-  QPair<QString, QString> getUpstream(const WeakPtr &guard);
-  QPair<QString, QString> getUpstreamForBranch(const WeakPtr &guard,
-                                               const QString &branchName);
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   void ignoreFilesRecursive(const WeakPtr &guard, const QStringList &files);
-  void merge(const WeakPtr &guard, const QString &sourceBranch,
-             const QString &destBranch);
-  void rebase(const WeakPtr &guard, const QString &sourceBranch,
-              const QString &destBranch);
-  bool openRepo(const WeakPtr &guard);
-  void openSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void popStash(const WeakPtr &guard, int stashIndex);
-  void showStashContent(const WeakPtr &guard, int stashIndex);
-  void pull(const WeakPtr &guard, bool rebase = false);
-  void fetchAll(const WeakPtr &guard);
-  void fetchRemote(const WeakPtr &guard, const QString &remoteName);
-  void push(const WeakPtr &guard, bool force = false);
-  void addRemote(const WeakPtr &guard, const QString &remoteName,
-                 const QString &fetchUrl, const QString &pushUrl);
-  void editRemote(const WeakPtr &guard, int remoteIndex,
-                  const QString &remoteName, const QString &fetchUrl,
-                  const QString &pushUrl);
-  void deleteRemote(const WeakPtr &guard, int remoteIndex);
-  void setDefaultRemote(const WeakPtr &guard, int remoteIndex);
-  void renameBranch(const WeakPtr &guard, const QString &oldName,
-                    const QString &newName);
-  void renameTag(const WeakPtr &guard, const QString &oldName,
-                 const QString &newName);
-  void reset(const WeakPtr &guard, const QString &commit,
-             GitRepo::ResetType type);
-  void revert(const WeakPtr &guard, const QString &commit);
-  void cherryPick(const WeakPtr &guard, const QString &commit);
   void prepareWatcher(const WeakPtr &guard);
   bool refreshHistory(const WeakPtr &guard);
-  void refreshStatus(const WeakPtr &guard);
   void resetCommitAndMergeIndexTreeUnstageAllButton() const;
   void resetCommitAndMergeWorkingTreeTreeStageAllButton();
   void resetCommitButton() const;
@@ -354,19 +261,12 @@ private:
   void saveThreeWayMergeResultFile(const WeakPtr &guard,
                                    const QString &filePath,
                                    const QString &content);
-  void setDefaultTarget(const WeakPtr &guard, int remoteIndex, int targetIndex);
-  void
-  setUpstream(const WeakPtr &guard, const QString &branchName,
-              const QString &remoteName, const QString &remoteBranchName,
-              const std::function<void(const WeakPtr &)> &onSuccess = nullptr);
   void startOverlayTimer() const;
-  void stash(const WeakPtr &guard);
   void stopOverlayTimer() const;
   void stopWatcher(const WeakPtr &guard);
   void stretchBranchHistoryTableColumns();
   void showAllWidgets() const;
   void showCommit(const WeakPtr &guard, const QString &commit);
-  void showCommitAndMerge(WeakPtr guard);
   void showErrorPage(bool error = true) const;
   void showMainSpinnerPage(bool spinnerEnabled = true) const;
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
@@ -377,9 +277,7 @@ private:
   void simulateClickOnHistoryRow(int row) const;
   void simulateClickOnFirstHistoryRow() const;
   void stageAll(const WeakPtr &guard);
-  void stageFiles(const WeakPtr &guard, const QStringList &files);
   void unstageAll(const WeakPtr &guard);
-  void unstageFiles(const WeakPtr &guard, const QStringList &files);
   void
   updateBranchHistory(const WeakPtr &guard,
                       const GitRepo::GitHistoryWithStatus &historyWithStatus);
@@ -400,15 +298,12 @@ private:
                           const QStringList &stashes) const;
   void updateTagsModelActiveTag(const WeakPtr &guard, const QString &activeTag,
                                 bool updatePages = true);
-  void updateSubmodule(const WeakPtr &guard, const QString &submoduleName);
   void updateSubmodulesModel(const WeakPtr &guard,
                              const QStringList &tags) const;
   void updateSubmodulesModelWithStatus(
       const WeakPtr &guard,
       const QVector<GitRepo::SubmoduleInfo> &submodulesWithStatus) const;
   void updateTagsModel(const WeakPtr &guard, const QStringList &tags) const;
-
-  qint64 getFileSizeFromCommit(const QString &filePath, const QString &commit);
 
 private:
   Ui::GitRepoContainer *ui;
@@ -421,6 +316,7 @@ private:
   GitRepo::BranchType _activeBranchType;
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
+  std::unique_ptr<GitRepoManagerBridge> _bridge;
   Common::UserProfileManager &_userProfileManager;
   Widgets::ToastHostWidget &_toastHost;
   QSharedPointer<Models::GitHistoryModel> _historyModel;

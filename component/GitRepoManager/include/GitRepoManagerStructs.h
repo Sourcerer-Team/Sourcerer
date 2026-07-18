@@ -821,6 +821,7 @@ struct GitRepoError {
   QString uuid;
   QString message;
   int error = -1;
+  GitRepo::GitError gitError = GitRepo::GitError::Unknown;
 };
 
 int decodeGitError(int errorCode);
@@ -854,6 +855,7 @@ struct GitRepoContext {
 
 } // namespace GitRepoManager::Structs
 
+Q_DECLARE_METATYPE(GitRepo::GitError)
 Q_DECLARE_METATYPE(GitRepo::BranchStatusType)
 Q_DECLARE_METATYPE(GitRepo::BranchStatus)
 Q_DECLARE_METATYPE(GitRepo::BranchInfo)

@@ -276,6 +276,36 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#pushButtonPop,
+      QPushButton#pushButtonStash,
+      QToolButton#pullFetchDropdown,
+      QToolButton#pushButtonPush{
+        background-color: #006400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonPop:hover,
+      QPushButton#pushButtonStash:hover,
+      QToolButton#pullFetchDropdown:hover,
+      QToolButton#pushButtonPush:hover{
+        background-color: #008400;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QToolButton#pullFetchDropdown::menu-button,
+      QToolButton#pushButtonPush::menu-button{
+        border: none;
+        background: transparent;
+      }
+      QToolButton#pullFetchDropdown::menu-indicator,
+      QToolButton#pushButtonPush::menu-indicator{
+        subcontrol-origin: padding;
+        subcontrol-position: right center;
+        width: 8px;
+        height: 8px;
+      }
       QPushButton#pushButtonAbort,
       QPushButton#pushButtonCancel,
       QPushButton#deleteButton{
@@ -1181,6 +1211,36 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
+      }
+      QPushButton#pushButtonPop,
+      QPushButton#pushButtonStash,
+      QToolButton#pullFetchDropdown,
+      QToolButton#pushButtonPush{
+        background-color: #E7F5E7;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonPop:hover,
+      QPushButton#pushButtonStash:hover,
+      QToolButton#pullFetchDropdown:hover,
+      QToolButton#pushButtonPush:hover{
+        background-color: #D7EFD7;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QToolButton#pullFetchDropdown::menu-button,
+      QToolButton#pushButtonPush::menu-button{
+        border: none;
+        background: transparent;
+      }
+      QToolButton#pullFetchDropdown::menu-indicator,
+      QToolButton#pushButtonPush::menu-indicator{
+        subcontrol-origin: padding;
+        subcontrol-position: right center;
+        width: 8px;
+        height: 8px;
       }
       QPushButton#pushButtonAbort,
       QPushButton#pushButtonCancel,

@@ -139,7 +139,7 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
      "https://www.sourcererapp.com/api/v1/upload-bug-report"},
 #endif
     {ConfigKey::GitRepoSplitterPos,
-     "000000ff0000000100000003000000de000003b50000014101ffffffff010000000100"},
+     "000000ff0000000100000003000000c0000003d30000014101ffffffff010000000100"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
     {ConfigKey::GitRepoHistoryViewColumnWidths, ""},
     {ConfigKey::GitRepoHistoryViewHiddenColumns, "2,3"},
