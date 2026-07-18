@@ -46,7 +46,9 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QLabel>
 #include <QMenu>
+#include <QSize>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QMovie>
@@ -109,6 +111,29 @@ enum class MainViewPanes {
 
   last
 };
+
+constexpr QSize kCommitSignatureIconSize(16, 16);
+
+QPixmap themedIcon(const QString &resourcePath) {
+  return StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(resourcePath),
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor());
+}
+
+void setIconLabel(QLabel *label, const QPixmap &icon,
+                  const QString &accessibleText) {
+  if (!label)
+    return;
+
+  label->setPixmap(icon.scaled(kCommitSignatureIconSize,
+                               Qt::KeepAspectRatio,
+                               Qt::SmoothTransformation));
+  label->setText(QString());
+  label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+  label->setToolTip(accessibleText);
+  label->setStatusTip(accessibleText);
+  label->setAccessibleName(accessibleText);
+}
 
 QStringList traverseModelIndexSubtree(const QModelIndex &parent,
                                       const QAbstractItemModel *model) {
@@ -5846,12 +5871,36 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
                       .left(MAX_COMMIT_SHA_LENGTH) +
                   (commitInfo.parents.size() > MAXIMUM_PARENTS_IN_LABEL ? "..."
                                                                         : ""));
-    ui->labelPageDisplaySignedValue->setText(
-        commitInfo.signedCommit ? tr("Yes") : tr("No"));
+    const QString signedText = commitInfo.signedCommit ? tr("Yes")
+                                                       : tr("No");
+    setIconLabel(ui->labelPageDisplaySignedValue,
+                 themedIcon(commitInfo.signedCommit ? ":/icons/ok.png"
+                                                    : ":/icons/cancel.png"),
+                 tr("Signed: %1").arg(signedText));
+
     const QString signatureType = commitInfo.signatureType.isEmpty()
                                       ? tr("Unknown")
                                       : commitInfo.signatureType;
-    ui->labelPageDisplaySignatureTypeValue->setText(signatureType);
+    const bool isOpenPgpSignatureType =
+        commitInfo.signatureType.compare("OpenPGP", Qt::CaseInsensitive) == 0;
+    const bool isSshSignatureType =
+        commitInfo.signatureType.compare("SSH", Qt::CaseInsensitive) == 0;
+    if (isOpenPgpSignatureType) {
+      ui->labelPageDisplaySignatureTypeValue->setPixmap(QPixmap());
+      ui->labelPageDisplaySignatureTypeValue->setText(signatureType);
+      ui->labelPageDisplaySignatureTypeValue->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+      ui->labelPageDisplaySignatureTypeValue->setToolTip(
+          tr("Signature type: %1").arg(signatureType));
+      ui->labelPageDisplaySignatureTypeValue->setStatusTip(
+          tr("Signature type: %1").arg(signatureType));
+      ui->labelPageDisplaySignatureTypeValue->setAccessibleName(
+          tr("Signature type: %1").arg(signatureType));
+    } else {
+      setIconLabel(ui->labelPageDisplaySignatureTypeValue,
+                   themedIcon(isSshSignatureType ? ":/icons/ssh-key.svg"
+                                                 : ":/icons/id-card.png"),
+                   tr("Signature type: %1").arg(signatureType));
+    }
     const bool hasSignatureBlock =
         commitInfo.signedCommit && !commitInfo.signature.isEmpty();
     ui->widgetPageDisplaySignatureSection->setVisible(hasSignatureBlock);
