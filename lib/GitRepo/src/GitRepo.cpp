@@ -865,6 +865,10 @@ static QString gitErrorName(const GitError errorType) {
     return QCoreApplication::translate(
         "GitRepoError",
         "Failed to clone repository while cloning the repository.");
+  case GitError::CloneRepositoryGitSshUrlRequiresCommercialPlan:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Cloning git@ repositories requires a commercial plan.");
   case GitError::GetBranchHistoryFailedToCreateRevwalk:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -1203,6 +1207,10 @@ static QString gitErrorName(const GitError errorType) {
     return QCoreApplication::translate(
         "GitRepoError",
         "Failed to create merge annotated commit while pulling changes.");
+  case GitError::PullGitSshUrlRequiresCommercialPlan:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Pulling git@ repositories requires a commercial plan.");
   case GitError::FetchRemoteInternalFailedToLookupRemote:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -1210,7 +1218,7 @@ static QString gitErrorName(const GitError errorType) {
   case GitError::FetchRemoteGitSshUrlRequiresCommercialPlan:
     return QCoreApplication::translate(
         "GitRepoError",
-        " requires a commercial plan while fetch remote Git SSH URL.");
+        "Fetching git@ repositories requires a commercial plan.");
   case GitError::FetchRemoteInternalFailedToFetchRemote:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -1222,6 +1230,10 @@ static QString gitErrorName(const GitError errorType) {
   case GitError::PushFailedToGetRepositoryHead:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to get repository head while pushing changes.");
+  case GitError::PushGitSshUrlRequiresCommercialPlan:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Pushing git@ repositories requires a commercial plan.");
   case GitError::PushFailedToReadBranchName:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to read branch name while pushing changes.");
@@ -1234,6 +1246,10 @@ static QString gitErrorName(const GitError errorType) {
   case GitError::PushTagFailedToLookupReference:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to lookup reference while pushing the tag.");
+  case GitError::PushTagGitSshUrlRequiresCommercialPlan:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Pushing tags to git@ repositories requires a commercial plan.");
   case GitError::PushTagFailedToLookupRemote:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to lookup remote while pushing the tag.");
@@ -1243,6 +1259,10 @@ static QString gitErrorName(const GitError errorType) {
   case GitError::PushAllTagsFailedToLookupRemote:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to lookup remote while pushing all tags.");
+  case GitError::PushAllTagsGitSshUrlRequiresCommercialPlan:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Pushing all tags to git@ repositories requires a commercial plan.");
   case GitError::PushAllTagsFailedToPushRemote:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to push remote while pushing all tags.");
@@ -1366,14 +1386,17 @@ static QString gitErrorName(const GitError errorType) {
   case GitError::DeleteBranchFailedToDeleteBranch:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to delete branch while deleting the branch.");
-  case GitError::DeleteRemoteBranchFailedToLookupRemote:
+  case GitError::DeleteRemoteTagFailedToLookupRemote:
     return QCoreApplication::translate(
         "GitRepoError",
-        "Failed to lookup remote while deleting the remote branch.");
-  case GitError::DeleteRemoteBranchFailedToPushRemote:
+        "Failed to lookup remote while deleting the remote tag.");
+  case GitError::DeleteRemoteTagGitSshUrlRequiresCommercialPlan:
     return QCoreApplication::translate(
         "GitRepoError",
-        "Failed to push remote while deleting the remote branch.");
+        "Deleting remote tags from git@ repositories requires a commercial plan.");
+  case GitError::DeleteRemoteTagFailedToPushRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to push remote while deleting the remote tag.");
   case GitError::CreateTagFromCommitFailedToParseObjectId:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -1445,13 +1468,17 @@ static QString gitErrorName(const GitError errorType) {
   case GitError::DeleteTagFailedToDeleteTag:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to delete tag while deleting the tag.");
-  case GitError::DeleteRemoteTagFailedToLookupRemote:
+  case GitError::DeleteRemoteBranchFailedToLookupRemote:
     return QCoreApplication::translate(
         "GitRepoError",
-        "Failed to lookup remote while deleting the remote tag.");
-  case GitError::DeleteRemoteTagFailedToPushRemote:
+        "Failed to lookup remote while deleting the remote branch.");
+  case GitError::DeleteRemoteBranchGitSshUrlRequiresCommercialPlan:
     return QCoreApplication::translate(
-        "GitRepoError", "Failed to push remote while deleting the remote tag.");
+        "GitRepoError",
+        "Deleting remote branches from git@ repositories requires a commercial plan.");
+  case GitError::DeleteRemoteBranchFailedToPushRemote:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to push remote while deleting the remote branch.");
   case GitError::GetSubmodulePathFailedToLookupSubmodule:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -1523,6 +1550,10 @@ static QString gitErrorName(const GitError errorType) {
     return QCoreApplication::translate(
         "GitRepoError",
         "Failed to setup submodule while adding the submodule.");
+  case GitError::AddSubmoduleGitSshUrlRequiresCommercialPlan:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Adding submodules to git@ repositories requires a commercial plan.");
   case GitError::AddSubmoduleFailedToCloneSubmodule:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -5017,6 +5048,8 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
             commercial);
 
   if (!commercial && gitSchema) {
+    setError(GitError::CloneRepositoryGitSshUrlRequiresCommercialPlan,
+             GIT_EAUTH);
     LOG_ERROR(Log::ErrorId::Git,
               "Cloning git@ repositories is not available on the free plan.");
     LOG_PERF(0, "Exit");
@@ -7194,6 +7227,7 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
   }
 
   if (!commercial && gitSchema) {
+    setError(GitError::PullGitSshUrlRequiresCommercialPlan, GIT_EAUTH);
     LOG_ERROR(Log::ErrorId::Git,
               "Pulling from git@ repositories is not available on the free "
               "plan.");
@@ -7787,6 +7821,7 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
   }
 
   if (!commercial && gitSchema) {
+    setError(GitError::PushGitSshUrlRequiresCommercialPlan, GIT_EAUTH);
     LOG_ERROR(Log::ErrorId::Git,
               "Pushing to git@ repositories is not available on the free "
               "plan.");
@@ -7910,6 +7945,7 @@ bool pushTag(git_repository *repo, const QString &tagName) {
             commercial);
 
   if (!commercial && gitSchema) {
+    setError(GitError::PushTagGitSshUrlRequiresCommercialPlan, GIT_EAUTH);
     LOG_ERROR(
         Log::ErrorId::Git,
         "Pushing tags to git@ repositories is not available on the free plan.");
@@ -8043,6 +8079,7 @@ bool pushAllTags(git_repository *repo) {
             commercial);
 
   if (!commercial && gitSchema) {
+    setError(GitError::PushAllTagsGitSshUrlRequiresCommercialPlan, GIT_EAUTH);
     LOG_ERROR(
         Log::ErrorId::Git,
         "Pushing tags to git@ repositories is not available on the free plan.");
@@ -9056,6 +9093,8 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
             commercial);
 
   if (!commercial && gitSchema) {
+    setError(GitError::DeleteRemoteBranchGitSshUrlRequiresCommercialPlan,
+             GIT_EAUTH);
     LOG_ERROR(Log::ErrorId::Git,
               "Deleting remote branches from git@ repositories is not "
               "available on the free plan.");
@@ -9524,6 +9563,8 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
             commercial);
 
   if (!commercial && gitSchema) {
+    setError(GitError::DeleteRemoteTagGitSshUrlRequiresCommercialPlan,
+             GIT_EAUTH);
     LOG_ERROR(Log::ErrorId::Git, "Deleting remote tags from git@ repositories "
                                  "is not available on the free plan.");
     git_remote_free(remote);
@@ -10164,6 +10205,8 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
             commercial);
 
   if (!commercial && gitSchema) {
+    setError(GitError::AddSubmoduleGitSshUrlRequiresCommercialPlan,
+             GIT_EAUTH);
     LOG_ERROR(Log::ErrorId::Git, "Adding submodules to git@ repositories is "
                                  "not available on the free plan.");
     git_submodule_free(subModule);
