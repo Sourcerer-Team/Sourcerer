@@ -1522,7 +1522,7 @@
                                <item>
                                 <widget class="QLabel" name="labelPageDisplaySignedLabel">
                                  <property name="text">
-                                  <string>signed:</string>
+                                  <string>Signed:</string>
                                  </property>
                                 </widget>
                                </item>
@@ -1543,7 +1543,7 @@
                                <item>
                                 <widget class="QLabel" name="labelPageDisplaySignatureTypeLabel">
                                  <property name="text">
-                                  <string>signature type:</string>
+                                  <string>Signature type:</string>
                                  </property>
                                 </widget>
                                </item>
