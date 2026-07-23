@@ -48,7 +48,6 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMenu>
-#include <QSize>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QMovie>
@@ -56,6 +55,7 @@
 #include <QPixmap>
 #include <QScrollBar>
 #include <QSignalBlocker>
+#include <QSize>
 #include <QStyleOptionViewItem>
 #include <QSvgRenderer>
 #include <QTextStream>
@@ -125,8 +125,7 @@ void setIconLabel(QLabel *label, const QPixmap &icon,
   if (!label)
     return;
 
-  label->setPixmap(icon.scaled(kCommitSignatureIconSize,
-                               Qt::KeepAspectRatio,
+  label->setPixmap(icon.scaled(kCommitSignatureIconSize, Qt::KeepAspectRatio,
                                Qt::SmoothTransformation));
   label->setText(QString());
   label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
@@ -930,8 +929,7 @@ bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
             index.row(), COLUMN_COMMIT_FULL_SHA, index.parent());
         const QString commitOid = fullShaIndex.data(Qt::DisplayRole).toString();
         QHash<QString, QStringList> commitRefs;
-        QStringList branches =
-            _bridge->getCommitBranches(guard, commitOid);
+        QStringList branches = _bridge->getCommitBranches(guard, commitOid);
         branches += _bridge->getCommitTags(guard, commitOid);
         if (!branches.isEmpty()) {
           commitRefs.insert(commitOid, branches);
@@ -1126,9 +1124,8 @@ void GitRepoContainer::onAddSubmodule() {
 
             // startOverlayTimer();
 
-            _dispatcher.dispatch([=]() {
-              _bridge->addSubmodule(guard, url, name, branch);
-            });
+            _dispatcher.dispatch(
+                [=]() { _bridge->addSubmodule(guard, url, name, branch); });
           });
 
   overlayWidget->show();
@@ -1156,8 +1153,7 @@ void GitRepoContainer::onApplyPatch() {
   LOG_DEBUG("Applying patch from file: '{}'", filePath.toStdString());
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->applyPatch(guard, filePath); });
+  _dispatcher.dispatch([=]() { _bridge->applyPatch(guard, filePath); });
 
   LOG_DEBUG("Apply patch operation dispatched");
   LOG_PERF(0, "Exit");
@@ -1182,8 +1178,7 @@ void GitRepoContainer::onApplyStash(const int stashIndex) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->applyStash(guard, stashIndex); });
+  _dispatcher.dispatch([=]() { _bridge->applyStash(guard, stashIndex); });
 
   LOG_DEBUG("Apply stash operation dispatched for index: {}", stashIndex);
   LOG_PERF(0, "Exit");
@@ -1211,15 +1206,15 @@ void GitRepoContainer::onDeleteStash(const int stashIndex) {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    _bridge->deleteStash(
-        guard, stashIndex, [=](const WeakPtr &guard, const int) {
-          Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-            if (closeStashViewer) {
-              onStashContentCloseClicked();
-            }
-            showSpinnerOverlay(false);
-          });
-        });
+    _bridge->deleteStash(guard, stashIndex,
+                         [=](const WeakPtr &guard, const int) {
+                           Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+                             if (closeStashViewer) {
+                               onStashContentCloseClicked();
+                             }
+                             showSpinnerOverlay(false);
+                           });
+                         });
   });
 
   LOG_DEBUG("Delete stash operation dispatched for index: {}", stashIndex);
@@ -1303,8 +1298,7 @@ void GitRepoContainer::onAddRemote() {
 
             const WeakPtr guard = getSelf().toWeakRef();
             _dispatcher.dispatch([=]() {
-              _bridge->addRemote(guard, remoteName, fetchUrl,
-                                               pushUrl);
+              _bridge->addRemote(guard, remoteName, fetchUrl, pushUrl);
             });
           });
 
@@ -1348,8 +1342,8 @@ void GitRepoContainer::onEditRemote(int remoteIndex) {
 
             const WeakPtr guard = getSelf().toWeakRef();
             _dispatcher.dispatch([=]() {
-              _bridge->editRemote(guard, remoteIndex, remoteName,
-                                                fetchUrl, pushUrl);
+              _bridge->editRemote(guard, remoteIndex, remoteName, fetchUrl,
+                                  pushUrl);
             });
           });
 
@@ -1424,8 +1418,7 @@ void GitRepoContainer::onDeleteRemote(int remoteIndex) {
   startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
-  _dispatcher.dispatch(
-      [=]() { _bridge->deleteRemote(guard, remoteIndex); });
+  _dispatcher.dispatch([=]() { _bridge->deleteRemote(guard, remoteIndex); });
 
   LOG_DEBUG("Delete remote operation dispatched");
   LOG_PERF(0, "Exit");
@@ -1476,8 +1469,7 @@ void GitRepoContainer::onSetDefaultRemote(int remoteIndex) {
             delete upstreamOverlay;
 
             _dispatcher.dispatch([=]() {
-              _bridge->setUpstream(guard, _activeBranch, remote,
-                                                 branch);
+              _bridge->setUpstream(guard, _activeBranch, remote, branch);
             });
           });
 
@@ -1533,8 +1525,8 @@ void GitRepoContainer::onAddTarget(int remoteIndex) {
             delete addTargetOverlay;
 
             _dispatcher.dispatch([=]() {
-              _bridge->addTarget(guard, remoteIndex, targetName,
-                                               fetchUrl, pushUrl);
+              _bridge->addTarget(guard, remoteIndex, targetName, fetchUrl,
+                                 pushUrl);
             });
           });
 
@@ -1584,8 +1576,8 @@ void GitRepoContainer::onEditTarget(int remoteIndex, int targetIndex) {
             delete editTargetOverlay;
 
             _dispatcher.dispatch([=]() {
-              _bridge->editTarget(guard, remoteIndex, targetIndex,
-                                                fetchUrl, pushUrl);
+              _bridge->editTarget(guard, remoteIndex, targetIndex, fetchUrl,
+                                  pushUrl);
             });
           });
 
@@ -1640,9 +1632,8 @@ void GitRepoContainer::onDeleteTarget(int remoteIndex, int targetIndex) {
   startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
-  _dispatcher.dispatch([=]() {
-    _bridge->deleteTarget(guard, remoteIndex, targetIndex);
-  });
+  _dispatcher.dispatch(
+      [=]() { _bridge->deleteTarget(guard, remoteIndex, targetIndex); });
 
   LOG_DEBUG("Delete target operation dispatched");
   LOG_PERF(0, "Exit");
@@ -1668,9 +1659,8 @@ void GitRepoContainer::onSetDefaultTarget(int remoteIndex, int targetIndex) {
   startOverlayTimer();
 
   const WeakPtr guard = getSelf().toWeakRef();
-  _dispatcher.dispatch([=]() {
-    _bridge->setDefaultTarget(guard, remoteIndex, targetIndex);
-  });
+  _dispatcher.dispatch(
+      [=]() { _bridge->setDefaultTarget(guard, remoteIndex, targetIndex); });
 
   LOG_DEBUG("Set default target operation dispatched");
   LOG_PERF(0, "Exit");
@@ -1831,16 +1821,14 @@ void GitRepoContainer::onCommitButtonClicked() {
   _dispatcher.dispatch([=]() {
     if (toAmend) {
       LOG_DEBUG("Performing amend operation");
-      _bridge->amend(guard, summary, description,
-                                   currentProfile.author, currentProfile.email,
-                                   signoff, signCommit);
+      _bridge->amend(guard, summary, description, currentProfile.author,
+                     currentProfile.email, signoff, signCommit);
     } else {
       LOG_DEBUG("Performing new commit operation");
       // If merge is in progress, cleanup must be true to conclude the merge
       const bool cleanup = _mergeInProgress;
-      _bridge->commit(guard, summary, description,
-                                    currentProfile.author, currentProfile.email,
-                                    cleanup, signoff, signCommit);
+      _bridge->commit(guard, summary, description, currentProfile.author,
+                      currentProfile.email, cleanup, signoff, signCommit);
     }
   });
 
@@ -1871,9 +1859,8 @@ void GitRepoContainer::onMergeButtonClicked() {
 
   _dispatcher.dispatch([=]() {
     LOG_DEBUG("Performing merge commit operation");
-    _bridge->commit(guard, summary, description,
-                                  currentProfile.author, currentProfile.email,
-                                  true, signoff, signCommit);
+    _bridge->commit(guard, summary, description, currentProfile.author,
+                    currentProfile.email, true, signoff, signCommit);
   });
 
   LOG_PERF(0, "Exit");
@@ -2020,8 +2007,8 @@ void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
         startOverlayTimer();
 
         _dispatcher.dispatch([=]() {
-          _bridge->createTagFromCommit(guard, commit, tagName,
-                                                     message, isAnnotated);
+          _bridge->createTagFromCommit(guard, commit, tagName, message,
+                                       isAnnotated);
         });
       });
 
@@ -2054,8 +2041,7 @@ void GitRepoContainer::onDeleteBranch(const QString &branchName) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->deleteBranch(guard, branchName); });
+  _dispatcher.dispatch([=]() { _bridge->deleteBranch(guard, branchName); });
 
   LOG_DEBUG("Delete branch operation dispatched");
   LOG_PERF(0, "Exit");
@@ -2111,8 +2097,7 @@ void GitRepoContainer::onDeleteTag(const QString &tagName) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->deleteTag(guard, tagName); });
+  _dispatcher.dispatch([=]() { _bridge->deleteTag(guard, tagName); });
 
   LOG_DEBUG("Delete tag operation dispatched");
   LOG_PERF(0, "Exit");
@@ -2139,8 +2124,7 @@ void GitRepoContainer::onPushTag(const QString &tagName) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->pushTag(guard, tagName); });
+  _dispatcher.dispatch([=]() { _bridge->pushTag(guard, tagName); });
 
   LOG_DEBUG("Push tag operation dispatched");
   LOG_PERF(0, "Exit");
@@ -2193,8 +2177,7 @@ void GitRepoContainer::onDeleteRemoteTag(const QString &tagName) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->deleteRemoteTag(guard, tagName); });
+  _dispatcher.dispatch([=]() { _bridge->deleteRemoteTag(guard, tagName); });
 
   LOG_DEBUG("Delete remote tag operation dispatched");
   LOG_PERF(0, "Exit");
@@ -2323,9 +2306,8 @@ void GitRepoContainer::onHardResetToCommit(const QString &commit) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() {
-    _bridge->reset(guard, commit, GitRepo::ResetType::Hard);
-  });
+  _dispatcher.dispatch(
+      [=]() { _bridge->reset(guard, commit, GitRepo::ResetType::Hard); });
 
   LOG_DEBUG("Hard reset operation dispatched");
   LOG_PERF(0, "Exit");
@@ -2371,8 +2353,7 @@ void GitRepoContainer::onHistorySelectionChanged(
         static_cast<int>(CommitAndMergeStackIndexes::CommitAndMerge));
 
     _dispatcher.clearPool();
-    _dispatcher.dispatch(
-        [=]() { _bridge->showCommitAndMerge(guard); });
+    _dispatcher.dispatch([=]() { _bridge->showCommitAndMerge(guard); });
   }
 
   LOG_PERF(0, "Exit");
@@ -2533,8 +2514,7 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    const int blobSize =
-        _bridge->getFileSizeFromCommit(filePath, QString());
+    const int blobSize = _bridge->getFileSizeFromCommit(filePath, QString());
     if (blobSize > maxDiffFileSize) {
       LOG_DEBUG("Blob size {} exceeds maximum", blobSize);
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
@@ -2584,8 +2564,7 @@ void GitRepoContainer::onListViewTabWidgetFlatSelectedFromCommit(
     // Check file size from commit before generating diff
     const qint64 maxDiffFileSize = _configManager.getLong(
         ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
-    const qint64 fileSize =
-        _bridge->getFileSizeFromCommit(filePath, commit);
+    const qint64 fileSize = _bridge->getFileSizeFromCommit(filePath, commit);
 
     if (fileSize > 0 && fileSize > maxDiffFileSize) {
       LOG_DEBUG("File size {} exceeds maximum {}", fileSize, maxDiffFileSize);
@@ -2743,8 +2722,7 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    const int blobSize =
-        _bridge->getFileSizeFromCommit(filePath, QString());
+    const int blobSize = _bridge->getFileSizeFromCommit(filePath, QString());
     if (blobSize > maxDiffFileSize) {
       LOG_DEBUG("Blob size {} exceeds maximum", blobSize);
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
@@ -2818,8 +2796,7 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelectedFromCommit(
   // Check file size from commit before generating diff
   const qint64 maxDiffFileSize =
       _configManager.getLong(ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
-  const qint64 fileSize =
-      _bridge->getFileSizeFromCommit(filePath, commit);
+  const qint64 fileSize = _bridge->getFileSizeFromCommit(filePath, commit);
 
   if (fileSize > 0 && fileSize > maxDiffFileSize) {
     LOG_DEBUG("File size {} exceeds maximum {}", fileSize, maxDiffFileSize);
@@ -2885,14 +2862,12 @@ void GitRepoContainer::onLocalBranchMoved(const QString &sourceBranch,
   const WeakPtr guard = getSelf().toWeakRef();
 
   if (selectedAction == &actionMerge) {
-    _dispatcher.dispatch([=]() {
-      _bridge->merge(guard, sourceBranch, destBranch);
-    });
+    _dispatcher.dispatch(
+        [=]() { _bridge->merge(guard, sourceBranch, destBranch); });
     LOG_DEBUG("Branch merge operation dispatched");
   } else if (selectedAction == &actionRebase) {
-    _dispatcher.dispatch([=]() {
-      _bridge->rebase(guard, sourceBranch, destBranch);
-    });
+    _dispatcher.dispatch(
+        [=]() { _bridge->rebase(guard, sourceBranch, destBranch); });
     LOG_DEBUG("Branch rebase operation dispatched");
   }
 
@@ -2916,8 +2891,7 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
 
   _dispatcher.dispatch([=]() {
     LOG_DEBUG("Checking out branch '{}'", branchName.toStdString());
-    _bridge->checkoutBranch(guard, branchName,
-                                          GitRepo::BranchType::Local);
+    _bridge->checkoutBranch(guard, branchName, GitRepo::BranchType::Local);
   });
 
   LOG_DEBUG("Branch checkout operation dispatched");
@@ -2948,8 +2922,7 @@ void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
     const WeakPtr guard = getSelf().toWeakRef();
 
     _dispatcher.dispatch([=]() {
-      _bridge->checkoutBranch(guard, branchName,
-                                            GitRepo::BranchType::Local);
+      _bridge->checkoutBranch(guard, branchName, GitRepo::BranchType::Local);
     });
   });
 
@@ -2997,9 +2970,8 @@ void GitRepoContainer::onMixedResetToCommit(const QString &commit) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() {
-    _bridge->reset(guard, commit, GitRepo::ResetType::Mixed);
-  });
+  _dispatcher.dispatch(
+      [=]() { _bridge->reset(guard, commit, GitRepo::ResetType::Mixed); });
 
   LOG_DEBUG("Mixed reset operation dispatched");
   LOG_PERF(0, "Exit");
@@ -3159,9 +3131,7 @@ void GitRepoContainer::onPush(bool force) {
             _dispatcher.dispatch([=]() {
               _bridge->setUpstream(
                   guard, branchName, remoteName, remoteBranchName,
-                  [=](const WeakPtr &guard) {
-                    _bridge->push(guard, force);
-                  });
+                  [=](const WeakPtr &guard) { _bridge->push(guard, force); });
             });
           });
 
@@ -3203,8 +3173,7 @@ void GitRepoContainer::onStashSelected(int stashIndex) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->showStashContent(guard, stashIndex); });
+  _dispatcher.dispatch([=]() { _bridge->showStashContent(guard, stashIndex); });
 
   LOG_DEBUG("Show stash content operation dispatched");
   LOG_PERF(0, "Exit");
@@ -3239,8 +3208,7 @@ void GitRepoContainer::onSubmitRenameTag(const QString &oldName,
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->renameTag(guard, oldName, newName); });
+  _dispatcher.dispatch([=]() { _bridge->renameTag(guard, oldName, newName); });
 
   LOG_DEBUG("Tag rename operation dispatched");
   LOG_PERF(0, "Exit");
@@ -3272,9 +3240,8 @@ void GitRepoContainer::onSubmoduleRightClicked(const QString &submoduleName,
 
     const WeakPtr guard = getSelf().toWeakRef();
 
-    _dispatcher.dispatch([=]() {
-      _bridge->updateSubmodule(guard, submoduleName);
-    });
+    _dispatcher.dispatch(
+        [=]() { _bridge->updateSubmodule(guard, submoduleName); });
   });
 
   connect(&actionDeleteSubmodule, &QAction::triggered, this,
@@ -3321,8 +3288,7 @@ void GitRepoContainer::onSubmoduleSelected(const QString &submoduleName) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->openSubmodule(guard, submoduleName); });
+  _dispatcher.dispatch([=]() { _bridge->openSubmodule(guard, submoduleName); });
 
   LOG_DEBUG("Open submodule operation dispatched");
   LOG_PERF(0, "Exit");
@@ -3353,8 +3319,7 @@ void GitRepoContainer::onTagRightClicked(const QString &tagName,
     const WeakPtr guard = getSelf().toWeakRef();
 
     _dispatcher.dispatch([=]() {
-      _bridge->checkoutBranch(guard, tagName,
-                                            GitRepo::BranchType::Tag);
+      _bridge->checkoutBranch(guard, tagName, GitRepo::BranchType::Tag);
     });
   });
 
@@ -3419,8 +3384,7 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    _bridge->checkoutBranch(guard, branchName,
-                                          GitRepo::BranchType::Remote);
+    _bridge->checkoutBranch(guard, branchName, GitRepo::BranchType::Remote);
   });
 
   LOG_DEBUG("Remote branch checkout operation dispatched");
@@ -3449,8 +3413,7 @@ void GitRepoContainer::onRemoteBranchRightClicked(const QString &branchName,
     const WeakPtr guard = getSelf().toWeakRef();
 
     _dispatcher.dispatch([=]() {
-      _bridge->checkoutBranch(guard, branchName,
-                                            GitRepo::BranchType::Remote);
+      _bridge->checkoutBranch(guard, branchName, GitRepo::BranchType::Remote);
     });
   });
 
@@ -3647,9 +3610,8 @@ void GitRepoContainer::onCherryPickCommit() {
             startOverlayTimer();
             LOG_DEBUG("Spinner overlay timer started");
 
-            _dispatcher.dispatch([=]() {
-              _bridge->cherryPick(guard, selectedCommit);
-            });
+            _dispatcher.dispatch(
+                [=]() { _bridge->cherryPick(guard, selectedCommit); });
 
             LOG_DEBUG("Cherry-pick commit operation dispatched");
           });
@@ -3689,9 +3651,8 @@ void GitRepoContainer::onSetUpstream(const QString &branchName) {
         upstreamOverlay->hide();
         delete upstreamOverlay;
 
-        _dispatcher.dispatch([=]() {
-          _bridge->setUpstream(guard, branchName, remote, branch);
-        });
+        _dispatcher.dispatch(
+            [=]() { _bridge->setUpstream(guard, branchName, remote, branch); });
       });
 
   _dispatcher.dispatch([=]() {
@@ -3732,9 +3693,8 @@ void GitRepoContainer::onSoftResetToCommit(const QString &commit) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch([=]() {
-    _bridge->reset(guard, commit, GitRepo::ResetType::Soft);
-  });
+  _dispatcher.dispatch(
+      [=]() { _bridge->reset(guard, commit, GitRepo::ResetType::Soft); });
 
   LOG_DEBUG("Soft reset operation dispatched");
   LOG_PERF(0, "Exit");
@@ -3756,8 +3716,7 @@ void GitRepoContainer::onTagSelected(const QString &tagName) {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    _bridge->checkoutBranch(guard, tagName,
-                                          GitRepo::BranchType::Tag);
+    _bridge->checkoutBranch(guard, tagName, GitRepo::BranchType::Tag);
   });
 
   LOG_DEBUG("Tag checkout operation dispatched");
@@ -4096,8 +4055,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewStageSelected(bool checked) {
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->stageFiles(guard, files); });
+  _dispatcher.dispatch([=]() { _bridge->stageFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -4148,8 +4106,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewCreateFilePatchSelected(
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->diffFiles(guard, files); });
+  _dispatcher.dispatch([=]() { _bridge->diffFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -4225,8 +4182,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected(bool checked) {
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->discardFiles(guard, files); });
+  _dispatcher.dispatch([=]() { _bridge->discardFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -4310,8 +4266,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewStageSelected(bool checked) {
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->stageFiles(guard, files); });
+  _dispatcher.dispatch([=]() { _bridge->stageFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -4362,8 +4317,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewCreateFilePatchSelected(
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->diffFiles(guard, files); });
+  _dispatcher.dispatch([=]() { _bridge->diffFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -4439,8 +4393,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected(bool checked) {
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->discardFiles(guard, files); });
+  _dispatcher.dispatch([=]() { _bridge->discardFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -4506,8 +4459,7 @@ void GitRepoContainer::onIndexFlatListViewUnstageSelected(bool checked) {
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->unstageFiles(guard, files); });
+  _dispatcher.dispatch([=]() { _bridge->unstageFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -4555,8 +4507,7 @@ void GitRepoContainer::onIndexFlatListViewCreateFilePatchSelected(
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->diffFiles(guard, files); });
+  _dispatcher.dispatch([=]() { _bridge->diffFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -4631,8 +4582,7 @@ void GitRepoContainer::onIndexFlatListViewDiscardSelected(bool checked) {
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->discardFiles(guard, files); });
+  _dispatcher.dispatch([=]() { _bridge->discardFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -4698,8 +4648,7 @@ void GitRepoContainer::onIndexTreeTreeViewUnstageSelected(bool checked) {
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->unstageFiles(guard, files); });
+  _dispatcher.dispatch([=]() { _bridge->unstageFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -4747,8 +4696,7 @@ void GitRepoContainer::onIndexTreeTreeViewCreateFilePatchSelected(
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->diffFiles(guard, files); });
+  _dispatcher.dispatch([=]() { _bridge->diffFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -4823,8 +4771,7 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
 
   const WeakPtr &guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->discardFiles(guard, files); });
+  _dispatcher.dispatch([=]() { _bridge->discardFiles(guard, files); });
 
   LOG_PERF(0, "Exit");
 }
@@ -5171,14 +5118,14 @@ void GitRepoContainer::deleteFiles(const WeakPtr &guard,
 void GitRepoContainer::popStash(const WeakPtr &guard, int stashIndex) {
   LOG_PERF(0, "Enter");
 
-  _bridge->applyStash(
-      guard, stashIndex, [=](const WeakPtr &guard, const int index) {
-        _bridge->deleteStash(
-            guard, index, [=](const WeakPtr &guard, const int) {
-              Util::Dispatcher::dispatchToMainThread(
-                  guard, [&]() { showSpinnerOverlay(false); });
-            });
-      });
+  _bridge->applyStash(guard, stashIndex,
+                      [=](const WeakPtr &guard, const int index) {
+                        _bridge->deleteStash(
+                            guard, index, [=](const WeakPtr &guard, const int) {
+                              Util::Dispatcher::dispatchToMainThread(
+                                  guard, [&]() { showSpinnerOverlay(false); });
+                            });
+                      });
 
   LOG_PERF(0, "Exit")
 }
@@ -5198,14 +5145,14 @@ void GitRepoContainer::onStashApplyClicked() {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    _bridge->applyStash(
-        guard, _currentStashIndex, [=](const WeakPtr &guard, const int) {
-          Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-            ui->stackedWidgetMiddle->setCurrentIndex(
-                static_cast<int>(MainViewPanes::History));
-            showSpinnerOverlay(false);
-          });
-        });
+    _bridge->applyStash(guard, _currentStashIndex,
+                        [=](const WeakPtr &guard, const int) {
+                          Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+                            ui->stackedWidgetMiddle->setCurrentIndex(
+                                static_cast<int>(MainViewPanes::History));
+                            showSpinnerOverlay(false);
+                          });
+                        });
   });
 
   LOG_PERF(0, "Exit");
@@ -5285,8 +5232,8 @@ bool GitRepoContainer::getActiveLocalBranch() {
 
   LOG_PERF(0, "Exit")
 
-  return _bridge->getActiveBranchOrTag(
-      getSelf().toWeakRef(), GitRepo::BranchType::Local);
+  return _bridge->getActiveBranchOrTag(getSelf().toWeakRef(),
+                                       GitRepo::BranchType::Local);
 }
 
 bool GitRepoContainer::getActiveRemoteBranch() {
@@ -5294,8 +5241,8 @@ bool GitRepoContainer::getActiveRemoteBranch() {
 
   LOG_PERF(0, "Exit")
 
-  return _bridge->getActiveBranchOrTag(
-      getSelf().toWeakRef(), GitRepo::BranchType::Remote);
+  return _bridge->getActiveBranchOrTag(getSelf().toWeakRef(),
+                                       GitRepo::BranchType::Remote);
 }
 
 bool GitRepoContainer::getActiveTag() {
@@ -5304,7 +5251,7 @@ bool GitRepoContainer::getActiveTag() {
   LOG_PERF(0, "Exit")
 
   return _bridge->getActiveBranchOrTag(getSelf().toWeakRef(),
-                                                     GitRepo::BranchType::Tag);
+                                       GitRepo::BranchType::Tag);
 }
 
 void GitRepoContainer::copyFilePathsToClipboard(const QStringList &filePaths) {
@@ -5871,8 +5818,7 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
                       .left(MAX_COMMIT_SHA_LENGTH) +
                   (commitInfo.parents.size() > MAXIMUM_PARENTS_IN_LABEL ? "..."
                                                                         : ""));
-    const QString signedText = commitInfo.signedCommit ? tr("Yes")
-                                                       : tr("No");
+    const QString signedText = commitInfo.signedCommit ? tr("Yes") : tr("No");
     setIconLabel(ui->labelPageDisplaySignedValue,
                  themedIcon(commitInfo.signedCommit ? ":/icons/ok.png"
                                                     : ":/icons/cancel.png"),
@@ -5888,7 +5834,8 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     if (isOpenPgpSignatureType) {
       ui->labelPageDisplaySignatureTypeValue->setPixmap(QPixmap());
       ui->labelPageDisplaySignatureTypeValue->setText(signatureType);
-      ui->labelPageDisplaySignatureTypeValue->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+      ui->labelPageDisplaySignatureTypeValue->setAlignment(Qt::AlignLeft |
+                                                           Qt::AlignVCenter);
       ui->labelPageDisplaySignatureTypeValue->setToolTip(
           tr("Signature type: %1").arg(signatureType));
       ui->labelPageDisplaySignatureTypeValue->setStatusTip(
@@ -6168,8 +6115,7 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
 
       // Update the active remote in RemotesPage to match the branch's upstream
       _dispatcher.dispatch([=]() {
-        auto [upstreamRemote, upstreamBranch] =
-            _bridge->getUpstream(guard);
+        auto [upstreamRemote, upstreamBranch] = _bridge->getUpstream(guard);
         if (upstreamRemote.isEmpty()) {
           upstreamRemote = ui->remotesPage->activeRemote();
         }
@@ -6183,8 +6129,7 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
     }
   }
 
-  _dispatcher.dispatch(
-      [=]() { (void)_bridge->getBranchHistory(guard); });
+  _dispatcher.dispatch([=]() { (void)_bridge->getBranchHistory(guard); });
 
   LOG_PERF(0, "Exit")
 }
@@ -6257,8 +6202,7 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
     }
   }
 
-  _dispatcher.dispatch(
-      [=]() { (void)_bridge->getBranchHistory(guard); });
+  _dispatcher.dispatch([=]() { (void)_bridge->getBranchHistory(guard); });
 
   LOG_PERF(0, "Exit")
 }
@@ -6296,8 +6240,7 @@ void GitRepoContainer::updateTagsModelActiveTag(const WeakPtr &guard,
     ui->tagsPage->updateActiveTag(activeTag); // deselect local branch if any
   }
 
-  _dispatcher.dispatch(
-      [=]() { (void)_bridge->getBranchHistory(guard); });
+  _dispatcher.dispatch([=]() { (void)_bridge->getBranchHistory(guard); });
 
   LOG_PERF(0, "Exit")
 }

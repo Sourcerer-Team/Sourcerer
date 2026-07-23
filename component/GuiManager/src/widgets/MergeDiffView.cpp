@@ -177,18 +177,18 @@ void MergeDiffView::refreshScintillaTheme() {
   const bool lightTheme =
       StylesheetManager::StylesheetManager::currentStylesheet() ==
       StylesheetManager::StylesheetKey::SourcererLight;
-  const QColor deletedColor = lightTheme ? QColor(255, 231, 231)
-                                         : QColor(0x3b1313);
-  const QColor addedColor = lightTheme ? QColor(232, 246, 232)
-                                       : QColor(0x133b13);
-  const QColor plusColor = lightTheme ? QColor(200, 230, 251)
-                                      : QColor(0xc8e6c9);
-  const QColor rightPlusColor = lightTheme ? QColor(223, 236, 250)
-                                           : QColor(0xbbdefb);
-  const QColor marginColor = lightTheme ? QColor(243, 246, 248)
-                                        : QColor(0x23272e);
-  const QColor changedColor = lightTheme ? QColor(255, 241, 201)
-                                         : QColor(Qt::darkYellow);
+  const QColor deletedColor =
+      lightTheme ? QColor(255, 231, 231) : QColor(0x3b1313);
+  const QColor addedColor =
+      lightTheme ? QColor(232, 246, 232) : QColor(0x133b13);
+  const QColor plusColor =
+      lightTheme ? QColor(200, 230, 251) : QColor(0xc8e6c9);
+  const QColor rightPlusColor =
+      lightTheme ? QColor(223, 236, 250) : QColor(0xbbdefb);
+  const QColor marginColor =
+      lightTheme ? QColor(243, 246, 248) : QColor(0x23272e);
+  const QColor changedColor =
+      lightTheme ? QColor(255, 241, 201) : QColor(Qt::darkYellow);
 
   _leftEditor->setMarginsBackgroundColor(marginColor);
   _rightEditor->setMarginsBackgroundColor(marginColor);

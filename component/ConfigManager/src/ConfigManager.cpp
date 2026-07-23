@@ -1,6 +1,7 @@
 #include "ConfigManager.h"
 #include "../../GitVersion.h"
 
+#include <QColor>
 #include <QCoreApplication>
 #include <QDir>
 #include <QMap>
@@ -26,6 +27,9 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::CloudSignupUrl, "cloud/signup/url"},
     {ConfigKey::CloudSignoutUrl, "cloud/signout/url"},
     {ConfigKey::CloudUploadBugReportUrl, "cloud/uploadBugReport/url"},
+    {ConfigKey::NewsTrackerUrl, "network/newsTracker/url"},
+    {ConfigKey::NewsTrackerPollInterval, "network/newsTracker/pollInterval"},
+    {ConfigKey::NewsTrackerSeenNewsIds, "network/newsTracker/seenNewsIds"},
     {ConfigKey::GitRepoSplitterPos, "window/gitrepo/splitterPos"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos,
      "window/gitrepo/branchRecyclerViewItemsSplitterPos"},
@@ -82,7 +86,13 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::GitRepoSigningProgram,
      {"Commit signing program", "Optional path to the signing executable"}},
     {ConfigKey::GitRepoMonospaceFontName, {"Monospace font name", ""}},
-    {ConfigKey::GitRepoMonospaceFontSize, {"Monospace font size in pixels"}}};
+    {ConfigKey::GitRepoMonospaceFontSize, {"Monospace font size in pixels"}},
+    {ConfigKey::NewsTrackerUrl,
+     {"News feed URL", "URL polled for application news"}},
+    {ConfigKey::NewsTrackerPollInterval,
+     {"News feed poll interval", "Polling interval in milliseconds"}},
+    {ConfigKey::NewsTrackerSeenNewsIds,
+     {"Seen news ids", "Comma-separated ids already shown to the user"}}};
 
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {
     {ConfigKey::GitRepoDiffViewType,
@@ -114,6 +124,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::TitleBarHeight, 40},
     {ConfigKey::TitleBarMaxTabWidth, 285},
     {ConfigKey::TitleBarMenuMinimumSize, 230},
+    {ConfigKey::NewsTrackerPollInterval, 300000},
     {ConfigKey::ToastAnimationDuration, 500},
     {ConfigKey::ToastHeight, 150},
     {ConfigKey::ToastSpacing, 4},
@@ -131,13 +142,16 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::CloudSignoutUrl, "https://www.sourcererapp.com/api/v1/logout"},
     {ConfigKey::CloudUploadBugReportUrl,
      "https://www.sourcererapp.com/api/v1/upload-bug-report"},
+    {ConfigKey::NewsTrackerUrl, "https://www.sourcererapp.com/api/v1/news"},
 #else
     {ConfigKey::CloudSigninUrl, "https://www.sourcererapp.com/api/v1/signin"},
     {ConfigKey::CloudSignupUrl, "https://www.sourcererapp.com/#/signup"},
     {ConfigKey::CloudSignoutUrl, "https://www.sourcererapp.com/api/v1/logout"},
     {ConfigKey::CloudUploadBugReportUrl,
      "https://www.sourcererapp.com/api/v1/upload-bug-report"},
+    {ConfigKey::NewsTrackerUrl, "https://www.sourcererapp.com/api/v1/news"},
 #endif
+    {ConfigKey::NewsTrackerSeenNewsIds, ""},
     {ConfigKey::GitRepoSplitterPos,
      "000000ff0000000100000003000000c0000003d30000014101ffffffff010000000100"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},

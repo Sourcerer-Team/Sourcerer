@@ -49,6 +49,11 @@ enum class ConfigKey {
   CloudSignoutUrl,
   CloudUploadBugReportUrl,
 
+  // News tracker
+  NewsTrackerUrl,
+  NewsTrackerPollInterval,
+  NewsTrackerSeenNewsIds,
+
   // Settings container
   SettingsSplitterPos,
 

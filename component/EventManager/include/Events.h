@@ -18,6 +18,9 @@ enum EventType {
   ComponentStarted,
   ComponentStopped,
 
+  // NewsTracker
+  NewsTrackerNews,
+
   // GitRepoManager
   GitRepoManagerAbortMerge,
   GitRepoManagerAbortMergeResult,
