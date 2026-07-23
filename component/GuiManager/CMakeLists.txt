@@ -114,6 +114,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/GitTagsPage.h
         include/widgets/InfoToast.h
         include/widgets/LocalGitBranchesPage.h
+        include/widgets/NewsToast.h
         include/widgets/MergeDiffView.h
         include/widgets/MoveProxy.h
         include/widgets/MouseTrackingSplitter.h
@@ -207,6 +208,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/GitTagsPage.cpp
         src/widgets/InfoToast.cpp
         src/widgets/LocalGitBranchesPage.cpp
+        src/widgets/NewsToast.cpp
         src/widgets/MergeDiffView.cpp
         src/widgets/MouseTrackingSplitter.cpp
         src/widgets/ProfileBoardWidget.cpp
@@ -252,6 +254,7 @@ include(../../cmake/helpers.cmake)
 includeComponent(GuiManager ComponentManager)
 includeComponent(GuiManager ConfigManager)
 includeComponent(GuiManager GitRepoManager)
+includeComponent(GuiManager NewsTracker)
 includeComponent(GuiManager StylesheetManager)
 
 includeLib(GuiManager Common)

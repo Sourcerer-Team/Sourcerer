@@ -273,10 +273,10 @@ void SideBySideDiffView::refreshScintillaTheme() {
   const bool lightTheme =
       StylesheetManager::StylesheetManager::currentStylesheet() ==
       StylesheetManager::StylesheetKey::SourcererLight;
-  const QColor deletedColor = lightTheme ? QColor(255, 231, 231)
-                                         : QColor(0x3b1313);
-  const QColor addedColor = lightTheme ? QColor(232, 246, 232)
-                                       : QColor(0x133b13);
+  const QColor deletedColor =
+      lightTheme ? QColor(255, 231, 231) : QColor(0x3b1313);
+  const QColor addedColor =
+      lightTheme ? QColor(232, 246, 232) : QColor(0x133b13);
 
   _leftEditor->setMarkerBackgroundColor(deletedColor, 1);
   _leftEditor->setMarkerBackgroundColor(addedColor, 2);

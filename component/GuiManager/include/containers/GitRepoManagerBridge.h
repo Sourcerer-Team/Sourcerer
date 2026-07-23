@@ -22,8 +22,8 @@ public:
   setUpstream(const QWeakPointer<GitRepoContainer> &guard,
               const QString &branchName, const QString &remoteName,
               const QString &remoteBranchName,
-              const std::function<void(const QWeakPointer<GitRepoContainer> &)> &
-                  onSuccess = nullptr) = 0;
+              const std::function<void(const QWeakPointer<GitRepoContainer> &)>
+                  &onSuccess = nullptr) = 0;
   virtual void stash(const QWeakPointer<GitRepoContainer> &guard) = 0;
   virtual void abortMerge(const QWeakPointer<GitRepoContainer> &guard) = 0;
   virtual void addSubmodule(const QWeakPointer<GitRepoContainer> &guard,
@@ -37,27 +37,28 @@ public:
                           const QString &filePath) = 0;
   virtual void applyStash(
       const QWeakPointer<GitRepoContainer> &guard, const int stashIndex,
-      const std::function<void(const QWeakPointer<GitRepoContainer> &, int)> &
-          onSuccess = nullptr) = 0;
+      const std::function<void(const QWeakPointer<GitRepoContainer> &, int)>
+          &onSuccess = nullptr) = 0;
   virtual void checkoutBranch(
       const QWeakPointer<GitRepoContainer> &guard, const QString &branchName,
       const GitRepo::BranchType branchType,
-      const std::function<void(const QWeakPointer<GitRepoContainer> &)> &
-          onSuccess = nullptr) = 0;
+      const std::function<void(const QWeakPointer<GitRepoContainer> &)>
+          &onSuccess = nullptr) = 0;
   virtual void checkoutCommit(const QWeakPointer<GitRepoContainer> &guard,
                               const QString &commit) = 0;
   virtual void closeRepo() const = 0;
   virtual void commit(const QWeakPointer<GitRepoContainer> &guard,
                       const QString &summary, const QString &description,
-                      const QString &author, const QString &email,
-                      bool cleanup, bool signoff, bool signCommit) = 0;
+                      const QString &author, const QString &email, bool cleanup,
+                      bool signoff, bool signCommit) = 0;
   virtual void createBranchFromCommit(
       const QWeakPointer<GitRepoContainer> &guard, const QString &commit,
       const QString &branchName,
       const std::function<void(const QWeakPointer<GitRepoContainer> &,
                                const QString &)> &onSuccess = nullptr) = 0;
-  virtual void createPatchFromCommit(const QWeakPointer<GitRepoContainer> &guard,
-                                     const QString &commit) = 0;
+  virtual void
+  createPatchFromCommit(const QWeakPointer<GitRepoContainer> &guard,
+                        const QString &commit) = 0;
   virtual void createTagFromCommit(const QWeakPointer<GitRepoContainer> &guard,
                                    const QString &commit,
                                    const QString &tagName,
@@ -69,12 +70,12 @@ public:
                                   const QString &branchName) = 0;
   virtual void deleteStash(
       const QWeakPointer<GitRepoContainer> &guard, int stashIndex,
-      const std::function<void(const QWeakPointer<GitRepoContainer> &, int)> &
-          onSuccess = nullptr) = 0;
+      const std::function<void(const QWeakPointer<GitRepoContainer> &, int)>
+          &onSuccess = nullptr) = 0;
   virtual void deleteAllStashes(
       const QWeakPointer<GitRepoContainer> &guard,
-      const std::function<void(const QWeakPointer<GitRepoContainer> &)> &
-          onSuccess = nullptr) = 0;
+      const std::function<void(const QWeakPointer<GitRepoContainer> &)>
+          &onSuccess = nullptr) = 0;
   virtual void deleteTag(const QWeakPointer<GitRepoContainer> &guard,
                          const QString &tagName) = 0;
   virtual void pushTag(const QWeakPointer<GitRepoContainer> &guard,
@@ -102,9 +103,11 @@ public:
                             const QStringList &files) = 0;
   virtual bool getActiveBranchOrTag(const QWeakPointer<GitRepoContainer> &guard,
                                     const GitRepo::BranchType branchType) = 0;
-  virtual bool getBranchHistory(const QWeakPointer<GitRepoContainer> &guard) = 0;
-  virtual QStringList getCommitBranches(const QWeakPointer<GitRepoContainer> &guard,
-                                        const QString &commit) const = 0;
+  virtual bool
+  getBranchHistory(const QWeakPointer<GitRepoContainer> &guard) = 0;
+  virtual QStringList
+  getCommitBranches(const QWeakPointer<GitRepoContainer> &guard,
+                    const QString &commit) const = 0;
   virtual QStringList getCommitTags(const QWeakPointer<GitRepoContainer> &guard,
                                     const QString &commit) const = 0;
   virtual GitRepo::GitCommitStatus
@@ -140,16 +143,14 @@ public:
                          const QString &pushUrl) = 0;
   virtual void editRemote(const QWeakPointer<GitRepoContainer> &guard,
                           int remoteIndex, const QString &remoteName,
-                          const QString &fetchUrl,
-                          const QString &pushUrl) = 0;
+                          const QString &fetchUrl, const QString &pushUrl) = 0;
   virtual void deleteRemote(const QWeakPointer<GitRepoContainer> &guard,
                             int remoteIndex) = 0;
   virtual void setDefaultRemote(const QWeakPointer<GitRepoContainer> &guard,
                                 int remoteIndex) = 0;
   virtual void addTarget(const QWeakPointer<GitRepoContainer> &guard,
                          int remoteIndex, const QString &targetName,
-                         const QString &fetchUrl,
-                         const QString &pushUrl) = 0;
+                         const QString &fetchUrl, const QString &pushUrl) = 0;
   virtual void editTarget(const QWeakPointer<GitRepoContainer> &guard,
                           int remoteIndex, int targetIndex,
                           const QString &newFetchUrl,
@@ -159,11 +160,9 @@ public:
   virtual void setDefaultTarget(const QWeakPointer<GitRepoContainer> &guard,
                                 int remoteIndex, int targetIndex) = 0;
   virtual void renameBranch(const QWeakPointer<GitRepoContainer> &guard,
-                            const QString &oldName,
-                            const QString &newName) = 0;
+                            const QString &oldName, const QString &newName) = 0;
   virtual void renameTag(const QWeakPointer<GitRepoContainer> &guard,
-                         const QString &oldName,
-                         const QString &newName) = 0;
+                         const QString &oldName, const QString &newName) = 0;
   virtual void reset(const QWeakPointer<GitRepoContainer> &guard,
                      const QString &commit, GitRepo::ResetType type) = 0;
   virtual void revert(const QWeakPointer<GitRepoContainer> &guard,

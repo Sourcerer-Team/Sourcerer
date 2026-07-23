@@ -14,8 +14,8 @@ public:
   setUpstream(const QWeakPointer<GitRepoContainer> &guard,
               const QString &branchName, const QString &remoteName,
               const QString &remoteBranchName,
-              const std::function<void(const QWeakPointer<GitRepoContainer> &)> &
-                  onSuccess = nullptr) override;
+              const std::function<void(const QWeakPointer<GitRepoContainer> &)>
+                  &onSuccess = nullptr) override;
   void stash(const QWeakPointer<GitRepoContainer> &guard) override;
   void abortMerge(const QWeakPointer<GitRepoContainer> &guard) override;
   void addSubmodule(const QWeakPointer<GitRepoContainer> &guard,
@@ -29,13 +29,13 @@ public:
                   const QString &filePath) override;
   void applyStash(
       const QWeakPointer<GitRepoContainer> &guard, const int stashIndex,
-      const std::function<void(const QWeakPointer<GitRepoContainer> &, int)> &
-          onSuccess = nullptr) override;
+      const std::function<void(const QWeakPointer<GitRepoContainer> &, int)>
+          &onSuccess = nullptr) override;
   void checkoutBranch(
       const QWeakPointer<GitRepoContainer> &guard, const QString &branchName,
       const GitRepo::BranchType branchType,
-      const std::function<void(const QWeakPointer<GitRepoContainer> &)> &
-          onSuccess = nullptr) override;
+      const std::function<void(const QWeakPointer<GitRepoContainer> &)>
+          &onSuccess = nullptr) override;
   void checkoutCommit(const QWeakPointer<GitRepoContainer> &guard,
                       const QString &commit) override;
   void closeRepo() const override;
@@ -52,20 +52,19 @@ public:
                              const QString &commit) override;
   void createTagFromCommit(const QWeakPointer<GitRepoContainer> &guard,
                            const QString &commit, const QString &tagName,
-                           const QString &message,
-                           bool isAnnotated) override;
+                           const QString &message, bool isAnnotated) override;
   void deleteBranch(const QWeakPointer<GitRepoContainer> &guard,
                     const QString &branchName) override;
   void deleteRemoteBranch(const QWeakPointer<GitRepoContainer> &guard,
                           const QString &branchName) override;
   void deleteStash(
       const QWeakPointer<GitRepoContainer> &guard, int stashIndex,
-      const std::function<void(const QWeakPointer<GitRepoContainer> &, int)> &
-          onSuccess = nullptr) override;
+      const std::function<void(const QWeakPointer<GitRepoContainer> &, int)>
+          &onSuccess = nullptr) override;
   void deleteAllStashes(
       const QWeakPointer<GitRepoContainer> &guard,
-      const std::function<void(const QWeakPointer<GitRepoContainer> &)> &
-          onSuccess = nullptr) override;
+      const std::function<void(const QWeakPointer<GitRepoContainer> &)>
+          &onSuccess = nullptr) override;
   void deleteTag(const QWeakPointer<GitRepoContainer> &guard,
                  const QString &tagName) override;
   void pushTag(const QWeakPointer<GitRepoContainer> &guard,
