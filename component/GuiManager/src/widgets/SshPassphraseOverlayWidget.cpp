@@ -8,6 +8,8 @@
 #include <QAction>
 #include <QIcon>
 #include <QLineEdit>
+#include <QSize>
+#include <QToolButton>
 
 #define THREAD_ID "SshPassphraseOverlayWidget"
 
@@ -57,6 +59,18 @@ SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(uint id, QWidget *parent)
             _passphraseVisibilityAction->setToolTip(
                 visible ? tr("Hide passphrase") : tr("Show passphrase"));
           });
+
+  if (const auto actionButtons = _passphraseLineEdit->findChildren<QToolButton *>();
+      !actionButtons.isEmpty()) {
+    auto *eyeButton = actionButtons.last();
+    eyeButton->setObjectName("buttonSshPassphraseOverlayWidgetPassphraseEye");
+    eyeButton->setAutoRaise(true);
+    eyeButton->setCursor(Qt::PointingHandCursor);
+    eyeButton->setIconSize(QSize(18, 18));
+    eyeButton->setStyleSheet(
+        "QToolButton { background: transparent; border: none; padding: 0px; "
+        "margin: 0px; }");
+  }
 
   _message = new OpaqueLabel(overlayBackgroundColor(), this);
   _message->setText(tr("SSH key is encrypted. Please enter the passphrase."));
