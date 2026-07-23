@@ -15,6 +15,7 @@
 #include "widgets/ErrorToast.h"
 #include "widgets/GitProgressToast.h"
 #include "widgets/InfoToast.h"
+#include "widgets/NewsToast.h"
 #include "widgets/TextInputOverlayWidget.h"
 #include "widgets/TitlebarWidget.h"
 
@@ -207,6 +208,8 @@ MainWindow::MainWindow(QWidget *parent)
       EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.subscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::NewsTrackerNews, callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -225,6 +228,8 @@ MainWindow::~MainWindow() {
       EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.unsubscribe(
+      CAPTURE_CALLBACK(EventManager::EventType::NewsTrackerNews, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCredentials, callbackFunc));
 
@@ -1116,6 +1121,13 @@ void MainWindow::eventCallback(EventManager::Event event) {
     const auto repoPath = commandResult.value.toString();
     Util::Dispatcher::dispatchToMainThread(
         getSelf().toWeakRef(), [=]() { addGitRepoContainer(repoPath); });
+    break;
+  }
+  case EventManager::EventType::NewsTrackerNews: {
+    const auto news = event.data<NewsTracker::Structs::NewsItem>();
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      _toastHost.addToast(new NewsToast(news));
+    });
     break;
   }
   default: {

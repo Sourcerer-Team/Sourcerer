@@ -5,10 +5,11 @@
 
 #include <LockGuard.h>
 
-#include <QColor>
 #include <QDateTime>
 #include <QSettings>
 #include <QString>
+
+class QColor;
 
 namespace ConfigManager {
 

@@ -223,6 +223,8 @@ QString EventManager::eventName(const EventType type) const {
     return "ComponentStarted";
   case EventType::ComponentStopped:
     return "ComponentStopped";
+  case EventType::NewsTrackerNews:
+    return "NewsTrackerNews";
   case EventType::GitRepoManagerAbortMerge:
     return "GitRepoManagerAbortMerge";
   case EventType::GitRepoManagerAbortMergeResult:

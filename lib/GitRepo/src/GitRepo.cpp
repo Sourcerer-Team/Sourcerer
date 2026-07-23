@@ -1392,8 +1392,8 @@ static QString gitErrorName(const GitError errorType) {
         "Failed to lookup remote while deleting the remote tag.");
   case GitError::DeleteRemoteTagGitSshUrlRequiresCommercialPlan:
     return QCoreApplication::translate(
-        "GitRepoError",
-        "Deleting remote tags from git@ repositories requires a commercial plan.");
+        "GitRepoError", "Deleting remote tags from git@ repositories requires "
+                        "a commercial plan.");
   case GitError::DeleteRemoteTagFailedToPushRemote:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to push remote while deleting the remote tag.");
@@ -1474,11 +1474,12 @@ static QString gitErrorName(const GitError errorType) {
         "Failed to lookup remote while deleting the remote branch.");
   case GitError::DeleteRemoteBranchGitSshUrlRequiresCommercialPlan:
     return QCoreApplication::translate(
-        "GitRepoError",
-        "Deleting remote branches from git@ repositories requires a commercial plan.");
+        "GitRepoError", "Deleting remote branches from git@ repositories "
+                        "requires a commercial plan.");
   case GitError::DeleteRemoteBranchFailedToPushRemote:
     return QCoreApplication::translate(
-        "GitRepoError", "Failed to push remote while deleting the remote branch.");
+        "GitRepoError",
+        "Failed to push remote while deleting the remote branch.");
   case GitError::GetSubmodulePathFailedToLookupSubmodule:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -10203,8 +10204,7 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
             commercial);
 
   if (!commercial && gitSchema) {
-    setError(GitError::AddSubmoduleGitSshUrlRequiresCommercialPlan,
-             GIT_EAUTH);
+    setError(GitError::AddSubmoduleGitSshUrlRequiresCommercialPlan, GIT_EAUTH);
     LOG_ERROR(Log::ErrorId::Git, "Adding submodules to git@ repositories is "
                                  "not available on the free plan.");
     git_submodule_free(subModule);
