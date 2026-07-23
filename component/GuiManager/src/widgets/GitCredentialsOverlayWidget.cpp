@@ -9,6 +9,8 @@
 #include <QCheckBox>
 #include <QIcon>
 #include <QLineEdit>
+#include <QSize>
+#include <QToolButton>
 
 #define THREAD_ID "GitCredentialsOverlayWidget"
 
@@ -62,6 +64,7 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   _passwordVisibilityAction = _passwordLineEdit->addAction(
       QIcon(overlayButtonIcon(":/icons/eye.svg")), QLineEdit::TrailingPosition);
   _passwordVisibilityAction->setToolTip(tr("Show password"));
+  _passwordVisibilityAction->setCheckable(true);
   connect(_passwordVisibilityAction, &QAction::toggled, this,
           [this](bool checked) {
             _passwordLineEdit->setEchoMode(checked ? QLineEdit::Normal
@@ -71,7 +74,18 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
             _passwordVisibilityAction->setToolTip(
                 checked ? tr("Hide password") : tr("Show password"));
           });
-  _passwordVisibilityAction->setCheckable(true);
+
+  if (const auto actionButtons = _passwordLineEdit->findChildren<QToolButton *>();
+      !actionButtons.isEmpty()) {
+    auto *eyeButton = actionButtons.last();
+    eyeButton->setObjectName("buttonGitCredentialsOverlayWidgetPasswordEye");
+    eyeButton->setAutoRaise(true);
+    eyeButton->setCursor(Qt::PointingHandCursor);
+    eyeButton->setIconSize(QSize(18, 18));
+    eyeButton->setStyleSheet(
+        "QToolButton { background: transparent; border: none; padding: 0px; "
+        "margin: 0px; }");
+  }
 
   _storeCredentialsCheckBox->setParent(groupBox);
   _storeCredentialsCheckBox->setObjectName(
