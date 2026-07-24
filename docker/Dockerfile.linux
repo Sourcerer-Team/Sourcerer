@@ -64,7 +64,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 ENV QT_DIR=/opt/Qt
-ENV QT_VERSION=6.10.1
+ENV QT_VERSION=6.10.3
 ENV QT_IFW_VERSION=4.10
 ENV PATH="${QT_DIR}/${QT_VERSION}/gcc_64/bin:${QT_DIR}/Tools/QtInstallerFramework/${QT_IFW_VERSION}/bin:${PATH}"
 ENV LD_LIBRARY_PATH="${QT_DIR}/${QT_VERSION}/gcc_64/lib:/usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
@@ -91,10 +91,10 @@ RUN wget -q https://download.qt.io/official_releases/online_installers/qt-online
     ./qt-online-installer-linux-x64-online.run --root ${QT_DIR} \
         --accept-licenses --accept-obligations --default-answer --confirm-command \
         --email ${QT_ACCOUNT_EMAIL} --pw ${QT_ACCOUNT_PASSWORD} \
-        install qt.qt6.6101.linux_gcc_64 \
-        qt.qt6.6101.addons.qtscxml \
-        qt.qt6.6101.addons.qtnetworkauth \
-        qt.qt6.6101.addons.qt5compat \
+        install qt.qt6.6103.linux_gcc_64 \
+        qt.qt6.6103.addons.qtscxml \
+        qt.qt6.6103.addons.qtnetworkauth \
+        qt.qt6.6103.addons.qt5compat \
         qt.tools.ifw.410 && \
     rm -f qt-online-installer-linux-x64-online.run
 

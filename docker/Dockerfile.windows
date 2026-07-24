@@ -43,7 +43,7 @@ RUN [Environment]::SetEnvironmentVariable('MSYS2_ROOT', 'C:\tools\msys64', 'Mach
 RUN New-Item -ItemType Directory -Force -Path C:\Qt | Out-Null
 
 # Qt installation parameters
-ENV QT_VERSION=6.10.1
+ENV QT_VERSION=6.10.3
 ENV QT_DIR=C:\Qt
 
 # Install aqtinstall for Qt installation
