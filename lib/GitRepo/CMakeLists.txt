@@ -43,7 +43,7 @@ set(BUILD_WITH_QT6 ON CACHE BOOL "Build with Qt 6")
 set(BUILD_TESTS OFF CACHE BOOL "Create test")
 set(BUILD_TOOLS OFF CACHE BOOL "Compile mozcerts and qcatool")
 set(BUILD_PLUGINS "none" CACHE STRING "Plugins for building (also possible values: none, all and auto)")
-set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared library")
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared library")
 
 add_subdirectory(../../lib/qca "QCA")
 
@@ -65,6 +65,7 @@ target_link_libraries(GitRepo PRIVATE
     Qt6::Network
     Qt6::Widgets
     qca-qt6
+    qca-ossl
     Threads::Threads
     OpenSSL::SSL
     OpenSSL::Crypto

@@ -22,7 +22,7 @@ option(BUILD_TESTS "Create test" OFF)
 option(BUILD_TOOLS "Compile mozcerts and qcatool" OFF)
 set(BUILD_PLUGINS "none" CACHE STRING "Plugins for building (also possible values: none, all and auto)")
 # BUILD_SHARED_LIBS is cmake variable. Need to change default value.
-option(BUILD_SHARED_LIBS "Build shared library" ON)
+option(BUILD_SHARED_LIBS "Build shared library" OFF)
 option(DEVELOPER_MODE "Special developer mode" OFF)
 
 #if(QT6)
@@ -71,13 +71,13 @@ endif()
 
 # QCA can be shared but plugins will be static
 # if Qt is static.
-#if(NOT BUILD_SHARED_LIBS OR QT_IS_STATIC)
-#  set(STATIC_PLUGINS ON)
-#  add_definitions(-DQT_STATICPLUGIN)
-#  set(PLUGIN_TYPE "STATIC")
-#else()
+if(NOT BUILD_SHARED_LIBS OR QT_IS_STATIC)
+  set(STATIC_PLUGINS ON)
+  add_definitions(-DQT_STATICPLUGIN)
+  set(PLUGIN_TYPE "STATIC")
+else()
   set(PLUGIN_TYPE "MODULE")
-#endif()
+endif()
 
 set(QCA_SUFFIX "${QCA_SUFFIX}" CACHE STRING "QCA common suffix")
 if(QCA_SUFFIX)
