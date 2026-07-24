@@ -111,7 +111,7 @@ REM Detect Qt MinGW bin directory
 echo.
 echo [DEBUG] Detecting Qt MinGW installation...
 set QT_MINGW_BIN_PATH=
-set QT_VERSION=6.10.1
+set QT_VERSION=6.10.3
 set QT_DIR=C:\Qt
 set "QT_MINGW_DIR=%QT_DIR%\%QT_VERSION%\mingw_64"
 
@@ -239,7 +239,7 @@ exit /b 0
 
 :deployQtDependencies
 setlocal
-set QT_VERSION=6.10.1
+set QT_VERSION=6.10.3
 set QT_DIR=C:\Qt
 set QT_BIN_DIR=%QT_DIR%\%QT_VERSION%\mingw_64\bin
 
