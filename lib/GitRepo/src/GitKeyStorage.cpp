@@ -15,8 +15,11 @@
 #include <QFile>
 #include <QStandardPaths>
 #include <QtCrypto>
+#include <qplugin.h>
 
 #define THREAD_ID "GitKeyStorage"
+
+Q_IMPORT_PLUGIN(opensslPlugin)
 
 namespace GitRepo {
 

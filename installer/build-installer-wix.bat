@@ -178,11 +178,27 @@ if exist "%INSTALLER_DIR%LICENSE.rtf" (
     echo Warning: LICENSE.rtf not found at "%BUILD_DIR%\LICENSE.rtf"
 )
 
+REM Read application version from the shared ConfigManager source
+echo.
+echo [DEBUG] Reading application version...
+set "APP_VERSION="
+for /f "tokens=2 delims==" %%A in ('findstr /c:"APPLICATION_VERSION" "%PROJECT_ROOT%\component\ConfigManager\GitVersion.h.in"') do (
+    set "APP_VERSION=%%A"
+)
+set "APP_VERSION=!APP_VERSION:"=!"
+set "APP_VERSION=!APP_VERSION:;=!"
+for /f "tokens=* delims= " %%A in ("!APP_VERSION!") do set "APP_VERSION=%%A"
+if not defined APP_VERSION (
+    echo Error: Could not determine Sourcerer version from "%PROJECT_ROOT%\component\ConfigManager\GitVersion.h.in"
+    exit /b 1
+)
+echo [DEBUG] Sourcerer version=!APP_VERSION!
+
 REM Compile WiX source to object file
 echo.
 echo Compiling WiX source files...
 set "WXO_FILE=%BUILD_DIR%\Sourcerer.wixobj"
-echo [DEBUG] Running candle: "!CANDLE_PATH!" -out "!WXO_FILE!" -d"SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows" -d"MSYS2BinPath=!MSYS2_BIN_PATH!" -d"QtMinGWBinPath=!QT_MINGW_BIN_PATH!" -d"LicenseRtfPath=%BUILD_DIR%\LICENSE.rtf" "!WXS_FILE!"
+echo [DEBUG] Running candle: "!CANDLE_PATH!" -out "!WXO_FILE!" -d"SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows" -d"MSYS2BinPath=!MSYS2_BIN_PATH!" -d"QtMinGWBinPath=!QT_MINGW_BIN_PATH!" -d"LicenseRtfPath=%BUILD_DIR%\LICENSE.rtf" -d"SourcererVersion=!APP_VERSION!" "!WXS_FILE!"
 
 "!CANDLE_PATH!" ^
     -out "!WXO_FILE!" ^
@@ -190,6 +206,7 @@ echo [DEBUG] Running candle: "!CANDLE_PATH!" -out "!WXO_FILE!" -d"SourcererBinPa
     -d"MSYS2BinPath=!MSYS2_BIN_PATH!" ^
     -d"QtMinGWBinPath=!QT_MINGW_BIN_PATH!" ^
     -d"LicenseRtfPath=%BUILD_DIR%\LICENSE.rtf" ^
+    -d"SourcererVersion=!APP_VERSION!" ^
     "!WXS_FILE!"
 
 if errorlevel 1 (
@@ -207,6 +224,7 @@ echo [DEBUG] Running light: "!LIGHT_PATH!" -out "!MSI_OUTPUT!" -ext WixUIExtensi
     -out "!MSI_OUTPUT!" ^
     -ext WixUIExtension ^
     -ext WixUtilExtension ^
+    -sice:ICE91 ^
     "!WXO_FILE!"
 
 if errorlevel 1 (

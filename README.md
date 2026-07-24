@@ -122,7 +122,7 @@ The script expects a release build at `build/Release/` relative to the repositor
 Windows packaging is also handled from `installer/`:
 
 - `installer/build-installer-wix.bat` - Windows release packaging script using WiX
-- `installer/Sourcerer.wxs` - WiX source file
+- `installer/Sourcerer.wxs` - WiX source file for the per-user MSI
 - `installer/LICENSE.rtf` - installer license text
 - `installer/Sourcerer-Installer.msi` - generated MSI artifact
 
@@ -133,6 +133,8 @@ Windows packaging is also handled from `installer/`:
 3. Ensure Qt and MSYS2 runtime dependencies are available in the expected locations.
 4. Run `installer/build-installer-wix.bat`.
 5. The script gathers the built executable, dependencies, keys, and license files, then compiles and links the MSI.
+
+The Windows MSI installs for the current user under that user's profile instead of system-wide.
 
 Example:
 
