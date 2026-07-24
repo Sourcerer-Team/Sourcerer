@@ -133,31 +133,6 @@ for base_path in "${QT_PLUGIN_PATHS[@]}"; do
     done
 done
 
-# Copy QCA library plugins
-echo "Copying QCA-Qt6 crypto plugins..."
-QCA_CRYPTO_PATHS=(
-    "$BUILD_DIR/lib/qca-qt6/crypto"
-)
-
-for base_path in "${QCA_CRYPTO_PATHS[@]}"; do
-    for crypto_dir in $base_path; do
-        if [ -d "$crypto_dir" ]; then
-            mkdir -p "$APPDIR/usr/bin/crypto"
-            cp -r "$crypto_dir"/* "$APPDIR/usr/bin/crypto/" 2>/dev/null || true
-
-            # Copy dependencies of crypto plugins
-            find "$APPDIR/usr/bin/crypto" -name "*.so" | while read plugin; do
-                ldd "$plugin" 2>/dev/null | grep "=>" | awk '{print $3}' | while read lib; do
-                    if [ -f "$lib" ]; then
-                        copy_lib_dependencies "$lib"
-                    fi
-                done
-            done
-            break
-        fi
-    done
-done
-
 # Explicitly copy OpenSSL libraries required for TLS backend
 echo "Ensuring OpenSSL libraries are included for TLS support..."
 for openssl_lib in libssl.so.3 libcrypto.so.3; do
@@ -169,10 +144,6 @@ for openssl_lib in libssl.so.3 libcrypto.so.3; do
         echo "  Warning: $openssl_lib not found"
     fi
 done
-
-pushd "$APPDIR/usr/lib"
-ln -s  libqca-qt6.so.2 libqca-qt6.so
-popd
 
 # Create qt.conf with proper plugin paths for TLS support
 cat > "$APPDIR/usr/bin/qt.conf" << 'QTCONF'
@@ -267,11 +238,10 @@ APPIMAGE="$(readlink -f "${0}")"
 APPIMAGE_PATH="${ARGV0:-$APPIMAGE}"
 
 # Set up library paths
-export LD_LIBRARY_PATH="$APPDIR/usr/lib:$APPDIR/usr/lib/qca-qt6/crypto:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$APPDIR/usr/lib:$LD_LIBRARY_PATH"
 export QT_PLUGIN_PATH="$APPDIR/usr/lib/qt6/plugins"
 export QT_QPA_PLATFORM_PLUGIN_PATH="$APPDIR/usr/lib/qt6/plugins/platforms"
 export QT_TLS_PLUGIN_PATH="$APPDIR/usr/lib/qt6/plugins/tls"
-export QCA_PLUGIN_PATH="$APPDIR/usr/bin/crypto"
 # Ensure OpenSSL libraries are discoverable for TLS backend
 export LD_LIBRARY_PATH="$APPDIR/usr/lib:$LD_LIBRARY_PATH"
 

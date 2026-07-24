@@ -10,6 +10,7 @@
 #include <StylesheetManager.h>
 
 #include <QApplication>
+#include <QCoreApplication>
 #include <QTranslator>
 
 #define THREAD_ID "GuiManager"
@@ -32,6 +33,10 @@ void GuiManager::start() {
   int argc = 1;
   auto argv = const_cast<char *>(ConfigManager::APPLICATION_NAME);
   QApplication app(argc, &argv);
+
+  const QString appDir = QCoreApplication::applicationDirPath();
+  QCoreApplication::addLibraryPath(appDir);
+  QCoreApplication::addLibraryPath(appDir + "/plugins");
 
   MousePositionCorrection::instance().install(app);
 

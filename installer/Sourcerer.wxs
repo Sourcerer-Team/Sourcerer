@@ -8,13 +8,14 @@
     <Product Id="*"
              Name="Sourcerer"
              Language="1033"
-             Version="1.0.9"
+             Version="$(var.SourcererVersion)"
              Manufacturer="Sourcerer Team"
              UpgradeCode="c22a2f5d-6d5f-49b4-8e9f-69700eee4929">
 
         <Package InstallerVersion="200"
                  Compressed="yes"
-                 InstallScope="perMachine"
+                 InstallScope="perUser"
+                 InstallPrivileges="limited"
                  Description="Sourcerer Installer"
                  Manufacturer="Sourcerer Team"
                  Keywords="Sourcerer,Git,Repository"
@@ -24,7 +25,7 @@
         <!-- Schedule="afterInstallInitialize" removes previous version after initialization but before installation -->
         <MajorUpgrade DowngradeErrorMessage="A newer version of Sourcerer is already installed."
                       AllowDowngrades="no"
-                      AllowSameVersionUpgrades="yes"
+                      AllowSameVersionUpgrades="no"
                       Schedule="afterInstallInitialize" />
 
         <!-- Media -->
@@ -37,8 +38,6 @@
                  Description="Sourcerer - Git Repository Manager">
             <ComponentRef Id="SourcererExecutable" />
             <ComponentRef Id="QtDependencies" />
-            <ComponentRef Id="QcaCryptoPlugin" />
-            <ComponentRef Id="QcaCryptoLibrary" />
             <ComponentRef Id="QtPlatformPlugins" />
             <ComponentRef Id="QtImageFormatPlugins" />
             <ComponentRef Id="QtStylePlugins" />
@@ -53,7 +52,7 @@
 
         <!-- Install directory structure -->
         <Directory Id="TARGETDIR" Name="SourceDir">
-            <Directory Id="ProgramFiles64Folder">
+            <Directory Id="LocalAppDataFolder">
                 <Directory Id="INSTALLFOLDER" Name="Sourcerer" />
             </Directory>
             <Directory Id="ProgramMenuFolder">
@@ -67,8 +66,7 @@
             <!-- Main executable -->
             <Component Id="SourcererExecutable" Guid="627fabc0-fdfb-4b96-ba6a-4d77242b918e" Win64="yes">
                 <File Id="SourcererExe"
-                      Source="$(var.SourcererBinPath)\Sourcerer.exe"
-                      KeyPath="yes" />
+                      Source="$(var.SourcererBinPath)\Sourcerer.exe" />
                 <File Id="SourcererIcon"
                       Source="$(var.SourcererBinPath)\..\..\component\GuiManager\resources\icons\sorcerer-hat.png"
                       Vital="no" />
@@ -78,6 +76,14 @@
                 <File Id="LicenseRtfFile"
                       Source="$(var.SourcererBinPath)\..\..\installer\LICENSE.rtf"
                       Vital="no" />
+                <RemoveFolder Id="RemoveINSTALLFOLDER" On="uninstall" />
+                <RegistryKey Root="HKCU"
+                             Key="Software\Sourcerer\InstalledComponents">
+                    <RegistryValue Name="SourcererExecutable"
+                                   Type="integer"
+                                   Value="1"
+                                   KeyPath="yes" />
+                </RegistryKey>
             </Component>
 
             <!-- Qt and other dependencies -->
@@ -149,16 +155,15 @@
                 <File Id="LibWinpthreadFile"
                       Source="$(var.MSYS2BinPath)\libwinpthread-1.dll"
                       Vital="yes" />
+                <RemoveFolder Id="RemoveINSTALLFOLDERDependencies" On="uninstall" />
+                <RegistryKey Root="HKCU"
+                             Key="Software\Sourcerer\InstalledComponents">
+                    <RegistryValue Name="QtDependencies"
+                                   Type="integer"
+                                   Value="1"
+                                   KeyPath="yes" />
+                </RegistryKey>
             </Component>
-
-            <!-- QCA Crypto Plugin subdirectory -->
-            <Directory Id="CryptoDir" Name="crypto">
-                <Component Id="QcaCryptoPlugin" Guid="e9dbd3f1-7eed-4b56-bf8a-9edfd5dad88d" Win64="yes">
-                    <File Id="LibQcaOsslFile"
-                          Source="$(var.SourcererBinPath)\lib\qca-qt6\crypto\libqca-ossl.dll"
-                          Vital="no" />
-                </Component>
-            </Directory>
 
             <!-- Qt Platform Plugins -->
             <Directory Id="PlatformsDir" Name="platforms">
@@ -166,6 +171,14 @@
                     <File Id="QWindowsFile"
                           Source="$(var.SourcererBinPath)\platforms\qwindows.dll"
                           Vital="no" />
+                    <RemoveFolder Id="RemovePlatformsDir" On="uninstall" />
+                    <RegistryKey Root="HKCU"
+                                 Key="Software\Sourcerer\InstalledComponents">
+                        <RegistryValue Name="QtPlatformPlugins"
+                                       Type="integer"
+                                       Value="1"
+                                       KeyPath="yes" />
+                    </RegistryKey>
                 </Component>
             </Directory>
 
@@ -181,6 +194,14 @@
                     <File Id="QIcoFile"
                           Source="$(var.SourcererBinPath)\imageformats\qico.dll"
                           Vital="no" />
+                    <RemoveFolder Id="RemoveImageFormatsDir" On="uninstall" />
+                    <RegistryKey Root="HKCU"
+                                 Key="Software\Sourcerer\InstalledComponents">
+                        <RegistryValue Name="QtImageFormatPlugins"
+                                       Type="integer"
+                                       Value="1"
+                                       KeyPath="yes" />
+                    </RegistryKey>
                 </Component>
             </Directory>
 
@@ -190,6 +211,14 @@
                     <File Id="QModernWindowsStyleFile"
                           Source="$(var.SourcererBinPath)\styles\qmodernwindowsstyle.dll"
                           Vital="no" />
+                    <RemoveFolder Id="RemoveStylesDir" On="uninstall" />
+                    <RegistryKey Root="HKCU"
+                                 Key="Software\Sourcerer\InstalledComponents">
+                        <RegistryValue Name="QtStylePlugins"
+                                       Type="integer"
+                                       Value="1"
+                                       KeyPath="yes" />
+                    </RegistryKey>
                 </Component>
             </Directory>
 
@@ -199,6 +228,14 @@
                     <File Id="QSvgIconFile"
                           Source="$(var.SourcererBinPath)\iconengines\qsvgicon.dll"
                           Vital="no" />
+                    <RemoveFolder Id="RemoveIconEnginesDir" On="uninstall" />
+                    <RegistryKey Root="HKCU"
+                                 Key="Software\Sourcerer\InstalledComponents">
+                        <RegistryValue Name="QtIconEnginePlugins"
+                                       Type="integer"
+                                       Value="1"
+                                       KeyPath="yes" />
+                    </RegistryKey>
                 </Component>
             </Directory>
 
@@ -214,6 +251,14 @@
                     <File Id="QSchannelBackendFile"
                           Source="$(var.SourcererBinPath)\tls\qschannelbackend.dll"
                           Vital="no" />
+                    <RemoveFolder Id="RemoveTlsDir" On="uninstall" />
+                    <RegistryKey Root="HKCU"
+                                 Key="Software\Sourcerer\InstalledComponents">
+                        <RegistryValue Name="QtTlsPlugins"
+                                       Type="integer"
+                                       Value="1"
+                                       KeyPath="yes" />
+                    </RegistryKey>
                 </Component>
             </Directory>
 
@@ -223,16 +268,18 @@
                     <File Id="CloudJwtPublicKeyFile"
                           Source="$(var.SourcererBinPath)\keys\cloud_jwt_public_key.pem"
                           Vital="no" />
+                    <RemoveFolder Id="RemoveKeysDir" On="uninstall" />
+                    <RegistryKey Root="HKCU"
+                                 Key="Software\Sourcerer\InstalledComponents">
+                        <RegistryValue Name="JwtPublicKeyFiles"
+                                       Type="integer"
+                                       Value="1"
+                                       KeyPath="yes" />
+                    </RegistryKey>
                 </Component>
             </Directory>
 
-            <Component Id="QcaCryptoLibrary" Guid="1a1661d3-0b93-401e-9bf5-6e6aa45ee4e1" Win64="yes">
-                <File Id="LibQcaQt6File"
-                        Source="$(var.SourcererBinPath)\bin\libqca-qt6.dll"
-                        Vital="no" />
-            </Component>
-
-        </DirectoryRef>
+         </DirectoryRef>
 
         <!-- Start Menu shortcuts -->
         <DirectoryRef Id="ApplicationProgramsFolder">
@@ -287,7 +334,7 @@
         <!-- Registry entries for Add/Remove Programs -->
         <DirectoryRef Id="INSTALLFOLDER">
             <Component Id="RegistryEntries" Guid="768a69ae-7464-4ac2-ba50-6a6eadc26d34" Win64="yes">
-                <RegistryKey Root="HKLM"
+                <RegistryKey Root="HKCU"
                              Key="Software\Microsoft\Windows\CurrentVersion\Uninstall\Sourcerer"
                              ForceCreateOnInstall="yes"
                              ForceDeleteOnUninstall="yes">

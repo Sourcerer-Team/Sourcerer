@@ -35,7 +35,18 @@ message(STATUS "Found WiX Light: ${WIX_LIGHT}")
 set(INSTALLER_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(WXS_FILE ${INSTALLER_DIR}/Sourcerer.wxs)
 set(WXO_FILE ${CMAKE_CURRENT_BINARY_DIR}/Sourcerer.wixobj)
-set(INSTALLER_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Sourcerer-0.2.1-Installer.msi)
+set(INSTALLER_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Sourcerer-Installer.msi)
+set(SOURCERER_VERSION_FILE ${CMAKE_CURRENT_SOURCE_DIR}/../component/ConfigManager/GitVersion.h.in)
+
+file(READ "${SOURCERER_VERSION_FILE}" SOURCERER_VERSION_CONTENTS)
+string(REGEX MATCH "APPLICATION_VERSION[ \t]*=[ \t]*\"([^"]+)\"" _sourcerer_version_match "${SOURCERER_VERSION_CONTENTS}")
+set(SOURCERER_VERSION "${CMAKE_MATCH_1}")
+
+if(NOT SOURCERER_VERSION)
+    message(FATAL_ERROR "Unable to determine Sourcerer version from ${SOURCERER_VERSION_FILE}")
+endif()
+
+message(STATUS "Sourcerer version: ${SOURCERER_VERSION}")
 
 # Get the Sourcerer binary directory for file references
 get_target_property(SOURCERER_BINARY_DIR Sourcerer BINARY_DIR)
@@ -90,6 +101,7 @@ if(WIN32)
             -d"SourcererBinPath=${SOURCERER_BIN_PATH}"
             -d"MSYS2BinPath=${MSYS2_BIN_PATH}"
             -d"QtMinGWBinPath=${QT_MINGW_BIN_PATH}"
+            -d"SourcererVersion=${SOURCERER_VERSION}"
             "${WXS_FILE}"
         COMMENT "Compiling WiX source files..."
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
@@ -101,6 +113,7 @@ if(WIN32)
             -out "${INSTALLER_OUTPUT}"
             -ext WixUIExtension
             -ext WixUtilExtension
+            -sice:ICE91
             "${WXO_FILE}"
         COMMENT "Linking WiX installer..."
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
