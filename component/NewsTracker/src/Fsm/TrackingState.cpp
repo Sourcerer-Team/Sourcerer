@@ -1,4 +1,5 @@
-#include "TrackingState.h"
+#include "Fsm/TrackingState.h"
+#include "Fsm/NewsTrackerEvent.h"
 
 #include <Log.h>
 
@@ -9,7 +10,6 @@
 #include <QNetworkReply>
 
 #include <chrono>
-#include <functional>
 
 #include <QStringList>
 #include <algorithm>
@@ -17,6 +17,8 @@
 #define THREAD_ID "TrackingState"
 
 namespace NewsTracker {
+
+namespace Fsm {
 
 namespace {
 constexpr const char *NEWS_ARRAY_KEY = "news";
@@ -39,8 +41,7 @@ static QDateTime parseDateTimeString(const QString &value) {
 TrackingState::TrackingState(NewsTrackerFsm &fsm)
     : NewsTrackerState{StateType::Tracking, fsm},
       _eventManager{EventManager::EventManager::getInstance()},
-      _configManager{ConfigManager::ConfigManager::getInstance()},
-      _stopRequested(false) {
+      _configManager{ConfigManager::ConfigManager::getInstance()} {
   LOG_PERF(0, "Enter");
 
   loadSeenNewsIds();
@@ -59,34 +60,32 @@ TrackingState::~TrackingState() {
 void TrackingState::enter() {
   LOG_PERF(0, "Enter");
 
-  _stopRequested = false;
-
-  if (_worker.joinable()) {
-    _worker.join();
-  }
-
-  _worker = std::thread(&TrackingState::pollingLoop, this);
-
   LOG_PERF(0, "Exit");
 }
 
-bool TrackingState::process(Fsm::FsmEvent event) {
+bool TrackingState::process(::Fsm::FsmEvent event) {
   LOG_PERF(0, "Enter");
-  Q_UNUSED(event);
+
+  const EventType type = static_cast<EventType>(event.type());
+
+  switch (type) {
+  case EventType::RetrieveNews: {
+    pollOnce();
+    break;
+  }
+  default: {
+    LOG_WARN("Unhandled event {}", (int)type);
+    return false;
+  }
+  }
+
   LOG_PERF(0, "Exit");
-  return false;
+
+  return true;
 }
 
 void TrackingState::exit() {
   LOG_PERF(0, "Enter");
-
-  _stopRequested = true;
-  _wakeCondition.notify_all();
-
-  if (_worker.joinable()) {
-    _worker.join();
-  }
-
   LOG_PERF(0, "Exit");
 }
 
@@ -131,25 +130,6 @@ bool TrackingState::parseNewsItem(const QJsonObject &object,
       object.value(QStringLiteral("download_url_windows")).toString().trimmed();
 
   return newsItem.type != Structs::NewsType::Unknown;
-}
-
-void TrackingState::pollingLoop() {
-  LOG_PERF(0, "Enter");
-
-  while (!_stopRequested.load()) {
-    const qlonglong pollInterval = std::max<qlonglong>(
-        _configManager.getLong(
-            ConfigManager::ConfigKey::NewsTrackerPollInterval),
-        DEFAULT_POLL_INTERVAL_MS);
-
-    std::unique_lock<std::mutex> lock(_wakeMutex);
-    _wakeCondition.wait_for(lock, std::chrono::milliseconds(pollInterval),
-                            [&]() { return _stopRequested.load(); });
-
-    pollOnce();
-  }
-
-  LOG_PERF(0, "Exit");
 }
 
 void TrackingState::pollOnce() {
@@ -253,4 +233,5 @@ void TrackingState::sendNews(const Structs::NewsItem &newsItem) {
   LOG_PERF(0, "Exit");
 }
 
+} // namespace Fsm
 } // namespace NewsTracker

@@ -51,3 +51,5 @@ struct NewsItem {
 };
 
 } // namespace NewsTracker::Structs
+
+Q_DECLARE_METATYPE(NewsTracker::Structs::NewsItem);

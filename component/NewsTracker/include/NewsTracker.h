@@ -1,8 +1,11 @@
 #pragma once
 
-#include "NewsTrackerFsm.h"
+#include "Fsm/NewsTrackerFsm.h"
 
+#include <ConfigManager.h>
 #include <Component.h>
+#include <EventManager.h>
+#include <Timer.h>
 
 namespace NewsTracker {
 
@@ -15,7 +18,10 @@ public:
   void stop() override;
 
 private:
-  NewsTrackerFsm _fsm;
+  ConfigManager::ConfigManager &_configManager;
+  EventManager::EventManager &_eventManager;
+  Fsm::NewsTrackerFsm _fsm;
+  Util::Timer _timer;
 };
 
 } // namespace NewsTracker

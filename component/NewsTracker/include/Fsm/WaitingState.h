@@ -1,10 +1,10 @@
 #pragma once
 
-#include <NewsTrackerState.h>
-
-#include <EventManager.h>
+#include <Fsm/NewsTrackerState.h>
 
 namespace NewsTracker {
+
+namespace Fsm {
 
 class WaitingState : public NewsTrackerState {
 public:
@@ -12,14 +12,9 @@ public:
   ~WaitingState() override;
 
   void enter() override;
-  bool process(Fsm::FsmEvent event) override;
+  bool process(::Fsm::FsmEvent event) override;
   void exit() override;
-
-private:
-  void eventCallback(EventManager::Event event);
-
-private:
-  EventManager::EventManager &_eventManager;
 };
 
+} // namespace Fsm
 } // namespace NewsTracker

@@ -1,16 +1,16 @@
 #pragma once
 
-#include "NewsTrackerState.h"
+#include "UpdateManagerState.h"
 
 #include <FsmBase.h>
 #include <FsmState.h>
 
-namespace NewsTracker {
+namespace UpdateManager {
 
-class NewsTrackerFsm : public Fsm::FsmBase {
+class UpdateManagerFsm : public Fsm::FsmBase {
 public:
-  NewsTrackerFsm();
-  virtual ~NewsTrackerFsm();
+  UpdateManagerFsm();
+  ~UpdateManagerFsm() override;
 
   void changeState(StateType state);
 
@@ -19,8 +19,7 @@ protected:
   QString eventName(int event) const override;
   void initStateTable(QMap<int, Fsm::FsmState *> &table) override;
   void initChangeTable(QMap<int, QMap<int, bool>> &table) override;
-  Fsm::FsmState *
-  firstState(const QMap<int, Fsm::FsmState *> &table) const override;
+  Fsm::FsmState *firstState(const QMap<int, Fsm::FsmState *> &table) const override;
 };
 
-} // namespace NewsTracker
+} // namespace UpdateManager

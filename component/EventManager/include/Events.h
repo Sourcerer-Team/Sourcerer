@@ -21,6 +21,9 @@ enum EventType {
   // NewsTracker
   NewsTrackerNews,
 
+  // UpdateManager
+  ApplicationUpdated,
+
   // GitRepoManager
   GitRepoManagerAbortMerge,
   GitRepoManagerAbortMergeResult,

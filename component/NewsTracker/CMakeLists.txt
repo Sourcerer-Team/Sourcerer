@@ -14,19 +14,21 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui LinguistTools Network)
 
 set(NEWSTRACKER_SOURCE_FILES
     include/NewsTracker.h
-    include/NewsTrackerFsm.h
-    include/NewsTrackerState.h
     include/NewsTrackerStructs.h
-    include/TrackingState.h
-    include/WaitingState.h
+    include/Fsm/NewsTrackerFsm.h
+    include/Fsm/NewsTrackerState.h
+    include/Fsm/TrackingState.h
+    include/Fsm/WaitingState.h
     src/NewsTracker.cpp
-    src/NewsTrackerFsm.cpp
-    src/NewsTrackerState.cpp
-    src/TrackingState.cpp
-    src/WaitingState.cpp
+    src/Fsm/NewsTrackerFsm.cpp
+    src/Fsm/NewsTrackerState.cpp
+    src/Fsm/TrackingState.cpp
+    src/Fsm/WaitingState.cpp
 )
 
-add_library(NewsTracker STATIC ${NEWSTRACKER_SOURCE_FILES})
+add_library(NewsTracker STATIC ${NEWSTRACKER_SOURCE_FILES}
+  include/Fsm/NewsTrackerEvent.h
+  src/Fsm/NewsTrackerEvent.cpp)
 
 include(../../cmake/helpers.cmake)
 
