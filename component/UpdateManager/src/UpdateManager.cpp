@@ -28,8 +28,6 @@ bool isNewerVersion(const QString &newsVersion, const QString &currentVersion) {
     return true;
   }
 
-  return true;
-
   return QVersionNumber::compare(newsNumber, currentNumber) > 0;
 }
 } // namespace

@@ -8,6 +8,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QNetworkReply>
+#include <QVersionNumber>
 
 #include <chrono>
 
@@ -105,6 +106,29 @@ QDateTime TrackingState::parseDateTime(const QString &value) {
   return parseDateTimeString(value);
 }
 
+bool TrackingState::isNewerVersion(const QString &candidate,
+                                   const QString &reference) {
+  const QString trimmedCandidate = candidate.trimmed();
+  const QString trimmedReference = reference.trimmed();
+
+  if (trimmedCandidate.isEmpty()) {
+    return false;
+  }
+
+  qsizetype candidateSuffixIndex = 0;
+  const QVersionNumber candidateVersion =
+      QVersionNumber::fromString(trimmedCandidate, &candidateSuffixIndex);
+  qsizetype referenceSuffixIndex = 0;
+  const QVersionNumber referenceVersion =
+      QVersionNumber::fromString(trimmedReference, &referenceSuffixIndex);
+
+  if (candidateVersion.isNull() || referenceVersion.isNull()) {
+    return trimmedCandidate.compare(trimmedReference, Qt::CaseInsensitive) > 0;
+  }
+
+  return QVersionNumber::compare(candidateVersion, referenceVersion) > 0;
+}
+
 bool TrackingState::parseNewsItem(const QJsonObject &object,
                                   Structs::NewsItem &newsItem) {
   const QString id = object.value(QStringLiteral("id")).toString().trimmed();
@@ -168,6 +192,10 @@ void TrackingState::pollOnce() {
   }
 
   const QJsonArray newsArray = newsValue.toArray();
+  Structs::NewsItem newestUpdateNewsItem;
+  bool hasNewestUpdateNewsItem = false;
+  QStringList newlySeenIds;
+
   for (const QJsonValue &value : newsArray) {
     if (!value.isObject()) {
       continue;
@@ -182,9 +210,30 @@ void TrackingState::pollOnce() {
       continue;
     }
 
-    _seenNewsIds.insert(newsItem.id);
+    newlySeenIds.append(newsItem.id);
+
+    if (!newsItem.isUpdate()) {
+      sendNews(newsItem);
+      continue;
+    }
+
+    if (!hasNewestUpdateNewsItem ||
+        isNewerVersion(newsItem.version, newestUpdateNewsItem.version)) {
+      newestUpdateNewsItem = newsItem;
+      hasNewestUpdateNewsItem = true;
+    }
+  }
+
+  for (const QString &id : newlySeenIds) {
+    _seenNewsIds.insert(id);
+  }
+
+  if (!newlySeenIds.isEmpty()) {
     persistSeenNewsIds();
-    sendNews(newsItem);
+  }
+
+  if (hasNewestUpdateNewsItem) {
+    sendNews(newestUpdateNewsItem);
   }
 
   LOG_PERF(0, "Exit");
