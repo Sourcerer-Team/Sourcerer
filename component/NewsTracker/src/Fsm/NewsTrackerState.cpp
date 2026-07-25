@@ -1,8 +1,11 @@
-#include "NewsTrackerState.h"
+#include "Fsm/NewsTrackerState.h"
 
 namespace NewsTracker {
 
-NewsTrackerState::NewsTrackerState(StateType type, NewsTrackerFsm &fsm)
-    : Fsm::FsmState((int)type), _fsm{fsm} {}
+namespace Fsm {
 
+NewsTrackerState::NewsTrackerState(StateType type, NewsTrackerFsm &fsm)
+    : ::Fsm::FsmState((int)type), _fsm{fsm} {}
+
+} // namespace Fsm
 } // namespace NewsTracker

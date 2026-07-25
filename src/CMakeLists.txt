@@ -36,6 +36,7 @@ includeComponent(Sourcerer ConfigManager)
 includeComponent(Sourcerer EventManager)
 includeComponent(Sourcerer GitRepoManager)
 includeComponent(Sourcerer NewsTracker)
+includeComponent(Sourcerer UpdateManager)
 includeComponent(Sourcerer GuiManager)
 includeComponent(Sourcerer StylesheetManager)
 
