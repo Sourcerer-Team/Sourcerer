@@ -17,11 +17,17 @@
 #include <QUrl>
 #include <QStringList>
 
+#include <chrono>
+#include <thread>
+
 #define THREAD_ID "UpdatingState"
 
 namespace UpdateManager {
 
 namespace {
+constexpr int DOWNLOAD_RETRY_COUNT = 5;
+constexpr int DOWNLOAD_RETRY_DELAY_MS = 3000;
+
 QString normalizedDownloadUrl(const QString &downloadUrl) {
   return downloadUrl.trimmed();
 }
@@ -196,57 +202,60 @@ bool UpdatingState::downloadUpdate(
   LOG_PERF(0, "Enter");
 
   const QString downloadUrl = normalizedDownloadUrl(newsItem.downloadUrl());
-  const Util::HttpReply reply = _httpClient.sendRequest(
-      downloadUrl, Util::HttpMethod::Get, {}, QByteArray());
-  if (reply.error() != QNetworkReply::NoError) {
-    LOG_WARN("Failed to download update '{}' from '{}'. Error: {}",
-             newsItem.id.toStdString(), downloadUrl.toStdString(),
-             static_cast<int>(reply.error()));
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  const QByteArray response = reply.response();
-  if (response.isEmpty()) {
-    LOG_WARN("Downloaded update '{}' is empty.", newsItem.id.toStdString());
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
   const QString downloadPath = buildDownloadFilePath(newsItem, downloadUrl);
-  QTemporaryFile tempFile(downloadPath);
-  tempFile.setAutoRemove(false);
 
-  if (!tempFile.open()) {
-    LOG_WARN("Failed to create temporary file for update '{}'.",
-             newsItem.id.toStdString());
-    LOG_PERF(0, "Exit");
-    return false;
+  for (int attempt = 1; attempt <= DOWNLOAD_RETRY_COUNT; ++attempt) {
+    const Util::HttpReply reply = _httpClient.sendRequest(
+        downloadUrl, Util::HttpMethod::Get, {}, QByteArray());
+    if (reply.error() != QNetworkReply::NoError) {
+      LOG_WARN("Failed to download update '{}' from '{}' on attempt {}/{}. Error: {}",
+               newsItem.id.toStdString(), downloadUrl.toStdString(), attempt,
+               DOWNLOAD_RETRY_COUNT, static_cast<int>(reply.error()));
+    } else {
+      const QByteArray response = reply.response();
+      if (response.isEmpty()) {
+        LOG_WARN("Downloaded update '{}' is empty on attempt {}/{}.",
+                 newsItem.id.toStdString(), attempt, DOWNLOAD_RETRY_COUNT);
+      } else {
+        QTemporaryFile tempFile(downloadPath);
+        tempFile.setAutoRemove(false);
+
+        if (!tempFile.open()) {
+          LOG_WARN("Failed to create temporary file for update '{}' on attempt {}/{}.",
+                   newsItem.id.toStdString(), attempt, DOWNLOAD_RETRY_COUNT);
+        } else if (tempFile.write(response) != response.size()) {
+          LOG_WARN("Failed to write downloaded update '{}' on attempt {}/{}.",
+                   newsItem.id.toStdString(), attempt, DOWNLOAD_RETRY_COUNT);
+          tempFile.close();
+          QFile::remove(tempFile.fileName());
+        } else {
+          tempFile.flush();
+          downloadedFilePath = tempFile.fileName();
+          tempFile.close();
+
+          if (!makeExecutableIfNeeded(downloadedFilePath)) {
+            LOG_WARN("Failed to update permissions for downloaded update '{}'.",
+                     downloadedFilePath.toStdString());
+          }
+
+          LOG_INFO("Downloaded update '{}' to '{}' on attempt {}/{}.",
+                   newsItem.id.toStdString(), downloadedFilePath.toStdString(),
+                   attempt, DOWNLOAD_RETRY_COUNT);
+
+          LOG_PERF(0, "Exit");
+          return true;
+        }
+      }
+    }
+
+    if (attempt < DOWNLOAD_RETRY_COUNT) {
+      std::this_thread::sleep_for(
+          std::chrono::milliseconds(DOWNLOAD_RETRY_DELAY_MS));
+    }
   }
-
-  if (tempFile.write(response) != response.size()) {
-    LOG_WARN("Failed to write downloaded update '{}'.",
-             newsItem.id.toStdString());
-    tempFile.close();
-    QFile::remove(tempFile.fileName());
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-
-  tempFile.flush();
-  downloadedFilePath = tempFile.fileName();
-  tempFile.close();
-
-  if (!makeExecutableIfNeeded(downloadedFilePath)) {
-    LOG_WARN("Failed to update permissions for downloaded update '{}'.",
-             downloadedFilePath.toStdString());
-  }
-
-  LOG_INFO("Downloaded update '{}' to '{}'.", newsItem.id.toStdString(),
-           downloadedFilePath.toStdString());
 
   LOG_PERF(0, "Exit");
-  return true;
+  return false;
 }
 
 bool UpdatingState::launchInstaller(const QString &downloadedFilePath) const {
