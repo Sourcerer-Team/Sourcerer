@@ -14,7 +14,7 @@ class InfoToast : public ToastWidget {
   Q_OBJECT
 public:
   explicit InfoToast(const QString &message, const QString &title = QString(),
-                     QWidget *parent = nullptr);
+                     bool stayForever = false, QWidget *parent = nullptr);
   ~InfoToast() override;
 
   // ToastWidget interface
@@ -22,7 +22,7 @@ public:
   void stop() override;
 
 private:
-  QTimer *_stopTimer;
+
   ConfigManager::ConfigManager &_configManager;
 };
 

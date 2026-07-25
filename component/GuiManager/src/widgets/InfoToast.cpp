@@ -16,9 +16,8 @@
 namespace GuiManager::Widgets {
 
 InfoToast::InfoToast(const QString &message, const QString &title,
-                     QWidget *parent)
-    : ToastWidget{parent}, _stopTimer{new QTimer},
-      _configManager(ConfigManager::ConfigManager::getInstance()) {
+                     bool stayForever, QWidget *parent)
+    : ToastWidget{parent}, _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
   setTitleText(title);
@@ -46,26 +45,23 @@ InfoToast::InfoToast(const QString &message, const QString &title,
     applyToastColors(QColor("#505050"), QColor("#B8860B"), QColor("#FFFFFF"));
   }
 
-  const qlonglong displayTime =
-      _configManager.getLong(ConfigManager::ConfigKey::InfoToastDisplayTime);
+  if (!stayForever) {
+    const qlonglong displayTime =
+        _configManager.getLong(ConfigManager::ConfigKey::InfoToastDisplayTime);
 
-  _stopTimer->singleShot(displayTime, this, [=]() { stop(); });
+    QTimer::singleShot(displayTime, this, [this]() { stop(); });
+  }
 
   LOG_PERF(0, "Exit");
 }
 
 InfoToast::~InfoToast() {
   LOG_PERF(0, "Enter");
-
-  delete _stopTimer;
-
   LOG_PERF(0, "Exit");
 }
 
 void InfoToast::stop() {
   LOG_PERF(0, "Enter");
-
-  _stopTimer->stop();
 
   ToastWidget::stop();
 

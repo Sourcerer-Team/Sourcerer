@@ -39,7 +39,16 @@ QString fileSuffixFromUrl(const QString &downloadUrl) {
 #ifdef Q_OS_LINUX
 QString resolveRunningAppImagePath() {
   const QString envAppImage =
-      QString::fromLocal8Bit(qgetenv("APPIMAGE")).trimmed();
+      QString::fromLocal8Bit(qgetenv("ARGV0")).trimmed();
+
+  LOG_INFO("AppImage file path is '{}'", envAppImage);
+
+  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+
+         // Iterate through all environment variables
+  foreach (QString key, env.keys()) {
+    LOG_DEBUG("Key: {}, Value: {}", key, env.value(key));
+  }
 
   const QFileInfo appFileInfo(QCoreApplication::applicationFilePath());
   const QString appDir = appFileInfo.absolutePath();
