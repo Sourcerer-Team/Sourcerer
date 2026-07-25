@@ -6,11 +6,13 @@
 
 namespace NewsTracker {
 
+namespace Fsm {
+
 class NewsTrackerFsm;
 
 enum class StateType : int { Unknown = 0, Waiting, Tracking, last };
 
-class NewsTrackerState : public QObject, public Fsm::FsmState {
+class NewsTrackerState : public QObject, public ::Fsm::FsmState {
   Q_OBJECT
 public:
   NewsTrackerState(StateType type, NewsTrackerFsm &fsm);
@@ -21,4 +23,5 @@ private:
   NewsTrackerFsm &_fsm;
 };
 
+} // namespace Fsm
 } // namespace NewsTracker

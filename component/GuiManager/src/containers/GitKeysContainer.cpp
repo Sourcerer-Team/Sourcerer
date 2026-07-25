@@ -20,7 +20,9 @@
 #include <QMessageBox>
 #include <QPixmap>
 #include <QPushButton>
+#include <QSize>
 #include <QStandardItemModel>
+#include <QStyle>
 #include <QTextEdit>
 #include <QVBoxLayout>
 
@@ -196,11 +198,23 @@ void GitKeysContainer::onGenerateClicked() {
   passphraseLayout->addLayout(passphraseInputRow);
 
   auto *passphraseButtonRow = new QHBoxLayout();
-  auto *passphraseOkButton = new QPushButton("OK", &passphraseDialog);
-  auto *passphraseCancelButton = new QPushButton("Cancel", &passphraseDialog);
+  auto *passphraseCancelButton = new QPushButton(tr("Cancel"), &passphraseDialog);
+  auto *passphraseOkButton = new QPushButton(tr("OK"), &passphraseDialog);
+  passphraseOkButton->setDefault(true);
   passphraseButtonRow->addStretch();
+
+#ifdef Q_OS_WIN32
   passphraseButtonRow->addWidget(passphraseOkButton);
   passphraseButtonRow->addWidget(passphraseCancelButton);
+#else
+  passphraseCancelButton->setIcon(
+      QApplication::style()->standardIcon(QStyle::SP_DialogCancelButton));
+  passphraseOkButton->setIcon(
+      QApplication::style()->standardIcon(QStyle::SP_DialogOkButton));
+  passphraseButtonRow->addWidget(passphraseCancelButton);
+  passphraseButtonRow->addWidget(passphraseOkButton);
+#endif
+
   passphraseLayout->addLayout(passphraseButtonRow);
 
   connect(passphraseOkButton, &QPushButton::clicked, &passphraseDialog,

@@ -14,7 +14,9 @@ find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 
 if(WIN32)
-  set(PLATFORM_SOURCES include/win32/DirectoryWatcher.h src/win32/DirectoryWatcher.cpp)
+  set(PLATFORM_SOURCES
+      include/win32/DirectoryWatcher.h
+      src/win32/DirectoryWatcher.cpp)
 endif()
 
 add_library(Util STATIC
@@ -23,6 +25,7 @@ add_library(Util STATIC
    include/CloudRepo.h
    include/Dispatcher.h
    include/FileManager.h
+   include/Timer.h
    include/FileLock.h
    include/General.h
    include/Graph.h

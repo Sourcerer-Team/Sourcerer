@@ -199,6 +199,8 @@ MainWindow::MainWindow(QWidget *parent)
       std::bind(&MainWindow::eventCallback, this, std::placeholders::_1);
 
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::ApplicationUpdated, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCredentials, callbackFunc));
@@ -220,6 +222,8 @@ MainWindow::~MainWindow() {
   const auto callbackFunc =
       std::bind(&MainWindow::eventCallback, this, std::placeholders::_1);
 
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::ApplicationUpdated, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -1125,8 +1129,20 @@ void MainWindow::eventCallback(EventManager::Event event) {
   }
   case EventManager::EventType::NewsTrackerNews: {
     const auto news = event.data<NewsTracker::Structs::NewsItem>();
+    if (news.isUpdate()) {
+      break;
+    }
     Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
       _toastHost.addToast(new NewsToast(news));
+    });
+    break;
+  }
+  case EventManager::EventType::ApplicationUpdated: {
+    const auto newVersion = event.data<QString>();
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      _toastHost.addToast(new InfoToast(
+          QString(tr("Application updated to version %1.")).arg(newVersion),
+          tr("Info"), true));
     });
     break;
   }
