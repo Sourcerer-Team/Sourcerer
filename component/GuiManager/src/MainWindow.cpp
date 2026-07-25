@@ -24,6 +24,7 @@
 #include <Log.h>
 
 #include <QCloseEvent>
+#include <QDir>
 #include <QEnterEvent>
 #include <QFileDialog>
 #include <QJsonArray>
@@ -33,7 +34,13 @@
 #include <QStandardPaths>
 #include <QWindow>
 
+#include <QMessageBox>
+#include <functional>
+
+#define THREAD_ID "MainWindow"
+
 namespace {
+
 class BottomResizeGripWidget final : public QWidget {
 public:
   explicit BottomResizeGripWidget(QWidget *parent = nullptr) : QWidget(parent) {
@@ -72,11 +79,6 @@ protected:
   }
 };
 } // namespace
-
-#include <QMessageBox>
-#include <functional>
-
-#define THREAD_ID "MainWindow"
 
 namespace GuiManager {
 
@@ -856,7 +858,8 @@ void MainWindow::addGitRepoContainer(const QString &path) {
     repoName = path;
   }
 
-  _topBarWidget->titleBarWidget()->addTab(repoName);
+  _topBarWidget->titleBarWidget()->addTab(
+      repoName, QDir::toNativeSeparators(path));
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
