@@ -23,7 +23,8 @@ int IssueTrackersModel::rowCount(const QModelIndex &parent) const {
   return parent.isValid() ? 0 : _entries.size();
 }
 
-QVariant IssueTrackersModel::data(const QModelIndex &index, const int role) const {
+QVariant IssueTrackersModel::data(const QModelIndex &index,
+                                  const int role) const {
   if (!index.isValid()) {
     return QVariant();
   }

@@ -60,7 +60,7 @@ TokensStorage &TokensStorage::getInstance() {
 }
 
 QString TokensStorage::makeEntryKey(const QString &serviceType,
-                                   const QString &repositoryName) {
+                                    const QString &repositoryName) {
   return safeKeyPart(serviceType) + QStringLiteral("::") +
          safeKeyPart(repositoryName);
 }
@@ -94,8 +94,7 @@ void TokensStorage::storeToken(const QString &serviceType,
 
 bool TokensStorage::getToken(const QString &serviceType,
                              const QString &repositoryName,
-                             QString &accessToken,
-                             QDateTime &expiresAt) const {
+                             QString &accessToken, QDateTime &expiresAt) const {
   LOG_PERF(0, "Enter");
 
   const QString entryKey = makeEntryKey(serviceType, repositoryName);
@@ -221,25 +220,21 @@ void TokensStorage::loadPersistedTokens() {
     stream >> entryKey >> encryptedData;
 
     try {
-      const QByteArray decryptedData = decrypt(encryptedData, deriveEntryKey(
-                                                        entryKey.section(
-                                                            QStringLiteral("::"), 0,
-                                                            0),
-                                                        entryKey.section(
-                                                            QStringLiteral("::"), 1,
-                                                            1)));
+      const QByteArray decryptedData =
+          decrypt(encryptedData,
+                  deriveEntryKey(entryKey.section(QStringLiteral("::"), 0, 0),
+                                 entryKey.section(QStringLiteral("::"), 1, 1)));
       QDataStream tokenStream(decryptedData);
       tokenStream.setVersion(QDataStream::Qt_6_0);
 
       TokenEntry entry;
-      tokenStream >> entry.serviceType >> entry.repositoryName >> entry.accessToken >>
-          entry.expiresAt >> entry.createdTime;
+      tokenStream >> entry.serviceType >> entry.repositoryName >>
+          entry.accessToken >> entry.expiresAt >> entry.createdTime;
       entry.rememberToken = true;
       _tokens[entryKey] = entry;
     } catch (const std::exception &e) {
       LOG_ERROR(Log::ErrorId::FileSystem,
-                "Failed to decrypt token entry '{}': {}", entryKey,
-                e.what());
+                "Failed to decrypt token entry '{}': {}", entryKey, e.what());
     }
   }
 
@@ -248,7 +243,7 @@ void TokensStorage::loadPersistedTokens() {
 }
 
 void TokensStorage::saveTokensToDisk(const QString &entryKey,
-                                    const TokenEntry &tokenEntry) {
+                                     const TokenEntry &tokenEntry) {
   LOG_PERF(0, "Enter");
 
   const QString tokensFile = getTokensFilePath();
@@ -288,9 +283,9 @@ void TokensStorage::saveTokensToDisk(const QString &entryKey,
               << tokenEntry.accessToken << tokenEntry.expiresAt
               << tokenEntry.createdTime;
 
-  encryptedTokens[entryKey] = encrypt(tokenData, deriveEntryKey(
-                                             tokenEntry.serviceType,
-                                             tokenEntry.repositoryName));
+  encryptedTokens[entryKey] =
+      encrypt(tokenData, deriveEntryKey(tokenEntry.serviceType,
+                                        tokenEntry.repositoryName));
 
   QFile file(tokensFile);
   if (!file.open(QIODevice::WriteOnly)) {
@@ -388,20 +383,18 @@ QByteArray TokensStorage::encrypt(const QByteArray &plaintext,
   ciphertext.resize(plaintext.size() + AES_BLOCK_SIZE);
 
   int outLen = 0;
-  if (EVP_EncryptUpdate(ctx,
-                        reinterpret_cast<unsigned char *>(ciphertext.data()),
-                        &outLen,
-                        reinterpret_cast<const unsigned char *>(plaintext.data()),
-                        plaintext.size()) != 1) {
+  if (EVP_EncryptUpdate(
+          ctx, reinterpret_cast<unsigned char *>(ciphertext.data()), &outLen,
+          reinterpret_cast<const unsigned char *>(plaintext.data()),
+          plaintext.size()) != 1) {
     EVP_CIPHER_CTX_free(ctx);
     throw std::runtime_error("Failed to encrypt data");
   }
 
   int finalLen = 0;
-  if (EVP_EncryptFinal_ex(ctx,
-                          reinterpret_cast<unsigned char *>(ciphertext.data()) +
-                              outLen,
-                          &finalLen) != 1) {
+  if (EVP_EncryptFinal_ex(
+          ctx, reinterpret_cast<unsigned char *>(ciphertext.data()) + outLen,
+          &finalLen) != 1) {
     EVP_CIPHER_CTX_free(ctx);
     throw std::runtime_error("Failed to finalize encryption");
   }
@@ -440,20 +433,18 @@ QByteArray TokensStorage::decrypt(const QByteArray &ciphertext,
   plaintext.resize(actualCiphertext.size() + AES_BLOCK_SIZE);
 
   int outLen = 0;
-  if (EVP_DecryptUpdate(ctx,
-                        reinterpret_cast<unsigned char *>(plaintext.data()),
-                        &outLen,
-                        reinterpret_cast<const unsigned char *>(actualCiphertext.data()),
-                        actualCiphertext.size()) != 1) {
+  if (EVP_DecryptUpdate(
+          ctx, reinterpret_cast<unsigned char *>(plaintext.data()), &outLen,
+          reinterpret_cast<const unsigned char *>(actualCiphertext.data()),
+          actualCiphertext.size()) != 1) {
     EVP_CIPHER_CTX_free(ctx);
     throw std::runtime_error("Failed to decrypt data");
   }
 
   int finalLen = 0;
-  if (EVP_DecryptFinal_ex(ctx,
-                          reinterpret_cast<unsigned char *>(plaintext.data()) +
-                              outLen,
-                          &finalLen) != 1) {
+  if (EVP_DecryptFinal_ex(
+          ctx, reinterpret_cast<unsigned char *>(plaintext.data()) + outLen,
+          &finalLen) != 1) {
     EVP_CIPHER_CTX_free(ctx);
     throw std::runtime_error("Failed to finalize decryption");
   }
@@ -509,18 +500,18 @@ QString TokensStorage::getMasterKeyFilePath() const {
 
 QByteArray TokensStorage::deriveEntryKey(const QString &serviceType,
                                          const QString &repositoryName) {
-  const QByteArray salt =
-      QCryptographicHash::hash(makeEntryKey(serviceType, repositoryName).toUtf8(),
-                               QCryptographicHash::Sha256);
+  const QByteArray salt = QCryptographicHash::hash(
+      makeEntryKey(serviceType, repositoryName).toUtf8(),
+      QCryptographicHash::Sha256);
 
   QByteArray derivedKey;
   derivedKey.resize(AES_KEY_SIZE);
 
-  if (PKCS5_PBKDF2_HMAC(_masterKey.data(), _masterKey.size(),
-                        reinterpret_cast<const unsigned char *>(salt.data()),
-                        salt.size(), PBKDF2_ITERATIONS, EVP_sha256(),
-                        AES_KEY_SIZE,
-                        reinterpret_cast<unsigned char *>(derivedKey.data())) != 1) {
+  if (PKCS5_PBKDF2_HMAC(
+          _masterKey.data(), _masterKey.size(),
+          reinterpret_cast<const unsigned char *>(salt.data()), salt.size(),
+          PBKDF2_ITERATIONS, EVP_sha256(), AES_KEY_SIZE,
+          reinterpret_cast<unsigned char *>(derivedKey.data())) != 1) {
     throw std::runtime_error("Failed to derive token key");
   }
 

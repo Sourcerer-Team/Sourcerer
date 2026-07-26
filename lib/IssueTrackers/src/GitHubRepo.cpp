@@ -6,12 +6,15 @@
 
 #include <QApplication>
 #include <QByteArray>
+#include <QClipboard>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QHBoxLayout>
-#include <QClipboard>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMap>
@@ -24,9 +27,6 @@
 #include <QTimer>
 #include <QUrlQuery>
 #include <QVBoxLayout>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QVariantMap>
 
 #include <algorithm>
@@ -43,7 +43,7 @@ namespace {
 QString parseErrorDescription(const QJsonObject &obj);
 
 QString responseErrorMessage(const Util::HttpReply &httpReply,
-                            const QString &fallbackMessage) {
+                             const QString &fallbackMessage) {
   const QJsonDocument jsonDoc = QJsonDocument::fromJson(httpReply.response());
   if (jsonDoc.isObject()) {
     const QJsonObject obj = jsonDoc.object();
@@ -67,7 +67,8 @@ QString responseErrorMessage(const Util::HttpReply &httpReply,
 }
 
 QString parseErrorDescription(const QJsonObject &obj) {
-  const QString description = obj.value(QStringLiteral("error_description")).toString();
+  const QString description =
+      obj.value(QStringLiteral("error_description")).toString();
   if (!description.isEmpty()) {
     return description;
   }
@@ -99,17 +100,18 @@ QVariantMap GitHubRepo::authenticate(const QVariantMap &parameters) {
 
   QVariantMap result;
 
-  const QString clientId = parameters.value(QStringLiteral("clientId")).toString().trimmed();
-  const QString scope = parameters.contains(QStringLiteral("scope"))
-                             ? parameters.value(QStringLiteral("scope")).toString().trimmed()
-                             : QStringLiteral("repo");
+  const QString clientId =
+      parameters.value(QStringLiteral("clientId")).toString().trimmed();
+  const QString scope =
+      parameters.contains(QStringLiteral("scope"))
+          ? parameters.value(QStringLiteral("scope")).toString().trimmed()
+          : QStringLiteral("repo");
 
   if (clientId.isEmpty()) {
     result[QStringLiteral("success")] = false;
     result[QStringLiteral("errorMessage")] =
         QStringLiteral("GitHub OAuth client id is empty.");
-    LOG_ERROR(Log::ErrorId::Security,
-              "GitHub OAuth client id is empty.");
+    LOG_ERROR(Log::ErrorId::Security, "GitHub OAuth client id is empty.");
     LOG_PERF(0, "Exit");
     return result;
   }
@@ -137,95 +139,95 @@ QVariantMap GitHubRepo::authenticate(const QVariantMap &parameters) {
   QPointer<QDialog> verificationDialog;
   const auto cancelled = std::make_shared<std::atomic_bool>(false);
 
-  const auto showVerificationDialog =
-      [verificationUrl, userCode = deviceCodeResponse.userCode, cancelled,
-       &verificationDialog]() {
-        auto *dialog = new QDialog(nullptr);
-        verificationDialog = dialog;
-        dialog->setWindowTitle(QStringLiteral("GitHub authentication"));
-        dialog->setWindowModality(Qt::ApplicationModal);
-        dialog->setMinimumWidth(460);
+  const auto showVerificationDialog = [verificationUrl,
+                                       userCode = deviceCodeResponse.userCode,
+                                       cancelled, &verificationDialog]() {
+    auto *dialog = new QDialog(nullptr);
+    verificationDialog = dialog;
+    dialog->setWindowTitle(QStringLiteral("GitHub authentication"));
+    dialog->setWindowModality(Qt::ApplicationModal);
+    dialog->setMinimumWidth(460);
 
-        auto *mainLayout = new QVBoxLayout(dialog);
+    auto *mainLayout = new QVBoxLayout(dialog);
 
-        auto *instructionLabel = new QLabel(
-            QStringLiteral(
-                "Open the GitHub verification page and paste this code:"),
-            dialog);
-        instructionLabel->setWordWrap(true);
-        mainLayout->addWidget(instructionLabel);
+    auto *instructionLabel = new QLabel(
+        QStringLiteral(
+            "Open the GitHub verification page and paste this code:"),
+        dialog);
+    instructionLabel->setWordWrap(true);
+    mainLayout->addWidget(instructionLabel);
 
-        auto *codeLayout = new QHBoxLayout();
-        auto *codeEdit = new QLineEdit(dialog);
-        codeEdit->setText(userCode);
-        codeEdit->setReadOnly(true);
-        codeEdit->setAlignment(Qt::AlignCenter);
-        codeEdit->setClearButtonEnabled(false);
-        codeLayout->addWidget(codeEdit, 1);
+    auto *codeLayout = new QHBoxLayout();
+    auto *codeEdit = new QLineEdit(dialog);
+    codeEdit->setText(userCode);
+    codeEdit->setReadOnly(true);
+    codeEdit->setAlignment(Qt::AlignCenter);
+    codeEdit->setClearButtonEnabled(false);
+    codeLayout->addWidget(codeEdit, 1);
 
-        auto *copyButton = new QPushButton(QStringLiteral("Copy"), dialog);
-        codeLayout->addWidget(copyButton);
-        mainLayout->addLayout(codeLayout);
+    auto *copyButton = new QPushButton(QStringLiteral("Copy"), dialog);
+    codeLayout->addWidget(copyButton);
+    mainLayout->addLayout(codeLayout);
 
-        auto *copyStatusLabel = new QLabel(dialog);
-        copyStatusLabel->setWordWrap(true);
-        copyStatusLabel->setVisible(false);
-        mainLayout->addWidget(copyStatusLabel);
+    auto *copyStatusLabel = new QLabel(dialog);
+    copyStatusLabel->setWordWrap(true);
+    copyStatusLabel->setVisible(false);
+    mainLayout->addWidget(copyStatusLabel);
 
-        auto *copyStatusTimer = new QTimer(dialog);
-        copyStatusTimer->setSingleShot(true);
-        QObject::connect(copyStatusTimer, &QTimer::timeout, dialog,
-                         [copyStatusLabel]() {
-                           copyStatusLabel->clear();
-                           copyStatusLabel->setVisible(false);
-                         });
+    auto *copyStatusTimer = new QTimer(dialog);
+    copyStatusTimer->setSingleShot(true);
+    QObject::connect(copyStatusTimer, &QTimer::timeout, dialog,
+                     [copyStatusLabel]() {
+                       copyStatusLabel->clear();
+                       copyStatusLabel->setVisible(false);
+                     });
 
-        if (!verificationUrl.isValid()) {
-          auto *urlLabel = new QLabel(
-              QStringLiteral(
-                  "GitHub verification page is unavailable for this host."),
-              dialog);
-          urlLabel->setWordWrap(true);
-          mainLayout->addWidget(urlLabel);
-        }
+    if (!verificationUrl.isValid()) {
+      auto *urlLabel = new QLabel(
+          QStringLiteral(
+              "GitHub verification page is unavailable for this host."),
+          dialog);
+      urlLabel->setWordWrap(true);
+      mainLayout->addWidget(urlLabel);
+    }
 
-        auto *buttonLayout = new QHBoxLayout();
-        auto *openButton =
-            new QPushButton(QStringLiteral("Open verification page"), dialog);
-        openButton->setEnabled(verificationUrl.isValid());
-        auto *cancelButton = new QPushButton(QStringLiteral("Cancel"), dialog);
+    auto *buttonLayout = new QHBoxLayout();
+    auto *openButton =
+        new QPushButton(QStringLiteral("Open verification page"), dialog);
+    openButton->setEnabled(verificationUrl.isValid());
+    auto *cancelButton = new QPushButton(QStringLiteral("Cancel"), dialog);
 
-        buttonLayout->addStretch();
-        buttonLayout->addWidget(openButton);
-        buttonLayout->addWidget(cancelButton);
-        mainLayout->addLayout(buttonLayout);
+    buttonLayout->addStretch();
+    buttonLayout->addWidget(openButton);
+    buttonLayout->addWidget(cancelButton);
+    mainLayout->addLayout(buttonLayout);
 
-        QObject::connect(copyButton, &QPushButton::clicked, dialog,
-                         [userCode, copyStatusLabel, copyStatusTimer]() {
-                           QApplication::clipboard()->setText(userCode);
-                           copyStatusLabel->setText(
-                               QStringLiteral("Code copied to clipboard."));
-                           copyStatusLabel->setVisible(true);
-                           copyStatusTimer->start(5000);
-                         });
-        QObject::connect(openButton, &QPushButton::clicked, dialog,
-                         [verificationUrl]() {
-                           if (verificationUrl.isValid()) {
-                             QDesktopServices::openUrl(verificationUrl);
-                           }
-                         });
-        QObject::connect(cancelButton, &QPushButton::clicked, dialog,
-                         [cancelled, verificationDialog]() {
-                           cancelled->store(true);
-                           if (verificationDialog) {
-                             verificationDialog->reject();
-                           }
-                         });
-        QObject::connect(dialog, &QDialog::rejected, dialog,
-                         [cancelled]() { cancelled->store(true); });
+    QObject::connect(copyButton, &QPushButton::clicked, dialog,
+                     [userCode, copyStatusLabel, copyStatusTimer]() {
+                       QApplication::clipboard()->setText(userCode);
+                       copyStatusLabel->setText(
+                           QStringLiteral("Code copied to clipboard."));
+                       copyStatusLabel->setVisible(true);
+                       copyStatusTimer->start(5000);
+                     });
+    QObject::connect(openButton, &QPushButton::clicked, dialog,
+                     [verificationUrl]() {
+                       if (verificationUrl.isValid()) {
+                         QDesktopServices::openUrl(verificationUrl);
+                       }
+                     });
+    QObject::connect(cancelButton, &QPushButton::clicked, dialog,
+                     [cancelled, verificationDialog]() {
+                       cancelled->store(true);
+                       if (verificationDialog) {
+                         verificationDialog->reject();
+                       }
+                     });
+    QObject::connect(dialog, &QDialog::rejected, dialog,
+                     [cancelled]() { cancelled->store(true); });
 
-        dialog->show();
-      };
+    dialog->show();
+  };
 
   if (QThread::currentThread() == qApp->thread()) {
     showVerificationDialog();
@@ -239,19 +241,21 @@ QVariantMap GitHubRepo::authenticate(const QVariantMap &parameters) {
       return;
     }
 
-    QMetaObject::invokeMethod(verificationDialog.data(),
-                              [dialog = verificationDialog]() {
-                                if (dialog) {
-                                  dialog->close();
-                                  dialog->deleteLater();
-                                }
-                              },
-                              Qt::QueuedConnection);
+    QMetaObject::invokeMethod(
+        verificationDialog.data(),
+        [dialog = verificationDialog]() {
+          if (dialog) {
+            dialog->close();
+            dialog->deleteLater();
+          }
+        },
+        Qt::QueuedConnection);
   };
 
   const auto tokenReply = pollDeviceAccessToken(
-      clientId, deviceCodeResponse.deviceCode, deviceCodeResponse.intervalSeconds,
-      deviceCodeResponse.expiresInSeconds, &errorMessage, cancelled.get());
+      clientId, deviceCodeResponse.deviceCode,
+      deviceCodeResponse.intervalSeconds, deviceCodeResponse.expiresInSeconds,
+      &errorMessage, cancelled.get());
   if (cancelled->load() ||
       tokenReply.first == QNetworkReply::NetworkError::OperationCanceledError) {
     closeVerificationDialog();
@@ -290,7 +294,8 @@ QStringList GitHubRepo::listUserRepositories(QString *errorMessage) const {
   QSet<QString> seenRepositories;
 
   if (!hasValidAccessToken()) {
-    const QString message = QStringLiteral("GitHub access token is missing or expired.");
+    const QString message =
+        QStringLiteral("GitHub access token is missing or expired.");
     if (errorMessage) {
       *errorMessage = message;
     }
@@ -302,9 +307,9 @@ QStringList GitHubRepo::listUserRepositories(QString *errorMessage) const {
   const auto httpClient = std::make_shared<Util::HttpClient>();
   const auto authHeaderValue = QStringLiteral("Bearer ") + _accessToken;
 
-  const auto requestJsonArray =
-      [&](const QUrl &url, const QString &failureMessage,
-          QJsonArray *arrayOut) -> bool {
+  const auto requestJsonArray = [&](const QUrl &url,
+                                    const QString &failureMessage,
+                                    QJsonArray *arrayOut) -> bool {
     if (!arrayOut) {
       return false;
     }
@@ -319,10 +324,9 @@ QStringList GitHubRepo::listUserRepositories(QString *errorMessage) const {
     rawHeaders[QStringLiteral("X-GitHub-Api-Version")] =
         QStringLiteral("2022-11-28");
 
-    const auto httpReply = httpClient->sendRequest(url.toString(),
-                                                   Util::HttpMethod::Get,
-                                                   httpHeaders, rawHeaders,
-                                                   QByteArray());
+    const auto httpReply =
+        httpClient->sendRequest(url.toString(), Util::HttpMethod::Get,
+                                httpHeaders, rawHeaders, QByteArray());
     if (httpReply.error() != QNetworkReply::NetworkError::NoError) {
       const QString message = responseErrorMessage(httpReply, failureMessage);
       if (errorMessage) {
@@ -356,9 +360,11 @@ QStringList GitHubRepo::listUserRepositories(QString *errorMessage) const {
       const QJsonObject repoObj = repoValue.toObject();
       const QString fullName =
           repoObj.value(QStringLiteral("full_name")).toString().trimmed();
-      const QString name = repoObj.value(QStringLiteral("name")).toString().trimmed();
+      const QString name =
+          repoObj.value(QStringLiteral("name")).toString().trimmed();
       const QString repositoryName = !fullName.isEmpty() ? fullName : name;
-      if (repositoryName.isEmpty() || seenRepositories.contains(repositoryName)) {
+      if (repositoryName.isEmpty() ||
+          seenRepositories.contains(repositoryName)) {
         continue;
       }
 
@@ -392,15 +398,17 @@ QStringList GitHubRepo::listUserRepositories(QString *errorMessage) const {
     QUrlQuery query;
     query.addQueryItem(QStringLiteral("per_page"), QStringLiteral("100"));
     query.addQueryItem(QStringLiteral("page"), QString::number(page));
-    query.addQueryItem(QStringLiteral("affiliation"),
-                       QStringLiteral("owner,collaborator,organization_member"));
+    query.addQueryItem(
+        QStringLiteral("affiliation"),
+        QStringLiteral("owner,collaborator,organization_member"));
     query.addQueryItem(QStringLiteral("sort"), QStringLiteral("full_name"));
     url.setQuery(query);
     return url;
   };
 
-  if (!fetchPagedRepositories(userReposUrl,
-                              QStringLiteral("Failed to request GitHub repositories."))) {
+  if (!fetchPagedRepositories(
+          userReposUrl,
+          QStringLiteral("Failed to request GitHub repositories."))) {
     LOG_PERF(0, "Exit");
     return repositories;
   }
@@ -417,9 +425,10 @@ QStringList GitHubRepo::listUserRepositories(QString *errorMessage) const {
   int orgPage = 1;
   while (true) {
     QJsonArray orgArray;
-    if (!requestJsonArray(orgsUrl(orgPage),
-                          QStringLiteral("Failed to request GitHub organizations."),
-                          &orgArray)) {
+    if (!requestJsonArray(
+            orgsUrl(orgPage),
+            QStringLiteral("Failed to request GitHub organizations."),
+            &orgArray)) {
       LOG_PERF(0, "Exit");
       return repositories;
     }
@@ -454,7 +463,8 @@ QStringList GitHubRepo::listUserRepositories(QString *errorMessage) const {
 
       if (!fetchPagedRepositories(
               orgReposUrl,
-              QStringLiteral("Failed to request GitHub organization repositories."))) {
+              QStringLiteral(
+                  "Failed to request GitHub organization repositories."))) {
         LOG_PERF(0, "Exit");
         return repositories;
       }
@@ -469,7 +479,8 @@ QStringList GitHubRepo::listUserRepositories(QString *errorMessage) const {
 
   if (repositories.isEmpty()) {
     if (errorMessage) {
-      *errorMessage = QStringLiteral("No GitHub repositories were found for the authenticated account.");
+      *errorMessage = QStringLiteral(
+          "No GitHub repositories were found for the authenticated account.");
     }
     LOG_INFO("No GitHub repositories found for authenticated account");
   } else if (errorMessage) {
@@ -528,11 +539,9 @@ bool GitHubRepo::isValid() const {
   return !_host.isEmpty();
 }
 
-QPair<QNetworkReply::NetworkError, QString>
-GitHubRepo::requestDeviceCode(const QString &clientId,
-                              DeviceCodeResponse *response,
-                              const QString &scope,
-                              QString *errorMessage) const {
+QPair<QNetworkReply::NetworkError, QString> GitHubRepo::requestDeviceCode(
+    const QString &clientId, DeviceCodeResponse *response, const QString &scope,
+    QString *errorMessage) const {
   LOG_PERF(0, "Enter");
 
   if (clientId.trimmed().isEmpty()) {
@@ -546,7 +555,8 @@ GitHubRepo::requestDeviceCode(const QString &clientId,
   }
 
   if (!response) {
-    const QString message = QStringLiteral("Device code response output is null.");
+    const QString message =
+        QStringLiteral("Device code response output is null.");
     if (errorMessage) {
       *errorMessage = message;
     }
@@ -557,8 +567,8 @@ GitHubRepo::requestDeviceCode(const QString &clientId,
 
   QMap<QString, QString> fields;
   fields[QStringLiteral("client_id")] = clientId.trimmed();
-  fields[QStringLiteral("scope")] = scope.trimmed().isEmpty() ? QStringLiteral("repo")
-                                                             : scope.trimmed();
+  fields[QStringLiteral("scope")] =
+      scope.trimmed().isEmpty() ? QStringLiteral("repo") : scope.trimmed();
 
   QMap<QNetworkRequest::KnownHeaders, QString> httpHeaders;
   httpHeaders[QNetworkRequest::KnownHeaders::ContentTypeHeader] =
@@ -570,11 +580,9 @@ GitHubRepo::requestDeviceCode(const QString &clientId,
       QStringLiteral("2022-11-28");
 
   const auto httpClient = std::make_shared<Util::HttpClient>();
-  const auto httpReply =
-      httpClient->sendRequest(hostToWebBaseUrl(_host) +
-                                  QStringLiteral("/login/device/code"),
-                              Util::HttpMethod::Post, httpHeaders, rawHeaders,
-                              formEncode(fields));
+  const auto httpReply = httpClient->sendRequest(
+      hostToWebBaseUrl(_host) + QStringLiteral("/login/device/code"),
+      Util::HttpMethod::Post, httpHeaders, rawHeaders, formEncode(fields));
 
   if (httpReply.error() != QNetworkReply::NetworkError::NoError) {
     const QString message = responseErrorMessage(
@@ -589,7 +597,8 @@ GitHubRepo::requestDeviceCode(const QString &clientId,
 
   const QJsonDocument jsonDoc = QJsonDocument::fromJson(httpReply.response());
   if (!jsonDoc.isObject()) {
-    const QString message = QStringLiteral("Invalid GitHub device code response.");
+    const QString message =
+        QStringLiteral("Invalid GitHub device code response.");
     if (errorMessage) {
       *errorMessage = message;
     }
@@ -622,7 +631,8 @@ GitHubRepo::requestDeviceCode(const QString &clientId,
 
   if (response->deviceCode.isEmpty() || response->userCode.isEmpty() ||
       !response->verificationUri.isValid()) {
-    const QString message = QStringLiteral("GitHub device code response missing required fields.");
+    const QString message =
+        QStringLiteral("GitHub device code response missing required fields.");
     if (errorMessage) {
       *errorMessage = message;
     }
@@ -640,16 +650,15 @@ GitHubRepo::requestDeviceCode(const QString &clientId,
   return {QNetworkReply::NetworkError::NoError, QString()};
 }
 
-QPair<QNetworkReply::NetworkError, QString>
-GitHubRepo::pollDeviceAccessToken(const QString &clientId,
-                                  const QString &deviceCode,
-                                  int intervalSeconds, int expiresInSeconds,
-                                  QString *errorMessage,
-                                  const std::atomic_bool *cancelled) {
+QPair<QNetworkReply::NetworkError, QString> GitHubRepo::pollDeviceAccessToken(
+    const QString &clientId, const QString &deviceCode, int intervalSeconds,
+    int expiresInSeconds, QString *errorMessage,
+    const std::atomic_bool *cancelled) {
   LOG_PERF(0, "Enter");
 
   if (clientId.trimmed().isEmpty() || deviceCode.trimmed().isEmpty()) {
-    const QString message = QStringLiteral("GitHub OAuth polling parameters are invalid.");
+    const QString message =
+        QStringLiteral("GitHub OAuth polling parameters are invalid.");
     if (errorMessage) {
       *errorMessage = message;
     }
@@ -695,14 +704,16 @@ GitHubRepo::pollDeviceAccessToken(const QString &clientId,
               cancelledMessage};
     }
 
-    const auto tokenReply = requestAccessTokenOnce(clientId, deviceCode, errorMessage);
+    const auto tokenReply =
+        requestAccessTokenOnce(clientId, deviceCode, errorMessage);
     if (tokenReply.first == QNetworkReply::NetworkError::NoError) {
       LOG_PERF(0, "Exit");
       return tokenReply;
     }
 
     const QString message = tokenReply.second.trimmed();
-    if (message.compare(QStringLiteral("authorization_pending"), Qt::CaseInsensitive) == 0) {
+    if (message.compare(QStringLiteral("authorization_pending"),
+                        Qt::CaseInsensitive) == 0) {
       if (!sleepWithCancellation(currentInterval)) {
         const QString cancelledMessage =
             QStringLiteral("GitHub authentication cancelled.");
@@ -713,7 +724,8 @@ GitHubRepo::pollDeviceAccessToken(const QString &clientId,
       continue;
     }
 
-    if (message.compare(QStringLiteral("slow_down"), Qt::CaseInsensitive) == 0) {
+    if (message.compare(QStringLiteral("slow_down"), Qt::CaseInsensitive) ==
+        0) {
       currentInterval += 5;
       if (!sleepWithCancellation(currentInterval)) {
         const QString cancelledMessage =
@@ -725,18 +737,21 @@ GitHubRepo::pollDeviceAccessToken(const QString &clientId,
       continue;
     }
 
-    if (message.compare(QStringLiteral("expired_token"), Qt::CaseInsensitive) == 0) {
-      const QString expiredMessage =
-          QStringLiteral("GitHub device authorization expired. Please try again.");
+    if (message.compare(QStringLiteral("expired_token"), Qt::CaseInsensitive) ==
+        0) {
+      const QString expiredMessage = QStringLiteral(
+          "GitHub device authorization expired. Please try again.");
       if (errorMessage) {
         *errorMessage = expiredMessage;
       }
       LOG_ERROR(Log::ErrorId::Security, "{}", expiredMessage.toStdString());
       LOG_PERF(0, "Exit");
-      return {QNetworkReply::NetworkError::ContentNotFoundError, expiredMessage};
+      return {QNetworkReply::NetworkError::ContentNotFoundError,
+              expiredMessage};
     }
 
-    if (message.compare(QStringLiteral("access_denied"), Qt::CaseInsensitive) == 0) {
+    if (message.compare(QStringLiteral("access_denied"), Qt::CaseInsensitive) ==
+        0) {
       const QString deniedMessage =
           QStringLiteral("GitHub authorization was denied by the user.");
       if (errorMessage) {
@@ -826,10 +841,8 @@ QByteArray GitHubRepo::formEncode(const QMap<QString, QString> &fields) {
   return query.query(QUrl::FullyEncoded).toUtf8();
 }
 
-QPair<QNetworkReply::NetworkError, QString>
-GitHubRepo::requestAccessTokenOnce(const QString &clientId,
-                                   const QString &deviceCode,
-                                   QString *errorMessage) {
+QPair<QNetworkReply::NetworkError, QString> GitHubRepo::requestAccessTokenOnce(
+    const QString &clientId, const QString &deviceCode, QString *errorMessage) {
   QMap<QString, QString> fields;
   fields[QStringLiteral("client_id")] = clientId.trimmed();
   fields[QStringLiteral("device_code")] = deviceCode.trimmed();
@@ -846,11 +859,9 @@ GitHubRepo::requestAccessTokenOnce(const QString &clientId,
       QStringLiteral("2022-11-28");
 
   const auto httpClient = std::make_shared<Util::HttpClient>();
-  const auto httpReply =
-      httpClient->sendRequest(hostToWebBaseUrl(_host) +
-                                  QStringLiteral("/login/oauth/access_token"),
-                              Util::HttpMethod::Post, httpHeaders, rawHeaders,
-                              formEncode(fields));
+  const auto httpReply = httpClient->sendRequest(
+      hostToWebBaseUrl(_host) + QStringLiteral("/login/oauth/access_token"),
+      Util::HttpMethod::Post, httpHeaders, rawHeaders, formEncode(fields));
 
   if (httpReply.error() != QNetworkReply::NetworkError::NoError) {
     const QString message = responseErrorMessage(
@@ -864,7 +875,8 @@ GitHubRepo::requestAccessTokenOnce(const QString &clientId,
 
   const QJsonDocument jsonDoc = QJsonDocument::fromJson(httpReply.response());
   if (!jsonDoc.isObject()) {
-    const QString message = QStringLiteral("Invalid GitHub access token response.");
+    const QString message =
+        QStringLiteral("Invalid GitHub access token response.");
     if (errorMessage) {
       *errorMessage = message;
     }
@@ -883,9 +895,11 @@ GitHubRepo::requestAccessTokenOnce(const QString &clientId,
     return {QNetworkReply::NetworkError::UnknownContentError, error};
   }
 
-  const QString accessToken = obj.value(QStringLiteral("access_token")).toString();
+  const QString accessToken =
+      obj.value(QStringLiteral("access_token")).toString();
   if (accessToken.isEmpty()) {
-    const QString message = QStringLiteral("GitHub access token response missing access_token.");
+    const QString message =
+        QStringLiteral("GitHub access token response missing access_token.");
     if (errorMessage) {
       *errorMessage = message;
     }

@@ -29,8 +29,7 @@ public:
                   bool remember = true);
 
   bool getToken(const QString &serviceType, const QString &repositoryName,
-                QString &accessToken,
-                QDateTime &expiresAt) const;
+                QString &accessToken, QDateTime &expiresAt) const;
 
   bool hasToken(const QString &serviceType,
                 const QString &repositoryName) const;
@@ -49,8 +48,7 @@ private:
   TokensStorage &operator=(const TokensStorage &) = delete;
 
   void loadPersistedTokens();
-  void saveTokensToDisk(const QString &entryKey,
-                        const TokenEntry &tokenEntry);
+  void saveTokensToDisk(const QString &entryKey, const TokenEntry &tokenEntry);
   void removeTokenFromDisk(const QString &entryKey);
 
   QByteArray encrypt(const QByteArray &plaintext, const QByteArray &key);

@@ -161,8 +161,7 @@ HttpReply HttpClientWorker::sendRequest_(
       }
     }
 
-    const HttpReply httpReply(_reply->error(), bytes,
-                              _reply->errorString());
+    const HttpReply httpReply(_reply->error(), bytes, _reply->errorString());
 
     LOG_PERF(0, "Exit");
 

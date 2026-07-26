@@ -193,7 +193,7 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
             MousePositionCorrection::instance().correctedGlobalPosition(
                 mouseEvent);
         if (const QModelIndex index =
-            view->indexAt(viewport->mapFromGlobal(globalPos));
+                view->indexAt(viewport->mapFromGlobal(globalPos));
             index.isValid()) {
           ui->tableViewIssueTrackerConnections->selectionModel()->select(
               index, QItemSelectionModel::Select);
@@ -254,7 +254,7 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
             MousePositionCorrection::instance().correctedGlobalPosition(
                 mouseEvent);
         if (const QModelIndex index =
-            view->indexAt(viewport->mapFromGlobal(globalPos));
+                view->indexAt(viewport->mapFromGlobal(globalPos));
             index.isValid()) {
           ui->tableViewIssueTrackerConnections->selectionModel()->select(
               index, QItemSelectionModel::Select);

@@ -31,7 +31,8 @@ public:
                       QString host = QStringLiteral("github.com"));
   ~GitHubRepo() override;
 
-  static QUrl deviceLoginUrl(const QString &host = QStringLiteral("github.com"));
+  static QUrl
+  deviceLoginUrl(const QString &host = QStringLiteral("github.com"));
 
   Type type() const override;
   QString serviceName() const override;
