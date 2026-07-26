@@ -41,6 +41,7 @@ includeComponent(Sourcerer GuiManager)
 includeComponent(Sourcerer StylesheetManager)
 
 includeLib(Sourcerer Fsm)
+includeLib(Sourcerer IssueTrackers)
 includeLib(Sourcerer Log)
 includeLib(Sourcerer RecyclerView)
 includeLib(Sourcerer Util)
