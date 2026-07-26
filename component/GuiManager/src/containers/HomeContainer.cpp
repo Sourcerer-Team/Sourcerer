@@ -8,6 +8,7 @@
 #include "widgets/WorkspacesTableView.h"
 
 #include <GitHubRepo.h>
+#include <TokensStorage.h>
 #include <Log.h>
 
 #include <QAction>
@@ -358,6 +359,9 @@ void HomeContainer::onGitHubIssueTrackerConnectClicked() {
                                                           authRepo->host());
     selectedRepo->setAccessToken(authRepo->accessToken(),
                                  authRepo->accessTokenExpiresAt());
+    IssueTrackers::TokensStorage::getInstance().storeToken(
+        selectedRepo->serviceName(), selectedRepo->repositoryPath(),
+        selectedRepo->accessToken(), selectedRepo->accessTokenExpiresAt(), true);
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       _issueTrackerConnections += selectedRepo;
