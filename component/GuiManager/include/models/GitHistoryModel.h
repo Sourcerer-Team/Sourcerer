@@ -90,6 +90,7 @@ public:
   void updateCommitRefs(const QHash<QString, QStringList> &commitRefs);
 
   GitRepo::GitHistoryWithStatus historyWithStatus() const {
+    LOCKGUARD(_mutex);
     return _historyWithStatus;
   }
 

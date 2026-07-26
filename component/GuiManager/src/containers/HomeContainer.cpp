@@ -8,22 +8,22 @@
 #include "widgets/WorkspacesTableView.h"
 
 #include <GitHubRepo.h>
-#include <TokensStorage.h>
 #include <Log.h>
+#include <TokensStorage.h>
 
 #include <QAction>
-#include <QDir>
-#include <QEvent>
-#include <QHeaderView>
 #include <QComboBox>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDir>
+#include <QEvent>
+#include <QHeaderView>
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
-#include <QStandardItem>
-#include <QStandardItemModel>
+
+#include <QSize>
 #include <QStandardPaths>
 #include <QVBoxLayout>
 #include <QVariantMap>
@@ -40,7 +40,7 @@ HomeContainer::HomeContainer(QWidget *parent)
     : ContainerWidget(ContainerType::Home, parent), ui(new Ui::HomeContainer),
       _recentlyOpenedModel(new RecentlyOpenedReposModel(this)),
       _workspacesModel(new WorkspacesModel(this)),
-      _issueTrackerConnectionsModel(new QStandardItemModel(0, 3, this)),
+      _issueTrackersModel(new IssueTrackersModel(this)),
       _itemDelegate(new HomeRecentItemDelegate(this)),
       _configManager(::ConfigManager::ConfigManager::getInstance()),
       _dispatcher(1) {
@@ -55,11 +55,13 @@ HomeContainer::HomeContainer(QWidget *parent)
   ui->tableViewWorkspaces->resizeColumnsToContents();
   ui->tableViewWorkspaces->setItemDelegate(_itemDelegate);
   ui->tableViewWorkspaces->viewport()->installEventFilter(this);
-  ui->tableViewIssueTrackerConnections->setModel(_issueTrackerConnectionsModel);
+  ui->tableViewIssueTrackerConnections->setModel(_issueTrackersModel);
+  ui->tableViewIssueTrackerConnections->setItemDelegate(_itemDelegate);
+  ui->tableViewIssueTrackerConnections->resizeColumnsToContents();
+  ui->tableViewIssueTrackerConnections->viewport()->installEventFilter(this);
   ui->tableViewIssueTrackerConnections->horizontalHeader()
       ->setStretchLastSection(true);
-  _issueTrackerConnectionsModel->setHorizontalHeaderLabels(
-      {tr("Service"), tr("Repository"), tr("Status")});
+  ui->tableViewIssueTrackerConnections->setIconSize(QSize(16, 16));
 
   auto *connectToMenu = new QMenu(ui->connectToButton);
   auto *githubIssueTrackerAction =
@@ -69,6 +71,12 @@ HomeContainer::HomeContainer(QWidget *parent)
 
   ui->connectToButton->setMenu(connectToMenu);
 
+  connect(ui->tableViewIssueTrackerConnections,
+          &IssueTrackersTableView::hoverEnter, this,
+          &HomeContainer::hoverEnter);
+  connect(ui->tableViewIssueTrackerConnections,
+          &IssueTrackersTableView::hoverLeave, this,
+          &HomeContainer::hoverLeave);
   connect(ui->tableViewRecent, &RecentTableView::hoverEnter, this,
           &HomeContainer::hoverEnter);
   connect(ui->tableViewRecent, &RecentTableView::hoverLeave, this,
@@ -83,6 +91,8 @@ HomeContainer::HomeContainer(QWidget *parent)
           &HomeContainer::onCloneClicked);
   connect(ui->initButton, &QPushButton::clicked, this,
           &HomeContainer::onInitClicked);
+  connect(this, &HomeContainer::issueTrackerRightClicked, this,
+          &HomeContainer::onIssueTrackerRightClicked);
   connect(this, &HomeContainer::recentRightClicked, this,
           &HomeContainer::onRecentRightClicked);
   connect(this, &HomeContainer::workspaceRightClicked, this,
@@ -97,7 +107,15 @@ HomeContainer::~HomeContainer() {
   delete ui;
   delete _recentlyOpenedModel;
   delete _workspacesModel;
-  delete _issueTrackerConnectionsModel;
+  delete _issueTrackersModel;
+
+  LOG_PERF(0, "Exit");
+}
+
+void HomeContainer::reloadIssueTrackers() const {
+  LOG_PERF(0, "Enter");
+
+  _issueTrackersModel->reload();
 
   LOG_PERF(0, "Exit");
 }
@@ -123,6 +141,9 @@ void HomeContainer::selected() {
 
   reloadRecentlyOpened();
   reloadWorkspaces();
+  reloadIssueTrackers();
+
+  ui->tableViewIssueTrackerConnections->resizeColumnsToContents();
 
   LOG_PERF(0, "Exit");
 }
@@ -165,6 +186,29 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
           Util::Dispatcher::dispatchToMainThread(
               getSelf().toWeakRef(), [=]() { emit workspaceClicked(name); });
         }
+      } else if (viewport->parentWidget() ==
+                 ui->tableViewIssueTrackerConnections) {
+        const auto view = qobject_cast<QTableView *>(viewport->parentWidget());
+        const QPoint globalPos =
+            MousePositionCorrection::instance().correctedGlobalPosition(
+                mouseEvent);
+        if (const QModelIndex index =
+            view->indexAt(viewport->mapFromGlobal(globalPos));
+            index.isValid()) {
+          ui->tableViewIssueTrackerConnections->selectionModel()->select(
+              index, QItemSelectionModel::Select);
+          ui->tableViewIssueTrackerConnections->setCurrentIndex(index);
+          const QModelIndex serviceIndex =
+              _issueTrackersModel->index(index.row(), 0);
+          const QModelIndex repoIndex =
+              _issueTrackersModel->index(index.row(), 1);
+          const QString serviceType =
+              serviceIndex.data(Qt::UserRole).toString();
+          const QString name = repoIndex.data(Qt::DisplayRole).toString();
+          Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+            emit issueTrackerClicked(serviceType, name);
+          });
+        }
       }
     } else if (mouseEvent->button() == Qt::RightButton) {
       if (const auto viewport = qobject_cast<QWidget *>(obj);
@@ -203,6 +247,29 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
             emit workspaceRightClicked(name, globalPos);
           });
         }
+      } else if (viewport->parentWidget() ==
+                 ui->tableViewIssueTrackerConnections) {
+        const auto view = qobject_cast<QTableView *>(viewport->parentWidget());
+        const QPoint globalPos =
+            MousePositionCorrection::instance().correctedGlobalPosition(
+                mouseEvent);
+        if (const QModelIndex index =
+            view->indexAt(viewport->mapFromGlobal(globalPos));
+            index.isValid()) {
+          ui->tableViewIssueTrackerConnections->selectionModel()->select(
+              index, QItemSelectionModel::Select);
+          ui->tableViewIssueTrackerConnections->setCurrentIndex(index);
+          const QModelIndex serviceIndex =
+              _issueTrackersModel->index(index.row(), 0);
+          const QModelIndex repoIndex =
+              _issueTrackersModel->index(index.row(), 1);
+          const QString serviceType =
+              serviceIndex.data(Qt::UserRole).toString();
+          const QString name = repoIndex.data(Qt::DisplayRole).toString();
+          Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+            emit issueTrackerRightClicked(serviceType, name, globalPos);
+          });
+        }
       }
     }
   }
@@ -214,8 +281,13 @@ void HomeContainer::hoverEnter(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
 
+  qDebug() << "Enter: " << index.row() << ", " << index.column();
+
   _itemDelegate->setHover(index);
+
   ui->tableViewRecent->viewport()->update();
+  ui->tableViewWorkspaces->viewport()->update();
+  ui->tableViewIssueTrackerConnections->viewport()->update();
 
   setCursor(Qt::PointingHandCursor);
 
@@ -226,8 +298,13 @@ void HomeContainer::hoverLeave(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
 
+  qDebug() << "Leave: " << index.row() << ", " << index.column();
+
   _itemDelegate->setHover(QModelIndex());
+
   ui->tableViewRecent->viewport()->update();
+  ui->tableViewWorkspaces->viewport()->update();
+  ui->tableViewIssueTrackerConnections->viewport()->update();
 
   setCursor(Qt::ArrowCursor);
 
@@ -262,7 +339,8 @@ void HomeContainer::onGitHubIssueTrackerConnectClicked() {
   _dispatcher.dispatch([=]() {
     const QVariantMap authResult = authRepo->authenticate(authParameters);
     const bool success = authResult.value(QStringLiteral("success")).toBool();
-    const bool cancelled = authResult.value(QStringLiteral("cancelled")).toBool();
+    const bool cancelled =
+        authResult.value(QStringLiteral("cancelled")).toBool();
     const QString errorMessage =
         authResult.value(QStringLiteral("errorMessage")).toString();
 
@@ -286,11 +364,11 @@ void HomeContainer::onGitHubIssueTrackerConnectClicked() {
         authRepo->listUserRepositories(&repositoriesErrorMessage);
     if (repositories.isEmpty()) {
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        QMessageBox::warning(
-            this, tr("GitHub repositories"),
-            repositoriesErrorMessage.isEmpty()
-                ? tr("No GitHub repositories were found for the authenticated account.")
-                : repositoriesErrorMessage);
+        QMessageBox::warning(this, tr("GitHub repositories"),
+                             repositoriesErrorMessage.isEmpty()
+                                 ? tr("No GitHub repositories were found for "
+                                      "the authenticated account.")
+                                 : repositoriesErrorMessage);
       });
       return;
     }
@@ -343,7 +421,8 @@ void HomeContainer::onGitHubIssueTrackerConnectClicked() {
       return;
     }
 
-    const QStringList selectedPath = selectedRepository.split(QStringLiteral("/"));
+    const QStringList selectedPath =
+        selectedRepository.split(QStringLiteral("/"));
     if (selectedPath.size() < 2 || selectedPath.first().isEmpty() ||
         selectedPath.last().isEmpty()) {
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
@@ -353,26 +432,17 @@ void HomeContainer::onGitHubIssueTrackerConnectClicked() {
       return;
     }
 
-    const auto selectedRepo =
-        QSharedPointer<IssueTrackers::GitHubRepo>::create(selectedPath.first(),
-                                                          selectedPath.last(),
-                                                          authRepo->host());
+    const auto selectedRepo = QSharedPointer<IssueTrackers::GitHubRepo>::create(
+        selectedPath.first(), selectedPath.last(), authRepo->host());
     selectedRepo->setAccessToken(authRepo->accessToken(),
                                  authRepo->accessTokenExpiresAt());
     IssueTrackers::TokensStorage::getInstance().storeToken(
         selectedRepo->serviceName(), selectedRepo->repositoryPath(),
-        selectedRepo->accessToken(), selectedRepo->accessTokenExpiresAt(), true);
+        selectedRepo->accessToken(), selectedRepo->accessTokenExpiresAt(),
+        true);
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _issueTrackerConnections += selectedRepo;
-
-      const QList<QStandardItem *> row = {
-          new QStandardItem(selectedRepo->serviceName()),
-          new QStandardItem(selectedRepo->repositoryPath()),
-          new QStandardItem(selectedRepo->hasValidAccessToken()
-                                ? tr("Connected")
-                                : tr("Authenticated"))};
-      _issueTrackerConnectionsModel->appendRow(row);
+      _issueTrackersModel->reload();
       ui->tableViewIssueTrackerConnections->resizeColumnsToContents();
     });
 
@@ -392,6 +462,25 @@ void HomeContainer::onOpenClicked(bool checked) {
   LOG_PERF(0, "Enter");
 
   emit open();
+
+  LOG_PERF(0, "Exit");
+}
+
+void HomeContainer::onIssueTrackerRightClicked(const QString &serviceType,
+                                               const QString &name,
+                                               const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  QAction removeAction(tr("Remove"), this);
+  connect(&removeAction, &QAction::triggered, this, [=]() {
+    IssueTrackers::TokensStorage::getInstance().removeToken(serviceType, name);
+    _issueTrackersModel->reload();
+  });
+
+  QMenu menu(this);
+  menu.addAction(&removeAction);
+
+  menu.exec(pos);
 
   LOG_PERF(0, "Exit");
 }

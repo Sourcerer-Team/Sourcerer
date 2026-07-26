@@ -1,5 +1,6 @@
 #pragma once
 
+#include "models/IssueTrackersModel.h"
 #include "models/RecentlyOpenedReposModel.h"
 #include "models/WorkspacesModel.h"
 #include "widgets/ContainerWidget.h"
@@ -12,14 +13,13 @@
 #include <QEnableSharedFromThis>
 #include <QModelIndex>
 #include <QSharedPointer>
+#include <QTableView>
 #include <QWeakPointer>
 #include <QWidget>
 
 namespace Ui {
 class HomeContainer;
 }
-
-class QStandardItemModel;
 
 namespace GuiManager::Containers {
 
@@ -40,6 +40,7 @@ public:
 
   SharedPtr getSelf() { return sharedFromThis(); }
 
+  void reloadIssueTrackers() const;
   void reloadRecentlyOpened() const;
   void reloadWorkspaces() const;
 
@@ -49,6 +50,9 @@ signals:
   void clone();
   void init() override;
   void open();
+  void issueTrackerClicked(const QString &serviceType, const QString &name);
+  void issueTrackerRightClicked(const QString &serviceType, const QString &name,
+                                const QPoint &pos);
   void recentClicked(const QString &path);
   void recentRightClicked(const QString &path, const QPoint &pos);
   void workspaceClicked(const QString &name);
@@ -64,6 +68,8 @@ private slots:
   void onGitHubIssueTrackerConnectClicked();
   void onInitClicked();
   void onOpenClicked(bool checked = false);
+  void onIssueTrackerRightClicked(const QString &serviceType,
+                                  const QString &name, const QPoint &pos);
   void onRecentRightClicked(const QString &path, const QPoint &pos);
   void onWorkspaceRightClicked(const QString &name, const QPoint &pos);
 
@@ -71,8 +77,7 @@ private:
   Ui::HomeContainer *ui;
   RecentlyOpenedReposModel *_recentlyOpenedModel;
   WorkspacesModel *_workspacesModel;
-  QStandardItemModel *_issueTrackerConnectionsModel;
-  QVector<QSharedPointer<IssueTrackers::GitHubRepo>> _issueTrackerConnections;
+  IssueTrackersModel *_issueTrackersModel;
   HomeRecentItemDelegate *_itemDelegate;
   ::ConfigManager::ConfigManager &_configManager;
   Util::Dispatcher _dispatcher;

@@ -29,6 +29,10 @@
         <file>icons/padlock.png</file>
         <file>icons/id-card.png</file>
         <file>icons/ssh-key.svg</file>
+        <file>icons/issue-trackers/github.svg</file>
+        <file>icons/issue-trackers/gitlab.svg</file>
+        <file>icons/issue-trackers/azure.svg</file>
+        <file>icons/issue-trackers/bitbucket.svg</file>
         <file>icons/ok.png</file>
         <file>icons/cancel.png</file>
         <file>icons/checkbox-check-dark.svg</file>

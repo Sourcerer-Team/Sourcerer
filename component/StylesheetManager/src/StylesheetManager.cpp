@@ -1116,7 +1116,9 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         width: 12px;
         height: 12px;
       }
-      QTableView#tableViewRecent, QTableView#tableViewWorkspaces {
+      QTableView#tableViewRecent,
+      QTableView#tableViewWorkspaces,
+      QTableView#tableViewIssueTrackerConnections {
         color: palette(window-text);
         background-color: palette(window);
         alternate-background-color: palette(window);

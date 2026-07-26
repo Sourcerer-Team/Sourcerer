@@ -85,6 +85,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/models/GitCommitListModel.h
         include/models/GitCommitTreeModel.h
         include/models/GitHistoryModel.h
+        include/models/IssueTrackersModel.h
         include/models/RecentlyOpenedReposModel.h
         include/models/RemotesModel.h
         include/models/StashesModel.h
@@ -123,6 +124,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/OpaquePushButton.h
         include/widgets/PersistentPlaceholderLineEdit.h
         include/widgets/ProfileBoardWidget.h
+        include/widgets/IssueTrackersTableView.h
         include/widgets/RecentTableView.h
         include/widgets/WorkspacesTableView.h
         include/widgets/RemoteGitBranchesPage.h
@@ -181,6 +183,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/models/GitCommitListModel.cpp
         src/models/GitCommitTreeModel.cpp
         src/models/GitHistoryModel.cpp
+        src/models/IssueTrackersModel.cpp
         src/models/RecentlyOpenedReposModel.cpp
         src/models/RemotesModel.cpp
         src/models/StashesModel.cpp
@@ -210,6 +213,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/MergeDiffView.cpp
         src/widgets/MouseTrackingSplitter.cpp
         src/widgets/ProfileBoardWidget.cpp
+        src/widgets/IssueTrackersTableView.cpp
         src/widgets/RecentTableView.cpp
         src/widgets/WorkspacesTableView.cpp
         src/widgets/RemoteGitBranchesPage.cpp
