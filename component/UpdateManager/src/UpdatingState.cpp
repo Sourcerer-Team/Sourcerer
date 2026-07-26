@@ -8,14 +8,14 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
-#include <QIODevice>
 #include <QFileInfo>
+#include <QIODevice>
 #include <QNetworkReply>
 #include <QProcess>
+#include <QStringList>
 #include <QTemporaryFile>
 #include <QTextStream>
 #include <QUrl>
-#include <QStringList>
 
 #include <chrono>
 #include <thread>
@@ -51,7 +51,7 @@ QString resolveRunningAppImagePath() {
 
   QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
 
-         // Iterate through all environment variables
+  // Iterate through all environment variables
   foreach (QString key, env.keys()) {
     LOG_DEBUG("Key: {}, Value: {}", key, env.value(key));
   }
@@ -72,7 +72,8 @@ QString resolveRunningAppImagePath() {
       continue;
     }
 
-    const QStringList mountFields = parts.first().split(' ', Qt::SkipEmptyParts);
+    const QStringList mountFields =
+        parts.first().split(' ', Qt::SkipEmptyParts);
     const QStringList fsFields = parts.last().split(' ', Qt::SkipEmptyParts);
     if (mountFields.size() < 5 || fsFields.size() < 2) {
       continue;
@@ -98,8 +99,8 @@ QString resolveRunningAppImagePath() {
     }
   }
 
-  LOG_WARN(
-      "Could not resolve running AppImage file. Falling back to direct launch.");
+  LOG_WARN("Could not resolve running AppImage file. Falling back to direct "
+           "launch.");
   return QString();
 }
 #endif
@@ -134,7 +135,8 @@ bool UpdatingState::process(Fsm::FsmEvent event) {
     const bool updated = workerLoop(news);
 
     if (updated) {
-      EventManager::Event updatedEvent(EventManager::EventType::ApplicationUpdated);
+      EventManager::Event updatedEvent(
+          EventManager::EventType::ApplicationUpdated);
       updatedEvent.addData(news.version);
       _eventManager.send(updatedEvent);
     }
@@ -208,7 +210,8 @@ bool UpdatingState::downloadUpdate(
     const Util::HttpReply reply = _httpClient.sendRequest(
         downloadUrl, Util::HttpMethod::Get, {}, QByteArray());
     if (reply.error() != QNetworkReply::NoError) {
-      LOG_WARN("Failed to download update '{}' from '{}' on attempt {}/{}. Error: {}",
+      LOG_WARN("Failed to download update '{}' from '{}' on attempt {}/{}. "
+               "Error: {}",
                newsItem.id.toStdString(), downloadUrl.toStdString(), attempt,
                DOWNLOAD_RETRY_COUNT, static_cast<int>(reply.error()));
     } else {
@@ -221,7 +224,8 @@ bool UpdatingState::downloadUpdate(
         tempFile.setAutoRemove(false);
 
         if (!tempFile.open()) {
-          LOG_WARN("Failed to create temporary file for update '{}' on attempt {}/{}.",
+          LOG_WARN("Failed to create temporary file for update '{}' on attempt "
+                   "{}/{}.",
                    newsItem.id.toStdString(), attempt, DOWNLOAD_RETRY_COUNT);
         } else if (tempFile.write(response) != response.size()) {
           LOG_WARN("Failed to write downloaded update '{}' on attempt {}/{}.",
@@ -267,7 +271,7 @@ bool UpdatingState::launchInstaller(const QString &downloadedFilePath) const {
       0) {
     const QString program = QStringLiteral("msiexec");
     const QStringList arguments = {
-                                   QStringLiteral("/i"),
+        QStringLiteral("/i"),
         QDir::toNativeSeparators(downloadedFilePath),
         QStringLiteral("/quiet"),
         QStringLiteral("/norestart"),

@@ -15,6 +15,8 @@ namespace Ui {
 class HomeContainer;
 }
 
+class QStandardItemModel;
+
 namespace GuiManager::Containers {
 
 using namespace Delegates;
@@ -64,6 +66,7 @@ private:
   Ui::HomeContainer *ui;
   RecentlyOpenedReposModel *_recentlyOpenedModel;
   WorkspacesModel *_workspacesModel;
+  QStandardItemModel *_issueTrackerConnectionsModel;
   HomeRecentItemDelegate *_itemDelegate;
   ::ConfigManager::ConfigManager &_configManager;
 };

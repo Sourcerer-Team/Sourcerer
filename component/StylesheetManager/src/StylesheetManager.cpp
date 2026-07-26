@@ -376,6 +376,19 @@ const QString SOURCERER_DARK_STYLESHEET = QStringLiteral(R"(
         padding: 5px;
         text-decoration: none;
       }
+      QToolButton#connectToButton{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QToolButton#connectToButton:hover{
+        background-color: #4a6070;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+        text-decoration: none;
+      }
       QPushButton#initButton{
         background-color: #384D59;
         border: 1px solid gray;
@@ -1312,6 +1325,19 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         padding: 5px;
         text-decoration: none;
       }
+      QToolButton#connectToButton{
+        background-color: #E7EEF4;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QToolButton#connectToButton:hover{
+        background-color: #4a6070;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+        text-decoration: none;
+      }
       QPushButton#initButton{
         background-color: #E7EEF4;
         border: 1px solid gray;
@@ -1903,7 +1929,7 @@ const QString SOURCERER_LIGHT_STYLESHEET = QStringLiteral(R"(
         background-color: #E7EEF4;
         color: #202020;
       }
-    
+
     )");
 QMap<StylesheetKey, QString> STYLESHEETS = {
     {StylesheetKey::SourcererLight, SOURCERER_LIGHT_STYLESHEET},

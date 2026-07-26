@@ -25,8 +25,9 @@ private:
   bool downloadUpdate(const NewsTracker::Structs::NewsItem &newsItem,
                       QString &downloadedFilePath);
   bool launchInstaller(const QString &downloadedFilePath) const;
-  static QString buildDownloadFilePath(const NewsTracker::Structs::NewsItem &newsItem,
-                                       const QString &downloadUrl);
+  static QString
+  buildDownloadFilePath(const NewsTracker::Structs::NewsItem &newsItem,
+                        const QString &downloadUrl);
   static QString sanitizeFileName(QString value);
   static bool makeExecutableIfNeeded(const QString &downloadedFilePath);
 

@@ -14,6 +14,7 @@
 #include <QEvent>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QStandardItemModel>
 #include <QStandardPaths>
 
 #define THREAD_ID "HomeContainer"
@@ -28,6 +29,7 @@ HomeContainer::HomeContainer(QWidget *parent)
     : ContainerWidget(ContainerType::Home, parent), ui(new Ui::HomeContainer),
       _recentlyOpenedModel(new RecentlyOpenedReposModel(this)),
       _workspacesModel(new WorkspacesModel(this)),
+      _issueTrackerConnectionsModel(new QStandardItemModel(0, 1, this)),
       _itemDelegate(new HomeRecentItemDelegate(this)),
       _configManager(::ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
@@ -41,6 +43,12 @@ HomeContainer::HomeContainer(QWidget *parent)
   ui->tableViewWorkspaces->resizeColumnsToContents();
   ui->tableViewWorkspaces->setItemDelegate(_itemDelegate);
   ui->tableViewWorkspaces->viewport()->installEventFilter(this);
+  ui->tableViewIssueTrackerConnections->setModel(_issueTrackerConnectionsModel);
+
+  auto connectToMenu = new QMenu(ui->connectToButton);
+  connectToMenu->addAction(tr("GitHub issue tracker"));
+
+  ui->connectToButton->setMenu(connectToMenu);
 
   connect(ui->tableViewRecent, &RecentTableView::hoverEnter, this,
           &HomeContainer::hoverEnter);
@@ -70,6 +78,7 @@ HomeContainer::~HomeContainer() {
   delete ui;
   delete _recentlyOpenedModel;
   delete _workspacesModel;
+  delete _issueTrackerConnectionsModel;
 
   LOG_PERF(0, "Exit");
 }

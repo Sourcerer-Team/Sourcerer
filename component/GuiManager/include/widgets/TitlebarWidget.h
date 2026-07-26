@@ -20,8 +20,7 @@ public:
   explicit TitlebarWidget(QWidget *parent = nullptr);
   ~TitlebarWidget() override;
 
-  void addTab(const QString &text,
-              const QString &toolTip = QString()) const;
+  void addTab(const QString &text, const QString &toolTip = QString()) const;
   void removeTab(int index) const;
   void selectTab(int index) const;
   int tabsCount() const;

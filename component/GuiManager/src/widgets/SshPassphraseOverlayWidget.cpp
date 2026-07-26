@@ -60,7 +60,8 @@ SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(uint id, QWidget *parent)
                 visible ? tr("Hide passphrase") : tr("Show passphrase"));
           });
 
-  if (const auto actionButtons = _passphraseLineEdit->findChildren<QToolButton *>();
+  if (const auto actionButtons =
+          _passphraseLineEdit->findChildren<QToolButton *>();
       !actionButtons.isEmpty()) {
     auto *eyeButton = actionButtons.last();
     eyeButton->setObjectName("buttonSshPassphraseOverlayWidgetPassphraseEye");

@@ -75,8 +75,7 @@ TitlebarWidget::~TitlebarWidget() {
   LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::addTab(const QString &text,
-                            const QString &toolTip) const {
+void TitlebarWidget::addTab(const QString &text, const QString &toolTip) const {
   LOG_PERF(0, "Enter");
 
   const int index = ui->tabBar->addTab(text);

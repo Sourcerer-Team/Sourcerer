@@ -10,7 +10,6 @@
 
 namespace UpdateManager {
 
-
 WaitingState::WaitingState(UpdateManagerFsm &fsm)
     : UpdateManagerState{StateType::Waiting, fsm} {
   LOG_PERF(0, "Enter");
