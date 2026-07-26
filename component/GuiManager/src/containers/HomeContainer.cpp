@@ -14,13 +14,17 @@
 #include <QDir>
 #include <QEvent>
 #include <QHeaderView>
-#include <QInputDialog>
+#include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QStandardItem>
 #include <QStandardItemModel>
 #include <QStandardPaths>
+#include <QVBoxLayout>
 #include <QVariantMap>
 
 #define THREAD_ID "HomeContainer"
@@ -247,19 +251,17 @@ void HomeContainer::onGitHubIssueTrackerConnectClicked() {
     return;
   }
 
-  const auto issueTrackerRepo =
+  const auto authRepo =
       QSharedPointer<IssueTrackers::GitHubRepo>::create(QString(), QString());
   const WeakPtr guard = getSelf().toWeakRef();
   const QVariantMap authParameters = {
-                                      {QStringLiteral("clientId"), clientId},
-      {QStringLiteral("scope"), QStringLiteral("repo")}};
+      {QStringLiteral("clientId"), clientId},
+      {QStringLiteral("scope"), QStringLiteral("repo read:org")}};
 
   _dispatcher.dispatch([=]() {
-    const QVariantMap authResult =
-        issueTrackerRepo->authenticate(authParameters);
+    const QVariantMap authResult = authRepo->authenticate(authParameters);
     const bool success = authResult.value(QStringLiteral("success")).toBool();
-    const bool cancelled =
-        authResult.value(QStringLiteral("cancelled")).toBool();
+    const bool cancelled = authResult.value(QStringLiteral("cancelled")).toBool();
     const QString errorMessage =
         authResult.value(QStringLiteral("errorMessage")).toString();
 
@@ -278,21 +280,96 @@ void HomeContainer::onGitHubIssueTrackerConnectClicked() {
       return;
     }
 
+    QString repositoriesErrorMessage;
+    const QStringList repositories =
+        authRepo->listUserRepositories(&repositoriesErrorMessage);
+    if (repositories.isEmpty()) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        QMessageBox::warning(
+            this, tr("GitHub repositories"),
+            repositoriesErrorMessage.isEmpty()
+                ? tr("No GitHub repositories were found for the authenticated account.")
+                : repositoriesErrorMessage);
+      });
+      return;
+    }
+
+    QString selectedRepository;
+    bool repositorySelectionCancelled = false;
+    const auto showRepositorySelectionDialog =
+        [=, &selectedRepository, &repositorySelectionCancelled]() {
+          QDialog dialog(nullptr);
+          dialog.setWindowTitle(tr("Choose GitHub repository"));
+          dialog.setModal(true);
+          dialog.setMinimumWidth(420);
+
+          auto *layout = new QVBoxLayout(&dialog);
+
+          auto *label = new QLabel(
+              tr("Select the GitHub repository to connect:"), &dialog);
+          label->setWordWrap(true);
+          layout->addWidget(label);
+
+          auto *comboBox = new QComboBox(&dialog);
+          comboBox->addItems(repositories);
+          comboBox->setCurrentIndex(0);
+          layout->addWidget(comboBox);
+
+          auto *buttonBox = new QDialogButtonBox(
+              QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+          connect(buttonBox, &QDialogButtonBox::accepted, &dialog,
+                  &QDialog::accept);
+          connect(buttonBox, &QDialogButtonBox::rejected, &dialog,
+                  &QDialog::reject);
+          layout->addWidget(buttonBox);
+
+          if (dialog.exec() == QDialog::Accepted) {
+            selectedRepository = comboBox->currentText();
+          } else {
+            repositorySelectionCancelled = true;
+          }
+        };
+
+    if (QThread::currentThread() == qApp->thread()) {
+      showRepositorySelectionDialog();
+    } else {
+      QMetaObject::invokeMethod(qApp, showRepositorySelectionDialog,
+                                Qt::BlockingQueuedConnection);
+    }
+
+    if (repositorySelectionCancelled || selectedRepository.isEmpty()) {
+      LOG_INFO("GitHub repository selection cancelled by user");
+      return;
+    }
+
+    const QStringList selectedPath = selectedRepository.split(QStringLiteral("/"));
+    if (selectedPath.size() < 2 || selectedPath.first().isEmpty() ||
+        selectedPath.last().isEmpty()) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        QMessageBox::critical(this, tr("Failure"),
+                              tr("Failed to parse the selected repository."));
+      });
+      return;
+    }
+
+    const auto selectedRepo =
+        QSharedPointer<IssueTrackers::GitHubRepo>::create(selectedPath.first(),
+                                                          selectedPath.last(),
+                                                          authRepo->host());
+    selectedRepo->setAccessToken(authRepo->accessToken(),
+                                 authRepo->accessTokenExpiresAt());
+
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _issueTrackerConnections += issueTrackerRepo;
+      _issueTrackerConnections += selectedRepo;
 
       const QList<QStandardItem *> row = {
-          new QStandardItem(issueTrackerRepo->serviceName()),
-          new QStandardItem(tr("OAuth login")),
-          new QStandardItem(issueTrackerRepo->hasValidAccessToken()
+          new QStandardItem(selectedRepo->serviceName()),
+          new QStandardItem(selectedRepo->repositoryPath()),
+          new QStandardItem(selectedRepo->hasValidAccessToken()
                                 ? tr("Connected")
                                 : tr("Authenticated"))};
       _issueTrackerConnectionsModel->appendRow(row);
       ui->tableViewIssueTrackerConnections->resizeColumnsToContents();
-
-      QMessageBox::information(
-          this, tr("GitHub OAuth connected"),
-          tr("GitHub access token acquired successfully."));
     });
 
     LOG_PERF(0, "Exit");

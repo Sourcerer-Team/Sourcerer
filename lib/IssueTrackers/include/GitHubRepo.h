@@ -8,6 +8,7 @@
 #include <QNetworkReply>
 #include <QPair>
 #include <QString>
+#include <QStringList>
 #include <QUrl>
 #include <QVariantMap>
 
@@ -43,6 +44,8 @@ public:
   bool isValid() const override;
 
   QVariantMap authenticate(const QVariantMap &parameters) override;
+
+  QStringList listUserRepositories(QString *errorMessage = nullptr) const;
 
   QPair<QNetworkReply::NetworkError, QString>
   requestDeviceCode(const QString &clientId, DeviceCodeResponse *response,

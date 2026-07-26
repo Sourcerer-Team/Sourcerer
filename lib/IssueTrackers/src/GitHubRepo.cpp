@@ -19,16 +19,19 @@
 #include <QNetworkRequest>
 #include <QPointer>
 #include <QPushButton>
+#include <QSet>
 #include <QThread>
 #include <QTimer>
 #include <QUrlQuery>
 #include <QVBoxLayout>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QVariantMap>
 
 #include <algorithm>
 #include <atomic>
+#include <functional>
 #include <memory>
 #include <utility>
 
@@ -278,6 +281,203 @@ QVariantMap GitHubRepo::authenticate(const QVariantMap &parameters) {
 
   LOG_PERF(0, "Exit");
   return result;
+}
+
+QStringList GitHubRepo::listUserRepositories(QString *errorMessage) const {
+  LOG_PERF(0, "Enter");
+
+  QStringList repositories;
+  QSet<QString> seenRepositories;
+
+  if (!hasValidAccessToken()) {
+    const QString message = QStringLiteral("GitHub access token is missing or expired.");
+    if (errorMessage) {
+      *errorMessage = message;
+    }
+    LOG_ERROR(Log::ErrorId::Security, "{}", message.toStdString());
+    LOG_PERF(0, "Exit");
+    return repositories;
+  }
+
+  const auto httpClient = std::make_shared<Util::HttpClient>();
+  const auto authHeaderValue = QStringLiteral("Bearer ") + _accessToken;
+
+  const auto requestJsonArray =
+      [&](const QUrl &url, const QString &failureMessage,
+          QJsonArray *arrayOut) -> bool {
+    if (!arrayOut) {
+      return false;
+    }
+
+    QMap<QNetworkRequest::KnownHeaders, QString> httpHeaders;
+    httpHeaders[QNetworkRequest::KnownHeaders::ContentTypeHeader] =
+        QStringLiteral("application/json");
+
+    QMap<QString, QString> rawHeaders;
+    rawHeaders[QStringLiteral("Accept")] = QStringLiteral("application/json");
+    rawHeaders[QStringLiteral("Authorization")] = authHeaderValue;
+    rawHeaders[QStringLiteral("X-GitHub-Api-Version")] =
+        QStringLiteral("2022-11-28");
+
+    const auto httpReply = httpClient->sendRequest(url.toString(),
+                                                   Util::HttpMethod::Get,
+                                                   httpHeaders, rawHeaders,
+                                                   QByteArray());
+    if (httpReply.error() != QNetworkReply::NetworkError::NoError) {
+      const QString message = responseErrorMessage(httpReply, failureMessage);
+      if (errorMessage) {
+        *errorMessage = message;
+      }
+      LOG_ERROR(Log::ErrorId::Network, "{}", message.toStdString());
+      return false;
+    }
+
+    const QJsonDocument jsonDoc = QJsonDocument::fromJson(httpReply.response());
+    if (!jsonDoc.isArray()) {
+      const QString message = responseErrorMessage(
+          httpReply, QStringLiteral("Invalid GitHub repositories response."));
+      if (errorMessage) {
+        *errorMessage = message;
+      }
+      LOG_ERROR(Log::ErrorId::Network, "{}", message.toStdString());
+      return false;
+    }
+
+    *arrayOut = jsonDoc.array();
+    return true;
+  };
+
+  const auto appendRepositoryNames = [&](const QJsonArray &repos) {
+    for (const auto &repoValue : repos) {
+      if (!repoValue.isObject()) {
+        continue;
+      }
+
+      const QJsonObject repoObj = repoValue.toObject();
+      const QString fullName =
+          repoObj.value(QStringLiteral("full_name")).toString().trimmed();
+      const QString name = repoObj.value(QStringLiteral("name")).toString().trimmed();
+      const QString repositoryName = !fullName.isEmpty() ? fullName : name;
+      if (repositoryName.isEmpty() || seenRepositories.contains(repositoryName)) {
+        continue;
+      }
+
+      seenRepositories.insert(repositoryName);
+      repositories += repositoryName;
+    }
+  };
+
+  const auto fetchPagedRepositories =
+      [&](const std::function<QUrl(int)> &buildUrl,
+          const QString &failureMessage) -> bool {
+    int page = 1;
+    while (true) {
+      QJsonArray pageArray;
+      if (!requestJsonArray(buildUrl(page), failureMessage, &pageArray)) {
+        return false;
+      }
+
+      const int beforeCount = repositories.size();
+      appendRepositoryNames(pageArray);
+      if (pageArray.size() < 100 || repositories.size() == beforeCount) {
+        return true;
+      }
+
+      ++page;
+    }
+  };
+
+  const auto userReposUrl = [&](int page) {
+    QUrl url(hostToApiBaseUrl(_host) + QStringLiteral("/user/repos"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("per_page"), QStringLiteral("100"));
+    query.addQueryItem(QStringLiteral("page"), QString::number(page));
+    query.addQueryItem(QStringLiteral("affiliation"),
+                       QStringLiteral("owner,collaborator,organization_member"));
+    query.addQueryItem(QStringLiteral("sort"), QStringLiteral("full_name"));
+    url.setQuery(query);
+    return url;
+  };
+
+  if (!fetchPagedRepositories(userReposUrl,
+                              QStringLiteral("Failed to request GitHub repositories."))) {
+    LOG_PERF(0, "Exit");
+    return repositories;
+  }
+
+  const auto orgsUrl = [&](int page) {
+    QUrl url(hostToApiBaseUrl(_host) + QStringLiteral("/user/orgs"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("per_page"), QStringLiteral("100"));
+    query.addQueryItem(QStringLiteral("page"), QString::number(page));
+    url.setQuery(query);
+    return url;
+  };
+
+  int orgPage = 1;
+  while (true) {
+    QJsonArray orgArray;
+    if (!requestJsonArray(orgsUrl(orgPage),
+                          QStringLiteral("Failed to request GitHub organizations."),
+                          &orgArray)) {
+      LOG_PERF(0, "Exit");
+      return repositories;
+    }
+
+    if (orgArray.isEmpty()) {
+      break;
+    }
+
+    for (const auto &orgValue : orgArray) {
+      if (!orgValue.isObject()) {
+        continue;
+      }
+
+      const QJsonObject orgObj = orgValue.toObject();
+      const QString orgLogin =
+          orgObj.value(QStringLiteral("login")).toString().trimmed();
+      if (orgLogin.isEmpty()) {
+        continue;
+      }
+
+      const auto orgReposUrl = [&](int page) {
+        QUrl url(hostToApiBaseUrl(_host) + QStringLiteral("/orgs/") + orgLogin +
+                 QStringLiteral("/repos"));
+        QUrlQuery query;
+        query.addQueryItem(QStringLiteral("per_page"), QStringLiteral("100"));
+        query.addQueryItem(QStringLiteral("page"), QString::number(page));
+        query.addQueryItem(QStringLiteral("type"), QStringLiteral("all"));
+        query.addQueryItem(QStringLiteral("sort"), QStringLiteral("full_name"));
+        url.setQuery(query);
+        return url;
+      };
+
+      if (!fetchPagedRepositories(
+              orgReposUrl,
+              QStringLiteral("Failed to request GitHub organization repositories."))) {
+        LOG_PERF(0, "Exit");
+        return repositories;
+      }
+    }
+
+    if (orgArray.size() < 100) {
+      break;
+    }
+
+    ++orgPage;
+  }
+
+  if (repositories.isEmpty()) {
+    if (errorMessage) {
+      *errorMessage = QStringLiteral("No GitHub repositories were found for the authenticated account.");
+    }
+    LOG_INFO("No GitHub repositories found for authenticated account");
+  } else if (errorMessage) {
+    errorMessage->clear();
+  }
+
+  LOG_PERF(0, "Exit");
+  return repositories;
 }
 
 IssueTrackerRepo::Type GitHubRepo::type() const {
