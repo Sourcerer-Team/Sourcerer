@@ -8,7 +8,7 @@ project(IssueTrackers)
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(Qt6 REQUIRED COMPONENTS Core)
+find_package(Qt6 REQUIRED COMPONENTS Core Network Widgets)
 
 add_library(IssueTrackers STATIC
     include/GitHubRepo.h
@@ -17,10 +17,16 @@ add_library(IssueTrackers STATIC
     src/IssueTrackerRepo.cpp
 )
 
+include(../../cmake/helpers.cmake)
 
+includeLib(IssueTrackers Log)
+includeLib(IssueTrackers Util)
 
 target_link_libraries(IssueTrackers PRIVATE
     Qt6::Core
+    Qt6::Gui
+    Qt6::Network
+    Qt6::Widgets
 )
 
 target_include_directories(IssueTrackers PRIVATE

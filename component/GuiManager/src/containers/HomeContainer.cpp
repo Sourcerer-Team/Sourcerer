@@ -2,20 +2,26 @@
 #include "MousePositionCorrection.h"
 
 #include "Constants.h"
-#include "Dispatcher.h"
 #include "containers/ui_HomeContainer.h"
 #include "delegates/HomeRecentItemDelegate.h"
 #include "widgets/RecentTableView.h"
 #include "widgets/WorkspacesTableView.h"
 
+#include <GitHubRepo.h>
 #include <Log.h>
 
+#include <QAction>
 #include <QDir>
 #include <QEvent>
+#include <QHeaderView>
+#include <QInputDialog>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMouseEvent>
+#include <QStandardItem>
 #include <QStandardItemModel>
 #include <QStandardPaths>
+#include <QVariantMap>
 
 #define THREAD_ID "HomeContainer"
 
@@ -29,9 +35,10 @@ HomeContainer::HomeContainer(QWidget *parent)
     : ContainerWidget(ContainerType::Home, parent), ui(new Ui::HomeContainer),
       _recentlyOpenedModel(new RecentlyOpenedReposModel(this)),
       _workspacesModel(new WorkspacesModel(this)),
-      _issueTrackerConnectionsModel(new QStandardItemModel(0, 1, this)),
+      _issueTrackerConnectionsModel(new QStandardItemModel(0, 3, this)),
       _itemDelegate(new HomeRecentItemDelegate(this)),
-      _configManager(::ConfigManager::ConfigManager::getInstance()) {
+      _configManager(::ConfigManager::ConfigManager::getInstance()),
+      _dispatcher(1) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -44,9 +51,16 @@ HomeContainer::HomeContainer(QWidget *parent)
   ui->tableViewWorkspaces->setItemDelegate(_itemDelegate);
   ui->tableViewWorkspaces->viewport()->installEventFilter(this);
   ui->tableViewIssueTrackerConnections->setModel(_issueTrackerConnectionsModel);
+  ui->tableViewIssueTrackerConnections->horizontalHeader()
+      ->setStretchLastSection(true);
+  _issueTrackerConnectionsModel->setHorizontalHeaderLabels(
+      {tr("Service"), tr("Repository"), tr("Status")});
 
-  auto connectToMenu = new QMenu(ui->connectToButton);
-  connectToMenu->addAction(tr("GitHub issue tracker"));
+  auto *connectToMenu = new QMenu(ui->connectToButton);
+  auto *githubIssueTrackerAction =
+      connectToMenu->addAction(tr("GitHub issue tracker"));
+  connect(githubIssueTrackerAction, &QAction::triggered, this,
+          &HomeContainer::onGitHubIssueTrackerConnectClicked);
 
   ui->connectToButton->setMenu(connectToMenu);
 
@@ -221,6 +235,68 @@ void HomeContainer::onCloneClicked() {
   emit clone();
 
   LOG_PERF(0, "Exit");
+}
+
+void HomeContainer::onGitHubIssueTrackerConnectClicked() {
+  LOG_PERF(0, "Enter");
+
+  const QString clientId =
+      _configManager.getString(ConfigManager::ConfigKey::GitHubOAuthClientId);
+  if (clientId.isEmpty()) {
+    LOG_PERF(0, "Exit - cancelled while entering client id");
+    return;
+  }
+
+  const auto issueTrackerRepo =
+      QSharedPointer<IssueTrackers::GitHubRepo>::create(QString(), QString());
+  const WeakPtr guard = getSelf().toWeakRef();
+  const QVariantMap authParameters = {
+                                      {QStringLiteral("clientId"), clientId},
+      {QStringLiteral("scope"), QStringLiteral("repo")}};
+
+  _dispatcher.dispatch([=]() {
+    const QVariantMap authResult =
+        issueTrackerRepo->authenticate(authParameters);
+    const bool success = authResult.value(QStringLiteral("success")).toBool();
+    const bool cancelled =
+        authResult.value(QStringLiteral("cancelled")).toBool();
+    const QString errorMessage =
+        authResult.value(QStringLiteral("errorMessage")).toString();
+
+    if (!success) {
+      if (cancelled) {
+        LOG_INFO("GitHub OAuth authentication cancelled by user");
+        return;
+      }
+
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        QMessageBox::critical(this, tr("Failure"),
+                              errorMessage.isEmpty()
+                                  ? tr("Failed to authenticate with GitHub")
+                                  : errorMessage);
+      });
+      return;
+    }
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _issueTrackerConnections += issueTrackerRepo;
+
+      const QList<QStandardItem *> row = {
+          new QStandardItem(issueTrackerRepo->serviceName()),
+          new QStandardItem(tr("OAuth login")),
+          new QStandardItem(issueTrackerRepo->hasValidAccessToken()
+                                ? tr("Connected")
+                                : tr("Authenticated"))};
+      _issueTrackerConnectionsModel->appendRow(row);
+      ui->tableViewIssueTrackerConnections->resizeColumnsToContents();
+
+      QMessageBox::information(
+          this, tr("GitHub OAuth connected"),
+          tr("GitHub access token acquired successfully."));
+    });
+
+    LOG_PERF(0, "Exit");
+  });
 }
 
 void HomeContainer::onInitClicked() {

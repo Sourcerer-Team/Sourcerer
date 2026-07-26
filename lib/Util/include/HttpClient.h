@@ -50,8 +50,9 @@ class HttpReply : public QObject {
 public:
   HttpReply() : _error(QNetworkReply::NetworkError::NoError) {}
 
-  HttpReply(QNetworkReply::NetworkError error, const QByteArray &bytes)
-      : _error(error), _response(bytes) {}
+  HttpReply(QNetworkReply::NetworkError error, const QByteArray &bytes,
+            const QString &errorString = QString())
+      : _error(error), _response(bytes), _errorString(errorString) {}
 
   HttpReply &operator=(const HttpReply &that) {
     if (this == &that) {
@@ -60,6 +61,7 @@ public:
 
     _error = that._error;
     _response = that._response;
+    _errorString = that._errorString;
 
     return *this;
   }
@@ -67,15 +69,19 @@ public:
   HttpReply(const HttpReply &that) {
     _error = that._error;
     _response = that._response;
+    _errorString = that._errorString;
   }
 
   QNetworkReply::NetworkError error() const { return _error; }
 
   const QByteArray &response() const { return _response; }
 
+  const QString &errorString() const { return _errorString; }
+
 private:
   QNetworkReply::NetworkError _error;
   QByteArray _response;
+  QString _errorString;
 };
 
 class HttpClientWorker : public QObject {

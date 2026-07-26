@@ -6,9 +6,13 @@
 #include <delegates/HomeRecentItemDelegate.h>
 
 #include <ConfigManager.h>
+#include <Dispatcher.h>
+#include <GitHubRepo.h>
 
 #include <QEnableSharedFromThis>
 #include <QModelIndex>
+#include <QSharedPointer>
+#include <QWeakPointer>
 #include <QWidget>
 
 namespace Ui {
@@ -57,6 +61,7 @@ private slots:
   void hoverEnter(const QModelIndex &index);
   void hoverLeave(const QModelIndex &index);
   void onCloneClicked();
+  void onGitHubIssueTrackerConnectClicked();
   void onInitClicked();
   void onOpenClicked(bool checked = false);
   void onRecentRightClicked(const QString &path, const QPoint &pos);
@@ -67,8 +72,10 @@ private:
   RecentlyOpenedReposModel *_recentlyOpenedModel;
   WorkspacesModel *_workspacesModel;
   QStandardItemModel *_issueTrackerConnectionsModel;
+  QVector<QSharedPointer<IssueTrackers::GitHubRepo>> _issueTrackerConnections;
   HomeRecentItemDelegate *_itemDelegate;
   ::ConfigManager::ConfigManager &_configManager;
+  Util::Dispatcher _dispatcher;
 };
 
 } // namespace GuiManager::Containers

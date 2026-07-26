@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QString>
+#include <QVariantMap>
 
 namespace IssueTrackers {
 
@@ -24,6 +25,8 @@ public:
   virtual QString webUrl() const = 0;
   virtual QString issuesUrl() const = 0;
   virtual bool isValid() const = 0;
+
+  virtual QVariantMap authenticate(const QVariantMap &parameters) = 0;
 };
 
 } // namespace IssueTrackers

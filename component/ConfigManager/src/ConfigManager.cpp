@@ -72,8 +72,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::ToastSpacing, "window/toasts/toastSpacing"},
     {ConfigKey::ToastWidth, "window/toasts/toastWidth"},
     {ConfigKey::TooltipDisplayTime, "window/tooltips/tooltipDisplayTime"},
-    {ConfigKey::TooltipHistoryTimeout,
-     "window/tooltips/tooltipHistoryTimeout"}};
+    {ConfigKey::TooltipHistoryTimeout, "window/tooltips/tooltipHistoryTimeout"},
+    {ConfigKey::GitHubOAuthClientId, "issuetrackers/github"}};
 
 QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::Unknown, {"", ""}},
@@ -164,7 +164,8 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::UiTheme, "SourcererDark"},
     {ConfigKey::MainWindowGeometry, ""},
     {ConfigKey::GitRepoSigningKey, ""},
-    {ConfigKey::SettingsSplitterPos, ""}};
+    {ConfigKey::SettingsSplitterPos, ""},
+    {ConfigKey::GitHubOAuthClientId, "Ov23lilRE4FHNeTxvPBT"}};
 
 static QString resolveSigningProgramDefault(const QString &signingFormat) {
   if (signingFormat.trimmed().compare(QStringLiteral("ssh"),

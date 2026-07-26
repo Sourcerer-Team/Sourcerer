@@ -69,7 +69,6 @@ set(GUIMANAGER_SOURCE_FILES
         include/containers/GitRepoContainer.h
         include/containers/GitRepoManagerBridge.h
         include/containers/GitRepoManagerBridgeImpl.h
-
         include/containers/HomeContainer.h
         include/containers/InitGitRepoContainer.h
         include/containers/PleaseWaitContainer.h
@@ -169,7 +168,6 @@ set(GUIMANAGER_SOURCE_FILES
         src/containers/GitKeysContainer.cpp
         src/containers/GitRepoContainer.cpp
         src/containers/GitRepoManagerBridgeImpl.cpp
-
         src/containers/HomeContainer.cpp
         src/containers/InitGitRepoContainer.cpp
         src/containers/PleaseWaitContainer.cpp
@@ -259,6 +257,7 @@ includeComponent(GuiManager StylesheetManager)
 
 includeLib(GuiManager Common)
 includeLib(GuiManager GitRepo)
+includeLib(GuiManager IssueTrackers)
 includeLib(GuiManager Log)
 includeLib(GuiManager Util)
 includeLib(GuiManager QtWaitingSpinner)
