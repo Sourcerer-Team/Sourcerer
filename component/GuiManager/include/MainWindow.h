@@ -67,6 +67,8 @@ private slots:
   void onRecentClicked(const QString &path);
   void onSaveWorkspace();
   void onConnectToGitHubIssueTracker();
+  void onIssueTrackerClicked(const QString &serviceType,
+                             const QString &repositoryName);
   void onSettings();
   void onCredentials();
   void onSshKeys();
@@ -90,6 +92,8 @@ private:
   void addCloneContainer();
   void addGitRepoContainer(const QString &path);
   void addGitCredentialsContainer();
+  void addIssueTrackerContainer(const QString &serviceType,
+                                const QString &repositoryName);
   void addGitKeysContainer();
   void addHomeContainer();
   void addInitGitRepoContainer();

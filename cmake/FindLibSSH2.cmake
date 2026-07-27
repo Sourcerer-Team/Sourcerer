@@ -1,21 +1,14 @@
+# FindLibSSH2.cmake
+# This module assumes libssh2 is added via add_subdirectory()
+# and defines the imported target libssh2::libssh2
 
-SET(LIBSSH22_DEFINITIONS ${PC_LIBSSH2_CFLAGS_OTHER})
-
-FIND_PATH(LIBSSH2_INCLUDE_DIR NAMES libssh2.h
-   HINTS
-   $ENV{LIBSSH2_INCLUDEDIR}
-   PATH_SUFFIXES
-   include
-)
-
-FIND_LIBRARY(LIBSSH2_LIBRARY NAMES ssh2 libssh2
-   HINTS
-   $ENV{LIBSSH2_LIBDIR}
-   PATH_SUFFIXES
-   lib
-)
-
-INCLUDE(FindPackageHandleStandardArgs)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(libssh2 DEFAULT_MSG LIBSSH2_LIBRARY LIBSSH2_INCLUDE_DIR)
-
-MARK_AS_ADVANCED(LIBSSH2_INCLUDE_DIR LIBSSH2_LIBRARY)
+if(TARGET libssh2)
+    # Provide standard variables for compatibility
+    set(LIBSSH2_FOUND TRUE)
+    set(LIBSSH2_INCLUDE_DIRS ${CMAKE_CURRENT_LIST_DIR}/../lib/libssh2/include)
+    set(LIBSSH2_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/../lib/libssh2/include)
+    set(LIBSSH2_LIBRARIES libssh2_static)
+    set(LIBSSH2_LIBRARY libssh2_static)
+else()
+    set(LIBSSH2_FOUND FALSE)
+endif()

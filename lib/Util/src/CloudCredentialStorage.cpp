@@ -385,7 +385,10 @@ QByteArray CloudCredentialtorage::encrypt(const QByteArray &plaintext,
     return QByteArray();
   }
 
-  unsigned char ciphertext[plaintext.size() + EVP_MAX_BLOCK_LENGTH];
+  QByteArray ciphertext;
+  ciphertext.resize(plaintext.size() + EVP_MAX_BLOCK_LENGTH);
+  auto *ciphertextData =
+      reinterpret_cast<unsigned char *>(ciphertext.data());
   int len = 0;
   int ciphertext_len = 0;
 
@@ -398,7 +401,7 @@ QByteArray CloudCredentialtorage::encrypt(const QByteArray &plaintext,
   }
 
   if (EVP_EncryptUpdate(
-          ctx, ciphertext, &len,
+          ctx, ciphertextData, &len,
           reinterpret_cast<const unsigned char *>(plaintext.data()),
           plaintext.size()) != 1) {
     LOG_ERROR(Log::ErrorId::Security, "EVP_EncryptUpdate failed");
@@ -407,7 +410,7 @@ QByteArray CloudCredentialtorage::encrypt(const QByteArray &plaintext,
   }
   ciphertext_len = len;
 
-  if (EVP_EncryptFinal_ex(ctx, ciphertext + len, &len) != 1) {
+  if (EVP_EncryptFinal_ex(ctx, ciphertextData + len, &len) != 1) {
     LOG_ERROR(Log::ErrorId::Security, "EVP_EncryptFinal_ex failed");
     EVP_CIPHER_CTX_free(ctx);
     return QByteArray();
@@ -418,7 +421,7 @@ QByteArray CloudCredentialtorage::encrypt(const QByteArray &plaintext,
 
   // Prepend IV to ciphertext
   QByteArray result(reinterpret_cast<const char *>(iv), AES_IV_SIZE);
-  result.append(reinterpret_cast<const char *>(ciphertext), ciphertext_len);
+  result.append(ciphertext.constData(), ciphertext_len);
 
   return result;
 }
@@ -442,7 +445,10 @@ QByteArray CloudCredentialtorage::decrypt(const QByteArray &ciphertext,
     return QByteArray();
   }
 
-  unsigned char plaintext[data_len + EVP_MAX_BLOCK_LENGTH];
+  QByteArray plaintext;
+  plaintext.resize(data_len + EVP_MAX_BLOCK_LENGTH);
+  auto *plaintextData =
+      reinterpret_cast<unsigned char *>(plaintext.data());
   int len = 0;
   int plaintext_len = 0;
 
@@ -454,14 +460,14 @@ QByteArray CloudCredentialtorage::decrypt(const QByteArray &ciphertext,
     return QByteArray();
   }
 
-  if (EVP_DecryptUpdate(ctx, plaintext, &len, data, data_len) != 1) {
+  if (EVP_DecryptUpdate(ctx, plaintextData, &len, data, data_len) != 1) {
     LOG_ERROR(Log::ErrorId::Security, "EVP_DecryptUpdate failed");
     EVP_CIPHER_CTX_free(ctx);
     return QByteArray();
   }
   plaintext_len = len;
 
-  if (EVP_DecryptFinal_ex(ctx, plaintext + len, &len) != 1) {
+  if (EVP_DecryptFinal_ex(ctx, plaintextData + len, &len) != 1) {
     LOG_ERROR(Log::ErrorId::Security, "EVP_DecryptFinal_ex failed");
     EVP_CIPHER_CTX_free(ctx);
     return QByteArray();
@@ -470,7 +476,7 @@ QByteArray CloudCredentialtorage::decrypt(const QByteArray &ciphertext,
 
   EVP_CIPHER_CTX_free(ctx);
 
-  return QByteArray(reinterpret_cast<const char *>(plaintext), plaintext_len);
+  return plaintext.left(plaintext_len);
 }
 
 QByteArray CloudCredentialtorage::getEncryptionKey() {

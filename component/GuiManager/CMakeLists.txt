@@ -11,7 +11,8 @@ set(CMAKE_CXX_STANDARD 17)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 find_package(libzip REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Widgets Network LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Widgets Network LinguistTools
+             OPTIONAL_COMPONENTS WebEngineWidgets)
 
 set(TS_FILES translations/Sourcerer_en_US.ts)
 set(QRC_FILES resources/resources.qrc)
@@ -24,6 +25,7 @@ set(UI_FILES
         src/containers/GitRepoContainer.ui
         src/containers/HomeContainer.ui
         src/containers/InitGitRepoContainer.ui
+        src/containers/IssueTrackerContainer.ui
         src/containers/PleaseWaitContainer.ui
         src/containers/SettingsContainer.ui
         src/dialogs/AboutDialog.ui
@@ -71,6 +73,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/containers/GitRepoManagerBridgeImpl.h
         include/containers/HomeContainer.h
         include/containers/InitGitRepoContainer.h
+        include/containers/IssueTrackerContainer.h
         include/containers/PleaseWaitContainer.h
         include/containers/SettingsContainer.h
         include/delegates/ElideDelegate.h
@@ -172,6 +175,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/containers/GitRepoManagerBridgeImpl.cpp
         src/containers/HomeContainer.cpp
         src/containers/InitGitRepoContainer.cpp
+        src/containers/IssueTrackerContainer.cpp
         src/containers/PleaseWaitContainer.cpp
         src/containers/SettingsContainer.cpp
         src/delegates/HistorySliceTableColumnDelegate.cpp
@@ -280,6 +284,10 @@ target_link_libraries(GuiManager PRIVATE
         libzip::zip
         qscintilla
 )
+
+if(TARGET Qt6::WebEngineWidgets)
+  target_link_libraries(GuiManager PRIVATE Qt6::WebEngineWidgets)
+endif()
 
 target_include_directories(GuiManager PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include

@@ -30,15 +30,16 @@ GuiManager::~GuiManager() {
 void GuiManager::start() {
   LOG_PERF(0, "Enter");
 
+  /*
   int argc = 1;
   auto argv = const_cast<char *>(ConfigManager::APPLICATION_NAME);
   QApplication app(argc, &argv);
-
+*/
   const QString appDir = QCoreApplication::applicationDirPath();
   QCoreApplication::addLibraryPath(appDir);
   QCoreApplication::addLibraryPath(appDir + "/plugins");
 
-  MousePositionCorrection::instance().install(app);
+  MousePositionCorrection::instance().install(*qApp);
 
   QTranslator translator;
   const QStringList uiLanguages = QLocale::system().uiLanguages();
@@ -65,7 +66,7 @@ void GuiManager::start() {
   const StylesheetManager::StylesheetKey themeKey =
       StylesheetManager::StylesheetManager::stylesheetKeyFromName(themeName);
   StylesheetManager::StylesheetManager::setCurrentStylesheet(themeKey);
-  StylesheetManager::StylesheetManager::applyStylesheet(&app);
+  StylesheetManager::StylesheetManager::applyStylesheet(qApp);
 
   const auto w = QSharedPointer<MainWindow>::create();
   const QString savedGeometry =

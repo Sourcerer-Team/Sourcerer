@@ -54,10 +54,11 @@ endif ()
 
 target_link_libraries(Sourcerer PRIVATE
         Qt6::Widgets
-        PCRE2::PCRE2
         ZLIB::ZLIB
+        libssh2_static
         libgit2
         llhttp
+        pcre2
         reftable
         util
         xdiff
