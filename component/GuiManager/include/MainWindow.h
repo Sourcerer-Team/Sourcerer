@@ -66,6 +66,7 @@ private slots:
   void onOpenRepo(const QString &path);
   void onRecentClicked(const QString &path);
   void onSaveWorkspace();
+  void onConnectToGitHubIssueTracker();
   void onSettings();
   void onCredentials();
   void onSshKeys();

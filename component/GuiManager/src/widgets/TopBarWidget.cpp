@@ -108,6 +108,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   connect(_titleBarWidget, &TitlebarWidget::init, this, &TopBarWidget::init);
   connect(_titleBarWidget, &TitlebarWidget::saveWorkspace, this,
           &TopBarWidget::saveWorkspace);
+  connect(_titleBarWidget, &TitlebarWidget::connectToGitHubIssueTracker, this,
+          &TopBarWidget::connectToGitHubIssueTracker);
   connect(_titleBarWidget, &TitlebarWidget::settings, this,
           &TopBarWidget::settings);
   connect(_titleBarWidget, &TitlebarWidget::credentials, this,

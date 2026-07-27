@@ -44,6 +44,8 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::onInit);
   connect(ui->menuButton, &TitleBarMenuButton::saveWorkspace, this,
           &TitlebarWidget::onSaveWorkspace);
+  connect(ui->menuButton, &TitleBarMenuButton::connectToGitHubIssueTracker,
+          this, &TitlebarWidget::connectToGitHubIssueTracker);
   connect(ui->menuButton, &TitleBarMenuButton::settings, this,
           &TitlebarWidget::onSettings);
   connect(ui->menuButton, &TitleBarMenuButton::credentials, this,

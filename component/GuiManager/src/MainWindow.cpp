@@ -35,6 +35,7 @@
 #include <QWindow>
 
 #include <QMessageBox>
+#include <QMetaObject>
 #include <functional>
 
 #define THREAD_ID "MainWindow"
@@ -167,6 +168,8 @@ MainWindow::MainWindow(QWidget *parent)
   connect(_topBarWidget, &TopBarWidget::init, this, &MainWindow::onInit);
   connect(_topBarWidget, &TopBarWidget::saveWorkspace, this,
           &MainWindow::onSaveWorkspace);
+  connect(_topBarWidget, &TopBarWidget::connectToGitHubIssueTracker, this,
+          &MainWindow::onConnectToGitHubIssueTracker);
   connect(_topBarWidget, &TopBarWidget::settings, this,
           &MainWindow::onSettings);
   connect(_topBarWidget, &TopBarWidget::credentials, this,
@@ -427,6 +430,24 @@ void MainWindow::onSaveWorkspace() {
   LOG_PERF(0, "Enter");
 
   saveNewWorkspace();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onConnectToGitHubIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  for (const auto &container : _containers) {
+    const auto homeContainer = qobject_cast<HomeContainer *>(container.get());
+    if (!homeContainer) {
+      continue;
+    }
+
+    QMetaObject::invokeMethod(homeContainer,
+                              "onGitHubIssueTrackerConnectClicked",
+                              Qt::QueuedConnection);
+    break;
+  }
 
   LOG_PERF(0, "Exit");
 }
