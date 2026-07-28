@@ -8,8 +8,10 @@
 #include <QIcon>
 #include <QImage>
 #include <QMap>
+#include <QPainter>
 #include <QPalette>
 #include <QWidget>
+#include <QSvgRenderer>
 
 #define THREAD_ID "StylesheetManager"
 
@@ -2169,25 +2171,42 @@ QString StylesheetManager::issueTrackerToolbarStyleSheet() {
 
 namespace {
 
+QPixmap renderSvgToPixmap(const QString &path, const QColor &color) {
+  QSvgRenderer renderer(path);
+  if (!renderer.isValid()) {
+    return QPixmap();
+  }
+
+  const QSize defaultSize = renderer.defaultSize();
+  const QSize size = defaultSize.isValid() && !defaultSize.isEmpty()
+                         ? defaultSize
+                         : QSize(24, 24);
+  QPixmap pixmap(size);
+  pixmap.fill(Qt::transparent);
+
+  QPainter painter(&pixmap);
+  renderer.render(&painter);
+  painter.end();
+
+  return StylesheetManager::StylesheetManager::recolorPixmap(pixmap, color);
+}
+
 QIcon issueTrackerToolbarIcon(const QString &path,
                               const QString &disabledPath) {
   const QColor iconColor =
       StylesheetManager::StylesheetManager::menuBarButtonIconColor();
 
   QIcon icon;
-  QPixmap source(path);
+  const QPixmap source = renderSvgToPixmap(path, iconColor);
   if (source.isNull()) {
     return icon;
   }
 
-  icon.addPixmap(StylesheetManager::StylesheetManager::recolorPixmap(source, iconColor),
-                 QIcon::Normal, QIcon::Off);
+  icon.addPixmap(source, QIcon::Normal, QIcon::Off);
 
-  QPixmap disabledSource(disabledPath);
+  const QPixmap disabledSource = renderSvgToPixmap(disabledPath, iconColor);
   if (!disabledSource.isNull()) {
-    icon.addPixmap(
-        StylesheetManager::StylesheetManager::recolorPixmap(disabledSource, iconColor),
-        QIcon::Disabled, QIcon::Off);
+    icon.addPixmap(disabledSource, QIcon::Disabled, QIcon::Off);
   }
 
   return icon;
