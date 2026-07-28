@@ -77,7 +77,7 @@ foreach ($dllName in @('libssl-3-x64.dll', 'libcrypto-3-x64.dll')) {
     }
 }
 
-foreach ($qtModuleDll in @('Qt6PrintSupport.dll', 'Qt6QuickWidgets.dll', 'Qt6Quick.dll', 'Qt6QmlMeta.dll', 'Qt6QmlModels.dll', 'Qt6QmlWorkerScript.dll', 'Qt6Core5Compat.dll')) {
+foreach ($qtModuleDll in @('Qt6PrintSupport.dll', 'Qt6QuickWidgets.dll', 'Qt6Quick.dll', 'Qt6QmlMeta.dll', 'Qt6QmlModels.dll', 'Qt6QmlWorkerScript.dll', 'Qt6Core5Compat.dll', 'Qt6Qml.dll', 'Qt6OpenGL.dll')) {
     $qtModuleSource = Join-Path $qtRoot ('bin\' + $qtModuleDll)
     $qtModuleDestination = Join-Path $releaseDirFull $qtModuleDll
     if (-not (Test-Path $qtModuleDestination) -and (Test-Path $qtModuleSource)) {

@@ -140,6 +140,12 @@
                 <File Id="QtPositioningFile"
                       Source="$(var.SourcererBinPath)\Qt6Positioning.dll"
                       Vital="no" />
+                <File Id="QtQmlFile"
+                      Source="$(var.SourcererBinPath)\Qt6Qml.dll"
+                      Vital="no" />
+                <File Id="QtOpenGLFile"
+                      Source="$(var.SourcererBinPath)\Qt6OpenGL.dll"
+                      Vital="no" />
                 <File Id="ZlibFile"
                       Source="$(var.SourcererBinPath)\z.dll"
                       Vital="no" />
