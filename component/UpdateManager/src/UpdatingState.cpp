@@ -6,6 +6,7 @@
 #include <NewsTrackerStructs.h>
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -41,6 +42,17 @@ QString fileSuffixFromUrl(const QString &downloadUrl) {
 
   return QStringLiteral(".") + suffix;
 }
+
+#ifdef Q_OS_WIN
+QString buildWindowsInstallerLogPath(const QString &installerKind) {
+  const QString logsDir =
+      ConfigManager::ConfigManager::getInstance().getLogsDir();
+  const QString timestamp = QDateTime::currentDateTime()
+                                .toString(QStringLiteral("yyyyMMdd_HHmmss"));
+  return QStringLiteral("%1/update_%2_%3.log")
+      .arg(logsDir, installerKind, timestamp);
+}
+#endif
 
 #ifdef Q_OS_LINUX
 QString resolveRunningAppImagePath() {
@@ -267,8 +279,10 @@ bool UpdatingState::launchInstaller(const QString &downloadedFilePath) const {
 
 #ifdef Q_OS_WIN
   const QFileInfo fileInfo(downloadedFilePath);
+
   if (fileInfo.suffix().compare(QStringLiteral("msi"), Qt::CaseInsensitive) ==
       0) {
+    const QString logPath = buildWindowsInstallerLogPath(QStringLiteral("msi"));
     const QString program = QStringLiteral("msiexec");
     const QStringList arguments = {
         QStringLiteral("/i"),
@@ -276,16 +290,28 @@ bool UpdatingState::launchInstaller(const QString &downloadedFilePath) const {
         QStringLiteral("/quiet"),
         QStringLiteral("/norestart"),
         QStringLiteral("/log"),
-        QString("%1/update_%2.log")
-            .arg(ConfigManager::ConfigManager::getInstance().getLogsDir(),
-                 QDateTime::currentDateTime()
-                     .toString()
-                     .replace(" ", "_")
-                     .replace("/", "_")
-                     .replace(":", "_"))};
+        QDir::toNativeSeparators(logPath)};
     const bool started = QProcess::startDetached(program, arguments);
     if (!started) {
       LOG_WARN("Failed to start msiexec for '{}'.",
+               downloadedFilePath.toStdString());
+    }
+    LOG_PERF(0, "Exit");
+    return started;
+  }
+
+  if (fileInfo.suffix().compare(QStringLiteral("exe"), Qt::CaseInsensitive) ==
+      0) {
+    const QString logPath = buildWindowsInstallerLogPath(QStringLiteral("exe"));
+    const QString program = QDir::toNativeSeparators(downloadedFilePath);
+    const QStringList arguments = {
+        QStringLiteral("/quiet"),
+        QStringLiteral("/norestart"),
+        QStringLiteral("/log"),
+        QDir::toNativeSeparators(logPath)};
+    const bool started = QProcess::startDetached(program, arguments);
+    if (!started) {
+      LOG_WARN("Failed to start bootstrapper for '{}'.",
                downloadedFilePath.toStdString());
     }
     LOG_PERF(0, "Exit");

@@ -11,7 +11,6 @@ namespace ConfigManager {
 
 const char *APPLICATION_NAME = "Sourcerer";
 const char *ORGANIZATION_NAME = APPLICATION_NAME;
-const char *APPLICATION_DIR = APPLICATION_NAME;
 const char *LOGS_DIR = "Logs";
 
 struct KeyDescription {
@@ -194,8 +193,8 @@ static QString defaultStringForKey(ConfigKey key, const QSettings *settings) {
 
 ConfigManager::ConfigManager()
     : _settings(ORGANIZATION_NAME, APPLICATION_NAME) {
-  _logsDir = getWritableDir() + QDir::separator() + APPLICATION_DIR +
-             QDir::separator() + LOGS_DIR + QDir::separator();
+  _logsDir = getWritableDir() + QDir::separator() + LOGS_DIR +
+             QDir::separator();
   QDir dir;
   dir.mkpath(_logsDir);
 }
