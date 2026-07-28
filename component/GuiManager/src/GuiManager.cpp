@@ -1,4 +1,5 @@
 #include "GuiManager.h"
+#include "WebEngineProfile.h"
 #include "DarkStyle.h"
 #include "MainWindow.h"
 #include "MousePositionCorrection.h"
@@ -11,9 +12,50 @@
 
 #include <QApplication>
 #include <QCoreApplication>
+#include <QDir>
+#include <QEventLoop>
+#include <QStandardPaths>
+#include <QTimer>
 #include <QTranslator>
+#if defined(QT_WEBENGINECORE_LIB)
+#include <QtWebEngineCore/QWebEngineCookieStore>
+#include <QtWebEngineCore/QWebEngineProfile>
+#endif
 
 #define THREAD_ID "GuiManager"
+
+namespace GuiManager {
+
+#if defined(QT_WEBENGINECORE_LIB)
+QWebEngineProfile *sharedWebEngineProfile() {
+  static QWebEngineProfile *profile = nullptr;
+  if (profile) {
+    return profile;
+  }
+
+  const QString storageBaseDir =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  if (storageBaseDir.isEmpty()) {
+    return nullptr;
+  }
+
+  const QString storagePath =
+      QDir(storageBaseDir).absoluteFilePath(QStringLiteral("webengine"));
+  QDir().mkpath(storagePath);
+
+  profile = new QWebEngineProfile(QStringLiteral("sourcerer"), qApp);
+  profile->setPersistentStoragePath(storagePath);
+  profile->setCachePath(
+      QDir(storagePath).absoluteFilePath(QStringLiteral("cache")));
+  profile->setPersistentCookiesPolicy(
+      QWebEngineProfile::PersistentCookiesPolicy::ForcePersistentCookies);
+  profile->setHttpCacheType(QWebEngineProfile::HttpCacheType::DiskHttpCache);
+
+  return profile;
+}
+#endif
+
+} // namespace GuiManager
 
 namespace GuiManager {
 
@@ -38,6 +80,21 @@ void GuiManager::start() {
   const QString appDir = QCoreApplication::applicationDirPath();
   QCoreApplication::addLibraryPath(appDir);
   QCoreApplication::addLibraryPath(appDir + "/plugins");
+
+#if defined(QT_WEBENGINECORE_LIB)
+  if (QWebEngineProfile *profile = sharedWebEngineProfile()) {
+    if (profile->cookieStore()) {
+      QEventLoop loop;
+      QTimer timer;
+      timer.setSingleShot(true);
+
+      QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+      profile->cookieStore()->loadAllCookies();
+      timer.start(1500);
+      loop.exec();
+    }
+  }
+#endif
 
   MousePositionCorrection::instance().install(*qApp);
 

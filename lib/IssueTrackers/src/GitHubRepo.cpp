@@ -81,6 +81,25 @@ QString parseErrorDescription(const QJsonObject &obj) {
   return QStringLiteral("Unknown GitHub OAuth error");
 }
 
+QMap<QNetworkRequest::KnownHeaders, QString> githubJsonHeaders() {
+  QMap<QNetworkRequest::KnownHeaders, QString> httpHeaders;
+  httpHeaders[QNetworkRequest::KnownHeaders::ContentTypeHeader] =
+      QStringLiteral("application/json");
+  return httpHeaders;
+}
+
+QMap<QString, QString> githubApiHeaders(const QString &accessToken) {
+  QMap<QString, QString> rawHeaders;
+  rawHeaders[QStringLiteral("Accept")] = QStringLiteral("application/json");
+  rawHeaders[QStringLiteral("X-GitHub-Api-Version")] =
+      QStringLiteral("2022-11-28");
+  if (!accessToken.trimmed().isEmpty()) {
+    rawHeaders[QStringLiteral("Authorization")] =
+        QStringLiteral("Bearer ") + accessToken.trimmed();
+  }
+  return rawHeaders;
+}
+
 } // namespace
 
 GitHubRepo::GitHubRepo(QString owner, QString repository, QString host)
@@ -285,6 +304,82 @@ QVariantMap GitHubRepo::authenticate(const QVariantMap &parameters) {
 
   LOG_PERF(0, "Exit");
   return result;
+}
+
+GitHubRepo::RepositoryVisibility
+GitHubRepo::repositoryVisibility(QString *errorMessage) const {
+  LOG_PERF(0, "Enter");
+
+  if (_owner.trimmed().isEmpty() || _repository.trimmed().isEmpty()) {
+    if (errorMessage) {
+      errorMessage->clear();
+    }
+    LOG_PERF(0, "Exit");
+    return RepositoryVisibility::Unknown;
+  }
+
+  const auto httpClient = std::make_shared<Util::HttpClient>();
+  const QString accessToken = hasValidAccessToken() ? _accessToken : QString();
+  const QString repoUrl =
+      hostToApiBaseUrl(_host) + QStringLiteral("/repos/") +
+      QString::fromUtf8(QUrl::toPercentEncoding(_owner)) +
+      QStringLiteral("/") + QString::fromUtf8(QUrl::toPercentEncoding(_repository));
+
+  const auto httpReply = httpClient->sendRequest(
+      repoUrl, Util::HttpMethod::Get, githubJsonHeaders(),
+      githubApiHeaders(accessToken), QByteArray());
+
+  if (httpReply.error() == QNetworkReply::NetworkError::ContentNotFoundError ||
+      httpReply.error() == QNetworkReply::NetworkError::ContentAccessDenied) {
+    if (errorMessage) {
+      errorMessage->clear();
+    }
+    LOG_INFO("GitHub repository '{}' appears to be private or inaccessible",
+             repositoryPath().toStdString());
+    LOG_PERF(0, "Exit");
+    return RepositoryVisibility::Private;
+  }
+
+  if (httpReply.error() != QNetworkReply::NetworkError::NoError) {
+    const QString message = responseErrorMessage(
+        httpReply, QStringLiteral("Failed to request GitHub repository info."));
+    if (errorMessage) {
+      *errorMessage = message;
+    }
+    LOG_ERROR(Log::ErrorId::Network, "{}", message.toStdString());
+    LOG_PERF(0, "Exit");
+    return RepositoryVisibility::Unknown;
+  }
+
+  const QJsonDocument jsonDoc = QJsonDocument::fromJson(httpReply.response());
+  if (!jsonDoc.isObject()) {
+    const QString message =
+        QStringLiteral("Invalid GitHub repository info response.");
+    if (errorMessage) {
+      *errorMessage = message;
+    }
+    LOG_ERROR(Log::ErrorId::Network, "{}", message.toStdString());
+    LOG_PERF(0, "Exit");
+    return RepositoryVisibility::Unknown;
+  }
+
+  const QJsonObject obj = jsonDoc.object();
+  if (!obj.contains(QStringLiteral("private"))) {
+    if (errorMessage) {
+      errorMessage->clear();
+    }
+    LOG_PERF(0, "Exit");
+    return RepositoryVisibility::Unknown;
+  }
+
+  const bool isPrivate = obj.value(QStringLiteral("private")).toBool(false);
+  if (errorMessage) {
+    errorMessage->clear();
+  }
+
+  LOG_PERF(0, "Exit");
+  return isPrivate ? RepositoryVisibility::Private
+                   : RepositoryVisibility::Public;
 }
 
 QStringList GitHubRepo::listUserRepositories(QString *errorMessage) const {

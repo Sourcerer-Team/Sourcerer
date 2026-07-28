@@ -6,19 +6,25 @@
 #include <GitHubRepo.h>
 #include <Log.h>
 #include <StylesheetManager.h>
+#include <WebEngineProfile.h>
 
 #include <QApplication>
+#include <QEventLoop>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QNetworkCookie>
 #include <QResizeEvent>
 #include <QStringList>
 #include <QTimer>
 #include <QToolButton>
+#include <QUrlQuery>
 
 #if GUI_MANAGER_HAS_WEBENGINE
+#include <QtWebEngineCore/QWebEngineCookieStore>
 #include <QtWebEngineCore/QWebEngineHistory>
 #include <QtWebEngineCore/QWebEnginePage>
+#include <QtWebEngineCore/QWebEngineProfile>
 #endif
 
 #define THREAD_ID "IssueTrackerContainer"
@@ -29,6 +35,92 @@ namespace {
 
 QString normalizedServiceType(const QString &serviceType) {
   return serviceType.trimmed().toLower();
+}
+
+#if GUI_MANAGER_HAS_WEBENGINE
+bool isGitHubLoginCookie(const QNetworkCookie &cookie) {
+  const QString domain = cookie.domain().trimmed().toLower();
+  if (!domain.isEmpty() && !domain.endsWith(QStringLiteral("github.com"))) {
+    return false;
+  }
+
+  const QString name = QString::fromUtf8(cookie.name()).trimmed().toLower();
+  if (name == QStringLiteral("logged_in")) {
+    const QString value =
+        QString::fromUtf8(cookie.value()).trimmed().toLower();
+    return !value.isEmpty() && value != QStringLiteral("false") &&
+           value != QStringLiteral("no") && value != QStringLiteral("0");
+  }
+
+  return name == QStringLiteral("user_session") ||
+         name == QStringLiteral("__host-user_session_same_site") ||
+         name == QStringLiteral("dotcom_user");
+}
+
+bool hasGitHubLoginCookie(QWebEngineProfile *profile) {
+  if (!profile || !profile->cookieStore()) {
+    return false;
+  }
+
+  bool hasCookie = false;
+  QEventLoop loop;
+  QTimer timer;
+  timer.setSingleShot(true);
+
+  QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+  QObject::connect(profile->cookieStore(), &QWebEngineCookieStore::cookieAdded,
+                   &loop, [&](const QNetworkCookie &cookie) {
+                     if (isGitHubLoginCookie(cookie)) {
+                       hasCookie = true;
+                     }
+                   });
+
+  profile->cookieStore()->loadAllCookies();
+  timer.start(500);
+  loop.exec();
+
+  return hasCookie;
+}
+
+bool shouldOpenGitHubLoginFirst(const QString &serviceType,
+                                const QString &repositoryName,
+                                QWebEngineProfile *profile) {
+  if (normalizedServiceType(serviceType) != QStringLiteral("github")) {
+    return false;
+  }
+
+  const QString trimmedRepositoryName = repositoryName.trimmed();
+  const QStringList parts = trimmedRepositoryName.split(QStringLiteral("/"),
+                                                       Qt::SkipEmptyParts);
+  if (parts.size() < 2) {
+    return false;
+  }
+
+  const IssueTrackers::GitHubRepo repo(parts.first(), parts.last());
+  QString errorMessage;
+  const auto visibility = repo.repositoryVisibility(&errorMessage);
+  if (visibility == IssueTrackers::GitHubRepo::RepositoryVisibility::Public) {
+    return false;
+  }
+
+  return !hasGitHubLoginCookie(profile);
+}
+#endif
+
+QUrl buildGitHubLoginUrl(const QUrl &issuesUrl) {
+  if (!issuesUrl.isValid()) {
+    return QUrl();
+  }
+
+  QUrl loginUrl = issuesUrl;
+  loginUrl.setPath(QStringLiteral("/login"));
+  loginUrl.setFragment(QString());
+
+  QUrlQuery query;
+  query.addQueryItem(QStringLiteral("return_to"), issuesUrl.path());
+  loginUrl.setQuery(query);
+
+  return loginUrl;
 }
 
 QUrl buildIssueTrackerUrl(const QString &serviceType,
@@ -76,6 +168,9 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
 
 #if GUI_MANAGER_HAS_WEBENGINE
   _browserView = new QWebEngineView(this);
+  if (QWebEngineProfile *profile = GuiManager::sharedWebEngineProfile()) {
+    _browserView->setPage(new QWebEnginePage(profile, _browserView));
+  }
 #else
   _browserView = new QTextBrowser(this);
   _browserView->setOpenExternalLinks(true);
@@ -462,7 +557,13 @@ void IssueTrackerContainer::loadIssuePage() {
 
   if (_issuesUrl.isValid()) {
 #if GUI_MANAGER_HAS_WEBENGINE
-    _browserView->load(_issuesUrl);
+    QWebEngineProfile *profile = GuiManager::sharedWebEngineProfile();
+
+    const QUrl initialUrl = shouldOpenGitHubLoginFirst(
+        _serviceType, _repositoryName, profile)
+                                ? buildGitHubLoginUrl(_issuesUrl)
+                                : _issuesUrl;
+    _browserView->load(initialUrl);
 #else
     _browserView->setSource(_issuesUrl);
 #endif

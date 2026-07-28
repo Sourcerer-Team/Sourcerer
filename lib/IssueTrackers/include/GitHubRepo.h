@@ -34,6 +34,12 @@ public:
   static QUrl
   deviceLoginUrl(const QString &host = QStringLiteral("github.com"));
 
+  enum class RepositoryVisibility {
+    Unknown = 0,
+    Public,
+    Private,
+  };
+
   Type type() const override;
   QString serviceName() const override;
   QString host() const override;
@@ -43,6 +49,9 @@ public:
   QString webUrl() const override;
   QString issuesUrl() const override;
   bool isValid() const override;
+
+  RepositoryVisibility repositoryVisibility(
+      QString *errorMessage = nullptr) const;
 
   QVariantMap authenticate(const QVariantMap &parameters) override;
 
