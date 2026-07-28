@@ -1,4 +1,4 @@
-# Windows Server Core with Qt 6.10.1, MSYS2, and WiX Toolset for Sourcerer build
+# Windows Server Core 2022 with Qt 6.10.3, MSVC 2022, and WiX Toolset for Sourcerer build
 # Requires Windows containers mode in Docker Desktop
 
 # Use Windows Server Core 2022 as base
@@ -18,26 +18,12 @@ RUN choco install -y git
 RUN choco install -y 7zip
 RUN choco install -y python3
 RUN choco install -y ninja
-
-# Install WiX Toolset v3.14 (required for MSI generation)
 RUN choco install -y wixtoolset --version=3.14.0
+RUN choco install -y visualstudio2022buildtools --package-parameters '--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --includeOptional'
 
-# Install MSYS2
-RUN choco install -y msys2 --params '"/NoUpdate /NoPath"'
-
-# Update MSYS2 package database (skip key validation to avoid hanging in Docker)
-RUN C:\tools\msys64\usr\bin\bash.exe -lc 'pacman -Syy --noconfirm'
-
-# Install required runtime libraries and complete build toolchain
-RUN C:\tools\msys64\usr\bin\bash.exe -lc 'pacman -S --noconfirm mingw-w64-x86_64-toolchain mingw-w64-x86_64-libzip mingw-w64-x86_64-libgit2 mingw-w64-x86_64-libssh2 mingw-w64-x86_64-openssl mingw-w64-x86_64-cmake mingw-w64-x86_64-ninja mingw-w64-x86_64-zlib mingw-w64-x86_64-pcre2'
-
-# Verify ninja installation in MSYS2
-RUN C:\tools\msys64\usr\bin\bash.exe -lc 'export PATH=/mingw64/bin:$PATH && which ninja && ninja --version'
-
-# Set up MSYS2 environment
-RUN [Environment]::SetEnvironmentVariable('MSYS2_ROOT', 'C:\tools\msys64', 'Machine'); \
-    $path = [Environment]::GetEnvironmentVariable('PATH', 'Machine'); \
-    [Environment]::SetEnvironmentVariable('PATH', 'C:\tools\msys64\mingw64\bin;' + $path, 'Machine')
+# Install Qt using aqtinstall
+RUN python -m pip install --upgrade pip; \
+    pip install aqtinstall
 
 # Create Qt installation directory
 RUN New-Item -ItemType Directory -Force -Path C:\Qt | Out-Null
@@ -46,58 +32,66 @@ RUN New-Item -ItemType Directory -Force -Path C:\Qt | Out-Null
 ENV QT_VERSION=6.10.3
 ENV QT_DIR=C:\Qt
 
-# Install aqtinstall for Qt installation
-RUN python -m pip install --upgrade pip; \
-    pip install aqtinstall
-
-# Install Qt using aqtinstall (no Qt IFW - using WiX Toolset instead)
-RUN Write-Host "Installing Qt $env:QT_VERSION using aqtinstall..."; \
-    aqt install-qt windows desktop $env:QT_VERSION win64_mingw -m qtscxml qtnetworkauth qt5compat --outputdir C:\Qt; \
-    Write-Host 'Installing MinGW tools...'; \
-    aqt install-tool windows desktop tools_mingw90 --outputdir C:\Qt; \
+# Install Qt for MSVC 2022
+RUN $qtRoot = ('C:\Qt\' + $env:QT_VERSION + '\msvc2022_64'); \
+    Write-Host "Installing Qt $env:QT_VERSION using aqtinstall..."; \
+    python -m aqt install-qt windows desktop $env:QT_VERSION win64_msvc2022_64 -m qtscxml qtnetworkauth qt5compat qtwebengine qtwebchannel qtpositioning --outputdir C:\Qt; \
+    python -m aqt install-tool windows desktop tools_opensslv3_x64 --outputdir C:\Qt; \
+    if ($LASTEXITCODE -ne 0 -and -not (Test-Path (Join-Path $qtRoot 'bin\qmake.exe'))) { \
+        Write-Host 'Qt installation failed.'; \
+        exit $LASTEXITCODE; \
+    }; \
+    if (-not (Test-Path (Join-Path $qtRoot 'bin\qmake.exe'))) { \
+        Write-Host 'Qt installation did not produce qmake.exe.'; \
+        exit 1; \
+    }; \
     Write-Host 'Qt installation completed. Checking installed files...'; \
     Get-ChildItem -Path C:\Qt -Directory | ForEach-Object { Write-Host $_.Name }; \
-    Get-ChildItem -Path C:\Qt\Tools -Directory -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  Tools/$($_.Name)" }
+    Get-ChildItem -Path C:\Qt\Tools -Directory -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  Tools/$($_.Name)" }; \
+    exit 0
 
-# Set up Qt environment variables (Qt MinGW tools prioritized in PATH)
-RUN $qtBinPath = ('C:\Qt\' + $env:QT_VERSION + '\mingw_64\bin'); \
-    $mingwPath = (Get-ChildItem 'C:\Qt\Tools' -Directory -Filter 'mingw*' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName; \
-    if ($mingwPath) { $mingwBin = $mingwPath + '\bin' } else { $mingwBin = '' }; \
-    $qt6Dir = ('C:\Qt\' + $env:QT_VERSION + '\mingw_64'); \
-    $msys2Path = 'C:\tools\msys64\mingw64\bin'; \
+# Set up Qt and OpenSSL environment variables (development headers, import libs, and runtime DLLs)
+RUN $qtRoot = ('C:\Qt\' + $env:QT_VERSION + '\msvc2022_64'); \
+    $qtBinPath = $qtRoot + '\bin'; \
+    $qt6Dir = $qtRoot + '\lib\cmake\Qt6'; \
+    $opensslRoot = @( \
+        'C:\Qt\Tools\OpenSSLv3\Win_x64' \
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1; \
+    if (-not $opensslRoot) { \
+        $opensslRoot = (Get-ChildItem 'C:\Program Files' -Directory -Filter 'OpenSSL*' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName; \
+    }; \
+    if (-not $opensslRoot) { throw 'OpenSSL development installation not found' }; \
+    $opensslBin = Join-Path $opensslRoot 'bin'; \
     $wixPath = 'C:\Program Files (x86)\WiX Toolset v3.14\bin'; \
     $path = [Environment]::GetEnvironmentVariable('PATH', 'Machine'); \
-    $path = $path -replace [regex]::Escape($msys2Path + ';'), ''; \
-    if ($mingwBin) { \
-        [Environment]::SetEnvironmentVariable('PATH', $mingwBin + ';' + $qtBinPath + ';' + $wixPath + ';' + $msys2Path + ';' + $path, 'Machine'); \
-    } else { \
-        [Environment]::SetEnvironmentVariable('PATH', $qtBinPath + ';' + $wixPath + ';' + $msys2Path + ';' + $path, 'Machine'); \
-    }; \
+    $path = $qtBinPath + ';' + $opensslBin + ';' + $wixPath + ';' + $path; \
     [Environment]::SetEnvironmentVariable('QT_DIR', 'C:\Qt', 'Machine'); \
     [Environment]::SetEnvironmentVariable('Qt6_DIR', $qt6Dir, 'Machine'); \
-    [Environment]::SetEnvironmentVariable('OPENSSL_ROOT_DIR', 'C:\tools\msys64\mingw64', 'Machine')
+    [Environment]::SetEnvironmentVariable('OPENSSL_ROOT_DIR', $opensslRoot, 'Machine'); \
+    [Environment]::SetEnvironmentVariable('PATH', $path, 'Machine')
 
 # Verify installations
 RUN Write-Host 'Verifying installations...'; \
     Write-Host 'System CMake:'; \
     cmake --version; \
-    Write-Host 'MSYS2 CMake:'; \
-    C:\tools\msys64\usr\bin\bash.exe -lc 'cmake --version'; \
     git --version; \
-    Write-Host 'MSYS2 Compiler:'; \
-    C:\tools\msys64\usr\bin\bash.exe -lc 'gcc --version'; \
-    Write-Host 'MSYS2 Make:'; \
-    C:\tools\msys64\usr\bin\bash.exe -lc 'make --version'; \
-    $qmakePath = ('C:\Qt\' + $env:QT_VERSION + '\mingw_64\bin\qmake.exe'); \
+    $vsDevCmd = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat'; \
+    if (Test-Path $vsDevCmd) { \
+        Write-Host 'Visual Studio 2022 Build Tools found at' $vsDevCmd; \
+    } else { \
+        throw 'Visual Studio 2022 Build Tools not found'; \
+    }; \
+    $qmakePath = ('C:\Qt\' + $env:QT_VERSION + '\msvc2022_64\bin\qmake.exe'); \
+    $windeployqtPath = ('C:\Qt\' + $env:QT_VERSION + '\msvc2022_64\bin\windeployqt.exe'); \
     $candlePath = 'C:\Program Files (x86)\WiX Toolset v3.14\bin\candle.exe'; \
     $lightPath = 'C:\Program Files (x86)\WiX Toolset v3.14\bin\light.exe'; \
     if (Test-Path $qmakePath) { & $qmakePath --version } else { Write-Host 'WARNING: qmake not found at' $qmakePath }; \
+    if (Test-Path $windeployqtPath) { Write-Host 'Qt deployment tool found at' $windeployqtPath } else { Write-Host 'WARNING: windeployqt not found' }; \
     if (Test-Path $candlePath) { Write-Host 'WiX Candle found at' $candlePath } else { Write-Host 'WARNING: candle.exe not found' }; \
-    if (Test-Path $lightPath) { Write-Host 'WiX Light found at' $lightPath } else { Write-Host 'WARNING: light.exe not found' }; \
-    Write-Host 'MSYS2 libraries available in: C:\tools\msys64\mingw64\lib'
+    if (Test-Path $lightPath) { Write-Host 'WiX Light found at' $lightPath } else { Write-Host 'WARNING: light.exe not found' }
 
 # Set working directory
-WORKDIR C:\\workspace
+WORKDIR C:/workspace
 
 # Default command
 CMD ["powershell.exe"]

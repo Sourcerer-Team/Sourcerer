@@ -156,8 +156,7 @@ endif(WIN32)
 
 if(ZLIB_BUILD_SHARED)
     add_library(
-        zlib SHARED ${ZLIB_SRCS} ${ZLIB_PUBLIC_HDRS} ${ZLIB_PRIVATE_HDRS}
-                    $<$<OR:$<BOOL:${WIN32}>,$<BOOL:${CYGWIN}>>:win32/zlib1.rc>)
+        zlib SHARED ${ZLIB_SRCS} ${ZLIB_PUBLIC_HDRS} ${ZLIB_PRIVATE_HDRS})
     add_library(ZLIB::ZLIB ALIAS zlib)
     target_include_directories(
         zlib

@@ -130,7 +130,7 @@ Windows packaging is also handled from `installer/`:
 
 1. Build the application in release mode.
 2. Install WiX Toolset v3.11 or later.
-3. Ensure Qt and MSYS2 runtime dependencies are available in the expected locations.
+3. Ensure Qt and OpenSSL development files plus runtime dependencies are available in the expected locations.
 4. Run `installer/build-installer-wix.bat`.
 5. The script gathers the built executable, dependencies, keys, and license files, then compiles and links the MSI.
 
@@ -146,7 +146,7 @@ build-installer-wix.bat
 ## Packaging notes
 
 - The Linux scripts bundle Qt plugins and shared libraries needed by the application at runtime.
-- The Windows installer uses WiX and may also use `windeployqt` when available to deploy Qt runtime files.
+- The Windows installer uses WiX and `windeployqt` to deploy Qt and OpenSSL runtime files; the Docker build image also installs the OpenSSL development headers and libraries needed for compilation.
 - Release packaging expects the app to be built first; the scripts do not replace the application build step.
 
 ## Resources and assets

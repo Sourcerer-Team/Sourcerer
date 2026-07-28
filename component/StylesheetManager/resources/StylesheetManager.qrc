@@ -1,0 +1,6 @@
+<RCC>
+  <qresource prefix="/StylesheetManager">
+    <file>sourcerer_dark.qss</file>
+    <file>sourcerer_light.qss</file>
+  </qresource>
+</RCC>

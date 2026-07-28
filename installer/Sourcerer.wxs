@@ -43,6 +43,9 @@
             <ComponentRef Id="QtStylePlugins" />
             <ComponentRef Id="QtIconEnginePlugins" />
             <ComponentRef Id="QtTlsPlugins" />
+            <ComponentRef Id="QtWebEngineSupportFiles" />
+            <ComponentRef Id="QtWebEngineResourceFiles" />
+
             <ComponentRef Id="JwtPublicKeyFiles" />
             <ComponentRef Id="DesktopShortcut" />
             <ComponentRef Id="StartMenuShortcut" />
@@ -104,56 +107,49 @@
                 <File Id="QtNetworkFile"
                       Source="$(var.SourcererBinPath)\Qt6Network.dll"
                       Vital="no" />
+                <File Id="QtPrintSupportFile"
+                      Source="$(var.SourcererBinPath)\Qt6PrintSupport.dll"
+                      Vital="no" />
+                <File Id="QtQuickWidgetsFile"
+                      Source="$(var.SourcererBinPath)\Qt6QuickWidgets.dll"
+                      Vital="no" />
+                <File Id="QtQuickFile"
+                      Source="$(var.SourcererBinPath)\Qt6Quick.dll"
+                      Vital="no" />
+                <File Id="QtQmlMetaFile"
+                      Source="$(var.SourcererBinPath)\Qt6QmlMeta.dll"
+                      Vital="no" />
+                <File Id="QtQmlModelsFile"
+                      Source="$(var.SourcererBinPath)\Qt6QmlModels.dll"
+                      Vital="no" />
+                <File Id="QtQmlWorkerScriptFile"
+                      Source="$(var.SourcererBinPath)\Qt6QmlWorkerScript.dll"
+                      Vital="no" />
                 <File Id="QtCore5CompatFile"
-                      Source="$(var.QtMinGWBinPath)\Qt6Core5Compat.dll"
+                      Source="$(var.SourcererBinPath)\Qt6Core5Compat.dll"
                       Vital="no" />
-
-                <!-- MSYS2 Libraries -->
-                <File Id="LibBz2File"
-                      Source="$(var.MSYS2BinPath)\libbz2-1.dll"
+                <File Id="QtWebEngineCoreFile"
+                      Source="$(var.SourcererBinPath)\Qt6WebEngineCore.dll"
                       Vital="no" />
-                <File Id="LibHttpParserFile"
-                      Source="$(var.MSYS2BinPath)\libhttp_parser-2.dll"
+                <File Id="QtWebEngineWidgetsFile"
+                      Source="$(var.SourcererBinPath)\Qt6WebEngineWidgets.dll"
                       Vital="no" />
-                <File Id="LibIconvFile"
-                      Source="$(var.MSYS2BinPath)\libiconv-2.dll"
+                <File Id="QtWebChannelFile"
+                      Source="$(var.SourcererBinPath)\Qt6WebChannel.dll"
                       Vital="no" />
-                <File Id="LibLzmaFile"
-                      Source="$(var.MSYS2BinPath)\liblzma-5.dll"
+                <File Id="QtPositioningFile"
+                      Source="$(var.SourcererBinPath)\Qt6Positioning.dll"
                       Vital="no" />
-                <File Id="LibPcre2File"
-                      Source="$(var.MSYS2BinPath)\libpcre2-8-0.dll"
-                      Vital="no" />
-                <File Id="LibSsh2File"
-                      Source="$(var.MSYS2BinPath)\libssh2-1.dll"
-                      Vital="no" />
-                <File Id="LibZipFile"
-                      Source="$(var.MSYS2BinPath)\libzip.dll"
-                      Vital="no" />
-                <File Id="LibZstdFile"
-                      Source="$(var.MSYS2BinPath)\libzstd.dll"
-                      Vital="no" />
-                <File Id="Zlib1File"
-                      Source="$(var.MSYS2BinPath)\zlib1.dll"
+                <File Id="ZlibFile"
+                      Source="$(var.SourcererBinPath)\z.dll"
                       Vital="no" />
 
                 <!-- OpenSSL Libraries -->
                 <File Id="LibSslFile"
-                      Source="$(var.MSYS2BinPath)\libssl-3-x64.dll"
+                      Source="$(var.SourcererBinPath)\libssl-3-x64.dll"
                       Vital="yes" />
                 <File Id="LibCryptoFile"
-                      Source="$(var.MSYS2BinPath)\libcrypto-3-x64.dll"
-                      Vital="yes" />
-
-                <!-- MSYS2 C/C++ Runtime Libraries -->
-                <File Id="LibStdCppFile"
-                      Source="$(var.MSYS2BinPath)\libstdc++-6.dll"
-                      Vital="yes" />
-                <File Id="LibGccFile"
-                      Source="$(var.MSYS2BinPath)\libgcc_s_seh-1.dll"
-                      Vital="yes" />
-                <File Id="LibWinpthreadFile"
-                      Source="$(var.MSYS2BinPath)\libwinpthread-1.dll"
+                      Source="$(var.SourcererBinPath)\libcrypto-3-x64.dll"
                       Vital="yes" />
                 <RemoveFolder Id="RemoveINSTALLFOLDERDependencies" On="uninstall" />
                 <RegistryKey Root="HKCU"
@@ -261,6 +257,54 @@
                     </RegistryKey>
                 </Component>
             </Directory>
+
+            <!-- Qt WebEngine support files -->
+            <Component Id="QtWebEngineSupportFiles" Guid="5f7c1c52-e5de-4c7c-8b32-61e1d0f1b8ef" Win64="yes">
+                <File Id="QtWebEngineProcessFile"
+                      Source="$(var.SourcererBinPath)\QtWebEngineProcess.exe"
+                      Vital="no" />
+                <RemoveFolder Id="RemoveQtWebEngineProcess" On="uninstall" />
+                <RegistryKey Root="HKCU"
+                             Key="Software\Sourcerer\InstalledComponents">
+                    <RegistryValue Name="QtWebEngineSupportFiles"
+                                   Type="integer"
+                                   Value="1"
+                                   KeyPath="yes" />
+                </RegistryKey>
+            </Component>
+
+            <Directory Id="ResourcesDir" Name="resources">
+                <Component Id="QtWebEngineResourceFiles" Guid="4a8a1c7a-0f0e-49ef-a4d9-fb2d1e7e1d22" Win64="yes">
+                    <File Id="IcudtlFile"
+                          Source="$(var.SourcererBinPath)\resources\icudtl.dat"
+                          Vital="no" />
+                    <File Id="QtWebEngineResourcesFile"
+                          Source="$(var.SourcererBinPath)\resources\qtwebengine_resources.pak"
+                          Vital="no" />
+                    <File Id="QtWebEngineResources100pFile"
+                          Source="$(var.SourcererBinPath)\resources\qtwebengine_resources_100p.pak"
+                          Vital="no" />
+                    <File Id="QtWebEngineResources200pFile"
+                          Source="$(var.SourcererBinPath)\resources\qtwebengine_resources_200p.pak"
+                          Vital="no" />
+                    <File Id="QtWebEngineDevtoolsResourcesFile"
+                          Source="$(var.SourcererBinPath)\resources\qtwebengine_devtools_resources.pak"
+                          Vital="no" />
+                    <File Id="V8ContextSnapshotFile"
+                          Source="$(var.SourcererBinPath)\resources\v8_context_snapshot.bin"
+                          Vital="no" />
+                    <RemoveFolder Id="RemoveResourcesDir" On="uninstall" />
+                    <RegistryKey Root="HKCU"
+                                 Key="Software\Sourcerer\InstalledComponents">
+                        <RegistryValue Name="QtWebEngineResourceFiles"
+                                       Type="integer"
+                                       Value="1"
+                                       KeyPath="yes" />
+                    </RegistryKey>
+                </Component>
+            </Directory>
+
+
 
             <!-- JWT Security Files -->
             <Directory Id="KeysDir" Name="keys">

@@ -15,13 +15,14 @@ The Docker setup provides consistent build environments with all necessary depen
 
 ### Windows Build Environment
 - Windows Server Core 2022 base
-- Qt 6.10.1 (MinGW 64-bit) - Qt framework and tools
-- Qt MinGW 13.1.0 64-bit - Compiler and build tools (gcc, g++, mingw32-make)
+- Qt 6.10.3 (MSVC 2022 x64) - Qt framework and tools
+- Visual Studio 2022 Build Tools - MSVC compiler toolchain
+- OpenSSL (Chocolatey package) - TLS development headers, import libraries, and runtime DLLs
 - WiX Toolset v3.14 - MSI installer generation (replaces Qt IFW)
-- MSYS2 (installed via Chocolatey at C:\tools\msys64) - Provides runtime libraries and compiler tools (libgit2, libzip, libssh2, openssl, gcc, make)
-- CMake, Git, 7-Zip, Python (via Chocolatey)
+- CMake, Git, 7-Zip, Ninja, Python (via Chocolatey)
+- Installed Qt modules: `qtscxml`, `qtnetworkauth`, `qt5compat`, `qtwebengine`, `qtwebchannel`, `qtpositioning`
 
-**Note:** The build uses Qt's MinGW compiler, not MSYS2's compiler. MSYS2 provides runtime libraries.
+**Note:** The Windows build now uses MSVC 2022, not MinGW.
 
 ## Files
 
@@ -85,7 +86,7 @@ The Docker setup provides consistent build environments with all necessary depen
 .\build-windows-docker.ps1 --rebuild
 ```
 
-**Note:** First build will take 30-60 minutes to download and install Qt, MSYS2, and dependencies.
+**Note:** First build will take 30-60 minutes to download and install Qt, Visual Studio Build Tools, OpenSSL, and dependencies.
 
 ## Prerequisites
 
@@ -111,12 +112,12 @@ The Docker setup provides consistent build environments with all necessary depen
 
 ### Windows Build Process
 1. Builds a Windows Docker image with all dependencies (first run only, or with --rebuild)
-   - Installs Qt 6.10.1 via aqtinstall
-   - Installs Qt MinGW compiler tools
+   - Installs Qt 6.10.3 via aqtinstall for MSVC 2022
+   - Installs Visual Studio 2022 Build Tools
    - Installs WiX Toolset v3.14 (for MSI generation)
-   - Installs MSYS2 runtime libraries and compiler tools
+   - Installs OpenSSL development files and deploys required runtime DLLs
 2. Mounts the project directory into the container
-3. Builds Sourcerer in Release mode using Qt MinGW compiler
+3. Builds Sourcerer in Release mode using MSVC 2022
 4. Runs the build-installer-wix.bat script
 5. Outputs the MSI installer in the `installer/` directory
 
@@ -219,14 +220,14 @@ Try rebuilding the Docker image:
 
 **Expected behavior:** First-time Windows Docker image build takes 30-60 minutes due to:
 - Downloading Windows Server Core base image (~4 GB)
-- Installing MSYS2 and packages
-- Downloading and installing Qt 6.10.1
-- Installing Qt Installer Framework
+- Installing Visual Studio Build Tools, OpenSSL, and other dependencies
+- Downloading and installing Qt 6.10.3
+- Installing WiX Toolset
 
 This is a one-time operation. Subsequent builds use the cached image unless you use `-Rebuild`.
 
-### Qt Installer Framework download fails
-The Dockerfile will try to install Qt IFW via the online installer. If it fails, you may need to manually download and adjust the Dockerfile.
+### Qt installation fails
+The Dockerfile uses aqtinstall to download Qt MSVC packages. If it fails, check your network access or try a different Qt version.
 
 ## Customization
 
@@ -249,7 +250,7 @@ ENV QT_VERSION=6.11.0
 ```
 And update the package IDs:
 ```dockerfile
-qt.qt6.6110.win64_mingw \
+qt.qt6.6110.win64_msvc2022_64 \
 ```
 
 ### Adding Dependencies
@@ -263,17 +264,12 @@ RUN apt-get update && apt-get install -y \
 ```
 
 **Windows (edit `Dockerfile.windows`):**
-Add MSYS2 packages:
-```dockerfile
-RUN C:\tools\msys64\usr\bin\bash.exe -lc 'pacman -S --noconfirm mingw-w64-x86_64-your-package'
-```
-
-Or add Chocolatey packages:
+Add Chocolatey packages or Visual Studio Build Tools components:
 ```dockerfile
 RUN choco install -y your-package
 ```
 
-**Note:** MSYS2 is installed via Chocolatey to `C:\tools\msys64` to ensure consistency between Docker and local builds.
+For compiler-related dependencies, prefer Chocolatey packages or Visual Studio workloads that match MSVC 2022.
 
 ## Benefits of Docker-based Builds
 

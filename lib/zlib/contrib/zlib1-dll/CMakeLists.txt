@@ -101,7 +101,10 @@ check_c_source_compiles(
     HAVE___ATTR__VIS_HIDDEN)
 
 unset(CMAKE_COMPILE_FLAGS)
-configure_file(${zlib1-dll_BINARY_DIR}/zconf.h.cmakein ${zlib1-dll_BINARY_DIR}/zconf.h)
+configure_file(
+    ${zlib1-dll_BINARY_DIR}/zconf.h.cmakein
+    ${zlib1-dll_BINARY_DIR}/zconf.h
+)
 
 # ============================================================================
 # zlib1-dll
@@ -142,7 +145,6 @@ set(ZLIB1-DLL_SRCS
     ../../inffast.c
     ../../trees.c
     ../../uncompr.c
-    ../../win32/zlib1.rc
     ../../zutil.c
     ../minizip/ioapi.c
     ../minizip/mztools.c

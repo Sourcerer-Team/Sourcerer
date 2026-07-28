@@ -8,6 +8,9 @@ set "PROJECT_ROOT=%~dp0.."
 set "BUILD_DIR=%PROJECT_ROOT%\build\Release-Windows"
 set "INSTALLER_DIR=%~dp0"
 set "WXS_FILE=%INSTALLER_DIR%Sourcerer.wxs"
+set "QT_VERSION=6.10.3"
+set "QT_DIR=C:\Qt"
+set "QT_MSVC_BIN_PATH=%QT_DIR%\%QT_VERSION%\msvc2022_64\bin"
 
 REM Normalize build directory path
 if not exist "%BUILD_DIR%" (
@@ -87,75 +90,118 @@ echo [DEBUG] Sourcerer.exe found
 echo [DEBUG] Sourcerer.wxs found
 echo [DEBUG] Ready to proceed with build
 
-REM Detect MSYS2 installation (use mingw64\bin for compiled libraries)
+REM Detect Qt MSVC installation
 echo.
-echo [DEBUG] Detecting MSYS2 installation...
-set MSYS2_BIN_PATH=
-if exist "C:\tools\msys64\mingw64\bin" (
-    set "MSYS2_BIN_PATH=C:\tools\msys64\mingw64\bin"
-    echo [DEBUG] Found MSYS2 at C:\tools\msys64
-) else if exist "C:\msys64\mingw64\bin" (
-    set "MSYS2_BIN_PATH=C:\msys64\mingw64\bin"
-    echo [DEBUG] Found MSYS2 at C:\msys64
-) else if exist "%ProgramFiles%\msys64\mingw64\bin" (
-    set "MSYS2_BIN_PATH=%ProgramFiles%\msys64\mingw64\bin"
-    echo [DEBUG] Found MSYS2 at %ProgramFiles%\msys64
+echo [DEBUG] Detecting Qt MSVC installation...
+set QT_BIN_PATH=
+if exist "%QT_MSVC_BIN_PATH%" (
+    set "QT_BIN_PATH=%QT_MSVC_BIN_PATH%"
+    echo [DEBUG] Found Qt MSVC at %QT_DIR%\%QT_VERSION%\msvc2022_64
 ) else (
-    echo Error: MSYS2 installation not found
-    echo Searched in: C:\tools\msys64, C:\msys64, %ProgramFiles%\msys64
-    echo Please install MSYS2 from https://www.msys2.org/
-    exit /b 1
-)
-
-REM Detect Qt MinGW bin directory
-echo.
-echo [DEBUG] Detecting Qt MinGW installation...
-set QT_MINGW_BIN_PATH=
-set QT_VERSION=6.10.3
-set QT_DIR=C:\Qt
-set "QT_MINGW_DIR=%QT_DIR%\%QT_VERSION%\mingw_64"
-
-if exist "%QT_MINGW_DIR%\bin" (
-    set "QT_MINGW_BIN_PATH=%QT_MINGW_DIR%\bin"
-    echo [DEBUG] Found Qt MinGW at %QT_MINGW_DIR%
-) else (
-    echo Error: Qt MinGW not found at "%QT_MINGW_DIR%"
+    echo Error: Qt MSVC not found at "%QT_MSVC_BIN_PATH%"
     echo Please verify Qt installation
     exit /b 1
 )
 
-REM Verify all required DLL files exist
+REM Detect OpenSSL installation
 echo.
-echo Verifying required DLL files...
-set MISSING_DLLS=
-for %%i in (
-    libbz2-1.dll
-    libgit2-1.9.dll
-    libhttp_parser-2.dll
-    libiconv-2.dll
-    liblzma-5.dll
-    libpcre2-8-0.dll
-    libssh2-1.dll
-    libzip.dll
-    libzstd.dll
-    zlib1.dll
-) do (
-    if not exist "%MSYS2_BIN_PATH%\%%i" (
-        echo Warning: "%MSYS2_BIN_PATH%\%%i" not found
-        set MISSING_DLLS=!MISSING_DLLS! %%i
+echo [DEBUG] Detecting OpenSSL installation...
+if not defined OPENSSL_ROOT_DIR (
+    if exist "C:\Program Files\OpenSSL" (
+        set "OPENSSL_ROOT_DIR=C:\Program Files\OpenSSL"
+    ) else if exist "C:\Program Files\OpenSSL-Win64" (
+        set "OPENSSL_ROOT_DIR=C:\Program Files\OpenSSL-Win64"
+    ) else if exist "C:\Program Files (x86)\OpenSSL" (
+        set "OPENSSL_ROOT_DIR=C:\Program Files (x86)\OpenSSL"
+    ) else if exist "C:\Program Files (x86)\OpenSSL-Win64" (
+        set "OPENSSL_ROOT_DIR=C:\Program Files (x86)\OpenSSL-Win64"
+    ) else (
+        echo Error: OpenSSL installation not found
+        exit /b 1
     )
 )
+set OPENSSL_BIN_PATH=%OPENSSL_ROOT_DIR%\bin
 
-if defined MISSING_DLLS (
-    echo.
-    echo Warning: Some MSYS2 DLL files were not found:!MISSING_DLLS!
-    echo The installer may not work correctly without these dependencies.
+echo [DEBUG] OpenSSL root: !OPENSSL_ROOT_DIR!
+
+REM Verify runtime files exist or can be deployed
+echo.
+echo Verifying required runtime files...
+if not exist "%OPENSSL_BIN_PATH%\libssl-3-x64.dll" (
+    echo Warning: "%OPENSSL_BIN_PATH%\libssl-3-x64.dll" not found
+)
+if not exist "%OPENSSL_BIN_PATH%\libcrypto-3-x64.dll" (
+    echo Warning: "%OPENSSL_BIN_PATH%\libcrypto-3-x64.dll" not found
 )
 
 REM Deploy Qt dependencies
 echo.
 echo Deploying Qt dependencies...
 call :deployQtDependencies
+
+REM Ensure required Qt module DLLs are present if windeployqt did not copy them
+echo.
+echo Checking for Qt module DLLs...
+for %%i in (Qt6PrintSupport.dll Qt6QuickWidgets.dll Qt6Quick.dll Qt6QmlMeta.dll Qt6QmlModels.dll Qt6QmlWorkerScript.dll Qt6Core5Compat.dll) do (
+    if not exist "%BUILD_DIR%\%%i" (
+        if exist "%QT_BIN_PATH%\%%i" (
+            copy "%QT_BIN_PATH%\%%i" "%BUILD_DIR%\%%i" >nul
+            echo [DEBUG] Copied %%i from Qt bin
+        )
+    )
+)
+
+REM Copy Qt WebEngine process binary and support resources
+echo.
+echo Checking Qt WebEngine support files...
+if not exist "%BUILD_DIR%\QtWebEngineProcess.exe" (
+    if exist "%QT_BIN_PATH%\QtWebEngineProcess.exe" (
+        copy "%QT_BIN_PATH%\QtWebEngineProcess.exe" "%BUILD_DIR%\QtWebEngineProcess.exe" >nul
+        echo [DEBUG] Copied QtWebEngineProcess.exe from Qt bin
+    )
+)
+if not exist "%BUILD_DIR%\resources" mkdir "%BUILD_DIR%\resources"
+for %%i in (icudtl.dat qtwebengine_resources.pak qtwebengine_resources_100p.pak qtwebengine_resources_200p.pak qtwebengine_devtools_resources.pak v8_context_snapshot.bin) do (
+    if exist "%QT_DIR%\%QT_VERSION%\msvc2022_64\resources\%%i" (
+        copy "%QT_DIR%\%QT_VERSION%\msvc2022_64\resources\%%i" "%BUILD_DIR%\resources\%%i" >nul
+        echo [DEBUG] Copied %%i to resources folder
+    )
+)
+if exist "%QT_DIR%\%QT_VERSION%\msvc2022_64\translations\qtwebengine_locales" (
+    if not exist "%BUILD_DIR%\translations\qtwebengine_locales" mkdir "%BUILD_DIR%\translations\qtwebengine_locales"
+    xcopy "%QT_DIR%\%QT_VERSION%\msvc2022_64\translations\qtwebengine_locales\*" "%BUILD_DIR%\translations\qtwebengine_locales\" /Y /I /E >nul
+    echo [DEBUG] Copied qtwebengine_locales folder
+)
+
+REM Ensure z.dll is present in the release directory for packaging
+echo.
+echo Checking for z.dll...
+if not exist "%BUILD_DIR%\z.dll" (
+    for /r "%BUILD_DIR%" %%i in (z.dll) do (
+        if not exist "%BUILD_DIR%\z.dll" (
+            copy "%%~fi" "%BUILD_DIR%\z.dll" >nul
+            echo [DEBUG] Copied z.dll from %%~fi
+        )
+    )
+    for /r "%BUILD_DIR%" %%i in (zlib1.dll) do (
+        if not exist "%BUILD_DIR%\z.dll" (
+            copy "%%~fi" "%BUILD_DIR%\z.dll" >nul
+            echo [DEBUG] Copied z.dll from %%~fi
+        )
+    )
+)
+
+REM Copy OpenSSL DLLs into the release directory if windeployqt did not already do so
+echo.
+echo Ensuring OpenSSL runtime DLLs are present...
+for %%i in (libssl-3-x64.dll libcrypto-3-x64.dll) do (
+    if not exist "%BUILD_DIR%\%%i" (
+        if exist "%OPENSSL_BIN_PATH%\%%i" (
+            copy "%OPENSSL_BIN_PATH%\%%i" "%BUILD_DIR%\%%i" >nul
+            echo [DEBUG] Copied %%i from OpenSSL bin
+        )
+    )
+)
 
 REM Copy security and configuration files
 echo.
@@ -175,7 +221,18 @@ if exist "%INSTALLER_DIR%LICENSE.rtf" (
     copy "%INSTALLER_DIR%LICENSE.rtf" "%BUILD_DIR%\LICENSE.rtf" >nul
     echo [DEBUG] License file copied
 ) else (
-    echo Warning: LICENSE.rtf not found at "%BUILD_DIR%\LICENSE.rtf"
+    echo Warning: LICENSE.rtf not found at "%INSTALLER_DIR%LICENSE.rtf"
+)
+
+set "LICENSE_RTF_PATH=%BUILD_DIR%\LICENSE.rtf"
+if not exist "%LICENSE_RTF_PATH%" (
+    if exist "%INSTALLER_DIR%LICENSE.rtf" (
+        set "LICENSE_RTF_PATH=%INSTALLER_DIR%LICENSE.rtf"
+    )
+)
+if not exist "%LICENSE_RTF_PATH%" (
+    echo Error: LICENSE.rtf not found
+    exit /b 1
 )
 
 REM Read application version from the shared ConfigManager source
@@ -198,15 +255,13 @@ REM Compile WiX source to object file
 echo.
 echo Compiling WiX source files...
 set "WXO_FILE=%BUILD_DIR%\Sourcerer.wixobj"
-echo [DEBUG] Running candle: "!CANDLE_PATH!" -out "!WXO_FILE!" -d"SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows" -d"MSYS2BinPath=!MSYS2_BIN_PATH!" -d"QtMinGWBinPath=!QT_MINGW_BIN_PATH!" -d"LicenseRtfPath=%BUILD_DIR%\LICENSE.rtf" -d"SourcererVersion=!APP_VERSION!" "!WXS_FILE!"
+echo [DEBUG] Running candle: "!CANDLE_PATH!" -out "!WXO_FILE!" -d"SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows" -d"SourcererVersion=!APP_VERSION!" -d"LicenseRtfPath=!LICENSE_RTF_PATH!" "!WXS_FILE!"
 
 "!CANDLE_PATH!" ^
     -out "!WXO_FILE!" ^
     -d"SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows" ^
-    -d"MSYS2BinPath=!MSYS2_BIN_PATH!" ^
-    -d"QtMinGWBinPath=!QT_MINGW_BIN_PATH!" ^
-    -d"LicenseRtfPath=%BUILD_DIR%\LICENSE.rtf" ^
     -d"SourcererVersion=!APP_VERSION!" ^
+    -d"LicenseRtfPath=!LICENSE_RTF_PATH!" ^
     "!WXS_FILE!"
 
 if errorlevel 1 (
@@ -241,7 +296,7 @@ exit /b 0
 setlocal
 set QT_VERSION=6.10.3
 set QT_DIR=C:\Qt
-set QT_BIN_DIR=%QT_DIR%\%QT_VERSION%\mingw_64\bin
+set QT_BIN_DIR=%QT_DIR%\%QT_VERSION%\msvc2022_64\bin
 
 REM Look for windeployqt
 for %%I in (windeployqt.exe) do (
@@ -260,8 +315,8 @@ if not defined WINDEPLOYQT (
 echo Found windeployqt: "%WINDEPLOYQT%"
 echo Deploying to: "%PROJECT_ROOT%\build\Release-Windows"
 
-REM Deploy with OpenSSL support (force OpenSSL to be included)
-"%WINDEPLOYQT%" --release --no-translations --openssl-root "C:\tools\msys64\mingw64" "%PROJECT_ROOT%\build\Release-Windows\Sourcerer.exe"
+REM Deploy Qt runtime files and include OpenSSL if available
+"%WINDEPLOYQT%" --release --no-translations --openssl-root "%OPENSSL_ROOT_DIR%" "%PROJECT_ROOT%\build\Release-Windows\Sourcerer.exe"
 if errorlevel 1 (
     echo Warning: windeployqt returned an error, but continuing...
 )

@@ -13,6 +13,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Widgets LinguistTools)
 set(STYLESHEETMANAGER_SOURCE_FILES
    include/StylesheetKey.h
    include/StylesheetManager.h
+
    src/StylesheetManager.cpp
 )
 
