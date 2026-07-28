@@ -5,6 +5,7 @@
 #include <QAbstractButton>
 #include <QApplication>
 #include <QColor>
+#include <QIcon>
 #include <QImage>
 #include <QMap>
 #include <QPalette>
@@ -2084,6 +2085,120 @@ QColor StylesheetManager::historyBadgeTextColor() {
 
   const QColor text = qApp->palette().color(QPalette::ButtonText);
   return QColor::fromRgbF(text.redF(), text.greenF(), text.blueF(), 1.0);
+}
+
+QString StylesheetManager::issueTrackerToolbarStyleSheet() {
+  switch (currentStylesheet()) {
+  case StylesheetKey::SourcererLight:
+    return QStringLiteral(
+        "QWidget#issueTrackerToolbar {"
+        "  background: rgba(250, 250, 250, 246);"
+        "  border: none;"
+        "  border-radius: 0px;"
+        "}"
+        "QWidget#issueTrackerToolbarHandle {"
+        "  background: transparent;"
+        "  color: #202020;"
+        "}"
+        "QWidget#issueTrackerToolbar QLabel { color: #202020; }"
+        "QWidget#issueTrackerToolbar QToolButton {"
+        "  color: #202020;"
+        "  background: transparent;"
+        "  border: none;"
+        "  padding: 4px 8px;"
+        "  min-width: 22px;"
+        "  min-height: 22px;"
+        "}"
+        "QWidget#issueTrackerToolbar QToolButton:hover {"
+        "  background: rgba(0, 0, 0, 6);"
+        "  border-radius: 4px;"
+        "}"
+        "QWidget#issueTrackerToolbar QToolButton:pressed {"
+        "  background: rgba(0, 0, 0, 12);"
+        "  border-radius: 4px;"
+        "}"
+        "QWidget#issueTrackerToolbar QToolButton:disabled {"
+        "  color: rgba(0, 0, 0, 90);"
+        "}");
+  case StylesheetKey::SourcererDark:
+  default:
+    return QStringLiteral(
+        "QWidget#issueTrackerToolbar {"
+        "  background: rgba(32, 32, 32, 190);"
+        "  border: none;"
+        "  border-radius: 0px;"
+        "}"
+        "QWidget#issueTrackerToolbarHandle {"
+        "  background: transparent;"
+        "  color: white;"
+        "}"
+        "QWidget#issueTrackerToolbar QLabel { color: white; }"
+        "QWidget#issueTrackerToolbar QToolButton {"
+        "  color: white;"
+        "  background: transparent;"
+        "  border: none;"
+        "  padding: 4px 8px;"
+        "  min-width: 22px;"
+        "  min-height: 22px;"
+        "}"
+        "QWidget#issueTrackerToolbar QToolButton:hover {"
+        "  background: rgba(255,255,255,35);"
+        "  border-radius: 4px;"
+        "}"
+        "QWidget#issueTrackerToolbar QToolButton:pressed {"
+        "  background: rgba(255,255,255,60);"
+        "  border-radius: 4px;"
+        "}"
+        "QWidget#issueTrackerToolbar QToolButton:disabled {"
+        "  color: rgba(255,255,255,90);"
+        "}");
+  }
+}
+
+namespace {
+
+QIcon issueTrackerToolbarIcon(const QString &path,
+                              const QString &disabledPath) {
+  const QColor iconColor =
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
+
+  QIcon icon;
+  QPixmap source(path);
+  if (source.isNull()) {
+    return icon;
+  }
+
+  icon.addPixmap(StylesheetManager::StylesheetManager::recolorPixmap(source, iconColor),
+                 QIcon::Normal, QIcon::Off);
+
+  QPixmap disabledSource(disabledPath);
+  if (!disabledSource.isNull()) {
+    icon.addPixmap(
+        StylesheetManager::StylesheetManager::recolorPixmap(disabledSource, iconColor),
+        QIcon::Disabled, QIcon::Off);
+  }
+
+  return icon;
+}
+
+} // namespace
+
+QIcon StylesheetManager::issueTrackerToolbarBackIcon() {
+  return issueTrackerToolbarIcon(
+      QStringLiteral(":/icons/issue_tracker_toolbar_back.svg"),
+      QStringLiteral(":/icons/issue_tracker_toolbar_back_disabled.svg"));
+}
+
+QIcon StylesheetManager::issueTrackerToolbarForwardIcon() {
+  return issueTrackerToolbarIcon(
+      QStringLiteral(":/icons/issue_tracker_toolbar_forward.svg"),
+      QStringLiteral(":/icons/issue_tracker_toolbar_forward_disabled.svg"));
+}
+
+QIcon StylesheetManager::issueTrackerToolbarRefreshIcon() {
+  return issueTrackerToolbarIcon(
+      QStringLiteral(":/icons/issue_tracker_toolbar_refresh.svg"),
+      QStringLiteral(":/icons/issue_tracker_toolbar_refresh_disabled.svg"));
 }
 
 QPixmap StylesheetManager::recolorPixmap(const QPixmap &source,

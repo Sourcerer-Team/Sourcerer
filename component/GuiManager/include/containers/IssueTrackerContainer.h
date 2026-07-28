@@ -5,7 +5,13 @@
 
 #include <ConfigManager.h>
 
+#include <QEvent>
+#include <QLineEdit>
+#include <QMouseEvent>
+#include <QPoint>
+#include <QResizeEvent>
 #include <QString>
+#include <QToolButton>
 #include <QUrl>
 #include <QWidget>
 
@@ -41,10 +47,24 @@ public:
   QString repositoryName() const { return _repositoryName; }
   QString path() const override { return QString(); }
 
+protected:
+  void resizeEvent(QResizeEvent *event) override;
+  void changeEvent(QEvent *event) override;
+  bool eventFilter(QObject *watched, QEvent *event) override;
+
 private:
   void updateIssueUrl();
   void loadIssuePage();
   void showUnsupportedMessage(const QString &message);
+  void updateNavigationState();
+  void buildToolbar();
+  void applyToolbarTheme();
+  void restoreToolbarPosition();
+  void moveToolbarTo(const QPoint &relativePosition, bool persist);
+  QPoint defaultToolbarPosition() const;
+  QPoint loadToolbarPosition() const;
+  QPoint clampToolbarPosition(const QPoint &relativePosition) const;
+  void persistToolbarPosition(const QPoint &relativePosition);
 
 private:
   ConfigManager::ConfigManager &_configManager;
@@ -54,6 +74,14 @@ private:
   QString _serviceType;
   QString _repositoryName;
   QUrl _issuesUrl;
+  QWidget *_toolbarWidget;
+  QWidget *_toolbarHandle;
+  QToolButton *_backButton;
+  QToolButton *_forwardButton;
+  QToolButton *_refreshButton;
+  bool _draggingToolbar;
+  QPoint _toolbarDragOffset;
+  QPoint _toolbarRelativePosition;
 #if GUI_MANAGER_HAS_WEBENGINE
   QWebEngineView *_browserView;
 #else

@@ -22,6 +22,12 @@
         <file>icons/profile.png</file>
         <file>icons/profile-default.png</file>
         <file>icons/fetch.png</file>
+        <file>icons/issue_tracker_toolbar_back.svg</file>
+        <file>icons/issue_tracker_toolbar_back_disabled.svg</file>
+        <file>icons/issue_tracker_toolbar_forward.svg</file>
+        <file>icons/issue_tracker_toolbar_forward_disabled.svg</file>
+        <file>icons/issue_tracker_toolbar_refresh.svg</file>
+        <file>icons/issue_tracker_toolbar_refresh_disabled.svg</file>
         <file>icons/pull.png</file>
         <file>icons/push.png</file>
         <file>icons/pop.png</file>

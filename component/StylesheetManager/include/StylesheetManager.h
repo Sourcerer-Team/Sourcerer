@@ -3,6 +3,7 @@
 #include "StylesheetKey.h"
 
 #include <QColor>
+#include <QIcon>
 #include <QPixmap>
 #include <QString>
 
@@ -23,6 +24,10 @@ public:
   static QColor menuBarButtonIconColor();
   static QColor historyBadgeFillColor();
   static QColor historyBadgeTextColor();
+  static QString issueTrackerToolbarStyleSheet();
+  static QIcon issueTrackerToolbarBackIcon();
+  static QIcon issueTrackerToolbarForwardIcon();
+  static QIcon issueTrackerToolbarRefreshIcon();
   static QPixmap recolorPixmap(const QPixmap &source, const QColor &color);
   static void applyStylesheet(QApplication *app = nullptr);
   static void refreshMenuBarButtonIcons(QWidget *root = nullptr);

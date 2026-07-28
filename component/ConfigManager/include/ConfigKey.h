@@ -70,6 +70,7 @@ enum class ConfigKey {
 
   // Github issue tracker
   GitHubOAuthClientId,
+  IssueTrackerToolbarPosition,
 
   // Testing
   TestColor,
