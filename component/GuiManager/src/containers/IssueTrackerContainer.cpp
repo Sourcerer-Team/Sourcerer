@@ -6,7 +6,6 @@
 #include <Log.h>
 
 #include <QObject>
-#include <QVBoxLayout>
 #include <QStringList>
 
 #define THREAD_ID "IssueTrackerContainer"
@@ -51,7 +50,10 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
                                              QString repositoryName,
                                              QWidget *parent)
     : ContainerWidget(ContainerType::IssueTracker, parent),
+      _configManager(ConfigManager::ConfigManager::getInstance()),
+      _toastHost(ToastHostWidget::getInstance()),
       ui(new Ui::IssueTrackerContainer),
+      _selected(false),
       _serviceType(serviceType.trimmed()),
       _repositoryName(repositoryName.trimmed()), _browserView(nullptr) {
   LOG_PERF(0, "Enter");
@@ -59,24 +61,16 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
   ui->setupUi(this);
 
 #if GUI_MANAGER_HAS_WEBENGINE
-  _browserView = new QWebEngineView(ui->browserContainer);
+  _browserView = new QWebEngineView(this);
 #else
-  _browserView = new QTextBrowser(ui->browserContainer);
+  _browserView = new QTextBrowser(this);
   _browserView->setOpenExternalLinks(true);
   _browserView->setOpenLinks(true);
 #endif
 
-  auto *layout = qobject_cast<QVBoxLayout *>(ui->browserContainer->layout());
-  Q_ASSERT(layout != nullptr);
-  if (layout) {
-    layout->addWidget(_browserView);
-  }
-
-  ui->labelServiceValue->setText(_serviceType.isEmpty() ? tr("Unknown")
-                                                        : _serviceType);
-  ui->labelRepositoryValue->setText(
-      _repositoryName.isEmpty() ? tr("Unknown") : _repositoryName);
-  ui->labelRepositoryValue->setToolTip(_repositoryName);
+  ui->mainLayout->setContentsMargins(0, 0, 0, 0);
+  ui->mainLayout->setSpacing(0);
+  ui->mainLayout->addWidget(_browserView);
 
   updateIssueUrl();
   loadIssuePage();
@@ -92,10 +86,37 @@ IssueTrackerContainer::~IssueTrackerContainer() {
   LOG_PERF(0, "Exit");
 }
 
-void IssueTrackerContainer::selected() {
+void IssueTrackerContainer::init()
+{
   LOG_PERF(0, "Enter");
 
   loadIssuePage();
+
+  LOG_PERF(0, "Exit");
+}
+
+void IssueTrackerContainer::deselected()
+{
+  LOG_PERF(0, "Enter");
+
+  _selected = false;
+
+  LOG_PERF(0, "Exit");
+}
+
+void IssueTrackerContainer::selected() {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  LOG_DEBUG("Title bar height retrieved: {} px", titleBarHeight);
+
+  _toastHost.setParent(this);
+  _toastHost.setYOffset(titleBarHeight);
+  _toastHost.raise();
+  LOG_DEBUG("Toast host configured and raised");
+
+  _selected = true;
 
   LOG_PERF(0, "Exit");
 }

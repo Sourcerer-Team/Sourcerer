@@ -1,6 +1,9 @@
 #pragma once
 
 #include "widgets/ContainerWidget.h"
+#include "widgets/ToastHostWidget.h"
+
+#include <ConfigManager.h>
 
 #include <QString>
 #include <QUrl>
@@ -30,6 +33,8 @@ public:
                                  QWidget *parent = nullptr);
   ~IssueTrackerContainer() override;
 
+  void init() override;
+  void deselected() override;
   void selected() override;
 
   QString serviceType() const { return _serviceType; }
@@ -42,7 +47,10 @@ private:
   void showUnsupportedMessage(const QString &message);
 
 private:
+  ConfigManager::ConfigManager &_configManager;
+  Widgets::ToastHostWidget &_toastHost;
   Ui::IssueTrackerContainer *ui;
+  bool _selected;
   QString _serviceType;
   QString _repositoryName;
   QUrl _issuesUrl;

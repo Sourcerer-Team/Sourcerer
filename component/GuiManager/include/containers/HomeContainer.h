@@ -1,10 +1,11 @@
 #pragma once
 
+#include "delegates/HomeRecentItemDelegate.h"
 #include "models/IssueTrackersModel.h"
 #include "models/RecentlyOpenedReposModel.h"
 #include "models/WorkspacesModel.h"
 #include "widgets/ContainerWidget.h"
-#include <delegates/HomeRecentItemDelegate.h>
+#include "widgets/ToastHostWidget.h"
 
 #include <ConfigManager.h>
 #include <Dispatcher.h>
@@ -44,6 +45,7 @@ public:
   void reloadRecentlyOpened() const;
   void reloadWorkspaces() const;
 
+  void deselected() override;
   void selected() override;
 
 signals:
@@ -80,7 +82,9 @@ private:
   IssueTrackersModel *_issueTrackersModel;
   HomeRecentItemDelegate *_itemDelegate;
   ::ConfigManager::ConfigManager &_configManager;
+  Widgets::ToastHostWidget &_toastHost;
   Util::Dispatcher _dispatcher;
+  bool _selected;
 };
 
 } // namespace GuiManager::Containers

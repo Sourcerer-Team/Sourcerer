@@ -43,7 +43,9 @@ HomeContainer::HomeContainer(QWidget *parent)
       _issueTrackersModel(new IssueTrackersModel(this)),
       _itemDelegate(new HomeRecentItemDelegate(this)),
       _configManager(::ConfigManager::ConfigManager::getInstance()),
-      _dispatcher(1) {
+      _toastHost(ToastHostWidget::getInstance()),
+      _dispatcher(1),
+      _selected(false) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -136,14 +138,34 @@ void HomeContainer::reloadWorkspaces() const {
   LOG_PERF(0, "Exit");
 }
 
+void HomeContainer::deselected()
+{
+  LOG_PERF(0, "Enter");
+
+  _selected = false;
+
+  LOG_PERF(0, "Exit");
+}
+
 void HomeContainer::selected() {
   LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  LOG_DEBUG("Title bar height retrieved: {} px", titleBarHeight);
+
+  _toastHost.setParent(this);
+  _toastHost.setYOffset(titleBarHeight);
+  _toastHost.raise();
+  LOG_DEBUG("Toast host configured and raised");
 
   reloadRecentlyOpened();
   reloadWorkspaces();
   reloadIssueTrackers();
 
   ui->tableViewIssueTrackerConnections->resizeColumnsToContents();
+
+  _selected = true;
 
   LOG_PERF(0, "Exit");
 }
