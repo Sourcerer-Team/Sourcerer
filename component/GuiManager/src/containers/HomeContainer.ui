@@ -284,6 +284,9 @@
          <property name="text">
           <string>ISSUE TRACKERS</string>
          </property>
+         <property name="alignment">
+          <set>Qt::AlignmentFlag::AlignBottom|Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft</set>
+         </property>
         </widget>
        </item>
        <item>
@@ -305,6 +308,9 @@
          </property>
          <attribute name="horizontalHeaderVisible">
           <bool>false</bool>
+         </attribute>
+         <attribute name="horizontalHeaderMinimumSectionSize">
+          <number>24</number>
          </attribute>
          <attribute name="verticalHeaderVisible">
           <bool>false</bool>

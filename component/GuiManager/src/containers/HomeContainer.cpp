@@ -63,6 +63,9 @@ HomeContainer::HomeContainer(QWidget *parent)
   ui->tableViewIssueTrackerConnections->viewport()->installEventFilter(this);
   ui->tableViewIssueTrackerConnections->horizontalHeader()
       ->setStretchLastSection(true);
+  ui->tableViewIssueTrackerConnections->horizontalHeader()
+      ->setSectionResizeMode(0, QHeaderView::Fixed);
+  ui->tableViewIssueTrackerConnections->setColumnWidth(0, 24);
   ui->tableViewIssueTrackerConnections->setIconSize(QSize(16, 16));
 
   auto *connectToMenu = new QMenu(ui->connectToButton);
@@ -164,6 +167,7 @@ void HomeContainer::selected() {
   reloadIssueTrackers();
 
   ui->tableViewIssueTrackerConnections->resizeColumnsToContents();
+  ui->tableViewIssueTrackerConnections->setColumnWidth(0, 24);
 
   _selected = true;
 
@@ -303,8 +307,6 @@ void HomeContainer::hoverEnter(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
 
-  qDebug() << "Enter: " << index.row() << ", " << index.column();
-
   _itemDelegate->setHover(index);
 
   ui->tableViewRecent->viewport()->update();
@@ -319,8 +321,6 @@ void HomeContainer::hoverEnter(const QModelIndex &index) {
 void HomeContainer::hoverLeave(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
-
-  qDebug() << "Leave: " << index.row() << ", " << index.column();
 
   _itemDelegate->setHover(QModelIndex());
 
