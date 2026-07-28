@@ -46,6 +46,7 @@ endif()
 
 # Common Windows installation locations used by Chocolatey and other installers.
 list(APPEND _openssl_candidate_roots
+    "/usr"
     "C:/Program Files/OpenSSL"
     "C:/Program Files/OpenSSL-Win64"
     "C:/Program Files (x86)/OpenSSL"
@@ -80,6 +81,7 @@ foreach(_candidate_root IN LISTS _openssl_candidate_roots)
         NAMES ssl libssl libssl-3-x64
         HINTS
             "${_candidate_root}/lib"
+            "${_candidate_root}/lib/x86_64-linux-gnu"
             "${_candidate_root}/bin"
         NO_DEFAULT_PATH
     )
@@ -88,6 +90,7 @@ foreach(_candidate_root IN LISTS _openssl_candidate_roots)
         NAMES crypto libcrypto libcrypto-3-x64
         HINTS
             "${_candidate_root}/lib"
+            "${_candidate_root}/lib/x86_64-linux-gnu"
             "${_candidate_root}/bin"
         NO_DEFAULT_PATH
     )
