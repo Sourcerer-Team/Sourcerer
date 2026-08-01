@@ -8,6 +8,7 @@ set "PROJECT_ROOT=%~dp0.."
 set "BUILD_DIR=%PROJECT_ROOT%\build\Release-Windows"
 set "INSTALLER_DIR=%~dp0"
 set "WXS_FILE=%INSTALLER_DIR%Sourcerer.wxs"
+set "WXS_BURN_FILE=%INSTALLER_DIR%Burn.wxs"
 set "QT_VERSION=6.10.3"
 set "QT_DIR=C:\Qt"
 set "QT_MSVC_BIN_PATH=%QT_DIR%\%QT_VERSION%\msvc2022_64\bin"
@@ -23,48 +24,27 @@ echo [DEBUG] PROJECT_ROOT=%PROJECT_ROOT%
 echo [DEBUG] BUILD_DIR=%BUILD_DIR%
 echo [DEBUG] INSTALLER_DIR=%INSTALLER_DIR%
 echo [DEBUG] WXS_FILE=%WXS_FILE%
+echo [DEBUG] WXS_BURN_FILE=%WXS_BURN_FILE%
 
 REM Check for WiX Toolset
 echo.
 echo [DEBUG] Checking for WiX Toolset...
-for %%I in (candle.exe) do (
-    set CANDLE_PATH=%%~$PATH:I
+for %%I in (wix.exe) do (
+    set WIX_PATH=%%~$PATH:I
 )
 
-if not defined CANDLE_PATH (
+if not defined WIX_PATH (
     echo [DEBUG] candle.exe not in PATH, checking standard locations...
     REM Try common WiX installation paths
-    if exist "C:\Program Files (x86)\WiX Toolset v3.14\bin\candle.exe" (
-        set "WIX_DIR=C:\Program Files (x86)\WiX Toolset v3.14"
-        echo [DEBUG] Found WiX v3.14
-    ) else if exist "C:\Program Files (x86)\WiX Toolset v3.13\bin\candle.exe" (
-        set "WIX_DIR=C:\Program Files (x86)\WiX Toolset v3.13"
-        echo [DEBUG] Found WiX v3.13
-    ) else if exist "C:\Program Files (x86)\WiX Toolset v3.12\bin\candle.exe" (
-        set "WIX_DIR=C:\Program Files (x86)\WiX Toolset v3.12"
-        echo [DEBUG] Found WiX v3.12
-    ) else if exist "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe" (
-        set "WIX_DIR=C:\Program Files (x86)\WiX Toolset v3.11"
-        echo [DEBUG] Found WiX v3.11
-    ) else (
-        echo Error: WiX Toolset not found
-        echo Please install WiX Toolset v3.11 or later from https://wixtoolset.org/
-        exit /b 1
-    )
 
-    set "CANDLE_PATH=!WIX_DIR!\bin\candle.exe"
-    set "LIGHT_PATH=!WIX_DIR!\bin\light.exe"
-) else (
-    echo [DEBUG] Found candle.exe in PATH
-    for %%I in (light.exe) do (
-        set LIGHT_PATH=%%~$PATH:I
-    )
+    echo Error: WiX Toolset not found
+    echo Please install WiX Toolset v3.11 or later from https://wixtoolset.org/
+    exit /b 1
 )
 
 echo.
 echo Found WiX Toolset:
-echo [DEBUG] Candle: "!CANDLE_PATH!"
-echo [DEBUG] Light:  "!LIGHT_PATH!"
+echo [DEBUG] Wix:  "!WIX_PATH!"
 
 REM Verify required files and directories exist
 echo.
@@ -80,6 +60,11 @@ if not exist "%WXS_FILE%" (
     exit /b 1
 )
 
+if not exist "%WXS_BURN_FILE%" (
+    echo Error: "%WXS_BURN_FILE%" not found
+    exit /b 1
+)
+
 REM Create BUILD_DIR if it doesn't exist
 if not exist "%BUILD_DIR%" (
     echo [DEBUG] Creating BUILD_DIR: "%BUILD_DIR%"
@@ -87,7 +72,6 @@ if not exist "%BUILD_DIR%" (
 )
 
 echo [DEBUG] Sourcerer.exe found
-echo [DEBUG] Sourcerer.wxs found
 echo [DEBUG] Ready to proceed with build
 
 REM Detect Qt MSVC installation
@@ -254,41 +238,31 @@ echo [DEBUG] Sourcerer version=!APP_VERSION!
 REM Compile WiX source to object file
 echo.
 echo Compiling WiX source files...
-set "WXO_FILE=%BUILD_DIR%\Sourcerer.wixobj"
-echo [DEBUG] Running candle: "!CANDLE_PATH!" -out "!WXO_FILE!" -d"SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows" -d"SourcererVersion=!APP_VERSION!" -d"LicenseRtfPath=!LICENSE_RTF_PATH!" "!WXS_FILE!"
+set "MSI_OUTPUT=%INSTALLER_DIR%\Sourcerer-Installer.msi"
+echo [DEBUG] Running wix: !WIX_PATH! build !WXS_FILE! -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
 
-"!CANDLE_PATH!" ^
-    -out "!WXO_FILE!" ^
-    -d"SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows" ^
-    -d"SourcererVersion=!APP_VERSION!" ^
-    -d"LicenseRtfPath=!LICENSE_RTF_PATH!" ^
-    "!WXS_FILE!"
+!WIX_PATH! build !WXS_FILE! -ext WixToolset.UI.wixext -o !MSI_OUTPUT! -d SourcererBinPath=%PROJECT_ROOT%\build\Release-Windows -d SourcererVersion=!APP_VERSION! -d LicenseRtfPath=!LICENSE_RTF_PATH!
 
 if errorlevel 1 (
     echo Error: WiX candle compilation failed
     exit /b 1
 )
 
-REM Link object file to MSI
+REM Compile Burn WiX source to object file
 echo.
-echo Linking WiX installer...
-set "MSI_OUTPUT=%INSTALLER_DIR%\Sourcerer-Installer.msi"
-echo [DEBUG] Running light: "!LIGHT_PATH!" -out "!MSI_OUTPUT!" -ext WixUIExtension -ext WixUtilExtension "!WXO_FILE!"
+echo Compiling Burn WiX source files...
+set "MSI_BURN_OUTPUT=%INSTALLER_DIR%\Sourcerer-Installer.exe"
+echo [DEBUG] Running wix: !WIX_PATH! build !WXS_BURN_FILE! -ext WixToolset.Bal.wixext -o !MSI_BURN_OUTPUT! -d SourcererVersion=!APP_VERSION!
 
-"!LIGHT_PATH!" ^
-    -out "!MSI_OUTPUT!" ^
-    -ext WixUIExtension ^
-    -ext WixUtilExtension ^
-    -sice:ICE91 ^
-    "!WXO_FILE!"
+!WIX_PATH! build !WXS_BURN_FILE! -ext WixToolset.Util.wixext -ext WixToolset.BootstrapperApplications.wixext -o !MSI_BURN_OUTPUT! -d SourcererVersion=!APP_VERSION!
 
 if errorlevel 1 (
-    echo Error: WiX light linking failed
+    echo Error: WiX candle compilation failed
     exit /b 1
 )
 
 echo.
-echo Success! Installer created: "!MSI_OUTPUT!"
+echo Success! Installer created: "!MSI_BURN_OUTPUT!"
 echo [DEBUG] Build complete
 exit /b 0
 

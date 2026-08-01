@@ -95,3 +95,5 @@ keys/**
 .vscode/
 
 aqtinstall.log
+
+lib/zlib/contrib/nuget/obj/**

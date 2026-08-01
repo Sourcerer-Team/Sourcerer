@@ -55,14 +55,13 @@ endif ()
 target_link_libraries(Sourcerer PRIVATE
         Qt6::Widgets
         ZLIB::ZLIB
-        libssh2_static
+        libssh2
         libgit2
         llhttp
         pcre2
         reftable
         util
         xdiff
-        ${LIBSSH2_LIBRARIES}
         ${ADDITIONAL_LIBRARIES}
         "${APP_ICON_RES}")
 

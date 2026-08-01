@@ -111,10 +111,10 @@ Write-Host "=== Checking build artifacts ===" -ForegroundColor Blue
 $installers = @()
 
 # Check for Windows MSI installers
-$msiPattern = "Sourcerer-*.msi"
-$msiFiles = Get-ChildItem -Path $InstallerDir -Filter $msiPattern -ErrorAction SilentlyContinue
-if ($msiFiles) {
-    $installers += $msiFiles
+$exePattern = "Sourcerer-*.exe"
+$exeFiles = Get-ChildItem -Path $InstallerDir -Filter $exePattern -ErrorAction SilentlyContinue
+if ($exeFiles) {
+    $installers += $exeFiles
 }
 
 # Display results
