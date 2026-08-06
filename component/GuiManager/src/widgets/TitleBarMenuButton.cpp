@@ -17,7 +17,8 @@ TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
     : QToolButton{parent},
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _openAction(nullptr), _cloneAction(nullptr), _initAction(nullptr),
-      _saveWorkspaceAction(nullptr), _settingsAction(nullptr),
+      _saveWorkspaceAction(nullptr),
+      _connectToGitHubIssueTrackerAction(nullptr), _settingsAction(nullptr),
       _credentialsAction(nullptr), _sshKeysAction(nullptr),
       _terminalAction(nullptr), _aboutAction(nullptr) {
   LOG_PERF(0, "Enter");
@@ -91,6 +92,14 @@ void TitleBarMenuButton::onSaveWorkspace() {
   LOG_PERF(0, "Enter");
 
   emit saveWorkspace();
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitleBarMenuButton::onConnectToGitHubIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  emit connectToGitHubIssueTracker();
 
   LOG_PERF(0, "Exit");
 }
@@ -170,6 +179,11 @@ void TitleBarMenuButton::createActions() {
   connect(_saveWorkspaceAction, &QAction::triggered, this,
           &TitleBarMenuButton::onSaveWorkspace);
 
+  _connectToGitHubIssueTrackerAction = new QAction(this);
+  _connectToGitHubIssueTrackerAction->setText(tr("GitHub issue tracker"));
+  connect(_connectToGitHubIssueTrackerAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onConnectToGitHubIssueTracker);
+
   _settingsAction = new QAction(this);
   _settingsAction->setText(tr("Settings"));
   connect(_settingsAction, &QAction::triggered, this,
@@ -228,6 +242,10 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addAction(_initAction);
   menu->addSeparator();
   menu->addAction(_saveWorkspaceAction);
+  menu->addSeparator();
+
+  auto *connectToMenu = menu->addMenu(tr("Connect to"));
+  connectToMenu->addAction(_connectToGitHubIssueTrackerAction);
   menu->addSeparator();
 
   auto *themesMenu = menu->addMenu(tr("Themes"));

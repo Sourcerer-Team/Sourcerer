@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+
+  <Bundle Name="Sourcerer Setup"
+          Version="$(var.SourcererVersion)"
+          Manufacturer="Sourcerer"
+          UpgradeCode="c22a2f5d-6d5f-49b4-8e9f-69700eee4928">
+
+    <BootstrapperApplication>
+        <bal:WixInternalUIBootstrapperApplication />
+    </BootstrapperApplication>
+
+
+    <!-- Registry search for VC++ redist -->
+    <Variable Name="VcRedistInstalled" Type="numeric" Value="0" />
+    <util:RegistrySearch Id="SearchForDependency"
+                         Root="HKLM"
+                         Key="SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64"
+                         Value="Installed"
+                         Variable="VcRedistInstalled"
+                         Result="value" />
+
+    <!-- Chain of packages -->
+    <Chain>
+      <ExePackage Id="VCredist"
+                  SourceFile="vc_redist.x64.exe"
+                  InstallArguments="/quiet /norestart"
+                  Permanent="yes"
+                  DetectCondition="VcRedistInstalled = 1" />
+
+      <MsiPackage SourceFile="Sourcerer-Installer.msi"
+                  Vital="yes" />
+    </Chain>
+  </Bundle>
+</Wix>

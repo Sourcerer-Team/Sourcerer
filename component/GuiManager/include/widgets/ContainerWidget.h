@@ -16,6 +16,7 @@ enum class ContainerType {
   InitGitRepo,
   PleaseWait,
   Settings,
+  IssueTracker,
   last
 };
 

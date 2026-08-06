@@ -68,6 +68,10 @@ enum class ConfigKey {
   TooltipDisplayTime,
   TooltipHistoryTimeout,
 
+  // Github issue tracker
+  GitHubOAuthClientId,
+  IssueTrackerToolbarPosition,
+
   // Testing
   TestColor,
   TestDateTime,

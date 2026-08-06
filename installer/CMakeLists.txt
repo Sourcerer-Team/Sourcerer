@@ -39,7 +39,7 @@ set(INSTALLER_OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Sourcerer-Installer.msi)
 set(SOURCERER_VERSION_FILE ${CMAKE_CURRENT_SOURCE_DIR}/../component/ConfigManager/GitVersion.h.in)
 
 file(READ "${SOURCERER_VERSION_FILE}" SOURCERER_VERSION_CONTENTS)
-string(REGEX MATCH "APPLICATION_VERSION[ \t]*=[ \t]*\"([^"]+)\"" _sourcerer_version_match "${SOURCERER_VERSION_CONTENTS}")
+string(REGEX MATCH [=[APPLICATION_VERSION[ \t]*=[ \t]*"([^"]+)"]=] _sourcerer_version_match "${SOURCERER_VERSION_CONTENTS}")
 set(SOURCERER_VERSION "${CMAKE_MATCH_1}")
 
 if(NOT SOURCERER_VERSION)
@@ -52,30 +52,15 @@ message(STATUS "Sourcerer version: ${SOURCERER_VERSION}")
 get_target_property(SOURCERER_BINARY_DIR Sourcerer BINARY_DIR)
 get_filename_component(SOURCERER_BIN_PATH "$<TARGET_FILE_DIR:Sourcerer>" ABSOLUTE)
 
-# Detect MSYS2 installation
+# Detect Qt MSVC installation
 if(WIN32)
-    if(EXISTS "C:/tools/msys64/usr/bin")
-        set(MSYS2_BIN_PATH "C:/tools/msys64/usr/bin")
-        message(STATUS "Found MSYS2 at C:/tools/msys64")
-    elseif(EXISTS "C:/msys64/usr/bin")
-        set(MSYS2_BIN_PATH "C:/msys64/usr/bin")
-        message(STATUS "Found MSYS2 at C:/msys64")
-    elseif(EXISTS "$ENV{ProgramFiles}/msys64/usr/bin")
-        set(MSYS2_BIN_PATH "$ENV{ProgramFiles}/msys64/usr/bin")
-        message(STATUS "Found MSYS2 at $ENV{ProgramFiles}/msys64")
+    set(QT_VERSION "6.10.3")
+    if(EXISTS "C:/Qt/${QT_VERSION}/msvc2022_64/bin")
+        set(QT_MSVC_BIN_PATH "C:/Qt/${QT_VERSION}/msvc2022_64/bin")
+        message(STATUS "Found Qt MSVC at C:/Qt/${QT_VERSION}/msvc2022_64")
     else()
-        message(WARNING "MSYS2 installation not found. Please install from https://www.msys2.org/")
-        set(MSYS2_BIN_PATH "C:/tools/msys64/usr/bin")  # Default path
-    endif()
-    
-    # Detect Qt MinGW directory
-    set(QT_VERSION "6.10.1")
-    if(EXISTS "C:/Qt/${QT_VERSION}/mingw_64/bin")
-        set(QT_MINGW_BIN_PATH "C:/Qt/${QT_VERSION}/mingw_64/bin")
-        message(STATUS "Found Qt MinGW at C:/Qt/${QT_VERSION}/mingw_64")
-    else()
-        message(WARNING "Qt MinGW bin directory not found")
-        set(QT_MINGW_BIN_PATH "C:/Qt/${QT_VERSION}/mingw_64/bin")  # Default path
+        message(WARNING "Qt MSVC bin directory not found")
+        set(QT_MSVC_BIN_PATH "C:/Qt/${QT_VERSION}/msvc2022_64/bin")
     endif()
 endif()
 
@@ -99,8 +84,6 @@ if(WIN32)
         COMMAND ${WIX_CANDLE} 
             -out "${WXO_FILE}" 
             -d"SourcererBinPath=${SOURCERER_BIN_PATH}"
-            -d"MSYS2BinPath=${MSYS2_BIN_PATH}"
-            -d"QtMinGWBinPath=${QT_MINGW_BIN_PATH}"
             -d"SourcererVersion=${SOURCERER_VERSION}"
             "${WXS_FILE}"
         COMMENT "Compiling WiX source files..."
@@ -124,14 +107,4 @@ else()
     message(WARNING "WiX-based installer is only available on Windows. Use build-installer.sh for other platforms.")
 endif()
 
-        -p ${PACKAGES_DIR}
-        ${INSTALLER_DIR}/${INSTALLER_NAME}
-    WORKING_DIRECTORY ${INSTALLER_DIR}
-    COMMENT "Building installer with binarycreator..."
-)
-
-# Print success message
-add_custom_command(TARGET installer POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E echo "Installer created: ${INSTALLER_DIR}/${INSTALLER_NAME}"
-)
 

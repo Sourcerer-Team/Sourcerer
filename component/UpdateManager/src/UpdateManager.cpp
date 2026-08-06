@@ -102,7 +102,8 @@ void UpdateManager::eventCallback(const EventManager::Event &event) {
         LOG_INFO("Ignoring update news '{}' because version '{}' is not newer.",
                  news.id.toStdString(), news.version.toStdString());
       }
-    }    break;
+    }
+    break;
   }
   default: {
     LOG_WARN("Unknown event type.")

@@ -11,7 +11,6 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
-find_package(LibSSH2 REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Widgets LinguistTools)
 find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
@@ -47,6 +46,31 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared library")
 
 add_subdirectory(../../lib/qca "QCA")
 
+
+set(ZLIB_BUILD_STATIC OFF CACHE BOOL "Enable static libraries" FORCE)
+set(ZLIB_BUILD_SHARED ON CACHE BOOL "Enable shared libraries" FORCE)
+set(ZLIB_BUILD_TESTING OFF CACHE BOOL "Disable tests" FORCE)
+add_subdirectory(../../lib/zlib "zlib")
+
+set(BUILD_STATIC_LIBS ON CACHE BOOL "Enable static libraries" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libraries" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "Disable examples" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "Disable tests" FORCE)
+set(LIBSSH2_BUILD_DOCS OFF CACHE BOOL "Disable docs" FORCE)
+set(LIBSSH2_DISABLE_INSTALL ON CACHE BOOL "Disable install targets" FORCE)
+
+add_subdirectory(../../lib/libssh2 "libssh2")
+
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libraries" FORCE)
+set(BUILD_TOOLS OFF CACHE BOOL "Disable tools" FORCE)
+set(BUILD_REGRESS OFF CACHE BOOL "Disable regress" FORCE)
+set(BUILD_OSSFUZZ OFF CACHE BOOL "Disable ossfuzz" FORCE)
+set(BUILD_EXAMPLES OFF CACHE BOOL "Disable examples" FORCE)
+set(BUILD_DOC OFF CACHE BOOL "Disable docs" FORCE)
+set(LIBZIP_DO_INSTALL OFF CACHE BOOL "Disable install targets" FORCE)
+
+add_subdirectory(../../lib/libzip "libzip")
+
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libraries" FORCE)
 set(BUILD_TESTS OFF CACHE BOOL "Disable test suite" FORCE)
 set(BUILD_CLI OFF CACHE BOOL "Disable CLI" FORCE)
@@ -56,7 +80,8 @@ set(USE_HTTP ON CACHE BOOL "Enable HTTP" FORCE)
 set(USE_HTTPS OpenSSL CACHE BOOL "Enable HTTPS" FORCE)
 set(USE_AUTH_NTLM OFF CACHE BOOL "Enable NTLM authentication" FORCE)
 set(USE_COMPRESSION "zlib" CACHE STRING "Selects compression backend.")
-set(USE_REGEX "pcre2" CACHE STRING "Selects regex provider.")
+set(USE_REGEX "builtin" CACHE STRING "Selects regex provider.")
+
 add_subdirectory(../../lib/libgit2 "libgit2")
 
 target_link_libraries(GitRepo PRIVATE

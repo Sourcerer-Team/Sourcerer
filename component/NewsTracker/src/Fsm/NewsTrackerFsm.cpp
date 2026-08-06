@@ -43,7 +43,7 @@ QString NewsTrackerFsm::stateName(int state) const {
 }
 
 QString NewsTrackerFsm::eventName(int event) const {
-  switch(static_cast<EventType>(event)) {
+  switch (static_cast<EventType>(event)) {
   case EventType::Stop:
     return QStringLiteral("Stop");
   case EventType::ChangeState:

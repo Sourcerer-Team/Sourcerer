@@ -41,6 +41,7 @@ includeComponent(Sourcerer GuiManager)
 includeComponent(Sourcerer StylesheetManager)
 
 includeLib(Sourcerer Fsm)
+includeLib(Sourcerer IssueTrackers)
 includeLib(Sourcerer Log)
 includeLib(Sourcerer RecyclerView)
 includeLib(Sourcerer Util)
@@ -53,14 +54,14 @@ endif ()
 
 target_link_libraries(Sourcerer PRIVATE
         Qt6::Widgets
-        PCRE2::PCRE2
         ZLIB::ZLIB
+        libssh2
         libgit2
         llhttp
+        pcre2
         reftable
         util
         xdiff
-        ${LIBSSH2_LIBRARIES}
         ${ADDITIONAL_LIBRARIES}
         "${APP_ICON_RES}")
 
@@ -80,8 +81,16 @@ install(TARGETS Sourcerer
 
 
 if (WIN32)
+  set(_windeployqt_args
+      --release
+      --no-translations)
+  if(DEFINED ENV{OPENSSL_ROOT_DIR} AND NOT "$ENV{OPENSSL_ROOT_DIR}" STREQUAL "")
+    list(APPEND _windeployqt_args --openssl-root "$ENV{OPENSSL_ROOT_DIR}")
+  endif()
+
   add_custom_command(TARGET Sourcerer POST_BUILD
             COMMAND "${Qt6_DIR}/../../../bin/windeployqt.exe"
+            ${_windeployqt_args}
             "$<TARGET_FILE:Sourcerer>"
             COMMENT "Deploying Qt runtime dependencies"
     )

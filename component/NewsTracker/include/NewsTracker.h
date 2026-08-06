@@ -2,8 +2,8 @@
 
 #include "Fsm/NewsTrackerFsm.h"
 
-#include <ConfigManager.h>
 #include <Component.h>
+#include <ConfigManager.h>
 #include <EventManager.h>
 #include <Timer.h>
 

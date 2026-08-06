@@ -7,6 +7,7 @@
 #include "containers/GitCredentialsContainer.h"
 #include "containers/GitKeysContainer.h"
 #include "containers/GitRepoContainer.h"
+#include "containers/IssueTrackerContainer.h"
 
 #include "containers/HomeContainer.h"
 #include "containers/InitGitRepoContainer.h"
@@ -24,6 +25,7 @@
 #include <Log.h>
 
 #include <QCloseEvent>
+#include <QDir>
 #include <QEnterEvent>
 #include <QFileDialog>
 #include <QJsonArray>
@@ -33,7 +35,14 @@
 #include <QStandardPaths>
 #include <QWindow>
 
+#include <QMessageBox>
+#include <QMetaObject>
+#include <functional>
+
+#define THREAD_ID "MainWindow"
+
 namespace {
+
 class BottomResizeGripWidget final : public QWidget {
 public:
   explicit BottomResizeGripWidget(QWidget *parent = nullptr) : QWidget(parent) {
@@ -72,11 +81,6 @@ protected:
   }
 };
 } // namespace
-
-#include <QMessageBox>
-#include <functional>
-
-#define THREAD_ID "MainWindow"
 
 namespace GuiManager {
 
@@ -165,6 +169,8 @@ MainWindow::MainWindow(QWidget *parent)
   connect(_topBarWidget, &TopBarWidget::init, this, &MainWindow::onInit);
   connect(_topBarWidget, &TopBarWidget::saveWorkspace, this,
           &MainWindow::onSaveWorkspace);
+  connect(_topBarWidget, &TopBarWidget::connectToGitHubIssueTracker, this,
+          &MainWindow::onConnectToGitHubIssueTracker);
   connect(_topBarWidget, &TopBarWidget::settings, this,
           &MainWindow::onSettings);
   connect(_topBarWidget, &TopBarWidget::credentials, this,
@@ -429,6 +435,39 @@ void MainWindow::onSaveWorkspace() {
   LOG_PERF(0, "Exit");
 }
 
+void MainWindow::onConnectToGitHubIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  for (const auto &container : _containers) {
+    const auto homeContainer = qobject_cast<HomeContainer *>(container.get());
+    if (!homeContainer) {
+      continue;
+    }
+
+    QMetaObject::invokeMethod(homeContainer,
+                              "onGitHubIssueTrackerConnectClicked",
+                              Qt::QueuedConnection);
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onIssueTrackerClicked(const QString &serviceType,
+                                      const QString &repositoryName) {
+  LOG_PERF(0, "Enter");
+
+  if (serviceType.trimmed().isEmpty() || repositoryName.trimmed().isEmpty()) {
+    LOG_WARN("Ignored empty issue tracker selection.");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  addIssueTrackerContainer(serviceType, repositoryName);
+
+  LOG_PERF(0, "Exit");
+}
+
 void MainWindow::onSettings() {
   LOG_PERF(0, "Enter");
 
@@ -479,7 +518,7 @@ void MainWindow::onSubmitWorkspace(const QString &name) {
     return;
   }
 
-  QVector<QPair<ContainerType, QString>> workspaces;
+  QJsonArray array;
 
   for (int i = 0; i < _containers.length(); ++i) {
     if (const auto repoContainer =
@@ -489,21 +528,37 @@ void MainWindow::onSubmitWorkspace(const QString &name) {
         continue;
       }
 
-      const QString path = repoContainer->path();
-      if (path.isEmpty())
-        continue;
+      QJsonObject object;
+      object["type"] = static_cast<int>(type);
 
-      workspaces += qMakePair(type, path);
+      if (type == ContainerType::IssueTracker) {
+        const auto issueTrackerContainer =
+            qobject_cast<IssueTrackerContainer *>(repoContainer);
+        if (!issueTrackerContainer) {
+          continue;
+        }
+
+        const QString serviceType = issueTrackerContainer->serviceType().trimmed();
+        const QString repositoryName =
+            issueTrackerContainer->repositoryName().trimmed();
+        if (serviceType.isEmpty() || repositoryName.isEmpty()) {
+          continue;
+        }
+
+        object["serviceType"] = serviceType;
+        object["repositoryName"] = repositoryName;
+        object["path"] = QDir::fromNativeSeparators(repositoryName);
+      } else {
+        const QString path = repoContainer->path();
+        if (path.isEmpty()) {
+          continue;
+        }
+
+        object["path"] = QDir::fromNativeSeparators(path);
+      }
+
+      array += object;
     }
-  }
-
-  QJsonArray array;
-
-  for (const auto &[type, path] : workspaces) {
-    array += QJsonObject{
-        {"type", static_cast<int>(type)},
-        {"path", QDir::fromNativeSeparators(path)},
-    };
   }
 
   const QJsonDocument document(array);
@@ -660,6 +715,13 @@ void MainWindow::onWorkspaceClicked(const QString &name) {
     switch (static_cast<ContainerType>(type)) {
     case ContainerType::GitRepo: {
       addGitRepoContainer(path);
+      break;
+    }
+    case ContainerType::IssueTracker: {
+      const QString serviceType = object.value("serviceType").toString();
+      const QString repositoryName =
+          object.value("repositoryName").toString(path);
+      addIssueTrackerContainer(serviceType, repositoryName);
       break;
     }
     default: {
@@ -856,7 +918,8 @@ void MainWindow::addGitRepoContainer(const QString &path) {
     repoName = path;
   }
 
-  _topBarWidget->titleBarWidget()->addTab(repoName);
+  _topBarWidget->titleBarWidget()->addTab(repoName,
+                                          QDir::toNativeSeparators(path));
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
@@ -882,6 +945,8 @@ void MainWindow::addHomeContainer() {
   connect(container.get(), &HomeContainer::clone, this, &MainWindow::onClone);
   connect(container.get(), &HomeContainer::init, this, &MainWindow::onInit);
   connect(container.get(), &HomeContainer::open, this, &MainWindow::onOpen);
+  connect(container.get(), &HomeContainer::issueTrackerClicked, this,
+          &MainWindow::onIssueTrackerClicked);
   connect(container.get(), &HomeContainer::recentClicked, this,
           &MainWindow::onRecentClicked);
   connect(container.get(), &HomeContainer::workspaceClicked, this,
@@ -949,6 +1014,28 @@ void MainWindow::addBugReportContainer() {
 
   connect(container.get(), &BugReportContainer::close, this,
           [this, container]() { closeContainer(container.get()); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addIssueTrackerContainer(const QString &serviceType,
+                                          const QString &repositoryName) {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<IssueTrackerContainer>::create(
+      serviceType.trimmed(), repositoryName.trimmed(), this);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+  _containers += container;
+  _topBarWidget->titleBarWidget()->addTab(QStringLiteral("%1: %2")
+                                              .arg(serviceType.trimmed(),
+                                                   repositoryName.trimmed()));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   LOG_PERF(0, "Exit");
 }

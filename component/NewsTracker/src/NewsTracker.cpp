@@ -35,10 +35,12 @@ void NewsTracker::start() {
   const qlonglong pollInterval =
       _configManager.getLong(ConfigManager::ConfigKey::NewsTrackerPollInterval);
 
-  _timer.setInterval([&]() {
-    Fsm::NewsTrackerEvent retrieveEvent(Fsm::EventType::RetrieveNews);
-    _fsm.send(retrieveEvent);
-  }, pollInterval);
+  _timer.setInterval(
+      [&]() {
+        Fsm::NewsTrackerEvent retrieveEvent(Fsm::EventType::RetrieveNews);
+        _fsm.send(retrieveEvent);
+      },
+      pollInterval);
 
   const EventManager::Event startedEvent(
       EventManager::EventType::ComponentStarted);

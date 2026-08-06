@@ -27,6 +27,14 @@ RUN apt-get update && apt-get install -y \
     libproxy-dev \
     libpcre2-dev \
     libdbus-1-dev \
+    libnss3-dev \
+    libnspr4-dev \
+    libasound2-dev \
+    libxcomposite-dev \
+    libxdamage-dev \
+    libxrandr-dev \
+    libxtst-dev \
+    libxkbfile-dev \
     libxcb1 \
     libxcb-*-dev \
     libxcb-cursor0 \
@@ -95,7 +103,9 @@ RUN wget -q https://download.qt.io/official_releases/online_installers/qt-online
         qt.qt6.6103.addons.qtscxml \
         qt.qt6.6103.addons.qtnetworkauth \
         qt.qt6.6103.addons.qt5compat \
-        qt.tools.ifw.410 && \
+        qt.qt6.6103.addons.qtwebchannel \
+        qt.qt6.6103.addons.qtpositioning \
+        extensions.qtwebengine.6103 && \
     rm -f qt-online-installer-linux-x64-online.run
 
 # Create symbolic link from /opt/Qt to actual installation directory

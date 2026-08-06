@@ -11,7 +11,8 @@ set(CMAKE_CXX_STANDARD 17)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 find_package(libzip REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Widgets Network LinguistTools)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Svg Widgets Network LinguistTools
+             OPTIONAL_COMPONENTS WebEngineWidgets)
 
 set(TS_FILES translations/Sourcerer_en_US.ts)
 set(QRC_FILES resources/resources.qrc)
@@ -24,6 +25,7 @@ set(UI_FILES
         src/containers/GitRepoContainer.ui
         src/containers/HomeContainer.ui
         src/containers/InitGitRepoContainer.ui
+        src/containers/IssueTrackerContainer.ui
         src/containers/PleaseWaitContainer.ui
         src/containers/SettingsContainer.ui
         src/dialogs/AboutDialog.ui
@@ -69,9 +71,9 @@ set(GUIMANAGER_SOURCE_FILES
         include/containers/GitRepoContainer.h
         include/containers/GitRepoManagerBridge.h
         include/containers/GitRepoManagerBridgeImpl.h
-
         include/containers/HomeContainer.h
         include/containers/InitGitRepoContainer.h
+        include/containers/IssueTrackerContainer.h
         include/containers/PleaseWaitContainer.h
         include/containers/SettingsContainer.h
         include/delegates/ElideDelegate.h
@@ -86,6 +88,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/models/GitCommitListModel.h
         include/models/GitCommitTreeModel.h
         include/models/GitHistoryModel.h
+        include/models/IssueTrackersModel.h
         include/models/RecentlyOpenedReposModel.h
         include/models/RemotesModel.h
         include/models/StashesModel.h
@@ -124,6 +127,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/OpaquePushButton.h
         include/widgets/PersistentPlaceholderLineEdit.h
         include/widgets/ProfileBoardWidget.h
+        include/widgets/IssueTrackersTableView.h
         include/widgets/RecentTableView.h
         include/widgets/WorkspacesTableView.h
         include/widgets/RemoteGitBranchesPage.h
@@ -169,9 +173,9 @@ set(GUIMANAGER_SOURCE_FILES
         src/containers/GitKeysContainer.cpp
         src/containers/GitRepoContainer.cpp
         src/containers/GitRepoManagerBridgeImpl.cpp
-
         src/containers/HomeContainer.cpp
         src/containers/InitGitRepoContainer.cpp
+        src/containers/IssueTrackerContainer.cpp
         src/containers/PleaseWaitContainer.cpp
         src/containers/SettingsContainer.cpp
         src/delegates/HistorySliceTableColumnDelegate.cpp
@@ -183,6 +187,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/models/GitCommitListModel.cpp
         src/models/GitCommitTreeModel.cpp
         src/models/GitHistoryModel.cpp
+        src/models/IssueTrackersModel.cpp
         src/models/RecentlyOpenedReposModel.cpp
         src/models/RemotesModel.cpp
         src/models/StashesModel.cpp
@@ -212,6 +217,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/MergeDiffView.cpp
         src/widgets/MouseTrackingSplitter.cpp
         src/widgets/ProfileBoardWidget.cpp
+        src/widgets/IssueTrackersTableView.cpp
         src/widgets/RecentTableView.cpp
         src/widgets/WorkspacesTableView.cpp
         src/widgets/RemoteGitBranchesPage.cpp
@@ -259,6 +265,7 @@ includeComponent(GuiManager StylesheetManager)
 
 includeLib(GuiManager Common)
 includeLib(GuiManager GitRepo)
+includeLib(GuiManager IssueTrackers)
 includeLib(GuiManager Log)
 includeLib(GuiManager Util)
 includeLib(GuiManager QtWaitingSpinner)
@@ -277,6 +284,10 @@ target_link_libraries(GuiManager PRIVATE
         libzip::zip
         qscintilla
 )
+
+if(TARGET Qt6::WebEngineWidgets)
+  target_link_libraries(GuiManager PRIVATE Qt6::WebEngineWidgets)
+endif()
 
 target_include_directories(GuiManager PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include

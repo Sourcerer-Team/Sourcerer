@@ -22,16 +22,13 @@
 namespace GuiManager::Widgets {
 
 ToastHostWidget::ToastHostWidget()
-    : OverlayWidget{nullptr, 0}, _yOffset(0),
+    : OverlayWidget{nullptr, ALPHA}, _yOffset(0),
       _position{ToastPosition::BottomLeft},
       _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
   setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
                  Qt::Widget);
-  // Make host transparent to mouse events - individual toasts will be top-level
-  // windows
-  setAttribute(Qt::WA_TransparentForMouseEvents, true);
 
   // Set transparent background for the host widget
   setAttribute(Qt::WA_StyledBackground, true);
@@ -437,6 +434,10 @@ void ToastHostWidget::setPosition(ToastPosition position) {
   LOG_PERF(0, "Exit");
 }
 
+bool ToastHostWidget::showing() const {
+  return false;
+}
+
 void ToastHostWidget::setYOffset(const int offset) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Y offset is {}.", offset);
@@ -457,47 +458,9 @@ void ToastHostWidget::adjustToParent() {
     return;
   }
 
-  // Calculate the size needed for the toast host widget
-  // It should be sized to fit the toasts, positioned in the corner
-  const int toastWidth =
-      _configManager.getLong(ConfigManager::ConfigKey::ToastWidth);
-  const int hostWidth = toastWidth + 24; // Add padding
-  const int hostHeight = p->height() - _yOffset;
-
-  // Position based on the configured position
-  int xPos = 0;
-  int yPos = _yOffset;
-
-  switch (_position) {
-  case ToastPosition::BottomRight:
-  case ToastPosition::TopRight: {
-    xPos = p->width() - hostWidth;
-    break;
-  }
-  case ToastPosition::BottomLeft:
-  case ToastPosition::TopLeft: {
-    xPos = 0;
-    break;
-  }
-  case ToastPosition::Top:
-  case ToastPosition::Bottom: {
-    xPos = (p->width() - hostWidth) / 2;
-    break;
-  }
-  default: {
-    xPos = p->width() - hostWidth;
-    break;
-  }
-  }
-
-  LOG_DEBUG("ToastHostWidget::adjustToParent - Parent: {}x{}, Position: {}, "
-            "Setting geometry: x={}, y={}, w={}, h={}",
-            p->width(), p->height(), static_cast<int>(_position), xPos, yPos,
-            hostWidth, hostHeight);
-
-  // Set geometry to position in corner instead of filling parent
-  setGeometry(xPos, yPos, hostWidth, hostHeight);
-  raise();
+  // Keep the host invisible; toast windows are positioned independently.
+  setGeometry(0, 0, 1, 1);
+  hide();
 
   LOG_PERF(0, "Exit");
 }
@@ -657,8 +620,13 @@ bool ToastHostWidget::toastWillFit(const ToastWidget *toast) const {
   // Add height of the new toast being checked
   totalToastHeight += toast->height();
 
-  // Check if total height fits within the host widget
-  const bool willFit = height() >= totalToastHeight;
+  const QWidget *parent = parentWidget();
+  if (!parent) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const bool willFit = (parent->height() - _yOffset) >= totalToastHeight;
 
   LOG_PERF(0, "Exit");
 

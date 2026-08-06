@@ -44,6 +44,8 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::onInit);
   connect(ui->menuButton, &TitleBarMenuButton::saveWorkspace, this,
           &TitlebarWidget::onSaveWorkspace);
+  connect(ui->menuButton, &TitleBarMenuButton::connectToGitHubIssueTracker,
+          this, &TitlebarWidget::connectToGitHubIssueTracker);
   connect(ui->menuButton, &TitleBarMenuButton::settings, this,
           &TitlebarWidget::onSettings);
   connect(ui->menuButton, &TitleBarMenuButton::credentials, this,
@@ -75,10 +77,11 @@ TitlebarWidget::~TitlebarWidget() {
   LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::addTab(const QString &text) const {
+void TitlebarWidget::addTab(const QString &text, const QString &toolTip) const {
   LOG_PERF(0, "Enter");
 
-  ui->tabBar->addTab(text);
+  const int index = ui->tabBar->addTab(text);
+  ui->tabBar->setTabToolTip(index, toolTip.isEmpty() ? text : toolTip);
 
   LOG_PERF(0, "Exit");
 }

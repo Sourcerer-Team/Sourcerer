@@ -1943,7 +1943,7 @@ public:
     } else if (s_legacyProviderAvailable) {
       if (alg == EMSA3_RIPEMD160)
         md = EVP_ripemd160();
-#ifdef HAVE_OPENSSL_MD2
+#if defined(HAVE_OPENSSL_MD2) && (!defined(OPENSSL_VERSION_MAJOR) || OPENSSL_VERSION_MAJOR < 3)
       else if (alg == EMSA3_MD2)
         md = EVP_md2();
 #endif
@@ -1971,7 +1971,7 @@ public:
     } else if (s_legacyProviderAvailable) {
       if (alg == EMSA3_RIPEMD160)
         md = EVP_ripemd160();
-#ifdef HAVE_OPENSSL_MD2
+#if defined(HAVE_OPENSSL_MD2) && (!defined(OPENSSL_VERSION_MAJOR) || OPENSSL_VERSION_MAJOR < 3)
       else if (alg == EMSA3_MD2)
         md = EVP_md2();
 #endif
@@ -6181,7 +6181,7 @@ public:
       return new opensslInfoContext(this);
     else if (type == QLatin1String("sha1"))
       return new opensslHashContext(EVP_sha1(), this, type);
-#ifdef HAVE_OPENSSL_SHA0
+#if defined(HAVE_OPENSSL_SHA0) && (!defined(OPENSSL_VERSION_MAJOR) || OPENSSL_VERSION_MAJOR < 3)
     else if (type == QLatin1String("sha0"))
       return new opensslHashContext(EVP_sha(), this, type);
 #endif
@@ -6363,7 +6363,7 @@ public:
         return new opensslHMACContext(EVP_ripemd160(), this, type);
       else if (type == QLatin1String("ripemd160"))
         return new opensslHashContext(EVP_ripemd160(), this, type);
-#ifdef HAVE_OPENSSL_MD2
+#if defined(HAVE_OPENSSL_MD2) && (!defined(OPENSSL_VERSION_MAJOR) || OPENSSL_VERSION_MAJOR < 3)
       else if (type == QLatin1String("md2"))
         return new opensslHashContext(EVP_md2(), this, type);
       else if (type == QLatin1String("pbkdf1(md2)"))

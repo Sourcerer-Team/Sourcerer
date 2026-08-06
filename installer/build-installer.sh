@@ -17,6 +17,8 @@ BUILD_DIR="$PROJECT_ROOT/build/Release-Linux"
 RELEASE_DIR="$BUILD_DIR"
 INSTALLER_DIR="$SCRIPT_DIR"
 DATA_DIR="$INSTALLER_DIR/packages/com.sourcerer.app/data"
+QT_DIR=/home/ubuntu/Qt
+QT_VER=6.10.3
 
 echo "Building installer for version $VERSION..."
 
@@ -72,6 +74,14 @@ else
 
     cp "$RELEASE_DIR/Sourcerer" "$DATA_DIR/"
 
+    echo "Copying WebEngine files..."
+
+    mkdir -p "$DATA_DIR/resources"
+
+    cp $QT_DIR/$QT_VER/gcc_64/libexec/QtWebEngineProcess "$DATA_DIR/"
+    cp $QT_DIR/$QT_VER/gcc_64/resources/* "$DATA_DIR/resources"
+
+
     # Create lib directory
     mkdir -p "$DATA_DIR/lib"
 
@@ -118,6 +128,13 @@ else
     # Get all direct dependencies of Sourcerer executable
     echo "Analyzing dependencies of Sourcerer executable..."
     ldd "$DATA_DIR/Sourcerer" | grep "=>" | awk '{print $3}' | while read lib; do
+        if [ -f "$lib" ]; then
+            copy_lib_dependencies "$lib"
+        fi
+    done
+
+    echo "Analyzing dependencies of QtWebEngineProcess executable..."
+    ldd "$DATA_DIR/QtWebEngineProcess" | grep "=>" | awk '{print $3}' | while read lib; do
         if [ -f "$lib" ]; then
             copy_lib_dependencies "$lib"
         fi

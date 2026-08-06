@@ -58,7 +58,7 @@ private:
   bool toastWillFit(const ToastWidget *toast) const;
 
 public:
-  bool showing() const override { return true; };
+  bool showing() const override;
 
 protected:
   void adjustToParent() override;

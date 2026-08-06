@@ -30,6 +30,7 @@ signals:
   void clone();
   void init();
   void saveWorkspace();
+  void connectToGitHubIssueTracker();
   void settings();
   void credentials();
   void sshKeys();

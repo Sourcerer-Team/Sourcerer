@@ -1,6 +1,7 @@
 # LIBSSH2_FOUND - system has the libssh2 library
 # LIBSSH2_INCLUDE_DIR - the libssh2 include directory
 # LIBSSH2_LIBRARY - the libssh2 library name
+#
 
 find_path(LIBSSH2_INCLUDE_DIR libssh2.h
 	HINTS
@@ -9,9 +10,6 @@ find_path(LIBSSH2_INCLUDE_DIR libssh2.h
 find_library(LIBSSH2_LIBRARY NAMES ssh2 libssh2
 	HINTS
 	$ENV{LIBSSH2_LIBDIR}/lib)
-
-message("dezelin: ${LIBSSH2_INCLUDE_DIR}")
-message("dezelin: ${LIBSSH2_LIBRARY}")
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(LibSSH2
