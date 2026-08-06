@@ -99,3 +99,5 @@ aqtinstall.log
 lib/zlib/contrib/nuget/obj/**
 
 __cmake_systeminformation/**
+
+.cache/**

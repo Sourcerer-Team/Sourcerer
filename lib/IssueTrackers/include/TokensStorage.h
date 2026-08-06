@@ -15,6 +15,7 @@ public:
   struct TokenEntry {
     QString serviceType;
     QString repositoryName;
+    QString userName;
     QString accessToken;
     QDateTime expiresAt;
     qint64 createdTime = 0;
@@ -27,9 +28,16 @@ public:
                   const QString &accessToken,
                   const QDateTime &expiresAt = QDateTime(),
                   bool remember = true);
+  void storeToken(const QString &serviceType, const QString &repositoryName,
+                  const QString &userName, const QString &accessToken,
+                  const QDateTime &expiresAt = QDateTime(),
+                  bool remember = true);
 
   bool getToken(const QString &serviceType, const QString &repositoryName,
                 QString &accessToken, QDateTime &expiresAt) const;
+  bool getToken(const QString &serviceType, const QString &repositoryName,
+                QString &userName, QString &accessToken,
+                QDateTime &expiresAt) const;
 
   bool hasToken(const QString &serviceType,
                 const QString &repositoryName) const;

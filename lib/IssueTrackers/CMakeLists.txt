@@ -12,9 +12,11 @@ find_package(Qt6 REQUIRED COMPONENTS Core Network Widgets)
 find_package(OpenSSL REQUIRED)
 
 add_library(IssueTrackers STATIC
+    include/BitbucketRepo.h
     include/GitHubRepo.h
     include/IssueTrackerRepo.h
     include/TokensStorage.h
+    src/BitbucketRepo.cpp
     src/GitHubRepo.cpp
     src/IssueTrackerRepo.cpp
     src/TokensStorage.cpp

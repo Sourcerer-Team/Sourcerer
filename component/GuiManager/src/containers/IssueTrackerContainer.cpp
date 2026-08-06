@@ -3,12 +3,15 @@
 #include "src/containers/ui_IssueTrackerContainer.h"
 #include "ui_IssueTrackerContainer.h"
 
+#include <BitbucketRepo.h>
 #include <GitHubRepo.h>
 #include <Log.h>
 #include <StylesheetManager.h>
+#include <TokensStorage.h>
 #include <WebEngineProfile.h>
 
 #include <QApplication>
+#include <QAuthenticator>
 #include <QEventLoop>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -16,6 +19,7 @@
 #include <QNetworkCookie>
 #include <QResizeEvent>
 #include <QStringList>
+#include <QDateTime>
 #include <QTimer>
 #include <QToolButton>
 #include <QUrlQuery>
@@ -36,6 +40,7 @@ namespace {
 QString normalizedServiceType(const QString &serviceType) {
   return serviceType.trimmed().toLower();
 }
+
 
 #if GUI_MANAGER_HAS_WEBENGINE
 bool isGitHubLoginCookie(const QNetworkCookie &cookie) {
@@ -136,6 +141,15 @@ QUrl buildIssueTrackerUrl(const QString &serviceType,
     }
   }
 
+  if (normalized == QStringLiteral("bitbucket")) {
+    const QStringList parts = trimmedRepositoryName.split(QStringLiteral("/"),
+                                                         Qt::SkipEmptyParts);
+    if (parts.size() >= 2) {
+      const IssueTrackers::BitbucketRepo repo(parts.first(), parts.last());
+      return QUrl(repo.issuesUrl());
+    }
+  }
+
   return QUrl();
 }
 
@@ -169,7 +183,37 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
 #if GUI_MANAGER_HAS_WEBENGINE
   _browserView = new QWebEngineView(this);
   if (QWebEngineProfile *profile = GuiManager::sharedWebEngineProfile()) {
-    _browserView->setPage(new QWebEnginePage(profile, _browserView));
+    auto *page = new QWebEnginePage(profile, _browserView);
+    connect(page, &QWebEnginePage::authenticationRequired, this,
+            [this](const QUrl &requestUrl, QAuthenticator *authenticator) {
+              if (!authenticator) {
+                return;
+              }
+
+              if (normalizedServiceType(_serviceType) !=
+                  QStringLiteral("bitbucket")) {
+                return;
+              }
+
+              if (!requestUrl.host().contains(QStringLiteral("bitbucket"),
+                                             Qt::CaseInsensitive)) {
+                return;
+              }
+
+              QString userName;
+              QString accessToken;
+              QDateTime expiresAt;
+              if (!IssueTrackers::TokensStorage::getInstance().getToken(
+                      _serviceType, _repositoryName, userName, accessToken,
+                      expiresAt) ||
+                  userName.isEmpty() || accessToken.isEmpty()) {
+                return;
+              }
+
+              authenticator->setUser(userName);
+              authenticator->setPassword(accessToken);
+            });
+    _browserView->setPage(page);
   }
 #else
   _browserView = new QTextBrowser(this);
