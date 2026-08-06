@@ -346,12 +346,15 @@ void IssueTrackerContainer::buildToolbar() {
 
   _backButton = new QToolButton(_toolbarWidget);
   _backButton->setToolTip(tr("Go back"));
+  _backButton->setAutoRaise(true);
 
   _forwardButton = new QToolButton(_toolbarWidget);
   _forwardButton->setToolTip(tr("Go forward"));
+  _forwardButton->setAutoRaise(true);
 
   _refreshButton = new QToolButton(_toolbarWidget);
   _refreshButton->setToolTip(tr("Reload page"));
+  _refreshButton->setAutoRaise(true);
 
   auto *buttonRow = new QWidget(_toolbarWidget);
   auto *buttonLayout = new QHBoxLayout(buttonRow);
