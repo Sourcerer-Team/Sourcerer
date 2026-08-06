@@ -40,19 +40,8 @@ check_c_source_compiles(
 
 check_c_source_compiles("int main(void) { __assume(1); return 0; }" HAVE_BUILTIN_ASSUME)
 
-check_c_source_compiles(
-  [=[
-  #include <stddef.h>
-  int main(void) { int a,b; size_t m; __builtin_mul_overflow(a,b,&m); return 0; }
-  ]=]
-  HAVE_BUILTIN_MUL_OVERFLOW
-)
-
-check_c_source_compiles(
-  "int main(int c, char *v[]) { if (c) __builtin_unreachable(); return (int)(*v[0]); }"
-  HAVE_BUILTIN_UNREACHABLE
-)
-
+set(HAVE_BUILTIN_MUL_OVERFLOW 0)
+set(HAVE_BUILTIN_UNREACHABLE 0)
 
 # Output files
 

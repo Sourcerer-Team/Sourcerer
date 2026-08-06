@@ -1,7 +1,7 @@
 #pragma once
 
-#include <chrono>
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -16,7 +16,8 @@ public:
   ~Timer() { stop(); }
 
   template <typename Func> void setTimeout(Func &&function, int delay) {
-    start(std::forward<Func>(function), std::chrono::milliseconds(delay), false);
+    start(std::forward<Func>(function), std::chrono::milliseconds(delay),
+          false);
   }
 
   template <typename Func> void setInterval(Func &&function, int interval) {
@@ -48,27 +49,28 @@ private:
       _state = state;
     }
 
-    _timerThread = std::thread([state, delay, repeating,
-                                callback = std::forward<Func>(function)]() mutable {
-      while (true) {
-        std::unique_lock<std::mutex> lock(state->mutex);
-        if (state->condition.wait_for(
-                lock, delay,
-                [&]() { return state->stopRequested.load(); })) {
-          break;
-        }
+    _timerThread =
+        std::thread([state, delay, repeating,
+                     callback = std::forward<Func>(function)]() mutable {
+          while (true) {
+            std::unique_lock<std::mutex> lock(state->mutex);
+            if (state->condition.wait_for(lock, delay, [&]() {
+                  return state->stopRequested.load();
+                })) {
+              break;
+            }
 
-        lock.unlock();
-        callback();
+            lock.unlock();
+            callback();
 
-        if (!repeating) {
-          break;
-        }
-      }
+            if (!repeating) {
+              break;
+            }
+          }
 
-      state->stopRequested = true;
-      state->finished = true;
-    });
+          state->stopRequested = true;
+          state->finished = true;
+        });
   }
 
 private:

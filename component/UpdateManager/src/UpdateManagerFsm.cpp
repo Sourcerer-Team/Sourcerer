@@ -42,7 +42,7 @@ QString UpdateManagerFsm::stateName(int state) const {
 }
 
 QString UpdateManagerFsm::eventName(int event) const {
-  switch(static_cast<EventType>(event)) {
+  switch (static_cast<EventType>(event)) {
   case EventType::Stop: {
     return QStringLiteral("Stop");
   }

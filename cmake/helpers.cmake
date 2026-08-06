@@ -1,6 +1,8 @@
 set(DIR_OF_HELPER_CMAKE ${CMAKE_CURRENT_LIST_DIR})
 
-add_definitions("-Wno-deprecated-declarations")
+if(NOT MSVC)
+  add_compile_options(-Wno-deprecated-declarations)
+endif()
 
 function(includeComponent linkTo componentName)
       message(STATUS "Adding component ${componentName}")

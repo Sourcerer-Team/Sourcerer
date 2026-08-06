@@ -6,16 +6,17 @@
 #include <NewsTrackerStructs.h>
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
-#include <QIODevice>
 #include <QFileInfo>
+#include <QIODevice>
 #include <QNetworkReply>
 #include <QProcess>
+#include <QStringList>
 #include <QTemporaryFile>
 #include <QTextStream>
 #include <QUrl>
-#include <QStringList>
 
 #include <chrono>
 #include <thread>
@@ -42,6 +43,17 @@ QString fileSuffixFromUrl(const QString &downloadUrl) {
   return QStringLiteral(".") + suffix;
 }
 
+#ifdef Q_OS_WIN
+QString buildWindowsInstallerLogPath(const QString &installerKind) {
+  const QString logsDir =
+      ConfigManager::ConfigManager::getInstance().getLogsDir();
+  const QString timestamp = QDateTime::currentDateTime()
+                                .toString(QStringLiteral("yyyyMMdd_HHmmss"));
+  return QStringLiteral("%1/update_%2_%3.log")
+      .arg(logsDir, installerKind, timestamp);
+}
+#endif
+
 #ifdef Q_OS_LINUX
 QString resolveRunningAppImagePath() {
   const QString envAppImage =
@@ -51,7 +63,7 @@ QString resolveRunningAppImagePath() {
 
   QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
 
-         // Iterate through all environment variables
+  // Iterate through all environment variables
   foreach (QString key, env.keys()) {
     LOG_DEBUG("Key: {}, Value: {}", key, env.value(key));
   }
@@ -72,7 +84,8 @@ QString resolveRunningAppImagePath() {
       continue;
     }
 
-    const QStringList mountFields = parts.first().split(' ', Qt::SkipEmptyParts);
+    const QStringList mountFields =
+        parts.first().split(' ', Qt::SkipEmptyParts);
     const QStringList fsFields = parts.last().split(' ', Qt::SkipEmptyParts);
     if (mountFields.size() < 5 || fsFields.size() < 2) {
       continue;
@@ -98,8 +111,8 @@ QString resolveRunningAppImagePath() {
     }
   }
 
-  LOG_WARN(
-      "Could not resolve running AppImage file. Falling back to direct launch.");
+  LOG_WARN("Could not resolve running AppImage file. Falling back to direct "
+           "launch.");
   return QString();
 }
 #endif
@@ -134,7 +147,8 @@ bool UpdatingState::process(Fsm::FsmEvent event) {
     const bool updated = workerLoop(news);
 
     if (updated) {
-      EventManager::Event updatedEvent(EventManager::EventType::ApplicationUpdated);
+      EventManager::Event updatedEvent(
+          EventManager::EventType::ApplicationUpdated);
       updatedEvent.addData(news.version);
       _eventManager.send(updatedEvent);
     }
@@ -208,7 +222,8 @@ bool UpdatingState::downloadUpdate(
     const Util::HttpReply reply = _httpClient.sendRequest(
         downloadUrl, Util::HttpMethod::Get, {}, QByteArray());
     if (reply.error() != QNetworkReply::NoError) {
-      LOG_WARN("Failed to download update '{}' from '{}' on attempt {}/{}. Error: {}",
+      LOG_WARN("Failed to download update '{}' from '{}' on attempt {}/{}. "
+               "Error: {}",
                newsItem.id.toStdString(), downloadUrl.toStdString(), attempt,
                DOWNLOAD_RETRY_COUNT, static_cast<int>(reply.error()));
     } else {
@@ -221,7 +236,8 @@ bool UpdatingState::downloadUpdate(
         tempFile.setAutoRemove(false);
 
         if (!tempFile.open()) {
-          LOG_WARN("Failed to create temporary file for update '{}' on attempt {}/{}.",
+          LOG_WARN("Failed to create temporary file for update '{}' on attempt "
+                   "{}/{}.",
                    newsItem.id.toStdString(), attempt, DOWNLOAD_RETRY_COUNT);
         } else if (tempFile.write(response) != response.size()) {
           LOG_WARN("Failed to write downloaded update '{}' on attempt {}/{}.",
@@ -263,25 +279,39 @@ bool UpdatingState::launchInstaller(const QString &downloadedFilePath) const {
 
 #ifdef Q_OS_WIN
   const QFileInfo fileInfo(downloadedFilePath);
+
   if (fileInfo.suffix().compare(QStringLiteral("msi"), Qt::CaseInsensitive) ==
       0) {
+    const QString logPath = buildWindowsInstallerLogPath(QStringLiteral("msi"));
     const QString program = QStringLiteral("msiexec");
     const QStringList arguments = {
-                                   QStringLiteral("/i"),
+        QStringLiteral("/i"),
         QDir::toNativeSeparators(downloadedFilePath),
         QStringLiteral("/quiet"),
         QStringLiteral("/norestart"),
         QStringLiteral("/log"),
-        QString("%1/update_%2.log")
-            .arg(ConfigManager::ConfigManager::getInstance().getLogsDir(),
-                 QDateTime::currentDateTime()
-                     .toString()
-                     .replace(" ", "_")
-                     .replace("/", "_")
-                     .replace(":", "_"))};
+        QDir::toNativeSeparators(logPath)};
     const bool started = QProcess::startDetached(program, arguments);
     if (!started) {
       LOG_WARN("Failed to start msiexec for '{}'.",
+               downloadedFilePath.toStdString());
+    }
+    LOG_PERF(0, "Exit");
+    return started;
+  }
+
+  if (fileInfo.suffix().compare(QStringLiteral("exe"), Qt::CaseInsensitive) ==
+      0) {
+    const QString logPath = buildWindowsInstallerLogPath(QStringLiteral("exe"));
+    const QString program = QDir::toNativeSeparators(downloadedFilePath);
+    const QStringList arguments = {
+        QStringLiteral("/quiet"),
+        QStringLiteral("/norestart"),
+        QStringLiteral("/log"),
+        QDir::toNativeSeparators(logPath)};
+    const bool started = QProcess::startDetached(program, arguments);
+    if (!started) {
+      LOG_WARN("Failed to start bootstrapper for '{}'.",
                downloadedFilePath.toStdString());
     }
     LOG_PERF(0, "Exit");

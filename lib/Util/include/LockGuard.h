@@ -3,9 +3,14 @@
 
 #include <QString>
 
+#include <chrono>
 #include <mutex>
 
-using namespace std::chrono_literals;
+#if defined(_MSC_VER)
+#define LOCKGUARD_FUNCTION __FUNCSIG__
+#else
+#define LOCKGUARD_FUNCTION __PRETTY_FUNCTION__
+#endif
 
 namespace Util {
 
@@ -71,7 +76,7 @@ private:
 
 #define LOCKGUARD(x)                                                           \
   const Util::LockGuard __guard__(x, Util::MAX_LOCK_WAIT_TIME,                 \
-                                  __PRETTY_FUNCTION__, __LINE__)
+                                  LOCKGUARD_FUNCTION, __LINE__)
 
 } // namespace Util
 

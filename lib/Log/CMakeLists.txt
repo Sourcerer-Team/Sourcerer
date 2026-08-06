@@ -24,11 +24,7 @@ includeComponent(Log ConfigManager)
 
 includeLib(Log Util)
 
-if ((WIN32) OR (LINUX))
-  set(ADDITIONAL_LIBRARIES stdc++fs)
-else()
-  set(ADDITIONAL_LIBRARIES)
-endif()
+set(ADDITIONAL_LIBRARIES)
 
 target_link_libraries(Log PRIVATE
     Qt6::Core

@@ -11,7 +11,6 @@ namespace ConfigManager {
 
 const char *APPLICATION_NAME = "Sourcerer";
 const char *ORGANIZATION_NAME = APPLICATION_NAME;
-const char *APPLICATION_DIR = APPLICATION_NAME;
 const char *LOGS_DIR = "Logs";
 
 struct KeyDescription {
@@ -72,8 +71,10 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::ToastSpacing, "window/toasts/toastSpacing"},
     {ConfigKey::ToastWidth, "window/toasts/toastWidth"},
     {ConfigKey::TooltipDisplayTime, "window/tooltips/tooltipDisplayTime"},
-    {ConfigKey::TooltipHistoryTimeout,
-     "window/tooltips/tooltipHistoryTimeout"}};
+    {ConfigKey::TooltipHistoryTimeout, "window/tooltips/tooltipHistoryTimeout"},
+    {ConfigKey::GitHubOAuthClientId, "issuetrackers/github"},
+    {ConfigKey::IssueTrackerToolbarPosition,
+     "window/issueTracker/toolbarPosition"}};
 
 QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::Unknown, {"", ""}},
@@ -164,7 +165,9 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::UiTheme, "SourcererDark"},
     {ConfigKey::MainWindowGeometry, ""},
     {ConfigKey::GitRepoSigningKey, ""},
-    {ConfigKey::SettingsSplitterPos, ""}};
+    {ConfigKey::SettingsSplitterPos, ""},
+    {ConfigKey::GitHubOAuthClientId, "Ov23lilRE4FHNeTxvPBT"},
+    {ConfigKey::IssueTrackerToolbarPosition, ""}};
 
 static QString resolveSigningProgramDefault(const QString &signingFormat) {
   if (signingFormat.trimmed().compare(QStringLiteral("ssh"),
@@ -190,8 +193,8 @@ static QString defaultStringForKey(ConfigKey key, const QSettings *settings) {
 
 ConfigManager::ConfigManager()
     : _settings(ORGANIZATION_NAME, APPLICATION_NAME) {
-  _logsDir = getWritableDir() + QDir::separator() + APPLICATION_DIR +
-             QDir::separator() + LOGS_DIR + QDir::separator();
+  _logsDir = getWritableDir() + QDir::separator() + LOGS_DIR +
+             QDir::separator();
   QDir dir;
   dir.mkpath(_logsDir);
 }

@@ -17,7 +17,8 @@ namespace GuiManager::Widgets {
 
 InfoToast::InfoToast(const QString &message, const QString &title,
                      bool stayForever, QWidget *parent)
-    : ToastWidget{parent}, _configManager(ConfigManager::ConfigManager::getInstance()) {
+    : ToastWidget{parent},
+      _configManager(ConfigManager::ConfigManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
   setTitleText(title);

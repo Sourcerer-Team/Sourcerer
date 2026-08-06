@@ -145,6 +145,8 @@ HttpReply HttpClientWorker::sendRequest_(
   if (timer.isActive()) {
     timer.stop();
 
+    bytes = _reply->readAll();
+
     if (_reply->error() != QNetworkReply::NetworkError::NoError) {
       if (_online) {
         _online = false;
@@ -153,15 +155,13 @@ HttpReply HttpClientWorker::sendRequest_(
                   _reply->errorString().toStdString());
       }
     } else {
-      bytes = _reply->readAll();
-
       if (!_online) {
         _online = true;
         LOG_ERROR(Log::ErrorId::Network, "Gone online!");
       }
     }
 
-    const HttpReply httpReply(_reply->error(), bytes);
+    const HttpReply httpReply(_reply->error(), bytes, _reply->errorString());
 
     LOG_PERF(0, "Exit");
 
@@ -169,7 +169,8 @@ HttpReply HttpClientWorker::sendRequest_(
   } else {
     _reply->abort();
 
-    const HttpReply httpReply(QNetworkReply::TimeoutError, bytes);
+    const HttpReply httpReply(QNetworkReply::TimeoutError, bytes,
+                              QStringLiteral("Request timed out"));
 
     LOG_PERF(0, "Exit");
 

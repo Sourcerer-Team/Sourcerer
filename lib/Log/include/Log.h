@@ -14,181 +14,187 @@
 #include <mutex>
 #include <string>
 
+#if defined(_MSC_VER)
+#define LOG_FUNCTION __FUNCSIG__
+#else
+#define LOG_FUNCTION __PRETTY_FUNCTION__
+#endif
+
 #ifndef LOG_SINGLE_THREAD_APPLICATION
 
 #define LOG_INFO(...)                                                          \
   {                                                                            \
-    Log::Log::getInstance().info(THREAD_ID, __PRETTY_FUNCTION__, __LINE__,     \
+    Log::Log::getInstance().info(THREAD_ID, LOG_FUNCTION, __LINE__,            \
                                  __VA_ARGS__);                                 \
   }
 #define LOG_DEBUG(...)                                                         \
   {                                                                            \
-    Log::Log::getInstance().debug(THREAD_ID, __PRETTY_FUNCTION__, __LINE__,    \
+    Log::Log::getInstance().debug(THREAD_ID, LOG_FUNCTION, __LINE__,           \
                                   __VA_ARGS__);                                \
   }
 #define LOG_WARN(...)                                                          \
   {                                                                            \
-    Log::Log::getInstance().warning(THREAD_ID, __PRETTY_FUNCTION__, __LINE__,  \
+    Log::Log::getInstance().warning(THREAD_ID, LOG_FUNCTION, __LINE__,  \
                                     Log::ErrorId::None, __VA_ARGS__);          \
   }
 #define LOG_WARN_ID(id, ...)                                                   \
   {                                                                            \
-    Log::Log::getInstance().warning(THREAD_ID, __PRETTY_FUNCTION__, __LINE__,  \
+    Log::Log::getInstance().warning(THREAD_ID, LOG_FUNCTION, __LINE__,  \
                                     id, __VA_ARGS__);                          \
   }
 #define LOG_PERF(duration, ...)                                                \
   {                                                                            \
-    Log::Log::getInstance().perf(THREAD_ID, __PRETTY_FUNCTION__, __LINE__,     \
+    Log::Log::getInstance().perf(THREAD_ID, LOG_FUNCTION, __LINE__,     \
                                  duration, __VA_ARGS__);                       \
   }
 #define LOG_ERROR(id, ...)                                                     \
   {                                                                            \
-    Log::Log::getInstance().error(THREAD_ID, __PRETTY_FUNCTION__, __LINE__,    \
+    Log::Log::getInstance().error(THREAD_ID, LOG_FUNCTION, __LINE__,    \
                                   id, nullptr, __VA_ARGS__);                   \
   }
 #define LOG_ERROR_EXC(id, exception, ...)                                      \
   {                                                                            \
-    Log::Log::getInstance().error(THREAD_ID, __PRETTY_FUNCTION__, __LINE__,    \
+    Log::Log::getInstance().error(THREAD_ID, LOG_FUNCTION, __LINE__,    \
                                   id, exception, __VA_ARGS__);                 \
   }
 #define LOG_INIT(...)                                                          \
   {                                                                            \
-    Log::Log::getInstance().init(THREAD_ID, __PRETTY_FUNCTION__, __LINE__,     \
+    Log::Log::getInstance().init(THREAD_ID, LOG_FUNCTION, __LINE__,     \
                                  __VA_ARGS__);                                 \
   }
 
 #define LOG_INFO_CORRELATION_ID(corelationId, ...)                             \
   {                                                                            \
     Log::Log::getInstance().infoCorrelationId(                                 \
-        THREAD_ID, __PRETTY_FUNCTION__, __LINE__, corelationId, __VA_ARGS__);  \
+        THREAD_ID, LOG_FUNCTION, __LINE__, corelationId, __VA_ARGS__);  \
   }
 #define LOG_DEBUG_CORRELATION_ID(corelationId, ...)                            \
   {                                                                            \
     Log::Log::getInstance().debugCorrelationId(                                \
-        THREAD_ID, __PRETTY_FUNCTION__, __LINE__, corelationId, __VA_ARGS__);  \
+        THREAD_ID, LOG_FUNCTION, __LINE__, corelationId, __VA_ARGS__);  \
   }
 #define LOG_WARN_CORRELATION_ID(corelationId, ...)                             \
   {                                                                            \
     Log::Log::getInstance().warningCorrelationId(                              \
-        THREAD_ID, __PRETTY_FUNCTION__, __LINE__, Log::ErrorId::None,          \
+        THREAD_ID, LOG_FUNCTION, __LINE__, Log::ErrorId::None,          \
         corelationId, __VA_ARGS__);                                            \
   }
 #define LOG_WARN_ID_CORRELATION_ID(id, corelationId, ...)                      \
   {                                                                            \
     Log::Log::getInstance().warningCorrelationId(                              \
-        THREAD_ID, __PRETTY_FUNCTION__, __LINE__, id, corelationId,            \
+        THREAD_ID, LOG_FUNCTION, __LINE__, id, corelationId,            \
         __VA_ARGS__);                                                          \
   }
 #define LOG_PERF_CORRELATION_ID(duration, corelationId, ...)                   \
   {                                                                            \
-    Log::Log::getInstance().perfCorrelationId(THREAD_ID, __PRETTY_FUNCTION__,  \
-                                              __LINE__, duration,              \
-                                              corelationId, __VA_ARGS__);      \
+    Log::Log::getInstance().perfCorrelationId(THREAD_ID, LOG_FUNCTION,         \
+                                              __LINE__, duration,               \
+                                              corelationId, __VA_ARGS__);       \
   }
 #define LOG_ERROR_CORRELATION_ID(id, corelationId, ...)                        \
   {                                                                            \
-    Log::Log::getInstance().errorCorrelationId(THREAD_ID, __PRETTY_FUNCTION__, \
+    Log::Log::getInstance().errorCorrelationId("", LOG_FUNCTION, \
                                                __LINE__, id, nullptr,          \
                                                corelationId, __VA_ARGS__);     \
   }
 #define LOG_ERROR_EXC_CORRELATION_ID(id, exception, corelationId, ...)         \
   {                                                                            \
-    Log::Log::getInstance().errorCorrelationId(THREAD_ID, __PRETTY_FUNCTION__, \
+    Log::Log::getInstance().errorCorrelationId("", LOG_FUNCTION, \
                                                __LINE__, id, exception,        \
                                                corelationId, __VA_ARGS__);     \
   }
 #define LOG_INIT_CORRELATION_ID(corelationId, ...)                             \
   {                                                                            \
     Log::Log::getInstance().initCorrelationId(                                 \
-        THREAD_ID, __PRETTY_FUNCTION__, __LINE__, corelationId, __VA_ARGS__);  \
+        THREAD_ID, LOG_FUNCTION, __LINE__, corelationId, __VA_ARGS__);  \
   }
 
 #else
 
 #define LOG_INFO(...)                                                          \
   {                                                                            \
-    Log::Log::getInstance().info("", __PRETTY_FUNCTION__, __LINE__,            \
+    Log::Log::getInstance().info("", LOG_FUNCTION, __LINE__,            \
                                  __VA_ARGS__);                                 \
   }
 #define LOG_DEBUG(...)                                                         \
   {                                                                            \
-    Log::Log::getInstance().debug("", __PRETTY_FUNCTION__, __LINE__,           \
+    Log::Log::getInstance().debug("", LOG_FUNCTION, __LINE__,           \
                                   __VA_ARGS__);                                \
   }
 #define LOG_WARN(...)                                                          \
   {                                                                            \
-    Log::Log::getInstance().warning("", __PRETTY_FUNCTION__, __LINE__,         \
+    Log::Log::getInstance().warning("", LOG_FUNCTION, __LINE__,         \
                                     Log::ErrorId::None, __VA_ARGS__);          \
   }
 #define LOG_WARN_ID(id, ...)                                                   \
   {                                                                            \
-    Log::Log::getInstance().warning("", __PRETTY_FUNCTION__, __LINE__, id,     \
+    Log::Log::getInstance().warning("", LOG_FUNCTION, __LINE__, id,     \
                                     __VA_ARGS__);                              \
   }
 #define LOG_PERF(duration, ...)                                                \
   {                                                                            \
-    Log::Log::getInstance().perf("", __PRETTY_FUNCTION__, __LINE__, duration,  \
+    Log::Log::getInstance().perf("", LOG_FUNCTION, __LINE__, duration,  \
                                  __VA_ARGS__);                                 \
   }
 #define LOG_ERROR(id, ...)                                                     \
   {                                                                            \
-    Log::Log::getInstance().error("", __PRETTY_FUNCTION__, __LINE__, id,       \
+    Log::Log::getInstance().error("", LOG_FUNCTION, __LINE__, id,       \
                                   nullptr, __VA_ARGS__);                       \
   }
 #define LOG_ERROR_EXC(id, exception, ...)                                      \
   {                                                                            \
-    Log::Log::getInstance().error("", __PRETTY_FUNCTION__, __LINE__, id,       \
+    Log::Log::getInstance().error("", LOG_FUNCTION, __LINE__, id,       \
                                   exception, __VA_ARGS__);                     \
   }
 #define LOG_INIT(...)                                                          \
   {                                                                            \
-    Log::Log::getInstance().init("", __PRETTY_FUNCTION__, __LINE__,            \
+    Log::Log::getInstance().init("", LOG_FUNCTION, __LINE__,            \
                                  __VA_ARGS__);                                 \
   }
 
 #define LOG_INFO_CORRELATION_ID(corelationId, ...)                             \
   {                                                                            \
     Log::Log::getInstance().infoCorrelationId(                                 \
-        "", __PRETTY_FUNCTION__, __LINE__, corelationId, __VA_ARGS__);         \
+        "", LOG_FUNCTION, __LINE__, corelationId, __VA_ARGS__);         \
   }
 #define LOG_DEBUG_CORRELATION_ID(corelationId, ...)                            \
   {                                                                            \
     Log::Log::getInstance().debugCorrelationId(                                \
-        "", __PRETTY_FUNCTION__, __LINE__, corelationId, __VA_ARGS__);         \
+        "", LOG_FUNCTION, __LINE__, corelationId, __VA_ARGS__);         \
   }
 #define LOG_WARN_CORRELATION_ID(corelationId, ...)                             \
   {                                                                            \
-    Log::Log::getInstance().warningCorrelationId("", __PRETTY_FUNCTION__,      \
+    Log::Log::getInstance().warningCorrelationId("", LOG_FUNCTION,      \
                                                  __LINE__, Log::ErrorId::None, \
                                                  corelationId, __VA_ARGS__);   \
   }
 #define LOG_WARN_ID_CORRELATION_ID(id, corelationId, ...)                      \
   {                                                                            \
     Log::Log::getInstance().warningCorrelationId(                              \
-        "", __PRETTY_FUNCTION__, __LINE__, id, corelationId, __VA_ARGS__);     \
+        "", LOG_FUNCTION, __LINE__, id, corelationId, __VA_ARGS__);     \
   }
 #define LOG_PERF_CORRELATION_ID(duration, corelationId, ...)                   \
   {                                                                            \
-    Log::Log::getInstance().perfCorrelationId("", __PRETTY_FUNCTION__,         \
+    Log::Log::getInstance().perfCorrelationId("", LOG_FUNCTION,         \
                                               __LINE__, duration,              \
                                               corelationId, __VA_ARGS__);      \
   }
 #define LOG_ERROR_CORRELATION_ID(id, corelationId, ...)                        \
   {                                                                            \
-    Log::Log::getInstance().errorCorrelationId("", __PRETTY_FUNCTION__,        \
-                                               __LINE__, id, nullptr,          \
-                                               corelationId, __VA_ARGS__);     \
+    Log::Log::getInstance().errorCorrelationId("", LOG_FUNCTION,       \
+                                               __LINE__, id, nullptr,         \
+                                               corelationId, __VA_ARGS__);    \
   }
 #define LOG_ERROR_EXC_CORRELATION_ID(id, exception, corelationId, ...)         \
   {                                                                            \
-    Log::Log::getInstance().errorCorrelationId("", __PRETTY_FUNCTION__,        \
-                                               __LINE__, id, exception,        \
-                                               corelationId, __VA_ARGS__);     \
+    Log::Log::getInstance().errorCorrelationId("", LOG_FUNCTION,       \
+                                               __LINE__, id, exception,       \
+                                               corelationId, __VA_ARGS__);    \
   }
 #define LOG_INIT_CORRELATION_ID(corelationId, ...)                             \
   {                                                                            \
     Log::Log::getInstance().initCorrelationId(                                 \
-        "", __PRETTY_FUNCTION__, __LINE__, corelationId, __VA_ARGS__);         \
+        "", LOG_FUNCTION, __LINE__, corelationId, __VA_ARGS__);         \
   }
 
 #endif

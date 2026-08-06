@@ -13,6 +13,8 @@ fi
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_ROOT/build/Release-Linux"
 APPDIR="$SCRIPT_DIR/Sourcerer.AppDir"
+QT_DIR=/home/ubuntu/Qt
+QT_VER=6.10.3
 OUTPUT_DIR="$SCRIPT_DIR"
 
 echo "Building AppImage for Sourcerer..."
@@ -26,6 +28,7 @@ mkdir -p "$APPDIR/usr/bin"
 mkdir -p "$APPDIR/usr/lib"
 mkdir -p "$APPDIR/usr/share/applications"
 mkdir -p "$APPDIR/usr/share/icons/hicolor/scalable/apps"
+mkdir -p "$APPDIR/usr/bin/resources"
 
 # Check if Sourcerer binary exists
 if [ ! -f "$BUILD_DIR/Sourcerer" ]; then
@@ -37,6 +40,16 @@ fi
 echo "Copying application binary..."
 cp "$BUILD_DIR/Sourcerer" "$APPDIR/usr/bin/"
 chmod +x "$APPDIR/usr/bin/Sourcerer"
+
+if [ ! -f "$QT_DIR/$QT_VER/gcc_64/libexec/QtWebEngineProcess" ]; then
+    echo "Error: QtWebEngineProcess binary not found at $QT_DIR/$QT_VER/gcc_64/libexec/QtWebEngineProcess"
+    echo "Please build the application first."
+    exit 1
+fi
+
+echo "Copying QtWebEngineProcess files..."
+cp $QT_DIR/$QT_VER/gcc_64/libexec/QtWebEngineProcess "$APPDIR/usr/bin"
+cp $QT_DIR/$QT_VER/gcc_64/resources/* "$APPDIR/usr/bin/resources"
 
 echo "Copying libraries..."
 # Function to copy a library and its dependencies
@@ -98,6 +111,12 @@ ldd "$BUILD_DIR/Sourcerer" | grep "=>" | awk '{print $3}' | while read lib; do
     fi
 done
 
+ldd "$QT_DIR/$QT_VER/gcc_64/libexec/QtWebEngineProcess" | grep "=>" | awk '{print $3}' | while read lib; do
+    if [ -f "$lib" ]; then
+        copy_lib_dependencies "$lib"
+    fi
+done
+
 # Copy Qt plugins
 echo "Copying Qt plugins..."
 QT_PLUGIN_PATHS=(
@@ -142,6 +161,17 @@ for openssl_lib in libssl.so.3 libcrypto.so.3; do
         echo "  Copied $openssl_lib"
     else
         echo "  Warning: $openssl_lib not found"
+    fi
+done
+
+echo "Ensuring NSS libraries are included for NSS support..."
+for nss_lib in libnssutil3.so libsoftokn3.so; do
+    lib_path=$(find /usr/lib -name "$nss_lib" -type f 2>/dev/null | head -n 1)
+    if [ -f "$lib_path" ]; then
+        cp "$lib_path" "$APPDIR/usr/lib/" 2>/dev/null || true
+        echo "  Copied $nss_lib"
+    else
+        echo "  Warning: $nss_lib not found"
     fi
 done
 

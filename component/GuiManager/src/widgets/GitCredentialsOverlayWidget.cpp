@@ -75,7 +75,8 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
                 checked ? tr("Hide password") : tr("Show password"));
           });
 
-  if (const auto actionButtons = _passwordLineEdit->findChildren<QToolButton *>();
+  if (const auto actionButtons =
+          _passwordLineEdit->findChildren<QToolButton *>();
       !actionButtons.isEmpty()) {
     auto *eyeButton = actionButtons.last();
     eyeButton->setObjectName("buttonGitCredentialsOverlayWidgetPasswordEye");

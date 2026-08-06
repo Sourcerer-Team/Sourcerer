@@ -2,19 +2,31 @@
 #include "MousePositionCorrection.h"
 
 #include "Constants.h"
-#include "Dispatcher.h"
 #include "containers/ui_HomeContainer.h"
 #include "delegates/HomeRecentItemDelegate.h"
 #include "widgets/RecentTableView.h"
 #include "widgets/WorkspacesTableView.h"
 
+#include <GitHubRepo.h>
 #include <Log.h>
+#include <TokensStorage.h>
 
+#include <QAction>
+#include <QComboBox>
+#include <QDialog>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QEvent>
+#include <QHeaderView>
+#include <QLabel>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMouseEvent>
+
+#include <QSize>
 #include <QStandardPaths>
+#include <QVBoxLayout>
+#include <QVariantMap>
 
 #define THREAD_ID "HomeContainer"
 
@@ -28,8 +40,12 @@ HomeContainer::HomeContainer(QWidget *parent)
     : ContainerWidget(ContainerType::Home, parent), ui(new Ui::HomeContainer),
       _recentlyOpenedModel(new RecentlyOpenedReposModel(this)),
       _workspacesModel(new WorkspacesModel(this)),
+      _issueTrackersModel(new IssueTrackersModel(this)),
       _itemDelegate(new HomeRecentItemDelegate(this)),
-      _configManager(::ConfigManager::ConfigManager::getInstance()) {
+      _configManager(::ConfigManager::ConfigManager::getInstance()),
+      _toastHost(ToastHostWidget::getInstance()),
+      _dispatcher(1),
+      _selected(false) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -41,7 +57,31 @@ HomeContainer::HomeContainer(QWidget *parent)
   ui->tableViewWorkspaces->resizeColumnsToContents();
   ui->tableViewWorkspaces->setItemDelegate(_itemDelegate);
   ui->tableViewWorkspaces->viewport()->installEventFilter(this);
+  ui->tableViewIssueTrackerConnections->setModel(_issueTrackersModel);
+  ui->tableViewIssueTrackerConnections->setItemDelegate(_itemDelegate);
+  ui->tableViewIssueTrackerConnections->resizeColumnsToContents();
+  ui->tableViewIssueTrackerConnections->viewport()->installEventFilter(this);
+  ui->tableViewIssueTrackerConnections->horizontalHeader()
+      ->setStretchLastSection(true);
+  ui->tableViewIssueTrackerConnections->horizontalHeader()
+      ->setSectionResizeMode(0, QHeaderView::Fixed);
+  ui->tableViewIssueTrackerConnections->setColumnWidth(0, 24);
+  ui->tableViewIssueTrackerConnections->setIconSize(QSize(16, 16));
 
+  auto *connectToMenu = new QMenu(ui->connectToButton);
+  auto *githubIssueTrackerAction =
+      connectToMenu->addAction(tr("GitHub issue tracker"));
+  connect(githubIssueTrackerAction, &QAction::triggered, this,
+          &HomeContainer::onGitHubIssueTrackerConnectClicked);
+
+  ui->connectToButton->setMenu(connectToMenu);
+
+  connect(ui->tableViewIssueTrackerConnections,
+          &IssueTrackersTableView::hoverEnter, this,
+          &HomeContainer::hoverEnter);
+  connect(ui->tableViewIssueTrackerConnections,
+          &IssueTrackersTableView::hoverLeave, this,
+          &HomeContainer::hoverLeave);
   connect(ui->tableViewRecent, &RecentTableView::hoverEnter, this,
           &HomeContainer::hoverEnter);
   connect(ui->tableViewRecent, &RecentTableView::hoverLeave, this,
@@ -56,6 +96,8 @@ HomeContainer::HomeContainer(QWidget *parent)
           &HomeContainer::onCloneClicked);
   connect(ui->initButton, &QPushButton::clicked, this,
           &HomeContainer::onInitClicked);
+  connect(this, &HomeContainer::issueTrackerRightClicked, this,
+          &HomeContainer::onIssueTrackerRightClicked);
   connect(this, &HomeContainer::recentRightClicked, this,
           &HomeContainer::onRecentRightClicked);
   connect(this, &HomeContainer::workspaceRightClicked, this,
@@ -70,6 +112,15 @@ HomeContainer::~HomeContainer() {
   delete ui;
   delete _recentlyOpenedModel;
   delete _workspacesModel;
+  delete _issueTrackersModel;
+
+  LOG_PERF(0, "Exit");
+}
+
+void HomeContainer::reloadIssueTrackers() const {
+  LOG_PERF(0, "Enter");
+
+  _issueTrackersModel->reload();
 
   LOG_PERF(0, "Exit");
 }
@@ -90,11 +141,35 @@ void HomeContainer::reloadWorkspaces() const {
   LOG_PERF(0, "Exit");
 }
 
+void HomeContainer::deselected()
+{
+  LOG_PERF(0, "Enter");
+
+  _selected = false;
+
+  LOG_PERF(0, "Exit");
+}
+
 void HomeContainer::selected() {
   LOG_PERF(0, "Enter");
 
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  LOG_DEBUG("Title bar height retrieved: {} px", titleBarHeight);
+
+  _toastHost.setParent(this);
+  _toastHost.setYOffset(titleBarHeight);
+  _toastHost.raise();
+  LOG_DEBUG("Toast host configured and raised");
+
   reloadRecentlyOpened();
   reloadWorkspaces();
+  reloadIssueTrackers();
+
+  ui->tableViewIssueTrackerConnections->resizeColumnsToContents();
+  ui->tableViewIssueTrackerConnections->setColumnWidth(0, 24);
+
+  _selected = true;
 
   LOG_PERF(0, "Exit");
 }
@@ -137,6 +212,29 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
           Util::Dispatcher::dispatchToMainThread(
               getSelf().toWeakRef(), [=]() { emit workspaceClicked(name); });
         }
+      } else if (viewport->parentWidget() ==
+                 ui->tableViewIssueTrackerConnections) {
+        const auto view = qobject_cast<QTableView *>(viewport->parentWidget());
+        const QPoint globalPos =
+            MousePositionCorrection::instance().correctedGlobalPosition(
+                mouseEvent);
+        if (const QModelIndex index =
+                view->indexAt(viewport->mapFromGlobal(globalPos));
+            index.isValid()) {
+          ui->tableViewIssueTrackerConnections->selectionModel()->select(
+              index, QItemSelectionModel::Select);
+          ui->tableViewIssueTrackerConnections->setCurrentIndex(index);
+          const QModelIndex serviceIndex =
+              _issueTrackersModel->index(index.row(), 0);
+          const QModelIndex repoIndex =
+              _issueTrackersModel->index(index.row(), 1);
+          const QString serviceType =
+              serviceIndex.data(Qt::UserRole).toString();
+          const QString name = repoIndex.data(Qt::DisplayRole).toString();
+          Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+            emit issueTrackerClicked(serviceType, name);
+          });
+        }
       }
     } else if (mouseEvent->button() == Qt::RightButton) {
       if (const auto viewport = qobject_cast<QWidget *>(obj);
@@ -175,6 +273,29 @@ bool HomeContainer::eventFilter(QObject *obj, QEvent *event) {
             emit workspaceRightClicked(name, globalPos);
           });
         }
+      } else if (viewport->parentWidget() ==
+                 ui->tableViewIssueTrackerConnections) {
+        const auto view = qobject_cast<QTableView *>(viewport->parentWidget());
+        const QPoint globalPos =
+            MousePositionCorrection::instance().correctedGlobalPosition(
+                mouseEvent);
+        if (const QModelIndex index =
+                view->indexAt(viewport->mapFromGlobal(globalPos));
+            index.isValid()) {
+          ui->tableViewIssueTrackerConnections->selectionModel()->select(
+              index, QItemSelectionModel::Select);
+          ui->tableViewIssueTrackerConnections->setCurrentIndex(index);
+          const QModelIndex serviceIndex =
+              _issueTrackersModel->index(index.row(), 0);
+          const QModelIndex repoIndex =
+              _issueTrackersModel->index(index.row(), 1);
+          const QString serviceType =
+              serviceIndex.data(Qt::UserRole).toString();
+          const QString name = repoIndex.data(Qt::DisplayRole).toString();
+          Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+            emit issueTrackerRightClicked(serviceType, name, globalPos);
+          });
+        }
       }
     }
   }
@@ -187,7 +308,10 @@ void HomeContainer::hoverEnter(const QModelIndex &index) {
   LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
 
   _itemDelegate->setHover(index);
+
   ui->tableViewRecent->viewport()->update();
+  ui->tableViewWorkspaces->viewport()->update();
+  ui->tableViewIssueTrackerConnections->viewport()->update();
 
   setCursor(Qt::PointingHandCursor);
 
@@ -199,7 +323,10 @@ void HomeContainer::hoverLeave(const QModelIndex &index) {
   LOG_DEBUG("Row: {}, Column: {}", index.row(), index.column());
 
   _itemDelegate->setHover(QModelIndex());
+
   ui->tableViewRecent->viewport()->update();
+  ui->tableViewWorkspaces->viewport()->update();
+  ui->tableViewIssueTrackerConnections->viewport()->update();
 
   setCursor(Qt::ArrowCursor);
 
@@ -214,6 +341,137 @@ void HomeContainer::onCloneClicked() {
   LOG_PERF(0, "Exit");
 }
 
+void HomeContainer::onGitHubIssueTrackerConnectClicked() {
+  LOG_PERF(0, "Enter");
+
+  const QString clientId =
+      _configManager.getString(ConfigManager::ConfigKey::GitHubOAuthClientId);
+  if (clientId.isEmpty()) {
+    LOG_PERF(0, "Exit - cancelled while entering client id");
+    return;
+  }
+
+  const auto authRepo =
+      QSharedPointer<IssueTrackers::GitHubRepo>::create(QString(), QString());
+  const WeakPtr guard = getSelf().toWeakRef();
+  const QVariantMap authParameters = {
+      {QStringLiteral("clientId"), clientId},
+      {QStringLiteral("scope"), QStringLiteral("repo read:org")}};
+
+  _dispatcher.dispatch([=]() {
+    const QVariantMap authResult = authRepo->authenticate(authParameters);
+    const bool success = authResult.value(QStringLiteral("success")).toBool();
+    const bool cancelled =
+        authResult.value(QStringLiteral("cancelled")).toBool();
+    const QString errorMessage =
+        authResult.value(QStringLiteral("errorMessage")).toString();
+
+    if (!success) {
+      if (cancelled) {
+        LOG_INFO("GitHub OAuth authentication cancelled by user");
+        return;
+      }
+
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        QMessageBox::critical(this, tr("Failure"),
+                              errorMessage.isEmpty()
+                                  ? tr("Failed to authenticate with GitHub")
+                                  : errorMessage);
+      });
+      return;
+    }
+
+    QString repositoriesErrorMessage;
+    const QStringList repositories =
+        authRepo->listUserRepositories(&repositoriesErrorMessage);
+    if (repositories.isEmpty()) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        QMessageBox::warning(this, tr("GitHub repositories"),
+                             repositoriesErrorMessage.isEmpty()
+                                 ? tr("No GitHub repositories were found for "
+                                      "the authenticated account.")
+                                 : repositoriesErrorMessage);
+      });
+      return;
+    }
+
+    QString selectedRepository;
+    bool repositorySelectionCancelled = false;
+    const auto showRepositorySelectionDialog =
+        [=, &selectedRepository, &repositorySelectionCancelled]() {
+          QDialog dialog(nullptr);
+          dialog.setWindowTitle(tr("Choose GitHub repository"));
+          dialog.setModal(true);
+          dialog.setMinimumWidth(420);
+
+          auto *layout = new QVBoxLayout(&dialog);
+
+          auto *label = new QLabel(
+              tr("Select the GitHub repository to connect:"), &dialog);
+          label->setWordWrap(true);
+          layout->addWidget(label);
+
+          auto *comboBox = new QComboBox(&dialog);
+          comboBox->addItems(repositories);
+          comboBox->setCurrentIndex(0);
+          layout->addWidget(comboBox);
+
+          auto *buttonBox = new QDialogButtonBox(
+              QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+          connect(buttonBox, &QDialogButtonBox::accepted, &dialog,
+                  &QDialog::accept);
+          connect(buttonBox, &QDialogButtonBox::rejected, &dialog,
+                  &QDialog::reject);
+          layout->addWidget(buttonBox);
+
+          if (dialog.exec() == QDialog::Accepted) {
+            selectedRepository = comboBox->currentText();
+          } else {
+            repositorySelectionCancelled = true;
+          }
+        };
+
+    if (QThread::currentThread() == qApp->thread()) {
+      showRepositorySelectionDialog();
+    } else {
+      QMetaObject::invokeMethod(qApp, showRepositorySelectionDialog,
+                                Qt::BlockingQueuedConnection);
+    }
+
+    if (repositorySelectionCancelled || selectedRepository.isEmpty()) {
+      LOG_INFO("GitHub repository selection cancelled by user");
+      return;
+    }
+
+    const QStringList selectedPath =
+        selectedRepository.split(QStringLiteral("/"));
+    if (selectedPath.size() < 2 || selectedPath.first().isEmpty() ||
+        selectedPath.last().isEmpty()) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        QMessageBox::critical(this, tr("Failure"),
+                              tr("Failed to parse the selected repository."));
+      });
+      return;
+    }
+
+    const auto selectedRepo = QSharedPointer<IssueTrackers::GitHubRepo>::create(
+        selectedPath.first(), selectedPath.last(), authRepo->host());
+    selectedRepo->setAccessToken(authRepo->accessToken(),
+                                 authRepo->accessTokenExpiresAt());
+    IssueTrackers::TokensStorage::getInstance().storeToken(
+        selectedRepo->serviceName(), selectedRepo->repositoryPath(),
+        selectedRepo->accessToken(), selectedRepo->accessTokenExpiresAt(),
+        true);
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _issueTrackersModel->reload();
+      ui->tableViewIssueTrackerConnections->resizeColumnsToContents();
+    });
+
+    LOG_PERF(0, "Exit");
+  });
+}
+
 void HomeContainer::onInitClicked() {
   LOG_PERF(0, "Enter");
 
@@ -226,6 +484,25 @@ void HomeContainer::onOpenClicked(bool checked) {
   LOG_PERF(0, "Enter");
 
   emit open();
+
+  LOG_PERF(0, "Exit");
+}
+
+void HomeContainer::onIssueTrackerRightClicked(const QString &serviceType,
+                                               const QString &name,
+                                               const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+
+  QAction removeAction(tr("Remove"), this);
+  connect(&removeAction, &QAction::triggered, this, [=]() {
+    IssueTrackers::TokensStorage::getInstance().removeToken(serviceType, name);
+    _issueTrackersModel->reload();
+  });
+
+  QMenu menu(this);
+  menu.addAction(&removeAction);
+
+  menu.exec(pos);
 
   LOG_PERF(0, "Exit");
 }

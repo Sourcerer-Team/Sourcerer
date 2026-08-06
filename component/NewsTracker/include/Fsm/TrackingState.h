@@ -30,7 +30,8 @@ private:
                             Structs::NewsItem &newsItem);
   static Structs::NewsType newsTypeFromString(const QString &type);
   static QDateTime parseDateTime(const QString &value);
-  static bool isNewerVersion(const QString &candidate, const QString &reference);
+  static bool isNewerVersion(const QString &candidate,
+                             const QString &reference);
   void pollOnce();
   void loadSeenNewsIds();
   void persistSeenNewsIds() const;

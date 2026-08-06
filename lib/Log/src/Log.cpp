@@ -8,7 +8,10 @@
 #include <algorithm>
 #include <chrono>
 #include <filesystem>
+
+#if defined(Q_OS_LINUX) || defined(Q_OS_MACOS)
 #include <pthread.h>
+#endif
 
 namespace Log {
 
@@ -81,7 +84,7 @@ void Log::startLogging(::Log::Log::LogLevel logLevel,
   spdlog::flush_on(spdlog::level::trace);
 
   if (exceptionOccured) {
-    error("Log", __PRETTY_FUNCTION__, __LINE__, ErrorId::Logic, &lastException,
+    error("Log", LOG_FUNCTION, __LINE__, ErrorId::Logic, &lastException,
           "Could not create default log directory " + _logDirectory);
   }
 }

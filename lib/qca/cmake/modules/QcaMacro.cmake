@@ -66,8 +66,11 @@ endmacro(add_qca_test)
 
 macro(install_pdb TARGET INSTALL_PATH)
   if(MSVC)
-    install(FILES $<TARGET_PDB_FILE:${TARGET}> DESTINATION ${INSTALL_PATH} CONFIGURATIONS Debug)
-    install(FILES $<TARGET_PDB_FILE:${TARGET}> DESTINATION ${INSTALL_PATH} CONFIGURATIONS RelWithDebInfo)
+    get_target_property(_qca_target_type ${TARGET} TYPE)
+    if(_qca_target_type STREQUAL "SHARED_LIBRARY" OR _qca_target_type STREQUAL "MODULE_LIBRARY" OR _qca_target_type STREQUAL "EXECUTABLE")
+      install(FILES $<TARGET_PDB_FILE:${TARGET}> DESTINATION ${INSTALL_PATH} CONFIGURATIONS Debug)
+      install(FILES $<TARGET_PDB_FILE:${TARGET}> DESTINATION ${INSTALL_PATH} CONFIGURATIONS RelWithDebInfo)
+    endif()
   endif()
 endmacro(install_pdb)
 

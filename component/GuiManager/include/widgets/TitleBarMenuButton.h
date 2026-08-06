@@ -29,6 +29,7 @@ signals:
   void clone();
   void init();
   void saveWorkspace();
+  void connectToGitHubIssueTracker();
   void settings();
   void credentials();
   void sshKeys();
@@ -42,6 +43,7 @@ private slots:
   void onClone();
   void onInit();
   void onSaveWorkspace();
+  void onConnectToGitHubIssueTracker();
   void onSettings();
   void onCredentials();
   void onSshKeys();
@@ -61,6 +63,7 @@ private:
   QAction *_cloneAction;
   QAction *_initAction;
   QAction *_saveWorkspaceAction;
+  QAction *_connectToGitHubIssueTrackerAction;
   QAction *_settingsAction;
   QAction *_credentialsAction;
   QAction *_sshKeysAction;

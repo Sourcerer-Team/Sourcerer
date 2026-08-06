@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>693</width>
-    <height>411</height>
+    <width>775</width>
+    <height>567</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -16,11 +16,11 @@
   <property name="autoFillBackground">
    <bool>false</bool>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
+  <layout class="QVBoxLayout" name="verticalLayout" stretch="2,1">
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
-      <layout class="QVBoxLayout" name="rightVerticalLayout">
+      <layout class="QVBoxLayout" name="rightVerticalLayout" stretch="0,0">
        <item>
         <layout class="QHBoxLayout" name="horizontalLayoutButtons">
          <property name="spacing">
@@ -30,17 +30,17 @@
           <number>16</number>
          </property>
          <property name="topMargin">
-          <number>48</number>
+          <number>36</number>
          </property>
          <property name="bottomMargin">
-          <number>64</number>
+          <number>24</number>
          </property>
          <item>
           <widget class="QPushButton" name="openButton">
            <property name="minimumSize">
             <size>
              <width>120</width>
-             <height>0</height>
+             <height>32</height>
             </size>
            </property>
            <property name="maximumSize">
@@ -62,7 +62,7 @@
            <property name="minimumSize">
             <size>
              <width>120</width>
-             <height>0</height>
+             <height>32</height>
             </size>
            </property>
            <property name="maximumSize">
@@ -84,7 +84,7 @@
            <property name="minimumSize">
             <size>
              <width>120</width>
-             <height>0</height>
+             <height>32</height>
             </size>
            </property>
            <property name="maximumSize">
@@ -128,6 +128,11 @@
           <layout class="QVBoxLayout" name="verticalLayoutRecent">
            <item>
             <widget class="QLabel" name="labelRecent">
+             <property name="font">
+              <font>
+               <bold>true</bold>
+              </font>
+             </property>
              <property name="text">
               <string>RECENTLY OPENED</string>
              </property>
@@ -164,6 +169,11 @@
           <layout class="QVBoxLayout" name="verticalLayoutWorkspaces">
            <item>
             <widget class="QLabel" name="labelWorkspaces">
+             <property name="font">
+              <font>
+               <bold>true</bold>
+              </font>
+             </property>
              <property name="text">
               <string>WORKSPACES</string>
              </property>
@@ -203,8 +213,111 @@
        </item>
       </layout>
      </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="verticalLayoutIssueTrackers" stretch="0,1">
+     <property name="spacing">
+      <number>24</number>
+     </property>
+     <property name="leftMargin">
+      <number>16</number>
+     </property>
+     <property name="topMargin">
+      <number>36</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
      <item>
-      <layout class="QVBoxLayout" name="leftVerticalLayout"/>
+      <widget class="QToolButton" name="connectToButton">
+       <property name="minimumSize">
+        <size>
+         <width>120</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>120</width>
+         <height>16777215</height>
+        </size>
+       </property>
+       <property name="styleSheet">
+        <string notr="true"/>
+       </property>
+       <property name="text">
+        <string>Connect to</string>
+       </property>
+       <property name="popupMode">
+        <enum>QToolButton::ToolButtonPopupMode::InstantPopup</enum>
+       </property>
+       <property name="toolButtonStyle">
+        <enum>Qt::ToolButtonStyle::ToolButtonTextBesideIcon</enum>
+       </property>
+       <property name="autoRaise">
+        <bool>false</bool>
+       </property>
+       <property name="arrowType">
+        <enum>Qt::ArrowType::NoArrow</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QVBoxLayout" name="verticalLayoutIssueTrackerConnections" stretch="1,4">
+       <property name="spacing">
+        <number>7</number>
+       </property>
+       <property name="leftMargin">
+        <number>20</number>
+       </property>
+       <property name="rightMargin">
+        <number>42</number>
+       </property>
+       <item>
+        <widget class="QLabel" name="labelIssueTrackerConnections">
+         <property name="font">
+          <font>
+           <bold>true</bold>
+          </font>
+         </property>
+         <property name="text">
+          <string>ISSUE TRACKERS</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignmentFlag::AlignBottom|Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="GuiManager::Widgets::IssueTrackersTableView" name="tableViewIssueTrackerConnections">
+         <property name="frameShape">
+          <enum>QFrame::Shape::NoFrame</enum>
+         </property>
+         <property name="editTriggers">
+          <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+         </property>
+         <property name="selectionMode">
+          <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+         </property>
+         <property name="selectionBehavior">
+          <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+         </property>
+         <property name="showGrid">
+          <bool>false</bool>
+         </property>
+         <attribute name="horizontalHeaderVisible">
+          <bool>false</bool>
+         </attribute>
+         <attribute name="horizontalHeaderMinimumSectionSize">
+          <number>24</number>
+         </attribute>
+         <attribute name="verticalHeaderVisible">
+          <bool>false</bool>
+         </attribute>
+        </widget>
+       </item>
+      </layout>
      </item>
     </layout>
    </item>
@@ -215,6 +328,11 @@
    <class>GuiManager::Widgets::RecentTableView</class>
    <extends>QTableView</extends>
    <header>widgets/RecentTableView.h</header>
+  </customwidget>
+  <customwidget>
+   <class>GuiManager::Widgets::IssueTrackersTableView</class>
+   <extends>QTableView</extends>
+   <header>widgets/IssueTrackersTableView.h</header>
   </customwidget>
   <customwidget>
    <class>GuiManager::Widgets::WorkspacesTableView</class>

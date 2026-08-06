@@ -22,7 +22,6 @@ public:
   void stop() override;
 
 private:
-
   ConfigManager::ConfigManager &_configManager;
 };
 

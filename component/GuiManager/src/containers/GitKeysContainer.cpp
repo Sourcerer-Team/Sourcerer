@@ -198,7 +198,8 @@ void GitKeysContainer::onGenerateClicked() {
   passphraseLayout->addLayout(passphraseInputRow);
 
   auto *passphraseButtonRow = new QHBoxLayout();
-  auto *passphraseCancelButton = new QPushButton(tr("Cancel"), &passphraseDialog);
+  auto *passphraseCancelButton =
+      new QPushButton(tr("Cancel"), &passphraseDialog);
   auto *passphraseOkButton = new QPushButton(tr("OK"), &passphraseDialog);
   passphraseOkButton->setDefault(true);
   passphraseButtonRow->addStretch();

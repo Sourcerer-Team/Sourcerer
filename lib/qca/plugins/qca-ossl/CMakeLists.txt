@@ -9,41 +9,58 @@ endif()
 if(OPENSSL_FOUND)
   enable_plugin("ossl")
 
+  include(CheckSymbolExists)
   include(CheckFunctionExists)
   set(CMAKE_REQUIRED_LIBRARIES ${OPENSSL_LIBRARIES})
-  check_function_exists(EVP_md2 HAVE_OPENSSL_MD2)
-  if(HAVE_OPENSSL_MD2)
-    add_definitions(-DHAVE_OPENSSL_MD2)
+
+  if(DEFINED OPENSSL_VERSION_MAJOR AND OPENSSL_VERSION_MAJOR GREATER_EQUAL 3)
+    message(WARNING
+      "qca-ossl will be compiled without MD2 digest algorithm support")
   else()
-    message(WARNING "qca-ossl will be compiled without MD2 digest algorithm support")
+    check_symbol_exists(EVP_md2 "openssl/evp.h" HAVE_OPENSSL_MD2)
+    if(HAVE_OPENSSL_MD2)
+      add_definitions(-DHAVE_OPENSSL_MD2)
+    else()
+      message(WARNING
+        "qca-ossl will be compiled without MD2 digest algorithm support")
+    endif()
   endif()
 
   check_function_exists(EVP_aes_128_ctr HAVE_OPENSSL_AES_CTR)
   if(HAVE_OPENSSL_AES_CTR)
     add_definitions(-DHAVE_OPENSSL_AES_CTR)
   else()
-    message(WARNING "qca-ossl will be compiled without AES CTR mode encryption support")
+    message(WARNING
+      "qca-ossl will be compiled without AES CTR mode encryption support")
   endif()
 
   check_function_exists(EVP_aes_128_gcm HAVE_OPENSSL_AES_GCM)
   if(HAVE_OPENSSL_AES_GCM)
     add_definitions(-DHAVE_OPENSSL_AES_GCM)
   else()
-    message(WARNING "qca-ossl will be compiled without AES GCM mode encryption support")
+    message(WARNING
+      "qca-ossl will be compiled without AES GCM mode encryption support")
   endif()
 
   check_function_exists(EVP_aes_128_ccm HAVE_OPENSSL_AES_CCM)
   if(HAVE_OPENSSL_AES_CCM)
     add_definitions(-DHAVE_OPENSSL_AES_CCM)
   else()
-    message(WARNING "qca-ossl will be compiled without AES CCM mode encryption support")
+    message(WARNING
+      "qca-ossl will be compiled without AES CCM mode encryption support")
   endif()
 
-  check_function_exists(EVP_sha HAVE_OPENSSL_SHA0)
-  if(HAVE_OPENSSL_SHA0)
-    add_definitions(-DHAVE_OPENSSL_SHA0)
+  if(DEFINED OPENSSL_VERSION_MAJOR AND OPENSSL_VERSION_MAJOR GREATER_EQUAL 3)
+    message(WARNING
+      "qca-ossl will be compiled without SHA-0 digest algorithm support")
   else()
-    message(WARNING "qca-ossl will be compiled without SHA-0 digest algorithm support")
+    check_symbol_exists(EVP_sha "openssl/evp.h" HAVE_OPENSSL_SHA0)
+    if(HAVE_OPENSSL_SHA0)
+      add_definitions(-DHAVE_OPENSSL_SHA0)
+    else()
+      message(WARNING
+        "qca-ossl will be compiled without SHA-0 digest algorithm support")
+    endif()
   endif()
 
   set(QCA_OSSL_SOURCES

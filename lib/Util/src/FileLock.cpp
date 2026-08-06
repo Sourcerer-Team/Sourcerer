@@ -1,10 +1,12 @@
 #include "FileLock.h"
 
+#include <qglobal.h>
+
+#ifdef Q_OS_LINUX
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
-
-#include <qglobal.h>
+#endif
 
 namespace Util {
 
