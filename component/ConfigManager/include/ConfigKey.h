@@ -70,6 +70,15 @@ enum class ConfigKey {
 
   // Github issue tracker
   GitHubOAuthClientId,
+
+  // Bitbucket issue tracker
+  BitbucketOAuthClientId,
+  BitbucketOAuthClientSecret,
+  BitbucketOAuthAuthorizeUrl,
+  BitbucketOAuthTokenUrl,
+  BitbucketOAuthRedirectUrl,
+  BitbucketOAuthScope,
+
   IssueTrackerToolbarPosition,
 
   // Testing

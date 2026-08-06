@@ -31,6 +31,7 @@ signals:
   void init();
   void saveWorkspace();
   void connectToGitHubIssueTracker();
+  void connectToBitbucketIssueTracker();
   void settings();
   void credentials();
   void sshKeys();
