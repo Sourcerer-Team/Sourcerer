@@ -44,9 +44,9 @@ include(GNUInstallDirs)
 
 set(CPACK_INCLUDED TRUE)
 
-if(NOT ZLIB_CONF_WRITTEN)
+set(CONF_OUT_FILE ${zlib_BINARY_DIR}/zconf.h.cmakein)
+if(NOT ZLIB_CONF_WRITTEN OR NOT EXISTS "${CONF_OUT_FILE}")
     set(Z_PREFIX ${ZLIB_PREFIX})
-    set(CONF_OUT_FILE ${zlib_BINARY_DIR}/zconf.h.cmakein)
     file(READ ${zlib_SOURCE_DIR}/zconf.h ZCONF_CONTENT LIMIT 245)
     file(WRITE ${CONF_OUT_FILE} ${ZCONF_CONTENT})
     file(APPEND ${CONF_OUT_FILE} "#cmakedefine Z_PREFIX 1\n")
