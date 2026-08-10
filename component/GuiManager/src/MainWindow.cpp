@@ -171,6 +171,8 @@ MainWindow::MainWindow(QWidget *parent)
           &MainWindow::onSaveWorkspace);
   connect(_topBarWidget, &TopBarWidget::connectToGitHubIssueTracker, this,
           &MainWindow::onConnectToGitHubIssueTracker);
+  connect(_topBarWidget, &TopBarWidget::connectToAzureIssueTracker, this,
+          &MainWindow::onConnectToAzureIssueTracker);
   connect(_topBarWidget, &TopBarWidget::connectToBitbucketIssueTracker, this,
           &MainWindow::onConnectToBitbucketIssueTracker);
   connect(_topBarWidget, &TopBarWidget::settings, this,
@@ -448,6 +450,24 @@ void MainWindow::onConnectToGitHubIssueTracker() {
 
     QMetaObject::invokeMethod(homeContainer,
                               "onGitHubIssueTrackerConnectClicked",
+                              Qt::QueuedConnection);
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onConnectToAzureIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  for (const auto &container : _containers) {
+    const auto homeContainer = qobject_cast<HomeContainer *>(container.get());
+    if (!homeContainer) {
+      continue;
+    }
+
+    QMetaObject::invokeMethod(homeContainer,
+                              "onAzureIssueTrackerConnectClicked",
                               Qt::QueuedConnection);
     break;
   }

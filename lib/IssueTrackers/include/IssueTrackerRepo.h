@@ -11,6 +11,7 @@ public:
     Unknown = 0,
     GitHub,
     Bitbucket,
+    Azure,
 
     last
   };

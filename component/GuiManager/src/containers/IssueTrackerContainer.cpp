@@ -3,6 +3,7 @@
 #include "src/containers/ui_IssueTrackerContainer.h"
 #include "ui_IssueTrackerContainer.h"
 
+#include <AzureRepo.h>
 #include <BitbucketRepo.h>
 #include <GitHubRepo.h>
 #include <Log.h>
@@ -137,6 +138,15 @@ QUrl buildIssueTrackerUrl(const QString &serviceType,
                                                          Qt::SkipEmptyParts);
     if (parts.size() >= 2) {
       const IssueTrackers::GitHubRepo repo(parts.first(), parts.last());
+      return QUrl(repo.issuesUrl());
+    }
+  }
+
+  if (normalized == QStringLiteral("azure")) {
+    const QStringList parts = trimmedRepositoryName.split(QStringLiteral("/"),
+                                                         Qt::SkipEmptyParts);
+    if (parts.size() >= 2) {
+      const IssueTrackers::AzureRepo repo(parts.first(), parts.last());
       return QUrl(repo.issuesUrl());
     }
   }

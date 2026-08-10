@@ -33,6 +33,7 @@ signals:
   void init();
   void saveWorkspace();
   void connectToGitHubIssueTracker();
+  void connectToAzureIssueTracker();
   void connectToBitbucketIssueTracker();
   void settings();
   void credentials();

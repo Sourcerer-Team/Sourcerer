@@ -7,6 +7,7 @@
 #include "widgets/RecentTableView.h"
 #include "widgets/WorkspacesTableView.h"
 
+#include <AzureRepo.h>
 #include <BitbucketRepo.h>
 #include <GitHubRepo.h>
 #include <Log.h>
@@ -23,11 +24,14 @@
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QEvent>
+#include <QFormLayout>
 #include <QHeaderView>
+#include <QLineEdit>
 #include <QHostAddress>
 #include <QIcon>
 #include <QLabel>
 #include <QList>
+#include <QMap>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -35,14 +39,17 @@
 #include <QPushButton>
 #include <QSize>
 #include <QStandardPaths>
+#include <QStringList>
 #include <QTcpServer>
 #include <QTcpSocket>
 #include <QString>
 #include <QThread>
+#include <QUuid>
 #include <QToolButton>
-#include <QUrl>
 #include <QUrlQuery>
 #include <QVBoxLayout>
+
+#include <QGuiApplication>
 #include <QVariantMap>
 
 #define THREAD_ID "HomeContainer"
@@ -55,29 +62,47 @@ namespace Containers {
 
 namespace {
 
-const QUrl BITBUCKET_CALLBACK_URL(
+const QUrl OAUTH_CALLBACK_URL(
     QStringLiteral("http://127.0.0.1:8080/callback"));
 
 QString htmlEncode(const QString &text) {
   return text.toHtmlEscaped();
 }
 
-QString bitbucketCallbackSuccessPage() {
+QString oauthCallbackSuccessPage(const QString &serviceName) {
   return QStringLiteral(
       "<!doctype html><html><head><meta charset=\"utf-8\">"
-      "<title>Bitbucket OAuth complete</title></head><body>"
+      "<title>%1 OAuth complete</title></head><body>"
       "<h1>Authorization complete</h1>"
       "<p>You can return to Sourcerer now.</p>"
-      "</body></html>");
+      "</body></html>")
+      .arg(serviceName);
+}
+
+QString oauthCallbackErrorPage(const QString &serviceName,
+                               const QString &message) {
+  return QStringLiteral(
+      "<!doctype html><html><head><meta charset=\"utf-8\">"
+      "<title>%1 OAuth error</title></head><body>"
+      "<h1>Authorization failed</h1><p>%2</p>"
+      "</body></html>")
+      .arg(serviceName, htmlEncode(message));
+}
+
+QString bitbucketCallbackSuccessPage() {
+  return oauthCallbackSuccessPage(QStringLiteral("Bitbucket"));
 }
 
 QString bitbucketCallbackErrorPage(const QString &message) {
-  return QStringLiteral(
-      "<!doctype html><html><head><meta charset=\"utf-8\">"
-      "<title>Bitbucket OAuth error</title></head><body>"
-      "<h1>Authorization failed</h1><p>%1</p>"
-      "</body></html>")
-      .arg(htmlEncode(message));
+  return oauthCallbackErrorPage(QStringLiteral("Bitbucket"), message);
+}
+
+QString azureCallbackSuccessPage() {
+  return oauthCallbackSuccessPage(QStringLiteral("Azure"));
+}
+
+QString azureCallbackErrorPage(const QString &message) {
+  return oauthCallbackErrorPage(QStringLiteral("Azure"), message);
 }
 
 void writeHttpResponse(QTcpSocket *socket, const QString &body,
@@ -132,6 +157,10 @@ HomeContainer::HomeContainer(QWidget *parent)
       connectToMenu->addAction(tr("GitHub issue tracker"));
   connect(githubIssueTrackerAction, &QAction::triggered, this,
           &HomeContainer::onGitHubIssueTrackerConnectClicked);
+  auto *azureIssueTrackerAction =
+      connectToMenu->addAction(tr("Azure issue tracker"));
+  connect(azureIssueTrackerAction, &QAction::triggered, this,
+          &HomeContainer::onAzureIssueTrackerConnectClicked);
   auto *bitbucketIssueTrackerAction =
       connectToMenu->addAction(tr("Bitbucket issue tracker"));
   connect(bitbucketIssueTrackerAction, &QAction::triggered, this,
@@ -535,6 +564,457 @@ void HomeContainer::onGitHubIssueTrackerConnectClicked() {
   });
 }
 
+void HomeContainer::onAzureIssueTrackerConnectClicked() {
+  LOG_PERF(0, "Enter");
+
+  const QString clientId =
+      _configManager.getString(ConfigManager::ConfigKey::AzureOAuthClientId);
+
+  const QString authorizeUrl =
+      _configManager.getString(ConfigManager::ConfigKey::AzureOAuthAuthorizeUrl);
+  const QString tokenUrl =
+      _configManager.getString(ConfigManager::ConfigKey::AzureOAuthTokenUrl);
+  const QString clientSecret =
+      _configManager.getString(ConfigManager::ConfigKey::AzureOAuthClientSecret);
+  const QString tenantId =
+      _configManager.getString(ConfigManager::ConfigKey::AzureOAuthTenantId);
+  const QString redirectUri =
+      _configManager.getString(ConfigManager::ConfigKey::AzureOAuthRedirectUrl);
+  const QString scope =
+      _configManager.getString(ConfigManager::ConfigKey::AzureOAuthScope);
+
+  if (clientId.trimmed().isEmpty()) {
+    QMessageBox::critical(this, tr("Failure"),
+                          tr("Azure OAuth client id is not configured."));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+
+  const QUrl redirectUriUrl(redirectUri);
+  if (!redirectUriUrl.isValid()) {
+    QMessageBox::critical(this, tr("Failure"),
+                          tr("Azure OAuth redirect URL is invalid."));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!redirectUriUrl.host().isEmpty() &&
+      redirectUriUrl.host() != QStringLiteral("127.0.0.1") &&
+      redirectUriUrl.host() != QStringLiteral("localhost")) {
+    QMessageBox::critical(
+        this, tr("Failure"),
+        tr("Azure OAuth redirect URL must use localhost for the local callback server."));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString callbackPath = redirectUriUrl.path().isEmpty()
+                                   ? QStringLiteral("/callback")
+                                   : redirectUriUrl.path();
+  const QString oauthState =
+      QUuid::createUuid().toString(QUuid::WithoutBraces);
+
+  QDialog oauthDialog(nullptr);
+  oauthDialog.setWindowTitle(tr("Azure OAuth authentication"));
+  oauthDialog.setModal(true);
+  oauthDialog.setMinimumWidth(560);
+
+  auto *layout = new QVBoxLayout(&oauthDialog);
+  layout->setSpacing(10);
+
+  auto *introLabel = new QLabel(
+      tr("1. Open the Azure authorization page and approve the app.\n"
+         "2. Enter your organization and choose a project."),
+      &oauthDialog);
+  introLabel->setWordWrap(true);
+  layout->addWidget(introLabel);
+
+
+  const QString defaultAzureScope = scope;
+
+  const QUrl authUrl = IssueTrackers::AzureRepo::authorizationUrl(
+      authorizeUrl, tenantId, clientId, redirectUri, defaultAzureScope,
+      oauthState);
+
+  auto *openAuthPageButton = new QPushButton(
+      tr("Open Azure authorization page"), &oauthDialog);
+  openAuthPageButton->setCursor(Qt::PointingHandCursor);
+  openAuthPageButton->setEnabled(authUrl.isValid());
+  connect(openAuthPageButton, &QPushButton::clicked, this, [authUrl]() {
+    if (authUrl.isValid()) {
+      QDesktopServices::openUrl(authUrl);
+    } else {
+      QMessageBox::critical(nullptr, tr("Failure"),
+                            tr("Azure authorization URL is invalid."));
+    }
+  });
+  layout->addWidget(openAuthPageButton, 0, Qt::AlignLeft);
+
+  auto *buttonBox = new QDialogButtonBox(QDialogButtonBox::Cancel, &oauthDialog);
+  connect(buttonBox, &QDialogButtonBox::rejected, &oauthDialog,
+          &QDialog::reject);
+  layout->addWidget(buttonBox);
+
+  QTcpServer callbackServer(&oauthDialog);
+  QString authorizationCode;
+  QString callbackErrorMessage;
+  bool callbackCaptured = false;
+
+  connect(&callbackServer, &QTcpServer::newConnection, &oauthDialog,
+          [&]() {
+            while (callbackServer.hasPendingConnections()) {
+              QTcpSocket *socket = callbackServer.nextPendingConnection();
+              if (!socket) {
+                continue;
+              }
+
+              socket->setParent(&oauthDialog);
+              QObject::connect(socket, &QTcpSocket::disconnected, socket,
+                               &QTcpSocket::deleteLater);
+              QObject::connect(socket, &QTcpSocket::readyRead, &oauthDialog,
+                               [&, socket]() {
+                                 const QByteArray requestData = socket->readAll();
+                                 const int requestLineEnd = requestData.indexOf('\n');
+                                 const QByteArray requestLine =
+                                     requestLineEnd >= 0
+                                         ? requestData.left(requestLineEnd).trimmed()
+                                         : requestData.trimmed();
+                                 const QList<QByteArray> requestParts =
+                                     requestLine.split(' ');
+                                 if (requestParts.size() < 2) {
+                                   callbackErrorMessage =
+                                       tr("Invalid callback request.");
+                                   writeHttpResponse(
+                                       socket,
+                                       azureCallbackErrorPage(callbackErrorMessage),
+                                       QStringLiteral("400 Bad Request"));
+                                   callbackCaptured = true;
+                                   oauthDialog.reject();
+                                   return;
+                                 }
+
+                                 const QString requestTarget =
+                                     QString::fromUtf8(requestParts.at(1));
+                                 const QString requestPath =
+                                     requestTarget.section('?', 0, 0);
+                                 if (!callbackPath.isEmpty() &&
+                                     requestPath != callbackPath) {
+                                   callbackErrorMessage = tr(
+                                       "Unexpected callback path.");
+                                   writeHttpResponse(
+                                       socket,
+                                       azureCallbackErrorPage(callbackErrorMessage),
+                                       QStringLiteral("400 Bad Request"));
+                                   callbackCaptured = true;
+                                   oauthDialog.reject();
+                                   return;
+                                 }
+
+                                 const QUrlQuery query(requestTarget.contains('?')
+                                                           ? requestTarget.section('?', 1)
+                                                           : QString());
+                                 const QString error = query.queryItemValue(
+                                     QStringLiteral("error"));
+                                 if (!error.isEmpty()) {
+                                   const QString errorDescription =
+                                       query.queryItemValue(
+                                           QStringLiteral("error_description"));
+                                   callbackErrorMessage = errorDescription.isEmpty()
+                                                              ? error
+                                                              : error +
+                                                                    QStringLiteral(": ") +
+                                                                    errorDescription;
+                                   writeHttpResponse(
+                                       socket,
+                                       azureCallbackErrorPage(callbackErrorMessage),
+                                       QStringLiteral("400 Bad Request"));
+                                   callbackCaptured = true;
+                                   oauthDialog.reject();
+                                   return;
+                                 }
+
+                                 const QString callbackState =
+                                     query.queryItemValue(QStringLiteral("state"));
+                                 if (!oauthState.isEmpty() &&
+                                     callbackState != oauthState) {
+                                   callbackErrorMessage = tr(
+                                       "Invalid callback state.");
+                                   writeHttpResponse(
+                                       socket,
+                                       azureCallbackErrorPage(callbackErrorMessage),
+                                       QStringLiteral("400 Bad Request"));
+                                   callbackCaptured = true;
+                                   oauthDialog.reject();
+                                   return;
+                                 }
+
+                                 authorizationCode =
+                                     query.queryItemValue(QStringLiteral("code"));
+                                 if (authorizationCode.trimmed().isEmpty()) {
+                                   authorizationCode = query.queryItemValue(
+                                       QStringLiteral("assertion"));
+                                 }
+                                 if (authorizationCode.trimmed().isEmpty()) {
+                                   callbackErrorMessage = tr(
+                                       "Authorization code was not provided.");
+                                   writeHttpResponse(
+                                       socket,
+                                       azureCallbackErrorPage(callbackErrorMessage),
+                                       QStringLiteral("400 Bad Request"));
+                                   callbackCaptured = true;
+                                   oauthDialog.reject();
+                                   return;
+                                 }
+
+                                 writeHttpResponse(socket,
+                                                   azureCallbackSuccessPage());
+                                 callbackCaptured = true;
+                                 oauthDialog.accept();
+                               });
+            }
+          });
+
+  const QHostAddress listenAddress(QHostAddress::LocalHost);
+  const quint16 listenPort =
+      static_cast<quint16>(redirectUriUrl.port(8080));
+  if (!callbackServer.listen(listenAddress, listenPort)) {
+    QMessageBox::critical(
+        this, tr("Failure"),
+        tr("Unable to start the Azure callback server on %1: %2")
+            .arg(redirectUri, callbackServer.errorString()));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+
+  if (oauthDialog.exec() != QDialog::Accepted) {
+    if (!callbackCaptured) {
+      LOG_INFO("Azure OAuth authentication cancelled by user");
+      LOG_PERF(0, "Exit");
+      return;
+    }
+
+    if (!callbackErrorMessage.isEmpty()) {
+      QMessageBox::critical(this, tr("Failure"), callbackErrorMessage);
+      LOG_PERF(0, "Exit");
+      return;
+    }
+  }
+
+
+  if (authorizationCode.isEmpty()) {
+    QMessageBox::critical(this, tr("Failure"),
+                          tr("Azure authorization code is required."));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto authRepo =
+      QSharedPointer<IssueTrackers::AzureRepo>::create(QString(), QString());
+  const WeakPtr guard = getSelf().toWeakRef();
+  const QVariantMap authParameters = {
+      {QStringLiteral("clientId"), clientId},
+      {QStringLiteral("authorizationCode"), authorizationCode},
+      {QStringLiteral("authorizeUrl"), authorizeUrl},
+      {QStringLiteral("tokenUrl"), tokenUrl},
+      {QStringLiteral("clientSecret"), clientSecret},
+      {QStringLiteral("tenantId"), tenantId},
+      {QStringLiteral("redirectUri"), redirectUri},
+      {QStringLiteral("scope"), defaultAzureScope},
+      {QStringLiteral("state"), oauthState}};
+
+  _dispatcher.dispatch([=]() {
+    const QVariantMap authResult = authRepo->authenticate(authParameters);
+    const bool success = authResult.value(QStringLiteral("success")).toBool();
+    const QString errorMessage =
+        authResult.value(QStringLiteral("errorMessage")).toString();
+
+    if (!success) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        QMessageBox::critical(this, tr("Failure"),
+                              errorMessage.isEmpty()
+                                  ? tr("Failed to authenticate with Azure")
+                                  : errorMessage);
+      });
+      return;
+    }
+
+    const QString accessToken =
+        authResult.value(QStringLiteral("accessToken")).toString();
+    const QDateTime expiresAt =
+        authResult.value(QStringLiteral("expiresAt")).toDateTime();
+    QStringList organizations =
+        authResult.value(QStringLiteral("organizations")).toStringList();
+    QString tenantDiscoveryErrorMessage;
+    const QStringList tenants =
+        authRepo->discoverTenants(accessToken, &tenantDiscoveryErrorMessage);
+
+    if (!tenantDiscoveryErrorMessage.isEmpty()) {
+      LOG_WARN("Azure tenant discovery failed: {}",
+               tenantDiscoveryErrorMessage.toStdString());
+    }
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() mutable {
+      if (organizations.isEmpty()) {
+        organizations = tenants;
+      }
+
+      if (organizations.isEmpty()) {
+        QMessageBox::warning(this, tr("Azure organizations"),
+                             tr("No Azure organizations were discovered for the authenticated account."));
+        LOG_PERF(0, "Exit");
+        return;
+      }
+
+      QDialog organizationDialog(nullptr);
+      organizationDialog.setWindowTitle(tr("Choose Azure organization"));
+      organizationDialog.setModal(true);
+      organizationDialog.setMinimumWidth(420);
+
+      auto *layout = new QVBoxLayout(&organizationDialog);
+      auto *label = new QLabel(
+          tr("Select the Azure organization to connect:"), &organizationDialog);
+      label->setWordWrap(true);
+      layout->addWidget(label);
+
+      auto *organizationCombo = new QComboBox(&organizationDialog);
+      organizationCombo->addItems(organizations);
+      organizationCombo->setCurrentIndex(0);
+      layout->addWidget(organizationCombo);
+
+      auto *buttonBox = new QDialogButtonBox(
+          QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &organizationDialog);
+      connect(buttonBox, &QDialogButtonBox::accepted, &organizationDialog,
+              &QDialog::accept);
+      connect(buttonBox, &QDialogButtonBox::rejected, &organizationDialog,
+              &QDialog::reject);
+      layout->addWidget(buttonBox);
+
+      if (organizationDialog.exec() != QDialog::Accepted) {
+        LOG_INFO("Azure organization selection cancelled by user");
+        LOG_PERF(0, "Exit");
+        return;
+      }
+
+      const QString organization = organizationCombo->currentText().trimmed();
+      if (organization.isEmpty()) {
+        QMessageBox::critical(this, tr("Failure"),
+                              tr("Azure organization is required."));
+        LOG_PERF(0, "Exit");
+        return;
+      }
+
+      const WeakPtr projectsGuard = guard;
+      _dispatcher.dispatch([=]() {
+        const QVariantMap projectsResult =
+            authRepo->listProjects(organization, accessToken);
+        const bool projectsSuccess =
+            projectsResult.value(QStringLiteral("success")).toBool();
+        const QString projectsErrorMessage =
+            projectsResult.value(QStringLiteral("errorMessage")).toString();
+
+        if (!projectsSuccess) {
+          Util::Dispatcher::dispatchToMainThread(projectsGuard, [=]() {
+            QMessageBox::critical(this, tr("Failure"),
+                                  projectsErrorMessage.isEmpty()
+                                      ? tr("Failed to list Azure projects")
+                                      : projectsErrorMessage);
+          });
+          return;
+        }
+
+        const QStringList repositories =
+            projectsResult.value(QStringLiteral("repositories")).toStringList();
+        if (repositories.isEmpty()) {
+          Util::Dispatcher::dispatchToMainThread(projectsGuard, [=]() {
+            QMessageBox::warning(this, tr("Azure projects"),
+                                 tr("No Azure projects were found for the selected organization."));
+          });
+          return;
+        }
+
+        QStringList projectNames;
+        for (const QString &repository : repositories) {
+          const QStringList selectedPath =
+              repository.split(QStringLiteral("/"), Qt::SkipEmptyParts);
+          if (selectedPath.size() < 2) {
+            continue;
+          }
+          const QString projectName = selectedPath.last();
+          if (!projectNames.contains(projectName)) {
+            projectNames.append(projectName);
+          }
+        }
+        projectNames.sort(Qt::CaseInsensitive);
+
+        QString selectedProject;
+        bool projectSelectionCancelled = false;
+        const auto showProjectSelectionDialog =
+            [=, &selectedProject, &projectSelectionCancelled]() {
+              QDialog dialog(nullptr);
+              dialog.setWindowTitle(tr("Choose Azure project"));
+              dialog.setModal(true);
+              dialog.setMinimumWidth(420);
+
+              auto *layout = new QVBoxLayout(&dialog);
+
+              auto *label = new QLabel(
+                  tr("Select the Azure project to connect:"), &dialog);
+              label->setWordWrap(true);
+              layout->addWidget(label);
+
+              auto *projectCombo = new QComboBox(&dialog);
+              projectCombo->addItems(projectNames);
+              projectCombo->setCurrentIndex(0);
+              layout->addWidget(projectCombo);
+
+              auto *buttonBox = new QDialogButtonBox(
+                  QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+              connect(buttonBox, &QDialogButtonBox::accepted, &dialog,
+                      &QDialog::accept);
+              connect(buttonBox, &QDialogButtonBox::rejected, &dialog,
+                      &QDialog::reject);
+              layout->addWidget(buttonBox);
+
+              if (dialog.exec() == QDialog::Accepted) {
+                selectedProject = projectCombo->currentText();
+              } else {
+                projectSelectionCancelled = true;
+              }
+            };
+
+        if (QThread::currentThread() == qApp->thread()) {
+          showProjectSelectionDialog();
+        } else {
+          QMetaObject::invokeMethod(qApp, showProjectSelectionDialog,
+                                    Qt::BlockingQueuedConnection);
+        }
+
+        if (projectSelectionCancelled || selectedProject.isEmpty()) {
+          LOG_INFO("Azure project selection cancelled by user");
+          LOG_PERF(0, "Exit");
+          return;
+        }
+
+        const auto selectedRepo =
+            QSharedPointer<IssueTrackers::AzureRepo>::create(
+                organization, selectedProject, authRepo->host());
+        IssueTrackers::TokensStorage::getInstance().storeToken(
+            selectedRepo->serviceName(), selectedRepo->repositoryPath(),
+            organization, accessToken, expiresAt, true);
+
+        Util::Dispatcher::dispatchToMainThread(projectsGuard, [=]() {
+          _issueTrackersModel->reload();
+          ui->tableViewIssueTrackerConnections->resizeColumnsToContents();
+        });
+
+        LOG_PERF(0, "Exit");
+      });
+    });
+  });
+}
+
 void HomeContainer::onBitbucketOAuthConnectClicked() {
   LOG_PERF(0, "Enter");
 
@@ -546,7 +1026,7 @@ void HomeContainer::onBitbucketOAuthConnectClicked() {
       ConfigManager::ConfigKey::BitbucketOAuthAuthorizeUrl);
   const QString tokenUrl = _configManager.getString(
       ConfigManager::ConfigKey::BitbucketOAuthTokenUrl);
-  const QString redirectUri = BITBUCKET_CALLBACK_URL.toString(QUrl::FullyEncoded);
+  const QString redirectUri = OAUTH_CALLBACK_URL.toString(QUrl::FullyEncoded);
   const QString scope =
       _configManager.getString(ConfigManager::ConfigKey::BitbucketOAuthScope);
 
@@ -687,7 +1167,7 @@ void HomeContainer::onBitbucketOAuthConnectClicked() {
     QMessageBox::critical(
         this, tr("Failure"),
         tr("Unable to start the Bitbucket callback server on %1: %2")
-            .arg(BITBUCKET_CALLBACK_URL.toString(), callbackServer.errorString()));
+            .arg(OAUTH_CALLBACK_URL.toString(), callbackServer.errorString()));
     LOG_PERF(0, "Exit");
     return;
   }
