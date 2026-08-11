@@ -70,6 +70,24 @@ enum class ConfigKey {
 
   // Github issue tracker
   GitHubOAuthClientId,
+
+  // Azure issue tracker
+  AzureOAuthClientId,
+  AzureOAuthClientSecret,
+  AzureOAuthTenantId,
+  AzureOAuthAuthorizeUrl,
+  AzureOAuthTokenUrl,
+  AzureOAuthRedirectUrl,
+  AzureOAuthScope,
+
+  // Bitbucket issue tracker
+  BitbucketOAuthClientId,
+  BitbucketOAuthClientSecret,
+  BitbucketOAuthAuthorizeUrl,
+  BitbucketOAuthTokenUrl,
+  BitbucketOAuthRedirectUrl,
+  BitbucketOAuthScope,
+
   IssueTrackerToolbarPosition,
 
   // Testing

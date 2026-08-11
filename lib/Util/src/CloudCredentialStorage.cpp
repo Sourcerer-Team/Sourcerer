@@ -387,8 +387,7 @@ QByteArray CloudCredentialtorage::encrypt(const QByteArray &plaintext,
 
   QByteArray ciphertext;
   ciphertext.resize(plaintext.size() + EVP_MAX_BLOCK_LENGTH);
-  auto *ciphertextData =
-      reinterpret_cast<unsigned char *>(ciphertext.data());
+  auto *ciphertextData = reinterpret_cast<unsigned char *>(ciphertext.data());
   int len = 0;
   int ciphertext_len = 0;
 
@@ -447,8 +446,7 @@ QByteArray CloudCredentialtorage::decrypt(const QByteArray &ciphertext,
 
   QByteArray plaintext;
   plaintext.resize(data_len + EVP_MAX_BLOCK_LENGTH);
-  auto *plaintextData =
-      reinterpret_cast<unsigned char *>(plaintext.data());
+  auto *plaintextData = reinterpret_cast<unsigned char *>(plaintext.data());
   int len = 0;
   int plaintext_len = 0;
 

@@ -18,7 +18,9 @@ TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _openAction(nullptr), _cloneAction(nullptr), _initAction(nullptr),
       _saveWorkspaceAction(nullptr),
-      _connectToGitHubIssueTrackerAction(nullptr), _settingsAction(nullptr),
+      _connectToGitHubIssueTrackerAction(nullptr),
+      _connectToAzureIssueTrackerAction(nullptr),
+      _connectToBitbucketIssueTrackerAction(nullptr), _settingsAction(nullptr),
       _credentialsAction(nullptr), _sshKeysAction(nullptr),
       _terminalAction(nullptr), _aboutAction(nullptr) {
   LOG_PERF(0, "Enter");
@@ -104,6 +106,22 @@ void TitleBarMenuButton::onConnectToGitHubIssueTracker() {
   LOG_PERF(0, "Exit");
 }
 
+void TitleBarMenuButton::onConnectToAzureIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  emit connectToAzureIssueTracker();
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitleBarMenuButton::onConnectToBitbucketIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  emit connectToBitbucketIssueTracker();
+
+  LOG_PERF(0, "Exit");
+}
+
 void TitleBarMenuButton::onSettings() {
   LOG_PERF(0, "Enter");
 
@@ -184,6 +202,16 @@ void TitleBarMenuButton::createActions() {
   connect(_connectToGitHubIssueTrackerAction, &QAction::triggered, this,
           &TitleBarMenuButton::onConnectToGitHubIssueTracker);
 
+  _connectToAzureIssueTrackerAction = new QAction(this);
+  _connectToAzureIssueTrackerAction->setText(tr("Azure issue tracker"));
+  connect(_connectToAzureIssueTrackerAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onConnectToAzureIssueTracker);
+
+  _connectToBitbucketIssueTrackerAction = new QAction(this);
+  _connectToBitbucketIssueTrackerAction->setText(tr("Bitbucket issue tracker"));
+  connect(_connectToBitbucketIssueTrackerAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onConnectToBitbucketIssueTracker);
+
   _settingsAction = new QAction(this);
   _settingsAction->setText(tr("Settings"));
   connect(_settingsAction, &QAction::triggered, this,
@@ -246,6 +274,8 @@ QMenu *TitleBarMenuButton::createMenu() {
 
   auto *connectToMenu = menu->addMenu(tr("Connect to"));
   connectToMenu->addAction(_connectToGitHubIssueTrackerAction);
+  connectToMenu->addAction(_connectToAzureIssueTrackerAction);
+  connectToMenu->addAction(_connectToBitbucketIssueTrackerAction);
   menu->addSeparator();
 
   auto *themesMenu = menu->addMenu(tr("Themes"));

@@ -322,8 +322,8 @@ GitHubRepo::repositoryVisibility(QString *errorMessage) const {
   const QString accessToken = hasValidAccessToken() ? _accessToken : QString();
   const QString repoUrl =
       hostToApiBaseUrl(_host) + QStringLiteral("/repos/") +
-      QString::fromUtf8(QUrl::toPercentEncoding(_owner)) +
-      QStringLiteral("/") + QString::fromUtf8(QUrl::toPercentEncoding(_repository));
+      QString::fromUtf8(QUrl::toPercentEncoding(_owner)) + QStringLiteral("/") +
+      QString::fromUtf8(QUrl::toPercentEncoding(_repository));
 
   const auto httpReply = httpClient->sendRequest(
       repoUrl, Util::HttpMethod::Get, githubJsonHeaders(),

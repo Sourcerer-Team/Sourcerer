@@ -73,6 +73,26 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::TooltipDisplayTime, "window/tooltips/tooltipDisplayTime"},
     {ConfigKey::TooltipHistoryTimeout, "window/tooltips/tooltipHistoryTimeout"},
     {ConfigKey::GitHubOAuthClientId, "issuetrackers/github"},
+    {ConfigKey::AzureOAuthClientId, "issuetrackers/azure/oauthClientId"},
+    {ConfigKey::AzureOAuthClientSecret,
+     "issuetrackers/azure/oauthClientSecret"},
+    {ConfigKey::AzureOAuthTenantId, "issuetrackers/azure/tenantId"},
+    {ConfigKey::AzureOAuthAuthorizeUrl,
+     "issuetrackers/azure/oauthAuthorizeUrl"},
+    {ConfigKey::AzureOAuthTokenUrl, "issuetrackers/azure/oauthTokenUrl"},
+    {ConfigKey::AzureOAuthRedirectUrl, "issuetrackers/azure/oauthRedirectUrl"},
+    {ConfigKey::AzureOAuthScope, "issuetrackers/azure/oauthScope"},
+    {ConfigKey::BitbucketOAuthClientId,
+     "issuetrackers/bitbucket/oauthClientId"},
+    {ConfigKey::BitbucketOAuthClientSecret,
+     "issuetrackers/bitbucket/oauthClientSecret"},
+    {ConfigKey::BitbucketOAuthAuthorizeUrl,
+     "issuetrackers/bitbucket/oauthAuthorizeUrl"},
+    {ConfigKey::BitbucketOAuthTokenUrl,
+     "issuetrackers/bitbucket/oauthTokenUrl"},
+    {ConfigKey::BitbucketOAuthRedirectUrl,
+     "issuetrackers/bitbucket/oauthRedirectUrl"},
+    {ConfigKey::BitbucketOAuthScope, "issuetrackers/bitbucket/oauthScope"},
     {ConfigKey::IssueTrackerToolbarPosition,
      "window/issueTracker/toolbarPosition"}};
 
@@ -93,7 +113,36 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::NewsTrackerPollInterval,
      {"News feed poll interval", "Polling interval in milliseconds"}},
     {ConfigKey::NewsTrackerSeenNewsIds,
-     {"Seen news ids", "Comma-separated ids already shown to the user"}}};
+     {"Seen news ids", "Comma-separated ids already shown to the user"}},
+    {ConfigKey::AzureOAuthClientId,
+     {"Azure OAuth client id", "OAuth application client id"}},
+    {ConfigKey::AzureOAuthClientSecret,
+     {"Azure OAuth client secret", "OAuth application client secret"}},
+    {ConfigKey::AzureOAuthTenantId,
+     {"Azure tenant id",
+      "Microsoft Entra tenant id, common, or organizations"}},
+    {ConfigKey::AzureOAuthAuthorizeUrl,
+     {"Azure OAuth authorize URL", "Azure authorization endpoint"}},
+    {ConfigKey::AzureOAuthTokenUrl,
+     {"Azure OAuth token URL", "Azure token exchange endpoint"}},
+    {ConfigKey::AzureOAuthRedirectUrl,
+     {"Azure OAuth redirect URL",
+      "Must exactly match the callback URL registered in Azure DevOps"}},
+    {ConfigKey::AzureOAuthScope,
+     {"Azure OAuth scope", "OpenID scopes plus Azure DevOps delegated scope"}},
+    {ConfigKey::BitbucketOAuthClientId,
+     {"Bitbucket OAuth client id", "OAuth consumer client id"}},
+    {ConfigKey::BitbucketOAuthClientSecret,
+     {"Bitbucket OAuth client secret", "OAuth consumer client secret"}},
+    {ConfigKey::BitbucketOAuthAuthorizeUrl,
+     {"Bitbucket OAuth authorize URL", "Bitbucket authorization endpoint"}},
+    {ConfigKey::BitbucketOAuthTokenUrl,
+     {"Bitbucket OAuth token URL", "Bitbucket token exchange endpoint"}},
+    {ConfigKey::BitbucketOAuthRedirectUrl,
+     {"Bitbucket OAuth redirect URL",
+      "Must exactly match the callback URL registered in Bitbucket"}},
+    {ConfigKey::BitbucketOAuthScope,
+     {"Bitbucket OAuth scope", "Requested OAuth scopes"}}};
 
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {
     {ConfigKey::GitRepoDiffViewType,
@@ -167,6 +216,24 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::GitRepoSigningKey, ""},
     {ConfigKey::SettingsSplitterPos, ""},
     {ConfigKey::GitHubOAuthClientId, "Ov23lilRE4FHNeTxvPBT"},
+    {ConfigKey::AzureOAuthClientId, "ef27127b-3c59-4f38-af24-882e71fede7b"},
+    {ConfigKey::AzureOAuthClientSecret,
+     "ppC8Q~Ygl.EFkH41cdDOjorMriFieczLm45HXdrs"},
+    {ConfigKey::AzureOAuthTenantId, "common"},
+    {ConfigKey::AzureOAuthAuthorizeUrl, "https://login.microsoftonline.com"},
+    {ConfigKey::AzureOAuthTokenUrl, "https://login.microsoftonline.com"},
+    {ConfigKey::AzureOAuthRedirectUrl, "http://localhost:8080/callback"},
+    {ConfigKey::AzureOAuthScope, "https://app.vssps.visualstudio.com"},
+    {ConfigKey::BitbucketOAuthClientId, "CugXkSLz0ABOKhqU4a5cSxxsreKV0XuI"},
+    {ConfigKey::BitbucketOAuthClientSecret,
+     "ATOAyyP1WqSA9wVY96Ru3Dbi3Z6m0PjQeY9fcIli6sk-"
+     "EeH02g0Ndjbb6dXI25MEQGZM3844497C"},
+    {ConfigKey::BitbucketOAuthAuthorizeUrl,
+     "https://bitbucket.org/site/oauth2/authorize"},
+    {ConfigKey::BitbucketOAuthTokenUrl,
+     "https://bitbucket.org/site/oauth2/access_token"},
+    {ConfigKey::BitbucketOAuthRedirectUrl, "urn:ietf:wg:oauth:2.0:oob"},
+    {ConfigKey::BitbucketOAuthScope, "account repository"},
     {ConfigKey::IssueTrackerToolbarPosition, ""}};
 
 static QString resolveSigningProgramDefault(const QString &signingFormat) {
@@ -193,8 +260,8 @@ static QString defaultStringForKey(ConfigKey key, const QSettings *settings) {
 
 ConfigManager::ConfigManager()
     : _settings(ORGANIZATION_NAME, APPLICATION_NAME) {
-  _logsDir = getWritableDir() + QDir::separator() + LOGS_DIR +
-             QDir::separator();
+  _logsDir =
+      getWritableDir() + QDir::separator() + LOGS_DIR + QDir::separator();
   QDir dir;
   dir.mkpath(_logsDir);
 }

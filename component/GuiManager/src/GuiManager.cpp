@@ -1,8 +1,8 @@
 #include "GuiManager.h"
-#include "WebEngineProfile.h"
 #include "DarkStyle.h"
 #include "MainWindow.h"
 #include "MousePositionCorrection.h"
+#include "WebEngineProfile.h"
 
 #include <ConfigManager.h>
 #include <EventManager.h>

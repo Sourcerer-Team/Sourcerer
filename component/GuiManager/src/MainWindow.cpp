@@ -171,6 +171,10 @@ MainWindow::MainWindow(QWidget *parent)
           &MainWindow::onSaveWorkspace);
   connect(_topBarWidget, &TopBarWidget::connectToGitHubIssueTracker, this,
           &MainWindow::onConnectToGitHubIssueTracker);
+  connect(_topBarWidget, &TopBarWidget::connectToAzureIssueTracker, this,
+          &MainWindow::onConnectToAzureIssueTracker);
+  connect(_topBarWidget, &TopBarWidget::connectToBitbucketIssueTracker, this,
+          &MainWindow::onConnectToBitbucketIssueTracker);
   connect(_topBarWidget, &TopBarWidget::settings, this,
           &MainWindow::onSettings);
   connect(_topBarWidget, &TopBarWidget::credentials, this,
@@ -453,8 +457,43 @@ void MainWindow::onConnectToGitHubIssueTracker() {
   LOG_PERF(0, "Exit");
 }
 
+void MainWindow::onConnectToAzureIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  for (const auto &container : _containers) {
+    const auto homeContainer = qobject_cast<HomeContainer *>(container.get());
+    if (!homeContainer) {
+      continue;
+    }
+
+    QMetaObject::invokeMethod(homeContainer,
+                              "onAzureIssueTrackerConnectClicked",
+                              Qt::QueuedConnection);
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onConnectToBitbucketIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  for (const auto &container : _containers) {
+    const auto homeContainer = qobject_cast<HomeContainer *>(container.get());
+    if (!homeContainer) {
+      continue;
+    }
+
+    QMetaObject::invokeMethod(homeContainer, "onBitbucketOAuthConnectClicked",
+                              Qt::QueuedConnection);
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void MainWindow::onIssueTrackerClicked(const QString &serviceType,
-                                      const QString &repositoryName) {
+                                       const QString &repositoryName) {
   LOG_PERF(0, "Enter");
 
   if (serviceType.trimmed().isEmpty() || repositoryName.trimmed().isEmpty()) {
@@ -538,7 +577,8 @@ void MainWindow::onSubmitWorkspace(const QString &name) {
           continue;
         }
 
-        const QString serviceType = issueTrackerContainer->serviceType().trimmed();
+        const QString serviceType =
+            issueTrackerContainer->serviceType().trimmed();
         const QString repositoryName =
             issueTrackerContainer->repositoryName().trimmed();
         if (serviceType.isEmpty() || repositoryName.isEmpty()) {
@@ -1031,9 +1071,8 @@ void MainWindow::addIssueTrackerContainer(const QString &serviceType,
   container->selected();
   container->setupShortcuts();
   _containers += container;
-  _topBarWidget->titleBarWidget()->addTab(QStringLiteral("%1: %2")
-                                              .arg(serviceType.trimmed(),
-                                                   repositoryName.trimmed()));
+  _topBarWidget->titleBarWidget()->addTab(QStringLiteral("%1: %2").arg(
+      serviceType.trimmed(), repositoryName.trimmed()));
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 

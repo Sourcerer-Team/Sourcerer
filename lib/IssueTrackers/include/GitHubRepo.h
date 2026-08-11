@@ -50,8 +50,8 @@ public:
   QString issuesUrl() const override;
   bool isValid() const override;
 
-  RepositoryVisibility repositoryVisibility(
-      QString *errorMessage = nullptr) const;
+  RepositoryVisibility
+  repositoryVisibility(QString *errorMessage = nullptr) const;
 
   QVariantMap authenticate(const QVariantMap &parameters) override;
 

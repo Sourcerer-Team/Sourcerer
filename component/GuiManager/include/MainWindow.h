@@ -67,6 +67,8 @@ private slots:
   void onRecentClicked(const QString &path);
   void onSaveWorkspace();
   void onConnectToGitHubIssueTracker();
+  void onConnectToAzureIssueTracker();
+  void onConnectToBitbucketIssueTracker();
   void onIssueTrackerClicked(const QString &serviceType,
                              const QString &repositoryName);
   void onSettings();

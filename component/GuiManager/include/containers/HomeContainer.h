@@ -68,6 +68,8 @@ private slots:
   void hoverLeave(const QModelIndex &index);
   void onCloneClicked();
   void onGitHubIssueTrackerConnectClicked();
+  void onAzureIssueTrackerConnectClicked();
+  void onBitbucketOAuthConnectClicked();
   void onInitClicked();
   void onOpenClicked(bool checked = false);
   void onIssueTrackerRightClicked(const QString &serviceType,

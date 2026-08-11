@@ -47,8 +47,8 @@ QString fileSuffixFromUrl(const QString &downloadUrl) {
 QString buildWindowsInstallerLogPath(const QString &installerKind) {
   const QString logsDir =
       ConfigManager::ConfigManager::getInstance().getLogsDir();
-  const QString timestamp = QDateTime::currentDateTime()
-                                .toString(QStringLiteral("yyyyMMdd_HHmmss"));
+  const QString timestamp =
+      QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd_HHmmss"));
   return QStringLiteral("%1/update_%2_%3.log")
       .arg(logsDir, installerKind, timestamp);
 }
@@ -285,12 +285,9 @@ bool UpdatingState::launchInstaller(const QString &downloadedFilePath) const {
     const QString logPath = buildWindowsInstallerLogPath(QStringLiteral("msi"));
     const QString program = QStringLiteral("msiexec");
     const QStringList arguments = {
-        QStringLiteral("/i"),
-        QDir::toNativeSeparators(downloadedFilePath),
-        QStringLiteral("/quiet"),
-        QStringLiteral("/norestart"),
-        QStringLiteral("/log"),
-        QDir::toNativeSeparators(logPath)};
+        QStringLiteral("/i"),     QDir::toNativeSeparators(downloadedFilePath),
+        QStringLiteral("/quiet"), QStringLiteral("/norestart"),
+        QStringLiteral("/log"),   QDir::toNativeSeparators(logPath)};
     const bool started = QProcess::startDetached(program, arguments);
     if (!started) {
       LOG_WARN("Failed to start msiexec for '{}'.",
@@ -305,10 +302,8 @@ bool UpdatingState::launchInstaller(const QString &downloadedFilePath) const {
     const QString logPath = buildWindowsInstallerLogPath(QStringLiteral("exe"));
     const QString program = QDir::toNativeSeparators(downloadedFilePath);
     const QStringList arguments = {
-        QStringLiteral("/quiet"),
-        QStringLiteral("/norestart"),
-        QStringLiteral("/log"),
-        QDir::toNativeSeparators(logPath)};
+        QStringLiteral("/quiet"), QStringLiteral("/norestart"),
+        QStringLiteral("/log"), QDir::toNativeSeparators(logPath)};
     const bool started = QProcess::startDetached(program, arguments);
     if (!started) {
       LOG_WARN("Failed to start bootstrapper for '{}'.",
