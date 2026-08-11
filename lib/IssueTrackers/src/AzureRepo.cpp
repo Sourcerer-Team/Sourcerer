@@ -137,6 +137,9 @@ QMap<QString, QString>
 discoverAzureTenants(const std::shared_ptr<Util::HttpClient> &httpClient,
                      const QString &accessToken,
                      QString *errorMessage = nullptr) {
+  LOG_PERF(0, "Enter");
+  LOG_INFO("Requesting Azure tenant list");
+
   const auto tenantsReply = httpClient->sendRequest(
       QStringLiteral(
           "https://management.azure.com/tenants?api-version=2022-12-01"),
@@ -147,6 +150,8 @@ discoverAzureTenants(const std::shared_ptr<Util::HttpClient> &httpClient,
       *errorMessage = responseErrorMessage(
           tenantsReply, QStringLiteral("Failed to request Azure tenants."));
     }
+    LOG_ERROR(Log::ErrorId::Network, "Failed to request Azure tenants");
+    LOG_PERF(0, "Exit");
     return {};
   }
 
@@ -160,6 +165,8 @@ discoverAzureTenants(const std::shared_ptr<Util::HttpClient> &httpClient,
                           : QStringLiteral("Invalid Azure tenants response: ") +
                                 body.left(200);
     }
+    LOG_ERROR(Log::ErrorId::Network, "Invalid Azure tenants response");
+    LOG_PERF(0, "Exit");
     return {};
   }
 
@@ -183,6 +190,8 @@ discoverAzureTenants(const std::shared_ptr<Util::HttpClient> &httpClient,
     tenants[azureTenantLabel(tenantObj)] = azureTenantId(tenantObj);
   }
 
+  LOG_INFO("Azure tenant list parsed with {} tenant(s)", tenants.size());
+  LOG_PERF(0, "Exit");
   return tenants;
 }
 
@@ -213,6 +222,9 @@ QMap<QString, QString>
 discoverAzureOrganizations(const std::shared_ptr<Util::HttpClient> &httpClient,
                            const QString &accessToken,
                            QString *errorMessage = nullptr) {
+  LOG_PERF(0, "Enter");
+  LOG_INFO("Requesting Azure organization memberships");
+
   const auto meReply = httpClient->sendRequest(
       QStringLiteral("https://app.vssps.visualstudio.com/_apis/profile/"
                      "profiles/me?api-version=7.1"),
@@ -223,6 +235,9 @@ discoverAzureOrganizations(const std::shared_ptr<Util::HttpClient> &httpClient,
       *errorMessage = responseErrorMessage(
           meReply, QStringLiteral("Failed to request Azure organizations."));
     }
+    LOG_ERROR(Log::ErrorId::Network,
+              "Failed to request Azure organization profile");
+    LOG_PERF(0, "Exit");
     return {};
   }
 
@@ -235,6 +250,8 @@ discoverAzureOrganizations(const std::shared_ptr<Util::HttpClient> &httpClient,
                           : QStringLiteral("Invalid Azure profile response: ") +
                                 body.left(200);
     }
+    LOG_ERROR(Log::ErrorId::Network, "Invalid Azure profile response");
+    LOG_PERF(0, "Exit");
     return {};
   }
 
@@ -253,6 +270,8 @@ discoverAzureOrganizations(const std::shared_ptr<Util::HttpClient> &httpClient,
           organizationsReply,
           QStringLiteral("Failed to request Azure organizations."));
     }
+    LOG_ERROR(Log::ErrorId::Network, "Failed to request Azure organizations");
+    LOG_PERF(0, "Exit");
     return {};
   }
 
@@ -268,6 +287,8 @@ discoverAzureOrganizations(const std::shared_ptr<Util::HttpClient> &httpClient,
               : QStringLiteral("Invalid Azure organizations response: ") +
                     body.left(200);
     }
+    LOG_ERROR(Log::ErrorId::Network, "Invalid Azure organizations response");
+    LOG_PERF(0, "Exit");
     return {};
   }
 
@@ -295,6 +316,9 @@ discoverAzureOrganizations(const std::shared_ptr<Util::HttpClient> &httpClient,
         organizationName;
   }
 
+  LOG_INFO("Azure organization discovery parsed with {} organization(s)",
+           organizations.size());
+  LOG_PERF(0, "Exit");
   return organizations;
 }
 
@@ -313,6 +337,13 @@ requestAzureToken(const std::shared_ptr<Util::HttpClient> &httpClient,
                   const QString &grantType,
                   const QMap<QString, QString> &extraFields,
                   QString *errorMessage = nullptr) {
+  LOG_PERF(0, "Enter");
+  LOG_INFO("Requesting Azure token; grantType={} tenant={} hasClientSecret={} "
+           "extraFields={}",
+           grantType.toStdString(),
+           normalizedAzureTenantId(tenantId).toStdString(),
+           !clientSecret.trimmed().isEmpty(), extraFields.size());
+
   QVariantMap result;
 
   const QString trimmedTokenAuthorityUrl = tokenAuthorityUrl.trimmed();
@@ -323,6 +354,9 @@ requestAzureToken(const std::shared_ptr<Util::HttpClient> &httpClient,
       *errorMessage =
           QStringLiteral("Azure OAuth endpoints are not configured.");
     }
+    LOG_ERROR(Log::ErrorId::Security,
+              "Azure OAuth token request missing authority URL or client id");
+    LOG_PERF(0, "Exit");
     return result;
   }
 
@@ -348,6 +382,8 @@ requestAzureToken(const std::shared_ptr<Util::HttpClient> &httpClient,
       *errorMessage = responseErrorMessage(
           tokenReply, QStringLiteral("Failed to request Azure access token."));
     }
+    LOG_ERROR(Log::ErrorId::Network, "Failed to request Azure access token");
+    LOG_PERF(0, "Exit");
     return result;
   }
 
@@ -357,6 +393,8 @@ requestAzureToken(const std::shared_ptr<Util::HttpClient> &httpClient,
     if (errorMessage != nullptr) {
       *errorMessage = QStringLiteral("Invalid Azure access token response.");
     }
+    LOG_ERROR(Log::ErrorId::Network, "Invalid Azure access token response");
+    LOG_PERF(0, "Exit");
     return result;
   }
 
@@ -369,6 +407,9 @@ requestAzureToken(const std::shared_ptr<Util::HttpClient> &httpClient,
           tokenReply,
           QStringLiteral("Azure access token response missing access_token."));
     }
+    LOG_ERROR(Log::ErrorId::Network,
+              "Azure access token response missing access_token");
+    LOG_PERF(0, "Exit");
     return result;
   }
 
@@ -386,6 +427,14 @@ requestAzureToken(const std::shared_ptr<Util::HttpClient> &httpClient,
         QDateTime::currentDateTimeUtc().addSecs(expiresInSeconds);
   }
 
+  LOG_INFO("Azure token request completed successfully; refresh token present: "
+           "{} expires_at present: {}",
+           !result.value(QStringLiteral("refreshToken"))
+                .toString()
+                .trimmed()
+                .isEmpty(),
+           result.contains(QStringLiteral("expiresAt")));
+  LOG_PERF(0, "Exit");
   return result;
 }
 
@@ -393,59 +442,109 @@ requestAzureToken(const std::shared_ptr<Util::HttpClient> &httpClient,
 
 AzureRepo::AzureRepo(QString owner, QString repository, QString host)
     : _host(std::move(host)), _owner(std::move(owner)),
-      _repository(std::move(repository)) {}
+      _repository(std::move(repository)) {
+  LOG_PERF(0, "Enter");
+  LOG_INFO("AzureRepo created host={} owner={} repository={}",
+           _host.toStdString(), _owner.toStdString(),
+           _repository.toStdString());
+  LOG_PERF(0, "Exit");
+}
 
-AzureRepo::~AzureRepo() = default;
+AzureRepo::~AzureRepo() {
+  LOG_PERF(0, "Enter");
+  LOG_INFO("AzureRepo destroyed");
+  LOG_PERF(0, "Exit");
+}
 
 IssueTrackerRepo::Type AzureRepo::type() const {
-  return IssueTrackerRepo::Type::Azure;
+  LOG_PERF(0, "Enter");
+  const auto value = IssueTrackerRepo::Type::Azure;
+  LOG_PERF(0, "Exit");
+  return value;
 }
 
 QString AzureRepo::serviceName() const {
-  return QStringLiteral("Azure");
+  LOG_PERF(0, "Enter");
+  const QString value = QStringLiteral("Azure");
+  LOG_PERF(0, "Exit");
+  return value;
 }
 
 QString AzureRepo::host() const {
-  return _host;
+  LOG_PERF(0, "Enter");
+  const QString value = _host;
+  LOG_PERF(0, "Exit");
+  return value;
 }
 
 QString AzureRepo::owner() const {
-  return _owner;
+  LOG_PERF(0, "Enter");
+  const QString value = _owner;
+  LOG_PERF(0, "Exit");
+  return value;
 }
 
 QString AzureRepo::repository() const {
-  return _repository;
+  LOG_PERF(0, "Enter");
+  const QString value = _repository;
+  LOG_PERF(0, "Exit");
+  return value;
 }
 
 QString AzureRepo::repositoryPath() const {
+  LOG_PERF(0, "Enter");
   if (_owner.isEmpty() || _repository.isEmpty()) {
+    LOG_INFO("Azure repository path unavailable because owner or repository is "
+             "empty");
+    LOG_PERF(0, "Exit");
     return QString();
   }
 
-  return _owner + QStringLiteral("/") + _repository;
+  const QString value = _owner + QStringLiteral("/") + _repository;
+  LOG_INFO("Azure repository path resolved");
+  LOG_PERF(0, "Exit");
+  return value;
 }
 
 QString AzureRepo::webUrl() const {
+  LOG_PERF(0, "Enter");
   if (_owner.isEmpty() || _repository.isEmpty()) {
+    LOG_INFO("Azure web URL unavailable because owner or repository is empty");
+    LOG_PERF(0, "Exit");
     return QString();
   }
 
-  return hostToWebBaseUrl(_host) + QStringLiteral("/") +
-         QString::fromUtf8(QUrl::toPercentEncoding(_owner)) +
-         QStringLiteral("/") +
-         QString::fromUtf8(QUrl::toPercentEncoding(_repository));
+  const QString value = hostToWebBaseUrl(_host) + QStringLiteral("/") +
+                        QString::fromUtf8(QUrl::toPercentEncoding(_owner)) +
+                        QStringLiteral("/") +
+                        QString::fromUtf8(QUrl::toPercentEncoding(_repository));
+  LOG_INFO("Azure web URL resolved for owner={} repository={}",
+           _owner.toStdString(), _repository.toStdString());
+  LOG_PERF(0, "Exit");
+  return value;
 }
 
 QString AzureRepo::issuesUrl() const {
+  LOG_PERF(0, "Enter");
   if (_owner.isEmpty() || _repository.isEmpty()) {
+    LOG_INFO(
+        "Azure issues URL unavailable because owner or repository is empty");
+    LOG_PERF(0, "Exit");
     return QString();
   }
 
-  return webUrl() + QStringLiteral("/_workitems");
+  const QString value = webUrl() + QStringLiteral("/_workitems");
+  LOG_INFO("Azure issues URL resolved");
+  LOG_PERF(0, "Exit");
+  return value;
 }
 
 bool AzureRepo::isValid() const {
-  return !_host.isEmpty();
+  LOG_PERF(0, "Enter");
+  const bool value = !_host.isEmpty();
+  LOG_INFO("AzureRepo validity checked: {}", value);
+  LOG_PERF(0, "Exit");
+  return value;
 }
 
 QUrl AzureRepo::authorizationUrl(const QString &authorityUrl,
@@ -454,13 +553,22 @@ QUrl AzureRepo::authorizationUrl(const QString &authorityUrl,
                                  const QString &redirectUri,
                                  const QString &scope, const QString &state,
                                  const QString &codeChallenge) {
+  LOG_PERF(0, "Enter");
+  LOG_INFO("Building Azure authorization URL for tenant={}",
+           normalizedAzureTenantId(tenantId).toStdString());
+
   if (authorityUrl.trimmed().isEmpty() || clientId.trimmed().isEmpty()) {
+    LOG_INFO("Azure authorization URL not created because authority URL or "
+             "client id is empty");
+    LOG_PERF(0, "Exit");
     return QUrl();
   }
 
   const QString tenant = normalizedAzureTenantId(tenantId);
   QUrl url(authorityUrl.trimmed());
   if (!url.isValid()) {
+    LOG_WARN("Azure authorization authority URL is invalid");
+    LOG_PERF(0, "Exit");
     return QUrl();
   }
 
@@ -487,11 +595,23 @@ QUrl AzureRepo::authorizationUrl(const QString &authorityUrl,
     query.addQueryItem(QStringLiteral("state"), state.trimmed());
   }
   url.setQuery(query);
+  LOG_INFO("Azure authorization URL ready; PKCE challenge provided: {}",
+           !codeChallenge.trimmed().isEmpty());
+  LOG_PERF(0, "Exit");
   return url;
 }
 
 QVariantMap AzureRepo::authenticate(const QVariantMap &parameters) {
   LOG_PERF(0, "Enter");
+  LOG_INFO("Azure authentication started; parameters available: clientId={}, "
+           "authorizationCode={}, tenantId={}, redirectUri={}, scope={}, "
+           "codeVerifier={}",
+           parameters.contains(QStringLiteral("clientId")),
+           parameters.contains(QStringLiteral("authorizationCode")),
+           parameters.contains(QStringLiteral("tenantId")),
+           parameters.contains(QStringLiteral("redirectUri")),
+           parameters.contains(QStringLiteral("resource")),
+           parameters.contains(QStringLiteral("codeVerifier")));
 
   QVariantMap result;
 
@@ -554,6 +674,7 @@ QVariantMap AzureRepo::authenticate(const QVariantMap &parameters) {
   }
 
   const auto httpClient = std::make_shared<Util::HttpClient>();
+  LOG_INFO("Azure exchanging authorization code for access token");
 
   QMap<QString, QString> tokenFields;
   tokenFields[QStringLiteral("grant_type")] =
@@ -576,6 +697,8 @@ QVariantMap AzureRepo::authenticate(const QVariantMap &parameters) {
     LOG_PERF(0, "Exit");
     return result;
   }
+
+  LOG_INFO("Azure access token exchange completed successfully");
 
   const QString accessToken =
       tokenResult.value(QStringLiteral("accessToken")).toString().trimmed();
@@ -605,6 +728,8 @@ QVariantMap AzureRepo::authenticate(const QVariantMap &parameters) {
     LOG_WARN("Azure organization discovery failed: {}",
              organizationDiscoveryErrorMessage.toStdString());
   }
+  LOG_INFO("Azure organization discovery returned {} organization(s)",
+           organizations.size());
   if (!organizations.isEmpty()) {
     QVariantMap variantOrgs;
     for (const auto &k : organizations.keys()) {
@@ -618,6 +743,7 @@ QVariantMap AzureRepo::authenticate(const QVariantMap &parameters) {
   result[QStringLiteral("expiresAt")] = expiresAt;
   result[QStringLiteral("scope")] = scope;
 
+  LOG_INFO("Azure authentication finished successfully");
   LOG_PERF(0, "Exit");
   return result;
 }
@@ -625,11 +751,14 @@ QVariantMap AzureRepo::authenticate(const QVariantMap &parameters) {
 QMap<QString, QString> AzureRepo::discoverTenants(const QString &accessToken,
                                                   QString *errorMessage) const {
   LOG_PERF(0, "Enter");
+  LOG_INFO("Azure tenant discovery started");
 
   const auto httpClient = std::make_shared<Util::HttpClient>();
   const QMap<QString, QString> tenants =
       discoverAzureTenants(httpClient, accessToken, errorMessage);
 
+  LOG_INFO("Azure tenant discovery completed with {} tenant(s)",
+           tenants.size());
   LOG_PERF(0, "Exit");
   return tenants;
 }
@@ -637,6 +766,8 @@ QMap<QString, QString> AzureRepo::discoverTenants(const QString &accessToken,
 QVariantMap AzureRepo::listProjects(const QString &organization,
                                     const QString &accessToken) const {
   LOG_PERF(0, "Enter");
+  LOG_INFO("Azure project listing started for organization={}",
+           organization.trimmed().toStdString());
 
   QVariantMap result;
 
@@ -677,6 +808,9 @@ QVariantMap AzureRepo::listProjects(const QString &organization,
     LOG_PERF(0, "Exit");
     return result;
   }
+
+  LOG_INFO("Azure project request succeeded for organization={}",
+           trimmedOrganization.toStdString());
 
   const QJsonDocument projectsJson =
       QJsonDocument::fromJson(projectsReply.response());
@@ -726,31 +860,45 @@ QVariantMap AzureRepo::listProjects(const QString &organization,
     return result;
   }
 
+  LOG_INFO("Azure project listing produced {} repository entries",
+           repositories.size());
+
   result[QStringLiteral("success")] = true;
   result[QStringLiteral("organization")] = trimmedOrganization;
   result[QStringLiteral("username")] = trimmedOrganization;
   result[QStringLiteral("repositories")] = repositories;
 
+  LOG_INFO("Azure project listing finished successfully");
   LOG_PERF(0, "Exit");
   return result;
 }
 
 QString AzureRepo::hostToWebBaseUrl(const QString &host) {
-  if (host.isEmpty() || host == QStringLiteral("dev.azure.com") ||
-      host == QStringLiteral("www.dev.azure.com")) {
-    return QStringLiteral("https://dev.azure.com");
-  }
+  LOG_PERF(0, "Enter");
+  const QString value = [&host]() {
+    if (host.isEmpty() || host == QStringLiteral("dev.azure.com") ||
+        host == QStringLiteral("www.dev.azure.com")) {
+      return QStringLiteral("https://dev.azure.com");
+    }
 
-  if (host.startsWith(QStringLiteral("http://")) ||
-      host.startsWith(QStringLiteral("https://"))) {
-    return host;
-  }
+    if (host.startsWith(QStringLiteral("http://")) ||
+        host.startsWith(QStringLiteral("https://"))) {
+      return host;
+    }
 
-  return QStringLiteral("https://") + host;
+    return QStringLiteral("https://") + host;
+  }();
+  LOG_INFO("Azure web base URL resolved: {}", value.toStdString());
+  LOG_PERF(0, "Exit");
+  return value;
 }
 
 QString AzureRepo::hostToApiBaseUrl(const QString &host) {
-  return hostToWebBaseUrl(host);
+  LOG_PERF(0, "Enter");
+  const QString value = hostToWebBaseUrl(host);
+  LOG_INFO("Azure API base URL resolved: {}", value.toStdString());
+  LOG_PERF(0, "Exit");
+  return value;
 }
 
 } // namespace IssueTrackers
