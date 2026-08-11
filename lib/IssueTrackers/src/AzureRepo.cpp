@@ -4,6 +4,8 @@
 
 #include <Log.h>
 
+#include <QByteArray>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -11,6 +13,7 @@
 #include <QMap>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QRandomGenerator>
 #include <QSet>
 #include <QUrlQuery>
 
@@ -81,24 +84,12 @@ QMap<QString, QString> bearerHeaders(const QString &accessToken) {
 
 QString normalizedAzureTenantId(const QString &tenantId) {
   const QString trimmed = tenantId.trimmed();
-  if (trimmed.isEmpty() ||
-      trimmed.compare(QStringLiteral("a4925ca4-227f-43be-80e4-56575ed83e30"),
-                      Qt::CaseInsensitive) == 0) {
-    return QStringLiteral("common");
-  }
-
   return trimmed;
 }
 
 QString azureOrganizationName(const QJsonObject &accountObj) {
-  QString organization =
+  const QString organization =
       accountObj.value(QStringLiteral("accountName")).toString().trimmed();
-  if (!organization.isEmpty()) {
-    return organization;
-  }
-
-  organization =
-      accountObj.value(QStringLiteral("friendlyName")).toString().trimmed();
   if (!organization.isEmpty()) {
     return organization;
   }
@@ -128,14 +119,21 @@ QString azureTenantLabel(const QJsonObject &tenantObj) {
     return identifier;
   }
 
-  if (identifier.isEmpty()) {
-    return displayName;
-  }
-
-  return displayName + QStringLiteral(" (") + identifier + QStringLiteral(")");
+  return displayName;
 }
 
-QStringList
+QString azureTenantId(const QJsonObject &tenantObj) {
+  const QString displayName =
+      tenantObj.value(QStringLiteral("displayName")).toString().trimmed();
+  const QString tenantId =
+      tenantObj.value(QStringLiteral("tenantId")).toString().trimmed();
+  const QString id = tenantObj.value(QStringLiteral("id")).toString().trimmed();
+  const QString identifier = !tenantId.isEmpty() ? tenantId : id;
+
+  return tenantId;
+}
+
+QMap<QString, QString>
 discoverAzureTenants(const std::shared_ptr<Util::HttpClient> &httpClient,
                      const QString &accessToken,
                      QString *errorMessage = nullptr) {
@@ -166,7 +164,7 @@ discoverAzureTenants(const std::shared_ptr<Util::HttpClient> &httpClient,
   }
 
   QSet<QString> seenTenants;
-  QStringList tenants;
+  QMap<QString, QString> tenants;
   const QJsonArray values =
       tenantsJson.object().value(QStringLiteral("value")).toArray();
   for (const auto &value : values) {
@@ -182,18 +180,122 @@ discoverAzureTenants(const std::shared_ptr<Util::HttpClient> &httpClient,
     }
 
     seenTenants.insert(tenantId);
-    tenants.append(azureTenantLabel(tenantObj));
+    tenants[azureTenantLabel(tenantObj)] = azureTenantId(tenantObj);
   }
 
-  tenants.sort(Qt::CaseInsensitive);
   return tenants;
 }
 
-QStringList
+QString azureCodeVerifier() {
+  QByteArray verifier;
+  verifier.reserve(64);
+
+  static const char alphabet[] =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+  const int alphabetSize = static_cast<int>(sizeof(alphabet) - 1);
+  for (int i = 0; i < 96; ++i) {
+    const int index = QRandomGenerator::global()->bounded(alphabetSize);
+    verifier.append(alphabet[index]);
+  }
+
+  return QString::fromLatin1(verifier);
+}
+
+QByteArray azureCodeChallenge(const QString &codeVerifier) {
+  const QByteArray verifierBytes = codeVerifier.toUtf8();
+  const QByteArray hash =
+      QCryptographicHash::hash(verifierBytes, QCryptographicHash::Sha256);
+  return hash.toBase64(QByteArray::Base64UrlEncoding |
+                       QByteArray::OmitTrailingEquals);
+}
+
+QMap<QString, QString>
 discoverAzureOrganizations(const std::shared_ptr<Util::HttpClient> &httpClient,
                            const QString &accessToken,
                            QString *errorMessage = nullptr) {
-  return discoverAzureTenants(httpClient, accessToken, errorMessage);
+  const auto meReply = httpClient->sendRequest(
+      QStringLiteral("https://app.vssps.visualstudio.com/_apis/profile/"
+                     "profiles/me?api-version=7.1"),
+      Util::HttpMethod::Get, jsonHeaders(), bearerHeaders(accessToken),
+      QByteArray());
+  if (meReply.error() != QNetworkReply::NetworkError::NoError) {
+    if (errorMessage != nullptr) {
+      *errorMessage = responseErrorMessage(
+          meReply, QStringLiteral("Failed to request Azure organizations."));
+    }
+    return {};
+  }
+
+  const QJsonDocument meJson = QJsonDocument::fromJson(meReply.response());
+  if (!meJson.isObject()) {
+    if (errorMessage != nullptr) {
+      const QString body = QString::fromUtf8(meReply.response()).trimmed();
+      *errorMessage = body.isEmpty()
+                          ? QStringLiteral("Invalid Azure profile response.")
+                          : QStringLiteral("Invalid Azure profile response: ") +
+                                body.left(200);
+    }
+    return {};
+  }
+
+  const QString guid = meJson.object().value(QStringLiteral("id")).toString();
+  const QString urlStr =
+      QString("https://app.vssps.visualstudio.com/_apis/"
+              "accounts?memberId=%1&api-version=7.1-preview.1")
+          .arg(guid);
+
+  const auto organizationsReply =
+      httpClient->sendRequest(urlStr, Util::HttpMethod::Get, jsonHeaders(),
+                              bearerHeaders(accessToken), QByteArray());
+  if (organizationsReply.error() != QNetworkReply::NetworkError::NoError) {
+    if (errorMessage != nullptr) {
+      *errorMessage = responseErrorMessage(
+          organizationsReply,
+          QStringLiteral("Failed to request Azure organizations."));
+    }
+    return {};
+  }
+
+  const QJsonDocument organizationsJson =
+      QJsonDocument::fromJson(organizationsReply.response());
+  if (!organizationsJson.isObject()) {
+    if (errorMessage != nullptr) {
+      const QString body =
+          QString::fromUtf8(organizationsReply.response()).trimmed();
+      *errorMessage =
+          body.isEmpty()
+          ? QStringLiteral("Invalid Azure organizations response.")
+              : QStringLiteral("Invalid Azure organizations response: ") +
+                    body.left(200);
+    }
+    return {};
+  }
+
+  QSet<QString> seenOrganizations;
+  QMap<QString, QString> organizations;
+  const QJsonArray values =
+      organizationsJson.object().value(QStringLiteral("value")).toArray();
+  for (const auto &value : values) {
+    if (!value.isObject()) {
+      continue;
+    }
+
+    const QJsonObject accountObj = value.toObject();
+    const QString organizationName = azureOrganizationName(accountObj);
+    if (organizationName.isEmpty() ||
+        seenOrganizations.contains(organizationName)) {
+      continue;
+    }
+
+    seenOrganizations.insert(organizationName);
+    const QString organizationLabel =
+        accountObj.value(QStringLiteral("friendlyName")).toString().trimmed();
+    organizations[organizationLabel.isEmpty() ? organizationName
+                                              : organizationLabel] =
+        organizationName;
+  }
+
+  return organizations;
 }
 
 QByteArray formEncode(const QMap<QString, QString> &fields) {
@@ -234,13 +336,10 @@ requestAzureToken(const std::shared_ptr<Util::HttpClient> &httpClient,
     tokenFields[it.key()] = it.value();
   }
 
-  tokenFields[QStringLiteral("scope")].append(
-      " https://management.azure.com/.default");
-
   const QString tokenUrl =
       trimmedTokenAuthorityUrl + QStringLiteral("/") +
       QString::fromUtf8(QUrl::toPercentEncoding(trimmedTenantId)) +
-      QStringLiteral("/oauth2/v2.0/token");
+      QStringLiteral("/oauth2/token");
   const auto tokenReply = httpClient->sendRequest(
       tokenUrl, Util::HttpMethod::Post, formHeaders(), QMap<QString, QString>(),
       formEncode(tokenFields));
@@ -353,7 +452,8 @@ QUrl AzureRepo::authorizationUrl(const QString &authorityUrl,
                                  const QString &tenantId,
                                  const QString &clientId,
                                  const QString &redirectUri,
-                                 const QString &scope, const QString &state) {
+                                 const QString &scope, const QString &state,
+                                 const QString &codeChallenge) {
   if (authorityUrl.trimmed().isEmpty() || clientId.trimmed().isEmpty()) {
     return QUrl();
   }
@@ -365,7 +465,7 @@ QUrl AzureRepo::authorizationUrl(const QString &authorityUrl,
   }
 
   url.setPath(QStringLiteral("/") + tenant +
-              QStringLiteral("/oauth2/v2.0/authorize"));
+              QStringLiteral("/oauth2/authorize"));
 
   QUrlQuery query;
   query.addQueryItem(QStringLiteral("client_id"), clientId.trimmed());
@@ -375,10 +475,13 @@ QUrl AzureRepo::authorizationUrl(const QString &authorityUrl,
     query.addQueryItem(QStringLiteral("redirect_uri"), redirectUri.trimmed());
   }
   if (!scope.trimmed().isEmpty()) {
-    query.addQueryItem(
-        QStringLiteral("scope"),
-        QString("%1 %2").arg(scope.trimmed(),
-                             "https://management.azure.com/.default"));
+    query.addQueryItem(QStringLiteral("resource"), scope.trimmed());
+  }
+  if (!codeChallenge.trimmed().isEmpty()) {
+    query.addQueryItem(QStringLiteral("code_challenge"),
+                       codeChallenge.trimmed());
+    query.addQueryItem(QStringLiteral("code_challenge_method"),
+                       QStringLiteral("S256"));
   }
   if (!state.trimmed().isEmpty()) {
     query.addQueryItem(QStringLiteral("state"), state.trimmed());
@@ -407,7 +510,9 @@ QVariantMap AzureRepo::authenticate(const QVariantMap &parameters) {
   const QString redirectUri =
       parameters.value(QStringLiteral("redirectUri")).toString().trimmed();
   const QString scope =
-      parameters.value(QStringLiteral("scope")).toString().trimmed();
+      parameters.value(QStringLiteral("resource")).toString().trimmed();
+  const QString codeVerifier =
+      parameters.value(QStringLiteral("codeVerifier")).toString().trimmed();
 
   if (clientId.isEmpty()) {
     const QString message = QStringLiteral("Azure OAuth client id is empty.");
@@ -438,6 +543,16 @@ QVariantMap AzureRepo::authenticate(const QVariantMap &parameters) {
     return result;
   }
 
+  if (codeVerifier.isEmpty()) {
+    const QString message =
+        QStringLiteral("Azure PKCE code verifier is empty.");
+    result[QStringLiteral("success")] = false;
+    result[QStringLiteral("errorMessage")] = message;
+    LOG_ERROR(Log::ErrorId::Security, "{}", message.toStdString());
+    LOG_PERF(0, "Exit");
+    return result;
+  }
+
   const auto httpClient = std::make_shared<Util::HttpClient>();
 
   QMap<QString, QString> tokenFields;
@@ -447,12 +562,12 @@ QVariantMap AzureRepo::authenticate(const QVariantMap &parameters) {
   if (!redirectUri.isEmpty()) {
     tokenFields[QStringLiteral("redirect_uri")] = redirectUri;
   }
-  tokenFields[QStringLiteral("scope")] = scope;
+  tokenFields[QStringLiteral("resource")] = scope;
+  tokenFields[QStringLiteral("code_verifier")] = codeVerifier;
 
   QString tokenErrorMessage;
   const QVariantMap tokenResult = requestAzureToken(
-      httpClient, tokenAuthorityUrl, tenantId, clientId,
-      tenantId == "common" ? "" : clientSecret,
+      httpClient, tokenAuthorityUrl, tenantId, clientId, "",
       QStringLiteral("authorization_code"), tokenFields, &tokenErrorMessage);
   if (!tokenErrorMessage.isEmpty()) {
     result[QStringLiteral("success")] = false;
@@ -484,14 +599,18 @@ QVariantMap AzureRepo::authenticate(const QVariantMap &parameters) {
       tokenResult.value(QStringLiteral("expiresAt")).toDateTime();
 
   QString organizationDiscoveryErrorMessage;
-  const QStringList organizations = discoverAzureOrganizations(
+  const QMap<QString, QString> organizations = discoverAzureOrganizations(
       httpClient, accessToken, &organizationDiscoveryErrorMessage);
   if (!organizationDiscoveryErrorMessage.isEmpty()) {
     LOG_WARN("Azure organization discovery failed: {}",
              organizationDiscoveryErrorMessage.toStdString());
   }
   if (!organizations.isEmpty()) {
-    result[QStringLiteral("organizations")] = organizations;
+    QVariantMap variantOrgs;
+    for (const auto &k : organizations.keys()) {
+      variantOrgs[k] = organizations[k];
+    }
+    result[QStringLiteral("organizations")] = variantOrgs;
   }
 
   result[QStringLiteral("success")] = true;
@@ -503,12 +622,12 @@ QVariantMap AzureRepo::authenticate(const QVariantMap &parameters) {
   return result;
 }
 
-QStringList AzureRepo::discoverTenants(const QString &accessToken,
-                                       QString *errorMessage) const {
+QMap<QString, QString> AzureRepo::discoverTenants(const QString &accessToken,
+                                                  QString *errorMessage) const {
   LOG_PERF(0, "Enter");
 
   const auto httpClient = std::make_shared<Util::HttpClient>();
-  const QStringList tenants =
+  const QMap<QString, QString> tenants =
       discoverAzureTenants(httpClient, accessToken, errorMessage);
 
   LOG_PERF(0, "Exit");
@@ -542,12 +661,13 @@ QVariantMap AzureRepo::listProjects(const QString &organization,
   }
 
   const auto httpClient = std::make_shared<Util::HttpClient>();
-  const auto projectsReply = httpClient->sendRequest(
+  const auto urlStr =
       hostToApiBaseUrl(_host) + QStringLiteral("/") +
-          QString::fromUtf8(QUrl::toPercentEncoding(trimmedOrganization)) +
-          QStringLiteral("/_apis/projects?api-version=7.1-preview.4"),
-      Util::HttpMethod::Get, jsonHeaders(), bearerHeaders(trimmedAccessToken),
-      QByteArray());
+      QString::fromUtf8(QUrl::toPercentEncoding(trimmedOrganization)) +
+      QStringLiteral("/_apis/projects?api-version=7.1-preview.4");
+  const auto projectsReply =
+      httpClient->sendRequest(urlStr, Util::HttpMethod::Get, jsonHeaders(),
+                              bearerHeaders(trimmedAccessToken), QByteArray());
   if (projectsReply.error() != QNetworkReply::NetworkError::NoError) {
     const QString message = responseErrorMessage(
         projectsReply, QStringLiteral("Failed to request Azure projects."));

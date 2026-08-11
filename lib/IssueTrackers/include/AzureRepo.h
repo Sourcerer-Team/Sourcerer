@@ -31,7 +31,7 @@ public:
   bool isValid() const override;
 
   QVariantMap authenticate(const QVariantMap &parameters) override;
-  QStringList discoverTenants(const QString &accessToken,
+  QMap<QString, QString> discoverTenants(const QString &accessToken,
                               QString *errorMessage = nullptr) const;
   QVariantMap listProjects(const QString &organization,
                            const QString &accessToken) const;
@@ -41,7 +41,8 @@ public:
                                const QString &clientId,
                                const QString &redirectUri,
                                const QString &scope,
-                               const QString &state = QString());
+                               const QString &state = QString(),
+                               const QString &codeChallenge = QString());
 
 private:
   static QString hostToWebBaseUrl(const QString &host);
