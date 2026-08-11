@@ -51,7 +51,6 @@ QString responseErrorMessage(const Util::HttpReply &httpReply,
   return fallbackMessage;
 }
 
-
 QMap<QNetworkRequest::KnownHeaders, QString> jsonHeaders() {
   QMap<QNetworkRequest::KnownHeaders, QString> headers;
   headers[QNetworkRequest::KnownHeaders::ContentTypeHeader] =
@@ -71,13 +70,21 @@ IssueTrackerRepo::Type BitbucketRepo::type() const {
   return IssueTrackerRepo::Type::Bitbucket;
 }
 
-QString BitbucketRepo::serviceName() const { return QStringLiteral("Bitbucket"); }
+QString BitbucketRepo::serviceName() const {
+  return QStringLiteral("Bitbucket");
+}
 
-QString BitbucketRepo::host() const { return _host; }
+QString BitbucketRepo::host() const {
+  return _host;
+}
 
-QString BitbucketRepo::owner() const { return _owner; }
+QString BitbucketRepo::owner() const {
+  return _owner;
+}
 
-QString BitbucketRepo::repository() const { return _repository; }
+QString BitbucketRepo::repository() const {
+  return _repository;
+}
 
 QString BitbucketRepo::repositoryPath() const {
   if (_owner.isEmpty() || _repository.isEmpty()) {
@@ -103,7 +110,9 @@ QString BitbucketRepo::issuesUrl() const {
   return webUrl() + QStringLiteral("/issues");
 }
 
-bool BitbucketRepo::isValid() const { return !_host.isEmpty(); }
+bool BitbucketRepo::isValid() const {
+  return !_host.isEmpty();
+}
 
 QUrl BitbucketRepo::authorizationUrl(const QString &authorizeUrl,
                                      const QString &clientId,
@@ -137,9 +146,10 @@ QVariantMap BitbucketRepo::authenticate(const QVariantMap &parameters) {
 
   QVariantMap result;
 
-  const bool useOAuth = parameters.contains(QStringLiteral("authorizationCode")) ||
-                        parameters.contains(QStringLiteral("clientId")) ||
-                        parameters.contains(QStringLiteral("clientSecret"));
+  const bool useOAuth =
+      parameters.contains(QStringLiteral("authorizationCode")) ||
+      parameters.contains(QStringLiteral("clientId")) ||
+      parameters.contains(QStringLiteral("clientSecret"));
   if (useOAuth) {
     const QString clientId =
         parameters.value(QStringLiteral("clientId")).toString().trimmed();
@@ -164,8 +174,7 @@ QVariantMap BitbucketRepo::authenticate(const QVariantMap &parameters) {
       result[QStringLiteral("success")] = false;
       result[QStringLiteral("errorMessage")] =
           QStringLiteral("Bitbucket OAuth client id is empty.");
-      LOG_ERROR(Log::ErrorId::Security,
-                "Bitbucket OAuth client id is empty.");
+      LOG_ERROR(Log::ErrorId::Security, "Bitbucket OAuth client id is empty.");
       LOG_PERF(0, "Exit");
       return result;
     }
@@ -208,9 +217,8 @@ QVariantMap BitbucketRepo::authenticate(const QVariantMap &parameters) {
     }
 
     QString repositoriesErrorMessage;
-    const QStringList repositories =
-        listRepositoriesForWorkspace(workspace, accessToken,
-                                     &repositoriesErrorMessage);
+    const QStringList repositories = listRepositoriesForWorkspace(
+        workspace, accessToken, &repositoriesErrorMessage);
     if (repositories.isEmpty()) {
       result[QStringLiteral("success")] = false;
       result[QStringLiteral("errorMessage")] = repositoriesErrorMessage;
@@ -298,14 +306,15 @@ QStringList BitbucketRepo::listUserRepositories(const QString &username,
       return false;
     }
 
-    const QMap<QNetworkRequest::KnownHeaders, QString> httpHeaders = jsonHeaders();
+    const QMap<QNetworkRequest::KnownHeaders, QString> httpHeaders =
+        jsonHeaders();
     QMap<QString, QString> rawHeaders;
     rawHeaders[QStringLiteral("Accept")] = QStringLiteral("application/json");
     rawHeaders[QStringLiteral("Authorization")] = authHeader;
 
-    const auto httpReply = httpClient->sendRequest(
-        url.toString(), Util::HttpMethod::Get, httpHeaders, rawHeaders,
-        QByteArray());
+    const auto httpReply =
+        httpClient->sendRequest(url.toString(), Util::HttpMethod::Get,
+                                httpHeaders, rawHeaders, QByteArray());
 
     if (httpReply.error() != QNetworkReply::NetworkError::NoError) {
       const QString message = responseErrorMessage(httpReply, failureMessage);
@@ -319,7 +328,8 @@ QStringList BitbucketRepo::listUserRepositories(const QString &username,
     const QJsonDocument jsonDoc = QJsonDocument::fromJson(httpReply.response());
     if (!jsonDoc.isObject()) {
       const QString message = responseErrorMessage(
-          httpReply, QStringLiteral("Invalid Bitbucket repositories response."));
+          httpReply,
+          QStringLiteral("Invalid Bitbucket repositories response."));
       if (errorMessage) {
         *errorMessage = message;
       }
@@ -356,9 +366,11 @@ QStringList BitbucketRepo::listUserRepositories(const QString &username,
       const QJsonObject repoObj = repoValue.toObject();
       const QString fullName =
           repoObj.value(QStringLiteral("full_name")).toString().trimmed();
-      const QString slug = repoObj.value(QStringLiteral("slug")).toString().trimmed();
+      const QString slug =
+          repoObj.value(QStringLiteral("slug")).toString().trimmed();
       const QString repositoryName = !fullName.isEmpty() ? fullName : slug;
-      if (repositoryName.isEmpty() || seenRepositories.contains(repositoryName)) {
+      if (repositoryName.isEmpty() ||
+          seenRepositories.contains(repositoryName)) {
         continue;
       }
 
@@ -366,7 +378,8 @@ QStringList BitbucketRepo::listUserRepositories(const QString &username,
       repositories += repositoryName;
     }
 
-    const QString nextUrl = object.value(QStringLiteral("next")).toString().trimmed();
+    const QString nextUrl =
+        object.value(QStringLiteral("next")).toString().trimmed();
     if (nextUrl.isEmpty()) {
       break;
     }
@@ -375,9 +388,8 @@ QStringList BitbucketRepo::listUserRepositories(const QString &username,
   }
 
   if (repositories.isEmpty()) {
-    const QString message =
-        QStringLiteral(
-            "No Bitbucket repositories were found for the authenticated account.");
+    const QString message = QStringLiteral(
+        "No Bitbucket repositories were found for the authenticated account.");
     if (errorMessage) {
       *errorMessage = message;
     }
@@ -407,18 +419,16 @@ QStringList BitbucketRepo::listUserRepositoriesWithAccessToken(
 }
 
 QPair<QNetworkReply::NetworkError, QString>
-BitbucketRepo::requestOAuthAccessToken(const QString &tokenUrl,
-                                       const QString &clientId,
-                                       const QString &clientSecret,
-                                       const QString &authorizationCode,
-                                       const QString &redirectUri,
-                                       const QString &accessTokenLabel,
-                                       QDateTime *expiresAtOut,
-                                       QString *errorMessage) {
+BitbucketRepo::requestOAuthAccessToken(
+    const QString &tokenUrl, const QString &clientId,
+    const QString &clientSecret, const QString &authorizationCode,
+    const QString &redirectUri, const QString &accessTokenLabel,
+    QDateTime *expiresAtOut, QString *errorMessage) {
   LOG_PERF(0, "Enter");
 
   if (clientId.trimmed().isEmpty()) {
-    const QString message = QStringLiteral("Bitbucket OAuth client id is empty.");
+    const QString message =
+        QStringLiteral("Bitbucket OAuth client id is empty.");
     if (errorMessage) {
       *errorMessage = message;
     }
@@ -455,9 +465,9 @@ BitbucketRepo::requestOAuthAccessToken(const QString &tokenUrl,
       basicAuthHeaderValue(clientId, clientSecret);
 
   const auto httpClient = std::make_shared<Util::HttpClient>();
-  const auto httpReply = httpClient->sendRequest(
-      tokenUrl, Util::HttpMethod::Post, httpHeaders, rawHeaders,
-      formEncode(fields));
+  const auto httpReply =
+      httpClient->sendRequest(tokenUrl, Util::HttpMethod::Post, httpHeaders,
+                              rawHeaders, formEncode(fields));
 
   if (httpReply.error() != QNetworkReply::NetworkError::NoError) {
     const QString message = responseErrorMessage(
@@ -508,9 +518,10 @@ BitbucketRepo::requestOAuthAccessToken(const QString &tokenUrl,
 
   const int expiresInSeconds = obj.value(QStringLiteral("expires_in")).toInt(0);
   if (expiresAtOut) {
-    *expiresAtOut = expiresInSeconds > 0
-                        ? QDateTime::currentDateTimeUtc().addSecs(expiresInSeconds)
-                        : QDateTime();
+    *expiresAtOut =
+        expiresInSeconds > 0
+            ? QDateTime::currentDateTimeUtc().addSecs(expiresInSeconds)
+            : QDateTime();
   }
 
   if (errorMessage) {
@@ -522,9 +533,10 @@ BitbucketRepo::requestOAuthAccessToken(const QString &tokenUrl,
   return {QNetworkReply::NetworkError::NoError, accessToken};
 }
 
-QStringList BitbucketRepo::listRepositoriesForWorkspace(
-    const QString &workspace, const QString &accessToken,
-    QString *errorMessage) const {
+QStringList
+BitbucketRepo::listRepositoriesForWorkspace(const QString &workspace,
+                                            const QString &accessToken,
+                                            QString *errorMessage) const {
   LOG_PERF(0, "Enter");
 
   QStringList repositories;
@@ -551,14 +563,15 @@ QStringList BitbucketRepo::listRepositoriesForWorkspace(
       return false;
     }
 
-    const QMap<QNetworkRequest::KnownHeaders, QString> httpHeaders = jsonHeaders();
+    const QMap<QNetworkRequest::KnownHeaders, QString> httpHeaders =
+        jsonHeaders();
     QMap<QString, QString> rawHeaders;
     rawHeaders[QStringLiteral("Accept")] = QStringLiteral("application/json");
     rawHeaders[QStringLiteral("Authorization")] = authHeader;
 
-    const auto httpReply = httpClient->sendRequest(
-        url.toString(), Util::HttpMethod::Get, httpHeaders, rawHeaders,
-        QByteArray());
+    const auto httpReply =
+        httpClient->sendRequest(url.toString(), Util::HttpMethod::Get,
+                                httpHeaders, rawHeaders, QByteArray());
 
     if (httpReply.error() != QNetworkReply::NetworkError::NoError) {
       const QString message = responseErrorMessage(httpReply, failureMessage);
@@ -572,7 +585,8 @@ QStringList BitbucketRepo::listRepositoriesForWorkspace(
     const QJsonDocument jsonDoc = QJsonDocument::fromJson(httpReply.response());
     if (!jsonDoc.isObject()) {
       const QString message = responseErrorMessage(
-          httpReply, QStringLiteral("Invalid Bitbucket repositories response."));
+          httpReply,
+          QStringLiteral("Invalid Bitbucket repositories response."));
       if (errorMessage) {
         *errorMessage = message;
       }
@@ -593,9 +607,9 @@ QStringList BitbucketRepo::listRepositoriesForWorkspace(
 
   while (url.isValid()) {
     QJsonObject object;
-    if (!requestJsonObject(url,
-                           QStringLiteral("Failed to request Bitbucket repositories."),
-                           &object)) {
+    if (!requestJsonObject(
+            url, QStringLiteral("Failed to request Bitbucket repositories."),
+            &object)) {
       LOG_PERF(0, "Exit");
       return repositories;
     }
@@ -609,9 +623,11 @@ QStringList BitbucketRepo::listRepositoriesForWorkspace(
       const QJsonObject repoObj = repoValue.toObject();
       const QString fullName =
           repoObj.value(QStringLiteral("full_name")).toString().trimmed();
-      const QString slug = repoObj.value(QStringLiteral("slug")).toString().trimmed();
+      const QString slug =
+          repoObj.value(QStringLiteral("slug")).toString().trimmed();
       const QString repositoryName = !fullName.isEmpty() ? fullName : slug;
-      if (repositoryName.isEmpty() || seenRepositories.contains(repositoryName)) {
+      if (repositoryName.isEmpty() ||
+          seenRepositories.contains(repositoryName)) {
         continue;
       }
 
@@ -619,7 +635,8 @@ QStringList BitbucketRepo::listRepositoriesForWorkspace(
       repositories += repositoryName;
     }
 
-    const QString nextUrl = object.value(QStringLiteral("next")).toString().trimmed();
+    const QString nextUrl =
+        object.value(QStringLiteral("next")).toString().trimmed();
     if (nextUrl.isEmpty()) {
       break;
     }
@@ -628,9 +645,8 @@ QStringList BitbucketRepo::listRepositoriesForWorkspace(
   }
 
   if (repositories.isEmpty()) {
-    const QString message =
-        QStringLiteral(
-            "No Bitbucket repositories were found for the authenticated account.");
+    const QString message = QStringLiteral(
+        "No Bitbucket repositories were found for the authenticated account.");
     if (errorMessage) {
       *errorMessage = message;
     }
@@ -664,15 +680,16 @@ QString BitbucketRepo::currentWorkspaceName(const QString &accessToken,
 
   QMap<QString, QString> rawHeaders;
   rawHeaders[QStringLiteral("Accept")] = QStringLiteral("application/json");
-  rawHeaders[QStringLiteral("Authorization")] = bearerAuthHeaderValue(accessToken);
+  rawHeaders[QStringLiteral("Authorization")] =
+      bearerAuthHeaderValue(accessToken);
 
   const auto httpReply = httpClient->sendRequest(
       hostToApiBaseUrl(_host) + QStringLiteral("/user"), Util::HttpMethod::Get,
       httpHeaders, rawHeaders, QByteArray());
 
   if (httpReply.error() != QNetworkReply::NetworkError::NoError) {
-    const QString message =
-        responseErrorMessage(httpReply, QStringLiteral("Failed to request Bitbucket user info."));
+    const QString message = responseErrorMessage(
+        httpReply, QStringLiteral("Failed to request Bitbucket user info."));
     if (errorMessage) {
       *errorMessage = message;
     }
@@ -693,7 +710,8 @@ QString BitbucketRepo::currentWorkspaceName(const QString &accessToken,
   }
 
   const QJsonObject obj = jsonDoc.object();
-  QString workspace = obj.value(QStringLiteral("username")).toString().trimmed();
+  QString workspace =
+      obj.value(QStringLiteral("username")).toString().trimmed();
   if (workspace.isEmpty()) {
     workspace = obj.value(QStringLiteral("nickname")).toString().trimmed();
   }
@@ -702,8 +720,8 @@ QString BitbucketRepo::currentWorkspaceName(const QString &accessToken,
   }
 
   if (workspace.isEmpty()) {
-    const QString message =
-        QStringLiteral("Bitbucket user response did not contain a workspace name.");
+    const QString message = QStringLiteral(
+        "Bitbucket user response did not contain a workspace name.");
     if (errorMessage) {
       *errorMessage = message;
     }

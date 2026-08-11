@@ -112,9 +112,8 @@ bool TokensStorage::getToken(const QString &serviceType,
 }
 
 bool TokensStorage::getToken(const QString &serviceType,
-                             const QString &repositoryName,
-                             QString &userName, QString &accessToken,
-                             QDateTime &expiresAt) const {
+                             const QString &repositoryName, QString &userName,
+                             QString &accessToken, QDateTime &expiresAt) const {
   LOG_PERF(0, "Enter");
 
   const QString entryKey = makeEntryKey(serviceType, repositoryName);

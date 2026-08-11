@@ -19,6 +19,7 @@ TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
       _openAction(nullptr), _cloneAction(nullptr), _initAction(nullptr),
       _saveWorkspaceAction(nullptr),
       _connectToGitHubIssueTrackerAction(nullptr),
+      _connectToAzureIssueTrackerAction(nullptr),
       _connectToBitbucketIssueTrackerAction(nullptr), _settingsAction(nullptr),
       _credentialsAction(nullptr), _sshKeysAction(nullptr),
       _terminalAction(nullptr), _aboutAction(nullptr) {
@@ -101,6 +102,14 @@ void TitleBarMenuButton::onConnectToGitHubIssueTracker() {
   LOG_PERF(0, "Enter");
 
   emit connectToGitHubIssueTracker();
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitleBarMenuButton::onConnectToAzureIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  emit connectToAzureIssueTracker();
 
   LOG_PERF(0, "Exit");
 }
@@ -193,6 +202,11 @@ void TitleBarMenuButton::createActions() {
   connect(_connectToGitHubIssueTrackerAction, &QAction::triggered, this,
           &TitleBarMenuButton::onConnectToGitHubIssueTracker);
 
+  _connectToAzureIssueTrackerAction = new QAction(this);
+  _connectToAzureIssueTrackerAction->setText(tr("Azure issue tracker"));
+  connect(_connectToAzureIssueTrackerAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onConnectToAzureIssueTracker);
+
   _connectToBitbucketIssueTrackerAction = new QAction(this);
   _connectToBitbucketIssueTrackerAction->setText(tr("Bitbucket issue tracker"));
   connect(_connectToBitbucketIssueTrackerAction, &QAction::triggered, this,
@@ -260,6 +274,7 @@ QMenu *TitleBarMenuButton::createMenu() {
 
   auto *connectToMenu = menu->addMenu(tr("Connect to"));
   connectToMenu->addAction(_connectToGitHubIssueTrackerAction);
+  connectToMenu->addAction(_connectToAzureIssueTrackerAction);
   connectToMenu->addAction(_connectToBitbucketIssueTrackerAction);
   menu->addSeparator();
 

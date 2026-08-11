@@ -12,10 +12,12 @@ find_package(Qt6 REQUIRED COMPONENTS Core Network Widgets)
 find_package(OpenSSL REQUIRED)
 
 add_library(IssueTrackers STATIC
+    include/AzureRepo.h
     include/BitbucketRepo.h
     include/GitHubRepo.h
     include/IssueTrackerRepo.h
     include/TokensStorage.h
+    src/AzureRepo.cpp
     src/BitbucketRepo.cpp
     src/GitHubRepo.cpp
     src/IssueTrackerRepo.cpp

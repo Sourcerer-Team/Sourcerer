@@ -3,6 +3,7 @@
 #include "src/containers/ui_IssueTrackerContainer.h"
 #include "ui_IssueTrackerContainer.h"
 
+#include <AzureRepo.h>
 #include <BitbucketRepo.h>
 #include <GitHubRepo.h>
 #include <Log.h>
@@ -12,6 +13,7 @@
 
 #include <QApplication>
 #include <QAuthenticator>
+#include <QDateTime>
 #include <QEventLoop>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -19,7 +21,6 @@
 #include <QNetworkCookie>
 #include <QResizeEvent>
 #include <QStringList>
-#include <QDateTime>
 #include <QTimer>
 #include <QToolButton>
 #include <QUrlQuery>
@@ -41,7 +42,6 @@ QString normalizedServiceType(const QString &serviceType) {
   return serviceType.trimmed().toLower();
 }
 
-
 #if GUI_MANAGER_HAS_WEBENGINE
 bool isGitHubLoginCookie(const QNetworkCookie &cookie) {
   const QString domain = cookie.domain().trimmed().toLower();
@@ -51,8 +51,7 @@ bool isGitHubLoginCookie(const QNetworkCookie &cookie) {
 
   const QString name = QString::fromUtf8(cookie.name()).trimmed().toLower();
   if (name == QStringLiteral("logged_in")) {
-    const QString value =
-        QString::fromUtf8(cookie.value()).trimmed().toLower();
+    const QString value = QString::fromUtf8(cookie.value()).trimmed().toLower();
     return !value.isEmpty() && value != QStringLiteral("false") &&
            value != QStringLiteral("no") && value != QStringLiteral("0");
   }
@@ -95,8 +94,8 @@ bool shouldOpenGitHubLoginFirst(const QString &serviceType,
   }
 
   const QString trimmedRepositoryName = repositoryName.trimmed();
-  const QStringList parts = trimmedRepositoryName.split(QStringLiteral("/"),
-                                                       Qt::SkipEmptyParts);
+  const QStringList parts =
+      trimmedRepositoryName.split(QStringLiteral("/"), Qt::SkipEmptyParts);
   if (parts.size() < 2) {
     return false;
   }
@@ -133,17 +132,26 @@ QUrl buildIssueTrackerUrl(const QString &serviceType,
   const QString normalized = normalizedServiceType(serviceType);
   const QString trimmedRepositoryName = repositoryName.trimmed();
   if (normalized == QStringLiteral("github")) {
-    const QStringList parts = trimmedRepositoryName.split(QStringLiteral("/"),
-                                                         Qt::SkipEmptyParts);
+    const QStringList parts =
+        trimmedRepositoryName.split(QStringLiteral("/"), Qt::SkipEmptyParts);
     if (parts.size() >= 2) {
       const IssueTrackers::GitHubRepo repo(parts.first(), parts.last());
       return QUrl(repo.issuesUrl());
     }
   }
 
+  if (normalized == QStringLiteral("azure")) {
+    const QStringList parts =
+        trimmedRepositoryName.split(QStringLiteral("/"), Qt::SkipEmptyParts);
+    if (parts.size() >= 2) {
+      const IssueTrackers::AzureRepo repo(parts.first(), parts.last());
+      return QUrl(repo.issuesUrl());
+    }
+  }
+
   if (normalized == QStringLiteral("bitbucket")) {
-    const QStringList parts = trimmedRepositoryName.split(QStringLiteral("/"),
-                                                         Qt::SkipEmptyParts);
+    const QStringList parts =
+        trimmedRepositoryName.split(QStringLiteral("/"), Qt::SkipEmptyParts);
     if (parts.size() >= 2) {
       const IssueTrackers::BitbucketRepo repo(parts.first(), parts.last());
       return QUrl(repo.issuesUrl());
@@ -170,12 +178,14 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
                                              QWidget *parent)
     : ContainerWidget(ContainerType::IssueTracker, parent),
       _configManager(ConfigManager::ConfigManager::getInstance()),
-      _toastHost(ToastHostWidget::getInstance()), ui(new Ui::IssueTrackerContainer),
-      _selected(false), _serviceType(serviceType.trimmed()),
+      _toastHost(ToastHostWidget::getInstance()),
+      ui(new Ui::IssueTrackerContainer), _selected(false),
+      _serviceType(serviceType.trimmed()),
       _repositoryName(repositoryName.trimmed()), _toolbarWidget(nullptr),
       _toolbarHandle(nullptr), _backButton(nullptr), _forwardButton(nullptr),
-      _refreshButton(nullptr), _draggingToolbar(false), _toolbarDragOffset(0, 0),
-      _toolbarRelativePosition(0, 0), _browserView(nullptr) {
+      _refreshButton(nullptr), _draggingToolbar(false),
+      _toolbarDragOffset(0, 0), _toolbarRelativePosition(0, 0),
+      _browserView(nullptr) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -196,7 +206,7 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
               }
 
               if (!requestUrl.host().contains(QStringLiteral("bitbucket"),
-                                             Qt::CaseInsensitive)) {
+                                              Qt::CaseInsensitive)) {
                 return;
               }
 
@@ -590,10 +600,10 @@ void IssueTrackerContainer::moveToolbarTo(const QPoint &relativePosition,
 void IssueTrackerContainer::persistToolbarPosition(
     const QPoint &relativePosition) {
   const QString serialized = QStringLiteral("%1,%2")
-                                .arg(relativePosition.x())
-                                .arg(relativePosition.y());
-  _configManager.setString(ConfigManager::ConfigKey::IssueTrackerToolbarPosition,
-                           serialized);
+                                 .arg(relativePosition.x())
+                                 .arg(relativePosition.y());
+  _configManager.setString(
+      ConfigManager::ConfigKey::IssueTrackerToolbarPosition, serialized);
   _configManager.save();
 }
 
@@ -606,10 +616,10 @@ void IssueTrackerContainer::loadIssuePage() {
 #if GUI_MANAGER_HAS_WEBENGINE
     QWebEngineProfile *profile = GuiManager::sharedWebEngineProfile();
 
-    const QUrl initialUrl = shouldOpenGitHubLoginFirst(
-        _serviceType, _repositoryName, profile)
-                                ? buildGitHubLoginUrl(_issuesUrl)
-                                : _issuesUrl;
+    const QUrl initialUrl =
+        shouldOpenGitHubLoginFirst(_serviceType, _repositoryName, profile)
+            ? buildGitHubLoginUrl(_issuesUrl)
+            : _issuesUrl;
     _browserView->load(initialUrl);
 #else
     _browserView->setSource(_issuesUrl);
@@ -629,8 +639,10 @@ void IssueTrackerContainer::updateNavigationState() {
 
 #if GUI_MANAGER_HAS_WEBENGINE
   const auto *page = _browserView ? _browserView->page() : nullptr;
-  const bool canGoBack = page && page->history() && page->history()->canGoBack();
-  const bool canGoForward = page && page->history() && page->history()->canGoForward();
+  const bool canGoBack =
+      page && page->history() && page->history()->canGoBack();
+  const bool canGoForward =
+      page && page->history() && page->history()->canGoForward();
 #else
   const bool canGoBack = _browserView && _browserView->isBackwardAvailable();
   const bool canGoForward = _browserView && _browserView->isForwardAvailable();
@@ -653,19 +665,19 @@ void IssueTrackerContainer::showUnsupportedMessage(const QString &message) {
   LOG_PERF(0, "Enter");
 
 #if GUI_MANAGER_HAS_WEBENGINE
-  _browserView->setHtml(QStringLiteral(
-      "<html><body style='font-family:sans-serif;padding:16px;'>"
-      "<h2>Issue tracker</h2>"
-      "<p>%1</p>"
-      "</body></html>")
-                           .arg(message.toHtmlEscaped()));
+  _browserView->setHtml(
+      QStringLiteral("<html><body style='font-family:sans-serif;padding:16px;'>"
+                     "<h2>Issue tracker</h2>"
+                     "<p>%1</p>"
+                     "</body></html>")
+          .arg(message.toHtmlEscaped()));
 #else
-  _browserView->setHtml(QStringLiteral(
-      "<html><body style='font-family:sans-serif;padding:16px;'>"
-      "<h2>Issue tracker</h2>"
-      "<p>%1</p>"
-      "</body></html>")
-                           .arg(message.toHtmlEscaped()));
+  _browserView->setHtml(
+      QStringLiteral("<html><body style='font-family:sans-serif;padding:16px;'>"
+                     "<h2>Issue tracker</h2>"
+                     "<p>%1</p>"
+                     "</body></html>")
+          .arg(message.toHtmlEscaped()));
 #endif
 
   updateNavigationState();

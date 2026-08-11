@@ -36,8 +36,9 @@ public:
   QStringList listUserRepositories(const QString &username,
                                    const QString &appPassword,
                                    QString *errorMessage = nullptr) const;
-  QStringList listUserRepositoriesWithAccessToken(
-      const QString &accessToken, QString *errorMessage = nullptr) const;
+  QStringList
+  listUserRepositoriesWithAccessToken(const QString &accessToken,
+                                      QString *errorMessage = nullptr) const;
 
   static QUrl authorizationUrl(const QString &authorizeUrl,
                                const QString &clientId,
@@ -52,17 +53,15 @@ private:
                                       const QString &appPassword);
   static QString bearerAuthHeaderValue(const QString &accessToken);
 
-  QPair<QNetworkReply::NetworkError, QString>
-  requestOAuthAccessToken(const QString &tokenUrl, const QString &clientId,
-                          const QString &clientSecret,
-                          const QString &authorizationCode,
-                          const QString &redirectUri,
-                          const QString &accessTokenLabel,
-                          QDateTime *expiresAtOut = nullptr,
-                          QString *errorMessage = nullptr);
-  QStringList listRepositoriesForWorkspace(const QString &workspace,
-                                           const QString &accessToken,
-                                           QString *errorMessage = nullptr) const;
+  QPair<QNetworkReply::NetworkError, QString> requestOAuthAccessToken(
+      const QString &tokenUrl, const QString &clientId,
+      const QString &clientSecret, const QString &authorizationCode,
+      const QString &redirectUri, const QString &accessTokenLabel,
+      QDateTime *expiresAtOut = nullptr, QString *errorMessage = nullptr);
+  QStringList
+  listRepositoriesForWorkspace(const QString &workspace,
+                               const QString &accessToken,
+                               QString *errorMessage = nullptr) const;
   QString currentWorkspaceName(const QString &accessToken,
                                QString *errorMessage = nullptr) const;
 
