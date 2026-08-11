@@ -264,7 +264,7 @@ discoverAzureOrganizations(const std::shared_ptr<Util::HttpClient> &httpClient,
           QString::fromUtf8(organizationsReply.response()).trimmed();
       *errorMessage =
           body.isEmpty()
-          ? QStringLiteral("Invalid Azure organizations response.")
+              ? QStringLiteral("Invalid Azure organizations response.")
               : QStringLiteral("Invalid Azure organizations response: ") +
                     body.left(200);
     }

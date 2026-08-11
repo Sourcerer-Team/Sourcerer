@@ -10,8 +10,8 @@
 #include <QMap>
 #include <QPainter>
 #include <QPalette>
-#include <QWidget>
 #include <QSvgRenderer>
+#include <QWidget>
 
 #define THREAD_ID "StylesheetManager"
 
@@ -85,8 +85,7 @@ void applyPalette(QApplication *app, StylesheetKey key) {
 } // namespace
 
 QString makeDarkStylesheet() {
-  return
-      QStringLiteral(R"__DARK_0__(
+  return QStringLiteral(R"__DARK_0__(
       QColorDialog{
         font-size:14px;
       }
@@ -133,7 +132,7 @@ QString makeDarkStylesheet() {
       QLineEdit#lineEditTextOverlayWidgetInput:focus{
         border: 2px solid #0078d7;
 )__DARK_0__") +
-      QStringLiteral(R"__DARK_1__(        border-radius: 5px;
+         QStringLiteral(R"__DARK_1__(        border-radius: 5px;
       }
       QLineEdit#lineEditTextOverlayWidgetInputRemote{
         border: 2px solid gray;
@@ -170,7 +169,7 @@ QString makeDarkStylesheet() {
       QLineEdit#lineEditTextSshPassphraseOverlayWidgetPassphrase{
         border: 2px solid gray;
         bo)__DARK_1__") +
-      QStringLiteral(R"__DARK_2__(rder-radius: 5px;
+         QStringLiteral(R"__DARK_2__(rder-radius: 5px;
       }
       QLineEdit#lineEditTextSshPassphraseOverlayWidgetPassphrase:focus{
         border: 2px solid #0078d7;
@@ -211,7 +210,7 @@ QString makeDarkStylesheet() {
         background-color: transparent;
         image: url(:/icons/checkbox-check-dark.svg);
    )__DARK_2__") +
-      QStringLiteral(R"__DARK_3__(   }
+         QStringLiteral(R"__DARK_3__(   }
       QCheckBox::indicator:disabled {
         border: 1px solid palette(mid);
         background-color: palette(button);
@@ -252,7 +251,7 @@ QString makeDarkStylesheet() {
         background-color: #006400;
         border: 1px solid gray;
         border-ra)__DARK_3__") +
-      QStringLiteral(R"__DARK_4__(dius: 5px;
+         QStringLiteral(R"__DARK_4__(dius: 5px;
         padding: 5px;
       }
       QPushButton#stashApplyButton:hover{
@@ -296,7 +295,7 @@ QString makeDarkStylesheet() {
       }
       QPushButton#pushButtonPop:hover,
       QPushButton)__DARK_4__") +
-      QStringLiteral(R"__DARK_5__(#pushButtonStash:hover,
+         QStringLiteral(R"__DARK_5__(#pushButtonStash:hover,
       QToolButton#pullFetchDropdown:hover,
       QToolButton#pushButtonPush:hover{
         background-color: #008400;
@@ -336,7 +335,7 @@ QString makeDarkStylesheet() {
       }
       QPushButton#refreshButton,
       QPushButton#generate)__DARK_5__") +
-      QStringLiteral(R"__DARK_6__(Button,
+         QStringLiteral(R"__DARK_6__(Button,
       QPushButton#addButton,
       QPushButton#editButton,
       QPushButton#signingKeyBrowseButton,
@@ -376,7 +375,7 @@ QString makeDarkStylesheet() {
       }
       QPushButton#cloneButton{
      )__DARK_6__") +
-      QStringLiteral(R"__DARK_7__(   background-color: #384D59;
+         QStringLiteral(R"__DARK_7__(   background-color: #384D59;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
@@ -421,7 +420,7 @@ QString makeDarkStylesheet() {
         padding: 5px;
       }
       QPushButton#push)__DARK_7__") +
-      QStringLiteral(R"__DARK_8__(ButtonBrowse:hover{
+         QStringLiteral(R"__DARK_8__(ButtonBrowse:hover{
         background-color: #4a6070;
         border: 1px solid gray;
         border-radius: 5px;
@@ -466,7 +465,7 @@ QString makeDarkStylesheet() {
       }
       QPushButton#pushButtonSubmit{
         ba)__DARK_8__") +
-      QStringLiteral(R"__DARK_9__(ckground-color: #006400;
+         QStringLiteral(R"__DARK_9__(ckground-color: #006400;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
@@ -510,7 +509,7 @@ QString makeDarkStylesheet() {
       QPushButton#pushButtonDiffSideBySide{
         background-color: #384D59;
  )__DARK_9__") +
-      QStringLiteral(R"__DARK_10__(       border: 1px solid gray;
+         QStringLiteral(R"__DARK_10__(       border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
@@ -553,7 +552,7 @@ QString makeDarkStylesheet() {
       QPushButton#pushButtonMergeDiffUp{
         background-color: #384D59;
        )__DARK_10__") +
-      QStringLiteral(R"__DARK_11__( border: 1px solid gray;
+         QStringLiteral(R"__DARK_11__( border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
@@ -596,7 +595,7 @@ QString makeDarkStylesheet() {
       QPushButton#pushButtonStashDiffUnified:hover{
         background-color: #008400;
  )__DARK_11__") +
-      QStringLiteral(R"__DARK_12__(       border: 1px solid gray;
+         QStringLiteral(R"__DARK_12__(       border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
@@ -637,7 +636,7 @@ QString makeDarkStylesheet() {
         padding: 5px;
       }
       QPushButton#pushBu)__DARK_12__") +
-      QStringLiteral(R"__DARK_13__(ttonTextOverlayWidgetInputCancel{
+         QStringLiteral(R"__DARK_13__(ttonTextOverlayWidgetInputCancel{
         background-color: #006400;
         border: 1px solid gray;
         border-radius: 5px;
@@ -686,7 +685,7 @@ QString makeDarkStylesheet() {
       }
       QToolButton#toolButtonCommitSigningBlockToggle,
       QToolButton#toolButtonPag)__DARK_13__") +
-      QStringLiteral(R"__DARK_14__(eDisplaySignatureToggle {
+         QStringLiteral(R"__DARK_14__(eDisplaySignatureToggle {
         background: transparent;
         border: none;
         padding: 0px;
@@ -730,7 +729,8 @@ QString makeDarkStylesheet() {
         color: white;
       }
       Q)__DARK_14__") +
-      QStringLiteral(R"__DARK_15__(TabBar#tabWidgetIndexTabBar::tab:selected {
+         QStringLiteral(
+             R"__DARK_15__(TabBar#tabWidgetIndexTabBar::tab:selected {
         background-color: #384D59;
         border: 2px solid #6D6E6E;
         font-weight: bold;
@@ -772,7 +772,7 @@ QString makeDarkStylesheet() {
       QTabBar#tabWidgetPageDisplayFilesTabBar::tab {
         background: transparent;
         border: 1px solid #6D6E6E)__DARK_15__") +
-      QStringLiteral(R"__DARK_16__(;
+         QStringLiteral(R"__DARK_16__(;
         border-radius: 8px;
         padding: 6px 12px;
         margin: 4px;
@@ -816,7 +816,7 @@ QString makeDarkStylesheet() {
       QToolBox::tab{
         background: #353535;
  )__DARK_16__") +
-      QStringLiteral(R"__DARK_17__(       border: 1px solid gray;
+         QStringLiteral(R"__DARK_17__(       border: 1px solid gray;
         border-bottom: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
@@ -858,7 +858,8 @@ QString makeDarkStylesheet() {
       }
       GuiManager--Widgets--TitleBarButton#titleBarProfileButton:hover,
       GuiManager--)__DARK_17__") +
-      QStringLiteral(R"__DARK_18__(Widgets--TitleBarButton#titleBarMinimizeButton:hover,
+         QStringLiteral(
+             R"__DARK_18__(Widgets--TitleBarButton#titleBarMinimizeButton:hover,
       GuiManager--Widgets--TitleBarButton#titleBarMaximizeButton:hover {
         background-color: #5E5E5E;
       }
@@ -893,7 +894,7 @@ QString makeDarkStylesheet() {
         margin-top:30px;
       }
       GuiManager--Containers--SettingsContainer QT)__DARK_18__") +
-      QStringLiteral(R"__DARK_19__(reeView{
+         QStringLiteral(R"__DARK_19__(reeView{
         font-size:14px;
         margin-top:30px;
       }
@@ -935,7 +936,7 @@ QString makeDarkStylesheet() {
         border-radius: 7px;
       }
       QS)__DARK_19__") +
-      QStringLiteral(R"__DARK_20__(crollBar::handle:vertical:hover {
+         QStringLiteral(R"__DARK_20__(crollBar::handle:vertical:hover {
         background: #9e9e9e;
       }
       QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
@@ -979,7 +980,8 @@ QString makeDarkStylesheet() {
         color: white;
       }
       )__DARK_20__") +
-      QStringLiteral(R"__DARK_21__(QTabWidget#tabWidgetStashFiles QTabBar::tab:selected {
+         QStringLiteral(
+             R"__DARK_21__(QTabWidget#tabWidgetStashFiles QTabBar::tab:selected {
         background-color: #384D59;
         border: 2px solid #6D6E6E;
         font-weight: bold;
@@ -989,13 +991,11 @@ QString makeDarkStylesheet() {
         background-color: #384D59;
         color: white;
       }
-    )__DARK_21__")
-      ;
+    )__DARK_21__");
 }
 
 QString makeLightStylesheet() {
-  return
-      QStringLiteral(R"__LIGHT_0__(
+  return QStringLiteral(R"__LIGHT_0__(
 
       QColorDialog{
         font-size:14px;
@@ -1042,7 +1042,7 @@ QString makeLightStylesheet() {
       }
       QLineEdit#lineEditTextOverlayWidgetInput:focus{
         border: 2px s)__LIGHT_0__") +
-      QStringLiteral(R"__LIGHT_1__(olid #0078d7;
+         QStringLiteral(R"__LIGHT_1__(olid #0078d7;
         border-radius: 5px;
       }
       QLineEdit#lineEditTextOverlayWidgetInputRemote{
@@ -1079,7 +1079,7 @@ QString makeLightStylesheet() {
       }
       QLineEdit#lineEditTextSshPassphraseOverlayWidgetPassphrase{
         border: )__LIGHT_1__") +
-      QStringLiteral(R"__LIGHT_2__(1px solid #B8C0C8;
+         QStringLiteral(R"__LIGHT_2__(1px solid #B8C0C8;
         border-radius: 5px;
       }
       QLineEdit#lineEditTextSshPassphraseOverlayWidgetPassphrase:focus{
@@ -1119,7 +1119,7 @@ QString makeLightStylesheet() {
         width: 13px;
         height: 13px;
         border: 1px solid palett)__LIGHT_2__") +
-      QStringLiteral(R"__LIGHT_3__(e(button-text);
+         QStringLiteral(R"__LIGHT_3__(e(button-text);
         border-radius: 3px;
         background-color: transparent;
       }
@@ -1157,7 +1157,7 @@ QString makeLightStylesheet() {
         alternate-background-color: palette(window);
       }
       QListView::item, QTreeView::item, QTableVi)__LIGHT_3__") +
-      QStringLiteral(R"__LIGHT_4__(ew::item {
+         QStringLiteral(R"__LIGHT_4__(ew::item {
         padding: 2px 4px;
       }
       QListView::item:selected,
@@ -1202,7 +1202,7 @@ QString makeLightStylesheet() {
         text-decoration: underline;
       }
       QPushButton#commit)__LIGHT_4__") +
-      QStringLiteral(R"__LIGHT_5__(AndMergeIndexTreeUnstageAllButton{
+         QStringLiteral(R"__LIGHT_5__(AndMergeIndexTreeUnstageAllButton{
         background-color: #E7F5E7;
         border: 1px solid gray;
         border-radius: 5px;
@@ -1243,7 +1243,7 @@ QString makeLightStylesheet() {
         border: 1px solid gray;
         border-radius: 5px;
         paddi)__LIGHT_5__") +
-      QStringLiteral(R"__LIGHT_6__(ng: 5px;
+         QStringLiteral(R"__LIGHT_6__(ng: 5px;
       }
       QPushButton#stashPopButton:hover{
         background-color: #D7EFD7;
@@ -1284,7 +1284,7 @@ QString makeLightStylesheet() {
       QToolButton#pullFetchDropdown::menu-button,
       QToolButton#pushButtonPush::menu-button{
         border: none;)__LIGHT_6__") +
-      QStringLiteral(R"__LIGHT_7__(
+         QStringLiteral(R"__LIGHT_7__(
         background: transparent;
       }
       QToolButton#pullFetchDropdown::menu-indicator,
@@ -1325,7 +1325,7 @@ QString makeLightStylesheet() {
         border-radius: 5px;
         padding: 5px;
    )__LIGHT_7__") +
-      QStringLiteral(R"__LIGHT_8__(   }
+         QStringLiteral(R"__LIGHT_8__(   }
       QPushButton#refreshButton:hover,
       QPushButton#generateButton:hover,
       QPushButton#addButton:hover,
@@ -1367,7 +1367,7 @@ QString makeLightStylesheet() {
       }
       QToolButton#connectToButton{
   )__LIGHT_8__") +
-      QStringLiteral(R"__LIGHT_9__(      background-color: #E7EEF4;
+         QStringLiteral(R"__LIGHT_9__(      background-color: #E7EEF4;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
@@ -1412,7 +1412,7 @@ QString makeLightStylesheet() {
         padding: 5px;
       }
       QPushBut)__LIGHT_9__") +
-      QStringLiteral(R"__LIGHT_10__(ton#pushButtonClone:hover{
+         QStringLiteral(R"__LIGHT_10__(ton#pushButtonClone:hover{
         background-color: #D7EFD7;
         border: 1px solid gray;
         border-radius: 5px;
@@ -1456,7 +1456,7 @@ QString makeLightStylesheet() {
       }
       QPushButton#pushButtonMerge{
         background-color: #E7F5E7)__LIGHT_10__") +
-      QStringLiteral(R"__LIGHT_11__(;
+         QStringLiteral(R"__LIGHT_11__(;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
@@ -1500,7 +1500,7 @@ QString makeLightStylesheet() {
       QPushButton#pushButtonDiffClose{
         background-color: #353535;
         bord)__LIGHT_11__") +
-      QStringLiteral(R"__LIGHT_12__(er: 1px solid gray;
+         QStringLiteral(R"__LIGHT_12__(er: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
@@ -1543,7 +1543,7 @@ QString makeLightStylesheet() {
       QPushButton#pushButtonMergeDiffSave{
         background-color: #E7F5E7;
         border: 1)__LIGHT_12__") +
-      QStringLiteral(R"__LIGHT_13__(px solid gray;
+         QStringLiteral(R"__LIGHT_13__(px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
@@ -1586,7 +1586,7 @@ QString makeLightStylesheet() {
       QPushButton#pushButtonStashDiffUnified:hover{
         background-color: #D7EFD7;
         border:)__LIGHT_13__") +
-      QStringLiteral(R"__LIGHT_14__( 1px solid gray;
+         QStringLiteral(R"__LIGHT_14__( 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
@@ -1627,7 +1627,7 @@ QString makeLightStylesheet() {
         padding: 5px;
       }
       QPushButton#pushButtonTextOverla)__LIGHT_14__") +
-      QStringLiteral(R"__LIGHT_15__(yWidgetInputCancel{
+         QStringLiteral(R"__LIGHT_15__(yWidgetInputCancel{
         background-color: #E7F5E7;
         border: 1px solid gray;
         border-radius: 5px;
@@ -1676,7 +1676,7 @@ QString makeLightStylesheet() {
       QTabWidget#tabWidgetCommit::pane {
         border: none;
         padding: 0)__LIGHT_15__") +
-      QStringLiteral(R"__LIGHT_16__(px;
+         QStringLiteral(R"__LIGHT_16__(px;
         margin: 0px;
       }
       QToolButton#toolButtonCommitSigningBlockToggle,
@@ -1718,7 +1718,7 @@ QString makeLightStylesheet() {
         background: transparent;
         border: 1px solid #B8C0C8;
         border-radi)__LIGHT_16__") +
-      QStringLiteral(R"__LIGHT_17__(us: 8px;
+         QStringLiteral(R"__LIGHT_17__(us: 8px;
         padding: 4px 8px;
         margin: 2px;
         font-weight: normal;
@@ -1762,7 +1762,7 @@ QString makeLightStylesheet() {
         border: none;
         padding: 0px;
         margin:)__LIGHT_17__") +
-      QStringLiteral(R"__LIGHT_18__( 0px;
+         QStringLiteral(R"__LIGHT_18__( 0px;
       }
       QTabBar#tabWidgetPageDisplayFilesTabBar::tab {
         background: transparent;
@@ -1804,7 +1804,7 @@ QString makeLightStylesheet() {
         color: #202020;
       }
       QTabBar#tabWidgetPageDisplay)__LIGHT_18__") +
-      QStringLiteral(R"__LIGHT_19__(FilesTabBar::tab:hover {
+         QStringLiteral(R"__LIGHT_19__(FilesTabBar::tab:hover {
         background-color: #E7EEF4;
         color: #202020;
       }
@@ -1849,7 +1849,7 @@ QString makeLightStylesheet() {
         background-color: transparent;
       }
       GuiManager--Widgets--TitleBarButton#titleBarMinimize)__LIGHT_19__") +
-      QStringLiteral(R"__LIGHT_20__(Button,
+         QStringLiteral(R"__LIGHT_20__(Button,
       GuiManager--Widgets--TitleBarButton#titleBarMaximizeButton {
         background-color: transparent;
       }
@@ -1883,7 +1883,7 @@ QString makeLightStylesheet() {
       }
       GuiManager--Containers--SettingsContainer QSplitter::handle:horizontal{
         b)__LIGHT_20__") +
-      QStringLiteral(R"__LIGHT_21__(order:1px solid #E7EEF4;
+         QStringLiteral(R"__LIGHT_21__(order:1px solid #E7EEF4;
       }
       GuiManager--Containers--SettingsContainer QScrollArea{
         margin-top:30px;
@@ -1922,7 +1922,7 @@ QString makeLightStylesheet() {
         border: none;
         background: #F4F5F7;
         )__LIGHT_21__") +
-      QStringLiteral(R"__LIGHT_22__(width: 14px;
+         QStringLiteral(R"__LIGHT_22__(width: 14px;
         margin: 0px;
       }
       QScrollBar::handle:vertical {
@@ -1966,7 +1966,7 @@ QString makeLightStylesheet() {
       }
       QTabWidget#tabWidgetStashFiles QTabBar::tab {
         background: transparent;)__LIGHT_22__") +
-      QStringLiteral(R"__LIGHT_23__(
+         QStringLiteral(R"__LIGHT_23__(
         border: 1px solid #B8C0C8;
         border-radius: 8px;
         padding: 4px 8px;
@@ -1985,8 +1985,7 @@ QString makeLightStylesheet() {
         color: #202020;
       }
 
-    )__LIGHT_23__")
-      ;
+    )__LIGHT_23__");
 }
 
 const QString SOURCERER_DARK_STYLESHEET = makeDarkStylesheet();
@@ -1997,15 +1996,15 @@ const QMap<StylesheetKey, QString> &stylesheets() {
     QMap<StylesheetKey, QString> stylesheets;
     stylesheets.insert(StylesheetKey::SourcererLight,
                        SOURCERER_LIGHT_STYLESHEET);
-    stylesheets.insert(StylesheetKey::SourcererDark,
-                       SOURCERER_DARK_STYLESHEET);
+    stylesheets.insert(StylesheetKey::SourcererDark, SOURCERER_DARK_STYLESHEET);
     return stylesheets;
   }();
 
   return map;
 }
 
-StylesheetKey CURRENT_STYLESHEET = StylesheetKey::SourcererLight;StylesheetManager::StylesheetManager() {
+StylesheetKey CURRENT_STYLESHEET = StylesheetKey::SourcererLight;
+StylesheetManager::StylesheetManager() {
   LOG_PERF(0, "Enter");
   LOG_PERF(0, "Exit");
 }

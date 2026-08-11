@@ -15,8 +15,7 @@ namespace IssueTrackers {
 
 class AzureRepo final : public IssueTrackerRepo {
 public:
-  explicit AzureRepo(QString owner = QString(),
-                     QString repository = QString(),
+  explicit AzureRepo(QString owner = QString(), QString repository = QString(),
                      QString host = QStringLiteral("dev.azure.com"));
   ~AzureRepo() override;
 
@@ -32,15 +31,13 @@ public:
 
   QVariantMap authenticate(const QVariantMap &parameters) override;
   QMap<QString, QString> discoverTenants(const QString &accessToken,
-                              QString *errorMessage = nullptr) const;
+                                         QString *errorMessage = nullptr) const;
   QVariantMap listProjects(const QString &organization,
                            const QString &accessToken) const;
 
   static QUrl authorizationUrl(const QString &authorityUrl,
-                               const QString &tenantId,
-                               const QString &clientId,
-                               const QString &redirectUri,
-                               const QString &scope,
+                               const QString &tenantId, const QString &clientId,
+                               const QString &redirectUri, const QString &scope,
                                const QString &state = QString(),
                                const QString &codeChallenge = QString());
 

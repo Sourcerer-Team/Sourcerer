@@ -92,8 +92,7 @@ QMap<ConfigKey, QString> KEY_NAMES = {
      "issuetrackers/bitbucket/oauthTokenUrl"},
     {ConfigKey::BitbucketOAuthRedirectUrl,
      "issuetrackers/bitbucket/oauthRedirectUrl"},
-    {ConfigKey::BitbucketOAuthScope,
-     "issuetrackers/bitbucket/oauthScope"},
+    {ConfigKey::BitbucketOAuthScope, "issuetrackers/bitbucket/oauthScope"},
     {ConfigKey::IssueTrackerToolbarPosition,
      "window/issueTracker/toolbarPosition"}};
 
@@ -120,13 +119,15 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::AzureOAuthClientSecret,
      {"Azure OAuth client secret", "OAuth application client secret"}},
     {ConfigKey::AzureOAuthTenantId,
-     {"Azure tenant id", "Microsoft Entra tenant id, common, or organizations"}},
+     {"Azure tenant id",
+      "Microsoft Entra tenant id, common, or organizations"}},
     {ConfigKey::AzureOAuthAuthorizeUrl,
      {"Azure OAuth authorize URL", "Azure authorization endpoint"}},
     {ConfigKey::AzureOAuthTokenUrl,
      {"Azure OAuth token URL", "Azure token exchange endpoint"}},
     {ConfigKey::AzureOAuthRedirectUrl,
-     {"Azure OAuth redirect URL", "Must exactly match the callback URL registered in Azure DevOps"}},
+     {"Azure OAuth redirect URL",
+      "Must exactly match the callback URL registered in Azure DevOps"}},
     {ConfigKey::AzureOAuthScope,
      {"Azure OAuth scope", "OpenID scopes plus Azure DevOps delegated scope"}},
     {ConfigKey::BitbucketOAuthClientId,
@@ -216,17 +217,17 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::SettingsSplitterPos, ""},
     {ConfigKey::GitHubOAuthClientId, "Ov23lilRE4FHNeTxvPBT"},
     {ConfigKey::AzureOAuthClientId, "ef27127b-3c59-4f38-af24-882e71fede7b"},
-    {ConfigKey::AzureOAuthClientSecret, "ppC8Q~Ygl.EFkH41cdDOjorMriFieczLm45HXdrs"},
-    {ConfigKey::AzureOAuthTenantId, "a4925ca4-227f-43be-80e4-56575ed83e30"},
-    {ConfigKey::AzureOAuthAuthorizeUrl,
-     "https://login.microsoftonline.com"},
-    {ConfigKey::AzureOAuthTokenUrl,
-     "https://login.microsoftonline.com"},
+    {ConfigKey::AzureOAuthClientSecret,
+     "ppC8Q~Ygl.EFkH41cdDOjorMriFieczLm45HXdrs"},
+    {ConfigKey::AzureOAuthTenantId, "common"},
+    {ConfigKey::AzureOAuthAuthorizeUrl, "https://login.microsoftonline.com"},
+    {ConfigKey::AzureOAuthTokenUrl, "https://login.microsoftonline.com"},
     {ConfigKey::AzureOAuthRedirectUrl, "http://localhost:8080/callback"},
-    {ConfigKey::AzureOAuthScope,
-     "https://app.vssps.visualstudio.com"},
+    {ConfigKey::AzureOAuthScope, "https://app.vssps.visualstudio.com"},
     {ConfigKey::BitbucketOAuthClientId, "CugXkSLz0ABOKhqU4a5cSxxsreKV0XuI"},
-    {ConfigKey::BitbucketOAuthClientSecret, "ATOAyyP1WqSA9wVY96Ru3Dbi3Z6m0PjQeY9fcIli6sk-EeH02g0Ndjbb6dXI25MEQGZM3844497C"},
+    {ConfigKey::BitbucketOAuthClientSecret,
+     "ATOAyyP1WqSA9wVY96Ru3Dbi3Z6m0PjQeY9fcIli6sk-"
+     "EeH02g0Ndjbb6dXI25MEQGZM3844497C"},
     {ConfigKey::BitbucketOAuthAuthorizeUrl,
      "https://bitbucket.org/site/oauth2/authorize"},
     {ConfigKey::BitbucketOAuthTokenUrl,
@@ -259,8 +260,8 @@ static QString defaultStringForKey(ConfigKey key, const QSettings *settings) {
 
 ConfigManager::ConfigManager()
     : _settings(ORGANIZATION_NAME, APPLICATION_NAME) {
-  _logsDir = getWritableDir() + QDir::separator() + LOGS_DIR +
-             QDir::separator();
+  _logsDir =
+      getWritableDir() + QDir::separator() + LOGS_DIR + QDir::separator();
   QDir dir;
   dir.mkpath(_logsDir);
 }

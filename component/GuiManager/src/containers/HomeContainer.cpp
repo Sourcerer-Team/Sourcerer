@@ -70,13 +70,188 @@ QString htmlEncode(const QString &text) {
   return text.toHtmlEscaped();
 }
 
+QString oauthCallbackPage(const QString &serviceName, const QString &title,
+                          const QString &heading, const QString &message,
+                          const QString &detail = QString()) {
+  const QString icon =
+      title == QStringLiteral("Success")
+          ? QStringLiteral(
+                "<svg viewBox='0 0 120 120' aria-hidden='true'>"
+                "<defs><linearGradient id='successGlow' x1='0%' y1='0%' "
+                "x2='100%' y2='100%'>"
+                "<stop offset='0%' stop-color='#8be9ff'/><stop offset='100%' "
+                "stop-color='#1d4ed8'/></linearGradient></defs>"
+                "<circle cx='60' cy='60' r='54' fill='url(#successGlow)' "
+                "opacity='0.18'/>")
+          : QStringLiteral(
+                "<svg viewBox='0 0 120 120' aria-hidden='true'>"
+                "<defs><linearGradient id='errorGlow' x1='0%' y1='0%' "
+                "x2='100%' y2='100%'>"
+                "<stop offset='0%' stop-color='#ffb4b4'/><stop offset='100%' "
+                "stop-color='#ef4444'/></linearGradient></defs>"
+                "<circle cx='60' cy='60' r='54' fill='url(#errorGlow)' "
+                "opacity='0.18'/>");
+
+  const QString innerGraphic =
+      title == QStringLiteral("Success")
+          ? QStringLiteral(
+                "<circle cx='60' cy='60' r='34' fill='#0f766e'/>"
+                "<path d='M45 60l10 10 22-26' fill='none' stroke='#ffffff' "
+                "stroke-width='8' stroke-linecap='round' "
+                "stroke-linejoin='round'/></svg>")
+          : QStringLiteral(
+                "<path d='M60 24l36 62H24z' fill='#dc2626'/>"
+                "<path d='M60 46v18' fill='none' stroke='#ffffff' "
+                "stroke-width='8' stroke-linecap='round'/>"
+                "<circle cx='60' cy='72' r='4.5' fill='#ffffff'/></svg>");
+
+  const QString statusBadge = QString();
+
+  const QString detailHtml =
+      detail.isEmpty() ? QString()
+                       : QStringLiteral("<div class='detail'>%1</div>")
+                             .arg(htmlEncode(detail));
+
+  return QStringLiteral(R"HTML(<!doctype html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8'>
+  <meta name='viewport' content='width=device-width, initial-scale=1'>
+  <title>%1 OAuth %2</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg1: #f7f9fc;
+      --bg2: #eef3f9;
+      --card: #ffffff;
+      --border: rgba(15, 23, 42, 0.08);
+      --text: #0f172a;
+      --muted: #475569;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(59, 130, 246, 0.10), transparent 36%),
+        radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.08), transparent 28%),
+        linear-gradient(160deg, var(--bg1), var(--bg2));
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .card {
+      width: min(640px, 100%);
+      border: 1px solid var(--border);
+      background: var(--card);
+      backdrop-filter: blur(18px);
+      border-radius: 28px;
+      padding: 34px;
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.10);
+    }
+    .top {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+    .icon {
+      width: 120px;
+      height: 120px;
+      flex: 0 0 auto;
+    }
+    .icon svg { width: 100%; height: 100%; display: block; }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .badge.success {
+      background: #0f766e;
+      color: #ffffff;
+      box-shadow: 0 8px 18px rgba(15, 118, 110, 0.24);
+    }
+    .badge.error {
+      background: rgba(239, 68, 68, 0.16);
+      color: #ffb3b3;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 34px;
+      line-height: 1.1;
+    }
+    p {
+      margin: 0;
+      line-height: 1.6;
+      color: var(--muted);
+      font-size: 16px;
+    }
+    .detail {
+      margin-top: 18px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: #f8fafc;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      color: #b91c1c;
+      word-break: break-word;
+    }
+    .footer {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(15, 23, 42, 0.08);
+      font-size: 14px;
+      color: var(--muted);
+    }
+    @media (max-width: 540px) {
+      .card { padding: 24px; border-radius: 22px; }
+      .top { flex-direction: column; text-align: center; }
+      h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+  <main class='card'>
+    <div class='top'>
+      <div class='icon'>%4%5</div>
+      <div>
+        <div class='eyebrow'>%1</div>
+        %6
+        <h1>%3</h1>
+        <p>%7</p>
+        %8
+      </div>
+    </div>
+    <div class='footer'>You can safely close this tab and return to Sourcerer.</div>
+  </main>
+</body>
+</html>)HTML")
+      .arg(htmlEncode(serviceName), htmlEncode(title), htmlEncode(heading),
+           icon, innerGraphic, statusBadge, htmlEncode(message), detailHtml);
+}
+
 QString oauthCallbackSuccessPage(const QString &serviceName) {
-  return QStringLiteral("<!doctype html><html><head><meta charset=\"utf-8\">"
-                        "<title>%1 OAuth complete</title></head><body>"
-                        "<h1>Authorization complete</h1>"
-                        "<p>You can return to Sourcerer now.</p>"
-                        "</body></html>")
-      .arg(serviceName);
+  return oauthCallbackPage(
+      serviceName, QStringLiteral("Success"),
+      QStringLiteral("Signed in successfully"),
+      QStringLiteral(
+          "Your account has been authenticated and the app can continue."));
 }
 
 QString azurePkceCodeVerifier() {
@@ -104,11 +279,12 @@ QString azurePkceCodeChallenge(const QString &codeVerifier) {
 
 QString oauthCallbackErrorPage(const QString &serviceName,
                                const QString &message) {
-  return QStringLiteral("<!doctype html><html><head><meta charset=\"utf-8\">"
-                        "<title>%1 OAuth error</title></head><body>"
-                        "<h1>Authorization failed</h1><p>%2</p>"
-                        "</body></html>")
-      .arg(serviceName, htmlEncode(message));
+  return oauthCallbackPage(
+      serviceName, QStringLiteral("Error"),
+      QStringLiteral("We could not finish signing you in"),
+      QStringLiteral(
+          "The callback returned an error while completing authentication."),
+      message);
 }
 
 QString bitbucketCallbackSuccessPage() {
@@ -723,7 +899,7 @@ void HomeContainer::onAzureIssueTrackerConnectClicked() {
             }
 
             const QUrlQuery query(requestTarget.contains('?')
-                                  ? requestTarget.section('?', 1)
+                                      ? requestTarget.section('?', 1)
                                       : QString());
             const QString error = query.queryItemValue(QStringLiteral("error"));
             if (!error.isEmpty()) {
@@ -731,7 +907,7 @@ void HomeContainer::onAzureIssueTrackerConnectClicked() {
                   query.queryItemValue(QStringLiteral("error_description"));
               callbackErrorMessage =
                   errorDescription.isEmpty()
-                  ? error
+                      ? error
                       : error + QStringLiteral(": ") + errorDescription;
               writeHttpResponse(socket,
                                 azureCallbackErrorPage(callbackErrorMessage),
@@ -794,7 +970,6 @@ void HomeContainer::onAzureIssueTrackerConnectClicked() {
     }
 
     if (!callbackErrorMessage.isEmpty()) {
-      QMessageBox::critical(this, tr("Failure"), callbackErrorMessage);
       LOG_PERF(0, "Exit");
       return;
     }
@@ -1099,7 +1274,7 @@ void HomeContainer::onBitbucketOAuthConnectClicked() {
 
             const QString requestTarget = QString::fromUtf8(requestParts.at(1));
             const QUrlQuery query(requestTarget.contains('?')
-                                  ? requestTarget.section('?', 1)
+                                      ? requestTarget.section('?', 1)
                                       : QString());
             const QString error = query.queryItemValue(QStringLiteral("error"));
             if (!error.isEmpty()) {
@@ -1107,7 +1282,7 @@ void HomeContainer::onBitbucketOAuthConnectClicked() {
                   query.queryItemValue(QStringLiteral("error_description"));
               callbackErrorMessage =
                   errorDescription.isEmpty()
-                  ? error
+                      ? error
                       : error + QStringLiteral(": ") + errorDescription;
               writeHttpResponse(
                   socket, bitbucketCallbackErrorPage(callbackErrorMessage),
@@ -1160,7 +1335,6 @@ void HomeContainer::onBitbucketOAuthConnectClicked() {
     }
 
     if (!callbackErrorMessage.isEmpty()) {
-      QMessageBox::critical(this, tr("Failure"), callbackErrorMessage);
       LOG_PERF(0, "Exit");
       return;
     }
