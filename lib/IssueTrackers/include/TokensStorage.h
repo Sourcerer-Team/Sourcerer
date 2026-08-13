@@ -4,6 +4,7 @@
 
 #include <QByteArray>
 #include <QDateTime>
+#include <QList>
 #include <QMap>
 #include <QString>
 #include <QVector>
@@ -16,6 +17,7 @@ public:
     QString serviceType;
     QString repositoryName;
     QString userName;
+    QString host;
     QString accessToken;
     QDateTime expiresAt;
     qint64 createdTime = 0;
@@ -32,12 +34,22 @@ public:
                   const QString &userName, const QString &accessToken,
                   const QDateTime &expiresAt = QDateTime(),
                   bool remember = true);
+  void storeTokenWithHost(const QString &serviceType,
+                          const QString &repositoryName,
+                          const QString &host,
+                          const QString &accessToken,
+                          const QDateTime &expiresAt = QDateTime(),
+                          bool remember = true);
 
   bool getToken(const QString &serviceType, const QString &repositoryName,
                 QString &accessToken, QDateTime &expiresAt) const;
   bool getToken(const QString &serviceType, const QString &repositoryName,
                 QString &userName, QString &accessToken,
                 QDateTime &expiresAt) const;
+  bool getTokenWithHost(const QString &serviceType,
+                        const QString &repositoryName, QString &host,
+                        QString &accessToken,
+                        QDateTime &expiresAt) const;
 
   bool hasToken(const QString &serviceType,
                 const QString &repositoryName) const;

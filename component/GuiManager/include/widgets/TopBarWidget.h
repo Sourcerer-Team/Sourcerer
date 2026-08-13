@@ -31,6 +31,7 @@ signals:
   void init();
   void saveWorkspace();
   void connectToGitHubIssueTracker();
+  void connectToGitLabIssueTracker();
   void connectToAzureIssueTracker();
   void connectToBitbucketIssueTracker();
   void settings();
