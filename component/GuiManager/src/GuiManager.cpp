@@ -11,6 +11,7 @@
 #include <StylesheetManager.h>
 
 #include <QApplication>
+#include <QByteArray>
 #include <QCoreApplication>
 #include <QDir>
 #include <QEventLoop>

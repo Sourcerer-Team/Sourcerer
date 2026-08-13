@@ -21,6 +21,7 @@ class IssueTrackerContainer;
 
 #if __has_include(<QtWebEngineWidgets/QWebEngineView>)
 #include <QtWebEngineWidgets/QWebEngineView>
+#include <QtWebEngineCore/QWebEngineProfile>
 #define GUI_MANAGER_HAS_WEBENGINE 1
 #else
 #include <QtWidgets/QTextBrowser>
@@ -52,10 +53,15 @@ protected:
   void changeEvent(QEvent *event) override;
   bool eventFilter(QObject *watched, QEvent *event) override;
 
+signals:
+  void close();
+
 private:
   void updateIssueUrl();
   void loadIssuePage();
   void showUnsupportedMessage(const QString &message);
+  void showLoadFailedMessage(const QString &message);
+  void openIssueTrackerExternallyAndClose();
   void updateNavigationState();
   void buildToolbar();
   void applyToolbarTheme();
@@ -73,6 +79,7 @@ private:
   bool _selected;
   QString _serviceType;
   QString _repositoryName;
+  QString _serviceHost;
   QUrl _issuesUrl;
   QWidget *_toolbarWidget;
   QWidget *_toolbarHandle;
@@ -80,9 +87,11 @@ private:
   QToolButton *_forwardButton;
   QToolButton *_refreshButton;
   bool _draggingToolbar;
+  bool _externalBrowserOpened;
   QPoint _toolbarDragOffset;
   QPoint _toolbarRelativePosition;
 #if GUI_MANAGER_HAS_WEBENGINE
+  QWebEngineProfile *_webEngineProfile;
   QWebEngineView *_browserView;
 #else
   QTextBrowser *_browserView;

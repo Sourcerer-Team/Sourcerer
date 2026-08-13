@@ -46,6 +46,8 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::onSaveWorkspace);
   connect(ui->menuButton, &TitleBarMenuButton::connectToGitHubIssueTracker,
           this, &TitlebarWidget::connectToGitHubIssueTracker);
+  connect(ui->menuButton, &TitleBarMenuButton::connectToGitLabIssueTracker,
+          this, &TitlebarWidget::connectToGitLabIssueTracker);
   connect(ui->menuButton, &TitleBarMenuButton::connectToAzureIssueTracker, this,
           &TitlebarWidget::connectToAzureIssueTracker);
   connect(ui->menuButton, &TitleBarMenuButton::connectToBitbucketIssueTracker,

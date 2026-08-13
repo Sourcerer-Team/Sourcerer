@@ -10,6 +10,7 @@
 #include <ConfigManager.h>
 #include <Dispatcher.h>
 #include <GitHubRepo.h>
+#include <GitLabRepo.h>
 
 #include <QEnableSharedFromThis>
 #include <QModelIndex>
@@ -68,6 +69,7 @@ private slots:
   void hoverLeave(const QModelIndex &index);
   void onCloneClicked();
   void onGitHubIssueTrackerConnectClicked();
+  void onGitLabIssueTrackerConnectClicked();
   void onAzureIssueTrackerConnectClicked();
   void onBitbucketOAuthConnectClicked();
   void onInitClicked();

@@ -23,7 +23,6 @@ namespace Fsm {
 
 namespace {
 constexpr const char *NEWS_ARRAY_KEY = "news";
-constexpr qlonglong DEFAULT_POLL_INTERVAL_MS = 300000;
 
 static QDateTime parseDateTimeString(const QString &value) {
   if (value.trimmed().isEmpty()) {

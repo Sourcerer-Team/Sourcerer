@@ -10,6 +10,7 @@
 #include <AzureRepo.h>
 #include <BitbucketRepo.h>
 #include <GitHubRepo.h>
+#include <GitLabRepo.h>
 #include <Log.h>
 #include <StylesheetManager.h>
 #include <TokensStorage.h>
@@ -29,6 +30,7 @@
 #include <QHeaderView>
 #include <QHostAddress>
 #include <QIcon>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QList>
@@ -355,6 +357,10 @@ HomeContainer::HomeContainer(QWidget *parent)
       connectToMenu->addAction(tr("GitHub issue tracker"));
   connect(githubIssueTrackerAction, &QAction::triggered, this,
           &HomeContainer::onGitHubIssueTrackerConnectClicked);
+  auto *gitlabIssueTrackerAction =
+      connectToMenu->addAction(tr("GitLab issue tracker"));
+  connect(gitlabIssueTrackerAction, &QAction::triggered, this,
+          &HomeContainer::onGitLabIssueTrackerConnectClicked);
   auto *azureIssueTrackerAction =
       connectToMenu->addAction(tr("Azure issue tracker"));
   connect(azureIssueTrackerAction, &QAction::triggered, this,
@@ -751,6 +757,161 @@ void HomeContainer::onGitHubIssueTrackerConnectClicked() {
         selectedRepo->serviceName(), selectedRepo->repositoryPath(),
         selectedRepo->accessToken(), selectedRepo->accessTokenExpiresAt(),
         true);
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _issueTrackersModel->reload();
+      ui->tableViewIssueTrackerConnections->resizeColumnsToContents();
+    });
+
+    LOG_PERF(0, "Exit");
+  });
+}
+
+void HomeContainer::onGitLabIssueTrackerConnectClicked() {
+  LOG_PERF(0, "Enter");
+
+  bool serviceUrlAccepted = false;
+  const QString serviceUrl =
+      QInputDialog::getText(this, tr("GitLab service URL"),
+                            tr("Enter the GitLab service URL (for example, "
+                               "https://gitlab.com or\n"
+                               "https://gitlab.example.com):"),
+                            QLineEdit::Normal,
+                            QStringLiteral("https://gitlab.com"),
+                            &serviceUrlAccepted)
+          .trimmed();
+  if (!serviceUrlAccepted || serviceUrl.isEmpty()) {
+    LOG_INFO(
+        "GitLab issue tracker connection cancelled while entering service URL");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString serviceBaseUrl = serviceUrl;
+  while (serviceBaseUrl.endsWith('/')) {
+    serviceBaseUrl.chop(1);
+  }
+  if (!serviceBaseUrl.startsWith(QStringLiteral("http://")) &&
+      !serviceBaseUrl.startsWith(QStringLiteral("https://"))) {
+    serviceBaseUrl.prepend(QStringLiteral("https://"));
+  }
+
+  bool tokenAccepted = false;
+  const QString personalAccessToken =
+      QInputDialog::getText(
+          this, tr("GitLab personal access token"),
+          tr("Enter the GitLab personal access token. It needs these scopes:\n"
+             "api, read_api, ai_features"),
+          QLineEdit::Password, QString(), &tokenAccepted)
+          .trimmed();
+  if (!tokenAccepted || personalAccessToken.isEmpty()) {
+    LOG_INFO("GitLab issue tracker connection cancelled while entering token");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto authRepo = QSharedPointer<IssueTrackers::GitLabRepo>::create(
+      QString(), QString(), serviceBaseUrl);
+  const WeakPtr guard = getSelf().toWeakRef();
+  const QVariantMap authParameters = {
+      {QStringLiteral("accessToken"), personalAccessToken}};
+
+  _dispatcher.dispatch([=]() {
+    const QVariantMap authResult = authRepo->authenticate(authParameters);
+    const bool success = authResult.value(QStringLiteral("success")).toBool();
+    const QString errorMessage =
+        authResult.value(QStringLiteral("errorMessage")).toString();
+
+    if (!success) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        QMessageBox::critical(this, tr("Failure"),
+                              errorMessage.isEmpty()
+                                  ? tr("Failed to authenticate with GitLab")
+                                  : errorMessage);
+      });
+      LOG_ERROR(Log::ErrorId::Security, "{}", errorMessage.toStdString());
+      return;
+    }
+
+    const QStringList repositories =
+        authResult.value(QStringLiteral("repositories")).toStringList();
+    if (repositories.isEmpty()) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        QMessageBox::warning(this, tr("GitLab repositories"),
+                             tr("No GitLab repositories were found for the "
+                                "authenticated account."));
+      });
+      return;
+    }
+
+    QString selectedRepository;
+    bool repositorySelectionCancelled = false;
+    const auto showRepositorySelectionDialog =
+        [=, &selectedRepository, &repositorySelectionCancelled]() {
+          QDialog dialog(nullptr);
+          dialog.setWindowTitle(tr("Choose GitLab repository"));
+          dialog.setModal(true);
+          dialog.setMinimumWidth(420);
+
+          auto *layout = new QVBoxLayout(&dialog);
+
+          auto *label = new QLabel(
+              tr("Select the GitLab repository to connect:"), &dialog);
+          label->setWordWrap(true);
+          layout->addWidget(label);
+
+          auto *comboBox = new QComboBox(&dialog);
+          comboBox->addItems(repositories);
+          comboBox->setCurrentIndex(0);
+          layout->addWidget(comboBox);
+
+          auto *buttonBox = new QDialogButtonBox(
+              QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+          connect(buttonBox, &QDialogButtonBox::accepted, &dialog,
+                  &QDialog::accept);
+          connect(buttonBox, &QDialogButtonBox::rejected, &dialog,
+                  &QDialog::reject);
+          layout->addWidget(buttonBox);
+
+          if (dialog.exec() == QDialog::Accepted) {
+            selectedRepository = comboBox->currentText();
+          } else {
+            repositorySelectionCancelled = true;
+          }
+        };
+
+    if (QThread::currentThread() == qApp->thread()) {
+      showRepositorySelectionDialog();
+    } else {
+      QMetaObject::invokeMethod(qApp, showRepositorySelectionDialog,
+                                Qt::BlockingQueuedConnection);
+    }
+
+    if (repositorySelectionCancelled || selectedRepository.isEmpty()) {
+      LOG_INFO("GitLab repository selection cancelled by user");
+      return;
+    }
+
+    const int pathSeparatorIndex = selectedRepository.lastIndexOf('/');
+    if (pathSeparatorIndex <= 0 ||
+        pathSeparatorIndex >= selectedRepository.size() - 1) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        QMessageBox::critical(this, tr("Failure"),
+                              tr("Failed to parse the selected repository."));
+      });
+      return;
+    }
+
+    const QString owner = selectedRepository.left(pathSeparatorIndex);
+    const QString repository = selectedRepository.mid(pathSeparatorIndex + 1);
+    const auto selectedRepo = QSharedPointer<IssueTrackers::GitLabRepo>::create(
+        owner, repository, authRepo->host());
+
+    IssueTrackers::TokensStorage::getInstance().storeTokenWithHost(
+        selectedRepo->serviceName(), selectedRepo->repositoryPath(),
+        selectedRepo->host(),
+        authResult.value(QStringLiteral("accessToken")).toString(),
+        authResult.value(QStringLiteral("expiresAt")).toDateTime(), true);
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       _issueTrackersModel->reload();

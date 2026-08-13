@@ -19,6 +19,7 @@ TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
       _openAction(nullptr), _cloneAction(nullptr), _initAction(nullptr),
       _saveWorkspaceAction(nullptr),
       _connectToGitHubIssueTrackerAction(nullptr),
+      _connectToGitLabIssueTrackerAction(nullptr),
       _connectToAzureIssueTrackerAction(nullptr),
       _connectToBitbucketIssueTrackerAction(nullptr), _settingsAction(nullptr),
       _credentialsAction(nullptr), _sshKeysAction(nullptr),
@@ -102,6 +103,14 @@ void TitleBarMenuButton::onConnectToGitHubIssueTracker() {
   LOG_PERF(0, "Enter");
 
   emit connectToGitHubIssueTracker();
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitleBarMenuButton::onConnectToGitLabIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  emit connectToGitLabIssueTracker();
 
   LOG_PERF(0, "Exit");
 }
@@ -202,6 +211,11 @@ void TitleBarMenuButton::createActions() {
   connect(_connectToGitHubIssueTrackerAction, &QAction::triggered, this,
           &TitleBarMenuButton::onConnectToGitHubIssueTracker);
 
+  _connectToGitLabIssueTrackerAction = new QAction(this);
+  _connectToGitLabIssueTrackerAction->setText(tr("GitLab issue tracker"));
+  connect(_connectToGitLabIssueTrackerAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onConnectToGitLabIssueTracker);
+
   _connectToAzureIssueTrackerAction = new QAction(this);
   _connectToAzureIssueTrackerAction->setText(tr("Azure issue tracker"));
   connect(_connectToAzureIssueTrackerAction, &QAction::triggered, this,
@@ -274,6 +288,7 @@ QMenu *TitleBarMenuButton::createMenu() {
 
   auto *connectToMenu = menu->addMenu(tr("Connect to"));
   connectToMenu->addAction(_connectToGitHubIssueTrackerAction);
+  connectToMenu->addAction(_connectToGitLabIssueTrackerAction);
   connectToMenu->addAction(_connectToAzureIssueTrackerAction);
   connectToMenu->addAction(_connectToBitbucketIssueTrackerAction);
   menu->addSeparator();

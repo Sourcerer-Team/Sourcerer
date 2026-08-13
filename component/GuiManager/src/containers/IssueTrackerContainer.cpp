@@ -6,30 +6,43 @@
 #include <AzureRepo.h>
 #include <BitbucketRepo.h>
 #include <GitHubRepo.h>
+#include <GitLabRepo.h>
 #include <Log.h>
 #include <StylesheetManager.h>
 #include <TokensStorage.h>
-#include <WebEngineProfile.h>
 
 #include <QApplication>
 #include <QAuthenticator>
+#include <QCryptographicHash>
 #include <QDateTime>
+#include <QDesktopServices>
+#include <QDir>
 #include <QEventLoop>
+#include <QHash>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QLabel>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QNetworkCookie>
 #include <QResizeEvent>
+#include <QStandardPaths>
 #include <QStringList>
 #include <QTimer>
 #include <QToolButton>
 #include <QUrlQuery>
 
 #if GUI_MANAGER_HAS_WEBENGINE
+#include <QWebEngineScript>
+#include <QWebEngineScriptCollection>
 #include <QtWebEngineCore/QWebEngineCookieStore>
 #include <QtWebEngineCore/QWebEngineHistory>
+#include <QtWebEngineCore/QWebEngineNewWindowRequest>
 #include <QtWebEngineCore/QWebEnginePage>
 #include <QtWebEngineCore/QWebEngineProfile>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+#include <QtWebEngineCore/QWebEngineWebAuthUxRequest>
+#endif
 #endif
 
 #define THREAD_ID "IssueTrackerContainer"
@@ -37,6 +50,56 @@
 namespace GuiManager::Containers {
 
 namespace {
+
+#if GUI_MANAGER_HAS_WEBENGINE
+QString issueTrackerProfileId(const QString &serviceType,
+                              const QString &repositoryName,
+                              const QString &serviceHost) {
+  const QString identity = QStringLiteral("%1|%2|%3")
+                               .arg(serviceType.trimmed().toLower(),
+                                    repositoryName.trimmed(),
+                                    serviceHost.trimmed().toLower());
+  return QCryptographicHash::hash(identity.toUtf8(),
+                                  QCryptographicHash::Sha256)
+      .toHex();
+}
+
+QWebEngineProfile *createIssueTrackerWebEngineProfile(
+    QObject *parent, const QString &serviceType, const QString &repositoryName,
+    const QString &serviceHost) {
+  static QHash<QString, QWebEngineProfile *> profiles;
+
+  const QString profileId =
+      issueTrackerProfileId(serviceType, repositoryName, serviceHost);
+  if (QWebEngineProfile *profile = profiles.value(profileId, nullptr)) {
+    return profile;
+  }
+
+  const QString storageBaseDir =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  if (storageBaseDir.isEmpty()) {
+    return nullptr;
+  }
+
+  const QString storagePath =
+      QDir(storageBaseDir)
+          .absoluteFilePath(QStringLiteral("issue-trackers/webengine/%1")
+                                .arg(profileId));
+  QDir().mkpath(storagePath);
+
+  auto *profile = new QWebEngineProfile(
+      QStringLiteral("issue-tracker-%1").arg(profileId.left(16)),
+      parent ? parent : qApp);
+  profile->setPersistentStoragePath(storagePath);
+  profile->setCachePath(
+      QDir(storagePath).absoluteFilePath(QStringLiteral("cache")));
+  profile->setPersistentCookiesPolicy(
+      QWebEngineProfile::PersistentCookiesPolicy::ForcePersistentCookies);
+  profile->setHttpCacheType(QWebEngineProfile::HttpCacheType::DiskHttpCache);
+  profiles.insert(profileId, profile);
+  return profile;
+}
+#endif
 
 QString normalizedServiceType(const QString &serviceType) {
   return serviceType.trimmed().toLower();
@@ -60,6 +123,60 @@ bool isGitHubLoginCookie(const QNetworkCookie &cookie) {
          name == QStringLiteral("__host-user_session_same_site") ||
          name == QStringLiteral("dotcom_user");
 }
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+void handleWebAuthUxRequest(QWebEngineWebAuthUxRequest *request,
+                            QWidget *parent) {
+  if (!request) {
+    return;
+  }
+
+  using WebAuthState = QWebEngineWebAuthUxRequest::WebAuthUxState;
+  switch (request->state()) {
+  case WebAuthState::SelectAccount: {
+    bool ok = false;
+    const QStringList userNames = request->userNames();
+    const QString selectedAccount = QInputDialog::getItem(
+        parent, QObject::tr("Security sign-in"),
+        QObject::tr("Select an account to continue signing in."), userNames, 0,
+        false, &ok);
+    if (ok && !selectedAccount.isEmpty()) {
+      request->setSelectedAccount(selectedAccount);
+    } else {
+      request->cancel();
+    }
+    break;
+  }
+  case WebAuthState::CollectPin: {
+    bool ok = false;
+    const QString pin =
+        QInputDialog::getText(parent, QObject::tr("Security sign-in"),
+                              QObject::tr("Enter your security key PIN."),
+                              QLineEdit::Password, QString(), &ok);
+    if (ok) {
+      request->setPin(pin);
+    } else {
+      request->cancel();
+    }
+    break;
+  }
+  case WebAuthState::FinishTokenCollection:
+    QMessageBox::information(
+        parent, QObject::tr("Security sign-in"),
+        QObject::tr("Complete the security prompt on your device to continue "
+                    "signing in."));
+    break;
+  case WebAuthState::RequestFailed:
+    QMessageBox::warning(parent, QObject::tr("Security sign-in failed"),
+                         QObject::tr("The security sign-in request failed."));
+    break;
+  case WebAuthState::Cancelled:
+  case WebAuthState::Completed:
+  case WebAuthState::NotStarted:
+    break;
+  }
+}
+#endif
 
 bool hasGitHubLoginCookie(QWebEngineProfile *profile) {
   if (!profile || !profile->cookieStore()) {
@@ -128,7 +245,8 @@ QUrl buildGitHubLoginUrl(const QUrl &issuesUrl) {
 }
 
 QUrl buildIssueTrackerUrl(const QString &serviceType,
-                          const QString &repositoryName) {
+                          const QString &repositoryName,
+                          const QString &serviceHost) {
   const QString normalized = normalizedServiceType(serviceType);
   const QString trimmedRepositoryName = repositoryName.trimmed();
   if (normalized == QStringLiteral("github")) {
@@ -136,6 +254,17 @@ QUrl buildIssueTrackerUrl(const QString &serviceType,
         trimmedRepositoryName.split(QStringLiteral("/"), Qt::SkipEmptyParts);
     if (parts.size() >= 2) {
       const IssueTrackers::GitHubRepo repo(parts.first(), parts.last());
+      return QUrl(repo.issuesUrl());
+    }
+  }
+
+  if (normalized == QStringLiteral("gitlab")) {
+    const int separatorIndex = trimmedRepositoryName.lastIndexOf('/');
+    if (separatorIndex > 0 &&
+        separatorIndex < trimmedRepositoryName.size() - 1) {
+      const QString owner = trimmedRepositoryName.left(separatorIndex);
+      const QString repository = trimmedRepositoryName.mid(separatorIndex + 1);
+      const IssueTrackers::GitLabRepo repo(owner, repository, serviceHost);
       return QUrl(repo.issuesUrl());
     }
   }
@@ -181,19 +310,84 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
       _toastHost(ToastHostWidget::getInstance()),
       ui(new Ui::IssueTrackerContainer), _selected(false),
       _serviceType(serviceType.trimmed()),
-      _repositoryName(repositoryName.trimmed()), _toolbarWidget(nullptr),
-      _toolbarHandle(nullptr), _backButton(nullptr), _forwardButton(nullptr),
-      _refreshButton(nullptr), _draggingToolbar(false),
-      _toolbarDragOffset(0, 0), _toolbarRelativePosition(0, 0),
+      _repositoryName(repositoryName.trimmed()), _serviceHost(QString()),
+      _toolbarWidget(nullptr), _toolbarHandle(nullptr), _backButton(nullptr),
+      _forwardButton(nullptr), _refreshButton(nullptr), _draggingToolbar(false),
+      _externalBrowserOpened(false), _toolbarDragOffset(0, 0),
+      _toolbarRelativePosition(0, 0), _webEngineProfile(nullptr),
       _browserView(nullptr) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
 
+  QString storedHost;
+  QString storedAccessToken;
+  QDateTime storedExpiresAt;
+  if (IssueTrackers::TokensStorage::getInstance().getTokenWithHost(
+          _serviceType, _repositoryName, storedHost, storedAccessToken,
+          storedExpiresAt)) {
+    _serviceHost = storedHost.trimmed();
+  }
+
+  updateIssueUrl();
+
 #if GUI_MANAGER_HAS_WEBENGINE
+  _webEngineProfile = createIssueTrackerWebEngineProfile(
+      this, _serviceType, _repositoryName, _serviceHost);
   _browserView = new QWebEngineView(this);
-  if (QWebEngineProfile *profile = GuiManager::sharedWebEngineProfile()) {
-    auto *page = new QWebEnginePage(profile, _browserView);
+  if (_webEngineProfile) {
+    // prepare script
+    QWebEngineScript disableWebAuthn;
+    disableWebAuthn.setName("disable-webauthn");
+    disableWebAuthn.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    disableWebAuthn.setRunsOnSubFrames(true);
+    disableWebAuthn.setWorldId(QWebEngineScript::MainWorld);
+    disableWebAuthn.setSourceCode(R"(
+(function() {
+  try {
+    const reject = () => Promise.reject(new DOMException('WebAuthn disabled', 'NotAllowedError'));
+    if (navigator.credentials) {
+      navigator.credentials.get = function() { return reject(); };
+      navigator.credentials.create = function() { return reject(); };
+    }
+    try { window.PublicKeyCredential = undefined; } catch(e) {}
+  } catch(e) {}
+})();
+)");
+
+    _webEngineProfile->scripts()->insert(disableWebAuthn);
+
+    auto *page = new QWebEnginePage(_webEngineProfile, _browserView);
+    connect(page, &QWebEnginePage::renderProcessTerminated, this,
+            [this, page](QWebEnginePage::RenderProcessTerminationStatus status,
+                         int exitCode) {
+              LOG_ERROR(Log::ErrorId::Gui,
+                        "WebEngine render process terminated: status={}, "
+                        "exitCode={}, pageUrl={}, requestedUrl={}",
+                        static_cast<int>(status), exitCode,
+                        page ? page->url().toString() : QString(),
+                        page ? page->requestedUrl().toString() : QString());
+              openIssueTrackerExternallyAndClose();
+            });
+    connect(
+        page, &QWebEnginePage::newWindowRequested, this,
+        [page](QWebEngineNewWindowRequest &request) { request.openIn(page); });
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+    connect(page, &QWebEnginePage::webAuthUxRequested, this,
+            [this](QWebEngineWebAuthUxRequest *request) {
+              if (!request) {
+                return;
+              }
+
+              connect(
+                  request, &QWebEngineWebAuthUxRequest::stateChanged, this,
+                  [this, request](QWebEngineWebAuthUxRequest::WebAuthUxState) {
+                    handleWebAuthUxRequest(request, this);
+                  });
+              handleWebAuthUxRequest(request, this);
+            });
+#endif
+
     connect(page, &QWebEnginePage::authenticationRequired, this,
             [this](const QUrl &requestUrl, QAuthenticator *authenticator) {
               if (!authenticator) {
@@ -223,6 +417,7 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
               authenticator->setUser(userName);
               authenticator->setPassword(accessToken);
             });
+
     _browserView->setPage(page);
   }
 #else
@@ -242,7 +437,6 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
   applyToolbarTheme();
   restoreToolbarPosition();
 
-  updateIssueUrl();
   loadIssuePage();
 
   LOG_PERF(0, "Exit");
@@ -375,7 +569,8 @@ bool IssueTrackerContainer::eventFilter(QObject *watched, QEvent *event) {
 void IssueTrackerContainer::updateIssueUrl() {
   LOG_PERF(0, "Enter");
 
-  _issuesUrl = buildIssueTrackerUrl(_serviceType, _repositoryName);
+  _issuesUrl =
+      buildIssueTrackerUrl(_serviceType, _repositoryName, _serviceHost);
 
   LOG_PERF(0, "Exit");
 }
@@ -448,8 +643,19 @@ void IssueTrackerContainer::buildToolbar() {
       updateNavigationState();
     }
   });
-  connect(_browserView, &QWebEngineView::loadFinished, this,
-          [this](bool) { updateNavigationState(); });
+  connect(_browserView, &QWebEngineView::loadFinished, this, [this](bool ok) {
+    if (!ok) {
+      const auto *page = _browserView ? _browserView->page() : nullptr;
+      LOG_ERROR(Log::ErrorId::Gui,
+                "WebEngine load failed: pageUrl={}, requestedUrl={}, "
+                "issuesUrl={}",
+                page ? page->url().toString() : QString(),
+                page ? page->requestedUrl().toString() : QString(),
+                _issuesUrl.toString());
+      openIssueTrackerExternallyAndClose();
+    }
+    updateNavigationState();
+  });
   connect(_browserView, &QWebEngineView::urlChanged, this,
           [this](const QUrl &) { updateNavigationState(); });
 #else
@@ -614,7 +820,7 @@ void IssueTrackerContainer::loadIssuePage() {
 
   if (_issuesUrl.isValid()) {
 #if GUI_MANAGER_HAS_WEBENGINE
-    QWebEngineProfile *profile = GuiManager::sharedWebEngineProfile();
+    QWebEngineProfile *profile = _webEngineProfile;
 
     const QUrl initialUrl =
         shouldOpenGitHubLoginFirst(_serviceType, _repositoryName, profile)
@@ -665,12 +871,7 @@ void IssueTrackerContainer::showUnsupportedMessage(const QString &message) {
   LOG_PERF(0, "Enter");
 
 #if GUI_MANAGER_HAS_WEBENGINE
-  _browserView->setHtml(
-      QStringLiteral("<html><body style='font-family:sans-serif;padding:16px;'>"
-                     "<h2>Issue tracker</h2>"
-                     "<p>%1</p>"
-                     "</body></html>")
-          .arg(message.toHtmlEscaped()));
+  openIssueTrackerExternallyAndClose();
 #else
   _browserView->setHtml(
       QStringLiteral("<html><body style='font-family:sans-serif;padding:16px;'>"
@@ -683,6 +884,37 @@ void IssueTrackerContainer::showUnsupportedMessage(const QString &message) {
   updateNavigationState();
 
   LOG_PERF(0, "Exit");
+}
+
+void IssueTrackerContainer::showLoadFailedMessage(const QString &message) {
+  LOG_PERF(0, "Enter");
+
+#if GUI_MANAGER_HAS_WEBENGINE
+  openIssueTrackerExternallyAndClose();
+#else
+  _browserView->setHtml(
+      QStringLiteral("<html><body style='font-family:sans-serif;padding:16px;'>"
+                     "<h2>Issue tracker failed to load</h2>"
+                     "<p>%1</p>"
+                     "</body></html>")
+          .arg(message.toHtmlEscaped()));
+#endif
+
+  updateNavigationState();
+
+  LOG_PERF(0, "Exit");
+}
+
+void IssueTrackerContainer::openIssueTrackerExternallyAndClose() {
+  if (_externalBrowserOpened) {
+    return;
+  }
+
+  _externalBrowserOpened = true;
+  if (_issuesUrl.isValid()) {
+    QDesktopServices::openUrl(_issuesUrl);
+  }
+  emit close();
 }
 
 } // namespace GuiManager::Containers

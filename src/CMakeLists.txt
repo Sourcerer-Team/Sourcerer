@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(Sourcerer VERSION 0.1 LANGUAGES CXX)
+project(Sourcerer VERSION 1.0.13 LANGUAGES CXX)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -54,7 +54,6 @@ endif ()
 
 target_link_libraries(Sourcerer PRIVATE
         Qt6::Widgets
-        ZLIB::ZLIB
         libssh2
         libgit2
         llhttp
@@ -62,11 +61,13 @@ target_link_libraries(Sourcerer PRIVATE
         reftable
         util
         xdiff
+        libzip::zip
+        ZLIB::ZLIB
         ${ADDITIONAL_LIBRARIES}
         "${APP_ICON_RES}")
 
 set_target_properties(Sourcerer PROPERTIES
-        MACOSX_BUNDLE_GUI_IDENTIFIER www.sourcerer.com
+        MACOSX_BUNDLE_GUI_IDENTIFIER www.sourcererapp.com
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
         MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
         MACOSX_BUNDLE TRUE

@@ -110,6 +110,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
           &TopBarWidget::saveWorkspace);
   connect(_titleBarWidget, &TitlebarWidget::connectToGitHubIssueTracker, this,
           &TopBarWidget::connectToGitHubIssueTracker);
+  connect(_titleBarWidget, &TitlebarWidget::connectToGitLabIssueTracker, this,
+          &TopBarWidget::connectToGitLabIssueTracker);
   connect(_titleBarWidget, &TitlebarWidget::connectToAzureIssueTracker, this,
           &TopBarWidget::connectToAzureIssueTracker);
   connect(_titleBarWidget, &TitlebarWidget::connectToBitbucketIssueTracker,
