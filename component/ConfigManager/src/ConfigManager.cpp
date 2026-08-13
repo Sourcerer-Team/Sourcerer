@@ -174,7 +174,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::TitleBarHeight, 40},
     {ConfigKey::TitleBarMaxTabWidth, 285},
     {ConfigKey::TitleBarMenuMinimumSize, 230},
-    {ConfigKey::NewsTrackerPollInterval, 300000},
+    {ConfigKey::NewsTrackerPollInterval, 180000},
     {ConfigKey::ToastAnimationDuration, 500},
     {ConfigKey::ToastHeight, 150},
     {ConfigKey::ToastSpacing, 4},

@@ -1288,9 +1288,11 @@ void MainWindow::eventCallback(EventManager::Event event) {
   case EventManager::EventType::ApplicationUpdated: {
     const auto newVersion = event.data<QString>();
     Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
-      _toastHost.addToast(new InfoToast(
-          QString(tr("Application updated to version %1.")).arg(newVersion),
-          tr("Info"), true));
+      _toastHost.addToast(
+          new InfoToast(QString(tr("Application is updating to version %1.\nPlease "
+                                   "restart to finish update."))
+                            .arg(newVersion),
+                        tr("Info"), true));
     });
     break;
   }
