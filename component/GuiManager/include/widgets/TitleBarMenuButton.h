@@ -30,6 +30,7 @@ signals:
   void init();
   void saveWorkspace();
   void connectToGitHubIssueTracker();
+  void connectToGitLabIssueTracker();
   void connectToAzureIssueTracker();
   void connectToBitbucketIssueTracker();
   void settings();
@@ -46,6 +47,7 @@ private slots:
   void onInit();
   void onSaveWorkspace();
   void onConnectToGitHubIssueTracker();
+  void onConnectToGitLabIssueTracker();
   void onConnectToAzureIssueTracker();
   void onConnectToBitbucketIssueTracker();
   void onSettings();
@@ -68,6 +70,7 @@ private:
   QAction *_initAction;
   QAction *_saveWorkspaceAction;
   QAction *_connectToGitHubIssueTrackerAction;
+  QAction *_connectToGitLabIssueTrackerAction;
   QAction *_connectToAzureIssueTrackerAction;
   QAction *_connectToBitbucketIssueTrackerAction;
   QAction *_settingsAction;

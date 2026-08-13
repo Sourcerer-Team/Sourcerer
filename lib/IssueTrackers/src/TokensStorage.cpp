@@ -25,7 +25,7 @@ namespace {
 constexpr int AES_KEY_SIZE = 32;
 constexpr int AES_IV_SIZE = 16;
 constexpr int PBKDF2_ITERATIONS = 100000;
-constexpr int STORAGE_VERSION = 2;
+constexpr int STORAGE_VERSION = 3;
 
 QString safeKeyPart(const QString &value) {
   return value.trimmed().toLower();
@@ -47,6 +47,7 @@ TokensStorage::~TokensStorage() {
   for (auto &token : _tokens) {
     token.serviceType.fill(QChar(u'\0'));
     token.repositoryName.fill(QChar(u'\0'));
+    token.host.fill(QChar(u'\0'));
     token.userName.fill(QChar(u'\0'));
     token.accessToken.fill(QChar(u'\0'));
   }
@@ -103,6 +104,37 @@ void TokensStorage::storeToken(const QString &serviceType,
   LOG_PERF(0, "Exit");
 }
 
+void TokensStorage::storeTokenWithHost(const QString &serviceType,
+                                       const QString &repositoryName,
+                                       const QString &host,
+                                       const QString &accessToken,
+                                       const QDateTime &expiresAt,
+                                       bool remember) {
+  LOG_PERF(0, "Enter");
+
+  const QString entryKey = makeEntryKey(serviceType, repositoryName);
+
+  LOCKGUARD(_mutex);
+
+  TokenEntry entry;
+  entry.serviceType = serviceType.trimmed();
+  entry.repositoryName = repositoryName.trimmed();
+  entry.host = host.trimmed();
+  entry.accessToken = accessToken;
+  entry.expiresAt = expiresAt;
+  entry.createdTime = QDateTime::currentMSecsSinceEpoch();
+  entry.rememberToken = remember;
+
+  _tokens[entryKey] = entry;
+
+  if (remember) {
+    saveTokensToDisk(entryKey, entry);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+
 bool TokensStorage::getToken(const QString &serviceType,
                              const QString &repositoryName,
                              QString &accessToken, QDateTime &expiresAt) const {
@@ -134,6 +166,30 @@ bool TokensStorage::getToken(const QString &serviceType,
   return true;
 }
 
+bool TokensStorage::getTokenWithHost(const QString &serviceType,
+                                     const QString &repositoryName,
+                                     QString &host, QString &accessToken,
+                                     QDateTime &expiresAt) const {
+  LOG_PERF(0, "Enter");
+
+  const QString entryKey = makeEntryKey(serviceType, repositoryName);
+
+  LOCKGUARD(_mutex);
+
+  if (!_tokens.contains(entryKey)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const TokenEntry &entry = _tokens[entryKey];
+  host = entry.host;
+  accessToken = entry.accessToken;
+  expiresAt = entry.expiresAt;
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
 bool TokensStorage::hasToken(const QString &serviceType,
                              const QString &repositoryName) const {
   LOCKGUARD(_mutex);
@@ -151,6 +207,7 @@ void TokensStorage::removeToken(const QString &serviceType,
   if (_tokens.contains(entryKey)) {
     _tokens[entryKey].serviceType.fill(QChar(u'\0'));
     _tokens[entryKey].repositoryName.fill(QChar(u'\0'));
+    _tokens[entryKey].host.fill(QChar(u'\0'));
     _tokens[entryKey].userName.fill(QChar(u'\0'));
     _tokens[entryKey].accessToken.fill(QChar(u'\0'));
     _tokens.remove(entryKey);
@@ -169,6 +226,7 @@ void TokensStorage::clearMemoryTokens() {
   for (auto &token : _tokens) {
     token.serviceType.fill(QChar(u'\0'));
     token.repositoryName.fill(QChar(u'\0'));
+    token.host.fill(QChar(u'\0'));
     token.userName.fill(QChar(u'\0'));
     token.accessToken.fill(QChar(u'\0'));
   }
@@ -187,6 +245,7 @@ void TokensStorage::clearAll() {
   for (auto &token : _tokens) {
     token.serviceType.fill(QChar(u'\0'));
     token.repositoryName.fill(QChar(u'\0'));
+    token.host.fill(QChar(u'\0'));
     token.userName.fill(QChar(u'\0'));
     token.accessToken.fill(QChar(u'\0'));
   }
@@ -251,7 +310,11 @@ void TokensStorage::loadPersistedTokens() {
       tokenStream.setVersion(QDataStream::Qt_6_0);
 
       TokenEntry entry;
-      if (version >= 2) {
+      if (version >= 3) {
+        tokenStream >> entry.serviceType >> entry.repositoryName >> entry.host >>
+            entry.userName >> entry.accessToken >> entry.expiresAt >>
+            entry.createdTime;
+      } else if (version >= 2) {
         tokenStream >> entry.serviceType >> entry.repositoryName >>
             entry.userName >> entry.accessToken >> entry.expiresAt >>
             entry.createdTime;
@@ -309,7 +372,7 @@ void TokensStorage::saveTokensToDisk(const QString &entryKey,
   QDataStream tokenStream(&tokenData, QIODevice::WriteOnly);
   tokenStream.setVersion(QDataStream::Qt_6_0);
   tokenStream << tokenEntry.serviceType << tokenEntry.repositoryName
-              << tokenEntry.userName << tokenEntry.accessToken
+              << tokenEntry.host << tokenEntry.userName << tokenEntry.accessToken
               << tokenEntry.expiresAt << tokenEntry.createdTime;
 
   encryptedTokens[entryKey] =

@@ -10,6 +10,7 @@ public:
   enum class Type {
     Unknown = 0,
     GitHub,
+    GitLab,
     Bitbucket,
     Azure,
 

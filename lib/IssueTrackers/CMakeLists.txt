@@ -15,11 +15,13 @@ add_library(IssueTrackers STATIC
     include/AzureRepo.h
     include/BitbucketRepo.h
     include/GitHubRepo.h
+    include/GitLabRepo.h
     include/IssueTrackerRepo.h
     include/TokensStorage.h
     src/AzureRepo.cpp
     src/BitbucketRepo.cpp
     src/GitHubRepo.cpp
+    src/GitLabRepo.cpp
     src/IssueTrackerRepo.cpp
     src/TokensStorage.cpp
 )

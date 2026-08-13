@@ -171,6 +171,8 @@ MainWindow::MainWindow(QWidget *parent)
           &MainWindow::onSaveWorkspace);
   connect(_topBarWidget, &TopBarWidget::connectToGitHubIssueTracker, this,
           &MainWindow::onConnectToGitHubIssueTracker);
+  connect(_topBarWidget, &TopBarWidget::connectToGitLabIssueTracker, this,
+          &MainWindow::onConnectToGitLabIssueTracker);
   connect(_topBarWidget, &TopBarWidget::connectToAzureIssueTracker, this,
           &MainWindow::onConnectToAzureIssueTracker);
   connect(_topBarWidget, &TopBarWidget::connectToBitbucketIssueTracker, this,
@@ -450,6 +452,24 @@ void MainWindow::onConnectToGitHubIssueTracker() {
 
     QMetaObject::invokeMethod(homeContainer,
                               "onGitHubIssueTrackerConnectClicked",
+                              Qt::QueuedConnection);
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onConnectToGitLabIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  for (const auto &container : _containers) {
+    const auto homeContainer = qobject_cast<HomeContainer *>(container.get());
+    if (!homeContainer) {
+      continue;
+    }
+
+    QMetaObject::invokeMethod(homeContainer,
+                              "onGitLabIssueTrackerConnectClicked",
                               Qt::QueuedConnection);
     break;
   }
@@ -1073,6 +1093,8 @@ void MainWindow::addIssueTrackerContainer(const QString &serviceType,
   _containers += container;
   _topBarWidget->titleBarWidget()->addTab(QStringLiteral("%1: %2").arg(
       serviceType.trimmed(), repositoryName.trimmed()));
+  connect(container.get(), &IssueTrackerContainer::close, this,
+          [this, container]() { closeContainer(container.get()); });
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
