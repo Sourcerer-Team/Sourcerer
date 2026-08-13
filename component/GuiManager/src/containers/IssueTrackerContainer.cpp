@@ -35,6 +35,8 @@
 #include <QtWebEngineCore/QWebEngineNewWindowRequest>
 #include <QtWebEngineCore/QWebEnginePage>
 #include <QtWebEngineCore/QWebEngineProfile>
+#include <QWebEngineScript>
+#include <QWebEngineScriptCollection>
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
 #include <QtWebEngineCore/QWebEngineWebAuthUxRequest>
 #endif
@@ -277,6 +279,28 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
 #if GUI_MANAGER_HAS_WEBENGINE
   _browserView = new QWebEngineView(this);
   if (QWebEngineProfile *profile = GuiManager::sharedWebEngineProfile()) {
+    // prepare script
+    QWebEngineScript disableWebAuthn;
+    disableWebAuthn.setName("disable-webauthn");
+    disableWebAuthn.setInjectionPoint(QWebEngineScript::DocumentCreation);
+    disableWebAuthn.setRunsOnSubFrames(true);
+    disableWebAuthn.setWorldId(QWebEngineScript::MainWorld);
+    disableWebAuthn.setSourceCode(R"(
+(function() {
+  try {
+    const reject = () => Promise.reject(new DOMException('WebAuthn disabled', 'NotAllowedError'));
+    if (navigator.credentials) {
+      navigator.credentials.get = function() { return reject(); };
+      navigator.credentials.create = function() { return reject(); };
+    }
+    try { window.PublicKeyCredential = undefined; } catch(e) {}
+  } catch(e) {}
+})();
+)");
+
+    // insert into profile (affects all pages using this profile)
+    profile->scripts()->insert(disableWebAuthn);
+
     auto *page = new QWebEnginePage(profile, _browserView);
     connect(page, &QWebEnginePage::renderProcessTerminated, this,
             [this, page](QWebEnginePage::RenderProcessTerminationStatus status,
