@@ -134,7 +134,6 @@ void TokensStorage::storeTokenWithHost(const QString &serviceType,
   LOG_PERF(0, "Exit");
 }
 
-
 bool TokensStorage::getToken(const QString &serviceType,
                              const QString &repositoryName,
                              QString &accessToken, QDateTime &expiresAt) const {
@@ -311,9 +310,9 @@ void TokensStorage::loadPersistedTokens() {
 
       TokenEntry entry;
       if (version >= 3) {
-        tokenStream >> entry.serviceType >> entry.repositoryName >> entry.host >>
-            entry.userName >> entry.accessToken >> entry.expiresAt >>
-            entry.createdTime;
+        tokenStream >> entry.serviceType >> entry.repositoryName >>
+            entry.host >> entry.userName >> entry.accessToken >>
+            entry.expiresAt >> entry.createdTime;
       } else if (version >= 2) {
         tokenStream >> entry.serviceType >> entry.repositoryName >>
             entry.userName >> entry.accessToken >> entry.expiresAt >>
@@ -372,8 +371,9 @@ void TokensStorage::saveTokensToDisk(const QString &entryKey,
   QDataStream tokenStream(&tokenData, QIODevice::WriteOnly);
   tokenStream.setVersion(QDataStream::Qt_6_0);
   tokenStream << tokenEntry.serviceType << tokenEntry.repositoryName
-              << tokenEntry.host << tokenEntry.userName << tokenEntry.accessToken
-              << tokenEntry.expiresAt << tokenEntry.createdTime;
+              << tokenEntry.host << tokenEntry.userName
+              << tokenEntry.accessToken << tokenEntry.expiresAt
+              << tokenEntry.createdTime;
 
   encryptedTokens[entryKey] =
       encrypt(tokenData, deriveEntryKey(tokenEntry.serviceType,

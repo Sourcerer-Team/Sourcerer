@@ -16,11 +16,9 @@ namespace IssueTrackers {
 
 class GitLabRepo final : public IssueTrackerRepo {
 public:
-  explicit GitLabRepo(QString owner = QString(),
-                      QString repository = QString(),
+  explicit GitLabRepo(QString owner = QString(), QString repository = QString(),
                       QString host = QStringLiteral("gitlab.com"));
   ~GitLabRepo() override;
-
 
   Type type() const override;
   QString serviceName() const override;
@@ -40,7 +38,6 @@ private:
   static QString hostToWebBaseUrl(const QString &host);
   static QString hostToApiBaseUrl(const QString &host);
   static QByteArray formEncode(const QMap<QString, QString> &fields);
-
 
 private:
   QString _host;
