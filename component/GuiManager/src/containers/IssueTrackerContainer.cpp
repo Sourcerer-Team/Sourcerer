@@ -10,13 +10,15 @@
 #include <Log.h>
 #include <StylesheetManager.h>
 #include <TokensStorage.h>
-#include <WebEngineProfile.h>
 
 #include <QApplication>
 #include <QAuthenticator>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDir>
 #include <QEventLoop>
+#include <QHash>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -24,6 +26,7 @@
 #include <QMouseEvent>
 #include <QNetworkCookie>
 #include <QResizeEvent>
+#include <QStandardPaths>
 #include <QStringList>
 #include <QTimer>
 #include <QToolButton>
@@ -47,6 +50,56 @@
 namespace GuiManager::Containers {
 
 namespace {
+
+#if GUI_MANAGER_HAS_WEBENGINE
+QString issueTrackerProfileId(const QString &serviceType,
+                              const QString &repositoryName,
+                              const QString &serviceHost) {
+  const QString identity = QStringLiteral("%1|%2|%3")
+                               .arg(serviceType.trimmed().toLower(),
+                                    repositoryName.trimmed(),
+                                    serviceHost.trimmed().toLower());
+  return QCryptographicHash::hash(identity.toUtf8(),
+                                  QCryptographicHash::Sha256)
+      .toHex();
+}
+
+QWebEngineProfile *createIssueTrackerWebEngineProfile(
+    QObject *parent, const QString &serviceType, const QString &repositoryName,
+    const QString &serviceHost) {
+  static QHash<QString, QWebEngineProfile *> profiles;
+
+  const QString profileId =
+      issueTrackerProfileId(serviceType, repositoryName, serviceHost);
+  if (QWebEngineProfile *profile = profiles.value(profileId, nullptr)) {
+    return profile;
+  }
+
+  const QString storageBaseDir =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  if (storageBaseDir.isEmpty()) {
+    return nullptr;
+  }
+
+  const QString storagePath =
+      QDir(storageBaseDir)
+          .absoluteFilePath(QStringLiteral("issue-trackers/webengine/%1")
+                                .arg(profileId));
+  QDir().mkpath(storagePath);
+
+  auto *profile = new QWebEngineProfile(
+      QStringLiteral("issue-tracker-%1").arg(profileId.left(16)),
+      parent ? parent : qApp);
+  profile->setPersistentStoragePath(storagePath);
+  profile->setCachePath(
+      QDir(storagePath).absoluteFilePath(QStringLiteral("cache")));
+  profile->setPersistentCookiesPolicy(
+      QWebEngineProfile::PersistentCookiesPolicy::ForcePersistentCookies);
+  profile->setHttpCacheType(QWebEngineProfile::HttpCacheType::DiskHttpCache);
+  profiles.insert(profileId, profile);
+  return profile;
+}
+#endif
 
 QString normalizedServiceType(const QString &serviceType) {
   return serviceType.trimmed().toLower();
@@ -261,7 +314,8 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
       _toolbarWidget(nullptr), _toolbarHandle(nullptr), _backButton(nullptr),
       _forwardButton(nullptr), _refreshButton(nullptr), _draggingToolbar(false),
       _externalBrowserOpened(false), _toolbarDragOffset(0, 0),
-      _toolbarRelativePosition(0, 0), _browserView(nullptr) {
+      _toolbarRelativePosition(0, 0), _webEngineProfile(nullptr),
+      _browserView(nullptr) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -275,9 +329,13 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
     _serviceHost = storedHost.trimmed();
   }
 
+  updateIssueUrl();
+
 #if GUI_MANAGER_HAS_WEBENGINE
+  _webEngineProfile = createIssueTrackerWebEngineProfile(
+      this, _serviceType, _repositoryName, _serviceHost);
   _browserView = new QWebEngineView(this);
-  if (QWebEngineProfile *profile = GuiManager::sharedWebEngineProfile()) {
+  if (_webEngineProfile) {
     // prepare script
     QWebEngineScript disableWebAuthn;
     disableWebAuthn.setName("disable-webauthn");
@@ -297,10 +355,9 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
 })();
 )");
 
-    // insert into profile (affects all pages using this profile)
-    profile->scripts()->insert(disableWebAuthn);
+    _webEngineProfile->scripts()->insert(disableWebAuthn);
 
-    auto *page = new QWebEnginePage(profile, _browserView);
+    auto *page = new QWebEnginePage(_webEngineProfile, _browserView);
     connect(page, &QWebEnginePage::renderProcessTerminated, this,
             [this, page](QWebEnginePage::RenderProcessTerminationStatus status,
                          int exitCode) {
@@ -380,7 +437,6 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
   applyToolbarTheme();
   restoreToolbarPosition();
 
-  updateIssueUrl();
   loadIssuePage();
 
   LOG_PERF(0, "Exit");
@@ -764,7 +820,7 @@ void IssueTrackerContainer::loadIssuePage() {
 
   if (_issuesUrl.isValid()) {
 #if GUI_MANAGER_HAS_WEBENGINE
-    QWebEngineProfile *profile = GuiManager::sharedWebEngineProfile();
+    QWebEngineProfile *profile = _webEngineProfile;
 
     const QUrl initialUrl =
         shouldOpenGitHubLoginFirst(_serviceType, _repositoryName, profile)

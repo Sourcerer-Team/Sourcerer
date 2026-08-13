@@ -21,6 +21,7 @@ class IssueTrackerContainer;
 
 #if __has_include(<QtWebEngineWidgets/QWebEngineView>)
 #include <QtWebEngineWidgets/QWebEngineView>
+#include <QtWebEngineCore/QWebEngineProfile>
 #define GUI_MANAGER_HAS_WEBENGINE 1
 #else
 #include <QtWidgets/QTextBrowser>
@@ -90,6 +91,7 @@ private:
   QPoint _toolbarDragOffset;
   QPoint _toolbarRelativePosition;
 #if GUI_MANAGER_HAS_WEBENGINE
+  QWebEngineProfile *_webEngineProfile;
   QWebEngineView *_browserView;
 #else
   QTextBrowser *_browserView;
