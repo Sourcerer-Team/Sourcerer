@@ -30,13 +30,13 @@
 #include <QUrlQuery>
 
 #if GUI_MANAGER_HAS_WEBENGINE
+#include <QWebEngineScript>
+#include <QWebEngineScriptCollection>
 #include <QtWebEngineCore/QWebEngineCookieStore>
 #include <QtWebEngineCore/QWebEngineHistory>
 #include <QtWebEngineCore/QWebEngineNewWindowRequest>
 #include <QtWebEngineCore/QWebEnginePage>
 #include <QtWebEngineCore/QWebEngineProfile>
-#include <QWebEngineScript>
-#include <QWebEngineScriptCollection>
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
 #include <QtWebEngineCore/QWebEngineWebAuthUxRequest>
 #endif
@@ -96,10 +96,10 @@ void handleWebAuthUxRequest(QWebEngineWebAuthUxRequest *request,
   }
   case WebAuthState::CollectPin: {
     bool ok = false;
-    const QString pin = QInputDialog::getText(
-        parent, QObject::tr("Security sign-in"),
-        QObject::tr("Enter your security key PIN."), QLineEdit::Password,
-        QString(), &ok);
+    const QString pin =
+        QInputDialog::getText(parent, QObject::tr("Security sign-in"),
+                              QObject::tr("Enter your security key PIN."),
+                              QLineEdit::Password, QString(), &ok);
     if (ok) {
       request->setPin(pin);
     } else {
@@ -114,9 +114,8 @@ void handleWebAuthUxRequest(QWebEngineWebAuthUxRequest *request,
                     "signing in."));
     break;
   case WebAuthState::RequestFailed:
-    QMessageBox::warning(
-        parent, QObject::tr("Security sign-in failed"),
-        QObject::tr("The security sign-in request failed."));
+    QMessageBox::warning(parent, QObject::tr("Security sign-in failed"),
+                         QObject::tr("The security sign-in request failed."));
     break;
   case WebAuthState::Cancelled:
   case WebAuthState::Completed:
@@ -208,7 +207,8 @@ QUrl buildIssueTrackerUrl(const QString &serviceType,
 
   if (normalized == QStringLiteral("gitlab")) {
     const int separatorIndex = trimmedRepositoryName.lastIndexOf('/');
-    if (separatorIndex > 0 && separatorIndex < trimmedRepositoryName.size() - 1) {
+    if (separatorIndex > 0 &&
+        separatorIndex < trimmedRepositoryName.size() - 1) {
       const QString owner = trimmedRepositoryName.left(separatorIndex);
       const QString repository = trimmedRepositoryName.mid(separatorIndex + 1);
       const IssueTrackers::GitLabRepo repo(owner, repository, serviceHost);
@@ -258,9 +258,8 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
       ui(new Ui::IssueTrackerContainer), _selected(false),
       _serviceType(serviceType.trimmed()),
       _repositoryName(repositoryName.trimmed()), _serviceHost(QString()),
-      _toolbarWidget(nullptr),
-      _toolbarHandle(nullptr), _backButton(nullptr), _forwardButton(nullptr),
-      _refreshButton(nullptr), _draggingToolbar(false),
+      _toolbarWidget(nullptr), _toolbarHandle(nullptr), _backButton(nullptr),
+      _forwardButton(nullptr), _refreshButton(nullptr), _draggingToolbar(false),
       _externalBrowserOpened(false), _toolbarDragOffset(0, 0),
       _toolbarRelativePosition(0, 0), _browserView(nullptr) {
   LOG_PERF(0, "Enter");
@@ -313,10 +312,9 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
                         page ? page->requestedUrl().toString() : QString());
               openIssueTrackerExternallyAndClose();
             });
-    connect(page, &QWebEnginePage::newWindowRequested, this,
-            [page](QWebEngineNewWindowRequest &request) {
-              request.openIn(page);
-            });
+    connect(
+        page, &QWebEnginePage::newWindowRequested, this,
+        [page](QWebEngineNewWindowRequest &request) { request.openIn(page); });
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
     connect(page, &QWebEnginePage::webAuthUxRequested, this,
             [this](QWebEngineWebAuthUxRequest *request) {
@@ -324,10 +322,11 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
                 return;
               }
 
-              connect(request, &QWebEngineWebAuthUxRequest::stateChanged, this,
-                      [this, request](QWebEngineWebAuthUxRequest::WebAuthUxState) {
-                        handleWebAuthUxRequest(request, this);
-                      });
+              connect(
+                  request, &QWebEngineWebAuthUxRequest::stateChanged, this,
+                  [this, request](QWebEngineWebAuthUxRequest::WebAuthUxState) {
+                    handleWebAuthUxRequest(request, this);
+                  });
               handleWebAuthUxRequest(request, this);
             });
 #endif
@@ -514,8 +513,8 @@ bool IssueTrackerContainer::eventFilter(QObject *watched, QEvent *event) {
 void IssueTrackerContainer::updateIssueUrl() {
   LOG_PERF(0, "Enter");
 
-  _issuesUrl = buildIssueTrackerUrl(_serviceType, _repositoryName,
-                                    _serviceHost);
+  _issuesUrl =
+      buildIssueTrackerUrl(_serviceType, _repositoryName, _serviceHost);
 
   LOG_PERF(0, "Exit");
 }
@@ -588,20 +587,19 @@ void IssueTrackerContainer::buildToolbar() {
       updateNavigationState();
     }
   });
-  connect(_browserView, &QWebEngineView::loadFinished, this,
-          [this](bool ok) {
-            if (!ok) {
-              const auto *page = _browserView ? _browserView->page() : nullptr;
-              LOG_ERROR(Log::ErrorId::Gui,
-                        "WebEngine load failed: pageUrl={}, requestedUrl={}, "
-                        "issuesUrl={}",
-                        page ? page->url().toString() : QString(),
-                        page ? page->requestedUrl().toString() : QString(),
-                        _issuesUrl.toString());
-              openIssueTrackerExternallyAndClose();
-            }
-            updateNavigationState();
-          });
+  connect(_browserView, &QWebEngineView::loadFinished, this, [this](bool ok) {
+    if (!ok) {
+      const auto *page = _browserView ? _browserView->page() : nullptr;
+      LOG_ERROR(Log::ErrorId::Gui,
+                "WebEngine load failed: pageUrl={}, requestedUrl={}, "
+                "issuesUrl={}",
+                page ? page->url().toString() : QString(),
+                page ? page->requestedUrl().toString() : QString(),
+                _issuesUrl.toString());
+      openIssueTrackerExternallyAndClose();
+    }
+    updateNavigationState();
+  });
   connect(_browserView, &QWebEngineView::urlChanged, this,
           [this](const QUrl &) { updateNavigationState(); });
 #else
@@ -791,7 +789,8 @@ void IssueTrackerContainer::updateNavigationState() {
 
 #if GUI_MANAGER_HAS_WEBENGINE
   const auto *page = _browserView ? _browserView->page() : nullptr;
-  const bool canGoBack = page && page->history() && page->history()->canGoBack();
+  const bool canGoBack =
+      page && page->history() && page->history()->canGoBack();
   const bool canGoForward =
       page && page->history() && page->history()->canGoForward();
 #else
