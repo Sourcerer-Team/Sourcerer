@@ -64,7 +64,6 @@ QMap<QNetworkRequest::KnownHeaders, QString> jsonHeaders() {
   return headers;
 }
 
-
 QMap<QString, QString> bearerHeaders(const QString &accessToken) {
   QMap<QString, QString> rawHeaders;
   rawHeaders[QStringLiteral("Accept")] = QStringLiteral("application/json");
@@ -95,7 +94,6 @@ GitLabRepo::~GitLabRepo() {
   _accessTokenExpiresAt = QDateTime();
 }
 
-
 QVariantMap GitLabRepo::authenticate(const QVariantMap &parameters) {
   LOG_PERF(0, "Enter");
 
@@ -107,8 +105,7 @@ QVariantMap GitLabRepo::authenticate(const QVariantMap &parameters) {
     result[QStringLiteral("success")] = false;
     result[QStringLiteral("errorMessage")] =
         QStringLiteral("GitLab personal access token is empty.");
-    LOG_ERROR(Log::ErrorId::Security,
-              "GitLab personal access token is empty.");
+    LOG_ERROR(Log::ErrorId::Security, "GitLab personal access token is empty.");
     LOG_PERF(0, "Exit");
     return result;
   }
@@ -118,9 +115,8 @@ QVariantMap GitLabRepo::authenticate(const QVariantMap &parameters) {
 
   const auto httpClient = std::make_shared<Util::HttpClient>();
   const auto userReply = httpClient->sendRequest(
-      hostToApiBaseUrl(_host) + QStringLiteral("/user"),
-      Util::HttpMethod::Get, jsonHeaders(), bearerHeaders(_accessToken),
-      QByteArray());
+      hostToApiBaseUrl(_host) + QStringLiteral("/user"), Util::HttpMethod::Get,
+      jsonHeaders(), bearerHeaders(_accessToken), QByteArray());
   if (userReply.error() != QNetworkReply::NetworkError::NoError) {
     const QString message = responseErrorMessage(
         userReply, QStringLiteral("Failed to validate the GitLab token."));
@@ -132,7 +128,8 @@ QVariantMap GitLabRepo::authenticate(const QVariantMap &parameters) {
   }
 
   QString repositoriesErrorMessage;
-  const QStringList repositories = listUserRepositories(&repositoriesErrorMessage);
+  const QStringList repositories =
+      listUserRepositories(&repositoriesErrorMessage);
   if (repositories.isEmpty()) {
     result[QStringLiteral("success")] = false;
     result[QStringLiteral("errorMessage")] = repositoriesErrorMessage;
@@ -174,7 +171,8 @@ QStringList GitLabRepo::listUserRepositories(QString *errorMessage) const {
       return false;
     }
 
-    const QMap<QNetworkRequest::KnownHeaders, QString> httpHeaders = jsonHeaders();
+    const QMap<QNetworkRequest::KnownHeaders, QString> httpHeaders =
+        jsonHeaders();
     const auto httpReply = httpClient->sendRequest(
         url.toString(), Util::HttpMethod::Get, httpHeaders,
         bearerHeaders(_accessToken), QByteArray());
@@ -215,8 +213,9 @@ QStringList GitLabRepo::listUserRepositories(QString *errorMessage) const {
     url.setQuery(query);
 
     QJsonArray pageArray;
-    if (!requestJsonArray(url, QStringLiteral("Failed to request GitLab repositories."),
-                          &pageArray)) {
+    if (!requestJsonArray(
+            url, QStringLiteral("Failed to request GitLab repositories."),
+            &pageArray)) {
       LOG_PERF(0, "Exit");
       return repositories;
     }
@@ -229,8 +228,11 @@ QStringList GitLabRepo::listUserRepositories(QString *errorMessage) const {
 
       const QJsonObject repoObj = repoValue.toObject();
       const QString repositoryName =
-          repoObj.value(QStringLiteral("path_with_namespace")).toString().trimmed();
-      if (repositoryName.isEmpty() || seenRepositories.contains(repositoryName)) {
+          repoObj.value(QStringLiteral("path_with_namespace"))
+              .toString()
+              .trimmed();
+      if (repositoryName.isEmpty() ||
+          seenRepositories.contains(repositoryName)) {
         continue;
       }
 
@@ -306,7 +308,6 @@ QString GitLabRepo::issuesUrl() const {
 bool GitLabRepo::isValid() const {
   return !_host.trimmed().isEmpty();
 }
-
 
 QString GitLabRepo::hostToWebBaseUrl(const QString &host) {
   const QString value = [&host]() {

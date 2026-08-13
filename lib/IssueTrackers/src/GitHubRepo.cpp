@@ -20,11 +20,12 @@
 #include <QMap>
 #include <QMetaObject>
 #include <QNetworkRequest>
+#include <QPoint>
 #include <QPointer>
 #include <QPushButton>
 #include <QSet>
 #include <QThread>
-#include <QTimer>
+#include <QToolTip>
 #include <QUrlQuery>
 #include <QVBoxLayout>
 #include <QVariantMap>
@@ -188,19 +189,6 @@ QVariantMap GitHubRepo::authenticate(const QVariantMap &parameters) {
     codeLayout->addWidget(copyButton);
     mainLayout->addLayout(codeLayout);
 
-    auto *copyStatusLabel = new QLabel(dialog);
-    copyStatusLabel->setWordWrap(true);
-    copyStatusLabel->setVisible(false);
-    mainLayout->addWidget(copyStatusLabel);
-
-    auto *copyStatusTimer = new QTimer(dialog);
-    copyStatusTimer->setSingleShot(true);
-    QObject::connect(copyStatusTimer, &QTimer::timeout, dialog,
-                     [copyStatusLabel]() {
-                       copyStatusLabel->clear();
-                       copyStatusLabel->setVisible(false);
-                     });
-
     if (!verificationUrl.isValid()) {
       auto *urlLabel = new QLabel(
           QStringLiteral(
@@ -221,14 +209,14 @@ QVariantMap GitHubRepo::authenticate(const QVariantMap &parameters) {
     buttonLayout->addWidget(cancelButton);
     mainLayout->addLayout(buttonLayout);
 
-    QObject::connect(copyButton, &QPushButton::clicked, dialog,
-                     [userCode, copyStatusLabel, copyStatusTimer]() {
-                       QApplication::clipboard()->setText(userCode);
-                       copyStatusLabel->setText(
-                           QStringLiteral("Code copied to clipboard."));
-                       copyStatusLabel->setVisible(true);
-                       copyStatusTimer->start(5000);
-                     });
+    QObject::connect(
+        copyButton, &QPushButton::clicked, dialog, [userCode, copyButton]() {
+          QApplication::clipboard()->setText(userCode);
+          QToolTip::showText(
+              copyButton->mapToGlobal(QPoint(0, copyButton->height())),
+              QStringLiteral("Code copied to clipboard."), copyButton,
+              copyButton->rect(), 5000);
+        });
     QObject::connect(openButton, &QPushButton::clicked, dialog,
                      [verificationUrl]() {
                        if (verificationUrl.isValid()) {

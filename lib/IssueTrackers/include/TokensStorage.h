@@ -35,8 +35,7 @@ public:
                   const QDateTime &expiresAt = QDateTime(),
                   bool remember = true);
   void storeTokenWithHost(const QString &serviceType,
-                          const QString &repositoryName,
-                          const QString &host,
+                          const QString &repositoryName, const QString &host,
                           const QString &accessToken,
                           const QDateTime &expiresAt = QDateTime(),
                           bool remember = true);
@@ -48,8 +47,7 @@ public:
                 QDateTime &expiresAt) const;
   bool getTokenWithHost(const QString &serviceType,
                         const QString &repositoryName, QString &host,
-                        QString &accessToken,
-                        QDateTime &expiresAt) const;
+                        QString &accessToken, QDateTime &expiresAt) const;
 
   bool hasToken(const QString &serviceType,
                 const QString &repositoryName) const;

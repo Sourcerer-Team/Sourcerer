@@ -771,15 +771,18 @@ void HomeContainer::onGitLabIssueTrackerConnectClicked() {
   LOG_PERF(0, "Enter");
 
   bool serviceUrlAccepted = false;
-  const QString serviceUrl = QInputDialog::getText(
-      this, tr("GitLab service URL"),
-      tr("Enter the GitLab service URL (for example, https://gitlab.com or\n"
-         "https://gitlab.example.com):"),
-      QLineEdit::Normal, QStringLiteral("https://gitlab.com"),
-      &serviceUrlAccepted)
-                                 .trimmed();
+  const QString serviceUrl =
+      QInputDialog::getText(this, tr("GitLab service URL"),
+                            tr("Enter the GitLab service URL (for example, "
+                               "https://gitlab.com or\n"
+                               "https://gitlab.example.com):"),
+                            QLineEdit::Normal,
+                            QStringLiteral("https://gitlab.com"),
+                            &serviceUrlAccepted)
+          .trimmed();
   if (!serviceUrlAccepted || serviceUrl.isEmpty()) {
-    LOG_INFO("GitLab issue tracker connection cancelled while entering service URL");
+    LOG_INFO(
+        "GitLab issue tracker connection cancelled while entering service URL");
     LOG_PERF(0, "Exit");
     return;
   }
@@ -794,12 +797,13 @@ void HomeContainer::onGitLabIssueTrackerConnectClicked() {
   }
 
   bool tokenAccepted = false;
-  const QString personalAccessToken = QInputDialog::getText(
-      this, tr("GitLab personal access token"),
-      tr("Enter the GitLab personal access token. It needs these scopes:\n"
-         "api, read_api, ai_features"),
-      QLineEdit::Password, QString(), &tokenAccepted)
-                                          .trimmed();
+  const QString personalAccessToken =
+      QInputDialog::getText(
+          this, tr("GitLab personal access token"),
+          tr("Enter the GitLab personal access token. It needs these scopes:\n"
+             "api, read_api, ai_features"),
+          QLineEdit::Password, QString(), &tokenAccepted)
+          .trimmed();
   if (!tokenAccepted || personalAccessToken.isEmpty()) {
     LOG_INFO("GitLab issue tracker connection cancelled while entering token");
     LOG_PERF(0, "Exit");
@@ -889,7 +893,8 @@ void HomeContainer::onGitLabIssueTrackerConnectClicked() {
     }
 
     const int pathSeparatorIndex = selectedRepository.lastIndexOf('/');
-    if (pathSeparatorIndex <= 0 || pathSeparatorIndex >= selectedRepository.size() - 1) {
+    if (pathSeparatorIndex <= 0 ||
+        pathSeparatorIndex >= selectedRepository.size() - 1) {
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
         QMessageBox::critical(this, tr("Failure"),
                               tr("Failed to parse the selected repository."));
@@ -904,8 +909,8 @@ void HomeContainer::onGitLabIssueTrackerConnectClicked() {
 
     IssueTrackers::TokensStorage::getInstance().storeTokenWithHost(
         selectedRepo->serviceName(), selectedRepo->repositoryPath(),
-        selectedRepo->host(), authResult.value(QStringLiteral("accessToken"))
-                                   .toString(),
+        selectedRepo->host(),
+        authResult.value(QStringLiteral("accessToken")).toString(),
         authResult.value(QStringLiteral("expiresAt")).toDateTime(), true);
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
