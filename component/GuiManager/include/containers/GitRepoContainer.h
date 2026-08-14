@@ -312,6 +312,7 @@ private:
   QString _activeBranch;
   QString _lastDiffedCommit;
   QString _lastDiffedFilePath;
+  QString _currentSignature;
   bool _lastDiffRepoStatusChanged;
   GitRepo::BranchType _activeBranchType;
   ConfigManager::ConfigManager &_configManager;
