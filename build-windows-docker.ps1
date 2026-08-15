@@ -92,7 +92,7 @@ $ContainerScriptPath = Join-Path $ProjectRoot "docker\build-windows-container.ps
 Write-Host "Running build in Docker container..." -ForegroundColor Blue
 
 # Run the complete build process in Docker container (build project + create installer)
-docker run --cpus 20 --memory 16g --rm `
+docker run --isolation=hyperv --cpus 20 --memory 16g --rm `
     --name $ContainerName `
     -v "${ProjectRoot}:C:\workspace" `
     -w "C:\workspace" `

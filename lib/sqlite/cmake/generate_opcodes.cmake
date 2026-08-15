@@ -1,3 +1,5 @@
+cmake_policy(SET CMP0007 NEW)
+
 if(NOT DEFINED SQLITE3_VDBE_C)
   message(FATAL_ERROR "SQLITE3_VDBE_C is required")
 endif()
