@@ -106,6 +106,11 @@ add_dependencies(aprutil-1 apr-util-build)
 
 endif()
 
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libraries")
+set(UTF8PROC_ENABLE_TESTING OFF CACHE BOOL "Disable testing")
+set(LIB_FUZZING_ENGINE OFF CACHE BOOL "Disable fuzzing")
+add_subdirectory(../utf8proc "utf8proc")
+
 target_link_libraries(SvnRepo PRIVATE
     Qt6::Core
     Qt6::Gui
@@ -120,6 +125,7 @@ target_link_libraries(SvnRepo PRIVATE
     aprutil-1
     sqlite3
     expat::expat
+    utf8proc
 )
 
 target_include_directories(SvnRepo PRIVATE
