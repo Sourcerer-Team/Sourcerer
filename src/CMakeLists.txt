@@ -89,17 +89,12 @@ install(TARGETS Sourcerer
 
 
 if (WIN32)
-  set(_windeployqt_args
-      --release
-      --no-translations)
-  if(DEFINED ENV{OPENSSL_ROOT_DIR} AND NOT "$ENV{OPENSSL_ROOT_DIR}" STREQUAL "")
-    list(APPEND _windeployqt_args --openssl-root "$ENV{OPENSSL_ROOT_DIR}")
-  endif()
-
   add_custom_command(TARGET Sourcerer POST_BUILD
-            COMMAND "${Qt6_DIR}/../../../bin/windeployqt.exe"
-            ${_windeployqt_args}
-            "$<TARGET_FILE:Sourcerer>"
+            COMMAND ${CMAKE_COMMAND}
+                    -D WINDEPLOYQT="${Qt6_DIR}/../../../bin/windeployqt.exe"
+                    -D TARGET_FILE="$<TARGET_FILE:Sourcerer>"
+                    -D OPENSSL_ROOT="$ENV{OPENSSL_ROOT_DIR}"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/RunWinDeployQt.cmake"
             COMMENT "Deploying Qt runtime dependencies"
     )
 endif ()

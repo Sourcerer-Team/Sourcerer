@@ -105,7 +105,7 @@ $MountPath = $ProjectRoot
 $UserId = "1000:1000"
 
 # Run the build in Docker container as user 1000:1000 (standard Docker Desktop user)
-docker run --cpus 20 --memory 16g --memory-swap 16g --rm `
+docker run --isolation=hyperv --cpus 20 --memory 16g --memory-swap 16g --rm `
     --name $ContainerName `
     --user $UserId `
     -v "${MountPath}:/workspace" `

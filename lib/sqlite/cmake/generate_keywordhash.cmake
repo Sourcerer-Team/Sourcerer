@@ -1,0 +1,17 @@
+if(NOT DEFINED SQLITE3_MKKEYWORDHASH)
+  message(FATAL_ERROR "SQLITE3_MKKEYWORDHASH is required")
+endif()
+
+if(NOT DEFINED SQLITE3_OUTPUT_FILE)
+  message(FATAL_ERROR "SQLITE3_OUTPUT_FILE is required")
+endif()
+
+execute_process(
+  COMMAND "${SQLITE3_MKKEYWORDHASH}"
+  OUTPUT_FILE "${SQLITE3_OUTPUT_FILE}"
+  RESULT_VARIABLE SQLITE3_RESULT
+)
+
+if(NOT SQLITE3_RESULT EQUAL 0)
+  message(FATAL_ERROR "Failed to generate keywordhash.h")
+endif()

@@ -28,6 +28,8 @@ includeComponent(SvnRepo ConfigManager)
 includeLib(SvnRepo Log)
 includeLib(SvnRepo Util)
 
+add_subdirectory(../sqlite "sqlite")
+
 set(EXPAT_BUILD_TOOLS OFF CACHE BOOL "Disable tools")
 set(EXPAT_BUILD_EXAMPLES OFF CACHE BOOL "Disable examples")
 set(EXPAT_BUILD_TESTS OFF CACHE BOOL "Disable tests")
@@ -44,9 +46,13 @@ set(APR_BUILD_STATIC ON CACHE BOOL "Enable static libraries")
 add_subdirectory(../apr "apr")
 
 set(APU_HAVE_CRYPTO ON CACHE BOOL "Enable crypto")
+set(apu_have_sqlite3_10 1)
 SET(APR_INCLUDE_DIR         "${CMAKE_CURRENT_BINARY_DIR}/apr" "${CMAKE_CURRENT_SOURCE_DIR}/../apr/include" CACHE STRING "Directory with APR include files")
 SET(APR_LIBRARIES           apr-1  CACHE STRING "APR library to link with" FORCE)
 add_subdirectory(../apr-util "apr-util")
+
+target_compile_definitions(aprutil-1 PRIVATE APU_HAVE_SQLITE3=1)
+target_link_libraries(aprutil-1 sqlite3)
 
 else()
 
@@ -112,6 +118,7 @@ target_link_libraries(SvnRepo PRIVATE
     OpenSSL::Crypto
     apr-1
     aprutil-1
+    sqlite3
     expat::expat
 )
 

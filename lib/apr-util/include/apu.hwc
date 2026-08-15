@@ -124,7 +124,7 @@
 #ifndef APU_DSO_MODULE_BUILD
 #define APU_HAVE_PGSQL          0
 #define APU_HAVE_MYSQL          0
-#define APU_HAVE_SQLITE3        0
+#define APU_HAVE_SQLITE3        @apu_have_sqlite3_10@
 #define APU_HAVE_SQLITE2        0
 #define APU_HAVE_ORACLE         0
 #define APU_HAVE_ODBC           1

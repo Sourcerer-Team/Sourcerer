@@ -40,6 +40,9 @@ ENDIF()
 
 SET(apu_have_crypto_10 0)
 SET(apu_have_apr_iconv_10 0) # not yet implemented
+if(NOT DEFINED apu_have_sqlite3_10)
+  SET(apu_have_sqlite3_10 0)
+endif()
 SET(apr_has_ldap_10 0)
 
 IF(APU_HAVE_CRYPTO)

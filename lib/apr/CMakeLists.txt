@@ -89,12 +89,18 @@ CONFIGURE_FILE(include/apr.hwc
                ${PROJECT_BINARY_DIR}/apr.h)
 
 ADD_EXECUTABLE(gen_test_char tools/gen_test_char.c)
+if(MSVC)
+  set_property(TARGET gen_test_char PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 ADD_CUSTOM_COMMAND(
   COMMENT "Generating character tables, apr_escape_test_char.h, for current locale"
-  DEPENDS gen_test_char
-  COMMAND $<TARGET_FILE:gen_test_char> > ${PROJECT_BINARY_DIR}/apr_escape_test_char.h
+  COMMAND ${CMAKE_COMMAND}
+          -D APR_ESCAPE_TEST_CHAR_H=${PROJECT_BINARY_DIR}/apr_escape_test_char.h
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/gen_escape_test_char.cmake
   OUTPUT ${PROJECT_BINARY_DIR}/apr_escape_test_char.h
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/gen_escape_test_char.cmake
+  VERBATIM
 )
 ADD_CUSTOM_TARGET(
   test_char_header ALL
