@@ -45,6 +45,7 @@ includeLib(Sourcerer IssueTrackers)
 includeLib(Sourcerer Log)
 includeLib(Sourcerer RecyclerView)
 includeLib(Sourcerer Util)
+includeLib(Sourcerer SvnRepo)
 
 if (WIN32)
   set(ADDITIONAL_LIBRARIES user32.lib Dwmapi.lib secur32.lib)

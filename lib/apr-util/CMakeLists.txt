@@ -29,17 +29,6 @@ OPTION(APR_HAS_LDAP         "LDAP support"                              ON)
 OPTION(INSTALL_PDB          "Install .pdb files (if generated)"         ON)
 OPTION(APR_BUILD_TESTAPR    "Build the test suite"                      OFF)
 OPTION(TEST_STATIC_LIBS     "Test programs use APR static libraries instead of shared libraries?" OFF)
-SET(APR_INCLUDE_DIR         "${CMAKE_INSTALL_PREFIX}/include"           CACHE STRING "Directory with APR include files")
-SET(APR_LIBRARIES           "${CMAKE_INSTALL_PREFIX}/lib/libapr-1.lib"  CACHE STRING "APR library to link with")
-
-IF(NOT EXISTS "${APR_INCLUDE_DIR}/apr.h")
-  MESSAGE(FATAL_ERROR "APR include directory ${APR_INCLUDE_DIR} is not correct.")
-ENDIF()
-FOREACH(onelib ${APR_LIBRARIES})
-  IF(NOT EXISTS ${onelib})
-    MESSAGE(FATAL_ERROR "APR library ${onelib} was not found.")
-  ENDIF()
-ENDFOREACH()
 
 IF(APU_HAVE_CRYPTO)
 IF(NOT OPENSSL_FOUND)
@@ -229,11 +218,11 @@ SET(dbd_drivers)
 # Note: The WINNT definition on some targets is used only by libaprutil.rc.
 
 # libaprutil-1 is shared, aprutil-1 is static
-ADD_LIBRARY(libaprutil-1 SHARED ${APR_SOURCES} ${APR_PUBLIC_HEADERS_GENERATED} libaprutil.rc)
-SET(install_targets ${install_targets} libaprutil-1)
-SET(install_bin_pdb ${install_bin_pdb} ${PROJECT_BINARY_DIR}/libaprutil-1.pdb)
-TARGET_LINK_LIBRARIES(libaprutil-1 ${APR_LIBRARIES} ${XMLLIB_LIBRARIES})
-SET_TARGET_PROPERTIES(libaprutil-1 PROPERTIES COMPILE_DEFINITIONS "APU_DECLARE_EXPORT;APR_DECLARE_IMPORT;XML_STATIC;WINNT")
+#ADD_LIBRARY(libaprutil-1 SHARED ${APR_SOURCES} ${APR_PUBLIC_HEADERS_GENERATED} libaprutil.rc)
+#SET(install_targets ${install_targets} libaprutil-1)
+#SET(install_bin_pdb ${install_bin_pdb} ${PROJECT_BINARY_DIR}/libaprutil-1.pdb)
+#TARGET_LINK_LIBRARIES(libaprutil-1 ${APR_LIBRARIES} ${XMLLIB_LIBRARIES})
+#SET_TARGET_PROPERTIES(libaprutil-1 PROPERTIES COMPILE_DEFINITIONS "APU_DECLARE_EXPORT;APR_DECLARE_IMPORT;XML_STATIC;WINNT")
 
 ADD_LIBRARY(aprutil-1 STATIC ${APR_SOURCES} ${APR_PUBLIC_HEADERS_GENERATED})
 SET(install_targets ${install_targets} aprutil-1)
@@ -265,7 +254,7 @@ IF(APU_HAVE_ODBC)
 ENDIF()
 
 IF(APR_HAS_LDAP)
-  ADD_LIBRARY(apr_ldap-1 SHARED ldap/apr_ldap_init.c ldap/apr_ldap_option.c 
+  ADD_LIBRARY(apr_ldap-1 SHARED ldap/apr_ldap_init.c ldap/apr_ldap_option.c
               ldap/apr_ldap_rebind.c libaprutil.rc)
   SET(install_targets ${install_targets} apr_ldap-1)
   SET(install_bin_pdb ${install_bin_pdb} ${PROJECT_BINARY_DIR}/apr_ldap-1.pdb)
@@ -283,12 +272,12 @@ IF(APR_BUILD_TESTAPR)
   ADD_CUSTOM_TARGET(check COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
 
   # copy data files to build directory so that we can run programs from there
-  EXECUTE_PROCESS(COMMAND ${CMAKE_COMMAND} -E make_directory 
+  EXECUTE_PROCESS(COMMAND ${CMAKE_COMMAND} -E make_directory
                   ${PROJECT_BINARY_DIR}/data)
-  EXECUTE_PROCESS(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+  EXECUTE_PROCESS(COMMAND ${CMAKE_COMMAND} -E copy_if_different
                   ${PROJECT_SOURCE_DIR}/test/data/billion-laughs.xml
                   ${PROJECT_BINARY_DIR}/data/billion-laughs.xml)
-  EXECUTE_PROCESS(COMMAND ${CMAKE_COMMAND} -E copy_if_different 
+  EXECUTE_PROCESS(COMMAND ${CMAKE_COMMAND} -E copy_if_different
                   ${PROJECT_SOURCE_DIR}/test/data/nesting.xml
                   ${PROJECT_BINARY_DIR}/data/nesting.xml)
 
