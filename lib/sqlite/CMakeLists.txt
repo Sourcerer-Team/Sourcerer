@@ -59,7 +59,7 @@ set(SQLITE3_GENERATED_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 set(SQLITE3_PARSE_C "${SQLITE3_GENERATED_DIR}/parse.c")
 set(SQLITE3_PARSE_H "${SQLITE3_GENERATED_DIR}/parse.h")
 set(SQLITE3_KEYWORDHASH_H "${SQLITE3_GENERATED_DIR}/keywordhash.h")
-set(SQLITE3_PRAGMA_H "${SQLITE3_GENERATED_DIR}/pragma.h")
+set(SQLITE3_PRAGMA_H "${CMAKE_CURRENT_SOURCE_DIR}/src/pragma.h")
 set(SQLITE3_OPCODES_H "${SQLITE3_GENERATED_DIR}/opcodes.h")
 
 add_custom_command(
@@ -81,7 +81,7 @@ add_custom_command(
   VERBATIM
 )
 
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/pragma.h" "#ifndef SQLITE_PRAGMA_H\n#define SQLITE_PRAGMA_H\n#endif\n")
+
 
 execute_process(
   COMMAND ${CMAKE_COMMAND}
@@ -120,7 +120,6 @@ endif()
 
 set_source_files_properties(
   ${SQLITE3_KEYWORDHASH_H}
-  ${SQLITE3_PRAGMA_H}
   ${SQLITE3_OPCODES_H}
   PROPERTIES GENERATED TRUE
 )
@@ -128,7 +127,6 @@ set_source_files_properties(
 add_library(sqlite3 STATIC
   ${SQLITE3_SOURCE_FILES}
   ${SQLITE3_KEYWORDHASH_H}
-  ${SQLITE3_PRAGMA_H}
   ${SQLITE3_OPCODES_H}
 )
 add_library(sqlite::sqlite3 ALIAS sqlite3)
@@ -143,7 +141,7 @@ set_target_properties(sqlite3 PROPERTIES
   SKIP_AUTOGEN ON
 )
 
-target_compile_definitions(sqlite3 PRIVATE SQLITE_OMIT_PRAGMA)
+
 
 target_include_directories(sqlite3 PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR}
