@@ -153,6 +153,58 @@ add_dependencies(aprutil-1 apr-util-build)
 
 endif()
 
+set(SERF_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../serf)
+file(GLOB SERF_SOURCES CONFIGURE_DEPENDS
+    ${SERF_SOURCE_DIR}/*.c
+    ${SERF_SOURCE_DIR}/auth/*.c
+    ${SERF_SOURCE_DIR}/buckets/*.c
+)
+
+add_library(serf STATIC ${SERF_SOURCES})
+
+target_include_directories(serf PRIVATE
+    ${SERF_SOURCE_DIR}
+    ${SERF_SOURCE_DIR}/auth
+    ${SERF_SOURCE_DIR}/buckets
+    ${CMAKE_CURRENT_SOURCE_DIR}/../apr-util/include
+    ${CMAKE_CURRENT_BINARY_DIR}/apr-util
+)
+
+target_compile_definitions(serf PRIVATE
+    OPENSSL_NO_STDIO
+    APR_DECLARE_STATIC
+    APU_DECLARE_STATIC
+)
+
+if(UNIX AND NOT WIN32)
+    target_compile_definitions(serf PRIVATE PATH_MAX=4096)
+endif()
+
+if(WIN32)
+    target_compile_definitions(serf PRIVATE SERF_HAVE_SSPI)
+    target_link_libraries(serf PRIVATE
+        ws2_32
+        crypt32
+        mswsock
+        rpcrt4
+        secur32
+        user32
+        advapi32
+        gdi32
+    )
+endif()
+
+target_link_libraries(serf PRIVATE
+    apr-1
+    aprutil-1
+    OpenSSL::SSL
+    OpenSSL::Crypto
+    ZLIB::ZLIB
+)
+
+add_dependencies(serf apr-1 aprutil-1 zlib)
+add_dependencies(SvnRepo serf)
+
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libraries")
 set(UTF8PROC_ENABLE_TESTING OFF CACHE BOOL "Disable testing")
 set(LIB_FUZZING_ENGINE OFF CACHE BOOL "Disable fuzzing")
@@ -167,6 +219,7 @@ target_link_libraries(SvnRepo PRIVATE
     qca-ossl
     Threads::Threads
     cyrus-sasl
+    serf
     OpenSSL::SSL
     OpenSSL::Crypto
     apr-1

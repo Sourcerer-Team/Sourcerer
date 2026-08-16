@@ -161,6 +161,12 @@ done
 
 make install
 
+perl -0pe 's/@apu_have_sqlite3_10@/1/g; s/@apu_have_crypto_10@/0/g; s/@apu_have_apr_iconv_10@/0/g' "$src_dir/include/apu.hwc" > "$install_dir/include/apu.h"
+perl -0pe 's/@apr_has_ldap_10@/0/g' "$src_dir/include/apr_ldap.hwc" > "$install_dir/include/apr_ldap.h"
+cp "$src_dir/include/apu_want.hw" "$install_dir/include/apu_want.h"
+cp "$src_dir/include/private/apu_config.hw" "$install_dir/include/apu_config.h"
+cp "$src_dir/include/private/apu_select_dbm.hw" "$install_dir/include/apu_select_dbm.h"
+
 cp "$build_dir/build/rules.mk" "$install_dir/build/rules.mk"
 for generated in "$install_dir/bin/apu-1-config" "$install_dir/build/rules.mk" "$install_dir/lib/libaprutil-1.la" "$install_dir/lib/libaprutil-1.a" "$install_dir/lib/libaprutil-1.so"; do
     if [ -f "$generated" ]; then
