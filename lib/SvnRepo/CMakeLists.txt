@@ -28,6 +28,53 @@ includeComponent(SvnRepo ConfigManager)
 includeLib(SvnRepo Log)
 includeLib(SvnRepo Util)
 
+set(CYRUS_SASL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../cyrus-sasl)
+set(CYRUS_SASL_INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/cyrus-sasl-install)
+
+if(WIN32)
+set(CYRUS_SASL_LIBRARY ${CYRUS_SASL_INSTALL_DIR}/lib/libsasl.lib)
+file(MAKE_DIRECTORY
+    ${CYRUS_SASL_INSTALL_DIR}/include
+    ${CYRUS_SASL_INSTALL_DIR}/lib
+    ${CYRUS_SASL_INSTALL_DIR}/bin
+)
+
+add_custom_command(
+    OUTPUT ${CYRUS_SASL_LIBRARY}
+    COMMAND cmd /c "cd /D ${CYRUS_SASL_SOURCE_DIR}/include && nmake /f NTMakefile install prefix=${CYRUS_SASL_INSTALL_DIR} OPENSSL_INCLUDE=${OPENSSL_INCLUDE_DIR} OPENSSL_LIBPATH=$<TARGET_FILE_DIR:OpenSSL::SSL> DISABLE_RES=1 && cd /D ${CYRUS_SASL_SOURCE_DIR}/lib && nmake /f NTMakefile install prefix=${CYRUS_SASL_INSTALL_DIR} OPENSSL_INCLUDE=${OPENSSL_INCLUDE_DIR} OPENSSL_LIBPATH=$<TARGET_FILE_DIR:OpenSSL::SSL> DISABLE_RES=1"
+    WORKING_DIRECTORY ${CYRUS_SASL_SOURCE_DIR}
+    DEPENDS ${CYRUS_SASL_SOURCE_DIR}/NTMakefile ${CYRUS_SASL_SOURCE_DIR}/win32/common.mak ${CYRUS_SASL_SOURCE_DIR}/lib/NTMakefile ${CYRUS_SASL_SOURCE_DIR}/plugins/NTMakefile ${CYRUS_SASL_SOURCE_DIR}/utils/NTMakefile ${CYRUS_SASL_SOURCE_DIR}/sample/NTMakefile ${CYRUS_SASL_SOURCE_DIR}/sasldb/NTMakefile ${CYRUS_SASL_SOURCE_DIR}/include/NTMakefile ${CYRUS_SASL_SOURCE_DIR}/win32/include/NTMakefile
+    VERBATIM
+)
+
+else()
+set(CYRUS_SASL_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/cyrus-sasl-build)
+set(CYRUS_SASL_LIBRARY ${CYRUS_SASL_INSTALL_DIR}/lib/libsasl2.a)
+file(MAKE_DIRECTORY
+    ${CYRUS_SASL_INSTALL_DIR}/include
+    ${CYRUS_SASL_INSTALL_DIR}/lib
+    ${CYRUS_SASL_INSTALL_DIR}/bin
+    ${CYRUS_SASL_BUILD_DIR}
+)
+
+add_custom_command(
+    OUTPUT ${CYRUS_SASL_LIBRARY}
+    COMMAND sh ${CMAKE_CURRENT_LIST_DIR}/cmake/build-cyrus-sasl.sh ${CYRUS_SASL_SOURCE_DIR} ${CYRUS_SASL_BUILD_DIR} ${CYRUS_SASL_INSTALL_DIR}
+    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/cmake/build-cyrus-sasl.sh ${CYRUS_SASL_SOURCE_DIR}/autogen.sh ${CYRUS_SASL_SOURCE_DIR}/configure.ac
+    VERBATIM
+)
+
+endif()
+
+add_custom_target(cyrus-sasl-build ALL DEPENDS ${CYRUS_SASL_LIBRARY})
+add_library(cyrus-sasl STATIC IMPORTED GLOBAL)
+set_target_properties(cyrus-sasl PROPERTIES
+    IMPORTED_LOCATION ${CYRUS_SASL_LIBRARY}
+    INTERFACE_INCLUDE_DIRECTORIES ${CYRUS_SASL_INSTALL_DIR}/include
+)
+add_dependencies(cyrus-sasl cyrus-sasl-build)
+add_dependencies(SvnRepo cyrus-sasl-build)
+
 add_subdirectory(../sqlite "sqlite")
 
 set(EXPAT_BUILD_TOOLS OFF CACHE BOOL "Disable tools")
@@ -119,6 +166,7 @@ target_link_libraries(SvnRepo PRIVATE
     qca-qt6
     qca-ossl
     Threads::Threads
+    cyrus-sasl
     OpenSSL::SSL
     OpenSSL::Crypto
     apr-1
