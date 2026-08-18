@@ -43,9 +43,13 @@
 
 #ifdef WIN32
 #include <conio.h>
-#elif defined(HAVE_TERMIOS_H)
+#else
 #include <signal.h>
+#include <unistd.h>
+#ifdef HAVE_TERMIOS_H
 #include <termios.h>
+#endif
+int kill(int, int);
 #endif
 
 

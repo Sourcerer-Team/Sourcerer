@@ -28,11 +28,6 @@
 #undef SVN_HAVE_CRYPTO
 #include <apr.h>
 #include <apu.h>
-#if APR_HAS_RANDOM
-#if defined(APU_HAVE_CRYPTO) && APU_HAVE_CRYPTO
-#define SVN_HAVE_CRYPTO
-#endif
-#endif
 
 #include "svn_types.h"
 #include "svn_string.h"

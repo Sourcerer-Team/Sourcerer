@@ -502,7 +502,7 @@ function(target_exports target_name)
   endif()
 endfunction()
 
-if (NOT EXISTS "${CMAKE_SOURCE_DIR}/build/cmake/targets.cmake")
+if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/build/cmake/targets.cmake")
   message(SEND_ERROR
     "The 'build/cmake/targets.cmake' file does NOT exist. "
     "Use the following command to generate it:\n"
@@ -597,7 +597,25 @@ endif()
 
 ### APR and APR-Util
 
-if(SVN_USE_PKG_CONFIG)
+if(SVN_IN_TREE_APR)
+  add_library(external-apr ALIAS apr-1)
+  add_library(external-aprutil ALIAS aprutil-1)
+  set(SVN_APR_MAJOR_VERSION 1)
+elseif(TARGET apr-1)
+  add_library(external-apr ALIAS apr-1)
+  add_library(external-aprutil ALIAS aprutil-1)
+  set(SVN_APR_MAJOR_VERSION 1)
+elseif(TARGET apr::apr)
+  add_library(external-apr ALIAS apr::apr)
+
+  if(TARGET apr::aprutil)
+    add_library(external-aprutil ALIAS apr::aprutil)
+  else()
+    add_library(external-aprutil ALIAS apr::apr)
+  endif()
+
+  set(SVN_APR_MAJOR_VERSION 2)
+elseif(SVN_USE_PKG_CONFIG)
   pkg_search_module(apr REQUIRED IMPORTED_TARGET apr-2 apr-1)
   add_library(external-apr ALIAS PkgConfig::apr)
 
@@ -625,24 +643,34 @@ endif()
 
 ### ZLIB
 
-if(SVN_USE_PKG_CONFIG)
+if(TARGET ZLIB::ZLIB)
+  add_library(external-zlib INTERFACE)
+  target_link_libraries(external-zlib INTERFACE ZLIB::ZLIB)
+elseif(SVN_USE_PKG_CONFIG)
   pkg_check_modules(zlib REQUIRED IMPORTED_TARGET zlib)
-  add_library(external-zlib ALIAS PkgConfig::zlib)
+  add_library(external-zlib INTERFACE)
+  target_link_libraries(external-zlib INTERFACE PkgConfig::zlib)
   set(SVN_ZLIB_LIBS ${zlib_LDFLAGS})
 else()
   find_package(ZLIB REQUIRED)
-  add_library(external-zlib ALIAS ZLIB::ZLIB)
+  add_library(external-zlib INTERFACE)
+  target_link_libraries(external-zlib INTERFACE ZLIB::ZLIB)
 endif()
 
 ### EXPAT
 
-if(SVN_USE_PKG_CONFIG)
+if(TARGET expat::expat)
+  add_library(external-xml INTERFACE)
+  target_link_libraries(external-xml INTERFACE expat::expat)
+elseif(SVN_USE_PKG_CONFIG)
   pkg_check_modules(expat REQUIRED IMPORTED_TARGET expat)
-  add_library(external-xml ALIAS PkgConfig::expat)
+  add_library(external-xml INTERFACE)
+  target_link_libraries(external-xml INTERFACE PkgConfig::expat)
   set(SVN_XML_LIBS ${expat_LDFLAGS})
 else()
   find_package(EXPAT REQUIRED)
-  add_library(external-xml ALIAS EXPAT::EXPAT)
+  add_library(external-xml INTERFACE)
+  target_link_libraries(external-xml INTERFACE EXPAT::EXPAT)
 endif()
 
 ### LZ4
@@ -685,12 +713,17 @@ endif()
 
 ### SQLite3
 
-if(SVN_SQLITE_USE_AMALGAMATION)
+if(TARGET sqlite3)
+  add_library(external-sqlite INTERFACE)
+  target_link_libraries(external-sqlite INTERFACE sqlite3)
+elseif(SVN_SQLITE_USE_AMALGAMATION)
   find_package(SQLiteAmalgamation REQUIRED)
-  add_library(external-sqlite ALIAS SQLite::SQLite3Amalgamation)
+  add_library(external-sqlite INTERFACE)
+  target_link_libraries(external-sqlite INTERFACE SQLite::SQLite3Amalgamation)
 elseif(SVN_USE_PKG_CONFIG)
   pkg_check_modules(sqlite3 REQUIRED IMPORTED_TARGET sqlite3)
-  add_library(external-sqlite ALIAS PkgConfig::sqlite3)
+  add_library(external-sqlite INTERFACE)
+  target_link_libraries(external-sqlite INTERFACE PkgConfig::sqlite3)
 else()
   # It should be not required.
   find_package(SQLite3)
@@ -699,14 +732,16 @@ else()
     # Support for CMake < 4.3
     # In prior versions of cmake, the sqlite targets were exported in the
     # SQLite namespace.
+    add_library(external-sqlite INTERFACE)
     if(TARGET SQLite3::SQLite3)
-      add_library(external-sqlite ALIAS SQLite3::SQLite3)
+      target_link_libraries(external-sqlite INTERFACE SQLite3::SQLite3)
     else()
-      add_library(external-sqlite ALIAS SQLite::SQLite3)
+      target_link_libraries(external-sqlite INTERFACE SQLite::SQLite3)
     endif()
   else()
     find_package(SQLiteAmalgamation REQUIRED)
-    add_library(external-sqlite ALIAS SQLite::SQLite3Amalgamation)
+    add_library(external-sqlite INTERFACE)
+    target_link_libraries(external-sqlite INTERFACE SQLite::SQLite3Amalgamation)
 
     # Is implicitness an actual problem? This warning could be removed
     # if it isn't.
@@ -719,7 +754,12 @@ endif()
 
 ### Serf
 if (SVN_ENABLE_RA_SERF)
-  if(SVN_USE_PKG_CONFIG)
+  if(TARGET external-serf)
+    # Use the in-tree wrapper from the parent project.
+  elseif(TARGET serf)
+    add_library(external-serf INTERFACE)
+    target_link_libraries(external-serf INTERFACE serf)
+  elseif(SVN_USE_PKG_CONFIG)
     pkg_search_module(serf IMPORTED_TARGET REQUIRED serf-2 serf-1>=1.3.4)
     add_library(external-serf ALIAS PkgConfig::serf)
   else()
@@ -844,9 +884,14 @@ if (SVN_ENABLE_TUI)
   endif()
 endif()
 
-add_library(external-sasl INTERFACE)
+if(NOT TARGET external-sasl)
+  add_library(external-sasl INTERFACE)
+endif()
+
 if (SVN_ENABLE_SASL)
-  if(SVN_USE_PKG_CONFIG)
+  if(TARGET cyrus-sasl)
+    target_link_libraries(external-sasl INTERFACE cyrus-sasl)
+  elseif(SVN_USE_PKG_CONFIG)
     pkg_check_modules(libsasl2 REQUIRED IMPORTED_TARGET libsasl2>=2.0.0)
     target_link_libraries(external-sasl INTERFACE PkgConfig::libsasl2)
     set(SVN_SASL_LIBS ${libsasl2_LDFLAGS})

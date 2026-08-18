@@ -19,6 +19,8 @@ find_package(zlib REQUIRED)
 add_compile_definitions(QT_USE_STRING_BUILDER)
 
 add_library(SvnRepo STATIC
+    include/SvnRepo.h
+    src/SvnRepo.cpp
 )
 
 include(../../cmake/helpers.cmake)
@@ -70,7 +72,7 @@ add_custom_target(cyrus-sasl-build ALL DEPENDS ${CYRUS_SASL_LIBRARY})
 add_library(cyrus-sasl STATIC IMPORTED GLOBAL)
 set_target_properties(cyrus-sasl PROPERTIES
     IMPORTED_LOCATION ${CYRUS_SASL_LIBRARY}
-    INTERFACE_INCLUDE_DIRECTORIES ${CYRUS_SASL_INSTALL_DIR}/include
+    INTERFACE_INCLUDE_DIRECTORIES "${CYRUS_SASL_INSTALL_DIR}/include;${CYRUS_SASL_SOURCE_DIR}/include"
 )
 add_dependencies(cyrus-sasl cyrus-sasl-build)
 add_dependencies(SvnRepo cyrus-sasl-build)
@@ -92,14 +94,23 @@ set(APR_BUILD_SHARED OFF CACHE BOOL "Disable shared libraries")
 set(APR_BUILD_STATIC ON CACHE BOOL "Enable static libraries")
 add_subdirectory(../apr "apr")
 
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/apr)
+file(COPY
+    ${CMAKE_CURRENT_SOURCE_DIR}/../apr/include/apr_version.h
+    DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/apr
+)
+
 set(APU_HAVE_CRYPTO ON CACHE BOOL "Enable crypto")
 set(apu_have_sqlite3_10 1)
-SET(APR_INCLUDE_DIR         "${CMAKE_CURRENT_BINARY_DIR}/apr" "${CMAKE_CURRENT_SOURCE_DIR}/../apr/include" CACHE STRING "Directory with APR include files")
+SET(APR_INCLUDE_DIR         "${CMAKE_CURRENT_BINARY_DIR}/apr" CACHE STRING "Directory with APR include files" FORCE)
 SET(APR_LIBRARIES           apr-1  CACHE STRING "APR library to link with" FORCE)
 add_subdirectory(../apr-util "apr-util")
 
 target_compile_definitions(aprutil-1 PRIVATE APU_HAVE_SQLITE3=1)
 target_link_libraries(aprutil-1 sqlite3)
+set_target_properties(aprutil-1 PROPERTIES
+    INTERFACE_COMPILE_DEFINITIONS APU_HAVE_CRYPTO=1
+)
 
 else()
 
@@ -133,6 +144,11 @@ set_target_properties(apr-1 PROPERTIES
     IMPORTED_LOCATION ${APR_LIBRARY}
     INTERFACE_INCLUDE_DIRECTORIES ${APR_INSTALL_DIR}/include/apr-1
 )
+if(UNIX AND NOT WIN32)
+  set_target_properties(apr-1 PROPERTIES
+      INTERFACE_COMPILE_DEFINITIONS "PATH_MAX=4096"
+  )
+endif()
 add_dependencies(apr-1 apr-build)
 
 add_custom_command(
@@ -148,12 +164,20 @@ add_library(aprutil-1 STATIC IMPORTED GLOBAL)
 set_target_properties(aprutil-1 PROPERTIES
     IMPORTED_LOCATION ${APR_UTIL_LIBRARY}
     INTERFACE_INCLUDE_DIRECTORIES ${APR_UTIL_INSTALL_DIR}/include
+    INTERFACE_COMPILE_DEFINITIONS APU_HAVE_CRYPTO=1
 )
+if(UNIX AND NOT WIN32)
+  set_target_properties(aprutil-1 PROPERTIES
+      INTERFACE_COMPILE_DEFINITIONS "PATH_MAX=4096"
+  )
+endif()
 add_dependencies(aprutil-1 apr-util-build)
 
 endif()
 
 set(SERF_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../serf)
+set(APR_UTIL_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../apr-util)
+set(APR_UTIL_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/apr-util)
 file(GLOB SERF_SOURCES CONFIGURE_DEPENDS
     ${SERF_SOURCE_DIR}/*.c
     ${SERF_SOURCE_DIR}/auth/*.c
@@ -166,6 +190,12 @@ target_include_directories(serf PRIVATE
     ${SERF_SOURCE_DIR}
     ${SERF_SOURCE_DIR}/auth
     ${SERF_SOURCE_DIR}/buckets
+    ${CMAKE_CURRENT_SOURCE_DIR}/../apr-util/include
+    ${CMAKE_CURRENT_BINARY_DIR}/apr-util
+)
+
+target_include_directories(serf INTERFACE
+    ${SERF_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../apr-util/include
     ${CMAKE_CURRENT_BINARY_DIR}/apr-util
 )
@@ -210,6 +240,34 @@ set(UTF8PROC_ENABLE_TESTING OFF CACHE BOOL "Disable testing")
 set(LIB_FUZZING_ENGINE OFF CACHE BOOL "Disable fuzzing")
 add_subdirectory(../utf8proc "utf8proc")
 
+add_library(external-serf INTERFACE)
+target_link_libraries(external-serf INTERFACE serf)
+target_include_directories(external-serf INTERFACE ${SERF_SOURCE_DIR})
+
+set(SVN_IN_TREE_APR ON)
+set(SVN_ENABLE_SVNXX ON CACHE BOOL "Enable C++ bindings" FORCE)
+set(SVN_ENABLE_PROGRAMS OFF CACHE BOOL "Disable programs" FORCE)
+set(SVN_ENABLE_TOOLS OFF CACHE BOOL "Disable tools" FORCE)
+set(SVN_ENABLE_TESTS OFF CACHE BOOL "Disable tests" FORCE)
+set(SVN_ENABLE_APACHE_MODULES OFF CACHE BOOL "Disable Apache modules" FORCE)
+set(SVN_ENABLE_NLS OFF CACHE BOOL "Disable gettext functionality" FORCE)
+set(SVN_ENABLE_TUI OFF CACHE BOOL "Disable TUI applications" FORCE)
+set(SVN_ENABLE_AUTH_KWALLET OFF CACHE BOOL "Disable KWallet" FORCE)
+set(SVN_ENABLE_AUTH_GNOME_KEYRING OFF CACHE BOOL "Disable GNOME Keyring" FORCE)
+set(SVN_ENABLE_SWIG_PERL OFF CACHE BOOL "Disable Perl bindings" FORCE)
+set(SVN_ENABLE_SWIG_PYTHON OFF CACHE BOOL "Disable Python bindings" FORCE)
+set(SVN_ENABLE_SWIG_RUBY OFF CACHE BOOL "Disable Ruby bindings" FORCE)
+set(SVN_ENABLE_JAVAHL OFF CACHE BOOL "Disable JavaHL" FORCE)
+set(SVN_ENABLE_SASL ON CACHE BOOL "Enable SASL" FORCE)
+set(SVN_ENABLE_LIBMAGIC OFF CACHE BOOL "Disable LIBMAGIC" FORCE)
+set(SVN_ENABLE_RA_SERF ON CACHE BOOL "Enable serf RA" FORCE)
+set(SVN_ENABLE_RA_SVN ON CACHE BOOL "Enable svn RA" FORCE)
+set(SVN_ENABLE_RA_LOCAL ON CACHE BOOL "Enable local RA" FORCE)
+set(SVN_ENABLE_FS_FS ON CACHE BOOL "Enable FSFS" FORCE)
+set(SVN_ENABLE_FS_X ON CACHE BOOL "Enable FSX" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libraries" FORCE)
+add_subdirectory(../subversion "subversion")
+
 target_link_libraries(SvnRepo PRIVATE
     Qt6::Core
     Qt6::Gui
@@ -227,10 +285,12 @@ target_link_libraries(SvnRepo PRIVATE
     sqlite3
     expat::expat
     utf8proc
+    libsvn_subr
 )
 
 target_include_directories(SvnRepo PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/include
+   ${CMAKE_CURRENT_SOURCE_DIR}/../subversion/subversion/include
    ../../lib/qca/include/QtCrypto
    ${CMAKE_CURRENT_BINARY_DIR}/QCA
    ${CMAKE_CURRENT_BINARY_DIR}/..

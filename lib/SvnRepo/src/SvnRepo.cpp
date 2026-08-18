@@ -1,4 +1,4 @@
-#include "SvnRepo.h"
+#include "../include/SvnRepo.h"
 
 bool svn_init()
 {

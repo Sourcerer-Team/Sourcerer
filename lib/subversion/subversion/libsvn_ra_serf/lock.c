@@ -23,9 +23,11 @@
 
 
 
+#define APR_WANT_STRFUNC
 #include <apr_uri.h>
 #include <serf.h>
 #include <assert.h>
+#include <apr_want.h>
 
 #include "svn_dav.h"
 #include "svn_hash.h"

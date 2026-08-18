@@ -31,6 +31,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <signal.h>
 #else
 #include <crtdbg.h>
 #include <io.h>
@@ -1385,8 +1386,8 @@ svn_cmdline__cancellation_exit(void)
     {
 #ifndef WIN32
       apr_signal(signum, SIG_DFL);
-      /* No APR support for getpid() so cannot use apr_proc_kill(). */
-      kill(getpid(), signum);
+      /* Raise the same signal in this process. */
+      raise(signum);
 #endif
     }
 }
