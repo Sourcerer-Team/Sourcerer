@@ -27,6 +27,10 @@
 #define APR_WANT_MEMFUNC /**< For no good reason? */
 #include "apr_want.h"
 
+#ifndef __attribute__
+#define __attribute__(__x)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -71,8 +75,7 @@ struct apr_memnode_t {
  * @param allocator The allocator we have just created.
  *
  */
-APR_DECLARE(apr_status_t) apr_allocator_create(apr_allocator_t **allocator)
-                          __attribute__((nonnull(1)));
+APR_DECLARE(apr_status_t) apr_allocator_create(apr_allocator_t **allocator);
 
 /**
  * Destroy an allocator
@@ -80,8 +83,7 @@ APR_DECLARE(apr_status_t) apr_allocator_create(apr_allocator_t **allocator)
  * @remark Any memnodes not given back to the allocator prior to destroying
  *         will _not_ be free()d.
  */
-APR_DECLARE(void) apr_allocator_destroy(apr_allocator_t *allocator)
-                  __attribute__((nonnull(1)));
+APR_DECLARE(void) apr_allocator_destroy(apr_allocator_t *allocator);
 
 /**
  * Allocate a block of mem from the allocator
@@ -90,8 +92,7 @@ APR_DECLARE(void) apr_allocator_destroy(apr_allocator_t *allocator)
  *        memnode structure)
  */
 APR_DECLARE(apr_memnode_t *) apr_allocator_alloc(apr_allocator_t *allocator,
-                                                 apr_size_t size)
-                             __attribute__((nonnull(1)));
+                                                 apr_size_t size);
 
 /**
  * Free a list of blocks of mem, giving them back to the allocator.
@@ -101,8 +102,7 @@ APR_DECLARE(apr_memnode_t *) apr_allocator_alloc(apr_allocator_t *allocator,
  * @param memnode The memory node to return
  */
 APR_DECLARE(void) apr_allocator_free(apr_allocator_t *allocator,
-                                     apr_memnode_t *memnode)
-                  __attribute__((nonnull(1,2)));
+                                     apr_memnode_t *memnode);
  
 /**
  * Get the true size that would be allocated for the given size (including
@@ -128,15 +128,13 @@ APR_DECLARE(apr_size_t) apr_allocator_align(apr_allocator_t *allocator,
  * the allocator will never be destroyed.
  */
 APR_DECLARE(void) apr_allocator_owner_set(apr_allocator_t *allocator,
-                                          apr_pool_t *pool)
-                  __attribute__((nonnull(1)));
+                                          apr_pool_t *pool);
 
 /**
  * Get the current owner of the allocator
  * @param allocator The allocator to get the owner from
  */
-APR_DECLARE(apr_pool_t *) apr_allocator_owner_get(apr_allocator_t *allocator)
-                          __attribute__((nonnull(1)));
+APR_DECLARE(apr_pool_t *) apr_allocator_owner_get(apr_allocator_t *allocator);
 
 /**
  * Set the current threshold at which the allocator should start
@@ -145,8 +143,7 @@ APR_DECLARE(apr_pool_t *) apr_allocator_owner_get(apr_allocator_t *allocator)
  * @param size The threshold.  0 == unlimited.
  */
 APR_DECLARE(void) apr_allocator_max_free_set(apr_allocator_t *allocator,
-                                             apr_size_t size)
-                  __attribute__((nonnull(1)));
+                                             apr_size_t size);
 
 #include "apr_thread_mutex.h"
 
@@ -157,16 +154,14 @@ APR_DECLARE(void) apr_allocator_max_free_set(apr_allocator_t *allocator,
  * @param mutex The mutex
  */
 APR_DECLARE(void) apr_allocator_mutex_set(apr_allocator_t *allocator,
-                                          apr_thread_mutex_t *mutex)
-                  __attribute__((nonnull(1)));
+                                          apr_thread_mutex_t *mutex);
 
 /**
  * Get the mutex currently set for the allocator
  * @param allocator The allocator
  */
 APR_DECLARE(apr_thread_mutex_t *) apr_allocator_mutex_get(
-                                          apr_allocator_t *allocator)
-                                  __attribute__((nonnull(1)));
+                                          apr_allocator_t *allocator);
 
 #endif /* APR_HAS_THREADS */
 

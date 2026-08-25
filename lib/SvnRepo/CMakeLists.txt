@@ -285,12 +285,20 @@ target_link_libraries(SvnRepo PRIVATE
     sqlite3
     expat::expat
     utf8proc
+    libsvnxx
+    libsvn_client
+    libsvn_wc
+    libsvn_ra
+    libsvn_delta
+    libsvn_diff
+    libsvn_fs
     libsvn_subr
 )
 
 target_include_directories(SvnRepo PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/include
    ${CMAKE_CURRENT_SOURCE_DIR}/../subversion/subversion/include
+   ${CMAKE_CURRENT_SOURCE_DIR}/../subversion/subversion/bindings/cxx/include
    ../../lib/qca/include/QtCrypto
    ${CMAKE_CURRENT_BINARY_DIR}/QCA
    ${CMAKE_CURRENT_BINARY_DIR}/..

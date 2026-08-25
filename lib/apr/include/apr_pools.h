@@ -46,6 +46,10 @@
 #define APR_WANT_MEMFUNC /**< for no good reason? */
 #include "apr_want.h"
 
+#ifndef __attribute__
+#define __attribute__(__x)
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -196,8 +200,7 @@ APR_DECLARE(void) apr_pool_terminate(void);
 APR_DECLARE(apr_status_t) apr_pool_create_ex(apr_pool_t **newpool,
                                              apr_pool_t *parent,
                                              apr_abortfunc_t abort_fn,
-                                             apr_allocator_t *allocator)
-                          __attribute__((nonnull(1)));
+                                             apr_allocator_t *allocator);
 
 /**
  * Create a new pool.
@@ -225,8 +228,7 @@ APR_DECLARE(apr_status_t) apr_pool_create_core_ex(apr_pool_t **newpool,
  */
 APR_DECLARE(apr_status_t) apr_pool_create_unmanaged_ex(apr_pool_t **newpool,
                                                    apr_abortfunc_t abort_fn,
-                                                   apr_allocator_t *allocator)
-                          __attribute__((nonnull(1)));
+                                                   apr_allocator_t *allocator);
 
 /**
  * Debug version of apr_pool_create_ex.
@@ -248,8 +250,7 @@ APR_DECLARE(apr_status_t) apr_pool_create_ex_debug(apr_pool_t **newpool,
                                                    apr_pool_t *parent,
                                                    apr_abortfunc_t abort_fn,
                                                    apr_allocator_t *allocator,
-                                                   const char *file_line)
-                          __attribute__((nonnull(1)));
+                                                   const char *file_line);
 
 #if APR_POOL_DEBUG
 #define apr_pool_create_ex(newpool, parent, abort_fn, allocator)  \
@@ -284,8 +285,7 @@ APR_DECLARE(apr_status_t) apr_pool_create_core_ex_debug(apr_pool_t **newpool,
 APR_DECLARE(apr_status_t) apr_pool_create_unmanaged_ex_debug(apr_pool_t **newpool,
                                                    apr_abortfunc_t abort_fn,
                                                    apr_allocator_t *allocator,
-                                                   const char *file_line)
-                          __attribute__((nonnull(1)));
+                                                   const char *file_line);
 
 #if APR_POOL_DEBUG
 #define apr_pool_create_core_ex(newpool, abort_fn, allocator)  \
@@ -351,8 +351,7 @@ APR_DECLARE(apr_status_t) apr_pool_create_unmanaged(apr_pool_t **newpool);
  * Find the pool's allocator
  * @param pool The pool to get the allocator from.
  */
-APR_DECLARE(apr_allocator_t *) apr_pool_allocator_get(apr_pool_t *pool)
-                               __attribute__((nonnull(1)));
+APR_DECLARE(apr_allocator_t *) apr_pool_allocator_get(apr_pool_t *pool);
 
 /**
  * Clear all memory in the pool and run all the cleanups. This also destroys all
@@ -362,7 +361,7 @@ APR_DECLARE(apr_allocator_t *) apr_pool_allocator_get(apr_pool_t *pool)
  *         to re-use this memory for the next allocation.
  * @see apr_pool_destroy()
  */
-APR_DECLARE(void) apr_pool_clear(apr_pool_t *p) __attribute__((nonnull(1)));
+APR_DECLARE(void) apr_pool_clear(apr_pool_t *p);
 
 /**
  * Debug version of apr_pool_clear.
@@ -378,8 +377,7 @@ APR_DECLARE(void) apr_pool_clear(apr_pool_t *p) __attribute__((nonnull(1)));
  *         and don't call apr_pool_destroy_clear directly.
  */
 APR_DECLARE(void) apr_pool_clear_debug(apr_pool_t *p,
-                                       const char *file_line)
-                  __attribute__((nonnull(1)));
+                                       const char *file_line);
 
 #if APR_POOL_DEBUG
 #define apr_pool_clear(p) \
@@ -392,7 +390,7 @@ APR_DECLARE(void) apr_pool_clear_debug(apr_pool_t *p,
  * @param p The pool to destroy
  * @remark This will actually free the memory
  */
-APR_DECLARE(void) apr_pool_destroy(apr_pool_t *p) __attribute__((nonnull(1)));
+APR_DECLARE(void) apr_pool_destroy(apr_pool_t *p);
 
 /**
  * Debug version of apr_pool_destroy.

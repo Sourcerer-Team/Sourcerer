@@ -101,3 +101,9 @@ lib/zlib/contrib/nuget/obj/**
 __cmake_systeminformation/**
 
 .cache/**
+
+lib/cyrus-sasl/lib/binexclude.lst
+
+lib/cyrus-sasl/lib/libsasl.exp
+
+lib/cyrus-sasl/lib/libsasl.lib
