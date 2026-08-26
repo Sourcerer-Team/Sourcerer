@@ -11,12 +11,12 @@
 
 namespace GitRepoManager {
 
-class ProcessingState final : public GitRepoManagerState {
+class GitRepoManagerProcessingState final : public GitRepoManagerState {
   Q_OBJECT
 
 public:
-  explicit ProcessingState(GitRepoManagerFsm &fsm);
-  ~ProcessingState() override;
+  explicit GitRepoManagerProcessingState(GitRepoManagerFsm &fsm);
+  ~GitRepoManagerProcessingState() override;
 
   // FsmState interface
 public:

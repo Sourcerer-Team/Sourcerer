@@ -9,7 +9,13 @@
 #include <QThread>
 
 #include <atomic>
+#include <functional>
 #include <limits>
+
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
 #include <map>
 #include <set>
 #include <unordered_map>
@@ -18,8 +24,8 @@ namespace EventManager {
 
 #define CAPTURE_CALLBACK(type, callback) {type, this, callback}
 
-const ulong DEFAULT_WAIT_TIMEOUT =
-    std::numeric_limits<ulong>::max(); // indefinite wait time
+const unsigned long DEFAULT_WAIT_TIMEOUT =
+    (std::numeric_limits<unsigned long>::max)(); // indefinite wait time
 
 enum class EventRecordType { Quit = 0, Send };
 
@@ -75,14 +81,14 @@ public:
   std::tuple<bool, Event>
   waitOneOf(int token, const std::set<EventType> &eventTypes,
             std::function<bool(Event)> predicate = nullptr,
-            ulong timeout = DEFAULT_WAIT_TIMEOUT);
+            unsigned long timeout = DEFAULT_WAIT_TIMEOUT);
 
   std::tuple<bool, Event> waitForAnswer(int token, const QString &uuid,
-                                        ulong timeout = DEFAULT_WAIT_TIMEOUT);
+                                        unsigned long timeout = DEFAULT_WAIT_TIMEOUT);
 
   std::tuple<bool, Event> waitForAnswer(int token, const QString &uuid,
                                         const std::set<EventType> &types,
-                                        ulong timeout = DEFAULT_WAIT_TIMEOUT);
+                                        unsigned long timeout = DEFAULT_WAIT_TIMEOUT);
 
   QString eventName(EventType type) const;
 

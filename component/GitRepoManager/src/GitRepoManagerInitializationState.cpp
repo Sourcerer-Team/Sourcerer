@@ -1,24 +1,25 @@
-#include "InitializationState.h"
 #include "GitRepoManagerEvent.h"
+#include "GitRepoManagerInitializationState.h"
 
 #include <Log.h>
 
-#define THREAD_ID "InitializationState"
+#define THREAD_ID "GitRepoManagerInitializationState"
 
 namespace GitRepoManager {
 
-InitializationState::InitializationState(GitRepoManagerFsm &fsm)
+GitRepoManagerInitializationState::GitRepoManagerInitializationState(
+    GitRepoManagerFsm &fsm)
     : GitRepoManagerState{StateType::Initialization, fsm} {
   LOG_PERF(0, "Enter");
   LOG_PERF(0, "Exit");
 }
 
-void InitializationState::enter() {
+void GitRepoManagerInitializationState::enter() {
   LOG_PERF(0, "Enter");
   LOG_PERF(0, "Exit");
 }
 
-bool InitializationState::process(Fsm::FsmEvent event) {
+bool GitRepoManagerInitializationState::process(Fsm::FsmEvent event) {
   LOG_PERF(0, "Enter");
 
   const EventType type = static_cast<EventType>(event.type());
@@ -41,7 +42,7 @@ bool InitializationState::process(Fsm::FsmEvent event) {
   return true;
 }
 
-void InitializationState::exit() {
+void GitRepoManagerInitializationState::exit() {
   LOG_PERF(0, "Enter");
   LOG_PERF(0, "Exit");
 }

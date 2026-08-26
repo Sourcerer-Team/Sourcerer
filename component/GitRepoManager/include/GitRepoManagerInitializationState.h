@@ -4,9 +4,9 @@
 
 namespace GitRepoManager {
 
-class InitializationState : public GitRepoManagerState {
+class GitRepoManagerInitializationState : public GitRepoManagerState {
 public:
-  InitializationState(GitRepoManagerFsm &fsm);
+  GitRepoManagerInitializationState(GitRepoManagerFsm &fsm);
 
   // FsmState interface
 public:

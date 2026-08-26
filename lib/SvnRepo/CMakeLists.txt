@@ -21,6 +21,7 @@ add_compile_definitions(QT_USE_STRING_BUILDER)
 add_library(SvnRepo STATIC
     include/SvnRepo.h
     src/SvnRepo.cpp
+    src/SvnRepoPlaceholders.cpp
 )
 
 include(../../cmake/helpers.cmake)

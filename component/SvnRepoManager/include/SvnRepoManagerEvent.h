@@ -1,0 +1,95 @@
+#pragma once
+
+#include <FsmEvent.h>
+
+namespace SvnRepoManager {
+
+enum class EventType : int {
+  Unknown = -2,
+
+  Stop = -1,
+  ChangeState = 0,
+  AbortMerge,
+  AddRemote,
+  AddSubmodule,
+  AddTarget,
+  Amend,
+  ApplyPatch,
+  ApplyStash,
+  CheckoutBranch,
+  CheckoutCommit,
+  CloneRepo,
+  CloseRepo,
+  CommitStaged,
+  CreateBranchFromCommit,
+  CreatePatchFromCommit,
+  CreateTagFromCommit,
+  DeleteAllStashes,
+  DeleteBranch,
+  DeleteRemoteBranch,
+  DeleteStash,
+  DeleteSubmodule,
+  DeleteTag,
+  DeleteTarget,
+  DeleteRemoteTag,
+  DiffFiles,
+  DiffFilesFromCommit,
+  DiscardFiles,
+  EditTarget,
+  FetchAll,
+  FetchRemote,
+  GetActiveBranch,
+  Rebase,
+  GetBranchHistory,
+  GetCommitBranches,
+  GetCommitTags,
+  GetCommitHeads,
+  GetCommitIsHead,
+  GetCommitStatus,
+  GetFileSizeFromCommit,
+  GetIsMergeInProgress,
+  GetStashStatus,
+  GetSubmodulePath,
+  GetUpstream,
+  Init,
+  ListConflicts,
+  ListLocalBranches,
+  ListRemoteBranches,
+  ListRemoteBranchesWithStatus,
+  ListRemotes,
+  ListStashes,
+  ListSubmodules,
+  ListSubmodulesWithStatus,
+  ListTags,
+  Merge,
+  OpenRepo,
+  Pull,
+  Push,
+  PushTag,
+  PushAllTags,
+  RemoveRemote,
+  RenameBranch,
+  RenameTag,
+  Reset,
+  Revert,
+  CherryPick,
+  SetDefaultRemote,
+  SetDefaultTarget,
+  Setup,
+  SetUpstream,
+  StageFiles,
+  Stash,
+  Status,
+  SubmoduleUpdate,
+  UnstageFiles,
+  UpdateRemote,
+
+  last
+};
+
+class SvnRepoManagerEvent final : public Fsm::FsmEvent {
+public:
+  explicit SvnRepoManagerEvent(EventType type);
+};
+
+} // namespace GitRepoManager

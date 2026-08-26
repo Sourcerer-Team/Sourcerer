@@ -1,4 +1,4 @@
-#include "ProcessingState.h"
+#include "GitRepoManagerProcessingState.h"
 #include "GitRepoManagerEvent.h"
 #include "GitRepoManagerStructs.h"
 
@@ -9,19 +9,21 @@
 
 #include <functional>
 
-#define THREAD_ID "ProcessingState"
+#define THREAD_ID "GitRepoManagerProcessingState"
 
 using namespace GitRepoManager::Structs;
 
 namespace GitRepoManager {
 
-ProcessingState::ProcessingState(GitRepoManagerFsm &fsm)
+GitRepoManagerProcessingState::GitRepoManagerProcessingState(
+    GitRepoManagerFsm &fsm)
     : GitRepoManagerState{StateType::Processing, fsm}, _quitAll{false},
       _eventManager{EventManager::EventManager::getInstance()} {
   LOG_PERF(0, "Enter");
 
   const auto eventCallbackFunc =
-      std::bind(&ProcessingState::eventCallback, this, std::placeholders::_1);
+      std::bind(&GitRepoManagerProcessingState::eventCallback, this,
+                std::placeholders::_1);
 
   _eventManager.subscribe(
       CAPTURE_CALLBACK(EventManager::EventType::GitRepoManagerCloneRepoError,
@@ -40,11 +42,12 @@ ProcessingState::ProcessingState(GitRepoManagerFsm &fsm)
   LOG_PERF(0, "Exit");
 }
 
-ProcessingState::~ProcessingState() {
+GitRepoManagerProcessingState::~GitRepoManagerProcessingState() {
   LOG_PERF(0, "Enter");
 
   const auto eventCallbackFunc =
-      std::bind(&ProcessingState::eventCallback, this, std::placeholders::_1);
+      std::bind(&GitRepoManagerProcessingState::eventCallback, this,
+                std::placeholders::_1);
 
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepoError, eventCallbackFunc));
@@ -63,7 +66,7 @@ ProcessingState::~ProcessingState() {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::enter() {
+void GitRepoManagerProcessingState::enter() {
   LOG_PERF(0, "Enter");
 
   _quitAll = false;
@@ -71,7 +74,7 @@ void ProcessingState::enter() {
   LOG_PERF(0, "Exit");
 }
 
-bool ProcessingState::process(Fsm::FsmEvent event) {
+bool GitRepoManagerProcessingState::process(Fsm::FsmEvent event) {
   LOG_PERF(0, "Enter");
   LOG_PERF(0, "Exit");
 
@@ -499,7 +502,7 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
   return true;
 }
 
-void ProcessingState::exit() {
+void GitRepoManagerProcessingState::exit() {
   LOG_PERF(0, "Enter");
 
   destroyContextsMap();
@@ -507,7 +510,7 @@ void ProcessingState::exit() {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::abortMergeWorker(
+void GitRepoManagerProcessingState::abortMergeWorker(
     const Structs::GitRepoAbortMergeCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -547,7 +550,7 @@ void ProcessingState::abortMergeWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::addSubmoduleWorker(
+void GitRepoManagerProcessingState::addSubmoduleWorker(
     const Structs::GitRepoAddSubmoduleCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -588,7 +591,8 @@ void ProcessingState::addSubmoduleWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::amendWorker(const Structs::GitRepoAmendCommand &command) {
+void GitRepoManagerProcessingState::amendWorker(
+    const Structs::GitRepoAmendCommand &command) {
   LOG_PERF(0, "Enter");
 
   const GitRepoContext *ctx = context(command.uuid);
@@ -626,7 +630,7 @@ void ProcessingState::amendWorker(const Structs::GitRepoAmendCommand &command) {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::applyPatchWorker(
+void GitRepoManagerProcessingState::applyPatchWorker(
     const Structs::GitRepoApplyPatchCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -666,7 +670,7 @@ void ProcessingState::applyPatchWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::applyStashWorker(
+void GitRepoManagerProcessingState::applyStashWorker(
     const Structs::GitRepoApplyStashCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -723,7 +727,7 @@ void ProcessingState::applyStashWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::checkoutBranchWorker(
+void GitRepoManagerProcessingState::checkoutBranchWorker(
     const Structs::GitRepoCheckoutBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -774,7 +778,7 @@ void ProcessingState::checkoutBranchWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::checkoutCommitWorker(
+void GitRepoManagerProcessingState::checkoutCommitWorker(
     const Structs::GitRepoCheckoutCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -814,7 +818,8 @@ void ProcessingState::checkoutCommitWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::cloneRepoWorker(const GitRepoCloneCommand &command) {
+void GitRepoManagerProcessingState::cloneRepoWorker(
+    const GitRepoCloneCommand &command) {
   LOG_PERF(0, "Enter");
 
   GitRepoContext *ctx = context(command.uuid);
@@ -852,7 +857,7 @@ void ProcessingState::cloneRepoWorker(const GitRepoCloneCommand &command) {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::closeRepoWorker(
+void GitRepoManagerProcessingState::closeRepoWorker(
     const Structs::GitRepoCloseCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -886,7 +891,7 @@ void ProcessingState::closeRepoWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::commitStagedWorker(
+void GitRepoManagerProcessingState::commitStagedWorker(
     const Structs::GitRepoCommitStagedCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -928,7 +933,7 @@ void ProcessingState::commitStagedWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::createBranchFromCommitWorker(
+void GitRepoManagerProcessingState::createBranchFromCommitWorker(
     const Structs::GitRepoCreateBranchFromCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -970,7 +975,7 @@ void ProcessingState::createBranchFromCommitWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::createPatchFromCommitWorker(
+void GitRepoManagerProcessingState::createPatchFromCommitWorker(
     const Structs::GitRepoCreatePatchFromCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1015,7 +1020,7 @@ void ProcessingState::createPatchFromCommitWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::createTagFromCommitWorker(
+void GitRepoManagerProcessingState::createTagFromCommitWorker(
     const Structs::GitRepoCreateTagFromCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1057,7 +1062,7 @@ void ProcessingState::createTagFromCommitWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::addTargetWorker(
+void GitRepoManagerProcessingState::addTargetWorker(
     const Structs::GitRepoAddTargetCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1099,7 +1104,7 @@ void ProcessingState::addTargetWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::editTargetWorker(
+void GitRepoManagerProcessingState::editTargetWorker(
     const Structs::GitRepoEditTargetCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1141,7 +1146,7 @@ void ProcessingState::editTargetWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::deleteTargetWorker(
+void GitRepoManagerProcessingState::deleteTargetWorker(
     const Structs::GitRepoDeleteTargetCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1182,7 +1187,7 @@ void ProcessingState::deleteTargetWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::setDefaultTargetWorker(
+void GitRepoManagerProcessingState::setDefaultTargetWorker(
     const Structs::GitRepoSetDefaultTargetCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1223,7 +1228,7 @@ void ProcessingState::setDefaultTargetWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::quitRepoWorker(
+void GitRepoManagerProcessingState::quitRepoWorker(
     const Structs::GitRepoQuitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1257,7 +1262,8 @@ void ProcessingState::quitRepoWorker(
   LOG_PERF(0, "Exit");
 }
 
-Structs::GitRepoContext *ProcessingState::context(const QString &uuid) {
+Structs::GitRepoContext *
+GitRepoManagerProcessingState::context(const QString &uuid) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_contextsMutex);
@@ -1267,7 +1273,7 @@ Structs::GitRepoContext *ProcessingState::context(const QString &uuid) {
   return _contexts[uuid];
 }
 
-void ProcessingState::destroyContext(const QString &uuid) {
+void GitRepoManagerProcessingState::destroyContext(const QString &uuid) {
   LOG_PERF(0, "Enter");
 
   GitRepoContext *ctx = context(uuid);
@@ -1295,7 +1301,7 @@ void ProcessingState::destroyContext(const QString &uuid) {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::destroyContextsMap() {
+void GitRepoManagerProcessingState::destroyContextsMap() {
   LOG_PERF(0, "Enter");
 
   QStringList uuids;
@@ -1313,7 +1319,7 @@ void ProcessingState::destroyContextsMap() {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::deleteBranchWorker(
+void GitRepoManagerProcessingState::deleteBranchWorker(
     const Structs::GitRepoDeleteBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1353,7 +1359,7 @@ void ProcessingState::deleteBranchWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::deleteRemoteBranchWorker(
+void GitRepoManagerProcessingState::deleteRemoteBranchWorker(
     const Structs::GitRepoDeleteRemoteBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1394,7 +1400,7 @@ void ProcessingState::deleteRemoteBranchWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::deleteStashWorker(
+void GitRepoManagerProcessingState::deleteStashWorker(
     const Structs::GitRepoDeleteStashCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1434,7 +1440,7 @@ void ProcessingState::deleteStashWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::deleteAllStashesWorker(
+void GitRepoManagerProcessingState::deleteAllStashesWorker(
     const Structs::GitRepoDeleteAllStashesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1473,7 +1479,7 @@ void ProcessingState::deleteAllStashesWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::deleteSubmoduleWorker(
+void GitRepoManagerProcessingState::deleteSubmoduleWorker(
     const Structs::GitRepoDeleteSubmoduleCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1514,7 +1520,7 @@ void ProcessingState::deleteSubmoduleWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::deleteTagWorker(
+void GitRepoManagerProcessingState::deleteTagWorker(
     const Structs::GitRepoDeleteTagCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1554,7 +1560,7 @@ void ProcessingState::deleteTagWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::deleteRemoteTagWorker(
+void GitRepoManagerProcessingState::deleteRemoteTagWorker(
     const Structs::GitRepoDeleteRemoteTagCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1594,7 +1600,7 @@ void ProcessingState::deleteRemoteTagWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::diffFilesWorker(
+void GitRepoManagerProcessingState::diffFilesWorker(
     const Structs::GitRepoDiffFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1641,7 +1647,7 @@ void ProcessingState::diffFilesWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::diffFilesFromCommitWorker(
+void GitRepoManagerProcessingState::diffFilesFromCommitWorker(
     const Structs::GitRepoDiffFilesFromCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1689,7 +1695,7 @@ void ProcessingState::diffFilesFromCommitWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::discardFilesWorker(
+void GitRepoManagerProcessingState::discardFilesWorker(
     const Structs::GitRepoDiscardFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1729,7 +1735,8 @@ void ProcessingState::discardFilesWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::eventCallback(const EventManager::Event event) {
+void GitRepoManagerProcessingState::eventCallback(
+    const EventManager::Event event) {
   LOG_PERF(0, "Enter");
 
   const EventManager::EventType eventType = event.type();
@@ -1771,7 +1778,7 @@ void ProcessingState::eventCallback(const EventManager::Event event) {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::fetchAllWorker(
+void GitRepoManagerProcessingState::fetchAllWorker(
     const Structs::GitRepoFetchAllCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1810,7 +1817,7 @@ void ProcessingState::fetchAllWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::fetchRemoteWorker(
+void GitRepoManagerProcessingState::fetchRemoteWorker(
     const Structs::GitRepoFetchRemoteCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1850,7 +1857,7 @@ void ProcessingState::fetchRemoteWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::rebaseWorker(
+void GitRepoManagerProcessingState::rebaseWorker(
     const Structs::GitRepoRebaseCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1890,7 +1897,7 @@ void ProcessingState::rebaseWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForFetchAll(
+void GitRepoManagerProcessingState::scheduleWorkerForFetchAll(
     const Structs::GitRepoFetchAllCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1909,7 +1916,7 @@ void ProcessingState::scheduleWorkerForFetchAll(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForFetchRemote(
+void GitRepoManagerProcessingState::scheduleWorkerForFetchRemote(
     const Structs::GitRepoFetchRemoteCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1928,7 +1935,7 @@ void ProcessingState::scheduleWorkerForFetchRemote(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForRebase(
+void GitRepoManagerProcessingState::scheduleWorkerForRebase(
     const Structs::GitRepoRebaseCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1947,7 +1954,7 @@ void ProcessingState::scheduleWorkerForRebase(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::getFileSizeFromCommitWorker(
+void GitRepoManagerProcessingState::getFileSizeFromCommitWorker(
     const Structs::GitRepoGetFileSizeFromCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -1993,7 +2000,7 @@ void ProcessingState::getFileSizeFromCommitWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::getActiveBranchWorker(
+void GitRepoManagerProcessingState::getActiveBranchWorker(
     const Structs::GitRepoGetActiveBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2039,7 +2046,7 @@ void ProcessingState::getActiveBranchWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::getCommitBranchesWorker(
+void GitRepoManagerProcessingState::getCommitBranchesWorker(
     const Structs::GitRepoGetCommitBranchesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2089,7 +2096,7 @@ void ProcessingState::getCommitBranchesWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::getCommitHeadsWorker(
+void GitRepoManagerProcessingState::getCommitHeadsWorker(
     const Structs::GitRepoGetCommitHeadsCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2138,7 +2145,7 @@ void ProcessingState::getCommitHeadsWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::getCommitIsHeadWorker(
+void GitRepoManagerProcessingState::getCommitIsHeadWorker(
     const Structs::GitRepoGetCommitIsHeadCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2179,7 +2186,7 @@ void ProcessingState::getCommitIsHeadWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::getCommitStatusWorker(
+void GitRepoManagerProcessingState::getCommitStatusWorker(
     const Structs::GitRepoGetCommitStatusCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2220,7 +2227,7 @@ void ProcessingState::getCommitStatusWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::getStashStatusWorker(
+void GitRepoManagerProcessingState::getStashStatusWorker(
     const Structs::GitRepoGetStashStatusCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2260,7 +2267,7 @@ void ProcessingState::getStashStatusWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::getIsMergeInProgressWorker(
+void GitRepoManagerProcessingState::getIsMergeInProgressWorker(
     const Structs::GitRepoGetIsMergeInProgressCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2292,7 +2299,7 @@ void ProcessingState::getIsMergeInProgressWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::getBranchHistoryWorker(
+void GitRepoManagerProcessingState::getBranchHistoryWorker(
     const Structs::GitRepoGetBranchHistoryCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2349,7 +2356,7 @@ void ProcessingState::getBranchHistoryWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::getSubmodulePathWorker(
+void GitRepoManagerProcessingState::getSubmodulePathWorker(
     const Structs::GitRepoGetSubmodulePathCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2392,7 +2399,7 @@ void ProcessingState::getSubmodulePathWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::getUpstreamWorker(
+void GitRepoManagerProcessingState::getUpstreamWorker(
     const Structs::GitRepoGetUpstreamCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2437,7 +2444,7 @@ void ProcessingState::getUpstreamWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::initRepoWorker(
+void GitRepoManagerProcessingState::initRepoWorker(
     const Structs::GitRepoInitRepoCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2476,7 +2483,7 @@ void ProcessingState::initRepoWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::listConflictsWorker(
+void GitRepoManagerProcessingState::listConflictsWorker(
     const Structs::GitRepoListConflictsCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2511,7 +2518,7 @@ void ProcessingState::listConflictsWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::listLocalBranchesWorker(
+void GitRepoManagerProcessingState::listLocalBranchesWorker(
     const Structs::GitRepoListLocalBranchesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2552,7 +2559,7 @@ void ProcessingState::listLocalBranchesWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::listRemoteBranchesWorker(
+void GitRepoManagerProcessingState::listRemoteBranchesWorker(
     const Structs::GitRepoListRemoteBranchesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2593,7 +2600,7 @@ void ProcessingState::listRemoteBranchesWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::listRemoteBranchesWithStatusWorker(
+void GitRepoManagerProcessingState::listRemoteBranchesWithStatusWorker(
     const Structs::GitRepoListRemoteBranchesWithStatusCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2639,7 +2646,7 @@ void ProcessingState::listRemoteBranchesWithStatusWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::listStashesWorker(
+void GitRepoManagerProcessingState::listStashesWorker(
     const Structs::GitRepoListStashesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2680,7 +2687,7 @@ void ProcessingState::listStashesWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::listSubmodulesWorker(
+void GitRepoManagerProcessingState::listSubmodulesWorker(
     const Structs::GitRepoListSubmodulesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2711,7 +2718,7 @@ void ProcessingState::listSubmodulesWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::listSubmodulesWithStatusWorker(
+void GitRepoManagerProcessingState::listSubmodulesWithStatusWorker(
     const Structs::GitRepoListSubmodulesWithStatusCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2746,7 +2753,7 @@ void ProcessingState::listSubmodulesWithStatusWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForListSubmodulesWithStatus(
+void GitRepoManagerProcessingState::scheduleWorkerForListSubmodulesWithStatus(
     const Structs::GitRepoListSubmodulesWithStatusCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2767,7 +2774,7 @@ void ProcessingState::scheduleWorkerForListSubmodulesWithStatus(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::listTagsWorker(
+void GitRepoManagerProcessingState::listTagsWorker(
     const Structs::GitRepoListTagsCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2797,7 +2804,8 @@ void ProcessingState::listTagsWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::mergeWorker(const Structs::GitRepoMergeCommand &command) {
+void GitRepoManagerProcessingState::mergeWorker(
+    const Structs::GitRepoMergeCommand &command) {
   LOG_PERF(0, "Enter");
 
   const GitRepoContext *ctx = context(command.uuid);
@@ -2827,7 +2835,7 @@ void ProcessingState::mergeWorker(const Structs::GitRepoMergeCommand &command) {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForOpenRepo(
+void GitRepoManagerProcessingState::scheduleWorkerForOpenRepo(
     const GitRepoOpenCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2841,8 +2849,8 @@ void ProcessingState::scheduleWorkerForOpenRepo(
     return;
   }
 
-  const auto workersThreadFunc =
-      std::bind(&ProcessingState::workersThreadFunc, this, command.uuid);
+  const auto workersThreadFunc = std::bind(
+      &GitRepoManagerProcessingState::workersThreadFunc, this, command.uuid);
 
   auto newContext = new GitRepoContext();
   _contexts[command.uuid] = newContext;
@@ -2859,7 +2867,7 @@ void ProcessingState::scheduleWorkerForOpenRepo(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForPull(
+void GitRepoManagerProcessingState::scheduleWorkerForPull(
     const Structs::GitRepoPullCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2878,7 +2886,7 @@ void ProcessingState::scheduleWorkerForPull(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForPush(
+void GitRepoManagerProcessingState::scheduleWorkerForPush(
     const Structs::GitRepoPushCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2897,7 +2905,7 @@ void ProcessingState::scheduleWorkerForPush(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForPushTag(
+void GitRepoManagerProcessingState::scheduleWorkerForPushTag(
     const Structs::GitRepoPushTagCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2916,7 +2924,7 @@ void ProcessingState::scheduleWorkerForPushTag(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForPushAllTags(
+void GitRepoManagerProcessingState::scheduleWorkerForPushAllTags(
     const Structs::GitRepoPushAllTagsCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2935,7 +2943,7 @@ void ProcessingState::scheduleWorkerForPushAllTags(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForRenameBranch(
+void GitRepoManagerProcessingState::scheduleWorkerForRenameBranch(
     const Structs::GitRepoRenameBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2954,7 +2962,7 @@ void ProcessingState::scheduleWorkerForRenameBranch(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForRenameTag(
+void GitRepoManagerProcessingState::scheduleWorkerForRenameTag(
     const Structs::GitRepoRenameTagCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2973,7 +2981,7 @@ void ProcessingState::scheduleWorkerForRenameTag(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForReset(
+void GitRepoManagerProcessingState::scheduleWorkerForReset(
     const Structs::GitRepoResetCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -2992,7 +3000,7 @@ void ProcessingState::scheduleWorkerForReset(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForRevert(
+void GitRepoManagerProcessingState::scheduleWorkerForRevert(
     const Structs::GitRepoRevertCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3011,7 +3019,7 @@ void ProcessingState::scheduleWorkerForRevert(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForSetUpstream(
+void GitRepoManagerProcessingState::scheduleWorkerForSetUpstream(
     const Structs::GitRepoSetUpstreamCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3030,7 +3038,7 @@ void ProcessingState::scheduleWorkerForSetUpstream(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForStageFiles(
+void GitRepoManagerProcessingState::scheduleWorkerForStageFiles(
     const Structs::GitRepoStageFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3049,7 +3057,7 @@ void ProcessingState::scheduleWorkerForStageFiles(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForStash(
+void GitRepoManagerProcessingState::scheduleWorkerForStash(
     const Structs::GitRepoStashCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3068,7 +3076,7 @@ void ProcessingState::scheduleWorkerForStash(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForStatus(
+void GitRepoManagerProcessingState::scheduleWorkerForStatus(
     const Structs::GitRepoStatusCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3087,7 +3095,7 @@ void ProcessingState::scheduleWorkerForStatus(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForSubmoduleUpdate(
+void GitRepoManagerProcessingState::scheduleWorkerForSubmoduleUpdate(
     const Structs::GitRepoSubmoduleUpdateCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3106,7 +3114,7 @@ void ProcessingState::scheduleWorkerForSubmoduleUpdate(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForUnstageFiles(
+void GitRepoManagerProcessingState::scheduleWorkerForUnstageFiles(
     const Structs::GitRepoUnstageFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3125,7 +3133,7 @@ void ProcessingState::scheduleWorkerForUnstageFiles(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForListRemotes(
+void GitRepoManagerProcessingState::scheduleWorkerForListRemotes(
     const Structs::GitRepoListRemotesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3144,7 +3152,7 @@ void ProcessingState::scheduleWorkerForListRemotes(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForAddRemote(
+void GitRepoManagerProcessingState::scheduleWorkerForAddRemote(
     const Structs::GitRepoAddRemoteCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3163,7 +3171,7 @@ void ProcessingState::scheduleWorkerForAddRemote(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForRemoveRemote(
+void GitRepoManagerProcessingState::scheduleWorkerForRemoveRemote(
     const Structs::GitRepoRemoveRemoteCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3182,7 +3190,7 @@ void ProcessingState::scheduleWorkerForRemoveRemote(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForUpdateRemote(
+void GitRepoManagerProcessingState::scheduleWorkerForUpdateRemote(
     const Structs::GitRepoUpdateRemoteCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3201,7 +3209,7 @@ void ProcessingState::scheduleWorkerForUpdateRemote(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForSetDefaultRemote(
+void GitRepoManagerProcessingState::scheduleWorkerForSetDefaultRemote(
     const Structs::GitRepoSetDefaultRemoteCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3220,7 +3228,7 @@ void ProcessingState::scheduleWorkerForSetDefaultRemote(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForAddTarget(
+void GitRepoManagerProcessingState::scheduleWorkerForAddTarget(
     const Structs::GitRepoAddTargetCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3239,7 +3247,7 @@ void ProcessingState::scheduleWorkerForAddTarget(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForEditTarget(
+void GitRepoManagerProcessingState::scheduleWorkerForEditTarget(
     const Structs::GitRepoEditTargetCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3258,7 +3266,7 @@ void ProcessingState::scheduleWorkerForEditTarget(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForDeleteTarget(
+void GitRepoManagerProcessingState::scheduleWorkerForDeleteTarget(
     const Structs::GitRepoDeleteTargetCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3277,7 +3285,7 @@ void ProcessingState::scheduleWorkerForDeleteTarget(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForSetDefaultTarget(
+void GitRepoManagerProcessingState::scheduleWorkerForSetDefaultTarget(
     const Structs::GitRepoSetDefaultTargetCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3296,7 +3304,7 @@ void ProcessingState::scheduleWorkerForSetDefaultTarget(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForQuit(
+void GitRepoManagerProcessingState::scheduleWorkerForQuit(
     const Structs::GitRepoQuitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3315,7 +3323,8 @@ void ProcessingState::scheduleWorkerForQuit(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::openRepoWorker(const GitRepoOpenCommand &command) {
+void GitRepoManagerProcessingState::openRepoWorker(
+    const GitRepoOpenCommand &command) {
   LOG_PERF(0, "Enter");
 
   git_repository *repo = GitRepo::openRepository(command.path);
@@ -3364,7 +3373,8 @@ void ProcessingState::openRepoWorker(const GitRepoOpenCommand &command) {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::pullWorker(const Structs::GitRepoPullCommand &command) {
+void GitRepoManagerProcessingState::pullWorker(
+    const Structs::GitRepoPullCommand &command) {
   LOG_PERF(0, "Enter");
 
   const GitRepoContext *ctx = context(command.uuid);
@@ -3402,7 +3412,8 @@ void ProcessingState::pullWorker(const Structs::GitRepoPullCommand &command) {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::pushWorker(const Structs::GitRepoPushCommand &command) {
+void GitRepoManagerProcessingState::pushWorker(
+    const Structs::GitRepoPushCommand &command) {
   LOG_PERF(0, "Enter");
 
   const GitRepoContext *ctx = context(command.uuid);
@@ -3440,7 +3451,7 @@ void ProcessingState::pushWorker(const Structs::GitRepoPushCommand &command) {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::pushTagWorker(
+void GitRepoManagerProcessingState::pushTagWorker(
     const Structs::GitRepoPushTagCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3478,7 +3489,7 @@ void ProcessingState::pushTagWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::pushAllTagsWorker(
+void GitRepoManagerProcessingState::pushAllTagsWorker(
     const Structs::GitRepoPushAllTagsCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3518,7 +3529,7 @@ void ProcessingState::pushAllTagsWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::renameBranchWorker(
+void GitRepoManagerProcessingState::renameBranchWorker(
     const Structs::GitRepoRenameBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3559,7 +3570,7 @@ void ProcessingState::renameBranchWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::renameTagWorker(
+void GitRepoManagerProcessingState::renameTagWorker(
     const Structs::GitRepoRenameTagCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3600,7 +3611,8 @@ void ProcessingState::renameTagWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::resetWorker(const Structs::GitRepoResetCommand &command) {
+void GitRepoManagerProcessingState::resetWorker(
+    const Structs::GitRepoResetCommand &command) {
   LOG_PERF(0, "Enter");
 
   const GitRepoContext *ctx = context(command.uuid);
@@ -3638,7 +3650,7 @@ void ProcessingState::resetWorker(const Structs::GitRepoResetCommand &command) {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::revertWorker(
+void GitRepoManagerProcessingState::revertWorker(
     const Structs::GitRepoRevertCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3677,7 +3689,7 @@ void ProcessingState::revertWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::cherryPickWorker(
+void GitRepoManagerProcessingState::cherryPickWorker(
     const Structs::GitRepoCherryPickCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3718,7 +3730,7 @@ void ProcessingState::cherryPickWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForCherryPick(
+void GitRepoManagerProcessingState::scheduleWorkerForCherryPick(
     const GitRepoCherryPickCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3737,7 +3749,7 @@ void ProcessingState::scheduleWorkerForCherryPick(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::setUpstreamWorker(
+void GitRepoManagerProcessingState::setUpstreamWorker(
     const Structs::GitRepoSetUpstreamCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3779,7 +3791,7 @@ void ProcessingState::setUpstreamWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::stageFilesWorker(
+void GitRepoManagerProcessingState::stageFilesWorker(
     const Structs::GitRepoStageFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3819,7 +3831,8 @@ void ProcessingState::stageFilesWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::stashWorker(const Structs::GitRepoStashCommand &command) {
+void GitRepoManagerProcessingState::stashWorker(
+    const Structs::GitRepoStashCommand &command) {
   LOG_PERF(0, "Enter");
 
   const GitRepoContext *ctx = context(command.uuid);
@@ -3856,7 +3869,7 @@ void ProcessingState::stashWorker(const Structs::GitRepoStashCommand &command) {
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::statusWorker(
+void GitRepoManagerProcessingState::statusWorker(
     const Structs::GitRepoStatusCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3893,7 +3906,7 @@ void ProcessingState::statusWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::submoduleUpdateWorker(
+void GitRepoManagerProcessingState::submoduleUpdateWorker(
     const Structs::GitRepoSubmoduleUpdateCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3933,7 +3946,7 @@ void ProcessingState::submoduleUpdateWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::unstageFilesWorker(
+void GitRepoManagerProcessingState::unstageFilesWorker(
     const Structs::GitRepoUnstageFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -3973,7 +3986,7 @@ void ProcessingState::unstageFilesWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::listRemotesWorker(
+void GitRepoManagerProcessingState::listRemotesWorker(
     const Structs::GitRepoListRemotesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4005,7 +4018,7 @@ void ProcessingState::listRemotesWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::addRemoteWorker(
+void GitRepoManagerProcessingState::addRemoteWorker(
     const Structs::GitRepoAddRemoteCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4046,7 +4059,7 @@ void ProcessingState::addRemoteWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::removeRemoteWorker(
+void GitRepoManagerProcessingState::removeRemoteWorker(
     const Structs::GitRepoRemoveRemoteCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4086,7 +4099,7 @@ void ProcessingState::removeRemoteWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::updateRemoteWorker(
+void GitRepoManagerProcessingState::updateRemoteWorker(
     const Structs::GitRepoUpdateRemoteCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4128,7 +4141,7 @@ void ProcessingState::updateRemoteWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::setDefaultRemoteWorker(
+void GitRepoManagerProcessingState::setDefaultRemoteWorker(
     const Structs::GitRepoSetDefaultRemoteCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4168,7 +4181,7 @@ void ProcessingState::setDefaultRemoteWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::reportError(
+void GitRepoManagerProcessingState::reportError(
     const EventManager::EventType eventType, const QString &message,
     const Structs::GitRepoCommand &command) const {
   LOG_PERF(0, "Enter");
@@ -4185,7 +4198,7 @@ void ProcessingState::reportError(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForAbortMerge(
+void GitRepoManagerProcessingState::scheduleWorkerForAbortMerge(
     const Structs::GitRepoAbortMergeCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4204,7 +4217,7 @@ void ProcessingState::scheduleWorkerForAbortMerge(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForAddSubmodule(
+void GitRepoManagerProcessingState::scheduleWorkerForAddSubmodule(
     const Structs::GitRepoAddSubmoduleCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4223,7 +4236,7 @@ void ProcessingState::scheduleWorkerForAddSubmodule(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForAmend(
+void GitRepoManagerProcessingState::scheduleWorkerForAmend(
     const Structs::GitRepoAmendCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4242,7 +4255,7 @@ void ProcessingState::scheduleWorkerForAmend(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForApplyPatch(
+void GitRepoManagerProcessingState::scheduleWorkerForApplyPatch(
     const Structs::GitRepoApplyPatchCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4261,7 +4274,7 @@ void ProcessingState::scheduleWorkerForApplyPatch(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForApplyStash(
+void GitRepoManagerProcessingState::scheduleWorkerForApplyStash(
     const Structs::GitRepoApplyStashCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4280,7 +4293,7 @@ void ProcessingState::scheduleWorkerForApplyStash(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForCheckoutBranch(
+void GitRepoManagerProcessingState::scheduleWorkerForCheckoutBranch(
     const Structs::GitRepoCheckoutBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4299,7 +4312,7 @@ void ProcessingState::scheduleWorkerForCheckoutBranch(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForCheckoutCommit(
+void GitRepoManagerProcessingState::scheduleWorkerForCheckoutCommit(
     const Structs::GitRepoCheckoutCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4318,7 +4331,7 @@ void ProcessingState::scheduleWorkerForCheckoutCommit(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForCloneRepo(
+void GitRepoManagerProcessingState::scheduleWorkerForCloneRepo(
     const Structs::GitRepoCloneCommand &command) {
   LOCKGUARD(_contextsMutex);
 
@@ -4330,8 +4343,8 @@ void ProcessingState::scheduleWorkerForCloneRepo(
     return;
   }
 
-  const auto workersThreadFunc =
-      std::bind(&ProcessingState::workersThreadFunc, this, command.uuid);
+  const auto workersThreadFunc = std::bind(
+      &GitRepoManagerProcessingState::workersThreadFunc, this, command.uuid);
 
   const auto newContext = new GitRepoContext();
   _contexts[command.uuid] = newContext;
@@ -4348,7 +4361,7 @@ void ProcessingState::scheduleWorkerForCloneRepo(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForCloseRepo(
+void GitRepoManagerProcessingState::scheduleWorkerForCloseRepo(
     const GitRepoCloseCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4368,7 +4381,7 @@ void ProcessingState::scheduleWorkerForCloseRepo(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForCommitStagedRepo(
+void GitRepoManagerProcessingState::scheduleWorkerForCommitStagedRepo(
     const Structs::GitRepoCommitStagedCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4387,7 +4400,7 @@ void ProcessingState::scheduleWorkerForCommitStagedRepo(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForCreateBranchFromCommit(
+void GitRepoManagerProcessingState::scheduleWorkerForCreateBranchFromCommit(
     const Structs::GitRepoCreateBranchFromCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4407,7 +4420,7 @@ void ProcessingState::scheduleWorkerForCreateBranchFromCommit(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForCreatePatchFromCommit(
+void GitRepoManagerProcessingState::scheduleWorkerForCreatePatchFromCommit(
     const Structs::GitRepoCreatePatchFromCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4427,7 +4440,7 @@ void ProcessingState::scheduleWorkerForCreatePatchFromCommit(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForCreateTagFromCommit(
+void GitRepoManagerProcessingState::scheduleWorkerForCreateTagFromCommit(
     const Structs::GitRepoCreateTagFromCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4446,7 +4459,7 @@ void ProcessingState::scheduleWorkerForCreateTagFromCommit(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForGetActiveBranch(
+void GitRepoManagerProcessingState::scheduleWorkerForGetActiveBranch(
     const Structs::GitRepoGetActiveBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4465,7 +4478,7 @@ void ProcessingState::scheduleWorkerForGetActiveBranch(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForGetCommitBranches(
+void GitRepoManagerProcessingState::scheduleWorkerForGetCommitBranches(
     const Structs::GitRepoGetCommitBranchesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4484,7 +4497,7 @@ void ProcessingState::scheduleWorkerForGetCommitBranches(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::getCommitTagsWorker(
+void GitRepoManagerProcessingState::getCommitTagsWorker(
     const Structs::GitRepoGetCommitTagsCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4534,7 +4547,7 @@ void ProcessingState::getCommitTagsWorker(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForGetCommitTags(
+void GitRepoManagerProcessingState::scheduleWorkerForGetCommitTags(
     const Structs::GitRepoGetCommitTagsCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4553,7 +4566,7 @@ void ProcessingState::scheduleWorkerForGetCommitTags(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForGetCommitHeads(
+void GitRepoManagerProcessingState::scheduleWorkerForGetCommitHeads(
     const Structs::GitRepoGetCommitHeadsCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4572,7 +4585,7 @@ void ProcessingState::scheduleWorkerForGetCommitHeads(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForGetCommitIsHead(
+void GitRepoManagerProcessingState::scheduleWorkerForGetCommitIsHead(
     const Structs::GitRepoGetCommitIsHeadCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4591,7 +4604,7 @@ void ProcessingState::scheduleWorkerForGetCommitIsHead(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForGetCommitStatus(
+void GitRepoManagerProcessingState::scheduleWorkerForGetCommitStatus(
     const Structs::GitRepoGetCommitStatusCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4610,7 +4623,7 @@ void ProcessingState::scheduleWorkerForGetCommitStatus(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForGetStashStatus(
+void GitRepoManagerProcessingState::scheduleWorkerForGetStashStatus(
     const Structs::GitRepoGetStashStatusCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4629,7 +4642,7 @@ void ProcessingState::scheduleWorkerForGetStashStatus(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForGetIsMergeInProgress(
+void GitRepoManagerProcessingState::scheduleWorkerForGetIsMergeInProgress(
     const Structs::GitRepoGetIsMergeInProgressCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4649,7 +4662,7 @@ void ProcessingState::scheduleWorkerForGetIsMergeInProgress(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForGetSubmodulePath(
+void GitRepoManagerProcessingState::scheduleWorkerForGetSubmodulePath(
     const Structs::GitRepoGetSubmodulePathCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4668,7 +4681,7 @@ void ProcessingState::scheduleWorkerForGetSubmodulePath(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForGetUpstream(
+void GitRepoManagerProcessingState::scheduleWorkerForGetUpstream(
     const Structs::GitRepoGetUpstreamCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4687,7 +4700,7 @@ void ProcessingState::scheduleWorkerForGetUpstream(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForDeleteAllStashes(
+void GitRepoManagerProcessingState::scheduleWorkerForDeleteAllStashes(
     const Structs::GitRepoDeleteAllStashesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4706,7 +4719,7 @@ void ProcessingState::scheduleWorkerForDeleteAllStashes(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForDeleteBranch(
+void GitRepoManagerProcessingState::scheduleWorkerForDeleteBranch(
     const Structs::GitRepoDeleteBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4725,7 +4738,7 @@ void ProcessingState::scheduleWorkerForDeleteBranch(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForDeleteRemoteBranch(
+void GitRepoManagerProcessingState::scheduleWorkerForDeleteRemoteBranch(
     const Structs::GitRepoDeleteRemoteBranchCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4744,7 +4757,7 @@ void ProcessingState::scheduleWorkerForDeleteRemoteBranch(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForDeleteStash(
+void GitRepoManagerProcessingState::scheduleWorkerForDeleteStash(
     const Structs::GitRepoDeleteStashCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4763,7 +4776,7 @@ void ProcessingState::scheduleWorkerForDeleteStash(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForDeleteSubmodule(
+void GitRepoManagerProcessingState::scheduleWorkerForDeleteSubmodule(
     const Structs::GitRepoDeleteSubmoduleCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4782,7 +4795,7 @@ void ProcessingState::scheduleWorkerForDeleteSubmodule(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForDeleteTag(
+void GitRepoManagerProcessingState::scheduleWorkerForDeleteTag(
     const Structs::GitRepoDeleteTagCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4801,7 +4814,7 @@ void ProcessingState::scheduleWorkerForDeleteTag(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForDeleteRemoteTag(
+void GitRepoManagerProcessingState::scheduleWorkerForDeleteRemoteTag(
     const Structs::GitRepoDeleteRemoteTagCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4820,7 +4833,7 @@ void ProcessingState::scheduleWorkerForDeleteRemoteTag(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForDiffFiles(
+void GitRepoManagerProcessingState::scheduleWorkerForDiffFiles(
     const Structs::GitRepoDiffFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4839,7 +4852,7 @@ void ProcessingState::scheduleWorkerForDiffFiles(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForDiffFilesFromCommit(
+void GitRepoManagerProcessingState::scheduleWorkerForDiffFilesFromCommit(
     const Structs::GitRepoDiffFilesFromCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4858,7 +4871,7 @@ void ProcessingState::scheduleWorkerForDiffFilesFromCommit(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForGetFileSizeFromCommit(
+void GitRepoManagerProcessingState::scheduleWorkerForGetFileSizeFromCommit(
     const Structs::GitRepoGetFileSizeFromCommitCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4878,7 +4891,7 @@ void ProcessingState::scheduleWorkerForGetFileSizeFromCommit(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForDiscardFiles(
+void GitRepoManagerProcessingState::scheduleWorkerForDiscardFiles(
     const Structs::GitRepoDiscardFilesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4897,7 +4910,7 @@ void ProcessingState::scheduleWorkerForDiscardFiles(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForGetBranchHistory(
+void GitRepoManagerProcessingState::scheduleWorkerForGetBranchHistory(
     const Structs::GitRepoGetBranchHistoryCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4916,7 +4929,7 @@ void ProcessingState::scheduleWorkerForGetBranchHistory(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForInitRepo(
+void GitRepoManagerProcessingState::scheduleWorkerForInitRepo(
     const Structs::GitRepoInitRepoCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4930,8 +4943,8 @@ void ProcessingState::scheduleWorkerForInitRepo(
     return;
   }
 
-  const auto workersThreadFunc =
-      std::bind(&ProcessingState::workersThreadFunc, this, command.uuid);
+  const auto workersThreadFunc = std::bind(
+      &GitRepoManagerProcessingState::workersThreadFunc, this, command.uuid);
 
   auto *newContext = new GitRepoContext();
   _contexts[command.uuid] = newContext;
@@ -4948,7 +4961,7 @@ void ProcessingState::scheduleWorkerForInitRepo(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForListConflicts(
+void GitRepoManagerProcessingState::scheduleWorkerForListConflicts(
     const Structs::GitRepoListConflictsCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4967,7 +4980,7 @@ void ProcessingState::scheduleWorkerForListConflicts(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForListLocalBranches(
+void GitRepoManagerProcessingState::scheduleWorkerForListLocalBranches(
     const Structs::GitRepoListLocalBranchesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -4986,7 +4999,7 @@ void ProcessingState::scheduleWorkerForListLocalBranches(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForListRemoteBranches(
+void GitRepoManagerProcessingState::scheduleWorkerForListRemoteBranches(
     const Structs::GitRepoListRemoteBranchesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -5005,8 +5018,9 @@ void ProcessingState::scheduleWorkerForListRemoteBranches(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForListRemoteBranchesWithStatus(
-    const Structs::GitRepoListRemoteBranchesWithStatusCommand &command) {
+void GitRepoManagerProcessingState::
+    scheduleWorkerForListRemoteBranchesWithStatus(
+        const Structs::GitRepoListRemoteBranchesWithStatusCommand &command) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_contextsMutex);
@@ -5026,7 +5040,7 @@ void ProcessingState::scheduleWorkerForListRemoteBranchesWithStatus(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForListStashes(
+void GitRepoManagerProcessingState::scheduleWorkerForListStashes(
     const Structs::GitRepoListStashesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -5045,7 +5059,7 @@ void ProcessingState::scheduleWorkerForListStashes(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForListSubmodules(
+void GitRepoManagerProcessingState::scheduleWorkerForListSubmodules(
     const Structs::GitRepoListSubmodulesCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -5064,7 +5078,7 @@ void ProcessingState::scheduleWorkerForListSubmodules(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForListTags(
+void GitRepoManagerProcessingState::scheduleWorkerForListTags(
     const Structs::GitRepoListTagsCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -5083,7 +5097,7 @@ void ProcessingState::scheduleWorkerForListTags(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::scheduleWorkerForMerge(
+void GitRepoManagerProcessingState::scheduleWorkerForMerge(
     const Structs::GitRepoMergeCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -5102,7 +5116,7 @@ void ProcessingState::scheduleWorkerForMerge(
   LOG_PERF(0, "Exit");
 }
 
-void ProcessingState::workersThreadFunc(const QString &uuid) {
+void GitRepoManagerProcessingState::workersThreadFunc(const QString &uuid) {
   LOG_PERF(0, "Enter");
 
   GitRepo::initForCurrentThread();
