@@ -1,5 +1,5 @@
-#include "GitRepoManagerEvent.h"
 #include "GitRepoManagerInitializationState.h"
+#include "GitRepoManagerEvent.h"
 
 #include <Log.h>
 

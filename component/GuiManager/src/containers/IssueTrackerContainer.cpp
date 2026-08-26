@@ -18,8 +18,8 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QEventLoop>
-#include <QHash>
 #include <QHBoxLayout>
+#include <QHash>
 #include <QInputDialog>
 #include <QLabel>
 #include <QMessageBox>
@@ -55,18 +55,18 @@ namespace {
 QString issueTrackerProfileId(const QString &serviceType,
                               const QString &repositoryName,
                               const QString &serviceHost) {
-  const QString identity = QStringLiteral("%1|%2|%3")
-                               .arg(serviceType.trimmed().toLower(),
-                                    repositoryName.trimmed(),
-                                    serviceHost.trimmed().toLower());
-  return QCryptographicHash::hash(identity.toUtf8(),
-                                  QCryptographicHash::Sha256)
+  const QString identity =
+      QStringLiteral("%1|%2|%3")
+          .arg(serviceType.trimmed().toLower(), repositoryName.trimmed(),
+               serviceHost.trimmed().toLower());
+  return QCryptographicHash::hash(identity.toUtf8(), QCryptographicHash::Sha256)
       .toHex();
 }
 
-QWebEngineProfile *createIssueTrackerWebEngineProfile(
-    QObject *parent, const QString &serviceType, const QString &repositoryName,
-    const QString &serviceHost) {
+QWebEngineProfile *
+createIssueTrackerWebEngineProfile(QObject *parent, const QString &serviceType,
+                                   const QString &repositoryName,
+                                   const QString &serviceHost) {
   static QHash<QString, QWebEngineProfile *> profiles;
 
   const QString profileId =
@@ -83,8 +83,8 @@ QWebEngineProfile *createIssueTrackerWebEngineProfile(
 
   const QString storagePath =
       QDir(storageBaseDir)
-          .absoluteFilePath(QStringLiteral("issue-trackers/webengine/%1")
-                                .arg(profileId));
+          .absoluteFilePath(
+              QStringLiteral("issue-trackers/webengine/%1").arg(profileId));
   QDir().mkpath(storagePath);
 
   auto *profile = new QWebEngineProfile(

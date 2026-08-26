@@ -83,12 +83,14 @@ public:
             std::function<bool(Event)> predicate = nullptr,
             unsigned long timeout = DEFAULT_WAIT_TIMEOUT);
 
-  std::tuple<bool, Event> waitForAnswer(int token, const QString &uuid,
-                                        unsigned long timeout = DEFAULT_WAIT_TIMEOUT);
+  std::tuple<bool, Event>
+  waitForAnswer(int token, const QString &uuid,
+                unsigned long timeout = DEFAULT_WAIT_TIMEOUT);
 
-  std::tuple<bool, Event> waitForAnswer(int token, const QString &uuid,
-                                        const std::set<EventType> &types,
-                                        unsigned long timeout = DEFAULT_WAIT_TIMEOUT);
+  std::tuple<bool, Event>
+  waitForAnswer(int token, const QString &uuid,
+                const std::set<EventType> &types,
+                unsigned long timeout = DEFAULT_WAIT_TIMEOUT);
 
   QString eventName(EventType type) const;
 

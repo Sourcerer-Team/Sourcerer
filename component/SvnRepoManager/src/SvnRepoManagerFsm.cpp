@@ -1,9 +1,9 @@
 
 #include "SvnRepoManagerFsm.h"
 #include "SvnRepoManagerEvent.h"
-#include "SvnRepoManagerState.h"
 #include "SvnRepoManagerInitializationState.h"
 #include "SvnRepoManagerProcessingState.h"
+#include "SvnRepoManagerState.h"
 
 #include <Log.h>
 
@@ -205,7 +205,8 @@ QString SvnRepoManagerFsm::eventName(int event) const {
 void SvnRepoManagerFsm::initStateTable(QMap<int, Fsm::FsmState *> &table) {
   LOG_PERF(0, "Enter");
 
-  table[(int)StateType::Initialization] = new SvnRepoManagerInitializationState(*this);
+  table[(int)StateType::Initialization] =
+      new SvnRepoManagerInitializationState(*this);
   table[(int)StateType::Processing] = new SvnRepoManagerProcessingState(*this);
 
   LOG_PERF(0, "Exit");

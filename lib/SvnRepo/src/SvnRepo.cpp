@@ -13,10 +13,10 @@
 #include <QByteArray>
 #include <QDir>
 #include <QFileInfo>
-#include <QtGlobal>
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <QtGlobal>
 
 #include <functional>
 #include <memory>
@@ -38,8 +38,6 @@ struct AprPoolDeleter {
 };
 
 using AprPoolPtr = std::unique_ptr<apr_pool_t, AprPoolDeleter>;
-
-
 
 static void setLastError(SvnError error, int errorCode,
                          const QString &errorMessage) {
@@ -91,7 +89,6 @@ struct PathArray {
   apr_array_header_t *array = nullptr;
   QVector<QByteArray> storage;
 };
-
 
 static void fillPathStatus(SvnStatus *status, const QString &path,
                            svn_wc_status_kind kind) {
@@ -165,7 +162,7 @@ static svn_error_t *commitLogCallback(const char **log_msg,
 
   if (!log_msg || !baton) {
     return svn_error_create(SVN_ERR_INCORRECT_PARAMS, nullptr,
-                          "Invalid commit log callback arguments");
+                            "Invalid commit log callback arguments");
   }
 
   const auto *payload = static_cast<CommitLogBaton *>(baton);
@@ -195,12 +192,14 @@ static svn_error_t *historyCallback(void *baton, svn_log_entry_t *log_entry,
   if (log_entry->revprops) {
     if (const auto *author = static_cast<const svn_string_t *>(
             svn_hash_gets(log_entry->revprops, SVN_PROP_REVISION_AUTHOR))) {
-      info.author = QString::fromUtf8(author->data, static_cast<int>(author->len));
+      info.author =
+          QString::fromUtf8(author->data, static_cast<int>(author->len));
     }
 
     if (const auto *message = static_cast<const svn_string_t *>(
             svn_hash_gets(log_entry->revprops, SVN_PROP_REVISION_LOG))) {
-      info.message = QString::fromUtf8(message->data, static_cast<int>(message->len));
+      info.message =
+          QString::fromUtf8(message->data, static_cast<int>(message->len));
     }
 
     if (const auto *date = static_cast<const svn_string_t *>(
@@ -235,7 +234,8 @@ static bool ensureInitialized() {
   }
 }
 
-static bool runWithClientContext(const std::function<bool(svn_client_ctx_t *, apr_pool_t *)> &fn) {
+static bool runWithClientContext(
+    const std::function<bool(svn_client_ctx_t *, apr_pool_t *)> &fn) {
   if (!ensureInitialized()) {
     return false;
   }
@@ -271,8 +271,7 @@ void initForCurrentThread() {
   ensureInitialized();
 }
 
-void shutdownForCurrentThread() {
-}
+void shutdownForCurrentThread() {}
 
 bool init() {
   return ensureInitialized();
@@ -287,12 +286,12 @@ bool checkoutRepository(const QString &url, const QString &destinationDir) {
     rev.kind = svn_opt_revision_head;
 
     const QByteArray urlBytes = url.toUtf8();
-    const QByteArray destBytes = QFileInfo(destinationDir).absoluteFilePath().toUtf8();
+    const QByteArray destBytes =
+        QFileInfo(destinationDir).absoluteFilePath().toUtf8();
 
-    svn_error_t *error = svn_client_checkout3(&resultRev, urlBytes.constData(),
-                                              destBytes.constData(), &pegRev,
-                                              &rev, svn_depth_infinity,
-                                              FALSE, FALSE, ctx, pool);
+    svn_error_t *error = svn_client_checkout3(
+        &resultRev, urlBytes.constData(), destBytes.constData(), &pegRev, &rev,
+        svn_depth_infinity, FALSE, FALSE, ctx, pool);
     if (error) {
       setLastError(SvnError::CheckoutFailed, error->apr_err,
                    svnErrorMessage(error));
@@ -315,9 +314,9 @@ bool updateWorkingCopy(const QString &path) {
     rev.kind = svn_opt_revision_head;
 
     apr_array_header_t *resultRevs = nullptr;
-    svn_error_t *error = svn_client_update4(&resultRevs, paths, &rev,
-                                            svn_depth_infinity, FALSE, FALSE,
-                                            FALSE, TRUE, FALSE, ctx, pool);
+    svn_error_t *error =
+        svn_client_update4(&resultRevs, paths, &rev, svn_depth_infinity, FALSE,
+                           FALSE, FALSE, TRUE, FALSE, ctx, pool);
     if (error) {
       setLastError(SvnError::UpdateFailed, error->apr_err,
                    svnErrorMessage(error));
@@ -330,35 +329,36 @@ bool updateWorkingCopy(const QString &path) {
   });
 }
 
-SvnStatus getStatus(const QString &path, bool recurse, bool includeUnversioned) {
+SvnStatus getStatus(const QString &path, bool recurse,
+                    bool includeUnversioned) {
   SvnStatus result;
   result.path = QFileInfo(path).absoluteFilePath();
 
-  const bool success = runWithClientContext([&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
-    const QByteArray absPath = result.path.toUtf8();
-    svn_opt_revision_t rev;
-    rev.kind = svn_opt_revision_unspecified;
+  const bool success =
+      runWithClientContext([&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        const QByteArray absPath = result.path.toUtf8();
+        svn_opt_revision_t rev;
+        rev.kind = svn_opt_revision_unspecified;
 
-    StatusBaton baton;
-    baton.status = &result;
+        StatusBaton baton;
+        baton.status = &result;
 
-    svn_revnum_t youngest = SVN_INVALID_REVNUM;
-    svn_error_t *error = svn_client_status6(&youngest, ctx, absPath.constData(),
-                                            &rev, recurse ? svn_depth_infinity
-                                                          : svn_depth_empty,
-                                            includeUnversioned, FALSE, TRUE,
-                                            FALSE, FALSE, FALSE, nullptr,
-                                            statusCallback, &baton, pool);
-    if (error) {
-      setLastError(SvnError::StatusFailed, error->apr_err,
-                   svnErrorMessage(error));
-      svn_error_clear(error);
-      return false;
-    }
+        svn_revnum_t youngest = SVN_INVALID_REVNUM;
+        svn_error_t *error =
+            svn_client_status6(&youngest, ctx, absPath.constData(), &rev,
+                               recurse ? svn_depth_infinity : svn_depth_empty,
+                               includeUnversioned, FALSE, TRUE, FALSE, FALSE,
+                               FALSE, nullptr, statusCallback, &baton, pool);
+        if (error) {
+          setLastError(SvnError::StatusFailed, error->apr_err,
+                       svnErrorMessage(error));
+          svn_error_clear(error);
+          return false;
+        }
 
-    Q_UNUSED(youngest);
-    return true;
-  });
+        Q_UNUSED(youngest);
+        return true;
+      });
 
   if (!success) {
     return SvnStatus();
@@ -378,11 +378,9 @@ bool addFiles(const QString &path, const QStringList &files) {
       const QString absPath = QDir(basePath).absoluteFilePath(file);
       const QByteArray absBytes = absPath.toUtf8();
       const bool recurse = QFileInfo(absPath).isDir();
-      svn_error_t *error = svn_client_add5(absBytes.constData(),
-                                           recurse ? svn_depth_infinity
-                                                   : svn_depth_empty,
-                                           FALSE, FALSE, FALSE, TRUE, ctx,
-                                           pool);
+      svn_error_t *error = svn_client_add5(
+          absBytes.constData(), recurse ? svn_depth_infinity : svn_depth_empty,
+          FALSE, FALSE, FALSE, TRUE, ctx, pool);
       if (error) {
         setLastError(SvnError::AddFailed, error->apr_err,
                      svnErrorMessage(error));
@@ -407,7 +405,8 @@ bool deleteFiles(const QString &path, const QStringList &files) {
     array.array = apr_array_make(pool, files.size(), sizeof(const char *));
     for (const QString &file : files) {
       array.storage.push_back(QDir(basePath).absoluteFilePath(file).toUtf8());
-      APR_ARRAY_PUSH(array.array, const char *) = array.storage.back().constData();
+      APR_ARRAY_PUSH(array.array, const char *) =
+          array.storage.back().constData();
     }
 
     svn_error_t *error = svn_client_delete4(array.array, FALSE, FALSE, nullptr,
@@ -435,12 +434,13 @@ bool revertFiles(const QString &path, const QStringList &files) {
     array.array = apr_array_make(pool, files.size(), sizeof(const char *));
     for (const QString &file : files) {
       array.storage.push_back(QDir(basePath).absoluteFilePath(file).toUtf8());
-      APR_ARRAY_PUSH(array.array, const char *) = array.storage.back().constData();
+      APR_ARRAY_PUSH(array.array, const char *) =
+          array.storage.back().constData();
     }
 
-    svn_error_t *error = svn_client_revert4(array.array, svn_depth_infinity,
-                                            nullptr, FALSE, FALSE, FALSE, ctx,
-                                            pool);
+    svn_error_t *error =
+        svn_client_revert4(array.array, svn_depth_infinity, nullptr, FALSE,
+                           FALSE, FALSE, ctx, pool);
     if (error) {
       setLastError(SvnError::RevertFailed, error->apr_err,
                    svnErrorMessage(error));
@@ -464,9 +464,9 @@ bool commit(const QString &path, const QString &message) {
     ctx->log_msg_baton3 = &baton;
 
     svn_commit_info_t *commitInfo = nullptr;
-    svn_error_t *error = svn_client_commit4(&commitInfo, targets,
-                                            svn_depth_infinity, FALSE, FALSE,
-                                            nullptr, nullptr, ctx, pool);
+    svn_error_t *error =
+        svn_client_commit4(&commitInfo, targets, svn_depth_infinity, FALSE,
+                           FALSE, nullptr, nullptr, ctx, pool);
     if (error) {
       setLastError(SvnError::CommitFailed, error->apr_err,
                    svnErrorMessage(error));
@@ -485,7 +485,8 @@ SvnHistory getHistory(const QString &path, int limit) {
     return result;
   }
 
-  const bool success = runWithClientContext([&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+  const bool success = runWithClientContext([&](svn_client_ctx_t *ctx,
+                                                apr_pool_t *pool) {
     const QByteArray absPath = QFileInfo(path).absoluteFilePath().toUtf8();
     apr_array_header_t *targets = apr_array_make(pool, 1, sizeof(const char *));
     APR_ARRAY_PUSH(targets, const char *) = absPath.constData();
@@ -505,10 +506,12 @@ SvnHistory getHistory(const QString &path, int limit) {
     range->start = startRev;
     range->end = endRev;
 
-    apr_array_header_t *ranges = apr_array_make(pool, 1, sizeof(const svn_opt_revision_range_t *));
+    apr_array_header_t *ranges =
+        apr_array_make(pool, 1, sizeof(const svn_opt_revision_range_t *));
     APR_ARRAY_PUSH(ranges, const svn_opt_revision_range_t *) = range;
 
-    apr_array_header_t *revprops = apr_array_make(pool, 3, sizeof(const char *));
+    apr_array_header_t *revprops =
+        apr_array_make(pool, 3, sizeof(const char *));
     APR_ARRAY_PUSH(revprops, const char *) = SVN_PROP_REVISION_AUTHOR;
     APR_ARRAY_PUSH(revprops, const char *) = SVN_PROP_REVISION_DATE;
     APR_ARRAY_PUSH(revprops, const char *) = SVN_PROP_REVISION_LOG;
@@ -516,9 +519,9 @@ SvnHistory getHistory(const QString &path, int limit) {
     HistoryBaton baton;
     baton.history = &result;
 
-    svn_error_t *error = svn_client_log5(targets, &pegRev, ranges, limit,
-                                         FALSE, FALSE, FALSE, revprops,
-                                         historyCallback, &baton, ctx, pool);
+    svn_error_t *error =
+        svn_client_log5(targets, &pegRev, ranges, limit, FALSE, FALSE, FALSE,
+                        revprops, historyCallback, &baton, ctx, pool);
     if (error) {
       setLastError(SvnError::HistoryFailed, error->apr_err,
                    svnErrorMessage(error));

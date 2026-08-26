@@ -870,4 +870,3 @@ Q_DECLARE_METATYPE(SvnRepo::RemoteTarget)
 Q_DECLARE_METATYPE(QVector<SvnRepo::RemoteTarget>)
 Q_DECLARE_METATYPE(SvnRepo::RemoteInfo)
 Q_DECLARE_METATYPE(QVector<SvnRepo::RemoteInfo>)
-

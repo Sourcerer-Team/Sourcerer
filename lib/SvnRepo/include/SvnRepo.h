@@ -229,9 +229,9 @@ QString getActiveBranch(const QString &path, BranchType type, bool quitFlag);
 QStringList getCommitBranches(const QString &path, const QString &commitOid,
                               bool quitFlag);
 QStringList getCommitTags(const QString &path, const QString &commitOid,
-                         bool quitFlag);
-QStringList getCommitHeads(const QString &path, const QString &commitOid,
                           bool quitFlag);
+QStringList getCommitHeads(const QString &path, const QString &commitOid,
+                           bool quitFlag);
 bool getCommitIsHead(const QString &path, const QString &commitOid,
                      bool quitFlag);
 CommitStatus getCommitStatus(const QString &path, const QString &commitOid);
@@ -266,15 +266,15 @@ bool renameBranch(const QString &path, const QString &oldBranchName,
                   const QString &newBranchName);
 bool renameTag(const QString &path, const QString &oldTagName,
                const QString &newTagName);
-bool resetToCommit(const QString &path, const QString &commit,
-                   ResetType type);
+bool resetToCommit(const QString &path, const QString &commit, ResetType type);
 bool revertCommit(const QString &path, const QString &commit,
                   const QString &author, const QString &email,
                   const QString &message);
 bool cherryPickCommit(const QString &path, const QString &commit,
                       const QString &author, const QString &email);
 bool setUpstream(const QString &path, const QString &remoteName,
-                 const QString &remoteBranchName, const QString &localBranchName);
+                 const QString &remoteBranchName,
+                 const QString &localBranchName);
 bool stageFiles(const QString &path, const QStringList &files);
 bool stash(const QString &path);
 GitStatus getStatus(const QString &path, const bool &quitFlag);

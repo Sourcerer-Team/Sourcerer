@@ -1,9 +1,9 @@
 
 #include "GitRepoManagerFsm.h"
 #include "GitRepoManagerEvent.h"
-#include "GitRepoManagerState.h"
 #include "GitRepoManagerInitializationState.h"
 #include "GitRepoManagerProcessingState.h"
+#include "GitRepoManagerState.h"
 
 #include <Log.h>
 
@@ -205,7 +205,8 @@ QString GitRepoManagerFsm::eventName(int event) const {
 void GitRepoManagerFsm::initStateTable(QMap<int, Fsm::FsmState *> &table) {
   LOG_PERF(0, "Enter");
 
-  table[(int)StateType::Initialization] = new GitRepoManagerInitializationState(*this);
+  table[(int)StateType::Initialization] =
+      new GitRepoManagerInitializationState(*this);
   table[(int)StateType::Processing] = new GitRepoManagerProcessingState(*this);
 
   LOG_PERF(0, "Exit");

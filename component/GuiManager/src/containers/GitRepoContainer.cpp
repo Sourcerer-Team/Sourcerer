@@ -227,8 +227,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
             const qlonglong tooltipDisplayTime = _configManager.getLong(
                 ConfigManager::ConfigKey::TooltipDisplayTime);
             QToolTip::showText(
-                ui->pushButtonPageDisplaySignatureCopy->mapToGlobal(
-                    QPoint(0, ui->pushButtonPageDisplaySignatureCopy->height())),
+                ui->pushButtonPageDisplaySignatureCopy->mapToGlobal(QPoint(
+                    0, ui->pushButtonPageDisplaySignatureCopy->height())),
                 tr("Signature copied to clipboard."),
                 ui->pushButtonPageDisplaySignatureCopy,
                 ui->pushButtonPageDisplaySignatureCopy->rect(),

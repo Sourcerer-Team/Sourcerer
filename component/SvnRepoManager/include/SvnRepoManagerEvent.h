@@ -92,4 +92,4 @@ public:
   explicit SvnRepoManagerEvent(EventType type);
 };
 
-} // namespace GitRepoManager
+} // namespace SvnRepoManager
