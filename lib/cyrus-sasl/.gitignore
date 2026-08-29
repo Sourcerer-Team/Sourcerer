@@ -5,7 +5,6 @@ Makefile.in
 aclocal.m4
 configure
 config.log
-config.h
 config.cache
 libtool
 config.status
