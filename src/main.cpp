@@ -2,6 +2,7 @@
 #include <GitRepoManager.h>
 #include <GuiManager.h>
 #include <NewsTracker.h>
+#include <SvnRepoManager.h>
 #include <UpdateManager.h>
 
 #include <QApplication>
@@ -44,6 +45,7 @@ int main(int argc, char *argv[]) {
   ComponentManager::ComponentManager componentManager;
   componentManager.addThread<GitRepoManager::GitRepoManager>();
   componentManager.addThread<NewsTracker::NewsTracker>();
+  componentManager.addThread<SvnRepoManager::SvnRepoManager>();
   componentManager.addThread<UpdateManager::UpdateManager>();
   componentManager.startProcess<GuiManager::GuiManager>();
   componentManager.stopAll();

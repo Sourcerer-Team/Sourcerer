@@ -1,5 +1,6 @@
-#include "../include/SvnRepo.h"
+#include "SvnRepo.h"
 
+#include <svn_auth.h>
 #include <svn_config.h>
 #include <svn_error.h>
 #include <svn_hash.h>
@@ -9,6 +10,9 @@
 #include <svn_time.h>
 
 #include <svnxx/init.hpp>
+
+#include <EventManager.h>
+#include <GitRepo.h>
 
 #include <QByteArray>
 #include <QDir>
@@ -21,9 +25,171 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <set>
 
 namespace SvnRepo {
 namespace {
+
+static void setLastError(SvnError error, int errorCode,
+                         const QString &errorMessage);
+
+struct SvnCredentialPayload {
+  QString url;
+  QString destinationDir;
+  QString uuid;
+  size_t requestId = 0;
+  bool requested = false;
+};
+
+static void sendCredentialsSignal(EventManager::EventType type, size_t id) {
+  EventManager::Event event(type);
+  event.addData(id);
+  EventManager::EventManager::getInstance().send(event);
+}
+
+static bool acquireCredentials(SvnCredentialPayload &payload,
+                               const QString &username,
+                               GitRepo::GitCredentialsResponse &response) {
+  EventManager::EventManager &eventManager =
+      EventManager::EventManager::getInstance();
+
+  const int token = eventManager.startWait();
+  payload.requested = true;
+
+  GitRepo::GitCredentialsRequest request;
+  request.id = payload.requestId;
+  request.url = payload.url;
+  request.username = username;
+  request.allowedTypes = 0;
+  request.repoPath = QDir::fromNativeSeparators(payload.destinationDir);
+  request.needsPassphrase = false;
+
+  EventManager::Event credentialsEvent(
+      EventManager::EventType::GitRepoManagerGetCredentials);
+  credentialsEvent.addData(request);
+  eventManager.send(credentialsEvent);
+
+  const auto predicate = [&](EventManager::Event event) -> bool {
+    switch (event.type()) {
+    case EventManager::EventType::GitRepoManagerGetCredentialsCancel: {
+      const auto [id] = event.data<GitRepo::GitCredentialsErrorResponse>();
+      return id == request.id;
+    }
+    case EventManager::EventType::GitRepoManagerGetCredentialsSubmit: {
+      const auto submit = event.data<GitRepo::GitCredentialsResponse>();
+      return submit.id == request.id;
+    }
+    default:
+      return false;
+    }
+  };
+
+  const std::set<EventManager::EventType> types{
+      EventManager::EventType::GitRepoManagerGetCredentialsCancel,
+      EventManager::EventType::GitRepoManagerGetCredentialsSubmit};
+
+  const auto &[success, event] =
+      eventManager.waitOneOf(token, types, predicate);
+  if (!success) {
+    setLastError(SvnError::CheckoutFailed, SVN_ERR_CANCELLED,
+                 QStringLiteral("Credential request was cancelled"));
+    return false;
+  }
+
+  if (event.type() ==
+      EventManager::EventType::GitRepoManagerGetCredentialsCancel) {
+    setLastError(SvnError::CheckoutFailed, SVN_ERR_CANCELLED,
+                 QStringLiteral("Credential request was cancelled"));
+    return false;
+  }
+
+  response = event.data<GitRepo::GitCredentialsResponse>();
+  return true;
+}
+
+static svn_error_t *simplePromptCallback(svn_auth_cred_simple_t **cred_p,
+                                         void *baton, const char *realm,
+                                         const char *username,
+                                         svn_boolean_t may_save,
+                                         apr_pool_t *pool) {
+  Q_UNUSED(realm);
+  Q_UNUSED(may_save);
+
+  if (!cred_p || !baton) {
+    return svn_error_create(SVN_ERR_INCORRECT_PARAMS, nullptr,
+                            "Invalid credentials prompt arguments");
+  }
+
+  auto *payload = static_cast<SvnCredentialPayload *>(baton);
+  GitRepo::GitCredentialsResponse response;
+  if (!acquireCredentials(*payload,
+                          username ? QString::fromUtf8(username) : QString(),
+                          response)) {
+    return svn_error_create(SVN_ERR_CANCELLED, nullptr,
+                            "Credential request cancelled");
+  }
+
+  auto *creds = static_cast<svn_auth_cred_simple_t *>(
+      apr_pcalloc(pool, sizeof(svn_auth_cred_simple_t)));
+  const QByteArray usernameBytes = response.username.toUtf8();
+  const QByteArray passwordBytes = response.password.toUtf8();
+  creds->username = apr_pstrdup(pool, usernameBytes.constData());
+  creds->password = apr_pstrdup(pool, passwordBytes.constData());
+  creds->may_save = response.rememberCredentials;
+  *cred_p = creds;
+  return SVN_NO_ERROR;
+}
+
+static svn_error_t *usernamePromptCallback(svn_auth_cred_username_t **cred_p,
+                                           void *baton, const char *realm,
+                                           svn_boolean_t may_save,
+                                           apr_pool_t *pool) {
+  Q_UNUSED(realm);
+  Q_UNUSED(may_save);
+
+  if (!cred_p || !baton) {
+    return svn_error_create(SVN_ERR_INCORRECT_PARAMS, nullptr,
+                            "Invalid credentials prompt arguments");
+  }
+
+  auto *payload = static_cast<SvnCredentialPayload *>(baton);
+  GitRepo::GitCredentialsResponse response;
+  if (!acquireCredentials(*payload, QString(), response)) {
+    return svn_error_create(SVN_ERR_CANCELLED, nullptr,
+                            "Credential request cancelled");
+  }
+
+  auto *creds = static_cast<svn_auth_cred_username_t *>(
+      apr_pcalloc(pool, sizeof(svn_auth_cred_username_t)));
+  const QByteArray usernameBytes = response.username.toUtf8();
+  creds->username = apr_pstrdup(pool, usernameBytes.constData());
+  creds->may_save = response.rememberCredentials;
+  *cred_p = creds;
+  return SVN_NO_ERROR;
+}
+
+static svn_auth_baton_t *createAuthBaton(apr_pool_t *pool,
+                                         SvnCredentialPayload *payload) {
+  apr_array_header_t *providers =
+      apr_array_make(pool, 2, sizeof(svn_auth_provider_object_t *));
+
+  svn_auth_provider_object_t *provider = nullptr;
+  svn_auth_get_simple_prompt_provider(&provider, simplePromptCallback, payload,
+                                      2, pool);
+  APR_ARRAY_PUSH(providers, svn_auth_provider_object_t *) = provider;
+
+  svn_auth_get_username_prompt_provider(&provider, usernamePromptCallback,
+                                        payload, 2, pool);
+  APR_ARRAY_PUSH(providers, svn_auth_provider_object_t *) = provider;
+
+  svn_auth_baton_t *authBaton = nullptr;
+  svn_auth_open(&authBaton, providers, pool);
+  return authBaton;
+}
+
+template <typename T> T defaultValue() {
+  return T{};
+}
 
 thread_local SvnErrorContext gLastError;
 std::mutex gInitMutex;
@@ -300,13 +466,21 @@ bool init() {
   return ensureInitialized();
 }
 
-bool checkoutRepository(const QString &url, const QString &destinationDir) {
+bool checkoutRepository(const QString &url, const QString &destinationDir,
+                        const QString &uuid) {
   return runWithClientContext([&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
     svn_revnum_t resultRev = SVN_INVALID_REVNUM;
     svn_opt_revision_t pegRev;
     pegRev.kind = svn_opt_revision_unspecified;
     svn_opt_revision_t rev;
     rev.kind = svn_opt_revision_head;
+
+    SvnCredentialPayload credentialPayload;
+    credentialPayload.url = url;
+    credentialPayload.destinationDir = destinationDir;
+    credentialPayload.uuid = uuid;
+    credentialPayload.requestId = qHash(uuid);
+    ctx->auth_baton = createAuthBaton(pool, &credentialPayload);
 
     const QByteArray urlBytes = url.toUtf8();
     const QByteArray destBytes =
@@ -315,6 +489,12 @@ bool checkoutRepository(const QString &url, const QString &destinationDir) {
     svn_error_t *error = svn_client_checkout3(
         &resultRev, urlBytes.constData(), destBytes.constData(), &pegRev, &rev,
         svn_depth_infinity, FALSE, FALSE, ctx, pool);
+    if (credentialPayload.requested) {
+      sendCredentialsSignal(
+          error ? EventManager::EventType::GitRepoManagerGetCredentialsInvalid
+                : EventManager::EventType::GitRepoManagerGetCredentialsFinished,
+          credentialPayload.requestId);
+    }
     if (error) {
       setLastError(SvnError::CheckoutFailed, error->apr_err,
                    svnErrorMessage(error));
@@ -561,6 +741,323 @@ SvnHistory getHistory(const QString &path, int limit) {
   }
 
   return result;
+}
+
+bool abortMerge(const QString &) {
+  return false;
+}
+
+bool addSubmodule(const QString &, const QString &, const QString &,
+                  const QString &, const QString &) {
+  return false;
+}
+
+bool amend(const QString &, const QString &, const QString &, const QString &,
+           const QString &, bool, bool) {
+  return false;
+}
+
+bool applyPatch(const QString &, const QString &) {
+  return false;
+}
+
+bool applyStash(const QString &, int) {
+  return false;
+}
+
+QString listConflictsForStashFile(const QString &, int, const QString &) {
+  return {};
+}
+
+bool checkoutBranch(const QString &, const QString &, BranchType) {
+  return false;
+}
+
+bool checkoutCommit(const QString &, const QString &) {
+  return false;
+}
+
+QString openRepository(const QString &) {
+  return QString();
+}
+
+void closeRepository(const QString &) {}
+
+bool cloneRepository(const QString &url, const QString &destinationDir,
+                     const QString &uuid) {
+  return checkoutRepository(url, destinationDir, uuid);
+}
+
+bool commitStaged(const QString &, const QString &, const QString &,
+                  const QString &, const QString &, bool, bool, bool) {
+  return false;
+}
+
+bool createBranchFromCommit(const QString &, const QString &, const QString &) {
+  return false;
+}
+
+QString createPatchFromCommit(const QString &, const QString &) {
+  return QString();
+}
+
+bool createTagFromCommit(const QString &, const QString &, const QString &,
+                         const QString &, const QString &, const QString &) {
+  return false;
+}
+
+bool addTarget(const QString &, const QString &, const QString &,
+               const QString &, const QString &) {
+  return false;
+}
+
+bool editTarget(const QString &, const QString &, const QString &,
+                const QString &, const QString &) {
+  return false;
+}
+
+bool deleteTarget(const QString &, const QString &, const QString &) {
+  return false;
+}
+
+bool setDefaultTarget(const QString &, const QString &, const QString &) {
+  return false;
+}
+
+bool deleteBranch(const QString &, const QString &) {
+  return false;
+}
+
+bool deleteRemoteBranch(const QString &, const QString &) {
+  return false;
+}
+
+bool deleteStash(const QString &, int) {
+  return false;
+}
+
+bool deleteAllStashes(const QString &) {
+  return false;
+}
+
+bool deleteSubmodule(const QString &, const QString &, const QString &) {
+  return false;
+}
+
+bool deleteTag(const QString &, const QString &) {
+  return false;
+}
+
+bool deleteRemoteTag(const QString &, const QString &) {
+  return false;
+}
+
+FilesDiff diffFiles(const QString &, const QStringList &) {
+  return {};
+}
+
+FilesDiff diffFilesFromCommit(const QString &, const QStringList &,
+                              const QString &) {
+  return {};
+}
+
+bool discardFiles(const QString &, const QStringList &) {
+  return false;
+}
+
+bool fetchAll(const QString &) {
+  return false;
+}
+
+bool fetchRemote(const QString &, const QString &) {
+  return false;
+}
+
+bool rebaseBranches(const QString &, const QString &, const QString &,
+                    const QString &, const QString &) {
+  return false;
+}
+
+qint64 getFileSizeFromCommit(const QString &, const QString &,
+                             const QString &) {
+  return -1;
+}
+
+QString getActiveBranch(const QString &, BranchType, bool) {
+  return {};
+}
+
+QStringList getCommitBranches(const QString &, const QString &, bool) {
+  return {};
+}
+
+QStringList getCommitTags(const QString &, const QString &, bool) {
+  return {};
+}
+
+QStringList getCommitHeads(const QString &, const QString &, bool) {
+  return {};
+}
+
+bool getCommitIsHead(const QString &, const QString &, bool) {
+  return false;
+}
+
+CommitStatus getCommitStatus(const QString &, const QString &) {
+  return {};
+}
+
+CommitStatus getStashStatus(const QString &, int) {
+  return {};
+}
+
+bool getIsMergeInProgress(const QString &) {
+  return false;
+}
+
+SvnHistory getBranchHistory(const QString &, const QString &, BranchType,
+                            bool) {
+  return {};
+}
+
+QString getSubmodulePath(const QString &, const QString &) {
+  return {};
+}
+
+std::tuple<bool, QString, QString> getUpstream(const QString &,
+                                               const QString &) {
+  return {false, QString(), QString()};
+}
+
+bool initRepository(const QString &, const QString &, const QString &) {
+  return false;
+}
+
+QString listConflictsForAFile(const QString &, const QString &) {
+  return {};
+}
+
+QStringList listLocalBranches(const QString &, const bool &) {
+  return {};
+}
+
+QStringList listRemoteBranches(const QString &, const bool &) {
+  return {};
+}
+
+QVector<BranchInfo> listRemoteBranchesWithStatus(const QString &,
+                                                 const bool &) {
+  return {};
+}
+
+QStringList listStashes(const QString &, const bool &) {
+  return {};
+}
+
+QStringList listSubmodules(const QString &) {
+  return {};
+}
+
+QVector<SubmoduleInfo> listSubmodulesWithStatus(const QString &, const bool &) {
+  return {};
+}
+
+QStringList listTags(const QString &) {
+  return {};
+}
+
+bool merge(const QString &, const QString &, const QString &, const QString &,
+           const QString &) {
+  return false;
+}
+
+bool pull(const QString &, const QString &, bool) {
+  return false;
+}
+
+bool push(const QString &, const QString &, bool) {
+  return false;
+}
+
+bool pushTag(const QString &, const QString &) {
+  return false;
+}
+
+bool pushAllTags(const QString &) {
+  return false;
+}
+
+bool removeRemote(const QString &, const QString &) {
+  return false;
+}
+
+bool renameBranch(const QString &, const QString &, const QString &) {
+  return false;
+}
+
+bool renameTag(const QString &, const QString &, const QString &) {
+  return false;
+}
+
+bool resetToCommit(const QString &, const QString &, ResetType) {
+  return false;
+}
+
+bool revertCommit(const QString &, const QString &, const QString &,
+                  const QString &, const QString &) {
+  return false;
+}
+
+bool cherryPickCommit(const QString &, const QString &, const QString &,
+                      const QString &) {
+  return false;
+}
+
+bool setUpstream(const QString &, const QString &, const QString &,
+                 const QString &) {
+  return false;
+}
+
+bool stageFiles(const QString &, const QStringList &) {
+  return false;
+}
+
+bool stash(const QString &) {
+  return false;
+}
+
+SvnStatus getStatus(const QString &, const bool &) {
+  return {};
+}
+
+bool updateSubmodule(const QString &, const QString &) {
+  return false;
+}
+
+bool unstageFiles(const QString &, const QStringList &) {
+  return false;
+}
+
+QVector<RemoteInfo> listRemotes(const QString &) {
+  return {};
+}
+
+bool addRemote(const QString &, const QString &, const QString &,
+               const QString &) {
+  return false;
+}
+
+bool updateRemote(const QString &, const QString &, const QString &,
+                  const QString &, const QString &) {
+  return false;
+}
+
+bool setDefaultRemote(const QString &, const QString &) {
+  return false;
+}
+
+QString getDefaultRemote(const QString &) {
+  return {};
 }
 
 } // namespace SvnRepo

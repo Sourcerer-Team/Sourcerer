@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(Sourcerer VERSION 1.0.13 LANGUAGES CXX)
+project(Sourcerer VERSION 1.0.15 LANGUAGES CXX)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -16,12 +16,28 @@ find_package(pcre2 REQUIRED)
 find_package(zlib REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Widgets LinguistTools)
 
+if(WIN32)
+  include_directories(SYSTEM
+      C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/include
+      "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt"
+      "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/shared"
+      "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/um")
+  link_directories(
+      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64"
+      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/ucrt/x64"
+      "C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/lib/x64")
+endif()
+
 set(PROJECT_SOURCES
         main.cpp
 )
 
 if(WIN32)
   set(APP_ICON_RES "${CMAKE_CURRENT_SOURCE_DIR}/../component/GuiManager/resources/icons/app_icon.res")
+  link_directories(
+      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64"
+      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/ucrt/x64"
+      "C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/lib/x64")
 endif()
 
 qt_add_executable(Sourcerer
@@ -69,6 +85,21 @@ target_link_libraries(Sourcerer PRIVATE
         reftable
         util
         xdiff
+        cyrus-sasl
+        serf
+        apr-1
+        aprutil-1
+        sqlite3
+        utf8proc
+        libsvnxx
+        libsvn_client
+        libsvn_wc
+        libsvn_ra
+        libsvn_delta
+        libsvn_diff
+        libsvn_fs
+        libsvn_subr
+        expat::expat
         libzip::zip
         ZLIB::ZLIB
         ${ADDITIONAL_LIBRARIES}

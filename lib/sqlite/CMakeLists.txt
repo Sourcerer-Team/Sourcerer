@@ -61,6 +61,8 @@ set(SQLITE3_PARSE_H "${SQLITE3_GENERATED_DIR}/parse.h")
 set(SQLITE3_KEYWORDHASH_H "${SQLITE3_GENERATED_DIR}/keywordhash.h")
 set(SQLITE3_PRAGMA_H "${CMAKE_CURRENT_SOURCE_DIR}/src/pragma.h")
 set(SQLITE3_OPCODES_H "${SQLITE3_GENERATED_DIR}/opcodes.h")
+set(SQLITE3_OPCODES_C "${SQLITE3_GENERATED_DIR}/opcodes.c")
+
 
 add_custom_command(
   OUTPUT ${SQLITE3_PARSE_C} ${SQLITE3_PARSE_H}
@@ -87,6 +89,7 @@ execute_process(
   COMMAND ${CMAKE_COMMAND}
           -D SQLITE3_VDBE_C=${CMAKE_CURRENT_SOURCE_DIR}/src/vdbe.c
           -D SQLITE3_OUTPUT_FILE=${SQLITE3_OPCODES_H}
+          -D SQLITE3_OUTPUT_SOURCE_FILE=${SQLITE3_OPCODES_C}
           -P ${CMAKE_CURRENT_LIST_DIR}/cmake/generate_opcodes.cmake
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
   RESULT_VARIABLE SQLITE3_GENERATE_OPCODES_RESULT
@@ -100,6 +103,7 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND}
           -D SQLITE3_VDBE_C=${CMAKE_CURRENT_SOURCE_DIR}/src/vdbe.c
           -D SQLITE3_OUTPUT_FILE=${SQLITE3_OPCODES_H}
+          -D SQLITE3_OUTPUT_SOURCE_FILE=${SQLITE3_OPCODES_C}
           -P ${CMAKE_CURRENT_LIST_DIR}/cmake/generate_opcodes.cmake
   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/vdbe.c ${CMAKE_CURRENT_LIST_DIR}/cmake/generate_opcodes.cmake
   COMMENT "Generating SQLite opcodes table"
@@ -126,8 +130,10 @@ set_source_files_properties(
 
 add_library(sqlite3 STATIC
   ${SQLITE3_SOURCE_FILES}
+  ${CMAKE_CURRENT_SOURCE_DIR}/ctime.c
   ${SQLITE3_KEYWORDHASH_H}
   ${SQLITE3_OPCODES_H}
+  ${SQLITE3_OPCODES_C}
 )
 add_library(sqlite::sqlite3 ALIAS sqlite3)
 

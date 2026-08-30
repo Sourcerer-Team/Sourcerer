@@ -1,7 +1,7 @@
 #pragma once
 
-#include "SvnRepoManagerState.h"
-#include "SvnRepoManagerStructs.h"
+#include <SvnRepoManagerState.h>
+#include <SvnRepoManagerStructs.h>
 
 #include <EventManager.h>
 #include <LockGuard.h>

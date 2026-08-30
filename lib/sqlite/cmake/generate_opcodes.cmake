@@ -243,3 +243,20 @@ endforeach()
 
 file(APPEND "${SQLITE3_OUTPUT_FILE}" "}\n\n")
 file(APPEND "${SQLITE3_OUTPUT_FILE}" "#define SQLITE_MX_JUMP_OPCODE ${SQLITE3_MAX_OPCODE}\n")
+
+if(DEFINED SQLITE3_OUTPUT_SOURCE_FILE)
+  file(WRITE "${SQLITE3_OUTPUT_SOURCE_FILE}" "/* Automatically generated. Do not edit. */\n")
+  file(APPEND "${SQLITE3_OUTPUT_SOURCE_FILE}" "#include \"opcodes.h\"\n\n")
+  file(APPEND "${SQLITE3_OUTPUT_SOURCE_FILE}" "const char *sqlite3OpcodeName(int i) {\n")
+  file(APPEND "${SQLITE3_OUTPUT_SOURCE_FILE}" "  switch (i) {\n")
+  foreach(_i RANGE 0 ${_last_index})
+    list(GET SQLITE3_OPCODE_NAMES ${_i} _name)
+    list(GET SQLITE3_OPCODE_VALUES ${_i} _value)
+    file(APPEND "${SQLITE3_OUTPUT_SOURCE_FILE}" "  case ${_value}: return \"${_name}\";\n")
+  endforeach()
+  file(APPEND "${SQLITE3_OUTPUT_SOURCE_FILE}" "  default: return \"OP_NotUsed\";\n")
+  file(APPEND "${SQLITE3_OUTPUT_SOURCE_FILE}" "  }\n")
+  file(APPEND "${SQLITE3_OUTPUT_SOURCE_FILE}" "}\n")
+endif()
+
+

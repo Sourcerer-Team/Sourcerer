@@ -21,13 +21,14 @@ add_compile_definitions(QT_USE_STRING_BUILDER)
 add_library(SvnRepo STATIC
     include/SvnRepo.h
     src/SvnRepo.cpp
-    src/SvnRepoPlaceholders.cpp
+
 )
 
 include(../../cmake/helpers.cmake)
 
 includeComponent(SvnRepo ConfigManager)
 
+includeLib(SvnRepo GitRepo)
 includeLib(SvnRepo Log)
 includeLib(SvnRepo Util)
 
@@ -77,6 +78,18 @@ set_target_properties(cyrus-sasl PROPERTIES
 )
 add_dependencies(cyrus-sasl cyrus-sasl-build)
 add_dependencies(SvnRepo cyrus-sasl-build)
+
+if(MSVC)
+  include_directories(SYSTEM
+      C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/include
+      "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt"
+      "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/shared"
+      "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/um")
+  link_directories(
+      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64"
+      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/ucrt/x64"
+      C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/lib/x64)
+endif()
 
 add_subdirectory(../sqlite "sqlite")
 
@@ -246,6 +259,7 @@ target_link_libraries(external-serf INTERFACE serf)
 target_include_directories(external-serf INTERFACE ${SERF_SOURCE_DIR})
 
 set(SVN_IN_TREE_APR ON)
+add_compile_definitions(APR_DECLARE_STATIC APU_DECLARE_STATIC)
 set(SVN_ENABLE_SVNXX ON CACHE BOOL "Enable C++ bindings" FORCE)
 set(SVN_ENABLE_PROGRAMS OFF CACHE BOOL "Disable programs" FORCE)
 set(SVN_ENABLE_TOOLS OFF CACHE BOOL "Disable tools" FORCE)
@@ -267,9 +281,10 @@ set(SVN_ENABLE_RA_LOCAL ON CACHE BOOL "Enable local RA" FORCE)
 set(SVN_ENABLE_FS_FS ON CACHE BOOL "Enable FSFS" FORCE)
 set(SVN_ENABLE_FS_X ON CACHE BOOL "Enable FSX" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libraries" FORCE)
+
 add_subdirectory(../subversion "subversion")
 
-target_link_libraries(SvnRepo PRIVATE
+target_link_libraries(SvnRepo PUBLIC
     Qt6::Core
     Qt6::Gui
     Qt6::Network
@@ -286,6 +301,7 @@ target_link_libraries(SvnRepo PRIVATE
     sqlite3
     expat::expat
     utf8proc
+    $<$<PLATFORM_ID:Windows>:Version>
     libsvnxx
     libsvn_client
     libsvn_wc
@@ -303,4 +319,5 @@ target_include_directories(SvnRepo PRIVATE
    ../../lib/qca/include/QtCrypto
    ${CMAKE_CURRENT_BINARY_DIR}/QCA
    ${CMAKE_CURRENT_BINARY_DIR}/..
+   ${CMAKE_CURRENT_SOURCE_DIR}/../libgit2/include
 )
