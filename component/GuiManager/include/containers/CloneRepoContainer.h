@@ -7,21 +7,24 @@
 #include <QWidget>
 
 namespace Ui {
-class CloneGitRepoContainer;
+class CloneRepoContainer;
 }
 
 namespace GuiManager {
 
 namespace Containers {
 
+enum class CloneType { Git, Subversion };
+
 using namespace Widgets;
 
-class CloneGitRepoContainer : public ContainerWidget {
+class CloneRepoContainer : public ContainerWidget {
   Q_OBJECT
 
 public:
-  explicit CloneGitRepoContainer(QWidget *parent = nullptr);
-  virtual ~CloneGitRepoContainer();
+  explicit CloneRepoContainer(QWidget *parent = nullptr,
+                              CloneType cloneType = CloneType::Git);
+  virtual ~CloneRepoContainer();
 
 signals:
   void finished();
@@ -32,8 +35,9 @@ private slots:
   void onTextChanged(const QString &text) const;
 
 private:
-  Ui::CloneGitRepoContainer *ui;
+  Ui::CloneRepoContainer *ui;
   EventManager::EventManager &_eventManager;
+  CloneType _cloneType;
   QString _uuid;
 };
 

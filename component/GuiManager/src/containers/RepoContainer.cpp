@@ -1,10 +1,10 @@
-#include "containers/GitRepoContainer.h"
+#include "containers/RepoContainer.h"
 #include "DarkThemeLexersHighlighter.h"
 #include "MainWindow.h"
 #include "MousePositionCorrection.h"
 #include "QScintillaLexerFactory.h"
 #include "containers/GitRepoManagerBridgeImpl.h"
-#include "containers/ui_GitRepoContainer.h"
+#include "containers/ui_RepoContainer.h"
 #include "delegates/ElidePartialColorDelegate.h"
 #include "delegates/HistorySliceTableColumnDelegate.h"
 #include "delegates/HistorySummaryTableColumnDelegate.h"
@@ -68,7 +68,7 @@
 #include <functional>
 #include <utility>
 
-#define THREAD_ID "GitRepoContainer"
+#define THREAD_ID "RepoContainer"
 
 #define ALL_BRANCHES "*"
 #define HEAD "HEAD"
@@ -166,9 +166,9 @@ QStringList traverseModelIndexSubtree(const QModelIndex &parent,
   return files;
 }
 
-GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
+RepoContainer::RepoContainer(QString path, QWidget *parent)
     : ContainerWidget(Widgets::ContainerType::GitRepo, parent),
-      ui(new Ui::GitRepoContainer), _uuid(Uuid::createUuid()),
+      ui(new Ui::RepoContainer), _uuid(Uuid::createUuid()),
       _path(std::move(path)), _lastDiffRepoStatusChanged(false),
       _activeBranchType(GitRepo::BranchType::All),
       _configManager(ConfigManager::ConfigManager::getInstance()),
@@ -248,9 +248,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       Qt::CustomContextMenu);
   connect(ui->historyView->horizontalHeader(),
           &QWidget::customContextMenuRequested, this,
-          &GitRepoContainer::onHistoryHeaderContextMenuRequested);
+          &RepoContainer::onHistoryHeaderContextMenuRequested);
   connect(header, &QHeaderView::sectionResized, this,
-          &GitRepoContainer::onHistoryHeaderSectionResized);
+          &RepoContainer::onHistoryHeaderSectionResized);
 
   applyHistoryColumnVisibility();
 
@@ -378,13 +378,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->listViewPageDisplayFilesFlat->setContextMenuPolicy(Qt::CustomContextMenu);
   ui->treeViewPageDisplayFilesTree->setContextMenuPolicy(Qt::CustomContextMenu);
 
-  connect(
-      ui->listViewPageDisplayFilesFlat, &QListView::customContextMenuRequested,
-      this,
-      &GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested);
+  connect(ui->listViewPageDisplayFilesFlat,
+          &QListView::customContextMenuRequested, this,
+          &RepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested);
   connect(ui->treeViewPageDisplayFilesTree,
           &QTreeView::customContextMenuRequested, this,
-          &GitRepoContainer::onPageDisplayFilesTreeViewContextMenuRequested);
+          &RepoContainer::onPageDisplayFilesTreeViewContextMenuRequested);
 
   // Set placeholder text color via palette
   QPalette palette = ui->textEditDescription->palette();
@@ -657,76 +656,76 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->splitter->restoreState(splitterState);
 
   connect(ui->historyView, &QAbstractItemView::entered, this,
-          &GitRepoContainer::onHistoryViewItemEntered);
+          &RepoContainer::onHistoryViewItemEntered);
 
   connect(ui->splitter, &QSplitter::splitterMoved, this,
-          &GitRepoContainer::onSplitterMoved);
+          &RepoContainer::onSplitterMoved);
 
   connect(ui->localPage, &LocalGitBranchesPage::branchSelected, this,
-          &GitRepoContainer::onLocalBranchSelected);
+          &RepoContainer::onLocalBranchSelected);
   connect(ui->localPage, &LocalGitBranchesPage::branchRightClicked, this,
-          &GitRepoContainer::onLocalBranchRightClicked);
+          &RepoContainer::onLocalBranchRightClicked);
   connect(ui->localPage, &LocalGitBranchesPage::branchesMoved, this,
-          &GitRepoContainer::onLocalBranchMoved);
+          &RepoContainer::onLocalBranchMoved);
 
   connect(ui->remotePage, &RemoteGitBranchesPage::branchSelected, this,
-          &GitRepoContainer::onRemoteBranchSelected);
+          &RepoContainer::onRemoteBranchSelected);
   connect(ui->remotePage, &RemoteGitBranchesPage::branchRightClicked, this,
-          &GitRepoContainer::onRemoteBranchRightClicked);
+          &RepoContainer::onRemoteBranchRightClicked);
   connect(ui->remotesPage, &Widgets::RemotesPage::fetchRemote, this,
-          &GitRepoContainer::onFetchRemote);
+          &RepoContainer::onFetchRemote);
 
   connect(ui->tagsPage, &GitTagsPage::tagSelected, this,
-          &GitRepoContainer::onTagSelected);
+          &RepoContainer::onTagSelected);
   connect(ui->tagsPage, &GitTagsPage::tagRightClicked, this,
-          &GitRepoContainer::onTagRightClicked);
+          &RepoContainer::onTagRightClicked);
   connect(ui->tagsPage, &GitTagsPage::emptyAreaRightClicked, this,
-          &GitRepoContainer::onTagsEmptyAreaRightClicked);
+          &RepoContainer::onTagsEmptyAreaRightClicked);
 
   connect(ui->stashesPage, &StashesPage::stashSelected, this,
-          &GitRepoContainer::onStashSelected);
+          &RepoContainer::onStashSelected);
   connect(ui->stashesPage, &StashesPage::applyStash, this,
-          &GitRepoContainer::onApplyStash);
+          &RepoContainer::onApplyStash);
   connect(ui->stashesPage, &StashesPage::popStash, this,
-          &GitRepoContainer::onPopStash);
+          &RepoContainer::onPopStash);
   connect(ui->stashesPage, &StashesPage::deleteStash, this,
-          &GitRepoContainer::onDeleteStash);
+          &RepoContainer::onDeleteStash);
   connect(ui->stashesPage, &StashesPage::clearAllStashes, this,
-          &GitRepoContainer::onClearAllStashes);
+          &RepoContainer::onClearAllStashes);
 
   connect(ui->remotesPage, &RemotesPage::addRemote, this,
-          &GitRepoContainer::onAddRemote);
+          &RepoContainer::onAddRemote);
   connect(ui->remotesPage, &RemotesPage::editRemote, this,
-          &GitRepoContainer::onEditRemote);
+          &RepoContainer::onEditRemote);
   connect(ui->remotesPage, &RemotesPage::deleteRemote, this,
-          &GitRepoContainer::onDeleteRemote);
+          &RepoContainer::onDeleteRemote);
   connect(ui->remotesPage, &RemotesPage::setDefaultRemote, this,
-          &GitRepoContainer::onSetDefaultRemote);
+          &RepoContainer::onSetDefaultRemote);
   connect(ui->remotesPage, &RemotesPage::addTarget, this,
-          &GitRepoContainer::onAddTarget);
+          &RepoContainer::onAddTarget);
   connect(ui->remotesPage, &RemotesPage::editTarget, this,
-          &GitRepoContainer::onEditTarget);
+          &RepoContainer::onEditTarget);
   connect(ui->remotesPage, &RemotesPage::deleteTarget, this,
-          &GitRepoContainer::onDeleteTarget);
+          &RepoContainer::onDeleteTarget);
   connect(ui->remotesPage, &RemotesPage::setDefaultTarget, this,
-          &GitRepoContainer::onSetDefaultTarget);
+          &RepoContainer::onSetDefaultTarget);
 
   connect(ui->submodulesPage, &GitSubmodulesPage::rightClicked, this,
-          &GitRepoContainer::onSubmodulePanelRightClicked);
+          &RepoContainer::onSubmodulePanelRightClicked);
   connect(ui->submodulesPage, &GitSubmodulesPage::submoduleSelected, this,
-          &GitRepoContainer::onSubmoduleSelected);
+          &RepoContainer::onSubmoduleSelected);
   connect(ui->submodulesPage, &GitSubmodulesPage::submoduleRightClicked, this,
-          &GitRepoContainer::onSubmoduleRightClicked);
+          &RepoContainer::onSubmoduleRightClicked);
 
   connect(_spinnerOverlayTimer, &QTimer::timeout, this,
-          &GitRepoContainer::onShowSpinnerOverlay);
+          &RepoContainer::onShowSpinnerOverlay);
 
   connect(header, &ClickableHeaderView::headerDoubleClicked, this,
-          &GitRepoContainer::onGraphColumnExpand);
+          &RepoContainer::onGraphColumnExpand);
 
   connect(ui->historyView->selectionModel(),
           &QItemSelectionModel::selectionChanged, this,
-          &GitRepoContainer::onHistorySelectionChanged);
+          &RepoContainer::onHistorySelectionChanged);
 
   connect(ui->tabWidgetPageDisplayFiles, &QTabWidget::currentChanged, this,
           [=](const int index) {
@@ -734,14 +733,14 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           });
 
   connect(_displayTreeExpandAllButton, &QPushButton::clicked, this,
-          &GitRepoContainer::onDisplayTreeExpandAllButtonClicked);
+          &RepoContainer::onDisplayTreeExpandAllButtonClicked);
 
-  connect(
-      _commitAndMergeWorkingDirTreeStageAllButton, &QPushButton::clicked, this,
-      &GitRepoContainer::onCommitAndMergeWorkingTreeTreeStageAllButtonClicked);
+  connect(_commitAndMergeWorkingDirTreeStageAllButton, &QPushButton::clicked,
+          this,
+          &RepoContainer::onCommitAndMergeWorkingTreeTreeStageAllButtonClicked);
 
   connect(_commitAndMergeIndexTreeUnstageAllButton, &QPushButton::clicked, this,
-          &GitRepoContainer::onCommitAndMergeIndexTreeUnstageAllButtonClicked);
+          &RepoContainer::onCommitAndMergeIndexTreeUnstageAllButtonClicked);
 
   connect(ui->lineEditSummary, &QLineEdit::textChanged, this,
           [=](const QString &text) { resetCommitButton(); });
@@ -753,139 +752,136 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           [=]() { resetCommitButton(); });
 
   connect(ui->pushButtonAbort, &QPushButton::clicked, this,
-          &GitRepoContainer::onAbortButtonClicked);
+          &RepoContainer::onAbortButtonClicked);
   connect(ui->pushButtonCommit, &QPushButton::clicked, this,
-          &GitRepoContainer::onCommitButtonClicked);
+          &RepoContainer::onCommitButtonClicked);
   connect(ui->pushButtonMerge, &QPushButton::clicked, this,
-          &GitRepoContainer::onMergeButtonClicked);
+          &RepoContainer::onMergeButtonClicked);
 
   connect(ui->listViewTabWidgetWorkingTreeFlat,
           &QListView::customContextMenuRequested, this,
-          &GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested);
+          &RepoContainer::onWorkingTreeFlatListViewContextMenuRequested);
 
   connect(ui->actionWorkingTreeFlatStage, &QAction::triggered, this,
-          &GitRepoContainer::onWorkingTreeFlatListViewStageSelected);
+          &RepoContainer::onWorkingTreeFlatListViewStageSelected);
   connect(ui->actionWorkingTreeFlatIgnore, &QAction::triggered, this,
-          &GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected);
+          &RepoContainer::onWorkingTreeFlatListViewIgnoreSelected);
   connect(ui->actionWorkingTreeFlatCreateFilePatch, &QAction::triggered, this,
-          &GitRepoContainer::onWorkingTreeFlatListViewCreateFilePatchSelected);
+          &RepoContainer::onWorkingTreeFlatListViewCreateFilePatchSelected);
   connect(ui->actionWorkingTreeFlatDelete, &QAction::triggered, this,
-          &GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected);
+          &RepoContainer::onWorkingTreeFlatListViewDeleteSelected);
   connect(ui->actionWorkingTreeFlatDiscard, &QAction::triggered, this,
-          &GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected);
-  connect(
-      ui->actionWorkingTreeFlatShowInFileManager, &QAction::triggered, this,
-      &GitRepoContainer::onWorkingTreeFlatListViewShowInFileManagerSelected);
+          &RepoContainer::onWorkingTreeFlatListViewDiscardSelected);
+  connect(ui->actionWorkingTreeFlatShowInFileManager, &QAction::triggered, this,
+          &RepoContainer::onWorkingTreeFlatListViewShowInFileManagerSelected);
 
   connect(ui->treeViewTabWidgetWorkingTreeTree,
           &QTreeView::customContextMenuRequested, this,
-          &GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested);
+          &RepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested);
 
   connect(ui->actionWorkingTreeTreeStage, &QAction::triggered, this,
-          &GitRepoContainer::onWorkingTreeTreeTreeViewStageSelected);
+          &RepoContainer::onWorkingTreeTreeTreeViewStageSelected);
   connect(ui->actionWorkingTreeTreeIgnore, &QAction::triggered, this,
-          &GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected);
+          &RepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected);
   connect(ui->actionWorkingTreeTreeCreateFilePatch, &QAction::triggered, this,
-          &GitRepoContainer::onWorkingTreeTreeTreeViewCreateFilePatchSelected);
+          &RepoContainer::onWorkingTreeTreeTreeViewCreateFilePatchSelected);
   connect(ui->actionWorkingTreeTreeDelete, &QAction::triggered, this,
-          &GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected);
+          &RepoContainer::onWorkingTreeTreeTreeViewDeleteSelected);
   connect(ui->actionWorkingTreeTreeDiscard, &QAction::triggered, this,
-          &GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected);
-  connect(
-      ui->actionWorkingTreeTreeShowInFileManager, &QAction::triggered, this,
-      &GitRepoContainer::onWorkingTreeTreeTreeViewShowInFileManagerSelected);
+          &RepoContainer::onWorkingTreeTreeTreeViewDiscardSelected);
+  connect(ui->actionWorkingTreeTreeShowInFileManager, &QAction::triggered, this,
+          &RepoContainer::onWorkingTreeTreeTreeViewShowInFileManagerSelected);
 
   connect(ui->listViewTabWidgetIndexFlat,
           &QListView::customContextMenuRequested, this,
-          &GitRepoContainer::onIndexFlatListViewContextMenuRequested);
+          &RepoContainer::onIndexFlatListViewContextMenuRequested);
 
   connect(ui->actionIndexFlatUnstage, &QAction::triggered, this,
-          &GitRepoContainer::onIndexFlatListViewUnstageSelected);
+          &RepoContainer::onIndexFlatListViewUnstageSelected);
   connect(ui->actionIndexFlatIgnore, &QAction::triggered, this,
-          &GitRepoContainer::onIndexFlatListViewIgnoreSelected);
+          &RepoContainer::onIndexFlatListViewIgnoreSelected);
   connect(ui->actionIndexFlatCreateFilePatch, &QAction::triggered, this,
-          &GitRepoContainer::onIndexFlatListViewCreateFilePatchSelected);
+          &RepoContainer::onIndexFlatListViewCreateFilePatchSelected);
   connect(ui->actionIndexFlatDelete, &QAction::triggered, this,
-          &GitRepoContainer::onIndexFlatListViewDeleteSelected);
+          &RepoContainer::onIndexFlatListViewDeleteSelected);
   connect(ui->actionIndexFlatDiscard, &QAction::triggered, this,
-          &GitRepoContainer::onIndexFlatListViewDiscardSelected);
+          &RepoContainer::onIndexFlatListViewDiscardSelected);
   connect(ui->actionIndexFlatShowInFileManager, &QAction::triggered, this,
-          &GitRepoContainer::onIndexFlatListViewShowInFileManagerSelected);
+          &RepoContainer::onIndexFlatListViewShowInFileManagerSelected);
 
   connect(ui->treeViewTabWidgetIndexTree,
           &QTreeView::customContextMenuRequested, this,
-          &GitRepoContainer::onIndexTreeTreeViewContextMenuRequested);
+          &RepoContainer::onIndexTreeTreeViewContextMenuRequested);
 
   connect(ui->actionIndexTreeUnstage, &QAction::triggered, this,
-          &GitRepoContainer::onIndexTreeTreeViewUnstageSelected);
+          &RepoContainer::onIndexTreeTreeViewUnstageSelected);
   connect(ui->actionIndexTreeIgnore, &QAction::triggered, this,
-          &GitRepoContainer::onIndexTreeTreeViewIgnoreSelected);
+          &RepoContainer::onIndexTreeTreeViewIgnoreSelected);
   connect(ui->actionIndexTreeCreateFilePatch, &QAction::triggered, this,
-          &GitRepoContainer::onIndexTreeTreeViewCreateFilePatchSelected);
+          &RepoContainer::onIndexTreeTreeViewCreateFilePatchSelected);
   connect(ui->actionIndexTreeDelete, &QAction::triggered, this,
-          &GitRepoContainer::onIndexTreeTreeViewDeleteSelected);
+          &RepoContainer::onIndexTreeTreeViewDeleteSelected);
   connect(ui->actionIndexTreeDiscard, &QAction::triggered, this,
-          &GitRepoContainer::onIndexTreeTreeViewDiscardSelected);
+          &RepoContainer::onIndexTreeTreeViewDiscardSelected);
   connect(ui->actionIndexTreeShowInFileManager, &QAction::triggered, this,
-          &GitRepoContainer::onIndexTreeTreeViewShowInFileManagerSelected);
+          &RepoContainer::onIndexTreeTreeViewShowInFileManagerSelected);
 
   connect(_repoDirWatcherTimer, &QTimer::timeout, this,
-          &GitRepoContainer::onRepoDirChangedTimeout);
+          &RepoContainer::onRepoDirChangedTimeout);
 
   connect(pullFetchDropdown, &QToolButton::clicked, this,
-          &GitRepoContainer::onPull);
-  connect(actionPullMenu, &QAction::triggered, this, &GitRepoContainer::onPull);
+          &RepoContainer::onPull);
+  connect(actionPullMenu, &QAction::triggered, this, &RepoContainer::onPull);
   connect(actionPullWithRebaseMenu, &QAction::triggered, this,
           [=](bool) { onPull(true); });
   connect(actionFetchAllMenu, &QAction::triggered, this,
-          &GitRepoContainer::onFetchAll);
-  connect(pushButtonPush, &QToolButton::clicked, this,
-          &GitRepoContainer::onPush);
-  connect(actionPushMenu, &QAction::triggered, this, &GitRepoContainer::onPush);
+          &RepoContainer::onFetchAll);
+  connect(pushButtonPush, &QToolButton::clicked, this, &RepoContainer::onPush);
+  connect(actionPushMenu, &QAction::triggered, this, &RepoContainer::onPush);
   connect(actionForcePushMenu, &QAction::triggered, this,
           [=](bool) { onPush(true); });
   connect(pushButtonStash, &QPushButton::clicked, this,
-          &GitRepoContainer::onStash);
-  connect(pushButtonPop, &QPushButton::clicked, this, &GitRepoContainer::onPop);
+          &RepoContainer::onStash);
+  connect(pushButtonPop, &QPushButton::clicked, this, &RepoContainer::onPop);
 
-  connect(this, &GitRepoContainer::historyViewRightClicked, this,
-          &GitRepoContainer::onHistoryViewRightClicked);
+  connect(this, &RepoContainer::historyViewRightClicked, this,
+          &RepoContainer::onHistoryViewRightClicked);
 
   connect(ui->pushButtonDiffUnified, &QPushButton::clicked, this,
-          &GitRepoContainer::onDiffUnifiedClicked);
+          &RepoContainer::onDiffUnifiedClicked);
   connect(ui->pushButtonDiffSideBySide, &QPushButton::clicked, this,
-          &GitRepoContainer::onDiffSideBySideClicked);
+          &RepoContainer::onDiffSideBySideClicked);
   connect(ui->pushButtonDiffClose, &QPushButton::clicked, this,
-          &GitRepoContainer::onDiffCloseClicked);
+          &RepoContainer::onDiffCloseClicked);
 
   connect(ui->pushButtonMergeDiffDown, &QPushButton::clicked, this,
-          &GitRepoContainer::onMergeDiffDownClicked);
+          &RepoContainer::onMergeDiffDownClicked);
   connect(ui->pushButtonMergeDiffUp, &QPushButton::clicked, this,
-          &GitRepoContainer::onMergeDiffUpClicked);
+          &RepoContainer::onMergeDiffUpClicked);
   connect(ui->pushButtonMergeDiffSave, &QPushButton::clicked, this,
-          &GitRepoContainer::onMergeDiffSaveClicked);
+          &RepoContainer::onMergeDiffSaveClicked);
   connect(ui->pushButtonMergeDiffClose, &QPushButton::clicked, this,
-          &GitRepoContainer::onMergeDiffCloseClicked);
+          &RepoContainer::onMergeDiffCloseClicked);
 
   connect(_stashApplyButton, &QPushButton::clicked, this,
-          &GitRepoContainer::onStashApplyClicked);
+          &RepoContainer::onStashApplyClicked);
   connect(_stashPopButton, &QPushButton::clicked, this,
-          &GitRepoContainer::onStashPopClicked);
+          &RepoContainer::onStashPopClicked);
   connect(ui->pushButtonStashClose, &QPushButton::clicked, this,
-          &GitRepoContainer::onStashContentCloseClicked);
+          &RepoContainer::onStashContentCloseClicked);
   connect(ui->pushButtonStashDiffUnified, &QPushButton::clicked, this,
-          &GitRepoContainer::onStashDiffUnifiedClicked);
+          &RepoContainer::onStashDiffUnifiedClicked);
   connect(ui->pushButtonStashDiffSideBySide, &QPushButton::clicked, this,
-          &GitRepoContainer::onStashDiffSideBySideClicked);
+          &RepoContainer::onStashDiffSideBySideClicked);
 
   qApp->setStyleSheet(qApp->styleSheet());
 
   LOG_PERF(0, "Exit")
 }
 
-GitRepoContainer::~GitRepoContainer() {
+RepoContainer::~RepoContainer() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Destroying GitRepoContainer for path: '{}'", _path.toStdString());
+  LOG_DEBUG("Destroying RepoContainer for path: '{}'", _path.toStdString());
 
   // Also quit GitRepo jobs
   _bridge->closeRepo();
@@ -899,13 +895,13 @@ GitRepoContainer::~GitRepoContainer() {
   delete _repoDirWatcherTimer;
   LOG_DEBUG("UI resources cleaned up");
 
-  LOG_INFO("GitRepoContainer destroyed for path: '{}'", _path.toStdString());
+  LOG_INFO("RepoContainer destroyed for path: '{}'", _path.toStdString());
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::init() {
+void RepoContainer::init() {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Initializing GitRepoContainer for repository: '{}'",
+  LOG_DEBUG("Initializing RepoContainer for repository: '{}'",
             _path.toStdString());
 
   ContainerWidget::init();
@@ -923,12 +919,12 @@ void GitRepoContainer::init() {
     }
   });
 
-  LOG_INFO("GitRepoContainer initialization completed for: '{}'",
+  LOG_INFO("RepoContainer initialization completed for: '{}'",
            _path.toStdString());
   LOG_PERF(0, "Exit");
 }
 
-bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
+bool RepoContainer::eventFilter(QObject *watched, QEvent *event) {
   if (watched == ui->historyView->viewport()) {
     if (event->type() == QEvent::MouseMove) {
       const QPoint globalPos =
@@ -987,7 +983,7 @@ bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
   return QObject::eventFilter(watched, event);
 }
 
-void GitRepoContainer::deselected() {
+void RepoContainer::deselected() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Container deselected: '{}'", _path.toStdString());
 
@@ -997,7 +993,7 @@ void GitRepoContainer::deselected() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::selected() {
+void RepoContainer::selected() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Container selected: '{}'", _path.toStdString());
 
@@ -1057,7 +1053,7 @@ void GitRepoContainer::selected() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::hideEvent(QHideEvent *event) {
+void RepoContainer::hideEvent(QHideEvent *event) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Container hide event triggered for: '{}'", _path.toStdString());
 
@@ -1067,7 +1063,7 @@ void GitRepoContainer::hideEvent(QHideEvent *event) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::resizeEvent(QResizeEvent *event) {
+void RepoContainer::resizeEvent(QResizeEvent *event) {
   LOG_PERF(0, "Enter");
 
   ContainerWidget::resizeEvent(event);
@@ -1076,7 +1072,7 @@ void GitRepoContainer::resizeEvent(QResizeEvent *event) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::changeEvent(QEvent *event) {
+void RepoContainer::changeEvent(QEvent *event) {
   QWidget::changeEvent(event);
 
   if (!event)
@@ -1093,7 +1089,7 @@ void GitRepoContainer::changeEvent(QEvent *event) {
   }
 }
 
-void GitRepoContainer::refreshScintillaTheme() {
+void RepoContainer::refreshScintillaTheme() {
   DarkThemeLexersHighlighter highlighter;
   const auto editors = findChildren<QsciScintilla *>();
 
@@ -1102,7 +1098,7 @@ void GitRepoContainer::refreshScintillaTheme() {
   }
 }
 
-void GitRepoContainer::showEvent(QShowEvent *event) {
+void RepoContainer::showEvent(QShowEvent *event) {
   LOG_PERF(0, "Enter");
 
   ContainerWidget::showEvent(event);
@@ -1112,7 +1108,7 @@ void GitRepoContainer::showEvent(QShowEvent *event) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::onAddSubmodule() {
+void RepoContainer::onAddSubmodule() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Add submodule dialog requested for repository: '{}'",
             _path.toStdString());
@@ -1148,7 +1144,7 @@ void GitRepoContainer::onAddSubmodule() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onApplyPatch() {
+void RepoContainer::onApplyPatch() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Apply patch dialog requested for repository: '{}'",
             _path.toStdString());
@@ -1172,7 +1168,7 @@ void GitRepoContainer::onApplyPatch() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onApplyStash(const int stashIndex) {
+void RepoContainer::onApplyStash(const int stashIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Apply stash requested at index: {} for repository: '{}'",
             stashIndex, _path.toStdString());
@@ -1197,7 +1193,7 @@ void GitRepoContainer::onApplyStash(const int stashIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDeleteStash(const int stashIndex) {
+void RepoContainer::onDeleteStash(const int stashIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Delete stash requested at index: {} for repository: '{}'",
             stashIndex, _path.toStdString());
@@ -1234,7 +1230,7 @@ void GitRepoContainer::onDeleteStash(const int stashIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onPopStash(const int stashIndex) {
+void RepoContainer::onPopStash(const int stashIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Pop stash requested at index: {} for repository: '{}'", stashIndex,
             _path.toStdString());
@@ -1259,7 +1255,7 @@ void GitRepoContainer::onPopStash(const int stashIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onClearAllStashes() {
+void RepoContainer::onClearAllStashes() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Clear all stashes requested for repository: '{}'",
             _path.toStdString());
@@ -1293,7 +1289,7 @@ void GitRepoContainer::onClearAllStashes() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onAddRemote() {
+void RepoContainer::onAddRemote() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Add remote requested for repository: '{}'", _path.toStdString());
 
@@ -1327,7 +1323,7 @@ void GitRepoContainer::onAddRemote() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onEditRemote(int remoteIndex) {
+void RepoContainer::onEditRemote(int remoteIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Edit remote {} requested", remoteIndex);
 
@@ -1372,7 +1368,7 @@ void GitRepoContainer::onEditRemote(int remoteIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onFetchRemote(int remoteIndex) {
+void RepoContainer::onFetchRemote(int remoteIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Fetch remote {} requested", remoteIndex);
 
@@ -1403,7 +1399,7 @@ void GitRepoContainer::onFetchRemote(int remoteIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDeleteRemote(int remoteIndex) {
+void RepoContainer::onDeleteRemote(int remoteIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Delete remote {} requested", remoteIndex);
 
@@ -1437,7 +1433,7 @@ void GitRepoContainer::onDeleteRemote(int remoteIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSetDefaultRemote(int remoteIndex) {
+void RepoContainer::onSetDefaultRemote(int remoteIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Set default remote {} requested", remoteIndex);
 
@@ -1506,7 +1502,7 @@ void GitRepoContainer::onSetDefaultRemote(int remoteIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onAddTarget(int remoteIndex) {
+void RepoContainer::onAddTarget(int remoteIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Add target to remote {} requested", remoteIndex);
 
@@ -1550,7 +1546,7 @@ void GitRepoContainer::onAddTarget(int remoteIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onEditTarget(int remoteIndex, int targetIndex) {
+void RepoContainer::onEditTarget(int remoteIndex, int targetIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Edit target {}/{} requested", remoteIndex, targetIndex);
 
@@ -1601,7 +1597,7 @@ void GitRepoContainer::onEditTarget(int remoteIndex, int targetIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDeleteTarget(int remoteIndex, int targetIndex) {
+void RepoContainer::onDeleteTarget(int remoteIndex, int targetIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Delete target {}/{} requested", remoteIndex, targetIndex);
 
@@ -1652,7 +1648,7 @@ void GitRepoContainer::onDeleteTarget(int remoteIndex, int targetIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSetDefaultTarget(int remoteIndex, int targetIndex) {
+void RepoContainer::onSetDefaultTarget(int remoteIndex, int targetIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Set default target {}/{} requested", remoteIndex, targetIndex);
 
@@ -1679,7 +1675,7 @@ void GitRepoContainer::onSetDefaultTarget(int remoteIndex, int targetIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSplitterMoved(const int pos, const int index) {
+void RepoContainer::onSplitterMoved(const int pos, const int index) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("pos = {}, index = {}", pos, index);
 
@@ -1693,9 +1689,9 @@ void GitRepoContainer::onSplitterMoved(const int pos, const int index) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onHistoryHeaderSectionResized(const int logicalIndex,
-                                                     const int oldSize,
-                                                     const int newSize) {
+void RepoContainer::onHistoryHeaderSectionResized(const int logicalIndex,
+                                                  const int oldSize,
+                                                  const int newSize) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("logicalIndex = {}, oldSize = {}, newSize = {}", logicalIndex,
             oldSize, newSize);
@@ -1720,7 +1716,7 @@ void GitRepoContainer::onHistoryHeaderSectionResized(const int logicalIndex,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::showTooltipForSummaryColumn(
+void RepoContainer::showTooltipForSummaryColumn(
     const QModelIndex &index) const {
   LOG_PERF(0, "Enter");
 
@@ -1769,7 +1765,7 @@ void GitRepoContainer::showTooltipForSummaryColumn(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onCheckoutCommit(const QString &commit) {
+void RepoContainer::onCheckoutCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Checkout commit requested: '{}'", commit.toStdString());
 
@@ -1788,7 +1784,7 @@ void GitRepoContainer::onCheckoutCommit(const QString &commit) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onAbortButtonClicked() {
+void RepoContainer::onAbortButtonClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Abort merge button clicked for repository: '{}'",
             _path.toStdString());
@@ -1807,7 +1803,7 @@ void GitRepoContainer::onAbortButtonClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onCommitButtonClicked() {
+void RepoContainer::onCommitButtonClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Commit button clicked for repository: '{}'", _path.toStdString());
 
@@ -1848,7 +1844,7 @@ void GitRepoContainer::onCommitButtonClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onMergeButtonClicked() {
+void RepoContainer::onMergeButtonClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Merge button clicked for repository: '{}'", _path.toStdString());
 
@@ -1879,7 +1875,7 @@ void GitRepoContainer::onMergeButtonClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onCommitAndMergeIndexTreeUnstageAllButtonClicked() {
+void RepoContainer::onCommitAndMergeIndexTreeUnstageAllButtonClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Unstage all files button clicked for repository: '{}'",
             _path.toStdString());
@@ -1901,7 +1897,7 @@ void GitRepoContainer::onCommitAndMergeIndexTreeUnstageAllButtonClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onCommitAndMergeWorkingTreeTreeStageAllButtonClicked() {
+void RepoContainer::onCommitAndMergeWorkingTreeTreeStageAllButtonClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Stage all files button clicked for repository: '{}'",
             _path.toStdString());
@@ -1923,7 +1919,7 @@ void GitRepoContainer::onCommitAndMergeWorkingTreeTreeStageAllButtonClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onCreateBranchFromCommit(const QString &commit) {
+void RepoContainer::onCreateBranchFromCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Create branch from commit requested: '{}' in repository '{}'",
             commit.toStdString(), _path.toStdString());
@@ -1978,7 +1974,7 @@ void GitRepoContainer::onCreateBranchFromCommit(const QString &commit) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onCreatePatchFromCommit(const QString &commit) {
+void RepoContainer::onCreatePatchFromCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Create patch from commit requested: '{}' in repository '{}'",
             commit.toStdString(), _path.toStdString());
@@ -1995,7 +1991,7 @@ void GitRepoContainer::onCreatePatchFromCommit(const QString &commit) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
+void RepoContainer::onCreateTagFromCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Create tag from commit requested: '{}' in repository '{}'",
             commit.toStdString(), _path.toStdString());
@@ -2033,7 +2029,7 @@ void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDeleteBranch(const QString &branchName) {
+void RepoContainer::onDeleteBranch(const QString &branchName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Delete branch requested: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
@@ -2061,7 +2057,7 @@ void GitRepoContainer::onDeleteBranch(const QString &branchName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDeleteRemoteBranch(const QString &branchName) {
+void RepoContainer::onDeleteRemoteBranch(const QString &branchName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Delete remote branch requested: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
@@ -2090,7 +2086,7 @@ void GitRepoContainer::onDeleteRemoteBranch(const QString &branchName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDeleteTag(const QString &tagName) {
+void RepoContainer::onDeleteTag(const QString &tagName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Delete tag requested: '{}' in repository '{}'",
             tagName.toStdString(), _path.toStdString());
@@ -2117,7 +2113,7 @@ void GitRepoContainer::onDeleteTag(const QString &tagName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onPushTag(const QString &tagName) {
+void RepoContainer::onPushTag(const QString &tagName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Push tag requested: '{}' in repository '{}'",
             tagName.toStdString(), _path.toStdString());
@@ -2144,7 +2140,7 @@ void GitRepoContainer::onPushTag(const QString &tagName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onPushAllTags() {
+void RepoContainer::onPushAllTags() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Push all tags requested for repository '{}'", _path.toStdString());
 
@@ -2169,7 +2165,7 @@ void GitRepoContainer::onPushAllTags() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDeleteRemoteTag(const QString &tagName) {
+void RepoContainer::onDeleteRemoteTag(const QString &tagName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Delete remote tag requested: '{}' in repository '{}'",
             tagName.toStdString(), _path.toStdString());
@@ -2197,7 +2193,7 @@ void GitRepoContainer::onDeleteRemoteTag(const QString &tagName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDiffCloseClicked() {
+void RepoContainer::onDiffCloseClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Diff viewer close requested");
 
@@ -2207,7 +2203,7 @@ void GitRepoContainer::onDiffCloseClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::closeDiffViewerIfOpen() {
+void RepoContainer::closeDiffViewerIfOpen() {
   LOG_PERF(0, "Enter");
 
   // Check if the diff viewer is currently displayed
@@ -2234,7 +2230,7 @@ void GitRepoContainer::closeDiffViewerIfOpen() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDiffUnifiedClicked() {
+void RepoContainer::onDiffUnifiedClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Switching to unified diff view");
 
@@ -2255,7 +2251,7 @@ void GitRepoContainer::onDiffUnifiedClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDiffSideBySideClicked() {
+void RepoContainer::onDiffSideBySideClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Switching to side-by-side diff view");
 
@@ -2276,7 +2272,7 @@ void GitRepoContainer::onDiffSideBySideClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDisplayTreeExpandAllButtonClicked() {
+void RepoContainer::onDisplayTreeExpandAllButtonClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Expand/collapse all files button clicked");
 
@@ -2297,7 +2293,7 @@ void GitRepoContainer::onDisplayTreeExpandAllButtonClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onHardResetToCommit(const QString &commit) {
+void RepoContainer::onHardResetToCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Hard reset to commit requested: '{}' in repository '{}'",
             commit.toStdString(), _path.toStdString());
@@ -2328,7 +2324,7 @@ void GitRepoContainer::onHardResetToCommit(const QString &commit) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onHistorySelectionChanged(
+void RepoContainer::onHistorySelectionChanged(
     const QItemSelection &selected, const QItemSelection &deselected) {
   LOG_PERF(0, "Enter");
 
@@ -2374,8 +2370,8 @@ void GitRepoContainer::onHistorySelectionChanged(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
-                                                 const QPoint &pos) {
+void RepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
+                                              const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
   const QModelIndex commitIndex =
@@ -2403,8 +2399,8 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   QAction actionCreateTagFromCommit(tr("Create tag from commit"), this);
   QAction actionCreatePatchFromCommit(tr("Create patch from commit"), this);
 
-  connect(&actionPull, &QAction::triggered, this, &GitRepoContainer::onPull);
-  connect(&actionPush, &QAction::triggered, this, &GitRepoContainer::onPush);
+  connect(&actionPull, &QAction::triggered, this, &RepoContainer::onPull);
+  connect(&actionPush, &QAction::triggered, this, &RepoContainer::onPush);
 
   connect(&actionCheckoutCommit, &QAction::triggered, this,
           [=]() { onCheckoutCommit(commit); });
@@ -2425,7 +2421,7 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   connect(&actionCherryPickCommit, &QAction::triggered, this,
           [=]() { onCherryPickCommit(); });
   connect(&actionApplyPatch, &QAction::triggered, this,
-          &GitRepoContainer::onApplyPatch);
+          &RepoContainer::onApplyPatch);
   connect(&actionRenameBranch, &QAction::triggered, this,
           [=]() { onRenameBranch(_activeBranch); });
   connect(&actionCreateTagFromCommit, &QAction::triggered, this,
@@ -2469,7 +2465,7 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
+void RepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
   if (!index.isValid()) {
@@ -2491,8 +2487,7 @@ void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onListViewTabWidgetFlatSelected(
-    const QModelIndex &index) {
+void RepoContainer::onListViewTabWidgetFlatSelected(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
   if (!index.isValid()) {
@@ -2557,7 +2552,7 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onListViewTabWidgetFlatSelectedFromCommit(
+void RepoContainer::onListViewTabWidgetFlatSelectedFromCommit(
     const QModelIndex &index, const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("File selected from commit: commit='{}'", commit.toStdString());
@@ -2603,7 +2598,7 @@ void GitRepoContainer::onListViewTabWidgetFlatSelectedFromCommit(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onMergeDiffCloseClicked() {
+void RepoContainer::onMergeDiffCloseClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Merge diff viewer close requested");
 
@@ -2620,21 +2615,21 @@ void GitRepoContainer::onMergeDiffCloseClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onMergeDiffDownClicked() {
+void RepoContainer::onMergeDiffDownClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Merge diff down navigation");
 
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onMergeDiffUpClicked() {
+void RepoContainer::onMergeDiffUpClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Merge diff up navigation");
 
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onMergeDiffSaveClicked() {
+void RepoContainer::onMergeDiffSaveClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Merge diff save requested");
 
@@ -2674,7 +2669,7 @@ void GitRepoContainer::onMergeDiffSaveClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
+void RepoContainer::onTreeViewTabWidgetTreeSelected(
     const QModelIndex &index, const Models::GitCommitTreeModel &model) {
   LOG_PERF(0, "Enter");
 
@@ -2765,7 +2760,7 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onTreeViewTabWidgetTreeSelectedFromCommit(
+void RepoContainer::onTreeViewTabWidgetTreeSelectedFromCommit(
     const QModelIndex &index, const Models::GitCommitTreeModel &model,
     const QString &commit) {
   LOG_PERF(0, "Enter");
@@ -2834,8 +2829,8 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelectedFromCommit(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onLocalBranchMoved(const QString &sourceBranch,
-                                          const QString &destBranch) {
+void RepoContainer::onLocalBranchMoved(const QString &sourceBranch,
+                                       const QString &destBranch) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Branch move requested: '{}' -> '{}' in repository '{}'",
             sourceBranch.toStdString(), destBranch.toStdString(),
@@ -2889,7 +2884,7 @@ void GitRepoContainer::onLocalBranchMoved(const QString &sourceBranch,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
+void RepoContainer::onLocalBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Branch selected: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
@@ -2914,8 +2909,8 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
-                                                 const QPoint &pos) {
+void RepoContainer::onLocalBranchRightClicked(const QString &branchName,
+                                              const QPoint &pos) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Branch right-clicked: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
@@ -2965,7 +2960,7 @@ void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onMixedResetToCommit(const QString &commit) {
+void RepoContainer::onMixedResetToCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Mixed reset to commit requested: '{}' in repository '{}'",
             commit.toStdString(), _path.toStdString());
@@ -2995,7 +2990,7 @@ void GitRepoContainer::onMixedResetToCommit(const QString &commit) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onPop() {
+void RepoContainer::onPop() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Pop stash operation initiated for repository: '{}'",
             _path.toStdString());
@@ -3019,7 +3014,7 @@ void GitRepoContainer::onPop() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onPull(bool rebase) {
+void RepoContainer::onPull(bool rebase) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("{} operation initiated for repository: '{}'",
             rebase ? "Pull with rebase" : "Pull", _path.toStdString());
@@ -3038,7 +3033,7 @@ void GitRepoContainer::onPull(bool rebase) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onFetchAll() {
+void RepoContainer::onFetchAll() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Fetch all operation initiated for repository: '{}'",
             _path.toStdString());
@@ -3056,7 +3051,7 @@ void GitRepoContainer::onFetchAll() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onPush(bool force) {
+void RepoContainer::onPush(bool force) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("{}push operation initiated for repository: '{}'",
             force ? "Force " : "", _path.toStdString());
@@ -3163,7 +3158,7 @@ void GitRepoContainer::onPush(bool force) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onStash() {
+void RepoContainer::onStash() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Stash operation initiated for repository: '{}'",
             _path.toStdString());
@@ -3181,7 +3176,7 @@ void GitRepoContainer::onStash() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onStashSelected(int stashIndex) {
+void RepoContainer::onStashSelected(int stashIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Stash selected at index: {} in repository '{}'", stashIndex,
             _path.toStdString());
@@ -3197,8 +3192,8 @@ void GitRepoContainer::onStashSelected(int stashIndex) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSubmitRenameBranch(const QString &oldName,
-                                            const QString &newName) {
+void RepoContainer::onSubmitRenameBranch(const QString &oldName,
+                                         const QString &newName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Submitting branch rename: '{}' -> '{}' in repository '{}'",
             oldName.toStdString(), newName.toStdString(), _path.toStdString());
@@ -3215,8 +3210,8 @@ void GitRepoContainer::onSubmitRenameBranch(const QString &oldName,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSubmitRenameTag(const QString &oldName,
-                                         const QString &newName) {
+void RepoContainer::onSubmitRenameTag(const QString &oldName,
+                                      const QString &newName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Submitting tag rename: '{}' -> '{}' in repository '{}'",
             oldName.toStdString(), newName.toStdString(), _path.toStdString());
@@ -3232,8 +3227,8 @@ void GitRepoContainer::onSubmitRenameTag(const QString &oldName,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSubmoduleRightClicked(const QString &submoduleName,
-                                               const QPoint &pos) {
+void RepoContainer::onSubmoduleRightClicked(const QString &submoduleName,
+                                            const QPoint &pos) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Submodule right-clicked: '{}' in repository '{}'",
             submoduleName.toStdString(), _path.toStdString());
@@ -3277,7 +3272,7 @@ void GitRepoContainer::onSubmoduleRightClicked(const QString &submoduleName,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSubmodulePanelRightClicked(const QPoint &pos) {
+void RepoContainer::onSubmodulePanelRightClicked(const QPoint &pos) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Submodule panel right-clicked for repository: '{}'",
             _path.toStdString());
@@ -3285,7 +3280,7 @@ void GitRepoContainer::onSubmodulePanelRightClicked(const QPoint &pos) {
   QAction actionAddSubmodule(tr("Add"), this);
 
   connect(&actionAddSubmodule, &QAction::triggered, this,
-          &GitRepoContainer::onAddSubmodule);
+          &RepoContainer::onAddSubmodule);
 
   QMenu menu;
   menu.addAction(&actionAddSubmodule);
@@ -3296,7 +3291,7 @@ void GitRepoContainer::onSubmodulePanelRightClicked(const QPoint &pos) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSubmoduleSelected(const QString &submoduleName) {
+void RepoContainer::onSubmoduleSelected(const QString &submoduleName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Submodule selected: '{}' in repository '{}'",
             submoduleName.toStdString(), _path.toStdString());
@@ -3312,8 +3307,8 @@ void GitRepoContainer::onSubmoduleSelected(const QString &submoduleName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onTagRightClicked(const QString &tagName,
-                                         const QPoint &pos) {
+void RepoContainer::onTagRightClicked(const QString &tagName,
+                                      const QPoint &pos) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Tag right-clicked: '{}' in repository '{}'", tagName.toStdString(),
             _path.toStdString());
@@ -3368,7 +3363,7 @@ void GitRepoContainer::onTagRightClicked(const QString &tagName,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onTagsEmptyAreaRightClicked(const QPoint &pos) {
+void RepoContainer::onTagsEmptyAreaRightClicked(const QPoint &pos) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Empty area in tags panel right-clicked in repository '{}'",
             _path.toStdString());
@@ -3387,7 +3382,7 @@ void GitRepoContainer::onTagsEmptyAreaRightClicked(const QPoint &pos) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
+void RepoContainer::onRemoteBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Remote branch selected: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
@@ -3411,8 +3406,8 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onRemoteBranchRightClicked(const QString &branchName,
-                                                  const QPoint &pos) {
+void RepoContainer::onRemoteBranchRightClicked(const QString &branchName,
+                                               const QPoint &pos) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Remote branch right-clicked: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
@@ -3452,7 +3447,7 @@ void GitRepoContainer::onRemoteBranchRightClicked(const QString &branchName,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onRenameBranch(const QString &branchName) {
+void RepoContainer::onRenameBranch(const QString &branchName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Rename branch dialog requested for: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
@@ -3485,7 +3480,7 @@ void GitRepoContainer::onRenameBranch(const QString &branchName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onRenameTag(const QString &tagName) {
+void RepoContainer::onRenameTag(const QString &tagName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Rename tag dialog requested for: '{}' in repository '{}'",
             tagName.toStdString(), _path.toStdString());
@@ -3514,7 +3509,7 @@ void GitRepoContainer::onRenameTag(const QString &tagName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onRepoDirChanged(const QString &path) const {
+void RepoContainer::onRepoDirChanged(const QString &path) const {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Repository directory changed: '{}'", path.toStdString());
 
@@ -3528,7 +3523,7 @@ void GitRepoContainer::onRepoDirChanged(const QString &path) const {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onRepoDirChangedTimeout() {
+void RepoContainer::onRepoDirChangedTimeout() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG(
       "Repository directory change timeout triggered for repository: '{}'",
@@ -3573,7 +3568,7 @@ commitSummaryFromHistoryModel(const Models::GitHistoryModel *historyModel,
   return {};
 }
 
-void GitRepoContainer::onRevertCommit(const QString &commit) {
+void RepoContainer::onRevertCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Revert commit requested: '{}' in repository '{}'",
             commit.toStdString(), _path.toStdString());
@@ -3607,7 +3602,7 @@ void GitRepoContainer::onRevertCommit(const QString &commit) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onCherryPickCommit() {
+void RepoContainer::onCherryPickCommit() {
   LOG_PERF(0, "Enter");
 
   const auto inputOverlay = new TextInputOverlayWidget(this);
@@ -3643,7 +3638,7 @@ void GitRepoContainer::onCherryPickCommit() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSetUpstream(const QString &branchName) {
+void RepoContainer::onSetUpstream(const QString &branchName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Set upstream dialog requested for branch '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
@@ -3692,7 +3687,7 @@ void GitRepoContainer::onSetUpstream(const QString &branchName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onSoftResetToCommit(const QString &commit) {
+void RepoContainer::onSoftResetToCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Soft reset to commit requested: '{}' in repository '{}'",
             commit.toStdString(), _path.toStdString());
@@ -3722,7 +3717,7 @@ void GitRepoContainer::onSoftResetToCommit(const QString &commit) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onTagSelected(const QString &tagName) {
+void RepoContainer::onTagSelected(const QString &tagName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Tag selected: '{}' in repository '{}'", tagName.toStdString(),
             _path.toStdString());
@@ -3746,7 +3741,7 @@ void GitRepoContainer::onTagSelected(const QString &tagName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onShowSpinnerOverlay() {
+void RepoContainer::onShowSpinnerOverlay() {
   LOG_PERF(0, "Enter");
 
   showSpinnerOverlay();
@@ -3754,7 +3749,7 @@ void GitRepoContainer::onShowSpinnerOverlay() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onDeleteSubmodule(const QString &submoduleName) {
+void RepoContainer::onDeleteSubmodule(const QString &submoduleName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Delete submodule requested: '{}' in repository '{}'",
             submoduleName.toStdString(), _path.toStdString());
@@ -3783,7 +3778,7 @@ void GitRepoContainer::onDeleteSubmodule(const QString &submoduleName) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::resizeSectionToViewport(const int section) {
+void RepoContainer::resizeSectionToViewport(const int section) {
   LOG_PERF(0, "Enter");
 
   _resizedHeaderSectionPreviousWidth =
@@ -3803,7 +3798,7 @@ void GitRepoContainer::resizeSectionToViewport(const int section) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::restorePreviousSectionWidth() {
+void RepoContainer::restorePreviousSectionWidth() {
   LOG_PERF(0, "Enter");
 
   ui->historyView->setColumnWidth(_resizedHeaderSection,
@@ -3813,7 +3808,7 @@ void GitRepoContainer::restorePreviousSectionWidth() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::persistHistoryColumnVisibility() {
+void RepoContainer::persistHistoryColumnVisibility() {
   LOG_PERF(0, "Enter");
 
   const QHeaderView *header = ui->historyView->horizontalHeader();
@@ -3833,7 +3828,7 @@ void GitRepoContainer::persistHistoryColumnVisibility() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::applyHistoryColumnVisibility() {
+void RepoContainer::applyHistoryColumnVisibility() {
   LOG_PERF(0, "Enter");
 
   const QString savedHiddenColumns = _configManager.getString(
@@ -3858,7 +3853,7 @@ void GitRepoContainer::applyHistoryColumnVisibility() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onHistoryHeaderContextMenuRequested(const QPoint &pos) {
+void RepoContainer::onHistoryHeaderContextMenuRequested(const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
   QMenu menu(ui->historyView->horizontalHeader());
@@ -3901,7 +3896,7 @@ void GitRepoContainer::onHistoryHeaderContextMenuRequested(const QPoint &pos) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::saveRepoInRecentList() const {
+void RepoContainer::saveRepoInRecentList() const {
   LOG_PERF(0, "Enter");
 
   QString recentRepos =
@@ -3927,9 +3922,9 @@ void GitRepoContainer::saveRepoInRecentList() const {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::saveThreeWayMergeResultFile(const WeakPtr &guard,
-                                                   const QString &filePath,
-                                                   const QString &content) {
+void RepoContainer::saveThreeWayMergeResultFile(const WeakPtr &guard,
+                                                const QString &filePath,
+                                                const QString &content) {
   LOG_PERF(0, "Enter");
 
   QFile file(QDir(_path).absoluteFilePath(filePath));
@@ -3950,7 +3945,7 @@ void GitRepoContainer::saveThreeWayMergeResultFile(const WeakPtr &guard,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::startOverlayTimer() const {
+void RepoContainer::startOverlayTimer() const {
   LOG_PERF(0, "Enter");
 
   _spinnerOverlayTimer->start(0);
@@ -3958,7 +3953,7 @@ void GitRepoContainer::startOverlayTimer() const {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::stopOverlayTimer() const {
+void RepoContainer::stopOverlayTimer() const {
   LOG_PERF(0, "Enter");
 
   _spinnerOverlayTimer->stop();
@@ -3966,7 +3961,7 @@ void GitRepoContainer::stopOverlayTimer() const {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::stopWatcher(const WeakPtr &guard) {
+void RepoContainer::stopWatcher(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
@@ -3982,7 +3977,7 @@ void GitRepoContainer::stopWatcher(const WeakPtr &guard) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onGraphColumnExpand(int section) {
+void RepoContainer::onGraphColumnExpand(int section) {
   LOG_PERF(0, "Enter");
 
   if (_resizedHeaderSection != -1 && _resizedHeaderSection != section) {
@@ -3999,7 +3994,7 @@ void GitRepoContainer::onGraphColumnExpand(int section) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
+void RepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
     const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
@@ -4046,10 +4041,9 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
         tr("Ignore all files recursively inside file's parent folder"));
 
     connect(ignoreFileAction, &QAction::triggered, this,
-            &GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected);
-    connect(
-        ignoreRecursiveAction, &QAction::triggered, this,
-        &GitRepoContainer::onWorkingTreeFlatListViewIgnoreRecursiveSelected);
+            &RepoContainer::onWorkingTreeFlatListViewIgnoreSelected);
+    connect(ignoreRecursiveAction, &QAction::triggered, this,
+            &RepoContainer::onWorkingTreeFlatListViewIgnoreRecursiveSelected);
 
     contextMenu.addSeparator();
 
@@ -4066,7 +4060,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeFlatListViewStageSelected(bool checked) {
+void RepoContainer::onWorkingTreeFlatListViewStageSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
@@ -4083,7 +4077,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewStageSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected(bool checked) {
+void RepoContainer::onWorkingTreeFlatListViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
@@ -4100,7 +4094,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeFlatListViewIgnoreRecursiveSelected(
+void RepoContainer::onWorkingTreeFlatListViewIgnoreRecursiveSelected(
     bool checked) {
   LOG_PERF(0, "Enter");
 
@@ -4118,7 +4112,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewIgnoreRecursiveSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeFlatListViewCreateFilePatchSelected(
+void RepoContainer::onWorkingTreeFlatListViewCreateFilePatchSelected(
     bool checked) {
   LOG_PERF(0, "Enter");
 
@@ -4134,7 +4128,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewCreateFilePatchSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected(bool checked) {
+void RepoContainer::onWorkingTreeFlatListViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
@@ -4172,7 +4166,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected(bool checked) {
+void RepoContainer::onWorkingTreeFlatListViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
@@ -4210,7 +4204,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
+void RepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
     const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
@@ -4257,10 +4251,9 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
         tr("Ignore all files recursively inside file's parent folder"));
 
     connect(ignoreFileAction, &QAction::triggered, this,
-            &GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected);
-    connect(
-        ignoreRecursiveAction, &QAction::triggered, this,
-        &GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreRecursiveSelected);
+            &RepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected);
+    connect(ignoreRecursiveAction, &QAction::triggered, this,
+            &RepoContainer::onWorkingTreeTreeTreeViewIgnoreRecursiveSelected);
 
     contextMenu.addSeparator();
 
@@ -4277,7 +4270,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeTreeTreeViewStageSelected(bool checked) {
+void RepoContainer::onWorkingTreeTreeTreeViewStageSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
@@ -4294,7 +4287,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewStageSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected(bool checked) {
+void RepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
@@ -4311,7 +4304,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreRecursiveSelected(
+void RepoContainer::onWorkingTreeTreeTreeViewIgnoreRecursiveSelected(
     bool checked) {
   LOG_PERF(0, "Enter");
 
@@ -4329,7 +4322,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewIgnoreRecursiveSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeTreeTreeViewCreateFilePatchSelected(
+void RepoContainer::onWorkingTreeTreeTreeViewCreateFilePatchSelected(
     bool checked) {
   LOG_PERF(0, "Enter");
 
@@ -4345,7 +4338,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewCreateFilePatchSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected(bool checked) {
+void RepoContainer::onWorkingTreeTreeTreeViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
@@ -4383,7 +4376,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected(bool checked) {
+void RepoContainer::onWorkingTreeTreeTreeViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
@@ -4421,8 +4414,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
-    const QPoint &pos) {
+void RepoContainer::onIndexFlatListViewContextMenuRequested(const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
   if (const QModelIndex index = ui->listViewTabWidgetIndexFlat->indexAt(pos);
@@ -4456,9 +4448,9 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
         tr("Ignore all files recursively inside file's parent folder"));
 
     connect(ignoreFileAction, &QAction::triggered, this,
-            &GitRepoContainer::onIndexFlatListViewIgnoreSelected);
+            &RepoContainer::onIndexFlatListViewIgnoreSelected);
     connect(ignoreRecursiveAction, &QAction::triggered, this,
-            &GitRepoContainer::onIndexFlatListViewIgnoreRecursiveSelected);
+            &RepoContainer::onIndexFlatListViewIgnoreRecursiveSelected);
 
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexFlatCreateFilePatch);
@@ -4471,7 +4463,7 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexFlatListViewUnstageSelected(bool checked) {
+void RepoContainer::onIndexFlatListViewUnstageSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
@@ -4487,7 +4479,7 @@ void GitRepoContainer::onIndexFlatListViewUnstageSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexFlatListViewIgnoreSelected(bool checked) {
+void RepoContainer::onIndexFlatListViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
@@ -4503,8 +4495,7 @@ void GitRepoContainer::onIndexFlatListViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexFlatListViewIgnoreRecursiveSelected(
-    bool checked) {
+void RepoContainer::onIndexFlatListViewIgnoreRecursiveSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
@@ -4520,8 +4511,7 @@ void GitRepoContainer::onIndexFlatListViewIgnoreRecursiveSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexFlatListViewCreateFilePatchSelected(
-    bool checked) {
+void RepoContainer::onIndexFlatListViewCreateFilePatchSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
@@ -4535,7 +4525,7 @@ void GitRepoContainer::onIndexFlatListViewCreateFilePatchSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexFlatListViewDeleteSelected(bool checked) {
+void RepoContainer::onIndexFlatListViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
@@ -4573,7 +4563,7 @@ void GitRepoContainer::onIndexFlatListViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexFlatListViewDiscardSelected(bool checked) {
+void RepoContainer::onIndexFlatListViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
@@ -4610,8 +4600,7 @@ void GitRepoContainer::onIndexFlatListViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
-    const QPoint &pos) {
+void RepoContainer::onIndexTreeTreeViewContextMenuRequested(const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
   const QModelIndex index = ui->treeViewTabWidgetIndexTree->indexAt(pos);
@@ -4645,9 +4634,9 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
         tr("Ignore all files recursively inside file's parent folder"));
 
     connect(ignoreFileAction, &QAction::triggered, this,
-            &GitRepoContainer::onIndexTreeTreeViewIgnoreSelected);
+            &RepoContainer::onIndexTreeTreeViewIgnoreSelected);
     connect(ignoreRecursiveAction, &QAction::triggered, this,
-            &GitRepoContainer::onIndexTreeTreeViewIgnoreRecursiveSelected);
+            &RepoContainer::onIndexTreeTreeViewIgnoreRecursiveSelected);
 
     contextMenu.addSeparator();
     contextMenu.addAction(ui->actionIndexTreeCreateFilePatch);
@@ -4660,7 +4649,7 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexTreeTreeViewUnstageSelected(bool checked) {
+void RepoContainer::onIndexTreeTreeViewUnstageSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
@@ -4676,7 +4665,7 @@ void GitRepoContainer::onIndexTreeTreeViewUnstageSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexTreeTreeViewIgnoreSelected(bool checked) {
+void RepoContainer::onIndexTreeTreeViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
@@ -4692,8 +4681,7 @@ void GitRepoContainer::onIndexTreeTreeViewIgnoreSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexTreeTreeViewIgnoreRecursiveSelected(
-    bool checked) {
+void RepoContainer::onIndexTreeTreeViewIgnoreRecursiveSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
@@ -4709,8 +4697,7 @@ void GitRepoContainer::onIndexTreeTreeViewIgnoreRecursiveSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexTreeTreeViewCreateFilePatchSelected(
-    bool checked) {
+void RepoContainer::onIndexTreeTreeViewCreateFilePatchSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
@@ -4724,7 +4711,7 @@ void GitRepoContainer::onIndexTreeTreeViewCreateFilePatchSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexTreeTreeViewDeleteSelected(bool checked) {
+void RepoContainer::onIndexTreeTreeViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
@@ -4762,7 +4749,7 @@ void GitRepoContainer::onIndexTreeTreeViewDeleteSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
+void RepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
@@ -4799,7 +4786,7 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
+void RepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
     const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
@@ -4835,7 +4822,7 @@ void GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onPageDisplayFilesTreeViewContextMenuRequested(
+void RepoContainer::onPageDisplayFilesTreeViewContextMenuRequested(
     const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
@@ -4903,7 +4890,7 @@ void GitRepoContainer::onPageDisplayFilesTreeViewContextMenuRequested(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeFlatListViewShowInFileManagerSelected(
+void RepoContainer::onWorkingTreeFlatListViewShowInFileManagerSelected(
     bool checked) {
   LOG_PERF(0, "Enter");
 
@@ -4917,7 +4904,7 @@ void GitRepoContainer::onWorkingTreeFlatListViewShowInFileManagerSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onWorkingTreeTreeTreeViewShowInFileManagerSelected(
+void RepoContainer::onWorkingTreeTreeTreeViewShowInFileManagerSelected(
     bool checked) {
   LOG_PERF(0, "Enter");
 
@@ -4976,8 +4963,7 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewShowInFileManagerSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexFlatListViewShowInFileManagerSelected(
-    bool checked) {
+void RepoContainer::onIndexFlatListViewShowInFileManagerSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   const QStringList files =
@@ -4990,8 +4976,7 @@ void GitRepoContainer::onIndexFlatListViewShowInFileManagerSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onIndexTreeTreeViewShowInFileManagerSelected(
-    bool checked) {
+void RepoContainer::onIndexTreeTreeViewShowInFileManagerSelected(bool checked) {
   LOG_PERF(0, "Enter");
 
   QStringList items;
@@ -5049,9 +5034,9 @@ void GitRepoContainer::onIndexTreeTreeViewShowInFileManagerSelected(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::updateModelActiveBranch(const WeakPtr &guard,
-                                               const QString &branchName,
-                                               GitRepo::BranchType branchType) {
+void RepoContainer::updateModelActiveBranch(const WeakPtr &guard,
+                                            const QString &branchName,
+                                            GitRepo::BranchType branchType) {
   LOG_PERF(0, "Enter");
 
   switch (branchType) {
@@ -5078,7 +5063,7 @@ void GitRepoContainer::updateModelActiveBranch(const WeakPtr &guard,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::clearSummaryAndDescription() {
+void RepoContainer::clearSummaryAndDescription() {
   LOG_PERF(0, "Enter");
 
   ui->lineEditSummary->setText(QString());
@@ -5087,7 +5072,7 @@ void GitRepoContainer::clearSummaryAndDescription() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::refreshSigningControls() {
+void RepoContainer::refreshSigningControls() {
   LOG_PERF(0, "Enter");
 
   const bool signingEnabled = _configManager.getBoolean(
@@ -5097,8 +5082,8 @@ void GitRepoContainer::refreshSigningControls() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::deleteFiles(const WeakPtr &guard,
-                                   const QStringList &files) {
+void RepoContainer::deleteFiles(const WeakPtr &guard,
+                                const QStringList &files) {
   LOG_PERF(0, "Enter");
 
   bool failed = false;
@@ -5138,7 +5123,7 @@ void GitRepoContainer::deleteFiles(const WeakPtr &guard,
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::popStash(const WeakPtr &guard, int stashIndex) {
+void RepoContainer::popStash(const WeakPtr &guard, int stashIndex) {
   LOG_PERF(0, "Enter");
 
   _bridge->applyStash(guard, stashIndex,
@@ -5153,7 +5138,7 @@ void GitRepoContainer::popStash(const WeakPtr &guard, int stashIndex) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::onStashApplyClicked() {
+void RepoContainer::onStashApplyClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Stash apply button clicked");
 
@@ -5181,7 +5166,7 @@ void GitRepoContainer::onStashApplyClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onStashPopClicked() {
+void RepoContainer::onStashPopClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Stash pop button clicked");
 
@@ -5208,7 +5193,7 @@ void GitRepoContainer::onStashPopClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onStashContentCloseClicked() {
+void RepoContainer::onStashContentCloseClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Stash content close button clicked");
 
@@ -5228,7 +5213,7 @@ void GitRepoContainer::onStashContentCloseClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onStashDiffUnifiedClicked() {
+void RepoContainer::onStashDiffUnifiedClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Stash unified diff button clicked");
 
@@ -5239,7 +5224,7 @@ void GitRepoContainer::onStashDiffUnifiedClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::onStashDiffSideBySideClicked() {
+void RepoContainer::onStashDiffSideBySideClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Stash side-by-side diff button clicked");
 
@@ -5250,7 +5235,7 @@ void GitRepoContainer::onStashDiffSideBySideClicked() {
   LOG_PERF(0, "Exit");
 }
 
-bool GitRepoContainer::getActiveLocalBranch() {
+bool RepoContainer::getActiveLocalBranch() {
   LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit")
@@ -5259,7 +5244,7 @@ bool GitRepoContainer::getActiveLocalBranch() {
       getSelf().toWeakRef(), static_cast<int>(GitRepo::BranchType::Local));
 }
 
-bool GitRepoContainer::getActiveRemoteBranch() {
+bool RepoContainer::getActiveRemoteBranch() {
   LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit")
@@ -5268,7 +5253,7 @@ bool GitRepoContainer::getActiveRemoteBranch() {
       getSelf().toWeakRef(), static_cast<int>(GitRepo::BranchType::Remote));
 }
 
-bool GitRepoContainer::getActiveTag() {
+bool RepoContainer::getActiveTag() {
   LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit")
@@ -5277,7 +5262,7 @@ bool GitRepoContainer::getActiveTag() {
       getSelf().toWeakRef(), static_cast<int>(GitRepo::BranchType::Tag));
 }
 
-void GitRepoContainer::copyFilePathsToClipboard(const QStringList &filePaths) {
+void RepoContainer::copyFilePathsToClipboard(const QStringList &filePaths) {
   LOG_PERF(0, "Enter");
 
   QStringList uniqueFilePaths = filePaths;
@@ -5307,7 +5292,7 @@ void GitRepoContainer::copyFilePathsToClipboard(const QStringList &filePaths) {
   LOG_PERF(0, "Exit");
 }
 
-QStringList GitRepoContainer::getSelectedFiles(QListView *listView) {
+QStringList RepoContainer::getSelectedFiles(QListView *listView) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(listView != nullptr);
@@ -5331,7 +5316,7 @@ QStringList GitRepoContainer::getSelectedFiles(QListView *listView) {
   return files;
 }
 
-QStringList GitRepoContainer::getSelectedFilesWhichExist(QListView *listView) {
+QStringList RepoContainer::getSelectedFilesWhichExist(QListView *listView) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(listView != nullptr);
@@ -5357,7 +5342,7 @@ QStringList GitRepoContainer::getSelectedFilesWhichExist(QListView *listView) {
   return filesThatExist;
 }
 
-QStringList GitRepoContainer::getSelectedFiles(QTreeView *treeView) {
+QStringList RepoContainer::getSelectedFiles(QTreeView *treeView) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(treeView != nullptr);
@@ -5386,7 +5371,7 @@ QStringList GitRepoContainer::getSelectedFiles(QTreeView *treeView) {
   return files;
 }
 
-QStringList GitRepoContainer::getSelectedFilesWhichExist(QTreeView *treeView) {
+QStringList RepoContainer::getSelectedFilesWhichExist(QTreeView *treeView) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(treeView != nullptr);
@@ -5413,8 +5398,8 @@ QStringList GitRepoContainer::getSelectedFilesWhichExist(QTreeView *treeView) {
 }
 
 QStringList
-GitRepoContainer::getSubdirectories(const QString &path,
-                                    const QStringList &excluded) const {
+RepoContainer::getSubdirectories(const QString &path,
+                                 const QStringList &excluded) const {
   LOG_PERF(0, "Enter");
 
   QStringList paths;
@@ -5439,8 +5424,8 @@ GitRepoContainer::getSubdirectories(const QString &path,
   return paths;
 }
 
-QStringList GitRepoContainer::getAllFiles(const QString &path,
-                                          const QStringList &excluded) const {
+QStringList RepoContainer::getAllFiles(const QString &path,
+                                       const QStringList &excluded) const {
   LOG_PERF(0, "Enter");
 
   QStringList files;
@@ -5472,7 +5457,7 @@ QStringList GitRepoContainer::getAllFiles(const QString &path,
   return files;
 }
 
-void GitRepoContainer::hideAllWidgets() const {
+void RepoContainer::hideAllWidgets() const {
   LOG_PERF(0, "Enter");
 
   ui->splitter->hide();
@@ -5480,8 +5465,8 @@ void GitRepoContainer::hideAllWidgets() const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
-                                   const QStringList &files) {
+void RepoContainer::ignoreFiles(const WeakPtr &guard,
+                                const QStringList &files) {
   LOG_PERF(0, "Enter");
 
   const QString ignoreFilePath =
@@ -5528,8 +5513,8 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::ignoreFilesRecursive(const WeakPtr &guard,
-                                            const QStringList &files) {
+void RepoContainer::ignoreFilesRecursive(const WeakPtr &guard,
+                                         const QStringList &files) {
   LOG_PERF(0, "Enter");
 
   const QString ignoreFilePath =
@@ -5585,7 +5570,7 @@ void GitRepoContainer::ignoreFilesRecursive(const WeakPtr &guard,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
+void RepoContainer::prepareWatcher(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
@@ -5593,14 +5578,14 @@ void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
 #ifdef Q_OS_WIN32
     _repoDirWatcher = new Util::DirectoryWatcher(_path, this);
     connect(_repoDirWatcher, &Util::DirectoryWatcher::directoryChanged, this,
-            &GitRepoContainer::onRepoDirChanged, Qt::QueuedConnection);
+            &RepoContainer::onRepoDirChanged, Qt::QueuedConnection);
     _repoDirWatcher->startWatching();
 #else
     _repoDirWatcher = new QFileSystemWatcher(this);
     connect(_repoDirWatcher, &QFileSystemWatcher::directoryChanged, this,
-            &GitRepoContainer::onRepoDirChanged);
+            &RepoContainer::onRepoDirChanged);
     connect(_repoDirWatcher, &QFileSystemWatcher::fileChanged, this,
-            &GitRepoContainer::onRepoDirChanged);
+            &RepoContainer::onRepoDirChanged);
 
     // Watch all subdirectories except .git to detect file additions/deletions
     const QStringList directories =
@@ -5616,7 +5601,7 @@ void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
   LOG_PERF(0, "Exit");
 }
 
-bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
+bool RepoContainer::refreshHistory(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
   bool ok = true;
@@ -5643,7 +5628,7 @@ bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
   return ok;
 }
 
-void GitRepoContainer::resetCommitAndMergeIndexTreeUnstageAllButton() const {
+void RepoContainer::resetCommitAndMergeIndexTreeUnstageAllButton() const {
   LOG_PERF(0, "Enter");
 
   int rowCount = 0;
@@ -5668,7 +5653,7 @@ void GitRepoContainer::resetCommitAndMergeIndexTreeUnstageAllButton() const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::resetCommitAndMergeWorkingTreeTreeStageAllButton() {
+void RepoContainer::resetCommitAndMergeWorkingTreeTreeStageAllButton() {
   LOG_PERF(0, "Enter");
 
   _commitAndMergeWorkingDirTreeStageAllButton->setText(tr("Stage all"));
@@ -5686,7 +5671,7 @@ void GitRepoContainer::resetCommitAndMergeWorkingTreeTreeStageAllButton() {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::resetCommitButton() const {
+void RepoContainer::resetCommitButton() const {
   LOG_PERF(0, "Enter");
 
   ui->pushButtonCommit->setEnabled(
@@ -5710,7 +5695,7 @@ void GitRepoContainer::resetCommitButton() const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::resetDisplayTreeExpandedButton() {
+void RepoContainer::resetDisplayTreeExpandedButton() {
   LOG_PERF(0, "Enter");
 
   _displayTreeExpandAllButton->setText(tr("Expand all"));
@@ -5719,7 +5704,7 @@ void GitRepoContainer::resetDisplayTreeExpandedButton() {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::stretchBranchHistoryTableColumns() {
+void RepoContainer::stretchBranchHistoryTableColumns() {
   LOG_PERF(0, "Enter");
 
   QHeaderView *header = ui->historyView->horizontalHeader();
@@ -5803,7 +5788,7 @@ void GitRepoContainer::stretchBranchHistoryTableColumns() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::showAllWidgets() const {
+void RepoContainer::showAllWidgets() const {
   LOG_PERF(0, "Enter");
 
   ui->splitter->show();
@@ -5811,7 +5796,7 @@ void GitRepoContainer::showAllWidgets() const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
+void RepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
   LOG_PERF(0, "Enter");
 
   const GitRepo::GitHistoryWithStatus historyAndStatus =
@@ -5916,7 +5901,7 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showErrorPage(const bool error) const {
+void RepoContainer::showErrorPage(const bool error) const {
   LOG_PERF(0, "Enter");
 
   ui->stackedWidget1->setCurrentIndex(error ? 2 : 1);
@@ -5926,7 +5911,7 @@ void GitRepoContainer::showErrorPage(const bool error) const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showMainSpinnerPage(const bool spinnerEnabled) const {
+void RepoContainer::showMainSpinnerPage(const bool spinnerEnabled) const {
   LOG_PERF(0, "Enter");
 
   ui->stackedWidget1->setCurrentIndex(spinnerEnabled ? 0 : 1);
@@ -5941,7 +5926,7 @@ void GitRepoContainer::showMainSpinnerPage(const bool spinnerEnabled) const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {
+void RepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {
   LOG_PERF(0, "Enter");
 
   if (spinnerEnabled) {
@@ -5959,7 +5944,7 @@ void GitRepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showToast(const QString &message, const QString &title) {
+void RepoContainer::showToast(const QString &message, const QString &title) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 
@@ -5970,8 +5955,8 @@ void GitRepoContainer::showToast(const QString &message, const QString &title) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::showErrorToast(const QString &message,
-                                      const QString &title) {
+void RepoContainer::showErrorToast(const QString &message,
+                                   const QString &title) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 
@@ -5982,7 +5967,7 @@ void GitRepoContainer::showErrorToast(const QString &message,
   LOG_PERF(0, "Exit")
 }
 
-bool GitRepoContainer::showWarningForBranchCheckout() const {
+bool RepoContainer::showWarningForBranchCheckout() const {
   LOG_PERF(0, "Enter");
   if (!_historyModel->hasStatus()) {
     LOG_PERF(0, "Exit")
@@ -6007,7 +5992,7 @@ bool GitRepoContainer::showWarningForBranchCheckout() const {
   return true;
 }
 
-void GitRepoContainer::simulateClickOnHistoryRow(int row) const {
+void RepoContainer::simulateClickOnHistoryRow(int row) const {
   LOG_PERF(0, "Enter");
 
   const QModelIndex index = ui->historyView->model()->index(row, 0);
@@ -6024,7 +6009,7 @@ void GitRepoContainer::simulateClickOnHistoryRow(int row) const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::simulateClickOnFirstHistoryRow() const {
+void RepoContainer::simulateClickOnFirstHistoryRow() const {
   LOG_PERF(0, "Enter");
 
   const QModelIndex index = ui->historyView->model()->index(0, 0);
@@ -6036,7 +6021,7 @@ void GitRepoContainer::simulateClickOnFirstHistoryRow() const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::stageAll(const WeakPtr &guard) {
+void RepoContainer::stageAll(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
   const GitRepo::GitHistoryWithStatus historyAndStatus =
@@ -6055,7 +6040,7 @@ void GitRepoContainer::stageAll(const WeakPtr &guard) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::unstageAll(const WeakPtr &guard) {
+void RepoContainer::unstageAll(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
   const GitRepo::GitHistoryWithStatus historyAndStatus =
@@ -6073,7 +6058,7 @@ void GitRepoContainer::unstageAll(const WeakPtr &guard) {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateBranchHistory(
+void RepoContainer::updateBranchHistory(
     const WeakPtr &guard,
     const GitRepo::GitHistoryWithStatus &historyWithStatus) {
   LOG_PERF(0, "Enter");
@@ -6098,7 +6083,7 @@ void GitRepoContainer::updateBranchHistory(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateLocalBranchesModel(
+void RepoContainer::updateLocalBranchesModel(
     const WeakPtr &guard, const QStringList &localBranches) const {
   LOG_PERF(0, "Enter");
 
@@ -6117,7 +6102,7 @@ void GitRepoContainer::updateLocalBranchesModel(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateLocalBranchesModelActiveBranch(
+void RepoContainer::updateLocalBranchesModelActiveBranch(
     const WeakPtr &guard, const QString &activeBranch, const bool updatePages) {
   LOG_PERF(0, "Enter");
 
@@ -6157,7 +6142,7 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateRemoteBranchesModel(
+void RepoContainer::updateRemoteBranchesModel(
     const WeakPtr &guard, const QStringList &remoteBranches) const {
   LOG_PERF(0, "Enter");
 
@@ -6176,7 +6161,7 @@ void GitRepoContainer::updateRemoteBranchesModel(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateRemoteBranchesModelWithStatus(
+void RepoContainer::updateRemoteBranchesModelWithStatus(
     const WeakPtr &guard,
     const QVector<GitRepo::BranchInfo> &branchesWithStatus) const {
   LOG_PERF(0, "Enter");
@@ -6201,7 +6186,7 @@ void GitRepoContainer::updateRemoteBranchesModelWithStatus(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
+void RepoContainer::updateRemoteBranchesModelActiveBranch(
     const WeakPtr &guard, const QString &activeBranch, const bool updatePages) {
   LOG_PERF(0, "Enter");
 
@@ -6230,8 +6215,8 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateStashesModel(const WeakPtr &guard,
-                                          const QStringList &stashes) const {
+void RepoContainer::updateStashesModel(const WeakPtr &guard,
+                                       const QStringList &stashes) const {
   LOG_PERF(0, "Enter");
 
   if (const auto locked = guard.lock()) {
@@ -6241,9 +6226,9 @@ void GitRepoContainer::updateStashesModel(const WeakPtr &guard,
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateTagsModelActiveTag(const WeakPtr &guard,
-                                                const QString &activeTag,
-                                                const bool updatePages) {
+void RepoContainer::updateTagsModelActiveTag(const WeakPtr &guard,
+                                             const QString &activeTag,
+                                             const bool updatePages) {
   LOG_PERF(0, "Enter");
 
   if (activeTag.isEmpty()) {
@@ -6268,8 +6253,8 @@ void GitRepoContainer::updateTagsModelActiveTag(const WeakPtr &guard,
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateSubmodulesModel(const WeakPtr &guard,
-                                             const QStringList &tags) const {
+void RepoContainer::updateSubmodulesModel(const WeakPtr &guard,
+                                          const QStringList &tags) const {
   LOG_PERF(0, "Enter");
 
   if (const auto locked = guard.lock()) {
@@ -6279,7 +6264,7 @@ void GitRepoContainer::updateSubmodulesModel(const WeakPtr &guard,
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateSubmodulesModelWithStatus(
+void RepoContainer::updateSubmodulesModelWithStatus(
     const WeakPtr &guard,
     const QVector<GitRepo::SubmoduleInfo> &submodulesWithStatus) const {
   LOG_PERF(0, "Enter");
@@ -6291,8 +6276,8 @@ void GitRepoContainer::updateSubmodulesModelWithStatus(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoContainer::updateTagsModel(const WeakPtr &guard,
-                                       const QStringList &tags) const {
+void RepoContainer::updateTagsModel(const WeakPtr &guard,
+                                    const QStringList &tags) const {
   LOG_PERF(0, "Enter");
 
   if (const auto locked = guard.lock()) {

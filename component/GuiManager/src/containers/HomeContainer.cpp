@@ -372,6 +372,16 @@ HomeContainer::HomeContainer(QWidget *parent)
 
   ui->connectToButton->setMenu(connectToMenu);
 
+  auto *cloneMenu = new QMenu(ui->cloneButton);
+  auto *cloneGitAction = cloneMenu->addAction(tr("Clone Git"));
+  connect(cloneGitAction, &QAction::triggered, this,
+          &HomeContainer::onCloneClicked);
+  auto *cloneSubversionAction = cloneMenu->addAction(tr("Clone Subversion"));
+  connect(cloneSubversionAction, &QAction::triggered, this,
+          &HomeContainer::onCloneSubversionClicked);
+
+  ui->cloneButton->setMenu(cloneMenu);
+
   connect(ui->tableViewIssueTrackerConnections,
           &IssueTrackersTableView::hoverEnter, this,
           &HomeContainer::hoverEnter);
@@ -388,8 +398,6 @@ HomeContainer::HomeContainer(QWidget *parent)
           &HomeContainer::hoverLeave);
   connect(ui->openButton, &QPushButton::clicked, this,
           &HomeContainer::onOpenClicked);
-  connect(ui->cloneButton, &QPushButton::clicked, this,
-          &HomeContainer::onCloneClicked);
   connect(ui->initButton, &QPushButton::clicked, this,
           &HomeContainer::onInitClicked);
   connect(this, &HomeContainer::issueTrackerRightClicked, this,
@@ -632,6 +640,14 @@ void HomeContainer::onCloneClicked() {
   LOG_PERF(0, "Enter");
 
   emit clone();
+
+  LOG_PERF(0, "Exit");
+}
+
+void HomeContainer::onCloneSubversionClicked() {
+  LOG_PERF(0, "Enter");
+
+  emit cloneSubversion();
 
   LOG_PERF(0, "Exit");
 }

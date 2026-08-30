@@ -19,10 +19,10 @@ set(QRC_FILES resources/resources.qrc)
 
 set(UI_FILES
         src/containers/BugReportContainer.ui
-        src/containers/CloneGitRepoContainer.ui
+        src/containers/CloneRepoContainer.ui
         src/containers/GitCredentialsContainer.ui
         src/containers/GitKeysContainer.ui
-        src/containers/GitRepoContainer.ui
+        src/containers/RepoContainer.ui
         src/containers/HomeContainer.ui
         src/containers/InitGitRepoContainer.ui
         src/containers/IssueTrackerContainer.ui
@@ -65,10 +65,10 @@ set(GUIMANAGER_SOURCE_FILES
         include/MousePositionCorrection.h
         include/QScintillaLexerFactory.h
         include/containers/BugReportContainer.h
-        include/containers/CloneGitRepoContainer.h
+        include/containers/CloneRepoContainer.h
         include/containers/GitCredentialsContainer.h
         include/containers/GitKeysContainer.h
-        include/containers/GitRepoContainer.h
+        include/containers/RepoContainer.h
         include/containers/GitRepoManagerBridge.h
         include/containers/GitRepoManagerBridgeImpl.h
         include/containers/SvnRepoManagerBridgeImpl.h
@@ -169,10 +169,10 @@ set(GUIMANAGER_SOURCE_FILES
         src/MousePositionCorrection.cpp
         src/QScintillaLexerFactory.cpp
         src/containers/BugReportContainer.cpp
-        src/containers/CloneGitRepoContainer.cpp
+        src/containers/CloneRepoContainer.cpp
         src/containers/GitCredentialsContainer.cpp
         src/containers/GitKeysContainer.cpp
-        src/containers/GitRepoContainer.cpp
+        src/containers/RepoContainer.cpp
         src/containers/GitRepoManagerBridgeImpl.cpp
         src/containers/SvnRepoManagerBridgeImpl.cpp
         src/containers/HomeContainer.cpp

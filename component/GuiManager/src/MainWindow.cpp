@@ -3,11 +3,11 @@
 #include "Constants.h"
 #include "GitRepoManagerStructs.h"
 #include "containers/BugReportContainer.h"
-#include "containers/CloneGitRepoContainer.h"
+#include "containers/CloneRepoContainer.h"
 #include "containers/GitCredentialsContainer.h"
 #include "containers/GitKeysContainer.h"
-#include "containers/GitRepoContainer.h"
 #include "containers/IssueTrackerContainer.h"
+#include "containers/RepoContainer.h"
 
 #include "containers/HomeContainer.h"
 #include "containers/InitGitRepoContainer.h"
@@ -387,7 +387,15 @@ void MainWindow::onOpen() {
 void MainWindow::onClone() {
   LOG_PERF(0, "Enter");
 
-  addCloneContainer();
+  addCloneContainer(Containers::CloneType::Git);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onCloneSubversion() {
+  LOG_PERF(0, "Enter");
+
+  addCloneContainer(Containers::CloneType::Subversion);
 
   LOG_PERF(0, "Exit");
 }
@@ -403,7 +411,7 @@ void MainWindow::onCloneFinished(ContainerWidget *sender) {
 void MainWindow::onInit() {
   LOG_PERF(0, "Enter");
 
-  addInitGitRepoContainer();
+  addInitRepoContainer();
 
   LOG_PERF(0, "Exit");
 }
@@ -929,25 +937,27 @@ void MainWindow::onProfile(int middleX) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::addCloneContainer() {
+void MainWindow::addCloneContainer(CloneType type) {
   LOG_PERF(0, "Enter");
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  const auto container = QSharedPointer<CloneGitRepoContainer>::create(this);
+  const auto container = QSharedPointer<CloneRepoContainer>::create(this, type);
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
   container->init();
   container->selected();
   container->setupShortcuts();
   _containers += container;
-  _topBarWidget->titleBarWidget()->addTab(tr("Clone"));
+  _topBarWidget->titleBarWidget()->addTab(type == Containers::CloneType::Git
+                                              ? tr("Clone Git")
+                                              : tr("Checkout Subversion"));
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   const auto handlerFunc =
       std::bind(&MainWindow::onCloneFinished, this, container.get());
 
-  connect(container.get(), &CloneGitRepoContainer::finished, this, handlerFunc);
+  connect(container.get(), &CloneRepoContainer::finished, this, handlerFunc);
 
   LOG_PERF(0, "Exit");
 }
@@ -957,13 +967,13 @@ void MainWindow::addGitRepoContainer(const QString &path) {
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  const auto container = QSharedPointer<GitRepoContainer>::create(path, this);
+  const auto container = QSharedPointer<RepoContainer>::create(path, this);
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
   container->init();
   container->selected();
   container->setupShortcuts();
 
-  connect(container.get(), &GitRepoContainer::openRepoRequested, this,
+  connect(container.get(), &RepoContainer::openRepoRequested, this,
           &MainWindow::onOpenRepo);
 
   _containers += container;
@@ -1003,6 +1013,8 @@ void MainWindow::addHomeContainer() {
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   connect(container.get(), &HomeContainer::clone, this, &MainWindow::onClone);
+  connect(container.get(), &HomeContainer::cloneSubversion, this,
+          &MainWindow::onCloneSubversion);
   connect(container.get(), &HomeContainer::init, this, &MainWindow::onInit);
   connect(container.get(), &HomeContainer::open, this, &MainWindow::onOpen);
   connect(container.get(), &HomeContainer::issueTrackerClicked, this,
@@ -1015,7 +1027,7 @@ void MainWindow::addHomeContainer() {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::addInitGitRepoContainer() {
+void MainWindow::addInitRepoContainer() {
   LOG_PERF(0, "Enter");
 
   const qlonglong titleBarHeight =

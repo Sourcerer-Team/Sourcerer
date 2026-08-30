@@ -11,6 +11,9 @@
 #include "widgets/ToastHostWidget.h"
 #include "widgets/TopBarWidget.h"
 
+#include "containers/CloneRepoContainer.h"
+#include "containers/RepoContainer.h"
+
 #include <ConfigManager.h>
 #include <EventManager.h>
 #include <GitRepo.h>
@@ -60,6 +63,7 @@ signals:
 private slots:
   void onOpen();
   void onClone();
+  void onCloneSubversion();
   void onCloneFinished(ContainerWidget *sender);
   void onInit();
   void onInitFinished(ContainerWidget *sender);
@@ -92,14 +96,15 @@ private slots:
   void onProfile(int middleX);
 
 private:
-  void addCloneContainer();
+  void
+  addCloneContainer(Containers::CloneType type = Containers::CloneType::Git);
   void addGitRepoContainer(const QString &path);
   void addGitCredentialsContainer();
   void addIssueTrackerContainer(const QString &serviceType,
                                 const QString &repositoryName);
   void addGitKeysContainer();
   void addHomeContainer();
-  void addInitGitRepoContainer();
+  void addInitRepoContainer();
   void addSettingsContainer();
   void addBugReportContainer();
   void closeContainer(const ContainerWidget *container);

@@ -35,7 +35,7 @@
 #include <memory>
 
 namespace Ui {
-class GitRepoContainer;
+class RepoContainer;
 }
 
 namespace GuiManager::Models {
@@ -54,19 +54,19 @@ namespace GuiManager::Containers {
 class GitRepoManagerBridge;
 class GitRepoManagerBridgeImpl;
 
-class GitRepoContainer final : public Widgets::ContainerWidget,
-                               public QEnableSharedFromThis<GitRepoContainer> {
+class RepoContainer final : public Widgets::ContainerWidget,
+                            public QEnableSharedFromThis<RepoContainer> {
   Q_OBJECT
 
   friend class GitRepoManagerBridgeImpl;
   friend class SvnRepoManagerBridgeImpl;
 
-  typedef QWeakPointer<GitRepoContainer> WeakPtr;
-  typedef QSharedPointer<GitRepoContainer> SharedPtr;
+  typedef QWeakPointer<RepoContainer> WeakPtr;
+  typedef QSharedPointer<RepoContainer> SharedPtr;
 
 public:
-  explicit GitRepoContainer(QString path, QWidget *parent = nullptr);
-  ~GitRepoContainer() override;
+  explicit RepoContainer(QString path, QWidget *parent = nullptr);
+  ~RepoContainer() override;
 
   void init() override;
 
@@ -307,7 +307,7 @@ private:
   void updateTagsModel(const WeakPtr &guard, const QStringList &tags) const;
 
 private:
-  Ui::GitRepoContainer *ui;
+  Ui::RepoContainer *ui;
   QString _uuid;
   QString _path;
   QString _activeBranch;
@@ -368,8 +368,8 @@ private:
 #endif
   QTimer *_repoDirWatcherTimer;
 
-  GuiManager::Widgets::ShortcutsToolbarWidget *_shortcutsWidget;
-  GuiManager::Widgets::ScrollbarMarksWidget *_unifiedDiffMarks;
+  ::GuiManager::Widgets::ShortcutsToolbarWidget *_shortcutsWidget;
+  ::GuiManager::Widgets::ScrollbarMarksWidget *_unifiedDiffMarks;
 
   bool _selected;
 };

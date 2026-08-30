@@ -51,6 +51,7 @@ public:
 
 signals:
   void clone();
+  void cloneSubversion();
   void init() override;
   void open();
   void issueTrackerClicked(const QString &serviceType, const QString &name);
@@ -68,6 +69,7 @@ private slots:
   void hoverEnter(const QModelIndex &index);
   void hoverLeave(const QModelIndex &index);
   void onCloneClicked();
+  void onCloneSubversionClicked();
   void onGitHubIssueTrackerConnectClicked();
   void onGitLabIssueTrackerConnectClicked();
   void onAzureIssueTrackerConnectClicked();
