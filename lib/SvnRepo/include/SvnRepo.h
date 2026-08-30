@@ -104,9 +104,23 @@ struct RemoteInfo {
   QVector<RemoteTarget> targets;
 };
 
+struct FilesDiffLine {
+  QChar origin;
+  QString content;
+};
+
+struct FilesDiffHunk {
+  int oldStart = -1;
+  int newStart = -1;
+  int oldLines = -1;
+  int newLines = -1;
+  QVector<FilesDiffLine> lines;
+};
+
 struct FilesDiffDelta {
   QString oldFilePath;
   QString newFilePath;
+  QVector<FilesDiffHunk> hunks;
 };
 
 struct FilesDiff {
@@ -132,30 +146,56 @@ struct SvnErrorContext {
 
 struct SvnStatus {
   QString path;
-  QStringList addedFiles;
+  QStringList newFiles;
   QStringList modifiedFiles;
   QStringList deletedFiles;
-  QStringList conflictedFiles;
-  QStringList unversionedFiles;
+  QStringList typeChangedFiles;
+  QStringList renamedFiles;
+  QStringList unreadableFiles;
+  QStringList newStagedFiles;
+  QStringList modifiedStagedFiles;
+  QStringList deletedStagedFiles;
+  QStringList typeChangedStagedFiles;
+  QStringList renamedStagedFiles;
   QStringList ignoredFiles;
+  QStringList conflictedFiles;
+  QStringList untrackedFiles;
 
   bool hasChanges() const;
+
+  bool operator==(const SvnStatus &other) const;
 };
 
 struct SvnCommitInfo {
   qint64 revision = -1;
-  QString author;
   QString message;
+  QString summary;
+  QString authorName;
+  QString authorEmail;
   qint64 timeStamp = -1;
+  bool signedCommit = false;
+  QString signatureType;
+  QString signature;
+  QVector<QString> branches;
+  QVector<QString> parents;
+  QVector<QString> children;
+
+  bool operator==(const SvnCommitInfo &other) const {
+    return revision == other.revision && message == other.message &&
+           summary == other.summary && authorName == other.authorName &&
+           authorEmail == other.authorEmail && timeStamp == other.timeStamp &&
+           signedCommit == other.signedCommit &&
+           signatureType == other.signatureType &&
+           signature == other.signature && branches == other.branches &&
+           parents == other.parents && children == other.children;
+  }
 };
 
 struct SvnHistory {
   bool valid = false;
-  QVector<SvnCommitInfo> commits;
+  QVector<QString> commits;
+  QMap<QString, SvnCommitInfo> commitInfos;
 };
-
-using GitStatus = SvnStatus;
-using GitHistory = SvnHistory;
 
 SvnErrorContext getLastError();
 
@@ -237,7 +277,7 @@ bool getCommitIsHead(const QString &path, const QString &commitOid,
 CommitStatus getCommitStatus(const QString &path, const QString &commitOid);
 CommitStatus getStashStatus(const QString &path, int stashIndex);
 bool getIsMergeInProgress(const QString &path);
-GitHistory getBranchHistory(const QString &path, const QString &branchName,
+SvnHistory getBranchHistory(const QString &path, const QString &branchName,
                             BranchType branchType, bool quitFlag);
 QString getSubmodulePath(const QString &path, const QString &submoduleName);
 std::tuple<bool, QString, QString> getUpstream(const QString &path,
@@ -277,7 +317,7 @@ bool setUpstream(const QString &path, const QString &remoteName,
                  const QString &localBranchName);
 bool stageFiles(const QString &path, const QStringList &files);
 bool stash(const QString &path);
-GitStatus getStatus(const QString &path, const bool &quitFlag);
+SvnStatus getStatus(const QString &path, const bool &quitFlag);
 bool updateSubmodule(const QString &path, const QString &submoduleName);
 bool unstageFiles(const QString &path, const QStringList &files);
 QVector<RemoteInfo> listRemotes(const QString &path);

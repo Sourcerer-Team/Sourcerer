@@ -14,8 +14,6 @@
 #include <QScrollBar>
 #include <QVBoxLayout>
 
-#include <limits>
-
 #define THREAD_ID "MergeDiffView"
 
 #define PLUS_MARKER 3
@@ -362,8 +360,8 @@ void MergeDiffView::leftMarginClicked(int margin, int line,
   contentBottomList.remove(rangeBottom.leftStart - removedLinesSoFar,
                            rangeBottom.rightEnd - rangeBottom.leftStart + 1);
 
-  int newLeftStart = std::numeric_limits<int>::max();
-  int newLeftEnd = std::numeric_limits<int>::min();
+  int newLeftStart = INT_MAX;
+  int newLeftEnd = INT_MIN;
 
   for (int i = rangeTop.leftStart; i < rangeTop.leftEnd; ++i) {
     Q_ASSERT(i < contentLeftList.length());
@@ -463,8 +461,8 @@ void MergeDiffView::rightMarginClicked(int margin, int line,
   contentBottomList.remove(rangeBottom.leftStart - removedLinesSoFar,
                            rangeBottom.rightEnd - rangeBottom.leftStart + 1);
 
-  int newRightStart = std::numeric_limits<int>::max();
-  int newRightEnd = std::numeric_limits<int>::min();
+  int newRightStart = INT_MAX;
+  int newRightEnd = INT_MIN;
 
   for (int i = rangeTop.rightStart; i < rangeTop.rightEnd; ++i) {
     Q_ASSERT(i < contentRightList.length());

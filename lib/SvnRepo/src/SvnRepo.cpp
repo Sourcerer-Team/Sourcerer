@@ -98,7 +98,7 @@ static void fillPathStatus(SvnStatus *status, const QString &path,
 
   switch (kind) {
   case svn_wc_status_added:
-    status->addedFiles.append(path);
+    status->newFiles.append(path);
     break;
   case svn_wc_status_deleted:
   case svn_wc_status_missing:
@@ -108,7 +108,7 @@ static void fillPathStatus(SvnStatus *status, const QString &path,
     status->conflictedFiles.append(path);
     break;
   case svn_wc_status_unversioned:
-    status->unversionedFiles.append(path);
+    status->untrackedFiles.append(path);
     break;
   case svn_wc_status_ignored:
     status->ignoredFiles.append(path);
@@ -192,7 +192,7 @@ static svn_error_t *historyCallback(void *baton, svn_log_entry_t *log_entry,
   if (log_entry->revprops) {
     if (const auto *author = static_cast<const svn_string_t *>(
             svn_hash_gets(log_entry->revprops, SVN_PROP_REVISION_AUTHOR))) {
-      info.author =
+      info.authorName =
           QString::fromUtf8(author->data, static_cast<int>(author->len));
     }
 
@@ -214,7 +214,9 @@ static svn_error_t *historyCallback(void *baton, svn_log_entry_t *log_entry,
     }
   }
 
-  payload->history->commits.push_back(info);
+  const QString revision = QString("%1").arg(info.revision);
+  payload->history->commits += revision;
+  payload->history->commitInfos[revision] = info;
   return SVN_NO_ERROR;
 }
 
@@ -258,9 +260,30 @@ static bool runWithClientContext(
 } // namespace
 
 bool SvnStatus::hasChanges() const {
-  return !addedFiles.isEmpty() || !modifiedFiles.isEmpty() ||
-         !deletedFiles.isEmpty() || !conflictedFiles.isEmpty() ||
-         !unversionedFiles.isEmpty() || !ignoredFiles.isEmpty();
+  return !newFiles.isEmpty() || !modifiedFiles.isEmpty() ||
+         !deletedFiles.isEmpty() || !typeChangedFiles.isEmpty() ||
+         !renamedFiles.isEmpty() || !unreadableFiles.isEmpty() ||
+         !newStagedFiles.isEmpty() || !modifiedStagedFiles.isEmpty() ||
+         !deletedStagedFiles.isEmpty() || !typeChangedStagedFiles.isEmpty() ||
+         !renamedStagedFiles.isEmpty() /*|| !ignoredFiles.isEmpty()*/ ||
+         !conflictedFiles.isEmpty() || !untrackedFiles.isEmpty();
+}
+
+bool SvnStatus::operator==(const SvnStatus &other) const {
+  return path == other.path && newFiles == other.newFiles &&
+         modifiedFiles == other.modifiedFiles &&
+         deletedFiles == other.deletedFiles &&
+         typeChangedFiles == other.typeChangedFiles &&
+         renamedFiles == other.renamedFiles &&
+         unreadableFiles == other.unreadableFiles &&
+         newStagedFiles == other.newStagedFiles &&
+         modifiedStagedFiles == other.modifiedStagedFiles &&
+         deletedStagedFiles == other.deletedStagedFiles &&
+         typeChangedStagedFiles == other.typeChangedStagedFiles &&
+         renamedStagedFiles == other.renamedStagedFiles &&
+         ignoredFiles == other.ignoredFiles &&
+         conflictedFiles == other.conflictedFiles &&
+         untrackedFiles == other.untrackedFiles;
 }
 
 SvnErrorContext getLastError() {

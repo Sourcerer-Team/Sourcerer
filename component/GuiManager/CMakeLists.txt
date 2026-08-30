@@ -71,6 +71,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/containers/GitRepoContainer.h
         include/containers/GitRepoManagerBridge.h
         include/containers/GitRepoManagerBridgeImpl.h
+        include/containers/SvnRepoManagerBridgeImpl.h
         include/containers/HomeContainer.h
         include/containers/InitGitRepoContainer.h
         include/containers/IssueTrackerContainer.h
@@ -173,6 +174,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/containers/GitKeysContainer.cpp
         src/containers/GitRepoContainer.cpp
         src/containers/GitRepoManagerBridgeImpl.cpp
+        src/containers/SvnRepoManagerBridgeImpl.cpp
         src/containers/HomeContainer.cpp
         src/containers/InitGitRepoContainer.cpp
         src/containers/IssueTrackerContainer.cpp
@@ -267,6 +269,7 @@ includeLib(GuiManager Common)
 includeLib(GuiManager GitRepo)
 includeLib(GuiManager IssueTrackers)
 includeLib(GuiManager Log)
+includeLib(GuiManager SvnRepo)
 includeLib(GuiManager Util)
 includeLib(GuiManager QtWaitingSpinner)
 includeLib(GuiManager QVTerminal)
@@ -283,6 +286,7 @@ target_link_libraries(GuiManager PRIVATE
         util
         libzip::zip
         qscintilla
+        apr-1
 )
 
 if(TARGET Qt6::WebEngineWidgets)
@@ -292,4 +296,6 @@ endif()
 target_include_directories(GuiManager PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${LIBGIT2_INCLUDE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/subversion/subversion/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/subversion/subversion/bindings/cxx/include
 )

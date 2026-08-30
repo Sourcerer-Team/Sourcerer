@@ -1958,7 +1958,8 @@ void GitRepoContainer::onCreateBranchFromCommit(const QString &commit) {
                   guard, commit, branchName,
                   [=](const WeakPtr &guard, const QString &branchName) {
                     _bridge->checkoutBranch(
-                        guard, branchName, GitRepo::BranchType::Local,
+                        guard, branchName,
+                        static_cast<int>(GitRepo::BranchType::Local),
                         [=](const WeakPtr &guard) {
                           Util::Dispatcher::dispatchToMainThread(guard, [=]() {
                             showSpinnerOverlay(false);
@@ -2319,8 +2320,9 @@ void GitRepoContainer::onHardResetToCommit(const QString &commit) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->reset(guard, commit, GitRepo::ResetType::Hard); });
+  _dispatcher.dispatch([=]() {
+    _bridge->reset(guard, commit, static_cast<int>(GitRepo::ResetType::Hard));
+  });
 
   LOG_DEBUG("Hard reset operation dispatched");
   LOG_PERF(0, "Exit");
@@ -2904,7 +2906,8 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
 
   _dispatcher.dispatch([=]() {
     LOG_DEBUG("Checking out branch '{}'", branchName.toStdString());
-    _bridge->checkoutBranch(guard, branchName, GitRepo::BranchType::Local);
+    _bridge->checkoutBranch(guard, branchName,
+                            static_cast<int>(GitRepo::BranchType::Local));
   });
 
   LOG_DEBUG("Branch checkout operation dispatched");
@@ -2935,7 +2938,8 @@ void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
     const WeakPtr guard = getSelf().toWeakRef();
 
     _dispatcher.dispatch([=]() {
-      _bridge->checkoutBranch(guard, branchName, GitRepo::BranchType::Local);
+      _bridge->checkoutBranch(guard, branchName,
+                              static_cast<int>(GitRepo::BranchType::Local));
     });
   });
 
@@ -2983,8 +2987,9 @@ void GitRepoContainer::onMixedResetToCommit(const QString &commit) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->reset(guard, commit, GitRepo::ResetType::Mixed); });
+  _dispatcher.dispatch([=]() {
+    _bridge->reset(guard, commit, static_cast<int>(GitRepo::ResetType::Mixed));
+  });
 
   LOG_DEBUG("Mixed reset operation dispatched");
   LOG_PERF(0, "Exit");
@@ -3332,7 +3337,8 @@ void GitRepoContainer::onTagRightClicked(const QString &tagName,
     const WeakPtr guard = getSelf().toWeakRef();
 
     _dispatcher.dispatch([=]() {
-      _bridge->checkoutBranch(guard, tagName, GitRepo::BranchType::Tag);
+      _bridge->checkoutBranch(guard, tagName,
+                              static_cast<int>(GitRepo::BranchType::Tag));
     });
   });
 
@@ -3397,7 +3403,8 @@ void GitRepoContainer::onRemoteBranchSelected(const QString &branchName) {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    _bridge->checkoutBranch(guard, branchName, GitRepo::BranchType::Remote);
+    _bridge->checkoutBranch(guard, branchName,
+                            static_cast<int>(GitRepo::BranchType::Remote));
   });
 
   LOG_DEBUG("Remote branch checkout operation dispatched");
@@ -3426,7 +3433,8 @@ void GitRepoContainer::onRemoteBranchRightClicked(const QString &branchName,
     const WeakPtr guard = getSelf().toWeakRef();
 
     _dispatcher.dispatch([=]() {
-      _bridge->checkoutBranch(guard, branchName, GitRepo::BranchType::Remote);
+      _bridge->checkoutBranch(guard, branchName,
+                              static_cast<int>(GitRepo::BranchType::Remote));
     });
   });
 
@@ -3706,8 +3714,9 @@ void GitRepoContainer::onSoftResetToCommit(const QString &commit) {
 
   const WeakPtr guard = getSelf().toWeakRef();
 
-  _dispatcher.dispatch(
-      [=]() { _bridge->reset(guard, commit, GitRepo::ResetType::Soft); });
+  _dispatcher.dispatch([=]() {
+    _bridge->reset(guard, commit, static_cast<int>(GitRepo::ResetType::Soft));
+  });
 
   LOG_DEBUG("Soft reset operation dispatched");
   LOG_PERF(0, "Exit");
@@ -3729,7 +3738,8 @@ void GitRepoContainer::onTagSelected(const QString &tagName) {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    _bridge->checkoutBranch(guard, tagName, GitRepo::BranchType::Tag);
+    _bridge->checkoutBranch(guard, tagName,
+                            static_cast<int>(GitRepo::BranchType::Tag));
   });
 
   LOG_DEBUG("Tag checkout operation dispatched");
@@ -5245,8 +5255,8 @@ bool GitRepoContainer::getActiveLocalBranch() {
 
   LOG_PERF(0, "Exit")
 
-  return _bridge->getActiveBranchOrTag(getSelf().toWeakRef(),
-                                       GitRepo::BranchType::Local);
+  return _bridge->getActiveBranchOrTag(
+      getSelf().toWeakRef(), static_cast<int>(GitRepo::BranchType::Local));
 }
 
 bool GitRepoContainer::getActiveRemoteBranch() {
@@ -5254,8 +5264,8 @@ bool GitRepoContainer::getActiveRemoteBranch() {
 
   LOG_PERF(0, "Exit")
 
-  return _bridge->getActiveBranchOrTag(getSelf().toWeakRef(),
-                                       GitRepo::BranchType::Remote);
+  return _bridge->getActiveBranchOrTag(
+      getSelf().toWeakRef(), static_cast<int>(GitRepo::BranchType::Remote));
 }
 
 bool GitRepoContainer::getActiveTag() {
@@ -5263,8 +5273,8 @@ bool GitRepoContainer::getActiveTag() {
 
   LOG_PERF(0, "Exit")
 
-  return _bridge->getActiveBranchOrTag(getSelf().toWeakRef(),
-                                       GitRepo::BranchType::Tag);
+  return _bridge->getActiveBranchOrTag(
+      getSelf().toWeakRef(), static_cast<int>(GitRepo::BranchType::Tag));
 }
 
 void GitRepoContainer::copyFilePathsToClipboard(const QStringList &filePaths) {

@@ -41,7 +41,7 @@ public:
           &onSuccess = nullptr) = 0;
   virtual void checkoutBranch(
       const QWeakPointer<GitRepoContainer> &guard, const QString &branchName,
-      const GitRepo::BranchType branchType,
+      const int branchType,
       const std::function<void(const QWeakPointer<GitRepoContainer> &)>
           &onSuccess = nullptr) = 0;
   virtual void checkoutCommit(const QWeakPointer<GitRepoContainer> &guard,
@@ -102,7 +102,7 @@ public:
   virtual void discardFiles(const QWeakPointer<GitRepoContainer> &guard,
                             const QStringList &files) = 0;
   virtual bool getActiveBranchOrTag(const QWeakPointer<GitRepoContainer> &guard,
-                                    const GitRepo::BranchType branchType) = 0;
+                                    const int branchType) = 0;
   virtual bool
   getBranchHistory(const QWeakPointer<GitRepoContainer> &guard) = 0;
   virtual QStringList
@@ -164,7 +164,7 @@ public:
   virtual void renameTag(const QWeakPointer<GitRepoContainer> &guard,
                          const QString &oldName, const QString &newName) = 0;
   virtual void reset(const QWeakPointer<GitRepoContainer> &guard,
-                     const QString &commit, GitRepo::ResetType type) = 0;
+                     const QString &commit, const int type) = 0;
   virtual void revert(const QWeakPointer<GitRepoContainer> &guard,
                       const QString &commit) = 0;
   virtual void cherryPick(const QWeakPointer<GitRepoContainer> &guard,

@@ -59,6 +59,7 @@ class GitRepoContainer final : public Widgets::ContainerWidget,
   Q_OBJECT
 
   friend class GitRepoManagerBridgeImpl;
+  friend class SvnRepoManagerBridgeImpl;
 
   typedef QWeakPointer<GitRepoContainer> WeakPtr;
   typedef QSharedPointer<GitRepoContainer> SharedPtr;

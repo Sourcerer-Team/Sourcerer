@@ -854,8 +854,8 @@ struct SvnRepoContext {
 } // namespace SvnRepoManager::Structs
 
 Q_DECLARE_METATYPE(SvnRepo::SvnError)
-Q_DECLARE_METATYPE(SvnRepo::GitStatus)
-Q_DECLARE_METATYPE(SvnRepo::GitHistory)
+Q_DECLARE_METATYPE(SvnRepo::SvnStatus)
+Q_DECLARE_METATYPE(SvnRepo::SvnHistory)
 Q_DECLARE_METATYPE(SvnRepo::CommitStatus)
 Q_DECLARE_METATYPE(SvnRepo::FilesDiff)
 Q_DECLARE_METATYPE(SvnRepo::BranchStatusType)

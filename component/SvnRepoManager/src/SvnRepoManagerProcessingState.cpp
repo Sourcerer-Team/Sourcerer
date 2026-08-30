@@ -2318,7 +2318,7 @@ void SvnRepoManagerProcessingState::getBranchHistoryWorker(
     pQuit = &ctx->quit;
   }
 
-  const SvnRepo::GitHistory history = SvnRepo::getBranchHistory(
+  const SvnRepo::SvnHistory history = SvnRepo::getBranchHistory(
       repo, command.branchName, command.branchType, *pQuit);
 
   bool quit = false;
@@ -3887,7 +3887,7 @@ void SvnRepoManagerProcessingState::statusWorker(
     quit = &ctx->quit;
   }
 
-  const SvnRepo::GitStatus status = SvnRepo::getStatus(repo, *quit);
+  const SvnRepo::SvnStatus status = SvnRepo::getStatus(repo, *quit);
 
   if (*quit) {
     LOG_PERF(0, "Exit");

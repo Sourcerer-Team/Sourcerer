@@ -181,7 +181,7 @@ bool getIsMergeInProgress(const QString &) {
   return false;
 }
 
-GitHistory getBranchHistory(const QString &, const QString &, BranchType,
+SvnHistory getBranchHistory(const QString &, const QString &, BranchType,
                             bool) {
   return {};
 }
@@ -292,7 +292,7 @@ bool stash(const QString &) {
   return false;
 }
 
-GitStatus getStatus(const QString &, const bool &) {
+SvnStatus getStatus(const QString &, const bool &) {
   return {};
 }
 

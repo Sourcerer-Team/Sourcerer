@@ -2,6 +2,7 @@
 
 #include <ConfigManager.h>
 #include <GitRepo.h>
+#include <SvnRepo.h>
 
 #include <Qsci/qsciscintilla.h>
 
@@ -53,6 +54,9 @@ public:
 
   void loadAndHighlight(const QString &leftContent,
                         const GitRepo::FilesDiffDelta &rightDelta,
+                        const QString &extension);
+  void loadAndHighlight(const QString &leftContent,
+                        const SvnRepo::FilesDiffDelta &rightDelta,
                         const QString &extension);
   void clearContent();
 

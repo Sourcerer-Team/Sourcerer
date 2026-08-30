@@ -1,0 +1,5768 @@
+#include "containers/SvnRepoManagerBridgeImpl.h"
+#include "DarkThemeLexersHighlighter.h"
+#include "MainWindow.h"
+#include "MousePositionCorrection.h"
+#include "QScintillaLexerFactory.h"
+#include "containers/GitRepoContainer.h"
+#include "containers/ui_GitRepoContainer.h"
+#include "delegates/ElidePartialColorDelegate.h"
+#include "delegates/HistorySliceTableColumnDelegate.h"
+#include "delegates/HistorySummaryTableColumnDelegate.h"
+#include "models/GitCommitListModel.h"
+#include "models/GitCommitTreeModel.h"
+#include "widgets/AddRemoteOverlayWidget.h"
+#include "widgets/AddSubmoduleOverlayWidget.h"
+#include "widgets/AddTargetOverlayWidget.h"
+#include "widgets/AnnotatedTagOverlayWidget.h"
+#include "widgets/ClickableHeaderView.h"
+#include "widgets/ConsoleWidget.h"
+#include "widgets/EditRemoteOverlayWidget.h"
+#include "widgets/EditTargetOverlayWidget.h"
+#include "widgets/ErrorToast.h"
+#include "widgets/InfoToast.h"
+#include "widgets/RemotesPage.h"
+#include "widgets/ShortcutsToolbarWidget.h"
+#include "widgets/SideBySideDiffView.h"
+#include "widgets/StashesPage.h"
+#include "widgets/TextInputOverlayWidget.h"
+#include "widgets/ToastHostWidget.h"
+#include "widgets/UpstreamInputOverlayWidget.h"
+
+#include <Dispatcher.h>
+#include <FileManager.h>
+#include <Log.h>
+#include <StylesheetManager.h>
+#include <SvnRepoManagerStructs.h>
+#include <Uuid.h>
+
+#include <QAbstractItemDelegate>
+#include <QCheckBox>
+#include <QClipboard>
+#include <QCursor>
+#include <QDirIterator>
+#include <QEvent>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QGuiApplication>
+#include <QHBoxLayout>
+#include <QMenu>
+#include <QMessageBox>
+#include <QMouseEvent>
+#include <QMovie>
+#include <QPainter>
+#include <QPixmap>
+#include <QScrollBar>
+#include <QSignalBlocker>
+#include <QStyleOptionViewItem>
+#include <QSvgRenderer>
+#include <QTextStream>
+#include <QTimer>
+#include <QToolButton>
+#include <QToolTip>
+#include <Qsci/qsciscintilla.h>
+
+#include <algorithm>
+#include <functional>
+#include <set>
+#include <utility>
+
+#define THREAD_ID "GitRepoContainer"
+
+#define ALL_BRANCHES "*"
+#define HEAD "HEAD"
+
+#define MAXIMUM_PARENTS_IN_LABEL 3
+#define MAX_COMMIT_SHA_LENGTH 7
+
+#define GIT_IGNORE_FILENAME ".gitignore"
+#define GIT_SUBDIR ".git"
+
+using namespace GuiManager::Widgets;
+using namespace SvnRepoManager::Structs;
+
+namespace GuiManager::Containers {
+
+enum class MainViewPanes {
+  Unknown = -1,
+
+  History = 0,
+  Diff = 1,
+  ThreeWayDiff = 2,
+  StashContent = 3,
+
+  last
+};
+
+static QString
+commitSummaryFromHistoryModel(const Models::GitHistoryModel *historyModel,
+                              const QString &commit) {
+  if (!historyModel || commit.isEmpty()) {
+    return {};
+  }
+
+  for (int i = 0; i < historyModel->rowCount(QModelIndex()); ++i) {
+    const QString rowFullSHA =
+        historyModel
+            ->data(
+                historyModel->index(i, COLUMN_COMMIT_FULL_SHA, QModelIndex()),
+                Qt::DisplayRole)
+            .toString();
+    if (rowFullSHA == commit) {
+      return historyModel
+          ->data(historyModel->index(i, COLUMN_SUMMARY, QModelIndex()),
+                 Qt::DisplayRole)
+          .toString();
+    }
+  }
+
+  return {};
+}
+
+SvnRepoManagerBridgeImpl::SvnRepoManagerBridgeImpl(GitRepoContainer &container)
+    : _container(container) {}
+
+void SvnRepoManagerBridgeImpl::setUpstream(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &branchName,
+    const QString &remoteName, const QString &remoteBranchName,
+    const std::function<void(const QWeakPointer<GitRepoContainer> &)>
+        &onSuccess) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoSetUpstreamCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remoteName;
+  command.remoteBranchName = remoteBranchName;
+  command.localBranchName = branchName;
+
+  EventManager::Event setUpstreamStashEvent(
+      EventManager::EventType::SvnRepoManagerSetUpstream, eventUuid);
+  setUpstreamStashEvent.addData(command);
+  _container._eventManager.send(setUpstreamStashEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerSetUpstreamError,
+      EventManager::EventType::SvnRepoManagerSetUpstreamResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to set upstream.")),
+          _container.tr("Apply"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerSetUpstreamResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool setUpstreamSuccess = commandResult.value.toBool();
+
+  refreshStatus(guard);
+
+  if (!setUpstreamSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to set upstream."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  // Only refresh the remotes if we're setting upstream for the active branch
+  if (branchName == _container._activeBranch) {
+    getRemotes(guard);
+  }
+
+  if (onSuccess) {
+    onSuccess(guard);
+  } else {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showToast(_container.tr("Successfully set upstream."),
+                           _container.tr("Info"));
+    });
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::stash(
+    const QWeakPointer<GitRepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoStashCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event stashFilesEvent(
+      EventManager::EventType::SvnRepoManagerStash, eventUuid);
+  stashFilesEvent.addData(command);
+  _container._eventManager.send(stashFilesEvent);
+
+  static std::set types = {EventManager::EventType::SvnRepoManagerStashError,
+                           EventManager::EventType::SvnRepoManagerStashResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to stash changes."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerStashResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool stashSuccess = commandResult.value.toBool();
+
+  refreshStatus(guard);
+  getStashes(guard);
+
+  if (!stashSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to stash changes."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { _container.showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::abortMerge(
+    const QWeakPointer<GitRepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoAbortMergeCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event abortMergeEvent(
+      EventManager::EventType::SvnRepoManagerAbortMerge, eventUuid);
+  abortMergeEvent.addData(command);
+  _container._eventManager.send(abortMergeEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerAbortMergeError,
+      EventManager::EventType::SvnRepoManagerAbortMergeResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to abort merge.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerAbortMergeResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool abortSuccess = commandResult.value.toBool();
+
+  _container.refreshHistory(guard);
+
+  if (!abortSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to abort merge."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    _container.showSpinnerOverlay(false);
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::History));
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::addSubmodule(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &url,
+    const QString &name, const QString &branch) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoAddSubmoduleCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.url = url;
+  command.name = name;
+  command.branch = branch;
+
+  EventManager::Event addSubmoduleEvent(
+      EventManager::EventType::SvnRepoManagerAddSubmodule, eventUuid);
+  addSubmoduleEvent.addData(command);
+  _container._eventManager.send(addSubmoduleEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerAddSubmoduleError,
+      EventManager::EventType::SvnRepoManagerAddSubmoduleResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to add submodule.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerAddSubmoduleResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool addSuccess = commandResult.value.toBool();
+
+  _container.refreshHistory(guard);
+
+  if (!addSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to add submodule."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { _container.showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::amend(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &summary,
+    const QString &description, const QString &author, const QString &email,
+    bool signoff, bool signCommit) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoAmendCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.author = author;
+  command.email = email;
+  command.summary = summary;
+  command.message = description;
+  command.signoff = signoff;
+  command.signCommit = signCommit;
+
+  EventManager::Event amendEvent(EventManager::EventType::SvnRepoManagerAmend,
+                                 eventUuid);
+  amendEvent.addData(command);
+  _container._eventManager.send(amendEvent);
+
+  static std::set types = {EventManager::EventType::SvnRepoManagerAmendError,
+                           EventManager::EventType::SvnRepoManagerAmendResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to amend changes."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerAmendResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  const bool commitSuccess = commandResult.value.toBool();
+
+  if (!commitSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to amend changes."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    if (commitSuccess) {
+      _container.clearSummaryAndDescription();
+    }
+    _container.showSpinnerOverlay(false);
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::History));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::applyPatch(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &filePath) {
+  QFile file(filePath);
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorToast(
+          _container.tr("Can't open file \"%1\" for reading").arg(filePath),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  QTextStream in(&file);
+  const QString content = in.readAll();
+
+  file.close();
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoApplyPatchCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.patchContent = content;
+
+  EventManager::Event applyPatchEvent(
+      EventManager::EventType::SvnRepoManagerApplyPatch, eventUuid);
+  applyPatchEvent.addData(command);
+  _container._eventManager.send(applyPatchEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerApplyPatchError,
+      EventManager::EventType::SvnRepoManagerApplyPatchResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to apply patch.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerApplyPatchResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool applySuccess = commandResult.value.toBool();
+
+  refreshStatus(guard);
+
+  if (!applySuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to apply patch."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { _container.showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::applyStash(
+    const QWeakPointer<GitRepoContainer> &guard, const int stashIndex,
+    const std::function<void(const QWeakPointer<GitRepoContainer> &, int)>
+        &onSuccess) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoApplyStashCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.index = stashIndex;
+
+  EventManager::Event applyStashEvent(
+      EventManager::EventType::SvnRepoManagerApplyStash, eventUuid);
+  applyStashEvent.addData(command);
+  _container._eventManager.send(applyStashEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerApplyStashError,
+      EventManager::EventType::SvnRepoManagerApplyStashResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to apply stash.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerApplyStashResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  // Extract result data - now contains success and hasConflicts information
+  QMap<QString, QVariant> resultData = commandResult.value.toMap();
+  const bool applySuccess = resultData.value("success", false).toBool();
+  const bool hasConflicts = resultData.value("hasConflicts", false).toBool();
+
+  refreshStatus(guard);
+  getStashes(guard);
+
+  if (!applySuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to apply stash."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  // If stash was applied but has conflicts, show merge conflict resolution UI
+  if (hasConflicts) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showToast(
+          _container.tr(
+              "Stash applied with conflicts. Resolve conflicts to continue."),
+          _container.tr("Conflicts"));
+    });
+  }
+
+  if (onSuccess) {
+    onSuccess(guard, stashIndex);
+  } else {
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { _container.showSpinnerOverlay(false); });
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::checkoutBranch(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &branchName,
+    const int branchType,
+    const std::function<void(const QWeakPointer<GitRepoContainer> &)>
+        &onSuccess) {
+  LOG_PERF(0, "Enter");
+
+  if (branchName == ALL_BRANCHES) {
+    _container.updateModelActiveBranch(
+        guard, branchName, static_cast<GitRepo::BranchType>(branchType));
+  } else {
+    _container.stopWatcher(guard);
+
+    const QString eventUuid = Uuid::createUuid();
+
+    const int token = _container._eventManager.startWait();
+
+    SvnRepoCheckoutBranchCommand command;
+    command.uuid = _container._uuid;
+    command.syncUuid = eventUuid;
+    command.branchName = branchName;
+    command.branchType = static_cast<SvnRepo::BranchType>(branchType);
+
+    EventManager::Event checkoutBranchEvent(
+        EventManager::EventType::SvnRepoManagerCheckoutBranch, eventUuid);
+    checkoutBranchEvent.addData(command);
+    _container._eventManager.send(checkoutBranchEvent);
+
+    static std::set types = {
+        EventManager::EventType::SvnRepoManagerCheckoutBranchError,
+        EventManager::EventType::SvnRepoManagerCheckoutBranchResult};
+
+    const auto &[success, event] =
+        _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+    QString additionalClarificationMessage;
+
+    if (_container._historyModel->hasStatus()) {
+      additionalClarificationMessage = _container.tr(
+          "\nPlease "
+          "commit your changes or stash them before you switch branches.");
+    }
+
+    if (!success) {
+      closeRepo();
+
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        _container.showSpinnerOverlay(false);
+        _container.showErrorPage();
+        _container.showErrorToast(
+            QString(_container.tr("Failed to checkout branch. %1"))
+                .arg(additionalClarificationMessage),
+            _container.tr("Checkout"));
+      });
+
+      LOG_PERF(0, "Exit")
+      return;
+    }
+
+    if (event.type() !=
+        EventManager::EventType::SvnRepoManagerCheckoutBranchResult) {
+      const auto error = event.data<SvnRepoError>();
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        _container.showSpinnerOverlay(false);
+        _container.showErrorToast(error.message, _container.tr("Error"));
+      });
+
+      _container.prepareWatcher(guard);
+
+      LOG_PERF(0, "Exit")
+      return;
+    }
+
+    (void)getLocalBranches();
+
+    const auto commandResult = event.data<SvnRepoResult>();
+
+    const auto result =
+        commandResult.value.value<SvnRepoCheckoutBranchCommandResult>();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.updateModelActiveBranch(
+          guard, result.branchName,
+          static_cast<GitRepo::BranchType>(result.branchType));
+      _container.showSpinnerOverlay(false);
+    });
+
+    if (branchType == static_cast<int>(GitRepo::BranchType::Tag)) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        _container.showToast(
+            _container
+                .tr("You are now in detached HEAD state after checking out "
+                    "tag '%1'.")
+                .arg(result.branchName),
+            _container.tr("Warning"));
+      });
+    }
+
+    _container.prepareWatcher(guard);
+
+    if (onSuccess) {
+      onSuccess(guard);
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::checkoutCommit(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  _container.stopWatcher(guard);
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoCheckoutCommitCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+
+  EventManager::Event checkoutCommitEvent(
+      EventManager::EventType::SvnRepoManagerCheckoutCommit, eventUuid);
+  checkoutCommitEvent.addData(command);
+  _container._eventManager.send(checkoutCommitEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerCheckoutCommitError,
+      EventManager::EventType::SvnRepoManagerCheckoutCommitResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  QString additionalClarificationMessage;
+
+  if (_container._historyModel->hasStatus()) {
+    additionalClarificationMessage =
+        _container.tr("\nPlease "
+                      "commit your changes or stash them before you checkout.");
+  }
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to checkout commit. %1"))
+              .arg(additionalClarificationMessage),
+          _container.tr("Checkout"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerCheckoutCommitResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool checkoutSuccess = commandResult.value.toBool();
+
+  if (!checkoutSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(
+          QString(_container.tr("Failed to checkout commit. %1"))
+              .arg(additionalClarificationMessage),
+          _container.tr("Checkout"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container
+                             .tr("You are now in detached HEAD state after "
+                                 "checking out commit '%1'.")
+                             .arg(commit),
+                         _container.tr("Warning"));
+  });
+
+  _container.prepareWatcher(guard);
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::closeRepo() const {
+  LOG_PERF(0, "Enter");
+
+  SvnRepoCloseCommand closeCommand;
+  closeCommand.uuid = _container._uuid;
+
+  EventManager::Event closeRepoEvent(
+      EventManager::EventType::SvnRepoManagerCloseRepo);
+  closeRepoEvent.addData(closeCommand);
+  _container._eventManager.send(closeRepoEvent);
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::commit(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &summary,
+    const QString &description, const QString &author, const QString &email,
+    bool cleanup, bool signoff, bool signCommit) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoCommitStagedCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.author = author;
+  command.email = email;
+  command.summary = summary;
+  command.message = description;
+  command.cleanup = cleanup;
+  command.signoff = signoff;
+  command.signCommit = signCommit;
+
+  EventManager::Event commitStagedEvent(
+      EventManager::EventType::SvnRepoManagerCommitStaged, eventUuid);
+  commitStagedEvent.addData(command);
+  _container._eventManager.send(commitStagedEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerCommitStagedError,
+      EventManager::EventType::SvnRepoManagerCommitStagedResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to commit staged changes."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerCommitStagedResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  const bool commitSuccess = commandResult.value.toBool();
+
+  if (!commitSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(
+          _container.tr("Failed to commit staged changes."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    if (commitSuccess) {
+      _container.clearSummaryAndDescription();
+    }
+    _container.showSpinnerOverlay(false);
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::History));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::createBranchFromCommit(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &commit,
+    const QString &branchName,
+    const std::function<void(const QWeakPointer<GitRepoContainer> &,
+                             const QString &)> &onSuccess) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoCreateBranchFromCommitCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+  command.branchName = branchName;
+
+  EventManager::Event createBranchFromCommitEvent(
+      EventManager::EventType::SvnRepoManagerCreateBranchFromCommit, eventUuid);
+  createBranchFromCommitEvent.addData(command);
+  _container._eventManager.send(createBranchFromCommitEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerCreateBranchFromCommitError,
+      EventManager::EventType::SvnRepoManagerCreateBranchFromCommitResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to create branch from commit."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerCreateBranchFromCommitResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  _container.refreshHistory(guard);
+
+  if (onSuccess) {
+    onSuccess(guard, branchName);
+  } else {
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showSpinnerOverlay(false); });
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::createPatchFromCommit(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoCreatePatchFromCommitCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+
+  EventManager::Event createPatchFromCommitEvent(
+      EventManager::EventType::SvnRepoManagerCreatePatchFromCommit, eventUuid);
+  createPatchFromCommitEvent.addData(command);
+  _container._eventManager.send(createPatchFromCommitEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerCreatePatchFromCommitError,
+      EventManager::EventType::SvnRepoManagerCreatePatchFromCommitResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to create patch from commit."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerCreatePatchFromCommitResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  const auto result =
+      commandResult.value.value<SvnRepoCreatePatchFromCommitCommandResult>();
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+
+    if (result.patchContent.isEmpty()) {
+      _container.showErrorToast(
+          _container.tr("Failed to create patch from commit."),
+          _container.tr("Error"));
+      return;
+    }
+
+    const QString filePath = QFileDialog::getSaveFileName(
+        nullptr,                               // Parent widget
+        "Save Patch File",                     // Dialog title
+        QDir::homePath(),                      // Default directory
+        "Patch Files (*.patch);;All Files (*)" // File filters
+    );
+
+    if (filePath.isEmpty()) {
+      return;
+    }
+
+    QFile file(filePath);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+      QTextStream out(&file);
+      out << result.patchContent;
+
+      file.close();
+    }
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::createTagFromCommit(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &commit,
+    const QString &tagName, const QString &message, bool isAnnotated) {
+  LOG_PERF(0, "Enter");
+
+  const QString author =
+      Common::UserProfileManager::instance().currentProfile().author;
+  const QString email =
+      Common::UserProfileManager::instance().currentProfile().email;
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoCreateTagFromCommitCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+  command.tagName = tagName;
+  command.author = author;
+  command.email = email;
+  command.message = isAnnotated ? message : QString();
+
+  EventManager::Event createTagFromCommitEvent(
+      EventManager::EventType::SvnRepoManagerCreateTagFromCommit, eventUuid);
+  createTagFromCommitEvent.addData(command);
+  _container._eventManager.send(createTagFromCommitEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerCreateTagFromCommitError,
+      EventManager::EventType::SvnRepoManagerCreateTagFromCommitResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to create tag from commit."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerCreateTagFromCommitResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() { _container.showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::deleteBranch(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoDeleteBranchCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.branchName = branchName;
+
+  EventManager::Event deleteBranchEvent(
+      EventManager::EventType::SvnRepoManagerDeleteBranch, eventUuid);
+  deleteBranchEvent.addData(command);
+  _container._eventManager.send(deleteBranchEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerDeleteBranchError,
+      EventManager::EventType::SvnRepoManagerDeleteBranchResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to delete branch.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerDeleteBranchResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool deleteSuccess = commandResult.value.toBool();
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { _container.showSpinnerOverlay(false); });
+
+  if (!deleteSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorToast(_container.tr("Failed to delete branch."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::deleteRemoteBranch(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoDeleteRemoteBranchCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.branchName = branchName;
+
+  EventManager::Event deleteRemoteBranchEvent(
+      EventManager::EventType::SvnRepoManagerDeleteRemoteBranch, eventUuid);
+  deleteRemoteBranchEvent.addData(command);
+  _container._eventManager.send(deleteRemoteBranchEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerDeleteRemoteBranchError,
+      EventManager::EventType::SvnRepoManagerDeleteRemoteBranchResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to delete remote branch.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerDeleteRemoteBranchResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool deleteSuccess = commandResult.value.toBool();
+
+  _container.refreshHistory(guard);
+
+  if (!deleteSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(
+          _container.tr("Failed to delete remote branch."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(
+        _container.tr("Successfully deleted branch from remote."),
+        _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::deleteStash(
+    const QWeakPointer<GitRepoContainer> &guard, int stashIndex,
+    const std::function<void(const QWeakPointer<GitRepoContainer> &, int)>
+        &onSuccess) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoDeleteStashCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.index = stashIndex;
+
+  EventManager::Event deleteStashEvent(
+      EventManager::EventType::SvnRepoManagerDeleteStash, eventUuid);
+  deleteStashEvent.addData(command);
+  _container._eventManager.send(deleteStashEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerDeleteStashError,
+      EventManager::EventType::SvnRepoManagerDeleteStashResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to delete stash.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerDeleteStashResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool deleteSuccess = commandResult.value.toBool();
+
+  refreshStatus(guard);
+  getStashes(guard);
+
+  if (!deleteSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to delete stash."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (onSuccess) {
+    onSuccess(guard, stashIndex);
+  } else {
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { _container.showSpinnerOverlay(false); });
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::deleteAllStashes(
+    const QWeakPointer<GitRepoContainer> &guard,
+    const std::function<void(const QWeakPointer<GitRepoContainer> &)>
+        &onSuccess) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoDeleteAllStashesCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event deleteAllStashesEvent(
+      EventManager::EventType::SvnRepoManagerDeleteAllStashes, eventUuid);
+  deleteAllStashesEvent.addData(command);
+  _container._eventManager.send(deleteAllStashesEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerDeleteAllStashesError,
+      EventManager::EventType::SvnRepoManagerDeleteAllStashesResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to delete all stashes.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerDeleteAllStashesResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool deleteSuccess = commandResult.value.toBool();
+
+  refreshStatus(guard);
+  getStashes(guard);
+
+  if (!deleteSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to delete all stashes."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("All stashes deleted successfully."),
+                         _container.tr("Success"));
+  });
+
+  if (onSuccess) {
+    onSuccess(guard);
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::deleteTag(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &tagName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoDeleteTagCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.tagName = tagName;
+
+  EventManager::Event deleteTagEvent(
+      EventManager::EventType::SvnRepoManagerDeleteTag, eventUuid);
+  deleteTagEvent.addData(command);
+  _container._eventManager.send(deleteTagEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerDeleteTagError,
+      EventManager::EventType::SvnRepoManagerDeleteTagResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(QString(_container.tr("Failed to delete tag.")),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerDeleteTagResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool deleteSuccess = commandResult.value.toBool();
+
+  _container.refreshHistory(guard);
+
+  if (!deleteSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to delete tag."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { _container.showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::pushTag(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &tagName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoPushTagCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.tagName = tagName;
+
+  EventManager::Event pushTagEvent(
+      EventManager::EventType::SvnRepoManagerPushTag, eventUuid);
+  pushTagEvent.addData(command);
+  _container._eventManager.send(pushTagEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerPushTagError,
+      EventManager::EventType::SvnRepoManagerPushTagResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerPushTagResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  if (const bool pushed = commandResult.value.toBool(); !pushed) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to push tag to remote."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Successfully pushed tag to remote."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::pushAllTags(
+    const QWeakPointer<GitRepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoPushAllTagsCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event pushAllTagsEvent(
+      EventManager::EventType::SvnRepoManagerPushAllTags, eventUuid);
+  pushAllTagsEvent.addData(command);
+  _container._eventManager.send(pushAllTagsEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerPushAllTagsError,
+      EventManager::EventType::SvnRepoManagerPushAllTagsResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerPushAllTagsResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  if (const bool pushed = commandResult.value.toBool(); !pushed) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(
+          _container.tr("Failed to push all tags to remote."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(
+        _container.tr("Successfully pushed all tags to remote."),
+        _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::deleteRemoteTag(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &tagName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoDeleteRemoteTagCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.tagName = tagName;
+
+  EventManager::Event deleteRemoteTagEvent(
+      EventManager::EventType::SvnRepoManagerDeleteRemoteTag, eventUuid);
+  deleteRemoteTagEvent.addData(command);
+  _container._eventManager.send(deleteRemoteTagEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerDeleteRemoteTagError,
+      EventManager::EventType::SvnRepoManagerDeleteRemoteTagResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to delete remote tag.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerDeleteRemoteTagResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool deleteSuccess = commandResult.value.toBool();
+
+  _container.refreshHistory(guard);
+
+  if (!deleteSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to delete remote tag."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Successfully deleted tag from remote."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::openSubmodule(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &submoduleName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoGetSubmodulePathCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.submoduleName = submoduleName;
+
+  EventManager::Event deleteTagEvent(
+      EventManager::EventType::SvnRepoManagerGetSubmodulePath, eventUuid);
+  deleteTagEvent.addData(command);
+  _container._eventManager.send(deleteTagEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerGetSubmodulePathError,
+      EventManager::EventType::SvnRepoManagerGetSubmodulePathResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to get submodule path.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerGetSubmodulePathResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const auto result =
+      commandResult.value.value<SvnRepoGetSubmodulePathCommandResult>();
+
+  if (result.submodulePath.isEmpty()) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to get submodule path."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+
+    const QString fullPath =
+        QDir(_container._path).filePath(result.submodulePath);
+    emit _container.openRepoRequested(fullPath);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::showStashContent(
+    const QWeakPointer<GitRepoContainer> &guard, int stashIndex) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Showing stash content for index: {}", stashIndex);
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoGetStashStatusCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.index = stashIndex;
+
+  EventManager::Event getStashStatusEvent(
+      EventManager::EventType::SvnRepoManagerGetStashStatus, eventUuid);
+  getStashStatusEvent.addData(command);
+  _container._eventManager.send(getStashStatusEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerGetStashStatusError,
+      EventManager::EventType::SvnRepoManagerGetStashStatusResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(
+          QString(_container.tr("Failed to get stash content.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerGetStashStatusResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto result = event.data<SvnRepoResult>();
+  const auto stashStatus = result.value.value<GitRepo::GitCommitStatus>();
+
+  // Store the stash index for later use (for apply/pop buttons)
+  _container._currentStashIndex = stashIndex;
+  _container._lastStashCommit = stashStatus.commit;
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    // Update flat list view
+    _container._stashFilesModel.reset(
+        Models::GitCommitListModel::from(stashStatus));
+    if (_container._stashFilesModel) {
+      _container.ui->listViewStashFilesFlat->setModel(
+          _container._stashFilesModel.get());
+
+      QObject::disconnect(
+          _container.ui->listViewStashFilesFlat,
+          &GuiManager::Widgets::RightClickSelectListView::pressed, &_container,
+          nullptr);
+
+      QObject::connect(
+          _container.ui->listViewStashFilesFlat,
+          &GuiManager::Widgets::RightClickSelectListView::pressed, &_container,
+          [=](const QModelIndex &index) { onStashFileSelected(index); });
+    }
+
+    // Update tree view
+    _container._stashFilesTreeModel.reset(
+        Models::GitCommitTreeModel::from(stashStatus));
+    if (_container._stashFilesTreeModel) {
+      _container.ui->treeViewStashFilesTree->setModel(
+          _container._stashFilesTreeModel.get());
+
+      QObject::disconnect(
+          _container.ui->treeViewStashFilesTree,
+          &GuiManager::Widgets::RightClickSelectTreeView::pressed, &_container,
+          nullptr);
+
+      QObject::connect(
+          _container.ui->treeViewStashFilesTree,
+          &GuiManager::Widgets::RightClickSelectTreeView::pressed, &_container,
+          [=](const QModelIndex &index) { onStashFileSelected(index); });
+    }
+
+    // Preselect the first file and show its diff
+    if (_container._stashFilesModel &&
+        _container._stashFilesModel->rowCount() > 0) {
+      const QModelIndex firstIndex = _container._stashFilesModel->index(0, 0);
+      _container.ui->listViewStashFilesFlat->setCurrentIndex(firstIndex);
+      onStashFileSelected(firstIndex);
+    }
+
+    // Switch to stash content page
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::StashContent));
+
+    _container.showSpinnerOverlay(false);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::onStashFileSelected(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Stash file selected");
+
+  if (!index.isValid() || _container._lastStashCommit.isEmpty()) {
+    LOG_DEBUG("Invalid index or stash commit");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (index.model() && index.model()->hasChildren(index)) {
+    LOG_DEBUG("Ignoring folder node selection in stash tree view");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString filePath = index.data(Qt::DisplayRole).toString();
+  QModelIndex current = index;
+  while (current.parent().isValid()) {
+    current = current.parent();
+    filePath =
+        current.data(Qt::DisplayRole).toString() + QDir::separator() + filePath;
+  }
+
+  LOG_DEBUG("Stash file path: '{}'", filePath.toStdString());
+
+  filePath = QDir::fromNativeSeparators(filePath);
+
+  const QWeakPointer<GitRepoContainer> guard = _container.getSelf().toWeakRef();
+
+  _container._dispatcher.dispatch([=]() {
+    // Check file size from commit before generating diff
+    const qint64 maxDiffFileSize = _container._configManager.getLong(
+        ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
+    const qint64 fileSize =
+        getFileSizeFromCommit(filePath, _container._lastStashCommit);
+
+    if (fileSize > 0 && fileSize > maxDiffFileSize) {
+      LOG_DEBUG("File size {} exceeds maximum {}", fileSize, maxDiffFileSize);
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        _container.showErrorToast(
+            _container.tr("File is too large to be displayed."),
+            _container.tr("Error"));
+        return;
+      });
+
+      return;
+    }
+
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.startOverlayTimer(); });
+
+    LOG_DEBUG("Generating diff from stash commit for file '{}'",
+              filePath.toStdString());
+
+    // Send command to get diff
+    const QString eventUuid = Uuid::createUuid();
+    const int token = _container._eventManager.startWait();
+
+    SvnRepoDiffFilesFromCommitCommand command;
+    command.uuid = _container._uuid;
+    command.syncUuid = eventUuid;
+    command.files += filePath;
+    command.commit = _container._lastStashCommit;
+
+    EventManager::Event diffFilesFromCommitEvent(
+        EventManager::EventType::SvnRepoManagerDiffFilesFromCommit, eventUuid);
+    diffFilesFromCommitEvent.addData(command);
+    _container._eventManager.send(diffFilesFromCommitEvent);
+
+    static std::set types = {
+        EventManager::EventType::SvnRepoManagerDiffFilesFromCommitError,
+        EventManager::EventType::SvnRepoManagerDiffFilesFromCommitResult};
+
+    const auto &[success, event] =
+        _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+    if (!success) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        _container.showSpinnerOverlay(false);
+        _container.showErrorToast(_container.tr("Failed to create file diff."),
+                                  _container.tr("Error"));
+      });
+
+      LOG_DEBUG("Failed to get diff for stash file");
+      return;
+    }
+
+    if (event.type() !=
+        EventManager::EventType::SvnRepoManagerDiffFilesFromCommitResult) {
+      const auto error = event.data<SvnRepoError>();
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        _container.showSpinnerOverlay(false);
+        _container.showErrorToast(error.message, _container.tr("Error"));
+      });
+
+      return;
+    }
+
+    const auto commandResult = event.data<SvnRepoResult>();
+    const auto filesDiff =
+        commandResult.value.value<SvnRepoDiffFilesFromCommitCommandResult>();
+
+    if (filesDiff.diff.isEmpty()) {
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        _container.showSpinnerOverlay(false);
+        _container.showToast(_container.tr("No difference in stash file."),
+                             _container.tr("Info"));
+      });
+
+      return;
+    }
+
+    // Display diff in stash viewers
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      const QString normalized =
+          QString(filesDiff.diff).replace("\r\n", "\n").replace('\r', '\n');
+      const int lineCount = normalized.count('\n') + 1;
+      const int width = QString::number(lineCount).length();
+      const QString mask = QString::number(0).rightJustified(width + 1, '0');
+
+      _container.ui->scintillaStashDiffUnified->setMarginWidth(0, mask);
+      _container.ui->scintillaStashDiffUnified->setText(filesDiff.diff);
+
+      if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
+        const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
+        _container.ui->sideBySideDiffViewerStash->loadAndHighlight(
+            filesDiff.repoContent.first(), filesDiff.deltas.first(),
+            fileInfo.suffix());
+      }
+
+      _container.ui->stackedWidgetStashDiff->setCurrentIndex(
+          0); // Show unified view by default
+      _container.showSpinnerOverlay(false);
+    });
+  });
+
+  LOG_DEBUG("Stash file diff dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::deleteSubmodule(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &submoduleName) {
+  LOG_PERF(0, "Enter");
+
+  // Stop watcher to release file handles before deletion
+  _container.stopWatcher(guard);
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  const QString fullPath = QDir(_container._path).filePath(submoduleName);
+
+  SvnRepoDeleteSubmoduleCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.submoduleName = submoduleName;
+  command.submodulePath = fullPath;
+
+  EventManager::Event deleteSubmoduleEvent(
+      EventManager::EventType::SvnRepoManagerDeleteSubmodule, eventUuid);
+  deleteSubmoduleEvent.addData(command);
+  _container._eventManager.send(deleteSubmoduleEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerDeleteSubmoduleError,
+      EventManager::EventType::SvnRepoManagerDeleteSubmoduleResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    _container.prepareWatcher(guard);
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to delete submodule."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerDeleteSubmoduleResult) {
+    const auto error = event.data<SvnRepoError>();
+    _container.prepareWatcher(guard);
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool commandSuccess = commandResult.value.toBool();
+
+  if (!commandSuccess) {
+    _container.prepareWatcher(guard);
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to delete submodule."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  _container.prepareWatcher(guard);
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() { _container.showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::diff(const QWeakPointer<GitRepoContainer> &guard,
+                                    const QString &filePath) {
+  LOG_PERF(0, "Enter");
+
+  // Guard against malicious multiple calls
+  if (!_container._lastDiffRepoStatusChanged &&
+      _container._lastDiffedFilePath == filePath) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.ui->stackedWidgetMiddle->setCurrentIndex(
+          static_cast<int>(MainViewPanes::Diff));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container._lastDiffedFilePath = filePath;
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoDiffFilesCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.files += filePath;
+
+  EventManager::Event diffFilesEvent(
+      EventManager::EventType::SvnRepoManagerDiffFiles, eventUuid);
+  diffFilesEvent.addData(command);
+  _container._eventManager.send(diffFilesEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerDiffFilesError,
+      EventManager::EventType::SvnRepoManagerDiffFilesResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to create file diff."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerDiffFilesResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const auto filesDiff =
+      commandResult.value.value<SvnRepoDiffFilesCommandResult>();
+
+  if (filesDiff.diff.isEmpty()) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showToast(
+          _container.tr("No difference compared to the HEAD commit."),
+          _container.tr("Info"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    const QString normalized =
+        QString(filesDiff.diff).replace("\r\n", "\n").replace('\r', '\n');
+    const int lineCount = normalized.count('\n') + 1;
+    const int width = QString::number(lineCount).length();
+    const QString mask = QString::number(0).rightJustified(width + 1, '0');
+
+    _container.ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
+    _container.ui->scintillaTextEditorUnified->setText(filesDiff.diff);
+
+    // Collect added and deleted lines for scrollbar marks
+    QVector<int> deletedLines;
+    QVector<int> addedLines;
+
+    // Mark hunk headers
+    for (int i = 0; i < _container.ui->scintillaTextEditorUnified->lines();
+         ++i) {
+      const QString lineText =
+          _container.ui->scintillaTextEditorUnified->text(i);
+      if (lineText.startsWith("@@ ")) {
+        _container.ui->scintillaTextEditorUnified->markerAdd(i, 1);
+      } else if (lineText.startsWith("-") && !lineText.startsWith("---")) {
+        deletedLines.append(i);
+      } else if (lineText.startsWith("+") && !lineText.startsWith("+++")) {
+        addedLines.append(i);
+      }
+    }
+
+    // Update scrollbar marks
+    _container._unifiedDiffMarks->setMarks(deletedLines, addedLines);
+
+    // Only show marks if unified view is selected
+    if (_container.ui->pushButtonDiffUnified->isChecked()) {
+      _container._unifiedDiffMarks->show();
+    } else {
+      _container._unifiedDiffMarks->hide();
+    }
+
+    if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
+      const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
+      _container.ui->sideBySideDiffViewer->loadAndHighlight(
+          filesDiff.repoContent.first(), filesDiff.deltas.first(),
+          fileInfo.suffix());
+    }
+
+    _container.showSpinnerOverlay(false);
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::Diff));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::diffThreeWay(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &filePath) {
+  LOG_PERF(0, "Enter");
+
+  // Guard against malicious multiple calls
+  if (!_container._lastDiffRepoStatusChanged &&
+      _container._lastDiffedFilePath == filePath) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.ui->stackedWidgetMiddle->setCurrentIndex(
+          static_cast<int>(MainViewPanes::Diff));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container._lastDiffedFilePath = filePath;
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoListConflictsCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.filePath = filePath;
+
+  EventManager::Event listConflictsEvent(
+      EventManager::EventType::SvnRepoManagerListConflicts, eventUuid);
+  listConflictsEvent.addData(command);
+  _container._eventManager.send(listConflictsEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerListConflictsError,
+      EventManager::EventType::SvnRepoManagerListConflictsResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to create file diff."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerListConflictsResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const auto listConflictsResult =
+      commandResult.value.value<SvnRepoListConflictsCommandResult>();
+
+  if (listConflictsResult.fileContentWithMarkers.isEmpty()) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showToast(
+          _container.tr("No difference compared to the HEAD commit."),
+          _container.tr("Info"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    // Hide unified diff marks when switching to three-way diff
+    _container._unifiedDiffMarks->hide();
+
+    _container.ui->pushButtonMergeDiffSave->setEnabled(true);
+    _container.ui->mergeDiffViewer->loadAndHighlight(
+        listConflictsResult.fileContentWithMarkers, filePath);
+
+    _container.showSpinnerOverlay(false);
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::ThreeWayDiff));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::diffFromCommit(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &filePath,
+    const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  // Guard against malicious multiple calls
+  if (!_container._lastDiffRepoStatusChanged &&
+      _container._lastDiffedCommit == commit &&
+      _container._lastDiffedFilePath == filePath) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.ui->stackedWidgetMiddle->setCurrentIndex(
+          static_cast<int>(MainViewPanes::Diff));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container._lastDiffedCommit = commit;
+  _container._lastDiffedFilePath = filePath;
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoDiffFilesFromCommitCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.files += filePath;
+  command.commit = commit;
+
+  EventManager::Event diffFilesFromCommitEvent(
+      EventManager::EventType::SvnRepoManagerDiffFilesFromCommit, eventUuid);
+  diffFilesFromCommitEvent.addData(command);
+  _container._eventManager.send(diffFilesFromCommitEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerDiffFilesFromCommitError,
+      EventManager::EventType::SvnRepoManagerDiffFilesFromCommitResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to create file diff."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerDiffFilesFromCommitResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const auto filesDiff =
+      commandResult.value.value<SvnRepoDiffFilesFromCommitCommandResult>();
+
+  if (filesDiff.diff.isEmpty()) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showToast(
+          _container.tr("No difference compared to the HEAD commit."),
+          _container.tr("Info"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    const QString normalized =
+        QString(filesDiff.diff).replace("\r\n", "\n").replace('\r', '\n');
+    const int lineCount = normalized.count('\n') + 1;
+    const int width = QString::number(lineCount).length();
+    const QString mask = QString::number(0).rightJustified(width + 1, '0');
+
+    _container.ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
+    _container.ui->scintillaTextEditorUnified->setText(filesDiff.diff);
+
+    // Collect added and deleted lines for scrollbar marks
+    QVector<int> deletedLines;
+    QVector<int> addedLines;
+
+    // Mark hunk headers
+    for (int i = 0; i < _container.ui->scintillaTextEditorUnified->lines();
+         ++i) {
+      const QString lineText =
+          _container.ui->scintillaTextEditorUnified->text(i);
+      if (lineText.startsWith("@@ ")) {
+        _container.ui->scintillaTextEditorUnified->markerAdd(i, 1);
+      } else if (lineText.startsWith("-") && !lineText.startsWith("---")) {
+        deletedLines.append(i);
+      } else if (lineText.startsWith("+") && !lineText.startsWith("+++")) {
+        addedLines.append(i);
+      }
+    }
+
+    // Update scrollbar marks
+    _container._unifiedDiffMarks->setMarks(deletedLines, addedLines);
+
+    // Load the saved diff view preference from ConfigManager
+    // false = unified (default), true = side-by-side
+    const bool useSideBySideDiff = _container._configManager.getBoolean(
+        ConfigManager::ConfigKey::GitRepoDiffViewType);
+
+    _container.ui->pushButtonDiffUnified->setChecked(!useSideBySideDiff);
+    _container.ui->pushButtonDiffSideBySide->setChecked(useSideBySideDiff);
+
+    if (useSideBySideDiff) {
+      _container._unifiedDiffMarks->hide();
+    } else {
+      _container._unifiedDiffMarks->show();
+    }
+
+    if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
+      const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
+      _container.ui->sideBySideDiffViewer->loadAndHighlight(
+          filesDiff.repoContent.first(), filesDiff.deltas.first(),
+          fileInfo.suffix());
+    }
+
+    _container.showSpinnerOverlay(false);
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::Diff));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::diffFiles(
+    const QWeakPointer<GitRepoContainer> &guard, const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoDiffFilesCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.files = files;
+
+  EventManager::Event diffFilesEvent(
+      EventManager::EventType::SvnRepoManagerDiffFiles, eventUuid);
+  diffFilesEvent.addData(command);
+  _container._eventManager.send(diffFilesEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerDiffFilesError,
+      EventManager::EventType::SvnRepoManagerDiffFilesResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to create diff file."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerDiffFilesResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const auto filesDiff =
+      commandResult.value.value<SvnRepoDiffFilesCommandResult>();
+
+  if (filesDiff.diff.isEmpty()) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showToast(
+          _container.tr("No difference compared to the HEAD commit."),
+          _container.tr("Info"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+
+    const QString filePath = QFileDialog::getSaveFileName(
+        nullptr, _container.tr("Save Diff File"), QString(),
+        _container.tr("Patch Files (*.patch)"));
+    QFile file(filePath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate |
+                   QIODevice::Text)) {
+      _container.showErrorToast(
+          _container.tr("Failed to create diff file %1.").arg(filePath),
+          _container.tr("Error"));
+      LOG_PERF(0, "Exit")
+      return;
+    }
+
+    QTextStream out(&file);
+    out << filesDiff.diff;
+    out.flush();
+
+    file.close();
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::discardFiles(
+    const QWeakPointer<GitRepoContainer> &guard, const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoDiscardFilesCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.files = files;
+
+  EventManager::Event discardFilesEvent(
+      EventManager::EventType::SvnRepoManagerDiscardFiles, eventUuid);
+  discardFilesEvent.addData(command);
+  _container._eventManager.send(discardFilesEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerDiscardFilesError,
+      EventManager::EventType::SvnRepoManagerDiscardFilesResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to discard file(s)."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerDiscardFilesResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool discarded = commandResult.value.toBool();
+
+  if (!discarded) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showToast(_container.tr("Failed to discard file(s)."),
+                           _container.tr("Info"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    _container.showSpinnerOverlay(false);
+    _container.simulateClickOnFirstHistoryRow();
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::History));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+bool SvnRepoManagerBridgeImpl::getActiveBranchOrTag(
+    const QWeakPointer<GitRepoContainer> &guard, const int branchType) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoGetActiveBranchCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.branchType = static_cast<SvnRepo::BranchType>(branchType);
+
+  EventManager::Event getActiveBranchEvent(
+      EventManager::EventType::SvnRepoManagerGetActiveBranch, eventUuid);
+  getActiveBranchEvent.addData(command);
+  _container._eventManager.send(getActiveBranchEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerGetActiveBranchError,
+      EventManager::EventType::SvnRepoManagerGetActiveBranchResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to retrieve the active local branch."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerGetActiveBranchResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  const auto result =
+      commandResult.value.value<SvnRepoGetActiveBranchCommandResult>();
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateModelActiveBranch(
+        guard, result.branchName, static_cast<GitRepo::BranchType>(branchType));
+  });
+
+  LOG_PERF(0, "Exit")
+
+  return true;
+}
+
+static GitRepo::GitStatus
+convertSvnStatusToGitStatus(const SvnRepo::SvnStatus &status) {
+  GitRepo::GitStatus gitStatus;
+  gitStatus.path = status.path;
+  gitStatus.newFiles = status.newFiles;
+  gitStatus.modifiedFiles = status.modifiedFiles;
+  gitStatus.deletedFiles = status.deletedFiles;
+  gitStatus.typeChangedFiles = status.typeChangedFiles;
+  gitStatus.renamedFiles = status.renamedFiles;
+  gitStatus.unreadableFiles = status.unreadableFiles;
+  gitStatus.newStagedFiles = status.newStagedFiles;
+  gitStatus.modifiedStagedFiles = status.modifiedStagedFiles;
+  gitStatus.deletedStagedFiles = status.deletedStagedFiles;
+  gitStatus.typeChangedStagedFiles = status.typeChangedStagedFiles;
+  gitStatus.renamedStagedFiles = status.renamedStagedFiles;
+  gitStatus.ignoredFiles = status.ignoredFiles;
+  gitStatus.conflictedFiles = status.conflictedFiles;
+
+  return gitStatus;
+}
+
+static GitRepo::GitHistory
+convertSvnHistoryToGitHistory(const SvnRepo::SvnHistory &history) {
+  GitRepo::GitHistory gitHistory;
+  gitHistory.commits = history.commits;
+  gitHistory.valid = history.valid;
+
+  for (const auto &key : history.commitInfos.keys()) {
+    const SvnRepo::SvnCommitInfo &commitInfo = history.commitInfos[key];
+
+    GitRepo::GitCommitInfo gitCommitInfo;
+    gitCommitInfo.message = commitInfo.message;
+    gitCommitInfo.summary = commitInfo.summary;
+    gitCommitInfo.authorName = commitInfo.authorName;
+    gitCommitInfo.authorEmail = commitInfo.authorEmail;
+    gitCommitInfo.timeStamp = commitInfo.timeStamp;
+    gitCommitInfo.signedCommit = commitInfo.signedCommit;
+    gitCommitInfo.signatureType = commitInfo.signatureType;
+    gitCommitInfo.signature = commitInfo.signature;
+    gitCommitInfo.branches = commitInfo.branches;
+    gitCommitInfo.parents = commitInfo.parents;
+    gitCommitInfo.children = commitInfo.children;
+
+    gitHistory.commitInfos[key] = gitCommitInfo;
+  }
+
+  return gitHistory;
+}
+
+bool SvnRepoManagerBridgeImpl::getBranchHistory(
+    const QWeakPointer<GitRepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString historyEventUuid = Uuid::createUuid();
+
+  const int historyToken = _container._eventManager.startWait();
+
+  SvnRepoGetBranchHistoryCommand historyCommand;
+  historyCommand.uuid = _container._uuid;
+  historyCommand.branchName = _container._activeBranch;
+  historyCommand.branchType =
+      static_cast<SvnRepo::BranchType>(_container._activeBranchType);
+  historyCommand.syncUuid = historyEventUuid;
+
+  EventManager::Event historyEvent(
+      EventManager::EventType::SvnRepoManagerGetBranchHistory,
+      historyEventUuid);
+  historyEvent.addData(historyCommand);
+  _container._eventManager.send(historyEvent);
+
+  static std::set historyTypes = {
+      EventManager::EventType::SvnRepoManagerGetBranchHistoryError,
+      EventManager::EventType::SvnRepoManagerGetBranchHistoryResult};
+
+  const auto &[historySuccess, historyResultEvent] =
+      _container._eventManager.waitForAnswer(historyToken, historyEventUuid,
+                                             historyTypes);
+
+  if (!historySuccess) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to retrieve the history of branch %1."))
+              .arg(_container._activeBranch),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (historyResultEvent.type() !=
+      EventManager::EventType::SvnRepoManagerGetBranchHistoryResult) {
+    const auto error = historyResultEvent.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto historyCommandResult = historyResultEvent.data<SvnRepoResult>();
+
+  auto history = historyCommandResult.value.value<SvnRepo::SvnHistory>();
+
+  const QString statusEventUuid = Uuid::createUuid();
+
+  const int statusToken = _container._eventManager.startWait();
+
+  SvnRepoStatusCommand statusCommand;
+  statusCommand.uuid = _container._uuid;
+  statusCommand.syncUuid = statusEventUuid;
+
+  EventManager::Event statusEvent(EventManager::EventType::SvnRepoManagerStatus,
+                                  statusEventUuid);
+  statusEvent.addData(statusCommand);
+  _container._eventManager.send(statusEvent);
+
+  static std::set statusTypes = {
+      EventManager::EventType::SvnRepoManagerStatusError,
+      EventManager::EventType::SvnRepoManagerStatusResult};
+
+  const auto &[statusSuccess, statusResultEvent] =
+      _container._eventManager.waitForAnswer(statusToken, statusEventUuid,
+                                             statusTypes);
+
+  if (!statusSuccess) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to retrieve the repository status."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (statusResultEvent.type() !=
+      EventManager::EventType::SvnRepoManagerStatusResult) {
+    const auto error = statusResultEvent.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto statusCommandResult = statusResultEvent.data<SvnRepoResult>();
+
+  const auto status = statusCommandResult.value.value<SvnRepo::SvnStatus>();
+
+  GitRepo::GitHistoryWithStatus historyWithStatus;
+  historyWithStatus.history = convertSvnHistoryToGitHistory(history);
+  historyWithStatus.status = convertSvnStatusToGitStatus(status);
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() { _container.ui->labelProgress->setText("0%"); });
+
+  _container.updateBranchHistory(guard, historyWithStatus);
+
+  LOG_PERF(0, "Exit")
+
+  return true;
+}
+
+QStringList SvnRepoManagerBridgeImpl::getCommitBranches(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) const {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoGetCommitBranchesCommand command;
+  command.uuid = _container._uuid;
+  command.commitOid = commit;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event branchesEvent(
+      EventManager::EventType::SvnRepoManagerGetCommitBranches, eventUuid);
+  branchesEvent.addData(command);
+  _container._eventManager.send(branchesEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerGetCommitBranchesError,
+      EventManager::EventType::SvnRepoManagerGetCommitBranchesResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { _container.showErrorPage(); });
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerGetCommitBranchesResult) {
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const auto branches = commandResult.value.value<QStringList>();
+
+  LOG_PERF(0, "Exit");
+
+  return branches;
+}
+
+QStringList SvnRepoManagerBridgeImpl::getCommitTags(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) const {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoGetCommitTagsCommand command;
+  command.uuid = _container._uuid;
+  command.commitOid = commit;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event tagsEvent(
+      EventManager::EventType::SvnRepoManagerGetCommitTags, eventUuid);
+  tagsEvent.addData(command);
+  _container._eventManager.send(tagsEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerGetCommitTagsError,
+      EventManager::EventType::SvnRepoManagerGetCommitTagsResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { _container.showErrorPage(); });
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerGetCommitTagsResult) {
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const auto tags = commandResult.value.value<QStringList>();
+
+  LOG_PERF(0, "Exit");
+
+  return tags;
+}
+
+GitRepo::GitCommitStatus SvnRepoManagerBridgeImpl::getCommitStatus(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) const {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoGetCommitStatusCommand command;
+  command.uuid = _container._uuid;
+  command.commitOid = commit;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event commitStatusEvent(
+      EventManager::EventType::SvnRepoManagerGetCommitStatus, eventUuid);
+  commitStatusEvent.addData(command);
+  _container._eventManager.send(commitStatusEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerGetCommitStatusError,
+      EventManager::EventType::SvnRepoManagerGetCommitStatusResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    ::Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { _container.showErrorPage(); });
+
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerGetCommitStatusResult) {
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const auto commitStatus =
+      commandResult.value.value<GitRepo::GitCommitStatus>();
+
+  LOG_PERF(0, "Exit");
+
+  return commitStatus;
+}
+
+bool SvnRepoManagerBridgeImpl::getLocalBranches() {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoListLocalBranchesCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event listLocalEvent(
+      EventManager::EventType::SvnRepoManagerListLocalBranches, eventUuid);
+  listLocalEvent.addData(command);
+  _container._eventManager.send(listLocalEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerListLocalBranchesError,
+      EventManager::EventType::SvnRepoManagerListLocalBranchesResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  const QWeakPointer<GitRepoContainer> guard = _container.getSelf().toWeakRef();
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to retrieve the list of local branches."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerListLocalBranchesResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  const auto localBranches = commandResult.value.value<QStringList>();
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateLocalBranchesModel(guard, localBranches);
+  });
+
+  LOG_PERF(0, "Exit")
+
+  return true;
+}
+
+static GitRepo::BranchInfo
+convertSvnBranchInfoToGitBranchInfo(const SvnRepo::BranchInfo &branchInfo) {
+  GitRepo::BranchInfo info;
+  info.name = branchInfo.name;
+  info.statusInfo.status =
+      static_cast<GitRepo::BranchStatusType>(branchInfo.statusInfo.status);
+  info.statusInfo.aheadCount = branchInfo.statusInfo.aheadCount;
+  info.statusInfo.behindCount = branchInfo.statusInfo.behindCount;
+
+  return info;
+}
+
+bool SvnRepoManagerBridgeImpl::getRemoteBranches() {
+  LOG_PERF(0, "Enter");
+
+  const QWeakPointer<GitRepoContainer> guard = _container.getSelf().toWeakRef();
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoListRemoteBranchesWithStatusCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event listRemoteEvent(
+      EventManager::EventType::SvnRepoManagerListRemoteBranchesWithStatus,
+      eventUuid);
+  listRemoteEvent.addData(command);
+  _container._eventManager.send(listRemoteEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerListRemoteBranchesWithStatusError,
+      EventManager::EventType::
+          SvnRepoManagerListRemoteBranchesWithStatusResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to retrieve the list of remote branches."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() != EventManager::EventType::
+                          SvnRepoManagerListRemoteBranchesWithStatusResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  const auto branchesWithStatus =
+      commandResult.value.value<QVector<SvnRepo::BranchInfo>>();
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    QVector<GitRepo::BranchInfo> statuses;
+    for (const auto &info : branchesWithStatus) {
+      statuses += convertSvnBranchInfoToGitBranchInfo(info);
+    }
+    _container.updateRemoteBranchesModelWithStatus(guard, statuses);
+  });
+
+  LOG_PERF(0, "Exit")
+
+  return true;
+}
+
+bool SvnRepoManagerBridgeImpl::getStashes(
+    const QWeakPointer<GitRepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoListStashesCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event listStashesEvent(
+      EventManager::EventType::SvnRepoManagerListStashes, eventUuid);
+  listStashesEvent.addData(command);
+  _container._eventManager.send(listStashesEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerListStashesError,
+      EventManager::EventType::SvnRepoManagerListStashesResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to retrieve the list of stashes."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerListStashesResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  const auto stashes = commandResult.value.value<QStringList>();
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() { _container.updateStashesModel(guard, stashes); });
+
+  LOG_PERF(0, "Exit")
+
+  return true;
+}
+
+static GitRepo::RemoteInfo
+convertSvnRemoteInfoToGitRemoteInfo(const SvnRepo::RemoteInfo &info) {
+  GitRepo::RemoteInfo remoteInfo;
+  remoteInfo.name = info.name;
+  remoteInfo.fetchUrl = info.fetchUrl;
+  remoteInfo.pushUrl = info.pushUrl;
+  remoteInfo.isDefault = info.isDefault;
+
+  for (const auto &target : info.targets) {
+    GitRepo::RemoteTarget gitTarget;
+    gitTarget.fetchUrl = target.fetchUrl;
+    gitTarget.name = target.name;
+    gitTarget.pushUrl = target.pushUrl;
+
+    remoteInfo.targets += gitTarget;
+  }
+
+  return remoteInfo;
+}
+
+bool SvnRepoManagerBridgeImpl::getRemotes(
+    const QWeakPointer<GitRepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoListRemotesCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event listRemotesEvent(
+      EventManager::EventType::SvnRepoManagerListRemotes, eventUuid);
+  listRemotesEvent.addData(command);
+  _container._eventManager.send(listRemotesEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerListRemotesError,
+      EventManager::EventType::SvnRepoManagerListRemotesResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to retrieve the list of remotes."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerListRemotesResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  const auto remotes =
+      commandResult.value.value<QVector<SvnRepo::RemoteInfo>>();
+
+  QVector<GitRepo::RemoteInfo> gitRemotes;
+
+  for (const auto &info : remotes) {
+    gitRemotes += convertSvnRemoteInfoToGitRemoteInfo(info);
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.ui->remotesPage->updateModel(gitRemotes);
+
+    // Set the active remote to the current branch's upstream remote
+    if (!_container._activeBranch.isEmpty() &&
+        _container._activeBranch != ALL_BRANCHES) {
+      _container._dispatcher.dispatch([=]() {
+        auto [upstreamRemote, upstreamBranch] = getUpstream(guard);
+        if (!upstreamRemote.isEmpty()) {
+          Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+            _container.ui->remotesPage->updateActiveRemote(upstreamRemote);
+          });
+        }
+      });
+    }
+  });
+
+  LOG_PERF(0, "Exit")
+
+  return true;
+}
+
+static GitRepo::SubmoduleInfo
+convertSvnSubmoduleInfoToGitSubmoduleInfo(const SvnRepo::SubmoduleInfo &info) {
+  GitRepo::SubmoduleInfo gitInfo;
+  gitInfo.statusInfo.status =
+      static_cast<GitRepo::SubmoduleStatusType>(info.statusInfo.status);
+  gitInfo.commit = info.commit;
+  gitInfo.name = info.name;
+
+  return gitInfo;
+}
+
+bool SvnRepoManagerBridgeImpl::getSubmodules() {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoListSubmodulesWithStatusCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event listSubmodulesEvent(
+      EventManager::EventType::SvnRepoManagerListSubmodulesWithStatus,
+      eventUuid);
+  listSubmodulesEvent.addData(command);
+  _container._eventManager.send(listSubmodulesEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerListSubmodulesWithStatusError,
+      EventManager::EventType::SvnRepoManagerListSubmodulesWithStatusResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  const QWeakPointer<GitRepoContainer> guard = _container.getSelf().toWeakRef();
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to retrieve the list of submodules."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerListSubmodulesWithStatusResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  const auto submodulesWithStatus =
+      commandResult.value.value<QVector<SvnRepo::SubmoduleInfo>>();
+
+  QVector<GitRepo::SubmoduleInfo> gitSubmodules;
+
+  for (const auto &info : submodulesWithStatus) {
+    gitSubmodules += convertSvnSubmoduleInfoToGitSubmoduleInfo(info);
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateSubmodulesModelWithStatus(guard, gitSubmodules);
+  });
+
+  LOG_PERF(0, "Exit")
+
+  return true;
+}
+
+bool SvnRepoManagerBridgeImpl::getTags() {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoListTagsCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event listTagsEvent(
+      EventManager::EventType::SvnRepoManagerListTags, eventUuid);
+  listTagsEvent.addData(command);
+  _container._eventManager.send(listTagsEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerListTagsError,
+      EventManager::EventType::SvnRepoManagerListTagsResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  const QWeakPointer<GitRepoContainer> guard = _container.getSelf().toWeakRef();
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to retrieve the list of tags."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerListTagsResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  const auto tags = commandResult.value.value<QStringList>();
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() { _container.updateTagsModel(guard, tags); });
+
+  LOG_PERF(0, "Exit")
+
+  return true;
+}
+
+QPair<QString, QString> SvnRepoManagerBridgeImpl::getUpstream(
+    const QWeakPointer<GitRepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoGetUpstreamCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.localBranchName = _container._activeBranch;
+
+  EventManager::Event getUpstreamStashEvent(
+      EventManager::EventType::SvnRepoManagerGetUpstream, eventUuid);
+  getUpstreamStashEvent.addData(command);
+  _container._eventManager.send(getUpstreamStashEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerGetUpstreamError,
+      EventManager::EventType::SvnRepoManagerGetUpstreamResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to get upstream.")),
+          _container.tr("Apply"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerGetUpstreamResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showSpinnerOverlay(false); });
+
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const auto [remoteName, remoteBranchName] =
+      commandResult.value.value<SvnRepoGetUpstreamCommandResult>();
+
+  refreshStatus(guard);
+
+  LOG_PERF(0, "Exit")
+
+  return qMakePair(remoteName, remoteBranchName);
+}
+
+QPair<QString, QString> SvnRepoManagerBridgeImpl::getUpstreamForBranch(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoGetUpstreamCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.localBranchName = branchName;
+
+  EventManager::Event getUpstreamStashEvent(
+      EventManager::EventType::SvnRepoManagerGetUpstream, eventUuid);
+  getUpstreamStashEvent.addData(command);
+  _container._eventManager.send(getUpstreamStashEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerGetUpstreamError,
+      EventManager::EventType::SvnRepoManagerGetUpstreamResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerGetUpstreamResult) {
+    LOG_PERF(0, "Exit")
+    return {};
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const auto [remoteName, remoteBranchName] =
+      commandResult.value.value<SvnRepoGetUpstreamCommandResult>();
+
+  LOG_PERF(0, "Exit")
+
+  return qMakePair(remoteName, remoteBranchName);
+}
+
+void SvnRepoManagerBridgeImpl::merge(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &sourceBranch,
+    const QString &destBranch) {
+  LOG_PERF(0, "Enter");
+
+  const QString author = _container._userProfileManager.currentProfile().author;
+  const QString email = _container._userProfileManager.currentProfile().email;
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoMergeCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.sourceBranch = sourceBranch;
+  command.destinationBranch = destBranch;
+  command.author = author;
+  command.email = email;
+
+  EventManager::Event mergeEvent(EventManager::EventType::SvnRepoManagerMerge,
+                                 eventUuid);
+  mergeEvent.addData(command);
+  _container._eventManager.send(mergeEvent);
+
+  static std::set types = {EventManager::EventType::SvnRepoManagerMergeError,
+                           EventManager::EventType::SvnRepoManagerMergeResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to merge branches."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerMergeResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const auto merged = commandResult.value.toBool();
+
+  if (!merged) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showToast(_container.tr("Merge has failed."),
+                           _container.tr("Info"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::rebase(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &sourceBranch,
+    const QString &destBranch) {
+  LOG_PERF(0, "Enter");
+
+  const QString author = _container._userProfileManager.currentProfile().author;
+  const QString email = _container._userProfileManager.currentProfile().email;
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoRebaseCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.sourceBranch = sourceBranch;
+  command.destinationBranch = destBranch;
+  command.author = author;
+  command.email = email;
+
+  EventManager::Event rebaseEvent(EventManager::EventType::SvnRepoManagerRebase,
+                                  eventUuid);
+  rebaseEvent.addData(command);
+  _container._eventManager.send(rebaseEvent);
+
+  static std::set types = {EventManager::EventType::SvnRepoManagerRebaseError,
+                           EventManager::EventType::SvnRepoManagerRebaseResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to rebase branches."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerRebaseResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const auto rebased = commandResult.value.toBool();
+
+  if (!rebased) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showToast(_container.tr("Rebase has failed."),
+                           _container.tr("Info"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
+bool SvnRepoManagerBridgeImpl::openRepo(
+    const QWeakPointer<GitRepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoOpenCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.path = _container._path;
+
+  EventManager::Event openRepoEvent(
+      EventManager::EventType::SvnRepoManagerOpenRepo, eventUuid);
+  openRepoEvent.addData(command);
+  _container._eventManager.send(openRepoEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerOpenRepoError,
+      EventManager::EventType::SvnRepoManagerOpenRepoResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerOpenRepoResult) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const bool refreshHistorySuccess = _container.refreshHistory(guard);
+
+  if (refreshHistorySuccess) {
+    _container.saveRepoInRecentList();
+  }
+
+  LOG_PERF(0, "Exit")
+
+  return refreshHistorySuccess;
+}
+
+void SvnRepoManagerBridgeImpl::pull(const QWeakPointer<GitRepoContainer> &guard,
+                                    bool rebase) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoPullCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.activeBranchName = _container._activeBranch;
+  command.rebase = rebase;
+
+  EventManager::Event pullEvent(EventManager::EventType::SvnRepoManagerPull,
+                                eventUuid);
+  pullEvent.addData(command);
+  _container._eventManager.send(pullEvent);
+
+  static std::set types = {EventManager::EventType::SvnRepoManagerPullError,
+                           EventManager::EventType::SvnRepoManagerPullResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerPullResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  if (const bool pulled = commandResult.value.toBool(); !pulled) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+  refreshStatus(guard);
+  getBranchHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(
+        rebase ? _container.tr("Pull with rebase completed successfully.")
+               : _container.tr("Git repository is up to-date."),
+        _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::fetchAll(
+    const QWeakPointer<GitRepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoFetchAllCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event fetchAllEvent(
+      EventManager::EventType::SvnRepoManagerFetchAll, eventUuid);
+  fetchAllEvent.addData(command);
+  _container._eventManager.send(fetchAllEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerFetchAllError,
+      EventManager::EventType::SvnRepoManagerFetchAllResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerFetchAllResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  if (const bool fetched = commandResult.value.toBool(); !fetched) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to fetch from remotes."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+  refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Fetch completed successfully."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::fetchRemote(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &remoteName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoFetchRemoteCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remoteName;
+
+  EventManager::Event fetchRemoteEvent(
+      EventManager::EventType::SvnRepoManagerFetchRemote, eventUuid);
+  fetchRemoteEvent.addData(command);
+  _container._eventManager.send(fetchRemoteEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerFetchRemoteError,
+      EventManager::EventType::SvnRepoManagerFetchRemoteResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerFetchRemoteResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  if (const bool fetched = commandResult.value.toBool(); !fetched) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to fetch from remote."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+  refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Fetch completed successfully."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::push(const QWeakPointer<GitRepoContainer> &guard,
+                                    bool force) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoPushCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.activeBranchName = _container._activeBranch;
+  command.force = force;
+
+  EventManager::Event pushEvent(EventManager::EventType::SvnRepoManagerPush,
+                                eventUuid);
+  pushEvent.addData(command);
+  _container._eventManager.send(pushEvent);
+
+  static std::set types = {EventManager::EventType::SvnRepoManagerPushError,
+                           EventManager::EventType::SvnRepoManagerPushResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerPushResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  if (const bool pushed = commandResult.value.toBool(); !pushed) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+  refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(
+        force ? _container.tr("Successfully force-pushed to remote.")
+              : _container.tr("Successfully pushed to remote."),
+        _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::addRemote(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &remoteName,
+    const QString &fetchUrl, const QString &pushUrl) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Adding remote '{}' with fetch URL '{}'", remoteName.toStdString(),
+            fetchUrl.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoAddRemoteCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remoteName;
+  command.fetchUrl = fetchUrl;
+  command.pushUrl = pushUrl;
+
+  EventManager::Event addRemoteEvent(
+      EventManager::EventType::SvnRepoManagerAddRemote, eventUuid);
+  addRemoteEvent.addData(command);
+  _container._eventManager.send(addRemoteEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerAddRemoteError,
+      EventManager::EventType::SvnRepoManagerAddRemoteResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to add remote."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerAddRemoteResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Remote added successfully."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::editRemote(
+    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex,
+    const QString &remoteName, const QString &fetchUrl,
+    const QString &pushUrl) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 ||
+      remoteIndex >= _container.ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Invalid remote index."),
+                                _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = _container.ui->remotesPage->remotes()[remoteIndex];
+  LOG_DEBUG("Updating remote '{}' with fetch URL '{}'",
+            remote.name.toStdString(), fetchUrl.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoUpdateRemoteCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.newRemoteName = remoteName;
+  command.fetchUrl = fetchUrl;
+  command.pushUrl = pushUrl;
+
+  EventManager::Event updateRemoteEvent(
+      EventManager::EventType::SvnRepoManagerUpdateRemote, eventUuid);
+  updateRemoteEvent.addData(command);
+  _container._eventManager.send(updateRemoteEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerUpdateRemoteError,
+      EventManager::EventType::SvnRepoManagerUpdateRemoteResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to update remote."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerUpdateRemoteResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Remote updated successfully."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::deleteRemote(
+    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 ||
+      remoteIndex >= _container.ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Invalid remote index."),
+                                _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = _container.ui->remotesPage->remotes()[remoteIndex];
+  LOG_DEBUG("Deleting remote '{}'", remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoRemoveRemoteCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+
+  EventManager::Event removeRemoteEvent(
+      EventManager::EventType::SvnRepoManagerRemoveRemote, eventUuid);
+  removeRemoteEvent.addData(command);
+  _container._eventManager.send(removeRemoteEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerRemoveRemoteError,
+      EventManager::EventType::SvnRepoManagerRemoveRemoteResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to delete remote."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerRemoveRemoteResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Remote deleted successfully."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::setDefaultRemote(
+    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 ||
+      remoteIndex >= _container.ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Invalid remote index."),
+                                _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = _container.ui->remotesPage->remotes()[remoteIndex];
+  LOG_DEBUG("Setting default remote to '{}'", remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoSetDefaultRemoteCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+
+  EventManager::Event setDefaultRemoteEvent(
+      EventManager::EventType::SvnRepoManagerSetDefaultRemote, eventUuid);
+  setDefaultRemoteEvent.addData(command);
+  _container._eventManager.send(setDefaultRemoteEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerSetDefaultRemoteError,
+      EventManager::EventType::SvnRepoManagerSetDefaultRemoteResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to set default remote."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerSetDefaultRemoteResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Default remote set successfully."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::addTarget(
+    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex,
+    const QString &targetName, const QString &fetchUrl,
+    const QString &pushUrl) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 ||
+      remoteIndex >= _container.ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Invalid remote index."),
+                                _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = _container.ui->remotesPage->remotes()[remoteIndex];
+  LOG_DEBUG("Adding target '{}' to remote '{}'", targetName.toStdString(),
+            remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoAddTargetCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.targetName = targetName;
+  command.fetchUrl = fetchUrl;
+  command.pushUrl = pushUrl;
+
+  EventManager::Event addTargetEvent(
+      EventManager::EventType::SvnRepoManagerAddTarget, eventUuid);
+  addTargetEvent.addData(command);
+  _container._eventManager.send(addTargetEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerAddTargetError,
+      EventManager::EventType::SvnRepoManagerAddTargetResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to add target."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerAddTargetResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.ui->remotesPage->expandRemote(remote.name);
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Target added successfully."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::editTarget(
+    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex,
+    int targetIndex, const QString &newFetchUrl, const QString &newPushUrl) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 ||
+      remoteIndex >= _container.ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Invalid remote index."),
+                                _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = _container.ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Invalid target index."),
+                                _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &target = remote.targets[targetIndex];
+  LOG_DEBUG("Editing target '{}' on remote '{}'", target.name.toStdString(),
+            remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoEditTargetCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.targetName = target.name;
+  command.newFetchUrl = newFetchUrl;
+  command.newPushUrl = newPushUrl;
+
+  EventManager::Event editTargetEvent(
+      EventManager::EventType::SvnRepoManagerEditTarget, eventUuid);
+  editTargetEvent.addData(command);
+  _container._eventManager.send(editTargetEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerEditTargetError,
+      EventManager::EventType::SvnRepoManagerEditTargetResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to edit target."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerEditTargetResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Target edited successfully."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::deleteTarget(
+    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex,
+    int targetIndex) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 ||
+      remoteIndex >= _container.ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Invalid remote index."),
+                                _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = _container.ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Invalid target index."),
+                                _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &target = remote.targets[targetIndex];
+  LOG_DEBUG("Deleting target '{}' from remote '{}'", target.name.toStdString(),
+            remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoDeleteTargetCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.targetName = target.name;
+
+  EventManager::Event deleteTargetEvent(
+      EventManager::EventType::SvnRepoManagerDeleteTarget, eventUuid);
+  deleteTargetEvent.addData(command);
+  _container._eventManager.send(deleteTargetEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerDeleteTargetError,
+      EventManager::EventType::SvnRepoManagerDeleteTargetResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to delete target."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerDeleteTargetResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Target deleted successfully."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::setDefaultTarget(
+    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex,
+    int targetIndex) {
+  LOG_PERF(0, "Enter");
+
+  if (remoteIndex < 0 ||
+      remoteIndex >= _container.ui->remotesPage->remotes().size()) {
+    LOG_DEBUG("Invalid remote index: {}", remoteIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Invalid remote index."),
+                                _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &remote = _container.ui->remotesPage->remotes()[remoteIndex];
+  if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
+    LOG_DEBUG("Invalid target index: {}", targetIndex);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Invalid target index."),
+                                _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto &target = remote.targets[targetIndex];
+  LOG_DEBUG("Setting default target to '{}' for remote '{}'",
+            target.name.toStdString(), remote.name.toStdString());
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoSetDefaultTargetCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.remoteName = remote.name;
+  command.targetName = target.name;
+
+  EventManager::Event setDefaultTargetEvent(
+      EventManager::EventType::SvnRepoManagerSetDefaultTarget, eventUuid);
+  setDefaultTargetEvent.addData(command);
+  _container._eventManager.send(setDefaultTargetEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerSetDefaultTargetError,
+      EventManager::EventType::SvnRepoManagerSetDefaultTargetResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to set default target."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerSetDefaultTargetResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getRemotes(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Default target set successfully."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::renameBranch(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &oldName,
+    const QString &newName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoRenameBranchCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.oldBranchName = oldName;
+  command.newBranchName = newName;
+
+  EventManager::Event renameBranchEvent(
+      EventManager::EventType::SvnRepoManagerRenameBranch, eventUuid);
+  renameBranchEvent.addData(command);
+  _container._eventManager.send(renameBranchEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerRenameBranchError,
+      EventManager::EventType::SvnRepoManagerRenameBranchResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to rename branch"),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerRenameBranchResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  if (const bool pushed = commandResult.value.toBool(); !pushed) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to rename branch"),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Successfully renamed branch."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::renameTag(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &oldName,
+    const QString &newName) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoRenameTagCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.oldTagName = oldName;
+  command.newTagName = newName;
+
+  EventManager::Event renameTagEvent(
+      EventManager::EventType::SvnRepoManagerRenameTag, eventUuid);
+  renameTagEvent.addData(command);
+  _container._eventManager.send(renameTagEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerRenameTagError,
+      EventManager::EventType::SvnRepoManagerRenameTagResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to rename tag"),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerRenameTagResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  if (const bool pushed = commandResult.value.toBool(); !pushed) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to rename tag"),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Successfully renamed tag."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::reset(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &commit,
+    const int type) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoResetCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+  command.resetType = static_cast<SvnRepo::ResetType>(type);
+
+  EventManager::Event resetEvent(EventManager::EventType::SvnRepoManagerReset,
+                                 eventUuid);
+  resetEvent.addData(command);
+  _container._eventManager.send(resetEvent);
+
+  static std::set types = {EventManager::EventType::SvnRepoManagerResetError,
+                           EventManager::EventType::SvnRepoManagerResetResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerResetResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  if (const bool pushed = commandResult.value.toBool(); !pushed) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to reset to commit."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Successfully reset to commit."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::revert(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  const QString summaryToRevert =
+      commitSummaryFromHistoryModel(_container._historyModel.data(), commit);
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoRevertCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+  command.author =
+      Common::UserProfileManager::instance().currentProfile().author;
+  command.email = Common::UserProfileManager::instance().currentProfile().email;
+  command.message = QString("[%1] %2").arg(
+      _container.tr("Revert"),
+      summaryToRevert.isEmpty() ? commit : summaryToRevert);
+
+  EventManager::Event revertEvent(EventManager::EventType::SvnRepoManagerRevert,
+                                  eventUuid);
+  revertEvent.addData(command);
+  _container._eventManager.send(revertEvent);
+
+  static std::set types = {EventManager::EventType::SvnRepoManagerRevertError,
+                           EventManager::EventType::SvnRepoManagerRevertResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerRevertResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  if (const bool pushed = commandResult.value.toBool(); !pushed) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to revert commit."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Successfully reverted commit."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::cherryPick(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  QString summaryCherryPick;
+
+  for (int i = 0; i < _container._historyModel->rowCount(QModelIndex()); ++i) {
+    const QString rowFullSHA =
+        _container._historyModel
+            ->data(_container._historyModel->index(i, COLUMN_COMMIT_FULL_SHA,
+                                                   QModelIndex()),
+                   Qt::DisplayRole)
+            .toString();
+    if (rowFullSHA == commit) {
+      summaryCherryPick = _container._historyModel
+                              ->data(_container._historyModel->index(
+                                         i, COLUMN_SUMMARY, QModelIndex()),
+                                     Qt::DisplayRole)
+                              .toString();
+      break;
+    }
+  }
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoCherryPickCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.commit = commit;
+  command.author =
+      Common::UserProfileManager::instance().currentProfile().author;
+  command.email = Common::UserProfileManager::instance().currentProfile().email;
+
+  EventManager::Event cherryPickEvent(
+      EventManager::EventType::SvnRepoManagerCherryPick, eventUuid);
+  cherryPickEvent.addData(command);
+  _container._eventManager.send(cherryPickEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerCherryPickError,
+      EventManager::EventType::SvnRepoManagerCherryPickResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerCherryPickResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  if (const bool picked = commandResult.value.toBool(); !picked) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to cherry-pick commit."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Successfully cherry-picked commit."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::refreshStatus(
+    const QWeakPointer<GitRepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString statusEventUuid = Uuid::createUuid();
+
+  const int statusToken = _container._eventManager.startWait();
+
+  SvnRepoStatusCommand statusCommand;
+  statusCommand.uuid = _container._uuid;
+  statusCommand.syncUuid = statusEventUuid;
+
+  EventManager::Event statusEvent(EventManager::EventType::SvnRepoManagerStatus,
+                                  statusEventUuid);
+  statusEvent.addData(statusCommand);
+  _container._eventManager.send(statusEvent);
+
+  static std::set statusTypes = {
+      EventManager::EventType::SvnRepoManagerStatusError,
+      EventManager::EventType::SvnRepoManagerStatusResult};
+
+  const auto &[statusSuccess, statusResultEvent] =
+      _container._eventManager.waitForAnswer(statusToken, statusEventUuid,
+                                             statusTypes);
+
+  if (!statusSuccess) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to retrieve the repository status."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (statusResultEvent.type() !=
+      EventManager::EventType::SvnRepoManagerStatusResult) {
+    const auto error = statusResultEvent.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto statusCommandResult = statusResultEvent.data<SvnRepoResult>();
+
+  const auto status = statusCommandResult.value.value<SvnRepo::SvnStatus>();
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    const QModelIndex currentIndex = _container.ui->historyView->currentIndex();
+    const int currentRow = currentIndex.row();
+
+    int offset = 0;
+
+    if (!_container._historyModel->hasStatus() && status.hasChanges()) {
+      ++offset;
+    } else if (_container._historyModel->hasStatus() && !status.hasChanges()) {
+      --offset;
+    }
+
+    int newRow = currentRow + offset;
+    if (newRow < 0) {
+      newRow = 0;
+    }
+
+    _container._historyModel->updateStatus(convertSvnStatusToGitStatus(status));
+
+    _container.simulateClickOnHistoryRow(newRow);
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::showCommitAndMerge(
+    QWeakPointer<GitRepoContainer> guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoGetIsMergeInProgressCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event getIsMergeInProgressEvent(
+      EventManager::EventType::SvnRepoManagerGetIsMergeInProgress, eventUuid);
+  getIsMergeInProgressEvent.addData(command);
+  _container._eventManager.send(getIsMergeInProgressEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerGetIsMergeInProgressError,
+      EventManager::EventType::SvnRepoManagerGetIsMergeInProgressResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to get merge progress status."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerGetIsMergeInProgressResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  _container._mergeInProgress = commandResult.value.toBool();
+
+  const GitRepo::GitHistoryWithStatus historyAndStatus =
+      _container._historyModel->historyWithStatus();
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container._commitListModel.reset(
+        Models::GitCommitListModel::from(historyAndStatus.status));
+    if (_container._commitListModel) {
+      _container.ui->listViewTabWidgetWorkingTreeFlat->setModel(
+          _container._commitListModel.get());
+
+      QObject::disconnect(
+          _container.ui->listViewTabWidgetWorkingTreeFlat,
+          &GuiManager::Widgets::RightClickSelectListView::pressed, &_container,
+          nullptr);
+
+      QObject::connect(_container.ui->listViewTabWidgetWorkingTreeFlat,
+                       &GuiManager::Widgets::RightClickSelectListView::pressed,
+                       &_container, [=](const QModelIndex &index) {
+                         _container.onListViewTabWidgetFlatSelected(index);
+                       });
+    }
+
+    _container._commitTreeModel.reset(
+        Models::GitCommitTreeModel::from(historyAndStatus.status));
+    if (_container._commitTreeModel) {
+      _container.ui->treeViewTabWidgetWorkingTreeTree->setModel(
+          _container._commitTreeModel.get());
+
+      QObject::disconnect(
+          _container.ui->treeViewTabWidgetWorkingTreeTree,
+          &GuiManager::Widgets::RightClickSelectTreeView::pressed, &_container,
+          nullptr);
+
+      QObject::connect(_container.ui->treeViewTabWidgetWorkingTreeTree,
+                       &GuiManager::Widgets::RightClickSelectTreeView::pressed,
+                       &_container, [=](const QModelIndex &index) {
+                         _container.onTreeViewTabWidgetTreeSelected(
+                             index, *_container._commitTreeModel);
+                       });
+    }
+
+    _container._commitStagedListModel.reset(
+        Models::GitCommitListModel::fromStaged(historyAndStatus.status));
+    if (_container._commitStagedListModel) {
+      _container.ui->listViewTabWidgetIndexFlat->setModel(
+          _container._commitStagedListModel.get());
+
+      QObject::disconnect(
+          _container.ui->listViewTabWidgetIndexFlat,
+          &GuiManager::Widgets::RightClickSelectListView::pressed, &_container,
+          nullptr);
+
+      QObject::connect(_container.ui->listViewTabWidgetIndexFlat,
+                       &GuiManager::Widgets::RightClickSelectListView::pressed,
+                       &_container, [=](const QModelIndex &index) {
+                         _container.onListViewTabWidgetFlatSelected(index);
+                       });
+    }
+
+    _container._commitStagedTreeModel.reset(
+        Models::GitCommitTreeModel::fromStaged(historyAndStatus.status));
+    if (_container._commitStagedTreeModel) {
+      _container.ui->treeViewTabWidgetIndexTree->setModel(
+          _container._commitStagedTreeModel.get());
+
+      QObject::disconnect(
+          _container.ui->treeViewTabWidgetIndexTree,
+          &GuiManager::Widgets::RightClickSelectTreeView::pressed, &_container,
+          nullptr);
+
+      QObject::connect(_container.ui->treeViewTabWidgetIndexTree,
+                       &GuiManager::Widgets::RightClickSelectTreeView::pressed,
+                       &_container, [=](const QModelIndex &index) {
+                         _container.onTreeViewTabWidgetTreeSelected(
+                             index, *_container._commitStagedTreeModel);
+                       });
+    }
+
+    _container.resetCommitButton();
+    _container.resetCommitAndMergeIndexTreeUnstageAllButton();
+    _container.resetCommitAndMergeWorkingTreeTreeStageAllButton();
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::stageFiles(
+    const QWeakPointer<GitRepoContainer> &guard, const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(!files.isEmpty());
+
+  if (files.isEmpty()) {
+    _container.showSpinnerOverlay(false);
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoStageFilesCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.files = files;
+
+  EventManager::Event stageFilesEvent(
+      EventManager::EventType::SvnRepoManagerStageFiles, eventUuid);
+  stageFilesEvent.addData(command);
+  _container._eventManager.send(stageFilesEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerStageFilesError,
+      EventManager::EventType::SvnRepoManagerStageFilesResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to stage files."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerStageFilesResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool stageAllSuccess = commandResult.value.toBool();
+
+  refreshStatus(guard);
+
+  if (!stageAllSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to stage files."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    _container.showSpinnerOverlay(false);
+    _container.simulateClickOnFirstHistoryRow();
+    _container.resetCommitAndMergeWorkingTreeTreeStageAllButton();
+  });
+
+  LOG_PERF(0, "Enter");
+}
+
+void SvnRepoManagerBridgeImpl::unstageFiles(
+    const QWeakPointer<GitRepoContainer> &guard, const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(!files.isEmpty());
+
+  if (files.isEmpty()) {
+    _container.showSpinnerOverlay(false);
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoUnstageFilesCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.files = files;
+
+  EventManager::Event unstageFilesEvent(
+      EventManager::EventType::SvnRepoManagerUnstageFiles, eventUuid);
+  unstageFilesEvent.addData(command);
+  _container._eventManager.send(unstageFilesEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerUnstageFilesError,
+      EventManager::EventType::SvnRepoManagerUnstageFilesResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to unstage files."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerUnstageFilesResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const bool unstageAllSuccess = commandResult.value.toBool();
+
+  refreshStatus(guard);
+
+  if (!unstageAllSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to unstage files."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    _container.showSpinnerOverlay(false);
+    _container.simulateClickOnFirstHistoryRow();
+    _container.resetCommitAndMergeIndexTreeUnstageAllButton();
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void SvnRepoManagerBridgeImpl::updateSubmodule(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &submoduleName) {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoSubmoduleUpdateCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.submoduleName = submoduleName;
+
+  EventManager::Event submoduleUpdateEvent(
+      EventManager::EventType::SvnRepoManagerSubmoduleUpdate, eventUuid);
+  submoduleUpdateEvent.addData(command);
+  _container._eventManager.send(submoduleUpdateEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerSubmoduleUpdateError,
+      EventManager::EventType::SvnRepoManagerSubmoduleUpdateResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to update submodule."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::SvnRepoManagerSubmoduleUpdateResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+
+  if (const bool commandSuccess = commandResult.value.toBool();
+      !commandSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to update submodule."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Submodule updated successfully."),
+                         _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+qint64 SvnRepoManagerBridgeImpl::getFileSizeFromCommit(const QString &filePath,
+                                                       const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoGetFileSizeFromCommitCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.filePath = filePath;
+  command.commit = commit;
+
+  EventManager::Event getFileSizeEvent(
+      EventManager::EventType::SvnRepoManagerGetFileSizeFromCommit, eventUuid);
+  getFileSizeEvent.addData(command);
+  _container._eventManager.send(getFileSizeEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerGetFileSizeFromCommitError,
+      EventManager::EventType::SvnRepoManagerGetFileSizeFromCommitResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success ||
+      event.type() !=
+          EventManager::EventType::SvnRepoManagerGetFileSizeFromCommitResult) {
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
+
+  const auto commandResult = event.data<SvnRepoResult>();
+  const auto fileSizeResult =
+      commandResult.value.value<SvnRepoGetFileSizeFromCommitCommandResult>();
+
+  LOG_PERF(0, "Exit");
+  return fileSizeResult.fileSize;
+}
+
+} // namespace GuiManager::Containers

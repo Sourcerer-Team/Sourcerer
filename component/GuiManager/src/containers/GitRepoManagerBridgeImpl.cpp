@@ -698,13 +698,14 @@ void GitRepoManagerBridgeImpl::applyStash(
 
 void GitRepoManagerBridgeImpl::checkoutBranch(
     const QWeakPointer<GitRepoContainer> &guard, const QString &branchName,
-    const GitRepo::BranchType branchType,
+    const int branchType,
     const std::function<void(const QWeakPointer<GitRepoContainer> &)>
         &onSuccess) {
   LOG_PERF(0, "Enter");
 
   if (branchName == ALL_BRANCHES) {
-    _container.updateModelActiveBranch(guard, branchName, branchType);
+    _container.updateModelActiveBranch(
+        guard, branchName, static_cast<GitRepo::BranchType>(branchType));
   } else {
     _container.stopWatcher(guard);
 
@@ -716,7 +717,7 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
     command.uuid = _container._uuid;
     command.syncUuid = eventUuid;
     command.branchName = branchName;
-    command.branchType = branchType;
+    command.branchType = static_cast<GitRepo::BranchType>(branchType);
 
     EventManager::Event checkoutBranchEvent(
         EventManager::EventType::GitRepoManagerCheckoutBranch, eventUuid);
@@ -781,7 +782,7 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
       _container.showSpinnerOverlay(false);
     });
 
-    if (branchType == GitRepo::BranchType::Tag) {
+    if (branchType == static_cast<int>(GitRepo::BranchType::Tag)) {
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
         _container.showToast(
             _container
@@ -2802,8 +2803,7 @@ void GitRepoManagerBridgeImpl::discardFiles(
 }
 
 bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
-    const QWeakPointer<GitRepoContainer> &guard,
-    const GitRepo::BranchType branchType) {
+    const QWeakPointer<GitRepoContainer> &guard, const int branchType) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -2813,7 +2813,7 @@ bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
   GitRepoGetActiveBranchCommand command;
   command.uuid = _container._uuid;
   command.syncUuid = eventUuid;
-  command.branchType = branchType;
+  command.branchType = static_cast<GitRepo::BranchType>(branchType);
 
   EventManager::Event getActiveBranchEvent(
       EventManager::EventType::GitRepoManagerGetActiveBranch, eventUuid);
@@ -2858,7 +2858,8 @@ bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
       commandResult.value.value<GitRepoGetActiveBranchCommandResult>();
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.updateModelActiveBranch(guard, result.branchName, branchType);
+    _container.updateModelActiveBranch(
+        guard, result.branchName, static_cast<GitRepo::BranchType>(branchType));
   });
 
   LOG_PERF(0, "Exit")
@@ -4911,7 +4912,7 @@ void GitRepoManagerBridgeImpl::renameTag(
 
 void GitRepoManagerBridgeImpl::reset(
     const QWeakPointer<GitRepoContainer> &guard, const QString &commit,
-    GitRepo::ResetType type) {
+    const int type) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -4922,7 +4923,7 @@ void GitRepoManagerBridgeImpl::reset(
   command.uuid = _container._uuid;
   command.syncUuid = eventUuid;
   command.commit = commit;
-  command.resetType = type;
+  command.resetType = static_cast<GitRepo::ResetType>(type);
 
   EventManager::Event resetEvent(EventManager::EventType::GitRepoManagerReset,
                                  eventUuid);
