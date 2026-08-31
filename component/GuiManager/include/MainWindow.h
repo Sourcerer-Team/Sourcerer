@@ -100,8 +100,7 @@ private:
   addCloneContainer(Containers::CloneType type = Containers::CloneType::Git);
   void addGitRepoContainer(const QString &path);
   void addSvnRepoContainer(const QString &path);
-  void openRepositoryByType(const QString &path,
-                            const QString &sourceLabel);
+  void openRepositoryByType(const QString &path, const QString &sourceLabel);
   void addGitCredentialsContainer();
   void addIssueTrackerContainer(const QString &serviceType,
                                 const QString &repositoryName);

@@ -189,8 +189,8 @@ static const char *repoAdminSubdir(const QString &path) {
                                                                   : GIT_SUBDIR;
 }
 
-static std::unique_ptr<GitRepoManagerBridge> createRepoBridge(
-    RepoContainer &container, RepositoryType type) {
+static std::unique_ptr<GitRepoManagerBridge>
+createRepoBridge(RepoContainer &container, RepositoryType type) {
   if (type == RepositoryType::Subversion) {
     return std::make_unique<SvnRepoManagerBridgeImpl>(container);
   }

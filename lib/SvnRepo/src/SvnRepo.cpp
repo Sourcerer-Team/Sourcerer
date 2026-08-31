@@ -1003,7 +1003,8 @@ QString openRepository(const QString &path) {
 
   const QString normalizedPath =
       QDir::cleanPath(QFileInfo(path).absoluteFilePath());
-  LOG_DEBUG("Opening SVN repository at path: '{}'", normalizedPath.toStdString());
+  LOG_DEBUG("Opening SVN repository at path: '{}'",
+            normalizedPath.toStdString());
 
   if (normalizedPath.isEmpty() || !QFileInfo(normalizedPath).exists()) {
     setLastError(SvnError::ErrorWhileOpening, SVN_ERR_BAD_FILENAME,
@@ -1012,22 +1013,22 @@ QString openRepository(const QString &path) {
     return QString();
   }
 
-  const bool success = runWithClientContext([normalizedPath](svn_client_ctx_t *ctx,
-                                                             apr_pool_t *pool) {
-    int wcFormat = 0;
-    const QByteArray pathBytes = normalizedPath.toUtf8();
-    svn_error_t *error = svn_wc_check_wc2(&wcFormat, ctx->wc_ctx,
-                                          pathBytes.constData(), pool);
-    if (error) {
-      setLastError(SvnError::ErrorWhileOpening, error->apr_err,
-                   svnErrorMessage(error));
-      svn_error_clear(error);
-      return false;
-    }
+  const bool success = runWithClientContext(
+      [normalizedPath](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        int wcFormat = 0;
+        const QByteArray pathBytes = normalizedPath.toUtf8();
+        svn_error_t *error = svn_wc_check_wc2(&wcFormat, ctx->wc_ctx,
+                                              pathBytes.constData(), pool);
+        if (error) {
+          setLastError(SvnError::ErrorWhileOpening, error->apr_err,
+                       svnErrorMessage(error));
+          svn_error_clear(error);
+          return false;
+        }
 
-    Q_UNUSED(wcFormat);
-    return true;
-  });
+        Q_UNUSED(wcFormat);
+        return true;
+      });
 
   if (!success) {
     LOG_PERF(0, "Exit");
@@ -1194,8 +1195,40 @@ QString listConflictsForAFile(const QString &, const QString &) {
   return {};
 }
 
-QStringList listLocalBranches(const QString &, const bool &) {
-  return {};
+QStringList listLocalBranches(const QString &path, const bool &) {
+  LOG_PERF(0, "Enter");
+
+  const QDir workingCopy(QFileInfo(path).absoluteFilePath());
+  if (!workingCopy.exists()) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  auto listChildDirectories = [](const QDir &dir) {
+    QStringList branches = dir.entryList(
+        QDir::Dirs | QDir::NoDotAndDotDot | QDir::Readable, QDir::Name);
+    branches.removeAll(QStringLiteral(".svn"));
+    branches.removeAll(QStringLiteral(".git"));
+    branches.removeAll(QStringLiteral("trunk"));
+    branches.removeAll(QStringLiteral("tags"));
+    return branches;
+  };
+
+  QStringList branches;
+  const QDir branchesDir(workingCopy.filePath(QStringLiteral("branches")));
+  if (branchesDir.exists()) {
+    branches = listChildDirectories(branchesDir);
+  }
+
+  if (branches.isEmpty()) {
+    branches = listChildDirectories(workingCopy);
+  }
+
+  branches.removeDuplicates();
+  branches.sort(Qt::CaseInsensitive);
+
+  LOG_PERF(0, "Exit");
+  return branches;
 }
 
 QStringList listRemoteBranches(const QString &, const bool &) {
