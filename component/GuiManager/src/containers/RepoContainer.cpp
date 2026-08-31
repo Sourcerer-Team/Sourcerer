@@ -234,6 +234,17 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   ui->splitter->setStretchFactor(1, 6);
   ui->splitter->setStretchFactor(2, 2);
   ui->submodulesPage->setContentsMargins(0, 0, 0, 0);
+
+  const bool gitType = type == ContainerType::GitRepo;
+
+  if (!gitType) {
+    ui->remotesPage->hide();
+    ui->submodulesPage->hide();
+    ui->stashesPage->hide();
+    ui->toolBox->removeItem(5);
+    ui->toolBox->removeItem(4);
+    ui->toolBox->removeItem(3);
+  }
   ui->historyView->setItemDelegateForColumn(
       0, new Delegates::HistorySliceTableColumnDelegate(ui->historyView));
   ui->historyView->setItemDelegateForColumn(
@@ -453,26 +464,32 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   pullFetchDropdown->setToolButtonStyle(Qt::ToolButtonIconOnly);
   pullFetchDropdown->setIconSize(QSize(18, 18));
   pullFetchDropdown->setAttribute(Qt::WA_StyledBackground, true);
-  pullFetchDropdown->setToolTip(tr("Pull"));
+  pullFetchDropdown->setToolTip(gitType ? tr("Pull") : tr("Update"));
   pullFetchDropdown->setMinimumSize(42, 42);
   pullFetchDropdown->setMaximumSize(42, 42);
-  pullFetchDropdown->setPopupMode(QToolButton::MenuButtonPopup);
+  pullFetchDropdown->setPopupMode(gitType ? QToolButton::MenuButtonPopup
+                                          : QToolButton::InstantPopup);
 
-  auto *pullFetchMenu = new QMenu();
-  auto *actionPullMenu = pullFetchMenu->addAction(tr("Pull"));
-  actionPullMenu->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-      QPixmap(":icons/pull"), shortcutIconColor));
-  auto *actionPullWithRebaseMenu =
-      pullFetchMenu->addAction(tr("Pull with rebase"));
-  actionPullWithRebaseMenu->setIcon(
-      StylesheetManager::StylesheetManager::recolorPixmap(
-          QPixmap(":icons/pull"), shortcutIconColor));
-  auto *actionFetchAllMenu = pullFetchMenu->addAction(tr("Fetch All"));
-  actionFetchAllMenu->setIcon(
-      QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-          QPixmap(":icons/pull"), shortcutIconColor)));
+  QAction *actionPullMenu = nullptr;
+  QAction *actionPullWithRebaseMenu = nullptr;
+  QAction *actionFetchAllMenu = nullptr;
 
-  pullFetchDropdown->setMenu(pullFetchMenu);
+  if (gitType) {
+    auto *pullFetchMenu = new QMenu();
+    actionPullMenu = pullFetchMenu->addAction(tr("Pull"));
+    actionPullMenu->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+        QPixmap(":icons/pull"), shortcutIconColor));
+    actionPullWithRebaseMenu = pullFetchMenu->addAction(tr("Pull with rebase"));
+    actionPullWithRebaseMenu->setIcon(
+        StylesheetManager::StylesheetManager::recolorPixmap(
+            QPixmap(":icons/pull"), shortcutIconColor));
+    actionFetchAllMenu = pullFetchMenu->addAction(tr("Fetch All"));
+    actionFetchAllMenu->setIcon(
+        QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+            QPixmap(":icons/pull"), shortcutIconColor)));
+
+    pullFetchDropdown->setMenu(pullFetchMenu);
+  }
 
   auto *pushButtonPull = pullFetchDropdown;
   auto *pushButtonFetchAll = pullFetchDropdown;
@@ -486,51 +503,63 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   pushButtonPush->setToolButtonStyle(Qt::ToolButtonIconOnly);
   pushButtonPush->setIconSize(QSize(18, 18));
   pushButtonPush->setAttribute(Qt::WA_StyledBackground, true);
-  pushButtonPush->setToolTip(tr("Push"));
+  pushButtonPush->setToolTip(gitType ? tr("Push") : tr("Commit"));
   pushButtonPush->setMinimumSize(42, 42);
   pushButtonPush->setMaximumSize(42, 42);
-  pushButtonPush->setPopupMode(QToolButton::MenuButtonPopup);
-
-  auto *pushMenu = new QMenu();
-  auto *actionPushMenu = pushMenu->addAction(tr("Push"));
-  actionPushMenu->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-      QPixmap(":icons/push"), shortcutIconColor));
-  auto *actionForcePushMenu = pushMenu->addAction(tr("Force push"));
-  actionForcePushMenu->setIcon(
-      StylesheetManager::StylesheetManager::recolorPixmap(
-          QPixmap(":icons/push"), shortcutIconColor));
-  pushButtonPush->setMenu(pushMenu);
-
-  auto *pushButtonPop = new QPushButton();
-  pushButtonPop->setObjectName("pushButtonPop");
-  pushButtonPop->setProperty("iconSource", QStringLiteral(":icons/pop"));
-  pushButtonPop->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-      QPixmap(":icons/pop"), shortcutIconColor));
-  pushButtonPop->setToolTip(tr("Pop"));
-  pushButtonPop->setMinimumSize(42, 42);
-  pushButtonPop->setMaximumSize(42, 42);
-  pushButtonPop->setAttribute(Qt::WA_StyledBackground, true);
-
-  auto *pushButtonStash = new QPushButton();
-  pushButtonStash->setObjectName("pushButtonStash");
-  pushButtonStash->setProperty("iconSource", QStringLiteral(":icons/stash"));
-  pushButtonStash->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-      QPixmap(":icons/stash"), shortcutIconColor));
-  pushButtonStash->setToolTip(tr("Stash"));
-  pushButtonStash->setMinimumSize(42, 42);
-  pushButtonStash->setMaximumSize(42, 42);
-  pushButtonStash->setAttribute(Qt::WA_StyledBackground, true);
+  pushButtonPush->setPopupMode(gitType ? QToolButton::MenuButtonPopup
+                                       : QToolButton::InstantPopup);
 
   _shortcutsWidget->addShortcutWidget(pullFetchDropdown);
   _shortcutsWidget->addShortcutWidget(pushButtonPush);
-  _shortcutsWidget->addShortcutWidget(pushButtonStash);
-  _shortcutsWidget->addShortcutWidget(pushButtonPop);
 
   // Explicitly show buttons to ensure they're interactive
   pullFetchDropdown->show();
   pushButtonPush->show();
-  pushButtonStash->show();
-  pushButtonPop->show();
+
+  QAction *actionPushMenu = nullptr;
+  QAction *actionForcePushMenu = nullptr;
+  QPushButton *pushButtonPop = nullptr;
+  QPushButton *pushButtonStash = nullptr;
+
+  if (gitType) {
+    auto *pushMenu = new QMenu();
+    actionPushMenu = pushMenu->addAction(tr("Push"));
+    actionPushMenu->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+        QPixmap(":icons/push"), shortcutIconColor));
+    actionForcePushMenu = pushMenu->addAction(tr("Force push"));
+    actionForcePushMenu->setIcon(
+        StylesheetManager::StylesheetManager::recolorPixmap(
+            QPixmap(":icons/push"), shortcutIconColor));
+    pushButtonPush->setMenu(pushMenu);
+
+    pushButtonPop = new QPushButton();
+    pushButtonPop->setObjectName("pushButtonPop");
+    pushButtonPop->setProperty("iconSource", QStringLiteral(":icons/pop"));
+    pushButtonPop->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+        QPixmap(":icons/pop"), shortcutIconColor));
+    pushButtonPop->setToolTip(tr("Pop"));
+    pushButtonPop->setMinimumSize(42, 42);
+    pushButtonPop->setMaximumSize(42, 42);
+    pushButtonPop->setAttribute(Qt::WA_StyledBackground, true);
+
+    pushButtonStash = new QPushButton();
+    pushButtonStash->setObjectName("pushButtonStash");
+    pushButtonStash->setProperty("iconSource", QStringLiteral(":icons/stash"));
+    pushButtonStash->setIcon(
+        StylesheetManager::StylesheetManager::recolorPixmap(
+            QPixmap(":icons/stash"), shortcutIconColor));
+    pushButtonStash->setToolTip(tr("Stash"));
+    pushButtonStash->setMinimumSize(42, 42);
+    pushButtonStash->setMaximumSize(42, 42);
+    pushButtonStash->setAttribute(Qt::WA_StyledBackground, true);
+
+    _shortcutsWidget->addShortcutWidget(pushButtonStash);
+    _shortcutsWidget->addShortcutWidget(pushButtonPop);
+
+    // Explicitly show buttons to ensure they're interactive
+    pushButtonStash->show();
+    pushButtonPop->show();
+  }
 
   ui->leftVerticalLayout->insertWidget(0, _shortcutsWidget);
 
