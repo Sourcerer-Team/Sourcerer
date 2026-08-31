@@ -43,6 +43,23 @@
 
 namespace {
 
+enum class OpenedRepositoryType {
+  Unknown = 0,
+  Git,
+  Subversion,
+};
+
+OpenedRepositoryType detectRepositoryType(const QString &path) {
+  const QDir repoDir(path);
+  if (repoDir.exists(QStringLiteral(".git"))) {
+    return OpenedRepositoryType::Git;
+  }
+  if (repoDir.exists(QStringLiteral(".svn"))) {
+    return OpenedRepositoryType::Subversion;
+  }
+  return OpenedRepositoryType::Unknown;
+}
+
 class BottomResizeGripWidget final : public QWidget {
 public:
   explicit BottomResizeGripWidget(QWidget *parent = nullptr) : QWidget(parent) {
@@ -370,6 +387,23 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
   return _hitDetector->eventFilter(watched, event);
 }
 
+void MainWindow::openRepositoryByType(const QString &path,
+                                      const QString &sourceLabel) {
+  const OpenedRepositoryType type = detectRepositoryType(path);
+  switch (type) {
+  case OpenedRepositoryType::Git:
+    addGitRepoContainer(path);
+    break;
+  case OpenedRepositoryType::Subversion:
+    addSvnRepoContainer(path);
+    break;
+  default:
+    LOG_WARN("{} does not look like a Git or Subversion repository: {}",
+             sourceLabel, path);
+    break;
+  }
+}
+
 void MainWindow::onOpen() {
   LOG_PERF(0, "Enter");
 
@@ -381,9 +415,10 @@ void MainWindow::onOpen() {
   }
 
   const QString path = QFileDialog::getExistingDirectory(
-      this, tr("Open Git repository"), documentsPaths[0]);
-  if (!path.isEmpty())
-    addGitRepoContainer(path);
+      this, tr("Open repository"), documentsPaths[0]);
+  if (!path.isEmpty()) {
+    openRepositoryByType(path, QStringLiteral("Selected path"));
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -439,8 +474,9 @@ void MainWindow::onOpenRepo(const QString &path) {
 void MainWindow::onRecentClicked(const QString &path) {
   LOG_PERF(0, "Enter");
 
-  if (!path.isEmpty())
-    addGitRepoContainer(path);
+  if (!path.isEmpty()) {
+    openRepositoryByType(path, QStringLiteral("Selected recent path"));
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -967,6 +1003,40 @@ void MainWindow::addCloneContainer(CloneType type) {
 }
 
 void MainWindow::addGitRepoContainer(const QString &path) {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<RepoContainer>::create(path, this);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+
+  connect(container.get(), &RepoContainer::openRepoRequested, this,
+          &MainWindow::onOpenRepo);
+
+  _containers += container;
+
+  const QStringList parts =
+      QDir::fromNativeSeparators(path).split('/', Qt::SkipEmptyParts);
+
+  QString repoName;
+  if (!parts.empty()) {
+    repoName = parts.last();
+  } else {
+    repoName = path;
+  }
+
+  _topBarWidget->titleBarWidget()->addTab(repoName,
+                                          QDir::toNativeSeparators(path));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addSvnRepoContainer(const QString &path) {
   LOG_PERF(0, "Enter");
 
   const qlonglong titleBarHeight =

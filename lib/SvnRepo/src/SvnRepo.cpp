@@ -998,8 +998,44 @@ bool checkoutCommit(const QString &, const QString &) {
   return false;
 }
 
-QString openRepository(const QString &) {
-  return QString();
+QString openRepository(const QString &path) {
+  LOG_PERF(0, "Enter");
+
+  const QString normalizedPath =
+      QDir::cleanPath(QFileInfo(path).absoluteFilePath());
+  LOG_DEBUG("Opening SVN repository at path: '{}'", normalizedPath.toStdString());
+
+  if (normalizedPath.isEmpty() || !QFileInfo(normalizedPath).exists()) {
+    setLastError(SvnError::ErrorWhileOpening, SVN_ERR_BAD_FILENAME,
+                 QStringLiteral("Repository path does not exist."));
+    LOG_PERF(0, "Exit");
+    return QString();
+  }
+
+  const bool success = runWithClientContext([normalizedPath](svn_client_ctx_t *ctx,
+                                                             apr_pool_t *pool) {
+    int wcFormat = 0;
+    const QByteArray pathBytes = normalizedPath.toUtf8();
+    svn_error_t *error = svn_wc_check_wc2(&wcFormat, ctx->wc_ctx,
+                                          pathBytes.constData(), pool);
+    if (error) {
+      setLastError(SvnError::ErrorWhileOpening, error->apr_err,
+                   svnErrorMessage(error));
+      svn_error_clear(error);
+      return false;
+    }
+
+    Q_UNUSED(wcFormat);
+    return true;
+  });
+
+  if (!success) {
+    LOG_PERF(0, "Exit");
+    return QString();
+  }
+
+  LOG_PERF(0, "Exit");
+  return normalizedPath;
 }
 
 void closeRepository(const QString &) {}

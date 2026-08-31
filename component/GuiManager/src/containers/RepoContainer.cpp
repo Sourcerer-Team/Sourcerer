@@ -4,6 +4,7 @@
 #include "MousePositionCorrection.h"
 #include "QScintillaLexerFactory.h"
 #include "containers/GitRepoManagerBridgeImpl.h"
+#include "containers/SvnRepoManagerBridgeImpl.h"
 #include "containers/ui_RepoContainer.h"
 #include "delegates/ElidePartialColorDelegate.h"
 #include "delegates/HistorySliceTableColumnDelegate.h"
@@ -78,11 +79,17 @@
 
 #define GIT_IGNORE_FILENAME ".gitignore"
 #define GIT_SUBDIR ".git"
+#define SVN_SUBDIR ".svn"
 
 using namespace GuiManager::Widgets;
 using namespace GitRepoManager::Structs;
 
 namespace GuiManager::Containers {
+enum class RepositoryType {
+  Git = 0,
+  Subversion,
+};
+
 enum class CommitAndMergeStackIndexes {
   Unknown = -1,
 
@@ -166,6 +173,30 @@ QStringList traverseModelIndexSubtree(const QModelIndex &parent,
   return files;
 }
 
+static RepositoryType detectRepositoryType(const QString &path) {
+  const QDir repoDir(path);
+  if (repoDir.exists(QStringLiteral(GIT_SUBDIR))) {
+    return RepositoryType::Git;
+  }
+  if (repoDir.exists(QStringLiteral(SVN_SUBDIR))) {
+    return RepositoryType::Subversion;
+  }
+  return RepositoryType::Git;
+}
+
+static const char *repoAdminSubdir(const QString &path) {
+  return detectRepositoryType(path) == RepositoryType::Subversion ? SVN_SUBDIR
+                                                                  : GIT_SUBDIR;
+}
+
+static std::unique_ptr<GitRepoManagerBridge> createRepoBridge(
+    RepoContainer &container, RepositoryType type) {
+  if (type == RepositoryType::Subversion) {
+    return std::make_unique<SvnRepoManagerBridgeImpl>(container);
+  }
+  return std::make_unique<GitRepoManagerBridgeImpl>(container);
+}
+
 RepoContainer::RepoContainer(QString path, QWidget *parent)
     : ContainerWidget(Widgets::ContainerType::GitRepo, parent),
       ui(new Ui::RepoContainer), _uuid(Uuid::createUuid()),
@@ -173,7 +204,7 @@ RepoContainer::RepoContainer(QString path, QWidget *parent)
       _activeBranchType(GitRepo::BranchType::All),
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
-      _bridge(std::make_unique<GitRepoManagerBridgeImpl>(*this)),
+      _bridge(createRepoBridge(*this, detectRepositoryType(_path))),
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()), _dispatcher(1),
@@ -5587,13 +5618,16 @@ void RepoContainer::prepareWatcher(const WeakPtr &guard) {
     connect(_repoDirWatcher, &QFileSystemWatcher::fileChanged, this,
             &RepoContainer::onRepoDirChanged);
 
-    // Watch all subdirectories except .git to detect file additions/deletions
+    // Watch all subdirectories except the repository admin directory to
+    // detect file additions/deletions
     const QStringList directories =
-        getSubdirectories(_path, QStringList() << GIT_SUBDIR);
+        getSubdirectories(_path, QStringList() << repoAdminSubdir(_path));
     _repoDirWatcher->addPaths(directories);
 
-    // Watch all files recursively (excluding .git directory) to detect modifications
-    const QStringList files = getAllFiles(_path, QStringList() << GIT_SUBDIR);
+    // Watch all files recursively (excluding the repository admin directory)
+    // to detect modifications
+    const QStringList files =
+        getAllFiles(_path, QStringList() << repoAdminSubdir(_path));
     _repoDirWatcher->addPaths(files);
 #endif
   });

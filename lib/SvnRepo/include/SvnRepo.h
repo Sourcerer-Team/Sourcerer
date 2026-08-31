@@ -46,6 +46,7 @@ enum class SvnError : int {
   RevertFailed,
   CommitFailed,
   HistoryFailed,
+  ErrorWhileOpening,
   Last
 };
 
