@@ -17,6 +17,7 @@ enum class ContainerType {
   PleaseWait,
   Settings,
   IssueTracker,
+  SvnRepo,
   last
 };
 

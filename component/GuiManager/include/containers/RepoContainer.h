@@ -65,7 +65,8 @@ class RepoContainer final : public Widgets::ContainerWidget,
   typedef QSharedPointer<RepoContainer> SharedPtr;
 
 public:
-  explicit RepoContainer(QString path, QWidget *parent = nullptr);
+  explicit RepoContainer(Widgets::ContainerType type, QString path,
+                         QWidget *parent = nullptr);
   ~RepoContainer() override;
 
   void init() override;

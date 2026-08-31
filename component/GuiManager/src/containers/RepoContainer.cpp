@@ -197,10 +197,11 @@ createRepoBridge(RepoContainer &container, RepositoryType type) {
   return std::make_unique<GitRepoManagerBridgeImpl>(container);
 }
 
-RepoContainer::RepoContainer(QString path, QWidget *parent)
-    : ContainerWidget(Widgets::ContainerType::GitRepo, parent),
-      ui(new Ui::RepoContainer), _uuid(Uuid::createUuid()),
-      _path(std::move(path)), _lastDiffRepoStatusChanged(false),
+RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
+                             QWidget *parent)
+    : ContainerWidget(type, parent), ui(new Ui::RepoContainer),
+      _uuid(Uuid::createUuid()), _path(std::move(path)),
+      _lastDiffRepoStatusChanged(false),
       _activeBranchType(GitRepo::BranchType::All),
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
@@ -6123,7 +6124,7 @@ void RepoContainer::updateLocalBranchesModel(
 
   QStringList finalBranches;
 
-  if (!localBranches.isEmpty()) {
+  if (type() == ContainerType::GitRepo && !localBranches.isEmpty()) {
     finalBranches += ALL_BRANCHES;
   }
 

@@ -1141,8 +1141,125 @@ qint64 getFileSizeFromCommit(const QString &, const QString &,
   return -1;
 }
 
-QString getActiveBranch(const QString &, BranchType, bool) {
-  return {};
+namespace {
+
+struct ActiveBranchContext {
+  QString url;
+  QString reposRootUrl;
+};
+
+static svn_error_t *activeBranchInfoCallback(void *baton,
+                                             const char * /*abspath_or_url*/,
+                                             const svn_client_info2_t *info,
+                                             apr_pool_t * /*scratch_pool*/) {
+  if (!baton || !info) {
+    return SVN_NO_ERROR;
+  }
+
+  auto *context = static_cast<ActiveBranchContext *>(baton);
+  if (info->URL) {
+    context->url = QString::fromUtf8(info->URL);
+  }
+  if (info->repos_root_URL) {
+    context->reposRootUrl = QString::fromUtf8(info->repos_root_URL);
+  }
+
+  return SVN_NO_ERROR;
+}
+
+static QString trimmedPath(QString path) {
+  while (path.endsWith('/')) {
+    path.chop(1);
+  }
+  return path;
+}
+
+static QString branchNameFromSvnUrl(const QString &url, const QString &rootUrl,
+                                    const BranchType branchType) {
+  const QString normalizedUrl = trimmedPath(url);
+  const QString normalizedRoot = trimmedPath(rootUrl);
+  if (normalizedUrl.isEmpty()) {
+    return {};
+  }
+
+  QString relativePath = normalizedUrl;
+  if (!normalizedRoot.isEmpty() && normalizedUrl.startsWith(normalizedRoot)) {
+    relativePath = normalizedUrl.mid(normalizedRoot.size());
+  }
+
+  while (relativePath.startsWith('/')) {
+    relativePath.remove(0, 1);
+  }
+
+  const QStringList parts = relativePath.split('/', Qt::SkipEmptyParts);
+  if (parts.isEmpty()) {
+    return branchType == BranchType::All ? QString() : QStringLiteral("trunk");
+  }
+
+  if (parts[0] == QStringLiteral("trunk")) {
+    return branchType == BranchType::Tag ? QString() : QStringLiteral("trunk");
+  }
+
+  if (parts[0] == QStringLiteral("branches") && parts.size() >= 2) {
+    return branchType == BranchType::Tag ? QString() : parts[1];
+  }
+
+  if (parts[0] == QStringLiteral("tags") && parts.size() >= 2) {
+    return branchType == BranchType::Tag ? parts[1] : QString();
+  }
+
+  return parts.last();
+}
+
+} // namespace
+
+QString getActiveBranch(const QString &path, BranchType branchType, bool quit) {
+  LOG_PERF(0, "Enter");
+
+  if (quit) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QString normalizedPath = QFileInfo(path).absoluteFilePath();
+  if (normalizedPath.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  ActiveBranchContext context;
+  const bool success =
+      runWithClientContext([&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        svn_opt_revision_t pegRev;
+        pegRev.kind = svn_opt_revision_unspecified;
+
+        svn_opt_revision_t rev;
+        rev.kind = svn_opt_revision_unspecified;
+
+        const QByteArray pathBytes = normalizedPath.toUtf8();
+        svn_error_t *error = svn_client_info4(
+            pathBytes.constData(), &pegRev, &rev, svn_depth_empty, FALSE, FALSE,
+            FALSE, nullptr, activeBranchInfoCallback, &context, ctx, pool);
+        if (error) {
+          setLastError(SvnError::ErrorWhileOpening, error->apr_err,
+                       svnErrorMessage(error));
+          svn_error_clear(error);
+          return false;
+        }
+
+        return true;
+      });
+
+  if (!success) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QString activeBranch =
+      branchNameFromSvnUrl(context.url, context.reposRootUrl, branchType);
+
+  LOG_PERF(0, "Exit");
+  return activeBranch;
 }
 
 QStringList getCommitBranches(const QString &, const QString &, bool) {
@@ -1204,13 +1321,15 @@ QStringList listLocalBranches(const QString &path, const bool &) {
     return {};
   }
 
-  auto listChildDirectories = [](const QDir &dir) {
+  auto listChildDirectories = [](const QDir &dir, bool skipBranches = false) {
     QStringList branches = dir.entryList(
         QDir::Dirs | QDir::NoDotAndDotDot | QDir::Readable, QDir::Name);
     branches.removeAll(QStringLiteral(".svn"));
     branches.removeAll(QStringLiteral(".git"));
-    branches.removeAll(QStringLiteral("trunk"));
     branches.removeAll(QStringLiteral("tags"));
+    if (skipBranches) {
+      branches.removeAll(QStringLiteral("branches"));
+    }
     return branches;
   };
 
@@ -1220,9 +1339,10 @@ QStringList listLocalBranches(const QString &path, const bool &) {
     branches = listChildDirectories(branchesDir);
   }
 
-  if (branches.isEmpty()) {
-    branches = listChildDirectories(workingCopy);
-  }
+  QStringList workingBranches;
+  workingBranches = listChildDirectories(workingCopy, true);
+
+  branches += workingBranches;
 
   branches.removeDuplicates();
   branches.sort(Qt::CaseInsensitive);

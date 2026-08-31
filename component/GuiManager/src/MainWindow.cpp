@@ -1007,7 +1007,8 @@ void MainWindow::addGitRepoContainer(const QString &path) {
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  const auto container = QSharedPointer<RepoContainer>::create(path, this);
+  const auto container = QSharedPointer<RepoContainer>::create(
+      Widgets::ContainerType::GitRepo, path, this);
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
   container->init();
   container->selected();
@@ -1041,7 +1042,8 @@ void MainWindow::addSvnRepoContainer(const QString &path) {
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  const auto container = QSharedPointer<RepoContainer>::create(path, this);
+  const auto container = QSharedPointer<RepoContainer>::create(
+      Widgets::ContainerType::SvnRepo, path, this);
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
   container->init();
   container->selected();
