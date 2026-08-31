@@ -22,6 +22,25 @@ namespace GuiManager {
 
 namespace Containers {
 
+static QString canonicalCloneUrl(const QString &urlText) {
+  const QString trimmed = urlText.trimmed();
+  if (trimmed.isEmpty()) {
+    return {};
+  }
+
+  const QUrl url = QUrl::fromUserInput(trimmed);
+  if (!url.isValid() || url.scheme().isEmpty()) {
+    return trimmed;
+  }
+
+  if (url.isLocalFile()) {
+    return QDir::fromNativeSeparators(url.toLocalFile());
+  }
+
+  return url.adjusted(QUrl::NormalizePathSegments | QUrl::StripTrailingSlash)
+      .toString(QUrl::FullyEncoded);
+}
+
 CloneRepoContainer::CloneRepoContainer(QWidget *parent, CloneType cloneType)
     : ContainerWidget(ContainerType::Clone, parent),
       ui(new Ui::CloneRepoContainer),
@@ -97,6 +116,11 @@ void CloneRepoContainer::onCloneClicked() {
 
   const QString destinationDir =
       ui->labelFullDirPrefix->text() + ui->lineEditFullDir->text();
+  const QString url = canonicalCloneUrl(ui->lineEditUrl->text());
+  if (url.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   if (_cloneType == CloneType::Git) {
     EventManager::Event cloneEvent(
@@ -105,7 +129,7 @@ void CloneRepoContainer::onCloneClicked() {
     GitRepoCloneCommand cloneCommand;
     cloneCommand.uuid = _uuid;
     cloneCommand.destinationDir = destinationDir;
-    cloneCommand.url = ui->lineEditUrl->text();
+    cloneCommand.url = url;
 
     cloneEvent.addData(cloneCommand);
     _eventManager.send(cloneEvent);
@@ -116,7 +140,7 @@ void CloneRepoContainer::onCloneClicked() {
     SvnRepoCloneCommand cloneCommand;
     cloneCommand.uuid = _uuid;
     cloneCommand.destinationDir = destinationDir;
-    cloneCommand.url = ui->lineEditUrl->text();
+    cloneCommand.url = url;
 
     cloneEvent.addData(cloneCommand);
     _eventManager.send(cloneEvent);

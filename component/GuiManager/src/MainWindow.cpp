@@ -222,6 +222,8 @@ MainWindow::MainWindow(QWidget *parent)
       EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoProgress, callbackFunc));
   _eventManager.subscribe(
       CAPTURE_CALLBACK(EventManager::EventType::NewsTrackerNews, callbackFunc));
 
@@ -238,6 +240,8 @@ MainWindow::~MainWindow() {
       EventManager::EventType::ApplicationUpdated, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoProgress, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -1266,16 +1270,30 @@ void MainWindow::eventCallback(EventManager::Event event) {
         getSelf().toWeakRef(), [=]() { addGitRepoContainer(repoPath); });
     break;
   }
-  case EventManager::EventType::GitRepoManagerCloneRepoProgress: {
-    const auto commandResult =
-        event.data<GitRepoManager::Structs::GitRepoResult>();
-    if (const CloneProgress data = commandResult.value.value<CloneProgress>();
-        !data.error && !data.finished && !_progressing.contains(data.uuid)) {
+  case EventManager::EventType::GitRepoManagerCloneRepoProgress:
+  case EventManager::EventType::SvnRepoManagerCloneRepoProgress: {
+    CloneProgress data;
+    QString title;
+    if (eventType == EventManager::EventType::GitRepoManagerCloneRepoProgress) {
+      const auto commandResult =
+          event.data<GitRepoManager::Structs::GitRepoResult>();
+      data = commandResult.value.value<CloneProgress>();
+      title = data.cloning ? tr("Clone") : tr("Fetch");
+    } else {
+      const auto commandResult =
+          event.data<GitRepoManager::Structs::GitRepoResult>();
+      data = commandResult.value.value<CloneProgress>();
+      title = tr("Checkout");
+    }
+
+    if (!data.error && !data.finished && !_progressing.contains(data.uuid)) {
       _progressing += data.uuid;
-      Util::Dispatcher::dispatchToMainThread(
-          getSelf().toWeakRef(), [=]() { showCloneProgressToast(data); });
-    } else if (data.finished)
+      Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+        showCloneProgressToast(data, title);
+      });
+    } else if (data.finished) {
       _progressing.remove(data.uuid);
+    }
 
     break;
   }
@@ -1441,11 +1459,13 @@ void MainWindow::hideCredentialsOverlay(GitCredentialsOverlayWidget *widget) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showCloneProgressToast(const CloneProgress &data) {
+void MainWindow::showCloneProgressToast(const CloneProgress &data,
+                                        const QString &title) {
   LOG_PERF(0, "Enter");
 
   const auto toast = QSharedPointer<GitProgressToast>::create(
-      data, data.cloning ? tr("Clone") : tr("Fetch"));
+      data,
+      title.isEmpty() ? (data.cloning ? tr("Clone") : tr("Fetch")) : title);
 
   Dispatcher::dispatchToMainThread(getSelf().toWeakRef(),
                                    [=]() { _toastHost.addToast(toast); });

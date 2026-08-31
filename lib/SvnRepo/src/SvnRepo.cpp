@@ -8,11 +8,15 @@
 #include <svn_pools.h>
 #include <svn_props.h>
 #include <svn_time.h>
+#include <svn_wc.h>
 
 #include <svnxx/init.hpp>
 
 #include <EventManager.h>
+#include <GitCredentialStorage.h>
 #include <GitRepo.h>
+#include <GitRepoManagerStructs.h>
+#include <Log.h>
 
 #include <QByteArray>
 #include <QDir>
@@ -26,6 +30,147 @@
 #include <memory>
 #include <mutex>
 #include <set>
+
+#define THREAD_ID "SvnRepo"
+
+namespace {
+
+static void sendCloneProgressSignal(EventManager::EventType type,
+                                    const QString &uuid,
+                                    const GitRepo::CloneProgress &progress) {
+  EventManager::Event event(type);
+  event.addData(GitRepoManager::Structs::GitRepoResult{
+      uuid, GitRepoManager::Structs::GitRepoCommandType::Unknown,
+      QVariant::fromValue(progress)});
+  EventManager::EventManager::getInstance().send(event);
+}
+
+struct CheckoutProgressBaton {
+  GitRepo::CloneProgress progress;
+  size_t countedEntries = 0;
+  size_t completedNotifications = 0;
+};
+
+static void emitCheckoutProgress(CheckoutProgressBaton &baton,
+                                 const GitRepo::CloneProgressStageType stage) {
+  baton.progress.started = true;
+  baton.progress.finished = false;
+  baton.progress.error = false;
+  baton.progress.cloning = true;
+  baton.progress.stage = stage;
+  if (baton.progress.totalSteps > 0 &&
+      baton.progress.completedSteps > baton.progress.totalSteps) {
+    baton.progress.completedSteps = baton.progress.totalSteps;
+  }
+  baton.progress.lastStepPercentage =
+      baton.progress.totalSteps > 0
+          ? static_cast<int>((100.0 * baton.progress.completedSteps) /
+                             baton.progress.totalSteps)
+          : -1;
+  sendCloneProgressSignal(
+      EventManager::EventType::SvnRepoManagerCloneRepoProgress,
+      baton.progress.uuid, baton.progress);
+}
+
+static svn_error_t *countCheckoutEntry(void *baton, const char *,
+                                       const svn_dirent_t *, const svn_lock_t *,
+                                       const char *, apr_pool_t *) {
+  if (!baton) {
+    return SVN_NO_ERROR;
+  }
+
+  auto *progress = static_cast<CheckoutProgressBaton *>(baton);
+  ++progress->countedEntries;
+  progress->progress.completedSteps = progress->countedEntries;
+  progress->progress.totalSteps = progress->countedEntries + 1;
+  progress->progress.lastStepPercentage =
+      static_cast<int>((100.0 * progress->progress.completedSteps) /
+                       progress->progress.totalSteps);
+  emitCheckoutProgress(*progress, GitRepo::CloneProgressStageType::Fetch);
+  return SVN_NO_ERROR;
+}
+
+static size_t countCheckoutEntries(svn_client_ctx_t *ctx, apr_pool_t *pool,
+                                   const QByteArray &urlBytes,
+                                   svn_opt_revision_t *pegRev,
+                                   svn_opt_revision_t *rev,
+                                   CheckoutProgressBaton &progressBaton) {
+  svn_error_t *error =
+      svn_client_list(urlBytes.constData(), pegRev, rev, TRUE, SVN_DIRENT_KIND,
+                      FALSE, countCheckoutEntry, &progressBaton, ctx, pool);
+  if (error) {
+    svn_error_clear(error);
+    return 0;
+  }
+
+  return progressBaton.countedEntries;
+}
+
+static void checkoutNotifyCallback(void *baton, const svn_wc_notify_t *notify,
+                                   apr_pool_t *) {
+  if (!baton || !notify) {
+    return;
+  }
+
+  auto *progress = static_cast<CheckoutProgressBaton *>(baton);
+  progress->progress.started = true;
+  progress->progress.finished = false;
+  progress->progress.error = false;
+  progress->progress.cloning = true;
+  progress->progress.stage = GitRepo::CloneProgressStageType::Checkout;
+
+  switch (notify->action) {
+  case svn_wc_notify_update_started:
+    progress->progress.completedSteps = 0;
+    sendCloneProgressSignal(
+        EventManager::EventType::SvnRepoManagerCloneRepoProgress,
+        progress->progress.uuid, progress->progress);
+    break;
+  case svn_wc_notify_update_add:
+  case svn_wc_notify_update_update:
+  case svn_wc_notify_update_delete:
+  case svn_wc_notify_update_completed:
+    ++progress->completedNotifications;
+    progress->progress.completedSteps = progress->completedNotifications;
+    if (progress->progress.totalSteps > 0 &&
+        progress->progress.completedSteps > progress->progress.totalSteps) {
+      progress->progress.completedSteps = progress->progress.totalSteps;
+    }
+    progress->progress.lastStepPercentage =
+        progress->progress.totalSteps > 0
+            ? static_cast<int>((100.0 * progress->progress.completedSteps) /
+                               progress->progress.totalSteps)
+            : -1;
+    sendCloneProgressSignal(
+        EventManager::EventType::SvnRepoManagerCloneRepoProgress,
+        progress->progress.uuid, progress->progress);
+    break;
+  default:
+    break;
+  }
+}
+
+static void finishCloneProgress(const QString &uuid, const bool error,
+                                const CheckoutProgressBaton &baton) {
+  GitRepo::CloneProgress progress;
+  progress.uuid = uuid;
+  progress.completedSteps = baton.progress.totalSteps;
+  progress.totalSteps = baton.progress.totalSteps;
+  progress.lastStepPercentage = 100;
+  progress.started = true;
+  progress.finished = true;
+  progress.error = error;
+  progress.cloning = true;
+  progress.stage = GitRepo::CloneProgressStageType::Checkout;
+
+  std::this_thread::sleep_for(1000ms);
+
+  sendCloneProgressSignal(
+      EventManager::EventType::SvnRepoManagerCloneRepoProgress, progress.uuid,
+      progress);
+}
+
+} // namespace
 
 namespace SvnRepo {
 namespace {
@@ -50,6 +195,30 @@ static void sendCredentialsSignal(EventManager::EventType type, size_t id) {
 static bool acquireCredentials(SvnCredentialPayload &payload,
                                const QString &username,
                                GitRepo::GitCredentialsResponse &response) {
+  const QString normalizedRepoPath =
+      QDir::fromNativeSeparators(payload.destinationDir);
+
+  LOG_INFO("acquireCredentials called with repoPath: '{}', url: '{}'",
+           normalizedRepoPath, payload.url);
+
+  GitRepo::GitCredentialStorage &credStorage =
+      GitRepo::GitCredentialStorage::getInstance();
+
+  QString storedUsername;
+  QString storedPassword;
+  if (credStorage.getCredentials(normalizedRepoPath, storedUsername,
+                                 storedPassword)) {
+    LOG_INFO("Found stored credentials for repository: {}", normalizedRepoPath);
+    response.id = payload.requestId;
+    response.username = storedUsername;
+    response.password = storedPassword;
+    response.rememberCredentials = true;
+    return true;
+  }
+
+  LOG_INFO("No stored credentials found for repository: {}",
+           normalizedRepoPath);
+
   EventManager::EventManager &eventManager =
       EventManager::EventManager::getInstance();
 
@@ -61,7 +230,7 @@ static bool acquireCredentials(SvnCredentialPayload &payload,
   request.url = payload.url;
   request.username = username;
   request.allowedTypes = 0;
-  request.repoPath = QDir::fromNativeSeparators(payload.destinationDir);
+  request.repoPath = normalizedRepoPath;
   request.needsPassphrase = false;
 
   EventManager::Event credentialsEvent(
@@ -104,6 +273,15 @@ static bool acquireCredentials(SvnCredentialPayload &payload,
   }
 
   response = event.data<GitRepo::GitCredentialsResponse>();
+
+  if (response.rememberCredentials) {
+    credStorage.storeCredentials(normalizedRepoPath, response.username,
+                                 response.password, true);
+    LOG_INFO("Stored credentials for repository: {}", normalizedRepoPath);
+  } else {
+    LOG_INFO("User chose NOT to remember credentials");
+  }
+
   return true;
 }
 
@@ -168,10 +346,32 @@ static svn_error_t *usernamePromptCallback(svn_auth_cred_username_t **cred_p,
   return SVN_NO_ERROR;
 }
 
+static svn_error_t *sslServerTrustPromptCallback(
+    svn_auth_cred_ssl_server_trust_t **cred_p, void *baton, const char *realm,
+    apr_uint32_t failures, const svn_auth_ssl_server_cert_info_t *cert_info,
+    svn_boolean_t may_save, apr_pool_t *pool) {
+  Q_UNUSED(baton);
+  Q_UNUSED(realm);
+  Q_UNUSED(cert_info);
+  Q_UNUSED(may_save);
+
+  if (!cred_p) {
+    return svn_error_create(SVN_ERR_INCORRECT_PARAMS, nullptr,
+                            "Invalid SSL trust prompt arguments");
+  }
+
+  auto *creds = static_cast<svn_auth_cred_ssl_server_trust_t *>(
+      apr_pcalloc(pool, sizeof(svn_auth_cred_ssl_server_trust_t)));
+  creds->may_save = FALSE;
+  creds->accepted_failures = failures;
+  *cred_p = creds;
+  return SVN_NO_ERROR;
+}
+
 static svn_auth_baton_t *createAuthBaton(apr_pool_t *pool,
                                          SvnCredentialPayload *payload) {
   apr_array_header_t *providers =
-      apr_array_make(pool, 2, sizeof(svn_auth_provider_object_t *));
+      apr_array_make(pool, 3, sizeof(svn_auth_provider_object_t *));
 
   svn_auth_provider_object_t *provider = nullptr;
   svn_auth_get_simple_prompt_provider(&provider, simplePromptCallback, payload,
@@ -180,6 +380,10 @@ static svn_auth_baton_t *createAuthBaton(apr_pool_t *pool,
 
   svn_auth_get_username_prompt_provider(&provider, usernamePromptCallback,
                                         payload, 2, pool);
+  APR_ARRAY_PUSH(providers, svn_auth_provider_object_t *) = provider;
+
+  svn_auth_get_ssl_server_trust_prompt_provider(
+      &provider, sslServerTrustPromptCallback, payload, pool);
   APR_ARRAY_PUSH(providers, svn_auth_provider_object_t *) = provider;
 
   svn_auth_baton_t *authBaton = nullptr;
@@ -482,13 +686,30 @@ bool checkoutRepository(const QString &url, const QString &destinationDir,
     credentialPayload.requestId = qHash(uuid);
     ctx->auth_baton = createAuthBaton(pool, &credentialPayload);
 
+    CheckoutProgressBaton progressBaton;
+    progressBaton.progress.uuid = uuid;
+    progressBaton.progress.cloning = true;
+    progressBaton.progress.stage = GitRepo::CloneProgressStageType::Checkout;
+
     const QByteArray urlBytes = url.toUtf8();
     const QByteArray destBytes =
         QFileInfo(destinationDir).absoluteFilePath().toUtf8();
 
+    const size_t entryCount =
+        countCheckoutEntries(ctx, pool, urlBytes, &pegRev, &rev, progressBaton);
+    progressBaton.progress.totalSteps = entryCount > 0 ? entryCount : 1;
+    progressBaton.progress.completedSteps = 0;
+    progressBaton.progress.lastStepPercentage = 0;
+    progressBaton.progress.stage = GitRepo::CloneProgressStageType::Checkout;
+    emitCheckoutProgress(progressBaton,
+                         GitRepo::CloneProgressStageType::Checkout);
+    ctx->notify_func2 = checkoutNotifyCallback;
+    ctx->notify_baton2 = &progressBaton;
+
     svn_error_t *error = svn_client_checkout3(
         &resultRev, urlBytes.constData(), destBytes.constData(), &pegRev, &rev,
         svn_depth_infinity, FALSE, FALSE, ctx, pool);
+    finishCloneProgress(uuid, error != nullptr, progressBaton);
     if (credentialPayload.requested) {
       sendCredentialsSignal(
           error ? EventManager::EventType::GitRepoManagerGetCredentialsInvalid

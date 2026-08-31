@@ -376,7 +376,7 @@ HomeContainer::HomeContainer(QWidget *parent)
   auto *cloneGitAction = cloneMenu->addAction(tr("Clone Git"));
   connect(cloneGitAction, &QAction::triggered, this,
           &HomeContainer::onCloneClicked);
-  auto *cloneSubversionAction = cloneMenu->addAction(tr("Clone Subversion"));
+  auto *cloneSubversionAction = cloneMenu->addAction(tr("Checkout Subversion"));
   connect(cloneSubversionAction, &QAction::triggered, this,
           &HomeContainer::onCloneSubversionClicked);
 

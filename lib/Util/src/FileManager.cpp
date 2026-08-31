@@ -6,10 +6,12 @@
 #include <QProcess>
 #include <QUrl>
 
+// clang-format off
 #ifdef Q_OS_WIN32
 #include <windows.h>
 #include <shellapi.h>
 #endif
+// clang-format on
 
 namespace FileManager {
 

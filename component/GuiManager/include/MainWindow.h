@@ -117,7 +117,8 @@ private:
   static void hidePassphraseOverlay(SshPassphraseOverlayWidget *widget);
   static void showPassphraseOverlay(const GitCredentialsRequest &request,
                                     SshPassphraseOverlayWidget *widget);
-  void showCloneProgressToast(const CloneProgress &data);
+  void showCloneProgressToast(const CloneProgress &data,
+                              const QString &title = QString());
   void showToast(const QString &text, const QString &title);
   void showErrorToast(const QString &text, const QString &title);
 
