@@ -590,6 +590,32 @@ static svn_error_t *historyCallback(void *baton, svn_log_entry_t *log_entry,
   return SVN_NO_ERROR;
 }
 
+static thread_local QString gCurrentRepositoryPath;
+static thread_local SvnCredentialPayload gCurrentCredentialPayload;
+
+static void setCurrentRepositoryPath(const QString &path) {
+  gCurrentRepositoryPath = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
+}
+
+static void clearCurrentRepositoryPath() {
+  gCurrentRepositoryPath.clear();
+}
+
+static void attachCurrentRepositoryAuth(svn_client_ctx_t *ctx,
+                                        apr_pool_t *pool) {
+  if (!ctx || !pool || gCurrentRepositoryPath.isEmpty() || ctx->auth_baton) {
+    return;
+  }
+
+  gCurrentCredentialPayload.url = gCurrentRepositoryPath;
+  gCurrentCredentialPayload.destinationDir = gCurrentRepositoryPath;
+  gCurrentCredentialPayload.uuid = gCurrentRepositoryPath;
+  gCurrentCredentialPayload.requestId = qHash(gCurrentRepositoryPath);
+  gCurrentCredentialPayload.requested = false;
+
+  ctx->auth_baton = createAuthBaton(pool, &gCurrentCredentialPayload);
+}
+
 static bool ensureInitialized() {
   std::lock_guard<std::mutex> lock(gInitMutex);
   if (gSvnInit) {
@@ -624,6 +650,7 @@ static bool runWithClientContext(
     return false;
   }
 
+  attachCurrentRepositoryAuth(ctx, pool.get());
   return fn(ctx, pool.get());
 }
 
@@ -723,6 +750,7 @@ bool checkoutRepository(const QString &url, const QString &destinationDir,
       return false;
     }
 
+    setCurrentRepositoryPath(destinationDir);
     Q_UNUSED(resultRev);
     return true;
   });
@@ -1035,11 +1063,15 @@ QString openRepository(const QString &path) {
     return QString();
   }
 
+  setCurrentRepositoryPath(normalizedPath);
+
   LOG_PERF(0, "Exit");
   return normalizedPath;
 }
 
-void closeRepository(const QString &) {}
+void closeRepository(const QString &) {
+  clearCurrentRepositoryPath();
+}
 
 bool cloneRepository(const QString &url, const QString &destinationDir,
                      const QString &uuid) {
@@ -1351,13 +1383,200 @@ QStringList listLocalBranches(const QString &path, const bool &) {
   return branches;
 }
 
-QStringList listRemoteBranches(const QString &, const bool &) {
-  return {};
+namespace {
+
+struct RemoteBranchListContext {
+  QStringList entries;
+};
+
+static QString topLevelNameFromPath(const QString &path) {
+  const QStringList parts = path.split('/', Qt::SkipEmptyParts);
+  return parts.isEmpty() ? QString() : parts.first();
 }
 
-QVector<BranchInfo> listRemoteBranchesWithStatus(const QString &,
-                                                 const bool &) {
-  return {};
+static QString remoteBranchNameFromPath(const QString &path) {
+  const QStringList parts = path.split('/', Qt::SkipEmptyParts);
+  if (parts.isEmpty()) {
+    return {};
+  }
+
+  if (parts[0] == QStringLiteral("branches") && parts.size() >= 2) {
+    return parts[1];
+  }
+
+  if (parts[0] == QStringLiteral("trunk") ||
+      parts[0] == QStringLiteral("tags") ||
+      parts[0] == QStringLiteral("branches")) {
+    return {};
+  }
+
+  return parts[0];
+}
+
+static svn_error_t *remoteBranchListCallback(void *baton, const char *path,
+                                             const svn_dirent_t *dirent,
+                                             const svn_lock_t *, const char *,
+                                             apr_pool_t *) {
+  if (!baton || !path || !dirent || dirent->kind != svn_node_dir) {
+    return SVN_NO_ERROR;
+  }
+
+  auto *context = static_cast<RemoteBranchListContext *>(baton);
+  const QString pathName = QString::fromUtf8(path);
+  const QString entryName = topLevelNameFromPath(pathName);
+  if (!entryName.isEmpty()) {
+    context->entries.append(entryName);
+  }
+
+  return SVN_NO_ERROR;
+}
+
+} // namespace
+
+static bool collectRemoteBranchesFromUrl(const QString &url,
+                                         const bool ignoreErrors,
+                                         QStringList &branches) {
+  branches.clear();
+
+  return runWithClientContext([&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+    svn_opt_revision_t pegRev;
+    pegRev.kind = svn_opt_revision_head;
+
+    svn_opt_revision_t rev;
+    rev.kind = svn_opt_revision_head;
+
+    RemoteBranchListContext branchContext;
+    const QByteArray urlBytes = url.toUtf8();
+    svn_error_t *error = svn_client_list(
+        urlBytes.constData(), &pegRev, &rev, FALSE, SVN_DIRENT_KIND, FALSE,
+        remoteBranchListCallback, &branchContext, ctx, pool);
+    if (error) {
+      if (ignoreErrors) {
+        svn_error_clear(error);
+        return true;
+      }
+
+      setLastError(SvnError::ErrorWhileOpening, error->apr_err,
+                   svnErrorMessage(error));
+      svn_error_clear(error);
+      return false;
+    }
+
+    branches = branchContext.entries;
+    branches.removeDuplicates();
+    branches.sort(Qt::CaseInsensitive);
+    return true;
+  });
+}
+
+QStringList listRemoteBranches(const QString &path, const bool &quit) {
+  LOG_PERF(0, "Enter");
+
+  if (quit) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QString normalizedPath = QFileInfo(path).absoluteFilePath();
+  if (normalizedPath.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  ActiveBranchContext repoContext;
+  const bool infoSuccess =
+      runWithClientContext([&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        svn_opt_revision_t pegRev;
+        pegRev.kind = svn_opt_revision_unspecified;
+
+        svn_opt_revision_t rev;
+        rev.kind = svn_opt_revision_unspecified;
+
+        const QByteArray pathBytes = normalizedPath.toUtf8();
+        svn_error_t *error = svn_client_info4(
+            pathBytes.constData(), &pegRev, &rev, svn_depth_empty, FALSE, FALSE,
+            FALSE, nullptr, activeBranchInfoCallback, &repoContext, ctx, pool);
+        if (error) {
+          setLastError(SvnError::ErrorWhileOpening, error->apr_err,
+                       svnErrorMessage(error));
+          svn_error_clear(error);
+          return false;
+        }
+
+        return true;
+      });
+
+  if (!infoSuccess) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QString rootUrl = trimmedPath(repoContext.reposRootUrl);
+  if (rootUrl.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  QStringList rootEntries;
+  if (!collectRemoteBranchesFromUrl(rootUrl, false, rootEntries)) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  QStringList remoteBranches;
+  const bool hasBranchesDir = rootEntries.contains(QStringLiteral("branches"));
+  if (hasBranchesDir) {
+    const QString branchesUrl = rootUrl + QStringLiteral("/branches");
+    if (!collectRemoteBranchesFromUrl(branchesUrl, true, remoteBranches)) {
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+  } else {
+    for (const QString &entry : rootEntries) {
+      if (entry == QStringLiteral("trunk") || entry == QStringLiteral("tags") ||
+          entry == QStringLiteral("branches")) {
+        continue;
+      }
+      remoteBranches.append(entry);
+    }
+  }
+
+  remoteBranches.removeDuplicates();
+  remoteBranches.sort(Qt::CaseInsensitive);
+
+  LOG_PERF(0, "Exit");
+  return remoteBranches;
+}
+
+QVector<BranchInfo> listRemoteBranchesWithStatus(const QString &path,
+                                                 const bool &quit) {
+  LOG_PERF(0, "Enter");
+
+  QVector<BranchInfo> branchesWithStatus;
+  const QStringList remoteBranches = listRemoteBranches(path, quit);
+
+  if (quit) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QString activeBranch = getActiveBranch(path, BranchType::Local, quit);
+
+  for (const QString &remoteBranchName : remoteBranches) {
+    if (quit) {
+      break;
+    }
+
+    BranchInfo branchInfo;
+    branchInfo.name = remoteBranchName;
+    branchInfo.statusInfo.status = BranchStatusType::UpToDate;
+    branchInfo.statusInfo.aheadCount = 0;
+    branchInfo.statusInfo.behindCount = 0;
+    branchesWithStatus.append(branchInfo);
+  }
+
+  LOG_PERF(0, "Exit");
+  return branchesWithStatus;
 }
 
 QStringList listStashes(const QString &, const bool &) {

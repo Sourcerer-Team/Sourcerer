@@ -6183,7 +6183,7 @@ void RepoContainer::updateRemoteBranchesModel(
 
   QStringList finalBranches;
 
-  if (!remoteBranches.isEmpty()) {
+  if (type() == ContainerType::GitRepo && !remoteBranches.isEmpty()) {
     finalBranches += ALL_BRANCHES;
   }
 
@@ -6204,7 +6204,7 @@ void RepoContainer::updateRemoteBranchesModelWithStatus(
   // Create a new vector with ALL_BRANCHES entry if there are branches
   QVector<GitRepo::BranchInfo> finalBranchesWithStatus;
 
-  if (!branchesWithStatus.isEmpty()) {
+  if (type() == ContainerType::GitRepo && !branchesWithStatus.isEmpty()) {
     // Add a special entry for "All branches" without status
     GitRepo::BranchInfo allBranches;
     allBranches.name = ALL_BRANCHES;
