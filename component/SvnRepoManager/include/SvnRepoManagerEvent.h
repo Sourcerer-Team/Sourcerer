@@ -61,6 +61,7 @@ enum class EventType : int {
   ListSubmodules,
   ListSubmodulesWithStatus,
   ListTags,
+  ListRemoteTags,
   Merge,
   OpenRepo,
   Pull,

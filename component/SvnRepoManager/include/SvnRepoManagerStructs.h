@@ -61,6 +61,7 @@ enum class SvnRepoCommandType : int {
   ListSubmodules,
   ListSubmodulesWithStatus,
   ListTags,
+  ListRemoteTags,
   Merge,
   Open,
   Pull,
@@ -585,6 +586,13 @@ struct SvnRepoListTagsCommand final : SvnRepoCommand {
   SvnRepoListTagsCommand() : SvnRepoCommand(SvnRepoCommandType::ListTags) {}
 
   ~SvnRepoListTagsCommand() override = default;
+};
+
+struct SvnRepoListRemoteTagsCommand final : SvnRepoCommand {
+  SvnRepoListRemoteTagsCommand()
+      : SvnRepoCommand(SvnRepoCommandType::ListRemoteTags) {}
+
+  ~SvnRepoListRemoteTagsCommand() override = default;
 };
 
 struct SvnRepoMergeCommand final : SvnRepoCommand {

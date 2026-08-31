@@ -306,6 +306,8 @@ private:
       const WeakPtr &guard,
       const QVector<GitRepo::SubmoduleInfo> &submodulesWithStatus) const;
   void updateTagsModel(const WeakPtr &guard, const QStringList &tags) const;
+  void updateRemoteTagsModel(const WeakPtr &guard,
+                             const QStringList &tags) const;
 
 private:
   Ui::RepoContainer *ui;

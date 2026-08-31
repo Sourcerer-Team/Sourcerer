@@ -356,6 +356,12 @@ bool SvnRepoManagerProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForListTags(listTagsCommand);
     break;
   }
+  case EventType::ListRemoteTags: {
+    const auto listRemoteTagsCommand =
+        event.nextParam<SvnRepoListRemoteTagsCommand>();
+    scheduleWorkerForListRemoteTags(listRemoteTagsCommand);
+    break;
+  }
   case EventType::Merge: {
     const auto mergeCommand = event.nextParam<SvnRepoMergeCommand>();
     scheduleWorkerForMerge(mergeCommand);
@@ -2802,6 +2808,37 @@ void SvnRepoManagerProcessingState::listTagsWorker(
   LOG_PERF(0, "Exit");
 }
 
+void SvnRepoManagerProcessingState::listRemoteTagsWorker(
+    const Structs::SvnRepoListRemoteTagsCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const SvnRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::SvnRepoManagerListRemoteTagsError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  QString repo;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->SvnRepo;
+  }
+
+  const QStringList tags = SvnRepo::listRemoteTags(repo);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::SvnRepoManagerListRemoteTagsResult,
+      command.syncUuid);
+  resultEvent.addData(
+      SvnRepoResult{command.uuid, command.type, QVariant::fromValue(tags)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
 void SvnRepoManagerProcessingState::mergeWorker(
     const Structs::SvnRepoMergeCommand &command) {
   LOG_PERF(0, "Enter");
@@ -5094,6 +5131,25 @@ void SvnRepoManagerProcessingState::scheduleWorkerForListTags(
   LOG_PERF(0, "Exit");
 }
 
+void SvnRepoManagerProcessingState::scheduleWorkerForListRemoteTags(
+    const Structs::SvnRepoListRemoteTagsCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::SvnRepoManagerListRemoteTagsError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new SvnRepoListRemoteTagsCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void SvnRepoManagerProcessingState::scheduleWorkerForMerge(
     const Structs::SvnRepoMergeCommand &command) {
   LOG_PERF(0, "Enter");
@@ -5498,6 +5554,14 @@ void SvnRepoManagerProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const SvnRepoListTagsCommand *>(command);
       if (listTagsCommand) {
         listTagsWorker(*listTagsCommand);
+      }
+      break;
+    }
+    case SvnRepoCommandType::ListRemoteTags: {
+      const auto *listRemoteTagsCommand =
+          dynamic_cast<const SvnRepoListRemoteTagsCommand *>(command);
+      if (listRemoteTagsCommand) {
+        listRemoteTagsWorker(*listRemoteTagsCommand);
       }
       break;
     }

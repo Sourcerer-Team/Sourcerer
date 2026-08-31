@@ -3520,6 +3520,14 @@ bool GitRepoManagerBridgeImpl::getTags() {
   return true;
 }
 
+bool GitRepoManagerBridgeImpl::getRemoteTags() {
+  LOG_PERF(0, "Enter");
+
+  LOG_PERF(0, "Exit")
+
+  return true;
+}
+
 QPair<QString, QString> GitRepoManagerBridgeImpl::getUpstream(
     const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");

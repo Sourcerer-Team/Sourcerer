@@ -295,6 +295,7 @@ QStringList listSubmodules(const QString &path);
 QVector<SubmoduleInfo> listSubmodulesWithStatus(const QString &path,
                                                 const bool &quitFlag);
 QStringList listTags(const QString &path);
+QStringList listRemoteTags(const QString &path);
 bool merge(const QString &path, const QString &sourceBranch,
            const QString &destinationBranch, const QString &author,
            const QString &email);

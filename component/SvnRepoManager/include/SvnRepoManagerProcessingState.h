@@ -103,6 +103,8 @@ private:
   void scheduleWorkerForListSubmodulesWithStatus(
       const Structs::SvnRepoListSubmodulesWithStatusCommand &command);
   void listTagsWorker(const Structs::SvnRepoListTagsCommand &command);
+  void
+  listRemoteTagsWorker(const Structs::SvnRepoListRemoteTagsCommand &command);
   void mergeWorker(const Structs::SvnRepoMergeCommand &command);
   void openRepoWorker(const Structs::SvnRepoOpenCommand &command);
   void pullWorker(const Structs::SvnRepoPullCommand &command);
@@ -225,6 +227,8 @@ private:
       const Structs::SvnRepoListSubmodulesCommand &command);
   void
   scheduleWorkerForListTags(const Structs::SvnRepoListTagsCommand &command);
+  void scheduleWorkerForListRemoteTags(
+      const Structs::SvnRepoListRemoteTagsCommand &command);
   void scheduleWorkerForMerge(const Structs::SvnRepoMergeCommand &command);
   void scheduleWorkerForOpenRepo(const Structs::SvnRepoOpenCommand &command);
   void scheduleWorkerForPull(const Structs::SvnRepoPullCommand &command);

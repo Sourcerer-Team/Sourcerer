@@ -134,6 +134,8 @@ SvnRepoManager::SvnRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerListTags, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerListRemoteTags, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerMerge, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerRebase, callbackFunc));
@@ -295,6 +297,8 @@ SvnRepoManager::~SvnRepoManager() {
       EventManager::EventType::SvnRepoManagerListRemotes, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerListTags, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerListRemoteTags, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerMerge, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -783,6 +787,14 @@ void SvnRepoManager::eventCallback(const EventManager::Event &event) {
     SvnRepoManagerEvent listTagsEvent(EventType::ListTags);
     listTagsEvent.addParam(QVariant::fromValue(listTagsCommand));
     _fsm.send(listTagsEvent);
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerListRemoteTags: {
+    const auto listRemoteTagsCommand =
+        event.data<SvnRepoListRemoteTagsCommand>();
+    SvnRepoManagerEvent listRemoteTagsEvent(EventType::ListRemoteTags);
+    listRemoteTagsEvent.addParam(QVariant::fromValue(listRemoteTagsCommand));
+    _fsm.send(listRemoteTagsEvent);
     break;
   }
   case EventManager::EventType::SvnRepoManagerMerge: {

@@ -224,11 +224,13 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   ui->localPage->setContentsMargins(0, 0, 0, 0);
   ui->remotePage->setContentsMargins(0, 0, 0, 0);
   ui->tagsPage->setContentsMargins(0, 0, 0, 0);
+  ui->remoteTagsPage->setContentsMargins(0, 0, 0, 0);
   ui->toolBox->setItemText(0, tr("Local Branches"));
   ui->toolBox->setItemText(1, tr("Remote Branches"));
   ui->toolBox->setItemText(2, tr("Tags"));
-  ui->toolBox->setItemText(3, tr("Submodules"));
-  ui->toolBox->setItemText(4, tr("Stashes"));
+  ui->toolBox->setItemText(3, tr("Remote tags"));
+  ui->toolBox->setItemText(4, tr("Submodules"));
+  ui->toolBox->setItemText(5, tr("Stashes"));
   ui->toolBox->setAttribute(Qt::WA_StyledBackground, true);
   ui->splitter->setStretchFactor(0, 2);
   ui->splitter->setStretchFactor(1, 6);
@@ -237,13 +239,28 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
 
   const bool gitType = type == ContainerType::GitRepo;
 
-  if (!gitType) {
+  if (gitType) {
+    ui->remoteTagsPage->hide();
+    const int remoteTagsIndex = ui->toolBox->indexOf(ui->remoteTagsPage);
+    if (remoteTagsIndex != -1) {
+      ui->toolBox->removeItem(remoteTagsIndex);
+    }
+  } else {
     ui->remotesPage->hide();
     ui->submodulesPage->hide();
     ui->stashesPage->hide();
-    ui->toolBox->removeItem(5);
-    ui->toolBox->removeItem(4);
-    ui->toolBox->removeItem(3);
+    const int remotesIndex = ui->toolBox->indexOf(ui->remotesPage);
+    if (remotesIndex != -1) {
+      ui->toolBox->removeItem(remotesIndex);
+    }
+    const int submodulesIndex = ui->toolBox->indexOf(ui->submodulesPage);
+    if (submodulesIndex != -1) {
+      ui->toolBox->removeItem(submodulesIndex);
+    }
+    const int stashesIndex = ui->toolBox->indexOf(ui->stashesPage);
+    if (stashesIndex != -1) {
+      ui->toolBox->removeItem(stashesIndex);
+    }
   }
   ui->historyView->setItemDelegateForColumn(
       0, new Delegates::HistorySliceTableColumnDelegate(ui->historyView));
@@ -741,6 +758,13 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   connect(ui->tagsPage, &GitTagsPage::tagRightClicked, this,
           &RepoContainer::onTagRightClicked);
   connect(ui->tagsPage, &GitTagsPage::emptyAreaRightClicked, this,
+          &RepoContainer::onTagsEmptyAreaRightClicked);
+
+  connect(ui->remoteTagsPage, &GitTagsPage::tagSelected, this,
+          &RepoContainer::onTagSelected);
+  connect(ui->remoteTagsPage, &GitTagsPage::tagRightClicked, this,
+          &RepoContainer::onTagRightClicked);
+  connect(ui->remoteTagsPage, &GitTagsPage::emptyAreaRightClicked, this,
           &RepoContainer::onTagsEmptyAreaRightClicked);
 
   connect(ui->stashesPage, &StashesPage::stashSelected, this,
@@ -5676,6 +5700,7 @@ bool RepoContainer::refreshHistory(const WeakPtr &guard) {
   ok &= ok && getActiveRemoteBranch();
   ok &= ok && _bridge->getTags();
   ok &= ok && getActiveTag();
+  ok &= ok && _bridge->getRemoteTags();
   ok &= ok && _bridge->getSubmodules();
   ok &= ok && _bridge->getRemotes(guard);
   ok &= ok && _bridge->getStashes(guard);
@@ -6184,6 +6209,9 @@ void RepoContainer::updateLocalBranchesModelActiveBranch(
       ui->remotePage->updateActiveBranch(
           QString());                           // deselect remote branch if any
       ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
+      if (type() == ContainerType::SvnRepo) {
+        ui->remoteTagsPage->updateActiveTag(QString());
+      }
 
       // Update the active remote in RemotesPage to match the branch's upstream
       _dispatcher.dispatch([=]() {
@@ -6198,6 +6226,9 @@ void RepoContainer::updateLocalBranchesModelActiveBranch(
     } else {
       ui->remotePage->clearCached();
       ui->tagsPage->clearCached();
+      if (type() == ContainerType::SvnRepo) {
+        ui->remoteTagsPage->clearCached();
+      }
     }
   }
 
@@ -6268,9 +6299,15 @@ void RepoContainer::updateRemoteBranchesModelActiveBranch(
       ui->localPage->updateActiveBranch(
           QString());                           // deselect remote branch if any
       ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
+      if (type() == ContainerType::SvnRepo) {
+        ui->remoteTagsPage->updateActiveTag(QString());
+      }
     } else {
       ui->localPage->clearCached();
       ui->tagsPage->clearCached();
+      if (type() == ContainerType::SvnRepo) {
+        ui->remoteTagsPage->clearCached();
+      }
     }
   }
 
@@ -6310,6 +6347,9 @@ void RepoContainer::updateTagsModelActiveTag(const WeakPtr &guard,
     ui->remotePage->clearCached();
     ui->remotePage->updateActiveBranch(QString());
     ui->tagsPage->updateActiveTag(activeTag); // deselect local branch if any
+    if (type() == ContainerType::SvnRepo) {
+      ui->remoteTagsPage->updateActiveTag(activeTag);
+    }
   }
 
   _dispatcher.dispatch([=]() { (void)_bridge->getBranchHistory(guard); });
@@ -6350,4 +6390,18 @@ void RepoContainer::updateTagsModel(const WeakPtr &guard,
 
   LOG_PERF(0, "Exit")
 }
+
+void RepoContainer::updateRemoteTagsModel(const WeakPtr &guard,
+                                          const QStringList &tags) const {
+  LOG_PERF(0, "Enter");
+
+  if (const auto locked = guard.lock()) {
+    if (type() == ContainerType::SvnRepo) {
+      ui->remoteTagsPage->updateModel(tags);
+    }
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
 } // namespace GuiManager::Containers

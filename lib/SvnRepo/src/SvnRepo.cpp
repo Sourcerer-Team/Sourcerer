@@ -1666,6 +1666,72 @@ QStringList listTags(const QString &path) {
   return tags;
 }
 
+QStringList listRemoteTags(const QString &path) {
+  LOG_PERF(0, "Enter");
+
+  const QString normalizedPath = QFileInfo(path).absoluteFilePath();
+  if (normalizedPath.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  ActiveBranchContext repoContext;
+  const bool infoSuccess =
+      runWithClientContext([&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        svn_opt_revision_t pegRev;
+        pegRev.kind = svn_opt_revision_unspecified;
+
+        svn_opt_revision_t rev;
+        rev.kind = svn_opt_revision_unspecified;
+
+        const QByteArray pathBytes = normalizedPath.toUtf8();
+        svn_error_t *error = svn_client_info4(
+            pathBytes.constData(), &pegRev, &rev, svn_depth_empty, FALSE, FALSE,
+            FALSE, nullptr, activeBranchInfoCallback, &repoContext, ctx, pool);
+        if (error) {
+          setLastError(SvnError::ErrorWhileOpening, error->apr_err,
+                       svnErrorMessage(error));
+          svn_error_clear(error);
+          return false;
+        }
+
+        return true;
+      });
+
+  if (!infoSuccess) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QString rootUrl = trimmedPath(repoContext.reposRootUrl);
+  if (rootUrl.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  QStringList rootEntries;
+  if (!collectRemoteBranchesFromUrl(rootUrl, false, rootEntries)) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  QStringList remoteTags;
+  const bool hasBranchesDir = rootEntries.contains(QStringLiteral("tags"));
+  if (hasBranchesDir) {
+    const QString tagsUrl = rootUrl + QStringLiteral("/tags");
+    if (!collectRemoteBranchesFromUrl(tagsUrl, true, remoteTags)) {
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+  }
+
+  remoteTags.removeDuplicates();
+  remoteTags.sort(Qt::CaseInsensitive);
+
+  LOG_PERF(0, "Exit");
+  return remoteTags;
+}
+
 bool merge(const QString &, const QString &, const QString &, const QString &,
            const QString &) {
   return false;
