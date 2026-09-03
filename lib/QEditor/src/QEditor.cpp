@@ -135,10 +135,37 @@ protected:
   }
 
   void mousePressEvent(QMouseEvent *event) override {
-    if (_editor && event) {
+    if (_editor && event && event->button() == Qt::LeftButton) {
       const QPoint editorPoint = mapTo(_editor, event->position().toPoint());
       const int line = _editor->lineFromPoint(editorPoint);
-      emit _editor->marginClicked(0, line, event->modifiers());
+
+      int margin = -1;
+      int x = 0;
+      for (int i = 0; i < 4; ++i) {
+        int width = 0;
+        if (i == 0 && _editor->_marginLineNumbers[0]) {
+          const int digits = QString::number(std::max(1, _editor->blockCount())).size();
+          width = _editor->fontMetrics().horizontalAdvance(QString(digits, QChar('9'))) + 12;
+        } else if (_editor->_marginWidths[i] > 0) {
+          width = _editor->_marginWidths[i];
+        }
+
+        if (width <= 0) {
+          continue;
+        }
+
+        if (event->position().x() >= x && event->position().x() < x + width) {
+          margin = i;
+          break;
+        }
+        x += width;
+      }
+
+      if (margin != -1) {
+        emit _editor->marginClicked(margin, line, event->modifiers());
+        event->accept();
+        return;
+      }
     }
     QWidget::mousePressEvent(event);
   }
@@ -703,10 +730,12 @@ void QsciScintilla::updateViewportMargins() {
 int QsciScintilla::lineNumberAreaWidth() const {
   int width = 0;
   const int digits = QString::number(std::max(1, blockCount())).size();
-  if (_marginLineNumbers[0]) {
-    const int digitWidth =
-        fontMetrics().horizontalAdvance(QString(digits, QChar('9'))) + 12;
-    width = digitWidth;
+  for (int i = 0; i < 4; ++i) {
+    if (i == 0 && _marginLineNumbers[0]) {
+      width += fontMetrics().horizontalAdvance(QString(digits, QChar('9'))) + 12;
+    } else if (_marginWidths[i] > 0) {
+      width += _marginWidths[i];
+    }
   }
 
   if (width == 0) {
@@ -728,9 +757,25 @@ void QsciScintilla::lineNumberAreaPaintEvent(QPaintEvent *event) {
 
   const QColor textColor =
       _marginsForeground.isValid() ? _marginsForeground : palette().text().color();
+  const QColor markerColor = textColor;
 
-  const int areaWidth = _lineNumberArea->width();
-  const int numberRightEdge = areaWidth - 4;
+  const int digits = QString::number(std::max(1, blockCount())).size();
+  int marginWidths[4] = {0, 0, 0, 0};
+  int marginOffsets[4] = {0, 0, 0, 0};
+  int x = 0;
+  for (int i = 0; i < 4; ++i) {
+    if (i == 0 && _marginLineNumbers[0]) {
+      marginWidths[i] = fontMetrics().horizontalAdvance(QString(digits, QChar('9'))) + 12;
+    } else if (_marginWidths[i] > 0) {
+      marginWidths[i] = _marginWidths[i];
+    }
+    marginOffsets[i] = x;
+    x += marginWidths[i];
+  }
+
+  if (x == 0) {
+    return;
+  }
 
   QTextBlock block = firstVisibleBlock();
   int blockNumber = block.blockNumber();
@@ -740,11 +785,71 @@ void QsciScintilla::lineNumberAreaPaintEvent(QPaintEvent *event) {
 
   while (block.isValid() && top <= event->rect().bottom()) {
     if (block.isVisible() && bottom >= event->rect().top()) {
-      if (_marginLineNumbers[0]) {
-        const QString number = QString::number(blockNumber + 1);
-        painter.setPen(textColor);
-        painter.drawText(0, top, numberRightEdge, lineHeight, Qt::AlignRight,
-                         number);
+      const int markers = markersAtLine(blockNumber);
+
+      for (int margin = 0; margin < 4; ++margin) {
+        const int marginWidth = marginWidths[margin];
+        if (marginWidth <= 0) {
+          continue;
+        }
+
+        const QRect marginRect(marginOffsets[margin], top, marginWidth, lineHeight);
+        painter.fillRect(marginRect,
+                         _marginBackgroundColors.value(margin,
+                             _marginsBackground.isValid() ? _marginsBackground
+                                                          : palette().window().color()));
+
+        if (margin == 0 && _marginLineNumbers[0]) {
+          const QString number = QString::number(blockNumber + 1);
+          painter.setPen(textColor);
+          painter.drawText(marginRect.adjusted(0, 0, -4, 0), Qt::AlignRight | Qt::AlignVCenter,
+                           number);
+          continue;
+        }
+
+        const int mask = _marginMarkerMasks[margin];
+        const int visibleMarkers = markers & mask;
+        if (visibleMarkers == 0) {
+          continue;
+        }
+
+        int markerIndex = -1;
+        for (int candidate : _markers.value(blockNumber)) {
+          if (visibleMarkers & (1 << candidate)) {
+            markerIndex = candidate;
+            break;
+          }
+        }
+
+        if (markerIndex < 0) {
+          continue;
+        }
+
+        const int symbol = _markerSymbols.value(markerIndex, Background);
+        const QRect symbolRect = marginRect.adjusted(3, 3, -3, -3);
+        const QColor fillColor = _markerBackgroundColors.value(markerIndex, markerColor);
+        const QColor strokeColor = _markerForegroundColors.value(markerIndex, markerColor);
+
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        switch (symbol) {
+        case BoxedPlus: {
+          painter.setPen(QPen(strokeColor, 1.5));
+          painter.setBrush(fillColor);
+          painter.drawRoundedRect(symbolRect, 2, 2);
+          painter.drawLine(symbolRect.center().x(), symbolRect.top() + 3,
+                           symbolRect.center().x(), symbolRect.bottom() - 3);
+          painter.drawLine(symbolRect.left() + 3, symbolRect.center().y(),
+                           symbolRect.right() - 3, symbolRect.center().y());
+          break;
+        }
+        case Background:
+        default: {
+          painter.fillRect(symbolRect, fillColor);
+          painter.setPen(strokeColor);
+          painter.drawRect(symbolRect);
+          break;
+        }
+        }
       }
     }
 

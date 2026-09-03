@@ -368,7 +368,7 @@ void SideBySideDiffView::loadAndHighlight(
   LOG_PERF(0, "Exit");
 }
 
-void SideBySideDiffView::setupEditors(const QString &extension) {
+void SideBySideDiffView::setupEditors(const QString &filePath) {
   LOG_PERF(0, "Enter");
 
   _leftEditor->setReadOnly(true);
@@ -414,4 +414,3 @@ void SideBySideDiffView::syncScrollbars() {
 }
 
 } // namespace GuiManager::Widgets
-������������������݈8��&�
