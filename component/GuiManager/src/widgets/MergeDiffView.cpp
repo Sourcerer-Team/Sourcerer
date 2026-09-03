@@ -48,6 +48,8 @@ MergeDiffView::MergeDiffView(QWidget *parent)
           &MergeDiffView::leftMarginClicked);
   connect(_rightEditor, &QsciScintilla::marginClicked, this,
           &MergeDiffView::rightMarginClicked);
+  connect(_bottomEditor, &QsciScintilla::marginClicked, this,
+          &MergeDiffView::bottomMarginClicked);
 
   syncScrollbars();
 
@@ -196,6 +198,8 @@ void MergeDiffView::refreshScintillaTheme() {
 
   _leftEditor->setMarginBackgroundColor(3, marginColor);
   _rightEditor->setMarginBackgroundColor(3, marginColor);
+  _bottomEditor->setMarginBackgroundColor(1, marginColor);
+  _bottomEditor->setMarginBackgroundColor(2, marginColor);
 
   _leftEditor->setMarkerBackgroundColor(deletedColor, 1);
   _leftEditor->setMarkerBackgroundColor(addedColor, 2);
@@ -210,6 +214,10 @@ void MergeDiffView::refreshScintillaTheme() {
   _bottomEditor->setMarkerBackgroundColor(changedColor, 1);
   _bottomEditor->setMarkerBackgroundColor(deletedColor, 2);
   _bottomEditor->setMarkerBackgroundColor(addedColor, 3);
+  _bottomEditor->setMarkerBackgroundColor(plusColor, 4);
+  _bottomEditor->setMarkerBackgroundColor(rightPlusColor, 5);
+  _bottomEditor->setMarkerForegroundColor(Qt::black, 4);
+  _bottomEditor->setMarkerForegroundColor(Qt::black, 5);
 
   DarkThemeLexersHighlighter highlighter;
   const auto editors = findChildren<QsciScintilla *>();
@@ -225,9 +233,7 @@ void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
 
   _filePath = filePath;
 
-  const QFileInfo fileInfo(_filePath);
-
-  setupEditors(fileInfo.suffix());
+  setupEditors(_filePath);
 
   _content = parseContentWithMarkers(contentWithMarkers);
 
@@ -515,6 +521,128 @@ void MergeDiffView::rightMarginClicked(int margin, int line,
   LOG_PERF(0, "Exit");
 }
 
+void MergeDiffView::applyConflictChoice(int rangeIndex,
+                                        MergeDiffResolutionType resolution) {
+  LOG_PERF(0, "Enter");
+
+  if (rangeIndex < 0 || rangeIndex >= _content.rangesBottom.length()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const MergeDiffRange &rangeTop = _content.rangesTop[rangeIndex];
+  MergeDiffRange &rangeBottom = _content.rangesBottom[rangeIndex];
+  const int removedLinesSoFar = removedLinesBeforeRange(rangeIndex);
+
+  const QStringList contentLeftList = _content.left.split('\n');
+  const QStringList contentRightList = _content.right.split('\n');
+  QStringList contentBottomList = _content.bottom.split('\n');
+
+  Q_ASSERT(rangeBottom.leftStart - removedLinesSoFar >= 0);
+  if (rangeBottom.leftStart - removedLinesSoFar < 0) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const int removeIndex = rangeBottom.leftStart - removedLinesSoFar;
+  contentBottomList.remove(removeIndex,
+                           rangeBottom.rightEnd - rangeBottom.leftStart + 1);
+
+  int newStart = std::numeric_limits<int>::max();
+  int newEnd = std::numeric_limits<int>::min();
+
+  const QStringList &sourceList =
+      resolution == MergeDiffResolutionType::Left ? contentLeftList
+                                                  : contentRightList;
+  const int sourceStart = resolution == MergeDiffResolutionType::Left
+                              ? rangeTop.leftStart
+                              : rangeTop.rightStart;
+  const int sourceEnd = resolution == MergeDiffResolutionType::Left
+                            ? rangeTop.leftEnd
+                            : rangeTop.rightEnd;
+
+  for (int i = sourceStart; i < sourceEnd; ++i) {
+    Q_ASSERT(i < sourceList.length());
+    if (i >= sourceList.length()) {
+      continue;
+    }
+
+    const int insertIndex = removeIndex + (i - sourceStart);
+    if (insertIndex < newStart) {
+      newStart = insertIndex;
+    }
+    if (insertIndex > newEnd) {
+      newEnd = insertIndex;
+    }
+    if (insertIndex > contentBottomList.length()) {
+      contentBottomList.resize(insertIndex);
+    }
+    contentBottomList.insert(insertIndex, sourceList[i]);
+  }
+
+  const int horizontalScrollbarPosition =
+      _bottomEditor->horizontalScrollBar()->value();
+  const int verticalScrollbarPosition =
+      _bottomEditor->verticalScrollBar()->value();
+
+  _content.bottom = contentBottomList.join('\n');
+  _bottomEditor->setText(_content.bottom);
+  _bottomEditor->horizontalScrollBar()->setValue(horizontalScrollbarPosition);
+  _bottomEditor->verticalScrollBar()->setValue(verticalScrollbarPosition);
+
+  _leftEditor->markerDelete(
+      rangeTop.leftStart + (rangeTop.leftEnd - rangeTop.leftStart) / 2, 3);
+  _rightEditor->markerDelete(
+      rangeTop.rightStart + (rangeTop.rightEnd - rangeTop.rightStart) / 2, 3);
+
+  updateBottomRangesFromIndex(rangeIndex, resolution, newStart, newEnd);
+  highlightConflictsInBottomEditor();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MergeDiffView::bottomMarginClicked(int margin, int line,
+                                        Qt::KeyboardModifiers state) {
+  LOG_PERF(0, "Enter");
+  Q_UNUSED(state);
+
+  if (margin != 1 && margin != 2) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  int rangeIndex = -1;
+  for (int i = 0; i < _content.rangesBottom.length(); ++i) {
+    const MergeDiffRange &rangeBottom = _content.rangesBottom[i];
+    const int removedLinesSoFar = removedLinesBeforeRange(i);
+    const int startLine = rangeBottom.leftStart - removedLinesSoFar;
+    const int endLine = rangeBottom.rightEnd - removedLinesSoFar;
+
+    if (margin == 1 && line == startLine &&
+        (_bottomEditor->markersAtLine(line) & (1 << 4))) {
+      rangeIndex = i;
+      break;
+    }
+
+    if (margin == 2 && line == endLine &&
+        (_bottomEditor->markersAtLine(line) & (1 << 5))) {
+      rangeIndex = i;
+      break;
+    }
+  }
+
+  if (rangeIndex == -1) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  applyConflictChoice(rangeIndex,
+                      margin == 1 ? MergeDiffResolutionType::Left
+                                  : MergeDiffResolutionType::Right);
+
+  LOG_PERF(0, "Exit");
+}
+
 int MergeDiffView::conflictsBeforeIndex(int index) const {
   LOG_PERF(0, "Enter");
 
@@ -535,16 +663,23 @@ int MergeDiffView::conflictsBeforeIndex(int index) const {
 void MergeDiffView::highlightConflictsInBottomEditor() {
   LOG_PERF(0, "Enter");
 
+  _bottomEditor->markerDeleteAll();
+
   for (int i = 0; i < _content.rangesBottom.length(); ++i) {
     const MergeDiffRange &rangeBottom = _content.rangesBottom[i];
 
     switch (rangeBottom.resolution) {
     case MergeDiffResolutionType::Unknown: {
       const int removedLinesSoFar = removedLinesBeforeRange(i);
+      const int startLine = rangeBottom.leftStart - removedLinesSoFar;
+      const int separatorLine = rangeBottom.rightStart - removedLinesSoFar;
+      const int endLine = rangeBottom.rightEnd - removedLinesSoFar;
 
-      _bottomEditor->markerAdd(rangeBottom.leftStart - removedLinesSoFar, 1);
-      _bottomEditor->markerAdd(rangeBottom.rightStart - removedLinesSoFar, 1);
-      _bottomEditor->markerAdd(rangeBottom.rightEnd - removedLinesSoFar, 1);
+      _bottomEditor->markerAdd(startLine, 1);
+      _bottomEditor->markerAdd(separatorLine, 1);
+      _bottomEditor->markerAdd(endLine, 1);
+      _bottomEditor->markerAdd(startLine, 4);
+      _bottomEditor->markerAdd(endLine, 5);
 
       for (int j = rangeBottom.leftStart + 1; j < rangeBottom.leftEnd; ++j) {
         _bottomEditor->markerAdd(j - removedLinesSoFar, 2);
@@ -598,7 +733,7 @@ int MergeDiffView::removedLinesBeforeRange(int rangeIndex) const {
   return removedLinesSoFar;
 }
 
-void MergeDiffView::setupEditors(const QString &extension) {
+void MergeDiffView::setupEditors(const QString &filePath) {
   LOG_PERF(0, "Enter");
 
   _leftEditor->setReadOnly(true);
@@ -607,7 +742,7 @@ void MergeDiffView::setupEditors(const QString &extension) {
 
   const QScintillaLexerFactory factory;
 
-  auto *lexer = factory.createLexerForExtension(extension, this);
+  auto *lexer = factory.createLexerForFile(filePath, this);
 
   _leftEditor->setLexer(lexer);
   _rightEditor->setLexer(lexer);
@@ -647,10 +782,20 @@ void MergeDiffView::setupEditors(const QString &extension) {
 
   _bottomEditor->setMarginType(0, QsciScintilla::NumberMargin);
   _bottomEditor->setMarginType(1, QsciScintilla::SymbolMargin);
-  _bottomEditor->setMarginWidth(1, 0);
+  _bottomEditor->setMarginType(2, QsciScintilla::SymbolMargin);
+  _bottomEditor->setMarginWidth(1, PLUS_MARKER_MARGIN_WIDTH);
+  _bottomEditor->setMarginWidth(2, PLUS_MARKER_MARGIN_WIDTH);
+  _bottomEditor->setMarginBackgroundColor(1, QColor(0x23272e));
+  _bottomEditor->setMarginBackgroundColor(2, QColor(0x23272e));
+  _bottomEditor->setMarginMarkerMask(1, 1 << 4);
+  _bottomEditor->setMarginMarkerMask(2, 1 << 5);
+  _bottomEditor->setMarginSensitivity(1, true);
+  _bottomEditor->setMarginSensitivity(2, true);
   _bottomEditor->markerDefine(QsciScintilla::Background, 1);
   _bottomEditor->markerDefine(QsciScintilla::Background, 2);
   _bottomEditor->markerDefine(QsciScintilla::Background, 3);
+  _bottomEditor->markerDefine(QsciScintilla::BoxedPlus, 4);
+  _bottomEditor->markerDefine(QsciScintilla::BoxedPlus, 5);
 
   _leftEditor->setWrapMode(QsciScintilla::WrapNone);
   _rightEditor->setWrapMode(QsciScintilla::WrapNone);

@@ -3,6 +3,7 @@
 #include <QFileInfo>
 #include <Qsci/qscilexer.h>
 #include <Qsci/qscilexerbash.h>
+
 #include <Qsci/qscilexerbatch.h>
 #include <Qsci/qscilexercmake.h>
 #include <Qsci/qscilexercpp.h>
@@ -44,6 +45,7 @@ using namespace GuiManager;
 QScintillaLexerFactory::QScintillaLexerFactory(QObject *parent)
     : QObject(parent) {
   initializeExtensionMappings();
+  initializeFilenameMappings();
   initializeLexerDescriptions();
 }
 
@@ -51,6 +53,27 @@ QScintillaLexerFactory::~QScintillaLexerFactory() {}
 
 QsciLexer *QScintillaLexerFactory::createLexerForFile(const QString &filePath,
                                                       QObject *parent) const {
+  const QString normalizedFileName =
+      normalizeFileName(QFileInfo(filePath).fileName());
+
+  if (_filenameToLexer.contains(normalizedFileName)) {
+    QsciLexer *lexer = createLexerByName(_filenameToLexer.value(normalizedFileName), parent);
+    if (lexer) {
+      emit lexerCreated(lexer, normalizedFileName);
+    }
+    return lexer;
+  }
+
+  const QFileInfo fileInfo(filePath);
+  const QString completeSuffix = normalizeExtension(fileInfo.completeSuffix());
+  if (!completeSuffix.isEmpty() && _extensionToLexer.contains(completeSuffix)) {
+    QsciLexer *lexer = createLexerByName(_extensionToLexer.value(completeSuffix), parent);
+    if (lexer) {
+      emit lexerCreated(lexer, completeSuffix);
+    }
+    return lexer;
+  }
+
   QString extension = extractExtension(filePath);
   return createLexerForExtension(extension, parent);
 }
@@ -144,8 +167,17 @@ QString QScintillaLexerFactory::normalizeExtension(const QString &extension) {
   return normalized;
 }
 
+QString QScintillaLexerFactory::normalizeFileName(const QString &fileName) {
+  QString normalized = fileName.toLower();
+  if (normalized.startsWith('.')) {
+    normalized = normalized.mid(1);
+  }
+  return normalized;
+}
+
 void QScintillaLexerFactory::refreshMappings() {
   initializeExtensionMappings();
+  initializeFilenameMappings();
   initializeLexerDescriptions();
 }
 
@@ -186,6 +218,7 @@ QsciLexer *QScintillaLexerFactory::createSqlLexer(QObject *parent) const {
 QsciLexer *QScintillaLexerFactory::createBashLexer(QObject *parent) const {
   return new QsciLexerBash(parent);
 }
+
 
 QsciLexer *QScintillaLexerFactory::createBatchLexer(QObject *parent) const {
   return new QsciLexerBatch(parent);
@@ -313,6 +346,7 @@ QsciLexer *QScintillaLexerFactory::createLexerByType(const QString &lexerName,
     return createSqlLexer(parent);
   if (lexerName == "Bash")
     return createBashLexer(parent);
+
   if (lexerName == "Batch")
     return createBatchLexer(parent);
   if (lexerName == "Makefile")
@@ -372,6 +406,7 @@ QsciLexer *QScintillaLexerFactory::createLexerByType(const QString &lexerName,
 
 void QScintillaLexerFactory::initializeExtensionMappings() {
   _extensionToLexer.clear();
+  _filenameToLexer.clear();
 
   // C/C++ family
   _extensionToLexer["c"] = "CPP";
@@ -538,6 +573,37 @@ void QScintillaLexerFactory::initializeExtensionMappings() {
   _extensionToLexer["spice"] = "Spice";
   _extensionToLexer["cir"] = "Spice";
   _extensionToLexer["net"] = "Spice";
+}
+
+void QScintillaLexerFactory::initializeFilenameMappings() {
+  _filenameToLexer.clear();
+
+  // Build/configuration files where the filename matters more than suffixes.
+  _filenameToLexer["cmakelists.txt"] = "CMake";
+  _filenameToLexer["makefile"] = "Makefile";
+  _filenameToLexer["gnumakefile"] = "Makefile";
+  _filenameToLexer["bsdmakefile"] = "Makefile";
+  _filenameToLexer["dockerfile"] = "Bash";
+  _filenameToLexer["containerfile"] = "Bash";
+  _filenameToLexer["gitignore"] = "Properties";
+  _filenameToLexer["gitattributes"] = "Properties";
+  _filenameToLexer["gitmodules"] = "Properties";
+  _filenameToLexer["editorconfig"] = "Properties";
+  _filenameToLexer["readme"] = "Markdown";
+  _filenameToLexer["readme.md"] = "Markdown";
+  _filenameToLexer["changelog"] = "Markdown";
+  _filenameToLexer["news"] = "Markdown";
+  _filenameToLexer["license"] = "Markdown";
+  _filenameToLexer["copying"] = "Markdown";
+  _filenameToLexer["procfile"] = "Bash";
+  _filenameToLexer["gemfile"] = "Ruby";
+  _filenameToLexer["rakefile"] = "Ruby";
+  _filenameToLexer["vagrantfile"] = "Ruby";
+  _filenameToLexer["brewfile"] = "Ruby";
+  _filenameToLexer["justfile"] = "Makefile";
+  _filenameToLexer["jenkinsfile"] = "Custom";
+  _filenameToLexer["meson.build"] = "Python";
+  _filenameToLexer["meson_options.txt"] = "Python";
 }
 
 void QScintillaLexerFactory::initializeLexerDescriptions() {
