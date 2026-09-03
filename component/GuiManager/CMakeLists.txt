@@ -270,8 +270,7 @@ includeLib(GuiManager Log)
 includeLib(GuiManager Util)
 includeLib(GuiManager QtWaitingSpinner)
 includeLib(GuiManager QVTerminal)
-
-add_subdirectory(../../lib/QScintilla/src "QScintilla")
+includeLib(GuiManager QEditor)
 
 target_link_libraries(GuiManager PRIVATE
         Qt6::Core
@@ -282,7 +281,6 @@ target_link_libraries(GuiManager PRIVATE
         libgit2
         util
         libzip::zip
-        qscintilla
 )
 
 if(TARGET Qt6::WebEngineWidgets)

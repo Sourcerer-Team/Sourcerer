@@ -221,6 +221,19 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
             ui->toolButtonPageDisplaySignature->setArrowType(
                 checked ? Qt::DownArrow : Qt::RightArrow);
           });
+  connect(ui->pushButtonPageDisplaySignatureCopy, &QPushButton::clicked, this,
+          [this]() {
+            QGuiApplication::clipboard()->setText(_currentSignature);
+            const qlonglong tooltipDisplayTime = _configManager.getLong(
+                ConfigManager::ConfigKey::TooltipDisplayTime);
+            QToolTip::showText(
+                ui->pushButtonPageDisplaySignatureCopy->mapToGlobal(
+                    QPoint(0, ui->pushButtonPageDisplaySignatureCopy->height())),
+                tr("Signature copied to clipboard."),
+                ui->pushButtonPageDisplaySignatureCopy,
+                ui->pushButtonPageDisplaySignatureCopy->rect(),
+                tooltipDisplayTime);
+          });
 
   ui->historyView->setVisible(false);
   ui->spinner->setColor(Qt::lightGray);
@@ -5850,11 +5863,11 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     }
     const bool hasSignatureBlock =
         commitInfo.signedCommit && !commitInfo.signature.isEmpty();
+    _currentSignature = hasSignatureBlock ? commitInfo.signature : QString();
     ui->widgetPageDisplaySignatureSection->setVisible(hasSignatureBlock);
+    ui->pushButtonPageDisplaySignatureCopy->setEnabled(hasSignatureBlock);
     ui->toolButtonPageDisplaySignature->setChecked(false);
     ui->widgetPageDisplaySignatureContent->setVisible(false);
-    ui->plainTextEditPageDisplaySignature->setPlainText(
-        hasSignatureBlock ? commitInfo.signature : QString());
 
     QTextCursor cursor = ui->textEditPageDisplayDescription->textCursor();
     QTextBlockFormat format = cursor.blockFormat();

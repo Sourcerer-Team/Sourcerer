@@ -2158,7 +2158,7 @@ void GitRepoManagerBridgeImpl::onStashFileSelected(const QModelIndex &index) {
         const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
         _container.ui->sideBySideDiffViewerStash->loadAndHighlight(
             filesDiff.repoContent.first(), filesDiff.deltas.first(),
-            fileInfo.suffix());
+            fileInfo.absoluteFilePath());
       }
 
       _container.ui->stackedWidgetStashDiff->setCurrentIndex(
@@ -2379,7 +2379,7 @@ void GitRepoManagerBridgeImpl::diff(const QWeakPointer<GitRepoContainer> &guard,
       const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
       _container.ui->sideBySideDiffViewer->loadAndHighlight(
           filesDiff.repoContent.first(), filesDiff.deltas.first(),
-          fileInfo.suffix());
+          fileInfo.absoluteFilePath());
     }
 
     _container.showSpinnerOverlay(false);
@@ -2621,7 +2621,7 @@ void GitRepoManagerBridgeImpl::diffFromCommit(
       const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
       _container.ui->sideBySideDiffViewer->loadAndHighlight(
           filesDiff.repoContent.first(), filesDiff.deltas.first(),
-          fileInfo.suffix());
+          fileInfo.absoluteFilePath());
     }
 
     _container.showSpinnerOverlay(false);

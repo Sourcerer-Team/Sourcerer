@@ -60,7 +60,7 @@ protected:
   void changeEvent(QEvent *event) override;
 
 private:
-  void setupEditors(const QString &extension);
+  void setupEditors(const QString &filePath);
   void refreshScintillaTheme();
   void syncScrollbars();
 

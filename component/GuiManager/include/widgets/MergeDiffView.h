@@ -67,6 +67,7 @@ public:
 private slots:
   void leftMarginClicked(int margin, int line, Qt::KeyboardModifiers state);
   void rightMarginClicked(int margin, int line, Qt::KeyboardModifiers state);
+  void bottomMarginClicked(int margin, int line, Qt::KeyboardModifiers state);
 
 protected:
   void changeEvent(QEvent *event) override;
@@ -74,8 +75,10 @@ protected:
 private:
   int conflictsBeforeIndex(int index) const;
   void highlightConflictsInBottomEditor();
+  void applyConflictChoice(int rangeIndex,
+                           MergeDiffResolutionType resolution);
   int removedLinesBeforeRange(int rangeIndex) const;
-  void setupEditors(const QString &extension);
+  void setupEditors(const QString &filePath);
   void refreshScintillaTheme();
   void syncScrollbars();
   void updateBottomRangesFromIndex(int index,
