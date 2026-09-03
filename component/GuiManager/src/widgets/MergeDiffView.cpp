@@ -225,9 +225,7 @@ void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
 
   _filePath = filePath;
 
-  const QFileInfo fileInfo(_filePath);
-
-  setupEditors(fileInfo.suffix());
+  setupEditors(_filePath);
 
   _content = parseContentWithMarkers(contentWithMarkers);
 
@@ -598,7 +596,7 @@ int MergeDiffView::removedLinesBeforeRange(int rangeIndex) const {
   return removedLinesSoFar;
 }
 
-void MergeDiffView::setupEditors(const QString &extension) {
+void MergeDiffView::setupEditors(const QString &filePath) {
   LOG_PERF(0, "Enter");
 
   _leftEditor->setReadOnly(true);
@@ -607,7 +605,7 @@ void MergeDiffView::setupEditors(const QString &extension) {
 
   const QScintillaLexerFactory factory;
 
-  auto *lexer = factory.createLexerForExtension(extension, this);
+  auto *lexer = factory.createLexerForFile(filePath, this);
 
   _leftEditor->setLexer(lexer);
   _rightEditor->setLexer(lexer);

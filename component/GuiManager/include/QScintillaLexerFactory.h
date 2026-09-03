@@ -44,6 +44,7 @@ public:
   // Utility methods
   static QString extractExtension(const QString &filePath);
   static QString normalizeExtension(const QString &extension);
+  static QString normalizeFileName(const QString &fileName);
 
 public slots:
   void refreshMappings();
@@ -92,12 +93,14 @@ private:
 
   // Helper methods
   void initializeExtensionMappings();
+  void initializeFilenameMappings();
   void initializeLexerDescriptions();
   QsciLexer *createLexerByType(const QString &lexerName, QObject *parent) const;
 
   // Member variables
   QHash<QString, QString> _extensionToLexer;  // extension -> lexer name
-  QHash<QString, QString> _lexerDescriptions; // lexer name -> description
+  QHash<QString, QString> _filenameToLexer;    // filename -> lexer name
+  QHash<QString, QString> _lexerDescriptions;  // lexer name -> description
 
   // Lexer information structure
   struct LexerInfo {

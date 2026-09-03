@@ -75,7 +75,7 @@ private:
   int conflictsBeforeIndex(int index) const;
   void highlightConflictsInBottomEditor();
   int removedLinesBeforeRange(int rangeIndex) const;
-  void setupEditors(const QString &extension);
+  void setupEditors(const QString &filePath);
   void refreshScintillaTheme();
   void syncScrollbars();
   void updateBottomRangesFromIndex(int index,

@@ -11350,7 +11350,7 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
   const git_index_entry *theirs = nullptr;
 
   while (!git_index_conflict_next(&ancestor, &ours, &theirs, iterator)) {
-    if (ours->path == nullptr || ours->path != filePathStr ||
+    if (ours == nullptr || ours->path != filePathStr ||
         theirs == nullptr || theirs->path != filePathStr) {
       continue;
     }

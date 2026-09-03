@@ -271,80 +271,77 @@ void DarkThemeLexersHighlighter::configureLexer(QsciLexer *lexer) {
     return;
   }
 
-  QString lexerType = getLexerTypeName(lexer);
-
-  if (lexerType == "QsciLexerCPP") {
+  if (dynamic_cast<QsciLexerCPP *>(lexer)) {
     configureCppLexer(lexer);
-  } else if (lexerType == "QsciLexerPython") {
+  } else if (dynamic_cast<QsciLexerPython *>(lexer)) {
     configurePythonLexer(lexer);
-  } else if (lexerType == "QsciLexerJavaScript") {
+  } else if (dynamic_cast<QsciLexerJavaScript *>(lexer)) {
     configureJavaScriptLexer(lexer);
-  } else if (lexerType == "QsciLexerHTML") {
+  } else if (dynamic_cast<QsciLexerHTML *>(lexer)) {
     configureHtmlLexer(lexer);
-  } else if (lexerType == "QsciLexerCSS") {
+  } else if (dynamic_cast<QsciLexerCSS *>(lexer)) {
     configureCssLexer(lexer);
-  } else if (lexerType == "QsciLexerXML") {
+  } else if (dynamic_cast<QsciLexerXML *>(lexer)) {
     configureXmlLexer(lexer);
-  } else if (lexerType == "QsciLexerJSON") {
+  } else if (dynamic_cast<QsciLexerJSON *>(lexer)) {
     configureJsonLexer(lexer);
-  } else if (lexerType == "QsciLexerSQL") {
+  } else if (dynamic_cast<QsciLexerSQL *>(lexer)) {
     configureSqlLexer(lexer);
-  } else if (lexerType == "QsciLexerBash") {
+  } else if (dynamic_cast<QsciLexerBash *>(lexer)) {
     configureBashLexer(lexer);
-  } else if (lexerType == "QsciLexerBatch") {
+  } else if (dynamic_cast<QsciLexerBatch *>(lexer)) {
     configureBatchLexer(lexer);
-  } else if (lexerType == "QsciLexerMakefile") {
+  } else if (dynamic_cast<QsciLexerMakefile *>(lexer)) {
     configureMakefileLexer(lexer);
-  } else if (lexerType == "QsciLexerDiff") {
+  } else if (dynamic_cast<QsciLexerDiff *>(lexer)) {
     configureDiffLexer(lexer);
-  } else if (lexerType == "QsciLexerProperties") {
+  } else if (dynamic_cast<QsciLexerProperties *>(lexer)) {
     configurePropertiesLexer(lexer);
-  } else if (lexerType == "QsciLexerYAML") {
+  } else if (dynamic_cast<QsciLexerYAML *>(lexer)) {
     configureYamlLexer(lexer);
-  } else if (lexerType == "QsciLexerMarkdown") {
+  } else if (dynamic_cast<QsciLexerMarkdown *>(lexer)) {
     configureMarkdownLexer(lexer);
-  } else if (lexerType == "QsciLexerTeX") {
+  } else if (dynamic_cast<QsciLexerTeX *>(lexer)) {
     configureTexLexer(lexer);
-  } else if (lexerType == "QsciLexerPostScript") {
+  } else if (dynamic_cast<QsciLexerPostScript *>(lexer)) {
     configurePostScriptLexer(lexer);
-  } else if (lexerType == "QsciLexerMatlab") {
+  } else if (dynamic_cast<QsciLexerMatlab *>(lexer)) {
     configureMatlabLexer(lexer);
-  } else if (lexerType == "QsciLexerOctave") {
+  } else if (dynamic_cast<QsciLexerOctave *>(lexer)) {
     configureOctaveLexer(lexer);
-  } else if (lexerType == "QsciLexerPerl") {
+  } else if (dynamic_cast<QsciLexerPerl *>(lexer)) {
     configurePerlLexer(lexer);
-  } else if (lexerType == "QsciLexerRuby") {
+  } else if (dynamic_cast<QsciLexerRuby *>(lexer)) {
     configureRubyLexer(lexer);
-  } else if (lexerType == "QsciLexerFortran") {
+  } else if (dynamic_cast<QsciLexerFortran *>(lexer)) {
     configureFortranLexer(lexer);
-  } else if (lexerType == "QsciLexerFortran77") {
+  } else if (dynamic_cast<QsciLexerFortran77 *>(lexer)) {
     configureFortran77Lexer(lexer);
-  } else if (lexerType == "QsciLexerIDL") {
+  } else if (dynamic_cast<QsciLexerIDL *>(lexer)) {
     configureIdlLexer(lexer);
-  } else if (lexerType == "QsciLexerVHDL") {
+  } else if (dynamic_cast<QsciLexerVHDL *>(lexer)) {
     configureVhdlLexer(lexer);
-  } else if (lexerType == "QsciLexerVerilog") {
+  } else if (dynamic_cast<QsciLexerVerilog *>(lexer)) {
     configureVerilogLexer(lexer);
-  } else if (lexerType == "QsciLexerTCL") {
+  } else if (dynamic_cast<QsciLexerTCL *>(lexer)) {
     configureTclLexer(lexer);
-  } else if (lexerType == "QsciLexerLua") {
+  } else if (dynamic_cast<QsciLexerLua *>(lexer)) {
     configureLuaLexer(lexer);
-  } else if (lexerType == "QsciLexerPascal") {
+  } else if (dynamic_cast<QsciLexerPascal *>(lexer)) {
     configurePascalLexer(lexer);
-  } else if (lexerType == "QsciLexerAsm") {
+  } else if (dynamic_cast<QsciLexerAsm *>(lexer)) {
     configureAsmLexer(lexer);
-  } else if (lexerType == "QsciLexerCMake") {
+  } else if (dynamic_cast<QsciLexerCMake *>(lexer)) {
     configureCMakeLexer(lexer);
-  } else if (lexerType == "QsciLexerD") {
+  } else if (dynamic_cast<QsciLexerD *>(lexer)) {
     configureDLexer(lexer);
-  } else if (lexerType == "QsciLexerPOV") {
+  } else if (dynamic_cast<QsciLexerPOV *>(lexer)) {
     configurePov(lexer);
-  } else if (lexerType == "QsciLexerSpice") {
+  } else if (dynamic_cast<QsciLexerSpice *>(lexer)) {
     configureSpiceLexer(lexer);
-  } else if (lexerType == "QsciLexerCustom") {
+  } else if (dynamic_cast<QsciLexerCustom *>(lexer)) {
     configureCustomLexer(lexer);
   } else {
-    // Apply basic colors for unsupported lexers
     const DarkThemeColors &colors = _colorSchemes[_currentScheme];
     lexer->setDefaultPaper(colors.background);
     lexer->setDefaultColor(colors.foreground);
@@ -356,7 +353,7 @@ void DarkThemeLexersHighlighter::configureCppLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerCPP *cppLexer = qobject_cast<QsciLexerCPP *>(lexer);
+  QsciLexerCPP *cppLexer = dynamic_cast<QsciLexerCPP *>(lexer);
   if (!cppLexer)
     return;
 
@@ -453,7 +450,7 @@ void DarkThemeLexersHighlighter::configurePythonLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerPython *pythonLexer = qobject_cast<QsciLexerPython *>(lexer);
+  QsciLexerPython *pythonLexer = dynamic_cast<QsciLexerPython *>(lexer);
   if (!pythonLexer)
     return;
 
@@ -574,7 +571,7 @@ void DarkThemeLexersHighlighter::configureJavaScriptLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerJavaScript *jsLexer = qobject_cast<QsciLexerJavaScript *>(lexer);
+  QsciLexerJavaScript *jsLexer = dynamic_cast<QsciLexerJavaScript *>(lexer);
   if (!jsLexer)
     return;
 
@@ -658,7 +655,7 @@ void DarkThemeLexersHighlighter::configureHtmlLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerHTML *htmlLexer = qobject_cast<QsciLexerHTML *>(lexer);
+  QsciLexerHTML *htmlLexer = dynamic_cast<QsciLexerHTML *>(lexer);
   if (!htmlLexer)
     return;
 
@@ -821,7 +818,7 @@ void DarkThemeLexersHighlighter::configureCssLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerCSS *cssLexer = qobject_cast<QsciLexerCSS *>(lexer);
+  QsciLexerCSS *cssLexer = dynamic_cast<QsciLexerCSS *>(lexer);
   if (!cssLexer)
     return;
 
@@ -927,7 +924,7 @@ void DarkThemeLexersHighlighter::configureXmlLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerXML *xmlLexer = qobject_cast<QsciLexerXML *>(lexer);
+  QsciLexerXML *xmlLexer = dynamic_cast<QsciLexerXML *>(lexer);
   if (!xmlLexer)
     return;
 
@@ -1024,7 +1021,7 @@ void DarkThemeLexersHighlighter::configureJsonLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerJSON *jsonLexer = qobject_cast<QsciLexerJSON *>(lexer);
+  QsciLexerJSON *jsonLexer = dynamic_cast<QsciLexerJSON *>(lexer);
   if (!jsonLexer)
     return;
 
@@ -1104,7 +1101,7 @@ void DarkThemeLexersHighlighter::configureSqlLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerSQL *sqlLexer = qobject_cast<QsciLexerSQL *>(lexer);
+  QsciLexerSQL *sqlLexer = dynamic_cast<QsciLexerSQL *>(lexer);
   if (!sqlLexer)
     return;
 
@@ -1195,7 +1192,7 @@ void DarkThemeLexersHighlighter::configureBashLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerBash *bashLexer = qobject_cast<QsciLexerBash *>(lexer);
+  QsciLexerBash *bashLexer = dynamic_cast<QsciLexerBash *>(lexer);
   if (!bashLexer)
     return;
 
@@ -1283,7 +1280,7 @@ void DarkThemeLexersHighlighter::configureBatchLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerBatch *batchLexer = qobject_cast<QsciLexerBatch *>(lexer);
+  QsciLexerBatch *batchLexer = dynamic_cast<QsciLexerBatch *>(lexer);
   if (!batchLexer)
     return;
 
@@ -1343,7 +1340,7 @@ void DarkThemeLexersHighlighter::configureMakefileLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerMakefile *makefileLexer = qobject_cast<QsciLexerMakefile *>(lexer);
+  QsciLexerMakefile *makefileLexer = dynamic_cast<QsciLexerMakefile *>(lexer);
   if (!makefileLexer)
     return;
 
@@ -1398,7 +1395,7 @@ void DarkThemeLexersHighlighter::configureDiffLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerDiff *diffLexer = qobject_cast<QsciLexerDiff *>(lexer);
+  QsciLexerDiff *diffLexer = dynamic_cast<QsciLexerDiff *>(lexer);
   if (!diffLexer)
     return;
 
@@ -1459,7 +1456,7 @@ void DarkThemeLexersHighlighter::configurePropertiesLexer(QsciLexer *lexer) {
     return;
 
   QsciLexerProperties *propertiesLexer =
-      qobject_cast<QsciLexerProperties *>(lexer);
+      dynamic_cast<QsciLexerProperties *>(lexer);
   if (!propertiesLexer)
     return;
 
@@ -1510,7 +1507,7 @@ void DarkThemeLexersHighlighter::configureYamlLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerYAML *yamlLexer = qobject_cast<QsciLexerYAML *>(lexer);
+  QsciLexerYAML *yamlLexer = dynamic_cast<QsciLexerYAML *>(lexer);
   if (!yamlLexer)
     return;
 
@@ -1572,7 +1569,7 @@ void DarkThemeLexersHighlighter::configureMarkdownLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerMarkdown *markdownLexer = qobject_cast<QsciLexerMarkdown *>(lexer);
+  QsciLexerMarkdown *markdownLexer = dynamic_cast<QsciLexerMarkdown *>(lexer);
   if (!markdownLexer)
     return;
 
@@ -1646,7 +1643,7 @@ void DarkThemeLexersHighlighter::configureTexLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerTeX *texLexer = qobject_cast<QsciLexerTeX *>(lexer);
+  QsciLexerTeX *texLexer = dynamic_cast<QsciLexerTeX *>(lexer);
   if (!texLexer)
     return;
 
@@ -1694,7 +1691,7 @@ void DarkThemeLexersHighlighter::configurePostScriptLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerPostScript *psLexer = qobject_cast<QsciLexerPostScript *>(lexer);
+  QsciLexerPostScript *psLexer = dynamic_cast<QsciLexerPostScript *>(lexer);
   if (!psLexer)
     return;
 
@@ -1787,7 +1784,7 @@ void DarkThemeLexersHighlighter::configureMatlabLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerMatlab *matlabLexer = qobject_cast<QsciLexerMatlab *>(lexer);
+  QsciLexerMatlab *matlabLexer = dynamic_cast<QsciLexerMatlab *>(lexer);
   if (!matlabLexer)
     return;
 
@@ -1848,7 +1845,7 @@ void DarkThemeLexersHighlighter::configureOctaveLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerOctave *octaveLexer = qobject_cast<QsciLexerOctave *>(lexer);
+  QsciLexerOctave *octaveLexer = dynamic_cast<QsciLexerOctave *>(lexer);
   if (!octaveLexer)
     return;
 
@@ -1909,7 +1906,7 @@ void DarkThemeLexersHighlighter::configurePerlLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerPerl *perlLexer = qobject_cast<QsciLexerPerl *>(lexer);
+  QsciLexerPerl *perlLexer = dynamic_cast<QsciLexerPerl *>(lexer);
   if (!perlLexer)
     return;
 
@@ -2063,7 +2060,7 @@ void DarkThemeLexersHighlighter::configureRubyLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerRuby *rubyLexer = qobject_cast<QsciLexerRuby *>(lexer);
+  QsciLexerRuby *rubyLexer = dynamic_cast<QsciLexerRuby *>(lexer);
   if (!rubyLexer)
     return;
 
@@ -2229,7 +2226,7 @@ void DarkThemeLexersHighlighter::configureFortranLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerFortran *fortranLexer = qobject_cast<QsciLexerFortran *>(lexer);
+  QsciLexerFortran *fortranLexer = dynamic_cast<QsciLexerFortran *>(lexer);
   if (!fortranLexer)
     return;
 
@@ -2324,7 +2321,7 @@ void DarkThemeLexersHighlighter::configureFortran77Lexer(QsciLexer *lexer) {
     return;
 
   QsciLexerFortran77 *fortran77Lexer =
-      qobject_cast<QsciLexerFortran77 *>(lexer);
+      dynamic_cast<QsciLexerFortran77 *>(lexer);
   if (!fortran77Lexer)
     return;
 
@@ -2425,7 +2422,7 @@ void DarkThemeLexersHighlighter::configureIdlLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerIDL *idlLexer = qobject_cast<QsciLexerIDL *>(lexer);
+  QsciLexerIDL *idlLexer = dynamic_cast<QsciLexerIDL *>(lexer);
   if (!idlLexer)
     return;
 
@@ -2478,7 +2475,7 @@ void DarkThemeLexersHighlighter::configureVhdlLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerVHDL *vhdlLexer = qobject_cast<QsciLexerVHDL *>(lexer);
+  QsciLexerVHDL *vhdlLexer = dynamic_cast<QsciLexerVHDL *>(lexer);
   if (!vhdlLexer)
     return;
 
@@ -2573,7 +2570,7 @@ void DarkThemeLexersHighlighter::configureVerilogLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerVerilog *verilogLexer = qobject_cast<QsciLexerVerilog *>(lexer);
+  QsciLexerVerilog *verilogLexer = dynamic_cast<QsciLexerVerilog *>(lexer);
   if (!verilogLexer)
     return;
 
@@ -2662,7 +2659,7 @@ void DarkThemeLexersHighlighter::configureTclLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerTCL *tclLexer = qobject_cast<QsciLexerTCL *>(lexer);
+  QsciLexerTCL *tclLexer = dynamic_cast<QsciLexerTCL *>(lexer);
   if (!tclLexer)
     return;
 
@@ -2757,7 +2754,7 @@ void DarkThemeLexersHighlighter::configureLuaLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerLua *luaLexer = qobject_cast<QsciLexerLua *>(lexer);
+  QsciLexerLua *luaLexer = dynamic_cast<QsciLexerLua *>(lexer);
   if (!luaLexer)
     return;
 
@@ -2877,7 +2874,7 @@ void DarkThemeLexersHighlighter::configurePascalLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerPascal *pascalLexer = qobject_cast<QsciLexerPascal *>(lexer);
+  QsciLexerPascal *pascalLexer = dynamic_cast<QsciLexerPascal *>(lexer);
   if (!pascalLexer)
     return;
 
@@ -2963,7 +2960,7 @@ void DarkThemeLexersHighlighter::configureAsmLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerAsm *asmLexer = qobject_cast<QsciLexerAsm *>(lexer);
+  QsciLexerAsm *asmLexer = dynamic_cast<QsciLexerAsm *>(lexer);
   if (!asmLexer)
     return;
 
@@ -3028,7 +3025,7 @@ void DarkThemeLexersHighlighter::configureCMakeLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerCMake *cmakeLexer = qobject_cast<QsciLexerCMake *>(lexer);
+  QsciLexerCMake *cmakeLexer = dynamic_cast<QsciLexerCMake *>(lexer);
   if (!cmakeLexer)
     return;
 
@@ -3118,7 +3115,7 @@ void DarkThemeLexersHighlighter::configureDLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerD *dLexer = qobject_cast<QsciLexerD *>(lexer);
+  QsciLexerD *dLexer = dynamic_cast<QsciLexerD *>(lexer);
   if (!dLexer)
     return;
 
@@ -3229,7 +3226,7 @@ void DarkThemeLexersHighlighter::configurePov(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerPOV *povLexer = qobject_cast<QsciLexerPOV *>(lexer);
+  QsciLexerPOV *povLexer = dynamic_cast<QsciLexerPOV *>(lexer);
   if (!povLexer)
     return;
 
@@ -3324,7 +3321,7 @@ void DarkThemeLexersHighlighter::configureSpiceLexer(QsciLexer *lexer) {
   if (!lexer)
     return;
 
-  QsciLexerSpice *spiceLexer = qobject_cast<QsciLexerSpice *>(lexer);
+  QsciLexerSpice *spiceLexer = dynamic_cast<QsciLexerSpice *>(lexer);
   if (!spiceLexer)
     return;
 
@@ -3404,7 +3401,7 @@ void DarkThemeLexersHighlighter::configureCustomLexer(QsciLexer *lexer) {
   // implementations
 
   // Check if it's a QsciLexerCustom instance
-  QsciLexerCustom *customLexer = qobject_cast<QsciLexerCustom *>(lexer);
+  QsciLexerCustom *customLexer = dynamic_cast<QsciLexerCustom *>(lexer);
   if (customLexer) {
     // Configure basic styles for custom lexer
     // Note: The exact style constants depend on the custom lexer implementation

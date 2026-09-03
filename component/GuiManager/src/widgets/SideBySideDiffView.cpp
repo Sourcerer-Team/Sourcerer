@@ -306,10 +306,10 @@ void SideBySideDiffView::clearContent() {
 
 void SideBySideDiffView::loadAndHighlight(
     const QString &leftContent, const GitRepo::FilesDiffDelta &rightDelta,
-    const QString &extension) {
+    const QString &filePath) {
   LOG_PERF(0, "Enter");
 
-  setupEditors(extension);
+  setupEditors(filePath);
 
   const SideBySideDiffContent content = createContent(leftContent, rightDelta);
 
@@ -376,7 +376,7 @@ void SideBySideDiffView::setupEditors(const QString &extension) {
 
   const QScintillaLexerFactory factory;
 
-  auto *lexer = factory.createLexerForExtension(extension, this);
+  auto *lexer = factory.createLexerForFile(filePath, this);
 
   _leftEditor->setLexer(lexer);
   _rightEditor->setLexer(lexer);
@@ -414,3 +414,4 @@ void SideBySideDiffView::syncScrollbars() {
 }
 
 } // namespace GuiManager::Widgets
+������������������݈8��&�
