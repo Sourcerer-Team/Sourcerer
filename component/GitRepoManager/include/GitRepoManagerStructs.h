@@ -519,6 +519,8 @@ struct GitRepoInitRepoCommand final : GitRepoCommand {
   QString repoName;
   QString workingDir;
   QString defaultBranch;
+  QString author;
+  QString email;
 };
 
 struct GitRepoListConflictsCommand final : GitRepoCommand {
@@ -616,6 +618,8 @@ struct GitRepoOpenCommand final : GitRepoCommand {
 
   ~GitRepoOpenCommand() override = default;
   QString path;
+  QString author;
+  QString email;
 };
 
 struct GitRepoPullCommand final : GitRepoCommand {
