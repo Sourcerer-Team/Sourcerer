@@ -24,7 +24,7 @@ enum class GitError : int {
   CollectConflictedFilePathsFromResultIndexFailedToGetCommitTree,
   CollectConflictedFilePathsFromResultIndexFailedToDiffTreeAgainstIndex,
   CollectConflictedFilePathsFromResultIndexFailedToCreateConflictIterator,
-  CreateInitialCommitFailedToGetDefaultSignature,
+  CreateInitialCommitFailedToCreateSignature,
   CreateInitialCommitFailedToGetRepositoryIndex,
   CreateInitialCommitFailedToWriteIndexTree,
   CreateInitialCommitFailedToLookupTree,
@@ -33,7 +33,7 @@ enum class GitError : int {
   CreateInitialCommitFailedToReadNextBranch,
   CreateInitialCommitFailedToReadBranchName,
   CreateInitialCommitFailedToRenameBranch,
-  CreateInitialCommitWithoutStagingFailedToGetDefaultSignature,
+  CreateInitialCommitWithoutStagingFailedToCreateSignature,
   CreateInitialCommitWithoutStagingFailedToCreateTreeBuilder,
   CreateInitialCommitWithoutStagingFailedToWriteTreeBuilder,
   CreateInitialCommitWithoutStagingFailedToLookupTree,
@@ -700,7 +700,8 @@ QString getActiveBranch(git_repository *repo, BranchType type,
                         const bool &quitFlag);
 
 bool initRepository(const QString &repoName, const QString &workingDir,
-                    const QString &defaultBranch);
+                    const QString &defaultBranch, const QString &author,
+                    const QString &email);
 
 QString listConflictsForAFile(git_repository *repo, const QString &filePath);
 QString listConflictsForStashFile(git_repository *repo, int stashIndex,
@@ -730,7 +731,9 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
                     const QString &destinationBranch, const QString &author,
                     const QString &email);
 
-git_repository *openRepository(const QString &path);
+git_repository *openRepository(const QString &path,
+                               const QString &author,
+                               const QString &email);
 
 GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
                             BranchType type, const bool &quitFlag);

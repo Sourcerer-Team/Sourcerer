@@ -3777,6 +3777,9 @@ bool GitRepoManagerBridgeImpl::openRepo(
     const QWeakPointer<GitRepoContainer> &guard) {
   LOG_PERF(0, "Enter");
 
+  const Common::UserProfile profile =
+      Common::UserProfileManager::instance().currentProfile();
+
   const QString eventUuid = Uuid::createUuid();
 
   const int token = _container._eventManager.startWait();
@@ -3785,6 +3788,8 @@ bool GitRepoManagerBridgeImpl::openRepo(
   command.uuid = _container._uuid;
   command.syncUuid = eventUuid;
   command.path = _container._path;
+  command.author = profile.author;
+  command.email = profile.email;
 
   EventManager::Event openRepoEvent(
       EventManager::EventType::GitRepoManagerOpenRepo, eventUuid);

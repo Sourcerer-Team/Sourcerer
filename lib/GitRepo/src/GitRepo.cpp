@@ -62,6 +62,7 @@
 
 #include <cstring>
 #include <set>
+#include <string>
 #include <thread>
 
 #define THREAD_ID "GitRepo"
@@ -575,10 +576,10 @@ static QString gitErrorName(const GitError errorType) {
     return QCoreApplication::translate(
         "GitRepoError", "Failed to create conflict iterator while collecting "
                         "conflicted file paths from the result index.");
-  case GitError::CreateInitialCommitFailedToGetDefaultSignature:
+  case GitError::CreateInitialCommitFailedToCreateSignature:
     return QCoreApplication::translate(
-        "GitRepoError",
-        "Failed to get default signature while creating the initial commit.");
+        "GitRepoError", "Failed to create signature from profile while "
+                        "creating the initial commit.");
   case GitError::CreateInitialCommitFailedToGetRepositoryIndex:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -611,10 +612,11 @@ static QString gitErrorName(const GitError errorType) {
     return QCoreApplication::translate(
         "GitRepoError",
         "Failed to rename branch while creating the initial commit.");
-  case GitError::CreateInitialCommitWithoutStagingFailedToGetDefaultSignature:
+  case GitError::CreateInitialCommitWithoutStagingFailedToCreateSignature:
     return QCoreApplication::translate(
-        "GitRepoError", "Failed to get default signature while creating the "
-                        "initial commit without staging.");
+        "GitRepoError",
+        "Failed to create signature from profile while creating the initial "
+        "commit without staging.");
   case GitError::CreateInitialCommitWithoutStagingFailedToCreateTreeBuilder:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to create tree builder while creating the "
@@ -2350,18 +2352,47 @@ static void sendInvalidCredentialsSignal(const QString &url) {
   eventManager.send(event);
 }
 
+static bool createProfileSignature(git_signature **sig,
+                                   GitError errorId,
+                                   const QString &author,
+                                   const QString &email) {
+  if (author.isEmpty() || email.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Cannot create signature for initial commit: author or email "
+              "is empty.");
+    setError(errorId, GIT_EINVALID);
+    return false;
+  }
+
+  const std::string authorStd = author.toStdString();
+  const std::string emailStd = email.toStdString();
+
+  const int error =
+      git_signature_now(sig, authorStd.c_str(), emailStd.c_str());
+  if (error) {
+    setError(errorId, error);
+    return false;
+  }
+
+  return true;
+}
+
 static bool createInitialCommit(git_repository *repo,
-                                const QString &defaultBranchName) {
+                                const QString &defaultBranchName,
+                                const QString &author,
+                                const QString &email) {
   LOG_PERF(0, "Enter");
 
   git_signature *sig = nullptr;
 
-  int error = git_signature_default(&sig, repo);
-  if (error) {
-    setError(GitError::CreateInitialCommitFailedToGetDefaultSignature, error);
+  if (!createProfileSignature(&sig,
+                              GitError::CreateInitialCommitFailedToCreateSignature,
+                              author, email)) {
     LOG_PERF(0, "Exit");
     return false;
   }
+
+  int error = 0;
 
   git_index *index = nullptr;
 
@@ -2492,19 +2523,20 @@ static bool createInitialCommit(git_repository *repo,
   return true;
 }
 
-static bool createInitialCommitWithoutStaging(git_repository *repo) {
+static bool createInitialCommitWithoutStaging(git_repository *repo,
+                                              const QString &author,
+                                              const QString &email) {
   LOG_PERF(0, "Enter");
 
   git_signature *sig = nullptr;
-  int error = git_signature_default(&sig, repo);
-
-  if (error) {
-    setError(
-        GitError::CreateInitialCommitWithoutStagingFailedToGetDefaultSignature,
-        error);
+  if (!createProfileSignature(
+          &sig, GitError::CreateInitialCommitWithoutStagingFailedToCreateSignature,
+          author, email)) {
     LOG_PERF(0, "Exit");
     return false;
   }
+
+  int error = 0;
 
   // Create an empty tree builder
   git_treebuilder *builder = nullptr;
@@ -3086,7 +3118,9 @@ void closeRepository(git_repository *repo) {
   LOG_PERF(0, "Exit");
 }
 
-git_repository *openRepository(const QString &path) {
+git_repository *openRepository(const QString &path,
+                                const QString &author,
+                                const QString &email) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Opening repository at path: '{}'", path.toStdString());
 
@@ -3106,7 +3140,7 @@ git_repository *openRepository(const QString &path) {
   if (repo && git_repository_head_unborn(repo) == 1) {
     LOG_DEBUG("Repository has unborn HEAD, creating initial commit");
     // Create empty initial commit without staging existing files
-    createInitialCommitWithoutStaging(repo);
+    createInitialCommitWithoutStaging(repo, author, email);
     LOG_DEBUG("Initial commit created for new repository");
   }
 
@@ -4176,7 +4210,8 @@ QString getActiveBranch(git_repository *repo, const BranchType type,
 }
 
 bool initRepository(const QString &repoName, const QString &workingDir,
-                    const QString &defaultBranch) {
+                    const QString &defaultBranch, const QString &author,
+                    const QString &email) {
   LOG_PERF(0, "Enter");
 
   git_repository_init_options opts{};
@@ -4210,7 +4245,8 @@ bool initRepository(const QString &repoName, const QString &workingDir,
     return false;
   }
 
-  const bool created = createInitialCommit(repo, defaultBranch);
+  const bool created = createInitialCommit(repo, defaultBranch, author,
+                                           email);
   if (!created) {
     closeRepository(repo);
     LOG_ERROR(Log::ErrorId::Git, "Can't create initial commit.");

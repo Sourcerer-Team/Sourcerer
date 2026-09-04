@@ -2450,7 +2450,8 @@ void ProcessingState::initRepoWorker(
   }
 
   const bool success = GitRepo::initRepository(
-      command.repoName, command.workingDir, command.defaultBranch);
+      command.repoName, command.workingDir, command.defaultBranch,
+      command.author, command.email);
   if (!success) {
     const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
@@ -3318,7 +3319,8 @@ void ProcessingState::scheduleWorkerForQuit(
 void ProcessingState::openRepoWorker(const GitRepoOpenCommand &command) {
   LOG_PERF(0, "Enter");
 
-  git_repository *repo = GitRepo::openRepository(command.path);
+  git_repository *repo = GitRepo::openRepository(command.path, command.author,
+                                                 command.email);
   if (!repo) {
     const git_error *gitError = git_error_last();
     reportError(EventManager::EventType::GitRepoManagerOpenRepoError,
