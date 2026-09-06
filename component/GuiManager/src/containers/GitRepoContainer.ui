@@ -257,7 +257,7 @@
                </property>
                <widget class="QStackedWidget" name="stackedWidgetMiddle">
                 <property name="currentIndex">
-                 <number>2</number>
+                 <number>0</number>
                 </property>
                 <widget class="QWidget" name="pageHistory">
                  <layout class="QVBoxLayout" name="verticalLayout10">
