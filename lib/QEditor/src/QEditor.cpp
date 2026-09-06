@@ -925,4 +925,3 @@ int QsciScintilla::lineFromPoint(const QPoint &point) const {
   QTextCursor cursor = cursorForPosition(point);
   return cursor.block().blockNumber();
 }
-����Z(L
