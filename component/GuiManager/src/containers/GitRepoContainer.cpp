@@ -5134,44 +5134,11 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
 void GitRepoContainer::onPageDisplayFilesFlatPressed(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
-<<<<<<< file
-=======
   if (isRightMouseButtonDown()) {
     LOG_PERF(0, "Exit");
     return;
   }
 
->>>>>>> file
-  if (!index.isValid()) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  if(_displayFilesShowAll) {
-      LOG_PERF(0, "Exit");
-      return;
-  }
-
-  if (_currentDisplayCommit.isEmpty()) {
-    onListViewTabWidgetFlatSelected(index);
-  } else {
-    onListViewTabWidgetFlatSelectedFromCommit(index, _currentDisplayCommit);
-  }
-
-  LOG_PERF(0, "Exit");
-}
-
-void GitRepoContainer::onPageDisplayFilesTreePressed(const QModelIndex &index) {
-  LOG_PERF(0, "Enter");
-
-<<<<<<< file
-=======
-  if (isRightMouseButtonDown()) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
->>>>>>> file
   if (!index.isValid()) {
     LOG_PERF(0, "Exit");
     return;
