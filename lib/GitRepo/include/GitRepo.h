@@ -3,6 +3,7 @@
 #include <QMap>
 #include <QString>
 #include <QStringList>
+#include <QVector>
 
 #include <git2/repository.h>
 #include <git2/status.h>
@@ -24,7 +25,7 @@ enum class GitError : int {
   CollectConflictedFilePathsFromResultIndexFailedToGetCommitTree,
   CollectConflictedFilePathsFromResultIndexFailedToDiffTreeAgainstIndex,
   CollectConflictedFilePathsFromResultIndexFailedToCreateConflictIterator,
-  CreateInitialCommitFailedToGetDefaultSignature,
+  CreateInitialCommitFailedToCreateSignature,
   CreateInitialCommitFailedToGetRepositoryIndex,
   CreateInitialCommitFailedToWriteIndexTree,
   CreateInitialCommitFailedToLookupTree,
@@ -33,7 +34,7 @@ enum class GitError : int {
   CreateInitialCommitFailedToReadNextBranch,
   CreateInitialCommitFailedToReadBranchName,
   CreateInitialCommitFailedToRenameBranch,
-  CreateInitialCommitWithoutStagingFailedToGetDefaultSignature,
+  CreateInitialCommitWithoutStagingFailedToCreateSignature,
   CreateInitialCommitWithoutStagingFailedToCreateTreeBuilder,
   CreateInitialCommitWithoutStagingFailedToWriteTreeBuilder,
   CreateInitialCommitWithoutStagingFailedToLookupTree,
@@ -661,6 +662,26 @@ struct FilesDiff {
   bool valid = false;
 };
 
+struct BlameLineInfo {
+  QString filePath;
+  qint64 lineNumber = -1;
+  QString content;
+  QString commit;
+  QString author;
+  QString summary;
+};
+
+struct BlameFileInfo {
+  QString filePath;
+  QVector<BlameLineInfo> lineInfos;
+  QString errorMessage;
+};
+
+struct BlameReport {
+  QVector<BlameFileInfo> fileInfos;
+  bool valid = false;
+};
+
 GitErrorContext getLastError();
 
 void initForCurrentThread();
@@ -700,7 +721,8 @@ QString getActiveBranch(git_repository *repo, BranchType type,
                         const bool &quitFlag);
 
 bool initRepository(const QString &repoName, const QString &workingDir,
-                    const QString &defaultBranch);
+                    const QString &defaultBranch, const QString &author,
+                    const QString &email);
 
 QString listConflictsForAFile(git_repository *repo, const QString &filePath);
 QString listConflictsForStashFile(git_repository *repo, int stashIndex,
@@ -730,7 +752,9 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
                     const QString &destinationBranch, const QString &author,
                     const QString &email);
 
-git_repository *openRepository(const QString &path);
+git_repository *openRepository(const QString &path,
+                               const QString &author,
+                               const QString &email);
 
 GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
                             BranchType type, const bool &quitFlag);
@@ -764,6 +788,8 @@ FilesDiff diffFiles(git_repository *repo, const QStringList &files);
 
 FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
                               const QString &commit);
+
+BlameReport blame(git_repository *repo, const QStringList &files);
 
 qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
                              const QString &commit);
@@ -874,3 +900,4 @@ bool setDefaultTarget(git_repository *repo, const QString &remoteName,
                       const QString &targetName);
 
 } // namespace GitRepo
+

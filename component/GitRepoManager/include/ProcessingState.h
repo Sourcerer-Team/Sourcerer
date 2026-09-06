@@ -28,6 +28,7 @@ private:
   void abortMergeWorker(const Structs::GitRepoAbortMergeCommand &command);
   void addSubmoduleWorker(const Structs::GitRepoAddSubmoduleCommand &command);
   void amendWorker(const Structs::GitRepoAmendCommand &command);
+  void blameWorker(const Structs::GitRepoBlameCommand &command);
   void applyPatchWorker(const Structs::GitRepoApplyPatchCommand &command);
   void applyStashWorker(const Structs::GitRepoApplyStashCommand &command);
   void
@@ -142,6 +143,7 @@ private:
   void scheduleWorkerForAddSubmodule(
       const Structs::GitRepoAddSubmoduleCommand &command);
   void scheduleWorkerForAmend(const Structs::GitRepoAmendCommand &command);
+  void scheduleWorkerForBlame(const Structs::GitRepoBlameCommand &command);
   void
   scheduleWorkerForApplyPatch(const Structs::GitRepoApplyPatchCommand &command);
   void

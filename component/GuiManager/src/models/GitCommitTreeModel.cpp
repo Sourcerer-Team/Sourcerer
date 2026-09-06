@@ -203,6 +203,60 @@ GitCommitTreeModel *GitCommitTreeModel::from(const GitRepo::GitStatus &status) {
   return model.take();
 }
 
+GitCommitTreeModel *GitCommitTreeModel::from(const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  QList<GitCommitListModification> modifications;
+  modifications.reserve(files.size());
+
+  for (const auto &file : files) {
+    GitCommitListModification modification;
+    modification._filePath = file;
+    modification._type = GitCommitListModificationType::Unknown;
+    modifications.append(modification);
+  }
+
+  std::sort(modifications.begin(), modifications.end(),
+            [](const GitCommitListModification &x,
+               const GitCommitListModification &y) {
+              return x._filePath < y._filePath;
+            });
+
+  QScopedPointer<GitCommitTreeModel> model(new GitCommitTreeModel());
+
+  for (const auto &modification : modifications) {
+    QStandardItem *parent = model->invisibleRootItem();
+    const auto parts = QDir::toNativeSeparators(modification._filePath)
+                           .split(QDir::separator());
+    for (const QString &part : parts) {
+      if (part.isEmpty()) {
+        continue;
+      }
+
+      bool found = false;
+      for (int i = 0; i < parent->rowCount(); ++i) {
+        QStandardItem *child = parent->child(i);
+        if (child->text() == part) {
+          parent = child;
+          found = true;
+          break;
+        }
+      }
+
+      if (!found) {
+        QStandardItem *newItem = new QStandardItem(part);
+        newItem->setData((int)modification._type, Qt::UserRole);
+        parent->appendRow(newItem);
+        parent = newItem;
+      }
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return model.take();
+}
+
 GitCommitTreeModel *
 GitCommitTreeModel::fromStaged(const GitRepo::GitStatus &status) {
   LOG_PERF(0, "Enter");

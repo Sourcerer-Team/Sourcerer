@@ -6,6 +6,7 @@
 #include <Dispatcher.h>
 #include <GitRepoManagerStructs.h>
 #include <Log.h>
+#include <UserProfileManager.h>
 #include <Uuid.h>
 
 #include <QDir>
@@ -92,6 +93,11 @@ void InitGitRepoContainer::onInitClicked() const {
   command.repoName = ui->lineEditName->text();
   command.workingDir = ui->lineEditWorkingDir->text();
   command.defaultBranch = ui->lineEditDefaultBranch->text();
+
+  const Common::UserProfile &profile =
+      Common::UserProfileManager::instance().currentProfile();
+  command.author = profile.author;
+  command.email = profile.email;
 
   EventManager::Event initEvent(
       EventManager::EventType::GitRepoManagerInitRepo);

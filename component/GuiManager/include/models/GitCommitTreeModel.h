@@ -16,6 +16,8 @@ public:
 
   static GitCommitTreeModel *from(const GitRepo::GitStatus &status);
 
+  static GitCommitTreeModel *from(const QStringList &files);
+
   static GitCommitTreeModel *fromStaged(const GitRepo::GitStatus &status);
 };
 } // namespace GuiManager::Models

@@ -100,6 +100,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForAmend(amendCommand);
     break;
   }
+  case EventType::Blame: {
+    const auto blameCommand = event.nextParam<GitRepoBlameCommand>();
+    scheduleWorkerForBlame(blameCommand);
+    break;
+  }
   case EventType::ApplyPatch: {
     const auto applyPatchCommand = event.nextParam<GitRepoApplyPatchCommand>();
     scheduleWorkerForApplyPatch(applyPatchCommand);
@@ -622,6 +627,43 @@ void ProcessingState::amendWorker(const Structs::GitRepoAmendCommand &command) {
     resultEvent.addData(GitRepoResult{command.uuid, command.type, true});
     _eventManager.send(resultEvent);
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::blameWorker(const Structs::GitRepoBlameCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerBlameError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  if (!repo) {
+    reportError(EventManager::EventType::GitRepoManagerBlameError,
+                tr("Git repository is not available."), command);
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    return;
+  }
+
+  const GitRepo::BlameReport blameReport = GitRepo::blame(repo, command.files);
+
+  EventManager::Event resultEvent(EventManager::EventType::GitRepoManagerBlameResult,
+                                  command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                    QVariant::fromValue(
+                                        GitRepoBlameCommandResult{blameReport})});
+  _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
 }
@@ -2450,7 +2492,8 @@ void ProcessingState::initRepoWorker(
   }
 
   const bool success = GitRepo::initRepository(
-      command.repoName, command.workingDir, command.defaultBranch);
+      command.repoName, command.workingDir, command.defaultBranch,
+      command.author, command.email);
   if (!success) {
     const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
@@ -3318,7 +3361,8 @@ void ProcessingState::scheduleWorkerForQuit(
 void ProcessingState::openRepoWorker(const GitRepoOpenCommand &command) {
   LOG_PERF(0, "Enter");
 
-  git_repository *repo = GitRepo::openRepository(command.path);
+  git_repository *repo = GitRepo::openRepository(command.path, command.author,
+                                                 command.email);
   if (!repo) {
     const git_error *gitError = git_error_last();
     reportError(EventManager::EventType::GitRepoManagerOpenRepoError,
@@ -4820,6 +4864,25 @@ void ProcessingState::scheduleWorkerForDeleteRemoteTag(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForBlame(
+    const Structs::GitRepoBlameCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerBlameError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoBlameCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForDiffFiles(
     const Structs::GitRepoDiffFilesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -5158,6 +5221,13 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoApplyPatchCommand *>(command);
       if (applyPatchCommand) {
         applyPatchWorker(*applyPatchCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::Blame: {
+      const auto blameCommand = dynamic_cast<const GitRepoBlameCommand *>(command);
+      if (blameCommand) {
+        blameWorker(*blameCommand);
       }
       break;
     }
