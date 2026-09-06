@@ -5802,3 +5802,4 @@ qint64 GitRepoManagerBridgeImpl::getFileSizeFromCommit(const QString &filePath,
 }
 
 } // namespace GuiManager::Containers
+������������������s\��H�

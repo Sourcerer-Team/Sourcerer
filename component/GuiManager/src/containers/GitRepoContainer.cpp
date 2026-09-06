@@ -5134,11 +5134,14 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
 void GitRepoContainer::onPageDisplayFilesFlatPressed(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
+<<<<<<< file
+=======
   if (isRightMouseButtonDown()) {
     LOG_PERF(0, "Exit");
     return;
   }
 
+>>>>>>> file
   if (!index.isValid()) {
     LOG_PERF(0, "Exit");
     return;
@@ -5161,11 +5164,14 @@ void GitRepoContainer::onPageDisplayFilesFlatPressed(const QModelIndex &index) {
 void GitRepoContainer::onPageDisplayFilesTreePressed(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
+<<<<<<< file
+=======
   if (isRightMouseButtonDown()) {
     LOG_PERF(0, "Exit");
     return;
   }
 
+>>>>>>> file
   if (!index.isValid()) {
     LOG_PERF(0, "Exit");
     return;
@@ -6747,3 +6753,4 @@ void GitRepoContainer::updateTagsModel(const WeakPtr &guard,
   LOG_PERF(0, "Exit")
 }
 } // namespace GuiManager::Containers
+����
