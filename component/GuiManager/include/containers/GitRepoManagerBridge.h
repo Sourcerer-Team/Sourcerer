@@ -18,6 +18,9 @@ class GitRepoManagerBridge {
 public:
   virtual ~GitRepoManagerBridge() = default;
 
+  virtual void blame(const QWeakPointer<GitRepoContainer> &guard,
+                     const QStringList &files) = 0;
+
   virtual void
   setUpstream(const QWeakPointer<GitRepoContainer> &guard,
               const QString &branchName, const QString &remoteName,

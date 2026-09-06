@@ -48,6 +48,7 @@ class ScrollbarMarksWidget;
 }
 
 class QEvent;
+class QCheckBox;
 
 namespace GuiManager::Containers {
 
@@ -130,9 +131,13 @@ private slots:
   void onPushTag(const QString &tagName);
   void onPushAllTags();
   void onDiffCloseClicked();
+  void onBlameCloseClicked();
   void onDiffUnifiedClicked();
   void onDiffSideBySideClicked();
   void onDisplayTreeExpandAllButtonClicked();
+  void onDisplayFilesAllToggled(bool checked);
+  void onPageDisplayFilesFlatPressed(const QModelIndex &index);
+  void onPageDisplayFilesTreePressed(const QModelIndex &index);
   void onPageDisplayFilesFlatListViewContextMenuRequested(const QPoint &pos);
   void onPageDisplayFilesTreeViewContextMenuRequested(const QPoint &pos);
   void onHardResetToCommit(const QString &commit);
@@ -226,6 +231,7 @@ private slots:
                                GitRepo::BranchType branchType);
 
 private:
+  void blame(const QStringList& files);
   void clearSummaryAndDescription();
   void closeDiffViewerIfOpen();
   void refreshScintillaTheme();
@@ -253,6 +259,8 @@ private:
   void resetCommitAndMergeWorkingTreeTreeStageAllButton();
   void resetCommitButton() const;
   void resetDisplayTreeExpandedButton();
+  void refreshDisplayFilesModels();
+  void applyDisplayFilesModels();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
   void applyHistoryColumnVisibility();
@@ -346,12 +354,17 @@ private:
   QPushButton *_commitAndMergeIndexTreeUnstageAllButton;
   QPushButton *_stashApplyButton;
   QPushButton *_stashPopButton;
+  QCheckBox *_displayFilesAllCheckBox;
   QPushButton *_displayTreeExpandAllButton;
   bool _displayTreeExpanded;
+  bool _displayFilesShowAll;
   bool _mergeInProgress;
 
+  QString _currentDisplayCommit;
   QSharedPointer<Models::GitCommitListModel> _commitListModel;
   QSharedPointer<Models::GitCommitTreeModel> _commitTreeModel;
+  QSharedPointer<Models::GitCommitListModel> _displayFilesAllListModel;
+  QSharedPointer<Models::GitCommitTreeModel> _displayFilesAllTreeModel;
   QSharedPointer<Models::GitCommitListModel> _commitStagedListModel;
   QSharedPointer<Models::GitCommitTreeModel> _commitStagedTreeModel;
   QSharedPointer<Models::GitCommitListModel> _stashFilesModel;

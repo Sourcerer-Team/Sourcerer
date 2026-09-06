@@ -106,8 +106,9 @@ enum class MainViewPanes {
 
   History = 0,
   Diff = 1,
-  ThreeWayDiff = 2,
-  StashContent = 3,
+  Blame = 2,
+  ThreeWayDiff = 3,
+  StashContent = 4,
 
   last
 };
@@ -181,8 +182,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
       _applyingHistoryColumnWidths(false), _displayTreeExpanded(false),
-      _mergeInProgress(false), _commitListModel(nullptr),
-      _commitTreeModel(nullptr), _repoDirWatcher(nullptr),
+      _displayFilesShowAll(false), _mergeInProgress(false),
+      _commitListModel(nullptr), _commitTreeModel(nullptr),
+      _displayFilesAllListModel(nullptr), _displayFilesAllTreeModel(nullptr),
+      _displayFilesAllCheckBox(nullptr), _repoDirWatcher(nullptr),
       _repoDirWatcherTimer(new QTimer(this)),
       _shortcutsWidget(new GuiManager::Widgets::ShortcutsToolbarWidget(this)),
       _selected(false) {
@@ -227,8 +230,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
             const qlonglong tooltipDisplayTime = _configManager.getLong(
                 ConfigManager::ConfigKey::TooltipDisplayTime);
             QToolTip::showText(
-                ui->pushButtonPageDisplaySignatureCopy->mapToGlobal(
-                    QPoint(0, ui->pushButtonPageDisplaySignatureCopy->height())),
+                ui->pushButtonPageDisplaySignatureCopy->mapToGlobal(QPoint(
+                                                                        0, ui->pushButtonPageDisplaySignatureCopy->height())),
                 tr("Signature copied to clipboard."),
                 ui->pushButtonPageDisplaySignatureCopy,
                 ui->pushButtonPageDisplaySignatureCopy->rect(),
@@ -352,16 +355,33 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->listViewStashFilesFlat->setContextMenuPolicy(Qt::CustomContextMenu);
   ui->treeViewStashFilesTree->setContextMenuPolicy(Qt::CustomContextMenu);
 
+  QWidget *displayFilesCornerWidget =
+      new QWidget(ui->tabWidgetPageDisplayFiles);
+  auto *displayFilesCornerLayout = new QHBoxLayout(displayFilesCornerWidget);
+  displayFilesCornerLayout->setContentsMargins(0, 0, 0, 0);
+  displayFilesCornerLayout->setSpacing(6);
+
+  _displayFilesAllCheckBox = new QCheckBox(tr("All"), displayFilesCornerWidget);
+  _displayFilesAllCheckBox->setObjectName("displayFilesAllCheckBox");
+  _displayFilesAllCheckBox->setChecked(false);
+
   _displayTreeExpandAllButton =
-      new QPushButton(tr("Expand all"), ui->tabWidgetPageDisplayFiles);
+      new QPushButton(tr("Expand all"), displayFilesCornerWidget);
   _displayTreeExpandAllButton->setObjectName("displayTreeExpandAllButton");
   _displayTreeExpandAllButton->setFlat(false);
   _displayTreeExpandAllButton->setVisible(
       ui->tabWidgetPageDisplayFiles->currentIndex() != 0);
 
+  displayFilesCornerLayout->addWidget(_displayFilesAllCheckBox);
+  displayFilesCornerLayout->addWidget(_displayTreeExpandAllButton);
+  displayFilesCornerLayout->addStretch();
+
+  connect(_displayFilesAllCheckBox, &QCheckBox::toggled, this,
+          &GitRepoContainer::onDisplayFilesAllToggled);
+
   resetDisplayTreeExpandedButton();
 
-  ui->tabWidgetPageDisplayFiles->setCornerWidget(_displayTreeExpandAllButton);
+  ui->tabWidgetPageDisplayFiles->setCornerWidget(displayFilesCornerWidget);
   ui->tabWidgetPageDisplayFiles->tabBar()->setObjectName(
       "tabWidgetPageDisplayFilesTabBar");
 
@@ -378,10 +398,15 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->listViewPageDisplayFilesFlat->setContextMenuPolicy(Qt::CustomContextMenu);
   ui->treeViewPageDisplayFilesTree->setContextMenuPolicy(Qt::CustomContextMenu);
 
+  connect(ui->listViewPageDisplayFilesFlat, &QListView::pressed, this,
+          &GitRepoContainer::onPageDisplayFilesFlatPressed);
+  connect(ui->treeViewPageDisplayFilesTree, &QTreeView::pressed, this,
+          &GitRepoContainer::onPageDisplayFilesTreePressed);
+
   connect(
-      ui->listViewPageDisplayFilesFlat, &QListView::customContextMenuRequested,
-      this,
-      &GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested);
+              ui->listViewPageDisplayFilesFlat, &QListView::customContextMenuRequested,
+              this,
+              &GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested);
   connect(ui->treeViewPageDisplayFilesTree,
           &QTreeView::customContextMenuRequested, this,
           &GitRepoContainer::onPageDisplayFilesTreeViewContextMenuRequested);
@@ -537,6 +562,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMergeDiffClose->setMinimumSize(32, 32);
   ui->pushButtonMergeDiffClose->setMaximumSize(32, 32);
 
+  ui->pushButtonBlameClose->setObjectName("pushButtonDiffClose");
+  ui->pushButtonBlameClose->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/close_button.png"), closeButtonIconColor));
+  ui->pushButtonBlameClose->setMinimumSize(32, 32);
+  ui->pushButtonBlameClose->setMaximumSize(32, 32);
+
   ui->pushButtonMergeDiffDown->setIcon(QPixmap(":/icons/down_arrow.png"));
   ui->pushButtonMergeDiffDown->setMinimumSize(32, 32);
   ui->pushButtonMergeDiffDown->setMaximumSize(32, 32);
@@ -572,7 +604,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->scintillaTextEditorUnified->setSizePolicy(QSizePolicy::Expanding,
                                                 QSizePolicy::Expanding);
-  ui->scintillaTextEditorUnified->setWrapMode(QsciScintilla::WrapWord);
+  ui->scintillaTextEditorUnified->setWrapMode(QsciScintilla::WrapNone);
+  ui->scintillaTextEditorUnified->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   ui->scintillaTextEditorUnified->setLexer(lexerDiffUnified);
   ui->scintillaTextEditorUnified->setMarginsBackgroundColor(QColor(0x384D59));
   ui->scintillaTextEditorUnified->setMarginType(0, QsciScintilla::NumberMargin);
@@ -592,13 +625,30 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->scintillaTextEditorUnified->setFolding(QsciScintilla::NoFoldStyle);
 
+  ui->scintillaBlameEditor->setSizePolicy(QSizePolicy::Expanding,
+                                          QSizePolicy::Expanding);
+  ui->scintillaBlameEditor->setWrapMode(QsciScintilla::WrapNone);
+  ui->scintillaBlameEditor->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  ui->scintillaBlameEditor->setLexer(nullptr);
+  ui->scintillaBlameEditor->setMarginsBackgroundColor(QColor(0x384D59));
+  ui->scintillaBlameEditor->setMarginType(0, QsciScintilla::NumberMargin);
+  ui->scintillaBlameEditor->setMarginType(1, QsciScintilla::NumberMargin);
+  ui->scintillaBlameEditor->setMarginWidth(1, 2);
+  ui->scintillaBlameEditor->setReadOnly(true);
+
+  DarkThemeLexersHighlighter blameHighlighter;
+  blameHighlighter.applyDarkTheme(ui->scintillaBlameEditor);
+
+  ui->scintillaBlameEditor->setFolding(QsciScintilla::NoFoldStyle);
+
   // Setup stash unified diff viewer with same styling
   QsciLexer *lexerStashDiffUnified =
       factory.createLexerByName("Diff", ui->scintillaStashDiffUnified);
 
   ui->scintillaStashDiffUnified->setSizePolicy(QSizePolicy::Expanding,
                                                QSizePolicy::Expanding);
-  ui->scintillaStashDiffUnified->setWrapMode(QsciScintilla::WrapWord);
+  ui->scintillaStashDiffUnified->setWrapMode(QsciScintilla::WrapNone);
+  ui->scintillaStashDiffUnified->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
   ui->scintillaStashDiffUnified->setLexer(lexerStashDiffUnified);
   ui->scintillaStashDiffUnified->setMarginsBackgroundColor(QColor(0x384D59));
   ui->scintillaStashDiffUnified->setMarginType(0, QsciScintilla::NumberMargin);
@@ -866,6 +916,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onMergeDiffSaveClicked);
   connect(ui->pushButtonMergeDiffClose, &QPushButton::clicked, this,
           &GitRepoContainer::onMergeDiffCloseClicked);
+  connect(ui->pushButtonBlameClose, &QPushButton::clicked, this,
+          &GitRepoContainer::onBlameCloseClicked);
 
   connect(_stashApplyButton, &QPushButton::clicked, this,
           &GitRepoContainer::onStashApplyClicked);
@@ -2206,12 +2258,24 @@ void GitRepoContainer::onDiffCloseClicked() {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onBlameCloseClicked() {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Blame viewer close requested");
+
+  closeDiffViewerIfOpen();
+
+  LOG_DEBUG("Blame viewer closed");
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::closeDiffViewerIfOpen() {
   LOG_PERF(0, "Enter");
 
   // Check if the diff viewer is currently displayed
   if (ui->stackedWidgetMiddle->currentIndex() !=
           static_cast<int>(MainViewPanes::Diff) &&
+      ui->stackedWidgetMiddle->currentIndex() !=
+          static_cast<int>(MainViewPanes::Blame) &&
       ui->stackedWidgetMiddle->currentIndex() !=
           static_cast<int>(MainViewPanes::ThreeWayDiff)) {
     LOG_PERF(0, "Exit");
@@ -2221,6 +2285,12 @@ void GitRepoContainer::closeDiffViewerIfOpen() {
   _lastDiffedCommit.clear();
   _lastDiffedFilePath.clear();
   _lastDiffRepoStatusChanged = false;
+
+  if (ui->stackedWidgetMiddle->currentIndex() ==
+      static_cast<int>(MainViewPanes::Blame)) {
+    ui->scintillaBlameEditor->setText(QString());
+    ui->scintillaBlameEditor->setLexer(nullptr);
+  }
 
   // Hide scrollbar marks to prevent them from appearing in history view
   _unifiedDiffMarks->hide();
@@ -2293,6 +2363,20 @@ void GitRepoContainer::onDisplayTreeExpandAllButtonClicked() {
   _displayTreeExpanded = true;
 
   LOG_DEBUG("Expanded all tree items");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onDisplayFilesAllToggled(bool checked) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Display all files toggled: {}", checked);
+
+  _displayFilesShowAll = checked;
+  if (checked) {
+    refreshDisplayFilesModels();
+  } else {
+    applyDisplayFilesModels();
+  }
+
   LOG_PERF(0, "Exit");
 }
 
@@ -2499,6 +2583,11 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
     return;
   }
 
+  if(_displayFilesShowAll) {
+      LOG_PERF(0, "Exit");
+      return;
+  }
+
   QString filePath = index.data(Qt::DisplayRole).toString();
   LOG_DEBUG("File selected from list view: '{}'", filePath.toStdString());
 
@@ -2508,7 +2597,6 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
       static_cast<GuiManager::Models::GitCommitListModificationType>(
           index.data(Qt::UserRole).toInt());
 
-  // Check file size for large files
   const QString fullPath = QDir(_path).filePath(filePath);
   const QFileInfo fileInfo(fullPath);
   const qint64 maxDiffFileSize =
@@ -2527,18 +2615,6 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    const int blobSize = _bridge->getFileSizeFromCommit(filePath, QString());
-    if (blobSize > maxDiffFileSize) {
-      LOG_DEBUG("Blob size {} exceeds maximum", blobSize);
-      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        showSpinnerOverlay(false);
-        showErrorToast(tr("File is too large to be displayed."), tr("Error"));
-        return;
-      });
-
-      return;
-    }
-
     const bool conflicted =
         modificationType ==
         GuiManager::Models::GitCommitListModificationType::Conflicted;
@@ -2682,7 +2758,6 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
     return;
   }
 
-  // Check if it is leaf node
   if (model.rowCount(index) > 0) {
     LOG_DEBUG("Non-leaf node selected - directory");
     LOG_PERF(0, "Exit");
@@ -2716,7 +2791,6 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
 
   filePath = QDir::fromNativeSeparators(filePath);
 
-  // Check file size for large files
   const QString fullPath = QDir(_path).filePath(filePath);
   const QFileInfo fileInfo(fullPath);
   const qint64 maxDiffFileSize =
@@ -2735,18 +2809,6 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    const int blobSize = _bridge->getFileSizeFromCommit(filePath, QString());
-    if (blobSize > maxDiffFileSize) {
-      LOG_DEBUG("Blob size {} exceeds maximum", blobSize);
-      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        showSpinnerOverlay(false);
-        showErrorToast(tr("File is too large to be displayed."), tr("Error"));
-        return;
-      });
-
-      return;
-    }
-
     const bool conflicted =
         modificationType ==
         GuiManager::Models::GitCommitListModificationType::Conflicted;
@@ -3535,6 +3597,12 @@ void GitRepoContainer::onRepoDirChangedTimeout() {
 
     _lastDiffRepoStatusChanged = true;
   });
+
+  if (_displayFilesShowAll) {
+    refreshDisplayFilesModels();
+  } else {
+    applyDisplayFilesModels();
+  }
 
   LOG_DEBUG("Dir watcher timeout operation dispatched");
   LOG_PERF(0, "Exit");
@@ -4789,6 +4857,59 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onPageDisplayFilesFlatPressed(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if(_displayFilesShowAll) {
+      LOG_PERF(0, "Exit");
+      return;
+  }
+
+  if (_currentDisplayCommit.isEmpty()) {
+    onListViewTabWidgetFlatSelected(index);
+  } else {
+    onListViewTabWidgetFlatSelectedFromCommit(index, _currentDisplayCommit);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onPageDisplayFilesTreePressed(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if(_displayFilesShowAll) {
+      LOG_PERF(0, "Exit");
+      return;
+  }
+
+  const Models::GitCommitTreeModel *model =
+      _displayFilesShowAll ? _displayFilesAllTreeModel.get()
+                           : _commitTreeModel.get();
+  if (!model) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (_displayFilesShowAll || _currentDisplayCommit.isEmpty()) {
+    onTreeViewTabWidgetTreeSelected(index, *model);
+  } else {
+    onTreeViewTabWidgetTreeSelectedFromCommit(index, *model,
+                                              _currentDisplayCommit);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
     const QPoint &pos) {
   LOG_PERF(0, "Enter");
@@ -4819,6 +4940,11 @@ void GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
     connect(showInFileManagerAction, &QAction::triggered, this,
             [=]() { FileManager::revealInFileManager(existingFiles); });
   }
+
+  QAction *blameAction =
+      contextMenu.addAction(tr("Blame"));
+  connect(blameAction, &QAction::triggered, this,
+          [=]() { blame(files); });
 
   contextMenu.exec(ui->listViewPageDisplayFilesFlat->mapToGlobal(pos));
 
@@ -5066,6 +5192,17 @@ void GitRepoContainer::updateModelActiveBranch(const WeakPtr &guard,
   }
 
   LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::blame(const QStringList &files)
+{
+    LOG_PERF(0, "Enter");
+
+    const auto guard = getSelf().toWeakRef();
+
+    _bridge->blame(guard, files);
+
+    LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::clearSummaryAndDescription() {
@@ -5875,35 +6012,67 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     cursor.mergeBlockFormat(format);
     ui->textEditPageDisplayDescription->setTextCursor(cursor);
 
+    _currentDisplayCommit = commit;
     _commitListModel.reset(Models::GitCommitListModel::from(commitStatus));
-    if (_commitListModel) {
-      ui->listViewPageDisplayFilesFlat->setModel(_commitListModel.get());
-
-      disconnect(ui->listViewPageDisplayFilesFlat, &QListView::pressed, this,
-                 nullptr);
-
-      connect(ui->listViewPageDisplayFilesFlat, &QListView::pressed, this,
-              [=](const QModelIndex &index) {
-                onListViewTabWidgetFlatSelectedFromCommit(index, commit);
-              });
-    }
-
     _commitTreeModel.reset(Models::GitCommitTreeModel::from(commitStatus));
-    if (_commitTreeModel) {
-      ui->treeViewPageDisplayFilesTree->setModel(_commitTreeModel.get());
-
-      disconnect(ui->treeViewPageDisplayFilesTree, &QTreeView::pressed, this,
-                 nullptr);
-
-      connect(ui->treeViewPageDisplayFilesTree, &QTreeView::pressed, this,
-              [=](const QModelIndex &index) {
-                onTreeViewTabWidgetTreeSelectedFromCommit(
-                    index, *_commitTreeModel, commit);
-              });
+    if (_displayFilesShowAll) {
+        refreshDisplayFilesModels();
+    } else {
+        applyDisplayFilesModels();
     }
   });
 
   LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::refreshDisplayFilesModels() {
+  LOG_PERF(0, "Enter");
+
+  if (!_displayFilesShowAll) {
+      LOG_PERF(0, "Exit");
+      return;
+  }
+
+  showSpinnerOverlay();
+
+  const auto guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() {
+      const QStringList allFiles =
+              getAllFiles(_path, QStringList() << GIT_SUBDIR);
+      QStringList relativeFiles;
+      relativeFiles.reserve(allFiles.size());
+      for (const auto &file : allFiles) {
+          relativeFiles += QDir(_path).relativeFilePath(file);
+      }
+
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+          _displayFilesAllListModel.reset(
+                      Models::GitCommitListModel::from(relativeFiles));
+          _displayFilesAllTreeModel.reset(
+                      Models::GitCommitTreeModel::from(relativeFiles));
+          applyDisplayFilesModels();
+          showSpinnerOverlay(false);
+      });
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::applyDisplayFilesModels() {
+  LOG_PERF(0, "Enter");
+
+  const bool showAll = _displayFilesShowAll;
+  ui->listViewPageDisplayFilesFlat->setModel(
+      showAll ? _displayFilesAllListModel.get() : _commitListModel.get());
+  ui->treeViewPageDisplayFilesTree->setModel(
+      showAll ? _displayFilesAllTreeModel.get() : _commitTreeModel.get());
+
+  _displayTreeExpanded = false;
+  _displayTreeExpandAllButton->setText(tr("Expand all"));
+  ui->treeViewPageDisplayFilesTree->collapseAll();
+
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::showErrorPage(const bool error) const {

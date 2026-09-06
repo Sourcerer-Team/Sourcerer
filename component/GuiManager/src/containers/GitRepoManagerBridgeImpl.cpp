@@ -88,8 +88,9 @@ enum class MainViewPanes {
 
   History = 0,
   Diff = 1,
-  ThreeWayDiff = 2,
-  StashContent = 3,
+  Blame = 2,
+  ThreeWayDiff = 3,
+  StashContent = 4,
 
   last
 };
@@ -121,6 +122,146 @@ commitSummaryFromHistoryModel(const Models::GitHistoryModel *historyModel,
 
 GitRepoManagerBridgeImpl::GitRepoManagerBridgeImpl(GitRepoContainer &container)
     : _container(container) {}
+
+void GitRepoManagerBridgeImpl::blame(
+    const QWeakPointer<GitRepoContainer> &guard, const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoBlameCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.files = files;
+
+  EventManager::Event blameEvent(EventManager::EventType::GitRepoManagerBlame,
+                                 eventUuid);
+  blameEvent.addData(command);
+  _container._eventManager.send(blameEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerBlameError,
+                           EventManager::EventType::GitRepoManagerBlameResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to retrieve blame."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerBlameResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const auto blameResult =
+      commandResult.value.value<GitRepoBlameCommandResult>();
+
+  QStringList blameLines;
+  QStringList blameLineNumbers;
+  QStringList blameAuthors;
+  QString widestAuthor;
+  QString lexerFilePath;
+
+  const auto appendSeparator = [&]() {
+    if (!blameLines.isEmpty()) {
+      blameLines += QString();
+      blameLineNumbers += QString();
+      blameAuthors += QString();
+    }
+  };
+
+  for (const auto &fileInfo : blameResult.report.fileInfos) {
+    appendSeparator();
+    blameLines += QStringLiteral("File: %1").arg(fileInfo.filePath);
+    blameLineNumbers += QString();
+    blameAuthors += QString();
+
+    if (lexerFilePath.isEmpty() && !fileInfo.filePath.isEmpty()) {
+      lexerFilePath = fileInfo.filePath;
+    }
+
+    if (!fileInfo.errorMessage.isEmpty()) {
+      blameLines += QStringLiteral("  [Failed to retrieve blame: %1]")
+                        .arg(fileInfo.errorMessage);
+      blameLineNumbers += QString();
+      blameAuthors += QString();
+      continue;
+    }
+
+    for (const auto &lineInfo : fileInfo.lineInfos) {
+      blameLines += lineInfo.content;
+      blameLineNumbers += QString::number(lineInfo.lineNumber);
+      blameAuthors += lineInfo.author;
+      if (lineInfo.author.size() > widestAuthor.size()) {
+        widestAuthor = lineInfo.author;
+      }
+    }
+  }
+
+  int maxLineNumberDigits = 1;
+  for (const auto &lineNumber : std::as_const(blameLineNumbers)) {
+    if (!lineNumber.isEmpty()) {
+      maxLineNumberDigits =
+          std::max(maxLineNumberDigits, static_cast<int>(lineNumber.size()));
+    }
+  }
+  const int lineWidth = maxLineNumberDigits;
+  const QString lineNumberMask = QString(lineWidth, QChar('9'));
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    QsciLexer *lexer = nullptr;
+    if (!lexerFilePath.isEmpty()) {
+      const GuiManager::QScintillaLexerFactory factory;
+      lexer = factory.createLexerForFile(lexerFilePath,
+                                         _container.ui->scintillaBlameEditor);
+    }
+    _container.ui->scintillaBlameEditor->setLexer(lexer);
+
+    _container.ui->scintillaBlameEditor->setText(blameLines.join('\n'));
+
+    _container.ui->scintillaBlameEditor->setMarginWidth(0, lineNumberMask);
+    _container.ui->scintillaBlameEditor->setMarginWidth(
+        1, widestAuthor.isEmpty() ? QStringLiteral(" ") : widestAuthor);
+
+    for (int row = 0; row < blameLineNumbers.size(); ++row) {
+      _container.ui->scintillaBlameEditor->setMarginText(
+          row, 0, blameLineNumbers.at(row));
+      _container.ui->scintillaBlameEditor->setMarginText(row, 1,
+                                                         blameAuthors.at(row));
+    }
+
+    _container.showSpinnerOverlay(false);
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::Blame));
+  });
+
+  LOG_PERF(0, "Exit");
+}
 
 void GitRepoManagerBridgeImpl::setUpstream(
     const QWeakPointer<GitRepoContainer> &guard, const QString &branchName,

@@ -38,6 +38,8 @@ public:
 
   static GitCommitListModel *from(const GitRepo::GitStatus &status);
 
+  static GitCommitListModel *from(const QStringList &files);
+
   static GitCommitListModel *fromStaged(const GitRepo::GitStatus &status);
 
 public:

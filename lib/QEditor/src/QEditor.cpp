@@ -351,6 +351,7 @@ QsciScintilla::~QsciScintilla() {
 }
 
 void QsciScintilla::setText(const QString &text) {
+  _marginTexts.clear();
   setPlainText(text);
   if (_syntaxHighlighter) {
     _syntaxHighlighter->rehighlight();
@@ -478,6 +479,17 @@ void QsciScintilla::setMarginWidth(int margin, int width) {
   _marginWidths[margin] = width;
   updateViewportMargins();
   updateLineNumberAreaWidth(0);
+}
+
+void QsciScintilla::setMarginText(int line, int margin, const QString &text) {
+  if (line < 0 || margin < 0 || margin >= 4) {
+    return;
+  }
+
+  _marginTexts[line][margin] = text;
+  if (_lineNumberArea) {
+    _lineNumberArea->update();
+  }
 }
 
 void QsciScintilla::setMarginType(int margin, MarginType type) {
@@ -799,11 +811,27 @@ void QsciScintilla::lineNumberAreaPaintEvent(QPaintEvent *event) {
                              _marginsBackground.isValid() ? _marginsBackground
                                                           : palette().window().color()));
 
+        const auto lineMargins = _marginTexts.constFind(blockNumber);
+        if (lineMargins != _marginTexts.constEnd()) {
+          const auto textIt = lineMargins->constFind(margin);
+          if (textIt != lineMargins->constEnd()) {
+            if (!textIt->isEmpty()) {
+              const Qt::Alignment alignment =
+                  margin == 0 ? (Qt::AlignRight | Qt::AlignVCenter)
+                              : (Qt::AlignLeft | Qt::AlignVCenter);
+              painter.setPen(textColor);
+              painter.drawText(marginRect.adjusted(4, 0, -4, 0), alignment,
+                               *textIt);
+            }
+            continue;
+          }
+        }
+
         if (margin == 0 && _marginLineNumbers[0]) {
           const QString number = QString::number(blockNumber + 1);
           painter.setPen(textColor);
-          painter.drawText(marginRect.adjusted(0, 0, -4, 0), Qt::AlignRight | Qt::AlignVCenter,
-                           number);
+          painter.drawText(marginRect.adjusted(0, 0, -4, 0),
+                           Qt::AlignRight | Qt::AlignVCenter, number);
           continue;
         }
 

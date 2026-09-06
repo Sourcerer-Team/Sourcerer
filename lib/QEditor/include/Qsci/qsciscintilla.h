@@ -3,8 +3,10 @@
 #include "qscilexer.h"
 
 #include <QColor>
+#include <QHash>
 #include <QPlainTextEdit>
 #include <QSet>
+#include <QString>
 #include <QVector>
 
 struct TSParser;
@@ -52,6 +54,7 @@ public:
   void setMarginsForegroundColor(const QColor &color);
   void setMarginWidth(int margin, const QString &text);
   void setMarginWidth(int margin, int width);
+  void setMarginText(int line, int margin, const QString &text);
   void setMarginType(int margin, MarginType type);
   void setMarginSensitivity(int margin, bool sensitivity);
   void setMarginMarkerMask(int margin, int mask);
@@ -126,6 +129,7 @@ private:
   QHash<int, QColor> _markerForegroundColors;
   QHash<int, int> _markerSymbols;
   QHash<int, QSet<int>> _markers;
+  QHash<int, QHash<int, QString>> _marginTexts;
   QWidget *_lineNumberArea;
   SimpleSyntaxHighlighter *_syntaxHighlighter;
   TSParser *_parser;

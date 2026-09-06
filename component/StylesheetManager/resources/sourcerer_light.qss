@@ -555,6 +555,18 @@
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#pushButtonBlameClose{
+        background-color: #353535;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QPushButton#pushButtonBlameClose:hover{
+        background-color: #384D59;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
       QPushButton#pushButtonStashClose{
         background-color: #353535;
         border: 1px solid gray;

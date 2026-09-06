@@ -275,6 +275,12 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerAmendResult";
   case EventType::GitRepoManagerAmendError:
     return "GitRepoManagerAmendError";
+  case EventType::GitRepoManagerBlame:
+    return "GitRepoManagerBlame";
+  case EventType::GitRepoManagerBlameResult:
+    return "GitRepoManagerBlameResult";
+  case EventType::GitRepoManagerBlameError:
+    return "GitRepoManagerBlameError";
   case EventType::GitRepoManagerApplyPatch:
     return "GitRepoManagerApplyPatch";
   case EventType::GitRepoManagerApplyPatchResult:

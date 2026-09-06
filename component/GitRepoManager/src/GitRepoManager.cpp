@@ -36,6 +36,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAmend, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerBlame, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyPatch, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyStash, callbackFunc));
@@ -199,6 +201,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerSetDefaultTarget, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAmend, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerBlame, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerApplyPatch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -426,6 +430,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent amendEvent(EventType::Amend);
     amendEvent.addParam(QVariant::fromValue(amendCommand));
     _fsm.send(amendEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerBlame: {
+    const auto blameCommand = event.data<GitRepoBlameCommand>();
+    GitRepoManagerEvent blameEvent(EventType::Blame);
+    blameEvent.addParam(QVariant::fromValue(blameCommand));
+    _fsm.send(blameEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerApplyPatch: {

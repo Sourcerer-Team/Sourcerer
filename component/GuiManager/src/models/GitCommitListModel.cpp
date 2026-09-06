@@ -146,6 +146,32 @@ GitCommitListModel *GitCommitListModel::from(const GitRepo::GitStatus &status) {
   return model.take();
 }
 
+GitCommitListModel *GitCommitListModel::from(const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  QList<GitCommitListModification> modifications;
+  modifications.reserve(files.size());
+  for (const auto &file : files) {
+    GitCommitListModification modification;
+    modification._filePath = QDir::toNativeSeparators(file);
+    modification._type = GitCommitListModificationType::Unknown;
+    modifications.append(modification);
+  }
+
+  std::sort(modifications.begin(), modifications.end(),
+            [](const GitCommitListModification &x,
+               const GitCommitListModification &y) {
+              return x._filePath < y._filePath;
+            });
+
+  QScopedPointer<GitCommitListModel> model(new GitCommitListModel());
+  model->_modifications = modifications;
+
+  LOG_PERF(0, "Exit");
+
+  return model.take();
+}
+
 GitCommitListModel *
 GitCommitListModel::fromStaged(const GitRepo::GitStatus &status) {
   LOG_PERF(0, "Enter");
