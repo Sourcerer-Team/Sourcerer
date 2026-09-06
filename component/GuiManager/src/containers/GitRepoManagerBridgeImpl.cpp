@@ -240,9 +240,10 @@ void GitRepoManagerBridgeImpl::blame(
       lexer = factory.createLexerForFile(lexerFilePath,
                                          _container.ui->scintillaBlameEditor);
     }
-    _container.ui->scintillaBlameEditor->setLexer(lexer);
 
+    _container.ui->scintillaBlameEditor->setLexer(nullptr);
     _container.ui->scintillaBlameEditor->setText(blameLines.join('\n'));
+    _container.ui->scintillaBlameEditor->setLexer(lexer);
 
     _container.ui->scintillaBlameEditor->setMarginWidth(0, lineNumberMask);
     _container.ui->scintillaBlameEditor->setMarginWidth(
