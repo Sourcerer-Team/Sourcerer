@@ -5131,6 +5131,42 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onPageDisplayFilesTreePressed(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (isRightMouseButtonDown()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (_displayFilesShowAll) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const Models::GitCommitTreeModel *model =
+      _displayFilesShowAll ? _displayFilesAllTreeModel.get()
+                           : _commitTreeModel.get();
+  if (!model) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (_displayFilesShowAll || _currentDisplayCommit.isEmpty()) {
+    onTreeViewTabWidgetTreeSelected(index, *model);
+  } else {
+    onTreeViewTabWidgetTreeSelectedFromCommit(index, *model,
+                                              _currentDisplayCommit);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onPageDisplayFilesFlatPressed(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
