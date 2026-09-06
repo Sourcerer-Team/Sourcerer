@@ -10,10 +10,10 @@
 #include <QPlainTextEdit>
 #include <QRegularExpression>
 #include <QResizeEvent>
-#include <QScrollBar>
 #include <QSyntaxHighlighter>
 #include <QTextBlock>
 #include <QTextCursor>
+#include <QTextDocument>
 #include <QTextEdit>
 #include <QTextFormat>
 #include <QVBoxLayout>
@@ -352,10 +352,18 @@ QsciScintilla::~QsciScintilla() {
 
 void QsciScintilla::setText(const QString &text) {
   _marginTexts.clear();
-  setPlainText(text);
+
+  QTextCursor cursor(document());
+  cursor.beginEditBlock();
+  cursor.select(QTextCursor::Document);
+  cursor.removeSelectedText();
+  cursor.insertText(text);
+  cursor.endEditBlock();
+
   if (_syntaxHighlighter) {
     _syntaxHighlighter->rehighlight();
   }
+
   refreshCurrentLineHighlight();
 }
 
@@ -917,3 +925,4 @@ int QsciScintilla::lineFromPoint(const QPoint &point) const {
   QTextCursor cursor = cursorForPosition(point);
   return cursor.block().blockNumber();
 }
+����Z(L

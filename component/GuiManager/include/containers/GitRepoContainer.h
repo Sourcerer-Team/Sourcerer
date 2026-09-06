@@ -196,6 +196,7 @@ private slots:
   void onDeleteSubmodule(const QString &submoduleName);
   void onGraphColumnExpand(int section);
   void onWorkingTreeFlatListViewContextMenuRequested(const QPoint &pos);
+  void onWorkingTreeFlatListViewClicked(const QModelIndex &index);
   void onWorkingTreeFlatListViewStageSelected(bool checked = false);
   void onWorkingTreeFlatListViewIgnoreSelected(bool checked = false);
   void onWorkingTreeFlatListViewIgnoreRecursiveSelected(bool checked = false);
@@ -203,6 +204,7 @@ private slots:
   void onWorkingTreeFlatListViewDeleteSelected(bool checked = false);
   void onWorkingTreeFlatListViewDiscardSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewContextMenuRequested(const QPoint &pos);
+  void onWorkingTreeTreeTreeViewClicked(const QModelIndex &index);
   void onWorkingTreeTreeTreeViewStageSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewIgnoreSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewIgnoreRecursiveSelected(bool checked = false);
@@ -210,6 +212,7 @@ private slots:
   void onWorkingTreeTreeTreeViewDeleteSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewDiscardSelected(bool checked = false);
   void onIndexFlatListViewContextMenuRequested(const QPoint &pos);
+  void onIndexFlatListViewClicked(const QModelIndex &index);
   void onIndexFlatListViewUnstageSelected(bool checked = false);
   void onIndexFlatListViewIgnoreSelected(bool checked = false);
   void onIndexFlatListViewIgnoreRecursiveSelected(bool checked = false);
@@ -217,6 +220,7 @@ private slots:
   void onIndexFlatListViewDeleteSelected(bool checked = false);
   void onIndexFlatListViewDiscardSelected(bool checked = false);
   void onIndexTreeTreeViewContextMenuRequested(const QPoint &pos);
+  void onIndexTreeTreeViewClicked(const QModelIndex &index);
   void onIndexTreeTreeViewUnstageSelected(bool checked = false);
   void onIndexTreeTreeViewIgnoreSelected(bool checked = false);
   void onIndexTreeTreeViewIgnoreRecursiveSelected(bool checked = false);

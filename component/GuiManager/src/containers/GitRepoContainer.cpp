@@ -79,6 +79,12 @@
 #define GIT_IGNORE_FILENAME ".gitignore"
 #define GIT_SUBDIR ".git"
 
+namespace {
+bool isRightMouseButtonDown() {
+  return QGuiApplication::mouseButtons().testFlag(Qt::RightButton);
+}
+} // namespace
+
 using namespace GuiManager::Widgets;
 using namespace GitRepoManager::Structs;
 
@@ -328,6 +334,11 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->treeViewTabWidgetWorkingTreeTree->setContextMenuPolicy(
       Qt::CustomContextMenu);
 
+  connect(ui->listViewTabWidgetWorkingTreeFlat, &QListView::clicked, this,
+          &GitRepoContainer::onWorkingTreeFlatListViewClicked);
+  connect(ui->treeViewTabWidgetWorkingTreeTree, &QTreeView::clicked, this,
+          &GitRepoContainer::onWorkingTreeTreeTreeViewClicked);
+
   _commitAndMergeIndexTreeUnstageAllButton =
       new QPushButton(tr("Unstage all"), ui->tabWidgetIndex);
   _commitAndMergeIndexTreeUnstageAllButton->setObjectName(
@@ -351,6 +362,11 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->listViewTabWidgetIndexFlat->setContextMenuPolicy(Qt::CustomContextMenu);
   ui->treeViewTabWidgetIndexTree->setContextMenuPolicy(Qt::CustomContextMenu);
+
+  connect(ui->listViewTabWidgetIndexFlat, &QListView::clicked, this,
+          &GitRepoContainer::onIndexFlatListViewClicked);
+  connect(ui->treeViewTabWidgetIndexTree, &QTreeView::clicked, this,
+          &GitRepoContainer::onIndexTreeTreeViewClicked);
 
   ui->listViewStashFilesFlat->setContextMenuPolicy(Qt::CustomContextMenu);
   ui->treeViewStashFilesTree->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -4057,6 +4073,54 @@ void GitRepoContainer::onGraphColumnExpand(int section) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onWorkingTreeFlatListViewClicked(
+    const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const GuiManager::Models::GitCommitListModificationType modificationType =
+      static_cast<GuiManager::Models::GitCommitListModificationType>(
+          index.data(Qt::UserRole).toInt());
+  const bool conflicted =
+      modificationType ==
+      GuiManager::Models::GitCommitListModificationType::Conflicted;
+
+  QString filePath = index.data(Qt::DisplayRole).toString();
+  filePath = QDir::fromNativeSeparators(filePath);
+
+  const QString fullPath = QDir(_path).filePath(filePath);
+  const QFileInfo fileInfo(fullPath);
+  const qint64 maxDiffFileSize =
+      _configManager.getLong(ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
+
+  if (fileInfo.exists() && fileInfo.size() > maxDiffFileSize) {
+    LOG_DEBUG("File size {} exceeds maximum diff size {}", fileInfo.size(),
+              maxDiffFileSize);
+    showErrorToast(tr("File is too large to be displayed."), tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  _dispatcher.dispatch([=]() {
+    LOG_DEBUG("Showing diff for working tree file '{}' - conflicted: {}",
+              filePath.toStdString(), conflicted);
+    if (!conflicted) {
+      _bridge->diff(guard, filePath);
+    } else {
+      _bridge->diffThreeWay(guard, filePath);
+    }
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
     const QPoint &pos) {
   LOG_PERF(0, "Enter");
@@ -4079,6 +4143,12 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
       getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
   const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->listViewTabWidgetWorkingTreeFlat);
+  QStringList blameFiles;
+  for (const auto &file : files) {
+    if (QFileInfo::exists(QDir(_path).filePath(file))) {
+      blameFiles += file;
+    }
+  }
 
   QMenu contextMenu;
 
@@ -4098,6 +4168,12 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
   }
 
   if (!existingFiles.isEmpty()) {
+    QAction *blameAction = contextMenu.addAction(tr("Blame"));
+    connect(blameAction, &QAction::triggered, this,
+            [=]() { blame(blameFiles); });
+
+    contextMenu.addSeparator();
+
     QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
     QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
     QAction *ignoreRecursiveAction = ignoreMenu->addAction(
@@ -4268,6 +4344,64 @@ void GitRepoContainer::onWorkingTreeFlatListViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onWorkingTreeTreeTreeViewClicked(
+    const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const GuiManager::Models::GitCommitListModificationType modificationType =
+      static_cast<GuiManager::Models::GitCommitListModificationType>(
+          index.data(Qt::UserRole).toInt());
+  const bool conflicted =
+      modificationType ==
+      GuiManager::Models::GitCommitListModificationType::Conflicted;
+
+  if (ui->treeViewTabWidgetWorkingTreeTree->model()->rowCount(index) > 0) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QStringList path;
+  QModelIndex current = index;
+  while (current.isValid()) {
+    path.prepend(current.data().toString());
+    current = current.parent();
+  }
+
+  const QString filePath = QDir::fromNativeSeparators(path.join("/"));
+  const QString fullPath = QDir(_path).filePath(filePath);
+  const QFileInfo fileInfo(fullPath);
+  const qint64 maxDiffFileSize =
+      _configManager.getLong(ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
+
+  if (fileInfo.exists() && fileInfo.size() > maxDiffFileSize) {
+    LOG_DEBUG("File size {} exceeds maximum diff size {}", fileInfo.size(),
+              maxDiffFileSize);
+    showErrorToast(tr("File is too large to be displayed."), tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  _dispatcher.dispatch([=]() {
+    LOG_DEBUG("Showing diff for working tree tree file '{}' - conflicted: {}",
+              filePath.toStdString(), conflicted);
+    if (!conflicted) {
+      _bridge->diff(guard, filePath);
+    } else {
+      _bridge->diffThreeWay(guard, filePath);
+    }
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
     const QPoint &pos) {
   LOG_PERF(0, "Enter");
@@ -4290,6 +4424,12 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
       getSelectedFiles(ui->treeViewTabWidgetWorkingTreeTree);
   const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->treeViewTabWidgetWorkingTreeTree);
+  QStringList blameFiles;
+  for (const auto &file : files) {
+    if (QFileInfo::exists(QDir(_path).filePath(file))) {
+      blameFiles += file;
+    }
+  }
 
   QMenu contextMenu;
 
@@ -4309,6 +4449,12 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
   }
 
   if (!existingFiles.isEmpty()) {
+    QAction *blameAction = contextMenu.addAction(tr("Blame"));
+    connect(blameAction, &QAction::triggered, this,
+            [=]() { blame(blameFiles); });
+
+    contextMenu.addSeparator();
+
     QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
     QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
     QAction *ignoreRecursiveAction = ignoreMenu->addAction(
@@ -4479,6 +4625,53 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onIndexFlatListViewClicked(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const GuiManager::Models::GitCommitListModificationType modificationType =
+      static_cast<GuiManager::Models::GitCommitListModificationType>(
+          index.data(Qt::UserRole).toInt());
+  const bool conflicted =
+      modificationType ==
+      GuiManager::Models::GitCommitListModificationType::Conflicted;
+
+  QString filePath = index.data(Qt::DisplayRole).toString();
+  filePath = QDir::fromNativeSeparators(filePath);
+
+  const QString fullPath = QDir(_path).filePath(filePath);
+  const QFileInfo fileInfo(fullPath);
+  const qint64 maxDiffFileSize =
+      _configManager.getLong(ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
+
+  if (fileInfo.exists() && fileInfo.size() > maxDiffFileSize) {
+    LOG_DEBUG("File size {} exceeds maximum diff size {}", fileInfo.size(),
+              maxDiffFileSize);
+    showErrorToast(tr("File is too large to be displayed."), tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  _dispatcher.dispatch([=]() {
+    LOG_DEBUG("Showing diff for index file '{}' - conflicted: {}",
+              filePath.toStdString(), conflicted);
+    if (!conflicted) {
+      _bridge->diff(guard, filePath);
+    } else {
+      _bridge->diffThreeWay(guard, filePath);
+    }
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
     const QPoint &pos) {
   LOG_PERF(0, "Enter");
@@ -4492,6 +4685,12 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
   const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->listViewTabWidgetIndexFlat);
+  QStringList blameFiles;
+  for (const auto &file : files) {
+    if (QFileInfo::exists(QDir(_path).filePath(file))) {
+      blameFiles += file;
+    }
+  }
 
   QMenu contextMenu;
   if (!files.isEmpty()) {
@@ -4508,6 +4707,12 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
   contextMenu.addAction(ui->actionIndexFlatDiscard);
 
   if (!existingFiles.isEmpty()) {
+    QAction *blameAction = contextMenu.addAction(tr("Blame"));
+    connect(blameAction, &QAction::triggered, this,
+            [=]() { blame(blameFiles); });
+
+    contextMenu.addSeparator();
+
     QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
     QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
     QAction *ignoreRecursiveAction = ignoreMenu->addAction(
@@ -4668,6 +4873,63 @@ void GitRepoContainer::onIndexFlatListViewDiscardSelected(bool checked) {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onIndexTreeTreeViewClicked(const QModelIndex &index) {
+  LOG_PERF(0, "Enter");
+
+  if (!index.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const GuiManager::Models::GitCommitListModificationType modificationType =
+      static_cast<GuiManager::Models::GitCommitListModificationType>(
+          index.data(Qt::UserRole).toInt());
+  const bool conflicted =
+      modificationType ==
+      GuiManager::Models::GitCommitListModificationType::Conflicted;
+
+  if (ui->treeViewTabWidgetIndexTree->model()->rowCount(index) > 0) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QStringList path;
+  QModelIndex current = index;
+  while (current.isValid()) {
+    path.prepend(current.data().toString());
+    current = current.parent();
+  }
+
+  const QString filePath = QDir::fromNativeSeparators(path.join("/"));
+  const QString fullPath = QDir(_path).filePath(filePath);
+  const QFileInfo fileInfo(fullPath);
+  const qint64 maxDiffFileSize =
+      _configManager.getLong(ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
+
+  if (fileInfo.exists() && fileInfo.size() > maxDiffFileSize) {
+    LOG_DEBUG("File size {} exceeds maximum diff size {}", fileInfo.size(),
+              maxDiffFileSize);
+    showErrorToast(tr("File is too large to be displayed."), tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  _dispatcher.dispatch([=]() {
+    LOG_DEBUG("Showing diff for index tree file '{}' - conflicted: {}",
+              filePath.toStdString(), conflicted);
+    if (!conflicted) {
+      _bridge->diff(guard, filePath);
+    } else {
+      _bridge->diffThreeWay(guard, filePath);
+    }
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
     const QPoint &pos) {
   LOG_PERF(0, "Enter");
@@ -4681,6 +4943,12 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
   const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->treeViewTabWidgetIndexTree);
+  QStringList blameFiles;
+  for (const auto &file : files) {
+    if (QFileInfo::exists(QDir(_path).filePath(file))) {
+      blameFiles += file;
+    }
+  }
 
   QMenu contextMenu;
   if (!files.isEmpty()) {
@@ -4697,6 +4965,12 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
   contextMenu.addAction(ui->actionIndexTreeDiscard);
 
   if (!existingFiles.isEmpty()) {
+    QAction *blameAction = contextMenu.addAction(tr("Blame"));
+    connect(blameAction, &QAction::triggered, this,
+            [=]() { blame(blameFiles); });
+
+    contextMenu.addSeparator();
+
     QMenu *ignoreMenu = contextMenu.addMenu(tr("Ignore"));
     QAction *ignoreFileAction = ignoreMenu->addAction(tr("Ignore this file"));
     QAction *ignoreRecursiveAction = ignoreMenu->addAction(
@@ -4860,6 +5134,14 @@ void GitRepoContainer::onIndexTreeTreeViewDiscardSelected(bool checked) {
 void GitRepoContainer::onPageDisplayFilesFlatPressed(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
+<<<<<<< file
+=======
+  if (isRightMouseButtonDown()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+>>>>>>> file
   if (!index.isValid()) {
     LOG_PERF(0, "Exit");
     return;
@@ -4882,6 +5164,14 @@ void GitRepoContainer::onPageDisplayFilesFlatPressed(const QModelIndex &index) {
 void GitRepoContainer::onPageDisplayFilesTreePressed(const QModelIndex &index) {
   LOG_PERF(0, "Enter");
 
+<<<<<<< file
+=======
+  if (isRightMouseButtonDown()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+>>>>>>> file
   if (!index.isValid()) {
     LOG_PERF(0, "Exit");
     return;
@@ -4940,6 +5230,8 @@ void GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
     connect(showInFileManagerAction, &QAction::triggered, this,
             [=]() { FileManager::revealInFileManager(existingFiles); });
   }
+
+  contextMenu.addSeparator();
 
   QAction *blameAction =
       contextMenu.addAction(tr("Blame"));
@@ -6461,3 +6753,4 @@ void GitRepoContainer::updateTagsModel(const WeakPtr &guard,
   LOG_PERF(0, "Exit")
 }
 } // namespace GuiManager::Containers
+����
