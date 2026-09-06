@@ -10,6 +10,8 @@ class GitRepoManagerBridgeImpl final : public GitRepoManagerBridge {
 public:
   explicit GitRepoManagerBridgeImpl(GitRepoContainer &container);
 
+  void blame(const QWeakPointer<GitRepoContainer> &guard,
+             const QStringList &files) override;
   void
   setUpstream(const QWeakPointer<GitRepoContainer> &guard,
               const QString &branchName, const QString &remoteName,

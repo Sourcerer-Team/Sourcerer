@@ -18,6 +18,7 @@ enum class GitRepoCommandType : int {
   AddSubmodule,
   AddRemote,
   Amend,
+  Blame,
   ApplyPatch,
   ApplyStash,
   CheckoutBranch,
@@ -150,6 +151,14 @@ struct GitRepoAmendCommand final : GitRepoCommand {
   QString message;
   bool signoff = false;
   bool signCommit = false;
+};
+
+struct GitRepoBlameCommand final : GitRepoCommand {
+  GitRepoBlameCommand() : GitRepoCommand(GitRepoCommandType::Blame) {}
+
+  ~GitRepoBlameCommand() override = default;
+
+  QStringList files;
 };
 
 struct GitRepoApplyPatchCommand final : GitRepoCommand {
@@ -368,6 +377,10 @@ struct GitRepoDiffFilesFromCommitCommandResult {
   QMap<QString, QString> filesContent;
   QMap<QString, QString> repoContent;
   QVector<GitRepo::FilesDiffDelta> deltas;
+};
+
+struct GitRepoBlameCommandResult {
+  GitRepo::BlameReport report;
 };
 
 struct GitRepoDiscardFilesCommand final : GitRepoCommand {
@@ -872,3 +885,9 @@ Q_DECLARE_METATYPE(GitRepo::RemoteTarget)
 Q_DECLARE_METATYPE(QVector<GitRepo::RemoteTarget>)
 Q_DECLARE_METATYPE(GitRepo::RemoteInfo)
 Q_DECLARE_METATYPE(QVector<GitRepo::RemoteInfo>)
+Q_DECLARE_METATYPE(GitRepo::BlameLineInfo)
+Q_DECLARE_METATYPE(GitRepo::BlameFileInfo)
+Q_DECLARE_METATYPE(GitRepo::BlameReport)
+Q_DECLARE_METATYPE(GitRepoManager::Structs::GitRepoBlameCommand)
+Q_DECLARE_METATYPE(GitRepoManager::Structs::GitRepoBlameCommandResult)
+

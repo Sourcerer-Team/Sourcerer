@@ -48,6 +48,7 @@ class ScrollbarMarksWidget;
 }
 
 class QEvent;
+class QCheckBox;
 
 namespace GuiManager::Containers {
 
@@ -130,9 +131,13 @@ private slots:
   void onPushTag(const QString &tagName);
   void onPushAllTags();
   void onDiffCloseClicked();
+  void onBlameCloseClicked();
   void onDiffUnifiedClicked();
   void onDiffSideBySideClicked();
   void onDisplayTreeExpandAllButtonClicked();
+  void onDisplayFilesAllToggled(bool checked);
+  void onPageDisplayFilesFlatPressed(const QModelIndex &index);
+  void onPageDisplayFilesTreePressed(const QModelIndex &index);
   void onPageDisplayFilesFlatListViewContextMenuRequested(const QPoint &pos);
   void onPageDisplayFilesTreeViewContextMenuRequested(const QPoint &pos);
   void onHardResetToCommit(const QString &commit);
@@ -191,6 +196,7 @@ private slots:
   void onDeleteSubmodule(const QString &submoduleName);
   void onGraphColumnExpand(int section);
   void onWorkingTreeFlatListViewContextMenuRequested(const QPoint &pos);
+  void onWorkingTreeFlatListViewClicked(const QModelIndex &index);
   void onWorkingTreeFlatListViewStageSelected(bool checked = false);
   void onWorkingTreeFlatListViewIgnoreSelected(bool checked = false);
   void onWorkingTreeFlatListViewIgnoreRecursiveSelected(bool checked = false);
@@ -198,6 +204,7 @@ private slots:
   void onWorkingTreeFlatListViewDeleteSelected(bool checked = false);
   void onWorkingTreeFlatListViewDiscardSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewContextMenuRequested(const QPoint &pos);
+  void onWorkingTreeTreeTreeViewClicked(const QModelIndex &index);
   void onWorkingTreeTreeTreeViewStageSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewIgnoreSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewIgnoreRecursiveSelected(bool checked = false);
@@ -205,6 +212,7 @@ private slots:
   void onWorkingTreeTreeTreeViewDeleteSelected(bool checked = false);
   void onWorkingTreeTreeTreeViewDiscardSelected(bool checked = false);
   void onIndexFlatListViewContextMenuRequested(const QPoint &pos);
+  void onIndexFlatListViewClicked(const QModelIndex &index);
   void onIndexFlatListViewUnstageSelected(bool checked = false);
   void onIndexFlatListViewIgnoreSelected(bool checked = false);
   void onIndexFlatListViewIgnoreRecursiveSelected(bool checked = false);
@@ -212,6 +220,7 @@ private slots:
   void onIndexFlatListViewDeleteSelected(bool checked = false);
   void onIndexFlatListViewDiscardSelected(bool checked = false);
   void onIndexTreeTreeViewContextMenuRequested(const QPoint &pos);
+  void onIndexTreeTreeViewClicked(const QModelIndex &index);
   void onIndexTreeTreeViewUnstageSelected(bool checked = false);
   void onIndexTreeTreeViewIgnoreSelected(bool checked = false);
   void onIndexTreeTreeViewIgnoreRecursiveSelected(bool checked = false);
@@ -226,6 +235,7 @@ private slots:
                                GitRepo::BranchType branchType);
 
 private:
+  void blame(const QStringList& files);
   void clearSummaryAndDescription();
   void closeDiffViewerIfOpen();
   void refreshScintillaTheme();
@@ -253,6 +263,8 @@ private:
   void resetCommitAndMergeWorkingTreeTreeStageAllButton();
   void resetCommitButton() const;
   void resetDisplayTreeExpandedButton();
+  void refreshDisplayFilesModels();
+  void applyDisplayFilesModels();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
   void applyHistoryColumnVisibility();
@@ -346,12 +358,17 @@ private:
   QPushButton *_commitAndMergeIndexTreeUnstageAllButton;
   QPushButton *_stashApplyButton;
   QPushButton *_stashPopButton;
+  QCheckBox *_displayFilesAllCheckBox;
   QPushButton *_displayTreeExpandAllButton;
   bool _displayTreeExpanded;
+  bool _displayFilesShowAll;
   bool _mergeInProgress;
 
+  QString _currentDisplayCommit;
   QSharedPointer<Models::GitCommitListModel> _commitListModel;
   QSharedPointer<Models::GitCommitTreeModel> _commitTreeModel;
+  QSharedPointer<Models::GitCommitListModel> _displayFilesAllListModel;
+  QSharedPointer<Models::GitCommitTreeModel> _displayFilesAllTreeModel;
   QSharedPointer<Models::GitCommitListModel> _commitStagedListModel;
   QSharedPointer<Models::GitCommitTreeModel> _commitStagedTreeModel;
   QSharedPointer<Models::GitCommitListModel> _stashFilesModel;
