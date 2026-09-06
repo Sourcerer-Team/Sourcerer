@@ -6753,4 +6753,3 @@ void GitRepoContainer::updateTagsModel(const WeakPtr &guard,
   LOG_PERF(0, "Exit")
 }
 } // namespace GuiManager::Containers
-����
