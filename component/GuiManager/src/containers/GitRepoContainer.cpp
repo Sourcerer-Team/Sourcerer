@@ -621,7 +621,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaTextEditorUnified->setSizePolicy(QSizePolicy::Expanding,
                                                 QSizePolicy::Expanding);
   ui->scintillaTextEditorUnified->setWrapMode(QsciScintilla::WrapNone);
-  ui->scintillaTextEditorUnified->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  ui->scintillaTextEditorUnified->setHorizontalScrollBarPolicy(
+              Qt::ScrollBarAsNeeded);
   ui->scintillaTextEditorUnified->setLexer(lexerDiffUnified);
   ui->scintillaTextEditorUnified->setMarginsBackgroundColor(QColor(0x384D59));
   ui->scintillaTextEditorUnified->setMarginType(0, QsciScintilla::NumberMargin);
@@ -664,7 +665,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaStashDiffUnified->setSizePolicy(QSizePolicy::Expanding,
                                                QSizePolicy::Expanding);
   ui->scintillaStashDiffUnified->setWrapMode(QsciScintilla::WrapNone);
-  ui->scintillaStashDiffUnified->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  ui->scintillaStashDiffUnified->setHorizontalScrollBarPolicy(
+              Qt::ScrollBarAsNeeded);
   ui->scintillaStashDiffUnified->setLexer(lexerStashDiffUnified);
   ui->scintillaStashDiffUnified->setMarginsBackgroundColor(QColor(0x384D59));
   ui->scintillaStashDiffUnified->setMarginType(0, QsciScintilla::NumberMargin);
@@ -2599,7 +2601,7 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
     return;
   }
 
-  if(_displayFilesShowAll) {
+  if (_displayFilesShowAll) {
       LOG_PERF(0, "Exit");
       return;
   }
@@ -5180,7 +5182,7 @@ void GitRepoContainer::onPageDisplayFilesFlatPressed(const QModelIndex &index) {
     return;
   }
 
-  if(_displayFilesShowAll) {
+  if (_displayFilesShowAll) {
       LOG_PERF(0, "Exit");
       return;
   }
@@ -5194,10 +5196,9 @@ void GitRepoContainer::onPageDisplayFilesFlatPressed(const QModelIndex &index) {
   }
 
   if (_displayFilesShowAll || _currentDisplayCommit.isEmpty()) {
-    onTreeViewTabWidgetTreeSelected(index, *model);
+    onListViewTabWidgetFlatSelected(index);
   } else {
-    onTreeViewTabWidgetTreeSelectedFromCommit(index, *model,
-                                              _currentDisplayCommit);
+    onListViewTabWidgetFlatSelectedFromCommit(index, _currentDisplayCommit);
   }
 
   LOG_PERF(0, "Exit");
@@ -5236,10 +5237,8 @@ void GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
 
   contextMenu.addSeparator();
 
-  QAction *blameAction =
-      contextMenu.addAction(tr("Blame"));
-  connect(blameAction, &QAction::triggered, this,
-          [=]() { blame(files); });
+  QAction *blameAction = contextMenu.addAction(tr("Blame"));
+  connect(blameAction, &QAction::triggered, this, [=]() { blame(files); });
 
   contextMenu.exec(ui->listViewPageDisplayFilesFlat->mapToGlobal(pos));
 
@@ -5489,8 +5488,7 @@ void GitRepoContainer::updateModelActiveBranch(const WeakPtr &guard,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::blame(const QStringList &files)
-{
+void GitRepoContainer::blame(const QStringList &files) {
     LOG_PERF(0, "Enter");
 
     const auto guard = getSelf().toWeakRef();
