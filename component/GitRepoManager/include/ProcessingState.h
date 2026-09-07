@@ -79,6 +79,8 @@ private:
   getCommitIsHeadWorker(const Structs::GitRepoGetCommitIsHeadCommand &command);
   void
   getCommitStatusWorker(const Structs::GitRepoGetCommitStatusCommand &command);
+  void getLfsStorageStatusWorker(
+      const Structs::GitRepoGetLfsStorageStatusCommand &command);
   void
   getStashStatusWorker(const Structs::GitRepoGetStashStatusCommand &command);
   void getIsMergeInProgressWorker(
@@ -179,6 +181,8 @@ private:
       const Structs::GitRepoGetCommitIsHeadCommand &command);
   void scheduleWorkerForGetCommitStatus(
       const Structs::GitRepoGetCommitStatusCommand &command);
+  void scheduleWorkerForGetLfsStorageStatus(
+      const Structs::GitRepoGetLfsStorageStatusCommand &command);
   void scheduleWorkerForGetStashStatus(
       const Structs::GitRepoGetStashStatusCommand &command);
   void scheduleWorkerForGetIsMergeInProgress(

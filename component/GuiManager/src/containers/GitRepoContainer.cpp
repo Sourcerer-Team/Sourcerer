@@ -237,7 +237,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
                 ConfigManager::ConfigKey::TooltipDisplayTime);
             QToolTip::showText(
                 ui->pushButtonPageDisplaySignatureCopy->mapToGlobal(QPoint(
-                                                                        0, ui->pushButtonPageDisplaySignatureCopy->height())),
+                    0, ui->pushButtonPageDisplaySignatureCopy->height())),
                 tr("Signature copied to clipboard."),
                 ui->pushButtonPageDisplaySignatureCopy,
                 ui->pushButtonPageDisplaySignatureCopy->rect(),
@@ -420,9 +420,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onPageDisplayFilesTreePressed);
 
   connect(
-              ui->listViewPageDisplayFilesFlat, &QListView::customContextMenuRequested,
-              this,
-              &GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested);
+      ui->listViewPageDisplayFilesFlat, &QListView::customContextMenuRequested,
+      this,
+      &GitRepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested);
   connect(ui->treeViewPageDisplayFilesTree,
           &QTreeView::customContextMenuRequested, this,
           &GitRepoContainer::onPageDisplayFilesTreeViewContextMenuRequested);
@@ -622,7 +622,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
                                                 QSizePolicy::Expanding);
   ui->scintillaTextEditorUnified->setWrapMode(QsciScintilla::WrapNone);
   ui->scintillaTextEditorUnified->setHorizontalScrollBarPolicy(
-              Qt::ScrollBarAsNeeded);
+      Qt::ScrollBarAsNeeded);
   ui->scintillaTextEditorUnified->setLexer(lexerDiffUnified);
   ui->scintillaTextEditorUnified->setMarginsBackgroundColor(QColor(0x384D59));
   ui->scintillaTextEditorUnified->setMarginType(0, QsciScintilla::NumberMargin);
@@ -666,7 +666,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
                                                QSizePolicy::Expanding);
   ui->scintillaStashDiffUnified->setWrapMode(QsciScintilla::WrapNone);
   ui->scintillaStashDiffUnified->setHorizontalScrollBarPolicy(
-              Qt::ScrollBarAsNeeded);
+      Qt::ScrollBarAsNeeded);
   ui->scintillaStashDiffUnified->setLexer(lexerStashDiffUnified);
   ui->scintillaStashDiffUnified->setMarginsBackgroundColor(QColor(0x384D59));
   ui->scintillaStashDiffUnified->setMarginType(0, QsciScintilla::NumberMargin);
@@ -2602,8 +2602,8 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
   }
 
   if (_displayFilesShowAll) {
-      LOG_PERF(0, "Exit");
-      return;
+    LOG_PERF(0, "Exit");
+    return;
   }
 
   QString filePath = index.data(Qt::DisplayRole).toString();
@@ -5183,8 +5183,8 @@ void GitRepoContainer::onPageDisplayFilesFlatPressed(const QModelIndex &index) {
   }
 
   if (_displayFilesShowAll) {
-      LOG_PERF(0, "Exit");
-      return;
+    LOG_PERF(0, "Exit");
+    return;
   }
 
   const Models::GitCommitTreeModel *model =
@@ -5489,13 +5489,13 @@ void GitRepoContainer::updateModelActiveBranch(const WeakPtr &guard,
 }
 
 void GitRepoContainer::blame(const QStringList &files) {
-    LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Enter");
 
-    const auto guard = getSelf().toWeakRef();
+  const auto guard = getSelf().toWeakRef();
 
-    _bridge->blame(guard, files);
+  _bridge->blame(guard, files);
 
-    LOG_PERF(0, "Exit");
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::clearSummaryAndDescription() {
@@ -6309,9 +6309,9 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     _commitListModel.reset(Models::GitCommitListModel::from(commitStatus));
     _commitTreeModel.reset(Models::GitCommitTreeModel::from(commitStatus));
     if (_displayFilesShowAll) {
-        refreshDisplayFilesModels();
+      refreshDisplayFilesModels();
     } else {
-        applyDisplayFilesModels();
+      applyDisplayFilesModels();
     }
   });
 
@@ -6322,8 +6322,8 @@ void GitRepoContainer::refreshDisplayFilesModels() {
   LOG_PERF(0, "Enter");
 
   if (!_displayFilesShowAll) {
-      LOG_PERF(0, "Exit");
-      return;
+    LOG_PERF(0, "Exit");
+    return;
   }
 
   showSpinnerOverlay();
@@ -6331,22 +6331,22 @@ void GitRepoContainer::refreshDisplayFilesModels() {
   const auto guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-      const QStringList allFiles =
-              getAllFiles(_path, QStringList() << GIT_SUBDIR);
-      QStringList relativeFiles;
-      relativeFiles.reserve(allFiles.size());
-      for (const auto &file : allFiles) {
-          relativeFiles += QDir(_path).relativeFilePath(file);
-      }
+    const QStringList allFiles =
+        getAllFiles(_path, QStringList() << GIT_SUBDIR);
+    QStringList relativeFiles;
+    relativeFiles.reserve(allFiles.size());
+    for (const auto &file : allFiles) {
+      relativeFiles += QDir(_path).relativeFilePath(file);
+    }
 
-      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-          _displayFilesAllListModel.reset(
-                      Models::GitCommitListModel::from(relativeFiles));
-          _displayFilesAllTreeModel.reset(
-                      Models::GitCommitTreeModel::from(relativeFiles));
-          applyDisplayFilesModels();
-          showSpinnerOverlay(false);
-      });
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _displayFilesAllListModel.reset(
+          Models::GitCommitListModel::from(relativeFiles));
+      _displayFilesAllTreeModel.reset(
+          Models::GitCommitTreeModel::from(relativeFiles));
+      applyDisplayFilesModels();
+      showSpinnerOverlay(false);
+    });
   });
 
   LOG_PERF(0, "Exit");

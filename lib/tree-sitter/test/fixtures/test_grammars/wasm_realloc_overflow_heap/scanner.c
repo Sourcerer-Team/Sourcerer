@@ -4,9 +4,7 @@
 // Must be kept in sync for a reliable repro.
 #define MAX_HEAP_SIZE (4 * 1024 * 1024)
 
-enum TokenType {
-  ZERO_WIDTH_TOKEN
-};
+enum TokenType { ZERO_WIDTH_TOKEN };
 
 void *tree_sitter_wasm_realloc_overflow_heap_external_scanner_create(void) {
   size_t large_size = MAX_HEAP_SIZE - 64;
@@ -19,25 +17,18 @@ void *tree_sitter_wasm_realloc_overflow_heap_external_scanner_create(void) {
 }
 
 bool tree_sitter_wasm_realloc_overflow_heap_external_scanner_scan(
-  void *payload,
-  TSLexer *lexer,
-  const bool *valid_symbols
-) {
+    void *payload, TSLexer *lexer, const bool *valid_symbols) {
   lexer->result_symbol = ZERO_WIDTH_TOKEN;
   return true;
 }
 
 unsigned tree_sitter_wasm_realloc_overflow_heap_external_scanner_serialize(
-  void *payload,
-  char *buffer
-) {
+    void *payload, char *buffer) {
   return 0;
 }
 
 void tree_sitter_wasm_realloc_overflow_heap_external_scanner_deserialize(
-  void *payload,
-  const char *buffer,
-  unsigned length
-) {}
+    void *payload, const char *buffer, unsigned length) {}
 
-void tree_sitter_wasm_realloc_overflow_heap_external_scanner_destroy(void *payload) {}
+void tree_sitter_wasm_realloc_overflow_heap_external_scanner_destroy(
+    void *payload) {}

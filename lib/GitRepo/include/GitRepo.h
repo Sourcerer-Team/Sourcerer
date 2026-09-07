@@ -12,6 +12,14 @@
 
 namespace GitRepo {
 
+namespace Lfs {
+struct StorageStatus {
+  QString repositoryPath;
+  qint64 objectCount = 0;
+  qint64 totalBytes = 0;
+};
+} // namespace Lfs
+
 enum class GitError : int {
   Unknown = 0,
   MarkConflictedFilesFailedToGetRepositoryIndex,
@@ -688,6 +696,8 @@ void initForCurrentThread();
 
 void shutdownForCurrentThread();
 
+Lfs::StorageStatus getLfsStorageStatus(git_repository *repo);
+
 // Clear cached credentials for a given repository path
 // This should be called after updating credentials to ensure fresh credentials
 // are used
@@ -752,8 +762,7 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
                     const QString &destinationBranch, const QString &author,
                     const QString &email);
 
-git_repository *openRepository(const QString &path,
-                               const QString &author,
+git_repository *openRepository(const QString &path, const QString &author,
                                const QString &email);
 
 GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
@@ -900,4 +909,3 @@ bool setDefaultTarget(git_repository *repo, const QString &remoteName,
                       const QString &targetName);
 
 } // namespace GitRepo
-

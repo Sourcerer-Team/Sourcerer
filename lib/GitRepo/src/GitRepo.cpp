@@ -1,6 +1,7 @@
 #include "GitRepo.h"
 #include "GitCredentialStorage.h"
 #include "GitKeyStorage.h"
+#include "GitLfs.h"
 
 #include "../../../component/GitRepoManager/include/GitRepoManagerStructs.h"
 
@@ -18,8 +19,8 @@
 #include <Uuid.h>
 
 #include <git2.h>
-#include <git2/blob.h>
 #include <git2/blame.h>
+#include <git2/blob.h>
 #include <git2/branch.h>
 #include <git2/cert.h>
 #include <git2/checkout.h>
@@ -133,8 +134,8 @@ static QString blameSignatureToString(const git_signature *signature) {
     return QStringLiteral("Unknown");
   }
 
-  const QString name = signature->name ? QString::fromUtf8(signature->name)
-                                       : QString();
+  const QString name =
+      signature->name ? QString::fromUtf8(signature->name) : QString();
   const QString trimmedName = name.trimmed();
 
   return trimmedName.isEmpty() ? QStringLiteral("Unknown") : trimmedName;
@@ -157,9 +158,10 @@ static BlameReport createBlameReport(git_repository *repo,
   git_blame_options blameOptions = GIT_BLAME_OPTIONS_INIT;
   blameOptions.flags = GIT_BLAME_USE_MAILMAP;
 
-  const QString repoWorkdir = repo && git_repository_workdir(repo)
-                                  ? QString::fromUtf8(git_repository_workdir(repo))
-                                  : QString();
+  const QString repoWorkdir =
+      repo && git_repository_workdir(repo)
+          ? QString::fromUtf8(git_repository_workdir(repo))
+          : QString();
 
   for (const QString &file : files) {
     const QString normalizedFile = QDir::fromNativeSeparators(file);
@@ -168,13 +170,13 @@ static BlameReport createBlameReport(git_repository *repo,
 
     const QByteArray utf8Path = normalizedFile.toUtf8();
     git_blame *blame = nullptr;
-    const int error = git_blame_file(&blame, repo, utf8Path.constData(),
-                                     &blameOptions);
+    const int error =
+        git_blame_file(&blame, repo, utf8Path.constData(), &blameOptions);
     if (error) {
       const git_error *gitError = git_error_last();
-      fileInfo.errorMessage =
-          gitError && gitError->message ? QString::fromUtf8(gitError->message)
-                                        : QStringLiteral("Unknown error");
+      fileInfo.errorMessage = gitError && gitError->message
+                                  ? QString::fromUtf8(gitError->message)
+                                  : QStringLiteral("Unknown error");
       report.fileInfos += fileInfo;
       continue;
     }
@@ -202,17 +204,15 @@ static BlameReport createBlameReport(git_repository *repo,
       BlameLineInfo lineInfo;
       lineInfo.filePath = normalizedFile;
       lineInfo.lineNumber = static_cast<qint64>(lineNumber);
-      lineInfo.content =
-          lineNumber - 1 < static_cast<size_t>(fileLines.size())
-              ? fileLines.at(static_cast<int>(lineNumber - 1))
-              : QString();
-      lineInfo.commit = blameCommitToString(hunk ? &hunk->final_commit_id
-                                                 : nullptr);
-      lineInfo.author = blameSignatureToString(hunk ? hunk->final_signature
-                                                     : nullptr);
+      lineInfo.content = lineNumber - 1 < static_cast<size_t>(fileLines.size())
+                             ? fileLines.at(static_cast<int>(lineNumber - 1))
+                             : QString();
+      lineInfo.commit =
+          blameCommitToString(hunk ? &hunk->final_commit_id : nullptr);
+      lineInfo.author =
+          blameSignatureToString(hunk ? hunk->final_signature : nullptr);
       lineInfo.summary =
-          hunk && hunk->summary ? QString::fromUtf8(hunk->summary)
-                                : QString();
+          hunk && hunk->summary ? QString::fromUtf8(hunk->summary) : QString();
 
       fileInfo.lineInfos += lineInfo;
     }
@@ -2451,8 +2451,7 @@ static void sendInvalidCredentialsSignal(const QString &url) {
   eventManager.send(event);
 }
 
-static bool createProfileSignature(git_signature **sig,
-                                   GitError errorId,
+static bool createProfileSignature(git_signature **sig, GitError errorId,
                                    const QString &author,
                                    const QString &email) {
   if (author.isEmpty() || email.isEmpty()) {
@@ -2466,8 +2465,7 @@ static bool createProfileSignature(git_signature **sig,
   const std::string authorStd = author.toStdString();
   const std::string emailStd = email.toStdString();
 
-  const int error =
-      git_signature_now(sig, authorStd.c_str(), emailStd.c_str());
+  const int error = git_signature_now(sig, authorStd.c_str(), emailStd.c_str());
   if (error) {
     setError(errorId, error);
     return false;
@@ -2478,15 +2476,14 @@ static bool createProfileSignature(git_signature **sig,
 
 static bool createInitialCommit(git_repository *repo,
                                 const QString &defaultBranchName,
-                                const QString &author,
-                                const QString &email) {
+                                const QString &author, const QString &email) {
   LOG_PERF(0, "Enter");
 
   git_signature *sig = nullptr;
 
-  if (!createProfileSignature(&sig,
-                              GitError::CreateInitialCommitFailedToCreateSignature,
-                              author, email)) {
+  if (!createProfileSignature(
+          &sig, GitError::CreateInitialCommitFailedToCreateSignature, author,
+          email)) {
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -2629,7 +2626,8 @@ static bool createInitialCommitWithoutStaging(git_repository *repo,
 
   git_signature *sig = nullptr;
   if (!createProfileSignature(
-          &sig, GitError::CreateInitialCommitWithoutStagingFailedToCreateSignature,
+          &sig,
+          GitError::CreateInitialCommitWithoutStagingFailedToCreateSignature,
           author, email)) {
     LOG_PERF(0, "Exit");
     return false;
@@ -2798,6 +2796,10 @@ void initForCurrentThread() {
 
   const int numberOfCalls = git_libgit2_init();
 
+  if (!GitRepo::Lfs::initialize()) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to initialize Git LFS support");
+  }
+
   LOG_DEBUG("Number of initializations is {}", numberOfCalls);
   LOG_DEBUG("libgit2 initialized successfully, total initialization count: {}",
             numberOfCalls);
@@ -2827,6 +2829,8 @@ void shutdownForCurrentThread() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Shutting down libgit2 for current thread");
 
+  GitRepo::Lfs::shutdown();
+
   const int numberofRemaining = git_libgit2_shutdown();
 
   LOG_DEBUG("Number of remaining initializations is {}", numberofRemaining);
@@ -2834,6 +2838,10 @@ void shutdownForCurrentThread() {
             numberofRemaining);
 
   LOG_PERF(0, "Exit");
+}
+
+Lfs::StorageStatus getLfsStorageStatus(git_repository *repo) {
+  return Lfs::getStorageStatus(repo);
 }
 
 void clearCachedCredentials(const QString &repoPath) {
@@ -3217,9 +3225,8 @@ void closeRepository(git_repository *repo) {
   LOG_PERF(0, "Exit");
 }
 
-git_repository *openRepository(const QString &path,
-                                const QString &author,
-                                const QString &email) {
+git_repository *openRepository(const QString &path, const QString &author,
+                               const QString &email) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Opening repository at path: '{}'", path.toStdString());
 
@@ -4344,8 +4351,7 @@ bool initRepository(const QString &repoName, const QString &workingDir,
     return false;
   }
 
-  const bool created = createInitialCommit(repo, defaultBranch, author,
-                                           email);
+  const bool created = createInitialCommit(repo, defaultBranch, author, email);
   if (!created) {
     closeRepository(repo);
     LOG_ERROR(Log::ErrorId::Git, "Can't create initial commit.");
@@ -7964,6 +7970,13 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
     return false;
   }
 
+  if (!GitRepo::Lfs::uploadLocalObjects(repo, remoteName)) {
+    setError(GitError::PushFailedToPushRemote, GIT_EUSER);
+    git_remote_free(remote);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   const QString pushUuid = Uuid::createUuid();
 
   CloneProgress progressData;
@@ -8083,6 +8096,13 @@ bool pushTag(git_repository *repo, const QString &tagName) {
     LOG_ERROR(
         Log::ErrorId::Git,
         "Pushing tags to git@ repositories is not available on the free plan.");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!GitRepo::Lfs::uploadLocalObjects(repo, defaultRemote)) {
+    setError(GitError::PushTagFailedToPushRemote, GIT_EUSER);
+    git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -8217,6 +8237,13 @@ bool pushAllTags(git_repository *repo) {
     LOG_ERROR(
         Log::ErrorId::Git,
         "Pushing tags to git@ repositories is not available on the free plan.");
+    git_remote_free(remote);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!GitRepo::Lfs::uploadLocalObjects(repo, defaultRemote)) {
+    setError(GitError::PushAllTagsFailedToPushRemote, GIT_EUSER);
     git_remote_free(remote);
     LOG_PERF(0, "Exit");
     return false;
@@ -11503,8 +11530,8 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
   const git_index_entry *theirs = nullptr;
 
   while (!git_index_conflict_next(&ancestor, &ours, &theirs, iterator)) {
-    if (ours == nullptr || ours->path != filePathStr ||
-        theirs == nullptr || theirs->path != filePathStr) {
+    if (ours == nullptr || ours->path != filePathStr || theirs == nullptr ||
+        theirs->path != filePathStr) {
       continue;
     }
 

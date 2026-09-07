@@ -28,10 +28,9 @@ void tree_sitter_uses_current_column_external_scanner_destroy(void *payload) {
   ts_free(payload);
 }
 
-unsigned tree_sitter_uses_current_column_external_scanner_serialize(
-  void *payload,
-  char *buffer
-) {
+unsigned
+tree_sitter_uses_current_column_external_scanner_serialize(void *payload,
+                                                           char *buffer) {
   Scanner *self = (Scanner *)payload;
   buffer[0] = self->queued_dedent_count;
   for (unsigned i = 0; i < self->indent_count; i++) {
@@ -41,10 +40,7 @@ unsigned tree_sitter_uses_current_column_external_scanner_serialize(
 }
 
 void tree_sitter_uses_current_column_external_scanner_deserialize(
-  void *payload,
-  const char *buffer,
-  unsigned length
-) {
+    void *payload, const char *buffer, unsigned length) {
   Scanner *self = (Scanner *)payload;
   if (length > 0) {
     self->queued_dedent_count = buffer[0];
@@ -60,10 +56,7 @@ void tree_sitter_uses_current_column_external_scanner_deserialize(
 }
 
 bool tree_sitter_uses_current_column_external_scanner_scan(
-  void *payload,
-  TSLexer *lexer,
-  const bool *valid_symbols
-) {
+    void *payload, TSLexer *lexer, const bool *valid_symbols) {
   Scanner *self = (Scanner *)payload;
   lexer->mark_end(lexer);
 

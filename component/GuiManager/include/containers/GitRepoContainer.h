@@ -235,7 +235,7 @@ private slots:
                                GitRepo::BranchType branchType);
 
 private:
-  void blame(const QStringList& files);
+  void blame(const QStringList &files);
   void clearSummaryAndDescription();
   void closeDiffViewerIfOpen();
   void refreshScintillaTheme();
