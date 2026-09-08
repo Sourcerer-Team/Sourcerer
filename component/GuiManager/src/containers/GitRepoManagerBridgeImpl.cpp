@@ -921,10 +921,12 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       _container.updateModelActiveBranch(guard, result.branchName,
                                          result.branchType);
-      _container.showSpinnerOverlay(false);
 
       _container._dispatcher.dispatch([=]() {
-            getBranchHistory(guard);
+        getBranchHistory(guard);
+
+        Util::Dispatcher::dispatchToMainThread(
+            guard, [=]() { _container.showSpinnerOverlay(false); });
       });
     });
 
