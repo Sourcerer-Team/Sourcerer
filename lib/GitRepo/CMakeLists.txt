@@ -97,6 +97,7 @@ target_link_libraries(GitRepo PRIVATE
     OpenSSL::SSL
     OpenSSL::Crypto
     libgit2
+    libssh2_static
     util
     ${LIBSSH2_LIBRARY}
 )

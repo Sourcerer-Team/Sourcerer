@@ -19,6 +19,7 @@
 #include <Uuid.h>
 
 #include <git2.h>
+#include <git2/attr.h>
 #include <git2/blame.h>
 #include <git2/blob.h>
 #include <git2/branch.h>
@@ -36,6 +37,7 @@
 #include <git2/revwalk.h>
 #include <git2/signature.h>
 #include <git2/submodule.h>
+#include <git2/sys/errors.h>
 #include <git2/tag.h>
 #include <git2/types.h>
 
@@ -2387,6 +2389,66 @@ static int collectTreePathsCallback(const char *root,
   return 0;
 }
 
+static bool isLfsTrackedPath(git_repository *repo,
+                             const QString &relativePath) {
+  if (!repo || relativePath.isEmpty()) {
+    return false;
+  }
+
+  const QByteArray pathUtf8 = QDir::fromNativeSeparators(relativePath).toUtf8();
+  const char *value = nullptr;
+  if (git_attr_get(&value, repo,
+                   GIT_ATTR_CHECK_NO_SYSTEM | GIT_ATTR_CHECK_FILE_THEN_INDEX,
+                   pathUtf8.constData(), "filter") != 0 ||
+          !value) {
+    return false;
+  }
+
+  return QString::fromUtf8(value).compare(QStringLiteral("lfs"),
+                                          Qt::CaseInsensitive) == 0;
+}
+
+static bool stageLfsTrackedFile(git_repository *repo, git_index *index,
+                                const QString &relativePath,
+                                const QString &fullPath, QString *stagedOid) {
+  QFile file(fullPath);
+  if (!file.open(QIODevice::ReadOnly)) {
+    git_error_set_str(GIT_ERROR_OS, "unable to read lfs source file");
+    return false;
+  }
+
+  const QByteArray content = file.readAll();
+  file.close();
+
+  LOG_DEBUG("Staging LFS file '{}' from '{}' ({} bytes)",
+            relativePath.toStdString(), fullPath.toStdString(), content.size());
+
+  QString oid;
+  if (!GitRepo::Lfs::storeObject(repo, content, oid)) {
+    return false;
+  }
+
+  if (stagedOid) {
+    *stagedOid = oid;
+  }
+
+  const QByteArray pointer = GitRepo::Lfs::makePointer(oid, content.size());
+  git_index_entry entry = {};
+  const QByteArray relativeUtf8 = relativePath.toUtf8();
+  entry.path = relativeUtf8.constData();
+  entry.mode = GIT_FILEMODE_BLOB;
+  const int error = git_index_add_from_buffer(
+              index, &entry, pointer.constData(), pointer.size());
+  if (error) {
+    setError(GitError::StageFilesFailedToAddPathToIndex, error);
+    return false;
+  }
+
+  LOG_DEBUG("Staged LFS pointer for '{}' with oid '{}'",
+            relativePath.toStdString(), oid.toStdString());
+  return true;
+}
+
 static bool readTreeFileContent(git_repository *repo, git_tree *tree,
                                 const QString &filePath,
                                 const qint64 maxBlobSize, QString *content) {
@@ -2842,6 +2904,215 @@ void shutdownForCurrentThread() {
 
 Lfs::StorageStatus getLfsStorageStatus(git_repository *repo) {
   return Lfs::getStorageStatus(repo);
+}
+
+QString repositoryRootPath(git_repository *repo);
+static std::tuple<bool, GitPlaintextCredentials>
+acquireCredentials(const QString &repoPath, const QString &url,
+                   const QString &username, const int allowedTypes);
+static QString extractSshHost(const QString &url);
+static bool promptForSshPassphrase(const QString &repoPath, const QString &url,
+                                   const QString &username,
+                                   QString &passphrase);
+
+QString getBasicAuthHeader(const QString &repoPath, const QString &url) {
+  LOG_PERF(0, "Enter");
+
+  if (repoPath.isEmpty() || url.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  GitCredentialStorage &credStorage = GitCredentialStorage::getInstance();
+  QString username;
+  QString password;
+  if (!credStorage.getCredentials(repoPath, username, password)) {
+    const auto [success, credentials] = acquireCredentials(
+                repoPath, url, QString(), GIT_CREDENTIAL_USERPASS_PLAINTEXT);
+    if (!success) {
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    username = credentials.username;
+    password = credentials.password;
+  }
+
+  const QByteArray auth =
+      QString("%1:%2").arg(username, password).toUtf8().toBase64();
+  LOG_PERF(0, "Exit");
+  return QString::fromLatin1("Basic ") + QString::fromLatin1(auth);
+}
+
+QString getBasicAuthHeader(git_repository *repo, const QString &url) {
+  if (!repo) {
+    return {};
+  }
+
+  return getBasicAuthHeader(repositoryRootPath(repo), url);
+}
+
+static QString repoWorkdirPath(git_repository *repo) {
+  if (!repo) {
+    return {};
+  }
+
+  const char *workdir = git_repository_workdir(repo);
+  if (workdir && *workdir) {
+    return QDir::fromNativeSeparators(QString::fromUtf8(workdir));
+  }
+
+  const char *path = git_repository_path(repo);
+  return path ? QDir::fromNativeSeparators(QString::fromUtf8(path)) : QString();
+}
+
+static QString normalizeRepoRoot(QString path) {
+  if (path.endsWith("/.git/") || path.endsWith("\\.git\\")) {
+    path.chop(6);
+  } else if (path.endsWith("/.git") || path.endsWith("\\.git")) {
+    path.chop(5);
+  }
+
+  return QDir::cleanPath(path);
+}
+
+static QString repositoryRootPath(git_repository *repo) {
+  if (!repo) {
+    return {};
+  }
+
+  if (git_repository_is_bare(repo)) {
+    const char *path = git_repository_path(repo);
+    return path ? QDir::cleanPath(QString::fromUtf8(path)) : QString();
+  }
+
+  return normalizeRepoRoot(repoWorkdirPath(repo));
+}
+
+static QString extractSshHost(const QString &url) {
+  const QRegularExpression scpLike(
+              QStringLiteral(R"(^(([^@]+)@)?([^:]+):/?(.+)$)"));
+  const QRegularExpressionMatch scpMatch = scpLike.match(url);
+  if (scpMatch.hasMatch()) {
+    return scpMatch.captured(3);
+  }
+
+  const QUrl parsed(url);
+  if (parsed.isValid() &&
+          parsed.scheme().compare("ssh", Qt::CaseInsensitive) == 0) {
+    return parsed.host();
+  }
+
+  return {};
+}
+
+static bool promptForSshPassphrase(const QString &repoPath, const QString &url,
+                                   const QString &username,
+                                   QString &passphrase) {
+  EventManager::EventManager &eventManager =
+      EventManager::EventManager::getInstance();
+  const int token = eventManager.startWait();
+
+  GitCredentialsRequest request;
+  request.id = qHash(url);
+  request.url = url;
+  request.username = username;
+  request.allowedTypes = GIT_CREDENTIAL_SSH_KEY;
+  request.repoPath = repoPath;
+  request.needsPassphrase = true;
+
+  EventManager::Event credentialsEvent(
+      EventManager::EventType::GitRepoManagerGetCredentials);
+  credentialsEvent.addData(request);
+  eventManager.send(credentialsEvent);
+
+  const auto predicate = [&](EventManager::Event event) -> bool {
+    switch (event.type()) {
+    case EventManager::EventType::GitRepoManagerGetCredentialsCancel: {
+      const auto [id] = event.data<GitCredentialsErrorResponse>();
+      return id == request.id;
+    }
+    case EventManager::EventType::GitRepoManagerGetCredentialsSubmit: {
+      const GitCredentialsResponse response =
+              event.data<GitCredentialsResponse>();
+      return response.id == request.id;
+    }
+    default:
+      return false;
+    }
+  };
+
+  const std::set<EventManager::EventType> types{
+      EventManager::EventType::GitRepoManagerGetCredentialsCancel,
+      EventManager::EventType::GitRepoManagerGetCredentialsSubmit};
+
+  const auto &[success, event] =
+          eventManager.waitOneOf(token, types, predicate);
+  if (!success ||
+          event.type() ==
+          EventManager::EventType::GitRepoManagerGetCredentialsCancel) {
+    return false;
+  }
+
+  const GitCredentialsResponse response = event.data<GitCredentialsResponse>();
+  passphrase =
+          !response.passphrase.isEmpty() ? response.passphrase : response.password;
+  return true;
+}
+
+GitSshAuthInfo getSshAuthInfo(const QString &repoPath, const QString &url,
+                              const QString &usernameFromUrl) {
+  LOG_PERF(0, "Enter");
+
+  GitSshAuthInfo authInfo;
+  authInfo.username =
+          usernameFromUrl.isEmpty() ? QStringLiteral("git") : usernameFromUrl;
+
+  const QString host = extractSshHost(url);
+  if (host.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return authInfo;
+  }
+
+  GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
+  GitKeyPair keyPair;
+  if (!keyStorage.getKeyPairForHost(host, keyPair)) {
+    const QString homePath =
+        QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    keyPair.privateKeyPath = QString("%1/.ssh/id_ed25519").arg(homePath);
+    keyPair.publicKeyPath = QString("%1/.ssh/id_ed25519.pub").arg(homePath);
+    keyPair.keyName = QStringLiteral("id_ed25519");
+  }
+
+  authInfo.privateKeyPath = keyPair.privateKeyPath;
+  authInfo.publicKeyPath = keyPair.publicKeyPath;
+  authInfo.passphrasePresent = false;
+  authInfo.valid = QFile::exists(authInfo.privateKeyPath) &&
+          QFile::exists(authInfo.publicKeyPath);
+
+  if (!authInfo.valid) {
+    LOG_PERF(0, "Exit");
+    return authInfo;
+  }
+
+  QFile keyFile(authInfo.privateKeyPath);
+  if (keyFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    const QString keyContent = QString::fromUtf8(keyFile.readAll());
+    keyFile.close();
+    if (keyContent.contains("ENCRYPTED", Qt::CaseInsensitive)) {
+      authInfo.passphrasePresent = true;
+      if (!promptForSshPassphrase(repoPath, url, authInfo.username,
+                                  authInfo.passphrase)) {
+        authInfo.valid = false;
+        LOG_PERF(0, "Exit");
+        return authInfo;
+      }
+    }
+  }
+
+  authInfo.valid = true;
+  LOG_PERF(0, "Exit");
+  return authInfo;
 }
 
 void clearCachedCredentials(const QString &repoPath) {
@@ -4366,6 +4637,50 @@ bool initRepository(const QString &repoName, const QString &workingDir,
   return true;
 }
 
+struct PushReferenceStatus {
+  bool rejected = false;
+  QString refname;
+  QString status;
+};
+
+thread_local PushReferenceStatus gPushReferenceStatus;
+
+static int pushUpdateReferenceCallback(const char *refname, const char *status,
+                                       void *data) {
+  Q_UNUSED(data);
+
+  if (!status) {
+    return 0;
+  }
+
+  gPushReferenceStatus.rejected = true;
+  gPushReferenceStatus.refname =
+          refname ? QString::fromUtf8(refname) : QString();
+  gPushReferenceStatus.status = QString::fromUtf8(status);
+
+  LOG_ERROR(Log::ErrorId::Git, "Remote rejected push update for ref '{}': {}",
+            gPushReferenceStatus.refname.toStdString(),
+            gPushReferenceStatus.status.toStdString());
+
+  git_error_set_str(GIT_ERROR_NET, status);
+  return GIT_EUSER;
+}
+
+static int pushSidebandProgressCallback(const char *str, int len, void *data) {
+  Q_UNUSED(data);
+
+  if (!str || len <= 0) {
+    return 0;
+  }
+
+  const QString message = QString::fromUtf8(str, len).trimmed();
+  if (!message.isEmpty()) {
+    LOG_DEBUG("Remote push output: {}", message.toStdString());
+  }
+
+  return 0;
+}
+
 static int fetchProgressCallback(const git_indexer_progress *stats,
                                  void *payload) {
   if (!payload || !stats) {
@@ -4883,131 +5198,23 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
     }
 
     QString privateKeyPath;
-    QString publicKeyPath;
-
-    // Try to get key pair from GitKeyStorage for this specific host
-    GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
-    GitKeyPair keyPair;
-
-    if (!host.isEmpty() && keyStorage.getKeyPairForHost(host, keyPair)) {
-      privateKeyPath = keyPair.privateKeyPath;
-      publicKeyPath = keyPair.publicKeyPath;
-      LOG_INFO("Using SSH key '{}' for host '{}'", keyPair.keyName, host);
-    } else {
-      // Fall back to default SSH key
-      const QString homePath =
-          QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-      privateKeyPath = QString("%1/.ssh/id_ed25519").arg(homePath);
-      publicKeyPath = QString("%1/.ssh/id_ed25519.pub").arg(homePath);
-      LOG_INFO(
-          "No specific SSH key configured for host '{}', using default: {}",
-          host.isEmpty() ? "unknown" : host, privateKeyPath);
-    }
-
-    // Check if the private key is encrypted (requires passphrase)
-    bool passphrasePresent = false;
-    QString passphrase;
-    QFile keyFile(privateKeyPath);
-    if (keyFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-      QString keyContent = QString::fromUtf8(keyFile.readAll());
-      keyFile.close();
-
-      // Check for encryption markers in the key file
-      if (keyContent.contains("ENCRYPTED", Qt::CaseInsensitive)) {
-        // Key is encrypted, need to ask for passphrase
-        LOG_INFO("SSH key is encrypted, requesting passphrase from user");
-
-        // Request passphrase from user using the event system
-        EventManager::EventManager &eventManager =
-            EventManager::EventManager::getInstance();
-
-        const int token = eventManager.startWait();
-
-        GitCredentialsRequest request;
-        request.id = qHash(QString::fromUtf8(url));
-        request.url = url;
-        request.username = username_from_url ? username_from_url : "git";
-        request.allowedTypes = allowed_types;
-        request.repoPath = repoPath;
-        request.needsPassphrase =
-            true; // Signal that this is a passphrase request
-
-        EventManager::Event credentialsEvent(
-            EventManager::EventType::GitRepoManagerGetCredentials);
-        credentialsEvent.addData(request);
-
-        eventManager.send(credentialsEvent);
-
-        const auto predicate = [&](EventManager::Event event) -> bool {
-          bool success = false;
-          switch (event.type()) {
-          case EventManager::EventType::GitRepoManagerGetCredentialsCancel: {
-            const auto [id] = event.data<GitCredentialsErrorResponse>();
-            success = id == request.id;
-            break;
-          }
-          case EventManager::EventType::GitRepoManagerGetCredentialsSubmit: {
-            const GitCredentialsResponse response =
-                event.data<GitCredentialsResponse>();
-            success = response.id == request.id;
-            break;
-          }
-          default: {
-            LOG_ERROR(Log::ErrorId::Git, "Internal error. Unknown event type.");
-            break;
-          }
-          }
-          return success;
-        };
-
-        const std::set<EventManager::EventType> types{
-            EventManager::EventType::GitRepoManagerGetCredentialsCancel,
-            EventManager::EventType::GitRepoManagerGetCredentialsSubmit};
-
-        const auto &[success, event] =
-            eventManager.waitOneOf(token, types, predicate);
-
-        if (success) {
-          if (event.type() ==
-              EventManager::EventType::GitRepoManagerGetCredentialsCancel) {
-            LOG_ERROR(Log::ErrorId::Git,
-                      "User cancelled passphrase request for SSH key");
-            LOG_PERF(0, "Exit");
-            return GIT_EUSER;
-          } else if (event.type() == EventManager::EventType::
-                                         GitRepoManagerGetCredentialsSubmit) {
-            const GitCredentialsResponse response =
-                event.data<GitCredentialsResponse>();
-
-            // Use the passphrase field if available, otherwise fall back to
-            // password field
-            passphrasePresent = response.needPassphrase;
-            passphrase = !response.passphrase.isEmpty() ? response.passphrase
-                                                        : response.password;
-            LOG_INFO("Received passphrase for SSH key");
-          }
-        } else {
-          LOG_ERROR(Log::ErrorId::Git, "Failed to get passphrase response");
-          LOG_PERF(0, "Exit");
-          return GIT_EUSER;
-        }
-      }
-    }
-
-    // Validate SSH keys using OpenSSL before attempting to use them
-    if (!validateSshKey(privateKeyPath, publicKeyPath, passphrasePresent,
-                        passphrase)) {
-      LOG_ERROR(Log::ErrorId::Git,
-                "SSH key validation failed for repository: {}", url);
+    const GitSshAuthInfo sshAuth =
+            getSshAuthInfo(repoPath, QString::fromUtf8(url),
+                           username_from_url ? username_from_url : "git");
+    if (!sshAuth.valid) {
+      LOG_ERROR(Log::ErrorId::Git, "Failed to acquire SSH auth info for: {}",
+                QString::fromUtf8(url));
       LOG_PERF(0, "Exit");
-      return -1;
+      return GIT_EUSER;
     }
 
     const int error = git_credential_ssh_key_new(
-        out, username_from_url ? username_from_url : "git",
-        publicKeyPath.toStdString().c_str(),
-        privateKeyPath.toStdString().c_str(),
-        passphrase.isEmpty() ? nullptr : passphrase.toStdString().c_str());
+        out, sshAuth.username.toStdString().c_str(),
+        sshAuth.publicKeyPath.toStdString().c_str(),
+        sshAuth.privateKeyPath.toStdString().c_str(),
+        sshAuth.passphrase.isEmpty()
+                ? nullptr
+                : sshAuth.passphrase.toStdString().c_str());
 
     LOG_PERF(0, "Exit");
     return error;
@@ -6277,12 +6484,13 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
     return false;
   }
 
-  const QString repoPath = git_repository_workdir(repo);
+  const QString repoPath =
+          QDir::fromNativeSeparators(git_repository_workdir(repo));
   LOG_DEBUG("Repository working directory: '{}'", repoPath.toStdString());
 
   for (const auto &filePath : files) {
     const QString unixFilePath = QDir::fromNativeSeparators(filePath);
-    const QString fullPath = repoPath + unixFilePath;
+    const QString fullPath = QDir(repoPath).filePath(unixFilePath);
     const QString relativePath = QDir(repoPath).relativeFilePath(fullPath);
     LOG_DEBUG("Processing file: '{}' (relative: '{}')", fullPath.toStdString(),
               relativePath.toStdString());
@@ -6323,10 +6531,10 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
       giterr_clear();
       error = git_index_add_bypath(index, relativePath.toStdString().c_str());
       if (error) {
-        setError(GitError::StageFilesFailedToAddPathToIndex, error);
-        git_index_free(index);
-        LOG_PERF(0, "Exit");
-        return false;
+          setError(GitError::StageFilesFailedToAddPathToIndex, error);
+          git_index_free(index);
+          LOG_PERF(0, "Exit");
+          return false;
       }
     } else {
       setError(GitError::StageFilesFailedToAddMissingPathToIndex, error);
@@ -7918,6 +8126,30 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
             targetBranchName.toStdString(), remoteName.toStdString(),
             remoteBranchName.toStdString());
 
+  const QString localRefName =
+          QStringLiteral("refs/heads/%1").arg(targetBranchName);
+  const QString upstreamRefName =
+      QStringLiteral("refs/remotes/%1/%2").arg(remoteName, remoteBranchName);
+  git_oid localRefOid = {};
+  git_oid upstreamRefOid = {};
+  char localOidStr[GIT_OID_HEXSZ + 1] = {0};
+  char upstreamOidStr[GIT_OID_HEXSZ + 1] = {0};
+
+  if (git_reference_name_to_id(&localRefOid, repo,
+                               localRefName.toStdString().c_str()) == 0) {
+    git_oid_tostr(localOidStr, GIT_OID_HEXSZ + 1, &localRefOid);
+  }
+  if (git_reference_name_to_id(&upstreamRefOid, repo,
+                               upstreamRefName.toStdString().c_str()) == 0) {
+    git_oid_tostr(upstreamOidStr, GIT_OID_HEXSZ + 1, &upstreamRefOid);
+  }
+
+  LOG_DEBUG("Push ref state: local='{}' ({}) upstream='{}' ({})",
+            localRefName.toStdString(),
+            localOidStr[0] ? localOidStr : "unresolved",
+            upstreamRefName.toStdString(),
+            upstreamOidStr[0] ? upstreamOidStr : "unresolved");
+
   // Push to the upstream remote
   const bool commercial = isCommercialPlan();
   int error = 0;
@@ -7970,7 +8202,9 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
     return false;
   }
 
-  if (!GitRepo::Lfs::uploadLocalObjects(repo, remoteName)) {
+  if (!GitRepo::Lfs::uploadLocalObjects(
+          repo, repoPath, remoteName, urlStr,
+          QStringLiteral("refs/heads/%1").arg(targetBranchName))) {
     setError(GitError::PushFailedToPushRemote, GIT_EUSER);
     git_remote_free(remote);
     LOG_PERF(0, "Exit");
@@ -7991,12 +8225,16 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
   std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
                                                                   credPayload);
 
+  gPushReferenceStatus = {};
+
   git_push_options pushOpts;
   git_push_options_init(&pushOpts, GIT_PUSH_OPTIONS_VERSION);
   pushOpts.callbacks.credentials =
       commercial ? &credentialsAcquireCallback : nullptr;
   pushOpts.callbacks.transfer_progress = &fetchProgressCallback;
+  pushOpts.callbacks.sideband_progress = &pushSidebandProgressCallback;
   pushOpts.callbacks.certificate_check = &certificateCheckCallback;
+  pushOpts.callbacks.push_update_reference = &pushUpdateReferenceCallback;
   pushOpts.callbacks.payload = &callbackPayload;
 
   // Build refspec for pushing the branch to its upstream
@@ -8005,9 +8243,20 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
                                    targetBranchName, remoteBranchName);
   git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
   LOG_DEBUG("Using push refspec: '{}'", refspec.toStdString());
+  LOG_DEBUG("Push source commit SHA: '{}'", localOidStr);
 
   do {
+    gPushReferenceStatus = {};
     error = git_remote_push(remote, &refspecs, &pushOpts);
+
+    if (error == 0 && gPushReferenceStatus.rejected) {
+      LOG_ERROR(Log::ErrorId::Git, "Push rejected by remote for ref '{}': {}",
+                gPushReferenceStatus.refname.toStdString(),
+                gPushReferenceStatus.status.toStdString());
+      error = GIT_EUSER;
+      git_error_set_str(GIT_ERROR_NET,
+                        gPushReferenceStatus.status.toUtf8().constData());
+    }
 
     if (error) {
       setError(GitError::PushFailedToPushRemote, error);
@@ -8100,7 +8349,9 @@ bool pushTag(git_repository *repo, const QString &tagName) {
     return false;
   }
 
-  if (!GitRepo::Lfs::uploadLocalObjects(repo, defaultRemote)) {
+  if (!GitRepo::Lfs::uploadLocalObjects(
+          repo, repoPath, defaultRemote, url,
+          QStringLiteral("refs/tags/%1").arg(tagName))) {
     setError(GitError::PushTagFailedToPushRemote, GIT_EUSER);
     git_remote_free(remote);
     LOG_PERF(0, "Exit");
@@ -8123,12 +8374,16 @@ bool pushTag(git_repository *repo, const QString &tagName) {
   opts.callbacks.credentials =
       commercial ? &credentialsAcquireCallback : nullptr;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
+  opts.callbacks.sideband_progress = &pushSidebandProgressCallback;
   opts.callbacks.certificate_check = &certificateCheckCallback;
+  opts.callbacks.push_update_reference = &pushUpdateReferenceCallback;
   opts.callbacks.payload = &callbackPayload;
 
   // Push tag with refspec: refs/tags/tagName:refs/tags/tagName
   const QString refspec = QString("refs/tags/%1:refs/tags/%1").arg(tagName);
   git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
+
+  gPushReferenceStatus = {};
 
   int retries = 0;
 
@@ -8242,7 +8497,7 @@ bool pushAllTags(git_repository *repo) {
     return false;
   }
 
-  if (!GitRepo::Lfs::uploadLocalObjects(repo, defaultRemote)) {
+  if (!GitRepo::Lfs::uploadLocalObjects(repo, repoPath, defaultRemote, url)) {
     setError(GitError::PushAllTagsFailedToPushRemote, GIT_EUSER);
     git_remote_free(remote);
     LOG_PERF(0, "Exit");
@@ -8265,7 +8520,9 @@ bool pushAllTags(git_repository *repo) {
   opts.callbacks.credentials =
       commercial ? &credentialsAcquireCallback : nullptr;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
+  opts.callbacks.sideband_progress = &pushSidebandProgressCallback;
   opts.callbacks.certificate_check = &certificateCheckCallback;
+  opts.callbacks.push_update_reference = &pushUpdateReferenceCallback;
   opts.callbacks.payload = &callbackPayload;
 
   // Create refspecs for all tags: refs/tags/tagName:refs/tags/tagName

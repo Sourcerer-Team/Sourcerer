@@ -25,6 +25,7 @@
 #include <QListView>
 #include <QMenu>
 #include <QPushButton>
+#include <QSemaphore>
 #include <QSet>
 #include <QString>
 #include <QToolButton>
@@ -256,6 +257,8 @@ private:
   void hideAllWidgets() const;
   void ignoreFiles(const WeakPtr &guard, const QStringList &files);
   void ignoreFilesRecursive(const WeakPtr &guard, const QStringList &files);
+  void addFilesToLfs(const WeakPtr &guard, const QStringList &files);
+  void removeFilesFromLfs(const WeakPtr &guard, const QStringList &files);
   void popStash(const WeakPtr &guard, int stashIndex);
   void prepareWatcher(const WeakPtr &guard);
   bool refreshHistory(const WeakPtr &guard);
@@ -264,6 +267,8 @@ private:
   void resetCommitButton() const;
   void resetDisplayTreeExpandedButton();
   void refreshDisplayFilesModels();
+  void releaseBranchHistorySemaphore();
+  void releaseHistoryRefreshSemaphore();
   void applyDisplayFilesModels();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
@@ -388,6 +393,9 @@ private:
   GuiManager::Widgets::ScrollbarMarksWidget *_unifiedDiffMarks;
 
   bool _selected;
+
+  QSemaphore *_historyRefreshSemaphore;
+  QSemaphore *_branchHistorySemaphore;
 };
 
 } // namespace GuiManager::Containers

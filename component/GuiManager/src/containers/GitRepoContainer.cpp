@@ -54,6 +54,7 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QScrollBar>
+#include <QSet>
 #include <QSignalBlocker>
 #include <QSize>
 #include <QStyleOptionViewItem>
@@ -77,11 +78,42 @@
 #define MAX_COMMIT_SHA_LENGTH 7
 
 #define GIT_IGNORE_FILENAME ".gitignore"
+#define GIT_ATTRIBUTES_FILENAME ".gitattributes"
 #define GIT_SUBDIR ".git"
 
 namespace {
 bool isRightMouseButtonDown() {
   return QGuiApplication::mouseButtons().testFlag(Qt::RightButton);
+}
+
+QString lfsAttributesPatternForFile(const QString &filePath) {
+  const QFileInfo fileInfo(filePath);
+  const QString suffix = fileInfo.completeSuffix();
+  return suffix.isEmpty() ? fileInfo.fileName() : QStringLiteral("*.") + suffix;
+}
+
+QString lfsAttributesEntryForPattern(const QString &pattern) {
+  return pattern + QStringLiteral(" filter=lfs diff=lfs merge=lfs -text");
+}
+
+QString lfsAttributesEntryForFile(const QString &filePath) {
+  return lfsAttributesEntryForPattern(lfsAttributesPatternForFile(filePath));
+}
+
+bool lfsAttributesLineMatchesPattern(const QString &line,
+                                     const QString &pattern) {
+  return line == lfsAttributesEntryForPattern(pattern) ||
+         line.startsWith(pattern + QStringLiteral(" "));
+}
+
+QString filePathFromTreeIndex(const QModelIndex &index) {
+  QStringList path;
+  QModelIndex current = index;
+  while (current.isValid()) {
+    path.prepend(current.data().toString());
+    current = current.parent();
+  }
+  return QDir::fromNativeSeparators(path.join("/"));
 }
 } // namespace
 
@@ -183,7 +215,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _bridge(std::make_unique<GitRepoManagerBridgeImpl>(*this)),
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
-      _historyModel(new Models::GitHistoryModel()), _dispatcher(1),
+      _historyModel(new Models::GitHistoryModel()), _dispatcher(20),
       _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
@@ -194,7 +226,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _displayFilesAllCheckBox(nullptr), _repoDirWatcher(nullptr),
       _repoDirWatcherTimer(new QTimer(this)),
       _shortcutsWidget(new GuiManager::Widgets::ShortcutsToolbarWidget(this)),
-      _selected(false) {
+      _selected(false), _historyRefreshSemaphore(nullptr),
+      _branchHistorySemaphore(nullptr) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -2416,7 +2449,7 @@ void GitRepoContainer::onHardResetToCommit(const QString &commit) {
     return;
   }
 
-  startOverlayTimer();
+  showSpinnerOverlay();
   LOG_DEBUG("Spinner overlay timer started");
 
   const WeakPtr guard = getSelf().toWeakRef();
@@ -3058,7 +3091,7 @@ void GitRepoContainer::onMixedResetToCommit(const QString &commit) {
     return;
   }
 
-  startOverlayTimer();
+  showSpinnerOverlay();
   LOG_DEBUG("Spinner overlay timer started");
 
   const WeakPtr guard = getSelf().toWeakRef();
@@ -3174,6 +3207,9 @@ void GitRepoContainer::onPush(bool force) {
     const auto [upstreamRemote, upstreamBranch] =
         _bridge->getUpstreamForBranch(guard, branchName);
     if (!upstreamRemote.isEmpty() && !upstreamBranch.isEmpty()) {
+        Util::Dispatcher::dispatchToMainThread(guard,
+                                               [=]() { startOverlayTimer(); });
+
       LOG_DEBUG("Executing {}push operation in dispatcher",
                 force ? "force " : "");
       _bridge->push(guard, force);
@@ -3787,7 +3823,7 @@ void GitRepoContainer::onSoftResetToCommit(const QString &commit) {
     return;
   }
 
-  startOverlayTimer();
+  showSpinnerOverlay();
   LOG_DEBUG("Spinner overlay timer started");
 
   const WeakPtr guard = getSelf().toWeakRef();
@@ -4145,6 +4181,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
       getSelectedFiles(ui->listViewTabWidgetWorkingTreeFlat);
   const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->listViewTabWidgetWorkingTreeFlat);
+  const bool clickedItemIsFile =
+      QFileInfo(QDir(_path).filePath(index.data().toString())).isFile();
   QStringList blameFiles;
   for (const auto &file : files) {
     if (QFileInfo::exists(QDir(_path).filePath(file))) {
@@ -4167,6 +4205,26 @@ void GitRepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
   contextMenu.addAction(ui->actionWorkingTreeFlatStage);
   if (!conflicted) {
     contextMenu.addAction(ui->actionWorkingTreeFlatDiscard);
+  }
+
+  if (clickedItemIsFile && !files.isEmpty()) {
+    QMenu *lfsMenu = contextMenu.addMenu(tr("LFS"));
+    QAction *addToLfsAction = lfsMenu->addAction(tr("Add"));
+    connect(addToLfsAction, &QAction::triggered, this, [=]() {
+      closeDiffViewerIfOpen();
+      startOverlayTimer();
+      const WeakPtr &guard = getSelf().toWeakRef();
+      _dispatcher.dispatch([=]() { addFilesToLfs(guard, files); });
+    });
+
+    QAction *removeFromLfsAction = lfsMenu->addAction(tr("Remove"));
+    connect(removeFromLfsAction, &QAction::triggered, this, [=]() {
+      closeDiffViewerIfOpen();
+      startOverlayTimer();
+      const WeakPtr &guard = getSelf().toWeakRef();
+      _dispatcher.dispatch([=]() { removeFilesFromLfs(guard, files); });
+    });
+    contextMenu.addSeparator();
   }
 
   if (!existingFiles.isEmpty()) {
@@ -4414,6 +4472,9 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
     return;
   }
 
+  const QString clickedFilePath = filePathFromTreeIndex(index);
+  const bool clickedItemIsFile =
+      QFileInfo(QDir(_path).filePath(clickedFilePath)).isFile();
   const GuiManager::Models::GitCommitListModificationType modificationType =
       static_cast<GuiManager::Models::GitCommitListModificationType>(
           index.data(Qt::UserRole).toInt());
@@ -4448,6 +4509,26 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
   contextMenu.addAction(ui->actionWorkingTreeTreeStage);
   if (!conflicted) {
     contextMenu.addAction(ui->actionWorkingTreeTreeDiscard);
+  }
+
+  if (clickedItemIsFile && !files.isEmpty()) {
+    QMenu *lfsMenu = contextMenu.addMenu(tr("LFS"));
+    QAction *addToLfsAction = lfsMenu->addAction(tr("Add"));
+    connect(addToLfsAction, &QAction::triggered, this, [=]() {
+      closeDiffViewerIfOpen();
+      startOverlayTimer();
+      const WeakPtr &guard = getSelf().toWeakRef();
+      _dispatcher.dispatch([=]() { addFilesToLfs(guard, files); });
+    });
+
+    QAction *removeFromLfsAction = lfsMenu->addAction(tr("Remove"));
+    connect(removeFromLfsAction, &QAction::triggered, this, [=]() {
+      closeDiffViewerIfOpen();
+      startOverlayTimer();
+      const WeakPtr &guard = getSelf().toWeakRef();
+      _dispatcher.dispatch([=]() { removeFilesFromLfs(guard, files); });
+    });
+    contextMenu.addSeparator();
   }
 
   if (!existingFiles.isEmpty()) {
@@ -4678,8 +4759,8 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
     const QPoint &pos) {
   LOG_PERF(0, "Enter");
 
-  if (const QModelIndex index = ui->listViewTabWidgetIndexFlat->indexAt(pos);
-      !index.isValid()) {
+  const QModelIndex index = ui->listViewTabWidgetIndexFlat->indexAt(pos);
+  if (!index.isValid()) {
     LOG_PERF(0, "Exit");
     return;
   }
@@ -4687,6 +4768,8 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
   const QStringList files = getSelectedFiles(ui->listViewTabWidgetIndexFlat);
   const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->listViewTabWidgetIndexFlat);
+  const bool clickedItemIsFile =
+      QFileInfo(QDir(_path).filePath(index.data().toString())).isFile();
   QStringList blameFiles;
   for (const auto &file : files) {
     if (QFileInfo::exists(QDir(_path).filePath(file))) {
@@ -4707,6 +4790,26 @@ void GitRepoContainer::onIndexFlatListViewContextMenuRequested(
 
   contextMenu.addAction(ui->actionIndexFlatUnstage);
   contextMenu.addAction(ui->actionIndexFlatDiscard);
+
+  if (clickedItemIsFile && !files.isEmpty()) {
+    QMenu *lfsMenu = contextMenu.addMenu(tr("LFS"));
+    QAction *addToLfsAction = lfsMenu->addAction(tr("Add"));
+    connect(addToLfsAction, &QAction::triggered, this, [=]() {
+      closeDiffViewerIfOpen();
+      startOverlayTimer();
+      const WeakPtr &guard = getSelf().toWeakRef();
+      _dispatcher.dispatch([=]() { addFilesToLfs(guard, files); });
+    });
+
+    QAction *removeFromLfsAction = lfsMenu->addAction(tr("Remove"));
+    connect(removeFromLfsAction, &QAction::triggered, this, [=]() {
+      closeDiffViewerIfOpen();
+      startOverlayTimer();
+      const WeakPtr &guard = getSelf().toWeakRef();
+      _dispatcher.dispatch([=]() { removeFilesFromLfs(guard, files); });
+    });
+    contextMenu.addSeparator();
+  }
 
   if (!existingFiles.isEmpty()) {
     QAction *blameAction = contextMenu.addAction(tr("Blame"));
@@ -4942,6 +5045,9 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
     return;
   }
 
+  const QString clickedFilePath = filePathFromTreeIndex(index);
+  const bool clickedItemIsFile =
+      QFileInfo(QDir(_path).filePath(clickedFilePath)).isFile();
   const QStringList files = getSelectedFiles(ui->treeViewTabWidgetIndexTree);
   const QStringList existingFiles =
       getSelectedFilesWhichExist(ui->treeViewTabWidgetIndexTree);
@@ -4965,6 +5071,26 @@ void GitRepoContainer::onIndexTreeTreeViewContextMenuRequested(
 
   contextMenu.addAction(ui->actionIndexTreeUnstage);
   contextMenu.addAction(ui->actionIndexTreeDiscard);
+
+  if (clickedItemIsFile && !files.isEmpty()) {
+    QMenu *lfsMenu = contextMenu.addMenu(tr("LFS"));
+    QAction *addToLfsAction = lfsMenu->addAction(tr("Add"));
+    connect(addToLfsAction, &QAction::triggered, this, [=]() {
+      closeDiffViewerIfOpen();
+      startOverlayTimer();
+      const WeakPtr &guard = getSelf().toWeakRef();
+      _dispatcher.dispatch([=]() { addFilesToLfs(guard, files); });
+    });
+
+    QAction *removeFromLfsAction = lfsMenu->addAction(tr("Remove"));
+    connect(removeFromLfsAction, &QAction::triggered, this, [=]() {
+      closeDiffViewerIfOpen();
+      startOverlayTimer();
+      const WeakPtr &guard = getSelf().toWeakRef();
+      _dispatcher.dispatch([=]() { removeFilesFromLfs(guard, files); });
+    });
+    contextMenu.addSeparator();
+  }
 
   if (!existingFiles.isEmpty()) {
     QAction *blameAction = contextMenu.addAction(tr("Blame"));
@@ -6002,7 +6128,192 @@ void GitRepoContainer::ignoreFilesRecursive(const WeakPtr &guard,
     simulateClickOnFirstHistoryRow();
   });
 
-  LOG_PERF(0, "Exit");
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::addFilesToLfs(const WeakPtr &guard,
+                                     const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  QStringList entriesToAdd;
+  QSet<QString> seenEntries;
+  for (const QString &filePath : files) {
+    const QString fullPath = QDir(_path).filePath(filePath);
+    if (!QFileInfo(fullPath).isFile()) {
+      continue;
+    }
+
+    const QString entry = lfsAttributesEntryForFile(filePath);
+    if (seenEntries.contains(entry)) {
+      continue;
+    }
+
+    seenEntries.insert(entry);
+    entriesToAdd += entry;
+  }
+
+  if (entriesToAdd.isEmpty()) {
+    _bridge->refreshStatus(guard);
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      simulateClickOnFirstHistoryRow();
+    });
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString attributesFilePath = QDir::toNativeSeparators(
+              _path + QDir::separator() + GIT_ATTRIBUTES_FILENAME);
+
+  QSet<QString> existingEntries;
+  QFile readFile(attributesFilePath);
+  if (readFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    QTextStream in(&readFile);
+    in.setEncoding(QStringConverter::Utf8);
+    while (!in.atEnd()) {
+      const QString line = in.readLine().trimmed();
+      if (!line.isEmpty() && !line.startsWith('#')) {
+        existingEntries.insert(line);
+      }
+    }
+    readFile.close();
+  }
+
+  QFile file(attributesFilePath);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to open %1 for writing."))
+                         .arg(GIT_ATTRIBUTES_FILENAME),
+                     tr("Error"));
+    });
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QTextStream out(&file);
+  out.setEncoding(QStringConverter::Utf8);
+
+  bool wroteEntry = false;
+  for (const QString &entry : entriesToAdd) {
+    if (existingEntries.contains(entry)) {
+      continue;
+    }
+
+    if (!wroteEntry && file.size() > 0) {
+      out << Qt::endl;
+    }
+
+    out << entry << Qt::endl;
+    wroteEntry = true;
+  }
+
+  out.flush();
+  file.close();
+
+  _bridge->refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
+    simulateClickOnFirstHistoryRow();
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::removeFilesFromLfs(const WeakPtr &guard,
+                                          const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  QSet<QString> patternsToRemove;
+  for (const QString &filePath : files) {
+    const QString fullPath = QDir(_path).filePath(filePath);
+    if (!QFileInfo(fullPath).isFile()) {
+      continue;
+    }
+
+    patternsToRemove.insert(lfsAttributesPatternForFile(filePath));
+  }
+
+  if (patternsToRemove.isEmpty()) {
+    _bridge->refreshStatus(guard);
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      showSpinnerOverlay(false);
+      simulateClickOnFirstHistoryRow();
+    });
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString attributesFilePath = QDir::toNativeSeparators(
+              _path + QDir::separator() + GIT_ATTRIBUTES_FILENAME);
+
+  QStringList keptLines;
+  QFile readFile(attributesFilePath);
+  if (readFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    QTextStream in(&readFile);
+    in.setEncoding(QStringConverter::Utf8);
+    while (!in.atEnd()) {
+      keptLines += in.readLine();
+    }
+    readFile.close();
+  } else if (QFile::exists(attributesFilePath)) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to open %1 for reading."))
+                         .arg(GIT_ATTRIBUTES_FILENAME),
+                     tr("Error"));
+    });
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QStringList filteredLines;
+  filteredLines.reserve(keptLines.size());
+  for (const QString &line : keptLines) {
+    const QString trimmedLine = line.trimmed();
+    bool removeLine = false;
+    for (const QString &pattern : patternsToRemove) {
+      if (lfsAttributesLineMatchesPattern(trimmedLine, pattern)) {
+        removeLine = true;
+        break;
+      }
+    }
+
+    if (!removeLine) {
+      filteredLines += line;
+    }
+  }
+
+  QFile file(attributesFilePath);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate |
+                 QIODevice::Text)) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      showErrorToast(QString(tr("Failed to open %1 for writing."))
+                         .arg(GIT_ATTRIBUTES_FILENAME),
+                     tr("Error"));
+    });
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QTextStream out(&file);
+  out.setEncoding(QStringConverter::Utf8);
+  for (const QString &line : filteredLines) {
+    out << line << Qt::endl;
+  }
+  out.flush();
+  file.close();
+
+  _bridge->refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    showSpinnerOverlay(false);
+    simulateClickOnFirstHistoryRow();
+  });
+
+  LOG_PERF(0, "Exit")
 }
 
 void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
@@ -6039,6 +6350,10 @@ void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
 bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
+  int taskCount = 11;
+
+  _historyRefreshSemaphore = new QSemaphore(0);
+
   bool ok = true;
 
   ok &= _bridge->getLocalBranches();
@@ -6050,6 +6365,24 @@ bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
   ok &= ok && _bridge->getSubmodules();
   ok &= ok && _bridge->getRemotes(guard);
   ok &= ok && _bridge->getStashes(guard);
+
+  _historyRefreshSemaphore->acquire(taskCount);
+
+  delete _historyRefreshSemaphore;
+
+  _historyRefreshSemaphore = nullptr;
+
+  taskCount = 1;
+
+  _branchHistorySemaphore = new QSemaphore(0);
+
+  _dispatcher.dispatch([=]() { (void)_bridge->getBranchHistory(guard); });
+
+  _branchHistorySemaphore->acquire(taskCount);
+
+  delete _branchHistorySemaphore;
+
+  _branchHistorySemaphore = nullptr;
 
   if (!ok) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
@@ -6352,6 +6685,43 @@ void GitRepoContainer::refreshDisplayFilesModels() {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::releaseBranchHistorySemaphore()
+{
+    LOG_PERF(0, "Enter");
+
+    if (!_branchHistorySemaphore) {
+        LOG_WARN("Internal error. Sempahore has not been created previously!");
+        LOG_PERF(0, "Exit");
+        return;
+    }
+
+    static int i = 0;
+
+    qDebug() << i++ << "Branch history semaphore released!" << Qt::endl;
+
+    _branchHistorySemaphore->release();
+
+    LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::releaseHistoryRefreshSemaphore() {
+    LOG_PERF(0, "Enter");
+
+    if (!_historyRefreshSemaphore) {
+        LOG_WARN("Internal error. Sempahore has not been created previously!");
+        LOG_PERF(0, "Exit");
+        return;
+    }
+
+    static int i = 0;
+
+    qDebug() << i++ << "History refresh semaphore released!" << Qt::endl;
+
+    _historyRefreshSemaphore->release();
+
+    LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::applyDisplayFilesModels() {
   LOG_PERF(0, "Enter");
 
@@ -6574,6 +6944,7 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
   LOG_PERF(0, "Enter");
 
   if (activeBranch.isEmpty()) {
+    releaseHistoryRefreshSemaphore();
     LOG_PERF(0, "Exit")
     return;
   }
@@ -6603,8 +6974,6 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
       ui->tagsPage->clearCached();
     }
   }
-
-  _dispatcher.dispatch([=]() { (void)_bridge->getBranchHistory(guard); });
 
   LOG_PERF(0, "Exit")
 }
@@ -6658,6 +7027,7 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
   LOG_PERF(0, "Enter");
 
   if (activeBranch.isEmpty()) {
+    releaseHistoryRefreshSemaphore();
     LOG_PERF(0, "Exit")
     return;
   }
@@ -6676,8 +7046,6 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
       ui->tagsPage->clearCached();
     }
   }
-
-  _dispatcher.dispatch([=]() { (void)_bridge->getBranchHistory(guard); });
 
   LOG_PERF(0, "Exit")
 }
@@ -6699,6 +7067,7 @@ void GitRepoContainer::updateTagsModelActiveTag(const WeakPtr &guard,
   LOG_PERF(0, "Enter");
 
   if (activeTag.isEmpty()) {
+    releaseHistoryRefreshSemaphore();
     LOG_PERF(0, "Exit")
     return;
   }
@@ -6714,8 +7083,6 @@ void GitRepoContainer::updateTagsModelActiveTag(const WeakPtr &guard,
     ui->remotePage->updateActiveBranch(QString());
     ui->tagsPage->updateActiveTag(activeTag); // deselect local branch if any
   }
-
-  _dispatcher.dispatch([=]() { (void)_bridge->getBranchHistory(guard); });
 
   LOG_PERF(0, "Exit")
 }

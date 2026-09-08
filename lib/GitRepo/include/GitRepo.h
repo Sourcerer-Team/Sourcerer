@@ -437,6 +437,15 @@ struct GitCredentialsErrorResponse {
   size_t id = -1;
 };
 
+struct GitSshAuthInfo {
+  QString username;
+  QString privateKeyPath;
+  QString publicKeyPath;
+  QString passphrase;
+  bool passphrasePresent = false;
+  bool valid = false;
+};
+
 struct GitCommitInfo {
   git_oid oid;
   QString message;
@@ -697,6 +706,11 @@ void initForCurrentThread();
 void shutdownForCurrentThread();
 
 Lfs::StorageStatus getLfsStorageStatus(git_repository *repo);
+
+QString getBasicAuthHeader(const QString &repoPath, const QString &url);
+QString getBasicAuthHeader(git_repository *repo, const QString &url);
+GitSshAuthInfo getSshAuthInfo(const QString &repoPath, const QString &url,
+                              const QString &usernameFromUrl = QString());
 
 // Clear cached credentials for a given repository path
 // This should be called after updating credentials to ensure fresh credentials

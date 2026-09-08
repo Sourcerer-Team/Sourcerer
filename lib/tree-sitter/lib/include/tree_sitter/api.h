@@ -200,11 +200,14 @@ typedef struct TSQueryCursorOptions {
  * existing queries when upgrading between major versions, or minor versions if
  * it's in zerover.
  */
+#ifndef TREE_SITTER_LANGUAGE_METADATA_DEFINED
+#define TREE_SITTER_LANGUAGE_METADATA_DEFINED
 typedef struct TSLanguageMetadata {
   uint8_t major_version;
   uint8_t minor_version;
   uint8_t patch_version;
 } TSLanguageMetadata;
+#endif
 
 /********************/
 /* Section - Parser */
