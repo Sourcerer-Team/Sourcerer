@@ -847,6 +847,7 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
 
   if (branchName == ALL_BRANCHES) {
     _container.updateModelActiveBranch(guard, branchName, branchType);
+    getBranchHistory(guard);
   } else {
     _container.stopWatcher(guard);
 
@@ -921,6 +922,10 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
       _container.updateModelActiveBranch(guard, result.branchName,
                                          result.branchType);
       _container.showSpinnerOverlay(false);
+
+      _container._dispatcher.dispatch([=]() {
+            getBranchHistory(guard);
+      });
     });
 
     if (branchType == GitRepo::BranchType::Tag) {
