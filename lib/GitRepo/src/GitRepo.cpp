@@ -6202,10 +6202,13 @@ GitStatus getStatus(git_repository *repo, const bool &quitFlag) {
       continue;
     }
 
-    const char *filePath =
-        entry->head_to_index      ? entry->head_to_index->new_file.path
-        : entry->index_to_workdir ? entry->index_to_workdir->new_file.path
-                                  : nullptr;
+    const git_diff_delta *delta =
+        entry->head_to_index ? entry->head_to_index : entry->index_to_workdir;
+    const char *filePath = nullptr;
+    if (delta) {
+      filePath = delta->new_file.path ? delta->new_file.path
+                                     : delta->old_file.path;
+    }
 
     Q_ASSERT(filePath != nullptr);
 
