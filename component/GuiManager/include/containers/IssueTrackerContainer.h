@@ -20,8 +20,8 @@ class IssueTrackerContainer;
 }
 
 #if __has_include(<QtWebEngineWidgets/QWebEngineView>)
-#include <QtWebEngineWidgets/QWebEngineView>
 #include <QtWebEngineCore/QWebEngineProfile>
+#include <QtWebEngineWidgets/QWebEngineView>
 #define GUI_MANAGER_HAS_WEBENGINE 1
 #else
 #include <QtWidgets/QTextBrowser>

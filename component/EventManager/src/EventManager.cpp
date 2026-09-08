@@ -463,6 +463,12 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerGetCommitStatusResult";
   case EventType::GitRepoManagerGetCommitStatusError:
     return "GitRepoManagerGetCommitStatusError";
+  case EventType::GitRepoManagerGetLfsStorageStatus:
+    return "GitRepoManagerGetLfsStorageStatus";
+  case EventType::GitRepoManagerGetLfsStorageStatusResult:
+    return "GitRepoManagerGetLfsStorageStatusResult";
+  case EventType::GitRepoManagerGetLfsStorageStatusError:
+    return "GitRepoManagerGetLfsStorageStatusError";
   case EventType::GitRepoManagerGetStashStatus:
     return "GitRepoManagerGetStashStatus";
   case EventType::GitRepoManagerGetStashStatusResult:

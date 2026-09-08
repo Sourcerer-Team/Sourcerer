@@ -44,6 +44,7 @@ enum class GitRepoCommandType : int {
   GetActiveBranch,
   Rebase,
   GetFileSizeFromCommit,
+  GetLfsStorageStatus,
   GetBranchHistory,
   GetCommitBranches,
   GetCommitTags,
@@ -798,6 +799,13 @@ struct GitRepoStatusCommand final : GitRepoCommand {
   ~GitRepoStatusCommand() override = default;
 };
 
+struct GitRepoGetLfsStorageStatusCommand final : GitRepoCommand {
+  GitRepoGetLfsStorageStatusCommand()
+      : GitRepoCommand(GitRepoCommandType::GetLfsStorageStatus) {}
+
+  ~GitRepoGetLfsStorageStatusCommand() override = default;
+};
+
 struct GitRepoSubmoduleUpdateCommand final : GitRepoCommand {
   GitRepoSubmoduleUpdateCommand()
       : GitRepoCommand(GitRepoCommandType::SubmoduleUpdate) {}
@@ -890,4 +898,3 @@ Q_DECLARE_METATYPE(GitRepo::BlameFileInfo)
 Q_DECLARE_METATYPE(GitRepo::BlameReport)
 Q_DECLARE_METATYPE(GitRepoManager::Structs::GitRepoBlameCommand)
 Q_DECLARE_METATYPE(GitRepoManager::Structs::GitRepoBlameCommandResult)
-

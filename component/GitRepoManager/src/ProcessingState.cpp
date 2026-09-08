@@ -2,11 +2,13 @@
 #include "GitRepoManagerEvent.h"
 #include "GitRepoManagerStructs.h"
 
+#include <GitLfs.h>
 #include <GitRepo.h>
 #include <Log.h>
 
 #include <git2/errors.h>
 
+#include <QVariantMap>
 #include <functional>
 
 #define THREAD_ID "ProcessingState"
@@ -276,6 +278,12 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     const auto commitStatusCommand =
         event.nextParam<GitRepoGetCommitStatusCommand>();
     scheduleWorkerForGetCommitStatus(commitStatusCommand);
+    break;
+  }
+  case EventType::GetLfsStorageStatus: {
+    const auto lfsStorageStatusCommand =
+        event.nextParam<GitRepoGetLfsStorageStatusCommand>();
+    scheduleWorkerForGetLfsStorageStatus(lfsStorageStatusCommand);
     break;
   }
   case EventType::GetStashStatus: {
@@ -658,11 +666,11 @@ void ProcessingState::blameWorker(const Structs::GitRepoBlameCommand &command) {
 
   const GitRepo::BlameReport blameReport = GitRepo::blame(repo, command.files);
 
-  EventManager::Event resultEvent(EventManager::EventType::GitRepoManagerBlameResult,
-                                  command.syncUuid);
-  resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                    QVariant::fromValue(
-                                        GitRepoBlameCommandResult{blameReport})});
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerBlameResult, command.syncUuid);
+  resultEvent.addData(GitRepoResult{
+      command.uuid, command.type,
+      QVariant::fromValue(GitRepoBlameCommandResult{blameReport})});
   _eventManager.send(resultEvent);
 
   LOG_PERF(0, "Exit");
@@ -2262,6 +2270,40 @@ void ProcessingState::getCommitStatusWorker(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::getLfsStorageStatusWorker(
+    const Structs::GitRepoGetLfsStorageStatusCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerGetLfsStorageStatusError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const auto status = GitRepo::getLfsStorageStatus(repo);
+  QVariantMap statusMap;
+  statusMap.insert(QStringLiteral("repositoryPath"), status.repositoryPath);
+  statusMap.insert(QStringLiteral("objectCount"), status.objectCount);
+  statusMap.insert(QStringLiteral("totalBytes"), status.totalBytes);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerGetLfsStorageStatusResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                    QVariant::fromValue(statusMap)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::getStashStatusWorker(
     const Structs::GitRepoGetStashStatusCommand &command) {
   LOG_PERF(0, "Enter");
@@ -3361,8 +3403,8 @@ void ProcessingState::scheduleWorkerForQuit(
 void ProcessingState::openRepoWorker(const GitRepoOpenCommand &command) {
   LOG_PERF(0, "Enter");
 
-  git_repository *repo = GitRepo::openRepository(command.path, command.author,
-                                                 command.email);
+  git_repository *repo =
+      GitRepo::openRepository(command.path, command.author, command.email);
   if (!repo) {
     const git_error *gitError = git_error_last();
     reportError(EventManager::EventType::GitRepoManagerOpenRepoError,
@@ -4654,6 +4696,25 @@ void ProcessingState::scheduleWorkerForGetCommitStatus(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForGetLfsStorageStatus(
+    const Structs::GitRepoGetLfsStorageStatusCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerGetLfsStorageStatusError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoGetLfsStorageStatusCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForGetStashStatus(
     const Structs::GitRepoGetStashStatusCommand &command) {
   LOG_PERF(0, "Enter");
@@ -5225,7 +5286,8 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       break;
     }
     case GitRepoCommandType::Blame: {
-      const auto blameCommand = dynamic_cast<const GitRepoBlameCommand *>(command);
+      const auto blameCommand =
+          dynamic_cast<const GitRepoBlameCommand *>(command);
       if (blameCommand) {
         blameWorker(*blameCommand);
       }

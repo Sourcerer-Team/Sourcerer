@@ -75,7 +75,7 @@ QFont QsciLexer::font(int style) const {
   return _styleFonts.value(style, _defaultFont);
 }
 
-#define QEDITOR_DEFINE_LEXER(ClassName, LanguageId)                           \
+#define QEDITOR_DEFINE_LEXER(ClassName, LanguageId)                            \
   ClassName::ClassName(QObject *parent) : QsciLexer(parent, LanguageId) {}
 
 QEDITOR_DEFINE_LEXER(QsciLexerCPP, "cpp")
@@ -144,8 +144,11 @@ protected:
       for (int i = 0; i < 4; ++i) {
         int width = 0;
         if (i == 0 && _editor->_marginLineNumbers[0]) {
-          const int digits = QString::number(std::max(1, _editor->blockCount())).size();
-          width = _editor->fontMetrics().horizontalAdvance(QString(digits, QChar('9'))) + 12;
+          const int digits =
+              QString::number(std::max(1, _editor->blockCount())).size();
+          width = _editor->fontMetrics().horizontalAdvance(
+                      QString(digits, QChar('9'))) +
+                  12;
         } else if (_editor->_marginWidths[i] > 0) {
           width = _editor->_marginWidths[i];
         }
@@ -188,8 +191,8 @@ public:
 protected:
   void highlightBlock(const QString &text) override {
     const QsciLexer *lexer = _editor ? _editor->lexer() : nullptr;
-    const QString language = lexer ? lexer->treeSitterLanguage().toLower()
-                                   : QString();
+    const QString language =
+        lexer ? lexer->treeSitterLanguage().toLower() : QString();
 
     if (language == QLatin1String("diff")) {
       highlightDiff(text);
@@ -200,8 +203,7 @@ protected:
   }
 
 private:
-  static QTextCharFormat makeFormat(const QColor &foreground,
-                                    bool bold = false,
+  static QTextCharFormat makeFormat(const QColor &foreground, bool bold = false,
                                     bool italic = false) {
     QTextCharFormat format;
     format.setForeground(foreground);
@@ -210,8 +212,9 @@ private:
     return format;
   }
 
-  void applyRules(const QString &text,
-                  const QList<QPair<QRegularExpression, QTextCharFormat>> &rules) {
+  void
+  applyRules(const QString &text,
+             const QList<QPair<QRegularExpression, QTextCharFormat>> &rules) {
     for (const auto &rule : rules) {
       auto matchIterator = rule.first.globalMatch(text);
       while (matchIterator.hasNext()) {
@@ -234,12 +237,14 @@ private:
       return;
     }
 
-    if (text.startsWith(QLatin1Char('+')) && !text.startsWith(QLatin1String("+++"))) {
+    if (text.startsWith(QLatin1Char('+')) &&
+        !text.startsWith(QLatin1String("+++"))) {
       setFormat(0, text.length(), makeFormat(QColor(152, 195, 121)));
       return;
     }
 
-    if (text.startsWith(QLatin1Char('-')) && !text.startsWith(QLatin1String("---"))) {
+    if (text.startsWith(QLatin1Char('-')) &&
+        !text.startsWith(QLatin1String("---"))) {
       setFormat(0, text.length(), makeFormat(QColor(224, 108, 117)));
       return;
     }
@@ -250,18 +255,26 @@ private:
     }
 
     const QList<QPair<QRegularExpression, QTextCharFormat>> rules = {
-        {QRegularExpression(QStringLiteral("\\b(?:true|false|null|nil|none|yes|no)\\b"),
-                            QRegularExpression::CaseInsensitiveOption),
+        {QRegularExpression(
+             QStringLiteral("\\b(?:true|false|null|nil|none|yes|no)\\b"),
+             QRegularExpression::CaseInsensitiveOption),
          makeFormat(QColor(198, 120, 221), true)},
-        {QRegularExpression(QStringLiteral("\\b(?:if|else|for|while|switch|case|return|class|struct|enum|fn|function|def|import|from|include|package|public|private|protected|const|let|var|new|delete|try|catch|throw|throws|async|await|yield)\\b"),
-                            QRegularExpression::CaseInsensitiveOption),
+        {QRegularExpression(
+             QStringLiteral(
+                 "\\b(?:if|else|for|while|switch|case|return|class|struct|enum|"
+                 "fn|function|def|import|from|include|package|public|private|"
+                 "protected|const|let|var|new|delete|try|catch|throw|throws|"
+                 "async|await|yield)\\b"),
+             QRegularExpression::CaseInsensitiveOption),
          makeFormat(QColor(198, 120, 221), true)},
         {QRegularExpression(QStringLiteral("\\b\\d+(?:\\.\\d+)?\\b"),
                             QRegularExpression::CaseInsensitiveOption),
          makeFormat(QColor(209, 154, 102))},
-        {QRegularExpression(QStringLiteral("\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'")),
+        {QRegularExpression(
+             QStringLiteral("\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'")),
          makeFormat(QColor(152, 195, 121))},
-        {QRegularExpression(QStringLiteral("//[^\\n]*|#[^\\n]*|--[^\\n]*|;[^\\n]*")),
+        {QRegularExpression(
+             QStringLiteral("//[^\\n]*|#[^\\n]*|--[^\\n]*|;[^\\n]*")),
          makeFormat(QColor(92, 99, 112), false, true)},
     };
     applyRules(text, rules);
@@ -280,28 +293,38 @@ private:
     } else if (language == QLatin1String("json") ||
                language == QLatin1String("yaml") ||
                language == QLatin1String("properties")) {
-      rules.append({QRegularExpression(QStringLiteral("^\\s*[A-Za-z0-9_.-]+(?=\\s*[:=])")),
+      rules.append({QRegularExpression(
+                        QStringLiteral("^\\s*[A-Za-z0-9_.-]+(?=\\s*[:=])")),
                     makeFormat(QColor(97, 175, 239), true)});
-      rules.append({QRegularExpression(QStringLiteral("\\b(?:true|false|null|yes|no)\\b"),
-                                       QRegularExpression::CaseInsensitiveOption),
+      rules.append({QRegularExpression(
+                        QStringLiteral("\\b(?:true|false|null|yes|no)\\b"),
+                        QRegularExpression::CaseInsensitiveOption),
                     makeFormat(QColor(198, 120, 221), true)});
     } else if (language == QLatin1String("xml") ||
                language == QLatin1String("html")) {
       rules.append({QRegularExpression(QStringLiteral("<[^>]+>")),
                     makeFormat(QColor(97, 175, 239), true)});
-      rules.append({QRegularExpression(QStringLiteral("\\b[A-Za-z_:][A-Za-z0-9_:\\-.]*=")),
+      rules.append({QRegularExpression(
+                        QStringLiteral("\\b[A-Za-z_:][A-Za-z0-9_:\\-.]*=")),
                     makeFormat(QColor(209, 154, 102))});
     }
 
     const QList<QPair<QRegularExpression, QTextCharFormat>> commonRules = {
-        {QRegularExpression(QStringLiteral("\\b(?:if|else|for|while|switch|case|break|continue|return|class|struct|enum|namespace|import|from|package|def|function|fn|let|var|const|public|private|protected|static|final|new|delete|try|catch|throw|throws|async|await|yield)\\b"),
-                            QRegularExpression::CaseInsensitiveOption),
+        {QRegularExpression(
+             QStringLiteral(
+                 "\\b(?:if|else|for|while|switch|case|break|continue|return|"
+                 "class|struct|enum|namespace|import|from|package|def|function|"
+                 "fn|let|var|const|public|private|protected|static|final|new|"
+                 "delete|try|catch|throw|throws|async|await|yield)\\b"),
+             QRegularExpression::CaseInsensitiveOption),
          makeFormat(QColor(198, 120, 221), true)},
         {QRegularExpression(QStringLiteral("\\b\\d+(?:\\.\\d+)?\\b")),
          makeFormat(QColor(209, 154, 102))},
-        {QRegularExpression(QStringLiteral("\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'")),
+        {QRegularExpression(
+             QStringLiteral("\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'")),
          makeFormat(QColor(152, 195, 121))},
-        {QRegularExpression(QStringLiteral("//[^\\n]*|#[^\\n]*|--[^\\n]*|;[^\\n]*")),
+        {QRegularExpression(
+             QStringLiteral("//[^\\n]*|#[^\\n]*|--[^\\n]*|;[^\\n]*")),
          makeFormat(QColor(92, 99, 112), false, true)},
         {QRegularExpression(QStringLiteral("/\\*.*\\*/")),
          makeFormat(QColor(92, 99, 112), false, true)},
@@ -316,8 +339,9 @@ private:
 
 QsciScintilla::QsciScintilla(QWidget *parent)
     : QPlainTextEdit(parent), _lexer(nullptr), _caretLineVisible(false),
-      _indentationsUseTabs(false), _autoIndent(false), _indentationGuides(false),
-      _foldStyle(NoFoldStyle), _braceMatch(NoBraceMatch), _lineNumberArea(nullptr),
+      _indentationsUseTabs(false), _autoIndent(false),
+      _indentationGuides(false), _foldStyle(NoFoldStyle),
+      _braceMatch(NoBraceMatch), _lineNumberArea(nullptr),
       _syntaxHighlighter(nullptr), _parser(nullptr), _tree(nullptr) {
   for (int i = 0; i < 4; ++i) {
     _marginLineNumbers[i] = false;
@@ -367,7 +391,9 @@ void QsciScintilla::setText(const QString &text) {
   refreshCurrentLineHighlight();
 }
 
-QString QsciScintilla::text() const { return toPlainText(); }
+QString QsciScintilla::text() const {
+  return toPlainText();
+}
 
 QString QsciScintilla::text(int line) const {
   const QTextBlock block = document()->findBlockByNumber(line);
@@ -396,7 +422,8 @@ void QsciScintilla::setLexer(QsciLexer *lexer) {
 
   _lexer = lexer;
   if (_lexer) {
-    connect(_lexer, &QsciLexer::changed, this, &QsciScintilla::applyCurrentPalette);
+    connect(_lexer, &QsciLexer::changed, this,
+            &QsciScintilla::applyCurrentPalette);
   }
   if (!_syntaxHighlighter) {
     _syntaxHighlighter = new SimpleSyntaxHighlighter(document(), this);
@@ -431,7 +458,8 @@ void QsciScintilla::setCaretLineVisible(bool visible) {
 void QsciScintilla::setCaretForegroundColor(const QColor &color) {
   _caretForeground = color;
   QPalette palette = this->palette();
-  palette.setColor(QPalette::Text, _color.isValid() ? _color : palette.color(QPalette::Text));
+  palette.setColor(QPalette::Text,
+                   _color.isValid() ? _color : palette.color(QPalette::Text));
   setPalette(palette);
 }
 
@@ -539,7 +567,9 @@ void QsciScintilla::setWrapMode(WrapMode mode) {
                                    : QPlainTextEdit::NoWrap);
 }
 
-void QsciScintilla::setFolding(FoldStyle style) { _foldStyle = style; }
+void QsciScintilla::setFolding(FoldStyle style) {
+  _foldStyle = style;
+}
 
 void QsciScintilla::setFoldMarginColors(const QColor &foreground,
                                         const QColor &background) {
@@ -551,7 +581,9 @@ void QsciScintilla::setIndentationsUseTabs(bool useTabs) {
   _indentationsUseTabs = useTabs;
 }
 
-void QsciScintilla::setAutoIndent(bool enabled) { _autoIndent = enabled; }
+void QsciScintilla::setAutoIndent(bool enabled) {
+  _autoIndent = enabled;
+}
 
 void QsciScintilla::setIndentationGuides(bool enabled) {
   _indentationGuides = enabled;
@@ -565,7 +597,9 @@ void QsciScintilla::setIndentationGuidesForegroundColor(const QColor &color) {
   _indentGuidesForeground = color;
 }
 
-void QsciScintilla::setBraceMatching(BraceMatch style) { _braceMatch = style; }
+void QsciScintilla::setBraceMatching(BraceMatch style) {
+  _braceMatch = style;
+}
 
 void QsciScintilla::setMatchedBraceBackgroundColor(const QColor &color) {
   _matchedBraceBackground = color;
@@ -752,7 +786,8 @@ int QsciScintilla::lineNumberAreaWidth() const {
   const int digits = QString::number(std::max(1, blockCount())).size();
   for (int i = 0; i < 4; ++i) {
     if (i == 0 && _marginLineNumbers[0]) {
-      width += fontMetrics().horizontalAdvance(QString(digits, QChar('9'))) + 12;
+      width +=
+          fontMetrics().horizontalAdvance(QString(digits, QChar('9'))) + 12;
     } else if (_marginWidths[i] > 0) {
       width += _marginWidths[i];
     }
@@ -771,12 +806,13 @@ void QsciScintilla::lineNumberAreaPaintEvent(QPaintEvent *event) {
   }
 
   QPainter painter(_lineNumberArea);
-  painter.fillRect(event->rect(),
-                   _marginsBackground.isValid() ? _marginsBackground
-                                                : palette().window().color());
+  painter.fillRect(event->rect(), _marginsBackground.isValid()
+                                      ? _marginsBackground
+                                      : palette().window().color());
 
-  const QColor textColor =
-      _marginsForeground.isValid() ? _marginsForeground : palette().text().color();
+  const QColor textColor = _marginsForeground.isValid()
+                               ? _marginsForeground
+                               : palette().text().color();
   const QColor markerColor = textColor;
 
   const int digits = QString::number(std::max(1, blockCount())).size();
@@ -785,7 +821,8 @@ void QsciScintilla::lineNumberAreaPaintEvent(QPaintEvent *event) {
   int x = 0;
   for (int i = 0; i < 4; ++i) {
     if (i == 0 && _marginLineNumbers[0]) {
-      marginWidths[i] = fontMetrics().horizontalAdvance(QString(digits, QChar('9'))) + 12;
+      marginWidths[i] =
+          fontMetrics().horizontalAdvance(QString(digits, QChar('9'))) + 12;
     } else if (_marginWidths[i] > 0) {
       marginWidths[i] = _marginWidths[i];
     }
@@ -799,7 +836,8 @@ void QsciScintilla::lineNumberAreaPaintEvent(QPaintEvent *event) {
 
   QTextBlock block = firstVisibleBlock();
   int blockNumber = block.blockNumber();
-  int top = static_cast<int>(blockBoundingGeometry(block).translated(contentOffset()).top());
+  int top = static_cast<int>(
+      blockBoundingGeometry(block).translated(contentOffset()).top());
   int bottom = top + static_cast<int>(blockBoundingRect(block).height());
   const int lineHeight = fontMetrics().height();
 
@@ -813,11 +851,13 @@ void QsciScintilla::lineNumberAreaPaintEvent(QPaintEvent *event) {
           continue;
         }
 
-        const QRect marginRect(marginOffsets[margin], top, marginWidth, lineHeight);
+        const QRect marginRect(marginOffsets[margin], top, marginWidth,
+                               lineHeight);
         painter.fillRect(marginRect,
-                         _marginBackgroundColors.value(margin,
-                             _marginsBackground.isValid() ? _marginsBackground
-                                                          : palette().window().color()));
+                         _marginBackgroundColors.value(
+                             margin, _marginsBackground.isValid()
+                                         ? _marginsBackground
+                                         : palette().window().color()));
 
         const auto lineMargins = _marginTexts.constFind(blockNumber);
         if (lineMargins != _marginTexts.constEnd()) {
@@ -863,8 +903,10 @@ void QsciScintilla::lineNumberAreaPaintEvent(QPaintEvent *event) {
 
         const int symbol = _markerSymbols.value(markerIndex, Background);
         const QRect symbolRect = marginRect.adjusted(3, 3, -3, -3);
-        const QColor fillColor = _markerBackgroundColors.value(markerIndex, markerColor);
-        const QColor strokeColor = _markerForegroundColors.value(markerIndex, markerColor);
+        const QColor fillColor =
+            _markerBackgroundColors.value(markerIndex, markerColor);
+        const QColor strokeColor =
+            _markerForegroundColors.value(markerIndex, markerColor);
 
         painter.setRenderHint(QPainter::Antialiasing, true);
         switch (symbol) {
@@ -913,7 +955,8 @@ void QsciScintilla::updateLineNumberArea(const QRect &rect, int dy) {
   if (dy != 0) {
     _lineNumberArea->scroll(0, dy);
   } else {
-    _lineNumberArea->update(0, rect.y(), _lineNumberArea->width(), rect.height());
+    _lineNumberArea->update(0, rect.y(), _lineNumberArea->width(),
+                            rect.height());
   }
 
   if (rect.contains(viewport()->rect())) {

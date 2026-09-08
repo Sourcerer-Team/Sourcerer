@@ -75,8 +75,7 @@ protected:
 private:
   int conflictsBeforeIndex(int index) const;
   void highlightConflictsInBottomEditor();
-  void applyConflictChoice(int rangeIndex,
-                           MergeDiffResolutionType resolution);
+  void applyConflictChoice(int rangeIndex, MergeDiffResolutionType resolution);
   int removedLinesBeforeRange(int rangeIndex) const;
   void setupEditors(const QString &filePath);
   void refreshScintillaTheme();

@@ -12,7 +12,7 @@ extern "C" {
 typedef struct Stack Stack;
 
 typedef unsigned StackVersion;
-#define STACK_VERSION_NONE ((StackVersion)-1)
+#define STACK_VERSION_NONE ((StackVersion) - 1)
 
 typedef struct {
   SubtreeArray subtrees;
@@ -47,7 +47,8 @@ TSStateId ts_stack_state(const Stack *self, StackVersion version);
 Subtree ts_stack_last_external_token(const Stack *self, StackVersion version);
 
 // Set the last external token associated with a given version of the stack.
-void ts_stack_set_last_external_token(Stack *self, StackVersion version, Subtree token);
+void ts_stack_set_last_external_token(Stack *self, StackVersion version,
+                                      Subtree token);
 
 // Get the position of the given version of the stack within the document.
 Length ts_stack_position(const Stack *, StackVersion);
@@ -57,14 +58,16 @@ Length ts_stack_position(const Stack *, StackVersion);
 // This transfers ownership of the tree to the Stack. Callers that
 // need to retain ownership of the tree for their own purposes should
 // first retain the tree.
-void ts_stack_push(Stack *self, StackVersion version, Subtree subtree, bool pending, TSStateId state);
+void ts_stack_push(Stack *self, StackVersion version, Subtree subtree,
+                   bool pending, TSStateId state);
 
 // Pop the given number of entries from the given version of the stack. This
 // operation can increase the number of stack versions by revealing multiple
 // versions which had previously been merged. It returns an array that
 // specifies the index of each revealed version and the trees that were
 // removed from that version.
-StackSliceArray ts_stack_pop_count(Stack *self, StackVersion version, uint32_t count);
+StackSliceArray ts_stack_pop_count(Stack *self, StackVersion version,
+                                   uint32_t count);
 
 // Remove an error at the top of the given version of the stack.
 SubtreeArray ts_stack_pop_error(Stack *self, StackVersion version);
@@ -77,7 +80,8 @@ StackSliceArray ts_stack_pop_all(Stack *self, StackVersion version);
 
 // Get the maximum number of tree nodes reachable from this version of the stack
 // since the last error was detected.
-unsigned ts_stack_node_count_since_error(const Stack *self, StackVersion version);
+unsigned ts_stack_node_count_since_error(const Stack *self,
+                                         StackVersion version);
 
 int ts_stack_dynamic_precedence(Stack *self, StackVersion version);
 
@@ -85,7 +89,8 @@ bool ts_stack_has_advanced_since_error(const Stack *self, StackVersion version);
 
 // Compute a summary of all the parse states near the top of the given
 // version of the stack and store the summary for later retrieval.
-void ts_stack_record_summary(Stack *self, StackVersion version, unsigned max_depth);
+void ts_stack_record_summary(Stack *self, StackVersion version,
+                             unsigned max_depth);
 
 // Retrieve a summary of all the parse states near the top of the
 // given version of the stack.
@@ -99,7 +104,8 @@ unsigned ts_stack_error_cost(const Stack *self, StackVersion version);
 bool ts_stack_merge(Stack *self, StackVersion version1, StackVersion version2);
 
 // Determine whether the given two stack versions can be merged.
-bool ts_stack_can_merge(Stack *self, StackVersion version1, StackVersion version2);
+bool ts_stack_can_merge(Stack *self, StackVersion version1,
+                        StackVersion version2);
 
 Subtree ts_stack_resume(Stack *self, StackVersion version);
 
@@ -130,4 +136,4 @@ bool ts_stack_print_dot_graph(Stack *self, const TSLanguage *language, FILE *f);
 }
 #endif
 
-#endif  // TREE_SITTER_PARSE_STACK_H_
+#endif // TREE_SITTER_PARSE_STACK_H_
