@@ -16,10 +16,7 @@
 
 namespace Util {
 
-enum class DispatcherChannel {
-  Any = -1,
-  Pool0 = 0
-};
+enum class DispatcherChannel { Any = -1, Pool0 = 0 };
 
 enum class DispatcherCommand {
   Unknown = 0,

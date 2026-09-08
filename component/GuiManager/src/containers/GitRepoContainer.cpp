@@ -3137,9 +3137,9 @@ void GitRepoContainer::onPull(bool rebase) {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-      LOG_DEBUG("Executing {} operation in dispatcher",
-                rebase ? "pull with rebase" : "pull");
-      _bridge->pull(guard, rebase);
+    LOG_DEBUG("Executing {} operation in dispatcher",
+              rebase ? "pull with rebase" : "pull");
+    _bridge->pull(guard, rebase);
   });
 
   LOG_DEBUG("{} operation dispatched", rebase ? "Pull with rebase" : "Pull");
@@ -3207,8 +3207,8 @@ void GitRepoContainer::onPush(bool force) {
     const auto [upstreamRemote, upstreamBranch] =
         _bridge->getUpstreamForBranch(guard, branchName);
     if (!upstreamRemote.isEmpty() && !upstreamBranch.isEmpty()) {
-        Util::Dispatcher::dispatchToMainThread(guard,
-                                               [=]() { startOverlayTimer(); });
+      Util::Dispatcher::dispatchToMainThread(guard,
+                                             [=]() { startOverlayTimer(); });
 
       LOG_DEBUG("Executing {}push operation in dispatcher",
                 force ? "force " : "");
@@ -6163,7 +6163,7 @@ void GitRepoContainer::addFilesToLfs(const WeakPtr &guard,
   }
 
   const QString attributesFilePath = QDir::toNativeSeparators(
-              _path + QDir::separator() + GIT_ATTRIBUTES_FILENAME);
+      _path + QDir::separator() + GIT_ATTRIBUTES_FILENAME);
 
   QSet<QString> existingEntries;
   QFile readFile(attributesFilePath);
@@ -6246,7 +6246,7 @@ void GitRepoContainer::removeFilesFromLfs(const WeakPtr &guard,
   }
 
   const QString attributesFilePath = QDir::toNativeSeparators(
-              _path + QDir::separator() + GIT_ATTRIBUTES_FILENAME);
+      _path + QDir::separator() + GIT_ATTRIBUTES_FILENAME);
 
   QStringList keptLines;
   QFile readFile(attributesFilePath);
@@ -6686,39 +6686,39 @@ void GitRepoContainer::refreshDisplayFilesModels() {
 }
 
 void GitRepoContainer::releaseBranchHistorySemaphore() {
-    LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Enter");
 
-    if (!_branchHistorySemaphore) {
-        LOG_WARN("Internal error. Sempahore has not been created previously!");
-        LOG_PERF(0, "Exit");
-        return;
-    }
-
-    static int i = 0;
-
-    qDebug() << i++ << "Branch history semaphore released!" << Qt::endl;
-
-    _branchHistorySemaphore->release();
-
+  if (!_branchHistorySemaphore) {
+    LOG_WARN("Internal error. Sempahore has not been created previously!");
     LOG_PERF(0, "Exit");
+    return;
+  }
+
+  static int i = 0;
+
+  qDebug() << i++ << "Branch history semaphore released!" << Qt::endl;
+
+  _branchHistorySemaphore->release();
+
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::releaseHistoryRefreshSemaphore() {
-    LOG_PERF(0, "Enter");
+  LOG_PERF(0, "Enter");
 
-    if (!_historyRefreshSemaphore) {
-        LOG_WARN("Internal error. Sempahore has not been created previously!");
-        LOG_PERF(0, "Exit");
-        return;
-    }
-
-    static int i = 0;
-
-    qDebug() << i++ << "History refresh semaphore released!" << Qt::endl;
-
-    _historyRefreshSemaphore->release();
-
+  if (!_historyRefreshSemaphore) {
+    LOG_WARN("Internal error. Sempahore has not been created previously!");
     LOG_PERF(0, "Exit");
+    return;
+  }
+
+  static int i = 0;
+
+  qDebug() << i++ << "History refresh semaphore released!" << Qt::endl;
+
+  _historyRefreshSemaphore->release();
+
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::applyDisplayFilesModels() {

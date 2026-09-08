@@ -16,8 +16,6 @@
 #include <git2/remote.h>
 #include <git2/revparse.h>
 #include <git2/revwalk.h>
-#include <git2/tag.h>
-#include <git2/tree.h>
 #include <git2/sys/errors.h>
 #include <git2/sys/filter.h>
 #include <git2/tag.h>
@@ -332,7 +330,7 @@ QList<GitSshAuthInfo> buildLibssh2KeyCandidates(const QString &host,
       QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
   const QString sshDir = QDir(homePath).filePath(QStringLiteral(".ssh"));
   const QStringList defaultKeyNames{
-                                    QStringLiteral("id_ed25519"), QStringLiteral("id_ecdsa"),
+      QStringLiteral("id_ed25519"), QStringLiteral("id_ecdsa"),
       QStringLiteral("id_rsa"), QStringLiteral("id_dsa")};
 
   for (const QString &keyName : defaultKeyNames) {
@@ -395,37 +393,44 @@ bool isLfsTrackedPath(git_repository *repo, const QString &relativePath) {
 
   const QByteArray pathUtf8 = QDir::fromNativeSeparators(relativePath).toUtf8();
   const char *value = nullptr;
-  if (git_attr_get(&value, repo, GIT_ATTR_CHECK_NO_SYSTEM | GIT_ATTR_CHECK_FILE_THEN_INDEX,
-                   pathUtf8.constData(), "filter") != 0 || !value) {
+  if (git_attr_get(&value, repo,
+                   GIT_ATTR_CHECK_NO_SYSTEM | GIT_ATTR_CHECK_FILE_THEN_INDEX,
+                   pathUtf8.constData(), "filter") != 0 ||
+      !value) {
     return false;
   }
 
-  return QString::fromUtf8(value).compare(QStringLiteral("lfs"), Qt::CaseInsensitive) == 0;
+  return QString::fromUtf8(value).compare(QStringLiteral("lfs"),
+                                          Qt::CaseInsensitive) == 0;
 }
 
 bool addLfsUploadCandidate(QHash<QString, LfsUploadCandidate> *candidates,
                            const QString &oid, const QString &path,
                            const QString &source, qint64 size) {
   if (!candidates) {
-    LOG_DEBUG("Skipping LFS upload candidate from '{}' because the candidate map is null",
+    LOG_DEBUG("Skipping LFS upload candidate from '{}' because the candidate "
+              "map is null",
               source.toStdString());
     return false;
   }
 
   if (oid.isEmpty()) {
-    LOG_DEBUG("Skipping LFS upload candidate from '{}' because the oid is empty",
-              source.toStdString());
+    LOG_DEBUG(
+        "Skipping LFS upload candidate from '{}' because the oid is empty",
+        source.toStdString());
     return false;
   }
 
   if (path.isEmpty()) {
-    LOG_DEBUG("Skipping LFS upload candidate '{}' from '{}' because the path is empty",
+    LOG_DEBUG("Skipping LFS upload candidate '{}' from '{}' because the path "
+              "is empty",
               oid.toStdString(), source.toStdString());
     return false;
   }
 
   if (!QFile::exists(path)) {
-    LOG_DEBUG("Skipping LFS upload candidate '{}' from '{}' because the file does not exist at '{}'",
+    LOG_DEBUG("Skipping LFS upload candidate '{}' from '{}' because the file "
+              "does not exist at '{}'",
               oid.toStdString(), source.toStdString(), path.toStdString());
     return false;
   }
@@ -485,7 +490,8 @@ static int collectLfsPointerCandidatesCallback(const char *root,
   return 0;
 }
 
-static bool collectLfsObjectsFromRef(git_repository *repo, const QString &repoPath,
+static bool
+collectLfsObjectsFromRef(git_repository *repo, const QString &repoPath,
                          const QString &refName,
                          QHash<QString, LfsUploadCandidate> *candidates) {
   if (!repo || !candidates || refName.isEmpty()) {
@@ -496,8 +502,8 @@ static bool collectLfsObjectsFromRef(git_repository *repo, const QString &repoPa
   if (git_revparse_single(&target, repo, refName.toStdString().c_str()) != 0 ||
       !target) {
     const git_error *error = git_error_last();
-    LOG_ERROR(Log::ErrorId::Git,
-              "Failed to resolve LFS ref '{}': {}", refName.toStdString(),
+    LOG_ERROR(Log::ErrorId::Git, "Failed to resolve LFS ref '{}': {}",
+              refName.toStdString(),
               error && error->message ? error->message : "unknown error");
     return false;
   }
@@ -506,8 +512,7 @@ static bool collectLfsObjectsFromRef(git_repository *repo, const QString &repoPa
   if (git_object_peel(&commitObject, target, GIT_OBJECT_COMMIT) != 0 ||
       !commitObject) {
     const git_error *error = git_error_last();
-    LOG_ERROR(Log::ErrorId::Git,
-              "Failed to peel LFS ref '{}' to a commit: {}",
+    LOG_ERROR(Log::ErrorId::Git, "Failed to peel LFS ref '{}' to a commit: {}",
               refName.toStdString(),
               error && error->message ? error->message : "unknown error");
     git_object_free(target);
@@ -536,9 +541,9 @@ static bool collectLfsObjectsFromRef(git_repository *repo, const QString &repoPa
   return walkError == 0;
 }
 
-static bool collectLfsObjectsFromIndex(git_repository *repo,
-                                       const QString &repoPath,
-                                       QHash<QString, LfsUploadCandidate> *candidates) {
+static bool
+collectLfsObjectsFromIndex(git_repository *repo, const QString &repoPath,
+                           QHash<QString, LfsUploadCandidate> *candidates) {
   if (!repo || !candidates) {
     return false;
   }
@@ -556,7 +561,8 @@ static bool collectLfsObjectsFromIndex(git_repository *repo,
   const size_t entryCount = git_index_entrycount(index);
   for (size_t i = 0; i < entryCount; ++i) {
     const git_index_entry *entry = git_index_get_byindex(index, i);
-    if (!entry || !entry->path || GIT_INDEX_ENTRY_STAGE(entry) != GIT_INDEX_STAGE_NORMAL) {
+    if (!entry || !entry->path ||
+        GIT_INDEX_ENTRY_STAGE(entry) != GIT_INDEX_STAGE_NORMAL) {
       continue;
     }
 
@@ -590,8 +596,8 @@ static bool collectLfsObjectsFromIndex(git_repository *repo,
   return true;
 }
 
-static bool collectLfsObjectsFromAllRefs(git_repository *repo,
-                             const QString &repoPath,
+static bool
+collectLfsObjectsFromAllRefs(git_repository *repo, const QString &repoPath,
                              QHash<QString, LfsUploadCandidate> *candidates) {
   if (!repo || !candidates) {
     return false;
@@ -607,8 +613,9 @@ static bool collectLfsObjectsFromAllRefs(git_repository *repo,
       const char *branchName = nullptr;
       if (git_branch_name(&branchName, reference) == 0 && branchName) {
         const QString refName = QStringLiteral("refs/heads/%1").arg(branchName);
-        success = collectLfsObjectsFromRef(repo, repoPath, refName, candidates) &&
-                  success;
+        success =
+            collectLfsObjectsFromRef(repo, repoPath, refName, candidates) &&
+            success;
       }
       git_reference_free(reference);
       reference = nullptr;
@@ -726,7 +733,7 @@ bool runSshGitLfsAuthenticate(const RemoteInfo &info, const QString &operation,
     socket.disconnectFromHost();
     releaseLibssh2();
     git_error_set_str(GIT_ERROR_NET, message.isEmpty()
-                      ? "ssh authentication failed"
+                                         ? "ssh authentication failed"
                                          : message.constData());
     return false;
   }
@@ -1682,14 +1689,13 @@ bool uploadLocalObjects(git_repository *repo, const QString &repoPath,
 
   QHash<QString, LfsUploadCandidate> candidates;
   const int refCandidateCountBefore = candidates.size();
-  const bool refScanSuccess = refName.isEmpty()
-                                  ? collectLfsObjectsFromAllRefs(repo, repoPath,
-                                                                  &candidates)
-                                  : collectLfsObjectsFromRef(repo, repoPath,
-                                                              refName, &candidates);
+  const bool refScanSuccess =
+      refName.isEmpty()
+          ? collectLfsObjectsFromAllRefs(repo, repoPath, &candidates)
+          : collectLfsObjectsFromRef(repo, repoPath, refName, &candidates);
   const int refCandidateCountAfter = candidates.size();
-  const QString refLabel = refName.isEmpty() ? QStringLiteral("<all refs>")
-                                             : refName;
+  const QString refLabel =
+      refName.isEmpty() ? QStringLiteral("<all refs>") : refName;
   LOG_DEBUG("LFS ref scan for '{}' produced {} candidate(s)",
             refLabel.toStdString(),
             refCandidateCountAfter - refCandidateCountBefore);
@@ -1701,8 +1707,8 @@ bool uploadLocalObjects(git_repository *repo, const QString &repoPath,
   }
 
   const int indexCandidateCountBefore = candidates.size();
-  const bool indexScanSuccess = collectLfsObjectsFromIndex(repo, repoPath,
-                                                          &candidates);
+  const bool indexScanSuccess =
+      collectLfsObjectsFromIndex(repo, repoPath, &candidates);
   const int indexCandidateCountAfter = candidates.size();
   LOG_DEBUG("LFS index scan produced {} candidate(s)",
             indexCandidateCountAfter - indexCandidateCountBefore);
@@ -1718,8 +1724,9 @@ bool uploadLocalObjects(git_repository *repo, const QString &repoPath,
     return true;
   }
 
-  LOG_DEBUG("Prepared {} LFS upload candidate(s) for repoPath '{}' and ref '{}'",
-            candidates.size(), repoPath.toStdString(), refName.toStdString());
+  LOG_DEBUG(
+      "Prepared {} LFS upload candidate(s) for repoPath '{}' and ref '{}'",
+      candidates.size(), repoPath.toStdString(), refName.toStdString());
   for (const auto &candidate : candidates) {
     LOG_DEBUG("LFS upload candidate: oid='{}', path='{}', source='{}', size={}",
               candidate.oid.toStdString(), candidate.path.toStdString(),
@@ -1787,9 +1794,11 @@ bool uploadLocalObjects(git_repository *repo, const QString &repoPath,
     LOG_DEBUG("LFS upload PUT: oid='{}', url='{}', bytes={}",
               candidate.oid.toStdString(), href.toStdString(), bytesLen);
     const NetworkResult result = doRequest(manager, request, bytes, "PUT");
-    LOG_DEBUG("LFS upload PUT response: oid='{}', url='{}', status={}, error='{}', bodySize={}",
-              candidate.oid.toStdString(), href.toStdString(), result.statusCode,
-              result.errorString.toStdString(), result.body.size());
+    LOG_DEBUG("LFS upload PUT response: oid='{}', url='{}', status={}, "
+              "error='{}', bodySize={}",
+              candidate.oid.toStdString(), href.toStdString(),
+              result.statusCode, result.errorString.toStdString(),
+              result.body.size());
     if (result.statusCode < 200 || result.statusCode >= 300) {
       git_error_set_str(GIT_ERROR_NET, "lfs object upload failed");
       return false;
@@ -1802,8 +1811,8 @@ bool uploadLocalObjects(git_repository *repo, const QString &repoPath,
       verifyRequest.setRawHeader("Accept", "application/vnd.git-lfs+json");
       verifyRequest.setRawHeader("Content-Type",
                                  "application/vnd.git-lfs+json");
-      for (auto itHeader = verifyHeaders.begin(); itHeader != verifyHeaders.end();
-           ++itHeader) {
+      for (auto itHeader = verifyHeaders.begin();
+           itHeader != verifyHeaders.end(); ++itHeader) {
         verifyRequest.setRawHeader(itHeader.key().toUtf8(),
                                    itHeader.value().toString().toUtf8());
       }
@@ -1819,15 +1828,14 @@ bool uploadLocalObjects(git_repository *repo, const QString &repoPath,
                                    {"size", candidate.size}};
       LOG_DEBUG("LFS verify POST: oid='{}', url='{}'",
                 candidate.oid.toStdString(), verifyHref.toStdString());
-      const NetworkResult verifyResult =
-          doRequest(manager, verifyRequest,
-                    QJsonDocument(verifyBody).toJson(QJsonDocument::Compact),
-                    "POST");
-      LOG_DEBUG(
-          "LFS verify POST response: oid='{}', url='{}', status={}, error='{}', bodySize={}",
-          candidate.oid.toStdString(), verifyHref.toStdString(),
-          verifyResult.statusCode, verifyResult.errorString.toStdString(),
-          verifyResult.body.size());
+      const NetworkResult verifyResult = doRequest(
+          manager, verifyRequest,
+          QJsonDocument(verifyBody).toJson(QJsonDocument::Compact), "POST");
+      LOG_DEBUG("LFS verify POST response: oid='{}', url='{}', status={}, "
+                "error='{}', bodySize={}",
+                candidate.oid.toStdString(), verifyHref.toStdString(),
+                verifyResult.statusCode, verifyResult.errorString.toStdString(),
+                verifyResult.body.size());
       if (verifyResult.statusCode < 200 || verifyResult.statusCode >= 300) {
         git_error_set_str(GIT_ERROR_NET, "lfs object verify failed");
         return false;
