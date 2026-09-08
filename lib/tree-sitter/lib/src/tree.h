@@ -27,11 +27,14 @@ struct TSTree {
   unsigned included_range_count;
 };
 
-TSTree *ts_tree_new(Subtree root, const TSLanguage *language, const TSRange *included_ranges, unsigned included_range_count);
-TSNode ts_node_new(const TSTree *tree, const Subtree *subtree, Length position, TSSymbol alias);
+TSTree *ts_tree_new(Subtree root, const TSLanguage *language,
+                    const TSRange *included_ranges,
+                    unsigned included_range_count);
+TSNode ts_node_new(const TSTree *tree, const Subtree *subtree, Length position,
+                   TSSymbol alias);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TREE_SITTER_TREE_H_
+#endif // TREE_SITTER_TREE_H_

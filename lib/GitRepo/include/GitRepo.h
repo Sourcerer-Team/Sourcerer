@@ -12,6 +12,14 @@
 
 namespace GitRepo {
 
+namespace Lfs {
+struct StorageStatus {
+  QString repositoryPath;
+  qint64 objectCount = 0;
+  qint64 totalBytes = 0;
+};
+} // namespace Lfs
+
 enum class GitError : int {
   Unknown = 0,
   MarkConflictedFilesFailedToGetRepositoryIndex,
@@ -429,6 +437,15 @@ struct GitCredentialsErrorResponse {
   size_t id = -1;
 };
 
+struct GitSshAuthInfo {
+  QString username;
+  QString privateKeyPath;
+  QString publicKeyPath;
+  QString passphrase;
+  bool passphrasePresent = false;
+  bool valid = false;
+};
+
 struct GitCommitInfo {
   git_oid oid;
   QString message;
@@ -688,6 +705,13 @@ void initForCurrentThread();
 
 void shutdownForCurrentThread();
 
+Lfs::StorageStatus getLfsStorageStatus(git_repository *repo);
+
+QString getBasicAuthHeader(const QString &repoPath, const QString &url);
+QString getBasicAuthHeader(git_repository *repo, const QString &url);
+GitSshAuthInfo getSshAuthInfo(const QString &repoPath, const QString &url,
+                              const QString &usernameFromUrl = QString());
+
 // Clear cached credentials for a given repository path
 // This should be called after updating credentials to ensure fresh credentials
 // are used
@@ -752,8 +776,7 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
                     const QString &destinationBranch, const QString &author,
                     const QString &email);
 
-git_repository *openRepository(const QString &path,
-                               const QString &author,
+git_repository *openRepository(const QString &path, const QString &author,
                                const QString &email);
 
 GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
@@ -900,4 +923,3 @@ bool setDefaultTarget(git_repository *repo, const QString &remoteName,
                       const QString &targetName);
 
 } // namespace GitRepo
-

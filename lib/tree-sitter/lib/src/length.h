@@ -1,10 +1,10 @@
 #ifndef TREE_SITTER_LENGTH_H_
 #define TREE_SITTER_LENGTH_H_
 
-#include <stdlib.h>
-#include <stdbool.h>
 #include "./point.h"
 #include "tree_sitter/api.h"
+#include <stdbool.h>
+#include <stdlib.h>
 
 typedef struct {
   uint32_t bytes;

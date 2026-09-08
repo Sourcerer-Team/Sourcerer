@@ -1,29 +1,25 @@
 #include "tree_sitter/parser.h"
 
-enum {
-  LINE_BREAK
-};
+enum { LINE_BREAK };
 
-void *tree_sitter_inverted_external_token_external_scanner_create() { return NULL; }
+void *tree_sitter_inverted_external_token_external_scanner_create() {
+  return NULL;
+}
 
-void tree_sitter_inverted_external_token_external_scanner_destroy(void *payload) {}
+void tree_sitter_inverted_external_token_external_scanner_destroy(
+    void *payload) {}
 
-unsigned tree_sitter_inverted_external_token_external_scanner_serialize(
-  void *payload,
-  char *buffer
-) { return true; }
+unsigned
+tree_sitter_inverted_external_token_external_scanner_serialize(void *payload,
+                                                               char *buffer) {
+  return true;
+}
 
 void tree_sitter_inverted_external_token_external_scanner_deserialize(
-  void *payload,
-  const char *buffer,
-  unsigned length
-) {}
+    void *payload, const char *buffer, unsigned length) {}
 
 bool tree_sitter_inverted_external_token_external_scanner_scan(
-  void *payload,
-  TSLexer *lexer,
-  const bool *valid_symbols
-) {
+    void *payload, TSLexer *lexer, const bool *valid_symbols) {
   while (lexer->lookahead == ' ' || lexer->lookahead == '\r') {
     lexer->advance(lexer, true);
   }
@@ -35,7 +31,8 @@ bool tree_sitter_inverted_external_token_external_scanner_scan(
     lexer->mark_end(lexer);
 
     // Skip whitespace *after* having marked the end.
-    while (lexer->lookahead == ' ' || lexer->lookahead == '\n' || lexer->lookahead == '\r') {
+    while (lexer->lookahead == ' ' || lexer->lookahead == '\n' ||
+           lexer->lookahead == '\r') {
       lexer->advance(lexer, true);
     }
 

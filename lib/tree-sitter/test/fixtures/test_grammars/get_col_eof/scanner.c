@@ -2,7 +2,9 @@
 
 enum TokenType { CHAR };
 
-void *tree_sitter_get_col_eof_external_scanner_create(void) { return NULL; }
+void *tree_sitter_get_col_eof_external_scanner_create(void) {
+  return NULL;
+}
 
 void tree_sitter_get_col_eof_external_scanner_destroy(void *scanner) {}
 
