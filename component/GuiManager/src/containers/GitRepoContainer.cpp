@@ -3137,9 +3137,9 @@ void GitRepoContainer::onPull(bool rebase) {
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch([=]() {
-    LOG_DEBUG("Executing {} operation in dispatcher",
-              rebase ? "pull with rebase" : "pull");
-    _bridge->pull(guard, rebase);
+      LOG_DEBUG("Executing {} operation in dispatcher",
+                rebase ? "pull with rebase" : "pull");
+      _bridge->pull(guard, rebase);
   });
 
   LOG_DEBUG("{} operation dispatched", rebase ? "Pull with rebase" : "Pull");
@@ -6685,8 +6685,7 @@ void GitRepoContainer::refreshDisplayFilesModels() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::releaseBranchHistorySemaphore()
-{
+void GitRepoContainer::releaseBranchHistorySemaphore() {
     LOG_PERF(0, "Enter");
 
     if (!_branchHistorySemaphore) {
