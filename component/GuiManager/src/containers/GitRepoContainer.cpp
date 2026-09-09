@@ -71,7 +71,6 @@
 
 #define THREAD_ID "GitRepoContainer"
 
-#define ALL_BRANCHES "*"
 #define HEAD "HEAD"
 
 #define MAXIMUM_PARENTS_IN_LABEL 3
@@ -1550,7 +1549,7 @@ void GitRepoContainer::onSetDefaultRemote(int remoteIndex) {
     return;
   }
 
-  if (_activeBranch.isEmpty() || _activeBranch == ALL_BRANCHES) {
+  if (_activeBranch.isEmpty()) {
     LOG_DEBUG("No active branch to set upstream for");
     showErrorToast(tr("Please checkout a branch first."), tr("Error"));
     LOG_PERF(0, "Exit");
@@ -3169,7 +3168,7 @@ void GitRepoContainer::onPush(bool force) {
   LOG_DEBUG("{}push operation initiated for repository: '{}'",
             force ? "Force " : "", _path.toStdString());
 
-  if (_activeBranch.isEmpty() || _activeBranch == ALL_BRANCHES) {
+  if (_activeBranch.isEmpty()) {
     LOG_DEBUG("No active branch to push");
     showErrorToast(tr("Please checkout a branch first."), tr("Error"));
     LOG_PERF(0, "Exit");
@@ -6925,10 +6924,6 @@ void GitRepoContainer::updateLocalBranchesModel(
 
   QStringList finalBranches;
 
-  if (!localBranches.isEmpty()) {
-    finalBranches += ALL_BRANCHES;
-  }
-
   finalBranches += localBranches;
 
   if (const auto locked = guard.lock()) {
@@ -6953,25 +6948,20 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
 
   if (const auto locked = guard.lock(); locked && updatePages) {
     ui->localPage->updateActiveBranch(activeBranch);
-    if (_activeBranch != ALL_BRANCHES) {
-      ui->remotePage->updateActiveBranch(
-          QString());                           // deselect remote branch if any
-      ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
+    ui->remotePage->updateActiveBranch(
+                QString());                           // deselect remote branch if any
+    ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
 
-      // Update the active remote in RemotesPage to match the branch's upstream
-      _dispatcher.dispatch([=]() {
+    // Update the active remote in RemotesPage to match the branch's upstream
+    _dispatcher.dispatch([=]() {
         auto [upstreamRemote, upstreamBranch] = _bridge->getUpstream(guard);
         if (upstreamRemote.isEmpty()) {
-          upstreamRemote = ui->remotesPage->activeRemote();
+            upstreamRemote = ui->remotesPage->activeRemote();
         }
         Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-          ui->remotesPage->updateActiveRemote(upstreamRemote);
+            ui->remotesPage->updateActiveRemote(upstreamRemote);
         });
-      });
-    } else {
-      ui->remotePage->clearCached();
-      ui->tagsPage->clearCached();
-    }
+    });
   }
 
   LOG_PERF(0, "Exit")
@@ -6982,10 +6972,6 @@ void GitRepoContainer::updateRemoteBranchesModel(
   LOG_PERF(0, "Enter");
 
   QStringList finalBranches;
-
-  if (!remoteBranches.isEmpty()) {
-    finalBranches += ALL_BRANCHES;
-  }
 
   finalBranches += remoteBranches;
 
@@ -7003,14 +6989,6 @@ void GitRepoContainer::updateRemoteBranchesModelWithStatus(
 
   // Create a new vector with ALL_BRANCHES entry if there are branches
   QVector<GitRepo::BranchInfo> finalBranchesWithStatus;
-
-  if (!branchesWithStatus.isEmpty()) {
-    // Add a special entry for "All branches" without status
-    GitRepo::BranchInfo allBranches;
-    allBranches.name = ALL_BRANCHES;
-    allBranches.statusInfo.status = GitRepo::BranchStatusType::Unknown;
-    finalBranchesWithStatus.append(allBranches);
-  }
 
   finalBranchesWithStatus += branchesWithStatus;
 
@@ -7036,14 +7014,9 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
 
   if (const auto locked = guard.lock(); locked && updatePages) {
     ui->remotePage->updateActiveBranch(activeBranch);
-    if (_activeBranch != ALL_BRANCHES) {
-      ui->localPage->updateActiveBranch(
-          QString());                           // deselect remote branch if any
-      ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
-    } else {
-      ui->localPage->clearCached();
-      ui->tagsPage->clearCached();
-    }
+    ui->localPage->updateActiveBranch(
+                QString());                           // deselect remote branch if any
+    ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
   }
 
   LOG_PERF(0, "Exit")
