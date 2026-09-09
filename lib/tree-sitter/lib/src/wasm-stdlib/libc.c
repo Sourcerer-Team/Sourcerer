@@ -32,9 +32,9 @@
 #undef HIGHS
 #undef ONES
 
+#include "./libc/string/stpncpy.c"
 #include "./libc/string/strncat.c"
 #include "./libc/string/strncmp.c"
-#include "./libc/string/stpncpy.c"
 #undef ALIGN
 #undef HASZERO
 #undef HIGHS

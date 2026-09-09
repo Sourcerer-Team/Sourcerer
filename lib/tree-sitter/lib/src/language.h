@@ -5,8 +5,8 @@
 extern "C" {
 #endif
 
-#include "./subtree.h"
 #include "./parser.h"
+#include "./subtree.h"
 
 #define ts_builtin_sym_error_repeat (ts_builtin_sym_error - 1)
 
@@ -40,36 +40,37 @@ typedef struct {
   uint16_t action_count;
 } LookaheadIterator;
 
-void ts_language_table_entry(const TSLanguage *self, TSStateId state, TSSymbol symbol, TableEntry *result);
-TSLexerMode ts_language_lex_mode_for_state(const TSLanguage *self, TSStateId state);
-bool ts_language_is_reserved_word(const TSLanguage *self, TSStateId state, TSSymbol symbol);
-TSSymbolMetadata ts_language_symbol_metadata(const TSLanguage *self, TSSymbol symbol);
+void ts_language_table_entry(const TSLanguage *self, TSStateId state,
+                             TSSymbol symbol, TableEntry *result);
+TSLexerMode ts_language_lex_mode_for_state(const TSLanguage *self,
+                                           TSStateId state);
+bool ts_language_is_reserved_word(const TSLanguage *self, TSStateId state,
+                                  TSSymbol symbol);
+TSSymbolMetadata ts_language_symbol_metadata(const TSLanguage *self,
+                                             TSSymbol symbol);
 TSSymbol ts_language_public_symbol(const TSLanguage *self, TSSymbol symbol);
 const TSLanguage *ts_language_copy_without_callbacks(const TSLanguage *self);
 #ifdef __wasm__
 uint32_t ts_language_current_context_id(void);
 #endif
 
-static inline const TSParseAction *ts_language_actions(
-  const TSLanguage *self,
-  TSStateId state,
-  TSSymbol symbol,
-  uint32_t *count
-) {
+static inline const TSParseAction *ts_language_actions(const TSLanguage *self,
+                                                       TSStateId state,
+                                                       TSSymbol symbol,
+                                                       uint32_t *count) {
   TableEntry entry;
   ts_language_table_entry(self, state, symbol, &entry);
   *count = entry.action_count;
   return entry.actions;
 }
 
-static inline bool ts_language_has_reduce_action(
-  const TSLanguage *self,
-  TSStateId state,
-  TSSymbol symbol
-) {
+static inline bool ts_language_has_reduce_action(const TSLanguage *self,
+                                                 TSStateId state,
+                                                 TSSymbol symbol) {
   TableEntry entry;
   ts_language_table_entry(self, state, symbol, &entry);
-  return entry.action_count > 0 && entry.actions[0].type == TSParseActionTypeReduce;
+  return entry.action_count > 0 &&
+         entry.actions[0].type == TSParseActionTypeReduce;
 }
 
 // Lookup the table value for a given symbol and state.
@@ -79,20 +80,19 @@ static inline bool ts_language_has_reduce_action(
 // For 'large' parse states, this is a direct lookup. For 'small' parse
 // states, this requires searching through the symbol groups to find
 // the given symbol.
-static inline uint16_t ts_language_lookup(
-  const TSLanguage *self,
-  TSStateId state,
-  TSSymbol symbol
-) {
+static inline uint16_t ts_language_lookup(const TSLanguage *self,
+                                          TSStateId state, TSSymbol symbol) {
   if (state >= self->large_state_count) {
-    uint32_t index = self->small_parse_table_map[state - self->large_state_count];
+    uint32_t index =
+        self->small_parse_table_map[state - self->large_state_count];
     const uint16_t *data = &self->small_parse_table[index];
     uint16_t group_count = *(data++);
     for (unsigned i = 0; i < group_count; i++) {
       uint16_t section_value = *(data++);
       uint16_t symbol_count = *(data++);
       for (unsigned j = 0; j < symbol_count; j++) {
-        if (*(data++) == symbol) return section_value;
+        if (*(data++) == symbol)
+          return section_value;
       }
     }
     return 0;
@@ -101,11 +101,8 @@ static inline uint16_t ts_language_lookup(
   }
 }
 
-static inline bool ts_language_has_actions(
-  const TSLanguage *self,
-  TSStateId state,
-  TSSymbol symbol
-) {
+static inline bool ts_language_has_actions(const TSLanguage *self,
+                                           TSStateId state, TSSymbol symbol) {
   return ts_language_lookup(self, state, symbol) != 0;
 }
 
@@ -115,36 +112,36 @@ static inline bool ts_language_has_actions(
 // all possible symbols and checking the parse table for each one.
 // For 'small' parse states, this exploits the structure of the
 // table to only visit the valid symbols.
-static inline LookaheadIterator ts_language_lookaheads(
-  const TSLanguage *self,
-  TSStateId state
-) {
+static inline LookaheadIterator ts_language_lookaheads(const TSLanguage *self,
+                                                       TSStateId state) {
   bool is_small_state = state >= self->large_state_count;
   const uint16_t *data;
   const uint16_t *group_end = NULL;
   uint16_t group_count = 0;
   if (is_small_state) {
-    uint32_t index = self->small_parse_table_map[state - self->large_state_count];
+    uint32_t index =
+        self->small_parse_table_map[state - self->large_state_count];
     data = &self->small_parse_table[index];
     group_end = data + 1;
     group_count = *data;
   } else {
     data = &self->parse_table[state * self->symbol_count];
   }
-  return (LookaheadIterator) {
-    .language = self,
-    .data = data,
-    .group_end = group_end,
-    .group_count = group_count,
-    .is_small_state = is_small_state,
-    .phase = LookaheadFresh,
-    .symbol = UINT16_MAX,
-    .next_state = 0,
+  return (LookaheadIterator){
+      .language = self,
+      .data = data,
+      .group_end = group_end,
+      .group_count = group_count,
+      .is_small_state = is_small_state,
+      .phase = LookaheadFresh,
+      .symbol = UINT16_MAX,
+      .next_state = 0,
   };
 }
 
 static inline bool ts_lookahead_iterator__next(LookaheadIterator *self) {
-  if (self->phase == LookaheadDone) return false;
+  if (self->phase == LookaheadDone)
+    return false;
 
   // For small parse states, valid symbols are listed explicitly,
   // grouped by their value. There's no need to look up the actions
@@ -173,7 +170,8 @@ static inline bool ts_lookahead_iterator__next(LookaheadIterator *self) {
   else {
     const uint16_t *row = self->data;
     TSSymbol symbol = self->phase == LookaheadFresh ? 0 : self->symbol + 1;
-    while (symbol < self->language->symbol_count && !row[symbol]) symbol++;
+    while (symbol < self->language->symbol_count && !row[symbol])
+      symbol++;
     if (symbol >= self->language->symbol_count) {
       self->phase = LookaheadDone;
       return false;
@@ -182,10 +180,11 @@ static inline bool ts_lookahead_iterator__next(LookaheadIterator *self) {
     self->table_value = row[symbol];
   }
 
-  // Depending on if the symbol is terminal or non-terminal, the table value either
-  // represents a list of actions or a successor state.
+  // Depending on if the symbol is terminal or non-terminal, the table value
+  // either represents a list of actions or a successor state.
   if (self->symbol < self->language->token_count) {
-    const TSParseActionEntry *entry = &self->language->parse_actions[self->table_value];
+    const TSParseActionEntry *entry =
+        &self->language->parse_actions[self->table_value];
     self->action_count = entry->entry.count;
     self->actions = (const TSParseAction *)(entry + 1);
     self->next_state = 0;
@@ -197,12 +196,11 @@ static inline bool ts_lookahead_iterator__next(LookaheadIterator *self) {
   return true;
 }
 
-// Whether the state is a "primary state". If this returns false, it indicates that there exists
-// another state that behaves identically to this one with respect to query analysis.
-static inline bool ts_language_state_is_primary(
-  const TSLanguage *self,
-  TSStateId state
-) {
+// Whether the state is a "primary state". If this returns false, it indicates
+// that there exists another state that behaves identically to this one with
+// respect to query analysis.
+static inline bool ts_language_state_is_primary(const TSLanguage *self,
+                                                TSStateId state) {
   if (self->abi_version >= LANGUAGE_VERSION_WITH_PRIMARY_STATES) {
     return state == self->primary_state_ids[state];
   } else {
@@ -210,42 +208,38 @@ static inline bool ts_language_state_is_primary(
   }
 }
 
-static inline const bool *ts_language_enabled_external_tokens(
-  const TSLanguage *self,
-  unsigned external_scanner_state
-) {
+static inline const bool *
+ts_language_enabled_external_tokens(const TSLanguage *self,
+                                    unsigned external_scanner_state) {
   if (external_scanner_state == 0) {
     return NULL;
   } else {
-    return self->external_scanner.states + self->external_token_count * external_scanner_state;
+    return self->external_scanner.states +
+           self->external_token_count * external_scanner_state;
   }
 }
 
-static inline const TSSymbol *ts_language_alias_sequence(
-  const TSLanguage *self,
-  uint32_t production_id
-) {
-  return production_id ?
-    &self->alias_sequences[production_id * self->max_alias_sequence_length] :
-    NULL;
+static inline const TSSymbol *
+ts_language_alias_sequence(const TSLanguage *self, uint32_t production_id) {
+  return production_id ? &self->alias_sequences[production_id *
+                                                self->max_alias_sequence_length]
+                       : NULL;
 }
 
-static inline TSSymbol ts_language_alias_at(
-  const TSLanguage *self,
-  uint32_t production_id,
-  uint32_t child_index
-) {
-  return production_id ?
-    self->alias_sequences[production_id * self->max_alias_sequence_length + child_index] :
-    0;
+static inline TSSymbol ts_language_alias_at(const TSLanguage *self,
+                                            uint32_t production_id,
+                                            uint32_t child_index) {
+  return production_id
+             ? self->alias_sequences[production_id *
+                                         self->max_alias_sequence_length +
+                                     child_index]
+             : 0;
 }
 
-static inline void ts_language_field_map(
-  const TSLanguage *self,
-  uint32_t production_id,
-  const TSFieldMapEntry **start,
-  const TSFieldMapEntry **end
-) {
+static inline void ts_language_field_map(const TSLanguage *self,
+                                         uint32_t production_id,
+                                         const TSFieldMapEntry **start,
+                                         const TSFieldMapEntry **end) {
   if (self->field_count == 0) {
     *start = NULL;
     *end = NULL;
@@ -257,19 +251,18 @@ static inline void ts_language_field_map(
   *end = &self->field_map_entries[slice.index] + slice.length;
 }
 
-static inline void ts_language_aliases_for_symbol(
-  const TSLanguage *self,
-  TSSymbol original_symbol,
-  const TSSymbol **start,
-  const TSSymbol **end
-) {
+static inline void ts_language_aliases_for_symbol(const TSLanguage *self,
+                                                  TSSymbol original_symbol,
+                                                  const TSSymbol **start,
+                                                  const TSSymbol **end) {
   *start = &self->public_symbol_map[original_symbol];
   *end = *start + 1;
 
   unsigned idx = 0;
   for (;;) {
     TSSymbol symbol = self->alias_map[idx++];
-    if (symbol == 0 || symbol > original_symbol) break;
+    if (symbol == 0 || symbol > original_symbol)
+      break;
     uint16_t count = self->alias_map[idx++];
     if (symbol == original_symbol) {
       *start = &self->alias_map[idx];
@@ -280,28 +273,26 @@ static inline void ts_language_aliases_for_symbol(
   }
 }
 
-static inline void ts_language_write_symbol_as_dot_string(
-  const TSLanguage *self,
-  FILE *f,
-  TSSymbol symbol
-) {
+static inline void
+ts_language_write_symbol_as_dot_string(const TSLanguage *self, FILE *f,
+                                       TSSymbol symbol) {
   const char *name = ts_language_symbol_name(self, symbol);
   for (const char *chr = name; *chr; chr++) {
     switch (*chr) {
-      case '"':
-      case '\\':
-        fputc('\\', f);
-        fputc(*chr, f);
-        break;
-      case '\n':
-        fputs("\\n", f);
-        break;
-      case '\t':
-        fputs("\\t", f);
-        break;
-      default:
-        fputc(*chr, f);
-        break;
+    case '"':
+    case '\\':
+      fputc('\\', f);
+      fputc(*chr, f);
+      break;
+    case '\n':
+      fputs("\\n", f);
+      break;
+    case '\t':
+      fputs("\\t", f);
+      break;
+    default:
+      fputc(*chr, f);
+      break;
     }
   }
 }
@@ -310,4 +301,4 @@ static inline void ts_language_write_symbol_as_dot_string(
 }
 #endif
 
-#endif  // TREE_SITTER_LANGUAGE_H_
+#endif // TREE_SITTER_LANGUAGE_H_

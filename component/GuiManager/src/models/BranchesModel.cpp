@@ -207,17 +207,27 @@ void BranchesModel::updateModel(const QStringList &branches,
 
   clear();
 
+  int i = branches.length() - 1;
+  int index = activeIndex;
+
   auto rit = branches.rbegin();
   while (rit != branches.rend()) {
-    QStandardItem *item = new QStandardItem(QIcon(iconPath()), *rit);
+    const QString itemText = *rit;
+    QStandardItem *item = new QStandardItem(QIcon(iconPath()), itemText);
     item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled |
                    Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled);
-    item->setToolTip(*rit);
+    item->setToolTip(itemText);
     insertRow(0, item);
+
+    if(itemText == QStringLiteral("HEAD")) {
+      index = i;
+    }
+
+    --i;
     ++rit;
   }
 
-  setActiveIndex(activeIndex);
+  setActiveIndex(index);
 
   LOG_PERF(0, "Exit");
 }

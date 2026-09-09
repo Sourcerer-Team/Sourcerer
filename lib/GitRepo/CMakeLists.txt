@@ -23,9 +23,11 @@ add_library(GitRepo STATIC
     include/GitCredentialStorage.h
     include/GitKeyStorage.h
     include/PatchFileUtils.h
+    include/GitLfs.h
     src/GitRepo.cpp
     src/GitCredentialStorage.cpp
     src/GitKeyStorage.cpp
+    src/GitLfs.cpp
     src/PatchFileUtils.cpp
 )
 
@@ -95,6 +97,7 @@ target_link_libraries(GitRepo PRIVATE
     OpenSSL::SSL
     OpenSSL::Crypto
     libgit2
+    libssh2_static
     util
     ${LIBSSH2_LIBRARY}
 )

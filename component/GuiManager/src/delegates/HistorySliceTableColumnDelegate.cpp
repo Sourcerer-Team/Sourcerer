@@ -46,6 +46,10 @@ void HistorySliceTableColumnDelegate::paintDefault(
     return;
   }
 
+  if(!index.isValid()) {
+    return;
+  }
+
   QStyleOptionViewItem opt(option);
   initStyleOption(&opt, index);
 
@@ -65,6 +69,10 @@ void HistorySliceTableColumnDelegate::paintSlices(
     const QModelIndex &index) const {
   Q_ASSERT(painter != nullptr);
   if (!painter) {
+    return;
+  }
+
+  if(!index.isValid()) {
     return;
   }
 

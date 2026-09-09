@@ -111,46 +111,51 @@ void Dispatcher::processor(QSharedPointer<DispatcherPoolElement> poolElement) {
 
 bool Dispatcher::dispatch(
     const std::function<void()> &task, const std::function<void()> &finalTask,
-    const std::function<void(const std::exception &)> &errorTask) {
+    const std::function<void(const std::exception &)> &errorTask,
+    DispatcherChannel channel) {
   LOG_PERF(0, "Enter");
 
   LOCKGUARD(_mutex);
 
   int minSize = INT_MAX;
-  int index = -1;
+  int index = static_cast<int>(channel);
 
-  for (const auto &k : _pool.keys()) {
-    LOG_DEBUG("Checking pool with key {}", k);
+  if (index == static_cast<int>(DispatcherChannel::Any)) {
+    for (const auto &k : _pool.keys()) {
+      LOG_DEBUG("Checking pool with key {}", k);
 
-    const auto &v = _pool[k];
-    Q_ASSERT(v);
+      const auto &v = _pool[k];
+      Q_ASSERT(v);
 
-    if (!v) {
-      LOG_ERROR(Log::ErrorId::Generic, "Internal error! Invalid pool element!");
-      continue;
-    }
+      if (!v) {
+        LOG_ERROR(Log::ErrorId::Generic,
+                  "Internal error! Invalid pool element!");
+        continue;
+      }
 
-    Q_ASSERT(v->_queue);
-    if (!v->_queue) {
-      LOG_ERROR(Log::ErrorId::Generic,
-                "Internal error! Invalid pool element queue!");
-      continue;
-    }
+      Q_ASSERT(v->_queue);
+      if (!v->_queue) {
+        LOG_ERROR(Log::ErrorId::Generic,
+                  "Internal error! Invalid pool element queue!");
+        continue;
+      }
 
-    if (v->_queue->size() < minSize) {
-      index = k;
-      minSize = v->_queue->size();
+      if (v->_queue->size() < minSize) {
+        index = k;
+        minSize = v->_queue->size();
+      }
+
+      LOG_DEBUG("Minimal pool with previous key is of size {}", minSize);
+
+      if (index == -1) {
+        LOG_PERF(0, "Exit");
+        return false;
+      }
     }
   }
 
   LOG_DEBUG("Pool size is {}", _pool.size());
   LOG_DEBUG("Choosen pool key is {}", index);
-  LOG_DEBUG("Minimal pool with previous key is of size {}", minSize);
-
-  if (index == -1) {
-    LOG_PERF(0, "Exit");
-    return false;
-  }
 
   const auto poolElement = _pool[index];
 

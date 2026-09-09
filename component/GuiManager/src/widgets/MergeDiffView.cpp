@@ -551,9 +551,9 @@ void MergeDiffView::applyConflictChoice(int rangeIndex,
   int newStart = std::numeric_limits<int>::max();
   int newEnd = std::numeric_limits<int>::min();
 
-  const QStringList &sourceList =
-      resolution == MergeDiffResolutionType::Left ? contentLeftList
-                                                  : contentRightList;
+  const QStringList &sourceList = resolution == MergeDiffResolutionType::Left
+                                      ? contentLeftList
+                                      : contentRightList;
   const int sourceStart = resolution == MergeDiffResolutionType::Left
                               ? rangeTop.leftStart
                               : rangeTop.rightStart;
@@ -636,9 +636,8 @@ void MergeDiffView::bottomMarginClicked(int margin, int line,
     return;
   }
 
-  applyConflictChoice(rangeIndex,
-                      margin == 1 ? MergeDiffResolutionType::Left
-                                  : MergeDiffResolutionType::Right);
+  applyConflictChoice(rangeIndex, margin == 1 ? MergeDiffResolutionType::Left
+                                              : MergeDiffResolutionType::Right);
 
   LOG_PERF(0, "Exit");
 }

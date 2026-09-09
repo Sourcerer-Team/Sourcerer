@@ -847,6 +847,7 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
 
   if (branchName == ALL_BRANCHES) {
     _container.updateModelActiveBranch(guard, branchName, branchType);
+    getBranchHistory(guard);
   } else {
     _container.stopWatcher(guard);
 
@@ -920,7 +921,13 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       _container.updateModelActiveBranch(guard, result.branchName,
                                          result.branchType);
-      _container.showSpinnerOverlay(false);
+
+      _container._dispatcher.dispatch([=]() {
+        getBranchHistory(guard);
+
+        Util::Dispatcher::dispatchToMainThread(
+            guard, [=]() { _container.showSpinnerOverlay(false); });
+      });
     });
 
     if (branchType == GitRepo::BranchType::Tag) {
@@ -2970,6 +2977,8 @@ bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
       _container._eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
+
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
@@ -2990,6 +2999,8 @@ bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3001,6 +3012,7 @@ bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.updateModelActiveBranch(guard, result.branchName, branchType);
+    _container.releaseHistoryRefreshSemaphore();
   });
 
   LOG_PERF(0, "Exit")
@@ -3037,6 +3049,8 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
                                              historyTypes);
 
   if (!historySuccess) {
+    _container.releaseBranchHistorySemaphore();
+
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
@@ -3059,6 +3073,8 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
       _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
+
+    _container.releaseBranchHistorySemaphore();
 
     LOG_PERF(0, "Exit")
     return false;
@@ -3090,6 +3106,7 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
                                              statusTypes);
 
   if (!statusSuccess) {
+    _container.releaseBranchHistorySemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showSpinnerOverlay(false);
@@ -3111,6 +3128,8 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseBranchHistorySemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3127,6 +3146,8 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
       guard, [=]() { _container.ui->labelProgress->setText("0%"); });
 
   _container.updateBranchHistory(guard, historyWithStatus);
+
+  _container.releaseBranchHistorySemaphore();
 
   LOG_PERF(0, "Exit")
 
@@ -3301,6 +3322,7 @@ bool GitRepoManagerBridgeImpl::getLocalBranches() {
   const QWeakPointer<GitRepoContainer> guard = _container.getSelf().toWeakRef();
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showErrorPage();
@@ -3320,6 +3342,8 @@ bool GitRepoManagerBridgeImpl::getLocalBranches() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3330,6 +3354,7 @@ bool GitRepoManagerBridgeImpl::getLocalBranches() {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.updateLocalBranchesModel(guard, localBranches);
+    _container.releaseHistoryRefreshSemaphore();
   });
 
   LOG_PERF(0, "Exit")
@@ -3365,6 +3390,7 @@ bool GitRepoManagerBridgeImpl::getRemoteBranches() {
       _container._eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showErrorPage();
@@ -3384,6 +3410,8 @@ bool GitRepoManagerBridgeImpl::getRemoteBranches() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3395,6 +3423,7 @@ bool GitRepoManagerBridgeImpl::getRemoteBranches() {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.updateRemoteBranchesModelWithStatus(guard, branchesWithStatus);
+    _container.releaseHistoryRefreshSemaphore();
   });
 
   LOG_PERF(0, "Exit")
@@ -3427,6 +3456,7 @@ bool GitRepoManagerBridgeImpl::getStashes(
       _container._eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showErrorPage();
@@ -3446,6 +3476,8 @@ bool GitRepoManagerBridgeImpl::getStashes(
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3454,8 +3486,10 @@ bool GitRepoManagerBridgeImpl::getStashes(
 
   const auto stashes = commandResult.value.value<QStringList>();
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { _container.updateStashesModel(guard, stashes); });
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateStashesModel(guard, stashes);
+    _container.releaseHistoryRefreshSemaphore();
+  });
 
   LOG_PERF(0, "Exit")
 
@@ -3487,6 +3521,7 @@ bool GitRepoManagerBridgeImpl::getRemotes(
       _container._eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showErrorPage();
@@ -3506,6 +3541,8 @@ bool GitRepoManagerBridgeImpl::getRemotes(
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3517,6 +3554,7 @@ bool GitRepoManagerBridgeImpl::getRemotes(
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.ui->remotesPage->updateModel(remotes);
+    _container.releaseHistoryRefreshSemaphore();
 
     // Set the active remote to the current branch's upstream remote
     if (!_container._activeBranch.isEmpty() &&
@@ -3564,6 +3602,7 @@ bool GitRepoManagerBridgeImpl::getSubmodules() {
   const QWeakPointer<GitRepoContainer> guard = _container.getSelf().toWeakRef();
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showErrorPage();
@@ -3583,6 +3622,8 @@ bool GitRepoManagerBridgeImpl::getSubmodules() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3594,6 +3635,7 @@ bool GitRepoManagerBridgeImpl::getSubmodules() {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.updateSubmodulesModelWithStatus(guard, submodulesWithStatus);
+    _container.releaseHistoryRefreshSemaphore();
   });
 
   LOG_PERF(0, "Exit")
@@ -3627,6 +3669,7 @@ bool GitRepoManagerBridgeImpl::getTags() {
   const QWeakPointer<GitRepoContainer> guard = _container.getSelf().toWeakRef();
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showErrorPage();
@@ -3645,6 +3688,8 @@ bool GitRepoManagerBridgeImpl::getTags() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3653,8 +3698,10 @@ bool GitRepoManagerBridgeImpl::getTags() {
 
   const auto tags = commandResult.value.value<QStringList>();
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { _container.updateTagsModel(guard, tags); });
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateTagsModel(guard, tags);
+    _container.releaseHistoryRefreshSemaphore();
+  });
 
   LOG_PERF(0, "Exit")
 

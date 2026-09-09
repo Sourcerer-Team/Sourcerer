@@ -31,4 +31,4 @@ static inline void ts_reduce_action_set_add(ReduceActionSet *self,
 }
 #endif
 
-#endif  // TREE_SITTER_REDUCE_ACTION_H_
+#endif // TREE_SITTER_REDUCE_ACTION_H_
