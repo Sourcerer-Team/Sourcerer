@@ -204,15 +204,23 @@ GitCommitTreeModel *GitCommitTreeModel::from(const GitRepo::GitStatus &status) {
 }
 
 GitCommitTreeModel *GitCommitTreeModel::from(const QStringList &files) {
+  return from(files, {}, GitCommitListModificationType::Unknown);
+}
+
+GitCommitTreeModel *GitCommitTreeModel::from(
+    const QStringList &files,
+    const QHash<QString, GitCommitListModificationType> &modificationTypes,
+    const GitCommitListModificationType defaultType) {
   LOG_PERF(0, "Enter");
 
   QList<GitCommitListModification> modifications;
   modifications.reserve(files.size());
 
   for (const auto &file : files) {
+    const QString normalizedFile = QDir::toNativeSeparators(file);
     GitCommitListModification modification;
-    modification._filePath = file;
-    modification._type = GitCommitListModificationType::Unknown;
+    modification._filePath = normalizedFile;
+    modification._type = modificationTypes.value(normalizedFile, defaultType);
     modifications.append(modification);
   }
 
@@ -226,8 +234,7 @@ GitCommitTreeModel *GitCommitTreeModel::from(const QStringList &files) {
 
   for (const auto &modification : modifications) {
     QStandardItem *parent = model->invisibleRootItem();
-    const auto parts = QDir::toNativeSeparators(modification._filePath)
-                           .split(QDir::separator());
+    const auto parts = modification._filePath.split(QDir::separator());
     for (const QString &part : parts) {
       if (part.isEmpty()) {
         continue;

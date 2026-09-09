@@ -37,6 +37,8 @@ public:
          QPixmap(":/icons/file-add.png")},
         {GuiManager::Models::GitCommitListModificationType::Untracked,
          QPixmap(":/icons/file-add.png")},
+        {GuiManager::Models::GitCommitListModificationType::Other,
+         QPixmap(":/icons/file-other.png")},
     };
   }
 
