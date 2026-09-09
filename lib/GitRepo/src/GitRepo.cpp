@@ -2906,7 +2906,7 @@ Lfs::StorageStatus getLfsStorageStatus(git_repository *repo) {
   return Lfs::getStorageStatus(repo);
 }
 
-QString repositoryRootPath(git_repository *repo);
+static QString repositoryRootPath(git_repository *repo);
 static std::tuple<bool, GitPlaintextCredentials>
 acquireCredentials(const QString &repoPath, const QString &url,
                    const QString &username, const int allowedTypes);
