@@ -41,11 +41,11 @@ public:
   static GitCommitListModel *from(const GitRepo::GitStatus &status);
 
   static GitCommitListModel *from(const QStringList &files);
-  static GitCommitListModel *from(
-      const QStringList &files,
-      const QHash<QString, GitCommitListModificationType> &modificationTypes,
-      GitCommitListModificationType defaultType =
-          GitCommitListModificationType::Unknown);
+  static GitCommitListModel *
+  from(const QStringList &files,
+       const QHash<QString, GitCommitListModificationType> &modificationTypes,
+       GitCommitListModificationType defaultType =
+           GitCommitListModificationType::Unknown);
 
   static GitCommitListModel *fromStaged(const GitRepo::GitStatus &status);
 

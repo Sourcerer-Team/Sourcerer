@@ -5434,10 +5434,11 @@ void GitRepoContainer::onPageDisplayFilesTreePressed(const QModelIndex &index) {
   }
 
   if (_displayFilesShowAll) {
-    const auto modificationType = static_cast<GuiManager::Models::GitCommitListModificationType>(
-        index.data(Qt::UserRole).toInt());
+    const auto modificationType =
+        static_cast<GuiManager::Models::GitCommitListModificationType>(
+            index.data(Qt::UserRole).toInt());
     if (modificationType ==
-        GuiManager::Models::GitCommitListModificationType::Other ||
+            GuiManager::Models::GitCommitListModificationType::Other ||
         _currentDisplayCommit.isEmpty()) {
       LOG_PERF(0, "Exit");
       return;
@@ -5477,10 +5478,11 @@ void GitRepoContainer::onPageDisplayFilesFlatPressed(const QModelIndex &index) {
   }
 
   if (_displayFilesShowAll) {
-    const auto modificationType = static_cast<GuiManager::Models::GitCommitListModificationType>(
-        index.data(Qt::UserRole).toInt());
+    const auto modificationType =
+        static_cast<GuiManager::Models::GitCommitListModificationType>(
+            index.data(Qt::UserRole).toInt());
     if (modificationType ==
-        GuiManager::Models::GitCommitListModificationType::Other ||
+            GuiManager::Models::GitCommitListModificationType::Other ||
         _currentDisplayCommit.isEmpty()) {
       LOG_PERF(0, "Exit");
       return;
@@ -7123,18 +7125,18 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
   if (const auto locked = guard.lock(); locked && updatePages) {
     ui->localPage->updateActiveBranch(activeBranch);
     ui->remotePage->updateActiveBranch(
-                QString());                           // deselect remote branch if any
+        QString());                           // deselect remote branch if any
     ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
 
     // Update the active remote in RemotesPage to match the branch's upstream
     _dispatcher.dispatch([=]() {
-        auto [upstreamRemote, upstreamBranch] = _bridge->getUpstream(guard);
-        if (upstreamRemote.isEmpty()) {
-            upstreamRemote = ui->remotesPage->activeRemote();
-        }
-        Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-            ui->remotesPage->updateActiveRemote(upstreamRemote);
-        });
+      auto [upstreamRemote, upstreamBranch] = _bridge->getUpstream(guard);
+      if (upstreamRemote.isEmpty()) {
+        upstreamRemote = ui->remotesPage->activeRemote();
+      }
+      Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+        ui->remotesPage->updateActiveRemote(upstreamRemote);
+      });
     });
   }
 
@@ -7189,7 +7191,7 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
   if (const auto locked = guard.lock(); locked && updatePages) {
     ui->remotePage->updateActiveBranch(activeBranch);
     ui->localPage->updateActiveBranch(
-                QString());                           // deselect remote branch if any
+        QString());                           // deselect remote branch if any
     ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
   }
 

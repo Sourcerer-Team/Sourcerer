@@ -46,7 +46,7 @@ void HistorySliceTableColumnDelegate::paintDefault(
     return;
   }
 
-  if(!index.isValid()) {
+  if (!index.isValid()) {
     return;
   }
 
@@ -72,7 +72,7 @@ void HistorySliceTableColumnDelegate::paintSlices(
     return;
   }
 
-  if(!index.isValid()) {
+  if (!index.isValid()) {
     return;
   }
 
