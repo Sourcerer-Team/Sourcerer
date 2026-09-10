@@ -321,6 +321,7 @@ private:
       const WeakPtr &guard,
       const QVector<GitRepo::SubmoduleInfo> &submodulesWithStatus) const;
   void updateTagsModel(const WeakPtr &guard, const QStringList &tags) const;
+  void updateHistoryFilterButtonGeometry();
 
 private:
   Ui::GitRepoContainer *ui;
@@ -338,6 +339,7 @@ private:
   Common::UserProfileManager &_userProfileManager;
   Widgets::ToastHostWidget &_toastHost;
   QSharedPointer<Models::GitHistoryModel> _historyModel;
+  QToolButton *_historyFilterButton;
   QPixmap *_errorPixmap;
   Util::Dispatcher _dispatcher;
 

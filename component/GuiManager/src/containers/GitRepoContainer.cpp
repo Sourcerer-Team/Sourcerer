@@ -39,6 +39,8 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCursor>
+#include <QDate>
+#include <QDateEdit>
 #include <QDirIterator>
 #include <QEvent>
 #include <QFile>
@@ -46,7 +48,9 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -214,8 +218,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _bridge(std::make_unique<GitRepoManagerBridgeImpl>(*this)),
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
-      _historyModel(new Models::GitHistoryModel()), _dispatcher(20),
-      _mousePos(-1, -1), _spinnerOverlay(new SpinnerOverlayWidget(this)),
+      _historyModel(new Models::GitHistoryModel()),
+      _historyFilterButton(nullptr), _dispatcher(20), _mousePos(-1, -1),
+      _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
       _applyingHistoryColumnWidths(false), _displayTreeExpanded(false),
@@ -285,6 +290,86 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->horizontalHeader()->setSectionResizeMode(
       QHeaderView::Interactive);
 
+  auto *historyHeader = ui->historyView->horizontalHeader();
+  _historyFilterButton = new QToolButton(historyHeader);
+  const QColor filterIconColor =
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
+  _historyFilterButton->setIcon(
+      QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/filter.svg"), filterIconColor)));
+  _historyFilterButton->setIconSize(QSize(16, 16));
+  _historyFilterButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  _historyFilterButton->setAutoRaise(true);
+  _historyFilterButton->setCheckable(true);
+  _historyFilterButton->setToolTip(tr("Filter history"));
+  connect(_historyFilterButton, &QToolButton::toggled, this,
+          [this](const bool checked) {
+            ui->historyFilterWidget->setVisible(checked);
+          });
+  connect(ui->lineEditHistorySummaryFilter, &QLineEdit::textChanged, this,
+          [this](const QString &text) {
+            _historyModel->setFilter(COLUMN_SUMMARY, text);
+          });
+  connect(ui->lineEditHistoryAuthorFilter, &QLineEdit::textChanged, this,
+          [this](const QString &text) {
+            _historyModel->setFilter(COLUMN_AUTHOR_NAME, text);
+          });
+  connect(ui->lineEditHistoryEmailFilter, &QLineEdit::textChanged, this,
+          [this](const QString &text) {
+            _historyModel->setFilter(COLUMN_AUTHOR_EMAIL, text);
+          });
+  connect(ui->lineEditHistoryShaFilter, &QLineEdit::textChanged, this,
+          [this](const QString &text) {
+            _historyModel->setFilter(COLUMN_COMMIT_SHORT_SHA, text);
+          });
+
+  const QDate currentDate = QDate::currentDate();
+  ui->dateEditHistoryStartDate->setDate(currentDate);
+  ui->dateEditHistoryEndDate->setDate(currentDate);
+
+  const auto updateHistoryDateFilter = [this]() {
+    _historyModel->setDateRange(ui->checkBoxHistoryStartDate->isChecked()
+                                    ? ui->dateEditHistoryStartDate->date()
+                                    : QDate(),
+                                ui->checkBoxHistoryEndDate->isChecked()
+                                    ? ui->dateEditHistoryEndDate->date()
+                                    : QDate());
+  };
+  connect(ui->checkBoxHistoryStartDate, &QCheckBox::toggled, this,
+          [this, updateHistoryDateFilter](const bool checked) {
+            ui->dateEditHistoryStartDate->setEnabled(checked);
+            updateHistoryDateFilter();
+          });
+  connect(ui->checkBoxHistoryEndDate, &QCheckBox::toggled, this,
+          [this, updateHistoryDateFilter](const bool checked) {
+            ui->dateEditHistoryEndDate->setEnabled(checked);
+            updateHistoryDateFilter();
+          });
+  connect(ui->dateEditHistoryStartDate, &QDateEdit::dateChanged, this,
+          [this, updateHistoryDateFilter](const QDate &date) {
+            if (ui->checkBoxHistoryEndDate->isChecked() &&
+                ui->dateEditHistoryEndDate->date() < date) {
+              QSignalBlocker blocker(ui->dateEditHistoryEndDate);
+              ui->dateEditHistoryEndDate->setDate(date);
+            }
+            updateHistoryDateFilter();
+          });
+  connect(ui->dateEditHistoryEndDate, &QDateEdit::dateChanged, this,
+          [this, updateHistoryDateFilter](const QDate &date) {
+            if (ui->checkBoxHistoryStartDate->isChecked() &&
+                ui->dateEditHistoryStartDate->date() > date) {
+              QSignalBlocker blocker(ui->dateEditHistoryStartDate);
+              ui->dateEditHistoryStartDate->setDate(date);
+            }
+            updateHistoryDateFilter();
+          });
+  connect(historyHeader, &QHeaderView::sectionMoved, this,
+          [this](const int, const int, const int) {
+            updateHistoryFilterButtonGeometry();
+          });
+  connect(ui->historyView->horizontalScrollBar(), &QScrollBar::valueChanged,
+          this, [this](const int) { updateHistoryFilterButtonGeometry(); });
+
   ui->historyView->horizontalHeader()->setContextMenuPolicy(
       Qt::CustomContextMenu);
   connect(ui->historyView->horizontalHeader(),
@@ -294,6 +379,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onHistoryHeaderSectionResized);
 
   applyHistoryColumnVisibility();
+  updateHistoryFilterButtonGeometry();
 
   ui->pushButtonAbort->setVisible(false);
   ui->pushButtonAbort->setEnabled(false);
@@ -1174,6 +1260,7 @@ void GitRepoContainer::resizeEvent(QResizeEvent *event) {
 
   ContainerWidget::resizeEvent(event);
   stretchBranchHistoryTableColumns();
+  updateHistoryFilterButtonGeometry();
 
   LOG_PERF(0, "Exit")
 }
@@ -1801,6 +1888,7 @@ void GitRepoContainer::onHistoryHeaderSectionResized(const int logicalIndex,
   LOG_PERF(0, "Enter");
   LOG_DEBUG("logicalIndex = {}, oldSize = {}, newSize = {}", logicalIndex,
             oldSize, newSize);
+  updateHistoryFilterButtonGeometry();
 
   if (_applyingHistoryColumnWidths) {
     LOG_PERF(0, "Exit");
@@ -3965,8 +4053,29 @@ void GitRepoContainer::applyHistoryColumnVisibility() {
   for (int column = 0; column < header->count(); ++column) {
     header->setSectionHidden(column, hiddenColumns.contains(column));
   }
+  updateHistoryFilterButtonGeometry();
 
   LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::updateHistoryFilterButtonGeometry() {
+  if (!_historyFilterButton || !ui || !ui->historyView) {
+    return;
+  }
+
+  QHeaderView *header = ui->historyView->horizontalHeader();
+  const bool graphVisible = !header->isSectionHidden(COLUMN_HISTORY_SLICE);
+  _historyFilterButton->setVisible(graphVisible);
+  if (!graphVisible) {
+    return;
+  }
+
+  const int buttonWidth =
+      std::min(20, header->sectionSize(COLUMN_HISTORY_SLICE));
+  _historyFilterButton->setGeometry(
+      header->sectionViewportPosition(COLUMN_HISTORY_SLICE), 0, buttonWidth,
+      header->height());
+  _historyFilterButton->raise();
 }
 
 void GitRepoContainer::onHistoryHeaderContextMenuRequested(const QPoint &pos) {

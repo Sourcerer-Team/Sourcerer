@@ -5,6 +5,7 @@
 #include <LockGuard.h>
 #include <ResizableMatrix.h>
 
+#include <QDate>
 #include <QEnableSharedFromThis>
 
 #include <QHash>
@@ -82,6 +83,8 @@ public:
   }
 
   void updateStatus(const GitRepo::GitStatus &status);
+  void setDateRange(const QDate &fromDate, const QDate &toDate);
+  void setFilter(int column, const QString &filter);
 
   void updateHistoryAndStatus(
       const GitRepo::GitHistoryWithStatus &historyWithStatus,
@@ -112,6 +115,9 @@ public:
                       int role) const override;
 
 private:
+  bool commitMatchesFilters(const QString &commit) const;
+  void rebuildVisibleRows();
+
   static Util::ResizableMatrix<Slice>
   createDrawableSlices(GitRepo::GitHistoryWithStatus &historyWithStatus,
                        const bool &quitUpdate, QVector<int> *columnWidths,
@@ -128,6 +134,10 @@ private:
   mutable Util::ResizableMatrix<Slice> _drawableSlices;
   QVector<int> _columnWidths;
   QHash<QString, QStringList> _commitRefs;
+  QHash<int, QString> _filters;
+  QDate _fromDate;
+  QDate _toDate;
+  QVector<int> _visibleRows;
   std::atomic_bool _quitUpdate;
   QItemSelectionModel *_selectionModel;
 };
