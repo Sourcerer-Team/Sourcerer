@@ -2410,18 +2410,6 @@ void GitRepoManagerBridgeImpl::diff(const QWeakPointer<GitRepoContainer> &guard,
                                     const QString &filePath) {
   LOG_PERF(0, "Enter");
 
-  // Guard against malicious multiple calls
-  if (!_container._lastDiffRepoStatusChanged &&
-      _container._lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.ui->stackedWidgetMiddle->setCurrentIndex(
-          static_cast<int>(MainViewPanes::Diff));
-    });
-    LOG_PERF(0, "Exit")
-    return;
-  }
-
   _container._lastDiffedFilePath = filePath;
 
   const QString eventUuid = Uuid::createUuid();
@@ -2542,18 +2530,6 @@ void GitRepoManagerBridgeImpl::diff(const QWeakPointer<GitRepoContainer> &guard,
 void GitRepoManagerBridgeImpl::diffThreeWay(
     const QWeakPointer<GitRepoContainer> &guard, const QString &filePath) {
   LOG_PERF(0, "Enter");
-
-  // Guard against malicious multiple calls
-  if (!_container._lastDiffRepoStatusChanged &&
-      _container._lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.ui->stackedWidgetMiddle->setCurrentIndex(
-          static_cast<int>(MainViewPanes::Diff));
-    });
-    LOG_PERF(0, "Exit")
-    return;
-  }
 
   _container._lastDiffedFilePath = filePath;
 

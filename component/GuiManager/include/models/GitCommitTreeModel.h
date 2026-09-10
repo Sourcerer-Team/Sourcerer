@@ -1,7 +1,9 @@
 #pragma once
 
+#include "models/GitCommitListModel.h"
 #include <GitRepo.h>
 
+#include <QHash>
 #include <QStandardItemModel>
 
 namespace GuiManager::Models {
@@ -17,6 +19,11 @@ public:
   static GitCommitTreeModel *from(const GitRepo::GitStatus &status);
 
   static GitCommitTreeModel *from(const QStringList &files);
+  static GitCommitTreeModel *
+  from(const QStringList &files,
+       const QHash<QString, GitCommitListModificationType> &modificationTypes,
+       GitCommitListModificationType defaultType =
+           GitCommitListModificationType::Unknown);
 
   static GitCommitTreeModel *fromStaged(const GitRepo::GitStatus &status);
 };

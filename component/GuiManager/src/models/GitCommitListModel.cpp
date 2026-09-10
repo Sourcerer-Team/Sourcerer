@@ -73,7 +73,7 @@ GitCommitListModel::from(const GitRepo::GitCommitStatus &commitStatus) {
             });
 
   QScopedPointer<GitCommitListModel> model(new GitCommitListModel());
-  model->_modifications = transformedModifications;
+  model->setModifications(QString(), transformedModifications);
 
   LOG_PERF(0, "Exit");
 
@@ -139,7 +139,7 @@ GitCommitListModel *GitCommitListModel::from(const GitRepo::GitStatus &status) {
             });
 
   QScopedPointer<GitCommitListModel> model(new GitCommitListModel());
-  model->_modifications = transformedModifications;
+  model->setModifications(QString(), transformedModifications);
 
   LOG_PERF(0, "Exit");
 
@@ -147,14 +147,22 @@ GitCommitListModel *GitCommitListModel::from(const GitRepo::GitStatus &status) {
 }
 
 GitCommitListModel *GitCommitListModel::from(const QStringList &files) {
+  return from(files, {}, GitCommitListModificationType::Unknown);
+}
+
+GitCommitListModel *GitCommitListModel::from(
+    const QStringList &files,
+    const QHash<QString, GitCommitListModificationType> &modificationTypes,
+    const GitCommitListModificationType defaultType) {
   LOG_PERF(0, "Enter");
 
   QList<GitCommitListModification> modifications;
   modifications.reserve(files.size());
   for (const auto &file : files) {
+    const QString normalizedFile = QDir::toNativeSeparators(file);
     GitCommitListModification modification;
-    modification._filePath = QDir::toNativeSeparators(file);
-    modification._type = GitCommitListModificationType::Unknown;
+    modification._filePath = normalizedFile;
+    modification._type = modificationTypes.value(normalizedFile, defaultType);
     modifications.append(modification);
   }
 
@@ -165,7 +173,7 @@ GitCommitListModel *GitCommitListModel::from(const QStringList &files) {
             });
 
   QScopedPointer<GitCommitListModel> model(new GitCommitListModel());
-  model->_modifications = modifications;
+  model->setModifications(QString(), modifications);
 
   LOG_PERF(0, "Exit");
 
@@ -225,7 +233,7 @@ GitCommitListModel::fromStaged(const GitRepo::GitStatus &status) {
             });
 
   QScopedPointer<GitCommitListModel> model(new GitCommitListModel());
-  model->_modifications = transformedModifications;
+  model->setModifications(QString(), transformedModifications);
 
   LOG_PERF(0, "Exit");
 

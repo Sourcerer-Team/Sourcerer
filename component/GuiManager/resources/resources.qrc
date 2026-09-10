@@ -13,6 +13,7 @@
         <file>icons/error.svg</file>
         <file>icons/sorcerer-hat.png</file>
         <file>icons/file-add.png</file>
+        <file>icons/file-other.png</file>
         <file>icons/file-delete.png</file>
         <file>icons/file-modify.png</file>
         <file>icons/file-rename.png</file>
@@ -45,6 +46,7 @@
         <file>icons/checkbox-check-light.svg</file>
         <file>icons/eye.svg</file>
         <file>icons/eye-off.svg</file>
+        <file>icons/filter.svg</file>
         <file>icons/diff-unified.png</file>
         <file>icons/diff-side-by-side.png</file>
         <file>icons/down_arrow.png</file>

@@ -219,7 +219,7 @@ void BranchesModel::updateModel(const QStringList &branches,
     item->setToolTip(itemText);
     insertRow(0, item);
 
-    if(itemText == QStringLiteral("HEAD")) {
+    if (itemText == QStringLiteral("HEAD")) {
       index = i;
     }
 

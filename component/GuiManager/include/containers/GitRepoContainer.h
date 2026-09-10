@@ -295,9 +295,9 @@ private:
   void simulateClickOnFirstHistoryRow() const;
   void stageAll(const WeakPtr &guard);
   void unstageAll(const WeakPtr &guard);
-  void
-  updateBranchHistory(const WeakPtr &guard,
-                      const GitRepo::GitHistoryWithStatus &historyWithStatus);
+  void updateBranchHistory(
+      const WeakPtr &guard,
+      const GitRepo::GitHistoryWithStatus &historyWithStatus);
   void updateLocalBranchesModel(const WeakPtr &guard,
                                 const QStringList &localBranches) const;
   void updateLocalBranchesModelActiveBranch(const WeakPtr &guard,
@@ -321,6 +321,8 @@ private:
       const WeakPtr &guard,
       const QVector<GitRepo::SubmoduleInfo> &submodulesWithStatus) const;
   void updateTagsModel(const WeakPtr &guard, const QStringList &tags) const;
+  void refreshHistoryFilterButtonIcon();
+  void updateHistoryFilterButtonGeometry();
 
 private:
   Ui::GitRepoContainer *ui;
@@ -338,6 +340,7 @@ private:
   Common::UserProfileManager &_userProfileManager;
   Widgets::ToastHostWidget &_toastHost;
   QSharedPointer<Models::GitHistoryModel> _historyModel;
+  QToolButton *_historyFilterButton;
   QPixmap *_errorPixmap;
   Util::Dispatcher _dispatcher;
 

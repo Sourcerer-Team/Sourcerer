@@ -11855,7 +11855,8 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
       continue;
     }
 
-    fileContentWithMarkers += result.ptr;
+    fileContentWithMarkers +=
+        QString::fromUtf8(result.ptr, static_cast<int>(result.len));
 
     git_merge_file_result_free(&result);
     git_blob_free(blobTheirs);
