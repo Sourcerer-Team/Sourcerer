@@ -1170,7 +1170,7 @@ QString makeLightStylesheet() {
         background-color: palette(window);
         color: palette(window-text);
         border: 1px solid #B8C0C8;
-        padding: 3px 5px;
+        padding: 0px 5px;
       }
       QCheckBox {
         color: palette(window-text);
