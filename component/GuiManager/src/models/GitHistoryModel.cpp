@@ -81,10 +81,46 @@ void GitHistoryModel::updateStatus(const GitRepo::GitStatus &status) {
   beginResetModel();
 
   _historyWithStatus.status = status;
+  rebuildVisibleRows();
 
   endResetModel();
 
   LOG_PERF(0, "Exit");
+}
+
+void GitHistoryModel::setDateRange(const QDate &fromDate, const QDate &toDate) {
+  LOCKGUARD(_mutex);
+
+  if (_fromDate == fromDate && _toDate == toDate) {
+    return;
+  }
+
+  _fromDate = fromDate;
+  _toDate = toDate;
+
+  beginResetModel();
+  rebuildVisibleRows();
+  endResetModel();
+}
+
+void GitHistoryModel::setFilter(const int column, const QString &filter) {
+  if (column <= COLUMN_HISTORY_SLICE || column == COLUMN_COMMIT_DATETIME ||
+      column > COLUMN_COMMIT_SHORT_SHA) {
+    return;
+  }
+
+  const QString normalizedFilter = filter.trimmed();
+
+  LOCKGUARD(_mutex);
+  if (normalizedFilter.isEmpty()) {
+    _filters.remove(column);
+  } else {
+    _filters.insert(column, normalizedFilter);
+  }
+
+  beginResetModel();
+  rebuildVisibleRows();
+  endResetModel();
 }
 
 void GitHistoryModel::updateCommitRefs(
@@ -92,6 +128,49 @@ void GitHistoryModel::updateCommitRefs(
   LOCKGUARD(_mutex);
 
   _commitRefs.insert(commitRefs);
+}
+
+bool GitHistoryModel::commitMatchesFilters(const QString &commit) const {
+  const GitRepo::GitCommitInfo &commitInfo =
+      _historyWithStatus.history.commitInfos.value(commit);
+
+  const auto matches = [this](const int column, const QString &value) {
+    const QString filter = _filters.value(column);
+    return filter.isEmpty() || value.contains(filter, Qt::CaseInsensitive);
+  };
+
+  if (!matches(COLUMN_SUMMARY, commitInfo.summary.trimmed()) ||
+      !matches(COLUMN_AUTHOR_NAME, commitInfo.authorName.trimmed()) ||
+      !matches(COLUMN_AUTHOR_EMAIL, commitInfo.authorEmail.trimmed())) {
+    return false;
+  }
+
+  const QDate commitDate =
+      QDateTime::fromMSecsSinceEpoch(commitInfo.timeStamp).toUTC().date();
+  if ((_fromDate.isValid() && commitDate < _fromDate) ||
+      (_toDate.isValid() && commitDate > _toDate)) {
+    return false;
+  }
+
+  const QString shortSha = commit.left(7);
+  const QString shaFilter = _filters.value(COLUMN_COMMIT_SHORT_SHA);
+  return shaFilter.isEmpty() ||
+         shortSha.contains(shaFilter, Qt::CaseInsensitive) ||
+         commit.contains(shaFilter, Qt::CaseInsensitive);
+}
+
+void GitHistoryModel::rebuildVisibleRows() {
+  _visibleRows.clear();
+  if (_historyWithStatus.status.hasChanges()) {
+    _visibleRows.append(0);
+  }
+
+  const int sourceRowOffset = _historyWithStatus.status.hasChanges() ? 1 : 0;
+  for (int row = 0; row < _historyWithStatus.history.commits.size(); ++row) {
+    if (commitMatchesFilters(_historyWithStatus.history.commits.at(row))) {
+      _visibleRows.append(row + sourceRowOffset);
+    }
+  }
 }
 
 void GitHistoryModel::updateHistoryAndStatus(
@@ -162,6 +241,7 @@ void GitHistoryModel::updateHistoryAndStatus(
     _drawableSlices = newDrawableSlices;
     _historyWithStatus = newHistoryWithStatus;
     _columnWidths = newColumnWidths;
+    rebuildVisibleRows();
 
     endResetModel();
   }
@@ -182,9 +262,7 @@ QModelIndex GitHistoryModel::index(const int row, const int column,
                                    const QModelIndex &parent) const {
   LOCKGUARD(_mutex);
 
-  const int count = _historyWithStatus.status.hasChanges()
-                        ? _historyWithStatus.history.commits.size() + 1
-                        : _historyWithStatus.history.commits.size();
+  const int count = _visibleRows.size();
 
   if (parent.isValid() || row < 0 || row >= count) {
     return {};
@@ -200,11 +278,7 @@ int GitHistoryModel::rowCount(const QModelIndex &parent) const {
 
   LOCKGUARD(_mutex);
 
-  const int count = _historyWithStatus.status.hasChanges()
-                        ? _historyWithStatus.history.commits.size() + 1
-                        : _historyWithStatus.history.commits.size();
-
-  return count;
+  return _visibleRows.size();
 }
 
 int GitHistoryModel::columnCount(const QModelIndex &parent) const {
@@ -218,11 +292,7 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
 
   LOCKGUARD(_mutex);
 
-  const int maxRow = _historyWithStatus.status.hasChanges()
-                         ? _historyWithStatus.history.commits.size() + 1
-                         : _historyWithStatus.history.commits.size();
-
-  if (index.row() < 0 || index.row() >= maxRow) {
+  if (index.row() < 0 || index.row() >= _visibleRows.size()) {
     return {};
   }
 
@@ -233,8 +303,10 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     return font;
   }
 
+  const int sourceRow = _visibleRows.at(index.row());
+
   if (role == HistorySliceWidthRole) {
-    if (index.row() == 0) {
+    if (sourceRow == 0) {
       int width = _drawableSlices.sizeX();
       if (_historyWithStatus.status.hasChanges()) {
         width = 0;
@@ -247,7 +319,7 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
   }
 
   if (role == StatusRole) {
-    if (index.row() == 0 && _historyWithStatus.status.hasChanges()) {
+    if (sourceRow == 0 && _historyWithStatus.status.hasChanges()) {
       return QVariant::fromValue(
           createStatusFieldsMap(_historyWithStatus.status));
     }
@@ -256,12 +328,12 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
   }
 
   if (role == CommitRefsRole) {
-    if (_historyWithStatus.status.hasChanges() && index.row() == 0) {
+    if (_historyWithStatus.status.hasChanges() && sourceRow == 0) {
       return {};
     }
 
     const int indexRow =
-        _historyWithStatus.status.hasChanges() ? index.row() - 1 : index.row();
+        _historyWithStatus.status.hasChanges() ? sourceRow - 1 : sourceRow;
     if (indexRow < 0 ||
         indexRow >= _historyWithStatus.history.commits.count()) {
       return {};
@@ -275,15 +347,13 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     return {};
   }
 
-  if (_historyWithStatus.status.hasChanges() && index.row() == 0) {
+  if (_historyWithStatus.status.hasChanges() && sourceRow == 0) {
     return {};
   }
 
   const int indexRow =
-      _historyWithStatus.status.hasChanges() ? index.row() - 1 : index.row();
+      _historyWithStatus.status.hasChanges() ? sourceRow - 1 : sourceRow;
 
-  Q_ASSERT(indexRow >= 0 &&
-           indexRow < _historyWithStatus.history.commits.count());
   if (indexRow < 0 || indexRow >= _historyWithStatus.history.commits.count()) {
     return {};
   }

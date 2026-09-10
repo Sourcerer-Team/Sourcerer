@@ -277,6 +277,132 @@
                    <number>0</number>
                   </property>
                   <item>
+                   <widget class="QGroupBox" name="historyFilterWidget">
+                    <property name="visible">
+                     <bool>false</bool>
+                    </property>
+                    <property name="title">
+                     <string>Filter history</string>
+                    </property>
+                    <layout class="QGridLayout" name="historyFilterLayout">
+                     <property name="leftMargin">
+                      <number>8</number>
+                     </property>
+                     <property name="topMargin">
+                      <number>6</number>
+                     </property>
+                     <property name="rightMargin">
+                      <number>8</number>
+                     </property>
+                     <property name="bottomMargin">
+                      <number>6</number>
+                     </property>
+                     <property name="horizontalSpacing">
+                      <number>8</number>
+                     </property>
+                     <property name="verticalSpacing">
+                      <number>4</number>
+                     </property>
+                     <item row="0" column="0">
+                      <widget class="QLabel" name="labelHistorySummaryFilter">
+                       <property name="text">
+                        <string>Summary</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="1">
+                      <widget class="QLineEdit" name="lineEditHistorySummaryFilter">
+                       <property name="placeholderText">
+                        <string>Search summary</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="2">
+                      <widget class="QLabel" name="labelHistoryAuthorFilter">
+                       <property name="text">
+                        <string>Author</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="3">
+                      <widget class="QLineEdit" name="lineEditHistoryAuthorFilter">
+                       <property name="placeholderText">
+                        <string>Search author</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="0">
+                      <widget class="QLabel" name="labelHistoryEmailFilter">
+                       <property name="text">
+                        <string>Email</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="1">
+                      <widget class="QLineEdit" name="lineEditHistoryEmailFilter">
+                       <property name="placeholderText">
+                        <string>Search email</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="2">
+                      <widget class="QLabel" name="labelHistoryShaFilter">
+                       <property name="text">
+                        <string>SHA</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="3">
+                      <widget class="QLineEdit" name="lineEditHistoryShaFilter">
+                       <property name="placeholderText">
+                        <string>Search SHA</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="0">
+                      <widget class="QCheckBox" name="checkBoxHistoryStartDate">
+                       <property name="text">
+                        <string>From</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="1">
+                      <widget class="QDateEdit" name="dateEditHistoryStartDate">
+                       <property name="enabled">
+                        <bool>false</bool>
+                       </property>
+                       <property name="calendarPopup">
+                        <bool>true</bool>
+                       </property>
+                       <property name="displayFormat">
+                        <string>yyyy-MM-dd</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="2">
+                      <widget class="QCheckBox" name="checkBoxHistoryEndDate">
+                       <property name="text">
+                        <string>To</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="3">
+                      <widget class="QDateEdit" name="dateEditHistoryEndDate">
+                       <property name="enabled">
+                        <bool>false</bool>
+                       </property>
+                       <property name="calendarPopup">
+                        <bool>true</bool>
+                       </property>
+                       <property name="displayFormat">
+                        <string>yyyy-MM-dd</string>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
+                  <item>
                    <widget class="QTableView" name="historyView">
                     <property name="focusPolicy">
                      <enum>Qt::FocusPolicy::StrongFocus</enum>
