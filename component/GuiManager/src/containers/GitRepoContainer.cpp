@@ -5271,11 +5271,6 @@ void GitRepoContainer::onPageDisplayFilesTreePressed(const QModelIndex &index) {
     return;
   }
 
-  if (_displayFilesShowAll) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
   const Models::GitCommitTreeModel *model =
       _displayFilesShowAll ? _displayFilesAllTreeModel.get()
                            : _commitTreeModel.get();
@@ -5284,7 +5279,19 @@ void GitRepoContainer::onPageDisplayFilesTreePressed(const QModelIndex &index) {
     return;
   }
 
-  if (_displayFilesShowAll || _currentDisplayCommit.isEmpty()) {
+  if (_displayFilesShowAll) {
+    const auto modificationType = static_cast<GuiManager::Models::GitCommitListModificationType>(
+        index.data(Qt::UserRole).toInt());
+    if (modificationType ==
+        GuiManager::Models::GitCommitListModificationType::Other ||
+        _currentDisplayCommit.isEmpty()) {
+      LOG_PERF(0, "Exit");
+      return;
+    }
+
+    onTreeViewTabWidgetTreeSelectedFromCommit(index, *model,
+                                              _currentDisplayCommit);
+  } else if (_currentDisplayCommit.isEmpty()) {
     onTreeViewTabWidgetTreeSelected(index, *model);
   } else {
     onTreeViewTabWidgetTreeSelectedFromCommit(index, *model,
@@ -5307,11 +5314,6 @@ void GitRepoContainer::onPageDisplayFilesFlatPressed(const QModelIndex &index) {
     return;
   }
 
-  if (_displayFilesShowAll) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
   const Models::GitCommitTreeModel *model =
       _displayFilesShowAll ? _displayFilesAllTreeModel.get()
                            : _commitTreeModel.get();
@@ -5320,7 +5322,18 @@ void GitRepoContainer::onPageDisplayFilesFlatPressed(const QModelIndex &index) {
     return;
   }
 
-  if (_displayFilesShowAll || _currentDisplayCommit.isEmpty()) {
+  if (_displayFilesShowAll) {
+    const auto modificationType = static_cast<GuiManager::Models::GitCommitListModificationType>(
+        index.data(Qt::UserRole).toInt());
+    if (modificationType ==
+        GuiManager::Models::GitCommitListModificationType::Other ||
+        _currentDisplayCommit.isEmpty()) {
+      LOG_PERF(0, "Exit");
+      return;
+    }
+
+    onListViewTabWidgetFlatSelectedFromCommit(index, _currentDisplayCommit);
+  } else if (_currentDisplayCommit.isEmpty()) {
     onListViewTabWidgetFlatSelected(index);
   } else {
     onListViewTabWidgetFlatSelectedFromCommit(index, _currentDisplayCommit);
@@ -6672,10 +6685,17 @@ void GitRepoContainer::refreshDisplayFilesModels() {
     }
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _displayFilesAllListModel.reset(
-          Models::GitCommitListModel::from(relativeFiles));
-      _displayFilesAllTreeModel.reset(
-          Models::GitCommitTreeModel::from(relativeFiles));
+      QHash<QString, Models::GitCommitListModificationType> modificationTypes;
+      if (_commitListModel) {
+        modificationTypes = _commitListModel->modificationTypes();
+      }
+
+      _displayFilesAllListModel.reset(Models::GitCommitListModel::from(
+          relativeFiles, modificationTypes,
+          Models::GitCommitListModificationType::Other));
+      _displayFilesAllTreeModel.reset(Models::GitCommitTreeModel::from(
+          relativeFiles, modificationTypes,
+          Models::GitCommitListModificationType::Other));
       applyDisplayFilesModels();
       showSpinnerOverlay(false);
     });
