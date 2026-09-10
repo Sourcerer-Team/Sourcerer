@@ -2580,7 +2580,7 @@ void GitRepoContainer::onHardResetToCommit(const QString &commit) {
     return;
   }
 
-  showSpinnerOverlay();
+  startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
 
   const WeakPtr guard = getSelf().toWeakRef();
@@ -2792,16 +2792,26 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
     return;
   }
 
-  startOverlayTimer();
+  const bool conflicted =
+      modificationType ==
+      GuiManager::Models::GitCommitListModificationType::Conflicted;
+  LOG_DEBUG("Showing diff for file '{}' - conflicted: {}",
+            filePath.toStdString(), conflicted);
 
   const WeakPtr guard = getSelf().toWeakRef();
 
+  startOverlayTimer();
+
+  // Guard against malicious multiple calls
+  if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
   _dispatcher.dispatch([=]() {
-    const bool conflicted =
-        modificationType ==
-        GuiManager::Models::GitCommitListModificationType::Conflicted;
-    LOG_DEBUG("Showing diff for file '{}' - conflicted: {}",
-              filePath.toStdString(), conflicted);
     if (!conflicted) {
       _bridge->diff(guard, filePath);
     } else {
@@ -2921,6 +2931,8 @@ void GitRepoContainer::onMergeDiffSaveClicked() {
   const QString filePath = ui->mergeDiffViewer->filePath();
   LOG_DEBUG("Saving merge result to file: '{}'", filePath.toStdString());
 
+  startOverlayTimer();
+
   const WeakPtr guard = getSelf().toWeakRef();
 
   _dispatcher.dispatch(
@@ -2986,16 +2998,26 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
     return;
   }
 
-  startOverlayTimer();
+  const bool conflicted =
+      modificationType ==
+      GuiManager::Models::GitCommitListModificationType::Conflicted;
+  LOG_DEBUG("Showing diff for file '{}' - conflicted: {}",
+            filePath.toStdString(), conflicted);
 
   const WeakPtr guard = getSelf().toWeakRef();
 
+  startOverlayTimer();
+
+  // Guard against malicious multiple calls
+  if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
   _dispatcher.dispatch([=]() {
-    const bool conflicted =
-        modificationType ==
-        GuiManager::Models::GitCommitListModificationType::Conflicted;
-    LOG_DEBUG("Showing diff for tree file '{}' - conflicted: {}",
-              filePath.toStdString(), conflicted);
     if (!conflicted) {
       _bridge->diff(guard, filePath);
     } else {
@@ -3222,7 +3244,7 @@ void GitRepoContainer::onMixedResetToCommit(const QString &commit) {
     return;
   }
 
-  showSpinnerOverlay();
+  startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
 
   const WeakPtr guard = getSelf().toWeakRef();
@@ -3954,7 +3976,7 @@ void GitRepoContainer::onSoftResetToCommit(const QString &commit) {
     return;
   }
 
-  showSpinnerOverlay();
+  startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
 
   const WeakPtr guard = getSelf().toWeakRef();
@@ -4296,12 +4318,23 @@ void GitRepoContainer::onWorkingTreeFlatListViewClicked(
     return;
   }
 
-  startOverlayTimer();
+  LOG_DEBUG("Showing diff for file '{}' - conflicted: {}",
+            filePath.toStdString(), conflicted);
 
   const WeakPtr guard = getSelf().toWeakRef();
+
+  startOverlayTimer();
+
+  // Guard against malicious multiple calls
+  if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
   _dispatcher.dispatch([=]() {
-    LOG_DEBUG("Showing diff for working tree file '{}' - conflicted: {}",
-              filePath.toStdString(), conflicted);
     if (!conflicted) {
       _bridge->diff(guard, filePath);
     } else {
@@ -4599,12 +4632,23 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewClicked(
     return;
   }
 
-  startOverlayTimer();
+  LOG_DEBUG("Showing diff for file '{}' - conflicted: {}",
+            filePath.toStdString(), conflicted);
 
   const WeakPtr guard = getSelf().toWeakRef();
+
+  onShowSpinnerOverlay();
+
+  // Guard against malicious multiple calls
+  if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
   _dispatcher.dispatch([=]() {
-    LOG_DEBUG("Showing diff for working tree tree file '{}' - conflicted: {}",
-              filePath.toStdString(), conflicted);
     if (!conflicted) {
       _bridge->diff(guard, filePath);
     } else {
@@ -4892,12 +4936,23 @@ void GitRepoContainer::onIndexFlatListViewClicked(const QModelIndex &index) {
     return;
   }
 
-  startOverlayTimer();
+  LOG_DEBUG("Showing diff for file '{}' - conflicted: {}",
+            filePath.toStdString(), conflicted);
 
   const WeakPtr guard = getSelf().toWeakRef();
+
+  onShowSpinnerOverlay();
+
+  // Guard against malicious multiple calls
+  if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
   _dispatcher.dispatch([=]() {
-    LOG_DEBUG("Showing diff for index file '{}' - conflicted: {}",
-              filePath.toStdString(), conflicted);
     if (!conflicted) {
       _bridge->diff(guard, filePath);
     } else {
@@ -5172,12 +5227,25 @@ void GitRepoContainer::onIndexTreeTreeViewClicked(const QModelIndex &index) {
     return;
   }
 
-  startOverlayTimer();
+  LOG_DEBUG("Showing diff for file '{}' - conflicted: {}",
+            filePath.toStdString(), conflicted);
 
   const WeakPtr guard = getSelf().toWeakRef();
+
+  onShowSpinnerOverlay();
+
+  // Guard against malicious multiple calls
+  if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      ui->stackedWidgetMiddle->setCurrentIndex(static_cast<int>(
+                                                   conflicted ? MainViewPanes::ThreeWayDiff : MainViewPanes::Diff));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
   _dispatcher.dispatch([=]() {
-    LOG_DEBUG("Showing diff for index tree file '{}' - conflicted: {}",
-              filePath.toStdString(), conflicted);
     if (!conflicted) {
       _bridge->diff(guard, filePath);
     } else {
@@ -6827,7 +6895,7 @@ void GitRepoContainer::refreshDisplayFilesModels() {
     return;
   }
 
-  showSpinnerOverlay();
+  startOverlayTimer();
 
   const auto guard = getSelf().toWeakRef();
 
