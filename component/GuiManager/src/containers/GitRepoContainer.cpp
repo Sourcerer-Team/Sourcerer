@@ -36,6 +36,7 @@
 #include <Uuid.h>
 
 #include <QAbstractItemDelegate>
+#include <QCalendarWidget>
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCursor>
@@ -56,6 +57,7 @@
 #include <QMouseEvent>
 #include <QMovie>
 #include <QPainter>
+#include <QPainterPath>
 #include <QPixmap>
 #include <QScrollBar>
 #include <QSet>
@@ -160,6 +162,28 @@ QPixmap themedIcon(const QString &resourcePath) {
   return StylesheetManager::StylesheetManager::recolorPixmap(
       QPixmap(resourcePath),
       StylesheetManager::StylesheetManager::menuBarButtonIconColor());
+}
+
+QPixmap filterIconPixmap(const QColor &color) {
+  QPixmap pixmap(16, 16);
+  pixmap.fill(Qt::transparent);
+
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setPen(QPen(color, 1.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+  painter.setBrush(Qt::NoBrush);
+
+  QPainterPath path;
+  path.moveTo(2.5, 3.5);
+  path.lineTo(13.5, 3.5);
+  path.lineTo(9.5, 8.2);
+  path.lineTo(9.5, 12.5);
+  path.lineTo(6.5, 13.8);
+  path.lineTo(6.5, 8.2);
+  path.closeSubpath();
+  painter.drawPath(path);
+
+  return pixmap;
 }
 
 void setIconLabel(QLabel *label, const QPixmap &icon,
@@ -289,15 +313,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->setHorizontalHeader(header);
   ui->historyView->horizontalHeader()->setSectionResizeMode(
       QHeaderView::Interactive);
+  ui->historyView->horizontalHeader()->setMinimumSectionSize(84);
 
   auto *historyHeader = ui->historyView->horizontalHeader();
   _historyFilterButton = new QToolButton(historyHeader);
-  const QColor filterIconColor =
-      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
-  _historyFilterButton->setIcon(
-      QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-          QPixmap(":/icons/filter.svg"), filterIconColor)));
   _historyFilterButton->setIconSize(QSize(16, 16));
+  refreshHistoryFilterButtonIcon();
   _historyFilterButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
   _historyFilterButton->setAutoRaise(true);
   _historyFilterButton->setCheckable(true);
@@ -326,6 +347,16 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   const QDate currentDate = QDate::currentDate();
   ui->dateEditHistoryStartDate->setDate(currentDate);
   ui->dateEditHistoryEndDate->setDate(currentDate);
+  ui->dateEditHistoryStartDate->setMinimumWidth(160);
+  ui->dateEditHistoryEndDate->setMinimumWidth(160);
+  if (QCalendarWidget *startCalendar =
+          ui->dateEditHistoryStartDate->calendarWidget()) {
+    startCalendar->setMinimumSize(QSize(340, 260));
+  }
+  if (QCalendarWidget *endCalendar =
+          ui->dateEditHistoryEndDate->calendarWidget()) {
+    endCalendar->setMinimumSize(QSize(340, 260));
+  }
 
   const auto updateHistoryDateFilter = [this]() {
     _historyModel->setDateRange(ui->checkBoxHistoryStartDate->isChecked()
@@ -369,6 +400,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           });
   connect(ui->historyView->horizontalScrollBar(), &QScrollBar::valueChanged,
           this, [this](const int) { updateHistoryFilterButtonGeometry(); });
+  refreshHistoryFilterButtonIcon();
 
   ui->historyView->horizontalHeader()->setContextMenuPolicy(
       Qt::CustomContextMenu);
@@ -1260,6 +1292,7 @@ void GitRepoContainer::resizeEvent(QResizeEvent *event) {
 
   ContainerWidget::resizeEvent(event);
   stretchBranchHistoryTableColumns();
+  refreshHistoryFilterButtonIcon();
   updateHistoryFilterButtonGeometry();
 
   LOG_PERF(0, "Exit")
@@ -1276,10 +1309,21 @@ void GitRepoContainer::changeEvent(QEvent *event) {
   case QEvent::ApplicationPaletteChange:
   case QEvent::StyleChange:
     refreshScintillaTheme();
+    refreshHistoryFilterButtonIcon();
     break;
   default:
     break;
   }
+}
+
+void GitRepoContainer::refreshHistoryFilterButtonIcon() {
+  if (!_historyFilterButton) {
+    return;
+  }
+
+  const QColor iconColor =
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
+  _historyFilterButton->setIcon(QIcon(filterIconPixmap(iconColor)));
 }
 
 void GitRepoContainer::refreshScintillaTheme() {
@@ -4070,11 +4114,12 @@ void GitRepoContainer::updateHistoryFilterButtonGeometry() {
     return;
   }
 
-  const int buttonWidth =
-      std::min(20, header->sectionSize(COLUMN_HISTORY_SLICE));
+  const int buttonSize =
+      std::min(20, std::max(1, header->sectionSize(COLUMN_HISTORY_SLICE)));
+  const int buttonTop = std::max(0, (header->height() - buttonSize) / 2);
   _historyFilterButton->setGeometry(
-      header->sectionViewportPosition(COLUMN_HISTORY_SLICE), 0, buttonWidth,
-      header->height());
+      header->sectionViewportPosition(COLUMN_HISTORY_SLICE) + 4, buttonTop,
+      buttonSize, buttonSize);
   _historyFilterButton->raise();
 }
 
