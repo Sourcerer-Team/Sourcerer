@@ -10461,6 +10461,10 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
   git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
   checkoutOpts.checkout_strategy =
       GIT_CHECKOUT_SAFE | GIT_CHECKOUT_RECREATE_MISSING;
+  // Submodule checkouts are routed through libgit2's filter pipeline, which
+  // can hit an internal writer lifecycle assertion on some repositories.
+  // Avoid filters here so submodule operations stay reliable.
+  checkoutOpts.disable_filters = true;
 
   error = git_checkout_head(submoduleRepo, &checkoutOpts);
   if (error) {
@@ -10511,6 +10515,10 @@ static bool checkoutLocalSubmoduleBranch(git_repository *submoduleRepo,
   git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
   checkoutOpts.checkout_strategy =
       GIT_CHECKOUT_SAFE | GIT_CHECKOUT_RECREATE_MISSING;
+  // Submodule checkouts are routed through libgit2's filter pipeline, which
+  // can hit an internal writer lifecycle assertion on some repositories.
+  // Avoid filters here so submodule operations stay reliable.
+  checkoutOpts.disable_filters = true;
 
   error = git_checkout_head(submoduleRepo, &checkoutOpts);
   git_reference_free(localRef);
@@ -10649,6 +10657,9 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 
   git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
   checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
+  // Submodule clone also uses checkout filters, which can trigger an internal
+  // libgit2 writer assertion on some repositories.
+  checkoutOpts.disable_filters = true;
   checkoutOpts.progress_payload = &progressData;
   checkoutOpts.progress_cb = &checkoutProgressCallback;
 

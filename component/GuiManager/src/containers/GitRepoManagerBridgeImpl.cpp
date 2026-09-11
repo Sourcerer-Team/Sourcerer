@@ -503,6 +503,8 @@ void GitRepoManagerBridgeImpl::addSubmodule(
     const QString &name, const QString &branch) {
   LOG_PERF(0, "Enter");
 
+  _container.stopWatcher(guard);
+
   const QString eventUuid = Uuid::createUuid();
 
   const int token = _container._eventManager.startWait();
@@ -534,6 +536,7 @@ void GitRepoManagerBridgeImpl::addSubmodule(
           QString(_container.tr("Failed to add submodule.")),
           _container.tr("Error"));
     });
+    _container.prepareWatcher(guard);
 
     LOG_PERF(0, "Exit")
     return;
@@ -546,6 +549,7 @@ void GitRepoManagerBridgeImpl::addSubmodule(
       _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
+    _container.prepareWatcher(guard);
 
     LOG_PERF(0, "Exit")
     return;
@@ -555,6 +559,7 @@ void GitRepoManagerBridgeImpl::addSubmodule(
   const bool addSuccess = commandResult.value.toBool();
 
   _container.refreshHistory(guard);
+  _container.prepareWatcher(guard);
 
   if (!addSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
