@@ -4906,6 +4906,10 @@ static int certificateCheckCallback(git_cert *cert, int valid, const char *host,
 
 static void finishFetchProgress(const QString &uuid, const bool error,
                                 const bool cloning) {
+
+  // Avoid race condition with progress toast creation
+  std::this_thread::sleep_for(1500ms);
+
   CloneProgress progress;
   progress.uuid = uuid;
   progress.completedSteps = 100;
