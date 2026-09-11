@@ -53,6 +53,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
+#include <QStyle>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QMovie>
@@ -119,6 +120,25 @@ QString filePathFromTreeIndex(const QModelIndex &index) {
     current = current.parent();
   }
   return QDir::fromNativeSeparators(path.join("/"));
+}
+
+QString parentsToLinksHtml(const QStringList &parents) {
+  QStringList parts;
+  parts.reserve(parents.size());
+
+  for (const QString &parent : parents) {
+    const QString trimmedParent = parent.trimmed();
+    if (trimmedParent.isEmpty()) {
+      continue;
+    }
+
+    const QString shortParent = trimmedParent.left(MAX_COMMIT_SHA_LENGTH);
+    parts << QStringLiteral("<a href=\"") +
+                 trimmedParent.toHtmlEscaped() + QStringLiteral("\">") +
+                 shortParent.toHtmlEscaped() + QStringLiteral("</a>");
+  }
+
+  return parts.join(QStringLiteral(", "));
 }
 } // namespace
 
@@ -243,7 +263,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()),
-      _historyFilterButton(nullptr), _dispatcher(20), _mousePos(-1, -1),
+      _historyFilterButton(nullptr), _historyBackButton(nullptr),
+      _historyForwardButton(nullptr), _dispatcher(20), _mousePos(-1, -1),
       _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
@@ -284,6 +305,45 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   ui->historyView->setModel(_historyModel.get());
   ui->historyView->setSelectionMode(QAbstractItemView::SingleSelection);
+
+  auto *historyNavigationWidget = new QWidget(ui->pageDisplay);
+  auto *historyNavigationLayout = new QHBoxLayout(historyNavigationWidget);
+  historyNavigationLayout->setContentsMargins(0, 0, 0, 0);
+  historyNavigationLayout->setSpacing(0);
+
+  _historyBackButton = new QToolButton(historyNavigationWidget);
+  _historyBackButton->setAutoRaise(true);
+  _historyBackButton->setToolTip(tr("Go back to the previously selected commit"));
+  _historyBackButton->setText(QStringLiteral("\u2190"));
+  _historyBackButton->setIcon(style()->standardIcon(QStyle::SP_ArrowBack));
+  _historyBackButton->setEnabled(false);
+
+  _historyForwardButton = new QToolButton(historyNavigationWidget);
+  _historyForwardButton->setAutoRaise(true);
+  _historyForwardButton->setToolTip(
+      tr("Go forward to the next previously selected commit"));
+  _historyForwardButton->setText(QStringLiteral("\u2192"));
+  _historyForwardButton->setIcon(style()->standardIcon(QStyle::SP_ArrowForward));
+  _historyForwardButton->setEnabled(false);
+
+  historyNavigationLayout->addWidget(_historyBackButton);
+  historyNavigationLayout->addWidget(_historyForwardButton);
+  historyNavigationLayout->addStretch();
+
+  ui->verticalLayout->insertWidget(0, historyNavigationWidget);
+
+  connect(_historyBackButton, &QToolButton::clicked, this,
+          [this]() { navigateHistorySelection(-1); });
+  connect(_historyForwardButton, &QToolButton::clicked, this,
+          [this]() { navigateHistorySelection(1); });
+
+  ui->labelPageDiaplayParentsValue->setTextFormat(Qt::RichText);
+  ui->labelPageDiaplayParentsValue->setTextInteractionFlags(
+      Qt::TextBrowserInteraction);
+  ui->labelPageDiaplayParentsValue->setOpenExternalLinks(false);
+  ui->labelPageDiaplayParentsValue->setCursor(Qt::PointingHandCursor);
+  connect(ui->labelPageDiaplayParentsValue, &QLabel::linkActivated, this,
+          [this](const QString &commit) { selectHistoryCommit(commit); });
 
   connect(ui->pushButtonPageDisplaySignatureCopy, &QPushButton::clicked, this,
           [this]() {
@@ -2554,6 +2614,101 @@ void GitRepoContainer::onDisplayFilesAllToggled(bool checked) {
   }
 
   LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::selectHistoryCommit(const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  if (commit.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto *model = ui->historyView->model();
+  if (!model) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const int rowCount = model->rowCount(QModelIndex());
+  for (int row = 0; row < rowCount; ++row) {
+    const QModelIndex shaIndex = model->index(row, COLUMN_COMMIT_FULL_SHA,
+                                              QModelIndex());
+    if (!shaIndex.isValid()) {
+      continue;
+    }
+
+    if (shaIndex.data(Qt::DisplayRole).toString() == commit) {
+      ui->historyView->selectRow(row);
+      ui->historyView->setCurrentIndex(shaIndex);
+      ui->historyView->scrollTo(shaIndex);
+      break;
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::recordHistorySelection(const QString &commit) {
+  if (_suppressHistoryNavigationRecord || commit.isEmpty()) {
+    updateHistoryNavigationButtons();
+    return;
+  }
+
+  if (_historySelectionIndex >= 0 &&
+      _historySelectionIndex < _historySelectionHistory.size() &&
+      _historySelectionHistory.value(_historySelectionIndex) == commit) {
+    updateHistoryNavigationButtons();
+    return;
+  }
+
+  if (_historySelectionIndex >= 0 &&
+      _historySelectionIndex < _historySelectionHistory.size() - 1) {
+    _historySelectionHistory =
+        _historySelectionHistory.mid(0, _historySelectionIndex + 1);
+  }
+
+  if (!_historySelectionHistory.isEmpty() &&
+      _historySelectionHistory.last() == commit) {
+    _historySelectionIndex = _historySelectionHistory.size() - 1;
+    updateHistoryNavigationButtons();
+    return;
+  }
+
+  _historySelectionHistory.append(commit);
+  _historySelectionIndex = _historySelectionHistory.size() - 1;
+  updateHistoryNavigationButtons();
+}
+
+void GitRepoContainer::updateHistoryNavigationButtons() const {
+  const bool canGoBack = _historySelectionIndex > 0;
+  const bool canGoForward =
+      _historySelectionIndex >= 0 &&
+      _historySelectionIndex < _historySelectionHistory.size() - 1;
+
+  if (_historyBackButton) {
+    _historyBackButton->setEnabled(canGoBack);
+  }
+  if (_historyForwardButton) {
+    _historyForwardButton->setEnabled(canGoForward);
+  }
+}
+
+void GitRepoContainer::navigateHistorySelection(int offset) {
+  if (_historySelectionHistory.isEmpty() || offset == 0) {
+    return;
+  }
+
+  const int targetIndex = _historySelectionIndex + offset;
+  if (targetIndex < 0 || targetIndex >= _historySelectionHistory.size()) {
+    return;
+  }
+
+  _historySelectionIndex = targetIndex;
+  _suppressHistoryNavigationRecord = true;
+  selectHistoryCommit(_historySelectionHistory.at(targetIndex));
+  _suppressHistoryNavigationRecord = false;
+  updateHistoryNavigationButtons();
 }
 
 void GitRepoContainer::onHardResetToCommit(const QString &commit) {
@@ -6816,15 +6971,15 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     ui->textEditPageDisplayDescription->setText(commitInfo.message);
     ui->labelPageDiaplayAuthorValue->setText(commitInfo.authorName);
     ui->labelPageDisplayEmailValue->setText(commitInfo.authorEmail);
+    const QStringList visibleParents =
+        commitInfo.parents.mid(0, MAXIMUM_PARENTS_IN_LABEL);
     ui->labelPageDiaplayParentsValue->setText(
-        commitInfo.parents.isEmpty()
+        visibleParents.isEmpty()
             ? tr("None")
-            : commitInfo.parents
-                      .mid(0, MAXIMUM_PARENTS_IN_LABEL) // Show up to 3 parents
-                      .join(", ")
-                      .left(MAX_COMMIT_SHA_LENGTH) +
-                  (commitInfo.parents.size() > MAXIMUM_PARENTS_IN_LABEL ? "..."
-                                                                        : ""));
+            : parentsToLinksHtml(visibleParents) +
+                  (commitInfo.parents.size() > MAXIMUM_PARENTS_IN_LABEL
+                       ? QStringLiteral(", ...")
+                       : QString()));
     const QString signedText = commitInfo.signedCommit ? tr("Yes") : tr("No");
     setIconLabel(ui->labelPageDisplaySignedValue,
                  themedIcon(commitInfo.signedCommit ? ":/icons/ok.png"
@@ -6835,11 +6990,11 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
         commitInfo.signedCommit && !commitInfo.signature.isEmpty();
     _currentSignature = hasSignatureBlock ? commitInfo.signature : QString();
     ui->pushButtonPageDisplaySignatureCopy->setEnabled(hasSignatureBlock);
-    ui->horizontalLayoutPageDisplaySignatureCopy->setEnabled(hasSignatureBlock);
     ui->horizontalLayoutPageDisplayGroupBoxInfoSigned->setEnabled(hasSignatureBlock);
     ui->pushButtonPageDisplaySignatureCopy->setVisible(hasSignatureBlock);
     ui->labelPageDisplaySignedLabel->setVisible(hasSignatureBlock);
     ui->labelPageDisplaySignedValue->setVisible(hasSignatureBlock);
+    recordHistorySelection(commit);
 
     QTextCursor cursor = ui->textEditPageDisplayDescription->textCursor();
     QTextBlockFormat format = cursor.blockFormat();

@@ -283,6 +283,10 @@ private:
   void stopWatcher(const WeakPtr &guard);
   void stretchBranchHistoryTableColumns();
   void showAllWidgets() const;
+  void selectHistoryCommit(const QString &commit);
+  void updateHistoryNavigationButtons() const;
+  void recordHistorySelection(const QString &commit);
+  void navigateHistorySelection(int offset);
   void showCommit(const WeakPtr &guard, const QString &commit);
   void showErrorPage(bool error = true) const;
   void showMainSpinnerPage(bool spinnerEnabled = true) const;
@@ -373,6 +377,11 @@ private:
   bool _mergeInProgress;
 
   QString _currentDisplayCommit;
+  QStringList _historySelectionHistory;
+  int _historySelectionIndex = -1;
+  bool _suppressHistoryNavigationRecord = false;
+  QToolButton *_historyBackButton;
+  QToolButton *_historyForwardButton;
   QSharedPointer<Models::GitCommitListModel> _commitListModel;
   QSharedPointer<Models::GitCommitTreeModel> _commitTreeModel;
   QSharedPointer<Models::GitCommitListModel> _displayFilesAllListModel;
