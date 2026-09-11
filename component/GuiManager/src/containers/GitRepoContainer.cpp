@@ -285,12 +285,6 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->setModel(_historyModel.get());
   ui->historyView->setSelectionMode(QAbstractItemView::SingleSelection);
 
-  connect(ui->toolButtonPageDisplaySignature, &QToolButton::toggled, this,
-          [this](bool checked) {
-            ui->widgetPageDisplaySignatureContent->setVisible(checked);
-            ui->toolButtonPageDisplaySignature->setArrowType(
-                checked ? Qt::DownArrow : Qt::RightArrow);
-          });
   connect(ui->pushButtonPageDisplaySignatureCopy, &QPushButton::clicked, this,
           [this]() {
             QGuiApplication::clipboard()->setText(_currentSignature);
@@ -6821,6 +6815,7 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
     ui->labelPageDiaplayShaValue->setText(commit.left(MAX_COMMIT_SHA_LENGTH));
     ui->textEditPageDisplayDescription->setText(commitInfo.message);
     ui->labelPageDiaplayAuthorValue->setText(commitInfo.authorName);
+    ui->labelPageDisplayEmailValue->setText(commitInfo.authorEmail);
     ui->labelPageDiaplayParentsValue->setText(
         commitInfo.parents.isEmpty()
             ? tr("None")
@@ -6836,37 +6831,15 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
                                                     : ":/icons/cancel.png"),
                  tr("Signed: %1").arg(signedText));
 
-    const QString signatureType = commitInfo.signatureType.isEmpty()
-                                      ? tr("Unknown")
-                                      : commitInfo.signatureType;
-    const bool isOpenPgpSignatureType =
-        commitInfo.signatureType.compare("OpenPGP", Qt::CaseInsensitive) == 0;
-    const bool isSshSignatureType =
-        commitInfo.signatureType.compare("SSH", Qt::CaseInsensitive) == 0;
-    if (isOpenPgpSignatureType) {
-      ui->labelPageDisplaySignatureTypeValue->setPixmap(QPixmap());
-      ui->labelPageDisplaySignatureTypeValue->setText(signatureType);
-      ui->labelPageDisplaySignatureTypeValue->setAlignment(Qt::AlignLeft |
-                                                           Qt::AlignVCenter);
-      ui->labelPageDisplaySignatureTypeValue->setToolTip(
-          tr("Signature type: %1").arg(signatureType));
-      ui->labelPageDisplaySignatureTypeValue->setStatusTip(
-          tr("Signature type: %1").arg(signatureType));
-      ui->labelPageDisplaySignatureTypeValue->setAccessibleName(
-          tr("Signature type: %1").arg(signatureType));
-    } else {
-      setIconLabel(ui->labelPageDisplaySignatureTypeValue,
-                   themedIcon(isSshSignatureType ? ":/icons/ssh-key.svg"
-                                                 : ":/icons/id-card.png"),
-                   tr("Signature type: %1").arg(signatureType));
-    }
     const bool hasSignatureBlock =
         commitInfo.signedCommit && !commitInfo.signature.isEmpty();
     _currentSignature = hasSignatureBlock ? commitInfo.signature : QString();
-    ui->widgetPageDisplaySignatureSection->setVisible(hasSignatureBlock);
     ui->pushButtonPageDisplaySignatureCopy->setEnabled(hasSignatureBlock);
-    ui->toolButtonPageDisplaySignature->setChecked(false);
-    ui->widgetPageDisplaySignatureContent->setVisible(false);
+    ui->horizontalLayoutPageDisplaySignatureCopy->setEnabled(hasSignatureBlock);
+    ui->horizontalLayoutPageDisplayGroupBoxInfoSigned->setEnabled(hasSignatureBlock);
+    ui->pushButtonPageDisplaySignatureCopy->setVisible(hasSignatureBlock);
+    ui->labelPageDisplaySignedLabel->setVisible(hasSignatureBlock);
+    ui->labelPageDisplaySignedValue->setVisible(hasSignatureBlock);
 
     QTextCursor cursor = ui->textEditPageDisplayDescription->textCursor();
     QTextBlockFormat format = cursor.blockFormat();
