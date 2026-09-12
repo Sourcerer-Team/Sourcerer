@@ -371,11 +371,11 @@
                        <property name="enabled">
                         <bool>false</bool>
                        </property>
-                       <property name="calendarPopup">
-                        <bool>true</bool>
-                       </property>
                        <property name="displayFormat">
                         <string>yyyy-MM-dd</string>
+                       </property>
+                       <property name="calendarPopup">
+                        <bool>true</bool>
                        </property>
                       </widget>
                      </item>
@@ -391,11 +391,11 @@
                        <property name="enabled">
                         <bool>false</bool>
                        </property>
-                       <property name="calendarPopup">
-                        <bool>true</bool>
-                       </property>
                        <property name="displayFormat">
                         <string>yyyy-MM-dd</string>
+                       </property>
+                       <property name="calendarPopup">
+                        <bool>true</bool>
                        </property>
                       </widget>
                      </item>
@@ -1004,7 +1004,7 @@
                 </sizepolicy>
                </property>
                <property name="currentIndex">
-                <number>0</number>
+                <number>1</number>
                </property>
                <widget class="QWidget" name="pageCommitAndMerge">
                 <property name="sizePolicy">
@@ -1575,6 +1575,48 @@
                         </layout>
                        </item>
                        <item>
+                        <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoEmail">
+                         <item>
+                          <widget class="QLabel" name="labelPageDisplayEmailLabel">
+                           <property name="sizePolicy">
+                            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                             <horstretch>0</horstretch>
+                             <verstretch>0</verstretch>
+                            </sizepolicy>
+                           </property>
+                           <property name="lineWidth">
+                            <number>0</number>
+                           </property>
+                           <property name="text">
+                            <string>email:</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QLabel" name="labelPageDisplayEmailValue">
+                           <property name="sizePolicy">
+                            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                             <horstretch>0</horstretch>
+                             <verstretch>0</verstretch>
+                            </sizepolicy>
+                           </property>
+                           <property name="lineWidth">
+                            <number>0</number>
+                           </property>
+                           <property name="text">
+                            <string/>
+                           </property>
+                           <property name="margin">
+                            <number>0</number>
+                           </property>
+                           <property name="indent">
+                            <number>4</number>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                       <item>
                         <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoParents">
                          <item>
                           <widget class="QLabel" name="labelPageDisplayParentsLabel">
@@ -1617,140 +1659,66 @@
                         </layout>
                        </item>
                        <item>
-                        <widget class="QWidget" name="widgetPageDisplaySignatureSection">
-                         <layout class="QVBoxLayout" name="verticalLayoutPageDisplaySignatureSection">
-                          <property name="spacing">
-                           <number>6</number>
-                          </property>
-                          <property name="leftMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="topMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="rightMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="bottomMargin">
-                           <number>0</number>
-                          </property>
-                          <item>
-                           <widget class="QToolButton" name="toolButtonPageDisplaySignature">
-                            <property name="text">
-                             <string>Signature</string>
-                            </property>
-                            <property name="checkable">
-                             <bool>true</bool>
-                            </property>
-                            <property name="checked">
-                             <bool>false</bool>
-                            </property>
-                            <property name="toolButtonStyle">
-                             <enum>Qt::ToolButtonStyle::ToolButtonTextBesideIcon</enum>
-                            </property>
-                            <property name="autoRaise">
-                             <bool>true</bool>
-                            </property>
-                            <property name="arrowType">
-                             <enum>Qt::ArrowType::RightArrow</enum>
-                            </property>
-                           </widget>
-                          </item>
-                          <item>
-                           <widget class="QWidget" name="widgetPageDisplaySignatureContent">
-                            <layout class="QVBoxLayout" name="verticalLayoutPageDisplaySignatureContent">
-                             <property name="spacing">
-                              <number>6</number>
-                             </property>
-                             <property name="leftMargin">
-                              <number>0</number>
-                             </property>
-                             <property name="topMargin">
-                              <number>0</number>
-                             </property>
-                             <property name="rightMargin">
-                              <number>0</number>
-                             </property>
-                             <property name="bottomMargin">
-                              <number>0</number>
-                             </property>
-                             <item>
-                              <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoSigned">
-                               <item>
-                                <widget class="QLabel" name="labelPageDisplaySignedLabel">
-                                 <property name="text">
-                                  <string>Signed:</string>
-                                 </property>
-                                </widget>
-                               </item>
-                               <item>
-                                <widget class="QLabel" name="labelPageDisplaySignedValue">
-                                 <property name="text">
-                                  <string/>
-                                 </property>
-                                 <property name="indent">
-                                  <number>4</number>
-                                 </property>
-                                </widget>
-                               </item>
-                              </layout>
-                             </item>
-                             <item>
-                              <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoSignatureType">
-                               <item>
-                                <widget class="QLabel" name="labelPageDisplaySignatureTypeLabel">
-                                 <property name="text">
-                                  <string>Signature type:</string>
-                                 </property>
-                                </widget>
-                               </item>
-                               <item>
-                                <widget class="QLabel" name="labelPageDisplaySignatureTypeValue">
-                                 <property name="text">
-                                  <string/>
-                                 </property>
-                                 <property name="indent">
-                                  <number>4</number>
-                                 </property>
-                                </widget>
-                               </item>
-                              </layout>
-                             </item>
-                             <item>
-                              <layout class="QHBoxLayout" name="horizontalLayoutPageDisplaySignatureCopy">
-                               <item>
-                                <widget class="QPushButton" name="pushButtonPageDisplaySignatureCopy">
-                                 <property name="toolTip">
-                                  <string>Copy signature to clipboard</string>
-                                 </property>
-                                 <property name="text">
-                                  <string>Copy</string>
-                                 </property>
-                                </widget>
-                               </item>
-                               <item>
-                                <spacer name="horizontalSpacerPageDisplaySignatureCopyRight">
-                                 <property name="orientation">
-                                  <enum>Qt::Orientation::Horizontal</enum>
-                                 </property>
-                                 <property name="sizeType">
-                                  <enum>QSizePolicy::Policy::Expanding</enum>
-                                 </property>
-                                 <property name="sizeHint" stdset="0">
-                                  <size>
-                                   <width>40</width>
-                                   <height>20</height>
-                                  </size>
-                                 </property>
-                                </spacer>
-                               </item>
-                              </layout>
-                             </item>
-                            </layout>
-                           </widget>
-                          </item>
-                         </layout>
-                        </widget>
+                        <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoSigned">
+                         <property name="spacing">
+                          <number>7</number>
+                         </property>
+                         <property name="topMargin">
+                          <number>0</number>
+                         </property>
+                         <property name="bottomMargin">
+                          <number>0</number>
+                         </property>
+                         <item>
+                          <widget class="QLabel" name="labelPageDisplaySignedLabel">
+                           <property name="sizePolicy">
+                            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                             <horstretch>0</horstretch>
+                             <verstretch>0</verstretch>
+                            </sizepolicy>
+                           </property>
+                           <property name="text">
+                            <string>signed:</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QLabel" name="labelPageDisplaySignedValue">
+                           <property name="sizePolicy">
+                            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                             <horstretch>0</horstretch>
+                             <verstretch>0</verstretch>
+                            </sizepolicy>
+                           </property>
+                           <property name="text">
+                            <string/>
+                           </property>
+                           <property name="alignment">
+                            <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                       <item>
+                        <layout class="QHBoxLayout" name="horizontalLayoutPageDisplaySignatureCopy">
+                         <property name="topMargin">
+                          <number>8</number>
+                         </property>
+                         <property name="bottomMargin">
+                          <number>0</number>
+                         </property>
+                         <item>
+                          <widget class="QPushButton" name="pushButtonPageDisplaySignatureCopy">
+                           <property name="toolTip">
+                            <string>Copy signature to clipboard</string>
+                           </property>
+                           <property name="text">
+                            <string>Copy signature</string>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
                        </item>
                       </layout>
                      </item>

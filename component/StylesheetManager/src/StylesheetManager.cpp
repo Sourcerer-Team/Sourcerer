@@ -664,7 +664,14 @@ QString makeDarkStylesheet() {
         background-color: black;
       }
       QGroupBox#groupBoxInfo{
-        border: none;
+        background-color: #202020;
+        border: 1px solid #3A3A3A;
+        border-radius: 10px;
+        margin-top: 0px;
+        padding: 10px;
+      }
+      QWidget#widgetPageDisplaySignatureSection{
+        background: transparent;
       }
       QGroupBox#groupBoxSummary{
         background-color: black;
@@ -1657,7 +1664,14 @@ QString makeLightStylesheet() {
         border-radius: 5px;
       }
       QGroupBox#groupBoxInfo{
-        border: none;
+        background-color: #FFFFFF;
+        border: 1px solid #D8DEE5;
+        border-radius: 10px;
+        margin-top: 0px;
+        padding: 10px;
+      }
+      QWidget#widgetPageDisplaySignatureSection{
+        background: transparent;
       }
       QGroupBox#groupBoxSummary{
         background-color: #F3F6F8;
