@@ -345,6 +345,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(ui->labelPageDiaplayParentsValue, &QLabel::linkActivated, this,
           [this](const QString &commit) { selectHistoryCommit(commit); });
 
+  ui->labelPageDisplaySignedLabel->setVisible(false);
+  ui->labelPageDisplaySignedValue->setVisible(false);
+  ui->pushButtonPageDisplaySignatureCopy->setVisible(false);
   connect(ui->pushButtonPageDisplaySignatureCopy, &QPushButton::clicked, this,
           [this]() {
             QGuiApplication::clipboard()->setText(_currentSignature);
