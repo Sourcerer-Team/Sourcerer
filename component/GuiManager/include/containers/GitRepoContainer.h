@@ -168,6 +168,8 @@ private slots:
   void onPull(bool rebase = false);
   void onFetchAll();
   void onPush(bool force = false);
+  void onStartGitFlowBranch(GitRepo::GitFlowBranchType branchType);
+  void onFinishGitFlowBranch(GitRepo::GitFlowBranchType branchType);
   void onRemoteBranchSelected(const QString &branchName);
   void onRemoteBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onRenameBranch(const QString &branchName);
@@ -293,6 +295,11 @@ private:
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message, const QString &title);
   void showErrorToast(const QString &message, const QString &title);
+  QString gitFlowBranchPrefix(GitRepo::GitFlowBranchType branchType) const;
+  QString gitFlowBranchDisplayName(GitRepo::GitFlowBranchType branchType) const;
+  QString gitFlowBranchNameForInput(GitRepo::GitFlowBranchType branchType,
+                                    const QString &name) const;
+  QString currentGitFlowBranchName(GitRepo::GitFlowBranchType branchType) const;
   void copyFilePathsToClipboard(const QStringList &filePaths);
   bool showWarningForBranchCheckout() const;
   void simulateClickOnHistoryRow(int row) const;

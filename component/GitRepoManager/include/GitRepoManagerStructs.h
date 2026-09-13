@@ -66,6 +66,7 @@ enum class GitRepoCommandType : int {
   ListSubmodulesWithStatus,
   ListTags,
   Merge,
+  GitFlow,
   Open,
   Pull,
   Push,
@@ -623,6 +624,18 @@ struct GitRepoRebaseCommand final : GitRepoCommand {
 
   QString sourceBranch;
   QString destinationBranch;
+  QString author;
+  QString email;
+};
+
+struct GitRepoGitFlowCommand final : GitRepoCommand {
+  GitRepoGitFlowCommand() : GitRepoCommand(GitRepoCommandType::GitFlow) {}
+
+  ~GitRepoGitFlowCommand() override = default;
+
+  GitRepo::GitFlowBranchType branchType = GitRepo::GitFlowBranchType::Unknown;
+  bool start = true;
+  QString branchName;
   QString author;
   QString email;
 };

@@ -642,6 +642,16 @@ enum class BranchType {
   last
 };
 
+enum class GitFlowBranchType {
+  Unknown = 0,
+
+  Feature,
+  Release,
+  Hotfix,
+
+  last
+};
+
 enum class ResetType {
   Unknown = 0,
 
@@ -737,6 +747,13 @@ void closeRepository(git_repository *repo);
 
 bool createBranchFromCommit(git_repository *repo, const QString &commit,
                             const QString &branchName);
+
+bool startGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
+                       const QString &branchName);
+
+bool finishGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
+                         const QString &branchName, const QString &author,
+                         const QString &email);
 
 bool deleteStash(git_repository *repo, int stashIndex);
 // Delete all stashes in the repository

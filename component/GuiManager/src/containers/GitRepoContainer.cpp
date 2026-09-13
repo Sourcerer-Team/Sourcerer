@@ -677,14 +677,18 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *pullFetchMenu = new QMenu();
   auto *actionPullMenu = pullFetchMenu->addAction(tr("Pull"));
+  actionPullMenu->setProperty("iconSource", QStringLiteral(":icons/pull"));
   actionPullMenu->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
       QPixmap(":icons/pull"), shortcutIconColor));
   auto *actionPullWithRebaseMenu =
       pullFetchMenu->addAction(tr("Pull with rebase"));
+  actionPullWithRebaseMenu->setProperty("iconSource",
+                                        QStringLiteral(":icons/pull"));
   actionPullWithRebaseMenu->setIcon(
       StylesheetManager::StylesheetManager::recolorPixmap(
           QPixmap(":icons/pull"), shortcutIconColor));
   auto *actionFetchAllMenu = pullFetchMenu->addAction(tr("Fetch All"));
+  actionFetchAllMenu->setProperty("iconSource", QStringLiteral(":icons/pull"));
   actionFetchAllMenu->setIcon(
       QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
           QPixmap(":icons/pull"), shortcutIconColor)));
@@ -710,9 +714,11 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *pushMenu = new QMenu();
   auto *actionPushMenu = pushMenu->addAction(tr("Push"));
+  actionPushMenu->setProperty("iconSource", QStringLiteral(":icons/push"));
   actionPushMenu->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
       QPixmap(":icons/push"), shortcutIconColor));
   auto *actionForcePushMenu = pushMenu->addAction(tr("Force push"));
+  actionForcePushMenu->setProperty("iconSource", QStringLiteral(":icons/push"));
   actionForcePushMenu->setIcon(
       StylesheetManager::StylesheetManager::recolorPixmap(
           QPixmap(":icons/push"), shortcutIconColor));
@@ -728,6 +734,51 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   pushButtonPop->setMaximumSize(42, 42);
   pushButtonPop->setAttribute(Qt::WA_StyledBackground, true);
 
+  auto *gitFlowDropdown = new QToolButton();
+  gitFlowDropdown->setObjectName("gitFlowDropdown");
+  gitFlowDropdown->setProperty("iconSource", QStringLiteral(":icons/git_branch"));
+  gitFlowDropdown->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/git_branch"), shortcutIconColor));
+  gitFlowDropdown->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  gitFlowDropdown->setIconSize(QSize(18, 18));
+  gitFlowDropdown->setAttribute(Qt::WA_StyledBackground, true);
+  gitFlowDropdown->setToolTip(tr("Git Flow"));
+  gitFlowDropdown->setMinimumSize(42, 42);
+  gitFlowDropdown->setMaximumSize(42, 42);
+  gitFlowDropdown->setPopupMode(QToolButton::MenuButtonPopup);
+
+  auto *gitFlowMenu = new QMenu();
+  auto *actionStartFeature = gitFlowMenu->addAction(tr("Start feature"));
+  actionStartFeature->setProperty("iconSource", QStringLiteral(":icons/git_branch"));
+  actionStartFeature->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/git_branch"), shortcutIconColor));
+  auto *actionStartRelease = gitFlowMenu->addAction(tr("Start release"));
+  actionStartRelease->setProperty("iconSource", QStringLiteral(":icons/git_branch"));
+  actionStartRelease->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/git_branch"), shortcutIconColor));
+  auto *actionStartHotfix = gitFlowMenu->addAction(tr("Start hotfix"));
+  actionStartHotfix->setProperty("iconSource", QStringLiteral(":icons/git_branch"));
+  actionStartHotfix->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/git_branch"), shortcutIconColor));
+  gitFlowMenu->addSeparator();
+  auto *actionFinishFeature = gitFlowMenu->addAction(tr("Finish feature"));
+  actionFinishFeature->setProperty("iconSource",
+                                   QStringLiteral(":icons/git_branch_active"));
+  actionFinishFeature->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/git_branch"), shortcutIconColor));
+  auto *actionFinishRelease = gitFlowMenu->addAction(tr("Finish release"));
+  actionFinishRelease->setProperty("iconSource",
+                                  QStringLiteral(":icons/git_branch_active"));
+  actionFinishRelease->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":icons/git_branch"), shortcutIconColor));
+  auto *actionFinishHotfix = gitFlowMenu->addAction(tr("Finish hotfix"));
+  actionFinishHotfix->setProperty("iconSource",
+                                 QStringLiteral(":icons/git_branch_active"));
+  actionFinishHotfix->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/git_branch"), shortcutIconColor));
+  gitFlowDropdown->setMenu(gitFlowMenu);
+
   auto *pushButtonStash = new QPushButton();
   pushButtonStash->setObjectName("pushButtonStash");
   pushButtonStash->setProperty("iconSource", QStringLiteral(":icons/stash"));
@@ -740,12 +791,14 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _shortcutsWidget->addShortcutWidget(pullFetchDropdown);
   _shortcutsWidget->addShortcutWidget(pushButtonPush);
+  _shortcutsWidget->addShortcutWidget(gitFlowDropdown);
   _shortcutsWidget->addShortcutWidget(pushButtonStash);
   _shortcutsWidget->addShortcutWidget(pushButtonPop);
 
   // Explicitly show buttons to ensure they're interactive
   pullFetchDropdown->show();
   pushButtonPush->show();
+  gitFlowDropdown->show();
   pushButtonStash->show();
   pushButtonPop->show();
 
@@ -1119,6 +1172,18 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(actionPushMenu, &QAction::triggered, this, &GitRepoContainer::onPush);
   connect(actionForcePushMenu, &QAction::triggered, this,
           [=](bool) { onPush(true); });
+  connect(actionStartFeature, &QAction::triggered, this,
+          [=]() { onStartGitFlowBranch(GitRepo::GitFlowBranchType::Feature); });
+  connect(actionFinishFeature, &QAction::triggered, this,
+          [=]() { onFinishGitFlowBranch(GitRepo::GitFlowBranchType::Feature); });
+  connect(actionStartRelease, &QAction::triggered, this,
+          [=]() { onStartGitFlowBranch(GitRepo::GitFlowBranchType::Release); });
+  connect(actionFinishRelease, &QAction::triggered, this,
+          [=]() { onFinishGitFlowBranch(GitRepo::GitFlowBranchType::Release); });
+  connect(actionStartHotfix, &QAction::triggered, this,
+          [=]() { onStartGitFlowBranch(GitRepo::GitFlowBranchType::Hotfix); });
+  connect(actionFinishHotfix, &QAction::triggered, this,
+          [=]() { onFinishGitFlowBranch(GitRepo::GitFlowBranchType::Hotfix); });
   connect(pushButtonStash, &QPushButton::clicked, this,
           &GitRepoContainer::onStash);
   connect(pushButtonPop, &QPushButton::clicked, this, &GitRepoContainer::onPop);
@@ -3429,6 +3494,133 @@ void GitRepoContainer::onPop() {
   });
 
   LOG_DEBUG("Pop stash operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+QString GitRepoContainer::gitFlowBranchPrefix(
+    GitRepo::GitFlowBranchType branchType) const {
+  switch (branchType) {
+  case GitRepo::GitFlowBranchType::Feature:
+    return QStringLiteral("feature/");
+  case GitRepo::GitFlowBranchType::Release:
+    return QStringLiteral("release/");
+  case GitRepo::GitFlowBranchType::Hotfix:
+    return QStringLiteral("hotfix/");
+  case GitRepo::GitFlowBranchType::Unknown:
+  default:
+    return {};
+  }
+}
+
+QString GitRepoContainer::gitFlowBranchDisplayName(
+    GitRepo::GitFlowBranchType branchType) const {
+  switch (branchType) {
+  case GitRepo::GitFlowBranchType::Feature:
+    return tr("feature");
+  case GitRepo::GitFlowBranchType::Release:
+    return tr("release");
+  case GitRepo::GitFlowBranchType::Hotfix:
+    return tr("hotfix");
+  case GitRepo::GitFlowBranchType::Unknown:
+  default:
+    return tr("Git Flow");
+  }
+}
+
+QString GitRepoContainer::gitFlowBranchNameForInput(
+    GitRepo::GitFlowBranchType branchType, const QString &name) const {
+  const QString trimmed = name.trimmed();
+  if (trimmed.isEmpty()) {
+    return {};
+  }
+
+  const QString prefix = gitFlowBranchPrefix(branchType);
+  if (prefix.isEmpty() || trimmed.startsWith(prefix)) {
+    return trimmed;
+  }
+
+  return prefix + trimmed;
+}
+
+QString GitRepoContainer::currentGitFlowBranchName(
+    GitRepo::GitFlowBranchType branchType) const {
+  const QString prefix = gitFlowBranchPrefix(branchType);
+  if (prefix.isEmpty() || !_activeBranch.startsWith(prefix)) {
+    return {};
+  }
+
+  return _activeBranch;
+}
+
+void GitRepoContainer::onStartGitFlowBranch(
+    GitRepo::GitFlowBranchType branchType) {
+  LOG_PERF(0, "Enter");
+
+  const QString branchKind = gitFlowBranchDisplayName(branchType);
+  bool ok = false;
+  const QString input = QInputDialog::getText(
+      this, tr("Start %1 branch").arg(branchKind),
+      tr("Enter the %1 branch name").arg(branchKind), QLineEdit::Normal,
+      QString(), &ok);
+
+  if (!ok) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString branchName = gitFlowBranchNameForInput(branchType, input);
+  if (branchName.isEmpty()) {
+    showErrorToast(tr("Please enter a branch name."), tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!showWarningForBranchCheckout()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  _dispatcher.dispatch([=]() {
+    _bridge->startGitFlowBranch(guard, branchType, branchName);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onFinishGitFlowBranch(
+    GitRepo::GitFlowBranchType branchType) {
+  LOG_PERF(0, "Enter");
+
+  const QString branchName = currentGitFlowBranchName(branchType);
+  if (branchName.isEmpty()) {
+    showErrorToast(tr("Please checkout a %1 branch first.")
+                      .arg(gitFlowBranchDisplayName(branchType)),
+                  tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto reply = QMessageBox::question(
+      this, tr("Confirm Git Flow finish"),
+      tr("Finish %1 branch '%2'?\n\nThis will merge it into the target branch"
+         " and delete the source branch.")
+          .arg(gitFlowBranchDisplayName(branchType), branchName),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  _dispatcher.dispatch([=]() {
+    _bridge->finishGitFlowBranch(guard, branchType, branchName);
+  });
+
   LOG_PERF(0, "Exit");
 }
 

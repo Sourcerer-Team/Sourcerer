@@ -4450,6 +4450,110 @@ QVector<SubmoduleInfo> listSubmodulesWithStatus(git_repository *repo,
   return submodulesWithStatus;
 }
 
+static QString gitFlowBranchPrefix(GitFlowBranchType branchType) {
+  switch (branchType) {
+  case GitFlowBranchType::Feature:
+    return QStringLiteral("feature");
+  case GitFlowBranchType::Release:
+    return QStringLiteral("release");
+  case GitFlowBranchType::Hotfix:
+    return QStringLiteral("hotfix");
+  case GitFlowBranchType::Unknown:
+  default:
+    return QString();
+  }
+}
+
+static QString gitFlowBranchName(GitFlowBranchType branchType,
+                                 const QString &branchName) {
+  const QString trimmedBranchName = branchName.trimmed();
+  if (trimmedBranchName.isEmpty()) {
+    return {};
+  }
+
+  const QString prefix = gitFlowBranchPrefix(branchType);
+  if (prefix.isEmpty() || trimmedBranchName.startsWith(prefix + QStringLiteral("/"))) {
+    return trimmedBranchName;
+  }
+
+  return prefix + QStringLiteral("/") + trimmedBranchName;
+}
+
+static QString defaultGitFlowBaseBranchName(git_repository *repo,
+                                            GitFlowBranchType branchType) {
+  const auto branchExists = [repo](const QString &branchName) {
+    git_reference *ref = nullptr;
+    const int error = git_branch_lookup(
+        &ref, repo, branchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
+    if (!error) {
+      git_reference_free(ref);
+      return true;
+    }
+    return false;
+  };
+
+  switch (branchType) {
+  case GitFlowBranchType::Feature:
+  case GitFlowBranchType::Release:
+    if (branchExists(QStringLiteral("develop"))) {
+      return QStringLiteral("develop");
+    }
+    break;
+  case GitFlowBranchType::Hotfix:
+    if (branchExists(QStringLiteral("main"))) {
+      return QStringLiteral("main");
+    }
+    if (branchExists(QStringLiteral("master"))) {
+      return QStringLiteral("master");
+    }
+    break;
+  case GitFlowBranchType::Unknown:
+  default:
+    break;
+  }
+
+  if (branchExists(QStringLiteral("develop"))) {
+    return QStringLiteral("develop");
+  }
+
+  if (branchExists(QStringLiteral("main"))) {
+    return QStringLiteral("main");
+  }
+
+  if (branchExists(QStringLiteral("master"))) {
+    return QStringLiteral("master");
+  }
+
+  return getActiveBranch(repo, BranchType::Local, false);
+}
+
+static QString defaultGitFlowPrimaryBranchName(git_repository *repo) {
+  const auto branchExists = [repo](const QString &branchName) {
+    git_reference *ref = nullptr;
+    const int error = git_branch_lookup(
+        &ref, repo, branchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
+    if (!error) {
+      git_reference_free(ref);
+      return true;
+    }
+    return false;
+  };
+
+  if (branchExists(QStringLiteral("main"))) {
+    return QStringLiteral("main");
+  }
+
+  if (branchExists(QStringLiteral("master"))) {
+    return QStringLiteral("master");
+  }
+
+  if (branchExists(QStringLiteral("develop"))) {
+    return QStringLiteral("develop");
+  }
+
+  return getActiveBranch(repo, BranchType::Local, false);
+}
+
 bool createBranchFromCommit(git_repository *repo, const QString &commit,
                             const QString &branchName) {
   LOG_PERF(0, "Enter");
@@ -4505,6 +4609,131 @@ bool createBranchFromCommit(git_repository *repo, const QString &commit,
 
   LOG_PERF(0, "Exit");
 
+  return true;
+}
+
+bool startGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
+                       const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName = gitFlowBranchName(branchType, branchName);
+  if (normalizedBranchName.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git, "GitFlow branch name is empty");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString baseBranchName = defaultGitFlowBaseBranchName(repo, branchType);
+  if (baseBranchName.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Unable to determine the base branch for GitFlow branch '{}'",
+              normalizedBranchName.toStdString());
+    setError(GitError::CheckoutBranchFailedToLookupBranch, GIT_ENOTFOUND);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference *baseRef = nullptr;
+  int error = git_branch_lookup(&baseRef, repo, baseBranchName.toStdString().c_str(),
+                                GIT_BRANCH_LOCAL);
+  if (error) {
+    setError(GitError::CheckoutBranchFailedToLookupBranch, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const git_oid *baseOid = git_reference_target(baseRef);
+  if (!baseOid) {
+    git_reference_free(baseRef);
+    setError(GitError::CheckoutBranchFailedToLookupBranch, GIT_ENOTFOUND);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  char oidBuffer[GIT_OID_HEXSZ + 1] = {0};
+  git_oid_tostr(oidBuffer, sizeof(oidBuffer), baseOid);
+
+  const bool created = createBranchFromCommit(repo, QString::fromLatin1(oidBuffer),
+                                              normalizedBranchName);
+  git_reference_free(baseRef);
+  if (!created) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const bool checkedOut = checkoutBranch(repo, normalizedBranchName, BranchType::Local);
+  if (!checkedOut) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool finishGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
+                         const QString &branchName, const QString &author,
+                         const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName = gitFlowBranchName(branchType, branchName);
+  if (normalizedBranchName.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git, "GitFlow branch name is empty");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString primaryBranchName = defaultGitFlowPrimaryBranchName(repo);
+  if (primaryBranchName.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Unable to determine the destination branch for GitFlow branch '{}'",
+              normalizedBranchName.toStdString());
+    setError(GitError::MergeFailedToLookupDestinationBranch, GIT_ENOTFOUND);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString destinationBranchName =
+      branchType == GitFlowBranchType::Feature ? QStringLiteral("develop")
+                                               : primaryBranchName;
+
+  if (!merge(repo, normalizedBranchName, destinationBranchName, author, email)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (branchType == GitFlowBranchType::Release ||
+      branchType == GitFlowBranchType::Hotfix) {
+    const QString developBranch = QStringLiteral("develop");
+    if (developBranch != destinationBranchName &&
+        !merge(repo, normalizedBranchName, developBranch, author, email)) {
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  if (!deleteBranch(repo, normalizedBranchName)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
   return true;
 }
 
