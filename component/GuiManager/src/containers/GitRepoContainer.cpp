@@ -188,9 +188,24 @@ constexpr QSize kCommitSignatureIconSize(16, 16);
 constexpr QSize kCommitAuthorAvatarSize(56, 56);
 
 QPixmap themedIcon(const QString &resourcePath) {
+  QPixmap pixmap;
+  if (resourcePath.endsWith(QStringLiteral(".svg"), Qt::CaseInsensitive)) {
+    QSvgRenderer renderer(resourcePath);
+    if (renderer.isValid()) {
+      const QSize size = renderer.defaultSize().isValid()
+                             ? renderer.defaultSize()
+                             : QSize(24, 24);
+      pixmap = QPixmap(size);
+      pixmap.fill(Qt::transparent);
+      QPainter painter(&pixmap);
+      renderer.render(&painter);
+    }
+  } else {
+    pixmap = QPixmap(resourcePath);
+  }
+
   return StylesheetManager::StylesheetManager::recolorPixmap(
-      QPixmap(resourcePath),
-      StylesheetManager::StylesheetManager::menuBarButtonIconColor());
+      pixmap, StylesheetManager::StylesheetManager::menuBarButtonIconColor());
 }
 
 QPixmap filterIconPixmap(const QColor &color) {
@@ -967,9 +982,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   auto *gitFlowDropdown = new QToolButton();
   gitFlowDropdown->setObjectName("gitFlowDropdown");
   gitFlowDropdown->setProperty("iconSource",
-                               QStringLiteral(":icons/gitflow_start.svg"));
-  gitFlowDropdown->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-      QPixmap(":icons/gitflow_start.svg"), shortcutIconColor));
+                               QStringLiteral(":/icons/gitflow_start.svg"));
+  gitFlowDropdown->setIcon(themedIcon(":/icons/gitflow_start.svg"));
   gitFlowDropdown->setToolButtonStyle(Qt::ToolButtonIconOnly);
   gitFlowDropdown->setIconSize(QSize(18, 18));
   gitFlowDropdown->setAttribute(Qt::WA_StyledBackground, true);
@@ -982,40 +996,34 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   auto *actionStartFeature = gitFlowMenu->addAction(tr("Start feature"));
   actionStartFeature->setProperty("iconSource",
                                   QStringLiteral(":/icons/gitflow_start.svg"));
-  actionStartFeature->setIcon(
-      StylesheetManager::StylesheetManager::recolorPixmap(
-          QPixmap(":/icons/gitflow_start.svg"), shortcutIconColor));
+  actionStartFeature->setIconVisibleInMenu(true);
+  actionStartFeature->setIcon(themedIcon(":/icons/gitflow_start.svg"));
   auto *actionStartRelease = gitFlowMenu->addAction(tr("Start release"));
   actionStartRelease->setProperty("iconSource",
                                   QStringLiteral(":/icons/gitflow_start.svg"));
-  actionStartRelease->setIcon(
-      StylesheetManager::StylesheetManager::recolorPixmap(
-          QPixmap(":/icons/gitflow_start.svg"), shortcutIconColor));
+  actionStartRelease->setIconVisibleInMenu(true);
+  actionStartRelease->setIcon(themedIcon(":/icons/gitflow_start.svg"));
   auto *actionStartHotfix = gitFlowMenu->addAction(tr("Start hotfix"));
   actionStartHotfix->setProperty("iconSource",
                                  QStringLiteral(":/icons/gitflow_start.svg"));
-  actionStartHotfix->setIcon(
-      StylesheetManager::StylesheetManager::recolorPixmap(
-          QPixmap(":/icons/gitflow_start.svg"), shortcutIconColor));
+  actionStartHotfix->setIconVisibleInMenu(true);
+  actionStartHotfix->setIcon(themedIcon(":/icons/gitflow_start.svg"));
   gitFlowMenu->addSeparator();
   auto *actionFinishFeature = gitFlowMenu->addAction(tr("Finish feature"));
   actionFinishFeature->setProperty(
       "iconSource", QStringLiteral(":/icons/gitflow_finish.svg"));
-  actionFinishFeature->setIcon(
-      StylesheetManager::StylesheetManager::recolorPixmap(
-          QPixmap(":/icons/gitflow_finish.svg"), shortcutIconColor));
+  actionFinishFeature->setIconVisibleInMenu(true);
+  actionFinishFeature->setIcon(themedIcon(":/icons/gitflow_finish.svg"));
   auto *actionFinishRelease = gitFlowMenu->addAction(tr("Finish release"));
   actionFinishRelease->setProperty(
       "iconSource", QStringLiteral(":/icons/gitflow_finish.svg"));
-  actionFinishRelease->setIcon(
-      StylesheetManager::StylesheetManager::recolorPixmap(
-          QPixmap(":/icons/gitflow_finish.svg"), shortcutIconColor));
+  actionFinishRelease->setIconVisibleInMenu(true);
+  actionFinishRelease->setIcon(themedIcon(":/icons/gitflow_finish.svg"));
   auto *actionFinishHotfix = gitFlowMenu->addAction(tr("Finish hotfix"));
   actionFinishHotfix->setProperty("iconSource",
                                   QStringLiteral(":/icons/gitflow_finish.svg"));
-  actionFinishHotfix->setIcon(
-      StylesheetManager::StylesheetManager::recolorPixmap(
-          QPixmap(":/icons/gitflow_finish.svg"), shortcutIconColor));
+  actionFinishHotfix->setIconVisibleInMenu(true);
+  actionFinishHotfix->setIcon(themedIcon(":/icons/gitflow_finish.svg"));
   gitFlowDropdown->setMenu(gitFlowMenu);
 
   auto *pushButtonStash = new QPushButton();

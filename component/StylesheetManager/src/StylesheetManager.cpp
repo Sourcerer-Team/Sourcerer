@@ -2378,6 +2378,27 @@ QPixmap renderSvgToPixmap(const QString &path, const QColor &color) {
   return StylesheetManager::StylesheetManager::recolorPixmap(pixmap, color);
 }
 
+QPixmap loadPixmap(const QString &path) {
+  if (path.endsWith(QStringLiteral(".svg"), Qt::CaseInsensitive)) {
+    QSvgRenderer renderer(path);
+    if (!renderer.isValid()) {
+      return {};
+    }
+
+    const QSize defaultSize = renderer.defaultSize();
+    const QSize size = defaultSize.isValid() && !defaultSize.isEmpty()
+                           ? defaultSize
+                           : QSize(24, 24);
+    QPixmap pixmap(size);
+    pixmap.fill(Qt::transparent);
+    QPainter painter(&pixmap);
+    renderer.render(&painter);
+    return pixmap;
+  }
+
+  return QPixmap(path);
+}
+
 QIcon issueTrackerToolbarIcon(const QString &path,
                               const QString &disabledPath) {
   const QColor iconColor =
@@ -2456,7 +2477,7 @@ void StylesheetManager::refreshMenuBarButtonIcons(QWidget *root) {
       if (iconSource.isEmpty())
         continue;
 
-      button->setIcon(recolorPixmap(QPixmap(iconSource), iconColor));
+      button->setIcon(recolorPixmap(loadPixmap(iconSource), iconColor));
       continue;
     }
 
@@ -2474,7 +2495,7 @@ void StylesheetManager::refreshMenuBarButtonIcons(QWidget *root) {
         if (iconSource.isEmpty())
           continue;
 
-        action->setIcon(recolorPixmap(QPixmap(iconSource), iconColor));
+        action->setIcon(recolorPixmap(loadPixmap(iconSource), iconColor));
       }
     }
   }
