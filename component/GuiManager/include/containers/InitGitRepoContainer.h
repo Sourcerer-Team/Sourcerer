@@ -33,7 +33,7 @@ signals:
 
 private slots:
   void onBrowseClicked();
-  void onInitClicked() const;
+  void onInitClicked();
 
 private:
   void eventCallback(EventManager::Event event);

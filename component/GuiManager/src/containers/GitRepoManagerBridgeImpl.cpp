@@ -1317,6 +1317,14 @@ void GitRepoManagerBridgeImpl::createTagFromCommit(
     const QString &tagName, const QString &message, bool isAnnotated) {
   LOG_PERF(0, "Enter");
 
+  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
+    _container.showErrorToast(
+        _container.tr("You must create a Git profile in User Profiles and set it as the default profile before performing this operation."),
+        _container.tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const QString author =
       Common::UserProfileManager::instance().currentProfile().author;
   const QString email =
@@ -3800,6 +3808,14 @@ void GitRepoManagerBridgeImpl::merge(
     const QString &destBranch) {
   LOG_PERF(0, "Enter");
 
+  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
+    _container.showErrorToast(
+        _container.tr("You must create a Git profile in User Profiles and set it as the default profile before performing this operation."),
+        _container.tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const QString author = _container._userProfileManager.currentProfile().author;
   const QString email = _container._userProfileManager.currentProfile().email;
 
@@ -3873,6 +3889,14 @@ void GitRepoManagerBridgeImpl::rebase(
     const QWeakPointer<GitRepoContainer> &guard, const QString &sourceBranch,
     const QString &destBranch) {
   LOG_PERF(0, "Enter");
+
+  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
+    _container.showErrorToast(
+        _container.tr("You must create a Git profile in User Profiles and set it as the default profile before performing this operation."),
+        _container.tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   const QString author = _container._userProfileManager.currentProfile().author;
   const QString email = _container._userProfileManager.currentProfile().email;
@@ -4020,6 +4044,14 @@ void GitRepoManagerBridgeImpl::finishGitFlowBranch(
     const QWeakPointer<GitRepoContainer> &guard,
     const GitRepo::GitFlowBranchType branchType, const QString &branchName) {
   LOG_PERF(0, "Enter");
+
+  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
+    _container.showErrorToast(
+        _container.tr("You must create a Git profile in User Profiles and set it as the default profile before performing this operation."),
+        _container.tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   const QString author = _container._userProfileManager.currentProfile().author;
   const QString email = _container._userProfileManager.currentProfile().email;
@@ -5311,6 +5343,14 @@ void GitRepoManagerBridgeImpl::revert(
     const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
   LOG_PERF(0, "Enter");
 
+  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
+    _container.showErrorToast(
+        _container.tr("You must create a Git profile in User Profiles and set it as the default profile before performing this operation."),
+        _container.tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const QString summaryToRevert =
       commitSummaryFromHistoryModel(_container._historyModel.data(), commit);
 
@@ -5389,6 +5429,14 @@ void GitRepoManagerBridgeImpl::revert(
 void GitRepoManagerBridgeImpl::cherryPick(
     const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
   LOG_PERF(0, "Enter");
+
+  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
+    _container.showErrorToast(
+        _container.tr("You must create a Git profile in User Profiles and set it as the default profile before performing this operation."),
+        _container.tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   QString summaryCherryPick;
 
