@@ -2,6 +2,7 @@
 
 #include "models/GitHistoryModel.h"
 #include "widgets/ContainerWidget.h"
+#include "widgets/ElidedLabel.h"
 #include "widgets/ShortcutsToolbarWidget.h"
 #include "widgets/SpinnerOverlayWidget.h"
 #include "widgets/ToastHostWidget.h"
@@ -15,6 +16,7 @@
 
 #include <QAction>
 #include <QEnableSharedFromThis>
+#include <QHash>
 #ifdef Q_OS_WIN32
 #include <win32/DirectoryWatcher.h>
 #else
@@ -50,6 +52,7 @@ class ScrollbarMarksWidget;
 
 class QEvent;
 class QCheckBox;
+class QNetworkAccessManager;
 
 namespace GuiManager::Containers {
 
@@ -243,6 +246,8 @@ private:
   void closeDiffViewerIfOpen();
   void refreshScintillaTheme();
   void refreshSigningControls();
+  void updateCommitAuthorAvatar(const QString &authorName,
+                                const QString &authorEmail);
   void deleteFiles(const WeakPtr &guard, const QStringList &files);
   void copyFilePathsToClipboard(const QStringList &filePaths) const;
   bool getActiveLocalBranch();
@@ -355,6 +360,13 @@ private:
   QSharedPointer<Models::GitHistoryModel> _historyModel;
   QToolButton *_historyFilterButton;
   QPixmap *_errorPixmap;
+  QNetworkAccessManager *_authorAvatarNetworkManager;
+  QHash<QString, QPixmap> _authorAvatarCache;
+  QSet<QString> _authorAvatarInFlight;
+  QString _currentAuthorAvatarKey;
+  quint64 _authorAvatarRequestSerial = 0;
+  Widgets::ElidedLabel *_authorNameValueLabel;
+  Widgets::ElidedLabel *_authorEmailValueLabel;
   Util::Dispatcher _dispatcher;
 
   Util::Mutex _tooltipsMutex;

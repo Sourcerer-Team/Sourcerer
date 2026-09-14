@@ -1319,7 +1319,9 @@ void GitRepoManagerBridgeImpl::createTagFromCommit(
 
   if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
     _container.showErrorToast(
-        _container.tr("You must create a Git profile in User Profiles and set it as the default profile before performing this operation."),
+        _container.tr(
+            "You must create a Git profile in User Profiles and set it as the "
+            "default profile before performing this operation."),
         _container.tr("Error"));
     LOG_PERF(0, "Exit");
     return;
@@ -3810,7 +3812,9 @@ void GitRepoManagerBridgeImpl::merge(
 
   if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
     _container.showErrorToast(
-        _container.tr("You must create a Git profile in User Profiles and set it as the default profile before performing this operation."),
+        _container.tr(
+            "You must create a Git profile in User Profiles and set it as the "
+            "default profile before performing this operation."),
         _container.tr("Error"));
     LOG_PERF(0, "Exit");
     return;
@@ -3892,7 +3896,9 @@ void GitRepoManagerBridgeImpl::rebase(
 
   if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
     _container.showErrorToast(
-        _container.tr("You must create a Git profile in User Profiles and set it as the default profile before performing this operation."),
+        _container.tr(
+            "You must create a Git profile in User Profiles and set it as the "
+            "default profile before performing this operation."),
         _container.tr("Error"));
     LOG_PERF(0, "Exit");
     return;
@@ -4047,7 +4053,9 @@ void GitRepoManagerBridgeImpl::finishGitFlowBranch(
 
   if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
     _container.showErrorToast(
-        _container.tr("You must create a Git profile in User Profiles and set it as the default profile before performing this operation."),
+        _container.tr(
+            "You must create a Git profile in User Profiles and set it as the "
+            "default profile before performing this operation."),
         _container.tr("Error"));
     LOG_PERF(0, "Exit");
     return;
@@ -5345,7 +5353,9 @@ void GitRepoManagerBridgeImpl::revert(
 
   if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
     _container.showErrorToast(
-        _container.tr("You must create a Git profile in User Profiles and set it as the default profile before performing this operation."),
+        _container.tr(
+            "You must create a Git profile in User Profiles and set it as the "
+            "default profile before performing this operation."),
         _container.tr("Error"));
     LOG_PERF(0, "Exit");
     return;
@@ -5432,7 +5442,9 @@ void GitRepoManagerBridgeImpl::cherryPick(
 
   if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
     _container.showErrorToast(
-        _container.tr("You must create a Git profile in User Profiles and set it as the default profile before performing this operation."),
+        _container.tr(
+            "You must create a Git profile in User Profiles and set it as the "
+            "default profile before performing this operation."),
         _container.tr("Error"));
     LOG_PERF(0, "Exit");
     return;
