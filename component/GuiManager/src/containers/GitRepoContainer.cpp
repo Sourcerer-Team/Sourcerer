@@ -40,6 +40,7 @@
 #include <QCalendarWidget>
 #include <QCheckBox>
 #include <QClipboard>
+#include <QCryptographicHash>
 #include <QCursor>
 #include <QDate>
 #include <QDateEdit>
@@ -48,15 +49,20 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFont>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QImage>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QMovie>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
@@ -71,6 +77,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
+#include <QUrl>
 #include <Qsci/qsciscintilla.h>
 
 #include <algorithm>
@@ -178,6 +185,7 @@ enum class MainViewPanes {
 };
 
 constexpr QSize kCommitSignatureIconSize(16, 16);
+constexpr QSize kCommitAuthorAvatarSize(56, 56);
 
 QPixmap themedIcon(const QString &resourcePath) {
   return StylesheetManager::StylesheetManager::recolorPixmap(
@@ -216,6 +224,193 @@ void setIconLabel(QLabel *label, const QPixmap &icon,
                                Qt::SmoothTransformation));
   label->setText(QString());
   label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+  label->setToolTip(accessibleText);
+  label->setStatusTip(accessibleText);
+  label->setAccessibleName(accessibleText);
+}
+
+QString avatarInitialsForName(const QString &authorName,
+                              const QString &authorEmail) {
+  QStringList initialsParts;
+  const QString simplifiedName = authorName.simplified();
+  if (!simplifiedName.isEmpty()) {
+    const QStringList nameParts =
+        simplifiedName.split(QChar::fromLatin1(' '), Qt::SkipEmptyParts);
+    for (const QString &part : nameParts) {
+      if (!part.isEmpty() && part.at(0).isLetterOrNumber()) {
+        initialsParts << part.left(1).toUpper();
+      }
+    }
+  }
+
+  QString initials = initialsParts.join(QString());
+  if (initials.size() > 2) {
+    initials = initials.left(2);
+  }
+
+  if (initials.isEmpty()) {
+    const QString localPart =
+        authorEmail.section(QChar::fromLatin1('@'), 0, 0).simplified();
+    for (const QChar ch : localPart) {
+      if (ch.isLetterOrNumber()) {
+        initials.append(ch.toUpper());
+        if (initials.size() == 2) {
+          break;
+        }
+      }
+    }
+  }
+
+  if (initials.isEmpty()) {
+    initials = QStringLiteral("?");
+  }
+
+  return initials;
+}
+
+QColor avatarBackgroundColorForKey(const QString &key) {
+  const uint hash = qHash(key.trimmed().toLower());
+  return QColor::fromHsl(static_cast<int>(hash % 360), 170, 120);
+}
+
+QPixmap createAuthorInitialsAvatar(const QString &authorName,
+                                   const QString &authorEmail,
+                                   const QSize &size) {
+  QPixmap pixmap(size);
+  pixmap.fill(Qt::transparent);
+
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setPen(Qt::NoPen);
+  painter.setBrush(avatarBackgroundColorForKey(
+      !authorEmail.trimmed().isEmpty() ? authorEmail : authorName));
+  painter.drawEllipse(pixmap.rect().adjusted(1, 1, -1, -1));
+
+  QFont font = painter.font();
+  font.setBold(true);
+  font.setPointSizeF(size.height() * 0.38);
+  painter.setFont(font);
+  painter.setPen(Qt::white);
+  painter.drawText(pixmap.rect(), Qt::AlignCenter,
+                   avatarInitialsForName(authorName, authorEmail));
+
+  return pixmap;
+}
+
+QPixmap circularCropPixmap(const QImage &image, const QSize &size) {
+  if (image.isNull() || size.isEmpty()) {
+    return {};
+  }
+
+  QPixmap source = QPixmap::fromImage(image.scaled(
+      size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
+  if (source.isNull()) {
+    return {};
+  }
+
+  QPixmap target(size);
+  target.fill(Qt::transparent);
+
+  QPainter painter(&target);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  QPainterPath clipPath;
+  clipPath.addEllipse(target.rect().adjusted(1, 1, -1, -1));
+  painter.setClipPath(clipPath);
+
+  const QPoint offset((target.width() - source.width()) / 2,
+                      (target.height() - source.height()) / 2);
+  painter.drawPixmap(offset, source);
+  return target;
+}
+
+QString avatarUserNameFromEmail(const QString &normalizedEmail) {
+  const QString localPart =
+      normalizedEmail.section(QChar::fromLatin1('@'), 0, 0);
+  const int plusIndex = localPart.indexOf(QChar::fromLatin1('+'));
+  if (plusIndex >= 0 && plusIndex + 1 < localPart.size()) {
+    return localPart.mid(plusIndex + 1);
+  }
+  return localPart;
+}
+
+void appendAvatarUrl(QStringList &avatarUrls, const QString &url) {
+  if (!url.isEmpty() && !avatarUrls.contains(url)) {
+    avatarUrls << url;
+  }
+}
+
+QStringList avatarUrlsForEmail(const QString &normalizedEmail) {
+  QStringList avatarUrls;
+  const QString domain = normalizedEmail.section(QChar::fromLatin1('@'), 1, 1);
+  const QString userName = avatarUserNameFromEmail(normalizedEmail);
+  const QString encodedUserName =
+      QString::fromLatin1(QUrl::toPercentEncoding(userName.trimmed()));
+
+  if (domain.endsWith(QStringLiteral("gmail.com")) ||
+      domain.endsWith(QStringLiteral("googlemail.com"))) {
+    appendAvatarUrl(
+        avatarUrls,
+        QStringLiteral(
+            "https://profiles.google.com/s2/photos/profile/%1?sz=128")
+            .arg(
+                QString::fromLatin1(QUrl::toPercentEncoding(normalizedEmail))));
+  }
+
+  if (domain.endsWith(QStringLiteral("github.com"))) {
+    appendAvatarUrl(avatarUrls,
+                    QStringLiteral("https://github.com/%1.png?size=128")
+                        .arg(encodedUserName));
+  }
+
+  if (domain.endsWith(QStringLiteral("gitlab.com"))) {
+    appendAvatarUrl(avatarUrls,
+                    QStringLiteral("https://gitlab.com/%1.png?width=128")
+                        .arg(encodedUserName));
+  }
+
+  if (domain.endsWith(QStringLiteral("bitbucket.org"))) {
+    appendAvatarUrl(
+        avatarUrls,
+        QStringLiteral("https://bitbucket.org/account/%1/avatar/128/")
+            .arg(encodedUserName));
+  }
+
+  if (domain.endsWith(QStringLiteral("azure.com")) ||
+      domain.endsWith(QStringLiteral("visualstudio.com")) ||
+      domain.endsWith(QStringLiteral("microsoft.com")) ||
+      domain.endsWith(QStringLiteral("outlook.com")) ||
+      domain.endsWith(QStringLiteral("hotmail.com")) ||
+      domain.endsWith(QStringLiteral("live.com"))) {
+    appendAvatarUrl(avatarUrls,
+                    QStringLiteral("https://outlook.office.com/owa/service.svc/"
+                                   "s/GetPersonaPhoto?email=%1&size=HR64x64")
+                        .arg(QString::fromLatin1(
+                            QUrl::toPercentEncoding(normalizedEmail))));
+  }
+
+  const QString gravatarHash =
+      QString::fromLatin1(QCryptographicHash::hash(normalizedEmail.toUtf8(),
+                                                   QCryptographicHash::Md5)
+                              .toHex());
+  appendAvatarUrl(
+      avatarUrls,
+      QStringLiteral("https://www.gravatar.com/avatar/%1?s=128&d=404")
+          .arg(gravatarHash));
+
+  return avatarUrls;
+}
+
+void setAvatarLabel(QLabel *label, const QPixmap &avatar,
+                    const QString &accessibleText) {
+  if (!label) {
+    return;
+  }
+
+  label->setPixmap(avatar.scaled(kCommitAuthorAvatarSize,
+                                 Qt::KeepAspectRatioByExpanding,
+                                 Qt::SmoothTransformation));
+  label->setText(QString());
+  label->setAlignment(Qt::AlignCenter);
   label->setToolTip(accessibleText);
   label->setStatusTip(accessibleText);
   label->setAccessibleName(accessibleText);
@@ -265,7 +460,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()),
       _historyFilterButton(nullptr), _historyBackButton(nullptr),
-      _historyForwardButton(nullptr), _dispatcher(20), _mousePos(-1, -1),
+      _historyForwardButton(nullptr),
+      _authorAvatarNetworkManager(new QNetworkAccessManager(this)),
+      _dispatcher(20), _mousePos(-1, -1),
       _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
@@ -274,6 +471,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _commitListModel(nullptr), _commitTreeModel(nullptr),
       _displayFilesAllListModel(nullptr), _displayFilesAllTreeModel(nullptr),
       _displayFilesAllCheckBox(nullptr), _repoDirWatcher(nullptr),
+      _authorNameValueLabel(nullptr), _authorEmailValueLabel(nullptr),
       _repoDirWatcherTimer(new QTimer(this)),
       _shortcutsWidget(new GuiManager::Widgets::ShortcutsToolbarWidget(this)),
       _selected(false), _historyRefreshSemaphore(nullptr),
@@ -281,6 +479,34 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
+
+  _authorNameValueLabel = new Widgets::ElidedLabel(ui->groupBoxInfo);
+  _authorNameValueLabel->setTextElideMode(Qt::ElideRight);
+  _authorNameValueLabel->setMinimumWidth(0);
+  _authorNameValueLabel->setSizePolicy(QSizePolicy::Expanding,
+                                       QSizePolicy::Preferred);
+  ui->horizontalLayoutPageDisplayGroupBoxInfoAuthor->replaceWidget(
+      ui->labelPageDiaplayAuthorValue, _authorNameValueLabel);
+  ui->labelPageDiaplayAuthorValue->hide();
+  _authorNameValueLabel->show();
+
+  _authorEmailValueLabel = new Widgets::ElidedLabel(ui->groupBoxInfo);
+  _authorEmailValueLabel->setTextElideMode(Qt::ElideRight);
+  _authorEmailValueLabel->setMinimumWidth(0);
+  _authorEmailValueLabel->setSizePolicy(QSizePolicy::Expanding,
+                                        QSizePolicy::Preferred);
+  ui->horizontalLayoutPageDisplayGroupBoxInfoEmail->replaceWidget(
+      ui->labelPageDisplayEmailValue, _authorEmailValueLabel);
+  ui->labelPageDisplayEmailValue->hide();
+  _authorEmailValueLabel->show();
+
+  ui->horizontalLayoutPageDisplayGroupBoxInfoAuthorDetails->setStretch(0, 1);
+  ui->horizontalLayoutPageDisplayGroupBoxInfoAuthorDetails->setStretch(1, 0);
+
+  setAvatarLabel(
+      ui->labelPageDisplayAuthorAvatar,
+      createAuthorInitialsAvatar(QString(), QString(), kCommitAuthorAvatarSize),
+      tr("Commit author avatar"));
   ui->localPage->setContentsMargins(0, 0, 0, 0);
   ui->remotePage->setContentsMargins(0, 0, 0, 0);
   ui->tagsPage->setContentsMargins(0, 0, 0, 0);
@@ -6312,6 +6538,121 @@ void GitRepoContainer::refreshSigningControls() {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::updateCommitAuthorAvatar(const QString &authorName,
+                                                const QString &authorEmail) {
+  LOG_PERF(0, "Enter");
+
+  const QString normalizedEmail = authorEmail.trimmed().toLower();
+  const QString normalizedName = authorName.trimmed();
+  const QString cacheKey =
+      !normalizedEmail.isEmpty() ? normalizedEmail : normalizedName.toLower();
+
+  _currentAuthorAvatarKey = cacheKey;
+
+  const QString accessibleText =
+      authorName.isEmpty() && authorEmail.isEmpty()
+          ? tr("Commit author avatar")
+          : tr("Author avatar for %1%2")
+                .arg(normalizedName.isEmpty() ? tr("Unknown author")
+                                              : normalizedName,
+                     normalizedEmail.isEmpty()
+                         ? QString()
+                         : QStringLiteral(" <") + normalizedEmail +
+                               QLatin1Char('>'));
+
+  const QPixmap fallbackAvatar = createAuthorInitialsAvatar(
+      authorName, authorEmail, kCommitAuthorAvatarSize);
+  setAvatarLabel(ui->labelPageDisplayAuthorAvatar, fallbackAvatar,
+                 accessibleText);
+
+  if (cacheKey.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (_authorAvatarCache.contains(cacheKey)) {
+    setAvatarLabel(ui->labelPageDisplayAuthorAvatar,
+                   _authorAvatarCache.value(cacheKey), accessibleText);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (_authorAvatarInFlight.contains(cacheKey)) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (normalizedEmail.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  _authorAvatarInFlight.insert(cacheKey);
+  const quint64 requestSerial = ++_authorAvatarRequestSerial;
+
+  const QStringList avatarUrls = avatarUrlsForEmail(normalizedEmail);
+
+  auto tryNextSource = std::make_shared<std::function<void(int)>>();
+  *tryNextSource = [this, requestSerial, cacheKey, avatarUrls, accessibleText,
+                    authorName, authorEmail, tryNextSource](int index) {
+    if (index >= avatarUrls.size()) {
+      _authorAvatarInFlight.remove(cacheKey);
+      LOG_PERF(0, "Exit");
+      return;
+    }
+
+    QNetworkRequest request{QUrl(avatarUrls[index])};
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::NoLessSafeRedirectPolicy);
+    request.setRawHeader(QByteArrayLiteral("User-Agent"),
+                         QByteArrayLiteral("Sourcerer"));
+    request.setRawHeader(
+        QByteArrayLiteral("Accept"),
+        QByteArrayLiteral("image/avif,image/webp,image/*,*/*;q=0.8"));
+
+    QNetworkReply *reply = _authorAvatarNetworkManager->get(request);
+    connect(reply, &QNetworkReply::finished, this,
+            [this, reply, requestSerial, cacheKey, accessibleText, authorName,
+             authorEmail, tryNextSource, index]() {
+              if (requestSerial != _authorAvatarRequestSerial ||
+                  cacheKey != _currentAuthorAvatarKey) {
+                _authorAvatarInFlight.remove(cacheKey);
+                reply->deleteLater();
+                return;
+              }
+
+              const int statusCode =
+                  reply->attribute(QNetworkRequest::HttpStatusCodeAttribute)
+                      .toInt();
+              const bool httpSuccess = statusCode >= 200 && statusCode < 300;
+              if (reply->error() != QNetworkReply::NoError || !httpSuccess) {
+                reply->deleteLater();
+                (*tryNextSource)(index + 1);
+                return;
+              }
+
+              const QByteArray payload = reply->readAll();
+              const QImage image = QImage::fromData(payload);
+              const QPixmap avatar =
+                  circularCropPixmap(image, kCommitAuthorAvatarSize);
+              if (avatar.isNull()) {
+                reply->deleteLater();
+                (*tryNextSource)(index + 1);
+                return;
+              }
+
+              _authorAvatarCache.insert(cacheKey, avatar);
+              _authorAvatarInFlight.remove(cacheKey);
+              setAvatarLabel(ui->labelPageDisplayAuthorAvatar, avatar,
+                             accessibleText);
+              reply->deleteLater();
+            });
+  };
+
+  LOG_PERF(0, "Exit");
+  (*tryNextSource)(0);
+}
+
 void GitRepoContainer::deleteFiles(const WeakPtr &guard,
                                    const QStringList &files) {
   LOG_PERF(0, "Enter");
@@ -7253,8 +7594,11 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     ui->labelPageDiaplayShaValue->setText(commit.left(MAX_COMMIT_SHA_LENGTH));
     ui->textEditPageDisplayDescription->setText(commitInfo.message);
-    ui->labelPageDiaplayAuthorValue->setText(commitInfo.authorName);
-    ui->labelPageDisplayEmailValue->setText(commitInfo.authorEmail);
+    _authorNameValueLabel->setFullText(commitInfo.authorName);
+    _authorEmailValueLabel->setFullText(commitInfo.authorEmail);
+    _authorNameValueLabel->setToolTip(commitInfo.authorName);
+    _authorEmailValueLabel->setToolTip(commitInfo.authorEmail);
+    updateCommitAuthorAvatar(commitInfo.authorName, commitInfo.authorEmail);
     const QStringList visibleParents =
         commitInfo.parents.mid(0, MAXIMUM_PARENTS_IN_LABEL);
     ui->labelPageDiaplayParentsValue->setText(
