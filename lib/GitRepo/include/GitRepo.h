@@ -749,11 +749,13 @@ bool createBranchFromCommit(git_repository *repo, const QString &commit,
                             const QString &branchName);
 
 bool startGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
-                       const QString &branchName);
+                        const QString &branchName,
+                        const QString &developmentBranchName = {});
 
 bool finishGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
                          const QString &branchName, const QString &author,
-                         const QString &email);
+                         const QString &email,
+                         const QString &developmentBranchName = {});
 
 bool deleteStash(git_repository *repo, int stashIndex);
 // Delete all stashes in the repository

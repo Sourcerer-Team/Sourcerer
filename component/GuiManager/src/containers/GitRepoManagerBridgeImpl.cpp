@@ -3959,14 +3959,20 @@ void GitRepoManagerBridgeImpl::startGitFlowBranch(
   command.branchType = branchType;
   command.start = true;
   command.branchName = branchName;
+  command.developmentBranchName =
+      _container._configManager
+          .getString(
+              ConfigManager::ConfigKey::GitRepoGitFlowDevelopmentBranchName)
+          .trimmed();
 
-  EventManager::Event gitFlowEvent(EventManager::EventType::GitRepoManagerGitFlow,
-                                   eventUuid);
+  EventManager::Event gitFlowEvent(
+      EventManager::EventType::GitRepoManagerGitFlow, eventUuid);
   gitFlowEvent.addData(command);
   _container._eventManager.send(gitFlowEvent);
 
-  static std::set types = {EventManager::EventType::GitRepoManagerGitFlowError,
-                           EventManager::EventType::GitRepoManagerGitFlowResult};
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGitFlowError,
+      EventManager::EventType::GitRepoManagerGitFlowResult};
 
   const auto &[success, event] =
       _container._eventManager.waitForAnswer(token, eventUuid, types);
@@ -3977,8 +3983,9 @@ void GitRepoManagerBridgeImpl::startGitFlowBranch(
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       _container.showSpinnerOverlay(false);
       _container.showErrorPage();
-      _container.showErrorToast(_container.tr("Failed to start GitFlow branch."),
-                                _container.tr("Error"));
+      _container.showErrorToast(
+          _container.tr("Failed to start GitFlow branch."),
+          _container.tr("Error"));
     });
 
     _container.prepareWatcher(guard);
@@ -3999,18 +4006,10 @@ void GitRepoManagerBridgeImpl::startGitFlowBranch(
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.updateModelActiveBranch(guard, branchName,
-                                       GitRepo::BranchType::Local);
-  });
-  _container._dispatcher.dispatch([=]() {
-    getBranchHistory(guard);
-    getLocalBranches();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showToast(
-          _container.tr("Successfully started branch '%1'.").arg(branchName),
-          _container.tr("Info"));
-    });
+    _container.showSpinnerOverlay(false);
+    _container.showToast(
+        _container.tr("Successfully started branch '%1'.").arg(branchName),
+        _container.tr("Info"));
   });
 
   _container.prepareWatcher(guard);
@@ -4036,16 +4035,22 @@ void GitRepoManagerBridgeImpl::finishGitFlowBranch(
   command.branchType = branchType;
   command.start = false;
   command.branchName = branchName;
+  command.developmentBranchName =
+      _container._configManager
+          .getString(
+              ConfigManager::ConfigKey::GitRepoGitFlowDevelopmentBranchName)
+          .trimmed();
   command.author = author;
   command.email = email;
 
-  EventManager::Event gitFlowEvent(EventManager::EventType::GitRepoManagerGitFlow,
-                                   eventUuid);
+  EventManager::Event gitFlowEvent(
+      EventManager::EventType::GitRepoManagerGitFlow, eventUuid);
   gitFlowEvent.addData(command);
   _container._eventManager.send(gitFlowEvent);
 
-  static std::set types = {EventManager::EventType::GitRepoManagerGitFlowError,
-                           EventManager::EventType::GitRepoManagerGitFlowResult};
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGitFlowError,
+      EventManager::EventType::GitRepoManagerGitFlowResult};
 
   const auto &[success, event] =
       _container._eventManager.waitForAnswer(token, eventUuid, types);
@@ -4056,8 +4061,9 @@ void GitRepoManagerBridgeImpl::finishGitFlowBranch(
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       _container.showSpinnerOverlay(false);
       _container.showErrorPage();
-      _container.showErrorToast(_container.tr("Failed to finish GitFlow branch."),
-                                _container.tr("Error"));
+      _container.showErrorToast(
+          _container.tr("Failed to finish GitFlow branch."),
+          _container.tr("Error"));
     });
 
     _container.prepareWatcher(guard);
@@ -4077,22 +4083,11 @@ void GitRepoManagerBridgeImpl::finishGitFlowBranch(
     return;
   }
 
-  const QString destinationBranch = QStringLiteral("develop");
-
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.updateModelActiveBranch(guard, destinationBranch,
-                                       GitRepo::BranchType::Local);
-  });
-  _container._dispatcher.dispatch([=]() {
-    refreshStatus(guard);
-    getLocalBranches();
-    getBranchHistory(guard);
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showToast(
-          _container.tr("Successfully finished branch '%1'.").arg(branchName),
-          _container.tr("Info"));
-    });
+    _container.showSpinnerOverlay(false);
+    _container.showToast(
+        _container.tr("Successfully finished branch '%1'.").arg(branchName),
+        _container.tr("Info"));
   });
 
   _container.prepareWatcher(guard);
@@ -5709,7 +5704,8 @@ void GitRepoManagerBridgeImpl::stageFiles(
   Q_ASSERT(!files.isEmpty());
 
   if (files.isEmpty()) {
-    _container.showSpinnerOverlay(false);
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { _container.showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }
@@ -5791,7 +5787,8 @@ void GitRepoManagerBridgeImpl::unstageFiles(
   Q_ASSERT(!files.isEmpty());
 
   if (files.isEmpty()) {
-    _container.showSpinnerOverlay(false);
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { _container.showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }

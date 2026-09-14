@@ -122,7 +122,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/MoveProxy.h
         include/widgets/MouseTrackingSplitter.h
         include/widgets/OverlayWidget.h
-        include/widgets/OpagueGroupBox.h
+        include/widgets/OpaqueGroupBox.h
         include/widgets/OpaqueLabel.h
         include/widgets/OpaquePushButton.h
         include/widgets/PersistentPlaceholderLineEdit.h

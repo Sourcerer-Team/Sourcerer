@@ -636,6 +636,7 @@ struct GitRepoGitFlowCommand final : GitRepoCommand {
   GitRepo::GitFlowBranchType branchType = GitRepo::GitFlowBranchType::Unknown;
   bool start = true;
   QString branchName;
+  QString developmentBranchName;
   QString author;
   QString email;
 };

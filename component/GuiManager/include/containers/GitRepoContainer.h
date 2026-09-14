@@ -301,14 +301,16 @@ private:
                                     const QString &name) const;
   QString currentGitFlowBranchName(GitRepo::GitFlowBranchType branchType) const;
   void copyFilePathsToClipboard(const QStringList &filePaths);
+  bool showWarningForUncommittedChanges(const QString &title,
+                                        const QString &message) const;
   bool showWarningForBranchCheckout() const;
   void simulateClickOnHistoryRow(int row) const;
   void simulateClickOnFirstHistoryRow() const;
   void stageAll(const WeakPtr &guard);
   void unstageAll(const WeakPtr &guard);
-  void updateBranchHistory(
-      const WeakPtr &guard,
-      const GitRepo::GitHistoryWithStatus &historyWithStatus);
+  void
+  updateBranchHistory(const WeakPtr &guard,
+                      const GitRepo::GitHistoryWithStatus &historyWithStatus);
   void updateLocalBranchesModel(const WeakPtr &guard,
                                 const QStringList &localBranches) const;
   void updateLocalBranchesModelActiveBranch(const WeakPtr &guard,

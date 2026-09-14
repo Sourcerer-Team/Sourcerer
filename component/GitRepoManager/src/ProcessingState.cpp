@@ -1964,13 +1964,14 @@ void ProcessingState::gitFlowWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success = command.start
-                           ? GitRepo::startGitFlowBranch(repo, command.branchType,
-                                                         command.branchName)
-                           : GitRepo::finishGitFlowBranch(repo, command.branchType,
-                                                         command.branchName,
-                                                         command.author,
-                                                         command.email);
+  const bool success =
+      command.start
+          ? GitRepo::startGitFlowBranch(repo, command.branchType,
+                                        command.branchName,
+                                        command.developmentBranchName)
+          : GitRepo::finishGitFlowBranch(
+                repo, command.branchType, command.branchName, command.author,
+                command.email, command.developmentBranchName);
   if (!success) {
     const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
