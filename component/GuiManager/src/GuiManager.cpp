@@ -110,6 +110,7 @@ void GuiManager::start() {
   }
 
   QApplication::setWindowIcon(QIcon(":/icons/sorcerer-hat.png"));
+  QApplication::setAttribute(Qt::AA_DontShowIconsInMenus, false);
 
   QApplication::setStyle(new DarkStyle());
   QApplication::style()->setObjectName("fusion");
