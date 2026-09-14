@@ -377,6 +377,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *historyHeader = ui->historyView->horizontalHeader();
   _historyFilterButton = new QToolButton(historyHeader);
+  _historyFilterButton->setObjectName("historyFilterButton");
   _historyFilterButton->setIconSize(QSize(16, 16));
   refreshHistoryFilterButtonIcon();
   _historyFilterButton->setToolButtonStyle(Qt::ToolButtonIconOnly);
