@@ -2,6 +2,7 @@
 
 #include "models/GitHistoryModel.h"
 #include "widgets/ContainerWidget.h"
+#include "widgets/ElidedLabel.h"
 #include "widgets/ShortcutsToolbarWidget.h"
 #include "widgets/SpinnerOverlayWidget.h"
 #include "widgets/ToastHostWidget.h"
@@ -15,6 +16,7 @@
 
 #include <QAction>
 #include <QEnableSharedFromThis>
+#include <QHash>
 #ifdef Q_OS_WIN32
 #include <win32/DirectoryWatcher.h>
 #else
@@ -50,6 +52,7 @@ class ScrollbarMarksWidget;
 
 class QEvent;
 class QCheckBox;
+class QNetworkAccessManager;
 
 namespace GuiManager::Containers {
 
@@ -168,6 +171,8 @@ private slots:
   void onPull(bool rebase = false);
   void onFetchAll();
   void onPush(bool force = false);
+  void onStartGitFlowBranch(GitRepo::GitFlowBranchType branchType);
+  void onFinishGitFlowBranch(GitRepo::GitFlowBranchType branchType);
   void onRemoteBranchSelected(const QString &branchName);
   void onRemoteBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onRenameBranch(const QString &branchName);
@@ -241,6 +246,8 @@ private:
   void closeDiffViewerIfOpen();
   void refreshScintillaTheme();
   void refreshSigningControls();
+  void updateCommitAuthorAvatar(const QString &authorName,
+                                const QString &authorEmail);
   void deleteFiles(const WeakPtr &guard, const QStringList &files);
   void copyFilePathsToClipboard(const QStringList &filePaths) const;
   bool getActiveLocalBranch();
@@ -293,15 +300,22 @@ private:
   void showSpinnerOverlay(bool spinnerEnabled = true) const;
   void showToast(const QString &message, const QString &title);
   void showErrorToast(const QString &message, const QString &title);
+  QString gitFlowBranchPrefix(GitRepo::GitFlowBranchType branchType) const;
+  QString gitFlowBranchDisplayName(GitRepo::GitFlowBranchType branchType) const;
+  QString gitFlowBranchNameForInput(GitRepo::GitFlowBranchType branchType,
+                                    const QString &name) const;
+  QString currentGitFlowBranchName(GitRepo::GitFlowBranchType branchType) const;
   void copyFilePathsToClipboard(const QStringList &filePaths);
+  bool showWarningForUncommittedChanges(const QString &title,
+                                        const QString &message) const;
   bool showWarningForBranchCheckout() const;
   void simulateClickOnHistoryRow(int row) const;
   void simulateClickOnFirstHistoryRow() const;
   void stageAll(const WeakPtr &guard);
   void unstageAll(const WeakPtr &guard);
-  void updateBranchHistory(
-      const WeakPtr &guard,
-      const GitRepo::GitHistoryWithStatus &historyWithStatus);
+  void
+  updateBranchHistory(const WeakPtr &guard,
+                      const GitRepo::GitHistoryWithStatus &historyWithStatus);
   void updateLocalBranchesModel(const WeakPtr &guard,
                                 const QStringList &localBranches) const;
   void updateLocalBranchesModelActiveBranch(const WeakPtr &guard,
@@ -346,6 +360,13 @@ private:
   QSharedPointer<Models::GitHistoryModel> _historyModel;
   QToolButton *_historyFilterButton;
   QPixmap *_errorPixmap;
+  QNetworkAccessManager *_authorAvatarNetworkManager;
+  QHash<QString, QPixmap> _authorAvatarCache;
+  QSet<QString> _authorAvatarInFlight;
+  QString _currentAuthorAvatarKey;
+  quint64 _authorAvatarRequestSerial = 0;
+  Widgets::ElidedLabel *_authorNameValueLabel;
+  Widgets::ElidedLabel *_authorEmailValueLabel;
   Util::Dispatcher _dispatcher;
 
   Util::Mutex _tooltipsMutex;

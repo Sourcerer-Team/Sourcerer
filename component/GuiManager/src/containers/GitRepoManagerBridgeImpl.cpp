@@ -1317,6 +1317,16 @@ void GitRepoManagerBridgeImpl::createTagFromCommit(
     const QString &tagName, const QString &message, bool isAnnotated) {
   LOG_PERF(0, "Enter");
 
+  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
+    _container.showErrorToast(
+        _container.tr(
+            "You must create a Git profile in User Profiles and set it as the "
+            "default profile before performing this operation."),
+        _container.tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const QString author =
       Common::UserProfileManager::instance().currentProfile().author;
   const QString email =
@@ -3800,6 +3810,16 @@ void GitRepoManagerBridgeImpl::merge(
     const QString &destBranch) {
   LOG_PERF(0, "Enter");
 
+  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
+    _container.showErrorToast(
+        _container.tr(
+            "You must create a Git profile in User Profiles and set it as the "
+            "default profile before performing this operation."),
+        _container.tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const QString author = _container._userProfileManager.currentProfile().author;
   const QString email = _container._userProfileManager.currentProfile().email;
 
@@ -3874,6 +3894,16 @@ void GitRepoManagerBridgeImpl::rebase(
     const QString &destBranch) {
   LOG_PERF(0, "Enter");
 
+  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
+    _container.showErrorToast(
+        _container.tr(
+            "You must create a Git profile in User Profiles and set it as the "
+            "default profile before performing this operation."),
+        _container.tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const QString author = _container._userProfileManager.currentProfile().author;
   const QString email = _container._userProfileManager.currentProfile().email;
 
@@ -3940,7 +3970,168 @@ void GitRepoManagerBridgeImpl::rebase(
     return;
   }
 
-  LOG_PERF(0, "Exit")
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::startGitFlowBranch(
+    const QWeakPointer<GitRepoContainer> &guard,
+    const GitRepo::GitFlowBranchType branchType, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  _container.stopWatcher(guard);
+
+  const QString eventUuid = Uuid::createUuid();
+  const int token = _container._eventManager.startWait();
+
+  GitRepoGitFlowCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.branchType = branchType;
+  command.start = true;
+  command.branchName = branchName;
+  command.developmentBranchName =
+      _container._configManager
+          .getString(
+              ConfigManager::ConfigKey::GitRepoGitFlowDevelopmentBranchName)
+          .trimmed();
+
+  EventManager::Event gitFlowEvent(
+      EventManager::EventType::GitRepoManagerGitFlow, eventUuid);
+  gitFlowEvent.addData(command);
+  _container._eventManager.send(gitFlowEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGitFlowError,
+      EventManager::EventType::GitRepoManagerGitFlowResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to start GitFlow branch."),
+          _container.tr("Error"));
+    });
+
+    _container.prepareWatcher(guard);
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerGitFlowResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    _container.prepareWatcher(guard);
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(
+        _container.tr("Successfully started branch '%1'.").arg(branchName),
+        _container.tr("Info"));
+  });
+
+  _container.prepareWatcher(guard);
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::finishGitFlowBranch(
+    const QWeakPointer<GitRepoContainer> &guard,
+    const GitRepo::GitFlowBranchType branchType, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
+    _container.showErrorToast(
+        _container.tr(
+            "You must create a Git profile in User Profiles and set it as the "
+            "default profile before performing this operation."),
+        _container.tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString author = _container._userProfileManager.currentProfile().author;
+  const QString email = _container._userProfileManager.currentProfile().email;
+
+  _container.stopWatcher(guard);
+
+  const QString eventUuid = Uuid::createUuid();
+  const int token = _container._eventManager.startWait();
+
+  GitRepoGitFlowCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.branchType = branchType;
+  command.start = false;
+  command.branchName = branchName;
+  command.developmentBranchName =
+      _container._configManager
+          .getString(
+              ConfigManager::ConfigKey::GitRepoGitFlowDevelopmentBranchName)
+          .trimmed();
+  command.author = author;
+  command.email = email;
+
+  EventManager::Event gitFlowEvent(
+      EventManager::EventType::GitRepoManagerGitFlow, eventUuid);
+  gitFlowEvent.addData(command);
+  _container._eventManager.send(gitFlowEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGitFlowError,
+      EventManager::EventType::GitRepoManagerGitFlowResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to finish GitFlow branch."),
+          _container.tr("Error"));
+    });
+
+    _container.prepareWatcher(guard);
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerGitFlowResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    _container.prepareWatcher(guard);
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(
+        _container.tr("Successfully finished branch '%1'.").arg(branchName),
+        _container.tr("Info"));
+  });
+
+  _container.prepareWatcher(guard);
+  LOG_PERF(0, "Exit");
 }
 
 bool GitRepoManagerBridgeImpl::openRepo(
@@ -5160,6 +5351,16 @@ void GitRepoManagerBridgeImpl::revert(
     const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
   LOG_PERF(0, "Enter");
 
+  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
+    _container.showErrorToast(
+        _container.tr(
+            "You must create a Git profile in User Profiles and set it as the "
+            "default profile before performing this operation."),
+        _container.tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const QString summaryToRevert =
       commitSummaryFromHistoryModel(_container._historyModel.data(), commit);
 
@@ -5238,6 +5439,16 @@ void GitRepoManagerBridgeImpl::revert(
 void GitRepoManagerBridgeImpl::cherryPick(
     const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
   LOG_PERF(0, "Enter");
+
+  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
+    _container.showErrorToast(
+        _container.tr(
+            "You must create a Git profile in User Profiles and set it as the "
+            "default profile before performing this operation."),
+        _container.tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   QString summaryCherryPick;
 
@@ -5553,7 +5764,8 @@ void GitRepoManagerBridgeImpl::stageFiles(
   Q_ASSERT(!files.isEmpty());
 
   if (files.isEmpty()) {
-    _container.showSpinnerOverlay(false);
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { _container.showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }
@@ -5635,7 +5847,8 @@ void GitRepoManagerBridgeImpl::unstageFiles(
   Q_ASSERT(!files.isEmpty());
 
   if (files.isEmpty()) {
-    _container.showSpinnerOverlay(false);
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { _container.showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }

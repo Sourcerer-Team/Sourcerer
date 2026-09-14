@@ -85,7 +85,7 @@ void InitGitRepoContainer::onBrowseClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void InitGitRepoContainer::onInitClicked() const {
+void InitGitRepoContainer::onInitClicked() {
   LOG_PERF(0, "Enter");
 
   GitRepoInitRepoCommand command;
@@ -94,8 +94,18 @@ void InitGitRepoContainer::onInitClicked() const {
   command.workingDir = ui->lineEditWorkingDir->text();
   command.defaultBranch = ui->lineEditDefaultBranch->text();
 
-  const Common::UserProfile &profile =
-      Common::UserProfileManager::instance().currentProfile();
+  const Common::UserProfileManager &profileManager =
+      Common::UserProfileManager::instance();
+  if (!profileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const Common::UserProfile &profile = profileManager.currentProfile();
   command.author = profile.author;
   command.email = profile.email;
 

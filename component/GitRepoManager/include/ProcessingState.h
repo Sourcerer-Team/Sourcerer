@@ -66,6 +66,7 @@ private:
   void fetchAllWorker(const Structs::GitRepoFetchAllCommand &command);
   void fetchRemoteWorker(const Structs::GitRepoFetchRemoteCommand &command);
   void rebaseWorker(const Structs::GitRepoRebaseCommand &command);
+  void gitFlowWorker(const Structs::GitRepoGitFlowCommand &command);
   void
   getActiveBranchWorker(const Structs::GitRepoGetActiveBranchCommand &command);
   void getFileSizeFromCommitWorker(
@@ -171,6 +172,7 @@ private:
   void scheduleWorkerForFetchRemote(
       const Structs::GitRepoFetchRemoteCommand &command);
   void scheduleWorkerForRebase(const Structs::GitRepoRebaseCommand &command);
+  void scheduleWorkerForGitFlow(const Structs::GitRepoGitFlowCommand &command);
   void scheduleWorkerForGetCommitBranches(
       const Structs::GitRepoGetCommitBranchesCommand &command);
   void scheduleWorkerForGetCommitTags(

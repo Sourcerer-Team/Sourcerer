@@ -114,6 +114,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetUpstream, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGitFlow, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListConflicts, callbackFunc));
@@ -279,6 +281,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerGetSubmodulePath, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetUpstream, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGitFlow, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListConflicts, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -716,6 +720,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent getUpstreamEvent(EventType::GetUpstream);
     getUpstreamEvent.addParam(QVariant::fromValue(getUpstreamCommand));
     _fsm.send(getUpstreamEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerGitFlow: {
+    const auto gitFlowCommand = event.data<GitRepoGitFlowCommand>();
+    GitRepoManagerEvent gitFlowEvent(EventType::GitFlow);
+    gitFlowEvent.addParam(QVariant::fromValue(gitFlowCommand));
+    _fsm.send(gitFlowEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerInitRepo: {

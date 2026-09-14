@@ -116,6 +116,12 @@ public:
              const QString &sourceBranch, const QString &destBranch) override;
   void rebase(const QWeakPointer<GitRepoContainer> &guard,
               const QString &sourceBranch, const QString &destBranch) override;
+  void startGitFlowBranch(const QWeakPointer<GitRepoContainer> &guard,
+                          const GitRepo::GitFlowBranchType branchType,
+                          const QString &branchName) override;
+  void finishGitFlowBranch(const QWeakPointer<GitRepoContainer> &guard,
+                           const GitRepo::GitFlowBranchType branchType,
+                           const QString &branchName) override;
   bool openRepo(const QWeakPointer<GitRepoContainer> &guard) override;
   void pull(const QWeakPointer<GitRepoContainer> &guard,
             bool rebase = false) override;

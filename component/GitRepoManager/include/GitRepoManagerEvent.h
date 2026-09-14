@@ -41,6 +41,7 @@ enum class EventType : int {
   FetchRemote,
   GetActiveBranch,
   Rebase,
+  GitFlow,
   GetBranchHistory,
   GetCommitBranches,
   GetCommitTags,

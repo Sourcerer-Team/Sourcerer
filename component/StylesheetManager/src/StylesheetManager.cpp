@@ -3,11 +3,13 @@
 #include <Log.h>
 
 #include <QAbstractButton>
+#include <QAction>
 #include <QApplication>
 #include <QColor>
 #include <QIcon>
 #include <QImage>
 #include <QMap>
+#include <QMenu>
 #include <QPainter>
 #include <QPalette>
 #include <QSvgRenderer>
@@ -191,6 +193,87 @@ QString makeDarkStylesheet() {
         border: 2px solid #0078d7;
         border-radius: 5px;
       }
+      QToolButton#historyFilterButton {
+        background-color: transparent;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        padding: 2px;
+      }
+      QToolButton#historyFilterButton:hover {
+        background-color: rgba(255, 255, 255, 24);
+        border: 1px solid rgba(255, 255, 255, 55);
+      }
+      QToolButton#historyFilterButton:checked {
+        background-color: #384D59;
+        border: 1px solid #718793;
+      }
+      QGroupBox#historyFilterWidget {
+        background-color: #384D59;
+        border: 1px solid #607481;
+        border-radius: 6px;
+        color: #F5F7F8;
+        margin-top: 10px;
+        padding: 12px 8px 8px 8px;
+      }
+      QGroupBox#historyFilterWidget::title {
+        subcontrol-origin: margin;
+        left: 10px;
+        padding: 0 6px;
+        color: #FFFFFF;
+        background-color: #384D59;
+        font-weight: bold;
+      }
+      QGroupBox#historyFilterWidget QLabel {
+        color: #DCE4E8;
+        font-weight: bold;
+      }
+      QGroupBox#historyFilterWidget QLineEdit,
+      QGroupBox#historyFilterWidget QDateEdit {
+        background-color: #2A2A2A;
+        color: #FFFFFF;
+        border: 1px solid #607481;
+        border-radius: 4px;
+        padding: 4px 7px;
+        min-height: 20px;
+      }
+      QGroupBox#historyFilterWidget QLineEdit:focus,
+      QGroupBox#historyFilterWidget QDateEdit:focus {
+        border: 1px solid #2A82DA;
+      }
+      QGroupBox#historyFilterWidget QLineEdit::placeholder {
+        color: #9BAAB3;
+      }
+      QGroupBox#historyFilterWidget QDateEdit::drop-down {
+        width: 24px;
+        border-left: 1px solid #607481;
+      }
+      QGroupBox#historyFilterWidget QDateEdit::down-arrow {
+        image: url(:/icons/history_filter_calendar_dark.svg);
+        width: 12px;
+        height: 12px;
+      }
+      QGroupBox#historyFilterWidget QDateEdit:disabled {
+        background-color: #30383D;
+        color: #8D999F;
+        border-color: #4D5A61;
+      }
+      QGroupBox#historyFilterWidget QCheckBox {
+        color: #DCE4E8;
+        spacing: 6px;
+        padding: 2px 0;
+        font-weight: bold;
+      }
+      QGroupBox#historyFilterWidget QCheckBox::indicator {
+        width: 13px;
+        height: 13px;
+        border: 1px solid #8A9AA3;
+        border-radius: 3px;
+        background-color: transparent;
+      }
+      QGroupBox#historyFilterWidget QCheckBox::indicator:checked {
+        border-color: #2A82DA;
+        background-color: #2A82DA;
+      }
       QListView::item:selected {
         background-color: #384D59;
       }
@@ -287,7 +370,8 @@ QString makeDarkStylesheet() {
       QPushButton#pushButtonPop,
       QPushButton#pushButtonStash,
       QToolButton#pullFetchDropdown,
-      QToolButton#pushButtonPush{
+      QToolButton#pushButtonPush,
+      QToolButton#gitFlowDropdown{
         background-color: #006400;
         border: 1px solid gray;
         border-radius: 5px;
@@ -297,19 +381,22 @@ QString makeDarkStylesheet() {
       QPushButton)__DARK_4__") +
          QStringLiteral(R"__DARK_5__(#pushButtonStash:hover,
       QToolButton#pullFetchDropdown:hover,
-      QToolButton#pushButtonPush:hover{
+      QToolButton#pushButtonPush:hover,
+      QToolButton#gitFlowDropdown:hover{
         background-color: #008400;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
       QToolButton#pullFetchDropdown::menu-button,
-      QToolButton#pushButtonPush::menu-button{
+      QToolButton#pushButtonPush::menu-button,
+      QToolButton#gitFlowDropdown::menu-button{
         border: none;
         background: transparent;
       }
       QToolButton#pullFetchDropdown::menu-indicator,
-      QToolButton#pushButtonPush::menu-indicator{
+      QToolButton#pushButtonPush::menu-indicator,
+      QToolButton#gitFlowDropdown::menu-indicator{
         subcontrol-origin: padding;
         subcontrol-position: right center;
         width: 8px;
@@ -1109,6 +1196,87 @@ QString makeLightStylesheet() {
         border: 2px solid #0078d7;
         border-radius: 5px;
       }
+      QToolButton#historyFilterButton {
+        background-color: transparent;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        padding: 2px;
+      }
+      QToolButton#historyFilterButton:hover {
+        background-color: rgba(0, 0, 0, 12);
+        border: 1px solid rgba(0, 0, 0, 35);
+      }
+      QToolButton#historyFilterButton:checked {
+        background-color: #E7EEF4;
+        border: 1px solid #B8C0C8;
+      }
+      QGroupBox#historyFilterWidget {
+        background-color: #F3F6F8;
+        border: 1px solid #B8C0C8;
+        border-radius: 6px;
+        color: #202020;
+        margin-top: 10px;
+        padding: 12px 8px 8px 8px;
+      }
+      QGroupBox#historyFilterWidget::title {
+        subcontrol-origin: margin;
+        left: 10px;
+        padding: 0 6px;
+        color: #202020;
+        background-color: #F3F6F8;
+        font-weight: bold;
+      }
+      QGroupBox#historyFilterWidget QLabel {
+        color: #3A4248;
+        font-weight: bold;
+      }
+      QGroupBox#historyFilterWidget QLineEdit,
+      QGroupBox#historyFilterWidget QDateEdit {
+        background-color: #FFFFFF;
+        color: #202020;
+        border: 1px solid #B8C0C8;
+        border-radius: 4px;
+        padding: 4px 7px;
+        min-height: 20px;
+      }
+      QGroupBox#historyFilterWidget QLineEdit:focus,
+      QGroupBox#historyFilterWidget QDateEdit:focus {
+        border: 1px solid #0078D7;
+      }
+      QGroupBox#historyFilterWidget QLineEdit::placeholder {
+        color: #666666;
+      }
+      QGroupBox#historyFilterWidget QDateEdit::drop-down {
+        width: 24px;
+        border-left: 1px solid #B8C0C8;
+      }
+      QGroupBox#historyFilterWidget QDateEdit::down-arrow {
+        image: url(:/icons/history_filter_calendar_light.svg);
+        width: 12px;
+        height: 12px;
+      }
+      QGroupBox#historyFilterWidget QDateEdit:disabled {
+        background-color: #E7EBEE;
+        color: #8A9298;
+        border-color: #C7CED3;
+      }
+      QGroupBox#historyFilterWidget QCheckBox {
+        color: #3A4248;
+        spacing: 6px;
+        padding: 2px 0;
+        font-weight: bold;
+      }
+      QGroupBox#historyFilterWidget QCheckBox::indicator {
+        width: 13px;
+        height: 13px;
+        border: 1px solid #8A9298;
+        border-radius: 3px;
+        background-color: #FFFFFF;
+      }
+      QGroupBox#historyFilterWidget QCheckBox::indicator:checked {
+        border-color: #0078D7;
+        background-color: #0078D7;
+      }
       QAbstractItemView {
         background-color: palette(window);
         color: palette(window-text);
@@ -1273,7 +1441,8 @@ QString makeLightStylesheet() {
       QPushButton#pushButtonPop,
       QPushButton#pushButtonStash,
       QToolButton#pullFetchDropdown,
-      QToolButton#pushButtonPush{
+      QToolButton#pushButtonPush,
+      QToolButton#gitFlowDropdown{
         background-color: #E7F5E7;
         border: 1px solid gray;
         border-radius: 5px;
@@ -1282,20 +1451,23 @@ QString makeLightStylesheet() {
       QPushButton#pushButtonPop:hover,
       QPushButton#pushButtonStash:hover,
       QToolButton#pullFetchDropdown:hover,
-      QToolButton#pushButtonPush:hover{
+      QToolButton#pushButtonPush:hover,
+      QToolButton#gitFlowDropdown:hover{
         background-color: #D7EFD7;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
       QToolButton#pullFetchDropdown::menu-button,
-      QToolButton#pushButtonPush::menu-button{
+      QToolButton#pushButtonPush::menu-button,
+      QToolButton#gitFlowDropdown::menu-button{
         border: none;)__LIGHT_6__") +
          QStringLiteral(R"__LIGHT_7__(
         background: transparent;
       }
       QToolButton#pullFetchDropdown::menu-indicator,
-      QToolButton#pushButtonPush::menu-indicator{
+      QToolButton#pushButtonPush::menu-indicator,
+      QToolButton#gitFlowDropdown::menu-indicator{
         subcontrol-origin: padding;
         subcontrol-position: right center;
         width: 8px;
@@ -2275,19 +2447,36 @@ void StylesheetManager::refreshMenuBarButtonIcons(QWidget *root) {
   const auto widgets =
       root ? root->findChildren<QWidget *>() : qApp->allWidgets();
   for (QWidget *widget : widgets) {
-    auto *button = qobject_cast<QAbstractButton *>(widget);
-    if (!button)
-      continue;
+    if (auto *button = qobject_cast<QAbstractButton *>(widget)) {
+      const QVariant iconSourceVariant = button->property("iconSource");
+      if (!iconSourceVariant.isValid())
+        continue;
 
-    const QVariant iconSourceVariant = button->property("iconSource");
-    if (!iconSourceVariant.isValid())
-      continue;
+      const QString iconSource = iconSourceVariant.toString();
+      if (iconSource.isEmpty())
+        continue;
 
-    const QString iconSource = iconSourceVariant.toString();
-    if (iconSource.isEmpty())
+      button->setIcon(recolorPixmap(QPixmap(iconSource), iconColor));
       continue;
+    }
 
-    button->setIcon(recolorPixmap(QPixmap(iconSource), iconColor));
+    if (auto *menu = qobject_cast<QMenu *>(widget)) {
+      const auto menuActions = menu->actions();
+      for (QAction *action : menuActions) {
+        if (!action)
+          continue;
+
+        const QVariant iconSourceVariant = action->property("iconSource");
+        if (!iconSourceVariant.isValid())
+          continue;
+
+        const QString iconSource = iconSourceVariant.toString();
+        if (iconSource.isEmpty())
+          continue;
+
+        action->setIcon(recolorPixmap(QPixmap(iconSource), iconColor));
+      }
+    }
   }
 }
 
