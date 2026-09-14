@@ -2182,6 +2182,15 @@ void GitRepoContainer::onCommitButtonClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Commit button clicked for repository: '{}'", _path.toStdString());
 
+  if (!_userProfileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const Common::UserProfile &currentProfile =
       _userProfileManager.currentProfile();
   const QString summary = ui->lineEditSummary->text().trimmed();
@@ -2222,6 +2231,15 @@ void GitRepoContainer::onCommitButtonClicked() {
 void GitRepoContainer::onMergeButtonClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Merge button clicked for repository: '{}'", _path.toStdString());
+
+  if (!_userProfileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   const Common::UserProfile &currentProfile =
       _userProfileManager.currentProfile();
@@ -2369,6 +2387,15 @@ void GitRepoContainer::onCreateTagFromCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Create tag from commit requested: '{}' in repository '{}'",
             commit.toStdString(), _path.toStdString());
+
+  if (!_userProfileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   const WeakPtr guard = getSelf().toWeakRef();
 
@@ -3335,6 +3362,15 @@ void GitRepoContainer::onLocalBranchMoved(const QString &sourceBranch,
             sourceBranch.toStdString(), destBranch.toStdString(),
             _path.toStdString());
 
+  if (!_userProfileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   QMenu menu(this);
   QAction actionMerge(tr("Merge"), this);
   QAction actionRebase(tr("Rebase"), this);
@@ -4227,6 +4263,15 @@ void GitRepoContainer::onRevertCommit(const QString &commit) {
   LOG_DEBUG("Revert commit requested: '{}' in repository '{}'",
             commit.toStdString(), _path.toStdString());
 
+  if (!_userProfileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const QString summaryToRevert =
       commitSummaryFromHistoryModel(_historyModel.data(), commit);
 
@@ -4258,6 +4303,15 @@ void GitRepoContainer::onRevertCommit(const QString &commit) {
 
 void GitRepoContainer::onCherryPickCommit() {
   LOG_PERF(0, "Enter");
+
+  if (!_userProfileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   const auto inputOverlay = new TextInputOverlayWidget(this);
   inputOverlay->setPlaceholderText(tr("Commit SHA to cherry-pick"));

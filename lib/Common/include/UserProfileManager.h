@@ -22,6 +22,10 @@ public:
 
   const QVector<UserProfile> &profiles() const { return _profiles; }
 
+  bool hasCurrentProfile() const {
+    return _currentIndex >= 0 && _currentIndex < _profiles.size();
+  }
+
   void setProfiles(const QVector<UserProfile> &profiles) {
     _profiles = profiles;
   }
