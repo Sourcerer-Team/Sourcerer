@@ -26,6 +26,8 @@ enum class ConfigKey {
   GitRepoMaxDiffFileSize,
   GitRepoMonospaceFontName,
   GitRepoMonospaceFontSize,
+  GitRepoGitFlowMainBranchName,
+  GitRepoGitFlowDevelopmentBranchName,
   GitRepoDiffViewType,
 
   // GitRepo library

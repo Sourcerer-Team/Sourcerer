@@ -155,6 +155,8 @@ QString GitRepoManagerFsm::eventName(int event) const {
     return "Merge";
   case EventType::Rebase:
     return "Rebase";
+  case EventType::GitFlow:
+    return "GitFlow";
   case EventType::OpenRepo:
     return "OpenRepo";
   case EventType::Pull:

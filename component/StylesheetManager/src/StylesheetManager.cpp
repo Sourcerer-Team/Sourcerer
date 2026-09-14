@@ -3,11 +3,13 @@
 #include <Log.h>
 
 #include <QAbstractButton>
+#include <QAction>
 #include <QApplication>
 #include <QColor>
 #include <QIcon>
 #include <QImage>
 #include <QMap>
+#include <QMenu>
 #include <QPainter>
 #include <QPalette>
 #include <QSvgRenderer>
@@ -287,7 +289,8 @@ QString makeDarkStylesheet() {
       QPushButton#pushButtonPop,
       QPushButton#pushButtonStash,
       QToolButton#pullFetchDropdown,
-      QToolButton#pushButtonPush{
+      QToolButton#pushButtonPush,
+      QToolButton#gitFlowDropdown{
         background-color: #006400;
         border: 1px solid gray;
         border-radius: 5px;
@@ -297,19 +300,22 @@ QString makeDarkStylesheet() {
       QPushButton)__DARK_4__") +
          QStringLiteral(R"__DARK_5__(#pushButtonStash:hover,
       QToolButton#pullFetchDropdown:hover,
-      QToolButton#pushButtonPush:hover{
+      QToolButton#pushButtonPush:hover,
+      QToolButton#gitFlowDropdown:hover{
         background-color: #008400;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
       QToolButton#pullFetchDropdown::menu-button,
-      QToolButton#pushButtonPush::menu-button{
+      QToolButton#pushButtonPush::menu-button,
+      QToolButton#gitFlowDropdown::menu-button{
         border: none;
         background: transparent;
       }
       QToolButton#pullFetchDropdown::menu-indicator,
-      QToolButton#pushButtonPush::menu-indicator{
+      QToolButton#pushButtonPush::menu-indicator,
+      QToolButton#gitFlowDropdown::menu-indicator{
         subcontrol-origin: padding;
         subcontrol-position: right center;
         width: 8px;
@@ -1273,7 +1279,8 @@ QString makeLightStylesheet() {
       QPushButton#pushButtonPop,
       QPushButton#pushButtonStash,
       QToolButton#pullFetchDropdown,
-      QToolButton#pushButtonPush{
+      QToolButton#pushButtonPush,
+      QToolButton#gitFlowDropdown{
         background-color: #E7F5E7;
         border: 1px solid gray;
         border-radius: 5px;
@@ -1282,20 +1289,23 @@ QString makeLightStylesheet() {
       QPushButton#pushButtonPop:hover,
       QPushButton#pushButtonStash:hover,
       QToolButton#pullFetchDropdown:hover,
-      QToolButton#pushButtonPush:hover{
+      QToolButton#pushButtonPush:hover,
+      QToolButton#gitFlowDropdown:hover{
         background-color: #D7EFD7;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
       QToolButton#pullFetchDropdown::menu-button,
-      QToolButton#pushButtonPush::menu-button{
+      QToolButton#pushButtonPush::menu-button,
+      QToolButton#gitFlowDropdown::menu-button{
         border: none;)__LIGHT_6__") +
          QStringLiteral(R"__LIGHT_7__(
         background: transparent;
       }
       QToolButton#pullFetchDropdown::menu-indicator,
-      QToolButton#pushButtonPush::menu-indicator{
+      QToolButton#pushButtonPush::menu-indicator,
+      QToolButton#gitFlowDropdown::menu-indicator{
         subcontrol-origin: padding;
         subcontrol-position: right center;
         width: 8px;
@@ -2275,19 +2285,36 @@ void StylesheetManager::refreshMenuBarButtonIcons(QWidget *root) {
   const auto widgets =
       root ? root->findChildren<QWidget *>() : qApp->allWidgets();
   for (QWidget *widget : widgets) {
-    auto *button = qobject_cast<QAbstractButton *>(widget);
-    if (!button)
-      continue;
+    if (auto *button = qobject_cast<QAbstractButton *>(widget)) {
+      const QVariant iconSourceVariant = button->property("iconSource");
+      if (!iconSourceVariant.isValid())
+        continue;
 
-    const QVariant iconSourceVariant = button->property("iconSource");
-    if (!iconSourceVariant.isValid())
-      continue;
+      const QString iconSource = iconSourceVariant.toString();
+      if (iconSource.isEmpty())
+        continue;
 
-    const QString iconSource = iconSourceVariant.toString();
-    if (iconSource.isEmpty())
+      button->setIcon(recolorPixmap(QPixmap(iconSource), iconColor));
       continue;
+    }
 
-    button->setIcon(recolorPixmap(QPixmap(iconSource), iconColor));
+    if (auto *menu = qobject_cast<QMenu *>(widget)) {
+      const auto menuActions = menu->actions();
+      for (QAction *action : menuActions) {
+        if (!action)
+          continue;
+
+        const QVariant iconSourceVariant = action->property("iconSource");
+        if (!iconSourceVariant.isValid())
+          continue;
+
+        const QString iconSource = iconSourceVariant.toString();
+        if (iconSource.isEmpty())
+          continue;
+
+        action->setIcon(recolorPixmap(QPixmap(iconSource), iconColor));
+      }
+    }
   }
 }
 

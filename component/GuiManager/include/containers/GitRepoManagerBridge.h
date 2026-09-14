@@ -133,6 +133,12 @@ public:
   virtual void rebase(const QWeakPointer<GitRepoContainer> &guard,
                       const QString &sourceBranch,
                       const QString &destBranch) = 0;
+  virtual void startGitFlowBranch(const QWeakPointer<GitRepoContainer> &guard,
+                                  const GitRepo::GitFlowBranchType branchType,
+                                  const QString &branchName) = 0;
+  virtual void finishGitFlowBranch(const QWeakPointer<GitRepoContainer> &guard,
+                                   const GitRepo::GitFlowBranchType branchType,
+                                   const QString &branchName) = 0;
   virtual bool openRepo(const QWeakPointer<GitRepoContainer> &guard) = 0;
   virtual void pull(const QWeakPointer<GitRepoContainer> &guard,
                     bool rebase = false) = 0;

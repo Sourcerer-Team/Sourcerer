@@ -12,7 +12,7 @@ void ConfigGroup::merge(const ConfigGroup &group) {
 
     std::sort(_items.begin(), _items.end(),
               [](const ConfigItem &x, const ConfigItem &y) {
-                return x.orderNumber() <= y.orderNumber();
+                return x.orderNumber() < y.orderNumber();
               });
 
     for (const auto &s0 : group.subgroups()) {
@@ -31,7 +31,7 @@ void ConfigGroup::merge(const ConfigGroup &group) {
 
     std::sort(_subgroups.begin(), _subgroups.end(),
               [](const ConfigGroup &x, const ConfigGroup &y) {
-                return x.name().compare(y.name());
+                return x.name() < y.name();
               });
   } else {
     bool merged = false;
@@ -48,7 +48,7 @@ void ConfigGroup::merge(const ConfigGroup &group) {
 
     std::sort(_subgroups.begin(), _subgroups.end(),
               [](const ConfigGroup &x, const ConfigGroup &y) {
-                return x.name().compare(y.name());
+                return x.name() < y.name();
               });
   }
 }

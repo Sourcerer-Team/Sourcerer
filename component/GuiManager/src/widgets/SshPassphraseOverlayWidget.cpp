@@ -1,5 +1,5 @@
 #include "widgets/SshPassphraseOverlayWidget.h"
-#include "widgets/OpagueGroupBox.h"
+#include "widgets/OpaqueGroupBox.h"
 #include "widgets/OpaqueLabel.h"
 #include "widgets/OpaquePushButton.h"
 

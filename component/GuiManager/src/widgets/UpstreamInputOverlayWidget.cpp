@@ -1,6 +1,6 @@
 #include "widgets/UpstreamInputOverlayWidget.h"
-#include "widgets/OpagueGroupBox.h"
 #include "widgets/OpaqueComboBox.h"
+#include "widgets/OpaqueGroupBox.h"
 #include "widgets/OpaqueLabel.h"
 #include "widgets/OpaquePushButton.h"
 

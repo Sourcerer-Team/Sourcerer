@@ -24,6 +24,7 @@
 #include "widgets/ShortcutsToolbarWidget.h"
 #include "widgets/SideBySideDiffView.h"
 #include "widgets/StashesPage.h"
+
 #include "widgets/TextInputOverlayWidget.h"
 #include "widgets/ToastHostWidget.h"
 #include "widgets/UpstreamInputOverlayWidget.h"
@@ -53,7 +54,6 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
-#include <QStyle>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QMovie>
@@ -64,6 +64,7 @@
 #include <QSet>
 #include <QSignalBlocker>
 #include <QSize>
+#include <QStyle>
 #include <QStyleOptionViewItem>
 #include <QSvgRenderer>
 #include <QTextStream>
@@ -133,9 +134,9 @@ QString parentsToLinksHtml(const QStringList &parents) {
     }
 
     const QString shortParent = trimmedParent.left(MAX_COMMIT_SHA_LENGTH);
-    parts << QStringLiteral("<a href=\"") +
-                 trimmedParent.toHtmlEscaped() + QStringLiteral("\">") +
-                 shortParent.toHtmlEscaped() + QStringLiteral("</a>");
+    parts << QStringLiteral("<a href=\"") + trimmedParent.toHtmlEscaped() +
+                 QStringLiteral("\">") + shortParent.toHtmlEscaped() +
+                 QStringLiteral("</a>");
   }
 
   return parts.join(QStringLiteral(", "));
@@ -313,7 +314,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _historyBackButton = new QToolButton(historyNavigationWidget);
   _historyBackButton->setAutoRaise(true);
-  _historyBackButton->setToolTip(tr("Go back to the previously selected commit"));
+  _historyBackButton->setToolTip(
+      tr("Go back to the previously selected commit"));
   _historyBackButton->setText(QStringLiteral("\u2190"));
   _historyBackButton->setIcon(style()->standardIcon(QStyle::SP_ArrowBack));
   _historyBackButton->setEnabled(false);
@@ -323,7 +325,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _historyForwardButton->setToolTip(
       tr("Go forward to the next previously selected commit"));
   _historyForwardButton->setText(QStringLiteral("\u2192"));
-  _historyForwardButton->setIcon(style()->standardIcon(QStyle::SP_ArrowForward));
+  _historyForwardButton->setIcon(
+      style()->standardIcon(QStyle::SP_ArrowForward));
   _historyForwardButton->setEnabled(false);
 
   historyNavigationLayout->addWidget(_historyBackButton);
@@ -677,14 +680,18 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *pullFetchMenu = new QMenu();
   auto *actionPullMenu = pullFetchMenu->addAction(tr("Pull"));
+  actionPullMenu->setProperty("iconSource", QStringLiteral(":icons/pull"));
   actionPullMenu->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
       QPixmap(":icons/pull"), shortcutIconColor));
   auto *actionPullWithRebaseMenu =
       pullFetchMenu->addAction(tr("Pull with rebase"));
+  actionPullWithRebaseMenu->setProperty("iconSource",
+                                        QStringLiteral(":icons/pull"));
   actionPullWithRebaseMenu->setIcon(
       StylesheetManager::StylesheetManager::recolorPixmap(
           QPixmap(":icons/pull"), shortcutIconColor));
   auto *actionFetchAllMenu = pullFetchMenu->addAction(tr("Fetch All"));
+  actionFetchAllMenu->setProperty("iconSource", QStringLiteral(":icons/pull"));
   actionFetchAllMenu->setIcon(
       QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
           QPixmap(":icons/pull"), shortcutIconColor)));
@@ -710,9 +717,11 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *pushMenu = new QMenu();
   auto *actionPushMenu = pushMenu->addAction(tr("Push"));
+  actionPushMenu->setProperty("iconSource", QStringLiteral(":icons/push"));
   actionPushMenu->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
       QPixmap(":icons/push"), shortcutIconColor));
   auto *actionForcePushMenu = pushMenu->addAction(tr("Force push"));
+  actionForcePushMenu->setProperty("iconSource", QStringLiteral(":icons/push"));
   actionForcePushMenu->setIcon(
       StylesheetManager::StylesheetManager::recolorPixmap(
           QPixmap(":icons/push"), shortcutIconColor));
@@ -728,6 +737,60 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   pushButtonPop->setMaximumSize(42, 42);
   pushButtonPop->setAttribute(Qt::WA_StyledBackground, true);
 
+  auto *gitFlowDropdown = new QToolButton();
+  gitFlowDropdown->setObjectName("gitFlowDropdown");
+  gitFlowDropdown->setProperty("iconSource",
+                               QStringLiteral(":icons/gitflow_start.svg"));
+  gitFlowDropdown->setIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(":icons/gitflow_start.svg"), shortcutIconColor));
+  gitFlowDropdown->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  gitFlowDropdown->setIconSize(QSize(18, 18));
+  gitFlowDropdown->setAttribute(Qt::WA_StyledBackground, true);
+  gitFlowDropdown->setToolTip(tr("Git Flow"));
+  gitFlowDropdown->setMinimumSize(42, 42);
+  gitFlowDropdown->setMaximumSize(42, 42);
+  gitFlowDropdown->setPopupMode(QToolButton::MenuButtonPopup);
+
+  auto *gitFlowMenu = new QMenu();
+  auto *actionStartFeature = gitFlowMenu->addAction(tr("Start feature"));
+  actionStartFeature->setProperty("iconSource",
+                                  QStringLiteral(":/icons/gitflow_start.svg"));
+  actionStartFeature->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/gitflow_start.svg"), shortcutIconColor));
+  auto *actionStartRelease = gitFlowMenu->addAction(tr("Start release"));
+  actionStartRelease->setProperty("iconSource",
+                                  QStringLiteral(":/icons/gitflow_start.svg"));
+  actionStartRelease->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/gitflow_start.svg"), shortcutIconColor));
+  auto *actionStartHotfix = gitFlowMenu->addAction(tr("Start hotfix"));
+  actionStartHotfix->setProperty("iconSource",
+                                 QStringLiteral(":/icons/gitflow_start.svg"));
+  actionStartHotfix->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/gitflow_start.svg"), shortcutIconColor));
+  gitFlowMenu->addSeparator();
+  auto *actionFinishFeature = gitFlowMenu->addAction(tr("Finish feature"));
+  actionFinishFeature->setProperty(
+      "iconSource", QStringLiteral(":/icons/gitflow_finish.svg"));
+  actionFinishFeature->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/gitflow_finish.svg"), shortcutIconColor));
+  auto *actionFinishRelease = gitFlowMenu->addAction(tr("Finish release"));
+  actionFinishRelease->setProperty(
+      "iconSource", QStringLiteral(":/icons/gitflow_finish.svg"));
+  actionFinishRelease->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/gitflow_finish.svg"), shortcutIconColor));
+  auto *actionFinishHotfix = gitFlowMenu->addAction(tr("Finish hotfix"));
+  actionFinishHotfix->setProperty("iconSource",
+                                  QStringLiteral(":/icons/gitflow_finish.svg"));
+  actionFinishHotfix->setIcon(
+      StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(":/icons/gitflow_finish.svg"), shortcutIconColor));
+  gitFlowDropdown->setMenu(gitFlowMenu);
+
   auto *pushButtonStash = new QPushButton();
   pushButtonStash->setObjectName("pushButtonStash");
   pushButtonStash->setProperty("iconSource", QStringLiteral(":icons/stash"));
@@ -740,12 +803,14 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _shortcutsWidget->addShortcutWidget(pullFetchDropdown);
   _shortcutsWidget->addShortcutWidget(pushButtonPush);
+  _shortcutsWidget->addShortcutWidget(gitFlowDropdown);
   _shortcutsWidget->addShortcutWidget(pushButtonStash);
   _shortcutsWidget->addShortcutWidget(pushButtonPop);
 
   // Explicitly show buttons to ensure they're interactive
   pullFetchDropdown->show();
   pushButtonPush->show();
+  gitFlowDropdown->show();
   pushButtonStash->show();
   pushButtonPop->show();
 
@@ -1119,6 +1184,20 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(actionPushMenu, &QAction::triggered, this, &GitRepoContainer::onPush);
   connect(actionForcePushMenu, &QAction::triggered, this,
           [=](bool) { onPush(true); });
+  connect(actionStartFeature, &QAction::triggered, this,
+          [=]() { onStartGitFlowBranch(GitRepo::GitFlowBranchType::Feature); });
+  connect(actionFinishFeature, &QAction::triggered, this, [=]() {
+    onFinishGitFlowBranch(GitRepo::GitFlowBranchType::Feature);
+  });
+  connect(actionStartRelease, &QAction::triggered, this,
+          [=]() { onStartGitFlowBranch(GitRepo::GitFlowBranchType::Release); });
+  connect(actionFinishRelease, &QAction::triggered, this, [=]() {
+    onFinishGitFlowBranch(GitRepo::GitFlowBranchType::Release);
+  });
+  connect(actionStartHotfix, &QAction::triggered, this,
+          [=]() { onStartGitFlowBranch(GitRepo::GitFlowBranchType::Hotfix); });
+  connect(actionFinishHotfix, &QAction::triggered, this,
+          [=]() { onFinishGitFlowBranch(GitRepo::GitFlowBranchType::Hotfix); });
   connect(pushButtonStash, &QPushButton::clicked, this,
           &GitRepoContainer::onStash);
   connect(pushButtonPop, &QPushButton::clicked, this, &GitRepoContainer::onPop);
@@ -2635,8 +2714,8 @@ void GitRepoContainer::selectHistoryCommit(const QString &commit) {
 
   const int rowCount = model->rowCount(QModelIndex());
   for (int row = 0; row < rowCount; ++row) {
-    const QModelIndex shaIndex = model->index(row, COLUMN_COMMIT_FULL_SHA,
-                                              QModelIndex());
+    const QModelIndex shaIndex =
+        model->index(row, COLUMN_COMMIT_FULL_SHA, QModelIndex());
     if (!shaIndex.isValid()) {
       continue;
     }
@@ -2956,9 +3035,8 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
 
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }
@@ -3162,9 +3240,8 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
 
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }
@@ -3429,6 +3506,158 @@ void GitRepoContainer::onPop() {
   });
 
   LOG_DEBUG("Pop stash operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+QString GitRepoContainer::gitFlowBranchPrefix(
+    GitRepo::GitFlowBranchType branchType) const {
+  switch (branchType) {
+  case GitRepo::GitFlowBranchType::Feature:
+    return QStringLiteral("feature/");
+  case GitRepo::GitFlowBranchType::Release:
+    return QStringLiteral("release/");
+  case GitRepo::GitFlowBranchType::Hotfix:
+    return QStringLiteral("hotfix/");
+  case GitRepo::GitFlowBranchType::Unknown:
+  default:
+    return {};
+  }
+}
+
+QString GitRepoContainer::gitFlowBranchDisplayName(
+    GitRepo::GitFlowBranchType branchType) const {
+  switch (branchType) {
+  case GitRepo::GitFlowBranchType::Feature:
+    return tr("feature");
+  case GitRepo::GitFlowBranchType::Release:
+    return tr("release");
+  case GitRepo::GitFlowBranchType::Hotfix:
+    return tr("hotfix");
+  case GitRepo::GitFlowBranchType::Unknown:
+  default:
+    return tr("Git Flow");
+  }
+}
+
+QString GitRepoContainer::gitFlowBranchNameForInput(
+    GitRepo::GitFlowBranchType branchType, const QString &name) const {
+  const QString trimmed = name.trimmed();
+  if (trimmed.isEmpty()) {
+    return {};
+  }
+
+  const QString prefix = gitFlowBranchPrefix(branchType);
+  if (prefix.isEmpty() || trimmed.startsWith(prefix)) {
+    return trimmed;
+  }
+
+  return prefix + trimmed;
+}
+
+QString GitRepoContainer::currentGitFlowBranchName(
+    GitRepo::GitFlowBranchType branchType) const {
+  const QString prefix = gitFlowBranchPrefix(branchType);
+  if (prefix.isEmpty() || !_activeBranch.startsWith(prefix)) {
+    return {};
+  }
+
+  return _activeBranch;
+}
+
+void GitRepoContainer::onStartGitFlowBranch(
+    GitRepo::GitFlowBranchType branchType) {
+  LOG_PERF(0, "Enter");
+
+  const QString branchKind = gitFlowBranchDisplayName(branchType);
+  const auto inputOverlay = new TextInputOverlayWidget(this);
+  inputOverlay->setPlaceholderText(
+      tr("Enter the %1 branch name").arg(branchKind));
+  inputOverlay->setText(QString());
+
+  connect(inputOverlay, &TextInputOverlayWidget::canceled, this, [=]() {
+    inputOverlay->hide();
+    delete inputOverlay;
+  });
+  connect(inputOverlay, &TextInputOverlayWidget::submitted, this,
+          [=](const QString &input) {
+            inputOverlay->hide();
+            delete inputOverlay;
+
+            const QString branchName =
+                gitFlowBranchNameForInput(branchType, input);
+            if (branchName.isEmpty()) {
+              showErrorToast(tr("Please enter a branch name."), tr("Error"));
+              LOG_PERF(0, "Exit");
+              return;
+            }
+
+            if (!showWarningForBranchCheckout()) {
+              LOG_PERF(0, "Exit");
+              return;
+            }
+
+            startOverlayTimer();
+
+            const WeakPtr guard = getSelf().toWeakRef();
+            _dispatcher.dispatch([=]() {
+              _bridge->startGitFlowBranch(guard, branchType, branchName);
+              _bridge->refreshStatus(guard);
+              refreshHistory(guard);
+            });
+
+            LOG_PERF(0, "Exit");
+          });
+
+  inputOverlay->show();
+  inputOverlay->raise();
+  inputOverlay->focusAndSelectAll();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onFinishGitFlowBranch(
+    GitRepo::GitFlowBranchType branchType) {
+  LOG_PERF(0, "Enter");
+
+  const QString branchName = currentGitFlowBranchName(branchType);
+  if (branchName.isEmpty()) {
+    showErrorToast(tr("Please checkout a %1 branch first.")
+                       .arg(gitFlowBranchDisplayName(branchType)),
+                   tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!showWarningForUncommittedChanges(
+          tr("Uncommitted Changes"),
+          tr("You have uncommitted changes on the current branch.\n\n"
+             "Do you really want to finish the Git Flow branch?\n\n"
+             "To keep your changes, stash them before finishing."))) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Confirm Git Flow finish"),
+      tr("Finish %1 branch '%2'?\n\nThis will merge it into the target branch"
+         " and delete the source branch.")
+          .arg(gitFlowBranchDisplayName(branchType), branchName),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  _dispatcher.dispatch([=]() {
+    _bridge->finishGitFlowBranch(guard, branchType, branchName);
+    _bridge->refreshStatus(guard);
+    refreshHistory(guard);
+  });
+
   LOG_PERF(0, "Exit");
 }
 
@@ -4479,9 +4708,8 @@ void GitRepoContainer::onWorkingTreeFlatListViewClicked(
 
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }
@@ -4793,9 +5021,8 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewClicked(
 
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }
@@ -5097,9 +5324,8 @@ void GitRepoContainer::onIndexFlatListViewClicked(const QModelIndex &index) {
 
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }
@@ -5391,7 +5617,7 @@ void GitRepoContainer::onIndexTreeTreeViewClicked(const QModelIndex &index) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       showSpinnerOverlay(false);
       ui->stackedWidgetMiddle->setCurrentIndex(static_cast<int>(
-                                                   conflicted ? MainViewPanes::ThreeWayDiff : MainViewPanes::Diff));
+          conflicted ? MainViewPanes::ThreeWayDiff : MainViewPanes::Diff));
     });
     LOG_PERF(0, "Exit")
     return;
@@ -6993,7 +7219,8 @@ void GitRepoContainer::showCommit(const WeakPtr &guard, const QString &commit) {
         commitInfo.signedCommit && !commitInfo.signature.isEmpty();
     _currentSignature = hasSignatureBlock ? commitInfo.signature : QString();
     ui->pushButtonPageDisplaySignatureCopy->setEnabled(hasSignatureBlock);
-    ui->horizontalLayoutPageDisplayGroupBoxInfoSigned->setEnabled(hasSignatureBlock);
+    ui->horizontalLayoutPageDisplayGroupBoxInfoSigned->setEnabled(
+        hasSignatureBlock);
     ui->pushButtonPageDisplaySignatureCopy->setVisible(hasSignatureBlock);
     ui->labelPageDisplaySignedLabel->setVisible(hasSignatureBlock);
     ui->labelPageDisplaySignedValue->setVisible(hasSignatureBlock);
@@ -7177,22 +7404,21 @@ void GitRepoContainer::showErrorToast(const QString &message,
   LOG_PERF(0, "Exit")
 }
 
-bool GitRepoContainer::showWarningForBranchCheckout() const {
+bool GitRepoContainer::showWarningForUncommittedChanges(
+    const QString &title, const QString &message) const {
   LOG_PERF(0, "Enter");
+
   if (!_historyModel->hasStatus()) {
     LOG_PERF(0, "Exit")
     return true;
   }
 
   const QMessageBox::StandardButton reply = QMessageBox::question(
-      ui->historyView, tr("Uncommitted Changes"),
-      tr("You have uncommitted changes on the current branch.\n\n"
-         "Do you really want to switch to the new branch?\n\n"
-         "To keep your changes, stash them before switching."),
-      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+      ui->historyView, title, message, QMessageBox::Yes | QMessageBox::No,
+      QMessageBox::No);
 
   if (reply != QMessageBox::Yes) {
-    LOG_DEBUG("Branch checkout cancelled by user due to uncommitted changes");
+    LOG_DEBUG("Operation cancelled by user due to uncommitted changes");
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -7200,6 +7426,14 @@ bool GitRepoContainer::showWarningForBranchCheckout() const {
   LOG_PERF(0, "Exit")
 
   return true;
+}
+
+bool GitRepoContainer::showWarningForBranchCheckout() const {
+  return showWarningForUncommittedChanges(
+      tr("Uncommitted Changes"),
+      tr("You have uncommitted changes on the current branch.\n\n"
+         "Do you really want to switch to the new branch?\n\n"
+         "To keep your changes, stash them before switching."));
 }
 
 void GitRepoContainer::simulateClickOnHistoryRow(int row) const {
