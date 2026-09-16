@@ -62,15 +62,15 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   _passwordLineEdit->setEchoMode(QLineEdit::Password);
 
   _passwordVisibilityAction = _passwordLineEdit->addAction(
-      QIcon(overlayButtonIcon(":/icons/eye.svg")), QLineEdit::TrailingPosition);
+      overlayButtonIcon(":/icons/eye.svg"), QLineEdit::TrailingPosition);
   _passwordVisibilityAction->setToolTip(tr("Show password"));
   _passwordVisibilityAction->setCheckable(true);
   connect(_passwordVisibilityAction, &QAction::toggled, this,
           [this](bool checked) {
             _passwordLineEdit->setEchoMode(checked ? QLineEdit::Normal
                                                    : QLineEdit::Password);
-            _passwordVisibilityAction->setIcon(QIcon(overlayButtonIcon(
-                checked ? ":/icons/eye-off.svg" : ":/icons/eye.svg")));
+            _passwordVisibilityAction->setIcon(overlayButtonIcon(
+                checked ? ":/icons/eye-off.svg" : ":/icons/eye.svg"));
             _passwordVisibilityAction->setToolTip(
                 checked ? tr("Hide password") : tr("Show password"));
           });
