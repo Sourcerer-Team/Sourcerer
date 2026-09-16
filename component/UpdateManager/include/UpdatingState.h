@@ -24,7 +24,8 @@ private:
   bool workerLoop(const NewsTracker::Structs::NewsItem &newsItem);
   bool downloadUpdate(const NewsTracker::Structs::NewsItem &newsItem,
                       QString &downloadedFilePath);
-  bool launchInstaller(const QString &downloadedFilePath) const;
+  static QString buildStagedUpdateFilePath(const QString &downloadUrl,
+                                          const QString &installDir);
   static QString
   buildDownloadFilePath(const NewsTracker::Structs::NewsItem &newsItem,
                         const QString &downloadUrl);

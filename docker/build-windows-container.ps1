@@ -60,11 +60,28 @@ if (-not $exeCandidate) {
     throw 'Sourcerer.exe was not found in the build output'
 }
 $exeDestination = Join-Path $releaseDirFull 'Sourcerer.exe'
-if ((Resolve-Path $exeCandidate.FullName).Path -ne (Resolve-Path $exeDestination).Path) {
+if (-not (Test-Path $exeDestination) -or (Resolve-Path $exeCandidate.FullName).Path -ne (Resolve-Path $exeDestination).Path) {
     Copy-Item $exeCandidate.FullName $exeDestination -Force
     Write-Host "  Copied Sourcerer.exe from $($exeCandidate.FullName)" -ForegroundColor Gray
 } else {
     Write-Host '  Sourcerer.exe is already in the release directory' -ForegroundColor Gray
+}
+
+$launcherCandidate = Get-ChildItem 'C:\workspace\build' -Recurse -Filter 'SourcererLauncher.exe' -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+if (-not $launcherCandidate) {
+    Write-Host 'SourcererLauncher.exe was not found. Available build outputs:' -ForegroundColor Yellow
+    Get-ChildItem 'C:\workspace\build' -Recurse -Filter '*.exe' -ErrorAction SilentlyContinue |
+        Select-Object -First 40 |
+        ForEach-Object { Write-Host "  $($_.FullName)" -ForegroundColor Yellow }
+    throw 'SourcererLauncher.exe was not found in the build output'
+}
+$launcherDestination = Join-Path $releaseDirFull 'SourcererLauncher.exe'
+if (-not (Test-Path $launcherDestination) -or (Resolve-Path $launcherCandidate.FullName).Path -ne (Resolve-Path $launcherDestination).Path) {
+    Copy-Item $launcherCandidate.FullName $launcherDestination -Force
+    Write-Host "  Copied SourcererLauncher.exe from $($launcherCandidate.FullName)" -ForegroundColor Gray
+} else {
+    Write-Host '  SourcererLauncher.exe is already in the release directory' -ForegroundColor Gray
 }
 
 # Copy any shared runtime DLLs that the WiX installer expects into the release directory

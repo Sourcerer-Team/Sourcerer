@@ -20,6 +20,10 @@ set(PROJECT_SOURCES
         main.cpp
 )
 
+set(LAUNCHER_SOURCES
+        launcher.cpp
+)
+
 if(WIN32)
   set(APP_ICON_RES "${CMAKE_CURRENT_SOURCE_DIR}/../component/GuiManager/resources/icons/app_icon.res")
 endif()
@@ -27,6 +31,11 @@ endif()
 qt_add_executable(Sourcerer
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
+)
+
+qt_add_executable(SourcererLauncher
+        MANUAL_FINALIZATION
+        ${LAUNCHER_SOURCES}
 )
 
 include("../cmake/helpers.cmake")
@@ -45,6 +54,8 @@ includeLib(Sourcerer IssueTrackers)
 includeLib(Sourcerer Log)
 includeLib(Sourcerer RecyclerView)
 includeLib(Sourcerer Util)
+
+includeComponent(SourcererLauncher ConfigManager)
 
 if (WIN32)
   set(ADDITIONAL_LIBRARIES user32.lib Dwmapi.lib secur32.lib)
@@ -66,6 +77,11 @@ target_link_libraries(Sourcerer PRIVATE
         ${ADDITIONAL_LIBRARIES}
         "${APP_ICON_RES}")
 
+target_link_libraries(SourcererLauncher PRIVATE
+        Qt6::Core
+        ${ADDITIONAL_LIBRARIES}
+        "${APP_ICON_RES}")
+
 set_target_properties(Sourcerer PROPERTIES
         MACOSX_BUNDLE_GUI_IDENTIFIER www.sourcererapp.com
         MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
@@ -74,9 +90,14 @@ set_target_properties(Sourcerer PROPERTIES
         WIN32_EXECUTABLE TRUE
 )
 
-qt_finalize_target(Sourcerer)
+set_target_properties(SourcererLauncher PROPERTIES
+        WIN32_EXECUTABLE TRUE
+)
 
-install(TARGETS Sourcerer
+qt_finalize_target(Sourcerer)
+qt_finalize_target(SourcererLauncher)
+
+install(TARGETS Sourcerer SourcererLauncher
         BUNDLE DESTINATION .
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
