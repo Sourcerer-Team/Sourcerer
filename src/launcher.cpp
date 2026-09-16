@@ -83,7 +83,11 @@ QString executablePath() {
 }
 
 QString stagePattern() {
+#ifdef Q_OS_WIN
   return QStringLiteral("Sourcerer-Update*.exe");
+#else
+  return QStringLiteral("Sourcerer-Update*.AppImage");
+#endif
 }
 
 QString stagedUpdateFile(const QString &installDir) {

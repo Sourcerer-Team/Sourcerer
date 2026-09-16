@@ -17,7 +17,8 @@ namespace {
 
 #ifdef Q_OS_LINUX
 QString resolveRunningAppImagePath() {
-  const QString envAppImage = QString::fromLocal8Bit(qgetenv("ARGV0")).trimmed();
+  const QString envAppImage =
+      QString::fromLocal8Bit(qgetenv("ARGV0")).trimmed();
   if (!envAppImage.isEmpty()) {
     const QFileInfo envInfo(envAppImage);
     if (envInfo.exists() && envInfo.isFile() &&
@@ -49,8 +50,7 @@ QString stagedUpdateFile(const QString &installDir) {
 #endif
   const QDir dir(installDir);
   const QFileInfoList files =
-      dir.entryInfoList({QStringLiteral("Sourcerer-Update*.exe")},
-                        QDir::Files | QDir::Readable, QDir::Time);
+      dir.entryInfoList({pattern}, QDir::Files | QDir::Readable, QDir::Time);
   if (files.isEmpty()) {
     return QString();
   }
