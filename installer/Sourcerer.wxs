@@ -28,6 +28,7 @@
                  Level="1"
                  Description="Sourcerer - Git Repository Manager">
             <ComponentRef Id="SourcererExecutable" />
+            <ComponentRef Id="SourcererLauncherExecutable" />
             <ComponentRef Id="QtDependencies" />
             <ComponentRef Id="QtPlatformPlugins" />
             <ComponentRef Id="QtImageFormatPlugins" />
@@ -72,6 +73,18 @@
                 <RegistryKey Root="HKCU"
                              Key="Software\Sourcerer\InstalledComponents">
                     <RegistryValue Name="SourcererExecutable"
+                                   Type="integer"
+                                   Value="1"
+                                   KeyPath="yes" />
+                </RegistryKey>
+            </Component>
+
+            <Component Id="SourcererLauncherExecutable" Guid="0c0f8d8f-4b35-4d0b-9a9f-c1a9c2e0bc21">
+                <File Id="SourcererLauncherExe"
+                      Source="$(var.SourcererBinPath)\SourcererLauncher.exe" />
+                <RegistryKey Root="HKCU"
+                             Key="Software\Sourcerer\InstalledComponents">
+                    <RegistryValue Name="SourcererLauncherExecutable"
                                    Type="integer"
                                    Value="1"
                                    KeyPath="yes" />
@@ -379,7 +392,7 @@
                                    Value="Sourcerer" />
                     <RegistryValue Type="string"
                                    Name="DisplayVersion"
-                                   Value="0.2.1" />
+                                   Value="$(var.SourcererVersion)" />
                     <RegistryValue Type="string"
                                    Name="Publisher"
                                    Value="Sourcerer Team" />

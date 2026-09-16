@@ -2358,7 +2358,7 @@ QString StylesheetManager::issueTrackerToolbarStyleSheet() {
 
 namespace {
 
-QPixmap renderSvgToPixmap(const QString &path, const QColor &color) {
+QPixmap renderSvgPathToPixmap(const QString &path, const QColor &color) {
   QSvgRenderer renderer(path);
   if (!renderer.isValid()) {
     return QPixmap();
@@ -2405,14 +2405,14 @@ QIcon issueTrackerToolbarIcon(const QString &path,
       StylesheetManager::StylesheetManager::menuBarButtonIconColor();
 
   QIcon icon;
-  const QPixmap source = renderSvgToPixmap(path, iconColor);
+  const QPixmap source = renderSvgPathToPixmap(path, iconColor);
   if (source.isNull()) {
     return icon;
   }
 
   icon.addPixmap(source, QIcon::Normal, QIcon::Off);
 
-  const QPixmap disabledSource = renderSvgToPixmap(disabledPath, iconColor);
+  const QPixmap disabledSource = renderSvgPathToPixmap(disabledPath, iconColor);
   if (!disabledSource.isNull()) {
     icon.addPixmap(disabledSource, QIcon::Disabled, QIcon::Off);
   }
@@ -2421,6 +2421,11 @@ QIcon issueTrackerToolbarIcon(const QString &path,
 }
 
 } // namespace
+
+QPixmap StylesheetManager::renderSvgToPixmap(const QString &path,
+                                             const QColor &color) {
+  return renderSvgPathToPixmap(path, color);
+}
 
 QIcon StylesheetManager::issueTrackerToolbarBackIcon() {
   return issueTrackerToolbarIcon(

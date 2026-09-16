@@ -29,6 +29,7 @@ public:
   static QIcon issueTrackerToolbarForwardIcon();
   static QIcon issueTrackerToolbarRefreshIcon();
   static QPixmap recolorPixmap(const QPixmap &source, const QColor &color);
+  static QPixmap renderSvgToPixmap(const QString &path, const QColor &color);
   static void applyStylesheet(QApplication *app = nullptr);
   static void refreshMenuBarButtonIcons(QWidget *root = nullptr);
 

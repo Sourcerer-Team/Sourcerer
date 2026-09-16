@@ -79,6 +79,12 @@ public:
   static QPixmap overlayButtonIcon(const QString &iconPath) {
     const QColor iconColor =
         StylesheetManager::StylesheetManager::menuBarButtonIconColor();
+
+    if (iconPath.endsWith(QStringLiteral(".svg"), Qt::CaseInsensitive)) {
+      return StylesheetManager::StylesheetManager::renderSvgToPixmap(iconPath,
+                                                                     iconColor);
+    }
+
     return StylesheetManager::StylesheetManager::recolorPixmap(
         QPixmap(iconPath), iconColor);
   }
