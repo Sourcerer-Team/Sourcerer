@@ -37,9 +37,17 @@ if [ ! -f "$BUILD_DIR/Sourcerer" ]; then
     exit 1
 fi
 
+if [ ! -f "$BUILD_DIR/SourcererLauncher" ]; then
+    echo "Error: SourcererLauncher binary not found at $BUILD_DIR/SourcererLauncher"
+    echo "Please build the application first."
+    exit 1
+fi
+
 echo "Copying application binary..."
 cp "$BUILD_DIR/Sourcerer" "$APPDIR/usr/bin/"
+cp "$BUILD_DIR/SourcererLauncher" "$APPDIR/usr/bin/"
 chmod +x "$APPDIR/usr/bin/Sourcerer"
+chmod +x "$APPDIR/usr/bin/SourcererLauncher"
 
 if [ ! -f "$QT_DIR/$QT_VER/gcc_64/libexec/QtWebEngineProcess" ]; then
     echo "Error: QtWebEngineProcess binary not found at $QT_DIR/$QT_VER/gcc_64/libexec/QtWebEngineProcess"
