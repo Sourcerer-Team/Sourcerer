@@ -25,10 +25,12 @@ protected:
     QLineEdit::paintEvent(event);
 
     if (text().isEmpty() && hasFocus()) {
+      const QMargins margins = textMargins();
       QPainter painter(this);
       painter.setPen(_placeholderColor);
-      painter.drawText(rect().adjusted(5, 0, -5, 0),
-                       Qt::AlignVCenter | Qt::AlignHCenter, placeholderText());
+      painter.drawText(
+          rect().adjusted(margins.left() + 5, 0, -(margins.right() + 5), 0),
+          Qt::AlignVCenter | Qt::AlignHCenter, placeholderText());
     }
   }
 
