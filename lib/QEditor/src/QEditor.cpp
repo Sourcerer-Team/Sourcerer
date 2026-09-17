@@ -33,10 +33,10 @@ const TSLanguage *tree_sitter_typescript(void);
 #include <QScopedValueRollback>
 
 #include <QTextBlock>
+#include <QTextCharFormat>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
-#include <QTextCharFormat>
 #include <QTextFormat>
 
 #include <algorithm>
@@ -256,7 +256,8 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
                        Qt::CaseInsensitive) == 0) {
     return tree_sitter_ocaml_interface();
   }
-  if (language.compare(QStringLiteral("ocaml_type"), Qt::CaseInsensitive) == 0) {
+  if (language.compare(QStringLiteral("ocaml_type"), Qt::CaseInsensitive) ==
+      0) {
     return tree_sitter_ocaml_type();
   }
   if (language.compare(QStringLiteral("powershell"), Qt::CaseInsensitive) ==
@@ -296,10 +297,8 @@ QTextCharFormat formatForTreeSitterNode(const char *nodeType) {
              type.contains(QStringLiteral("integer")) ||
              type.contains(QStringLiteral("float"))) {
     format.setForeground(QColor(209, 154, 102));
-  } else if (type == QLatin1String("true") ||
-             type == QLatin1String("false") ||
-             type == QLatin1String("null") ||
-             type == QLatin1String("nil") ||
+  } else if (type == QLatin1String("true") || type == QLatin1String("false") ||
+             type == QLatin1String("null") || type == QLatin1String("nil") ||
              type == QLatin1String("none") ||
              type == QLatin1String("undefined")) {
     format.setForeground(QColor(198, 120, 221));
@@ -313,37 +312,37 @@ QTextCharFormat formatForTreeSitterNode(const char *nodeType) {
     format.setFontWeight(QFont::Bold);
   } else {
     static const QSet<QString> keywordNodes = {
-        QStringLiteral("as"),        QStringLiteral("await"),
-        QStringLiteral("break"),     QStringLiteral("case"),
-        QStringLiteral("catch"),     QStringLiteral("class"),
-        QStringLiteral("const"),     QStringLiteral("continue"),
-        QStringLiteral("def"),       QStringLiteral("delete"),
-        QStringLiteral("do"),        QStringLiteral("else"),
-        QStringLiteral("enum"),      QStringLiteral("export"),
-        QStringLiteral("extends"),   QStringLiteral("final"),
-        QStringLiteral("for"),       QStringLiteral("foreach"),
-        QStringLiteral("from"),      QStringLiteral("fun"),
-        QStringLiteral("function"),  QStringLiteral("if"),
+        QStringLiteral("as"),         QStringLiteral("await"),
+        QStringLiteral("break"),      QStringLiteral("case"),
+        QStringLiteral("catch"),      QStringLiteral("class"),
+        QStringLiteral("const"),      QStringLiteral("continue"),
+        QStringLiteral("def"),        QStringLiteral("delete"),
+        QStringLiteral("do"),         QStringLiteral("else"),
+        QStringLiteral("enum"),       QStringLiteral("export"),
+        QStringLiteral("extends"),    QStringLiteral("final"),
+        QStringLiteral("for"),        QStringLiteral("foreach"),
+        QStringLiteral("from"),       QStringLiteral("fun"),
+        QStringLiteral("function"),   QStringLiteral("if"),
         QStringLiteral("implements"), QStringLiteral("import"),
         QStringLiteral("include"),    QStringLiteral("in"),
         QStringLiteral("interface"),  QStringLiteral("let"),
-        QStringLiteral("match"),     QStringLiteral("module"),
-        QStringLiteral("mutable"),   QStringLiteral("namespace"),
-        QStringLiteral("new"),       QStringLiteral("newtype"),
-        QStringLiteral("of"),        QStringLiteral("package"),
-        QStringLiteral("param"),     QStringLiteral("private"),
-        QStringLiteral("protected"), QStringLiteral("public"),
-        QStringLiteral("record"),    QStringLiteral("rec"),
-        QStringLiteral("return"),    QStringLiteral("sealed"),
-        QStringLiteral("static"),    QStringLiteral("struct"),
-        QStringLiteral("switch"),    QStringLiteral("template"),
-        QStringLiteral("then"),      QStringLiteral("throw"),
-        QStringLiteral("throws"),    QStringLiteral("trait"),
-        QStringLiteral("try"),       QStringLiteral("type"),
-        QStringLiteral("typedef"),   QStringLiteral("unsafe"),
-        QStringLiteral("using"),     QStringLiteral("var"),
-        QStringLiteral("virtual"),   QStringLiteral("where"),
-        QStringLiteral("while"),     QStringLiteral("with"),
+        QStringLiteral("match"),      QStringLiteral("module"),
+        QStringLiteral("mutable"),    QStringLiteral("namespace"),
+        QStringLiteral("new"),        QStringLiteral("newtype"),
+        QStringLiteral("of"),         QStringLiteral("package"),
+        QStringLiteral("param"),      QStringLiteral("private"),
+        QStringLiteral("protected"),  QStringLiteral("public"),
+        QStringLiteral("record"),     QStringLiteral("rec"),
+        QStringLiteral("return"),     QStringLiteral("sealed"),
+        QStringLiteral("static"),     QStringLiteral("struct"),
+        QStringLiteral("switch"),     QStringLiteral("template"),
+        QStringLiteral("then"),       QStringLiteral("throw"),
+        QStringLiteral("throws"),     QStringLiteral("trait"),
+        QStringLiteral("try"),        QStringLiteral("type"),
+        QStringLiteral("typedef"),    QStringLiteral("unsafe"),
+        QStringLiteral("using"),      QStringLiteral("var"),
+        QStringLiteral("virtual"),    QStringLiteral("where"),
+        QStringLiteral("while"),      QStringLiteral("with"),
         QStringLiteral("yield")};
     if (keywordNodes.contains(type)) {
       format.setForeground(QColor(198, 120, 221));
@@ -413,8 +412,8 @@ void QsciScintilla::updateTreeSitterHighlighting() {
   if (_updatingTreeSitterHighlighting || !_treeSitterHighlightingEnabled) {
     return;
   }
-  const QScopedValueRollback<bool> updateGuard(
-      _updatingTreeSitterHighlighting, true);
+  const QScopedValueRollback<bool> updateGuard(_updatingTreeSitterHighlighting,
+                                               true);
 
   if (_tree) {
     ts_tree_delete(_tree);
@@ -423,7 +422,7 @@ void QsciScintilla::updateTreeSitterHighlighting() {
 
   QTextCharFormat defaultFormat;
   defaultFormat.setForeground(_color.isValid() ? _color
-                                                 : palette().text().color());
+                                               : palette().text().color());
   defaultFormat.setFontWeight(QFont::Normal);
   defaultFormat.setFontItalic(false);
   QTextCursor documentCursor(document());
@@ -436,15 +435,15 @@ void QsciScintilla::updateTreeSitterHighlighting() {
 
   const QByteArray source = toPlainText().toUtf8();
   _tree = ts_parser_parse_string(_parser, nullptr, source.constData(),
-                                  static_cast<uint32_t>(source.size()));
+                                 static_cast<uint32_t>(source.size()));
   if (!_tree) {
     return;
   }
 
   const int documentLength = document()->characterCount() - 1;
   const auto utf8ByteToUtf16 = [&source](uint32_t byteOffset) {
-    const int boundedOffset = std::min(
-        static_cast<int>(byteOffset), static_cast<int>(source.size()));
+    const int boundedOffset =
+        std::min(static_cast<int>(byteOffset), static_cast<int>(source.size()));
     return QString::fromUtf8(source.constData(), boundedOffset).size();
   };
 
@@ -456,7 +455,8 @@ void QsciScintilla::updateTreeSitterHighlighting() {
         format.foreground().color().isValid()) {
       const TSNode parent = ts_node_parent(node);
       if (QString::fromUtf8(nodeType ? nodeType : "") ==
-              QLatin1String("string") && !ts_node_is_null(parent) &&
+              QLatin1String("string") &&
+          !ts_node_is_null(parent) &&
           QString::fromUtf8(ts_node_type(parent)) == QLatin1String("pair") &&
           ts_node_eq(ts_node_named_child(parent, 0), node)) {
         format.setForeground(QColor(97, 175, 239));

@@ -25,7 +25,7 @@ private:
   bool downloadUpdate(const NewsTracker::Structs::NewsItem &newsItem,
                       QString &downloadedFilePath);
   static QString buildStagedUpdateFilePath(const QString &downloadUrl,
-                                          const QString &installDir);
+                                           const QString &installDir);
   static QString
   buildDownloadFilePath(const NewsTracker::Structs::NewsItem &newsItem,
                         const QString &downloadUrl);

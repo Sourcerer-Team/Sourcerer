@@ -246,7 +246,6 @@ void MergeDiffView::clearContent() {
   LOG_PERF(0, "Exit");
 }
 
-
 void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
                                      const QString &filePath) {
   LOG_PERF(0, "Enter");
@@ -287,7 +286,7 @@ void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
 
   // Reapply the theme after setting text so the editor foreground colors
   // are refreshed with the loaded document contents.
-  //refreshScintillaTheme();
+  // refreshScintillaTheme();
 
   for (const int line : _content.leftMarks0) {
     _leftEditor->markerAdd(line, 1);

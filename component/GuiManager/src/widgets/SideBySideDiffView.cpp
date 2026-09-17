@@ -344,7 +344,7 @@ void SideBySideDiffView::loadAndHighlight(
   _rightEditor->markerDefine(QsciScintilla::Background, 1);
   _rightEditor->markerDefine(QsciScintilla::Background, 2);
 
-  //refreshScintillaTheme();
+  // refreshScintillaTheme();
 
   for (const int line : content.leftMarks0) {
     _leftEditor->markerAdd(line, 1);
