@@ -57,6 +57,16 @@ private:
   // Lexer creation methods
   QsciLexer *createCppLexer(QObject *parent) const;
   QsciLexer *createPythonLexer(QObject *parent) const;
+  QsciLexer *createJavaLexer(QObject *parent) const;
+  QsciLexer *createTypeScriptLexer(QObject *parent) const;
+  QsciLexer *createTSXLexer(QObject *parent) const;
+  QsciLexer *createCSharpLexer(QObject *parent) const;
+  QsciLexer *createRustLexer(QObject *parent) const;
+  QsciLexer *createOCamlLexer(QObject *parent) const;
+  QsciLexer *createOCamlInterfaceLexer(QObject *parent) const;
+  QsciLexer *createOCamlTypeLexer(QObject *parent) const;
+  QsciLexer *createHaskellLexer(QObject *parent) const;
+  QsciLexer *createPowerShellLexer(QObject *parent) const;
   QsciLexer *createJavaScriptLexer(QObject *parent) const;
   QsciLexer *createHtmlLexer(QObject *parent) const;
   QsciLexer *createCssLexer(QObject *parent) const;

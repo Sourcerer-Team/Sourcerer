@@ -10,12 +10,12 @@
 #include <QVector>
 
 struct TSParser;
+struct TSLanguage;
 struct TSTree;
 class QMouseEvent;
 class QPaintEvent;
 class QResizeEvent;
 class QFocusEvent;
-class SimpleSyntaxHighlighter;
 class QWidget;
 
 class QSCI_EXPORT QsciScintilla : public QPlainTextEdit {
@@ -76,6 +76,10 @@ public:
   int markerAdd(int line, int marker);
   void markerDelete(int line, int marker);
   int markersAtLine(int line) const;
+  void setTreeSitterHighlightingEnabled(bool enabled);
+  bool treeSitterHighlightingEnabled() const {
+    return _treeSitterHighlightingEnabled;
+  }
 
 signals:
   void marginClicked(int margin, int line, Qt::KeyboardModifiers state);
@@ -96,6 +100,7 @@ private:
   void lineNumberAreaPaintEvent(QPaintEvent *event);
   void updateLineNumberAreaWidth(int);
   void updateLineNumberArea(const QRect &rect, int dy);
+  void updateTreeSitterHighlighting();
 
 private:
   QsciLexer *_lexer;
@@ -131,7 +136,9 @@ private:
   QHash<int, QSet<int>> _markers;
   QHash<int, QHash<int, QString>> _marginTexts;
   QWidget *_lineNumberArea;
-  SimpleSyntaxHighlighter *_syntaxHighlighter;
+  const TSLanguage *_treeSitterLanguage;
+  bool _updatingTreeSitterHighlighting;
+  bool _treeSitterHighlightingEnabled;
   TSParser *_parser;
   TSTree *_tree;
 };

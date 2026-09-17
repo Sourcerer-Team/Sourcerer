@@ -2,22 +2,45 @@
 
 #include <tree_sitter/api.h>
 
+extern "C" {
+const TSLanguage *tree_sitter_bash(void);
+const TSLanguage *tree_sitter_c(void);
+const TSLanguage *tree_sitter_c_sharp(void);
+const TSLanguage *tree_sitter_cpp(void);
+const TSLanguage *tree_sitter_css(void);
+const TSLanguage *tree_sitter_haskell(void);
+const TSLanguage *tree_sitter_html(void);
+const TSLanguage *tree_sitter_java(void);
+const TSLanguage *tree_sitter_javascript(void);
+const TSLanguage *tree_sitter_json(void);
+const TSLanguage *tree_sitter_ocaml(void);
+const TSLanguage *tree_sitter_ocaml_interface(void);
+const TSLanguage *tree_sitter_ocaml_type(void);
+const TSLanguage *tree_sitter_powershell(void);
+const TSLanguage *tree_sitter_python(void);
+const TSLanguage *tree_sitter_rust(void);
+const TSLanguage *tree_sitter_tsx(void);
+const TSLanguage *tree_sitter_typescript(void);
+}
+
 #include <QFocusEvent>
 #include <QFrame>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPlainTextEdit>
-#include <QRegularExpression>
 #include <QResizeEvent>
-#include <QSyntaxHighlighter>
+#include <QScopedValueRollback>
+
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
+#include <QTextCharFormat>
 #include <QTextFormat>
-#include <QVBoxLayout>
+
 #include <algorithm>
+#include <functional>
 
 QsciLexer::QsciLexer(QObject *parent, const QString &treeSitterLanguage)
     : QObject(parent), _treeSitterLanguage(treeSitterLanguage) {}
@@ -81,6 +104,16 @@ QFont QsciLexer::font(int style) const {
 QEDITOR_DEFINE_LEXER(QsciLexerCPP, "cpp")
 QEDITOR_DEFINE_LEXER(QsciLexerPython, "python")
 QEDITOR_DEFINE_LEXER(QsciLexerJavaScript, "javascript")
+QEDITOR_DEFINE_LEXER(QsciLexerJava, "java")
+QEDITOR_DEFINE_LEXER(QsciLexerTypeScript, "typescript")
+QEDITOR_DEFINE_LEXER(QsciLexerTSX, "tsx")
+QEDITOR_DEFINE_LEXER(QsciLexerCSharp, "csharp")
+QEDITOR_DEFINE_LEXER(QsciLexerRust, "rust")
+QEDITOR_DEFINE_LEXER(QsciLexerOCaml, "ocaml")
+QEDITOR_DEFINE_LEXER(QsciLexerOCamlInterface, "ocaml_interface")
+QEDITOR_DEFINE_LEXER(QsciLexerOCamlType, "ocaml_type")
+QEDITOR_DEFINE_LEXER(QsciLexerHaskell, "haskell")
+QEDITOR_DEFINE_LEXER(QsciLexerPowerShell, "powershell")
 QEDITOR_DEFINE_LEXER(QsciLexerHTML, "html")
 QEDITOR_DEFINE_LEXER(QsciLexerCSS, "css")
 QEDITOR_DEFINE_LEXER(QsciLexerXML, "xml")
@@ -177,172 +210,159 @@ private:
   QsciScintilla *_editor;
 };
 
-class SimpleSyntaxHighlighter final : public QSyntaxHighlighter {
-public:
-  explicit SimpleSyntaxHighlighter(QTextDocument *document,
-                                   QsciScintilla *editor)
-      : QSyntaxHighlighter(document), _editor(editor) {}
+namespace {
 
-  void setEditor(QsciScintilla *editor) {
-    _editor = editor;
-    rehighlight();
+const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
+  if (!lexer) {
+    return nullptr;
   }
 
-protected:
-  void highlightBlock(const QString &text) override {
-    const QsciLexer *lexer = _editor ? _editor->lexer() : nullptr;
-    const QString language =
-        lexer ? lexer->treeSitterLanguage().toLower() : QString();
-
-    if (language == QLatin1String("diff")) {
-      highlightDiff(text);
-      return;
-    }
-
-    highlightGeneric(text, language);
+  const QString language = lexer->treeSitterLanguage();
+  if (language.compare(QStringLiteral("bash"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_bash();
+  }
+  if (language.compare(QStringLiteral("c"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_c();
+  }
+  if (language.compare(QStringLiteral("csharp"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_c_sharp();
+  }
+  if (language.compare(QStringLiteral("cpp"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_cpp();
+  }
+  if (language.compare(QStringLiteral("css"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_css();
+  }
+  if (language.compare(QStringLiteral("haskell"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_haskell();
+  }
+  if (language.compare(QStringLiteral("html"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_html();
+  }
+  if (language.compare(QStringLiteral("java"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_java();
+  }
+  if (language.compare(QStringLiteral("javascript"), Qt::CaseInsensitive) ==
+      0) {
+    return tree_sitter_javascript();
+  }
+  if (language.compare(QStringLiteral("json"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_json();
+  }
+  if (language.compare(QStringLiteral("ocaml"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_ocaml();
+  }
+  if (language.compare(QStringLiteral("ocaml_interface"),
+                       Qt::CaseInsensitive) == 0) {
+    return tree_sitter_ocaml_interface();
+  }
+  if (language.compare(QStringLiteral("ocaml_type"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_ocaml_type();
+  }
+  if (language.compare(QStringLiteral("powershell"), Qt::CaseInsensitive) ==
+      0) {
+    return tree_sitter_powershell();
+  }
+  if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_python();
+  }
+  if (language.compare(QStringLiteral("rust"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_rust();
+  }
+  if (language.compare(QStringLiteral("tsx"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_tsx();
+  }
+  if (language.compare(QStringLiteral("typescript"), Qt::CaseInsensitive) ==
+      0) {
+    return tree_sitter_typescript();
   }
 
-private:
-  static QTextCharFormat makeFormat(const QColor &foreground, bool bold = false,
-                                    bool italic = false) {
-    QTextCharFormat format;
-    format.setForeground(foreground);
-    format.setFontWeight(bold ? QFont::Bold : QFont::Normal);
-    format.setFontItalic(italic);
-    return format;
-  }
+  return nullptr;
+}
 
-  void
-  applyRules(const QString &text,
-             const QList<QPair<QRegularExpression, QTextCharFormat>> &rules) {
-    for (const auto &rule : rules) {
-      auto matchIterator = rule.first.globalMatch(text);
-      while (matchIterator.hasNext()) {
-        const QRegularExpressionMatch match = matchIterator.next();
-        if (match.hasMatch()) {
-          setFormat(match.capturedStart(), match.capturedLength(), rule.second);
-        }
-      }
+QTextCharFormat formatForTreeSitterNode(const char *nodeType) {
+  QTextCharFormat format;
+  const QString type = QString::fromUtf8(nodeType ? nodeType : "").toLower();
+
+  if (type.contains(QStringLiteral("comment"))) {
+    format.setForeground(QColor(92, 99, 112));
+    format.setFontItalic(true);
+  } else if (type.contains(QStringLiteral("string")) ||
+             type.contains(QStringLiteral("heredoc")) ||
+             type.contains(QStringLiteral("template_string")) ||
+             type.contains(QStringLiteral("raw_string"))) {
+    format.setForeground(QColor(152, 195, 121));
+  } else if (type.contains(QStringLiteral("number")) ||
+             type.contains(QStringLiteral("integer")) ||
+             type.contains(QStringLiteral("float"))) {
+    format.setForeground(QColor(209, 154, 102));
+  } else if (type == QLatin1String("true") ||
+             type == QLatin1String("false") ||
+             type == QLatin1String("null") ||
+             type == QLatin1String("nil") ||
+             type == QLatin1String("none") ||
+             type == QLatin1String("undefined")) {
+    format.setForeground(QColor(198, 120, 221));
+    format.setFontWeight(QFont::Bold);
+  } else if (type.contains(QStringLiteral("escape"))) {
+    format.setForeground(QColor(86, 182, 194));
+  } else if (type.startsWith(QStringLiteral("preproc")) ||
+             type == QLatin1String("directive") ||
+             type == QLatin1String("decorator")) {
+    format.setForeground(QColor(97, 175, 239));
+    format.setFontWeight(QFont::Bold);
+  } else {
+    static const QSet<QString> keywordNodes = {
+        QStringLiteral("as"),        QStringLiteral("await"),
+        QStringLiteral("break"),     QStringLiteral("case"),
+        QStringLiteral("catch"),     QStringLiteral("class"),
+        QStringLiteral("const"),     QStringLiteral("continue"),
+        QStringLiteral("def"),       QStringLiteral("delete"),
+        QStringLiteral("do"),        QStringLiteral("else"),
+        QStringLiteral("enum"),      QStringLiteral("export"),
+        QStringLiteral("extends"),   QStringLiteral("final"),
+        QStringLiteral("for"),       QStringLiteral("foreach"),
+        QStringLiteral("from"),      QStringLiteral("fun"),
+        QStringLiteral("function"),  QStringLiteral("if"),
+        QStringLiteral("implements"), QStringLiteral("import"),
+        QStringLiteral("include"),    QStringLiteral("in"),
+        QStringLiteral("interface"),  QStringLiteral("let"),
+        QStringLiteral("match"),     QStringLiteral("module"),
+        QStringLiteral("mutable"),   QStringLiteral("namespace"),
+        QStringLiteral("new"),       QStringLiteral("newtype"),
+        QStringLiteral("of"),        QStringLiteral("package"),
+        QStringLiteral("param"),     QStringLiteral("private"),
+        QStringLiteral("protected"), QStringLiteral("public"),
+        QStringLiteral("record"),    QStringLiteral("rec"),
+        QStringLiteral("return"),    QStringLiteral("sealed"),
+        QStringLiteral("static"),    QStringLiteral("struct"),
+        QStringLiteral("switch"),    QStringLiteral("template"),
+        QStringLiteral("then"),      QStringLiteral("throw"),
+        QStringLiteral("throws"),    QStringLiteral("trait"),
+        QStringLiteral("try"),       QStringLiteral("type"),
+        QStringLiteral("typedef"),   QStringLiteral("unsafe"),
+        QStringLiteral("using"),     QStringLiteral("var"),
+        QStringLiteral("virtual"),   QStringLiteral("where"),
+        QStringLiteral("while"),     QStringLiteral("with"),
+        QStringLiteral("yield")};
+    if (keywordNodes.contains(type)) {
+      format.setForeground(QColor(198, 120, 221));
+      format.setFontWeight(QFont::Bold);
     }
   }
 
-  void highlightDiff(const QString &text) {
-    const QString trimmed = text.trimmed();
-    if (trimmed.startsWith(QLatin1String("diff ")) ||
-        trimmed.startsWith(QLatin1String("index ")) ||
-        trimmed.startsWith(QLatin1String("--- ")) ||
-        trimmed.startsWith(QLatin1String("+++ ")) ||
-        trimmed.startsWith(QLatin1String("@@"))) {
-      setFormat(0, text.length(), makeFormat(QColor(97, 175, 239), true));
-      return;
-    }
+  return format;
+}
 
-    if (text.startsWith(QLatin1Char('+')) &&
-        !text.startsWith(QLatin1String("+++"))) {
-      setFormat(0, text.length(), makeFormat(QColor(152, 195, 121)));
-      return;
-    }
-
-    if (text.startsWith(QLatin1Char('-')) &&
-        !text.startsWith(QLatin1String("---"))) {
-      setFormat(0, text.length(), makeFormat(QColor(224, 108, 117)));
-      return;
-    }
-
-    if (text.startsWith(QLatin1String("@@"))) {
-      setFormat(0, text.length(), makeFormat(QColor(198, 120, 221), true));
-      return;
-    }
-
-    const QList<QPair<QRegularExpression, QTextCharFormat>> rules = {
-        {QRegularExpression(
-             QStringLiteral("\\b(?:true|false|null|nil|none|yes|no)\\b"),
-             QRegularExpression::CaseInsensitiveOption),
-         makeFormat(QColor(198, 120, 221), true)},
-        {QRegularExpression(
-             QStringLiteral(
-                 "\\b(?:if|else|for|while|switch|case|return|class|struct|enum|"
-                 "fn|function|def|import|from|include|package|public|private|"
-                 "protected|const|let|var|new|delete|try|catch|throw|throws|"
-                 "async|await|yield)\\b"),
-             QRegularExpression::CaseInsensitiveOption),
-         makeFormat(QColor(198, 120, 221), true)},
-        {QRegularExpression(QStringLiteral("\\b\\d+(?:\\.\\d+)?\\b"),
-                            QRegularExpression::CaseInsensitiveOption),
-         makeFormat(QColor(209, 154, 102))},
-        {QRegularExpression(
-             QStringLiteral("\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'")),
-         makeFormat(QColor(152, 195, 121))},
-        {QRegularExpression(
-             QStringLiteral("//[^\\n]*|#[^\\n]*|--[^\\n]*|;[^\\n]*")),
-         makeFormat(QColor(92, 99, 112), false, true)},
-    };
-    applyRules(text, rules);
-  }
-
-  void highlightGeneric(const QString &text, const QString &language) {
-    QList<QPair<QRegularExpression, QTextCharFormat>> rules;
-
-    if (language == QLatin1String("markdown")) {
-      rules.append({QRegularExpression(QStringLiteral("^#{1,6}\\s.*")),
-                    makeFormat(QColor(198, 120, 221), true)});
-      rules.append({QRegularExpression(QStringLiteral("^>\\s.*")),
-                    makeFormat(QColor(92, 99, 112), false, true)});
-      rules.append({QRegularExpression(QStringLiteral("`[^`]+`")),
-                    makeFormat(QColor(152, 195, 121))});
-    } else if (language == QLatin1String("json") ||
-               language == QLatin1String("yaml") ||
-               language == QLatin1String("properties")) {
-      rules.append({QRegularExpression(
-                        QStringLiteral("^\\s*[A-Za-z0-9_.-]+(?=\\s*[:=])")),
-                    makeFormat(QColor(97, 175, 239), true)});
-      rules.append({QRegularExpression(
-                        QStringLiteral("\\b(?:true|false|null|yes|no)\\b"),
-                        QRegularExpression::CaseInsensitiveOption),
-                    makeFormat(QColor(198, 120, 221), true)});
-    } else if (language == QLatin1String("xml") ||
-               language == QLatin1String("html")) {
-      rules.append({QRegularExpression(QStringLiteral("<[^>]+>")),
-                    makeFormat(QColor(97, 175, 239), true)});
-      rules.append({QRegularExpression(
-                        QStringLiteral("\\b[A-Za-z_:][A-Za-z0-9_:\\-.]*=")),
-                    makeFormat(QColor(209, 154, 102))});
-    }
-
-    const QList<QPair<QRegularExpression, QTextCharFormat>> commonRules = {
-        {QRegularExpression(
-             QStringLiteral(
-                 "\\b(?:if|else|for|while|switch|case|break|continue|return|"
-                 "class|struct|enum|namespace|import|from|package|def|function|"
-                 "fn|let|var|const|public|private|protected|static|final|new|"
-                 "delete|try|catch|throw|throws|async|await|yield)\\b"),
-             QRegularExpression::CaseInsensitiveOption),
-         makeFormat(QColor(198, 120, 221), true)},
-        {QRegularExpression(QStringLiteral("\\b\\d+(?:\\.\\d+)?\\b")),
-         makeFormat(QColor(209, 154, 102))},
-        {QRegularExpression(
-             QStringLiteral("\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'")),
-         makeFormat(QColor(152, 195, 121))},
-        {QRegularExpression(
-             QStringLiteral("//[^\\n]*|#[^\\n]*|--[^\\n]*|;[^\\n]*")),
-         makeFormat(QColor(92, 99, 112), false, true)},
-        {QRegularExpression(QStringLiteral("/\\*.*\\*/")),
-         makeFormat(QColor(92, 99, 112), false, true)},
-    };
-
-    applyRules(text, rules);
-    applyRules(text, commonRules);
-  }
-
-  QsciScintilla *_editor;
-};
+} // namespace
 
 QsciScintilla::QsciScintilla(QWidget *parent)
     : QPlainTextEdit(parent), _lexer(nullptr), _caretLineVisible(false),
       _indentationsUseTabs(false), _autoIndent(false),
       _indentationGuides(false), _foldStyle(NoFoldStyle),
       _braceMatch(NoBraceMatch), _lineNumberArea(nullptr),
-      _syntaxHighlighter(nullptr), _parser(nullptr), _tree(nullptr) {
+      _treeSitterLanguage(nullptr), _updatingTreeSitterHighlighting(false),
+      _treeSitterHighlightingEnabled(true), _parser(nullptr), _tree(nullptr) {
   for (int i = 0; i < 4; ++i) {
     _marginLineNumbers[i] = false;
     _marginSensitivity[i] = false;
@@ -359,6 +379,8 @@ QsciScintilla::QsciScintilla(QWidget *parent)
           &QsciScintilla::updateLineNumberArea);
   connect(this, &QPlainTextEdit::cursorPositionChanged, this,
           &QsciScintilla::refreshCurrentLineHighlight);
+  connect(document(), &QTextDocument::contentsChanged, this,
+          &QsciScintilla::updateTreeSitterHighlighting);
   updateLineNumberAreaWidth(0);
   _parser = ts_parser_new();
 }
@@ -384,11 +406,81 @@ void QsciScintilla::setText(const QString &text) {
   cursor.insertText(text);
   cursor.endEditBlock();
 
-  if (_syntaxHighlighter) {
-    _syntaxHighlighter->rehighlight();
+  refreshCurrentLineHighlight();
+}
+
+void QsciScintilla::updateTreeSitterHighlighting() {
+  if (_updatingTreeSitterHighlighting || !_treeSitterHighlightingEnabled) {
+    return;
+  }
+  const QScopedValueRollback<bool> updateGuard(
+      _updatingTreeSitterHighlighting, true);
+
+  if (_tree) {
+    ts_tree_delete(_tree);
+    _tree = nullptr;
   }
 
-  refreshCurrentLineHighlight();
+  QTextCharFormat defaultFormat;
+  defaultFormat.setForeground(_color.isValid() ? _color
+                                                 : palette().text().color());
+  defaultFormat.setFontWeight(QFont::Normal);
+  defaultFormat.setFontItalic(false);
+  QTextCursor documentCursor(document());
+  documentCursor.select(QTextCursor::Document);
+  documentCursor.setCharFormat(defaultFormat);
+
+  if (!_parser || !_treeSitterLanguage) {
+    return;
+  }
+
+  const QByteArray source = toPlainText().toUtf8();
+  _tree = ts_parser_parse_string(_parser, nullptr, source.constData(),
+                                  static_cast<uint32_t>(source.size()));
+  if (!_tree) {
+    return;
+  }
+
+  const int documentLength = document()->characterCount() - 1;
+  const auto utf8ByteToUtf16 = [&source](uint32_t byteOffset) {
+    const int boundedOffset = std::min(
+        static_cast<int>(byteOffset), static_cast<int>(source.size()));
+    return QString::fromUtf8(source.constData(), boundedOffset).size();
+  };
+
+  std::function<void(TSNode)> applyNode = [&](TSNode node) {
+    const char *nodeType = ts_node_type(node);
+    QTextCharFormat format = formatForTreeSitterNode(nodeType);
+
+    if (format.hasProperty(QTextFormat::ForegroundBrush) &&
+        format.foreground().color().isValid()) {
+      const TSNode parent = ts_node_parent(node);
+      if (QString::fromUtf8(nodeType ? nodeType : "") ==
+              QLatin1String("string") && !ts_node_is_null(parent) &&
+          QString::fromUtf8(ts_node_type(parent)) == QLatin1String("pair") &&
+          ts_node_eq(ts_node_named_child(parent, 0), node)) {
+        format.setForeground(QColor(97, 175, 239));
+        format.setFontWeight(QFont::Bold);
+      }
+
+      const int start = utf8ByteToUtf16(ts_node_start_byte(node));
+      const int end = utf8ByteToUtf16(ts_node_end_byte(node));
+      if (start < end && start < documentLength) {
+        QTextCursor cursor(document());
+        cursor.setPosition(start);
+        cursor.setPosition(std::min(end, documentLength),
+                           QTextCursor::KeepAnchor);
+        cursor.setCharFormat(format);
+      }
+    }
+
+    const uint32_t childCount = ts_node_child_count(node);
+    for (uint32_t index = 0; index < childCount; ++index) {
+      applyNode(ts_node_child(node, index));
+    }
+  };
+
+  applyNode(ts_tree_root_node(_tree));
 }
 
 QString QsciScintilla::text() const {
@@ -411,6 +503,17 @@ int QsciScintilla::lines() const {
   return currentText.count(QChar('\n')) + 1;
 }
 
+void QsciScintilla::setTreeSitterHighlightingEnabled(bool enabled) {
+  if (_treeSitterHighlightingEnabled == enabled) {
+    return;
+  }
+
+  _treeSitterHighlightingEnabled = enabled;
+  if (_treeSitterHighlightingEnabled) {
+    updateTreeSitterHighlighting();
+  }
+}
+
 void QsciScintilla::setLexer(QsciLexer *lexer) {
   if (_lexer == lexer) {
     return;
@@ -421,17 +524,20 @@ void QsciScintilla::setLexer(QsciLexer *lexer) {
   }
 
   _lexer = lexer;
+  _treeSitterLanguage = treeSitterLanguageForLexer(_lexer);
+  if (_treeSitterLanguage && _parser) {
+    ts_parser_set_language(_parser, _treeSitterLanguage);
+  }
+
   if (_lexer) {
     connect(_lexer, &QsciLexer::changed, this,
             &QsciScintilla::applyCurrentPalette);
+    connect(_lexer, &QsciLexer::changed, this,
+            &QsciScintilla::updateTreeSitterHighlighting);
   }
-  if (!_syntaxHighlighter) {
-    _syntaxHighlighter = new SimpleSyntaxHighlighter(document(), this);
-  } else {
-    _syntaxHighlighter->setParent(this);
-  }
-  _syntaxHighlighter->setEditor(this);
+
   applyCurrentPalette();
+  updateTreeSitterHighlighting();
   refreshCurrentLineHighlight();
 }
 
