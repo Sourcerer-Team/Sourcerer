@@ -235,6 +235,7 @@ void GitRepoManagerBridgeImpl::blame(
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     QsciLexer *lexer = nullptr;
+    /*
     if (!lexerFilePath.isEmpty()) {
       const GuiManager::QScintillaLexerFactory factory;
       lexer = factory.createLexerForFile(lexerFilePath,
@@ -242,8 +243,9 @@ void GitRepoManagerBridgeImpl::blame(
     }
 
     _container.ui->scintillaBlameEditor->setLexer(nullptr);
+  */
     _container.ui->scintillaBlameEditor->setText(blameLines.join('\n'));
-    _container.ui->scintillaBlameEditor->setLexer(lexer);
+    //_container.ui->scintillaBlameEditor->setLexer(lexer);
 
     _container.ui->scintillaBlameEditor->setMarginWidth(0, lineNumberMask);
     _container.ui->scintillaBlameEditor->setMarginWidth(

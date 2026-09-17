@@ -381,11 +381,10 @@ void SideBySideDiffView::loadAndHighlight(
 void SideBySideDiffView::setupEditors(const QString &filePath) {
   LOG_PERF(0, "Enter");
 
-  /*
-  DarkThemeLexersHighlighter highligheter;
-  highligheter.applyDarkTheme(_leftEditor);
-  highligheter.applyDarkTheme(_rightEditor);
-*/
+  DarkThemeLexersHighlighter highlighter;
+  highlighter.applyDarkTheme(_leftEditor);
+  highlighter.applyDarkTheme(_rightEditor);
+
   _leftEditor->setReadOnly(true);
   _rightEditor->setReadOnly(true);
 

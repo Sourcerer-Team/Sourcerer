@@ -808,15 +808,13 @@ void MergeDiffView::setupEditors(const QString &filePath) {
   _rightEditor->markerDefine(QsciScintilla::Background, 2);
   _rightEditor->markerDefine(QsciScintilla::BoxedPlus, PLUS_MARKER);
 
-  refreshScintillaTheme();
-
   _bottomEditor->setMarginType(0, QsciScintilla::NumberMargin);
   _bottomEditor->setMarginType(1, QsciScintilla::SymbolMargin);
   _bottomEditor->setMarginType(2, QsciScintilla::SymbolMargin);
   _bottomEditor->setMarginWidth(1, PLUS_MARKER_MARGIN_WIDTH);
   _bottomEditor->setMarginWidth(2, PLUS_MARKER_MARGIN_WIDTH);
-  _bottomEditor->setMarginBackgroundColor(1, QColor(0x23272e));
-  _bottomEditor->setMarginBackgroundColor(2, QColor(0x23272e));
+  //_bottomEditor->setMarginBackgroundColor(1, QColor(0x23272e));
+  //_bottomEditor->setMarginBackgroundColor(2, QColor(0x23272e));
   _bottomEditor->setMarginMarkerMask(1, 1 << 4);
   _bottomEditor->setMarginMarkerMask(2, 1 << 5);
   _bottomEditor->setMarginSensitivity(1, true);
@@ -834,6 +832,8 @@ void MergeDiffView::setupEditors(const QString &filePath) {
   _leftEditor->setFolding(QsciScintilla::NoFoldStyle);
   _rightEditor->setFolding(QsciScintilla::NoFoldStyle);
   _rightEditor->setFolding(QsciScintilla::NoFoldStyle);
+
+  refreshScintillaTheme();
 
   DarkThemeLexersHighlighter highligheter;
   highligheter.applyDarkTheme(_leftEditor);
