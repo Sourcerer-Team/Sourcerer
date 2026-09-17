@@ -3,6 +3,15 @@
 #include <QFileInfo>
 #include <Qsci/qscilexer.h>
 #include <Qsci/qscilexerbash.h>
+#include <Qsci/qscilexercsharp.h>
+#include <Qsci/qscilexerhaskell.h>
+#include <Qsci/qscilexerjava.h>
+#include <Qsci/qscilexerocaml.h>
+#include <Qsci/qscilexerocamltype.h>
+#include <Qsci/qscilexerpowershell.h>
+#include <Qsci/qscilexerrust.h>
+#include <Qsci/qscilexertsx.h>
+#include <Qsci/qscilexertypescript.h>
 
 #include <Qsci/qscilexerbatch.h>
 #include <Qsci/qscilexercmake.h>
@@ -190,8 +199,47 @@ QsciLexer *QScintillaLexerFactory::createPythonLexer(QObject *parent) const {
   return new QsciLexerPython(parent);
 }
 
-QsciLexer *
-QScintillaLexerFactory::createJavaScriptLexer(QObject *parent) const {
+QsciLexer *QScintillaLexerFactory::createJavaLexer(QObject *parent) const {
+  return new QsciLexerJava(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createTypeScriptLexer(QObject *parent) const {
+  return new QsciLexerTypeScript(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createTSXLexer(QObject *parent) const {
+  return new QsciLexerTSX(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createCSharpLexer(QObject *parent) const {
+  return new QsciLexerCSharp(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createRustLexer(QObject *parent) const {
+  return new QsciLexerRust(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createOCamlLexer(QObject *parent) const {
+  return new QsciLexerOCaml(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createOCamlInterfaceLexer(QObject *parent) const {
+  return new QsciLexerOCamlInterface(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createOCamlTypeLexer(QObject *parent) const {
+  return new QsciLexerOCamlType(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createHaskellLexer(QObject *parent) const {
+  return new QsciLexerHaskell(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createPowerShellLexer(QObject *parent) const {
+  return new QsciLexerPowerShell(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createJavaScriptLexer(QObject *parent) const {
   return new QsciLexerJavaScript(parent);
 }
 
@@ -332,6 +380,26 @@ QsciLexer *QScintillaLexerFactory::createLexerByType(const QString &lexerName,
     return createCppLexer(parent);
   if (lexerName == "Python")
     return createPythonLexer(parent);
+  if (lexerName == "Java")
+    return createJavaLexer(parent);
+  if (lexerName == "TypeScript")
+    return createTypeScriptLexer(parent);
+  if (lexerName == "TSX")
+    return createTSXLexer(parent);
+  if (lexerName == "CSharp")
+    return createCSharpLexer(parent);
+  if (lexerName == "Rust")
+    return createRustLexer(parent);
+  if (lexerName == "OCaml")
+    return createOCamlLexer(parent);
+  if (lexerName == "OCamlInterface")
+    return createOCamlInterfaceLexer(parent);
+  if (lexerName == "OCamlType")
+    return createOCamlTypeLexer(parent);
+  if (lexerName == "Haskell")
+    return createHaskellLexer(parent);
+  if (lexerName == "PowerShell")
+    return createPowerShellLexer(parent);
   if (lexerName == "JavaScript")
     return createJavaScriptLexer(parent);
   if (lexerName == "HTML")
@@ -422,16 +490,32 @@ void QScintillaLexerFactory::initializeExtensionMappings() {
 
   // Python
   _extensionToLexer["py"] = "Python";
-  _extensionToLexer["pyw"] = "Python";
   _extensionToLexer["pyi"] = "Python";
+  _extensionToLexer["pyw"] = "Python";
   _extensionToLexer["pyx"] = "Python";
+
+  // Java and JVM-related
+  _extensionToLexer["java"] = "Java";
 
   // JavaScript/TypeScript
   _extensionToLexer["js"] = "JavaScript";
   _extensionToLexer["jsx"] = "JavaScript";
-  _extensionToLexer["ts"] = "JavaScript";
-  _extensionToLexer["tsx"] = "JavaScript";
   _extensionToLexer["mjs"] = "JavaScript";
+  _extensionToLexer["ts"] = "TypeScript";
+  _extensionToLexer["tsx"] = "TSX";
+
+  // C# / Rust / OCaml / Haskell / PowerShell
+  _extensionToLexer["cs"] = "CSharp";
+  _extensionToLexer["csx"] = "CSharp";
+  _extensionToLexer["rs"] = "Rust";
+  _extensionToLexer["ml"] = "OCaml";
+  _extensionToLexer["mli"] = "OCamlInterface";
+  _extensionToLexer["mlt"] = "OCamlType";
+  _extensionToLexer["hs"] = "Haskell";
+  _extensionToLexer["lhs"] = "Haskell";
+  _extensionToLexer["ps1"] = "PowerShell";
+  _extensionToLexer["psm1"] = "PowerShell";
+  _extensionToLexer["psd1"] = "PowerShell";
 
   // Web Technologies
   _extensionToLexer["html"] = "HTML";
@@ -611,7 +695,17 @@ void QScintillaLexerFactory::initializeLexerDescriptions() {
 
   _lexerDescriptions["CPP"] = "C/C++ Programming Language";
   _lexerDescriptions["Python"] = "Python Programming Language";
-  _lexerDescriptions["JavaScript"] = "JavaScript/TypeScript Language";
+  _lexerDescriptions["Java"] = "Java Programming Language";
+  _lexerDescriptions["TypeScript"] = "TypeScript Programming Language";
+  _lexerDescriptions["TSX"] = "TypeScript JSX Programming Language";
+  _lexerDescriptions["CSharp"] = "C# Programming Language";
+  _lexerDescriptions["Rust"] = "Rust Programming Language";
+  _lexerDescriptions["OCaml"] = "OCaml Programming Language";
+  _lexerDescriptions["OCamlInterface"] = "OCaml Interface File";
+  _lexerDescriptions["OCamlType"] = "OCaml Type File";
+  _lexerDescriptions["Haskell"] = "Haskell Programming Language";
+  _lexerDescriptions["PowerShell"] = "PowerShell Scripting Language";
+  _lexerDescriptions["JavaScript"] = "JavaScript Programming Language";
   _lexerDescriptions["HTML"] = "HyperText Markup Language";
   _lexerDescriptions["CSS"] = "Cascading Style Sheets";
   _lexerDescriptions["XML"] = "Extensible Markup Language";

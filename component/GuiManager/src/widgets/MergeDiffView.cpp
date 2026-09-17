@@ -227,13 +227,36 @@ void MergeDiffView::refreshScintillaTheme() {
   }
 }
 
+void MergeDiffView::clearContent() {
+  LOG_PERF(0, "Enter");
+
+  _leftEditor->setLexer(nullptr);
+  _rightEditor->setLexer(nullptr);
+  _bottomEditor->setLexer(nullptr);
+  _leftEditor->clear();
+  _rightEditor->clear();
+  _bottomEditor->clear();
+  _leftEditor->markerDeleteAll();
+  _rightEditor->markerDeleteAll();
+  _bottomEditor->markerDeleteAll();
+  _leftMarks->setMarks({}, {});
+  _rightMarks->setMarks({}, {});
+  _bottomMarks->setMarks({}, {});
+
+  LOG_PERF(0, "Exit");
+}
+
 void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
                                      const QString &filePath) {
   LOG_PERF(0, "Enter");
 
-  _filePath = filePath;
+  clearContent();
 
-  setupEditors(_filePath);
+  _leftEditor->setTreeSitterHighlightingEnabled(false);
+  _rightEditor->setTreeSitterHighlightingEnabled(false);
+  _bottomEditor->setTreeSitterHighlightingEnabled(false);
+
+  _filePath = filePath;
 
   _content = parseContentWithMarkers(contentWithMarkers);
 
@@ -263,7 +286,7 @@ void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
 
   // Reapply the theme after setting text so the editor foreground colors
   // are refreshed with the loaded document contents.
-  refreshScintillaTheme();
+  // refreshScintillaTheme();
 
   for (const int line : _content.leftMarks0) {
     _leftEditor->markerAdd(line, 1);
@@ -306,7 +329,14 @@ void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
       conflictLines.append(line);
     }
   }
+
   _bottomMarks->setMarks(conflictLines, QVector<int>());
+
+  setupEditors(_filePath);
+
+  _leftEditor->setTreeSitterHighlightingEnabled(true);
+  _rightEditor->setTreeSitterHighlightingEnabled(true);
+  _bottomEditor->setTreeSitterHighlightingEnabled(true);
 
   LOG_PERF(0, "Exit");
 }
@@ -739,6 +769,7 @@ void MergeDiffView::setupEditors(const QString &filePath) {
   _rightEditor->setReadOnly(true);
   _bottomEditor->setReadOnly(true);
 
+  /*
   const QScintillaLexerFactory factory;
 
   auto *lexer = factory.createLexerForFile(filePath, this);
@@ -746,7 +777,7 @@ void MergeDiffView::setupEditors(const QString &filePath) {
   _leftEditor->setLexer(lexer);
   _rightEditor->setLexer(lexer);
   _bottomEditor->setLexer(lexer);
-
+*/
   _leftEditor->setMarginType(0, QsciScintilla::NumberMargin);
   _leftEditor->setMarginType(1, QsciScintilla::SymbolMargin);
   _leftEditor->setMarginType(2, QsciScintilla::SymbolMargin);
