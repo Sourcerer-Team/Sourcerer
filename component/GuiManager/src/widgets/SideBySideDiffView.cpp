@@ -294,6 +294,8 @@ void SideBySideDiffView::refreshScintillaTheme() {
 void SideBySideDiffView::clearContent() {
   LOG_PERF(0, "Enter");
 
+  _leftEditor->setLexer(nullptr);
+  _rightEditor->setLexer(nullptr);
   _leftEditor->clear();
   _rightEditor->clear();
   _leftEditor->markerDeleteAll();
@@ -309,7 +311,10 @@ void SideBySideDiffView::loadAndHighlight(
     const QString &filePath) {
   LOG_PERF(0, "Enter");
 
-  setupEditors(filePath);
+  clearContent();
+
+  _leftEditor->setTreeSitterHighlightingEnabled(false);
+  _rightEditor->setTreeSitterHighlightingEnabled(false);
 
   const SideBySideDiffContent content = createContent(leftContent, rightDelta);
 
@@ -339,7 +344,7 @@ void SideBySideDiffView::loadAndHighlight(
   _rightEditor->markerDefine(QsciScintilla::Background, 1);
   _rightEditor->markerDefine(QsciScintilla::Background, 2);
 
-  refreshScintillaTheme();
+  // refreshScintillaTheme();
 
   for (const int line : content.leftMarks0) {
     _leftEditor->markerAdd(line, 1);
@@ -365,22 +370,33 @@ void SideBySideDiffView::loadAndHighlight(
   _leftMarks->setMarks(content.leftMarks0, content.leftMarks1);
   _rightMarks->setMarks(content.rightMarks1, content.rightMarks0);
 
+  setupEditors(filePath);
+
+  _leftEditor->setTreeSitterHighlightingEnabled(true);
+  _rightEditor->setTreeSitterHighlightingEnabled(true);
+
   LOG_PERF(0, "Exit");
 }
 
 void SideBySideDiffView::setupEditors(const QString &filePath) {
   LOG_PERF(0, "Enter");
 
+  /*
+  DarkThemeLexersHighlighter highligheter;
+  highligheter.applyDarkTheme(_leftEditor);
+  highligheter.applyDarkTheme(_rightEditor);
+*/
   _leftEditor->setReadOnly(true);
   _rightEditor->setReadOnly(true);
 
   const QScintillaLexerFactory factory;
 
+  /*
   auto *lexer = factory.createLexerForFile(filePath, this);
 
   _leftEditor->setLexer(lexer);
   _rightEditor->setLexer(lexer);
-
+*/
   _leftEditor->setMarginType(0, QsciScintilla::NumberMargin);
   _leftEditor->setMarginType(1, QsciScintilla::SymbolMargin);
   _leftEditor->setMarginWidth(1, 2);
@@ -391,10 +407,6 @@ void SideBySideDiffView::setupEditors(const QString &filePath) {
 
   _leftEditor->setWrapMode(QsciScintilla::WrapNone);
   _rightEditor->setWrapMode(QsciScintilla::WrapNone);
-
-  DarkThemeLexersHighlighter highligheter;
-  highligheter.applyDarkTheme(_leftEditor);
-  highligheter.applyDarkTheme(_rightEditor);
 
   _leftEditor->setFolding(QsciScintilla::NoFoldStyle);
   _rightEditor->setFolding(QsciScintilla::NoFoldStyle);

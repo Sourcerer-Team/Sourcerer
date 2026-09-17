@@ -64,6 +64,8 @@ public:
 
   bool areConflictsResolved() const;
 
+  void clearContent();
+
 private slots:
   void leftMarginClicked(int margin, int line, Qt::KeyboardModifiers state);
   void rightMarginClicked(int margin, int line, Qt::KeyboardModifiers state);

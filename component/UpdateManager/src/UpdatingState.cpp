@@ -116,8 +116,6 @@ QString installationDirectory() {
   return QCoreApplication::applicationDirPath();
 }
 
-
-
 bool stageDownloadedUpdate(const QString &downloadedFilePath,
                            const QString &stagedFilePath) {
   const QDir stagedDir = QFileInfo(stagedFilePath).absoluteDir();
@@ -186,8 +184,7 @@ bool UpdatingState::process(Fsm::FsmEvent event) {
 
     const bool updated = workerLoop(news);
     if (!updated) {
-      LOG_WARN("Update staging failed for news '{}'.",
-               news.id.toStdString());
+      LOG_WARN("Update staging failed for news '{}'.", news.id.toStdString());
     }
 
     UpdateManagerEvent changeEvent(EventType::ChangeState);
@@ -241,8 +238,7 @@ bool UpdatingState::workerLoop(const NewsTracker::Structs::NewsItem &newsItem) {
 
   if (!stageDownloadedUpdate(downloadedFilePath, stagedFilePath)) {
     LOG_WARN("Failed to stage downloaded update '{}' to '{}'.",
-             downloadedFilePath.toStdString(),
-             stagedFilePath.toStdString());
+             downloadedFilePath.toStdString(), stagedFilePath.toStdString());
     QFile::remove(downloadedFilePath);
     LOG_PERF(0, "Exit");
     return false;
@@ -328,7 +324,7 @@ bool UpdatingState::downloadUpdate(
 }
 
 QString UpdatingState::buildStagedUpdateFilePath(const QString &downloadUrl,
-                                                const QString &installDir) {
+                                                 const QString &installDir) {
   LOG_PERF(0, "Enter");
 
   QString baseName = QStringLiteral("Sourcerer-Update");

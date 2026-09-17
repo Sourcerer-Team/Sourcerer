@@ -2315,6 +2315,7 @@ void GitRepoManagerBridgeImpl::onStashFileSelected(const QModelIndex &index) {
       const int width = QString::number(lineCount).length();
       const QString mask = QString::number(0).rightJustified(width + 1, '0');
 
+      _container.ui->scintillaStashDiffUnified->markerDeleteAll();
       _container.ui->scintillaStashDiffUnified->setMarginWidth(0, mask);
       _container.ui->scintillaStashDiffUnified->setText(filesDiff.diff);
 
@@ -2496,6 +2497,7 @@ void GitRepoManagerBridgeImpl::diff(const QWeakPointer<GitRepoContainer> &guard,
     const int width = QString::number(lineCount).length();
     const QString mask = QString::number(0).rightJustified(width + 1, '0');
 
+    _container.ui->scintillaTextEditorUnified->markerDeleteAll();
     _container.ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
     _container.ui->scintillaTextEditorUnified->setText(filesDiff.diff);
 
@@ -2719,6 +2721,7 @@ void GitRepoManagerBridgeImpl::diffFromCommit(
     const int width = QString::number(lineCount).length();
     const QString mask = QString::number(0).rightJustified(width + 1, '0');
 
+    _container.ui->scintillaTextEditorUnified->markerDeleteAll();
     _container.ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
     _container.ui->scintillaTextEditorUnified->setText(filesDiff.diff);
 
