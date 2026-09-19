@@ -183,6 +183,17 @@ for nss_lib in libnssutil3.so libsoftokn3.so; do
     fi
 done
 
+echo "Ensuring qtkeychain libraries are included for GNOME/KDE/XFCE support..."
+for qtkeychain_lib in libsecret-1.so.0 libgio-2.0.so.0; do
+    lib_path=$(find /usr/lib/x86_64-linux-gnu -name "$qtkeychain_lib" 2>/dev/null | head -n 1)
+    if [ -f "$lib_path" ]; then
+        cp "$lib_path" "$APPDIR/usr/lib/" 2>/dev/null || true
+        echo "  Copied $qtkeychain_lib"
+    else
+        echo "  Warning: $qtkeychain_lib not found"
+    fi
+done
+
 # Create qt.conf with proper plugin paths for TLS support
 cat > "$APPDIR/usr/bin/qt.conf" << 'QTCONF'
 [Paths]

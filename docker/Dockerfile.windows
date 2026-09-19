@@ -20,7 +20,15 @@ RUN choco install -y git
 RUN choco install -y 7zip
 RUN choco install -y python3
 RUN choco install -y ninja
-RUN choco install -y visualstudio2022buildtools --package-parameters '--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Workload.ManagedDesktopBuildTools --includeRecommended --includeOptional' ; exit 0
+RUN choco install -y visualstudio2022buildtools --no-progress --package-parameters '--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Workload.ManagedDesktopBuildTools --includeRecommended --includeOptional'; \
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 3010) { exit $LASTEXITCODE }; \
+    # Kill background setup processes that hold the container open \
+    Get-Process -Name 'setup', 'vs_setup_bootstrapper', 'vs_installer', 'vs_buildtools', 'vs_installerservice' -ErrorAction SilentlyContinue | Stop-Process -Force; \
+    # Stop the Visual Studio Installer background service if running \
+    Stop-Service -Name 'insiderservice', 'vsnsw' -ErrorAction SilentlyContinue; \
+    # Clean up temp files \
+    Remove-Item -Recurse -Force $env:TEMP\* -ErrorAction SilentlyContinue; \
+    exit 0
 RUN dotnet tool install --global wix --version 7.0.0
 RUN wix eula accept wix7
 #RUN wix extension add -g WixToolset.Bal.wixext
