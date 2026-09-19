@@ -192,8 +192,47 @@ bool runUpdate(const QString &updatePath) {
     return false;
   }
 
-  return process.exitStatus() == QProcess::NormalExit &&
-         process.exitCode() == 0;
+  const bool result =
+      process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
+
+  QDir sourceDir(updatePath);
+
+  // Filter files by extension (.log)
+  QStringList nameFilters;
+  nameFilters << "*.log";
+
+  // Specify filters: only Files (no directories), ignore hidden files, ignore
+  // symbolic links if needed
+  const QDir::Filters filters =
+      QDir::Files | QDir::NoSymLinks | QDir::NoDotAndDotDot;
+
+  // Get the list of matching file names
+  const QFileInfoList logFiles =
+      sourceDir.entryInfoList(nameFilters, QDir::Files | QDir::NoDotAndDotDot);
+
+  QDir targetDir(logDir);
+
+  // Create target directory if it doesn't exist
+  if (!targetDir.exists()) {
+    if (!targetDir.mkpath(".")) {
+      return result;
+    }
+  }
+
+  for (const QFileInfo &fileInfo : logFiles) {
+    QString sourceFilePath = fileInfo.absoluteFilePath();
+    QString targetFilePath = targetDir.absoluteFilePath(fileInfo.fileName());
+
+    // Overwrite existing file in destination if needed
+    if (QFile::exists(targetFilePath)) {
+      QFile::remove(targetFilePath);
+    }
+
+    // Move (rename) file to destination
+    QFile::rename(sourceFilePath, targetFilePath);
+  }
+
+  return result;
 #endif
 }
 

@@ -14,6 +14,7 @@ $FILE_LIST = Get-ChildItem -Path $THIS_DIR -Recurse -File |
         $_.FullName -notmatch 'libzip' -and
         $_.FullName -notmatch 'zlib' -and
         $_.FullName -notmatch 'tree-sitter' -and
+        $_.FullName -notmatch 'qtkeychain' -and
         $_.Name -match '\.(ino|cpp|c|h|hpp|hh)$'
     } |
     ForEach-Object { clang-format --verbose -i -style=file:.clang-format $_.FullName }

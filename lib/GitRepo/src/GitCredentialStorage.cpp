@@ -7,10 +7,14 @@
 #include <QDataStream>
 #include <QDateTime>
 #include <QDir>
+#include <QEventLoop>
 #include <QFile>
 #include <QMessageAuthenticationCode>
 #include <QRandomGenerator>
 #include <QStandardPaths>
+
+#include <qcoreapplication.h>
+#include <qtkeychain/keychain.h>
 
 #include <openssl/aes.h>
 #include <openssl/err.h>
@@ -25,14 +29,68 @@ constexpr int AES_KEY_SIZE = 32; // 256 bits
 constexpr int AES_IV_SIZE = 16;  // 128 bits
 constexpr int PBKDF2_ITERATIONS = 100000;
 
+static QString getLoggedInUser() {
+  // Returns e.g. "C:/Users/JohnDoe"
+  QString homePath = QDir::homePath();
+  return QFileInfo(homePath).fileName(); // Returns "JohnDoe"
+}
+
+static bool saveMasterKeyToWindowsStore(const QString &appName,
+                                        const QString &userName,
+                                        const QString &masterKey) {
+  // Create job on the stack (no need for manual memory cleanup or
+  // setAutoDelete)
+  QKeychain::WritePasswordJob job(appName);
+  job.setKey(userName);       // Identifier (e.g., username)
+  job.setTextData(masterKey); // Secret payload
+
+  // Local event loop to block until finished signal is emitted
+  QEventLoop loop;
+  QObject::connect(&job, &QKeychain::WritePasswordJob::finished, &loop,
+                   &QEventLoop::quit);
+
+  job.start();
+  loop.exec(); // Waits here until OS keyring operation finishes
+
+  if (job.error()) {
+    return false;
+  }
+
+  return true;
+}
+
+bool readMasterKeyFromWindowsStore(const QString &appName,
+                                   const QString &userName,
+                                   QString &outMasterKey) {
+  QKeychain::ReadPasswordJob job(appName);
+  job.setKey(userName);
+
+  QEventLoop loop;
+  QObject::connect(&job, &QKeychain::ReadPasswordJob::finished, &loop,
+                   &QEventLoop::quit);
+  job.start();
+  loop.exec(); // Blocks until job emits finished signal
+
+  if (job.error()) {
+    return false;
+  }
+
+  outMasterKey = job.textData();
+  return true;
+}
+
 GitCredentialStorage::GitCredentialStorage() {
   LOG_PERF(0, "Enter");
   LOG_INFO("GitCredentialStorage constructor called - initializing singleton");
 
-  _masterKey = getEncryptionKey();
-  LOG_INFO("Master key initialized, loading persisted credentials...");
-  loadPersistedCredentials();
-  LOG_INFO("GitCredentialStorage initialization complete");
+  try {
+    _masterKey = getEncryptionKey();
+    LOG_INFO("Master key initialized, loading persisted credentials...");
+    loadPersistedCredentials();
+    LOG_INFO("GitCredentialStorage initialization complete");
+  } catch (const std::exception &ex) {
+    LOG_ERROR(Log::ErrorId::Security, "Exception: {}", ex.what());
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -548,13 +606,14 @@ QByteArray GitCredentialStorage::decrypt(const QByteArray &ciphertext,
 QByteArray GitCredentialStorage::getEncryptionKey() {
   LOG_PERF(0, "Enter");
 
-  ConfigManager::ConfigManager &config =
-      ConfigManager::ConfigManager::getInstance();
+  const QString userName = getLoggedInUser();
+  const QString appName = qAppName();
 
-  QString keyHex = config.getString("git/credentialsMasterKey");
+  QString masterKey;
+  bool success = readMasterKeyFromWindowsStore(appName, userName, masterKey);
 
   QByteArray key;
-  if (keyHex.isEmpty()) {
+  if (!success || masterKey.isEmpty()) {
     // Generate new key
     key.resize(AES_KEY_SIZE);
     if (RAND_bytes(reinterpret_cast<unsigned char *>(key.data()),
@@ -564,13 +623,17 @@ QByteArray GitCredentialStorage::getEncryptionKey() {
     }
 
     // Store it
-    keyHex = key.toHex();
-    config.setString("git/credentialsMasterKey", keyHex);
-    config.save();
+    masterKey = key.toHex();
+
+    success = saveMasterKeyToWindowsStore(appName, userName, masterKey);
+    if (!success) {
+      LOG_ERROR(Log::ErrorId::Git, "Failed to save master key");
+      throw std::runtime_error("Failed to save master key");
+    }
 
     LOG_INFO("Generated new master encryption key");
   } else {
-    key = QByteArray::fromHex(keyHex.toUtf8());
+    key = QByteArray::fromHex(masterKey.toUtf8());
   }
 
   LOG_PERF(0, "Exit");

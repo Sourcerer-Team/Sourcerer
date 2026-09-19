@@ -338,6 +338,9 @@ void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
   _rightEditor->setTreeSitterHighlightingEnabled(true);
   _bottomEditor->setTreeSitterHighlightingEnabled(true);
 
+  _leftEditor->verticalScrollBar()->triggerAction(
+      QAbstractSlider::SliderToMinimum);
+
   LOG_PERF(0, "Exit");
 }
 

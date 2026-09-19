@@ -245,6 +245,8 @@ void GitRepoManagerBridgeImpl::blame(
     _container.ui->scintillaBlameEditor->setLexer(nullptr);
   */
     _container.ui->scintillaBlameEditor->setText(blameLines.join('\n'));
+    _container.ui->scintillaBlameEditor->verticalScrollBar()->triggerAction(
+        QAbstractSlider::SliderToMinimum);
     //_container.ui->scintillaBlameEditor->setLexer(lexer);
 
     _container.ui->scintillaBlameEditor->setMarginWidth(0, lineNumberMask);
@@ -2502,7 +2504,8 @@ void GitRepoManagerBridgeImpl::diff(const QWeakPointer<GitRepoContainer> &guard,
     _container.ui->scintillaTextEditorUnified->markerDeleteAll();
     _container.ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
     _container.ui->scintillaTextEditorUnified->setText(filesDiff.diff);
-
+    _container.ui->scintillaTextEditorUnified->verticalScrollBar()
+        ->triggerAction(QAbstractSlider::SliderToMinimum);
     // Collect added and deleted lines for scrollbar marks
     QVector<int> deletedLines;
     QVector<int> addedLines;
@@ -2726,6 +2729,8 @@ void GitRepoManagerBridgeImpl::diffFromCommit(
     _container.ui->scintillaTextEditorUnified->markerDeleteAll();
     _container.ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
     _container.ui->scintillaTextEditorUnified->setText(filesDiff.diff);
+    _container.ui->scintillaTextEditorUnified->verticalScrollBar()
+        ->triggerAction(QAbstractSlider::SliderToMinimum);
 
     // Collect added and deleted lines for scrollbar marks
     QVector<int> deletedLines;
