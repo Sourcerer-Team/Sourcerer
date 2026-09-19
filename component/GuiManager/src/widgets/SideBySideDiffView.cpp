@@ -375,7 +375,8 @@ void SideBySideDiffView::loadAndHighlight(
   _leftEditor->setTreeSitterHighlightingEnabled(true);
   _rightEditor->setTreeSitterHighlightingEnabled(true);
 
-  _leftEditor->verticalScrollBar()->triggerAction(QAbstractSlider::SliderToMinimum);
+  _leftEditor->verticalScrollBar()->triggerAction(
+      QAbstractSlider::SliderToMinimum);
 
   LOG_PERF(0, "Exit");
 }

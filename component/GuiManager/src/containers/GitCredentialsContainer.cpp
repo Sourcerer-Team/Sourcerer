@@ -35,8 +35,8 @@ static QPixmap overlayButtonIcon(const QString &iconPath) {
                                                                    iconColor);
   }
 
-  return StylesheetManager::StylesheetManager::recolorPixmap(
-      QPixmap(iconPath), iconColor);
+  return StylesheetManager::StylesheetManager::recolorPixmap(QPixmap(iconPath),
+                                                             iconColor);
 }
 
 GitCredentialsContainer::GitCredentialsContainer(QWidget *parent)
@@ -238,17 +238,18 @@ void GitCredentialsContainer::onEditClicked() {
       QLineEdit::TrailingPosition);
   showPasswordAction->setCheckable(true);
   showPasswordAction->setToolTip("Show password");
-  connect(
-      showPasswordAction, &QAction::toggled, &editDialog, [=](bool visible) {
-        passwordEdit->setEchoMode(visible ? QLineEdit::Normal
-                                          : QLineEdit::Password);
-        showPasswordAction->setIcon(
-            QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-                overlayButtonIcon(visible ? ":/icons/eye-off.svg" : ":/icons/eye.svg"),
-                eyeIconColor)));
-        showPasswordAction->setToolTip(visible ? "Hide password"
-                                               : "Show password");
-      });
+  connect(showPasswordAction, &QAction::toggled, &editDialog,
+          [=](bool visible) {
+            passwordEdit->setEchoMode(visible ? QLineEdit::Normal
+                                              : QLineEdit::Password);
+            showPasswordAction->setIcon(
+                QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+                    overlayButtonIcon(visible ? ":/icons/eye-off.svg"
+                                              : ":/icons/eye.svg"),
+                    eyeIconColor)));
+            showPasswordAction->setToolTip(visible ? "Hide password"
+                                                   : "Show password");
+          });
 
   QHBoxLayout *passwordLayout = new QHBoxLayout();
   passwordLayout->addWidget(passwordLabel);

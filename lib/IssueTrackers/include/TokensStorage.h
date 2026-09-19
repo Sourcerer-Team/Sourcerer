@@ -74,7 +74,6 @@ private:
 
   QByteArray getEncryptionKey();
   QString getTokensFilePath() const;
-  QString getMasterKeyFilePath() const;
   QByteArray deriveEntryKey(const QString &serviceType,
                             const QString &repositoryName);
   static QString makeEntryKey(const QString &serviceType,
