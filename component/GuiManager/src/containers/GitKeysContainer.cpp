@@ -33,6 +33,19 @@
 namespace GuiManager {
 namespace Containers {
 
+static QPixmap overlayButtonIcon(const QString &iconPath) {
+  const QColor iconColor =
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
+
+  if (iconPath.endsWith(QStringLiteral(".svg"), Qt::CaseInsensitive)) {
+    return StylesheetManager::StylesheetManager::renderSvgToPixmap(iconPath,
+                                                                   iconColor);
+  }
+
+  return StylesheetManager::StylesheetManager::recolorPixmap(
+      QPixmap(iconPath), iconColor);
+}
+
 GitKeysContainer::GitKeysContainer(QWidget *parent)
     : ContainerWidget(ContainerType::GitKeys, parent),
       ui(new Ui::GitKeysContainer),
@@ -177,7 +190,7 @@ void GitKeysContainer::onGenerateClicked() {
       StylesheetManager::StylesheetManager::menuBarButtonIconColor();
   QAction *showPassphraseAction = passphraseEdit->addAction(
       QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-          QPixmap(":/icons/eye.svg"), eyeIconColor)),
+          overlayButtonIcon(":/icons/eye.svg"), eyeIconColor)),
       QLineEdit::TrailingPosition);
   showPassphraseAction->setCheckable(true);
   showPassphraseAction->setToolTip("Show passphrase");
@@ -188,7 +201,7 @@ void GitKeysContainer::onGenerateClicked() {
                                             : QLineEdit::Password);
         showPassphraseAction->setIcon(
             QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-                QPixmap(visible ? ":/icons/eye-off.svg" : ":/icons/eye.svg"),
+                overlayButtonIcon(visible ? ":/icons/eye-off.svg" : ":/icons/eye.svg"),
                 eyeIconColor)));
         showPassphraseAction->setToolTip(visible ? "Hide passphrase"
                                                  : "Show passphrase");
