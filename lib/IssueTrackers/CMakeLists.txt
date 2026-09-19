@@ -38,6 +38,7 @@ target_link_libraries(IssueTrackers PRIVATE
     Qt6::Widgets
     OpenSSL::SSL
     OpenSSL::Crypto
+    qt6keychain
 )
 
 target_include_directories(IssueTrackers PRIVATE

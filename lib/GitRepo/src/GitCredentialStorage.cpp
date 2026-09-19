@@ -35,11 +35,6 @@ static QString getLoggedInUser() {
   return QFileInfo(homePath).fileName(); // Returns "JohnDoe"
 }
 
-static QString buildTargetName(const QString &baseAppName,
-                               const QString &userName) {
-  return QString("%1_MasterKey_%2").arg(baseAppName, userName);
-}
-
 static bool saveMasterKeyToWindowsStore(const QString &appName,
                                         const QString &userName,
                                         const QString &masterKey) {

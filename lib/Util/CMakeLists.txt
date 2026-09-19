@@ -69,6 +69,7 @@ target_link_libraries(Util PRIVATE
     Qt6::Widgets
     OpenSSL::SSL
     OpenSSL::Crypto
+    qt6keychain
 )
 
 if(WIN32)

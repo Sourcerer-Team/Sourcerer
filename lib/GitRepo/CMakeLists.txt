@@ -111,6 +111,4 @@ target_include_directories(GitRepo PRIVATE
    ../../lib/qca/include/QtCrypto
    ${CMAKE_CURRENT_BINARY_DIR}/QCA
    ${CMAKE_CURRENT_BINARY_DIR}/..
-   ${CMAKE_CURRENT_SOURCE_DIR}/../qtkeychain
-   ${CMAKE_CURRENT_BINARY_DIR}/qtkeychain/qtkeychain
 )
