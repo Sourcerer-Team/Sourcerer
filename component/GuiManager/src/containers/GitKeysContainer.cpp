@@ -42,8 +42,8 @@ static QPixmap overlayButtonIcon(const QString &iconPath) {
                                                                    iconColor);
   }
 
-  return StylesheetManager::StylesheetManager::recolorPixmap(
-      QPixmap(iconPath), iconColor);
+  return StylesheetManager::StylesheetManager::recolorPixmap(QPixmap(iconPath),
+                                                             iconColor);
 }
 
 GitKeysContainer::GitKeysContainer(QWidget *parent)
@@ -194,18 +194,18 @@ void GitKeysContainer::onGenerateClicked() {
       QLineEdit::TrailingPosition);
   showPassphraseAction->setCheckable(true);
   showPassphraseAction->setToolTip("Show passphrase");
-  connect(
-      showPassphraseAction, &QAction::toggled, &passphraseDialog,
-      [=](bool visible) {
-        passphraseEdit->setEchoMode(visible ? QLineEdit::Normal
-                                            : QLineEdit::Password);
-        showPassphraseAction->setIcon(
-            QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
-                overlayButtonIcon(visible ? ":/icons/eye-off.svg" : ":/icons/eye.svg"),
-                eyeIconColor)));
-        showPassphraseAction->setToolTip(visible ? "Hide passphrase"
-                                                 : "Show passphrase");
-      });
+  connect(showPassphraseAction, &QAction::toggled, &passphraseDialog,
+          [=](bool visible) {
+            passphraseEdit->setEchoMode(visible ? QLineEdit::Normal
+                                                : QLineEdit::Password);
+            showPassphraseAction->setIcon(
+                QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+                    overlayButtonIcon(visible ? ":/icons/eye-off.svg"
+                                              : ":/icons/eye.svg"),
+                    eyeIconColor)));
+            showPassphraseAction->setToolTip(visible ? "Hide passphrase"
+                                                     : "Show passphrase");
+          });
 
   passphraseInputRow->addWidget(passphraseEdit);
   passphraseLayout->addLayout(passphraseInputRow);

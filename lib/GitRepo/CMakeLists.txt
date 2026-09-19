@@ -86,6 +86,8 @@ set(USE_REGEX "builtin" CACHE STRING "Selects regex provider.")
 
 add_subdirectory(../../lib/libgit2 "libgit2")
 
+add_subdirectory(../../lib/qtkeychain "qtkeychain")
+
 target_link_libraries(GitRepo PRIVATE
     Qt6::Core
     Qt6::Gui
@@ -99,6 +101,7 @@ target_link_libraries(GitRepo PRIVATE
     libgit2
     libssh2_static
     util
+    qt6keychain
     ${LIBSSH2_LIBRARY}
 )
 
@@ -108,4 +111,6 @@ target_include_directories(GitRepo PRIVATE
    ../../lib/qca/include/QtCrypto
    ${CMAKE_CURRENT_BINARY_DIR}/QCA
    ${CMAKE_CURRENT_BINARY_DIR}/..
+   ${CMAKE_CURRENT_SOURCE_DIR}/../qtkeychain
+   ${CMAKE_CURRENT_BINARY_DIR}/qtkeychain/qtkeychain
 )
