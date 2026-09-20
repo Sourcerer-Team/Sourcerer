@@ -38,6 +38,7 @@ enum class ConfigKey {
   GitRepoSigningFormat,
   GitRepoSigningKey,
   GitRepoSigningProgram,
+  GitRepoCredentialsMasterKey,
 
   // HttpClient
   HttpClientCaCertFile,
