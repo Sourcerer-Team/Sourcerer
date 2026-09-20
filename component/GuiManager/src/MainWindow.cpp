@@ -113,15 +113,18 @@ MainWindow::MainWindow(QWidget *parent)
   setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 #else
   setWindowFlags(Qt::Window);
+
+         // Extend frame into client area slightly so DWM handles edges
+  HWND hwnd = (HWND)winId();
+  MARGINS margins = {1, 1, 1, 1};
+  DwmExtendFrameIntoClientArea(hwnd, &margins);
 #endif
 
-//#ifndef Q_OS_WIN
-    _hitDetector = new HitDetector(this);
-    _hitDetector->init();
-    setMouseTracking(true);
-    installEventFilter(this);
-    connect(_hitDetector, &HitDetector::edgeHit, this, &MainWindow::onEdgeHit);
-//#endif
+  _hitDetector = new HitDetector(this);
+  _hitDetector->init();
+  setMouseTracking(true);
+  installEventFilter(this);
+  connect(_hitDetector, &HitDetector::edgeHit, this, &MainWindow::onEdgeHit);
 
   _profileBoardWidget->hide();
 

@@ -105,6 +105,7 @@ const WebEngineLoggingInitializer webEngineLoggingInitializer;
 int main(int argc, char *argv[]) {
   QCoreApplication::setAttribute(Qt::AA_UseSoftwareOpenGL);
 
+#ifdef QT_NO_DEBUG
   {
     QCoreApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("Sourcerer"));
@@ -117,6 +118,7 @@ int main(int argc, char *argv[]) {
       }
     }
   }
+#endif
 
   QApplication app(argc, argv);
 
