@@ -17,12 +17,32 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPalette>
+#ifndef Q_OS_WIN
+#include <QProcess>
+#include <QProcessEnvironment>
+#endif
 #include <QRegularExpression>
 #include <QUrl>
 
 #define THREAD_ID "ProfileBoardWidget"
 
 namespace GuiManager::Widgets {
+
+#ifndef Q_OS_WIN
+static void openUrlFromAppImage(const QUrl &url) {
+  QProcess process;
+  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+
+         // Unset AppImage environment variables so external processes load host system libraries
+  env.remove("LD_LIBRARY_PATH");
+  env.remove("QT_PLUGIN_PATH");
+  env.remove("QML2_IMPORT_PATH");
+
+  process.setProcessEnvironment(env);
+  process.start("xdg-open", QStringList() << url.toString());
+  process.startDetached(); // Allow xdg-open to run independently without blocking
+}
+#endif
 
 ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
     : QWidget(parent, Qt::FramelessWindowHint), ui(new Ui::ProfileBoardWidget),
@@ -191,7 +211,11 @@ void ProfileBoardWidget::onSignupLinkClicked() {
 
   const QString signupUrl =
       configManager.getString(::ConfigManager::ConfigKey::CloudSignupUrl);
+#ifdef Q_OS_WIN
   QDesktopServices::openUrl(QUrl(signupUrl));
+#else
+  openUrlFromAppImage(QUrl(signupUrl));
+#endif
 }
 
 void ProfileBoardWidget::onSkipSigninClicked() {
