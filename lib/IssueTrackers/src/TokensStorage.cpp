@@ -55,7 +55,12 @@ static bool saveMasterKeyToWindowsStore(const QString &appName,
   loop.exec(); // Waits here until OS keyring operation finishes
 
   if (job.error()) {
-    return false;
+    ConfigManager::ConfigManager &config =
+        ConfigManager::ConfigManager::getInstance();
+
+    config.setString(ConfigManager::ConfigKey::GitRepoCredentialsMasterKey,
+                     masterKey);
+    config.save();
   }
 
   return true;
@@ -74,7 +79,13 @@ bool readMasterKeyFromWindowsStore(const QString &appName,
   loop.exec(); // Blocks until job emits finished signal
 
   if (job.error()) {
-    return false;
+    ConfigManager::ConfigManager &config =
+        ConfigManager::ConfigManager::getInstance();
+
+    outMasterKey =
+        config.getString(ConfigManager::ConfigKey::GitRepoCredentialsMasterKey);
+
+    return !outMasterKey.isEmpty();
   }
 
   outMasterKey = job.textData();

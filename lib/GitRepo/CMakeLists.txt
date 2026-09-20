@@ -70,6 +70,7 @@ set(BUILD_OSSFUZZ OFF CACHE BOOL "Disable ossfuzz" FORCE)
 set(BUILD_EXAMPLES OFF CACHE BOOL "Disable examples" FORCE)
 set(BUILD_DOC OFF CACHE BOOL "Disable docs" FORCE)
 set(LIBZIP_DO_INSTALL OFF CACHE BOOL "Disable install targets" FORCE)
+set(ENABLE_ZSTD OFF CACHE BOOL "Disable Zstandard" FORCE)
 
 add_subdirectory(../../lib/libzip "libzip")
 

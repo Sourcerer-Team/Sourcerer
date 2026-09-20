@@ -10,6 +10,7 @@
 #include <QMap>
 #include <QNetworkRequest>
 #include <QSet>
+#include <QUrl>
 #include <QUrlQuery>
 
 #include <memory>
