@@ -25,11 +25,16 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QNetworkCookie>
+#ifndef Q_OS_WIN
+#include <QProcess>
+#include <QProcessEnvironment>
+#endif
 #include <QResizeEvent>
 #include <QStandardPaths>
 #include <QStringList>
 #include <QTimer>
 #include <QToolButton>
+#include <QUrl>
 #include <QUrlQuery>
 
 #if GUI_MANAGER_HAS_WEBENGINE
@@ -299,6 +304,22 @@ QString unsupportedMessage(const QString &serviceType,
   return QObject::tr("This issue tracker is not supported yet: %1 %2")
       .arg(serviceType.trimmed(), repositoryName.trimmed());
 }
+
+#ifndef Q_OS_WIN
+void openUrlFromAppImage(const QUrl &url) {
+  QProcess process;
+  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+
+         // Unset AppImage environment variables so external processes load host system libraries
+  env.remove("LD_LIBRARY_PATH");
+  env.remove("QT_PLUGIN_PATH");
+  env.remove("QML2_IMPORT_PATH");
+
+  process.setProcessEnvironment(env);
+  process.start("xdg-open", QStringList() << url.toString());
+  process.startDetached(); // Allow xdg-open to run independently without blocking
+}
+#endif
 
 } // namespace
 
@@ -912,7 +933,11 @@ void IssueTrackerContainer::openIssueTrackerExternallyAndClose() {
 
   _externalBrowserOpened = true;
   if (_issuesUrl.isValid()) {
+#ifdef Q_OS_WIN
     QDesktopServices::openUrl(_issuesUrl);
+#else
+    openUrlFromAppImage(_issuesUrl);
+#endif
   }
   emit close();
 }

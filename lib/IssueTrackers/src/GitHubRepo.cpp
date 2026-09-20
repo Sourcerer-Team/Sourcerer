@@ -22,8 +22,10 @@
 #include <QNetworkRequest>
 #include <QPoint>
 #include <QPointer>
+#ifndef Q_OS_WIN
 #include <QProcess>
 #include <QProcessEnvironment>
+#endif
 #include <QPushButton>
 #include <QSet>
 #include <QThread>
@@ -85,7 +87,8 @@ QString parseErrorDescription(const QJsonObject &obj) {
   return QStringLiteral("Unknown GitHub OAuth error");
 }
 
-static void openUrlFromAppImage(const QUrl &url) {
+#ifndef Q_OS_WIN
+void openUrlFromAppImage(const QUrl &url) {
   QProcess process;
   QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
 
@@ -98,6 +101,7 @@ static void openUrlFromAppImage(const QUrl &url) {
   process.start("xdg-open", QStringList() << url.toString());
   process.startDetached(); // Allow xdg-open to run independently without blocking
 }
+#endif
 
 QMap<QNetworkRequest::KnownHeaders, QString> githubJsonHeaders() {
   QMap<QNetworkRequest::KnownHeaders, QString> httpHeaders;
