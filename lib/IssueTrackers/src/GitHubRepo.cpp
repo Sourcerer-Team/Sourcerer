@@ -98,7 +98,9 @@ void openUrlFromAppImage(const QUrl &url) {
   env.remove("QML2_IMPORT_PATH");
 
   process.setProcessEnvironment(env);
-  process.startDetached("xdg-open", QStringList() << url.toString()); // Allow xdg-open to run independently without blocking
+  process.setProgram(QStringLiteral("xdg-open"));
+  process.setArguments(QStringList() << url.toString()); // Allow xdg-open to run independently without blocking
+  process.startDetached();
 }
 #endif
 
