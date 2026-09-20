@@ -39,6 +39,12 @@
 #include <QMetaObject>
 #include <functional>
 
+#ifdef Q_OS_WIN
+#include <dwmapi.h>
+#include <windows.h>
+#pragma comment(lib, "Dwmapi.lib")
+#endif
+
 #define THREAD_ID "MainWindow"
 
 namespace {
@@ -103,15 +109,19 @@ MainWindow::MainWindow(QWidget *parent)
       _profileBoardActive(false) {
   LOG_PERF(0, "Enter");
 
+#ifndef Q_OS_WIN
   setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
-
-#if defined(Q_OS_WIN) or defined(Q_OS_LINUX)
-  _hitDetector = new HitDetector(this);
-  _hitDetector->init();
-  setMouseTracking(true);
-  installEventFilter(this);
-  connect(_hitDetector, &HitDetector::edgeHit, this, &MainWindow::onEdgeHit);
+#else
+  setWindowFlags(Qt::Window);
 #endif
+
+//#ifndef Q_OS_WIN
+    _hitDetector = new HitDetector(this);
+    _hitDetector->init();
+    setMouseTracking(true);
+    installEventFilter(this);
+    connect(_hitDetector, &HitDetector::edgeHit, this, &MainWindow::onEdgeHit);
+//#endif
 
   _profileBoardWidget->hide();
 
@@ -361,6 +371,24 @@ void MainWindow::showEvent(QShowEvent *event) {
 
   LOG_PERF(0, "Exit");
 }
+
+#ifdef Q_OS_WIN
+bool MainWindow::nativeEvent(const QByteArray &eventType, void *message,
+                             qintptr *result) {
+  MSG *msg = static_cast<MSG *>(message);
+
+  if (msg->message == WM_NCCALCSIZE) {
+    // Returning TRUE (1) with an empty rect removes the standard title bar
+    // while keeping the native OS frame, borders, and window snapping active.
+    if (msg->wParam == TRUE) {
+      *result = 0;
+      return true;
+    }
+  }
+
+  return QMainWindow::nativeEvent(eventType, message, result);
+}
+#endif
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
   return _hitDetector->eventFilter(watched, event);

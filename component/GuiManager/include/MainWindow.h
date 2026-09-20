@@ -50,6 +50,11 @@ protected:
   void closeEvent(QCloseEvent *event) override;
   void showEvent(QShowEvent *event) override;
 
+#ifdef Q_OS_WIN
+  bool nativeEvent(const QByteArray &eventType, void *message,
+                   qintptr *result) override;
+#endif
+
   // QObject interface
 public:
   bool eventFilter(QObject *watched, QEvent *event) override;
