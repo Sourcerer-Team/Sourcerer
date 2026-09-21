@@ -937,6 +937,9 @@ void MainWindow::onProfile(int middleX) {
 
   Q_UNUSED(middleX);
 
+  LOG_DEBUG("Profile widget height: {}", _topBarWidget->height());
+  LOG_DEBUG("Profile buton is null: {}", (_topBarWidget->profileButton() == nullptr));
+
   _profileBoardWidget->adjustSize();
 
   const QPushButton *profileButton = _topBarWidget->profileButton();
@@ -944,13 +947,20 @@ void MainWindow::onProfile(int middleX) {
       profileButton ? profileButton->geometry() : QRect();
   const QPoint popupTopLeft =
       profileButton
-          ? _topBarWidget->mapToGlobal(QPoint(profileButtonRect.center().x() -
+          ? QPoint(profileButtonRect.center().x() -
                                                   _profileBoardWidget->width() +
                                                   PROFILE_WIDGET_ARROW_OFFSET,
-                                              _topBarWidget->height()))
-          : mapToGlobal(QPoint(width() / 2 - _profileBoardWidget->width() / 2,
-                               _topBarWidget->height()));
+                                              _topBarWidget->height())
+          : QPoint(width() / 2 - _profileBoardWidget->width() / 2,
+                               _topBarWidget->height());
+
+  LOG_DEBUG("popupTopLeft: x = {}, y = {}", popupTopLeft.x(), popupTopLeft.y());
+
+#ifdef Q_OS_WIN
+  _profileBoardWidget->move(mapToGlobal(popupTopLeft));
+#else
   _profileBoardWidget->move(popupTopLeft);
+#endif
   _profileBoardWidget->setArrowTargetX(_profileBoardWidget->width() -
                                        PROFILE_WIDGET_ARROW_OFFSET);
   _profileBoardWidget->show();

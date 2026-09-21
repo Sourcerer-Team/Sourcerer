@@ -85,6 +85,7 @@ set(USE_AUTH_NTLM OFF CACHE BOOL "Enable NTLM authentication" FORCE)
 set(USE_COMPRESSION "zlib" CACHE STRING "Selects compression backend.")
 set(USE_REGEX "builtin" CACHE STRING "Selects regex provider.")
 
+set(USE_GSSAPI OFF CACHE BOOL "Disable Kerberos/GSSAPI" FORCE)
 add_subdirectory(../../lib/libgit2 "libgit2")
 
 add_subdirectory(../../lib/qtkeychain "qtkeychain")

@@ -33,14 +33,17 @@ static void openUrlFromAppImage(const QUrl &url) {
   QProcess process;
   QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
 
-         // Unset AppImage environment variables so external processes load host system libraries
+         // Unset AppImage environment variables so external processes load host system
+  // libraries
   env.remove("LD_LIBRARY_PATH");
   env.remove("QT_PLUGIN_PATH");
   env.remove("QML2_IMPORT_PATH");
 
   process.setProcessEnvironment(env);
   process.setProgram(QStringLiteral("xdg-open"));
-  process.setArguments(QStringList() << url.toString()); // Allow xdg-open to run independently without blocking
+  process.setArguments(QStringList()
+                       << url.toString()); // Allow xdg-open to run
+                                           // independently without blocking
   process.startDetached();
 }
 #endif
@@ -316,11 +319,11 @@ ProfileBoardWidget::~ProfileBoardWidget() {
 bool ProfileBoardWidget::eventFilter(QObject *watched, QEvent *event) {
   if (event->type() == QEvent::MouseButtonPress) {
     const QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-    const QPoint globalPos =
-        MousePositionCorrection::instance().correctedGlobalPosition(mouseEvent);
-
+    const QPoint globalTopLeft = mapToGlobal(QPoint(0, 0));
+    const QRect globalFrameRect = QRect(globalTopLeft, size());
     // Check if click is outside this widget
-    if (isVisible() && !frameGeometry().contains(globalPos)) {
+    if (isVisible() &&
+        !globalFrameRect.contains(mouseEvent->globalPosition().toPoint())) {
       hide();
       emit hidden();
       LOG_DEBUG("Clicked outside the widget!");
@@ -363,7 +366,7 @@ void ProfileBoardWidget::paintEvent(QPaintEvent *event) {
   path.closeSubpath();
 
   const QColor fillColor = palette().color(QPalette::Window);
-  const QColor borderColor = palette().color(QPalette::Mid);
+  const QColor borderColor = palette().color(QPalette::Highlight);
 
   painter.setBrush(fillColor);
   painter.setPen(QPen(borderColor, 1));
