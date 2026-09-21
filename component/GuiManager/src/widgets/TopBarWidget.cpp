@@ -57,7 +57,7 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   const bool tilingWm = isTilingWindowManager();
 
   QPushButton *minimizeButton = nullptr;
-  if (tilingWm) {
+  if (!tilingWm) {
     minimizeButton = new TitleBarButton(
         StylesheetManager::StylesheetManager::recolorPixmap(
             QPixmap(":/icons/minimize_button.png"), iconColor),
@@ -71,7 +71,7 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   }
 
   QPushButton *maximizeButton = nullptr;
-  if (tilingWm) {
+  if (!tilingWm) {
     maximizeButton = new TitleBarButton(
         StylesheetManager::StylesheetManager::recolorPixmap(
             QPixmap(":/icons/maximize_button.png"), iconColor),
@@ -100,7 +100,7 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   systemBarLayout->setSizeConstraint(QLayout::SetFixedSize);
   systemBarLayout->addWidget(_profileButton);
 
-  if (tilingWm) {
+  if (!tilingWm) {
     systemBarLayout->addWidget(minimizeButton);
     systemBarLayout->addWidget(maximizeButton);
   }

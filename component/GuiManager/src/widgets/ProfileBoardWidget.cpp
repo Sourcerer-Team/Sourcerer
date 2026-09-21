@@ -363,7 +363,7 @@ void ProfileBoardWidget::paintEvent(QPaintEvent *event) {
   path.closeSubpath();
 
   const QColor fillColor = palette().color(QPalette::Window);
-  const QColor borderColor = palette().color(QPalette::Mid);
+  const QColor borderColor = palette().color(QPalette::Highlight);
 
   painter.setBrush(fillColor);
   painter.setPen(QPen(borderColor, 1));

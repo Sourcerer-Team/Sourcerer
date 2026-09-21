@@ -947,12 +947,12 @@ void MainWindow::onProfile(int middleX) {
       profileButton ? profileButton->geometry() : QRect();
   const QPoint popupTopLeft =
       profileButton
-          ? _topBarWidget->mapToGlobal(QPoint(profileButtonRect.center().x() -
+          ? QPoint(profileButtonRect.center().x() -
                                                   _profileBoardWidget->width() +
                                                   PROFILE_WIDGET_ARROW_OFFSET,
-                                              _topBarWidget->height()))
-          : mapToGlobal(QPoint(width() / 2 - _profileBoardWidget->width() / 2,
-                               _topBarWidget->height()));
+                                              _topBarWidget->height())
+          : QPoint(width() / 2 - _profileBoardWidget->width() / 2,
+                               _topBarWidget->height());
 
   LOG_DEBUG("popupTopLeft: x = {}, y = {}", popupTopLeft.x(), popupTopLeft.y());
 
