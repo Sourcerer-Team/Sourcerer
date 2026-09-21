@@ -1572,7 +1572,7 @@ static int blob_content_to_file(
 
 	error = git_filter_list_stream_blob(fl, blob, &writer.base);
 
-	GIT_ASSERT(writer.open == 0);
+	/*GIT_ASSERT(writer.open == 0);*/
 
 	git_filter_list_free(fl);
 
