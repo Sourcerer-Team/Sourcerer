@@ -14,6 +14,7 @@
 namespace GuiManager::Widgets {
 
 static bool isTilingWindowManager() {
+#ifdef Q_OS_LINUX
   // Check standard XDG desktop or session variables
   const QString desktop = qgetenv("XDG_CURRENT_DESKTOP").toLower();
   const QString session = qgetenv("DESKTOP_SESSION").toLower();
@@ -27,6 +28,7 @@ static bool isTilingWindowManager() {
       return true;
     }
   }
+#endif
 
   return false;
 }
