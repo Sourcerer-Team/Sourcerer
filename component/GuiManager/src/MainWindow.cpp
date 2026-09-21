@@ -956,7 +956,11 @@ void MainWindow::onProfile(int middleX) {
 
   LOG_DEBUG("popupTopLeft: x = {}, y = {}", popupTopLeft.x(), popupTopLeft.y());
 
+#ifdef Q_OS_WIN
+  _profileBoardWidget->move(mapToGlobal(popupTopLeft));
+#else
   _profileBoardWidget->move(popupTopLeft);
+#endif
   _profileBoardWidget->setArrowTargetX(_profileBoardWidget->width() -
                                        PROFILE_WIDGET_ARROW_OFFSET);
   _profileBoardWidget->show();
