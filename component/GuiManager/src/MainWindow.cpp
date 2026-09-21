@@ -937,6 +937,9 @@ void MainWindow::onProfile(int middleX) {
 
   Q_UNUSED(middleX);
 
+  LOG_DEBUG("Profile widget height: {}", _topBarWidget->height());
+  LOG_DEBUG("Profile buton is null: {}", (_topBarWidget->profileButton() == nullptr));
+
   _profileBoardWidget->adjustSize();
 
   const QPushButton *profileButton = _topBarWidget->profileButton();
