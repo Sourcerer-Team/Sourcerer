@@ -13,6 +13,24 @@
 
 namespace GuiManager::Widgets {
 
+static bool isTilingWindowManager() {
+  // Check standard XDG desktop or session variables
+  const QString desktop = qgetenv("XDG_CURRENT_DESKTOP").toLower();
+  const QString session = qgetenv("DESKTOP_SESSION").toLower();
+
+  // List of common tiling window managers / compositors
+  const QStringList tilingWms = {"i3",    "sway",    "bspwm", "hyprland",
+                                 "qtile", "awesome", "dwm"};
+
+  for (const QString &wm : tilingWms) {
+    if (desktop.contains(wm) || session.contains(wm)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 TopBarWidget::TopBarWidget(QWidget *parent)
     : QWidget{parent},
       _configManager(ConfigManager::ConfigManager::getInstance()),
@@ -34,27 +52,35 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   _profileButton->setMinimumSize(QSize(32, 32));
   _profileButton->setMaximumSize(QSize(32, 32));
 
-  auto minimizeButton =
-      new TitleBarButton(StylesheetManager::StylesheetManager::recolorPixmap(
-                             QPixmap(":/icons/minimize_button.png"), iconColor),
-                         this);
-  minimizeButton->setObjectName("titleBarMinimizeButton");
-  minimizeButton->setProperty("iconSource",
-                              QStringLiteral(":/icons/minimize_button.png"));
-  minimizeButton->setFlat(true);
-  minimizeButton->setMinimumSize(QSize(32, 32));
-  minimizeButton->setMaximumSize(QSize(32, 32));
+  const bool tilingWm = isTilingWindowManager();
 
-  auto maximizeButton =
-      new TitleBarButton(StylesheetManager::StylesheetManager::recolorPixmap(
-                             QPixmap(":/icons/maximize_button.png"), iconColor),
-                         this);
-  maximizeButton->setObjectName("titleBarMaximizeButton");
-  maximizeButton->setProperty("iconSource",
-                              QStringLiteral(":/icons/maximize_button.png"));
-  maximizeButton->setFlat(true);
-  maximizeButton->setMinimumSize(QSize(32, 32));
-  maximizeButton->setMaximumSize(QSize(32, 32));
+  QPushButton *minimizeButton = nullptr;
+  if (tilingWm) {
+    minimizeButton = new TitleBarButton(
+        StylesheetManager::StylesheetManager::recolorPixmap(
+            QPixmap(":/icons/minimize_button.png"), iconColor),
+        this);
+    minimizeButton->setObjectName("titleBarMinimizeButton");
+    minimizeButton->setProperty("iconSource",
+                                QStringLiteral(":/icons/minimize_button.png"));
+    minimizeButton->setFlat(true);
+    minimizeButton->setMinimumSize(QSize(32, 32));
+    minimizeButton->setMaximumSize(QSize(32, 32));
+  }
+
+  QPushButton *maximizeButton = nullptr;
+  if (tilingWm) {
+    maximizeButton = new TitleBarButton(
+        StylesheetManager::StylesheetManager::recolorPixmap(
+            QPixmap(":/icons/maximize_button.png"), iconColor),
+        this);
+    maximizeButton->setObjectName("titleBarMaximizeButton");
+    maximizeButton->setProperty("iconSource",
+                                QStringLiteral(":/icons/maximize_button.png"));
+    maximizeButton->setFlat(true);
+    maximizeButton->setMinimumSize(QSize(32, 32));
+    maximizeButton->setMaximumSize(QSize(32, 32));
+  }
 
   auto closeButton =
       new TitleBarButton(StylesheetManager::StylesheetManager::recolorPixmap(
@@ -71,8 +97,12 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   systemBarLayout->setContentsMargins(0, 0, 0, 0);
   systemBarLayout->setSizeConstraint(QLayout::SetFixedSize);
   systemBarLayout->addWidget(_profileButton);
-  systemBarLayout->addWidget(minimizeButton);
-  systemBarLayout->addWidget(maximizeButton);
+
+  if (tilingWm) {
+    systemBarLayout->addWidget(minimizeButton);
+    systemBarLayout->addWidget(maximizeButton);
+  }
+
   systemBarLayout->addWidget(closeButton);
 
   const qlonglong titleBarHeight =
