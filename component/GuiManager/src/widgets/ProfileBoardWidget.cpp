@@ -319,16 +319,11 @@ ProfileBoardWidget::~ProfileBoardWidget() {
 bool ProfileBoardWidget::eventFilter(QObject *watched, QEvent *event) {
   if (event->type() == QEvent::MouseButtonPress) {
     const QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-#ifdef Q_OS_LINUX
-    const QPoint pos = mapFromGlobal(
-        MousePositionCorrection::instance().correctedGlobalPosition(
-            mouseEvent));
-#else
-    const QPoint pos =
-        MousePositionCorrection::instance().correctedGlobalPosition(mouseEvent);
-#endif
+    const QPoint globalTopLeft = mapToGlobal(QPoint(0, 0));
+    const QRect globalFrameRect = QRect(globalTopLeft, size());
     // Check if click is outside this widget
-    if (isVisible() && !frameGeometry().contains(pos)) {
+    if (isVisible() &&
+        !globalFrameRect.contains(mouseEvent->globalPosition().toPoint())) {
       hide();
       emit hidden();
       LOG_DEBUG("Clicked outside the widget!");
