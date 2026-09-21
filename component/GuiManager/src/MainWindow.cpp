@@ -953,6 +953,9 @@ void MainWindow::onProfile(int middleX) {
                                               _topBarWidget->height()))
           : mapToGlobal(QPoint(width() / 2 - _profileBoardWidget->width() / 2,
                                _topBarWidget->height()));
+
+  LOG_DEBUG("popupTopLeft: x = {}, y = {}", popupTopLeft.x(), popupTopLeft.y());
+
   _profileBoardWidget->move(popupTopLeft);
   _profileBoardWidget->setArrowTargetX(_profileBoardWidget->width() -
                                        PROFILE_WIDGET_ARROW_OFFSET);
