@@ -5837,10 +5837,11 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
 }
 
 GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
-                            const BranchType type, const bool &quitFlag) {
+                            const BranchType type, int page,
+                            const bool &quitFlag) {
   LOG_PERF(0, "Enter");
-  LOG_DEBUG("Getting branch history: branchName='{}', type={}",
-            branchName.toStdString(), static_cast<int>(type));
+  LOG_DEBUG("Getting branch history: branchName='{}', type={}, page={}",
+            branchName.toStdString(), static_cast<int>(type), page);
 
   Q_ASSERT(repo != nullptr);
 
@@ -5850,7 +5851,13 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
     return {};
   }
 
+  const qlonglong pageSize =
+          ConfigManager::ConfigManager::getInstance().getLong(
+              ConfigManager::ConfigKey::GitRepoHistoryPageSize);
+
   GitHistory history_;
+
+  QString pushedRef;
 
   git_revwalk *walker = nullptr;
 
@@ -5861,7 +5868,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
     return {};
   }
 
-  error = git_revwalk_sorting(walker, GIT_SORT_TOPOLOGICAL | GIT_SORT_TIME);
+  error = git_revwalk_sorting(walker, GIT_SORT_TOPOLOGICAL | GIT_SORT_TIME |
+                              GIT_SORT_REVERSE);
   if (error) {
     setError(GitError::GetBranchHistoryFailedToConfigureRevwalkSorting, error);
     git_revwalk_free(walker);
@@ -5946,6 +5954,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
       }
 
       git_reference_free(ref);
+
+      pushedRef = fullBranchName;
     }
 
     git_branch_iterator_free(it);
@@ -5959,9 +5969,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
     if (branchName == HEAD) {
       error = git_revwalk_push_head(walker);
     } else {
-      error = git_revwalk_push_ref(
-          walker,
-          QString("refs/heads/%1").arg(branchName).toStdString().c_str());
+        pushedRef = QString("refs/heads/%1").arg(branchName);
+        error = git_revwalk_push_ref(walker, pushedRef.toStdString().c_str());
     }
     if (error) {
       setError(GitError::GetBranchHistoryFailedToAddLocalBranchToRevwalk,
@@ -5977,9 +5986,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
       return {};
     }
 
-    error = git_revwalk_push_ref(
-        walker,
-        QString("refs/remotes/%1").arg(branchName).toStdString().c_str());
+    pushedRef = QString("refs/remotes/%1").arg(branchName);
+    error = git_revwalk_push_ref(walker, pushedRef.toStdString().c_str());
     if (error) {
       setError(GitError::GetBranchHistoryFailedToAddRemoteBranchToRevwalk,
                error);
@@ -5994,8 +6002,8 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
       return {};
     }
 
-    error = git_revwalk_push_ref(
-        walker, QString("refs/tags/%1").arg(branchName).toStdString().c_str());
+    pushedRef = QString("refs/tags/%1").arg(branchName);
+    error = git_revwalk_push_ref(walker, pushedRef.toStdString().c_str());
     if (error) {
       setError(GitError::GetBranchHistoryFailedToAddTagToRevwalk, error);
       git_revwalk_free(walker);
@@ -6010,9 +6018,71 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
 
   git_oid oid;
 
+  int commitsCount = 0;
+  while (git_revwalk_next(&oid, walker) == 0) {
+      ++commitsCount;
+  }
+
+  git_revwalk_reset(walker);
+
+  const int restCount = commitsCount % pageSize;
+
+  int targetOffset = page != -1 ? commitsCount - ((page + 1) * pageSize) : 0;
+  if (targetOffset < 0)
+      targetOffset = 0;
+
+  if (branchName == HEAD) {
+    error = git_revwalk_push_head(walker);
+  } else {
+      error = git_revwalk_push_ref(walker, pushedRef.toStdString().c_str());
+  }
+
+  if (error) {
+    setError(GitError::GetBranchHistoryFailedToAddLocalBranchToRevwalk,
+             error);
+    git_revwalk_free(walker);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  // 3. Skip up to the target offset
+  int currentIndex = 0;
+  while (currentIndex < targetOffset && git_revwalk_next(&oid, walker) == 0) {
+      currentIndex++;
+  }
+
+  git_revwalk_reset(walker);
+
+  if (branchName == HEAD) {
+    error = git_revwalk_push_head(walker);
+  } else {
+      error = git_revwalk_push_ref(walker, pushedRef.toStdString().c_str());
+  }
+
+  if (error) {
+    setError(GitError::GetBranchHistoryFailedToAddLocalBranchToRevwalk,
+             error);
+    git_revwalk_free(walker);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
   QSet<QString> processed;
 
+  int i = 0;
+  int collectedCount = 0;
+  const int chunkCount = targetOffset == 0 ? restCount : pageSize;
+
   while (git_revwalk_next(&oid, walker) == 0 && !quitFlag) {
+
+    if (page != -1) {
+        if (collectedCount >= chunkCount) {
+            break;
+        }
+    }
+
+    ++collectedCount;
+
     const char *str = git_oid_tostr_s(&oid);
     if (!str) {
       LOG_ERROR(Log::ErrorId::Git, "Can't convert oid to string.");

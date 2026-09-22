@@ -1,8 +1,9 @@
 #include "models/GitHistoryModel.h"
 
-#include <EventManager.h>
+#include <GitRepoManagerStructs.h>
 #include <Graph.h>
 #include <Log.h>
+#include <Uuid.h>
 
 #include <QDateTime>
 #include <QFont>
@@ -11,8 +12,6 @@
 #include <QLocale>
 #include <QQueue>
 #include <QSet>
-
-#include <iostream>
 
 #define THREAD_ID "GitHistoryModel"
 
@@ -49,8 +48,9 @@ static StatusFieldsMap createStatusFieldsMap(const GitRepo::GitStatus &status) {
 }
 
 GitHistoryModel::GitHistoryModel(QObject *parent)
-    : QAbstractTableModel(parent), _quitUpdate(false),
-      _selectionModel(nullptr) {
+    : QAbstractTableModel(parent), _quitUpdate(false), _selectionModel(nullptr),
+      _hasMoreData(false), _branchType(GitRepo::BranchType::Unknown), _page(-1),
+      _eventManager(EventManager::EventManager::getInstance()) {
   LOG_PERF(0, "Enter");
 
   _columnWidths = QVector<int>(COLUMN_LAST + 1, 1);
@@ -130,6 +130,52 @@ void GitHistoryModel::updateCommitRefs(
   _commitRefs.insert(commitRefs);
 }
 
+void GitHistoryModel::patchHistory(const GitRepo::GitHistory &history) {
+  LOCKGUARD(_mutex);
+
+  for (const auto &el : history.commits) {
+    _historyWithStatus.history.commits.insert(
+        _historyWithStatus.history.commits.begin(), el);
+  }
+
+  _historyWithStatus.history.commitInfos.insert(history.commitInfos);
+
+  const auto slices = patchedDrawableSlices(history.commits.length());
+
+  const int firstRow =
+      _historyWithStatus.history.commits.length() - history.commits.length();
+  const int lastRow = _historyWithStatus.history.commits.length() - 1;
+
+  beginInsertRows(QModelIndex(), firstRow, lastRow);
+
+  for (int y = firstRow; y <= lastRow && y < slices.sizeY(); ++y) {
+    _drawableSlices.insertRow(y);
+    for (int x = 0; x < _drawableSlices.sizeX() && x < slices.sizeX(); ++x) {
+      _drawableSlices[x][y] = slices[x][y - firstRow];
+    }
+  }
+
+  endInsertRows();
+
+  rebuildVisibleRows();
+}
+
+Util::ResizableMatrix<Slice> GitHistoryModel::patchedDrawableSlices(int count) {
+  bool quit = false;
+  auto slices = createDrawableSlices(_historyWithStatus, quit, &_columnWidths,
+                                     nullptr, count);
+
+  slices.invertVertically(quit, nullptr);
+
+  for (qsizetype i = 0; i < slices.sizeX() && !quit; ++i) {
+    for (qsizetype j = 0; j < slices.sizeY() && !quit; ++j) {
+      std::swap(slices[i][j].top, slices[i][j].bottom);
+    }
+  }
+
+  return slices;
+}
+
 bool GitHistoryModel::commitMatchesFilters(const QString &commit) const {
   const GitRepo::GitCommitInfo &commitInfo =
       _historyWithStatus.history.commitInfos.value(commit);
@@ -187,6 +233,11 @@ void GitHistoryModel::updateHistoryAndStatus(
     }
   }
 
+  setBranchName(historyWithStatus.branchName);
+  setBranchType(historyWithStatus.branchType);
+  setContextUuid(historyWithStatus.uuid);
+  setPage(historyWithStatus.page);
+
   const auto self = getSelf();
 
   _quitUpdate = false;
@@ -242,6 +293,8 @@ void GitHistoryModel::updateHistoryAndStatus(
     _historyWithStatus = newHistoryWithStatus;
     _columnWidths = newColumnWidths;
     rebuildVisibleRows();
+
+    _hasMoreData = true;
 
     endResetModel();
   }
@@ -449,10 +502,90 @@ QVariant GitHistoryModel::headerData(const int section,
   return QAbstractTableModel::headerData(section, orientation, role);
 }
 
+bool GitHistoryModel::canFetchMore(const QModelIndex &parent) const {
+  if (parent.isValid()) {
+    return false;
+  }
+
+  return _hasMoreData;
+}
+
+void GitHistoryModel::fetchMore(const QModelIndex &parent_) {
+  LOG_PERF(0, "Enter");
+
+  if (parent_.isValid()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  Containers::GitRepoContainer *container =
+      qobject_cast<Containers::GitRepoContainer *>(parent());
+  if (!container) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  container->startOverlayTimer();
+
+  const QString historyEventUuid = Uuid::createUuid();
+
+  const int historyToken = _eventManager.startWait();
+
+  GitRepoManager::Structs::GitRepoGetBranchHistoryCommand historyCommand;
+  historyCommand.uuid = _contextUuid;
+  historyCommand.branchName = _branchName;
+  historyCommand.branchType = _branchType;
+  historyCommand.syncUuid = historyEventUuid;
+  historyCommand.page = ++_page;
+
+  EventManager::Event historyEvent(
+      EventManager::EventType::GitRepoManagerGetBranchHistory,
+      historyEventUuid);
+  historyEvent.addData(historyCommand);
+  _eventManager.send(historyEvent);
+
+  static std::set historyTypes = {
+                                  EventManager::EventType::GitRepoManagerGetBranchHistoryError,
+      EventManager::EventType::GitRepoManagerGetBranchHistoryResult};
+
+  const auto &[historySuccess, historyResultEvent] =
+      _eventManager.waitForAnswer(historyToken, historyEventUuid, historyTypes);
+
+  if (!historySuccess) {
+    _hasMoreData = false;
+    container->showSpinnerOverlay(false);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (historyResultEvent.type() !=
+      EventManager::EventType::GitRepoManagerGetBranchHistoryResult) {
+    _hasMoreData = false;
+    container->showSpinnerOverlay(false);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto historyCommandResult =
+      historyResultEvent.data<GitRepoManager::Structs::GitRepoResult>();
+
+  const auto history = historyCommandResult.value.value<GitRepo::GitHistory>();
+
+  if (history.commits.length() > 0) {
+    patchHistory(history);
+  } else {
+    _hasMoreData = false;
+  }
+
+  container->showSpinnerOverlay(false);
+
+  LOG_PERF(0, "Exit");
+}
+
 Util::ResizableMatrix<Slice> GitHistoryModel::createDrawableSlices(
     GitRepo::GitHistoryWithStatus &historyWithStatus, const bool &quitUpdate,
     QVector<int> *columnWidths,
-    const std::function<void(int)> &progressCallback) {
+    const std::function<void(int)> &progressCallback, int lastCount) {
   LOG_PERF(0, "Enter");
 
   Util::ResizableMatrix<Slice> drawableSlices;
@@ -544,11 +677,12 @@ Util::ResizableMatrix<Slice> GitHistoryModel::createDrawableSlices(
 
           if (danglingParentIndex == -1) {
             if (!missingParents.contains(parent)) {
-              missingParents += parent;
+              //missingParents += parent;
             }
-          };
-
-          maxDanglingParent = std::max(maxDanglingParent, danglingParentIndex);
+          } else {
+            maxDanglingParent =
+                std::max(maxDanglingParent, danglingParentIndex);
+          }
         }
       }
 

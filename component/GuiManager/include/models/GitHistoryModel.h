@@ -1,5 +1,8 @@
 #pragma once
 
+#include "containers/GitRepoContainer.h"
+
+#include <EventManager.h>
 #include <GitRepo.h>
 #include <Graph.h>
 #include <LockGuard.h>
@@ -92,6 +95,8 @@ public:
 
   void updateCommitRefs(const QHash<QString, QStringList> &commitRefs);
 
+  void patchHistory(const GitRepo::GitHistory &history);
+
   GitRepo::GitHistoryWithStatus historyWithStatus() const {
     LOCKGUARD(_mutex);
     return _historyWithStatus;
@@ -104,6 +109,16 @@ public:
 
   bool hasStatus() const;
 
+  void setBranchType(GitRepo::BranchType branchType) {
+    _branchType = branchType;
+  }
+
+  void setBranchName(const QString &branchName) { _branchName = branchName; }
+
+  void setContextUuid(const QString &uuid) { _contextUuid = uuid; }
+
+  void setPage(int page) { _page = page; }
+
   // QAbstractTableModel interface
 public:
   QModelIndex index(int row, int column,
@@ -113,6 +128,8 @@ public:
   QVariant data(const QModelIndex &index, int role) const override;
   QVariant headerData(int section, Qt::Orientation orientation,
                       int role) const override;
+  bool canFetchMore(const QModelIndex &parent) const override;
+  void fetchMore(const QModelIndex &parent) override;
 
 private:
   bool commitMatchesFilters(const QString &commit) const;
@@ -121,7 +138,10 @@ private:
   static Util::ResizableMatrix<Slice>
   createDrawableSlices(GitRepo::GitHistoryWithStatus &historyWithStatus,
                        const bool &quitUpdate, QVector<int> *columnWidths,
-                       const std::function<void(int)> &progressCallback);
+                       const std::function<void(int)> &progressCallback,
+                       int lastCount = -1);
+
+  Util::ResizableMatrix<Slice> patchedDrawableSlices(int count);
 
 private:
   Slices historySlices(const QString &commit) const;
@@ -140,6 +160,12 @@ private:
   QVector<int> _visibleRows;
   std::atomic_bool _quitUpdate;
   QItemSelectionModel *_selectionModel;
+  bool _hasMoreData;
+  GitRepo::BranchType _branchType;
+  QString _branchName;
+  int _page;
+  QString _contextUuid;
+  EventManager::EventManager &_eventManager;
 };
 
 } // namespace GuiManager::Models

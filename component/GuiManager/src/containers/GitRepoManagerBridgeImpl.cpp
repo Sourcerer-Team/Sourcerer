@@ -3187,6 +3187,7 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
   historyCommand.branchName = _container._activeBranch;
   historyCommand.branchType = _container._activeBranchType;
   historyCommand.syncUuid = historyEventUuid;
+  historyCommand.page = 0;
 
   EventManager::Event historyEvent(
       EventManager::EventType::GitRepoManagerGetBranchHistory,
@@ -3295,6 +3296,10 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
   GitRepo::GitHistoryWithStatus historyWithStatus;
   historyWithStatus.history = history;
   historyWithStatus.status = status;
+  historyWithStatus.branchName = _container._activeBranch;
+  historyWithStatus.branchType = _container._activeBranchType;
+  historyWithStatus.uuid = _container._uuid;
+  historyWithStatus.page = 0;
 
   Util::Dispatcher::dispatchToMainThread(
       guard, [=]() { _container.ui->labelProgress->setText("0%"); });

@@ -538,13 +538,30 @@ struct GitCommitStatus {
   QStringList untrackedFiles;
 };
 
+enum class BranchType {
+  Unknown = 0,
+
+  All,
+  Local,
+  Remote,
+  Tag,
+
+  last
+};
+
 struct GitHistoryWithStatus {
   ;
   GitHistory history;
   GitStatus status;
+  BranchType branchType = BranchType::Unknown;
+  QString branchName;
+  QString uuid;
+  int page = -1;
 
   bool operator==(const GitHistoryWithStatus &other) const {
-    return history == other.history && status == other.status;
+    return history == other.history && status == other.status &&
+           branchType == other.branchType && branchName == other.branchName &&
+           uuid == other.uuid && page == other.page;
   }
 };
 
@@ -633,16 +650,6 @@ struct RemoteInfo {
     }
     return RemoteTarget{QStringLiteral("Default"), fetchUrl, pushUrl};
   }
-};
-enum class BranchType {
-  Unknown = 0,
-
-  All,
-  Local,
-  Remote,
-  Tag,
-
-  last
 };
 
 enum class GitFlowBranchType {
@@ -802,7 +809,7 @@ git_repository *openRepository(const QString &path, const QString &author,
                                const QString &email);
 
 GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
-                            BranchType type, const bool &quitFlag);
+                            BranchType type, int page, const bool &quitFlag);
 
 QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
                               const bool &quitFlag);

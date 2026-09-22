@@ -1,6 +1,5 @@
 #pragma once
 
-#include "models/GitHistoryModel.h"
 #include "widgets/ContainerWidget.h"
 #include "widgets/ElidedLabel.h"
 #include "widgets/ShortcutsToolbarWidget.h"
@@ -54,6 +53,10 @@ class QEvent;
 class QCheckBox;
 class QNetworkAccessManager;
 
+namespace GuiManager::Models {
+class GitHistoryModel;
+}
+
 namespace GuiManager::Containers {
 
 class GitRepoManagerBridge;
@@ -64,6 +67,7 @@ class GitRepoContainer final : public Widgets::ContainerWidget,
   Q_OBJECT
 
   friend class GitRepoManagerBridgeImpl;
+  friend class Models::GitHistoryModel;
 
   typedef QWeakPointer<GitRepoContainer> WeakPtr;
   typedef QSharedPointer<GitRepoContainer> SharedPtr;

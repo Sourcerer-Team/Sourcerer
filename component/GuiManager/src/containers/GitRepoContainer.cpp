@@ -10,6 +10,7 @@
 #include "delegates/HistorySummaryTableColumnDelegate.h"
 #include "models/GitCommitListModel.h"
 #include "models/GitCommitTreeModel.h"
+#include "models/GitHistoryModel.h"
 #include "widgets/AddRemoteOverlayWidget.h"
 #include "widgets/AddSubmoduleOverlayWidget.h"
 #include "widgets/AddTargetOverlayWidget.h"
