@@ -483,11 +483,11 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
       _applyingHistoryColumnWidths(false), _displayTreeExpanded(false),
       _displayFilesShowAll(false), _mergeInProgress(false),
-      _commitListModel(nullptr), _commitTreeModel(nullptr),
-      _displayFilesAllListModel(nullptr), _displayFilesAllTreeModel(nullptr),
-      _displayFilesAllCheckBox(nullptr), _repoDirWatcher(nullptr),
-      _authorNameValueLabel(nullptr), _authorEmailValueLabel(nullptr),
-      _repoDirWatcherTimer(new QTimer(this)),
+      _rebaseInProgress(false), _commitListModel(nullptr),
+      _commitTreeModel(nullptr), _displayFilesAllListModel(nullptr),
+      _displayFilesAllTreeModel(nullptr), _displayFilesAllCheckBox(nullptr),
+      _repoDirWatcher(nullptr), _authorNameValueLabel(nullptr),
+      _authorEmailValueLabel(nullptr), _repoDirWatcherTimer(new QTimer(this)),
       _shortcutsWidget(new GuiManager::Widgets::ShortcutsToolbarWidget(this)),
       _selected(false), _historyRefreshSemaphore(nullptr),
       _branchHistorySemaphore(nullptr) {
@@ -1333,6 +1333,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onCommitButtonClicked);
   connect(ui->pushButtonMerge, &QPushButton::clicked, this,
           &GitRepoContainer::onMergeButtonClicked);
+  connect(ui->pushButtonRebase, &QPushButton::clicked, this,
+          &GitRepoContainer::onRebaseButtonClicked);
 
   connect(ui->listViewTabWidgetWorkingTreeFlat,
           &QListView::customContextMenuRequested, this,
@@ -2405,7 +2407,11 @@ void GitRepoContainer::onAbortButtonClicked() {
 
   _dispatcher.dispatch([=]() {
     LOG_DEBUG("Aborting merge operation");
-    _bridge->abortMerge(guard);
+    if (_mergeInProgress && !_rebaseInProgress) {
+      _bridge->abortMerge(guard);
+    } else {
+      _bridge->abortRebase(guard);
+    }
   });
 
   LOG_DEBUG("Abort merge operation dispatched");
@@ -2497,6 +2503,48 @@ void GitRepoContainer::onMergeButtonClicked() {
     LOG_DEBUG("Performing merge commit operation");
     _bridge->commit(guard, summary, description, currentProfile.author,
                     currentProfile.email, true, signoff, signCommit);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onRebaseButtonClicked() {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Rebase button clicked for repository: '{}'", _path.toStdString());
+
+  if (!_userProfileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const Common::UserProfile &currentProfile =
+      _userProfileManager.currentProfile();
+  const QString summary = ui->lineEditSummary->text().trimmed();
+  const QString description = ui->textEditDescription->toPlainText().trimmed();
+  const bool signoff = _actionCommitSignOff->isChecked();
+  const bool signCommit =
+      _actionCommitSign->isVisible() && _actionCommitSign->isChecked();
+
+  LOG_DEBUG("Rebase details - Author: '{}', Sign-off: {}, Sign commit: {}, "
+            "Summary length: {}",
+            currentProfile.author.toStdString(), signoff, signCommit,
+            summary.length());
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  startOverlayTimer();
+  LOG_DEBUG("Spinner overlay timer started");
+
+  _dispatcher.dispatch([=]() {
+    LOG_DEBUG("Performing merge commit operation");
+    _bridge->commitRebase(guard, summary, description, currentProfile.author,
+                          currentProfile.email, false, signoff, signCommit);
+    _rebaseSourceBranch.clear();
+    _rebaseDestinationBranch.clear();
   });
 
   LOG_PERF(0, "Exit");
@@ -3605,50 +3653,60 @@ void GitRepoContainer::onLocalBranchMoved(const QString &sourceBranch,
     return;
   }
 
-  QMenu menu(this);
-  QAction actionMerge(tr("Merge"), this);
-  QAction actionRebase(tr("Rebase"), this);
+  Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+    QMenu menu(this);
+    QAction actionMerge(tr("Merge"), this);
+    QAction actionRebase(tr("Rebase"), this);
 
-  menu.addAction(&actionMerge);
-  menu.addAction(&actionRebase);
+    menu.addAction(&actionMerge);
+    menu.addAction(&actionRebase);
 
-  const QAction *selectedAction = menu.exec(QCursor::pos());
-  if (!selectedAction) {
-    LOG_DEBUG("Branch move cancelled by user");
-    LOG_PERF(0, "Exit");
-    return;
-  }
+    const QAction *selectedAction = menu.exec(QCursor::pos());
+    if (!selectedAction) {
+      LOG_DEBUG("Branch move cancelled by user");
+      LOG_PERF(0, "Exit");
+      return;
+    }
 
-  const QString question = selectedAction == &actionMerge
-                               ? QString("Are you sure that you want to merge "
-                                         "branch '%1' to branch '%2'?")
-                                     .arg(sourceBranch, destBranch)
-                               : QString("Are you sure that you want to rebase "
-                                         "branch '%1' onto branch '%2'?")
-                                     .arg(sourceBranch, destBranch);
+    const QString question =
+        selectedAction == &actionMerge
+            ? QString("Are you sure that you want to merge "
+                      "branch '%1' to branch '%2'?")
+                  .arg(sourceBranch, destBranch)
+            : QString("Are you sure that you want to rebase "
+                      "branch '%1' onto branch '%2'?")
+                  .arg(sourceBranch, destBranch);
 
-  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
-                                           QMessageBox::Yes, QMessageBox::No);
-  if (reply == QMessageBox::No) {
-    LOG_DEBUG("Branch move operation cancelled by user");
-    LOG_PERF(0, "Exit");
-    return;
-  }
+    const auto reply =
+        QMessageBox::question(this, tr("Confirm action"), question,
+                              QMessageBox::Yes, QMessageBox::No);
+    if (reply == QMessageBox::No) {
+      LOG_DEBUG("Branch move operation cancelled by user");
+      LOG_PERF(0, "Exit");
+      return;
+    }
 
-  startOverlayTimer();
-  LOG_DEBUG("Spinner overlay timer started");
+    const bool signCommit =
+        _actionCommitSign->isVisible() && _actionCommitSign->isChecked();
 
-  const WeakPtr guard = getSelf().toWeakRef();
+    startOverlayTimer();
+    LOG_DEBUG("Spinner overlay timer started");
 
-  if (selectedAction == &actionMerge) {
-    _dispatcher.dispatch(
-        [=]() { _bridge->merge(guard, sourceBranch, destBranch); });
-    LOG_DEBUG("Branch merge operation dispatched");
-  } else if (selectedAction == &actionRebase) {
-    _dispatcher.dispatch(
-        [=]() { _bridge->rebase(guard, sourceBranch, destBranch); });
-    LOG_DEBUG("Branch rebase operation dispatched");
-  }
+    const WeakPtr guard = getSelf().toWeakRef();
+
+    if (selectedAction == &actionMerge) {
+      _dispatcher.dispatch(
+          [=]() { _bridge->merge(guard, sourceBranch, destBranch); });
+      LOG_DEBUG("Branch merge operation dispatched");
+    } else if (selectedAction == &actionRebase) {
+      _rebaseSourceBranch = sourceBranch;
+      _rebaseDestinationBranch = destBranch;
+      _dispatcher.dispatch([=]() {
+        _bridge->rebase(guard, sourceBranch, destBranch, signCommit);
+      });
+      LOG_DEBUG("Branch rebase operation dispatched");
+    }
+  });
 
   LOG_PERF(0, "Exit");
 }
@@ -7461,22 +7519,30 @@ void GitRepoContainer::resetCommitButton() const {
   LOG_PERF(0, "Enter");
 
   ui->pushButtonCommit->setEnabled(
-      !_mergeInProgress && _commitStagedListModel &&
+      !_mergeInProgress && !_rebaseInProgress && _commitStagedListModel &&
       _commitStagedListModel->rowCount() > 0 &&
       (!ui->lineEditSummary->text().isEmpty() ||
        !ui->textEditDescription->toPlainText().isEmpty()));
-  ui->pushButtonCommit->setVisible(!_mergeInProgress);
+  ui->pushButtonCommit->setVisible(!_mergeInProgress && !_rebaseInProgress);
 
-  ui->pushButtonAbort->setVisible(_mergeInProgress);
-  ui->pushButtonAbort->setEnabled(_mergeInProgress);
+  ui->pushButtonAbort->setVisible(_mergeInProgress || _rebaseInProgress);
+  ui->pushButtonAbort->setEnabled(_mergeInProgress || _rebaseInProgress);
 
   ui->pushButtonMerge->setVisible(_mergeInProgress);
   ui->pushButtonMerge->setEnabled(
-      _mergeInProgress && _commitStagedListModel &&
+      _mergeInProgress && !_rebaseInProgress && _commitStagedListModel &&
       _commitStagedListModel->rowCount() > 0 &&
       (!ui->lineEditSummary->text().isEmpty() ||
        !ui->textEditDescription->toPlainText().isEmpty()));
-  _actionCommitAmend->setVisible(!_mergeInProgress);
+
+  ui->pushButtonRebase->setVisible(_rebaseInProgress);
+  ui->pushButtonRebase->setEnabled(
+      _rebaseInProgress && !_mergeInProgress && _commitStagedListModel &&
+      _commitStagedListModel->rowCount() > 0 &&
+      (!ui->lineEditSummary->text().isEmpty() ||
+       !ui->textEditDescription->toPlainText().isEmpty()));
+
+  _actionCommitAmend->setVisible(!_mergeInProgress && !_rebaseInProgress);
 
   LOG_PERF(0, "Exit")
 }

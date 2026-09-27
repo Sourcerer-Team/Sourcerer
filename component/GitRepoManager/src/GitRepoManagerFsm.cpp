@@ -51,6 +51,8 @@ QString GitRepoManagerFsm::eventName(int event) const {
     return "ChangeState";
   case EventType::AbortMerge:
     return "AbortMerge";
+  case EventType::AbortRebase:
+    return "AbortRebase";
   case EventType::AddRemote:
     return "AddRemote";
   case EventType::AddSubmodule:

@@ -65,7 +65,7 @@ void SpinnerOverlayWidget::startSpinning() {
 }
 
 void SpinnerOverlayWidget::stopSpinning() {
-  if (_spinner && _spinner->isSpinning()) {
+  if (_spinner) {
     _singleShotTimer->stop();
     _labelStatus->setVisible(false);
     _spinner->setVisible(false);

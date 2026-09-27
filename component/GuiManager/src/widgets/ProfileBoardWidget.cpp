@@ -33,7 +33,7 @@ static void openUrlFromAppImage(const QUrl &url) {
   QProcess process;
   QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
 
-         // Unset AppImage environment variables so external processes load host system
+  // Unset AppImage environment variables so external processes load host system
   // libraries
   env.remove("LD_LIBRARY_PATH");
   env.remove("QT_PLUGIN_PATH");
