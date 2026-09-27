@@ -26,8 +26,6 @@ FsmBase::~FsmBase() {
 
   stop();
 
-  delete _thread;
-
   LOG_PERF(0, "Exit");
 }
 
@@ -67,6 +65,10 @@ void FsmBase::stop() {
   _queueEvents.push(stopEvent);
 
   _thread->wait();
+
+  delete _thread;
+
+  _thread = nullptr;
 
   while (!_queueEvents.empty())
     _queueEvents.pop();
