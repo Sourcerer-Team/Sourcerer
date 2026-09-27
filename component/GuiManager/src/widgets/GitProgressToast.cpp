@@ -110,9 +110,19 @@ void GitProgressToast::eventCallback(EventManager::Event event) {
     if (data.uuid != _data.uuid)
       break;
 
-    if (data.finished)
+    if (data.finished) {
+      Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+        _progressBar->setRange(0, 100);
+        _progressBar->setValue(100);
+        _messageLabel->setText(data.stage == CloneProgressStageType::Checkout
+                                   ? tr(CHECKOUT_STR)
+                                   : tr(FETCHING_STR));
+      });
+
+      std::this_thread::sleep_for(1500ms);
+
       emit finished();
-    else
+    } else {
       Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
         _progressBar->setRange(0, data.totalSteps - 1);
         _progressBar->setValue(data.completedSteps);
@@ -120,6 +130,7 @@ void GitProgressToast::eventCallback(EventManager::Event event) {
                                    ? tr(CHECKOUT_STR)
                                    : tr(FETCHING_STR));
       });
+    }
     break;
   }
   default: {
