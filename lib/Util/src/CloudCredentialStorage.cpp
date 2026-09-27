@@ -45,7 +45,7 @@ static bool saveMasterKeyToWindowsStore(const QString &appName,
   job.setKey(userName);       // Identifier (e.g., username)
   job.setTextData(masterKey); // Secret payload
 
-         // Local event loop to block until finished signal is emitted
+  // Local event loop to block until finished signal is emitted
   QEventLoop loop;
   QObject::connect(&job, &QKeychain::WritePasswordJob::finished, &loop,
                    &QEventLoop::quit);

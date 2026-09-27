@@ -114,7 +114,7 @@ MainWindow::MainWindow(QWidget *parent)
 #else
   setWindowFlags(Qt::Window);
 
-         // Extend frame into client area slightly so DWM handles edges
+  // Extend frame into client area slightly so DWM handles edges
   HWND hwnd = (HWND)winId();
   MARGINS margins = {1, 1, 1, 1};
   DwmExtendFrameIntoClientArea(hwnd, &margins);
@@ -938,7 +938,8 @@ void MainWindow::onProfile(int middleX) {
   Q_UNUSED(middleX);
 
   LOG_DEBUG("Profile widget height: {}", _topBarWidget->height());
-  LOG_DEBUG("Profile buton is null: {}", (_topBarWidget->profileButton() == nullptr));
+  LOG_DEBUG("Profile buton is null: {}",
+            (_topBarWidget->profileButton() == nullptr));
 
   _profileBoardWidget->adjustSize();
 
@@ -946,13 +947,12 @@ void MainWindow::onProfile(int middleX) {
   const QRect profileButtonRect =
       profileButton ? profileButton->geometry() : QRect();
   const QPoint popupTopLeft =
-      profileButton
-          ? QPoint(profileButtonRect.center().x() -
-                                                  _profileBoardWidget->width() +
-                                                  PROFILE_WIDGET_ARROW_OFFSET,
-                                              _topBarWidget->height())
-          : QPoint(width() / 2 - _profileBoardWidget->width() / 2,
-                               _topBarWidget->height());
+      profileButton ? QPoint(profileButtonRect.center().x() -
+                                 _profileBoardWidget->width() +
+                                 PROFILE_WIDGET_ARROW_OFFSET,
+                             _topBarWidget->height())
+                    : QPoint(width() / 2 - _profileBoardWidget->width() / 2,
+                             _topBarWidget->height());
 
   LOG_DEBUG("popupTopLeft: x = {}, y = {}", popupTopLeft.x(), popupTopLeft.y());
 

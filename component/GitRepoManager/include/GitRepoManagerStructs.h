@@ -15,6 +15,7 @@ namespace GitRepoManager::Structs {
 enum class GitRepoCommandType : int {
   Unknown = 0,
   AbortMerge,
+  AbortRebase,
   AddSubmodule,
   AddRemote,
   Amend,
@@ -26,6 +27,7 @@ enum class GitRepoCommandType : int {
   Clone,
   Close,
   CommitStaged,
+  CommitRebase,
   CreateBranchFromCommit,
   CreatePatchFromCommit,
   CreateTagFromCommit,
@@ -52,6 +54,7 @@ enum class GitRepoCommandType : int {
   GetCommitIsHead,
   GetCommitStatus,
   GetIsMergeInProgress,
+  GetIsRebaseInProgress,
   GetStashStatus,
   GetSubmodulePath,
   GetUpstream,
@@ -119,6 +122,13 @@ struct GitRepoAbortMergeCommand final : GitRepoCommand {
   GitRepoAbortMergeCommand() : GitRepoCommand(GitRepoCommandType::AbortMerge) {}
 
   ~GitRepoAbortMergeCommand() override = default;
+};
+
+struct GitRepoAbortRebaseCommand final : GitRepoCommand {
+  GitRepoAbortRebaseCommand()
+      : GitRepoCommand(GitRepoCommandType::AbortRebase) {}
+
+  ~GitRepoAbortRebaseCommand() override = default;
 };
 
 struct GitRepoAddRemoteCommand final : GitRepoCommand {
@@ -228,11 +238,26 @@ struct GitRepoCloseCommand final : GitRepoCommand {
   ~GitRepoCloseCommand() override = default;
 };
 
-struct GitRepoCommitStagedCommand final : GitRepoCommand {
+struct GitRepoCommitStagedCommand : GitRepoCommand {
   GitRepoCommitStagedCommand()
       : GitRepoCommand(GitRepoCommandType::CommitStaged) {}
 
   ~GitRepoCommitStagedCommand() override = default;
+
+  QString author;
+  QString email;
+  QString summary;
+  QString message;
+  bool cleanup = false;
+  bool signoff = false;
+  bool signCommit = false;
+};
+
+struct GitRepoCommitRebaseCommand : GitRepoCommand {
+  GitRepoCommitRebaseCommand()
+      : GitRepoCommand(GitRepoCommandType::CommitRebase) {}
+
+  ~GitRepoCommitRebaseCommand() override = default;
 
   QString author;
   QString email;
@@ -499,6 +524,13 @@ struct GitRepoGetIsMergeInProgressCommand final : GitRepoCommand {
   ~GitRepoGetIsMergeInProgressCommand() override = default;
 };
 
+struct GitRepoGetIsRebaseInProgressCommand final : GitRepoCommand {
+  GitRepoGetIsRebaseInProgressCommand()
+      : GitRepoCommand(GitRepoCommandType::GetIsRebaseInProgress) {}
+
+  ~GitRepoGetIsRebaseInProgressCommand() override = default;
+};
+
 struct GitRepoGetSubmodulePathCommand final : GitRepoCommand {
   GitRepoGetSubmodulePathCommand()
       : GitRepoCommand(GitRepoCommandType::GetSubmodulePath) {}
@@ -626,6 +658,7 @@ struct GitRepoRebaseCommand final : GitRepoCommand {
   QString destinationBranch;
   QString author;
   QString email;
+  bool signCommit = false;
 };
 
 struct GitRepoGitFlowCommand final : GitRepoCommand {

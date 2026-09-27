@@ -123,6 +123,7 @@ private slots:
   void onAbortButtonClicked();
   void onCommitButtonClicked();
   void onMergeButtonClicked();
+  void onRebaseButtonClicked();
   void onCommitAndMergeIndexTreeUnstageAllButtonClicked();
   void onCommitAndMergeWorkingTreeTreeStageAllButtonClicked();
   void onCreateBranchFromCommit(const QString &commit);
@@ -396,6 +397,7 @@ private:
   bool _displayTreeExpanded;
   bool _displayFilesShowAll;
   bool _mergeInProgress;
+  bool _rebaseInProgress;
 
   QString _currentDisplayCommit;
   QStringList _historySelectionHistory;
@@ -429,6 +431,9 @@ private:
 
   QSemaphore *_historyRefreshSemaphore;
   QSemaphore *_branchHistorySemaphore;
+
+  QString _rebaseSourceBranch;
+  QString _rebaseDestinationBranch;
 };
 
 } // namespace GuiManager::Containers
