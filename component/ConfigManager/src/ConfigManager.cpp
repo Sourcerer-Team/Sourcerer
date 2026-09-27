@@ -178,7 +178,7 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
 #endif
     {ConfigKey::NewsTrackerSeenNewsIds, ""},
     {ConfigKey::GitRepoSplitterPos,
-     "000000ff0000000100000003000000f3000003a40000013d01ffffffff010000000100"},
+     "000000ff0000000100000003000000f0000004bc0000018801ffffffff010000000100"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
     {ConfigKey::GitRepoHistoryViewColumnWidths, ""},
     {ConfigKey::GitRepoHistoryViewHiddenColumns, "2,3"},
