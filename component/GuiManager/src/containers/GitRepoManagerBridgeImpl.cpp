@@ -502,6 +502,80 @@ void GitRepoManagerBridgeImpl::abortMerge(
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoManagerBridgeImpl::abortRebase(
+    const QWeakPointer<GitRepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoAbortRebaseCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event abortRebaseEvent(
+      EventManager::EventType::GitRepoManagerAbortRebase, eventUuid);
+  abortRebaseEvent.addData(command);
+  _container._eventManager.send(abortRebaseEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerAbortRebaseError,
+      EventManager::EventType::GitRepoManagerAbortRebaseResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to abort rebase.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerAbortRebaseResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool abortSuccess = commandResult.value.toBool();
+
+  _container.refreshHistory(guard);
+
+  if (!abortSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(_container.tr("Failed to abort rebase."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    _container.showSpinnerOverlay(false);
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::History));
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoManagerBridgeImpl::addSubmodule(
     const QWeakPointer<GitRepoContainer> &guard, const QString &url,
     const QString &name, const QString &branch) {
@@ -1158,6 +1232,95 @@ void GitRepoManagerBridgeImpl::commit(
   LOG_PERF(0, "Exit")
 }
 
+void GitRepoManagerBridgeImpl::commitRebase(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &summary,
+    const QString &description, const QString &author, const QString &email,
+    bool cleanup, bool signoff, bool signCommit) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoCommitRebaseCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.author = author;
+  command.email = email;
+  command.summary = summary;
+  command.message = description;
+  command.cleanup = cleanup;
+  command.signoff = signoff;
+  command.signCommit = signCommit;
+
+  EventManager::Event commitRebaseEvent(
+      EventManager::EventType::GitRepoManagerCommitRebase, eventUuid);
+  commitRebaseEvent.addData(command);
+  _container._eventManager.send(commitRebaseEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerCommitRebaseError,
+      EventManager::EventType::GitRepoManagerCommitRebaseResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to commit staged changes."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerCommitRebaseResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const bool commitSuccess = commandResult.value.toBool();
+
+  if (!commitSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(
+          _container.tr("Failed to commit staged changes."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    if (commitSuccess) {
+      _container.clearSummaryAndDescription();
+    }
+    _container.showSpinnerOverlay(false);
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::History));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
 void GitRepoManagerBridgeImpl::createBranchFromCommit(
     const QWeakPointer<GitRepoContainer> &guard, const QString &commit,
     const QString &branchName,
@@ -1320,16 +1483,6 @@ void GitRepoManagerBridgeImpl::createTagFromCommit(
     const QWeakPointer<GitRepoContainer> &guard, const QString &commit,
     const QString &tagName, const QString &message, bool isAnnotated) {
   LOG_PERF(0, "Enter");
-
-  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
-    _container.showErrorToast(
-        _container.tr(
-            "You must create a Git profile in User Profiles and set it as the "
-            "default profile before performing this operation."),
-        _container.tr("Error"));
-    LOG_PERF(0, "Exit");
-    return;
-  }
 
   const QString author =
       Common::UserProfileManager::instance().currentProfile().author;
@@ -3820,16 +3973,6 @@ void GitRepoManagerBridgeImpl::merge(
     const QString &destBranch) {
   LOG_PERF(0, "Enter");
 
-  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
-    _container.showErrorToast(
-        _container.tr(
-            "You must create a Git profile in User Profiles and set it as the "
-            "default profile before performing this operation."),
-        _container.tr("Error"));
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
   const QString author = _container._userProfileManager.currentProfile().author;
   const QString email = _container._userProfileManager.currentProfile().email;
 
@@ -3901,18 +4044,8 @@ void GitRepoManagerBridgeImpl::merge(
 
 void GitRepoManagerBridgeImpl::rebase(
     const QWeakPointer<GitRepoContainer> &guard, const QString &sourceBranch,
-    const QString &destBranch) {
+    const QString &destBranch, bool signCommit) {
   LOG_PERF(0, "Enter");
-
-  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
-    _container.showErrorToast(
-        _container.tr(
-            "You must create a Git profile in User Profiles and set it as the "
-            "default profile before performing this operation."),
-        _container.tr("Error"));
-    LOG_PERF(0, "Exit");
-    return;
-  }
 
   const QString author = _container._userProfileManager.currentProfile().author;
   const QString email = _container._userProfileManager.currentProfile().email;
@@ -3928,6 +4061,7 @@ void GitRepoManagerBridgeImpl::rebase(
   command.destinationBranch = destBranch;
   command.author = author;
   command.email = email;
+  command.signCommit = signCommit;
 
   EventManager::Event rebaseEvent(EventManager::EventType::GitRepoManagerRebase,
                                   eventUuid);
@@ -4060,16 +4194,6 @@ void GitRepoManagerBridgeImpl::finishGitFlowBranch(
     const QWeakPointer<GitRepoContainer> &guard,
     const GitRepo::GitFlowBranchType branchType, const QString &branchName) {
   LOG_PERF(0, "Enter");
-
-  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
-    _container.showErrorToast(
-        _container.tr(
-            "You must create a Git profile in User Profiles and set it as the "
-            "default profile before performing this operation."),
-        _container.tr("Error"));
-    LOG_PERF(0, "Exit");
-    return;
-  }
 
   const QString author = _container._userProfileManager.currentProfile().author;
   const QString email = _container._userProfileManager.currentProfile().email;
@@ -5361,16 +5485,6 @@ void GitRepoManagerBridgeImpl::revert(
     const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
   LOG_PERF(0, "Enter");
 
-  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
-    _container.showErrorToast(
-        _container.tr(
-            "You must create a Git profile in User Profiles and set it as the "
-            "default profile before performing this operation."),
-        _container.tr("Error"));
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
   const QString summaryToRevert =
       commitSummaryFromHistoryModel(_container._historyModel.data(), commit);
 
@@ -5449,16 +5563,6 @@ void GitRepoManagerBridgeImpl::revert(
 void GitRepoManagerBridgeImpl::cherryPick(
     const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
   LOG_PERF(0, "Enter");
-
-  if (!Common::UserProfileManager::instance().hasCurrentProfile()) {
-    _container.showErrorToast(
-        _container.tr(
-            "You must create a Git profile in User Profiles and set it as the "
-            "default profile before performing this operation."),
-        _container.tr("Error"));
-    LOG_PERF(0, "Exit");
-    return;
-  }
 
   QString summaryCherryPick;
 
@@ -5631,9 +5735,9 @@ void GitRepoManagerBridgeImpl::showCommitAndMerge(
     QWeakPointer<GitRepoContainer> guard) {
   LOG_PERF(0, "Enter");
 
-  const QString eventUuid = Uuid::createUuid();
+  QString eventUuid = Uuid::createUuid();
 
-  const int token = _container._eventManager.startWait();
+  int token = _container._eventManager.startWait();
 
   GitRepoGetIsMergeInProgressCommand command;
   command.uuid = _container._uuid;
@@ -5644,7 +5748,7 @@ void GitRepoManagerBridgeImpl::showCommitAndMerge(
   getIsMergeInProgressEvent.addData(command);
   _container._eventManager.send(getIsMergeInProgressEvent);
 
-  static std::set types = {
+  std::set types = {
       EventManager::EventType::GitRepoManagerGetIsMergeInProgressError,
       EventManager::EventType::GitRepoManagerGetIsMergeInProgressResult};
 
@@ -5677,9 +5781,58 @@ void GitRepoManagerBridgeImpl::showCommitAndMerge(
     return;
   }
 
-  const auto commandResult = event.data<GitRepoResult>();
+  auto commandResult = event.data<GitRepoResult>();
 
   _container._mergeInProgress = commandResult.value.toBool();
+
+  eventUuid = Uuid::createUuid();
+
+  token = _container._eventManager.startWait();
+
+  GitRepoGetIsRebaseInProgressCommand commandRebase;
+  commandRebase.uuid = _container._uuid;
+  commandRebase.syncUuid = eventUuid;
+
+  EventManager::Event getIsRebaseInProgressEvent(
+      EventManager::EventType::GitRepoManagerGetIsRebaseInProgress, eventUuid);
+  getIsRebaseInProgressEvent.addData(commandRebase);
+  _container._eventManager.send(getIsRebaseInProgressEvent);
+
+  types = {EventManager::EventType::GitRepoManagerGetIsRebaseInProgressError,
+           EventManager::EventType::GitRepoManagerGetIsRebaseInProgressResult};
+
+  const auto &[successRebase, eventRebase] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!successRebase) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to get rebase progress status."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (eventRebase.type() !=
+      EventManager::EventType::GitRepoManagerGetIsRebaseInProgressResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  commandResult = eventRebase.data<GitRepoResult>();
+
+  _container._rebaseInProgress = commandResult.value.toBool();
 
   const GitRepo::GitHistoryWithStatus historyAndStatus =
       _container._historyModel->historyWithStatus();

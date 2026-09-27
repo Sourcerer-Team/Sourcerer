@@ -29,6 +29,7 @@ public:
                   &onSuccess = nullptr) = 0;
   virtual void stash(const QWeakPointer<GitRepoContainer> &guard) = 0;
   virtual void abortMerge(const QWeakPointer<GitRepoContainer> &guard) = 0;
+  virtual void abortRebase(const QWeakPointer<GitRepoContainer> &guard) = 0;
   virtual void addSubmodule(const QWeakPointer<GitRepoContainer> &guard,
                             const QString &url, const QString &name,
                             const QString &branch) = 0;
@@ -54,6 +55,10 @@ public:
                       const QString &summary, const QString &description,
                       const QString &author, const QString &email, bool cleanup,
                       bool signoff, bool signCommit) = 0;
+  virtual void commitRebase(const QWeakPointer<GitRepoContainer> &guard,
+                            const QString &summary, const QString &description,
+                            const QString &author, const QString &email,
+                            bool cleanup, bool signoff, bool signCommit) = 0;
   virtual void createBranchFromCommit(
       const QWeakPointer<GitRepoContainer> &guard, const QString &commit,
       const QString &branchName,
@@ -131,8 +136,8 @@ public:
                      const QString &sourceBranch,
                      const QString &destBranch) = 0;
   virtual void rebase(const QWeakPointer<GitRepoContainer> &guard,
-                      const QString &sourceBranch,
-                      const QString &destBranch) = 0;
+                      const QString &sourceBranch, const QString &destBranch,
+                      bool signCommit) = 0;
   virtual void startGitFlowBranch(const QWeakPointer<GitRepoContainer> &guard,
                                   const GitRepo::GitFlowBranchType branchType,
                                   const QString &branchName) = 0;

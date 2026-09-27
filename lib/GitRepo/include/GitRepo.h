@@ -148,6 +148,8 @@ enum class GitError : int {
   UnstageFilesFailedToResolveRevision,
   UnstageFilesFailedToResetPathsToHead,
   CommitStagedFailedToGetRepositoryIndex,
+  CommitStagedFailedToAbortRebaseSession,
+  CommitStagedFailedToOpenRebaseSession,
   CommitStagedFailedToWriteIndexTree,
   CommitStagedFailedToLookupTree,
   CommitStagedFailedToCreateSignature,
@@ -346,6 +348,7 @@ enum class GitError : int {
   RebaseBranchesFailedToCreateSignature,
   RebaseBranchesFailedToStartRebase,
   RebaseBranchesFailedToCommitRebaseStep,
+  RebaseBranchesFailedToCommitRebaseStepWithConflicts,
   RebaseBranchesFailedToFinishRebase,
   RebaseBranchesFailedToAbortRebase,
   ListConflictsForAFileFailedToGetRepositoryIndex,
@@ -793,7 +796,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
            const QString &email);
 bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
                     const QString &destinationBranch, const QString &author,
-                    const QString &email);
+                    const QString &email, const bool signCommit);
 
 git_repository *openRepository(const QString &path, const QString &author,
                                const QString &email);
@@ -822,6 +825,11 @@ bool stageFiles(git_repository *repo, const QStringList &files);
 bool unstageFiles(git_repository *repo, const QStringList &files);
 
 bool commitStaged(git_repository *repo, const QString &summary,
+                  const QString &message, const QString &author,
+                  const QString &email, bool cleanup, bool signoff,
+                  bool signCommit);
+
+bool commitRebase(git_repository *repo, const QString &summary,
                   const QString &message, const QString &author,
                   const QString &email, bool cleanup, bool signoff,
                   bool signCommit);
@@ -908,7 +916,11 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 
 bool getIsMergeInProgress(git_repository *repo);
 
+bool getIsRebaseInProgress(git_repository *repo);
+
 bool abortMerge(git_repository *repo);
+
+bool abortRebase(git_repository *repo);
 
 // Remote management functions
 QVector<RemoteInfo> listRemotes(git_repository *repo);

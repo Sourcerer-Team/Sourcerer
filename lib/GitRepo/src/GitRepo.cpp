@@ -320,6 +320,7 @@ struct CommitSigningConfig {
 struct CommitSigningPayload {
   CommitSigningConfig config;
   QString *errorMessage = nullptr;
+  git_repository *repo = nullptr;
 };
 
 static QString expandUserPath(const QString &path) {
@@ -620,6 +621,79 @@ static int commitSigningCallback(git_commitbuilder *builder,
 
   return 0;
 }
+
+static int commitRebaseSigningCallback(
+    git_oid *out, const git_signature *author, const git_signature *committer,
+    const char *message_encoding, const char *message, const git_tree *tree,
+    size_t parent_count, const git_commit *parents[], void *payload) {
+  Q_ASSERT(payload != nullptr);
+
+  if (!payload) {
+    LOG_ERROR(Log::ErrorId::Git, "Internal error! Payload not specified.");
+    return -1;
+  };
+
+  auto *signingPayload = static_cast<CommitSigningPayload *>(payload);
+
+  if (!signingPayload->config.enabled) {
+    return GIT_PASSTHROUGH;
+  }
+
+  git_repository *repo = signingPayload->repo;
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Internal error! Repository not specified.");
+    return -1;
+  }
+
+  QString errorMessage;
+  QString signature;
+
+  if (!createCommitSignature(QString::fromUtf8(message), signingPayload->config,
+                             &signature, &errorMessage)) {
+    if (signingPayload->errorMessage) {
+      *signingPayload->errorMessage = errorMessage;
+    }
+    LOG_ERROR(Log::ErrorId::Git, "Failed to create commit signature: {}",
+              errorMessage.toStdString());
+    return -1;
+  }
+
+  const QByteArray signatureUtf8 = signature.toUtf8();
+
+  git_buf commit_content = {0};
+  int error = 0;
+
+  error = git_commit_create_buffer(&commit_content, repo, author, committer,
+                                   message_encoding, message, tree,
+                                   parent_count, parents);
+  if (error) {
+    errorMessage = QStringLiteral("Failed to create commit buffer.");
+    if (signingPayload->errorMessage) {
+      *signingPayload->errorMessage = errorMessage;
+    }
+    LOG_ERROR(Log::ErrorId::Git, "Failed to create commit buffer");
+    return -1;
+  }
+
+  error = git_commit_create_with_signature(
+      out, repo, commit_content.ptr, signature.toStdString().c_str(), "gpgsig");
+  if (error) {
+    errorMessage = QStringLiteral("Failed to create commit with signature.");
+    if (signingPayload->errorMessage) {
+      *signingPayload->errorMessage = errorMessage;
+    }
+    git_buf_dispose(&commit_content);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to create commit with signature");
+    return -1;
+  }
+
+  git_buf_dispose(&commit_content);
+
+  return error;
+};
 
 static int encodeLibgitError(const int error, const int klass) {
   return (klass & 0x00ff) << 16 | (error & 0xffff);
@@ -1117,6 +1191,12 @@ static QString gitErrorName(const GitError errorType) {
     return QCoreApplication::translate(
         "GitRepoError",
         "Failed to get repository index while committing staged changes.");
+  case GitError::CommitStagedFailedToAbortRebaseSession:
+    return QCoreApplication::translate("GitRepoError",
+                                       "Failed to abort rebase session.");
+  case GitError::CommitStagedFailedToOpenRebaseSession:
+    return QCoreApplication::translate("GitRepoError",
+                                       "Failed to open rebase session.");
   case GitError::CommitStagedFailedToWriteIndexTree:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -1840,6 +1920,10 @@ static QString gitErrorName(const GitError errorType) {
     return QCoreApplication::translate(
         "GitRepoError",
         "Failed to commit rebase step while rebasing branches.");
+  case GitError::RebaseBranchesFailedToCommitRebaseStepWithConflicts:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to commit rebase step while rebasing branches "
+                        "due to conflicts in files.");
   case GitError::RebaseBranchesFailedToFinishRebase:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to finish rebase while rebasing branches.");
@@ -11835,7 +11919,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
 
 bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
                     const QString &destinationBranch, const QString &author,
-                    const QString &email) {
+                    const QString &email, const bool signCommit) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
@@ -11934,10 +12018,38 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
     return false;
   }
 
-  git_rebase_options rebaseOpts = GIT_REBASE_OPTIONS_INIT;
-  rebaseOpts.checkout_options.checkout_strategy = GIT_CHECKOUT_SAFE;
+  CommitSigningConfig signingConfig;
+  QString signingError;
+  bool signingConfigLoaded = true;
+  if (signCommit) {
+    signingConfigLoaded =
+        loadCommitSigningConfig(&signingConfig, &signingError);
+    if (!signingConfigLoaded) {
+      git_signature_free(signature);
+      git_annotated_commit_free(baseCommit);
+      git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
+      LOG_ERROR(Log::ErrorId::Git, "{}", signingError.toStdString());
+      setError(GitError::CommitStagedFailedToLoadSigningConfiguration, -1);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
 
   git_rebase *rebaseSession = nullptr;
+
+  CommitSigningPayload signingPayload;
+  signingPayload.config = signingConfig;
+  signingPayload.errorMessage = &signingError;
+  signingPayload.repo = repo;
+
+  git_rebase_options rebaseOpts = GIT_REBASE_OPTIONS_INIT;
+  rebaseOpts.checkout_options.checkout_strategy = GIT_CHECKOUT_SAFE;
+  rebaseOpts.commit_create_cb = commitRebaseSigningCallback;
+  rebaseOpts.payload = &signingPayload;
+
   error = git_rebase_init(&rebaseSession, repo, srcCommit, baseCommit,
                           dstCommit, &rebaseOpts);
   if (error) {
@@ -11966,10 +12078,12 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
     if (error == GIT_EUNMERGED) {
       LOG_ERROR(Log::ErrorId::Git,
                 "Rebase stopped because conflicts must be resolved manually");
+      setError(GitError::RebaseBranchesFailedToCommitRebaseStepWithConflicts,
+               error);
     } else {
       setError(GitError::RebaseBranchesFailedToCommitRebaseStep, error);
+      git_rebase_abort(rebaseSession);
     }
-    git_rebase_abort(rebaseSession);
     rebaseSuccess = false;
     break;
   }
@@ -13306,6 +13420,207 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
   LOG_PERF(0, "Exit");
 
   return true;
+}
+
+bool getIsRebaseInProgress(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const int state = git_repository_state(repo);
+
+  LOG_PERF(0, "Exit");
+
+  return state == GIT_REPOSITORY_STATE_REBASE ||
+         state == GIT_REPOSITORY_STATE_REBASE_INTERACTIVE ||
+         state == GIT_REPOSITORY_STATE_REBASE_MERGE;
+  ;
+}
+
+bool commitRebase(git_repository *repo, const QString &summary,
+                  const QString &message, const QString &author,
+                  const QString &email, bool cleanup, bool signoff,
+                  bool signCommit) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Creating commit: summary='{}', author='{}', email='{}'",
+            summary.toStdString(), author.toStdString(), email.toStdString());
+  LOG_DEBUG("Message length: {}, cleanup: {}, signoff: {}", message.length(),
+            cleanup, signoff);
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  CommitSigningConfig signingConfig;
+  QString signingError;
+  bool signingConfigLoaded = true;
+  if (signCommit) {
+    signingConfigLoaded =
+        loadCommitSigningConfig(&signingConfig, &signingError);
+    if (!signingConfigLoaded) {
+      LOG_ERROR(Log::ErrorId::Git, "{}", signingError.toStdString());
+      setError(GitError::CommitStagedFailedToLoadSigningConfiguration, -1);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  CommitSigningPayload signingPayload;
+  signingPayload.config = signingConfig;
+  signingPayload.errorMessage = &signingError;
+  signingPayload.repo = repo;
+
+  git_rebase *rebase = nullptr;
+  git_rebase_options rebase_opts = GIT_REBASE_OPTIONS_INIT;
+  rebase_opts.commit_create_cb = commitRebaseSigningCallback;
+  rebase_opts.payload = &signingPayload;
+
+  int error = git_rebase_open(&rebase, repo, &rebase_opts);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to open rebase session: error={}",
+              error);
+    setError(GitError::CommitStagedFailedToOpenRebaseSession, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Preparing commit: loading index and building tree");
+  git_index *index = nullptr;
+  git_oid treeId;
+  git_signature *sig = nullptr;
+
+  // Load index
+  error = git_repository_index(&index, repo);
+  if (error) {
+    git_rebase_free(rebase);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository index: error={}",
+              error);
+    setError(GitError::CommitStagedFailedToGetRepositoryIndex, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Write index to tree
+  error = git_index_write_tree(&treeId, index);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to write index to tree: error={}",
+              error);
+    setError(GitError::CommitStagedFailedToWriteIndexTree, error);
+    git_rebase_free(rebase);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Tree prepared successfully");
+
+  // Create signature
+  error = git_signature_now(&sig, author.toStdString().c_str(),
+                            email.toStdString().c_str());
+  if (error) {
+    setError(GitError::CommitStagedFailedToCreateSignature, error);
+    git_rebase_free(rebase);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString fullMessage =
+      buildCommitMessage(summary, message, author, email, signoff);
+
+  git_oid oid;
+
+  error = git_rebase_commit(&oid, rebase, sig, sig, nullptr,
+                            fullMessage.toStdString().c_str());
+  if (error) {
+    setError(GitError::CommitStagedFailedToCreateSignature, error);
+    git_rebase_free(rebase);
+    git_signature_free(sig);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_rebase_operation *operation;
+  while ((error = git_rebase_next(&operation, rebase)) == 0) {
+    git_rebase_commit(&oid, rebase, sig, sig, nullptr, nullptr);
+  }
+
+  if (error == GIT_ITEROVER) {
+    git_rebase_finish(rebase, sig);
+  }
+
+  git_rebase_free(rebase);
+  git_signature_free(sig);
+  git_index_free(index);
+
+  if (cleanup && error == 0) {
+    error = git_repository_state_cleanup(repo);
+    if (error) {
+      setError(GitError::CommitStagedFailedToCleanupRepositoryState, error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return error == 0;
+}
+
+bool abortRebase(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const int state = git_repository_state(repo);
+
+  if (state != GIT_REPOSITORY_STATE_REBASE &&
+      state != GIT_REPOSITORY_STATE_REBASE_INTERACTIVE &&
+      state != GIT_REPOSITORY_STATE_REBASE_MERGE) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_rebase *rebase = nullptr;
+  git_rebase_options rebase_opts = GIT_REBASE_OPTIONS_INIT;
+
+  int error = git_rebase_open(&rebase, repo, &rebase_opts);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to open rebase session: error={}",
+              error);
+    setError(GitError::CommitStagedFailedToOpenRebaseSession, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_rebase_abort(rebase);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to abort rebase session: error={}",
+              error);
+    setError(GitError::CommitStagedFailedToAbortRebaseSession, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+  return error == 0;
 }
 
 } // namespace GitRepo

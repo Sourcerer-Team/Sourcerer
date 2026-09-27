@@ -92,14 +92,17 @@ void openUrlFromAppImage(const QUrl &url) {
   QProcess process;
   QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
 
-  // Unset AppImage environment variables so external processes load host system libraries
+  // Unset AppImage environment variables so external processes load host system
+  // libraries
   env.remove("LD_LIBRARY_PATH");
   env.remove("QT_PLUGIN_PATH");
   env.remove("QML2_IMPORT_PATH");
 
   process.setProcessEnvironment(env);
   process.setProgram(QStringLiteral("xdg-open"));
-  process.setArguments(QStringList() << url.toString()); // Allow xdg-open to run independently without blocking
+  process.setArguments(QStringList()
+                       << url.toString()); // Allow xdg-open to run
+                                           // independently without blocking
   process.startDetached();
 }
 #endif

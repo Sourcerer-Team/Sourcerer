@@ -1405,6 +1405,19 @@
                            </widget>
                           </item>
                           <item>
+                           <widget class="QPushButton" name="pushButtonRebase">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="text">
+                             <string>Rebase</string>
+                            </property>
+                           </widget>
+                          </item>
+                          <item>
                            <widget class="QPushButton" name="pushButtonAbort">
                             <property name="sizePolicy">
                              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -1669,11 +1682,11 @@
                              <height>56</height>
                             </size>
                            </property>
-                           <property name="alignment">
-                            <set>Qt::AlignCenter</set>
-                           </property>
                            <property name="text">
                             <string/>
+                           </property>
+                           <property name="alignment">
+                            <set>Qt::AlignmentFlag::AlignCenter</set>
                            </property>
                           </widget>
                          </item>

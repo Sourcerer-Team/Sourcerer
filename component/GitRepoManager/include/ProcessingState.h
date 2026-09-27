@@ -26,6 +26,7 @@ public:
 
 private:
   void abortMergeWorker(const Structs::GitRepoAbortMergeCommand &command);
+  void abortRebaseWorker(const Structs::GitRepoAbortRebaseCommand &command);
   void addSubmoduleWorker(const Structs::GitRepoAddSubmoduleCommand &command);
   void amendWorker(const Structs::GitRepoAmendCommand &command);
   void blameWorker(const Structs::GitRepoBlameCommand &command);
@@ -38,6 +39,7 @@ private:
   void cloneRepoWorker(const Structs::GitRepoCloneCommand &command);
   void closeRepoWorker(const Structs::GitRepoCloseCommand &command);
   void commitStagedWorker(const Structs::GitRepoCommitStagedCommand &command);
+  void commitRebaseWorker(const Structs::GitRepoCommitRebaseCommand &command);
   void createBranchFromCommitWorker(
       const Structs::GitRepoCreateBranchFromCommitCommand &command);
   void createPatchFromCommitWorker(
@@ -86,6 +88,8 @@ private:
   getStashStatusWorker(const Structs::GitRepoGetStashStatusCommand &command);
   void getIsMergeInProgressWorker(
       const Structs::GitRepoGetIsMergeInProgressCommand &command);
+  void getIsRebaseInProgressWorker(
+      const Structs::GitRepoGetIsRebaseInProgressCommand &command);
   void getBranchHistoryWorker(
       const Structs::GitRepoGetBranchHistoryCommand &command);
   void getSubmodulePathWorker(
@@ -143,6 +147,8 @@ private:
                    const Structs::GitRepoCommand &command) const;
   void
   scheduleWorkerForAbortMerge(const Structs::GitRepoAbortMergeCommand &command);
+  void scheduleWorkerForAbortRebase(
+      const Structs::GitRepoAbortRebaseCommand &command);
   void scheduleWorkerForAddSubmodule(
       const Structs::GitRepoAddSubmoduleCommand &command);
   void scheduleWorkerForAmend(const Structs::GitRepoAmendCommand &command);
@@ -159,6 +165,8 @@ private:
   void scheduleWorkerForCloseRepo(const Structs::GitRepoCloseCommand &command);
   void scheduleWorkerForCommitStagedRepo(
       const Structs::GitRepoCommitStagedCommand &command);
+  void scheduleWorkerForCommitRebaseRepo(
+      const Structs::GitRepoCommitRebaseCommand &command);
   void scheduleWorkerForCreateBranchFromCommit(
       const Structs::GitRepoCreateBranchFromCommitCommand &command);
   void scheduleWorkerForCreatePatchFromCommit(
@@ -189,6 +197,8 @@ private:
       const Structs::GitRepoGetStashStatusCommand &command);
   void scheduleWorkerForGetIsMergeInProgress(
       const Structs::GitRepoGetIsMergeInProgressCommand &command);
+  void scheduleWorkerForGetIsRebaseInProgress(
+      const Structs::GitRepoGetIsRebaseInProgressCommand &command);
   void scheduleWorkerForGetSubmodulePath(
       const Structs::GitRepoGetSubmodulePathCommand &command);
   void scheduleWorkerForGetUpstream(

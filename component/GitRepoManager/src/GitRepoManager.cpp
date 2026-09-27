@@ -22,6 +22,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAbortMerge, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerAbortRebase, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAddRemote, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAddSubmodule, callbackFunc));
@@ -65,6 +67,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCommitStaged, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCommitRebase, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteAllStashes, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteBranch, callbackFunc));
@@ -101,6 +105,9 @@ GitRepoManager::GitRepoManager()
       EventManager::EventType::GitRepoManagerGetCommitIsHead, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetIsMergeInProgress,
+      callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetIsRebaseInProgress,
       callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitStatus, callbackFunc));
@@ -190,6 +197,8 @@ GitRepoManager::~GitRepoManager() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAbortMerge, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerAbortRebase, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAddRemote, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAddSubmodule, callbackFunc));
@@ -223,6 +232,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerCloseRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCommitStaged, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerCommitRebase, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCreateBranchFromCommit,
       callbackFunc));
@@ -269,6 +280,9 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerGetCommitIsHead, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetIsMergeInProgress,
+      callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerGetIsRebaseInProgress,
       callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCommitStatus, callbackFunc));
@@ -385,6 +399,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     _fsm.send(abortMergeEvent);
     break;
   }
+  case EventManager::EventType::GitRepoManagerAbortRebase: {
+    const auto abortRebaseCommand = event.data<GitRepoAbortRebaseCommand>();
+    GitRepoManagerEvent abortRebaseEvent(EventType::AbortRebase);
+    abortRebaseEvent.addParam(QVariant::fromValue(abortRebaseCommand));
+    _fsm.send(abortRebaseEvent);
+    break;
+  }
   case EventManager::EventType::GitRepoManagerAddRemote: {
     const auto addRemoteCommand = event.data<GitRepoAddRemoteCommand>();
     GitRepoManagerEvent addRemoteEvent(EventType::AddRemote);
@@ -497,6 +518,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent commitStagedRepoEvent(EventType::CommitStaged);
     commitStagedRepoEvent.addParam(QVariant::fromValue(commitStagedCommand));
     _fsm.send(commitStagedRepoEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCommitRebase: {
+    const auto commitRebaseCommand = event.data<GitRepoCommitRebaseCommand>();
+    GitRepoManagerEvent commitRebaseRepoEvent(EventType::CommitRebase);
+    commitRebaseRepoEvent.addParam(QVariant::fromValue(commitRebaseCommand));
+    _fsm.send(commitRebaseRepoEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerCreateBranchFromCommit: {
@@ -678,6 +706,16 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     getIsMergeInProgressEvent.addParam(
         QVariant::fromValue(getIsMergeInProgressCommand));
     _fsm.send(getIsMergeInProgressEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerGetIsRebaseInProgress: {
+    const auto getIsRebaseInProgressCommand =
+        event.data<GitRepoGetIsRebaseInProgressCommand>();
+    GitRepoManagerEvent getIsRebaseInProgressEvent(
+        EventType::GetIsRebaseInProgress);
+    getIsRebaseInProgressEvent.addParam(
+        QVariant::fromValue(getIsRebaseInProgressCommand));
+    _fsm.send(getIsRebaseInProgressEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCommitStatus: {
