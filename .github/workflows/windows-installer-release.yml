@@ -38,7 +38,7 @@ jobs:
           QT_PASSWORD: ${{ secrets.QT_ACCOUNT_PASSWORD }}
         run: |
           if (Test-Path -Path "./build-windows-docker.ps1") {
-              & "./build-windows-docker.ps1 -Rebuild"
+              & "./build-windows-docker.ps1" -Rebuild
           } else {
               Write-Error "No build script found, skipping Docker build."
               exit 1
