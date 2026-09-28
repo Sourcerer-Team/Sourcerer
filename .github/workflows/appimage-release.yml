@@ -37,6 +37,7 @@ jobs:
         env:
           QT_EMAIL: ${{ secrets.QT_ACCOUNT_EMAIL }}
           QT_PASSWORD: ${{ secrets.QT_ACCOUNT_PASSWORD }}
+          DOCKER_HOST: unix:///var/run/docker.sock
         run: |
           if [ -f ./build-linux-docker.sh ]; then
             chmod +x ./build-linux-docker.sh
