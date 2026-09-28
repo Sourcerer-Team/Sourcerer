@@ -1,0 +1,62 @@
+name: Build Windows Installer and Create Release
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-in-windows-container:
+    # Windows containers can only run on Windows host runners
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Generate Release Tag Name
+        id: vars
+        run: |
+          # Generate version tag (e.g. v2026.09.28-42)
+          $FILE = ".\component\ConfigManager\GitVersion.h.in"
+          $VERSION = (Select-String -Path $FILE -Pattern 'APPLICATION_VERSION\s*=\s*"([^"]+)"').Matches.Groups[1].Value
+          echo "TAG_VERSION=v$VERSION" >> $env:GITHUB_ENV
+          $TAG = "v$VERSION"
+          echo "TAG_NAME=$TAG" >> $GITHUB_ENV
+
+      # Option A: Using your Docker build script directly
+      - name: Run Docker Build Script
+        env:
+          QT_EMAIL: ${{ secrets.QT_ACCOUNT_EMAIL }}
+          QT_PASSWORD: ${{ secrets.QT_ACCOUNT_PASSWORD }}
+        run: |
+          if (Test-Path -Path "./build-installer-docker.ps1") {
+              & "./build-installer-docker.ps1 -Rebuild"
+          } else {
+              Write-Error "No build script found, skipping Docker build."
+              exit 1
+          }
+
+      - name: Verify Build Artifacts
+        run: |
+          Get-ChildItem -Path .\installer\Sourcerer-Installer.exe
+
+      - name: Create GitHub Release and Upload AppImage
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view "$env:TAG_NAME" 2>&1 | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+              Write-Host "Release $env:TAG_NAME exists. Uploading/updating assets..."
+              gh release upload "$env:TAG_NAME" "installer/Sourcerer-Installer.exe" --clobber
+          } else {
+              Write-Host "Release $env:TAG_NAME does not exist. Creating new release..."
+              gh release create "$env:TAG_NAME" "installer/Sourcerer-Installer.exe" --title "Release $env:TAG_VERSION" --generate-notes
+          }
