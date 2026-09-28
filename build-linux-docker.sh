@@ -102,7 +102,7 @@ fi
 # Run the build in Docker container as current user
 docker run --cpus $CPUS --memory 16g --memory-swap 16g --rm \
     --name "$CONTAINER_NAME" \
-    --user "0:0" \
+    --user "$(id -u):$(id -g)" \
     -v "$PROJECT_ROOT:/workspace:z" \
     -w /workspace \
     "$IMAGE_NAME" \
@@ -110,10 +110,9 @@ docker run --cpus $CPUS --memory 16g --memory-swap 16g --rm \
         set -e
         echo '=== Building Sourcerer ==='
 
-        chmod -R a+rX /home/ubuntu/Qt 2>/dev/null || true
-
         # Run the build-installer.sh script with build mode
-        su -c 'cd /workspace/installer && bash ./build-installer.sh' ubuntu
+        cd /workspace/installer
+        ./build-installer.sh
 
         echo '=== Build Complete ==='
         echo 'Build artifacts:'
