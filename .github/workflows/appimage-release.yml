@@ -34,10 +34,11 @@ jobs:
         env:
           QT_EMAIL: ${{ secrets.QT_ACCOUNT_EMAIL }}
           QT_PASSWORD: ${{ secrets.QT_ACCOUNT_PASSWORD }}
+          DOCKER_HOST: unix:///var/run/docker.sock
         run: |
           if [ -f ./build-linux-docker.sh ]; then
             chmod +x ./build-linux-docker.sh
-            printf "%s\n%s\n" "$QT_EMAIL" "$QT_PASSWORD" | ./build-linux-docker.sh
+            ./build-linux-docker.sh
           else
             echo "No build script found, skipping Docker build."
           fi
