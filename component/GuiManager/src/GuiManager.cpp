@@ -16,6 +16,7 @@
 #include <QDir>
 #include <QEventLoop>
 #include <QStandardPaths>
+#include <QSharedPointer>
 #include <QTimer>
 #include <QTranslator>
 #if defined(QT_WEBENGINECORE_LIB)
@@ -29,9 +30,9 @@ namespace GuiManager {
 
 #if defined(QT_WEBENGINECORE_LIB)
 QWebEngineProfile *sharedWebEngineProfile() {
-  static QWebEngineProfile *profile = nullptr;
+  static QSharedPointer<QWebEngineProfile> profile;
   if (profile) {
-    return profile;
+    return profile.get();
   }
 
   const QString storageBaseDir =
@@ -44,7 +45,7 @@ QWebEngineProfile *sharedWebEngineProfile() {
       QDir(storageBaseDir).absoluteFilePath(QStringLiteral("webengine"));
   QDir().mkpath(storagePath);
 
-  profile = new QWebEngineProfile(QStringLiteral("sourcerer"), qApp);
+  profile = QSharedPointer<QWebEngineProfile>::create(QStringLiteral("sourcerer"), qApp);
   profile->setPersistentStoragePath(storagePath);
   profile->setCachePath(
       QDir(storagePath).absoluteFilePath(QStringLiteral("cache")));
@@ -52,7 +53,7 @@ QWebEngineProfile *sharedWebEngineProfile() {
       QWebEngineProfile::PersistentCookiesPolicy::ForcePersistentCookies);
   profile->setHttpCacheType(QWebEngineProfile::HttpCacheType::DiskHttpCache);
 
-  return profile;
+  return profile.get();
 }
 #endif
 
