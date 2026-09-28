@@ -31,7 +31,9 @@ RUN powershell -Command " \
     }; \
     Write-Host 'Terminating background Visual Studio installer processes...'; \
     Get-Process -Name 'setup', 'vs_setup_bootstrapper', 'vs_installer', 'vs_buildtools', 'vs_installerservice' -ErrorAction SilentlyContinue | Stop-Process -Force; \
-    Stop-Service -Name 'insiderservice', 'vsnsw' -ErrorAction SilentlyContinue; \
+    Write-Host 'Stopping services...'; \
+    #Stop-Service -Name 'insiderservice', 'vsnsw' -ErrorAction SilentlyContinue; \
+    Write-Host 'Cleaning up...'; \
     Remove-Item -Recurse -Force $env:TEMP\* -ErrorAction SilentlyContinue; \
     exit 0 \
 "
