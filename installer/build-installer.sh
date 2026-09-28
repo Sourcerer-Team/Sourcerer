@@ -79,7 +79,11 @@ else
 
     mkdir -p "$DATA_DIR/resources"
 
-    ls -la "$QT_DIR/$QT_VER/gcc_64/libexec"
+    ls -la /
+    ls -la /opt/Qt
+    ls -la /opt/Qt/6.10.3
+    ls -la /opt/Qt/6.10.3/gcc_64
+    ls -la /opt/Qt/6.10.3/gcc_64/libexec
 
     cp $QT_DIR/$QT_VER/gcc_64/libexec/QtWebEngineProcess "$DATA_DIR/"
     cp $QT_DIR/$QT_VER/gcc_64/resources/* "$DATA_DIR/resources"
