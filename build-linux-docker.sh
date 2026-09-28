@@ -109,10 +109,11 @@ docker run --cpus $CPUS --memory 16g --memory-swap 16g --rm \
     bash -c "
         set -e
         echo '=== Building Sourcerer ==='
-        cd /workspace/installer
+
+        chmod -R a+rX /home/ubuntu/Qt 2>/dev/null || true
 
         # Run the build-installer.sh script with build mode
-        su -c 'bash ./build-installer.sh' ubuntu
+        su -c 'cd /workspace/installer && bash ./build-installer.sh' ubuntu
 
         echo '=== Build Complete ==='
         echo 'Build artifacts:'
