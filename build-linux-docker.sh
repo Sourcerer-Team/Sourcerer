@@ -83,6 +83,16 @@ mkdir -p "$PROJECT_ROOT/installer"
 
 echo -e "${BLUE}Running build in Docker container...${NC}"
 
+
+CPUS=20
+
+if [ "$GITHUB_ACTIONS" = "true" ]; then
+    echo -e "Running on GitHub Actions${NC}"
+    CPUS=2
+else
+    echo -e "Running locally${NC}"
+fi
+
 # Run the build in Docker container as current user
 docker run --cpus 20 docker run --memory 16g --memory-swap 16g --rm \
     --name "$CONTAINER_NAME" \
