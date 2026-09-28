@@ -9,6 +9,7 @@
 #include <QVBoxLayout>
 
 #include <functional>
+#include <thread>
 
 #define THREAD_ID "GitProgressToast"
 
