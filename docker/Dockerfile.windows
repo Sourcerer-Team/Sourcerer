@@ -20,9 +20,12 @@ RUN choco install -y git
 RUN choco install -y 7zip
 RUN choco install -y python3
 RUN choco install -y ninja
+
 # Install Visual Studio 2022 C++ Build Tools
-RUN $ErrorActionPreference = "Continue"; \
-    choco install -y visualstudio2022buildtools --no-progress --package-parameters '--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Workload.ManagedDesktopBuildTools --includeRecommended --includeOptional'; \
+
+RUN $ErrorActionPreference = 'Continue'
+
+RUN choco install -y visualstudio2022buildtools --no-progress --package-parameters '--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Workload.ManagedDesktopBuildTools --includeRecommended --includeOptional'; \
     $exitCode = $LASTEXITCODE; \
     if ($exitCode -ne 0 -and $exitCode -ne 3010) { \
         Write-Error "Chocolatey install failed with exit code $exitCode"; \
