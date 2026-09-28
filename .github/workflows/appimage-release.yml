@@ -64,7 +64,7 @@ jobs:
 
       - name: Verify AppImage Output
         run: |
-          ls -la installer/*.AppImage
+          ls -la installer/Sourcerer-Installer.AppImage
 
       - name: Create GitHub Release and Upload AppImage
         env:
@@ -72,10 +72,10 @@ jobs:
         run: |
           if gh release view "${{ env.TAG_NAME }}" >/dev/null 2>&1; then
             echo "Release ${{ env.TAG_NAME }} exists. Uploading/updating assets..."
-            gh release upload "${{ env.TAG_NAME }}" installer/*.AppImage --clobber
+            gh release upload "${{ env.TAG_NAME }}" installer/Sourcerer-Installer.AppImage --clobber
           else
             echo "Release ${{ env.TAG_NAME }} does not exist. Creating new release..."
-            gh release create "${{ env.TAG_NAME }}" installer/*.AppImage \
+            gh release create "${{ env.TAG_NAME }}" installer/Sourcerer-Installer.AppImage \
               --title "Release ${{ env.TAG_VERSION }}" \
               --generate-notes
           fi
