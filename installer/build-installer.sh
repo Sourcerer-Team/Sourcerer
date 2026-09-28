@@ -85,6 +85,13 @@ else
     ls -la /opt/Qt/6.10.3/gcc_64
     ls -la /opt/Qt/6.10.3/gcc_64/libexec
 
+    echo "Listing /home/ubuntu/Qt"
+    ls -la /home/ubuntu
+    ls -la /home/ubuntu/Qt/$QT_VER
+    ls -la /home/ubuntu/Qt/$QT_VER/gcc_64
+    ls -la /home/ubuntu/Qt/$QT_VER/gcc_64/libexec
+
+
     cp $QT_DIR/$QT_VER/gcc_64/libexec/QtWebEngineProcess "$DATA_DIR/"
     cp $QT_DIR/$QT_VER/gcc_64/resources/* "$DATA_DIR/resources"
 
