@@ -35,6 +35,8 @@ RUN $ErrorActionPreference = "Continue"; \
     Remove-Item -Recurse -Force $env:TEMP\* -ErrorAction SilentlyContinue; \
     exit 0
 
+$ErrorActionPreference = 'Stop'
+
 RUN dotnet tool install --global wix --version 7.0.0
 RUN wix eula accept wix7
 #RUN wix extension add -g WixToolset.Bal.wixext
