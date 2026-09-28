@@ -29,7 +29,6 @@ jobs:
 
           # Remove unused tools and SDKs pre-installed on Windows runner
           Remove-Item -Recurse -Force "C:\hostedtoolcache\windows" -ErrorAction SilentlyContinue
-          Remove-Item -Recurse -Force "C:\Program Files\dotnet" -ErrorAction SilentlyContinue
           Remove-Item -Recurse -Force "C:\Android" -ErrorAction SilentlyContinue
 
           docker system prune -a --volumes -f
