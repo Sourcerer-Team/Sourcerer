@@ -115,6 +115,7 @@ RUN if [ -d /opt/Qt ]; then ln -sf /opt/Qt /home/ubuntu/Qt; fi
 
 # Ensure the Qt installation tree is readable and executable by any user
 RUN chmod -R a+rX /opt
+RUN chmod -R a+rX /home
 
 # Verify Qt SSL support by checking for SSL plugins and libraries
 RUN echo "Verifying Qt and OpenSSL configuration..." && \

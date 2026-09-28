@@ -86,6 +86,7 @@ else
     ls -la /opt/Qt/6.10.3/gcc_64/libexec
 
     echo "Listing /home/ubuntu/Qt"
+    ls -la /home
     ls -la /home/ubuntu
     ls -la /home/ubuntu/Qt/$QT_VER
     ls -la /home/ubuntu/Qt/$QT_VER/gcc_64
