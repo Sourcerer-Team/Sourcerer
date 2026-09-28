@@ -54,11 +54,17 @@ fi
 if [ "$REBUILD" = true ] || ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
     echo -e "${BLUE}Building Docker image...${NC}"
 
-    # Prompt for Qt account credentials
-    echo -e "${BLUE}Qt account credentials are required for downloading Qt components.${NC}"
-    read -p "Qt Account Email: " QT_EMAIL
-    read -sp "Qt Account Password: " QT_PASSWORD
-    echo ""
+    if [[ -z "$QT_EMAIL" ]] || [[ -z "$QT_PASSWORD" ]]; then
+        echo -e "${BLUE}Qt account credentials are required for downloading Qt components.${NC}"
+        read -p "Qt Account Email: " QT_EMAIL
+        read -sp "Qt Account Password: " QT_PASSWORD
+        echo ""
+    fi
+
+    if [[ -z "$QT_EMAIL" ]] || [[ -z "$QT_PASSWORD" ]]; then
+        echo -e "${RED}Error: Qt account credentials are required.${NC}"
+        exit 1
+    fi
 
     if [[ -z "$QT_EMAIL" ]] || [[ -z "$QT_PASSWORD" ]]; then
         echo -e "${RED}Error: Qt account credentials are required.${NC}"
