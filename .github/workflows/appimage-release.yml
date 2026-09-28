@@ -28,6 +28,7 @@ jobs:
           VERSION=$(sed -n 's/.*APPLICATION_VERSION *= *"\([^"]*\)".*/\1/p' "$FILE")
           TAG="v$VERSION"
           echo "TAG_NAME=$TAG" >> $GITHUB_ENV
+          echo "TAG_VERSION=$VERSION" >> $GITHUB_ENV
 
       # Option A: Using your Docker build script directly
       - name: Run Docker Build Script
@@ -58,6 +59,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ env.TAG_NAME }}" installer/*.AppImage \
-            --title "Release ${{ env.TAG_NAME }}" \
-            --generate-notes
+          if gh release view "${{ env.TAG_NAME }}" >/dev/null 2>&1; then
+            echo "Release ${{ env.TAG_NAME }} exists. Uploading/updating assets..."
+            gh release upload "${{ env.TAG_NAME }}" installer/*.AppImage --clobber
+          else
+            echo "Release ${{ env.TAG_NAME }} does not exist. Creating new release..."
+            gh release create "${{ env.TAG_NAME }}" installer/*.AppImage \
+              --title "Release ${{ env.TAG_VERSION }}" \
+              --generate-notes
+          fi
