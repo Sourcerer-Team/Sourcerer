@@ -113,6 +113,9 @@ RUN wget -q https://download.qt.io/official_releases/online_installers/qt-online
 RUN mkdir -p /home/ubuntu
 RUN if [ -d /opt/Qt ]; then ln -sf /opt/Qt /home/ubuntu/Qt; fi
 
+RUN chown -R 1000:1000 /home/ubuntu/Qt && \
+    chmod -R 755 /home/ubuntu/Qt
+
 # Verify Qt SSL support by checking for SSL plugins and libraries
 RUN echo "Verifying Qt and OpenSSL configuration..." && \
     ldd ${QT_DIR}/${QT_VERSION}/gcc_64/lib/libQt6Network.so.6 | grep -i ssl || echo "Warning: libssl not directly linked" && \
