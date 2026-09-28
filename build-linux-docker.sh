@@ -102,7 +102,7 @@ fi
 # Run the build in Docker container as current user
 docker run --cpus $CPUS --memory 16g --memory-swap 16g --rm \
     --name "$CONTAINER_NAME" \
-    --user "$(id -u):$(id -g)" \
+    --user "0:0" \
     -v "$PROJECT_ROOT:/workspace:z" \
     -w /workspace \
     "$IMAGE_NAME" \
@@ -112,7 +112,7 @@ docker run --cpus $CPUS --memory 16g --memory-swap 16g --rm \
         cd /workspace/installer
 
         # Run the build-installer.sh script with build mode
-        bash ./build-installer.sh
+        su -c 'bash ./build-installer.sh' ubuntu
 
         echo '=== Build Complete ==='
         echo 'Build artifacts:'
