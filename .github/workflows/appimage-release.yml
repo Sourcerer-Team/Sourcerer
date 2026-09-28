@@ -27,7 +27,7 @@ jobs:
         id: vars
         run: |
           # Generate version tag (e.g. v2026.09.28-42)
-          FILE="./components/ConfigManager/GitVersion.h.in"
+          FILE="./component/ConfigManager/GitVersion.h.in"
           VERSION=$(sed -n 's/.*APPLICATION_VERSION *= *"\([^"]*\)".*/\1/p' "$FILE")
           TAG="v$VERSION"
           echo "TAG_NAME=$TAG" >> $GITHUB_ENV
