@@ -21,6 +21,22 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Free Disk Space on Windows Runner
+        shell: pwsh
+        run: |
+          Write-Host "Disk space before cleanup:"
+          Get-PSDrive C
+
+          # Remove unused tools and SDKs pre-installed on Windows runner
+          Remove-Item -Recurse -Force "C:\hostedtoolcache\windows" -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force "C:\Program Files\dotnet" -ErrorAction SilentlyContinue
+          Remove-Item -Recurse -Force "C:\Android" -ErrorAction SilentlyContinue
+
+          docker system prune -a --volumes -f
+
+          Write-Host "Disk space after cleanup:"
+          Get-PSDrive C
+
       - name: Generate Release Tag Name
         id: vars
         run: |
