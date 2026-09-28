@@ -72,7 +72,7 @@ if ($Rebuild -or -not $imageExists) {
     Write-Host "Note: Using WiX Toolset for MSI generation" -ForegroundColor Green
     Write-Host "Note: Using Visual Studio 2022 Build Tools for compilation" -ForegroundColor Green
 
-    docker build -t $ImageName -f "$DockerDir/Dockerfile.windows" $DockerDir
+    docker build --storage-opt "size=50GB" -t $ImageName -f "$DockerDir/Dockerfile.windows" $DockerDir
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to build Docker image" -ForegroundColor Red
@@ -91,8 +91,19 @@ $ContainerScriptPath = Join-Path $ProjectRoot "docker\build-windows-container.ps
 
 Write-Host "Running build in Docker container..." -ForegroundColor Blue
 
+if ($env:GITHUB_ACTIONS -eq 'true') {
+    $CPUS = 2
+    $env:CPUS = 2
+} else {
+    # Default fallback for local machine execution (e.g. use all available logical cores)
+    $CPUS = $env:NUMBER_OF_PROCESSORS
+    $env:CPUS = $env:NUMBER_OF_PROCESSORS
+}
+
+Write-Host "CPUS set to: $env:CPUS"
+
 # Run the complete build process in Docker container (build project + create installer)
-docker run --cpus 20 --memory 16g --rm `
+docker run --cpus $CPUS --memory 16g --rm `
     --name $ContainerName `
     -v "${ProjectRoot}:C:\workspace" `
     -w "C:\workspace" `
