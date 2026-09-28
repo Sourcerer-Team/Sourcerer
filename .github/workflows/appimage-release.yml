@@ -1,0 +1,65 @@
+name: Build AppImage and Create Release
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate Release Tag Name
+        id: vars
+        run: |
+          # Generate version tag (e.g. v2026.09.28-42)
+          FILE="./components/ConfigManager/GitVersion.h.in"
+          VERSION=$(sed -n 's/.*APPLICATION_VERSION *= *"\([^"]*\)".*/\1/p' "$FILE")
+          TAG="v$VERSION"
+          echo "TAG_NAME=$TAG" >> $GITHUB_ENV
+
+      # Option A: Using your Docker build script directly
+      - name: Run Docker Build Script
+        env:
+          QT_EMAIL: ${{ secrets.QT_ACCOUNT_EMAIL }}
+          QT_PASSWORD: ${{ secrets.QT_ACCOUNT_PASSWORD }}
+        run: |
+          if [ -f ./build-linux-docker.sh ]; then
+            chmod +x ./build-linux-docker.sh
+            printf "%s\n%s\n" "$QT_EMAIL" "$QT_PASSWORD" | ./build-linux-docker.sh
+          else
+            echo "No build script found, skipping Docker build."
+          fi
+
+      # Option B: Extract AppImage directly from container if built inside image
+      # - name: Extract AppImage from Container
+      #   run: |
+      #     docker create --name temp-builder appimage-builder
+      #     docker cp temp-builder:/build/your-app.AppImage ./out/
+      #     docker rm temp-builder
+
+      - name: Verify AppImage Output
+        run: |
+          ls -la installer/*.AppImage
+
+      - name: Create GitHub Release and Upload AppImage
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ env.TAG_NAME }}" installer/*.AppImage \
+            --title "Release ${{ env.TAG_NAME }}" \
+            --generate-notes
