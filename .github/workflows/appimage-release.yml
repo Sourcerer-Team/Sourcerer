@@ -39,7 +39,7 @@ jobs:
         run: |
           if [ -f ./build-linux-docker.sh ]; then
             chmod +x ./build-linux-docker.sh
-            ./build-linux-docker.sh
+            ./build-linux-docker.sh --rebuild
           else
             echo "No build script found, skipping Docker build."
           fi
