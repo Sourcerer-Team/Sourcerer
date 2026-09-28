@@ -87,10 +87,10 @@ echo -e "${BLUE}Running build in Docker container...${NC}"
 CPUS=20
 
 if [ "$GITHUB_ACTIONS" = "true" ]; then
-    echo -e "Running on GitHub Actions${NC"
+    echo -e "Running on GitHub Actions${NC}"
     CPUS=2
 else
-    echo -e "Running locally${NC"
+    echo -e "Running locally${NC}"
 fi
 
 # Run the build in Docker container as current user
