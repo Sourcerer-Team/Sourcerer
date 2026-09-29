@@ -72,7 +72,7 @@ if ($Rebuild -or -not $imageExists) {
     Write-Host "Note: Using WiX Toolset for MSI generation" -ForegroundColor Green
     Write-Host "Note: Using Visual Studio 2022 Build Tools for compilation" -ForegroundColor Green
 
-    docker build --storage-opt "size=50GB" -t $ImageName -f "$DockerDir/Dockerfile.windows" $DockerDir
+    docker build -t $ImageName -f "$DockerDir/Dockerfile.windows" $DockerDir
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to build Docker image" -ForegroundColor Red
