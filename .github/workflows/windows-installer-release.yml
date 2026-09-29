@@ -44,7 +44,7 @@ jobs:
           $VERSION = (Select-String -Path $FILE -Pattern 'APPLICATION_VERSION\s*=\s*"([^"]+)"').Matches.Groups[1].Value
           echo "TAG_VERSION=v$VERSION" >> $env:GITHUB_ENV
           $TAG = "v$VERSION"
-          echo "TAG_NAME=$TAG" >> $GITHUB_ENV
+          echo "TAG_NAME=$TAG" >> $env:GITHUB_ENV
 
       # Option A: Using your Docker build script directly
       - name: Run Docker Build Script
