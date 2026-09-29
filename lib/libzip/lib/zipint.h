@@ -34,6 +34,11 @@
   IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+#include <stdio.h>
+#include <wchar.h>
+#include <stddef.h>
+#include <stdlib.h>
+
 #include "compat.h"
 
 #ifdef ZIP_ALLOCATE_BUFFER

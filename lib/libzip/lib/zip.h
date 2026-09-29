@@ -51,6 +51,10 @@ extern "C" {
 #endif
 #endif
 
+#include <stdio.h>
+#include <sys/types.h>
+#include <time.h>
+
 #include <zipconf.h>
 
 #ifndef ZIP_EXTERN
@@ -77,9 +81,6 @@ extern "C" {
 #endif
 #endif
 
-#include <stdio.h>
-#include <sys/types.h>
-#include <time.h>
 
 /* flags for zip_open */
 
