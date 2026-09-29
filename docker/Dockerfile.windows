@@ -27,7 +27,7 @@ RUN choco install -y dotnet-sdk
 RUN $ErrorActionPreference = 'Continue'
 
 RUN choco install -y visualstudio2022buildtools --no-progress --package-parameters \
-    '--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22000'; \
+    '--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22000 --add Microsoft.VisualStudio.Component.VC.CoreBuildTools --add Microsoft.VisualStudio.Component.Windows10SDK --add Microsoft.VisualStudio.Component.UCRT.Sdk --add Microsoft.VisualStudio.Component.VC.Redist.14.Latest --add Microsoft.VisualStudio.Component.Win11SDK.BuildTools --add Microsoft.VisualStudio.Component.Windows10SDK.19041'; \
     $exitCode = $LASTEXITCODE; \
     if ($exitCode -ne 0 -and $exitCode -ne 3010) { \
         Write-Error "Chocolatey install failed with exit code $exitCode"; \
