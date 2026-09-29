@@ -20,6 +20,7 @@ RUN choco install -y git
 RUN choco install -y 7zip
 RUN choco install -y python3
 RUN choco install -y ninja
+RUN choco install -y dotnet-sdk
 
 # Install Visual Studio 2022 C++ Build Tools
 
