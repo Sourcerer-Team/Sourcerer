@@ -156,6 +156,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/ToastCloseButton.h
         include/widgets/ToastHostWidget.h
         include/widgets/ToastWidget.h
+        include/widgets/ToolBoxFixer.h
         include/widgets/TopBarWidget.h
         include/widgets/UpstreamInputOverlayWidget.h
         include/widgets/factories/SettingsPaneItemWidgetFactory.h
@@ -253,8 +254,7 @@ set(GUIMANAGER_SOURCE_FILES
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
 
-add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES} ${PLATFORM_SOURCES}
-        include/widgets/ToolBoxFixer.h)
+add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES} ${PLATFORM_SOURCES})
 
 include(../../cmake/helpers.cmake)
 
