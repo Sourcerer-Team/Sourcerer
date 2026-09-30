@@ -475,20 +475,20 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()),
-      _historyFilterButton(nullptr), _historyBackButton(nullptr),
-      _historyForwardButton(nullptr),
-      _authorAvatarNetworkManager(new QNetworkAccessManager(this)),
+      _historyFilterButton(nullptr), _authorAvatarNetworkManager(new QNetworkAccessManager(this)),
+      _authorNameValueLabel(nullptr),
+      _authorEmailValueLabel(nullptr),
       _dispatcher(20), _mousePos(-1, -1),
       _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
-      _applyingHistoryColumnWidths(false), _displayTreeExpanded(false),
-      _displayFilesShowAll(false), _mergeInProgress(false),
-      _rebaseInProgress(false), _commitListModel(nullptr),
-      _commitTreeModel(nullptr), _displayFilesAllListModel(nullptr),
-      _displayFilesAllTreeModel(nullptr), _displayFilesAllCheckBox(nullptr),
-      _repoDirWatcher(nullptr), _authorNameValueLabel(nullptr),
-      _authorEmailValueLabel(nullptr), _repoDirWatcherTimer(new QTimer(this)),
+      _applyingHistoryColumnWidths(false), _displayFilesAllCheckBox(nullptr),
+      _displayTreeExpanded(false), _displayFilesShowAll(false),
+      _mergeInProgress(false), _rebaseInProgress(false),
+      _historyBackButton(nullptr), _historyForwardButton(nullptr),
+      _commitListModel(nullptr), _commitTreeModel(nullptr),
+      _displayFilesAllListModel(nullptr), _displayFilesAllTreeModel(nullptr),
+      _repoDirWatcher(nullptr), _repoDirWatcherTimer(new QTimer(this)),
       _shortcutsWidget(new GuiManager::Widgets::ShortcutsToolbarWidget(this)),
       _selected(false), _historyRefreshSemaphore(nullptr),
       _branchHistorySemaphore(nullptr) {
@@ -727,6 +727,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMerge->setEnabled(false);
   ui->pushButtonMerge->setMinimumHeight(32);
   ui->pushButtonMerge->setMaximumHeight(32);
+  ui->pushButtonRebase->setVisible(false);
+  ui->pushButtonRebase->setEnabled(false);
+  ui->pushButtonRebase->setMinimumHeight(32);
+  ui->pushButtonRebase->setMaximumHeight(32);
 
   QWidget *commitButtonContainer = new QWidget(ui->tabWidgetCommit);
   QHBoxLayout *commitButtonLayout = new QHBoxLayout(commitButtonContainer);
@@ -940,9 +944,6 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           QPixmap(":icons/pull"), shortcutIconColor)));
 
   pullFetchDropdown->setMenu(pullFetchMenu);
-
-  auto *pushButtonPull = pullFetchDropdown;
-  auto *pushButtonFetchAll = pullFetchDropdown;
 
   // Create dropdown button for Push/Force Push
   auto *pushButtonPush = new QToolButton();
