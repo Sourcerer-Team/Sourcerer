@@ -15,8 +15,8 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QEventLoop>
-#include <QStandardPaths>
 #include <QSharedPointer>
+#include <QStandardPaths>
 #include <QTimer>
 #include <QTranslator>
 #if defined(QT_WEBENGINECORE_LIB)
@@ -45,7 +45,8 @@ QWebEngineProfile *sharedWebEngineProfile() {
       QDir(storageBaseDir).absoluteFilePath(QStringLiteral("webengine"));
   QDir().mkpath(storagePath);
 
-  profile = QSharedPointer<QWebEngineProfile>::create(QStringLiteral("sourcerer"), qApp);
+  profile = QSharedPointer<QWebEngineProfile>::create(
+      QStringLiteral("sourcerer"), qApp);
   profile->setPersistentStoragePath(storagePath);
   profile->setCachePath(
       QDir(storagePath).absoluteFilePath(QStringLiteral("cache")));

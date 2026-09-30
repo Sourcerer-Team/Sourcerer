@@ -1039,7 +1039,7 @@ void MainWindow::addHomeContainer() {
   container->selected();
   container->setupShortcuts();
   _containers += container;
-  _topBarWidget->titleBarWidget()->addTab(tr("Home"));
+  _topBarWidget->titleBarWidget()->addTab(tr("Home"), QString(), false);
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
