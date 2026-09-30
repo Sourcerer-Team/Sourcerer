@@ -7991,7 +7991,13 @@ void GitRepoContainer::simulateClickOnHistoryRow(int row) const {
 void GitRepoContainer::simulateClickOnFirstHistoryRow() const {
   LOG_PERF(0, "Enter");
 
-  const QModelIndex index = ui->historyView->model()->index(0, 0);
+  const auto *model = ui->historyView->model();
+  if (!model || model->rowCount(QModelIndex()) == 0) {
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const QModelIndex index = model->index(0, 0);
 
   ui->historyView->selectRow(0);
   ui->historyView->setCurrentIndex(index);
@@ -8053,8 +8059,16 @@ void GitRepoContainer::updateBranchHistory(
       });
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    ui->historyView->setVisible(true);
+    const bool hasHistoryRows = ui->historyView->model() &&
+                                ui->historyView->model()->rowCount(QModelIndex()) > 0;
+
+    ui->historyView->setVisible(hasHistoryRows);
     showSpinnerOverlay(false);
+
+    if (!hasHistoryRows) {
+      return;
+    }
+
     stretchBranchHistoryTableColumns();
     simulateClickOnFirstHistoryRow();
   });
