@@ -39,6 +39,7 @@ signals:
   void terminal();
   void bugReport();
   void about();
+  void themeChanged();
 
 private slots:
   void onClicked();

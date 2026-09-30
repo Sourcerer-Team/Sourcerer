@@ -40,6 +40,7 @@ signals:
   void terminal();
   void bugReport();
   void about();
+  void themeChanged();
 
   void closedTab(int index);
   void selectedTab(int index);
