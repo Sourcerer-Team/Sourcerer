@@ -253,7 +253,8 @@ set(GUIMANAGER_SOURCE_FILES
 
 qt_create_translation(QM_FILES ${CMAKE_SOURCE_DIR} ${TS_FILES})
 
-add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES} ${PLATFORM_SOURCES})
+add_library(GuiManager STATIC ${GUIMANAGER_SOURCE_FILES} ${PLATFORM_SOURCES}
+        include/widgets/ToolBoxFixer.h)
 
 include(../../cmake/helpers.cmake)
 

@@ -24,9 +24,9 @@
 #include "widgets/ShortcutsToolbarWidget.h"
 #include "widgets/SideBySideDiffView.h"
 #include "widgets/StashesPage.h"
-
 #include "widgets/TextInputOverlayWidget.h"
 #include "widgets/ToastHostWidget.h"
+#include "widgets/ToolBoxFixer.h"
 #include "widgets/UpstreamInputOverlayWidget.h"
 
 #include <Dispatcher.h>
@@ -80,9 +80,7 @@
 #include <QUrl>
 #include <Qsci/qsciscintilla.h>
 
-#include <algorithm>
-#include <functional>
-#include <utility>
+#include <qstylefactory.h>
 
 #define THREAD_ID "GitRepoContainer"
 
@@ -96,6 +94,7 @@
 #define GIT_SUBDIR ".git"
 
 namespace {
+
 bool isRightMouseButtonDown() {
   return QGuiApplication::mouseButtons().testFlag(Qt::RightButton);
 }
@@ -206,6 +205,11 @@ QPixmap themedIcon(const QString &resourcePath) {
 
   return StylesheetManager::StylesheetManager::recolorPixmap(
       pixmap, StylesheetManager::StylesheetManager::menuBarButtonIconColor());
+}
+
+QIcon shiftIconVertically(const QIcon &originalIcon, int targetSize,
+                          int yOffset) {
+    return originalIcon;
 }
 
 QPixmap filterIconPixmap(const QColor &color) {
@@ -474,9 +478,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()),
-      _historyFilterButton(nullptr), _authorAvatarNetworkManager(new QNetworkAccessManager(this)),
-      _authorNameValueLabel(nullptr),
-      _authorEmailValueLabel(nullptr),
+      _historyFilterButton(nullptr),
+      _authorAvatarNetworkManager(new QNetworkAccessManager(this)),
+      _authorNameValueLabel(nullptr), _authorEmailValueLabel(nullptr),
       _dispatcher(20), _mousePos(-1, -1),
       _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
@@ -522,15 +526,50 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       ui->labelPageDisplayAuthorAvatar,
       createAuthorInitialsAvatar(QString(), QString(), kCommitAuthorAvatarSize),
       tr("Commit author avatar"));
+
   ui->localPage->setContentsMargins(0, 0, 0, 0);
   ui->remotePage->setContentsMargins(0, 0, 0, 0);
   ui->tagsPage->setContentsMargins(0, 0, 0, 0);
+  ui->stashesPage->setContentsMargins(0, 0, 0, 0);
+  ui->submodulesPage->setContentsMargins(0, 0, 0, 0);
+  ui->remotesPage->setContentsMargins(0, 0, 0, 0);
+
+  ToolBoxFixer::apply(ui->toolBox);
+
   ui->toolBox->setItemText(0, tr("Local Branches"));
+  ui->toolBox->setItemIcon(
+              0,
+              shiftIconVertically(
+                  QIcon(themedIcon(QStringLiteral(":icons/header-local-branches.svg"))),
+                  20, 6));
   ui->toolBox->setItemText(1, tr("Remote Branches"));
+  ui->toolBox->setItemIcon(
+              1, shiftIconVertically(QIcon(themedIcon(QStringLiteral(
+                                                          ":icons/header-remote-branches.svg"))),
+                                     20, 6));
   ui->toolBox->setItemText(2, tr("Tags"));
+  ui->toolBox->setItemIcon(
+              2,
+              shiftIconVertically(
+                  QIcon(themedIcon(QStringLiteral(":icons/header-tags.svg"))), 20, 6));
   ui->toolBox->setItemText(3, tr("Submodules"));
+  ui->toolBox->setItemIcon(
+              3, shiftIconVertically(
+                  QIcon(themedIcon(QStringLiteral(":icons/header-submodules.svg"))),
+                  20, 6));
   ui->toolBox->setItemText(4, tr("Stashes"));
+  ui->toolBox->setItemIcon(
+              4, shiftIconVertically(
+                  QIcon(themedIcon(QStringLiteral(":icons/header-stashes.svg"))), 20,
+                  6));
+  ui->toolBox->setItemText(5, tr("Remotes"));
+  ui->toolBox->setItemIcon(
+              5, shiftIconVertically(
+                  QIcon(themedIcon(QStringLiteral(":icons/header-remotes.svg"))), 20,
+                  6));
+
   ui->toolBox->setAttribute(Qt::WA_StyledBackground, true);
+
   ui->splitter->setStretchFactor(0, 2);
   ui->splitter->setStretchFactor(1, 6);
   ui->splitter->setStretchFactor(2, 2);
