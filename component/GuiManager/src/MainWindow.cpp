@@ -200,6 +200,8 @@ MainWindow::MainWindow(QWidget *parent)
   connect(_topBarWidget, &TopBarWidget::bugReport, this,
           &MainWindow::onBugReport);
   connect(_topBarWidget, &TopBarWidget::about, this, &MainWindow::onAbout);
+  connect(_topBarWidget, &TopBarWidget::themeChanged, this,
+          &MainWindow::onThemeChanged);
   connect(_topBarWidget, &TopBarWidget::closedTab, this,
           &MainWindow::onClosedTab);
   connect(_topBarWidget, &TopBarWidget::selectedTab, this,
@@ -832,6 +834,16 @@ void MainWindow::onAbout() const {
   aboutDlg.move(x() + (width() - aboutDlg.width()) / 2,
                 y() + (height() - aboutDlg.height()) / 2);
   aboutDlg.exec();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onThemeChanged() {
+  LOG_PERF(0, "Enter");
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    _containers[i]->themeChanged();
+  }
 
   LOG_PERF(0, "Exit");
 }

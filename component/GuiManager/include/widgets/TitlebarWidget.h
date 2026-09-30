@@ -43,6 +43,7 @@ signals:
   void terminal();
   void bugReport();
   void about();
+  void themeChanged();
 
   void closedTab(int index);
   void selectedTab(int index);
@@ -59,6 +60,7 @@ private slots:
   void onTerminal();
   void onBugReport();
   void onAbout();
+  void onThemeChanged();
 
   void onClosedTab(int index);
   void onSelectedTab(int index);
