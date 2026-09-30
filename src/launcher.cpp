@@ -9,6 +9,11 @@
 #include <QProcess>
 #include <QStringList>
 #include <QTextStream>
+#include <QtGui/qscreen.h>
+#include <QtWidgets/qapplication.h>
+#include <QtWidgets/qboxlayout.h>
+#include <QtWidgets/qlabel.h>
+#include <QtWidgets/qwidget.h>
 
 namespace {
 
@@ -151,8 +156,9 @@ bool runUpdate(const QString &updatePath) {
     return false;
   }
 
-  if (!process.waitForFinished(-1)) {
-    return false;
+  while (process.state() != QProcess::NotRunning) {
+    process.waitForFinished(100); // Wait in 100ms chunks synchronously
+    QCoreApplication::processEvents(); // Keep UI redrawing/responsive
   }
 
   return process.exitStatus() == QProcess::NormalExit &&
@@ -188,8 +194,9 @@ bool runUpdate(const QString &updatePath) {
     return false;
   }
 
-  if (!process.waitForFinished(-1)) {
-    return false;
+  while (process.state() != QProcess::NotRunning) {
+    process.waitForFinished(100); // Wait in 100ms chunks synchronously
+    QCoreApplication::processEvents(); // Keep UI redrawing/responsive
   }
 
   const bool result =
@@ -244,9 +251,52 @@ int launchApplication(const QString &program, const QStringList &arguments) {
 
 } // namespace
 
-int main(int argc, char *argv[]) {
-  QCoreApplication app(argc, argv);
-  app.setApplicationName(QStringLiteral("SourcererLauncher"));
+int main(int argc, char *argv[])
+{
+  QApplication app(argc, argv);
+
+         // Main window setup
+  QWidget window;
+
+  // Frameless, always-on-top window
+  window.setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+
+  // Styling
+  window.setFixedSize(360, 120);
+  window.setStyleSheet(
+      "QWidget {"
+      "   background-color: #1e1e2e;"
+      "   border: 1px solid #45475a;"
+      "   border-radius: 8px;"
+      "}"
+      "QLabel {"
+      "   color: #cdd6f4;"
+      "   font-family: 'Segoe UI', 'Ubuntu', sans-serif;"
+      "   font-size: 16px;"
+      "   font-weight: bold;"
+      "   border: none;"
+      "}"
+      );
+
+         // Label component
+  QLabel *label = new QLabel("Upgrading Sourcerer...", &window);
+  label->setAlignment(Qt::AlignCenter);
+
+         // Layout
+  QVBoxLayout *layout = new QVBoxLayout(&window);
+  layout->addWidget(label);
+  layout->setContentsMargins(20, 20, 20, 20);
+
+         // Center window on active primary screen
+  window.show();
+  if (QScreen *screen = QGuiApplication::primaryScreen()) {
+    QRect screenGeometry = screen->geometry();
+    int x = screenGeometry.x() + (screenGeometry.width() - window.width()) / 2;
+    int y = screenGeometry.y() + (screenGeometry.height() - window.height()) / 2;
+    window.move(x, y);
+  }
+
+  QCoreApplication::processEvents();
 
   const QString installDir = installationDirectory();
   const QString updatePath = stagedUpdateFile(installDir);
