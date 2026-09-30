@@ -157,7 +157,7 @@ bool runUpdate(const QString &updatePath) {
   }
 
   while (process.state() != QProcess::NotRunning) {
-    process.waitForFinished(100); // Wait in 100ms chunks synchronously
+    process.waitForFinished(100);      // Wait in 100ms chunks synchronously
     QCoreApplication::processEvents(); // Keep UI redrawing/responsive
   }
 
@@ -195,7 +195,7 @@ bool runUpdate(const QString &updatePath) {
   }
 
   while (process.state() != QProcess::NotRunning) {
-    process.waitForFinished(100); // Wait in 100ms chunks synchronously
+    process.waitForFinished(100);      // Wait in 100ms chunks synchronously
     QCoreApplication::processEvents(); // Keep UI redrawing/responsive
   }
 
@@ -251,48 +251,47 @@ int launchApplication(const QString &program, const QStringList &arguments) {
 
 } // namespace
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   QApplication app(argc, argv);
 
-         // Main window setup
+  // Main window setup
   QWidget window;
 
   // Frameless, always-on-top window
-  window.setWindowFlags(Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+  window.setWindowFlags(Qt::Window | Qt::FramelessWindowHint |
+                        Qt::WindowStaysOnTopHint);
 
   // Styling
   window.setFixedSize(360, 120);
-  window.setStyleSheet(
-      "QWidget {"
-      "   background-color: #1e1e2e;"
-      "   border: 1px solid #45475a;"
-      "   border-radius: 8px;"
-      "}"
-      "QLabel {"
-      "   color: #cdd6f4;"
-      "   font-family: 'Segoe UI', 'Ubuntu', sans-serif;"
-      "   font-size: 16px;"
-      "   font-weight: bold;"
-      "   border: none;"
-      "}"
-      );
+  window.setStyleSheet("QWidget {"
+                       "   background-color: #1e1e2e;"
+                       "   border: 1px solid #45475a;"
+                       "   border-radius: 8px;"
+                       "}"
+                       "QLabel {"
+                       "   color: #cdd6f4;"
+                       "   font-family: 'Segoe UI', 'Ubuntu', sans-serif;"
+                       "   font-size: 16px;"
+                       "   font-weight: bold;"
+                       "   border: none;"
+                       "}");
 
-         // Label component
+  // Label component
   QLabel *label = new QLabel("Upgrading Sourcerer...", &window);
   label->setAlignment(Qt::AlignCenter);
 
-         // Layout
+  // Layout
   QVBoxLayout *layout = new QVBoxLayout(&window);
   layout->addWidget(label);
   layout->setContentsMargins(20, 20, 20, 20);
 
-         // Center window on active primary screen
+  // Center window on active primary screen
   window.show();
   if (QScreen *screen = QGuiApplication::primaryScreen()) {
     QRect screenGeometry = screen->geometry();
     int x = screenGeometry.x() + (screenGeometry.width() - window.width()) / 2;
-    int y = screenGeometry.y() + (screenGeometry.height() - window.height()) / 2;
+    int y =
+        screenGeometry.y() + (screenGeometry.height() - window.height()) / 2;
     window.move(x, y);
   }
 
