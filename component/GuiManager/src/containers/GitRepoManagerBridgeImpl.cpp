@@ -4397,7 +4397,6 @@ void GitRepoManagerBridgeImpl::pull(const QWeakPointer<GitRepoContainer> &guard,
 
   _container.refreshHistory(guard);
   refreshStatus(guard);
-  getBranchHistory(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.showSpinnerOverlay(false);
