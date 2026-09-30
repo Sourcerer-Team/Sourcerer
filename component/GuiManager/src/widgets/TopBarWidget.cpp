@@ -159,6 +159,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   connect(_titleBarWidget, &TitlebarWidget::bugReport, this,
           &TopBarWidget::bugReport);
   connect(_titleBarWidget, &TitlebarWidget::about, this, &TopBarWidget::about);
+  connect(_titleBarWidget, &TitlebarWidget::themeChanged, this,
+          &TopBarWidget::themeChanged);
   connect(_titleBarWidget, &TitlebarWidget::closedTab, this,
           &TopBarWidget::closedTab);
   connect(_titleBarWidget, &TitlebarWidget::selectedTab, this,

@@ -86,6 +86,7 @@ public:
 public:
   void deselected() override;
   void selected() override;
+  void themeChanged() override;
 
 signals:
   void historyViewRightClicked(const QModelIndex &index, const QPoint &pos);
@@ -242,6 +243,7 @@ private slots:
                                GitRepo::BranchType branchType);
 
 private:
+  void applyToolBoxIcons();
   void blame(const QStringList &files);
   void clearSummaryAndDescription();
   void closeDiffViewerIfOpen();

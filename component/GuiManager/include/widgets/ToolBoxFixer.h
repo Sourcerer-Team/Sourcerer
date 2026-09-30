@@ -18,29 +18,10 @@ public:
                         int tabHeight = 38)
       : QObject(toolBox), m_toolBox(toolBox), m_cornerRadius(cornerRadius),
         m_tabHeight(tabHeight) {
-    const bool darkTheme =
-        StylesheetManager::StylesheetManager::currentStylesheet() ==
-        StylesheetManager::StylesheetKey::SourcererDark;
-    if (darkTheme) {
-      m_normalBg = QColor("#353535");
-      m_hoverBg = QColor("#353535");
-      m_selectedBg = QColor("#384D59");
-      m_borderColor = QColor("#6D6E6E");
-      m_selectedBorderColor = QColor("#6D6E6E");
-      m_textColor = QColor("#FFFFFF");
-      m_selectedTextColor = QColor("#FFFFFF");
-    } else {
-      m_normalBg = QColor("#F3F6F8");
-      m_hoverBg = QColor("#F3F6F8");
-      m_selectedBg = QColor("#E7EEF4");
-      m_borderColor = QColor("#B8C0C8");
-      m_selectedBorderColor = QColor("#B8C0C8");
-      m_textColor = QColor("#202020");
-      m_selectedTextColor = QColor("#202020");
-    }
+    setColorsBasedOnTheme();
   }
 
-         // Attach to a QToolBox instance
+  // Attach to a QToolBox instance
   static ToolBoxFixer *apply(QToolBox *toolBox, qreal cornerRadius = 6.0,
                              int tabHeight = 38) {
     ToolBoxFixer *fixer = new ToolBoxFixer(toolBox, cornerRadius, tabHeight);
@@ -49,7 +30,7 @@ public:
     return fixer;
   }
 
-         // Color & Style Customization Setters
+  // Color & Style Customization Setters
   void setNormalBackgroundColor(const QColor &color) { m_normalBg = color; }
   void setHoverBackgroundColor(const QColor &color) { m_hoverBg = color; }
   void setSelectedBackgroundColor(const QColor &color) { m_selectedBg = color; }
@@ -73,8 +54,9 @@ protected:
       return false;
     }
 
-           // Intercept header button painting
+    // Intercept header button painting
     if (event->type() == QEvent::Paint) {
+      setColorsBasedOnTheme();
       QWidget *btn = qobject_cast<QWidget *>(obj);
       if (btn && m_toolBox) {
         int tabIndex = findTabIndex(btn);
@@ -84,12 +66,12 @@ protected:
           painter.setRenderHint(QPainter::Antialiasing);
           painter.setRenderHint(QPainter::SmoothPixmapTransform);
 
-                 // 0.5px adjustment for crisp 1px vector borders
+          // 0.5px adjustment for crisp 1px vector borders
           QRectF rect = QRectF(btn->rect()).adjusted(0.5, 0.5, -0.5, -0.5);
           QIcon icon = m_toolBox->itemIcon(tabIndex);
           QString text = m_toolBox->itemText(tabIndex);
 
-                 // 1. Evaluate Tab States
+          // 1. Evaluate Tab States
           QStyleOptionToolButton opt;
           opt.initFrom(btn);
 
@@ -97,7 +79,7 @@ protected:
           bool isHovered = (opt.state & QStyle::State_MouseOver);
           bool isPressed = (opt.state & QStyle::State_Sunken);
 
-                 // 2. Resolve Flat Colors
+          // 2. Resolve Flat Colors
           QColor currentBg = m_normalBg;
           QColor currentBorder = m_borderColor;
           QColor currentText = m_textColor;
@@ -114,19 +96,19 @@ protected:
             currentBorder = m_selectedBorderColor;
           }
 
-                 // 3. DRAW FLAT BACKGROUND & 1PX BORDER
+          // 3. DRAW FLAT BACKGROUND & 1PX BORDER
           painter.setBrush(currentBg);
           painter.setPen(QPen(currentBorder, 1));
           painter.drawRoundedRect(rect, m_cornerRadius, m_cornerRadius);
 
-                 // 4. DETERMINE ICON SIZE
+          // 4. DETERMINE ICON SIZE
           QSize iconSize(20, 20);
           int iconDim = iconSize.height();
 
           int padding = 10;
           int yCenter = btn->height() / 2;
 
-                 // 5. DRAW ICON (Vertically Centered)
+          // 5. DRAW ICON (Vertically Centered)
           QRect iconRect(padding, yCenter - (iconDim / 2), iconDim, iconDim);
           if (!icon.isNull()) {
             QIcon::Mode mode =
@@ -135,7 +117,7 @@ protected:
             icon.paint(&painter, iconRect, Qt::AlignCenter, mode, state);
           }
 
-                 // 6. DRAW TEXT (Vertically Centered)
+          // 6. DRAW TEXT (Vertically Centered)
           int textX = icon.isNull() ? padding : (iconRect.right() + padding);
           QRect textRect(textX, 0, btn->width() - textX - padding,
                          btn->height());
@@ -174,6 +156,29 @@ private:
       }
     }
     return -1;
+  }
+
+  void setColorsBasedOnTheme() {
+    const bool darkTheme =
+        StylesheetManager::StylesheetManager::currentStylesheet() ==
+        StylesheetManager::StylesheetKey::SourcererDark;
+    if (darkTheme) {
+      m_normalBg = QColor("#353535");
+      m_hoverBg = QColor("#353535");
+      m_selectedBg = QColor("#384D59");
+      m_borderColor = QColor("#6D6E6E");
+      m_selectedBorderColor = QColor("#6D6E6E");
+      m_textColor = QColor("#FFFFFF");
+      m_selectedTextColor = QColor("#FFFFFF");
+    } else {
+      m_normalBg = QColor("#F3F6F8");
+      m_hoverBg = QColor("#F3F6F8");
+      m_selectedBg = QColor("#E7EEF4");
+      m_borderColor = QColor("#B8C0C8");
+      m_selectedBorderColor = QColor("#B8C0C8");
+      m_textColor = QColor("#202020");
+      m_selectedTextColor = QColor("#202020");
+    }
   }
 
   QToolBox *m_toolBox;

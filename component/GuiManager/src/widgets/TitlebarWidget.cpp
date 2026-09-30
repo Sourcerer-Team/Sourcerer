@@ -64,6 +64,8 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::onBugReport);
   connect(ui->menuButton, &TitleBarMenuButton::about, this,
           &TitlebarWidget::onAbout);
+  connect(ui->menuButton, &TitleBarMenuButton::themeChanged, this,
+          &TitlebarWidget::onThemeChanged);
 
   connect(ui->tabBar, &TitleBarTabBar::currentChanged, this,
           &TitlebarWidget::onSelectedTab);
@@ -216,6 +218,14 @@ void TitlebarWidget::onAbout() {
   LOG_PERF(0, "Enter");
 
   emit about();
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitlebarWidget::onThemeChanged() {
+  LOG_PERF(0, "Enter");
+
+  emit themeChanged();
 
   LOG_PERF(0, "Exit");
 }

@@ -209,7 +209,7 @@ QPixmap themedIcon(const QString &resourcePath) {
 
 QIcon shiftIconVertically(const QIcon &originalIcon, int targetSize,
                           int yOffset) {
-    return originalIcon;
+  return originalIcon;
 }
 
 QPixmap filterIconPixmap(const QColor &color) {
@@ -537,38 +537,15 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ToolBoxFixer::apply(ui->toolBox);
 
   ui->toolBox->setItemText(0, tr("Local Branches"));
-  ui->toolBox->setItemIcon(
-              0,
-              shiftIconVertically(
-                  QIcon(themedIcon(QStringLiteral(":icons/header-local-branches.svg"))),
-                  20, 6));
   ui->toolBox->setItemText(1, tr("Remote Branches"));
-  ui->toolBox->setItemIcon(
-              1, shiftIconVertically(QIcon(themedIcon(QStringLiteral(
-                                                          ":icons/header-remote-branches.svg"))),
-                                     20, 6));
   ui->toolBox->setItemText(2, tr("Tags"));
-  ui->toolBox->setItemIcon(
-              2,
-              shiftIconVertically(
-                  QIcon(themedIcon(QStringLiteral(":icons/header-tags.svg"))), 20, 6));
   ui->toolBox->setItemText(3, tr("Submodules"));
-  ui->toolBox->setItemIcon(
-              3, shiftIconVertically(
-                  QIcon(themedIcon(QStringLiteral(":icons/header-submodules.svg"))),
-                  20, 6));
   ui->toolBox->setItemText(4, tr("Stashes"));
-  ui->toolBox->setItemIcon(
-              4, shiftIconVertically(
-                  QIcon(themedIcon(QStringLiteral(":icons/header-stashes.svg"))), 20,
-                  6));
   ui->toolBox->setItemText(5, tr("Remotes"));
-  ui->toolBox->setItemIcon(
-              5, shiftIconVertically(
-                  QIcon(themedIcon(QStringLiteral(":icons/header-remotes.svg"))), 20,
-                  6));
 
   ui->toolBox->setAttribute(Qt::WA_StyledBackground, true);
+
+  applyToolBoxIcons();
 
   ui->splitter->setStretchFactor(0, 2);
   ui->splitter->setStretchFactor(1, 6);
@@ -1687,6 +1664,14 @@ void GitRepoContainer::selected() {
   consoleWidget->executeCommand("clear");
 
   LOG_DEBUG("Console configured and ready");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::themeChanged() {
+  LOG_PERF(0, "Enter");
+
+  applyToolBoxIcons();
+
   LOG_PERF(0, "Exit");
 }
 
@@ -6611,6 +6596,38 @@ void GitRepoContainer::updateModelActiveBranch(const WeakPtr &guard,
     break;
   }
   }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::applyToolBoxIcons() {
+  LOG_PERF(0, "Enter");
+
+  ui->toolBox->setItemIcon(
+      0,
+      shiftIconVertically(
+          QIcon(themedIcon(QStringLiteral(":icons/header-local-branches.svg"))),
+          20, 6));
+  ui->toolBox->setItemIcon(
+      1, shiftIconVertically(QIcon(themedIcon(QStringLiteral(
+                                 ":icons/header-remote-branches.svg"))),
+                             20, 6));
+  ui->toolBox->setItemIcon(
+      2,
+      shiftIconVertically(
+          QIcon(themedIcon(QStringLiteral(":icons/header-tags.svg"))), 20, 6));
+  ui->toolBox->setItemIcon(
+      3, shiftIconVertically(
+             QIcon(themedIcon(QStringLiteral(":icons/header-submodules.svg"))),
+             20, 6));
+  ui->toolBox->setItemIcon(
+      4, shiftIconVertically(
+             QIcon(themedIcon(QStringLiteral(":icons/header-stashes.svg"))), 20,
+             6));
+  ui->toolBox->setItemIcon(
+      5, shiftIconVertically(
+             QIcon(themedIcon(QStringLiteral(":icons/header-remotes.svg"))), 20,
+             6));
 
   LOG_PERF(0, "Exit");
 }

@@ -38,6 +38,8 @@ public:
 
   virtual QString path() const { return QString(); }
 
+  virtual void themeChanged() {};
+
 private:
   ContainerType _type;
 };
