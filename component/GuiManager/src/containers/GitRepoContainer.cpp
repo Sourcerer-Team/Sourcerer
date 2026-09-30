@@ -7426,21 +7426,25 @@ void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
 bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
-  int taskCount = 11;
+  int taskCount = 9;
 
   _historyRefreshSemaphore = new QSemaphore(0);
 
   bool ok = true;
 
-  ok &= _bridge->getLocalBranches();
+  ok &= ok && _bridge->getTags();
+  ok &= ok && getActiveTag();
+  ok &= ok && _bridge->getLocalBranches();
   ok &= ok && getActiveLocalBranch();
   ok &= ok && _bridge->getRemoteBranches();
   ok &= ok && getActiveRemoteBranch();
-  ok &= ok && _bridge->getTags();
-  ok &= ok && getActiveTag();
   ok &= ok && _bridge->getSubmodules();
   ok &= ok && _bridge->getRemotes(guard);
   ok &= ok && _bridge->getStashes(guard);
+
+  const int count = _historyRefreshSemaphore->available();
+
+  LOG_DEBUG("Count before acquire: {}", count);
 
   _historyRefreshSemaphore->acquire(taskCount);
 
