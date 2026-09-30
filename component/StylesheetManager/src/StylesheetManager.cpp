@@ -958,11 +958,13 @@ QString makeDarkStylesheet() {
         background-color: transparent;
       }
       GuiManager--Widgets--TitleBarButton#titleBarProfileButton,
+      GuiManager--Widgets--TitleBarButton#titleBarSettingsButton,
       GuiManager--Widgets--TitleBarButton#titleBarMinimizeButton,
       GuiManager--Widgets--TitleBarButton#titleBarMaximizeButton {
         background-color: #353535;
       }
       GuiManager--Widgets--TitleBarButton#titleBarProfileButton:hover,
+      GuiManager--Widgets--TitleBarButton#titleBarSettingsButton:hover,
       GuiManager--)__DARK_17__") +
          QStringLiteral(
              R"__DARK_18__(Widgets--TitleBarButton#titleBarMinimizeButton:hover,
@@ -2058,12 +2060,16 @@ QString makeLightStylesheet() {
       GuiManager--Widgets--TitleBarButton#titleBarProfileButton {
         background-color: transparent;
       }
+      GuiManager--Widgets--TitleBarButton#titleBarSettingsButton {
+        background-color: transparent;
+      }
       GuiManager--Widgets--TitleBarButton#titleBarMinimize)__LIGHT_19__") +
          QStringLiteral(R"__LIGHT_20__(Button,
       GuiManager--Widgets--TitleBarButton#titleBarMaximizeButton {
         background-color: transparent;
       }
       GuiManager--Widgets--TitleBarButton#titleBarProfileButton:hover,
+      GuiManager--Widgets--TitleBarButton#titleBarSettingsButton:hover,
       GuiManager--Widgets--TitleBarButton#titleBarMinimizeButton:hover,
       GuiManager--Widgets--TitleBarButton#titleBarMaximizeButton:hover {
         background-color: #c4bbbb;
