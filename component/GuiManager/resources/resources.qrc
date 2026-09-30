@@ -63,5 +63,6 @@
         <file>icons/header-tags.svg</file>
         <file>icons/header-local-branches.svg</file>
         <file>icons/header-remote-branches.svg</file>
+        <file>icons/settings.png</file>
     </qresource>
 </RCC>
