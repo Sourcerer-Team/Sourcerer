@@ -83,11 +83,17 @@ TitlebarWidget::~TitlebarWidget() {
   LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::addTab(const QString &text, const QString &toolTip) const {
+void TitlebarWidget::addTab(const QString &text, const QString &toolTip,
+                            const bool closeButton) const {
   LOG_PERF(0, "Enter");
 
   const int index = ui->tabBar->addTab(text);
   ui->tabBar->setTabToolTip(index, toolTip.isEmpty() ? text : toolTip);
+
+  if (!closeButton) {
+    ui->tabBar->setTabButton(index, QTabBar::RightSide, nullptr);
+    ui->tabBar->setTabButton(index, QTabBar::LeftSide, nullptr);
+  }
 
   LOG_PERF(0, "Exit");
 }
