@@ -18,7 +18,8 @@ public:
               const QString &remoteBranchName,
               const std::function<void(const QWeakPointer<GitRepoContainer> &)>
                   &onSuccess = nullptr) override;
-  void stash(const QWeakPointer<GitRepoContainer> &guard) override;
+  void stash(const QWeakPointer<GitRepoContainer> &guard,
+             const QString &note) override;
   void abortMerge(const QWeakPointer<GitRepoContainer> &guard) override;
   void abortRebase(const QWeakPointer<GitRepoContainer> &guard) override;
   void addSubmodule(const QWeakPointer<GitRepoContainer> &guard,
