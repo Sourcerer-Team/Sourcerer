@@ -838,6 +838,8 @@ struct GitRepoStashCommand final : GitRepoCommand {
   GitRepoStashCommand() : GitRepoCommand(GitRepoCommandType::Stash) {}
 
   ~GitRepoStashCommand() override = default;
+
+  QString note;
 };
 
 struct GitRepoStatusCommand final : GitRepoCommand {
