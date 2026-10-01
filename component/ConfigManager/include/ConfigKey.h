@@ -18,6 +18,7 @@ enum class ConfigKey {
 
   // GitRepo container
   GitRepoSplitterPos,
+  GitRepoStashSplitterPos,
   GitRepoBranchRecyclerViewItemsSplitterPos,
   GitRepoHistoryViewColumnWidths,
   GitRepoHistoryViewHiddenColumns,
