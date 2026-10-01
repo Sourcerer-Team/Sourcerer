@@ -218,9 +218,11 @@ QString makeDarkStylesheet() {
       QGroupBox#historyFilterWidget::title {
         subcontrol-origin: margin;
         left: 10px;
-        padding: 0 6px;
+        padding: 1px 8px;
         color: #FFFFFF;
         background-color: #384D59;
+        border: 1px solid #607481;
+        border-radius: 8px;
         font-weight: bold;
       }
       QGroupBox#historyFilterWidget QLabel {
@@ -774,9 +776,11 @@ QString makeDarkStylesheet() {
       QGroupBox#stashContentInfoPanel::title {
         subcontrol-origin: margin;
         left: 10px;
-        padding: 0 6px;
+        padding: 1px 8px;
         color: #F5F7F8;
         background-color: #202020;
+        border: 1px solid #3A3A3A;
+        border-radius: 8px;
         font-weight: bold;
       }
       QWidget#widgetPageDisplaySignatureSection{
@@ -1245,9 +1249,11 @@ QString makeLightStylesheet() {
       QGroupBox#historyFilterWidget::title {
         subcontrol-origin: margin;
         left: 10px;
-        padding: 0 6px;
+        padding: 1px 8px;
         color: #202020;
         background-color: #F3F6F8;
+        border: 1px solid #B8C0C8;
+        border-radius: 8px;
         font-weight: bold;
       }
       QGroupBox#historyFilterWidget QLabel {
@@ -1883,9 +1889,11 @@ QString makeLightStylesheet() {
       QGroupBox#stashContentInfoPanel::title {
         subcontrol-origin: margin;
         left: 10px;
-        padding: 0 6px;
+        padding: 1px 8px;
         color: #202020;
         background-color: #FFFFFF;
+        border: 1px solid #D8DEE5;
+        border-radius: 8px;
         font-weight: bold;
       }
       QWidget#widgetPageDisplaySignatureSection{
