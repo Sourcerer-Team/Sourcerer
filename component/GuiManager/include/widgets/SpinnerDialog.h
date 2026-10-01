@@ -28,10 +28,9 @@ public:
     _labelStatus->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     const QFontMetrics fontMetrics(_labelStatus->font());
-    const QStringList reservedTexts = {tr("Creating log archive..."),
-                                       tr("Uploading bug report..."),
-                                       tr("Uploading... 100%"),
-                                       QStringLiteral("100%")};
+    const QStringList reservedTexts = {
+        tr("Creating log archive..."), tr("Uploading bug report..."),
+        tr("Uploading... 100%"), QStringLiteral("100%")};
 
     int reservedWidth = 0;
     for (const QString &text : reservedTexts) {

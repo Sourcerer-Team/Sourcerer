@@ -8058,8 +8058,9 @@ void GitRepoContainer::updateBranchHistory(
       });
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    const bool hasHistoryRows = ui->historyView->model() &&
-                                ui->historyView->model()->rowCount(QModelIndex()) > 0;
+    const bool hasHistoryRows =
+        ui->historyView->model() &&
+        ui->historyView->model()->rowCount(QModelIndex()) > 0;
 
     ui->historyView->setVisible(hasHistoryRows);
     showSpinnerOverlay(false);

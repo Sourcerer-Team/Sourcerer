@@ -38,7 +38,8 @@ SpinnerOverlayWidget::SpinnerOverlayWidget(QWidget *parent)
 
   int reservedWidth = 0;
   for (const QString &text : reservedTexts) {
-    reservedWidth = std::max(reservedWidth, fontMetrics.horizontalAdvance(text));
+    reservedWidth =
+        std::max(reservedWidth, fontMetrics.horizontalAdvance(text));
   }
 
   _labelStatus->setMinimumWidth(reservedWidth);

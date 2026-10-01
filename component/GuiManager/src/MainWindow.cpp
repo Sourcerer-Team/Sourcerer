@@ -1095,17 +1095,34 @@ void MainWindow::addInitGitRepoContainer() {
 void MainWindow::addSettingsContainer() {
   LOG_PERF(0, "Enter");
 
-  const qlonglong titleBarHeight =
-      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  const auto container = QSharedPointer<SettingsContainer>::create(this);
-  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
-  container->init();
-  container->selected();
-  container->setupShortcuts();
-  _containers += container;
-  _topBarWidget->titleBarWidget()->addTab(tr("Settings"));
-  _topBarWidget->titleBarWidget()->selectTab(
-      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+  int index = -1;
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    if (_containers[i]->type() != ContainerType::Settings) {
+      continue;
+    }
+
+    index = i;
+    break;
+  }
+
+  if (index == -1) {
+    const qlonglong titleBarHeight =
+        _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+    const auto container = QSharedPointer<SettingsContainer>::create(this);
+    container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0,
+                                  0);
+    container->init();
+    container->selected();
+    container->setupShortcuts();
+    _containers += container;
+    _topBarWidget->titleBarWidget()->addTab(tr("Settings"));
+    _topBarWidget->titleBarWidget()->selectTab(
+        _topBarWidget->titleBarWidget()->tabsCount() - 1);
+  } else {
+    selectContainer(index);
+    _topBarWidget->titleBarWidget()->selectTab(index);
+  }
 
   LOG_PERF(0, "Exit");
 }
