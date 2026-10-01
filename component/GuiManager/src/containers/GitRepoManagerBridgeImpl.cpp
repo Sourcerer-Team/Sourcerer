@@ -360,7 +360,7 @@ void GitRepoManagerBridgeImpl::setUpstream(
 }
 
 void GitRepoManagerBridgeImpl::stash(
-    const QWeakPointer<GitRepoContainer> &guard) {
+    const QWeakPointer<GitRepoContainer> &guard, const QString &note) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -370,6 +370,7 @@ void GitRepoManagerBridgeImpl::stash(
   GitRepoStashCommand command;
   command.uuid = _container._uuid;
   command.syncUuid = eventUuid;
+  command.note = note;
 
   EventManager::Event stashFilesEvent(
       EventManager::EventType::GitRepoManagerStash, eventUuid);
@@ -2297,6 +2298,8 @@ void GitRepoManagerBridgeImpl::showStashContent(
   _container._lastStashCommit = stashStatus.commit;
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateStashContentInfo(stashIndex, stashStatus);
+
     // Update flat list view
     _container._stashFilesModel.reset(
         Models::GitCommitListModel::from(stashStatus));

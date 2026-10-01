@@ -85,6 +85,7 @@ private slots:
   void onWorkspaceClicked(const QString &name);
   void onBugReport();
   void onAbout() const;
+  void onThemeChanged();
   void onClosedTab(int index);
   void onSelectedTab(int index);
   static void onTabBarResize();

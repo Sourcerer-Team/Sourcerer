@@ -1,9 +1,14 @@
 #include "widgets/SpinnerOverlayWidget.h"
 
+#include <algorithm>
+
 #include <Log.h>
 #include <StylesheetManager.h>
 
 #include <QColor>
+#include <QFontMetrics>
+#include <QSizePolicy>
+#include <QStringList>
 
 #define THREAD_ID "SpinnerOverlayWidget"
 
@@ -24,6 +29,23 @@ SpinnerOverlayWidget::SpinnerOverlayWidget(QWidget *parent)
   _singleShotTimer->setSingleShot(true);
 
   _labelStatus->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+  _labelStatus->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+
+  const QFontMetrics fontMetrics(_labelStatus->font());
+  const QStringList reservedTexts = {
+      tr("Creating log archive..."), tr("Uploading bug report..."),
+      tr("Uploading... 100%"), QStringLiteral("100%")};
+
+  int reservedWidth = 0;
+  for (const QString &text : reservedTexts) {
+    reservedWidth =
+        std::max(reservedWidth, fontMetrics.horizontalAdvance(text));
+  }
+
+  _labelStatus->setMinimumWidth(reservedWidth);
+  _labelStatus->setMaximumWidth(reservedWidth);
+  _labelStatus->setMinimumHeight(fontMetrics.height());
+  _labelStatus->setMaximumHeight(fontMetrics.height());
 
   const bool lightTheme =
       StylesheetManager::StylesheetManager::currentStylesheet() ==

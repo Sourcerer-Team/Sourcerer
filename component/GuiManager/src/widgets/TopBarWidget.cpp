@@ -54,6 +54,17 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   _profileButton->setMinimumSize(QSize(32, 32));
   _profileButton->setMaximumSize(QSize(32, 32));
 
+  QPushButton *settingsButton =
+      new TitleBarButton(StylesheetManager::StylesheetManager::recolorPixmap(
+                             QPixmap(":/icons/settings.png"), iconColor),
+                         this);
+  settingsButton->setObjectName("titleBarSettingsButton");
+  settingsButton->setProperty("iconSource",
+                              QStringLiteral(":/icons/settings.png"));
+  settingsButton->setFlat(true);
+  settingsButton->setMinimumSize(QSize(32, 32));
+  settingsButton->setMaximumSize(QSize(32, 32));
+
   const bool tilingWm = isTilingWindowManager();
 
   QPushButton *minimizeButton = nullptr;
@@ -100,6 +111,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   systemBarLayout->setSizeConstraint(QLayout::SetFixedSize);
   systemBarLayout->addWidget(_profileButton);
 
+  systemBarLayout->addWidget(settingsButton);
+
   if (!tilingWm) {
     systemBarLayout->addWidget(minimizeButton);
     systemBarLayout->addWidget(maximizeButton);
@@ -129,6 +142,7 @@ TopBarWidget::TopBarWidget(QWidget *parent)
 
   connect(_profileButton, &QPushButton::clicked, this,
           &TopBarWidget::onProfileClicked);
+  connect(settingsButton, &QPushButton::clicked, this, &TopBarWidget::settings);
   connect(minimizeButton, &QPushButton::clicked, this,
           &TopBarWidget::minimized);
   connect(maximizeButton, &QPushButton::clicked, this,
@@ -159,6 +173,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   connect(_titleBarWidget, &TitlebarWidget::bugReport, this,
           &TopBarWidget::bugReport);
   connect(_titleBarWidget, &TitlebarWidget::about, this, &TopBarWidget::about);
+  connect(_titleBarWidget, &TitlebarWidget::themeChanged, this,
+          &TopBarWidget::themeChanged);
   connect(_titleBarWidget, &TitlebarWidget::closedTab, this,
           &TopBarWidget::closedTab);
   connect(_titleBarWidget, &TitlebarWidget::selectedTab, this,

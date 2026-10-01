@@ -57,5 +57,12 @@
         <file>icons/up_arrow.png</file>
         <file>icons/tree_branch_closed.svg</file>
         <file>icons/tree_branch_open.svg</file>
+        <file>icons/header-remotes.svg</file>
+        <file>icons/header-stashes.svg</file>
+        <file>icons/header-submodules.svg</file>
+        <file>icons/header-tags.svg</file>
+        <file>icons/header-local-branches.svg</file>
+        <file>icons/header-remote-branches.svg</file>
+        <file>icons/settings.png</file>
     </qresource>
 </RCC>

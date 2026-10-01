@@ -17,12 +17,12 @@
 #include <QAction>
 #include <QEnableSharedFromThis>
 #include <QHash>
+#include <QVector>
 #ifdef Q_OS_WIN32
 #include <win32/DirectoryWatcher.h>
 #else
 #include <QFileSystemWatcher>
 #endif
-#include <QInputDialog>
 #include <QItemSelection>
 #include <QListView>
 #include <QMenu>
@@ -52,6 +52,7 @@ class ScrollbarMarksWidget;
 
 class QEvent;
 class QCheckBox;
+class QLabel;
 class QNetworkAccessManager;
 
 namespace GuiManager::Containers {
@@ -86,6 +87,7 @@ public:
 public:
   void deselected() override;
   void selected() override;
+  void themeChanged() override;
 
 signals:
   void historyViewRightClicked(const QModelIndex &index, const QPoint &pos);
@@ -113,6 +115,7 @@ private slots:
   void onSetDefaultRemote(int remoteIndex);
   void onSetDefaultTarget(int remoteIndex, int targetIndex);
   void onSplitterMoved(int pos, int index);
+  void onStashSplitterMoved(int pos, int index);
   void onHistoryHeaderContextMenuRequested(const QPoint &pos);
   void onHistoryHeaderSectionResized(int logicalIndex, int oldSize,
                                      int newSize);
@@ -242,11 +245,16 @@ private slots:
                                GitRepo::BranchType branchType);
 
 private:
+  void applyToolBoxIcons();
   void blame(const QStringList &files);
   void clearSummaryAndDescription();
   void closeDiffViewerIfOpen();
   void refreshScintillaTheme();
   void refreshSigningControls();
+  void updateAuthorAvatar(const QVector<QLabel *> &labels,
+                          const QString &authorName, const QString &authorEmail,
+                          QString &currentAuthorAvatarKey,
+                          quint64 &authorAvatarRequestSerial);
   void updateCommitAuthorAvatar(const QString &authorName,
                                 const QString &authorEmail);
   void deleteFiles(const WeakPtr &guard, const QStringList &files);
@@ -342,6 +350,8 @@ private:
   void updateTagsModel(const WeakPtr &guard, const QStringList &tags) const;
   void refreshHistoryFilterButtonIcon();
   void updateHistoryFilterButtonGeometry();
+  void updateStashContentInfo(int stashIndex,
+                              const GitRepo::GitCommitStatus &stashStatus);
 
 private:
   Ui::GitRepoContainer *ui;
@@ -366,6 +376,8 @@ private:
   QSet<QString> _authorAvatarInFlight;
   QString _currentAuthorAvatarKey;
   quint64 _authorAvatarRequestSerial = 0;
+  QString _currentStashAuthorAvatarKey;
+  quint64 _stashAuthorAvatarRequestSerial = 0;
   Widgets::ElidedLabel *_authorNameValueLabel;
   Widgets::ElidedLabel *_authorEmailValueLabel;
   Util::Dispatcher _dispatcher;
@@ -405,6 +417,13 @@ private:
   bool _suppressHistoryNavigationRecord = false;
   QToolButton *_historyBackButton;
   QToolButton *_historyForwardButton;
+  QVector<QLabel *> _stashContentAuthorAvatarLabels;
+  QVector<QLabel *> _stashContentAuthorNameValueLabels;
+  QVector<QLabel *> _stashContentAuthorEmailValueLabels;
+  QVector<QLabel *> _stashContentCommitterDateValueLabels;
+  QVector<QLabel *> _stashContentShaValueLabels;
+  QVector<QLabel *> _stashContentParentShaValueLabels;
+  QVector<QLabel *> _stashContentSummaryValueLabels;
   QSharedPointer<Models::GitCommitListModel> _commitListModel;
   QSharedPointer<Models::GitCommitTreeModel> _commitTreeModel;
   QSharedPointer<Models::GitCommitListModel> _displayFilesAllListModel;

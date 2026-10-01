@@ -59,6 +59,7 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QLocale>
 #include <QMap>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -141,6 +142,16 @@ static QString blameSignatureToString(const git_signature *signature) {
   const QString trimmedName = name.trimmed();
 
   return trimmedName.isEmpty() ? QStringLiteral("Unknown") : trimmedName;
+}
+
+static QString commitSignatureDateToString(const git_signature *signature) {
+  if (!signature) {
+    return {};
+  }
+
+  const QDateTime dateTime = QDateTime::fromSecsSinceEpoch(
+      signature->when.time, Qt::OffsetFromUTC, signature->when.offset * 60);
+  return QLocale::system().toString(dateTime, QLocale::ShortFormat);
 }
 
 static QString blameCommitToString(const git_oid *oid) {
@@ -4365,6 +4376,37 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
   git_oid_tostr(oid_str, GIT_OID_HEXSZ + 1, oid);
   status.commit = QString::fromUtf8(oid_str);
 
+  if (const char *summary = git_commit_summary(stash_commit)) {
+    status.summary = QString::fromUtf8(summary);
+  } else if (const char *message = git_commit_message(stash_commit)) {
+    status.summary = QString::fromUtf8(message).section('\n', 0, 0);
+  }
+
+  const int parentCount = git_commit_parentcount(stash_commit);
+  status.parentShas.reserve(parentCount);
+  for (int i = 0; i < parentCount; ++i) {
+    const git_oid *parentOid = git_commit_parent_id(stash_commit, i);
+    if (!parentOid) {
+      continue;
+    }
+
+    char parentOidStr[GIT_OID_HEXSZ + 1] = {0};
+    git_oid_tostr(parentOidStr, GIT_OID_HEXSZ + 1, parentOid);
+    status.parentShas += QString::fromUtf8(parentOidStr);
+  }
+
+  if (const git_signature *author = git_commit_author(stash_commit)) {
+    if (author->name) {
+      status.authorName = QString::fromUtf8(author->name);
+    }
+    if (author->email) {
+      status.authorEmail = QString::fromUtf8(author->email);
+    }
+  }
+
+  status.committerDate =
+      commitSignatureDateToString(git_commit_committer(stash_commit));
+
   // Cleanup
   git_tree_free(stash_tree);
 
@@ -6695,7 +6737,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
     return {};
   }
 
-  const int parentCount = git_commit_parentcount(commit);
+  int parentCount = git_commit_parentcount(commit);
 
   // Get parent tree (if exists)
   if (parentCount > 0) {
@@ -6770,6 +6812,37 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   }
 
   status.commit = commitOid;
+
+  if (const char *summary = git_commit_summary(commit)) {
+    status.summary = QString::fromUtf8(summary);
+  } else if (const char *message = git_commit_message(commit)) {
+    status.summary = QString::fromUtf8(message).section('\n', 0, 0);
+  }
+
+  parentCount = git_commit_parentcount(commit);
+  status.parentShas.reserve(parentCount);
+  for (int i = 0; i < parentCount; ++i) {
+    const git_oid *parentOid = git_commit_parent_id(commit, i);
+    if (!parentOid) {
+      continue;
+    }
+
+    char parentOidStr[GIT_OID_HEXSZ + 1] = {0};
+    git_oid_tostr(parentOidStr, GIT_OID_HEXSZ + 1, parentOid);
+    status.parentShas += QString::fromUtf8(parentOidStr);
+  }
+
+  if (const git_signature *author = git_commit_author(commit)) {
+    if (author->name) {
+      status.authorName = QString::fromUtf8(author->name);
+    }
+    if (author->email) {
+      status.authorEmail = QString::fromUtf8(author->email);
+    }
+  }
+
+  status.committerDate =
+      commitSignatureDateToString(git_commit_committer(commit));
 
   // Walk the diff
   git_diff_foreach(
@@ -8945,7 +9018,7 @@ bool pushAllTags(git_repository *repo) {
   return error == 0;
 }
 
-bool stash(git_repository *repo) {
+bool stash(git_repository *repo, const QString &note) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
@@ -8967,11 +9040,12 @@ bool stash(git_repository *repo) {
     return false;
   }
 
+  const QByteArray noteUtf8 = note.toUtf8();
   error = git_stash_save(
       &stashId,  // Optional: receives the stash commit ID
       repo,      // Your git_repository pointer
       signature, // Signature of the stasher
-      nullptr,   // Optional message
+      noteUtf8.isEmpty() ? nullptr : noteUtf8.constData(),
       GIT_STASH_DEFAULT | GIT_STASH_INCLUDE_UNTRACKED // Flags (can be
       // GIT_STASH_INCLUDE_UNTRACKED, etc.)
   );

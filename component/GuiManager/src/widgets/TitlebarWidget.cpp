@@ -64,6 +64,8 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::onBugReport);
   connect(ui->menuButton, &TitleBarMenuButton::about, this,
           &TitlebarWidget::onAbout);
+  connect(ui->menuButton, &TitleBarMenuButton::themeChanged, this,
+          &TitlebarWidget::onThemeChanged);
 
   connect(ui->tabBar, &TitleBarTabBar::currentChanged, this,
           &TitlebarWidget::onSelectedTab);
@@ -83,11 +85,17 @@ TitlebarWidget::~TitlebarWidget() {
   LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::addTab(const QString &text, const QString &toolTip) const {
+void TitlebarWidget::addTab(const QString &text, const QString &toolTip,
+                            const bool closeButton) const {
   LOG_PERF(0, "Enter");
 
   const int index = ui->tabBar->addTab(text);
   ui->tabBar->setTabToolTip(index, toolTip.isEmpty() ? text : toolTip);
+
+  if (!closeButton) {
+    ui->tabBar->setTabButton(index, QTabBar::RightSide, nullptr);
+    ui->tabBar->setTabButton(index, QTabBar::LeftSide, nullptr);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -210,6 +218,14 @@ void TitlebarWidget::onAbout() {
   LOG_PERF(0, "Enter");
 
   emit about();
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitlebarWidget::onThemeChanged() {
+  LOG_PERF(0, "Enter");
+
+  emit themeChanged();
 
   LOG_PERF(0, "Exit");
 }

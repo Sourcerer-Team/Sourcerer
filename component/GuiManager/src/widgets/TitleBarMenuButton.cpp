@@ -8,10 +8,23 @@
 #include <QKeySequence>
 
 #include <StylesheetManager.h>
+#include <qstyle.h>
 
 #define THREAD_ID "TitleBarMenuButton"
 
 namespace GuiManager::Widgets {
+
+static void refreshAppStyle() {
+  // 2. Unpolish and repolish every top-level window and its children
+  for (QWidget *widget : QApplication::topLevelWidgets()) {
+    widget->style()->unpolish(widget);
+    widget->style()->polish(widget);
+
+    // Force full geometry recalculation and repaint
+    widget->updateGeometry();
+    widget->update();
+  }
+}
 
 TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
     : QToolButton{parent},
@@ -313,6 +326,8 @@ QMenu *TitleBarMenuButton::createMenu() {
               StylesheetManager::StylesheetManager::stylesheetKeyName(key));
           _configManager.save();
           StylesheetManager::StylesheetManager::applyStylesheet(qApp);
+          refreshAppStyle();
+          emit themeChanged();
         });
       };
 
@@ -330,6 +345,13 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addAction(_settingsAction);
   menu->addAction(_bugReportAction);
   menu->addAction(_aboutAction);
+
+  const auto menuColor =
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
+
+  _settingsAction->setIcon(
+      QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(QStringLiteral(":icons/settings.png")), menuColor)));
 
   const qlonglong menuMinimumWidth =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarMenuMinimumSize);

@@ -2,8 +2,13 @@
 
 #include <WaitingSpinnerWidget.h>
 
+#include <algorithm>
+
 #include <QDialog>
+#include <QFontMetrics>
 #include <QLabel>
+#include <QSizePolicy>
+#include <QStringList>
 #include <QVBoxLayout>
 
 namespace GuiManager::Widgets {
@@ -19,7 +24,24 @@ public:
                    Qt::WindowStaysOnTopHint);
     setWindowModality(Qt::WindowModal);
 
-    _labelStatus->setAlignment(Qt::AlignHCenter);
+    _labelStatus->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+    _labelStatus->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+
+    const QFontMetrics fontMetrics(_labelStatus->font());
+    const QStringList reservedTexts = {
+        tr("Creating log archive..."), tr("Uploading bug report..."),
+        tr("Uploading... 100%"), QStringLiteral("100%")};
+
+    int reservedWidth = 0;
+    for (const QString &text : reservedTexts) {
+      reservedWidth =
+          std::max(reservedWidth, fontMetrics.horizontalAdvance(text));
+    }
+
+    _labelStatus->setMinimumWidth(reservedWidth);
+    _labelStatus->setMaximumWidth(reservedWidth);
+    _labelStatus->setMinimumHeight(fontMetrics.height());
+    _labelStatus->setMaximumHeight(fontMetrics.height());
 
     auto *layout = new QVBoxLayout(this);
     layout->setContentsMargins(16, 16, 16, 16);

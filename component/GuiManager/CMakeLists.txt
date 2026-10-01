@@ -148,6 +148,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/SpinnerOverlayWidget.h
         include/widgets/StashesPage.h
         include/widgets/TextInputOverlayWidget.h
+        include/widgets/MultilineTextInputOverlayWidget.h
         include/widgets/TitleBarButton.h
         include/widgets/TitleBarHomeButton.h
         include/widgets/TitleBarMenuButton.h
@@ -156,6 +157,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/ToastCloseButton.h
         include/widgets/ToastHostWidget.h
         include/widgets/ToastWidget.h
+        include/widgets/ToolBoxFixer.h
         include/widgets/TopBarWidget.h
         include/widgets/UpstreamInputOverlayWidget.h
         include/widgets/factories/SettingsPaneItemWidgetFactory.h
@@ -235,6 +237,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/SpinnerOverlayWidget.cpp
         src/widgets/StashesPage.cpp
         src/widgets/TextInputOverlayWidget.cpp
+        src/widgets/MultilineTextInputOverlayWidget.cpp
         src/widgets/TitleBarButton.cpp
         src/widgets/TitleBarHomeButton.cpp
         src/widgets/TitleBarMenuButton.cpp
