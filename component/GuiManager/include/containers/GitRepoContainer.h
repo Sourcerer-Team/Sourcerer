@@ -22,7 +22,6 @@
 #else
 #include <QFileSystemWatcher>
 #endif
-#include <QInputDialog>
 #include <QItemSelection>
 #include <QListView>
 #include <QMenu>
@@ -257,8 +256,7 @@ private:
   void refreshScintillaTheme();
   void refreshSigningControls();
   void updateAuthorAvatar(const QVector<QLabel *> &labels,
-                          const QString &authorName,
-                          const QString &authorEmail,
+                          const QString &authorName, const QString &authorEmail,
                           QString &currentAuthorAvatarKey,
                           quint64 &authorAvatarRequestSerial);
   void updateCommitAuthorAvatar(const QString &authorName,

@@ -4124,7 +4124,7 @@ void ProcessingState::stashWorker(const Structs::GitRepoStashCommand &command) {
     repo = ctx->gitRepo;
   }
 
-  const bool success = GitRepo::stash(repo);
+  const bool success = GitRepo::stash(repo, command.note);
   if (!success) {
     const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(

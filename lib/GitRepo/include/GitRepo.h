@@ -533,6 +533,7 @@ struct GitCommitStatus {
   QString authorName;
   QString authorEmail;
   QString committerDate;
+  QString note;
   QString summary;
   QStringList parentShas;
   QStringList newFiles;
@@ -876,7 +877,7 @@ bool pushTag(git_repository *repo, const QString &tagName);
 
 bool pushAllTags(git_repository *repo);
 
-bool stash(git_repository *repo);
+bool stash(git_repository *repo, const QString &note);
 
 bool setUpstream(git_repository *repo, const QString &remoteName,
                  const QString &remoteBranchName,

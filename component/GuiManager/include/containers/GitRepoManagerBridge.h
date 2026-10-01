@@ -27,7 +27,8 @@ public:
               const QString &remoteBranchName,
               const std::function<void(const QWeakPointer<GitRepoContainer> &)>
                   &onSuccess = nullptr) = 0;
-  virtual void stash(const QWeakPointer<GitRepoContainer> &guard) = 0;
+  virtual void stash(const QWeakPointer<GitRepoContainer> &guard,
+                     const QString &note) = 0;
   virtual void abortMerge(const QWeakPointer<GitRepoContainer> &guard) = 0;
   virtual void abortRebase(const QWeakPointer<GitRepoContainer> &guard) = 0;
   virtual void addSubmodule(const QWeakPointer<GitRepoContainer> &guard,

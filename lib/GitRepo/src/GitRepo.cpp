@@ -57,9 +57,9 @@
 
 #include <QCoreApplication>
 #include <QDateTime>
-#include <QLocale>
 #include <QDir>
 #include <QFile>
+#include <QLocale>
 #include <QMap>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -6911,7 +6911,8 @@ GitCommitStatus getCommitStatus(git_repository *repo,
     }
   }
 
-  status.committerDate = commitSignatureDateToString(git_commit_committer(commit));
+  status.committerDate =
+      commitSignatureDateToString(git_commit_committer(commit));
 
   // Walk the diff
   git_diff_foreach(
@@ -9087,7 +9088,7 @@ bool pushAllTags(git_repository *repo) {
   return error == 0;
 }
 
-bool stash(git_repository *repo) {
+bool stash(git_repository *repo, const QString &note) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
@@ -9109,11 +9110,12 @@ bool stash(git_repository *repo) {
     return false;
   }
 
+  const QByteArray noteUtf8 = note.toUtf8();
   error = git_stash_save(
       &stashId,  // Optional: receives the stash commit ID
       repo,      // Your git_repository pointer
       signature, // Signature of the stasher
-      nullptr,   // Optional message
+      noteUtf8.isEmpty() ? nullptr : noteUtf8.constData(),
       GIT_STASH_DEFAULT | GIT_STASH_INCLUDE_UNTRACKED // Flags (can be
       // GIT_STASH_INCLUDE_UNTRACKED, etc.)
   );
