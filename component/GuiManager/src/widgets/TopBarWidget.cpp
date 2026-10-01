@@ -54,10 +54,10 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   _profileButton->setMinimumSize(QSize(32, 32));
   _profileButton->setMaximumSize(QSize(32, 32));
 
-  QPushButton *settingsButton = new TitleBarButton(
-      StylesheetManager::StylesheetManager::recolorPixmap(
-          QPixmap(":/icons/settings.png"), iconColor),
-      this);
+  QPushButton *settingsButton =
+      new TitleBarButton(StylesheetManager::StylesheetManager::recolorPixmap(
+                             QPixmap(":/icons/settings.png"), iconColor),
+                         this);
   settingsButton->setObjectName("titleBarSettingsButton");
   settingsButton->setProperty("iconSource",
                               QStringLiteral(":/icons/settings.png"));
@@ -142,8 +142,7 @@ TopBarWidget::TopBarWidget(QWidget *parent)
 
   connect(_profileButton, &QPushButton::clicked, this,
           &TopBarWidget::onProfileClicked);
-  connect(settingsButton, &QPushButton::clicked, this,
-          &TopBarWidget::settings);
+  connect(settingsButton, &QPushButton::clicked, this, &TopBarWidget::settings);
   connect(minimizeButton, &QPushButton::clicked, this,
           &TopBarWidget::minimized);
   connect(maximizeButton, &QPushButton::clicked, this,
