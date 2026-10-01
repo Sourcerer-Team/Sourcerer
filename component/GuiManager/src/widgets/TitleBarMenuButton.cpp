@@ -346,6 +346,13 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addAction(_bugReportAction);
   menu->addAction(_aboutAction);
 
+  const auto menuColor =
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
+
+  _settingsAction->setIcon(
+      QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
+          QPixmap(QStringLiteral(":icons/settings.png")), menuColor)));
+
   const qlonglong menuMinimumWidth =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarMenuMinimumSize);
 
