@@ -2297,6 +2297,8 @@ void GitRepoManagerBridgeImpl::showStashContent(
   _container._lastStashCommit = stashStatus.commit;
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateStashContentInfo(stashIndex, stashStatus);
+
     // Update flat list view
     _container._stashFilesModel.reset(
         Models::GitCommitListModel::from(stashStatus));
