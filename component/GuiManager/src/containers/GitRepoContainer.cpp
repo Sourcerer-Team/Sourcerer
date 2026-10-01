@@ -38,7 +38,10 @@
 
 #include <QAbstractItemDelegate>
 #include <QCalendarWidget>
+#include <QCoreApplication>
 #include <QCheckBox>
+#include <QGridLayout>
+#include <QGroupBox>
 #include <QClipboard>
 #include <QCryptographicHash>
 #include <QCursor>
@@ -69,7 +72,9 @@
 #include <QScrollBar>
 #include <QSet>
 #include <QSignalBlocker>
+#include <QStringList>
 #include <QSize>
+#include <QSizePolicy>
 #include <QStyle>
 #include <QStyleOptionViewItem>
 #include <QSvgRenderer>
@@ -94,6 +99,132 @@
 #define GIT_SUBDIR ".git"
 
 namespace {
+
+constexpr QSize kStashContentAvatarSize(56, 56);
+
+QLabel *createStashContentValueLabel(QWidget *parent) {
+  auto *label = new QLabel(parent);
+  label->setTextInteractionFlags(Qt::TextSelectableByMouse |
+                                 Qt::TextSelectableByKeyboard);
+  label->setWordWrap(true);
+  label->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+  label->setText(QStringLiteral("-"));
+  return label;
+}
+
+QLabel *createStashContentTitleLabel(const QString &text, QWidget *parent) {
+  auto *label = new QLabel(text, parent);
+  QFont font = label->font();
+  font.setBold(true);
+  label->setFont(font);
+  label->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+  label->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
+  return label;
+}
+
+QLabel *createStashContentAvatarLabel(QWidget *parent) {
+  auto *label = new QLabel(parent);
+  label->setFixedSize(kStashContentAvatarSize);
+  label->setAlignment(Qt::AlignCenter);
+  label->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+  label->setText(QString());
+  return label;
+}
+
+QWidget *createStashContentInfoPanel(
+    QWidget *parent, QLabel **authorAvatarLabel,
+    QLabel **authorNameValueLabel, QLabel **authorEmailValueLabel,
+    QLabel **committerDateValueLabel, QLabel **shaValueLabel,
+    QLabel **parentShaValueLabel, QLabel **summaryValueLabel) {
+  auto *panel = new QGroupBox(parent);
+  panel->setTitle(QCoreApplication::translate("GitRepoContainer",
+                                              "Stash"));
+  panel->setObjectName("stashContentInfoPanel");
+  panel->setMinimumWidth(280);
+  panel->setMaximumWidth(420);
+  panel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+
+  auto *layout = new QGridLayout(panel);
+  layout->setContentsMargins(16, 12, 16, 12);
+  layout->setHorizontalSpacing(12);
+  layout->setVerticalSpacing(8);
+  layout->setColumnStretch(0, 0);
+  layout->setColumnStretch(1, 1);
+  layout->setColumnStretch(2, 0);
+  layout->setRowStretch(6, 1);
+  layout->setAlignment(Qt::AlignTop);
+
+  auto *avatarLabel = createStashContentAvatarLabel(panel);
+  auto *authorNameValue = createStashContentValueLabel(panel);
+  auto *authorEmailValue = createStashContentValueLabel(panel);
+  auto *committerDateValue = createStashContentValueLabel(panel);
+  auto *shaValue = createStashContentValueLabel(panel);
+  auto *parentShaValue = createStashContentValueLabel(panel);
+  auto *summaryValue = createStashContentValueLabel(panel);
+  summaryValue->setWordWrap(true);
+
+  layout->addWidget(createStashContentTitleLabel(
+                       QCoreApplication::translate("GitRepoContainer",
+                                                   "author:"),
+                       panel),
+                   0, 0, Qt::AlignLeft | Qt::AlignTop);
+  layout->addWidget(authorNameValue, 0, 1);
+  layout->addWidget(createStashContentTitleLabel(
+                       QCoreApplication::translate("GitRepoContainer",
+                                                   "email:"),
+                       panel),
+                   1, 0, Qt::AlignLeft | Qt::AlignTop);
+  layout->addWidget(authorEmailValue, 1, 1);
+  layout->addWidget(avatarLabel, 0, 2, 2, 1, Qt::AlignTop | Qt::AlignRight);
+  layout->addWidget(createStashContentTitleLabel(
+                       QCoreApplication::translate("GitRepoContainer",
+                                                   "date:"),
+                       panel),
+                   2, 0, Qt::AlignLeft | Qt::AlignTop);
+  layout->addWidget(committerDateValue, 2, 1, 1, 2);
+  layout->addWidget(createStashContentTitleLabel(
+                       QCoreApplication::translate("GitRepoContainer",
+                                                   "sha:"),
+                       panel),
+                   3, 0, Qt::AlignLeft | Qt::AlignTop);
+  layout->addWidget(shaValue, 3, 1);
+  layout->addWidget(createStashContentTitleLabel(
+                       QCoreApplication::translate("GitRepoContainer",
+                                                   "parents:"),
+                       panel),
+                   4, 0, Qt::AlignLeft | Qt::AlignTop);
+  layout->addWidget(parentShaValue, 4, 1);
+  layout->addWidget(createStashContentTitleLabel(
+                       QCoreApplication::translate("GitRepoContainer",
+                                                   "summary:"),
+                       panel),
+                   5, 0, Qt::AlignLeft | Qt::AlignTop);
+  layout->addWidget(summaryValue, 5, 1, 1, 2);
+
+  if (authorAvatarLabel) {
+    *authorAvatarLabel = avatarLabel;
+  }
+  if (authorNameValueLabel) {
+    *authorNameValueLabel = authorNameValue;
+  }
+  if (authorEmailValueLabel) {
+    *authorEmailValueLabel = authorEmailValue;
+  }
+  if (shaValueLabel) {
+    *shaValueLabel = shaValue;
+  }
+  if (parentShaValueLabel) {
+    *parentShaValueLabel = parentShaValue;
+  }
+  if (committerDateValueLabel) {
+    *committerDateValueLabel = committerDateValue;
+  }
+  if (summaryValueLabel) {
+    *summaryValueLabel = summaryValue;
+  }
+
+  return panel;
+}
 
 bool isRightMouseButtonDown() {
   return QGuiApplication::mouseButtons().testFlag(Qt::RightButton);
@@ -433,6 +564,7 @@ void setAvatarLabel(QLabel *label, const QPixmap &avatar,
   label->setToolTip(accessibleText);
   label->setStatusTip(accessibleText);
   label->setAccessibleName(accessibleText);
+  label->setVisible(true);
 }
 
 QStringList traverseModelIndexSubtree(const QModelIndex &parent,
@@ -843,6 +975,60 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->listViewStashFilesFlat->setContextMenuPolicy(Qt::CustomContextMenu);
   ui->treeViewStashFilesTree->setContextMenuPolicy(Qt::CustomContextMenu);
 
+  if (auto *flatTab = findChild<QWidget *>(QStringLiteral("tabStashFilesFlat"));
+      flatTab) {
+    if (auto *layout = qobject_cast<QHBoxLayout *>(flatTab->layout())) {
+      QLabel *authorAvatarLabel = nullptr;
+      QLabel *authorNameValueLabel = nullptr;
+      QLabel *authorEmailValueLabel = nullptr;
+      QLabel *committerDateValueLabel = nullptr;
+      QLabel *shaValueLabel = nullptr;
+      QLabel *parentShaValueLabel = nullptr;
+      QLabel *summaryValueLabel = nullptr;
+      QWidget *infoPanel = createStashContentInfoPanel(
+          flatTab, &authorAvatarLabel, &authorNameValueLabel,
+          &authorEmailValueLabel, &committerDateValueLabel, &shaValueLabel,
+          &parentShaValueLabel, &summaryValueLabel);
+      layout->addWidget(infoPanel);
+      layout->setStretch(0, 1);
+      layout->setStretch(1, 0);
+      _stashContentAuthorAvatarLabels.append(authorAvatarLabel);
+      _stashContentAuthorNameValueLabels.append(authorNameValueLabel);
+      _stashContentAuthorEmailValueLabels.append(authorEmailValueLabel);
+      _stashContentCommitterDateValueLabels.append(committerDateValueLabel);
+      _stashContentShaValueLabels.append(shaValueLabel);
+      _stashContentParentShaValueLabels.append(parentShaValueLabel);
+      _stashContentSummaryValueLabels.append(summaryValueLabel);
+    }
+  }
+
+  if (auto *treeTab = findChild<QWidget *>(QStringLiteral("tabStashFilesTree"));
+      treeTab) {
+    if (auto *layout = qobject_cast<QHBoxLayout *>(treeTab->layout())) {
+      QLabel *authorAvatarLabel = nullptr;
+      QLabel *authorNameValueLabel = nullptr;
+      QLabel *authorEmailValueLabel = nullptr;
+      QLabel *committerDateValueLabel = nullptr;
+      QLabel *shaValueLabel = nullptr;
+      QLabel *parentShaValueLabel = nullptr;
+      QLabel *summaryValueLabel = nullptr;
+      QWidget *infoPanel = createStashContentInfoPanel(
+          treeTab, &authorAvatarLabel, &authorNameValueLabel,
+          &authorEmailValueLabel, &committerDateValueLabel, &shaValueLabel,
+          &parentShaValueLabel, &summaryValueLabel);
+      layout->addWidget(infoPanel);
+      layout->setStretch(0, 1);
+      layout->setStretch(1, 0);
+      _stashContentAuthorAvatarLabels.append(authorAvatarLabel);
+      _stashContentAuthorNameValueLabels.append(authorNameValueLabel);
+      _stashContentAuthorEmailValueLabels.append(authorEmailValueLabel);
+      _stashContentCommitterDateValueLabels.append(committerDateValueLabel);
+      _stashContentShaValueLabels.append(shaValueLabel);
+      _stashContentParentShaValueLabels.append(parentShaValueLabel);
+      _stashContentSummaryValueLabels.append(summaryValueLabel);
+    }
+  }
+
   QWidget *displayFilesCornerWidget =
       new QWidget(ui->tabWidgetPageDisplayFiles);
   auto *displayFilesCornerLayout = new QHBoxLayout(displayFilesCornerWidget);
@@ -1186,7 +1372,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   QsciLexer *lexerStashDiffUnified =
       factory.createLexerByName("Diff", ui->scintillaStashDiffUnified);
 
+  ui->splitterStashContent->setStretchFactor(0, 1);
+  ui->splitterStashContent->setStretchFactor(1, 1);
   ui->scintillaStashDiffUnified->setSizePolicy(QSizePolicy::Expanding,
+                                               QSizePolicy::Expanding);
+  ui->stackedWidgetStashDiff->setSizePolicy(QSizePolicy::Expanding,
+                                            QSizePolicy::Expanding);
+  ui->sideBySideDiffViewerStash->setSizePolicy(QSizePolicy::Expanding,
                                                QSizePolicy::Expanding);
   ui->scintillaStashDiffUnified->setWrapMode(QsciScintilla::WrapNone);
   ui->scintillaStashDiffUnified->setHorizontalScrollBarPolicy(
@@ -1248,11 +1440,18 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           .toUtf8());
   ui->splitter->restoreState(splitterState);
 
+  const QByteArray stashSplitterState = QByteArray::fromHex(
+      _configManager.getString(ConfigManager::ConfigKey::GitRepoStashSplitterPos)
+          .toUtf8());
+  ui->splitterStashContent->restoreState(stashSplitterState);
+
   connect(ui->historyView, &QAbstractItemView::entered, this,
           &GitRepoContainer::onHistoryViewItemEntered);
 
   connect(ui->splitter, &QSplitter::splitterMoved, this,
           &GitRepoContainer::onSplitterMoved);
+  connect(ui->splitterStashContent, &QSplitter::splitterMoved, this,
+          &GitRepoContainer::onStashSplitterMoved);
 
   connect(ui->localPage, &LocalGitBranchesPage::branchSelected, this,
           &GitRepoContainer::onLocalBranchSelected);
@@ -2320,6 +2519,18 @@ void GitRepoContainer::onSplitterMoved(const int pos, const int index) {
   _configManager.save();
 
   stretchBranchHistoryTableColumns();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onStashSplitterMoved(const int pos, const int index) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("pos = {}, index = {}", pos, index);
+
+  const QString splitterState = ui->splitterStashContent->saveState().toHex();
+  _configManager.setString(ConfigManager::ConfigKey::GitRepoStashSplitterPos,
+                           splitterState);
+  _configManager.save();
 
   LOG_PERF(0, "Exit");
 }
@@ -6661,8 +6872,10 @@ void GitRepoContainer::refreshSigningControls() {
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::updateCommitAuthorAvatar(const QString &authorName,
-                                                const QString &authorEmail) {
+void GitRepoContainer::updateAuthorAvatar(
+    const QVector<QLabel *> &labels, const QString &authorName,
+    const QString &authorEmail, QString &currentAuthorAvatarKey,
+    quint64 &authorAvatarRequestSerial) {
   LOG_PERF(0, "Enter");
 
   const QString normalizedEmail = authorEmail.trimmed().toLower();
@@ -6670,7 +6883,7 @@ void GitRepoContainer::updateCommitAuthorAvatar(const QString &authorName,
   const QString cacheKey =
       !normalizedEmail.isEmpty() ? normalizedEmail : normalizedName.toLower();
 
-  _currentAuthorAvatarKey = cacheKey;
+  currentAuthorAvatarKey = cacheKey;
 
   const QString accessibleText =
       authorName.isEmpty() && authorEmail.isEmpty()
@@ -6685,8 +6898,9 @@ void GitRepoContainer::updateCommitAuthorAvatar(const QString &authorName,
 
   const QPixmap fallbackAvatar = createAuthorInitialsAvatar(
       authorName, authorEmail, kCommitAuthorAvatarSize);
-  setAvatarLabel(ui->labelPageDisplayAuthorAvatar, fallbackAvatar,
-                 accessibleText);
+  for (QLabel *label : labels) {
+    setAvatarLabel(label, fallbackAvatar, accessibleText);
+  }
 
   if (cacheKey.isEmpty()) {
     LOG_PERF(0, "Exit");
@@ -6694,8 +6908,9 @@ void GitRepoContainer::updateCommitAuthorAvatar(const QString &authorName,
   }
 
   if (_authorAvatarCache.contains(cacheKey)) {
-    setAvatarLabel(ui->labelPageDisplayAuthorAvatar,
-                   _authorAvatarCache.value(cacheKey), accessibleText);
+    for (QLabel *label : labels) {
+      setAvatarLabel(label, _authorAvatarCache.value(cacheKey), accessibleText);
+    }
     LOG_PERF(0, "Exit");
     return;
   }
@@ -6711,13 +6926,14 @@ void GitRepoContainer::updateCommitAuthorAvatar(const QString &authorName,
   }
 
   _authorAvatarInFlight.insert(cacheKey);
-  const quint64 requestSerial = ++_authorAvatarRequestSerial;
+  const quint64 requestSerial = ++authorAvatarRequestSerial;
 
   const QStringList avatarUrls = avatarUrlsForEmail(normalizedEmail);
 
   auto tryNextSource = std::make_shared<std::function<void(int)>>();
   *tryNextSource = [this, requestSerial, cacheKey, avatarUrls, accessibleText,
-                    authorName, authorEmail, tryNextSource](int index) {
+                    labels, tryNextSource, &currentAuthorAvatarKey,
+                    &authorAvatarRequestSerial](int index) {
     if (index >= avatarUrls.size()) {
       _authorAvatarInFlight.remove(cacheKey);
       LOG_PERF(0, "Exit");
@@ -6735,10 +6951,11 @@ void GitRepoContainer::updateCommitAuthorAvatar(const QString &authorName,
 
     QNetworkReply *reply = _authorAvatarNetworkManager->get(request);
     connect(reply, &QNetworkReply::finished, this,
-            [this, reply, requestSerial, cacheKey, accessibleText, authorName,
-             authorEmail, tryNextSource, index]() {
-              if (requestSerial != _authorAvatarRequestSerial ||
-                  cacheKey != _currentAuthorAvatarKey) {
+            [this, reply, requestSerial, cacheKey, accessibleText, labels,
+             tryNextSource, index, &currentAuthorAvatarKey,
+             &authorAvatarRequestSerial]() {
+              if (requestSerial != authorAvatarRequestSerial ||
+                  cacheKey != currentAuthorAvatarKey) {
                 _authorAvatarInFlight.remove(cacheKey);
                 reply->deleteLater();
                 return;
@@ -6766,14 +6983,22 @@ void GitRepoContainer::updateCommitAuthorAvatar(const QString &authorName,
 
               _authorAvatarCache.insert(cacheKey, avatar);
               _authorAvatarInFlight.remove(cacheKey);
-              setAvatarLabel(ui->labelPageDisplayAuthorAvatar, avatar,
-                             accessibleText);
+              for (QLabel *label : labels) {
+                setAvatarLabel(label, avatar, accessibleText);
+              }
               reply->deleteLater();
             });
   };
 
   LOG_PERF(0, "Exit");
   (*tryNextSource)(0);
+}
+
+void GitRepoContainer::updateCommitAuthorAvatar(const QString &authorName,
+                                                const QString &authorEmail) {
+  updateAuthorAvatar({ui->labelPageDisplayAuthorAvatar}, authorName,
+                     authorEmail, _currentAuthorAvatarKey,
+                     _authorAvatarRequestSerial);
 }
 
 void GitRepoContainer::deleteFiles(const WeakPtr &guard,
@@ -6893,6 +7118,50 @@ void GitRepoContainer::onStashContentCloseClicked() {
 
   _currentStashIndex = -1;
   _lastStashCommit.clear();
+  _currentStashAuthorAvatarKey.clear();
+  ++_stashAuthorAvatarRequestSerial;
+  for (QLabel *label : _stashContentAuthorAvatarLabels) {
+    if (label) {
+      label->clear();
+      label->setVisible(false);
+    }
+  }
+  for (QLabel *label : _stashContentAuthorNameValueLabels) {
+    if (label) {
+      label->clear();
+      label->setVisible(false);
+    }
+  }
+  for (QLabel *label : _stashContentAuthorEmailValueLabels) {
+    if (label) {
+      label->clear();
+      label->setVisible(false);
+    }
+  }
+  for (QLabel *label : _stashContentCommitterDateValueLabels) {
+    if (label) {
+      label->clear();
+      label->setVisible(false);
+    }
+  }
+  for (QLabel *label : _stashContentShaValueLabels) {
+    if (label) {
+      label->clear();
+      label->setVisible(false);
+    }
+  }
+  for (QLabel *label : _stashContentParentShaValueLabels) {
+    if (label) {
+      label->clear();
+      label->setVisible(false);
+    }
+  }
+  for (QLabel *label : _stashContentSummaryValueLabels) {
+    if (label) {
+      label->clear();
+      label->setVisible(false);
+    }
+  }
 
   ui->scintillaStashDiffUnified->clear();
   ui->scintillaStashDiffUnified->markerDeleteAll();
@@ -7895,6 +8164,101 @@ void GitRepoContainer::showMainSpinnerPage(const bool spinnerEnabled) const {
   }
 
   LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::updateStashContentInfo(
+    const int stashIndex, const GitRepo::GitCommitStatus &stashStatus) {
+  LOG_PERF(0, "Enter");
+  Q_UNUSED(stashIndex);
+
+  const QString authorName =
+      stashStatus.authorName.trimmed().isEmpty()
+          ? QCoreApplication::translate("GitRepoContainer", "Unknown author")
+          : stashStatus.authorName.trimmed();
+  const QString authorEmail =
+      stashStatus.authorEmail.trimmed().isEmpty()
+          ? QCoreApplication::translate("GitRepoContainer", "Unknown email")
+          : stashStatus.authorEmail.trimmed();
+  const QString sha = stashStatus.commit.trimmed().isEmpty()
+                         ? QStringLiteral("-")
+                         : stashStatus.commit.trimmed();
+  const QString parentSha = stashStatus.parentShas.isEmpty()
+                               ? QStringLiteral("-")
+                               : stashStatus.parentShas.join(", ");
+  const QString committerDate = stashStatus.committerDate.trimmed().isEmpty()
+                                    ? QStringLiteral("-")
+                                    : stashStatus.committerDate.trimmed();
+  const QString summary = stashStatus.summary.trimmed().isEmpty()
+                              ? QCoreApplication::translate(
+                                    "GitRepoContainer",
+                                    "No summary available")
+                              : stashStatus.summary.trimmed();
+
+  updateAuthorAvatar(_stashContentAuthorAvatarLabels, stashStatus.authorName,
+                     stashStatus.authorEmail, _currentStashAuthorAvatarKey,
+                     _stashAuthorAvatarRequestSerial);
+
+  for (QLabel *label : _stashContentAuthorNameValueLabels) {
+    if (!label) {
+      continue;
+    }
+
+    label->setText(authorName);
+    label->setToolTip(authorName);
+    label->setVisible(true);
+  }
+
+  for (QLabel *label : _stashContentAuthorEmailValueLabels) {
+    if (!label) {
+      continue;
+    }
+
+    label->setText(authorEmail);
+    label->setToolTip(authorEmail);
+    label->setVisible(true);
+  }
+
+  for (QLabel *label : _stashContentCommitterDateValueLabels) {
+    if (!label) {
+      continue;
+    }
+
+    label->setText(committerDate);
+    label->setToolTip(committerDate);
+    label->setVisible(true);
+  }
+
+  for (QLabel *label : _stashContentShaValueLabels) {
+    if (!label) {
+      continue;
+    }
+
+    label->setText(sha.left(7));
+    label->setToolTip(sha);
+    label->setVisible(true);
+  }
+
+  for (QLabel *label : _stashContentParentShaValueLabels) {
+    if (!label) {
+      continue;
+    }
+
+    label->setText(parentSha.left(7));
+    label->setToolTip(parentSha);
+    label->setVisible(true);
+  }
+
+  for (QLabel *label : _stashContentSummaryValueLabels) {
+    if (!label) {
+      continue;
+    }
+
+    label->setText(summary);
+    label->setToolTip(summary);
+    label->setVisible(true);
+  }
+
+  LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::showSpinnerOverlay(bool spinnerEnabled) const {

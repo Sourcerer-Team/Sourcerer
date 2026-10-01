@@ -530,6 +530,11 @@ struct GitStatus {
 
 struct GitCommitStatus {
   QString commit;
+  QString authorName;
+  QString authorEmail;
+  QString committerDate;
+  QString summary;
+  QStringList parentShas;
   QStringList newFiles;
   QStringList modifiedFiles;
   QStringList deletedFiles;

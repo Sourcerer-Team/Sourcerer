@@ -762,12 +762,22 @@ QString makeDarkStylesheet() {
       QGroupBox#groupBoxTabCommit{
         background-color: black;
       }
-      QGroupBox#groupBoxInfo{
+      QGroupBox#groupBoxInfo,
+      QGroupBox#stashContentInfoPanel{
         background-color: #202020;
         border: 1px solid #3A3A3A;
         border-radius: 10px;
-        margin-top: 0px;
-        padding: 10px;
+        margin-top: 10px;
+        padding: 18px 10px 10px 10px;
+      }
+      QGroupBox#groupBoxInfo::title,
+      QGroupBox#stashContentInfoPanel::title {
+        subcontrol-origin: margin;
+        left: 10px;
+        padding: 0 6px;
+        color: #F5F7F8;
+        background-color: #202020;
+        font-weight: bold;
       }
       QWidget#widgetPageDisplaySignatureSection{
         background: transparent;
@@ -1861,12 +1871,22 @@ QString makeLightStylesheet() {
         border: 1px solid #B8C0C8;
         border-radius: 5px;
       }
-      QGroupBox#groupBoxInfo{
+      QGroupBox#groupBoxInfo,
+      QGroupBox#stashContentInfoPanel{
         background-color: #FFFFFF;
         border: 1px solid #D8DEE5;
         border-radius: 10px;
-        margin-top: 0px;
-        padding: 10px;
+        margin-top: 10px;
+        padding: 18px 10px 10px 10px;
+      }
+      QGroupBox#groupBoxInfo::title,
+      QGroupBox#stashContentInfoPanel::title {
+        subcontrol-origin: margin;
+        left: 10px;
+        padding: 0 6px;
+        color: #202020;
+        background-color: #FFFFFF;
+        font-weight: bold;
       }
       QWidget#widgetPageDisplaySignatureSection{
         background: transparent;
