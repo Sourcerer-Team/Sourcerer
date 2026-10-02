@@ -162,6 +162,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
           &TopBarWidget::connectToAzureIssueTracker);
   connect(_titleBarWidget, &TitlebarWidget::connectToBitbucketIssueTracker,
           this, &TopBarWidget::connectToBitbucketIssueTracker);
+  connect(_titleBarWidget, &TitlebarWidget::connectToCustomIssueTracker, this,
+          &TopBarWidget::connectToCustomIssueTracker);
   connect(_titleBarWidget, &TitlebarWidget::settings, this,
           &TopBarWidget::settings);
   connect(_titleBarWidget, &TitlebarWidget::credentials, this,

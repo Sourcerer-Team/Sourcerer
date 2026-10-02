@@ -52,6 +52,8 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::connectToAzureIssueTracker);
   connect(ui->menuButton, &TitleBarMenuButton::connectToBitbucketIssueTracker,
           this, &TitlebarWidget::connectToBitbucketIssueTracker);
+  connect(ui->menuButton, &TitleBarMenuButton::connectToCustomIssueTracker,
+          this, &TitlebarWidget::connectToCustomIssueTracker);
   connect(ui->menuButton, &TitleBarMenuButton::settings, this,
           &TitlebarWidget::onSettings);
   connect(ui->menuButton, &TitleBarMenuButton::credentials, this,

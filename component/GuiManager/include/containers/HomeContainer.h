@@ -72,6 +72,7 @@ private slots:
   void onGitLabIssueTrackerConnectClicked();
   void onAzureIssueTrackerConnectClicked();
   void onBitbucketOAuthConnectClicked();
+  void onCustomIssueTrackerConnectClicked();
   void onInitClicked();
   void onOpenClicked(bool checked = false);
   void onIssueTrackerRightClicked(const QString &serviceType,

@@ -37,6 +37,7 @@ signals:
   void connectToGitLabIssueTracker();
   void connectToAzureIssueTracker();
   void connectToBitbucketIssueTracker();
+  void connectToCustomIssueTracker();
   void settings();
   void credentials();
   void sshKeys();

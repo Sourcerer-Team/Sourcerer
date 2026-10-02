@@ -101,6 +101,9 @@ QIcon IssueTrackersModel::serviceIcon(const QString &serviceType) {
   if (normalized.contains(QStringLiteral("bitbucket"))) {
     return QIcon(QStringLiteral(":/icons/issue-trackers/bitbucket.svg"));
   }
+  if (normalized == QStringLiteral("custom")) {
+    return QIcon(QStringLiteral(":/icons/issue-trackers/custom.svg"));
+  }
 
   return QIcon();
 }
