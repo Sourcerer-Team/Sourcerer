@@ -2,6 +2,7 @@
 #include "widgets/MoveProxy.h"
 #include "widgets/ui_LocalGitBranchesPage.h"
 
+#include <GitRepo.h>
 #include <Log.h>
 
 #define THREAD_ID "LocalGitBranchesPage"
@@ -66,12 +67,6 @@ void LocalGitBranchesPage::updateActiveBranch(const QString &branchName) {
   const int index =
       !branchName.isEmpty() ? _model->indexForBranch(branchName) : -1;
 
-  if (branchName == "*") {
-    _previous = index;
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
   _model->setActiveIndex(index);
 
   ui->listView->scrollTo(_model->index(index, 0));
@@ -86,7 +81,15 @@ void LocalGitBranchesPage::updateModel(const QStringList &localBranches) {
 
   _model->clear();
   _model->setActiveIndex(-1);
-  _model->updateModel(localBranches);
+
+  // The first item shows the history of all branches.
+  QStringList branches;
+  if (!localBranches.isEmpty()) {
+    branches += QString(ALL_BRANCHES);
+  }
+  branches += localBranches;
+
+  _model->updateModel(branches);
 
   _previous = -1;
 
@@ -95,6 +98,11 @@ void LocalGitBranchesPage::updateModel(const QStringList &localBranches) {
 
 void LocalGitBranchesPage::onBranchesMoved(const QString &sourceBranch,
                                            const QString &destBranch) {
+  if (sourceBranch == ALL_BRANCHES || destBranch == ALL_BRANCHES) {
+    // '*' is not a branch, there is nothing to merge or rebase.
+    return;
+  }
+
   emit branchesMoved(sourceBranch, destBranch);
 }
 

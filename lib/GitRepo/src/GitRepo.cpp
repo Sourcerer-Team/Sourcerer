@@ -48,6 +48,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
+#include <QSharedPointer>
 #include <QTemporaryDir>
 #include <QTextStream>
 
@@ -67,6 +68,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <algorithm>
 #include <cstring>
 #include <memory>
 #include <set>
@@ -75,7 +77,6 @@
 
 #define THREAD_ID "GitRepo"
 
-#define ALL_BRANCHES "*"
 #define HEAD "HEAD"
 
 namespace GitRepo {
@@ -95,6 +96,26 @@ QMap<QString, GitPlaintextCredentials> gGitCredentials;
 
 Util::Mutex gErrorMutex;
 QMap<std::thread::id, GitErrorContext> gErrorMap;
+
+namespace {
+
+struct HistoryRef {
+  QString key;
+  git_oid oid;
+};
+
+// Commit order of the history currently paged through, see getBranchHistory.
+struct HistoryCursor {
+  QString key;
+  QVector<git_oid> oids; // Newest first, children before parents.
+  QString headCommit;
+  QHash<QString, QStringList> refTips;
+};
+
+Util::Mutex gHistoryCursorsMutex;
+QMap<git_repository *, QSharedPointer<HistoryCursor>> gHistoryCursors;
+
+} // namespace
 
 static QString capitalizeFirst(const QString &str) {
   QString capitalized = str;
@@ -3683,6 +3704,11 @@ void closeRepository(git_repository *repo) {
     return;
   }
 
+  {
+    LOCKGUARD(gHistoryCursorsMutex);
+    gHistoryCursors.remove(repo);
+  }
+
   git_repository_free(repo);
 
   LOG_PERF(0, "Exit");
@@ -5975,6 +6001,293 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   return true;
 }
 
+// Collects the commits pointed to by refs matching `glob`. Names are made
+// relative to `prefix`; for remote refs the remote name is stripped as well so
+// that "origin/main" and "main" share the same graph color key. Refs that do
+// not resolve to a commit (e.g. tags of trees) and symbolic "HEAD" refs are
+// skipped.
+static void collectHistoryRefs(git_repository *repo, const char *glob,
+                               const QString &prefix, const bool stripRemote,
+                               QVector<HistoryRef> &out) {
+  git_reference_iterator *it = nullptr;
+  if (git_reference_iterator_glob_new(&it, repo, glob) != 0) {
+    return;
+  }
+
+  QVector<HistoryRef> found;
+  git_reference *ref = nullptr;
+  while (git_reference_next(&ref, it) == 0) {
+    const char *name = git_reference_name(ref);
+
+    git_object *obj = nullptr;
+    if (name && git_reference_peel(&obj, ref, GIT_OBJECT_COMMIT) == 0) {
+      QString key = QString::fromUtf8(name);
+      if (key.startsWith(prefix)) {
+        key = key.mid(prefix.size());
+      }
+      if (stripRemote) {
+        const int slash = key.indexOf('/');
+        if (slash >= 0) {
+          key = key.mid(slash + 1);
+        }
+      }
+      if (key != QLatin1String(HEAD)) {
+        found.push_back(HistoryRef{key, *git_object_id(obj)});
+      }
+    }
+
+    if (obj) {
+      git_object_free(obj);
+    }
+    git_reference_free(ref);
+  }
+  git_reference_iterator_free(it);
+
+  std::sort(found.begin(), found.end(),
+            [](const HistoryRef &a, const HistoryRef &b) {
+              return a.key < b.key;
+            });
+  out += found;
+}
+
+// Builds the ordered list of commits (newest first, children before parents)
+// for the requested history. Returns null on failure.
+static QSharedPointer<HistoryCursor>
+buildHistoryCursor(git_repository *repo, const QString &branchName,
+                   const BranchType type, const QString &cursorKey,
+                   const bool &quitFlag) {
+  const bool allRefs = type == BranchType::All ||
+                       (branchName == ALL_BRANCHES && type == BranchType::Local);
+  const bool allRemotes =
+      branchName == ALL_BRANCHES && type == BranchType::Remote;
+
+  if (branchName == ALL_BRANCHES && !allRefs && !allRemotes) {
+    return {};
+  }
+
+  if (!allRefs && !allRemotes && branchName.isEmpty()) {
+    return {};
+  }
+
+  git_revwalk *walker = nullptr;
+
+  int error = git_revwalk_new(&walker, repo);
+  if (error) {
+    setError(GitError::GetBranchHistoryFailedToCreateRevwalk, error);
+    return {};
+  }
+
+  error = git_revwalk_sorting(walker, GIT_SORT_TOPOLOGICAL | GIT_SORT_TIME);
+  if (error) {
+    setError(GitError::GetBranchHistoryFailedToConfigureRevwalkSorting, error);
+    git_revwalk_free(walker);
+    return {};
+  }
+
+  // Tips of all branches and tags. They give stable color keys to the graph
+  // and are the starting points of the "all branches" history.
+  QVector<HistoryRef> refs;
+  collectHistoryRefs(repo, "refs/heads/*", QStringLiteral("refs/heads/"), false,
+                     refs);
+  collectHistoryRefs(repo, "refs/remotes/*", QStringLiteral("refs/remotes/"),
+                     true, refs);
+  collectHistoryRefs(repo, "refs/tags/*", QStringLiteral("refs/tags/"), false,
+                     refs);
+
+  auto cursor = QSharedPointer<HistoryCursor>::create();
+  cursor->key = cursorKey;
+
+  for (const HistoryRef &ref : refs) {
+    const QString sha = QString::fromLatin1(git_oid_tostr_s(&ref.oid));
+    QStringList &keys = cursor->refTips[sha];
+    if (!keys.contains(ref.key)) {
+      keys.push_back(ref.key);
+    }
+  }
+
+  git_oid headOid;
+  if (git_reference_name_to_id(&headOid, repo, HEAD) == 0) {
+    cursor->headCommit = QString::fromLatin1(git_oid_tostr_s(&headOid));
+  }
+
+  if (allRefs) {
+    // Unreachable refs are ignored on purpose, the rest of the history is
+    // still valid.
+    for (const HistoryRef &ref : refs) {
+      git_revwalk_push(walker, &ref.oid);
+    }
+    git_revwalk_push_head(walker);
+  } else if (allRemotes) {
+    error = git_revwalk_push_glob(walker, "refs/remotes/*");
+    if (error) {
+      setError(GitError::GetBranchHistoryFailedToAddReferenceToRevwalk, error);
+      git_revwalk_free(walker);
+      return {};
+    }
+  } else if (type == BranchType::Local) {
+    if (branchName == HEAD) {
+      error = git_revwalk_push_head(walker);
+    } else {
+      error = git_revwalk_push_ref(
+          walker, QString("refs/heads/%1").arg(branchName).toStdString().c_str());
+    }
+    if (error) {
+      setError(GitError::GetBranchHistoryFailedToAddLocalBranchToRevwalk,
+               error);
+      git_revwalk_free(walker);
+      return {};
+    }
+  } else if (type == BranchType::Remote) {
+    error = git_revwalk_push_ref(
+        walker,
+        QString("refs/remotes/%1").arg(branchName).toStdString().c_str());
+    if (error) {
+      setError(GitError::GetBranchHistoryFailedToAddRemoteBranchToRevwalk,
+               error);
+      git_revwalk_free(walker);
+      return {};
+    }
+  } else if (type == BranchType::Tag) {
+    error = git_revwalk_push_ref(
+        walker, QString("refs/tags/%1").arg(branchName).toStdString().c_str());
+    if (error) {
+      setError(GitError::GetBranchHistoryFailedToAddTagToRevwalk, error);
+      git_revwalk_free(walker);
+      return {};
+    }
+  } else {
+    git_revwalk_free(walker);
+    return {};
+  }
+
+  git_oid oid;
+  while (!quitFlag && git_revwalk_next(&oid, walker) == 0) {
+    cursor->oids.push_back(oid);
+  }
+
+  git_revwalk_free(walker);
+
+  if (quitFlag) {
+    return {};
+  }
+
+  return cursor;
+}
+
+// Reads one commit into `history`. Returns false and sets the last error on
+// failure.
+static bool loadHistoryCommit(git_repository *repo, const git_oid &oid,
+                              const QString &branchName, GitHistory &history) {
+  const char *str = git_oid_tostr_s(&oid);
+  if (!str) {
+    LOG_ERROR(Log::ErrorId::Git, "Can't convert oid to string.");
+    return false;
+  }
+
+  const QString oidStr = str;
+
+  git_commit *commit = nullptr;
+
+  const int error = git_commit_lookup(&commit, repo, &oid);
+  if (error) {
+    setError(GitError::GetBranchHistoryFailedToLookupCommit, error);
+    return false;
+  }
+
+  if (!commit) {
+    LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit with oid \"{}\"", oidStr);
+    return false;
+  }
+
+  history.commits.push_back(oidStr);
+
+  GitCommitInfo &info = history.commitInfos[oidStr];
+  info.oid = oid;
+
+  const std::size_t parentCount = git_commit_parentcount(commit);
+
+  for (std::size_t i = 0; i < parentCount; ++i) {
+    const git_oid *parentOid = git_commit_parent_id(commit, i);
+    if (!parentOid) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Can't lookup parent oid at index {} for oid \"{}\"", i,
+                oidStr);
+      git_commit_free(commit);
+      return false;
+    }
+
+    const char *parentStr = git_oid_tostr_s(parentOid);
+    if (!parentStr) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Can't convert parent oid at index {} for oid \"{}\" to string.",
+                i, oidStr);
+      git_commit_free(commit);
+      return false;
+    }
+
+    const QString parentOidStr = parentStr;
+
+    if (oidStr == parentOidStr) {
+      LOG_ERROR(Log::ErrorId::Git, "The commit \"{}\"is parent of itself",
+                parentOidStr)
+      continue;
+    }
+
+    info.parents.push_back(parentOidStr);
+  }
+
+  if (const char *message = git_commit_message(commit)) {
+    info.message = message;
+  } else {
+    LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit message for oid \"{}\"",
+              oidStr);
+    git_commit_free(commit);
+    return false;
+  }
+
+  if (const char *summary = git_commit_summary(commit)) {
+    info.summary = summary;
+  } else {
+    LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit summary for oid \"{}\"",
+              oidStr);
+    git_commit_free(commit);
+    return false;
+  }
+
+  if (const git_signature *signature = git_commit_author(commit)) {
+    if (signature->name) {
+      info.authorName = signature->name;
+    }
+
+    if (signature->email) {
+      info.authorEmail = signature->email;
+    }
+
+    info.timeStamp =
+        signature->when.time * 1000 + signature->when.offset * 60 * 1000;
+  } else {
+    LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit signature for oid \"{}\"",
+              oidStr);
+    git_commit_free(commit);
+    return false;
+  }
+
+  QString commitSignature;
+  QString commitSignatureType;
+  loadCommitSignatureInfo(repo, &oid, &commitSignature, &commitSignatureType);
+  info.signedCommit = commitSignatureType != QStringLiteral("Unsigned") &&
+                      commitSignatureType != QStringLiteral("Unavailable") &&
+                      !commitSignature.isEmpty();
+  info.signatureType = commitSignatureType;
+  info.signature = commitSignature;
+
+  info.branches += branchName;
+
+  git_commit_free(commit);
+
+  return true;
+}
+
 GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
                             const BranchType type, int page,
                             const bool &quitFlag) {
@@ -5990,398 +6303,71 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
     return {};
   }
 
-  const qlonglong pageSize =
-          ConfigManager::ConfigManager::getInstance().getLong(
-              ConfigManager::ConfigKey::GitRepoHistoryPageSize);
+  const qint64 pageSize = std::max<qint64>(
+      1, ConfigManager::ConfigManager::getInstance().getLong(
+             ConfigManager::ConfigKey::GitRepoHistoryPageSize));
+
+  const QString cursorKey =
+      QStringLiteral("%1|%2").arg(static_cast<int>(type)).arg(branchName);
+
+  // The commit order is computed once per history (on page 0) and reused for
+  // the following pages, so paging does not walk the repository again.
+  QSharedPointer<HistoryCursor> cursor;
+
+  if (page > 0) {
+    LOCKGUARD(gHistoryCursorsMutex);
+    cursor = gHistoryCursors.value(repo);
+    if (cursor && cursor->key != cursorKey) {
+      cursor.reset();
+    }
+  }
+
+  if (!cursor) {
+    cursor = buildHistoryCursor(repo, branchName, type, cursorKey, quitFlag);
+    if (!cursor) {
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    LOCKGUARD(gHistoryCursorsMutex);
+    gHistoryCursors[repo] = cursor;
+  }
 
   GitHistory history_;
 
-  QString pushedRef;
+  const qint64 total = cursor->oids.size();
+  const qint64 begin = page > 0 ? std::min<qint64>(total, page * pageSize) : 0;
+  const qint64 end =
+      page < 0 ? total : std::min<qint64>(total, begin + pageSize);
 
-  git_revwalk *walker = nullptr;
+  history_.commits.reserve(static_cast<int>(end - begin));
 
-  int error = git_revwalk_new(&walker, repo);
-  if (error) {
-    setError(GitError::GetBranchHistoryFailedToCreateRevwalk, error);
+  for (qint64 i = begin; i < end && !quitFlag; ++i) {
+    if (!loadHistoryCommit(repo, cursor->oids[static_cast<int>(i)], branchName,
+                           history_)) {
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+  }
+
+  if (quitFlag) {
     LOG_PERF(0, "Exit");
     return {};
-  }
-
-  error = git_revwalk_sorting(walker, GIT_SORT_TOPOLOGICAL | GIT_SORT_TIME |
-                              GIT_SORT_REVERSE);
-  if (error) {
-    setError(GitError::GetBranchHistoryFailedToConfigureRevwalkSorting, error);
-    git_revwalk_free(walker);
-    LOG_PERF(0, "Exit");
-    return {};
-  }
-
-  if (type == BranchType::All || branchName == ALL_BRANCHES) {
-    git_branch_iterator *it = nullptr;
-    git_reference *ref = nullptr;
-    git_branch_t branchType;
-
-    if (branchName == ALL_BRANCHES) {
-      if (type == BranchType::Local) {
-        branchType = GIT_BRANCH_LOCAL;
-      } else if (type == BranchType::Remote) {
-        branchType = GIT_BRANCH_REMOTE;
-      } else {
-        git_revwalk_free(walker);
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-    } else {
-      branchType = GIT_BRANCH_ALL;
-    }
-
-    error = git_branch_iterator_new(&it, repo, branchType);
-    if (error) {
-      setError(GitError::GetBranchHistoryFailedToCreateBranchIterator, error);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    while (git_branch_next(&ref, &branchType, it) == 0 && !quitFlag) {
-      const char *currentBranchName = nullptr;
-
-      error = git_branch_name(&currentBranchName, ref);
-      if (error) {
-        setError(GitError::GetBranchHistoryFailedToReadBranchName, error);
-        git_reference_free(ref);
-        git_revwalk_free(walker);
-        git_branch_iterator_free(it);
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      if (!currentBranchName) {
-        git_reference_free(ref);
-        git_branch_iterator_free(it);
-        git_revwalk_free(walker);
-        LOG_ERROR(Log::ErrorId::Git, "No branch name found!");
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      QString fullBranchName;
-
-      if (branchType == GIT_BRANCH_LOCAL)
-        fullBranchName = QString("refs/heads/%1").arg(currentBranchName);
-      else if (branchType == GIT_BRANCH_REMOTE)
-        fullBranchName = QString("refs/remotes/%1").arg(currentBranchName);
-      else {
-        git_reference_free(ref);
-        git_branch_iterator_free(it);
-        git_revwalk_free(walker);
-        LOG_ERROR(Log::ErrorId::Git, "Unknown branch type!");
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      error =
-          git_revwalk_push_ref(walker, fullBranchName.toStdString().c_str());
-      if (error) {
-        setError(GitError::GetBranchHistoryFailedToAddReferenceToRevwalk,
-                 error);
-        git_reference_free(ref);
-        git_branch_iterator_free(it);
-        git_revwalk_free(walker);
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      git_reference_free(ref);
-
-      pushedRef = fullBranchName;
-    }
-
-    git_branch_iterator_free(it);
-  } else if (type == BranchType::Local) {
-    if (branchName.isEmpty()) {
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    if (branchName == HEAD) {
-      error = git_revwalk_push_head(walker);
-    } else {
-        pushedRef = QString("refs/heads/%1").arg(branchName);
-        error = git_revwalk_push_ref(walker, pushedRef.toStdString().c_str());
-    }
-    if (error) {
-      setError(GitError::GetBranchHistoryFailedToAddLocalBranchToRevwalk,
-               error);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-  } else if (type == BranchType::Remote) {
-    if (branchName.isEmpty()) {
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    pushedRef = QString("refs/remotes/%1").arg(branchName);
-    error = git_revwalk_push_ref(walker, pushedRef.toStdString().c_str());
-    if (error) {
-      setError(GitError::GetBranchHistoryFailedToAddRemoteBranchToRevwalk,
-               error);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-  } else if (type == BranchType::Tag) {
-    if (branchName.isEmpty()) {
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    pushedRef = QString("refs/tags/%1").arg(branchName);
-    error = git_revwalk_push_ref(walker, pushedRef.toStdString().c_str());
-    if (error) {
-      setError(GitError::GetBranchHistoryFailedToAddTagToRevwalk, error);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-  } else {
-    git_revwalk_free(walker);
-    LOG_PERF(0, "Exit");
-    return {};
-  }
-
-  git_oid oid;
-
-  int commitsCount = 0;
-  while (git_revwalk_next(&oid, walker) == 0) {
-      ++commitsCount;
-  }
-
-  git_revwalk_reset(walker);
-
-  const int restCount = commitsCount % pageSize;
-
-  int targetOffset = page != -1 ? commitsCount - ((page + 1) * pageSize) : 0;
-  if (targetOffset < 0)
-      targetOffset = 0;
-
-  if (branchName == HEAD) {
-    error = git_revwalk_push_head(walker);
-  } else {
-      error = git_revwalk_push_ref(walker, pushedRef.toStdString().c_str());
-  }
-
-  if (error) {
-    setError(GitError::GetBranchHistoryFailedToAddLocalBranchToRevwalk,
-             error);
-    git_revwalk_free(walker);
-    LOG_PERF(0, "Exit");
-    return {};
-  }
-
-  // 3. Skip up to the target offset
-  int currentIndex = 0;
-  while (currentIndex < targetOffset && git_revwalk_next(&oid, walker) == 0) {
-      currentIndex++;
-  }
-
-  git_revwalk_reset(walker);
-
-  if (branchName == HEAD) {
-    error = git_revwalk_push_head(walker);
-  } else {
-      error = git_revwalk_push_ref(walker, pushedRef.toStdString().c_str());
-  }
-
-  if (error) {
-    setError(GitError::GetBranchHistoryFailedToAddLocalBranchToRevwalk,
-             error);
-    git_revwalk_free(walker);
-    LOG_PERF(0, "Exit");
-    return {};
-  }
-
-  QSet<QString> processed;
-
-  int i = 0;
-  int collectedCount = 0;
-  const int chunkCount = targetOffset == 0 ? restCount : pageSize;
-
-  while (git_revwalk_next(&oid, walker) == 0 && !quitFlag) {
-
-    if (page != -1) {
-        if (collectedCount >= chunkCount) {
-            break;
-        }
-    }
-
-    ++collectedCount;
-
-    const char *str = git_oid_tostr_s(&oid);
-    if (!str) {
-      LOG_ERROR(Log::ErrorId::Git, "Can't convert oid to string.");
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    const QString oidStr = str;
-
-    git_commit *commit = nullptr;
-
-    error = git_commit_lookup(&commit, repo, &oid);
-    if (error) {
-      setError(GitError::GetBranchHistoryFailedToLookupCommit, error);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    if (!commit) {
-      LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit with oid \"{}\"",
-                oidStr);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    if (processed.contains(oidStr)) {
-      continue;
-    }
-
-    processed.insert(oidStr);
-
-    history_.commits.push_back(oidStr);
-
-    const std::size_t parentCount = git_commit_parentcount(commit);
-
-    for (std::size_t i = 0; i < parentCount && !quitFlag; ++i) {
-      const git_oid *parentOid = git_commit_parent_id(commit, i);
-      if (!parentOid) {
-        LOG_ERROR(Log::ErrorId::Git,
-                  "Can't lookup parent oid at index {} for oid \"{}\"", i,
-                  oidStr);
-        git_commit_free(commit);
-        git_revwalk_free(walker);
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      str = git_oid_tostr_s(parentOid);
-      if (!str) {
-        LOG_ERROR(
-            Log::ErrorId::Git,
-            "Can't convert parent oid at index {} for oid \"{}\" to string.", i,
-            oidStr);
-        git_commit_free(commit);
-        git_revwalk_free(walker);
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      const QString parentOidStr = str;
-
-      if (oidStr == parentOidStr) {
-        LOG_ERROR(Log::ErrorId::Git, "The commit \"{}\"is parent of itself",
-                  parentOidStr)
-        continue;
-      }
-
-      history_.commitInfos[oidStr].parents.push_back(parentOidStr);
-      history_.commitInfos[parentOidStr].children.push_back(oidStr);
-    }
-
-    history_.commitInfos[oidStr].oid = oid;
-
-    if (const char *message = git_commit_message(commit))
-      history_.commitInfos[oidStr].message = message;
-    else {
-      LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit message for oid \"{}\"",
-                oidStr);
-      git_commit_free(commit);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    if (const char *summary = git_commit_summary(commit))
-      history_.commitInfos[oidStr].summary = summary;
-    else {
-      LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit summary for oid \"{}\"",
-                oidStr);
-      git_commit_free(commit);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    if (const git_signature *signature = git_commit_author(commit)) {
-      if (signature->name)
-        history_.commitInfos[oidStr].authorName = signature->name;
-
-      if (signature->email)
-        history_.commitInfos[oidStr].authorEmail = signature->email;
-
-      history_.commitInfos[oidStr].timeStamp =
-          signature->when.time * 1000 + signature->when.offset * 60 * 1000;
-    } else {
-      LOG_ERROR(Log::ErrorId::Git,
-                "Can't lookup commit signature for oid \"{}\"", oidStr);
-      git_commit_free(commit);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    QString commitSignature;
-    QString commitSignatureType;
-    loadCommitSignatureInfo(repo, &oid, &commitSignature, &commitSignatureType);
-    history_.commitInfos[oidStr].signedCommit =
-        commitSignatureType != QStringLiteral("Unsigned") &&
-        commitSignatureType != QStringLiteral("Unavailable") &&
-        !commitSignature.isEmpty();
-    history_.commitInfos[oidStr].signatureType = commitSignatureType;
-    history_.commitInfos[oidStr].signature = commitSignature;
-
-    history_.commitInfos[oidStr].branches += branchName;
-
-    git_commit_free(commit);
-  }
-
-  git_revwalk_free(walker);
-
-  if (!quitFlag) {
-    std::sort(history_.commits.begin(), history_.commits.end(),
-              [&](const QString &a, const QString &b) {
-                auto it = history_.commitInfos.find(a);
-                if (it == history_.commitInfos.end()) {
-                  return false;
-                }
-
-                const GitCommitInfo &commitInfoA = it.value();
-
-                it = history_.commitInfos.find(b);
-                if (it == history_.commitInfos.end()) {
-                  return false;
-                }
-
-                const GitCommitInfo &commitInfoB = it.value();
-
-                return commitInfoA.timeStamp < commitInfoB.timeStamp;
-              });
   }
 
   history_.valid = true;
-  history_.bisectMarks = getBisectMarks(repo);
+  history_.total = total;
+  history_.hasMore = end < total;
+
+  if (page <= 0) {
+    history_.headCommit = cursor->headCommit;
+    history_.refTips = cursor->refTips;
+    history_.bisectMarks = getBisectMarks(repo);
+  }
 
   LOG_PERF(0, "Exit");
 
-  return quitFlag ? GitHistory{} : history_;
+  return history_;
 }
 
 QStringList getCommitBranches(git_repository *repo, const QString &commitOid,

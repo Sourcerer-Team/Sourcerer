@@ -58,6 +58,7 @@
 #include <QSvgRenderer>
 #include <QTextStream>
 #include <QTimer>
+#include <QThreadPool>
 #include <QToolButton>
 #include <QToolTip>
 #include <Qsci/qsciscintilla.h>
@@ -69,7 +70,6 @@
 
 #define THREAD_ID "GitRepoContainer"
 
-#define ALL_BRANCHES "*"
 #define HEAD "HEAD"
 
 #define MAXIMUM_PARENTS_IN_LABEL 3
@@ -930,7 +930,16 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
   LOG_PERF(0, "Enter");
 
   if (branchName == ALL_BRANCHES) {
-    _container.updateModelActiveBranch(guard, branchName, branchType);
+    // The checked out branch does not change, so _activeBranch is left alone.
+    // Only the history that is shown changes.
+    _container._historyViewAll = true;
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.ui->localPage->updateActiveBranch(QString(ALL_BRANCHES));
+      _container.ui->remotePage->updateActiveBranch(QString());
+      _container.ui->tagsPage->updateActiveTag(QString());
+    });
+
     getBranchHistory(guard);
   } else {
     _container.stopWatcher(guard);
@@ -1003,6 +1012,8 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
         commandResult.value.value<GitRepoCheckoutBranchCommandResult>();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      // A real checkout leaves the history of all branches.
+      _container._historyViewAll = false;
       _container.updateModelActiveBranch(guard, result.branchName,
                                          result.branchType);
 
@@ -3185,10 +3196,16 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
 
   const int historyToken = _container._eventManager.startWait();
 
+  const bool viewAll = _container._historyViewAll;
+  const QString historyBranchName =
+      viewAll ? QString(ALL_BRANCHES) : _container._activeBranch;
+  const GitRepo::BranchType historyBranchType =
+      viewAll ? GitRepo::BranchType::All : _container._activeBranchType;
+
   GitRepoGetBranchHistoryCommand historyCommand;
   historyCommand.uuid = _container._uuid;
-  historyCommand.branchName = _container._activeBranch;
-  historyCommand.branchType = _container._activeBranchType;
+  historyCommand.branchName = historyBranchName;
+  historyCommand.branchType = historyBranchType;
   historyCommand.syncUuid = historyEventUuid;
   historyCommand.page = 0;
 
@@ -3299,13 +3316,10 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
   GitRepo::GitHistoryWithStatus historyWithStatus;
   historyWithStatus.history = history;
   historyWithStatus.status = status;
-  historyWithStatus.branchName = _container._activeBranch;
-  historyWithStatus.branchType = _container._activeBranchType;
+  historyWithStatus.branchName = historyBranchName;
+  historyWithStatus.branchType = historyBranchType;
   historyWithStatus.uuid = _container._uuid;
   historyWithStatus.page = 0;
-
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { _container.ui->labelProgress->setText("0%"); });
 
   _container.updateBranchHistory(guard, historyWithStatus);
 
@@ -3314,6 +3328,62 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
   LOG_PERF(0, "Exit")
 
   return true;
+}
+
+void GitRepoManagerBridgeImpl::getBranchHistoryPage(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &branchName,
+    const GitRepo::BranchType branchType, const int page,
+    const quint64 generation) {
+  LOG_PERF(0, "Enter");
+
+  const QString uuid = _container._uuid;
+  EventManager::EventManager *eventManager = &_container._eventManager;
+
+  // Not the container's dispatcher: its pool is cleared whenever the selection
+  // changes, which would drop the request and leave the model waiting for it.
+  QThreadPool::globalInstance()->start([=]() {
+    const QString eventUuid = Uuid::createUuid();
+
+    const int token = eventManager->startWait();
+
+    GitRepoGetBranchHistoryCommand command;
+    command.uuid = uuid;
+    command.branchName = branchName;
+    command.branchType = branchType;
+    command.syncUuid = eventUuid;
+    command.page = page;
+
+    EventManager::Event event(
+        EventManager::EventType::GitRepoManagerGetBranchHistory, eventUuid);
+    event.addData(command);
+    eventManager->send(event);
+
+    static const std::set types = {
+        EventManager::EventType::GitRepoManagerGetBranchHistoryError,
+        EventManager::EventType::GitRepoManagerGetBranchHistoryResult};
+
+    const auto &[success, resultEvent] =
+        eventManager->waitForAnswer(token, eventUuid, types);
+
+    const bool ok =
+        success && resultEvent.type() ==
+                       EventManager::EventType::GitRepoManagerGetBranchHistoryResult;
+
+    GitRepo::GitHistory history;
+    if (ok) {
+      history = resultEvent.data<GitRepoResult>().value.value<GitRepo::GitHistory>();
+    }
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      if (ok) {
+        _container._historyModel->appendPage(history, page, generation);
+      } else {
+        _container._historyModel->pageFailed(generation);
+      }
+    });
+  });
+
+  LOG_PERF(0, "Exit")
 }
 
 QStringList GitRepoManagerBridgeImpl::getCommitBranches(

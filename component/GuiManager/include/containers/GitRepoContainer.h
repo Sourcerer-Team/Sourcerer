@@ -33,6 +33,7 @@
 #include <QTreeView>
 #include <QWidget>
 
+#include <atomic>
 #include <functional>
 #include <memory>
 
@@ -363,6 +364,13 @@ private:
   QString _uuid;
   QString _path;
   QString _activeBranch;
+  // True while the history of all branches ('*' item) is shown. The checked
+  // out branch stays in _activeBranch, the history is requested for all
+  // branches instead of it.
+  std::atomic_bool _historyViewAll{false};
+  // Commit the user asked for that is not loaded yet, selected once the
+  // history page containing it arrives.
+  QString _pendingSelectCommit;
   QString _lastDiffedCommit;
   QString _lastDiffedFilePath;
   QString _currentSignature;

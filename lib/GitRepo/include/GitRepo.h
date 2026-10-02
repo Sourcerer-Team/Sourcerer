@@ -11,6 +11,11 @@
 
 #include <tuple>
 
+// Pseudo branch name that stands for the history of all branches.
+#ifndef ALL_BRANCHES
+#define ALL_BRANCHES "*"
+#endif
+
 namespace GitRepo {
 
 namespace Lfs {
@@ -512,17 +517,32 @@ enum class BisectMark : int {
   last
 };
 
+// One page of the repository history. Commits are ordered newest first and
+// every commit's parents are listed in commitInfos[sha].parents (parents may
+// live on a later page).
 struct GitHistory {
   bool valid = false;
   QVector<QString> commits;
   QMap<QString, GitCommitInfo> commitInfos;
   // Commit SHA to BisectMark. Empty if bisect is not in progress. Deliberately
   // not part of operator==, see GitHistoryModel::updateHistoryAndStatus.
+  // Filled on page 0 only.
   QHash<QString, int> bisectMarks;
+  // True if there are more commits after this page.
+  bool hasMore = false;
+  // Total number of commits in the history being paged.
+  qint64 total = 0;
+  // Filled on page 0 only: SHA of HEAD and, per tip commit SHA, the names of
+  // the refs pointing to it (local branches first, then remote branches
+  // without the remote prefix, then tags). The names are used as stable keys
+  // to choose graph colors, they are not part of operator==.
+  QString headCommit;
+  QHash<QString, QStringList> refTips;
 
   bool operator==(const GitHistory &other) const {
     return valid == other.valid && commits == other.commits &&
-           commitInfos == other.commitInfos;
+           commitInfos == other.commitInfos && hasMore == other.hasMore &&
+           total == other.total;
   }
 };
 

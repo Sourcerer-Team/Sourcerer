@@ -1,9 +1,6 @@
 #include "models/GitHistoryModel.h"
 
-#include <GitRepoManagerStructs.h>
-#include <Graph.h>
 #include <Log.h>
-#include <Uuid.h>
 
 #include <QBrush>
 #include <QDateTime>
@@ -11,7 +8,6 @@
 #include <QFontMetrics>
 #include <QGuiApplication>
 #include <QLocale>
-#include <QQueue>
 #include <QSet>
 
 #define THREAD_ID "GitHistoryModel"
@@ -48,22 +44,32 @@ static StatusFieldsMap createStatusFieldsMap(const GitRepo::GitStatus &status) {
   return statusMap;
 }
 
-GitHistoryModel::GitHistoryModel(QObject *parent)
-    : QAbstractTableModel(parent), _quitUpdate(false), _selectionModel(nullptr),
-      _hasMoreData(false), _branchType(GitRepo::BranchType::Unknown), _page(-1),
-      _eventManager(EventManager::EventManager::getInstance()) {
-  LOG_PERF(0, "Enter");
+static QStringList headerTitles() {
+  return {QObject::tr("Graph"), QObject::tr("Summary"), QObject::tr("Author"),
+          QObject::tr("Email"), QObject::tr("Date"),    QObject::tr("SHA")};
+}
 
-  _columnWidths = QVector<int>(COLUMN_LAST + 1, 1);
+// Minimal column widths: wide enough for the header titles.
+static QVector<int> headerColumnWidths() {
+  QVector<int> widths(COLUMN_LAST + 1, 1);
   const QFontMetrics metrics(QGuiApplication::font());
-  const QStringList headers = {tr("Graph"), tr("Summary"), tr("Author"),
-                               tr("Email"), tr("Date"),    tr("SHA")};
+  const QStringList headers = headerTitles();
   const qsizetype one0 = metrics.horizontalAdvance("0");
   for (int column = COLUMN_FIRST; column <= COLUMN_LAST; ++column) {
-    _columnWidths[column] = std::max(
+    widths[column] = std::max(
         qsizetype(1),
         metrics.horizontalAdvance(headers.value(column)) + MULTIPLIER * one0);
   }
+  return widths;
+}
+
+GitHistoryModel::GitHistoryModel(QObject *parent)
+    : QAbstractTableModel(parent), _graphBuilder(GRAPH_PALETTE_SIZE),
+      _selectionModel(nullptr), _generation(0), _hasMore(false),
+      _fetchInFlight(false), _nextPage(1) {
+  LOG_PERF(0, "Enter");
+
+  _columnWidths = headerColumnWidths();
 
   LOG_PERF(0, "Exit");
 }
@@ -72,6 +78,13 @@ GitHistoryModel::~GitHistoryModel() {
   LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Exit");
+}
+
+void GitHistoryModel::quitUpdate() {
+  LOCKGUARD(_mutex);
+
+  ++_generation;
+  _fetchInFlight = false;
 }
 
 void GitHistoryModel::updateStatus(const GitRepo::GitStatus &status) {
@@ -131,50 +144,14 @@ void GitHistoryModel::updateCommitRefs(
   _commitRefs.insert(commitRefs);
 }
 
-void GitHistoryModel::patchHistory(const GitRepo::GitHistory &history) {
-  LOCKGUARD(_mutex);
-
-  for (const auto &el : history.commits) {
-    _historyWithStatus.history.commits.insert(
-        _historyWithStatus.history.commits.begin(), el);
+int GitHistoryModel::commitIndexForSourceRow(const int sourceRow) const {
+  const int indexRow =
+      _historyWithStatus.status.hasChanges() ? sourceRow - 1 : sourceRow;
+  if (indexRow < 0 || indexRow >= _historyWithStatus.history.commits.count()) {
+    return -1;
   }
 
-  _historyWithStatus.history.commitInfos.insert(history.commitInfos);
-
-  const auto slices = patchedDrawableSlices(history.commits.length());
-
-  const int firstRow =
-      _historyWithStatus.history.commits.length() - history.commits.length();
-  const int lastRow = _historyWithStatus.history.commits.length() - 1;
-
-  beginInsertRows(QModelIndex(), firstRow, lastRow);
-
-  for (int y = firstRow; y <= lastRow && y < slices.sizeY(); ++y) {
-    _drawableSlices.insertRow(y);
-    for (int x = 0; x < _drawableSlices.sizeX() && x < slices.sizeX(); ++x) {
-      _drawableSlices[x][y] = slices[x][y - firstRow];
-    }
-  }
-
-  endInsertRows();
-
-  rebuildVisibleRows();
-}
-
-Util::ResizableMatrix<Slice> GitHistoryModel::patchedDrawableSlices(int count) {
-  bool quit = false;
-  auto slices = createDrawableSlices(_historyWithStatus, quit, &_columnWidths,
-                                     nullptr, count);
-
-  slices.invertVertically(quit, nullptr);
-
-  for (qsizetype i = 0; i < slices.sizeX() && !quit; ++i) {
-    for (qsizetype j = 0; j < slices.sizeY() && !quit; ++j) {
-      std::swap(slices[i][j].top, slices[i][j].bottom);
-    }
-  }
-
-  return slices;
+  return indexRow;
 }
 
 int GitHistoryModel::bisectMarkForSourceRow(const int sourceRow) const {
@@ -182,9 +159,8 @@ int GitHistoryModel::bisectMarkForSourceRow(const int sourceRow) const {
     return static_cast<int>(GitRepo::BisectMark::None);
   }
 
-  const int indexRow =
-      _historyWithStatus.status.hasChanges() ? sourceRow - 1 : sourceRow;
-  if (indexRow < 0 || indexRow >= _historyWithStatus.history.commits.count()) {
+  const int indexRow = commitIndexForSourceRow(sourceRow);
+  if (indexRow < 0) {
     return static_cast<int>(GitRepo::BisectMark::None);
   }
 
@@ -235,98 +211,204 @@ void GitHistoryModel::rebuildVisibleRows() {
   }
 }
 
-void GitHistoryModel::updateHistoryAndStatus(
-    const GitRepo::GitHistoryWithStatus &historyWithStatus,
-    const std::function<void(int)> &progressCallback) {
+bool GitHistoryModel::isSameFirstPage(
+    const GitRepo::GitHistoryWithStatus &other) const {
+  const GitRepo::GitHistory &current = _historyWithStatus.history;
+  const GitRepo::GitHistory &incoming = other.history;
+
+  if (!current.valid || !incoming.valid ||
+      _historyWithStatus.branchName != other.branchName ||
+      _historyWithStatus.branchType != other.branchType ||
+      current.total != incoming.total || _headCommit != incoming.headCommit ||
+      _refTips != incoming.refTips ||
+      current.commits.size() < incoming.commits.size()) {
+    return false;
+  }
+
+  for (int i = 0; i < incoming.commits.size(); ++i) {
+    const QString &sha = incoming.commits.at(i);
+    if (current.commits.at(i) != sha ||
+        !(current.commitInfos.value(sha) == incoming.commitInfos.value(sha))) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+void GitHistoryModel::appendGraphAndWidths(const int firstCommitIndex) {
   LOG_PERF(0, "Enter");
 
-  {
-    LOCKGUARD(_mutex);
+  const GitRepo::GitHistory &history = _historyWithStatus.history;
 
-    // Marks are not part of the history comparison below, so a change in them
-    // only needs a repaint and not a full rebuild.
-    const bool marksChanged =
-        _bisectMarks != historyWithStatus.history.bisectMarks;
-    _bisectMarks = historyWithStatus.history.bisectMarks;
+  const QFontMetrics metrics(QGuiApplication::font());
+  const qsizetype one0 = metrics.horizontalAdvance("0");
+  const auto textWidth = [&](const QString &text) {
+    return static_cast<int>(std::max(
+        qsizetype(1), metrics.horizontalAdvance(text) + MULTIPLIER * one0));
+  };
+  const auto growWidth = [this](const int column, const int width) {
+    if (column >= 0 && column < _columnWidths.size()) {
+      _columnWidths[column] = std::max(_columnWidths[column], width);
+    }
+  };
 
-    // Save us from updates with same data
-    if (_historyWithStatus == historyWithStatus) {
-      if (marksChanged && !_visibleRows.isEmpty()) {
-        emit dataChanged(createIndex(0, COLUMN_FIRST),
-                         createIndex(_visibleRows.size() - 1, COLUMN_LAST));
-      }
-      LOG_PERF(0, "Exit");
-      return;
+  QVector<Util::GraphCommit> graphCommits;
+  graphCommits.reserve(history.commits.size() - firstCommitIndex);
+
+  for (int i = firstCommitIndex; i < history.commits.size(); ++i) {
+    const QString &sha = history.commits.at(i);
+    const GitRepo::GitCommitInfo commitInfo = history.commitInfos.value(sha);
+
+    graphCommits.push_back(Util::GraphCommit{sha, commitInfo.parents});
+
+    growWidth(COLUMN_SUMMARY, textWidth(commitInfo.summary.trimmed()));
+    growWidth(COLUMN_AUTHOR_NAME, textWidth(commitInfo.authorName.trimmed()));
+    growWidth(COLUMN_AUTHOR_EMAIL,
+              textWidth(commitInfo.authorEmail.trimmed()));
+    growWidth(COLUMN_COMMIT_DATETIME,
+              textWidth(QLocale::system().toString(
+                  QDateTime::fromMSecsSinceEpoch(commitInfo.timeStamp).toUTC(),
+                  QLocale::ShortFormat)));
+    growWidth(COLUMN_COMMIT_SHORT_SHA, textWidth(sha.left(7)));
+    growWidth(COLUMN_COMMIT_FULL_SHA, textWidth(sha));
+  }
+
+  _graphRows += _graphBuilder.addCommits(graphCommits, _refTips);
+
+  growWidth(COLUMN_HISTORY_SLICE,
+            _graphBuilder.maxLanes() * std::max(1, metrics.height()));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitHistoryModel::updateHistoryAndStatus(
+    const GitRepo::GitHistoryWithStatus &historyWithStatus) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_mutex);
+
+  // Marks are not part of the history comparison below, so a change in them
+  // only needs a repaint and not a full rebuild.
+  const bool marksChanged =
+      _bisectMarks != historyWithStatus.history.bisectMarks;
+  _bisectMarks = historyWithStatus.history.bisectMarks;
+
+  // Save us from updates with same data. Pages loaded after the first one
+  // are kept.
+  if (isSameFirstPage(historyWithStatus)) {
+    if (!(_historyWithStatus.status == historyWithStatus.status)) {
+      updateStatus(historyWithStatus.status);
+    } else if (marksChanged && !_visibleRows.isEmpty()) {
+      emit dataChanged(createIndex(0, COLUMN_FIRST),
+                       createIndex(_visibleRows.size() - 1, COLUMN_LAST));
+    }
+
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  beginResetModel();
+
+  // Answers to requests made for the previous history are ignored from now on.
+  ++_generation;
+  _fetchInFlight = false;
+
+  _historyWithStatus = historyWithStatus;
+  _historyWithStatus.page = 0;
+  _refTips = historyWithStatus.history.refTips;
+  _headCommit = historyWithStatus.history.headCommit;
+  _hasMore = historyWithStatus.history.hasMore;
+  _nextPage = 1;
+
+  _graphRows.clear();
+  _graphBuilder.reset();
+  _columnWidths = headerColumnWidths();
+  appendGraphAndWidths(0);
+
+  rebuildVisibleRows();
+
+  endResetModel();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitHistoryModel::appendPage(const GitRepo::GitHistory &history,
+                                 const int page, const quint64 generation) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_mutex);
+
+  if (generation != _generation) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  _fetchInFlight = false;
+
+  if (page != _nextPage || history.commits.isEmpty()) {
+    // Nothing new (or an unexpected page): stop asking for more.
+    _hasMore = false;
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const int firstCommitIndex = _historyWithStatus.history.commits.size();
+  const int sourceRowOffset = _historyWithStatus.status.hasChanges() ? 1 : 0;
+
+  _historyWithStatus.history.commits += history.commits;
+  _historyWithStatus.history.commitInfos.insert(history.commitInfos);
+  _historyWithStatus.history.hasMore = history.hasMore;
+  _historyWithStatus.page = page;
+
+  const QVector<int> oldWidths = _columnWidths;
+  appendGraphAndWidths(firstCommitIndex);
+
+  QVector<int> newVisibleRows;
+  for (int i = firstCommitIndex; i < _historyWithStatus.history.commits.size();
+       ++i) {
+    if (commitMatchesFilters(_historyWithStatus.history.commits.at(i))) {
+      newVisibleRows.append(i + sourceRowOffset);
     }
   }
 
-  setBranchName(historyWithStatus.branchName);
-  setBranchType(historyWithStatus.branchType);
-  setContextUuid(historyWithStatus.uuid);
-  setPage(historyWithStatus.page);
-
-  const auto self = getSelf();
-
-  _quitUpdate = false;
-
-  {
-    LOCKGUARD(_mutex);
-    // Release memory especialy for large repositories
-    _drawableSlices.clear();
-    _historyWithStatus = GitRepo::GitHistoryWithStatus();
+  if (!newVisibleRows.isEmpty()) {
+    const int firstRow = _visibleRows.size();
+    beginInsertRows(QModelIndex(), firstRow,
+                    firstRow + newVisibleRows.size() - 1);
+    _visibleRows += newVisibleRows;
+    endInsertRows();
   }
 
-  GitRepo::GitHistoryWithStatus newHistoryWithStatus = historyWithStatus;
+  _hasMore = history.hasMore;
+  _nextPage = page + 1;
 
-  QVector<int> newColumnWidths(COLUMN_LAST + 1, 0);
-  Util::ResizableMatrix<Slice> newDrawableSlices =
-      createDrawableSlices(newHistoryWithStatus, _quitUpdate, &newColumnWidths,
-                           [&](const int progress) {
-                             if (progressCallback) {
-                               progressCallback(progress / 2);
-                             }
-                           });
-
-  std::reverse(newHistoryWithStatus.history.commits.begin(),
-               newHistoryWithStatus.history.commits.end());
-
-  newDrawableSlices.invertVertically(_quitUpdate, [&](const int progress) {
-    if (progressCallback) {
-      progressCallback(50 + (progress / 4));
-    }
-  });
-
-  for (qsizetype i = 0; i < newDrawableSlices.sizeX() && !_quitUpdate; ++i) {
-    if (progressCallback) {
-      const double progress = (i * 100.0) / newDrawableSlices.sizeX();
-      progressCallback(75 + (progress / 4));
-    }
-
-    for (qsizetype j = 0; j < newDrawableSlices.sizeY() && !_quitUpdate; ++j) {
-      std::swap(newDrawableSlices[i][j].top, newDrawableSlices[i][j].bottom);
-    }
+  if (_columnWidths != oldWidths) {
+    emit columnWidthsChanged();
   }
 
-  if (progressCallback) {
-    progressCallback(100);
-  }
+  emit pageAppended();
 
-  if (!_quitUpdate) {
-    LOCKGUARD(_mutex);
-
-    beginResetModel();
-
-    _drawableSlices = newDrawableSlices;
-    _historyWithStatus = newHistoryWithStatus;
-    _columnWidths = newColumnWidths;
-    rebuildVisibleRows();
-
-    _hasMoreData = true;
-
-    endResetModel();
+  if (newVisibleRows.isEmpty() && _hasMore) {
+    // Everything on this page is filtered out, so the view has nothing new
+    // to scroll to and would not ask for more by itself.
+    fetchMore(QModelIndex());
   }
 
   LOG_PERF(0, "Exit");
+}
+
+void GitHistoryModel::pageFailed(const quint64 generation) {
+  LOCKGUARD(_mutex);
+
+  if (generation != _generation) {
+    return;
+  }
+
+  _fetchInFlight = false;
+  _hasMore = false;
+
+  emit pageLoadFailed();
 }
 
 bool GitHistoryModel::hasStatus() const {
@@ -384,22 +466,14 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
   }
 
   const int sourceRow = _visibleRows.at(index.row());
+  const bool isStatusRow = sourceRow == 0 && _historyWithStatus.status.hasChanges();
 
   if (role == HistorySliceWidthRole) {
-    if (sourceRow == 0) {
-      int width = _drawableSlices.sizeX();
-      if (_historyWithStatus.status.hasChanges()) {
-        width = 0;
-      }
-
-      return width;
-    }
-
-    return _drawableSlices.sizeX();
+    return isStatusRow ? 0 : _graphBuilder.maxLanes();
   }
 
   if (role == StatusRole) {
-    if (sourceRow == 0 && _historyWithStatus.status.hasChanges()) {
+    if (isStatusRow) {
       return QVariant::fromValue(
           createStatusFieldsMap(_historyWithStatus.status));
     }
@@ -407,19 +481,34 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     return {};
   }
 
+  const int commitIndex = isStatusRow ? -1 : commitIndexForSourceRow(sourceRow);
+
+  if (role == GraphRowRole) {
+    if (commitIndex < 0 || commitIndex >= _graphRows.size()) {
+      return {};
+    }
+
+    return QVariant::fromValue(_graphRows.at(commitIndex));
+  }
+
+  if (role == WorkingTreeAnchorRole) {
+    if (commitIndex < 0) {
+      return false;
+    }
+
+    if (_headCommit.isEmpty()) {
+      return commitIndex == 0;
+    }
+
+    return _historyWithStatus.history.commits.at(commitIndex) == _headCommit;
+  }
+
   if (role == CommitRefsRole) {
-    if (_historyWithStatus.status.hasChanges() && sourceRow == 0) {
+    if (commitIndex < 0) {
       return {};
     }
 
-    const int indexRow =
-        _historyWithStatus.status.hasChanges() ? sourceRow - 1 : sourceRow;
-    if (indexRow < 0 ||
-        indexRow >= _historyWithStatus.history.commits.count()) {
-      return {};
-    }
-
-    const QString &commit = _historyWithStatus.history.commits.at(indexRow);
+    const QString &commit = _historyWithStatus.history.commits.at(commitIndex);
     return _commitRefs.value(commit);
   }
 
@@ -442,18 +531,11 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     return {};
   }
 
-  if (_historyWithStatus.status.hasChanges() && sourceRow == 0) {
+  if (commitIndex < 0) {
     return {};
   }
 
-  const int indexRow =
-      _historyWithStatus.status.hasChanges() ? sourceRow - 1 : sourceRow;
-
-  if (indexRow < 0 || indexRow >= _historyWithStatus.history.commits.count()) {
-    return {};
-  }
-
-  const QString &commit = _historyWithStatus.history.commits.at(indexRow);
+  const QString &commit = _historyWithStatus.history.commits.at(commitIndex);
   const GitRepo::GitCommitInfo &commitInfo =
       _historyWithStatus.history.commitInfos.value(commit);
 
@@ -461,7 +543,7 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
 
   switch (index.column()) {
   case COLUMN_HISTORY_SLICE: {
-    result = QVariant::fromValue(historySlices(commit));
+    // Drawn by the delegate using GraphRowRole.
     break;
   }
   case COLUMN_SUMMARY: {
@@ -549,7 +631,9 @@ bool GitHistoryModel::canFetchMore(const QModelIndex &parent) const {
     return false;
   }
 
-  return _hasMoreData;
+  LOCKGUARD(_mutex);
+
+  return _hasMore && !_fetchInFlight && _pageRequester;
 }
 
 void GitHistoryModel::fetchMore(const QModelIndex &parent_) {
@@ -560,388 +644,32 @@ void GitHistoryModel::fetchMore(const QModelIndex &parent_) {
     return;
   }
 
-  Containers::GitRepoContainer *container =
-      qobject_cast<Containers::GitRepoContainer *>(parent());
-  if (!container) {
-    LOG_PERF(0, "Exit");
-    return;
+  QString branchName;
+  GitRepo::BranchType branchType;
+  int page;
+  quint64 generation;
+
+  {
+    LOCKGUARD(_mutex);
+
+    if (!_hasMore || _fetchInFlight || !_pageRequester) {
+      LOG_PERF(0, "Exit");
+      return;
+    }
+
+    _fetchInFlight = true;
+
+    branchName = _historyWithStatus.branchName;
+    branchType = _historyWithStatus.branchType;
+    page = _nextPage;
+    generation = _generation;
   }
 
-  container->startOverlayTimer();
-
-  const QString historyEventUuid = Uuid::createUuid();
-
-  const int historyToken = _eventManager.startWait();
-
-  GitRepoManager::Structs::GitRepoGetBranchHistoryCommand historyCommand;
-  historyCommand.uuid = _contextUuid;
-  historyCommand.branchName = _branchName;
-  historyCommand.branchType = _branchType;
-  historyCommand.syncUuid = historyEventUuid;
-  historyCommand.page = ++_page;
-
-  EventManager::Event historyEvent(
-      EventManager::EventType::GitRepoManagerGetBranchHistory,
-      historyEventUuid);
-  historyEvent.addData(historyCommand);
-  _eventManager.send(historyEvent);
-
-  static std::set historyTypes = {
-                                  EventManager::EventType::GitRepoManagerGetBranchHistoryError,
-      EventManager::EventType::GitRepoManagerGetBranchHistoryResult};
-
-  const auto &[historySuccess, historyResultEvent] =
-      _eventManager.waitForAnswer(historyToken, historyEventUuid, historyTypes);
-
-  if (!historySuccess) {
-    _hasMoreData = false;
-    container->showSpinnerOverlay(false);
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  if (historyResultEvent.type() !=
-      EventManager::EventType::GitRepoManagerGetBranchHistoryResult) {
-    _hasMoreData = false;
-    container->showSpinnerOverlay(false);
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  const auto historyCommandResult =
-      historyResultEvent.data<GitRepoManager::Structs::GitRepoResult>();
-
-  const auto history = historyCommandResult.value.value<GitRepo::GitHistory>();
-
-  if (history.commits.length() > 0) {
-    patchHistory(history);
-  } else {
-    _hasMoreData = false;
-  }
-
-  container->showSpinnerOverlay(false);
+  // The request is processed in the background, the answer comes back through
+  // appendPage() or pageFailed().
+  _pageRequester(branchName, branchType, page, generation);
 
   LOG_PERF(0, "Exit");
-}
-
-Util::ResizableMatrix<Slice> GitHistoryModel::createDrawableSlices(
-    GitRepo::GitHistoryWithStatus &historyWithStatus, const bool &quitUpdate,
-    QVector<int> *columnWidths,
-    const std::function<void(int)> &progressCallback, int lastCount) {
-  LOG_PERF(0, "Enter");
-
-  Util::ResizableMatrix<Slice> drawableSlices;
-  QVector<int> widths(COLUMN_LAST + 1, 0);
-  const QFontMetrics metrics(QGuiApplication::font());
-  const qsizetype one0 = metrics.horizontalAdvance("0");
-  const auto textWidth = [&](const QString &text) {
-    return std::max(qsizetype(1),
-                    metrics.horizontalAdvance(text) + MULTIPLIER * one0);
-  };
-  const auto updateWidth = [&](const int column, const int width) {
-    if (column >= 0 && column < widths.size()) {
-      widths[column] = std::max(widths[column], width);
-    }
-  };
-  const auto updateSliceWidth = [&]() {
-    updateWidth(COLUMN_HISTORY_SLICE, static_cast<int>(drawableSlices.sizeX()) *
-                                          std::max(1, metrics.height()));
-  };
-
-  try {
-    QMap<QString, QPair<int, int>> commitPositions;
-
-    for (int i = 0; i < historyWithStatus.history.commits.size() && !quitUpdate;
-         ++i) {
-      if (quitUpdate) {
-        drawableSlices.clear();
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      const double progress =
-          (i * 100.0) / historyWithStatus.history.commits.size();
-      if (progressCallback) {
-        progressCallback(static_cast<int>(progress));
-      }
-
-      const QString &currentCommit = historyWithStatus.history.commits.at(i);
-      const auto it = historyWithStatus.history.commitInfos.find(currentCommit);
-      if (it == historyWithStatus.history.commitInfos.end()) {
-        continue;
-      }
-
-      const auto &commitInfo = it.value();
-
-      updateWidth(COLUMN_SUMMARY, textWidth(commitInfo.summary.trimmed()));
-      updateWidth(COLUMN_AUTHOR_NAME,
-                  textWidth(commitInfo.authorName.trimmed()));
-      updateWidth(COLUMN_AUTHOR_EMAIL,
-                  textWidth(commitInfo.authorEmail.trimmed()));
-      updateWidth(
-          COLUMN_COMMIT_DATETIME,
-          textWidth(QLocale::system().toString(
-              QDateTime::fromMSecsSinceEpoch(commitInfo.timeStamp).toUTC(),
-              QLocale::ShortFormat)));
-      updateWidth(COLUMN_COMMIT_SHORT_SHA, textWidth(currentCommit.left(7)));
-      updateWidth(COLUMN_COMMIT_FULL_SHA, textWidth(currentCommit));
-
-      if (commitInfo.parents.empty()) {
-        drawableSlices.insertRow(0);
-        drawableSlices.insertColumn(0);
-        drawableSlices[0][0].toCommit = currentCommit;
-        drawableSlices[0][0].main = true;
-
-        for (auto &pos : commitPositions) {
-          pos.first += 1;
-        };
-
-        commitPositions[currentCommit] = qMakePair(0, 0);
-        updateSliceWidth();
-
-        continue;
-      }
-
-      QSet<qsizetype> emptyColumnIndexes;
-
-      QVector<QString> missingParents;
-      int maxDanglingParent = -1;
-
-      for (const auto &parent : commitInfo.parents) {
-        if (!commitPositions.contains(parent)) {
-          int danglingParentIndex = -1;
-          for (int j = 0; j < historyWithStatus.history.commits.size(); ++j) {
-            if (historyWithStatus.history.commits[j] == parent) {
-              danglingParentIndex = j;
-              break;
-            }
-          }
-
-          if (danglingParentIndex == -1) {
-            if (!missingParents.contains(parent)) {
-              //missingParents += parent;
-            }
-          } else {
-            maxDanglingParent =
-                std::max(maxDanglingParent, danglingParentIndex);
-          }
-        }
-      }
-
-      if (!missingParents.isEmpty()) {
-        // Skip commits with missing parents (e.g., due to shallow clone)
-        continue;
-      } else if (maxDanglingParent != -1) {
-        const int newRow = std::max(i + 1, maxDanglingParent + 1);
-
-        historyWithStatus.history.commits.insert(newRow, currentCommit);
-        historyWithStatus.history.commits.remove(i);
-
-        --i;
-
-        continue;
-      }
-
-      for (const auto &parent : commitInfo.parents) {
-
-        qsizetype emptyColumnIndex = -1;
-        qsizetype parentX = -1;
-        qsizetype parentY = -1;
-
-        if (commitPositions.contains(parent)) {
-          const auto &[x, y] = commitPositions[parent];
-          parentX = x;
-          parentY = y;
-        }
-
-        Q_ASSERT(parentX != -1);
-        Q_ASSERT(parentY != -1);
-
-        if (parentX == -1 || parentY == -1) {
-          continue;
-        }
-
-        QVector<qsizetype> indexes;
-
-        indexes += parentX;
-
-        for (qsizetype k = 0; k < drawableSlices.sizeX(); ++k) {
-          if (!indexes.contains(k)) {
-            indexes += k;
-          }
-        }
-
-        for (const auto &index : indexes) {
-          bool columnIsEmpty = true;
-          for (qsizetype l = parentY + 1; l < i; ++l) {
-            columnIsEmpty &= drawableSlices[index][l].toCommit.isEmpty();
-            if (!columnIsEmpty) {
-              break;
-            }
-          }
-
-          if (columnIsEmpty) {
-            emptyColumnIndex = index;
-            break;
-          }
-        }
-
-        if (emptyColumnIndex == -1) {
-          emptyColumnIndex = drawableSlices.sizeX();
-        }
-
-        const qsizetype startY =
-            emptyColumnIndex == parentX ? parentY + 1 : parentY;
-
-        QList<QString>::const_iterator itParent = commitInfo.parents.constEnd();
-
-        if (startY > 0) {
-          itParent =
-              std::find(commitInfo.parents.begin(), commitInfo.parents.end(),
-                        drawableSlices[emptyColumnIndex][startY - 1].toCommit);
-        }
-
-        for (qsizetype k = startY; k <= i; ++k) {
-          if (!drawableSlices[emptyColumnIndex][k].bottom) {
-            drawableSlices[emptyColumnIndex][k].bottom = k != i;
-          }
-          if (!drawableSlices[emptyColumnIndex][k].top) {
-            drawableSlices[emptyColumnIndex][k].top =
-                k == startY ? itParent != commitInfo.parents.end() : k != i;
-          }
-          drawableSlices[emptyColumnIndex][k].toCommit =
-              drawableSlices[emptyColumnIndex][k].toCommit.isEmpty()
-                  ? currentCommit
-                  : drawableSlices[emptyColumnIndex][k].toCommit;
-          drawableSlices[emptyColumnIndex][k].main = false;
-        }
-
-        if (parentX < emptyColumnIndex) {
-          for (qsizetype k = parentX; k <= emptyColumnIndex; ++k) {
-            if (!drawableSlices[k][parentY].right) {
-              drawableSlices[k][parentY].right = k != emptyColumnIndex;
-            }
-            if (!drawableSlices[k][parentY].left) {
-              drawableSlices[k][parentY].left = k != parentX;
-            }
-          }
-        } else if (parentX > emptyColumnIndex) {
-          for (qsizetype k = emptyColumnIndex; k <= parentX; ++k) {
-            if (!drawableSlices[k][parentY].right) {
-              drawableSlices[k][parentY].right = k != parentX;
-            }
-            if (!drawableSlices[k][parentY].left) {
-              drawableSlices[k][parentY].left = k != emptyColumnIndex;
-            }
-          }
-        } else {
-          drawableSlices[emptyColumnIndex][parentY].bottom = true;
-        }
-
-        emptyColumnIndexes += emptyColumnIndex;
-      }
-
-      QList<qsizetype> indexes = emptyColumnIndexes.values();
-
-      std::sort(indexes.begin(), indexes.end());
-
-      if (indexes.isEmpty()) {
-        drawableSlices.clear();
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      const qsizetype firstIndex = indexes.first();
-      const qsizetype lastIndex = indexes.last();
-
-      commitPositions[currentCommit] = qMakePair(firstIndex, i);
-      drawableSlices[firstIndex][i].toCommit = currentCommit;
-      drawableSlices[firstIndex][i].main = true;
-
-      for (qsizetype j = firstIndex; j <= lastIndex; ++j) {
-        drawableSlices[j][i].bottom = false;
-        drawableSlices[j][i].top = emptyColumnIndexes.contains(j);
-        if (!drawableSlices[j][i].left) {
-          drawableSlices[j][i].left = j != firstIndex;
-        }
-        if (!drawableSlices[j][i].right) {
-          drawableSlices[j][i].right = j != lastIndex;
-        }
-      }
-
-      updateSliceWidth();
-    }
-  } catch (const std::out_of_range &e) {
-    LOG_ERROR(Log::ErrorId::Generic, "Exception: {}", e.what());
-    drawableSlices.clear();
-  }
-
-  if (quitUpdate) {
-    drawableSlices.clear();
-  }
-
-  if (columnWidths) {
-    const QStringList headers = {tr("Graph"), tr("Summary"), tr("Author"),
-                                 tr("Email"), tr("Date"),    tr("SHA")};
-    for (int column = COLUMN_FIRST; column <= COLUMN_LAST; ++column) {
-      updateWidth(column, textWidth(headers.value(column)));
-    }
-
-    *columnWidths = widths;
-  }
-
-  LOG_PERF(0, "Exit");
-
-  return drawableSlices;
-}
-
-Slices GitHistoryModel::historySlices(const QString &commit) const {
-  if (_historyWithStatus.history.commits.size() == 0) {
-    return {};
-  }
-
-  const int difference =
-      indexDifference(_historyWithStatus.history.commits.first(), commit);
-
-  if (difference < 0) {
-    return {};
-  }
-
-  Slices slices;
-
-  try {
-    for (int i = 0; i < _drawableSlices.sizeX(); ++i) {
-      const Slice &slice = _drawableSlices[i][difference];
-      slices += slice;
-    }
-  } catch (const std::out_of_range &e) {
-    LOG_ERROR(Log::ErrorId::Generic, "Exception: {}", e.what());
-  }
-
-  return slices;
-}
-
-int GitHistoryModel::indexDifference(const QString &commitA,
-                                     const QString &commitB) const {
-  const auto itA = std::find_if(
-      _historyWithStatus.history.commits.begin(),
-      _historyWithStatus.history.commits.end(),
-      [&](const QString &historyCommit) { return historyCommit == commitA; });
-
-  if (itA == _historyWithStatus.history.commits.end()) {
-    return -1;
-  }
-
-  const auto itB = std::find_if(
-      _historyWithStatus.history.commits.begin(),
-      _historyWithStatus.history.commits.end(),
-      [&](const QString &historyCommit) { return historyCommit == commitB; });
-
-  if (itB == _historyWithStatus.history.commits.end()) {
-    return -1;
-  }
-
-  return itB - itA;
 }
 
 } // namespace GuiManager::Models

@@ -142,7 +142,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 1000},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout, 2000},
     {ConfigKey::GitRepoMaxDiffFileSize, 1 * 1024 * 1024}, // 1 MB
-    {ConfigKey::GitRepoHistoryPageSize, 10},
+    {ConfigKey::GitRepoHistoryPageSize, 300},
     {ConfigKey::GitRepoMonospaceFontSize, 10},
     {ConfigKey::HttpClientTimeout, 30000}, // 30 seconds
     {ConfigKey::InfoToastDisplayTime, 8000},

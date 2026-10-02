@@ -1101,6 +1101,30 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _historyModel->setSelectionModel(ui->historyView->selectionModel());
 
+  _historyModel->setPageRequester(
+      [this](const QString &branchName, const GitRepo::BranchType branchType,
+             const int page, const quint64 generation) {
+        _bridge->getBranchHistoryPage(getSelf().toWeakRef(), branchName,
+                                      branchType, page, generation);
+      });
+
+  connect(_historyModel.get(), &Models::GitHistoryModel::columnWidthsChanged,
+          this, [this]() { stretchBranchHistoryTableColumns(); });
+
+  connect(_historyModel.get(), &Models::GitHistoryModel::pageAppended, this,
+          [this]() {
+            if (_pendingSelectCommit.isEmpty()) {
+              return;
+            }
+
+            const QString commit = _pendingSelectCommit;
+            _pendingSelectCommit.clear();
+            selectHistoryCommit(commit);
+          });
+
+  connect(_historyModel.get(), &Models::GitHistoryModel::pageLoadFailed, this,
+          [this]() { _pendingSelectCommit.clear(); });
+
   _spinnerOverlayTimer->setSingleShot(true);
   _repoDirWatcherTimer->setSingleShot(true);
 
@@ -3267,8 +3291,16 @@ void GitRepoContainer::selectHistoryCommit(const QString &commit) {
       ui->historyView->selectRow(row);
       ui->historyView->setCurrentIndex(shaIndex);
       ui->historyView->scrollTo(shaIndex);
-      break;
+      LOG_PERF(0, "Exit");
+      return;
     }
+  }
+
+  // The commit may be on a page that has not been loaded yet. Load the next
+  // one, the search continues when it arrives.
+  if (_historyModel->canFetchMore(QModelIndex())) {
+    _pendingSelectCommit = commit;
+    _historyModel->fetchMore(QModelIndex());
   }
 
   LOG_PERF(0, "Exit");
@@ -3983,7 +4015,9 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
   LOG_DEBUG("Branch selected: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
 
-  if (!showWarningForBranchCheckout()) {
+  // The '*' item only changes the history that is shown, nothing is checked
+  // out, so there is nothing to warn about.
+  if (branchName != ALL_BRANCHES && !showWarningForBranchCheckout()) {
     LOG_DEBUG("Create branch cancelled by user");
     return;
   }
@@ -4007,6 +4041,12 @@ void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Branch right-clicked: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
+
+  if (branchName == ALL_BRANCHES) {
+    // Not a real branch: nothing to rename, delete or set upstream for.
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   QAction actionCheckoutBranch(tr("Checkout branch"), this);
   QAction actionRanameBranch(tr("Rename branch"), this);
@@ -8485,17 +8525,12 @@ void GitRepoContainer::updateBranchHistory(
     const GitRepo::GitHistoryWithStatus &historyWithStatus) {
   LOG_PERF(0, "Enter");
 
-  _historyModel->updateHistoryAndStatus(
-      historyWithStatus, [=](const int progress) {
-        Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-          const QString progressStr = QString("%1%").arg(progress);
-          if (_spinnerOverlay) {
-            _spinnerOverlay->setText(progressStr);
-          }
-        });
-      });
-
+  // The model is owned by the GUI thread. Only the first page is shown here,
+  // the others are requested by the view while the user scrolls.
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _pendingSelectCommit.clear();
+    _historyModel->updateHistoryAndStatus(historyWithStatus);
+
     const bool hasHistoryRows =
         ui->historyView->model() &&
         ui->historyView->model()->rowCount(QModelIndex()) > 0;
@@ -8543,7 +8578,10 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
   _activeBranchType = GitRepo::BranchType::Local;
 
   if (const auto locked = guard.lock(); locked && updatePages) {
-    ui->localPage->updateActiveBranch(activeBranch);
+    // The '*' item stays highlighted while the history of all branches is
+    // shown, even though the checked out branch is tracked in _activeBranch.
+    ui->localPage->updateActiveBranch(_historyViewAll ? QString(ALL_BRANCHES)
+                                                      : activeBranch);
     ui->remotePage->updateActiveBranch(
         QString());                           // deselect remote branch if any
     ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
@@ -8608,7 +8646,8 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
   _activeBranch = activeBranch;
   _activeBranchType = GitRepo::BranchType::Remote;
 
-  if (const auto locked = guard.lock(); locked && updatePages) {
+  if (const auto locked = guard.lock();
+      locked && updatePages && !_historyViewAll) {
     ui->remotePage->updateActiveBranch(activeBranch);
     ui->localPage->updateActiveBranch(
         QString());                           // deselect remote branch if any
@@ -8643,7 +8682,8 @@ void GitRepoContainer::updateTagsModelActiveTag(const WeakPtr &guard,
   _activeBranch = activeTag;
   _activeBranchType = GitRepo::BranchType::Tag;
 
-  if (const auto locked = guard.lock(); locked && updatePages) {
+  if (const auto locked = guard.lock();
+      locked && updatePages && !_historyViewAll) {
     ui->localPage->clearCached();
     ui->localPage->updateActiveBranch(
         QString()); // deselect local branch if any

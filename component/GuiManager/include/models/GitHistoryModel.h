@@ -2,11 +2,10 @@
 
 #include "containers/GitRepoContainer.h"
 
+#include <CommitGraphBuilder.h>
 #include <EventManager.h>
 #include <GitRepo.h>
-#include <Graph.h>
 #include <LockGuard.h>
-#include <ResizableMatrix.h>
 
 #include <QColor>
 #include <QDate>
@@ -15,7 +14,6 @@
 #include <QHash>
 #include <QStringList>
 #include <QVector>
-#include <atomic>
 #include <functional>
 #include <qitemselectionmodel.h>
 
@@ -29,10 +27,19 @@
 #define COLUMN_FIRST COLUMN_HISTORY_SLICE
 #define COLUMN_LAST COLUMN_COMMIT_SHORT_SHA
 
+// Number of lane colors the graph is drawn with, see
+// StylesheetManager::graphLaneColors().
+#define GRAPH_PALETTE_SIZE 10
+
+// Number of lanes of the graph, int.
 #define HistorySliceWidthRole Qt::UserRole
 #define StatusRole (Qt::UserRole + 1)
 #define CommitRefsRole (Qt::UserRole + 2)
 #define BisectMarkRole (Qt::UserRole + 3)
+// Util::GraphRow of a commit row.
+#define GraphRowRole (Qt::UserRole + 4)
+// bool, true for the commit the working tree status row is attached to.
+#define WorkingTreeAnchorRole (Qt::UserRole + 5)
 
 namespace GuiManager::Models {
 
@@ -73,17 +80,14 @@ inline QColor bisectMarkColor(const int mark) {
   }
 }
 
-struct Slice {
-  QStringView toCommit;
-  bool left = false;
-  bool right = false;
-  bool top = false;
-  bool bottom = false;
-  bool main = false;
-};
-
-typedef QVector<Slice> Slices;
-
+/// Table model of the repository history.
+///
+/// The history is loaded in pages: the first page arrives through
+/// updateHistoryAndStatus(), the following ones are requested by the view
+/// through fetchMore() and are appended with appendPage(). The graph is
+/// extended incrementally with every page.
+///
+/// All methods must be called from the GUI thread.
 class GitHistoryModel final : public QAbstractTableModel,
                               public QEnableSharedFromThis<GitHistoryModel> {
   Q_OBJECT
@@ -92,6 +96,14 @@ class GitHistoryModel final : public QAbstractTableModel,
   typedef QWeakPointer<GitHistoryModel> WeakPtr;
 
 public:
+  /// Asks for page `page` of the history of the given branch. The answer must
+  /// be delivered with appendPage() or pageFailed() using the same
+  /// `generation`.
+  typedef std::function<void(const QString &branchName,
+                             GitRepo::BranchType branchType, int page,
+                             quint64 generation)>
+      PageRequester;
+
   explicit GitHistoryModel(QObject *parent = nullptr);
   ~GitHistoryModel() override;
 
@@ -102,17 +114,27 @@ public:
     _selectionModel = selectionModel;
   }
 
+  void setPageRequester(const PageRequester &requester) {
+    _pageRequester = requester;
+  }
+
   void updateStatus(const GitRepo::GitStatus &status);
   void setDateRange(const QDate &fromDate, const QDate &toDate);
   void setFilter(int column, const QString &filter);
 
+  /// Shows page 0 of a history (and drops everything loaded before).
   void updateHistoryAndStatus(
-      const GitRepo::GitHistoryWithStatus &historyWithStatus,
-      const std::function<void(int)> &progressCallback = nullptr);
+      const GitRepo::GitHistoryWithStatus &historyWithStatus);
+
+  /// Appends a page requested by fetchMore(). Pages of an outdated
+  /// `generation` are ignored.
+  void appendPage(const GitRepo::GitHistory &history, int page,
+                  quint64 generation);
+
+  /// Tells the model that a requested page could not be loaded.
+  void pageFailed(quint64 generation);
 
   void updateCommitRefs(const QHash<QString, QStringList> &commitRefs);
-
-  void patchHistory(const GitRepo::GitHistory &history);
 
   GitRepo::GitHistoryWithStatus historyWithStatus() const {
     LOCKGUARD(_mutex);
@@ -122,19 +144,12 @@ public:
   QVector<int> columnWidths() const { return _columnWidths; }
   int columnWidth(int section) const { return _columnWidths.value(section); }
 
-  void quitUpdate() { _quitUpdate = true; }
+  /// Drops pending page requests; their answers will be ignored.
+  void quitUpdate();
 
   bool hasStatus() const;
 
-  void setBranchType(GitRepo::BranchType branchType) {
-    _branchType = branchType;
-  }
-
-  void setBranchName(const QString &branchName) { _branchName = branchName; }
-
-  void setContextUuid(const QString &uuid) { _contextUuid = uuid; }
-
-  void setPage(int page) { _page = page; }
+  bool hasMoreCommits() const { return _hasMore; }
 
   // QAbstractTableModel interface
 public:
@@ -148,28 +163,35 @@ public:
   bool canFetchMore(const QModelIndex &parent) const override;
   void fetchMore(const QModelIndex &parent) override;
 
+signals:
+  /// Emitted after a page has been appended.
+  void pageAppended();
+  /// Emitted when a requested page could not be loaded.
+  void pageLoadFailed();
+  /// Emitted when the preferred width of a column has grown.
+  void columnWidthsChanged();
+
 private:
   int bisectMarkForSourceRow(int sourceRow) const;
+  int commitIndexForSourceRow(int sourceRow) const;
   bool commitMatchesFilters(const QString &commit) const;
   void rebuildVisibleRows();
-
-  static Util::ResizableMatrix<Slice>
-  createDrawableSlices(GitRepo::GitHistoryWithStatus &historyWithStatus,
-                       const bool &quitUpdate, QVector<int> *columnWidths,
-                       const std::function<void(int)> &progressCallback,
-                       int lastCount = -1);
-
-  Util::ResizableMatrix<Slice> patchedDrawableSlices(int count);
-
-private:
-  Slices historySlices(const QString &commit) const;
-
-  int indexDifference(const QString &commitA, const QString &commitB) const;
+  bool isSameFirstPage(
+      const GitRepo::GitHistoryWithStatus &historyWithStatus) const;
+  // Adds the commits of `history` starting at `firstCommitIndex` of
+  // _historyWithStatus.history.commits to the graph and column widths.
+  void appendGraphAndWidths(int firstCommitIndex);
 
 private:
   mutable Util::RecursiveMutex _mutex;
+  // Everything loaded so far: commits newest first, their infos, the status
+  // and the branch the history belongs to.
   GitRepo::GitHistoryWithStatus _historyWithStatus;
-  mutable Util::ResizableMatrix<Slice> _drawableSlices;
+  // One graph row per commit of _historyWithStatus.history.commits.
+  QVector<Util::GraphRow> _graphRows;
+  Util::CommitGraphBuilder _graphBuilder;
+  QHash<QString, QStringList> _refTips;
+  QString _headCommit;
   QVector<int> _columnWidths;
   QHash<QString, QStringList> _commitRefs;
   QHash<QString, int> _bisectMarks;
@@ -177,14 +199,14 @@ private:
   QDate _fromDate;
   QDate _toDate;
   QVector<int> _visibleRows;
-  std::atomic_bool _quitUpdate;
   QItemSelectionModel *_selectionModel;
-  bool _hasMoreData;
-  GitRepo::BranchType _branchType;
-  QString _branchName;
-  int _page;
-  QString _contextUuid;
-  EventManager::EventManager &_eventManager;
+  PageRequester _pageRequester;
+  // Incremented on every reset of the history, answers carry the value they
+  // were requested with.
+  quint64 _generation;
+  bool _hasMore;
+  bool _fetchInFlight;
+  int _nextPage;
 };
 
 } // namespace GuiManager::Models
