@@ -1,3 +1,19 @@
+## 1.0.35
+
+### New
+
+- **Squash & merge**: You can now squash and merge branches directly from Sourcerer. (#619, #620)
+
+### Improved
+
+- Added icons to various buttons and menu items for easier navigation and a more polished look. (#621)
+
+### Fixed
+
+- No fixes in this release.
+
+---
+
 ## 1.0.34
 
 Sourcerer 1.0.34 brings a richer stash viewer, icons for section headers and a few polish fixes.
