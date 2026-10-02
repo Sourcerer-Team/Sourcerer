@@ -68,6 +68,7 @@ private:
   void fetchAllWorker(const Structs::GitRepoFetchAllCommand &command);
   void fetchRemoteWorker(const Structs::GitRepoFetchRemoteCommand &command);
   void rebaseWorker(const Structs::GitRepoRebaseCommand &command);
+  void squashWorker(const Structs::GitRepoSquashCommand &command);
   void gitFlowWorker(const Structs::GitRepoGitFlowCommand &command);
   void
   getActiveBranchWorker(const Structs::GitRepoGetActiveBranchCommand &command);
@@ -180,6 +181,7 @@ private:
   void scheduleWorkerForFetchRemote(
       const Structs::GitRepoFetchRemoteCommand &command);
   void scheduleWorkerForRebase(const Structs::GitRepoRebaseCommand &command);
+  void scheduleWorkerForSquash(const Structs::GitRepoSquashCommand &command);
   void scheduleWorkerForGitFlow(const Structs::GitRepoGitFlowCommand &command);
   void scheduleWorkerForGetCommitBranches(
       const Structs::GitRepoGetCommitBranchesCommand &command);

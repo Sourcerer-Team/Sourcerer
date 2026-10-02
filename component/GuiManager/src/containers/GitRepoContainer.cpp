@@ -3890,9 +3890,11 @@ void GitRepoContainer::onLocalBranchMoved(const QString &sourceBranch,
     QMenu menu(this);
     QAction actionMerge(tr("Merge"), this);
     QAction actionRebase(tr("Rebase"), this);
+    QAction actionSquash(tr("Squash"), this);
 
     menu.addAction(&actionMerge);
     menu.addAction(&actionRebase);
+    menu.addAction(&actionSquash);
 
     const QAction *selectedAction = menu.exec(QCursor::pos());
     if (!selectedAction) {
@@ -3901,14 +3903,20 @@ void GitRepoContainer::onLocalBranchMoved(const QString &sourceBranch,
       return;
     }
 
-    const QString question =
-        selectedAction == &actionMerge
-            ? QString("Are you sure that you want to merge "
-                      "branch '%1' to branch '%2'?")
-                  .arg(sourceBranch, destBranch)
-            : QString("Are you sure that you want to rebase "
-                      "branch '%1' onto branch '%2'?")
-                  .arg(sourceBranch, destBranch);
+    QString question;
+    if (selectedAction == &actionMerge) {
+      question = QString("Are you sure that you want to merge "
+                         "branch '%1' to branch '%2'?")
+                     .arg(sourceBranch, destBranch);
+    } else if (selectedAction == &actionRebase) {
+      question = QString("Are you sure that you want to rebase "
+                         "branch '%1' onto branch '%2'?")
+                     .arg(sourceBranch, destBranch);
+    } else {
+      question = QString("Are you sure that you want to squash and merge "
+                         "branch '%1' into branch '%2'?")
+                     .arg(sourceBranch, destBranch);
+    }
 
     const auto reply =
         QMessageBox::question(this, tr("Confirm action"), question,
@@ -3938,6 +3946,11 @@ void GitRepoContainer::onLocalBranchMoved(const QString &sourceBranch,
         _bridge->rebase(guard, sourceBranch, destBranch, signCommit);
       });
       LOG_DEBUG("Branch rebase operation dispatched");
+    } else if (selectedAction == &actionSquash) {
+      _dispatcher.dispatch([=]() {
+        _bridge->squash(guard, sourceBranch, destBranch, signCommit);
+      });
+      LOG_DEBUG("Branch squash operation dispatched");
     }
   });
 

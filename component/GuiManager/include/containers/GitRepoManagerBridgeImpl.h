@@ -123,6 +123,9 @@ public:
   void rebase(const QWeakPointer<GitRepoContainer> &guard,
               const QString &sourceBranch, const QString &destBranch,
               bool signCommit) override;
+  void squash(const QWeakPointer<GitRepoContainer> &guard,
+              const QString &sourceBranch, const QString &destBranch,
+              bool signCommit) override;
   void startGitFlowBranch(const QWeakPointer<GitRepoContainer> &guard,
                           const GitRepo::GitFlowBranchType branchType,
                           const QString &branchName) override;

@@ -67,6 +67,7 @@
 #include <QStringList>
 
 #include <cstring>
+#include <memory>
 #include <set>
 #include <string>
 #include <thread>
@@ -1941,6 +1942,65 @@ static QString gitErrorName(const GitError errorType) {
   case GitError::RebaseBranchesFailedToAbortRebase:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to abort rebase while rebasing branches.");
+  case GitError::SquashBranchesInvalidArguments:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Source and destination branches must be different non-empty "
+        "branches while squashing branches.");
+  case GitError::SquashBranchesRepositoryBusy:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Another operation (merge, rebase, etc.) is in progress. Finish or "
+        "abort it before squashing branches.");
+  case GitError::SquashBranchesFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup branch while squashing branches.");
+  case GitError::SquashBranchesFailedToLookupDestinationBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup destination branch while squashing branches.");
+  case GitError::SquashBranchesFailedToPeelReference:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to peel destination reference while squashing branches.");
+  case GitError::SquashBranchesFailedToCheckoutTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to checkout destination branch while squashing branches.");
+  case GitError::SquashBranchesFailedToSetHead:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to set repository HEAD while squashing branches.");
+  case GitError::SquashBranchesFailedToCreateAnnotatedCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create annotated commit while squashing branches.");
+  case GitError::SquashBranchesFailedToAnalyzeMerge:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to analyze merge while squashing branches.");
+  case GitError::SquashBranchesFailedToMerge:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to merge changes while squashing branches.");
+  case GitError::SquashBranchesFailedToGetRepositoryIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository index while squashing branches.");
+  case GitError::SquashBranchesFailedWithConflicts:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Squash has conflicts. Resolve the conflicts in files, stage them and "
+        "commit the result.");
+  case GitError::SquashBranchesFailedToWriteIndexTree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to write index tree while squashing branches.");
+  case GitError::SquashBranchesFailedToLookupHeadCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup HEAD commit while squashing branches.");
+  case GitError::SquashBranchesFailedToCleanupRepositoryState:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to cleanup repository state while squashing branches.");
   case GitError::ListConflictsForAFileFailedToGetRepositoryIndex:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -12254,6 +12314,228 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
 
   LOG_PERF(0, "Exit");
   return rebaseSuccess;
+}
+
+bool squashBranches(git_repository *repo, const QString &sourceBranch,
+                    const QString &destinationBranch, const QString &author,
+                    const QString &email, const bool signCommit) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (sourceBranch.isEmpty() || destinationBranch.isEmpty() ||
+      sourceBranch == destinationBranch) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Invalid squash arguments: source='{}', destination='{}'",
+              sourceBranch.toStdString(), destinationBranch.toStdString());
+    setError(GitError::SquashBranchesInvalidArguments, -1);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (git_repository_state(repo) != GIT_REPOSITORY_STATE_NONE) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Cannot squash branches while another operation is in progress");
+    setError(GitError::SquashBranchesRepositoryBusy, -1);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  using RefPtr = std::unique_ptr<git_reference, decltype(&git_reference_free)>;
+  using ObjectPtr = std::unique_ptr<git_object, decltype(&git_object_free)>;
+  using AnnotatedPtr = std::unique_ptr<git_annotated_commit,
+                                       decltype(&git_annotated_commit_free)>;
+  using IndexPtr = std::unique_ptr<git_index, decltype(&git_index_free)>;
+  using CommitPtr = std::unique_ptr<git_commit, decltype(&git_commit_free)>;
+  using RevwalkPtr = std::unique_ptr<git_revwalk, decltype(&git_revwalk_free)>;
+
+  LOG_DEBUG("Starting squash operation: source='{}', destination='{}'",
+            sourceBranch.toStdString(), destinationBranch.toStdString());
+
+  git_reference *rawSrcRef = nullptr;
+  int error = git_branch_lookup(
+      &rawSrcRef, repo, sourceBranch.toStdString().c_str(), GIT_BRANCH_LOCAL);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToLookupBranch, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const RefPtr srcRef(rawSrcRef, git_reference_free);
+
+  git_reference *rawDstRef = nullptr;
+  error = git_branch_lookup(&rawDstRef, repo,
+                            destinationBranch.toStdString().c_str(),
+                            GIT_BRANCH_LOCAL);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToLookupDestinationBranch, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const RefPtr dstRef(rawDstRef, git_reference_free);
+
+  // Move HEAD to the destination branch, the squash commit is created there.
+  git_object *rawDstObj = nullptr;
+  error = git_reference_peel(&rawDstObj, dstRef.get(), GIT_OBJECT_COMMIT);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToPeelReference, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const ObjectPtr dstObj(rawDstObj, git_object_free);
+
+  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
+  error = git_checkout_tree(repo, dstObj.get(), &checkoutOpts);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToCheckoutTree, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_repository_set_head(repo, git_reference_name(dstRef.get()));
+  if (error) {
+    setError(GitError::SquashBranchesFailedToSetHead, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_annotated_commit *rawSrcCommit = nullptr;
+  error = git_annotated_commit_from_ref(&rawSrcCommit, repo, srcRef.get());
+  if (error) {
+    setError(GitError::SquashBranchesFailedToCreateAnnotatedCommit, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const AnnotatedPtr srcCommit(rawSrcCommit, git_annotated_commit_free);
+
+  const git_annotated_commit *commits[1] = {srcCommit.get()};
+
+  git_merge_analysis_t analysis;
+  git_merge_preference_t preference;
+  error = git_merge_analysis(&analysis, &preference, repo, commits, 1);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToAnalyzeMerge, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (analysis & GIT_MERGE_ANALYSIS_UP_TO_DATE) {
+    LOG_DEBUG("Destination branch already contains all source changes.");
+    LOG_PERF(0, "Exit");
+    return true;
+  }
+
+  // Apply the source changes to the index and working tree. The merge state it
+  // leaves behind (MERGE_HEAD) is removed below so that the resulting commit
+  // has a single parent.
+  git_merge_options mergeOpts = GIT_MERGE_OPTIONS_INIT;
+  git_checkout_options mergeCheckoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  mergeCheckoutOpts.checkout_strategy =
+      GIT_CHECKOUT_SAFE | GIT_CHECKOUT_ALLOW_CONFLICTS;
+
+  error = git_merge(repo, commits, 1, &mergeOpts, &mergeCheckoutOpts);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToMerge, error);
+    git_repository_state_cleanup(repo);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_index *rawIndex = nullptr;
+  error = git_repository_index(&rawIndex, repo);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToGetRepositoryIndex, error);
+    git_repository_state_cleanup(repo);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const IndexPtr index(rawIndex, git_index_free);
+
+  if (git_index_has_conflicts(index.get())) {
+    LOG_DEBUG("Squash has conflicts. Resolve them before committing.");
+    // Like `git merge --squash`: keep the conflicts in the working tree but
+    // drop the merge state so the final commit is a regular one.
+    git_repository_state_cleanup(repo);
+    setError(GitError::SquashBranchesFailedWithConflicts, GIT_EUNMERGED);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_oid treeOid;
+  error = git_index_write_tree(&treeOid, index.get());
+  if (error) {
+    setError(GitError::SquashBranchesFailedToWriteIndexTree, error);
+    git_repository_state_cleanup(repo);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_commit *rawHeadCommit = nullptr;
+  error = git_commit_lookup(&rawHeadCommit, repo,
+                            git_reference_target(dstRef.get()));
+  if (error) {
+    setError(GitError::SquashBranchesFailedToLookupHeadCommit, error);
+    git_repository_state_cleanup(repo);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const CommitPtr headCommit(rawHeadCommit, git_commit_free);
+
+  if (git_oid_equal(&treeOid, git_commit_tree_id(headCommit.get()))) {
+    LOG_DEBUG("Squash produced no changes, nothing to commit.");
+    git_repository_state_cleanup(repo);
+    LOG_PERF(0, "Exit");
+    return true;
+  }
+
+  // List the squashed commits in the message body.
+  QString body;
+  git_revwalk *rawWalker = nullptr;
+  if (git_revwalk_new(&rawWalker, repo) == 0) {
+    const RevwalkPtr walker(rawWalker, git_revwalk_free);
+    git_revwalk_sorting(walker.get(), GIT_SORT_TOPOLOGICAL | GIT_SORT_TIME);
+
+    if (git_revwalk_push(walker.get(), git_reference_target(srcRef.get())) ==
+            0 &&
+        git_revwalk_hide(walker.get(), git_reference_target(dstRef.get())) ==
+            0) {
+      git_oid oid;
+      while (git_revwalk_next(&oid, walker.get()) == 0) {
+        git_commit *rawCommit = nullptr;
+        if (git_commit_lookup(&rawCommit, repo, &oid) != 0) {
+          continue;
+        }
+        const CommitPtr commit(rawCommit, git_commit_free);
+
+        const char *commitSummary = git_commit_summary(commit.get());
+        body += QString("* %1\n").arg(
+            QString::fromUtf8(commitSummary ? commitSummary : ""));
+      }
+    }
+  }
+  body = body.trimmed();
+
+  error = git_repository_state_cleanup(repo);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToCleanupRepositoryState, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString summary = QString("Squash merge branch '%1' into '%2'")
+                              .arg(sourceBranch, destinationBranch);
+
+  const bool committed = commitStaged(repo, summary, body, author, email, false,
+                                      false, signCommit);
+
+  LOG_PERF(0, "Exit");
+  return committed;
 }
 
 QString listConflictsForStashFile(git_repository *repo, int stashIndex,
