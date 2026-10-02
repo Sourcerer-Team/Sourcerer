@@ -185,6 +185,7 @@ private slots:
   void onRepoDirChangedTimeout();
   void onRevertCommit(const QString &commit);
   void onCherryPickCommit();
+  void onBisect(GitRepo::BisectAction action, const QString &commit);
   void onSetUpstream(const QString &branchName);
   void onSoftResetToCommit(const QString &commit);
   void onStash();

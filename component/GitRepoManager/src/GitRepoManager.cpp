@@ -151,6 +151,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSquash, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerBisect, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerPull, callbackFunc));
@@ -325,6 +327,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerRebase, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSquash, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerBisect, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -868,6 +872,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent squashEvent(EventType::Squash);
     squashEvent.addParam(QVariant::fromValue(squashCommand));
     _fsm.send(squashEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerBisect: {
+    const auto bisectCommand = event.data<GitRepoBisectCommand>();
+    GitRepoManagerEvent bisectEvent(EventType::Bisect);
+    bisectEvent.addParam(QVariant::fromValue(bisectCommand));
+    _fsm.send(bisectEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepo: {

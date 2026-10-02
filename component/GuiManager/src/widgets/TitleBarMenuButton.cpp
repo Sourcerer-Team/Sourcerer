@@ -367,9 +367,9 @@ QMenu *TitleBarMenuButton::createMenu() {
   const auto setActionIcon = [&menuColor](QAction *action,
                                           const QString &path) {
     action->setProperty("iconSource", path);
-    action->setIcon(QIcon(
-        StylesheetManager::StylesheetManager::renderSvgToPixmap(path,
-                                                                menuColor)));
+    action->setIcon(
+        QIcon(StylesheetManager::StylesheetManager::renderSvgToPixmap(
+            path, menuColor)));
   };
   setActionIcon(_openAction, QStringLiteral(":/icons/repo-open.svg"));
   setActionIcon(_cloneAction, QStringLiteral(":/icons/repo-clone.svg"));

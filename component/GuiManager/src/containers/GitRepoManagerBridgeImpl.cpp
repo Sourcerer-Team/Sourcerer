@@ -4184,6 +4184,106 @@ void GitRepoManagerBridgeImpl::squash(
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoManagerBridgeImpl::bisect(
+    const QWeakPointer<GitRepoContainer> &guard, GitRepo::BisectAction action,
+    const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoBisectCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.action = action;
+  command.commit = commit;
+
+  EventManager::Event bisectEvent(EventManager::EventType::GitRepoManagerBisect,
+                                  eventUuid);
+  bisectEvent.addData(command);
+  _container._eventManager.send(bisectEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerBisectError,
+                           EventManager::EventType::GitRepoManagerBisectResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to run bisect."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerBisectResult) {
+    const auto error = event.data<GitRepoError>();
+    // A failed checkout can leave the session active with new marks.
+    _container.refreshHistory(guard);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto result = event.data<GitRepoResult>();
+  const auto status = result.value.value<GitRepo::BisectStatus>();
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+
+    const auto shortSha = [](const QString &sha) { return sha.left(7); };
+
+    QString message;
+    if (action == GitRepo::BisectAction::Reset) {
+      message = _container.tr("Bisect finished. The original state has been "
+                              "restored.");
+    } else if (status.finished && status.ambiguous) {
+      message = _container
+                    .tr("Only skipped commits are left to test. The "
+                        "first bad commit is %1 or one of the skipped "
+                        "commits.")
+                    .arg(shortSha(status.firstBadCommit));
+    } else if (status.finished) {
+      message =
+          _container.tr("%1 is the first bad commit: %2")
+              .arg(shortSha(status.firstBadCommit), status.firstBadSummary);
+    } else if (status.waitingForGood && status.waitingForBad) {
+      message = _container.tr("Bisect started. Mark a good and a bad "
+                              "commit to continue.");
+    } else if (status.waitingForGood) {
+      message = _container.tr("Mark a good commit to continue bisecting.");
+    } else if (status.waitingForBad) {
+      message = _container.tr("Mark a bad commit to continue bisecting.");
+    } else {
+      message =
+          _container
+              .tr("Bisecting: %1 revisions left to test (about %2 steps). "
+                  "Checked out %3: %4")
+              .arg(QString::number(status.remaining),
+                   QString::number(status.steps),
+                   shortSha(status.currentCommit), status.currentSummary);
+    }
+
+    _container.showToast(message, _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoManagerBridgeImpl::startGitFlowBranch(
     const QWeakPointer<GitRepoContainer> &guard,
     const GitRepo::GitFlowBranchType branchType, const QString &branchName) {

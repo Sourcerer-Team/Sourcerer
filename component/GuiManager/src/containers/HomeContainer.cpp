@@ -379,10 +379,10 @@ HomeContainer::HomeContainer(QWidget *parent)
 
   const auto setupButtonIcon = [](QPushButton *button, const QString &path) {
     button->setProperty("iconSource", path);
-    button->setIcon(QIcon(
-        StylesheetManager::StylesheetManager::renderSvgToPixmap(
-            path, StylesheetManager::StylesheetManager::
-                      menuBarButtonIconColor())));
+    button->setIcon(
+        QIcon(StylesheetManager::StylesheetManager::renderSvgToPixmap(
+            path,
+            StylesheetManager::StylesheetManager::menuBarButtonIconColor())));
     button->setIconSize(QSize(16, 16));
   };
   setupButtonIcon(ui->openButton, QStringLiteral(":/icons/repo-open.svg"));
@@ -394,10 +394,10 @@ HomeContainer::HomeContainer(QWidget *parent)
                                                   const QString &iconPath) {
     auto *action = connectToMenu->addAction(text);
     action->setProperty("iconSource", iconPath);
-    action->setIcon(QIcon(
-        StylesheetManager::StylesheetManager::renderSvgToPixmap(
-            iconPath, StylesheetManager::StylesheetManager::
-                          menuBarButtonIconColor())));
+    action->setIcon(
+        QIcon(StylesheetManager::StylesheetManager::renderSvgToPixmap(
+            iconPath,
+            StylesheetManager::StylesheetManager::menuBarButtonIconColor())));
     return action;
   };
   auto *githubIssueTrackerAction =

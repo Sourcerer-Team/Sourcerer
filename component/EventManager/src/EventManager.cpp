@@ -617,6 +617,12 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerSquashResult";
   case EventType::GitRepoManagerSquashError:
     return "GitRepoManagerSquashError";
+  case EventType::GitRepoManagerBisect:
+    return "GitRepoManagerBisect";
+  case EventType::GitRepoManagerBisectResult:
+    return "GitRepoManagerBisectResult";
+  case EventType::GitRepoManagerBisectError:
+    return "GitRepoManagerBisectError";
   case EventType::GitRepoManagerGitFlow:
     return "GitRepoManagerGitFlow";
   case EventType::GitRepoManagerGitFlowResult:
