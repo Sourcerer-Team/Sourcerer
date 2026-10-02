@@ -46,6 +46,7 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::GitRepoSigningKey, "signing/key"},
     {ConfigKey::GitRepoSigningProgram, "signing/program"},
     {ConfigKey::GitRepoCredentialsMasterKey, "git/credentialsMasterKey"},
+    {ConfigKey::GitRepoHistoryPageSize, "git/historyPageSize"},
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, "git/spinnerOverlay/timer"},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout,
      "git/dirWatcher/holdbackTimeout"},
@@ -141,6 +142,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 1000},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout, 2000},
     {ConfigKey::GitRepoMaxDiffFileSize, 1 * 1024 * 1024}, // 1 MB
+    {ConfigKey::GitRepoHistoryPageSize, 300},
     {ConfigKey::GitRepoMonospaceFontSize, 10},
     {ConfigKey::HttpClientTimeout, 30000}, // 30 seconds
     {ConfigKey::InfoToastDisplayTime, 8000},

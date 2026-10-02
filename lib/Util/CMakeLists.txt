@@ -23,6 +23,7 @@ add_library(Util STATIC
    include/BlockingQueue.h
    include/CloudCredentialStorage.h
    include/CloudRepo.h
+   include/CommitGraphBuilder.h
    include/Dispatcher.h
    include/FileManager.h
    include/Timer.h

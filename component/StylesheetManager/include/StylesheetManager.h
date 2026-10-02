@@ -6,6 +6,7 @@
 #include <QIcon>
 #include <QPixmap>
 #include <QString>
+#include <QVector>
 
 class QApplication;
 class QWidget;
@@ -24,6 +25,9 @@ public:
   static QColor menuBarButtonIconColor();
   static QColor historyBadgeFillColor();
   static QColor historyBadgeTextColor();
+  // Colors used to tell branches apart in the history graph. The count and
+  // order are the same for every theme.
+  static QVector<QColor> graphLaneColors();
   static QString issueTrackerToolbarStyleSheet();
   static QIcon issueTrackerToolbarBackIcon();
   static QIcon issueTrackerToolbarForwardIcon();

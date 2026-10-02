@@ -10,6 +10,7 @@
 #include "delegates/HistorySummaryTableColumnDelegate.h"
 #include "models/GitCommitListModel.h"
 #include "models/GitCommitTreeModel.h"
+#include "models/GitHistoryModel.h"
 #include "widgets/AddRemoteOverlayWidget.h"
 #include "widgets/AddSubmoduleOverlayWidget.h"
 #include "widgets/AddTargetOverlayWidget.h"
@@ -21,6 +22,7 @@
 #include "widgets/ErrorToast.h"
 #include "widgets/InfoToast.h"
 #include "widgets/MultilineTextInputOverlayWidget.h"
+#include "widgets/RefBadgesOverlay.h"
 #include "widgets/RemotesPage.h"
 #include "widgets/ShortcutsToolbarWidget.h"
 #include "widgets/SideBySideDiffView.h"
@@ -82,6 +84,8 @@
 #include <QTextStream>
 #include <QTimer>
 #include <QToolButton>
+
+#include <QThreadPool>
 #include <QToolTip>
 #include <QUrl>
 #include <Qsci/qsciscintilla.h>
@@ -605,10 +609,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()),
-      _historyFilterButton(nullptr),
+      _historyFilterButton(nullptr), _refBadgesOverlay(nullptr),
       _authorAvatarNetworkManager(new QNetworkAccessManager(this)),
       _authorNameValueLabel(nullptr), _authorEmailValueLabel(nullptr),
-      _dispatcher(20), _mousePos(-1, -1),
+      _dispatcher(20),
       _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
@@ -687,6 +691,24 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->viewport()->installEventFilter(this);
   ui->historyView->setAttribute(Qt::WA_Hover, true);
   ui->historyView->viewport()->setAttribute(Qt::WA_Hover, true);
+  _refBadgesOverlay = new Widgets::RefBadgesOverlay(ui->historyView);
+  // The branches containing a commit take a while to compute, so they are
+  // looked up in the background and shown when ready.
+  _refBadgesOverlay->setRefsProvider([this](const QString &commit) {
+    const WeakPtr guard = getSelf().toWeakRef();
+    QThreadPool::globalInstance()->start([this, guard, commit]() {
+      QStringList refs;
+      for (const QString &branch : _bridge->getCommitBranches(guard, commit)) {
+        refs.push_back(QStringLiteral("refs/heads/") + branch);
+      }
+
+      Util::Dispatcher::dispatchToMainThread(guard, [this, commit, refs]() {
+        if (_refBadgesOverlay) {
+          _refBadgesOverlay->setExtraRefs(commit, refs);
+        }
+      });
+    });
+  });
 
   ui->historyView->setModel(_historyModel.get());
   ui->historyView->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -755,6 +777,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *header = new ClickableHeaderView(Qt::Horizontal, ui->historyView);
   ui->historyView->setHorizontalHeader(header);
+  _refBadgesOverlay->attach();
   ui->historyView->horizontalHeader()->setSectionResizeMode(
       QHeaderView::Interactive);
   ui->historyView->horizontalHeader()->setMinimumSectionSize(84);
@@ -1100,6 +1123,30 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _historyModel->setSelectionModel(ui->historyView->selectionModel());
 
+  _historyModel->setPageRequester(
+      [this](const QString &branchName, const GitRepo::BranchType branchType,
+             const int page, const quint64 generation) {
+        _bridge->getBranchHistoryPage(getSelf().toWeakRef(), branchName,
+                                      branchType, page, generation);
+      });
+
+  connect(_historyModel.get(), &Models::GitHistoryModel::columnWidthsChanged,
+          this, [this]() { stretchBranchHistoryTableColumns(); });
+
+  connect(_historyModel.get(), &Models::GitHistoryModel::pageAppended, this,
+          [this]() {
+            if (_pendingSelectCommit.isEmpty()) {
+              return;
+            }
+
+            const QString commit = _pendingSelectCommit;
+            _pendingSelectCommit.clear();
+            selectHistoryCommit(commit);
+          });
+
+  connect(_historyModel.get(), &Models::GitHistoryModel::pageLoadFailed, this,
+          [this]() { _pendingSelectCommit.clear(); });
+
   _spinnerOverlayTimer->setSingleShot(true);
   _repoDirWatcherTimer->setSingleShot(true);
 
@@ -1223,6 +1270,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   actionFinishHotfix->setIconVisibleInMenu(true);
   actionFinishHotfix->setIcon(themedIcon(":/icons/gitflow_finish.svg"));
   gitFlowDropdown->setMenu(gitFlowMenu);
+
+  _pullFetchButton = pullFetchDropdown;
+  _pushButton = pushButtonPush;
+  _singleBranchShortcutActions = {actionPullMenu,       actionPullWithRebaseMenu,
+                                  actionPushMenu,       actionForcePushMenu,
+                                  actionFinishFeature,  actionFinishRelease,
+                                  actionFinishHotfix};
 
   auto *pushButtonStash = new QPushButton();
   pushButtonStash->setObjectName("pushButtonStash");
@@ -1441,8 +1495,6 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           .toUtf8());
   ui->splitterStashContent->restoreState(stashSplitterState);
 
-  connect(ui->historyView, &QAbstractItemView::entered, this,
-          &GitRepoContainer::onHistoryViewItemEntered);
 
   connect(ui->splitter, &QSplitter::splitterMoved, this,
           &GitRepoContainer::onSplitterMoved);
@@ -1621,8 +1673,16 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(_repoDirWatcherTimer, &QTimer::timeout, this,
           &GitRepoContainer::onRepoDirChangedTimeout);
 
-  connect(pullFetchDropdown, &QToolButton::clicked, this,
-          &GitRepoContainer::onPull);
+  // With the history of all branches shown there is no single branch to pull
+  // into, so the button opens the menu, where Fetch All is still available.
+  connect(pullFetchDropdown, &QToolButton::clicked, this, [=](bool) {
+    if (_historyViewAll) {
+      pullFetchDropdown->showMenu();
+      return;
+    }
+
+    onPull();
+  });
   connect(actionPullMenu, &QAction::triggered, this, &GitRepoContainer::onPull);
   connect(actionPullWithRebaseMenu, &QAction::triggered, this,
           [=](bool) { onPull(true); });
@@ -1741,38 +1801,12 @@ bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
               static_cast<QMouseEvent *>(event));
       const QModelIndex index = ui->historyView->indexAt(
           ui->historyView->viewport()->mapFromGlobal(globalPos));
-      if (index.isValid() && index.column() == COLUMN_HISTORY_SLICE) {
-        const auto guard = getSelf().toWeakRef();
-        const QModelIndex fullShaIndex = index.model()->index(
-            index.row(), COLUMN_COMMIT_FULL_SHA, index.parent());
-        const QString commitOid = fullShaIndex.data(Qt::DisplayRole).toString();
-        QHash<QString, QStringList> commitRefs;
-        QStringList branches = _bridge->getCommitBranches(guard, commitOid);
-        branches += _bridge->getCommitTags(guard, commitOid);
-        if (!branches.isEmpty()) {
-          commitRefs.insert(commitOid, branches);
-        }
-
-        _historyModel->updateCommitRefs(commitRefs);
-        _historyModel->dataChanged(index, index);
-
-        const QString tooltipText = branches.join(", ");
-        const qlonglong tooltipDisplayTime = _configManager.getLong(
-            ConfigManager::ConfigKey::TooltipDisplayTime);
-
-        _mousePos = globalPos;
-        QToolTip::showText(_mousePos, tooltipText, ui->historyView, {},
-                           tooltipDisplayTime);
+      if (_refBadgesOverlay) {
+        _refBadgesOverlay->setHoveredIndex(index);
       }
-      if (index.isValid() && index.column() != COLUMN_HISTORY_SLICE) {
-        const qlonglong tooltipDisplayTime = _configManager.getLong(
-            ConfigManager::ConfigKey::TooltipDisplayTime);
-
-        _mousePos = globalPos;
-        QToolTip::showText(_mousePos, index.data(Qt::DisplayRole).toString(),
-                           ui->historyView, {}, tooltipDisplayTime);
-      } else {
-        QToolTip::hideText();
+    } else if (event->type() == QEvent::Leave) {
+      if (_refBadgesOverlay) {
+        _refBadgesOverlay->clearIfCursorOutside();
       }
     } else if (event->type() == QEvent::MouseButtonPress) {
       if (const auto mouseEvent = static_cast<QMouseEvent *>(event);
@@ -2559,55 +2593,6 @@ void GitRepoContainer::onHistoryHeaderSectionResized(const int logicalIndex,
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoContainer::showTooltipForSummaryColumn(
-    const QModelIndex &index) const {
-  LOG_PERF(0, "Enter");
-
-  QString tooltipText = tr("Repository status:\n\n");
-  const auto statusFieldsMap =
-      index.data(StatusRole).value<Models::StatusFieldsMap>();
-  tooltipText += "New " +
-                 QString::number(statusFieldsMap[Models::StatusFields::New]) +
-                 "\n";
-  tooltipText +=
-      "Modified " +
-      QString::number(statusFieldsMap[Models::StatusFields::Modified]) + "\n";
-  tooltipText +=
-      "Deleted " +
-      QString::number(statusFieldsMap[Models::StatusFields::Deleted]) + "\n";
-  tooltipText +=
-      "Renamed " +
-      QString::number(statusFieldsMap[Models::StatusFields::Renamed]) + "\n";
-  tooltipText +=
-      "Staged new " +
-      QString::number(statusFieldsMap[Models::StatusFields::NewStaged]) + "\n";
-  tooltipText +=
-      "Staged  modified " +
-      QString::number(statusFieldsMap[Models::StatusFields::ModifiedStaged]) +
-      "\n";
-  tooltipText +=
-      "Staged deleted " +
-      QString::number(statusFieldsMap[Models::StatusFields::DeletedStaged]) +
-      "\n";
-  tooltipText +=
-      "Staged renamed " +
-      QString::number(statusFieldsMap[Models::StatusFields::RenamedStaged]) +
-      "\n";
-  tooltipText +=
-      "Ignored " +
-      QString::number(statusFieldsMap[Models::StatusFields::Ignored]) + "\n";
-  tooltipText +=
-      "Conflicted " +
-      QString::number(statusFieldsMap[Models::StatusFields::Conflicted]) + "\n";
-
-  const qlonglong tooltipDisplayTime =
-      _configManager.getLong(ConfigManager::ConfigKey::TooltipDisplayTime);
-
-  QToolTip::showText(_mousePos, tooltipText, nullptr, {}, tooltipDisplayTime);
-
-  LOG_PERF(0, "Exit");
-}
-
 void GitRepoContainer::onCheckoutCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Checkout commit requested: '{}'", commit.toStdString());
@@ -3266,8 +3251,16 @@ void GitRepoContainer::selectHistoryCommit(const QString &commit) {
       ui->historyView->selectRow(row);
       ui->historyView->setCurrentIndex(shaIndex);
       ui->historyView->scrollTo(shaIndex);
-      break;
+      LOG_PERF(0, "Exit");
+      return;
     }
+  }
+
+  // The commit may be on a page that has not been loaded yet. Load the next
+  // one, the search continues when it arrives.
+  if (_historyModel->canFetchMore(QModelIndex())) {
+    _pendingSelectCommit = commit;
+    _historyModel->fetchMore(QModelIndex());
   }
 
   LOG_PERF(0, "Exit");
@@ -3499,6 +3492,15 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   menu.addAction(&actionPush);
   menu.addSeparator();
 
+  // These work on a single branch, which is not the case while the history of
+  // all branches is shown.
+  if (_historyViewAll) {
+    actionPull.setEnabled(false);
+    actionPush.setEnabled(false);
+    actionRenameBranch.setEnabled(false);
+    resetMenu.setEnabled(false);
+  }
+
   if (!commit.isEmpty()) {
     menu.addAction(&actionCheckoutCommit);
     menu.addAction(&actionCopyShaToClipboard);
@@ -3523,28 +3525,6 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   }
 
   menu.exec(pos);
-
-  LOG_PERF(0, "Exit");
-}
-
-void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
-  LOG_PERF(0, "Enter");
-
-  if (!index.isValid()) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  if (index.column() == COLUMN_SUMMARY) {
-    const auto statusFieldsMap =
-        index.data(StatusRole).value<Models::StatusFieldsMap>();
-    if (index.row() == 0 && !statusFieldsMap.isEmpty()) {
-      LOG_DEBUG("Summary column tooltip requested with status fields");
-      showTooltipForSummaryColumn(index);
-      LOG_PERF(0, "Exit");
-      return;
-    }
-  }
 
   LOG_PERF(0, "Exit");
 }
@@ -3982,7 +3962,9 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
   LOG_DEBUG("Branch selected: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
 
-  if (!showWarningForBranchCheckout()) {
+  // The '*' item only changes the history that is shown, nothing is checked
+  // out, so there is nothing to warn about.
+  if (branchName != ALL_BRANCHES && !showWarningForBranchCheckout()) {
     LOG_DEBUG("Create branch cancelled by user");
     return;
   }
@@ -4006,6 +3988,12 @@ void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Branch right-clicked: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
+
+  if (branchName == ALL_BRANCHES) {
+    // Not a real branch: nothing to rename, delete or set upstream for.
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   QAction actionCheckoutBranch(tr("Checkout branch"), this);
   QAction actionRanameBranch(tr("Rename branch"), this);
@@ -5131,6 +5119,22 @@ void GitRepoContainer::persistHistoryColumnVisibility() {
   _configManager.save();
 
   LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::updateAllBranchesActions() {
+  const bool allBranches = _historyViewAll;
+
+  // Pull is left enabled, because its dropdown also has Fetch All; the
+  // pull items in it are disabled below.
+  if (_pushButton) {
+    _pushButton->setEnabled(!allBranches);
+  }
+
+  for (QAction *action : _singleBranchShortcutActions) {
+    if (action) {
+      action->setEnabled(!allBranches);
+    }
+  }
 }
 
 void GitRepoContainer::applyHistoryColumnVisibility() {
@@ -8484,17 +8488,12 @@ void GitRepoContainer::updateBranchHistory(
     const GitRepo::GitHistoryWithStatus &historyWithStatus) {
   LOG_PERF(0, "Enter");
 
-  _historyModel->updateHistoryAndStatus(
-      historyWithStatus, [=](const int progress) {
-        Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-          const QString progressStr = QString("%1%").arg(progress);
-          if (_spinnerOverlay) {
-            _spinnerOverlay->setText(progressStr);
-          }
-        });
-      });
-
+  // The model is owned by the GUI thread. Only the first page is shown here,
+  // the others are requested by the view while the user scrolls.
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _pendingSelectCommit.clear();
+    _historyModel->updateHistoryAndStatus(historyWithStatus);
+
     const bool hasHistoryRows =
         ui->historyView->model() &&
         ui->historyView->model()->rowCount(QModelIndex()) > 0;
@@ -8542,7 +8541,10 @@ void GitRepoContainer::updateLocalBranchesModelActiveBranch(
   _activeBranchType = GitRepo::BranchType::Local;
 
   if (const auto locked = guard.lock(); locked && updatePages) {
-    ui->localPage->updateActiveBranch(activeBranch);
+    // The '*' item stays highlighted while the history of all branches is
+    // shown, even though the checked out branch is tracked in _activeBranch.
+    ui->localPage->updateActiveBranch(_historyViewAll ? QString(ALL_BRANCHES)
+                                                      : activeBranch);
     ui->remotePage->updateActiveBranch(
         QString());                           // deselect remote branch if any
     ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
@@ -8607,7 +8609,8 @@ void GitRepoContainer::updateRemoteBranchesModelActiveBranch(
   _activeBranch = activeBranch;
   _activeBranchType = GitRepo::BranchType::Remote;
 
-  if (const auto locked = guard.lock(); locked && updatePages) {
+  if (const auto locked = guard.lock();
+      locked && updatePages && !_historyViewAll) {
     ui->remotePage->updateActiveBranch(activeBranch);
     ui->localPage->updateActiveBranch(
         QString());                           // deselect remote branch if any
@@ -8642,7 +8645,8 @@ void GitRepoContainer::updateTagsModelActiveTag(const WeakPtr &guard,
   _activeBranch = activeTag;
   _activeBranchType = GitRepo::BranchType::Tag;
 
-  if (const auto locked = guard.lock(); locked && updatePages) {
+  if (const auto locked = guard.lock();
+      locked && updatePages && !_historyViewAll) {
     ui->localPage->clearCached();
     ui->localPage->updateActiveBranch(
         QString()); // deselect local branch if any

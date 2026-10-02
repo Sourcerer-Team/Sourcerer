@@ -1,6 +1,5 @@
 #pragma once
 
-#include "models/GitHistoryModel.h"
 #include "widgets/ContainerWidget.h"
 #include "widgets/ElidedLabel.h"
 #include "widgets/ShortcutsToolbarWidget.h"
@@ -34,6 +33,7 @@
 #include <QTreeView>
 #include <QWidget>
 
+#include <atomic>
 #include <functional>
 #include <memory>
 
@@ -47,6 +47,7 @@ class GitCommitTreeModel;
 } // namespace GuiManager::Models
 
 namespace GuiManager::Widgets {
+class RefBadgesOverlay;
 class ScrollbarMarksWidget;
 }
 
@@ -54,6 +55,10 @@ class QEvent;
 class QCheckBox;
 class QLabel;
 class QNetworkAccessManager;
+
+namespace GuiManager::Models {
+class GitHistoryModel;
+}
 
 namespace GuiManager::Containers {
 
@@ -65,6 +70,7 @@ class GitRepoContainer final : public Widgets::ContainerWidget,
   Q_OBJECT
 
   friend class GitRepoManagerBridgeImpl;
+  friend class Models::GitHistoryModel;
 
   typedef QWeakPointer<GitRepoContainer> WeakPtr;
   typedef QSharedPointer<GitRepoContainer> SharedPtr;
@@ -120,8 +126,6 @@ private slots:
   void onHistoryHeaderSectionResized(int logicalIndex, int oldSize,
                                      int newSize);
 
-  void showTooltipForSummaryColumn(const QModelIndex &index) const;
-
   void onCheckoutCommit(const QString &commit);
   void onAbortButtonClicked();
   void onCommitButtonClicked();
@@ -152,7 +156,6 @@ private slots:
   void onHistorySelectionChanged(const QItemSelection &selected,
                                  const QItemSelection &deselected);
   void onHistoryViewRightClicked(const QModelIndex &index, const QPoint &pos);
-  void onHistoryViewItemEntered(const QModelIndex &index);
   void onListViewTabWidgetFlatSelected(const QModelIndex &index);
   void onListViewTabWidgetFlatSelectedFromCommit(const QModelIndex &index,
                                                  const QString &commit);
@@ -290,6 +293,7 @@ private:
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
   void applyHistoryColumnVisibility();
+  void updateAllBranchesActions();
   void persistHistoryColumnVisibility();
   void saveRepoInRecentList() const;
   void saveThreeWayMergeResultFile(const WeakPtr &guard,
@@ -359,6 +363,18 @@ private:
   QString _uuid;
   QString _path;
   QString _activeBranch;
+  // True while the history of all branches ('*' item) is shown. The checked
+  // out branch stays in _activeBranch, the history is requested for all
+  // branches instead of it.
+  std::atomic_bool _historyViewAll{false};
+  // Shortcuts bar items that need a single branch, so they are disabled
+  // while the history of all branches is shown.
+  QToolButton *_pullFetchButton{nullptr};
+  QToolButton *_pushButton{nullptr};
+  QVector<QAction *> _singleBranchShortcutActions;
+  // Commit the user asked for that is not loaded yet, selected once the
+  // history page containing it arrives.
+  QString _pendingSelectCommit;
   QString _lastDiffedCommit;
   QString _lastDiffedFilePath;
   QString _currentSignature;
@@ -371,6 +387,7 @@ private:
   Widgets::ToastHostWidget &_toastHost;
   QSharedPointer<Models::GitHistoryModel> _historyModel;
   QToolButton *_historyFilterButton;
+  Widgets::RefBadgesOverlay *_refBadgesOverlay;
   QPixmap *_errorPixmap;
   QNetworkAccessManager *_authorAvatarNetworkManager;
   QHash<QString, QPixmap> _authorAvatarCache;
@@ -382,10 +399,6 @@ private:
   Widgets::ElidedLabel *_authorNameValueLabel;
   Widgets::ElidedLabel *_authorEmailValueLabel;
   Util::Dispatcher _dispatcher;
-
-  Util::Mutex _tooltipsMutex;
-  QPoint _mousePos;
-  QSet<QString> _tooltipsToShow;
 
   Widgets::SpinnerOverlayWidget *_spinnerOverlay;
   QTimer *_spinnerOverlayTimer;

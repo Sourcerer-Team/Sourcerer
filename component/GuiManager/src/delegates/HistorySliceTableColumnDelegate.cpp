@@ -8,6 +8,80 @@
 
 namespace GuiManager::Delegates {
 
+// Lanes are normally as wide as the row is tall. The column width is derived
+// from the font height, which can be smaller than the row height, so shrink
+// the lanes when needed to keep every lane inside the column.
+int historyLaneWidth(const QRect &rect, const int laneCount) {
+  const int width = std::max(1, rect.height());
+  if (laneCount > 0 && rect.width() < laneCount * width) {
+    return std::max(1, rect.width() / laneCount);
+  }
+
+  return width;
+}
+
+namespace {
+
+QColor laneColor(const QVector<QColor> &palette, const int color) {
+  if (palette.isEmpty() || color < 0) {
+    return QColor(Qt::darkGreen);
+  }
+
+  return palette.at(color % palette.size());
+}
+
+// Geometry of one graph cell.
+struct Cell {
+  int left;
+  int top;
+  int width;
+  int height;
+
+  int right() const { return left + width; }
+  int bottom() const { return top + height; }
+  int centerX() const { return left + width / 2; }
+  int centerY() const { return top + height / 2; }
+
+  QPoint leftPoint() const { return {left, centerY()}; }
+  QPoint rightPoint() const { return {right(), centerY()}; }
+  QPoint topPoint() const { return {centerX(), top}; }
+  QPoint bottomPoint() const { return {centerX(), bottom()}; }
+  QPoint centerPoint() const { return {centerX(), centerY()}; }
+};
+
+QPen lanePen(const QColor &color) {
+  return QPen(QBrush(color), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+}
+
+void drawLine(QPainter *painter, const QColor &color, const QPoint &from,
+              const QPoint &to) {
+  painter->setPen(lanePen(color));
+  painter->drawLine(from, to);
+}
+
+// Quarter turn between the middle of a horizontal edge and the middle of a
+// vertical edge of the cell. The curve bends toward the cell center.
+void drawCorner(QPainter *painter, const QColor &color, const QPoint &horizontal,
+                const QPoint &vertical) {
+  QPainterPath path;
+  path.moveTo(horizontal);
+  path.quadTo(QPoint(vertical.x(), horizontal.y()), vertical);
+
+  painter->setPen(lanePen(color));
+  painter->setBrush(Qt::NoBrush);
+  painter->drawPath(path);
+}
+
+void drawNode(QPainter *painter, const Cell &cell, const QColor &color) {
+  const int radius = std::max(3, std::min(cell.width, cell.height) / 5);
+
+  painter->setPen(lanePen(color));
+  painter->setBrush(QBrush(color));
+  painter->drawEllipse(cell.centerPoint(), radius, radius);
+}
+
+} // namespace
+
 HistorySliceTableColumnDelegate::HistorySliceTableColumnDelegate(
     QObject *parent)
     : QStyledItemDelegate(parent) {}
@@ -76,284 +150,144 @@ void HistorySliceTableColumnDelegate::paintSlices(
     return;
   }
 
-  bool hasStatus = false;
-
-  if (index.row() == 1) {
-    const auto previousIndex = index.sibling(index.row() - 1, index.column());
-    hasStatus = !previousIndex.data(StatusRole)
-                     .value<Models::StatusFieldsMap>()
-                     .isEmpty();
-  }
-
-  const auto slices = index.data(Qt::DisplayRole).value<Models::Slices>();
-  if (slices.isEmpty()) {
+  const auto row = index.data(GraphRowRole).value<Util::GraphRow>();
+  if (row.isEmpty()) {
     paintDefault(painter, option, index);
     return;
   }
 
+  // The working tree row above is attached to this commit: continue its line
+  // into the commit.
+  bool attachedToStatus = false;
+  if (index.row() > 0 && index.data(WorkingTreeAnchorRole).toBool()) {
+    const auto previousIndex = index.sibling(index.row() - 1, index.column());
+    attachedToStatus = !previousIndex.data(StatusRole)
+                            .value<Models::StatusFieldsMap>()
+                            .isEmpty();
+  }
+
+  const QVector<QColor> palette =
+      StylesheetManager::StylesheetManager::graphLaneColors();
+
   QStyleOptionViewItem opt(option);
   initStyleOption(&opt, index);
 
-  const int cellHeight = opt.rect.height();
-  const int cellWidth = cellHeight;
-
   QStyledItemDelegate::paint(painter, opt, index);
+
+  const int cellHeight = opt.rect.height();
+  const int cellWidth = historyLaneWidth(
+      opt.rect,
+      static_cast<int>(index.data(HistorySliceWidthRole).value<qsizetype>()));
 
   painter->save();
   painter->setRenderHint(QPainter::Antialiasing, true);
-  painter->setPen(QPen(QBrush(Qt::darkGreen), 2, Qt::SolidLine, Qt::RoundCap,
-                       Qt::RoundJoin));
-  painter->setBrush(QBrush(Qt::darkGreen));
+  painter->setClipRect(opt.rect);
 
-  QRegion clipRegion(opt.rect);
-  painter->setClipRegion(clipRegion);
+  for (int i = 0; i < row.size(); ++i) {
+    const Util::GraphSlice &slice = row[i];
+    const Cell cell{opt.rect.left() + i * cellWidth, opt.rect.top(), cellWidth,
+                    cellHeight};
 
-  for (int i = 0; i < slices.size(); ++i) {
-    bool alreadyDrawnTopEdgeForStatus = false;
-    if (const Models::Slice &slice = slices[i];
-        slice.top && slice.left && !slice.right && !slice.bottom) {
-      if (slice.main) {
-        QList<QPoint> points;
+    // Cells entirely to the right of the visible area are not worth drawing.
+    if (cell.left > opt.rect.right()) {
+      break;
+    }
 
-        points += QPoint(opt.rect.left() + i * cellWidth,
-                         opt.rect.top() + cellHeight / 2);
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight / 2);
+    const bool hasNode = slice.node >= 0;
+    const bool hasTop = slice.top >= 0 || (hasNode && attachedToStatus);
+    const int topColor = slice.top >= 0 ? slice.top : slice.node;
 
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top());
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight / 2);
-
-        painter->drawLines(points);
-
-        const int centerX = opt.rect.x() + cellWidth / 2 + i * cellWidth;
-        const int centerY = opt.rect.y() + cellHeight / 2;
-        const int radius = qMin(cellWidth, cellHeight) / 6;
-        painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
-      } else {
-        const QPoint p0(opt.rect.left() + i * cellWidth - cellWidth / 2 - 1,
-                        opt.rect.top() - cellHeight / 2 - 1);
-        const QPoint p1(opt.rect.left() + (i + 1) * cellWidth - cellWidth / 2 -
-                            1,
-                        opt.rect.top() + cellHeight - cellHeight / 2 - 1);
-        const QRect rect(p0, p1);
-
-        constexpr int startAngle = 270 * 16;
-        constexpr int spanAngle = 90 * 16;
-
-        painter->drawArc(rect, startAngle, spanAngle);
+    if (hasNode) {
+      // Every edge of a commit cell runs from its dot.
+      if (hasTop) {
+        drawLine(painter, laneColor(palette, topColor), cell.topPoint(),
+                 cell.centerPoint());
       }
-    } else if (slice.top && slice.right && !slice.left && !slice.bottom) {
-      if (slice.main) {
-        QList<QPoint> points;
-
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top());
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight / 2);
-
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight / 2);
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth,
-                         opt.rect.top() + cellHeight / 2);
-
-        painter->drawLines(points);
-
-        const int centerX = opt.rect.x() + cellWidth / 2 + i * cellWidth;
-        const int centerY = opt.rect.y() + cellHeight / 2;
-        const int radius = qMin(cellWidth, cellHeight) / 6;
-        painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
-      } else {
-        const QPoint p0(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                        opt.rect.top() - cellHeight / 2 - 1);
-        const QPoint p1(opt.rect.left() + i * cellWidth + cellWidth +
-                            cellWidth / 2,
-                        opt.rect.top() + cellHeight - cellHeight / 2 - 1);
-        const QRect rect(p0, p1);
-
-        constexpr int startAngle = 180 * 16;
-        constexpr int spanAngle = 90 * 16;
-
-        painter->drawArc(rect, startAngle, spanAngle);
+      if (slice.bottom >= 0) {
+        drawLine(painter, laneColor(palette, slice.bottom), cell.centerPoint(),
+                 cell.bottomPoint());
       }
-    } else if (slice.bottom && slice.left && !slice.right && !slice.top) {
-      if (slice.main ||
-          (slice.main && hasStatus && !alreadyDrawnTopEdgeForStatus)) {
-        QList<QPoint> points;
+      if (slice.left >= 0) {
+        drawLine(painter, laneColor(palette, slice.left), cell.leftPoint(),
+                 cell.centerPoint());
+      }
+      if (slice.right >= 0) {
+        drawLine(painter, laneColor(palette, slice.right), cell.centerPoint(),
+                 cell.rightPoint());
+      }
 
-        if (hasStatus) {
-          points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                           opt.rect.top());
-          points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                           opt.rect.top() + cellHeight / 2);
+      drawNode(painter, cell, laneColor(palette, slice.node));
+      continue;
+    }
 
-          alreadyDrawnTopEdgeForStatus = true;
+    const bool hasBottom = slice.bottom >= 0;
+
+    if (hasTop && hasBottom) {
+      // A lane passing through; horizontal edges cross or end at it.
+      if (slice.top == slice.bottom) {
+        drawLine(painter, laneColor(palette, slice.top), cell.topPoint(),
+                 cell.bottomPoint());
+      } else {
+        drawLine(painter, laneColor(palette, slice.top), cell.topPoint(),
+                 cell.centerPoint());
+        drawLine(painter, laneColor(palette, slice.bottom), cell.centerPoint(),
+                 cell.bottomPoint());
+      }
+
+      if (slice.left >= 0) {
+        drawLine(painter, laneColor(palette, slice.left), cell.leftPoint(),
+                 cell.centerPoint());
+      }
+      if (slice.right >= 0) {
+        drawLine(painter, laneColor(palette, slice.right), cell.centerPoint(),
+                 cell.rightPoint());
+      }
+      continue;
+    }
+
+    bool leftDrawn = slice.left < 0;
+    bool rightDrawn = slice.right < 0;
+
+    if (hasTop || hasBottom) {
+      // A lane that starts or ends here. Horizontal edges turn into it: when
+      // there are two of them, both arc to the same vertical edge midpoint.
+      const int verticalColor = hasTop ? slice.top : slice.bottom;
+      const QPoint vertical = hasTop ? cell.topPoint() : cell.bottomPoint();
+      const QColor color = laneColor(palette, verticalColor);
+
+      if (slice.left >= 0 && slice.right >= 0) {
+        drawCorner(painter, laneColor(palette, slice.left), cell.leftPoint(),
+                   vertical);
+        drawCorner(painter, laneColor(palette, slice.right), cell.rightPoint(),
+                   vertical);
+        leftDrawn = true;
+        rightDrawn = true;
+
+        if (slice.left != verticalColor && slice.right != verticalColor) {
+          drawLine(painter, color, vertical, cell.centerPoint());
         }
-
-        points += QPoint(opt.rect.left() + i * cellWidth,
-                         opt.rect.top() + cellHeight / 2);
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight / 2);
-
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight / 2);
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight);
-
-        painter->drawLines(points);
-
-        const int centerX = opt.rect.x() + cellWidth / 2 + i * cellWidth;
-        const int centerY = opt.rect.y() + cellHeight / 2;
-        const int radius = qMin(cellWidth, cellHeight) / 6;
-        painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
+      } else if (slice.left == verticalColor) {
+        drawCorner(painter, color, cell.leftPoint(), vertical);
+        leftDrawn = true;
+      } else if (slice.right == verticalColor) {
+        drawCorner(painter, color, cell.rightPoint(), vertical);
+        rightDrawn = true;
       } else {
-        const QPoint p0(opt.rect.left() + i * cellWidth - cellWidth / 2 - 1,
-                        opt.rect.top() + cellHeight / 2);
-        const QPoint p1(opt.rect.left() + i * cellWidth + cellWidth -
-                            cellWidth / 2 - 1,
-                        opt.rect.top() + cellHeight + cellHeight / 2);
-        const QRect rect(p0, p1);
-
-        constexpr int startAngle = 90 * 16;
-        constexpr int spanAngle = -90 * 16;
-
-        painter->drawArc(rect, startAngle, spanAngle);
+        drawLine(painter, color, vertical, cell.centerPoint());
       }
-    } else if (slice.bottom && slice.right && !slice.left && !slice.top) {
-      if (slice.main ||
-          (slice.main && hasStatus && !alreadyDrawnTopEdgeForStatus)) {
-        QList<QPoint> points;
+    }
 
-        if (hasStatus) {
-          points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                           opt.rect.top());
-          points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                           opt.rect.top() + cellHeight / 2);
-
-          alreadyDrawnTopEdgeForStatus = true;
-        }
-
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight / 2);
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight);
-
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight / 2);
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth,
-                         opt.rect.top() + cellHeight / 2);
-
-        painter->drawLines(points);
-
-        const int centerX = opt.rect.x() + cellWidth / 2 + i * cellWidth;
-        const int centerY = opt.rect.y() + cellHeight / 2;
-        const int radius = qMin(cellWidth, cellHeight) / 6;
-        painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
-      } else {
-        const QPoint p0(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                        opt.rect.top() + cellHeight / 2);
-        const QPoint p1(opt.rect.left() + i * cellWidth + cellWidth +
-                            cellWidth / 2,
-                        opt.rect.top() + cellHeight + cellHeight / 2);
-        const QRect rect(p0, p1);
-
-        constexpr int startAngle = 180 * 16;
-        constexpr int spanAngle = -90 * 16;
-
-        painter->drawArc(rect, startAngle, spanAngle);
-      }
-    } else {
-      if (slice.left) {
-        QList<QPoint> points;
-        points += QPoint(opt.rect.left() + i * cellWidth,
-                         opt.rect.top() + cellHeight / 2);
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight / 2);
-
-        painter->drawLines(points);
-      }
-
-      if (slice.right) {
-        QList<QPoint> points;
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight / 2);
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth,
-                         opt.rect.top() + cellHeight / 2);
-
-        painter->drawLines(points);
-      }
-
-      if (slice.top || (slice.main && hasStatus)) {
-        QList<QPoint> points;
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top());
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight / 2);
-
-        painter->drawLines(points);
-      }
-
-      if (slice.bottom) {
-        QList<QPoint> points;
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight / 2);
-        points += QPoint(opt.rect.left() + i * cellWidth + cellWidth / 2,
-                         opt.rect.top() + cellHeight);
-
-        painter->drawLines(points);
-      }
-
-      if (slice.main) {
-        const int centerX = opt.rect.x() + cellWidth / 2 + i * cellWidth;
-        const int centerY = opt.rect.y() + cellHeight / 2;
-        const int radius = qMin(cellWidth, cellHeight) / 6;
-        painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
-      }
+    if (!leftDrawn) {
+      drawLine(painter, laneColor(palette, slice.left), cell.leftPoint(),
+               cell.centerPoint());
+    }
+    if (!rightDrawn) {
+      drawLine(painter, laneColor(palette, slice.right), cell.centerPoint(),
+               cell.rightPoint());
     }
   }
 
   painter->restore();
-
-  /*
-  const bool hovered = option.state.testFlag(QStyle::State_MouseOver);
-  if (hovered) {
-    const auto refs = index.data(CommitRefsRole).toStringList();
-    if (!refs.isEmpty()) {
-      painter->save();
-      painter->setRenderHint(QPainter::Antialiasing, true);
-      painter->setPen(QPen(
-          StylesheetManager::StylesheetManager::historyBadgeTextColor(), 1));
-      painter->setBrush(
-          StylesheetManager::StylesheetManager::historyBadgeFillColor());
-
-      QFont smallFont = painter->font();
-      smallFont.setPointSizeF(qMax(8.0, smallFont.pointSizeF() - 3.0));
-      painter->setFont(smallFont);
-
-      const int badgeHeight = qMax(12, (opt.rect.height() - 8) / 2);
-      const int gap = 4;
-      const int x = opt.rect.left() + 48;
-      int y = opt.rect.top() + opt.rect.height() / 2 - badgeHeight / 2 -
-                    (refs.length() / 2) * badgeHeight;
-
-      for (const QString &ref : refs) {
-        QFontMetrics fm(smallFont);
-        const int textWidth = fm.horizontalAdvance(ref);
-        const int badgeWidth = qMax(12, textWidth + 10);
-        const QRect badgeRect(x, y, badgeWidth, badgeHeight);
-
-        painter->drawRect(badgeRect);
-        painter->drawText(badgeRect.adjusted(4, 0, -4, 0), Qt::AlignCenter,
-                          ref);
-
-        y += badgeHeight + gap;
-      }
-
-      painter->restore();
-    }
-  }
-*/
 }
 
 void HistorySliceTableColumnDelegate::paintStatus(
@@ -364,18 +298,18 @@ void HistorySliceTableColumnDelegate::paintStatus(
     return;
   }
 
-  int avatarIndex = -1;
+  int anchorLane = -1;
+  int anchorColor = -1;
 
+  // Connect to the commit the working tree is based on, if it is the next row.
   const QModelIndex nextIndex = index.sibling(index.row() + 1, index.column());
-  if (nextIndex.isValid()) {
-    const QList<Models::Slice> slices =
-        nextIndex.data(Qt::DisplayRole).value<GuiManager::Models::Slices>();
-    if (!slices.isEmpty()) {
-      for (int i = 0; i < slices.size(); ++i) {
-        if (slices[i].main) {
-          avatarIndex = i;
-          break;
-        }
+  if (nextIndex.isValid() && nextIndex.data(WorkingTreeAnchorRole).toBool()) {
+    const auto row = nextIndex.data(GraphRowRole).value<Util::GraphRow>();
+    for (int i = 0; i < row.size(); ++i) {
+      if (row[i].node >= 0) {
+        anchorLane = i;
+        anchorColor = row[i].node;
+        break;
       }
     }
   }
@@ -384,40 +318,28 @@ void HistorySliceTableColumnDelegate::paintStatus(
   initStyleOption(&opt, index);
 
   const int cellHeight = opt.rect.height();
-  const int cellWidth = cellHeight;
+  const int cellWidth = historyLaneWidth(
+      opt.rect,
+      static_cast<int>(index.data(HistorySliceWidthRole).value<qsizetype>()));
 
   QStyledItemDelegate::paint(painter, opt, index);
 
   painter->save();
   painter->setRenderHint(QPainter::Antialiasing, true);
+  painter->setClipRect(opt.rect);
 
-  if (avatarIndex != -1) {
-    QList<QPoint> points;
-    points += QPoint(opt.rect.left() + avatarIndex * cellWidth + cellWidth / 2,
-                     opt.rect.top() + cellHeight / 2);
-    points += QPoint(opt.rect.left() + avatarIndex * cellWidth + cellWidth / 2,
-                     opt.rect.top() + cellHeight);
+  const int lane = std::max(0, anchorLane);
+  const Cell cell{opt.rect.left() + lane * cellWidth, opt.rect.top(), cellWidth,
+                  cellHeight};
 
-    painter->setPen(QPen(QBrush(Qt::darkGreen), 2, Qt::SolidLine, Qt::RoundCap,
-                         Qt::RoundJoin));
-    painter->setBrush(QBrush(Qt::darkGreen));
-
-    painter->drawLines(points);
+  if (anchorLane != -1) {
+    const QVector<QColor> palette =
+        StylesheetManager::StylesheetManager::graphLaneColors();
+    drawLine(painter, laneColor(palette, anchorColor), cell.centerPoint(),
+             cell.bottomPoint());
   }
 
-  if (avatarIndex == -1) {
-    avatarIndex = 0;
-  }
-
-  const int centerX = opt.rect.x() + cellWidth / 2 + avatarIndex * cellWidth;
-  const int centerY = opt.rect.y() + cellHeight / 2;
-  const int radius = qMin(cellWidth, cellHeight) / 6;
-
-  painter->setPen(QPen(QBrush(Qt::darkYellow), 2, Qt::SolidLine, Qt::RoundCap,
-                       Qt::RoundJoin));
-  painter->setBrush(QBrush(Qt::darkYellow));
-
-  painter->drawEllipse(QPoint(centerX, centerY), radius, radius);
+  drawNode(painter, cell, QColor(Qt::darkYellow));
 
   painter->restore();
 }

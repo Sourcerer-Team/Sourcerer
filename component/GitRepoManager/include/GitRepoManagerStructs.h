@@ -517,6 +517,7 @@ struct GitRepoGetBranchHistoryCommand final : GitRepoCommand {
 
   QString branchName;
   GitRepo::BranchType branchType = GitRepo::BranchType::Unknown;
+  int page = 0;
 };
 
 struct GitRepoGetIsMergeInProgressCommand final : GitRepoCommand {
