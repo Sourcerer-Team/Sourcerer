@@ -2727,7 +2727,7 @@ void ProcessingState::getBranchHistoryWorker(
   }
 
   const GitRepo::GitHistory history = GitRepo::getBranchHistory(
-      repo, command.branchName, command.branchType, *pQuit);
+      repo, command.branchName, command.branchType, command.page, *pQuit);
 
   bool quit = false;
 

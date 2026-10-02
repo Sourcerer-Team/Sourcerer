@@ -11,6 +11,11 @@
 
 #include <tuple>
 
+// Pseudo branch name that stands for the history of all branches.
+#ifndef ALL_BRANCHES
+#define ALL_BRANCHES "*"
+#endif
+
 namespace GitRepo {
 
 namespace Lfs {
@@ -512,17 +517,36 @@ enum class BisectMark : int {
   last
 };
 
+// One page of the repository history. Commits are ordered newest first and
+// every commit's parents are listed in commitInfos[sha].parents (parents may
+// live on a later page).
 struct GitHistory {
   bool valid = false;
   QVector<QString> commits;
   QMap<QString, GitCommitInfo> commitInfos;
   // Commit SHA to BisectMark. Empty if bisect is not in progress. Deliberately
   // not part of operator==, see GitHistoryModel::updateHistoryAndStatus.
+  // Filled on page 0 only.
   QHash<QString, int> bisectMarks;
+  // True if there are more commits after this page.
+  bool hasMore = false;
+  // Total number of commits in the history being paged.
+  qint64 total = 0;
+  // Filled on page 0 only: SHA of HEAD and, per tip commit SHA, the names of
+  // the refs pointing to it (local branches first, then remote branches
+  // without the remote prefix, then tags). The names are used as stable keys
+  // to choose graph colors, they are not part of operator==.
+  QString headCommit;
+  QHash<QString, QStringList> refTips;
+  // Filled on page 0 only: per tip commit SHA, the full names of the refs
+  // pointing to it (refs/heads/..., refs/remotes/..., refs/tags/...), used to
+  // show branch and tag badges. Not part of operator==.
+  QHash<QString, QStringList> refLabels;
 
   bool operator==(const GitHistory &other) const {
     return valid == other.valid && commits == other.commits &&
-           commitInfos == other.commitInfos;
+           commitInfos == other.commitInfos && hasMore == other.hasMore &&
+           total == other.total;
   }
 };
 
@@ -585,13 +609,30 @@ struct GitCommitStatus {
   QStringList untrackedFiles;
 };
 
+enum class BranchType {
+  Unknown = 0,
+
+  All,
+  Local,
+  Remote,
+  Tag,
+
+  last
+};
+
 struct GitHistoryWithStatus {
   ;
   GitHistory history;
   GitStatus status;
+  BranchType branchType = BranchType::Unknown;
+  QString branchName;
+  QString uuid;
+  int page = -1;
 
   bool operator==(const GitHistoryWithStatus &other) const {
-    return history == other.history && status == other.status;
+    return history == other.history && status == other.status &&
+           branchType == other.branchType && branchName == other.branchName &&
+           uuid == other.uuid && page == other.page;
   }
 };
 
@@ -680,16 +721,6 @@ struct RemoteInfo {
     }
     return RemoteTarget{QStringLiteral("Default"), fetchUrl, pushUrl};
   }
-};
-enum class BranchType {
-  Unknown = 0,
-
-  All,
-  Local,
-  Remote,
-  Tag,
-
-  last
 };
 
 enum class GitFlowBranchType {
@@ -892,7 +923,7 @@ git_repository *openRepository(const QString &path, const QString &author,
                                const QString &email);
 
 GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
-                            BranchType type, const bool &quitFlag);
+                            BranchType type, int page, const bool &quitFlag);
 
 QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
                               const bool &quitFlag);

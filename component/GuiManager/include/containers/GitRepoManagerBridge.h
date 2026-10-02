@@ -114,6 +114,14 @@ public:
                                     const GitRepo::BranchType branchType) = 0;
   virtual bool
   getBranchHistory(const QWeakPointer<GitRepoContainer> &guard) = 0;
+  // Loads page `page` of the history in the background and hands it to the
+  // history model on the GUI thread (GitHistoryModel::appendPage or
+  // GitHistoryModel::pageFailed).
+  virtual void
+  getBranchHistoryPage(const QWeakPointer<GitRepoContainer> &guard,
+                       const QString &branchName,
+                       GitRepo::BranchType branchType, int page,
+                       quint64 generation) = 0;
   virtual QStringList
   getCommitBranches(const QWeakPointer<GitRepoContainer> &guard,
                     const QString &commit) const = 0;

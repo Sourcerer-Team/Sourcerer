@@ -2336,6 +2336,22 @@ QColor StylesheetManager::historyBadgeTextColor() {
   return QColor::fromRgbF(text.redF(), text.greenF(), text.blueF(), 1.0);
 }
 
+QVector<QColor> StylesheetManager::graphLaneColors() {
+  switch (currentStylesheet()) {
+  case StylesheetKey::SourcererLight:
+    return {QColor("#1B7F3B"), QColor("#1F6FD1"), QColor("#C2410C"),
+            QColor("#8E44AD"), QColor("#B58900"), QColor("#0F8B8D"),
+            QColor("#C0392B"), QColor("#5D6D7E"), QColor("#D6336C"),
+            QColor("#6B8E23")};
+  case StylesheetKey::SourcererDark:
+  default:
+    return {QColor("#4CC470"), QColor("#5AA9FF"), QColor("#FF9F5A"),
+            QColor("#C792EA"), QColor("#E5C454"), QColor("#4DD0D2"),
+            QColor("#FF6B6B"), QColor("#9FB3C8"), QColor("#F783AC"),
+            QColor("#A9D86E")};
+  }
+}
+
 QString StylesheetManager::issueTrackerToolbarStyleSheet() {
   switch (currentStylesheet()) {
   case StylesheetKey::SourcererLight:
