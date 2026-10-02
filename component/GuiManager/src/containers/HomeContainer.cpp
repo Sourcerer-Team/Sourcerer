@@ -377,21 +377,47 @@ HomeContainer::HomeContainer(QWidget *parent)
   ui->tableViewIssueTrackerConnections->setColumnWidth(0, 24);
   ui->tableViewIssueTrackerConnections->setIconSize(QSize(16, 16));
 
+  const auto setupButtonIcon = [](QPushButton *button, const QString &path) {
+    button->setProperty("iconSource", path);
+    button->setIcon(QIcon(
+        StylesheetManager::StylesheetManager::renderSvgToPixmap(
+            path, StylesheetManager::StylesheetManager::
+                      menuBarButtonIconColor())));
+    button->setIconSize(QSize(16, 16));
+  };
+  setupButtonIcon(ui->openButton, QStringLiteral(":/icons/repo-open.svg"));
+  setupButtonIcon(ui->cloneButton, QStringLiteral(":/icons/repo-clone.svg"));
+  setupButtonIcon(ui->initButton, QStringLiteral(":/icons/repo-init.svg"));
+
   auto *connectToMenu = new QMenu(ui->connectToButton);
+  const auto addConnectToAction = [connectToMenu](const QString &text,
+                                                  const QString &iconPath) {
+    auto *action = connectToMenu->addAction(text);
+    action->setProperty("iconSource", iconPath);
+    action->setIcon(QIcon(
+        StylesheetManager::StylesheetManager::renderSvgToPixmap(
+            iconPath, StylesheetManager::StylesheetManager::
+                          menuBarButtonIconColor())));
+    return action;
+  };
   auto *githubIssueTrackerAction =
-      connectToMenu->addAction(tr("GitHub issue tracker"));
+      addConnectToAction(tr("GitHub issue tracker"),
+                         QStringLiteral(":/icons/issue-trackers/github.svg"));
   connect(githubIssueTrackerAction, &QAction::triggered, this,
           &HomeContainer::onGitHubIssueTrackerConnectClicked);
   auto *gitlabIssueTrackerAction =
-      connectToMenu->addAction(tr("GitLab issue tracker"));
+      addConnectToAction(tr("GitLab issue tracker"),
+                         QStringLiteral(":/icons/issue-trackers/gitlab.svg"));
   connect(gitlabIssueTrackerAction, &QAction::triggered, this,
           &HomeContainer::onGitLabIssueTrackerConnectClicked);
   auto *azureIssueTrackerAction =
-      connectToMenu->addAction(tr("Azure issue tracker"));
+      addConnectToAction(tr("Azure issue tracker"),
+                         QStringLiteral(":/icons/issue-trackers/azure.svg"));
   connect(azureIssueTrackerAction, &QAction::triggered, this,
           &HomeContainer::onAzureIssueTrackerConnectClicked);
-  auto *bitbucketIssueTrackerAction =
-      connectToMenu->addAction(tr("Bitbucket issue tracker"));
+  auto *bitbucketIssueTrackerAction = addConnectToAction(
+      tr("Bitbucket issue tracker"),
+      QStringLiteral(":/icons/issue-trackers/bitbucket.svg"));
   connect(bitbucketIssueTrackerAction, &QAction::triggered, this,
           &HomeContainer::onBitbucketOAuthConnectClicked);
 

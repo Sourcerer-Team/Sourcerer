@@ -69,6 +69,7 @@ protected:
 
 private:
   void applyTheme();
+  void updateTitleIcon(const QColor &color);
 
 #ifdef Q_OS_WIN
   /**
@@ -96,6 +97,7 @@ private slots:
 
 private:
   QWidget *_titleBar;
+  QLabel *_iconLabel;
   QLabel *_titleLabel;
   QPushButton *_closeButton;
 

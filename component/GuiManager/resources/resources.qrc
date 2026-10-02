@@ -3,6 +3,8 @@
         <file>icons/titlebar_menu.png</file>
         <file>icons/git_branch.png</file>
         <file>icons/git_remote.png</file>
+        <file>icons/git_remote.svg</file>
+        <file>icons/git_remote_target.svg</file>
         <file>icons/git_submodule.png</file>
         <file>icons/git_tag.png</file>
         <file>icons/git_branch_active.png</file>
@@ -63,6 +65,10 @@
         <file>icons/header-tags.svg</file>
         <file>icons/header-local-branches.svg</file>
         <file>icons/header-remote-branches.svg</file>
+        <file>icons/repo-open.svg</file>
+        <file>icons/repo-clone.svg</file>
+        <file>icons/repo-init.svg</file>
+        <file>icons/terminal.svg</file>
         <file>icons/settings.png</file>
     </qresource>
 </RCC>

@@ -58,8 +58,8 @@ QColor consoleCloseButtonIconColor(const ConsoleThemeColors &colors) {
 namespace GuiManager::Widgets {
 
 ConsoleWidget::ConsoleWidget(QWidget *parent)
-    : QWidget(parent), _titleBar(nullptr), _titleLabel(nullptr),
-      _closeButton(nullptr)
+    : QWidget(parent), _titleBar(nullptr), _iconLabel(nullptr),
+      _titleLabel(nullptr), _closeButton(nullptr)
 #ifdef Q_OS_WIN
       ,
       _powerShellWidget(nullptr)
@@ -85,6 +85,13 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
   _titleBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   _titleBar->setFixedHeight(28); // Fixed height for title bar
 
+  // Add terminal icon in the top left corner of the title bar
+  _iconLabel = new QLabel(_titleBar);
+  _iconLabel->setFixedSize(16, 16);
+  _iconLabel->setScaledContents(true);
+  _iconLabel->setStyleSheet("background: transparent; padding: 0px;");
+  updateTitleIcon(colors.titleBarText);
+
   // Add title label
   _titleLabel = new QLabel("Console", _titleBar);
   _titleLabel->setStyleSheet(
@@ -95,6 +102,7 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
   auto *titleBarLayout = new QHBoxLayout(_titleBar);
   titleBarLayout->setContentsMargins(8, 4, 4, 4);
   titleBarLayout->setSpacing(4);
+  titleBarLayout->addWidget(_iconLabel);
   titleBarLayout->addWidget(_titleLabel);
   titleBarLayout->addStretch();
 
@@ -252,6 +260,15 @@ void ConsoleWidget::setWorkingDirectory(const QString &path) {
   LOG_PERF(0, "Exit");
 }
 
+void ConsoleWidget::updateTitleIcon(const QColor &color) {
+  if (!_iconLabel) {
+    return;
+  }
+
+  _iconLabel->setPixmap(StylesheetManager::StylesheetManager::renderSvgToPixmap(
+      QStringLiteral(":/icons/terminal.svg"), color));
+}
+
 void ConsoleWidget::applyTheme() {
   const ConsoleThemeColors colors = consoleThemeColors();
 
@@ -265,6 +282,8 @@ void ConsoleWidget::applyTheme() {
         QString("color: %1; font-weight: bold; font-size: 12px;")
             .arg(colors.titleBarText.name()));
   }
+
+  updateTitleIcon(colors.titleBarText);
 
   if (_closeButton) {
     _closeButton->setStyleSheet(
