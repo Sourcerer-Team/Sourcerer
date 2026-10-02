@@ -190,6 +190,8 @@ MainWindow::MainWindow(QWidget *parent)
           &MainWindow::onConnectToAzureIssueTracker);
   connect(_topBarWidget, &TopBarWidget::connectToBitbucketIssueTracker, this,
           &MainWindow::onConnectToBitbucketIssueTracker);
+  connect(_topBarWidget, &TopBarWidget::connectToCustomIssueTracker, this,
+          &MainWindow::onConnectToCustomIssueTracker);
   connect(_topBarWidget, &TopBarWidget::settings, this,
           &MainWindow::onSettings);
   connect(_topBarWidget, &TopBarWidget::credentials, this,
@@ -538,6 +540,24 @@ void MainWindow::onConnectToBitbucketIssueTracker() {
     }
 
     QMetaObject::invokeMethod(homeContainer, "onBitbucketOAuthConnectClicked",
+                              Qt::QueuedConnection);
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onConnectToCustomIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  for (const auto &container : _containers) {
+    const auto homeContainer = qobject_cast<HomeContainer *>(container.get());
+    if (!homeContainer) {
+      continue;
+    }
+
+    QMetaObject::invokeMethod(homeContainer,
+                              "onCustomIssueTrackerConnectClicked",
                               Qt::QueuedConnection);
     break;
   }

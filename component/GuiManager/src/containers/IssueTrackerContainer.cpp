@@ -292,6 +292,16 @@ QUrl buildIssueTrackerUrl(const QString &serviceType,
     }
   }
 
+  if (normalized == QStringLiteral("custom")) {
+    const QUrl url(serviceHost.trimmed(), QUrl::StrictMode);
+    const QString scheme = url.scheme().toLower();
+    if (url.isValid() && !url.host().isEmpty() &&
+        (scheme == QStringLiteral("http") ||
+         scheme == QStringLiteral("https"))) {
+      return url;
+    }
+  }
+
   return QUrl();
 }
 
