@@ -37,6 +37,18 @@ struct Cell {
   QPoint centerPoint() const { return {centerX(), centerY()}; }
 };
 
+// Lanes are normally as wide as the row is tall. The column width is derived
+// from the font height, which can be smaller than the row height, so shrink
+// the lanes when needed to keep every lane inside the column.
+int laneWidth(const QRect &rect, const int laneCount) {
+  const int width = std::max(1, rect.height());
+  if (laneCount > 0 && rect.width() < laneCount * width) {
+    return std::max(1, rect.width() / laneCount);
+  }
+
+  return width;
+}
+
 QPen lanePen(const QColor &color) {
   return QPen(QBrush(color), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
 }
@@ -48,12 +60,12 @@ void drawLine(QPainter *painter, const QColor &color, const QPoint &from,
 }
 
 // Quarter turn between the middle of a horizontal edge and the middle of a
-// vertical edge of the cell.
+// vertical edge of the cell. The curve bends toward the cell center.
 void drawCorner(QPainter *painter, const QColor &color, const QPoint &horizontal,
                 const QPoint &vertical) {
   QPainterPath path;
   path.moveTo(horizontal);
-  path.quadTo(QPoint(horizontal.x(), vertical.y()), vertical);
+  path.quadTo(QPoint(vertical.x(), horizontal.y()), vertical);
 
   painter->setPen(lanePen(color));
   painter->setBrush(Qt::NoBrush);
@@ -163,7 +175,9 @@ void HistorySliceTableColumnDelegate::paintSlices(
   QStyledItemDelegate::paint(painter, opt, index);
 
   const int cellHeight = opt.rect.height();
-  const int cellWidth = cellHeight;
+  const int cellWidth = laneWidth(
+      opt.rect,
+      static_cast<int>(index.data(HistorySliceWidthRole).value<qsizetype>()));
 
   painter->save();
   painter->setRenderHint(QPainter::Antialiasing, true);
@@ -235,13 +249,24 @@ void HistorySliceTableColumnDelegate::paintSlices(
     bool rightDrawn = slice.right < 0;
 
     if (hasTop || hasBottom) {
-      // A lane that starts or ends here: it turns into the horizontal edge of
-      // its own color, if there is one.
+      // A lane that starts or ends here. Horizontal edges turn into it: when
+      // there are two of them, both arc to the same vertical edge midpoint.
       const int verticalColor = hasTop ? slice.top : slice.bottom;
       const QPoint vertical = hasTop ? cell.topPoint() : cell.bottomPoint();
       const QColor color = laneColor(palette, verticalColor);
 
-      if (slice.left == verticalColor) {
+      if (slice.left >= 0 && slice.right >= 0) {
+        drawCorner(painter, laneColor(palette, slice.left), cell.leftPoint(),
+                   vertical);
+        drawCorner(painter, laneColor(palette, slice.right), cell.rightPoint(),
+                   vertical);
+        leftDrawn = true;
+        rightDrawn = true;
+
+        if (slice.left != verticalColor && slice.right != verticalColor) {
+          drawLine(painter, color, vertical, cell.centerPoint());
+        }
+      } else if (slice.left == verticalColor) {
         drawCorner(painter, color, cell.leftPoint(), vertical);
         leftDrawn = true;
       } else if (slice.right == verticalColor) {
@@ -293,7 +318,9 @@ void HistorySliceTableColumnDelegate::paintStatus(
   initStyleOption(&opt, index);
 
   const int cellHeight = opt.rect.height();
-  const int cellWidth = cellHeight;
+  const int cellWidth = laneWidth(
+      opt.rect,
+      static_cast<int>(index.data(HistorySliceWidthRole).value<qsizetype>()));
 
   QStyledItemDelegate::paint(painter, opt, index);
 

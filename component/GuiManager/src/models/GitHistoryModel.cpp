@@ -469,7 +469,7 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
   const bool isStatusRow = sourceRow == 0 && _historyWithStatus.status.hasChanges();
 
   if (role == HistorySliceWidthRole) {
-    return isStatusRow ? 0 : _graphBuilder.maxLanes();
+    return _graphBuilder.maxLanes();
   }
 
   if (role == StatusRole) {
