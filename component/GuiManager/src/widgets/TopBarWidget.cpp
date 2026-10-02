@@ -162,6 +162,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
           &TopBarWidget::connectToAzureIssueTracker);
   connect(_titleBarWidget, &TitlebarWidget::connectToBitbucketIssueTracker,
           this, &TopBarWidget::connectToBitbucketIssueTracker);
+  connect(_titleBarWidget, &TitlebarWidget::connectToCustomIssueTracker, this,
+          &TopBarWidget::connectToCustomIssueTracker);
   connect(_titleBarWidget, &TitlebarWidget::settings, this,
           &TopBarWidget::settings);
   connect(_titleBarWidget, &TitlebarWidget::credentials, this,
@@ -172,6 +174,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
           &TopBarWidget::terminal);
   connect(_titleBarWidget, &TitlebarWidget::bugReport, this,
           &TopBarWidget::bugReport);
+  connect(_titleBarWidget, &TitlebarWidget::releaseNotes, this,
+          &TopBarWidget::releaseNotes);
   connect(_titleBarWidget, &TitlebarWidget::about, this, &TopBarWidget::about);
   connect(_titleBarWidget, &TitlebarWidget::themeChanged, this,
           &TopBarWidget::themeChanged);

@@ -75,6 +75,7 @@ private slots:
   void onConnectToGitLabIssueTracker();
   void onConnectToAzureIssueTracker();
   void onConnectToBitbucketIssueTracker();
+  void onConnectToCustomIssueTracker();
   void onIssueTrackerClicked(const QString &serviceType,
                              const QString &repositoryName);
   void onSettings();
@@ -84,6 +85,7 @@ private slots:
   void onTerminal();
   void onWorkspaceClicked(const QString &name);
   void onBugReport();
+  void onReleaseNotes();
   void onAbout() const;
   void onThemeChanged();
   void onClosedTab(int index);
@@ -108,6 +110,8 @@ private:
   void addInitGitRepoContainer();
   void addSettingsContainer();
   void addBugReportContainer();
+  void addReleaseNotesContainer(const QString &title, const QString &markdown);
+  void showReleaseNotesIfUpdated();
   void closeContainer(const ContainerWidget *container);
   void eventCallback(EventManager::Event event);
   void saveNewWorkspace();

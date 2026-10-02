@@ -52,6 +52,8 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::connectToAzureIssueTracker);
   connect(ui->menuButton, &TitleBarMenuButton::connectToBitbucketIssueTracker,
           this, &TitlebarWidget::connectToBitbucketIssueTracker);
+  connect(ui->menuButton, &TitleBarMenuButton::connectToCustomIssueTracker,
+          this, &TitlebarWidget::connectToCustomIssueTracker);
   connect(ui->menuButton, &TitleBarMenuButton::settings, this,
           &TitlebarWidget::onSettings);
   connect(ui->menuButton, &TitleBarMenuButton::credentials, this,
@@ -62,6 +64,8 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::onTerminal);
   connect(ui->menuButton, &TitleBarMenuButton::bugReport, this,
           &TitlebarWidget::onBugReport);
+  connect(ui->menuButton, &TitleBarMenuButton::releaseNotes, this,
+          &TitlebarWidget::releaseNotes);
   connect(ui->menuButton, &TitleBarMenuButton::about, this,
           &TitlebarWidget::onAbout);
   connect(ui->menuButton, &TitleBarMenuButton::themeChanged, this,

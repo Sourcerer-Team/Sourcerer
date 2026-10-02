@@ -34,9 +34,11 @@ TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
       _connectToGitHubIssueTrackerAction(nullptr),
       _connectToGitLabIssueTrackerAction(nullptr),
       _connectToAzureIssueTrackerAction(nullptr),
-      _connectToBitbucketIssueTrackerAction(nullptr), _settingsAction(nullptr),
+      _connectToBitbucketIssueTrackerAction(nullptr),
+      _connectToCustomIssueTrackerAction(nullptr), _settingsAction(nullptr),
       _credentialsAction(nullptr), _sshKeysAction(nullptr),
-      _terminalAction(nullptr), _aboutAction(nullptr) {
+      _terminalAction(nullptr), _aboutAction(nullptr),
+      _releaseNotesAction(nullptr) {
   LOG_PERF(0, "Enter");
 
   setMouseTracking(true);
@@ -144,6 +146,14 @@ void TitleBarMenuButton::onConnectToBitbucketIssueTracker() {
   LOG_PERF(0, "Exit");
 }
 
+void TitleBarMenuButton::onConnectToCustomIssueTracker() {
+  LOG_PERF(0, "Enter");
+
+  emit connectToCustomIssueTracker();
+
+  LOG_PERF(0, "Exit");
+}
+
 void TitleBarMenuButton::onSettings() {
   LOG_PERF(0, "Enter");
 
@@ -239,6 +249,11 @@ void TitleBarMenuButton::createActions() {
   connect(_connectToBitbucketIssueTrackerAction, &QAction::triggered, this,
           &TitleBarMenuButton::onConnectToBitbucketIssueTracker);
 
+  _connectToCustomIssueTrackerAction = new QAction(this);
+  _connectToCustomIssueTrackerAction->setText(tr("Custom URL issue tracker"));
+  connect(_connectToCustomIssueTrackerAction, &QAction::triggered, this,
+          &TitleBarMenuButton::onConnectToCustomIssueTracker);
+
   _settingsAction = new QAction(this);
   _settingsAction->setText(tr("Settings"));
   connect(_settingsAction, &QAction::triggered, this,
@@ -265,6 +280,11 @@ void TitleBarMenuButton::createActions() {
   _bugReportAction->setText(tr("Report bug"));
   connect(_bugReportAction, &QAction::triggered, this,
           &TitleBarMenuButton::onBugReport);
+
+  _releaseNotesAction = new QAction(this);
+  _releaseNotesAction->setText(tr("Release notes"));
+  connect(_releaseNotesAction, &QAction::triggered, this,
+          &TitleBarMenuButton::releaseNotes);
 
   _aboutAction = new QAction(this);
   _aboutAction->setText(tr("About"));
@@ -304,6 +324,7 @@ QMenu *TitleBarMenuButton::createMenu() {
   connectToMenu->addAction(_connectToGitLabIssueTrackerAction);
   connectToMenu->addAction(_connectToAzureIssueTrackerAction);
   connectToMenu->addAction(_connectToBitbucketIssueTrackerAction);
+  connectToMenu->addAction(_connectToCustomIssueTrackerAction);
   menu->addSeparator();
 
   auto *themesMenu = menu->addMenu(tr("Themes"));
@@ -344,10 +365,33 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addSeparator();
   menu->addAction(_settingsAction);
   menu->addAction(_bugReportAction);
+  menu->addAction(_releaseNotesAction);
   menu->addAction(_aboutAction);
 
   const auto menuColor =
       StylesheetManager::StylesheetManager::menuBarButtonIconColor();
+
+  const auto setActionIcon = [&menuColor](QAction *action,
+                                          const QString &path) {
+    action->setProperty("iconSource", path);
+    action->setIcon(
+        QIcon(StylesheetManager::StylesheetManager::renderSvgToPixmap(
+            path, menuColor)));
+  };
+  setActionIcon(_openAction, QStringLiteral(":/icons/repo-open.svg"));
+  setActionIcon(_cloneAction, QStringLiteral(":/icons/repo-clone.svg"));
+  setActionIcon(_initAction, QStringLiteral(":/icons/repo-init.svg"));
+  setActionIcon(_terminalAction, QStringLiteral(":/icons/terminal.svg"));
+  setActionIcon(_connectToGitHubIssueTrackerAction,
+                QStringLiteral(":/icons/issue-trackers/github.svg"));
+  setActionIcon(_connectToGitLabIssueTrackerAction,
+                QStringLiteral(":/icons/issue-trackers/gitlab.svg"));
+  setActionIcon(_connectToAzureIssueTrackerAction,
+                QStringLiteral(":/icons/issue-trackers/azure.svg"));
+  setActionIcon(_connectToBitbucketIssueTrackerAction,
+                QStringLiteral(":/icons/issue-trackers/bitbucket.svg"));
+  setActionIcon(_connectToCustomIssueTrackerAction,
+                QStringLiteral(":/icons/issue-trackers/custom.svg"));
 
   _settingsAction->setIcon(
       QIcon(StylesheetManager::StylesheetManager::recolorPixmap(

@@ -5,6 +5,7 @@
 #include <LockGuard.h>
 #include <ResizableMatrix.h>
 
+#include <QColor>
 #include <QDate>
 #include <QEnableSharedFromThis>
 
@@ -28,6 +29,7 @@
 #define HistorySliceWidthRole Qt::UserRole
 #define StatusRole (Qt::UserRole + 1)
 #define CommitRefsRole (Qt::UserRole + 2)
+#define BisectMarkRole (Qt::UserRole + 3)
 
 namespace GuiManager::Models {
 
@@ -52,6 +54,21 @@ enum class StatusFields {
 };
 
 typedef QMap<StatusFields, int> StatusFieldsMap;
+
+inline QColor bisectMarkColor(const int mark) {
+  switch (static_cast<GitRepo::BisectMark>(mark)) {
+  case GitRepo::BisectMark::Good:
+    return QColor(0x2E7D32);
+  case GitRepo::BisectMark::Bad:
+    return QColor(0xC62828);
+  case GitRepo::BisectMark::Skip:
+    return QColor(0x757575);
+  case GitRepo::BisectMark::Current:
+    return QColor(0x1565C0);
+  default:
+    return {};
+  }
+}
 
 struct Slice {
   QStringView toCommit;
@@ -115,6 +132,7 @@ public:
                       int role) const override;
 
 private:
+  int bisectMarkForSourceRow(int sourceRow) const;
   bool commitMatchesFilters(const QString &commit) const;
   void rebuildVisibleRows();
 
@@ -134,6 +152,7 @@ private:
   mutable Util::ResizableMatrix<Slice> _drawableSlices;
   QVector<int> _columnWidths;
   QHash<QString, QStringList> _commitRefs;
+  QHash<QString, int> _bisectMarks;
   QHash<int, QString> _filters;
   QDate _fromDate;
   QDate _toDate;

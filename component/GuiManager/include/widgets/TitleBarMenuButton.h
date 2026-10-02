@@ -33,11 +33,13 @@ signals:
   void connectToGitLabIssueTracker();
   void connectToAzureIssueTracker();
   void connectToBitbucketIssueTracker();
+  void connectToCustomIssueTracker();
   void settings();
   void credentials();
   void sshKeys();
   void terminal();
   void bugReport();
+  void releaseNotes();
   void about();
   void themeChanged();
 
@@ -51,6 +53,7 @@ private slots:
   void onConnectToGitLabIssueTracker();
   void onConnectToAzureIssueTracker();
   void onConnectToBitbucketIssueTracker();
+  void onConnectToCustomIssueTracker();
   void onSettings();
   void onCredentials();
   void onSshKeys();
@@ -74,12 +77,14 @@ private:
   QAction *_connectToGitLabIssueTrackerAction;
   QAction *_connectToAzureIssueTrackerAction;
   QAction *_connectToBitbucketIssueTrackerAction;
+  QAction *_connectToCustomIssueTrackerAction;
   QAction *_settingsAction;
   QAction *_credentialsAction;
   QAction *_sshKeysAction;
   QAction *_terminalAction;
   QAction *_bugReportAction;
   QAction *_aboutAction;
+  QAction *_releaseNotesAction;
 };
 
 } // namespace GuiManager::Widgets

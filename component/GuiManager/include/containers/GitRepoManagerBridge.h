@@ -139,6 +139,11 @@ public:
   virtual void rebase(const QWeakPointer<GitRepoContainer> &guard,
                       const QString &sourceBranch, const QString &destBranch,
                       bool signCommit) = 0;
+  virtual void squash(const QWeakPointer<GitRepoContainer> &guard,
+                      const QString &sourceBranch, const QString &destBranch,
+                      bool signCommit) = 0;
+  virtual void bisect(const QWeakPointer<GitRepoContainer> &guard,
+                      GitRepo::BisectAction action, const QString &commit) = 0;
   virtual void startGitFlowBranch(const QWeakPointer<GitRepoContainer> &guard,
                                   const GitRepo::GitFlowBranchType branchType,
                                   const QString &branchName) = 0;
