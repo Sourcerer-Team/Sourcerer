@@ -2,6 +2,7 @@
 
 #include "Constants.h"
 #include "GitRepoManagerStructs.h"
+#include "ReleaseNotes.h"
 #include "containers/BugReportContainer.h"
 #include "containers/CloneGitRepoContainer.h"
 #include "containers/GitCredentialsContainer.h"
@@ -11,6 +12,7 @@
 
 #include "containers/HomeContainer.h"
 #include "containers/InitGitRepoContainer.h"
+#include "containers/ReleaseNotesContainer.h"
 #include "containers/SettingsContainer.h"
 #include "dialogs/AboutDialog.h"
 #include "widgets/ErrorToast.h"
@@ -33,6 +35,8 @@
 #include <QJsonObject>
 #include <QSplitter>
 #include <QStandardPaths>
+#include <QTimer>
+#include <QVersionNumber>
 #include <QWindow>
 
 #include <QMessageBox>
@@ -96,6 +100,7 @@ using namespace Util;
 
 constexpr int TOP_MARGIN_OFFSET = -55;
 constexpr int PROFILE_WIDGET_ARROW_OFFSET = 32;
+constexpr auto LAST_RUN_VERSION_KEY = "app/lastRunVersion";
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), _current(-1), _centralWidget(new CentralWidget),
@@ -201,6 +206,8 @@ MainWindow::MainWindow(QWidget *parent)
           &MainWindow::onTerminal);
   connect(_topBarWidget, &TopBarWidget::bugReport, this,
           &MainWindow::onBugReport);
+  connect(_topBarWidget, &TopBarWidget::releaseNotes, this,
+          &MainWindow::onReleaseNotes);
   connect(_topBarWidget, &TopBarWidget::about, this, &MainWindow::onAbout);
   connect(_topBarWidget, &TopBarWidget::themeChanged, this,
           &MainWindow::onThemeChanged);
@@ -241,6 +248,8 @@ MainWindow::MainWindow(QWidget *parent)
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
   _eventManager.subscribe(
       CAPTURE_CALLBACK(EventManager::EventType::NewsTrackerNews, callbackFunc));
+
+  QTimer::singleShot(0, this, [this]() { showReleaseNotesIfUpdated(); });
 
   LOG_PERF(0, "Exit");
 }
@@ -1164,6 +1173,94 @@ void MainWindow::addBugReportContainer() {
 
   connect(container.get(), &BugReportContainer::close, this,
           [this, container]() { closeContainer(container.get()); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addReleaseNotesContainer(const QString &title,
+                                          const QString &markdown) {
+  LOG_PERF(0, "Enter");
+
+  int index = -1;
+
+  for (int i = 0; i < _containers.length(); ++i) {
+    if (_containers[i]->type() != ContainerType::ReleaseNotes) {
+      continue;
+    }
+
+    index = i;
+    break;
+  }
+
+  if (index == -1) {
+    const qlonglong titleBarHeight =
+        _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+    const auto container =
+        QSharedPointer<ReleaseNotesContainer>::create(title, markdown, this);
+    container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0,
+                                  0);
+    container->init();
+    container->selected();
+    container->setupShortcuts();
+    _containers += container;
+    _topBarWidget->titleBarWidget()->addTab(tr("What's new"));
+    _topBarWidget->titleBarWidget()->selectTab(
+        _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+    connect(container.get(), &ReleaseNotesContainer::close, this,
+            [this, container]() { closeContainer(container.get()); });
+  } else {
+    selectContainer(index);
+    _topBarWidget->titleBarWidget()->selectTab(index);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onReleaseNotes() {
+  LOG_PERF(0, "Enter");
+
+  const QString text = ReleaseNotes::sectionsBetween(
+      ReleaseNotes::load(), QString(), _configManager.getAppVersion());
+
+  if (text.trimmed().isEmpty()) {
+    showToast(tr("No release notes available."), tr("Info"));
+  } else {
+    addReleaseNotesContainer(tr("Release notes"), text);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::showReleaseNotesIfUpdated() {
+  LOG_PERF(0, "Enter");
+
+  const QString currentText = _configManager.getAppVersion();
+  const QString lastText = _configManager.getString(LAST_RUN_VERSION_KEY);
+
+  const QVersionNumber current = QVersionNumber::fromString(currentText);
+  const QVersionNumber last = QVersionNumber::fromString(lastText);
+
+  // Always remember the version that is running now.
+  if (lastText != currentText) {
+    _configManager.setString(LAST_RUN_VERSION_KEY, currentText);
+    _configManager.save();
+  }
+
+  // Fresh install, downgrade or unparsable version: nothing to show.
+  if (lastText.isEmpty() || current.isNull() || last.isNull() ||
+      last >= current) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString text = ReleaseNotes::sectionsBetween(ReleaseNotes::load(),
+                                                     lastText, currentText);
+
+  if (!text.trimmed().isEmpty()) {
+    addReleaseNotesContainer(tr("What's new in Sourcerer %1").arg(currentText),
+                             text);
+  }
 
   LOG_PERF(0, "Exit");
 }

@@ -40,6 +40,7 @@ signals:
   void sshKeys();
   void terminal();
   void bugReport();
+  void releaseNotes();
   void about();
   void themeChanged();
 

@@ -174,6 +174,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
           &TopBarWidget::terminal);
   connect(_titleBarWidget, &TitlebarWidget::bugReport, this,
           &TopBarWidget::bugReport);
+  connect(_titleBarWidget, &TitlebarWidget::releaseNotes, this,
+          &TopBarWidget::releaseNotes);
   connect(_titleBarWidget, &TitlebarWidget::about, this, &TopBarWidget::about);
   connect(_titleBarWidget, &TitlebarWidget::themeChanged, this,
           &TopBarWidget::themeChanged);
