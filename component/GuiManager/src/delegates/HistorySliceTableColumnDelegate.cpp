@@ -8,6 +8,18 @@
 
 namespace GuiManager::Delegates {
 
+// Lanes are normally as wide as the row is tall. The column width is derived
+// from the font height, which can be smaller than the row height, so shrink
+// the lanes when needed to keep every lane inside the column.
+int historyLaneWidth(const QRect &rect, const int laneCount) {
+  const int width = std::max(1, rect.height());
+  if (laneCount > 0 && rect.width() < laneCount * width) {
+    return std::max(1, rect.width() / laneCount);
+  }
+
+  return width;
+}
+
 namespace {
 
 QColor laneColor(const QVector<QColor> &palette, const int color) {
@@ -36,18 +48,6 @@ struct Cell {
   QPoint bottomPoint() const { return {centerX(), bottom()}; }
   QPoint centerPoint() const { return {centerX(), centerY()}; }
 };
-
-// Lanes are normally as wide as the row is tall. The column width is derived
-// from the font height, which can be smaller than the row height, so shrink
-// the lanes when needed to keep every lane inside the column.
-int laneWidth(const QRect &rect, const int laneCount) {
-  const int width = std::max(1, rect.height());
-  if (laneCount > 0 && rect.width() < laneCount * width) {
-    return std::max(1, rect.width() / laneCount);
-  }
-
-  return width;
-}
 
 QPen lanePen(const QColor &color) {
   return QPen(QBrush(color), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
@@ -175,7 +175,7 @@ void HistorySliceTableColumnDelegate::paintSlices(
   QStyledItemDelegate::paint(painter, opt, index);
 
   const int cellHeight = opt.rect.height();
-  const int cellWidth = laneWidth(
+  const int cellWidth = historyLaneWidth(
       opt.rect,
       static_cast<int>(index.data(HistorySliceWidthRole).value<qsizetype>()));
 
@@ -318,7 +318,7 @@ void HistorySliceTableColumnDelegate::paintStatus(
   initStyleOption(&opt, index);
 
   const int cellHeight = opt.rect.height();
-  const int cellWidth = laneWidth(
+  const int cellWidth = historyLaneWidth(
       opt.rect,
       static_cast<int>(index.data(HistorySliceWidthRole).value<qsizetype>()));
 

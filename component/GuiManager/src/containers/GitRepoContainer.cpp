@@ -22,6 +22,7 @@
 #include "widgets/ErrorToast.h"
 #include "widgets/InfoToast.h"
 #include "widgets/MultilineTextInputOverlayWidget.h"
+#include "widgets/RefBadgesOverlay.h"
 #include "widgets/RemotesPage.h"
 #include "widgets/ShortcutsToolbarWidget.h"
 #include "widgets/SideBySideDiffView.h"
@@ -83,6 +84,8 @@
 #include <QTextStream>
 #include <QTimer>
 #include <QToolButton>
+
+#include <QThreadPool>
 #include <QToolTip>
 #include <QUrl>
 #include <Qsci/qsciscintilla.h>
@@ -606,10 +609,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()),
-      _historyFilterButton(nullptr),
+      _historyFilterButton(nullptr), _refBadgesOverlay(nullptr),
       _authorAvatarNetworkManager(new QNetworkAccessManager(this)),
       _authorNameValueLabel(nullptr), _authorEmailValueLabel(nullptr),
-      _dispatcher(20), _mousePos(-1, -1),
+      _dispatcher(20),
       _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
@@ -688,6 +691,24 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->historyView->viewport()->installEventFilter(this);
   ui->historyView->setAttribute(Qt::WA_Hover, true);
   ui->historyView->viewport()->setAttribute(Qt::WA_Hover, true);
+  _refBadgesOverlay = new Widgets::RefBadgesOverlay(ui->historyView);
+  // The branches containing a commit take a while to compute, so they are
+  // looked up in the background and shown when ready.
+  _refBadgesOverlay->setRefsProvider([this](const QString &commit) {
+    const WeakPtr guard = getSelf().toWeakRef();
+    QThreadPool::globalInstance()->start([this, guard, commit]() {
+      QStringList refs;
+      for (const QString &branch : _bridge->getCommitBranches(guard, commit)) {
+        refs.push_back(QStringLiteral("refs/heads/") + branch);
+      }
+
+      Util::Dispatcher::dispatchToMainThread(guard, [this, commit, refs]() {
+        if (_refBadgesOverlay) {
+          _refBadgesOverlay->setExtraRefs(commit, refs);
+        }
+      });
+    });
+  });
 
   ui->historyView->setModel(_historyModel.get());
   ui->historyView->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -756,6 +777,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *header = new ClickableHeaderView(Qt::Horizontal, ui->historyView);
   ui->historyView->setHorizontalHeader(header);
+  _refBadgesOverlay->attach();
   ui->historyView->horizontalHeader()->setSectionResizeMode(
       QHeaderView::Interactive);
   ui->historyView->horizontalHeader()->setMinimumSectionSize(84);
@@ -1466,8 +1488,6 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           .toUtf8());
   ui->splitterStashContent->restoreState(stashSplitterState);
 
-  connect(ui->historyView, &QAbstractItemView::entered, this,
-          &GitRepoContainer::onHistoryViewItemEntered);
 
   connect(ui->splitter, &QSplitter::splitterMoved, this,
           &GitRepoContainer::onSplitterMoved);
@@ -1766,38 +1786,12 @@ bool GitRepoContainer::eventFilter(QObject *watched, QEvent *event) {
               static_cast<QMouseEvent *>(event));
       const QModelIndex index = ui->historyView->indexAt(
           ui->historyView->viewport()->mapFromGlobal(globalPos));
-      if (index.isValid() && index.column() == COLUMN_HISTORY_SLICE) {
-        const auto guard = getSelf().toWeakRef();
-        const QModelIndex fullShaIndex = index.model()->index(
-            index.row(), COLUMN_COMMIT_FULL_SHA, index.parent());
-        const QString commitOid = fullShaIndex.data(Qt::DisplayRole).toString();
-        QHash<QString, QStringList> commitRefs;
-        QStringList branches = _bridge->getCommitBranches(guard, commitOid);
-        branches += _bridge->getCommitTags(guard, commitOid);
-        if (!branches.isEmpty()) {
-          commitRefs.insert(commitOid, branches);
-        }
-
-        _historyModel->updateCommitRefs(commitRefs);
-        _historyModel->dataChanged(index, index);
-
-        const QString tooltipText = branches.join(", ");
-        const qlonglong tooltipDisplayTime = _configManager.getLong(
-            ConfigManager::ConfigKey::TooltipDisplayTime);
-
-        _mousePos = globalPos;
-        QToolTip::showText(_mousePos, tooltipText, ui->historyView, {},
-                           tooltipDisplayTime);
+      if (_refBadgesOverlay) {
+        _refBadgesOverlay->setHoveredIndex(index);
       }
-      if (index.isValid() && index.column() != COLUMN_HISTORY_SLICE) {
-        const qlonglong tooltipDisplayTime = _configManager.getLong(
-            ConfigManager::ConfigKey::TooltipDisplayTime);
-
-        _mousePos = globalPos;
-        QToolTip::showText(_mousePos, index.data(Qt::DisplayRole).toString(),
-                           ui->historyView, {}, tooltipDisplayTime);
-      } else {
-        QToolTip::hideText();
+    } else if (event->type() == QEvent::Leave) {
+      if (_refBadgesOverlay) {
+        _refBadgesOverlay->clearIfCursorOutside();
       }
     } else if (event->type() == QEvent::MouseButtonPress) {
       if (const auto mouseEvent = static_cast<QMouseEvent *>(event);
@@ -2580,55 +2574,6 @@ void GitRepoContainer::onHistoryHeaderSectionResized(const int logicalIndex,
       ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths,
       widths.join(','));
   _configManager.save();
-
-  LOG_PERF(0, "Exit");
-}
-
-void GitRepoContainer::showTooltipForSummaryColumn(
-    const QModelIndex &index) const {
-  LOG_PERF(0, "Enter");
-
-  QString tooltipText = tr("Repository status:\n\n");
-  const auto statusFieldsMap =
-      index.data(StatusRole).value<Models::StatusFieldsMap>();
-  tooltipText += "New " +
-                 QString::number(statusFieldsMap[Models::StatusFields::New]) +
-                 "\n";
-  tooltipText +=
-      "Modified " +
-      QString::number(statusFieldsMap[Models::StatusFields::Modified]) + "\n";
-  tooltipText +=
-      "Deleted " +
-      QString::number(statusFieldsMap[Models::StatusFields::Deleted]) + "\n";
-  tooltipText +=
-      "Renamed " +
-      QString::number(statusFieldsMap[Models::StatusFields::Renamed]) + "\n";
-  tooltipText +=
-      "Staged new " +
-      QString::number(statusFieldsMap[Models::StatusFields::NewStaged]) + "\n";
-  tooltipText +=
-      "Staged  modified " +
-      QString::number(statusFieldsMap[Models::StatusFields::ModifiedStaged]) +
-      "\n";
-  tooltipText +=
-      "Staged deleted " +
-      QString::number(statusFieldsMap[Models::StatusFields::DeletedStaged]) +
-      "\n";
-  tooltipText +=
-      "Staged renamed " +
-      QString::number(statusFieldsMap[Models::StatusFields::RenamedStaged]) +
-      "\n";
-  tooltipText +=
-      "Ignored " +
-      QString::number(statusFieldsMap[Models::StatusFields::Ignored]) + "\n";
-  tooltipText +=
-      "Conflicted " +
-      QString::number(statusFieldsMap[Models::StatusFields::Conflicted]) + "\n";
-
-  const qlonglong tooltipDisplayTime =
-      _configManager.getLong(ConfigManager::ConfigKey::TooltipDisplayTime);
-
-  QToolTip::showText(_mousePos, tooltipText, nullptr, {}, tooltipDisplayTime);
 
   LOG_PERF(0, "Exit");
 }
@@ -3556,28 +3501,6 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   }
 
   menu.exec(pos);
-
-  LOG_PERF(0, "Exit");
-}
-
-void GitRepoContainer::onHistoryViewItemEntered(const QModelIndex &index) {
-  LOG_PERF(0, "Enter");
-
-  if (!index.isValid()) {
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
-  if (index.column() == COLUMN_SUMMARY) {
-    const auto statusFieldsMap =
-        index.data(StatusRole).value<Models::StatusFieldsMap>();
-    if (index.row() == 0 && !statusFieldsMap.isEmpty()) {
-      LOG_DEBUG("Summary column tooltip requested with status fields");
-      showTooltipForSummaryColumn(index);
-      LOG_PERF(0, "Exit");
-      return;
-    }
-  }
 
   LOG_PERF(0, "Exit");
 }

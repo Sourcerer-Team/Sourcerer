@@ -47,6 +47,7 @@ class GitCommitTreeModel;
 } // namespace GuiManager::Models
 
 namespace GuiManager::Widgets {
+class RefBadgesOverlay;
 class ScrollbarMarksWidget;
 }
 
@@ -125,8 +126,6 @@ private slots:
   void onHistoryHeaderSectionResized(int logicalIndex, int oldSize,
                                      int newSize);
 
-  void showTooltipForSummaryColumn(const QModelIndex &index) const;
-
   void onCheckoutCommit(const QString &commit);
   void onAbortButtonClicked();
   void onCommitButtonClicked();
@@ -157,7 +156,6 @@ private slots:
   void onHistorySelectionChanged(const QItemSelection &selected,
                                  const QItemSelection &deselected);
   void onHistoryViewRightClicked(const QModelIndex &index, const QPoint &pos);
-  void onHistoryViewItemEntered(const QModelIndex &index);
   void onListViewTabWidgetFlatSelected(const QModelIndex &index);
   void onListViewTabWidgetFlatSelectedFromCommit(const QModelIndex &index,
                                                  const QString &commit);
@@ -383,6 +381,7 @@ private:
   Widgets::ToastHostWidget &_toastHost;
   QSharedPointer<Models::GitHistoryModel> _historyModel;
   QToolButton *_historyFilterButton;
+  Widgets::RefBadgesOverlay *_refBadgesOverlay;
   QPixmap *_errorPixmap;
   QNetworkAccessManager *_authorAvatarNetworkManager;
   QHash<QString, QPixmap> _authorAvatarCache;
@@ -394,10 +393,6 @@ private:
   Widgets::ElidedLabel *_authorNameValueLabel;
   Widgets::ElidedLabel *_authorEmailValueLabel;
   Util::Dispatcher _dispatcher;
-
-  Util::Mutex _tooltipsMutex;
-  QPoint _mousePos;
-  QSet<QString> _tooltipsToShow;
 
   Widgets::SpinnerOverlayWidget *_spinnerOverlay;
   QTimer *_spinnerOverlayTimer;

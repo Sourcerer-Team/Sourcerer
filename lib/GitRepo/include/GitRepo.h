@@ -538,6 +538,10 @@ struct GitHistory {
   // to choose graph colors, they are not part of operator==.
   QString headCommit;
   QHash<QString, QStringList> refTips;
+  // Filled on page 0 only: per tip commit SHA, the full names of the refs
+  // pointing to it (refs/heads/..., refs/remotes/..., refs/tags/...), used to
+  // show branch and tag badges. Not part of operator==.
+  QHash<QString, QStringList> refLabels;
 
   bool operator==(const GitHistory &other) const {
     return valid == other.valid && commits == other.commits &&

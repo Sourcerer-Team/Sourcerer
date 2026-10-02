@@ -110,6 +110,7 @@ struct HistoryCursor {
   QVector<git_oid> oids; // Newest first, children before parents.
   QString headCommit;
   QHash<QString, QStringList> refTips;
+  QHash<QString, QStringList> refLabels;
 };
 
 Util::Mutex gHistoryCursorsMutex;
@@ -6050,6 +6051,44 @@ static void collectHistoryRefs(git_repository *repo, const char *glob,
   out += found;
 }
 
+// Collects the full names of the refs matching the glob, per commit SHA.
+static void collectRefLabels(git_repository *repo, const char *glob,
+                             QHash<QString, QStringList> &out) {
+  git_reference_iterator *it = nullptr;
+  if (git_reference_iterator_glob_new(&it, repo, glob) != 0) {
+    return;
+  }
+
+  QVector<QPair<QString, QString>> found; // name, sha
+  git_reference *ref = nullptr;
+  while (git_reference_next(&ref, it) == 0) {
+    const char *name = git_reference_name(ref);
+
+    git_object *obj = nullptr;
+    if (name && git_reference_peel(&obj, ref, GIT_OBJECT_COMMIT) == 0) {
+      const QString fullName = QString::fromUtf8(name);
+      // Skip symbolic remote HEADs like refs/remotes/origin/HEAD.
+      if (!fullName.endsWith(QStringLiteral("/") + QLatin1String(HEAD))) {
+        found.push_back(
+            {fullName, QString::fromLatin1(git_oid_tostr_s(git_object_id(obj)))});
+      }
+    }
+
+    if (obj) {
+      git_object_free(obj);
+    }
+    git_reference_free(ref);
+  }
+  git_reference_iterator_free(it);
+
+  std::sort(found.begin(), found.end(),
+            [](const QPair<QString, QString> &a,
+               const QPair<QString, QString> &b) { return a.first < b.first; });
+  for (const auto &[name, sha] : found) {
+    out[sha].push_back(name);
+  }
+}
+
 // Builds the ordered list of commits (newest first, children before parents)
 // for the requested history. Returns null on failure.
 static QSharedPointer<HistoryCursor>
@@ -6109,6 +6148,10 @@ buildHistoryCursor(git_repository *repo, const QString &branchName,
   if (git_reference_name_to_id(&headOid, repo, HEAD) == 0) {
     cursor->headCommit = QString::fromLatin1(git_oid_tostr_s(&headOid));
   }
+
+  collectRefLabels(repo, "refs/heads/*", cursor->refLabels);
+  collectRefLabels(repo, "refs/remotes/*", cursor->refLabels);
+  collectRefLabels(repo, "refs/tags/*", cursor->refLabels);
 
   if (allRefs) {
     // Unreachable refs are ignored on purpose, the rest of the history is
@@ -6362,6 +6405,7 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
   if (page <= 0) {
     history_.headCommit = cursor->headCommit;
     history_.refTips = cursor->refTips;
+    history_.refLabels = cursor->refLabels;
     history_.bisectMarks = getBisectMarks(repo);
   }
 

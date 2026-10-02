@@ -34,12 +34,14 @@
 // Number of lanes of the graph, int.
 #define HistorySliceWidthRole Qt::UserRole
 #define StatusRole (Qt::UserRole + 1)
-#define CommitRefsRole (Qt::UserRole + 2)
 #define BisectMarkRole (Qt::UserRole + 3)
 // Util::GraphRow of a commit row.
 #define GraphRowRole (Qt::UserRole + 4)
 // bool, true for the commit the working tree status row is attached to.
 #define WorkingTreeAnchorRole (Qt::UserRole + 5)
+// QStringList of the full names (refs/heads/..., refs/remotes/...,
+// refs/tags/...) of the refs pointing to the commit of the row.
+#define RefBadgesRole (Qt::UserRole + 6)
 
 namespace GuiManager::Models {
 
@@ -134,8 +136,6 @@ public:
   /// Tells the model that a requested page could not be loaded.
   void pageFailed(quint64 generation);
 
-  void updateCommitRefs(const QHash<QString, QStringList> &commitRefs);
-
   GitRepo::GitHistoryWithStatus historyWithStatus() const {
     LOCKGUARD(_mutex);
     return _historyWithStatus;
@@ -191,9 +191,9 @@ private:
   QVector<Util::GraphRow> _graphRows;
   Util::CommitGraphBuilder _graphBuilder;
   QHash<QString, QStringList> _refTips;
+  QHash<QString, QStringList> _refLabels;
   QString _headCommit;
   QVector<int> _columnWidths;
-  QHash<QString, QStringList> _commitRefs;
   QHash<QString, int> _bisectMarks;
   QHash<int, QString> _filters;
   QDate _fromDate;

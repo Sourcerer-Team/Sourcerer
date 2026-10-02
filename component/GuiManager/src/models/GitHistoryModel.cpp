@@ -137,12 +137,6 @@ void GitHistoryModel::setFilter(const int column, const QString &filter) {
   endResetModel();
 }
 
-void GitHistoryModel::updateCommitRefs(
-    const QHash<QString, QStringList> &commitRefs) {
-  LOCKGUARD(_mutex);
-
-  _commitRefs.insert(commitRefs);
-}
 
 int GitHistoryModel::commitIndexForSourceRow(const int sourceRow) const {
   const int indexRow =
@@ -220,7 +214,7 @@ bool GitHistoryModel::isSameFirstPage(
       _historyWithStatus.branchName != other.branchName ||
       _historyWithStatus.branchType != other.branchType ||
       current.total != incoming.total || _headCommit != incoming.headCommit ||
-      _refTips != incoming.refTips ||
+      _refTips != incoming.refTips || _refLabels != incoming.refLabels ||
       current.commits.size() < incoming.commits.size()) {
     return false;
   }
@@ -317,6 +311,7 @@ void GitHistoryModel::updateHistoryAndStatus(
   _historyWithStatus = historyWithStatus;
   _historyWithStatus.page = 0;
   _refTips = historyWithStatus.history.refTips;
+  _refLabels = historyWithStatus.history.refLabels;
   _headCommit = historyWithStatus.history.headCommit;
   _hasMore = historyWithStatus.history.hasMore;
   _nextPage = 1;
@@ -503,13 +498,13 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
     return _historyWithStatus.history.commits.at(commitIndex) == _headCommit;
   }
 
-  if (role == CommitRefsRole) {
+  if (role == RefBadgesRole) {
     if (commitIndex < 0) {
       return {};
     }
 
     const QString &commit = _historyWithStatus.history.commits.at(commitIndex);
-    return _commitRefs.value(commit);
+    return _refLabels.value(commit);
   }
 
   if (role == BisectMarkRole) {

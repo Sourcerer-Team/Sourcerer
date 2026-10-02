@@ -148,6 +148,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/ShortcutsToolbarWidget.h
         include/widgets/SideBySideDiffView.h
         include/widgets/SpinnerDialog.h
+        include/widgets/RefBadgesOverlay.h
         include/widgets/SpinnerOverlayWidget.h
         include/widgets/StashesPage.h
         include/widgets/TextInputOverlayWidget.h
@@ -239,6 +240,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/ShadeIconToolbox.cpp
         src/widgets/ShortcutsToolbarWidget.cpp
         src/widgets/SideBySideDiffView.cpp
+        src/widgets/RefBadgesOverlay.cpp
         src/widgets/SpinnerOverlayWidget.cpp
         src/widgets/StashesPage.cpp
         src/widgets/TextInputOverlayWidget.cpp
