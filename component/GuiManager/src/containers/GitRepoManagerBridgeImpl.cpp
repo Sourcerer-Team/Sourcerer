@@ -4120,6 +4120,70 @@ void GitRepoManagerBridgeImpl::rebase(
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoManagerBridgeImpl::squash(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &sourceBranch,
+    const QString &destBranch, bool signCommit) {
+  LOG_PERF(0, "Enter");
+
+  const QString author = _container._userProfileManager.currentProfile().author;
+  const QString email = _container._userProfileManager.currentProfile().email;
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoSquashCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.sourceBranch = sourceBranch;
+  command.destinationBranch = destBranch;
+  command.author = author;
+  command.email = email;
+  command.signCommit = signCommit;
+
+  EventManager::Event squashEvent(EventManager::EventType::GitRepoManagerSquash,
+                                  eventUuid);
+  squashEvent.addData(command);
+  _container._eventManager.send(squashEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerSquashError,
+                           EventManager::EventType::GitRepoManagerSquashResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to squash branches."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerSquashResult) {
+    const auto error = event.data<GitRepoError>();
+    // Conflicts and failures can leave the working tree changed.
+    _container.refreshHistory(guard);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoManagerBridgeImpl::startGitFlowBranch(
     const QWeakPointer<GitRepoContainer> &guard,
     const GitRepo::GitFlowBranchType branchType, const QString &branchName) {

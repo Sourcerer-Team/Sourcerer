@@ -149,6 +149,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerRebase, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerSquash, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerPull, callbackFunc));
@@ -321,6 +323,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerMerge, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerRebase, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerSquash, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerOpenRepo, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -857,6 +861,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent rebaseEvent(EventType::Rebase);
     rebaseEvent.addParam(QVariant::fromValue(rebaseCommand));
     _fsm.send(rebaseEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerSquash: {
+    const auto squashCommand = event.data<GitRepoSquashCommand>();
+    GitRepoManagerEvent squashEvent(EventType::Squash);
+    squashEvent.addParam(QVariant::fromValue(squashCommand));
+    _fsm.send(squashEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerOpenRepo: {
