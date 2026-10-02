@@ -3888,8 +3888,8 @@ void GitRepoContainer::onLocalBranchMoved(const QString &sourceBranch,
   Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
     QMenu menu(this);
     QAction actionMerge(tr("Merge"), this);
-    QAction actionRebase(tr("Rebase"), this);
-    QAction actionSquash(tr("Squash"), this);
+    QAction actionRebase(tr("Rebase abd merge"), this);
+    QAction actionSquash(tr("Squash and merge"), this);
 
     menu.addAction(&actionMerge);
     menu.addAction(&actionRebase);
