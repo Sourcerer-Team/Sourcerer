@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QHash>
 #include <QMap>
 #include <QString>
 #include <QStringList>
@@ -366,6 +367,16 @@ enum class GitError : int {
   SquashBranchesFailedToWriteIndexTree,
   SquashBranchesFailedToLookupHeadCommit,
   SquashBranchesFailedToCleanupRepositoryState,
+  BisectInvalidArguments,
+  BisectRepositoryBusy,
+  BisectNotInProgress,
+  BisectFailedToResolveCommit,
+  BisectFailedToReadState,
+  BisectFailedToWriteState,
+  BisectFailedToWalkHistory,
+  BisectInvalidRange,
+  BisectFailedToCheckout,
+  BisectFailedToResetRepository,
   ListConflictsForAFileFailedToGetRepositoryIndex,
   ListConflictsForAFileFailedToCreateConflictIterator,
   AbortMergeFailedToCleanupRepositoryState,
@@ -489,10 +500,25 @@ struct GitCommitInfo {
   }
 };
 
+// How a commit takes part in a bisect session in progress.
+enum class BisectMark : int {
+  None = 0,
+  Good,
+  Bad,
+  Skip,
+  // Checked out for testing and not marked yet.
+  Current,
+
+  last
+};
+
 struct GitHistory {
   bool valid = false;
   QVector<QString> commits;
   QMap<QString, GitCommitInfo> commitInfos;
+  // Commit SHA to BisectMark. Empty if bisect is not in progress. Deliberately
+  // not part of operator==, see GitHistoryModel::updateHistoryAndStatus.
+  QHash<QString, int> bisectMarks;
 
   bool operator==(const GitHistory &other) const {
     return valid == other.valid && commits == other.commits &&
@@ -740,6 +766,36 @@ struct BlameReport {
   bool valid = false;
 };
 
+enum class BisectAction : int {
+  Good = 0,
+  Bad,
+  Skip,
+  Reset,
+
+  last
+};
+
+struct BisectStatus {
+  // A bisect session exists after the operation.
+  bool active = false;
+  // The first bad commit has been found.
+  bool finished = false;
+  // Only skipped commits are left, the first bad commit is one of them.
+  bool ambiguous = false;
+  // Both a good and a bad commit are needed before a commit can be tested.
+  bool waitingForGood = false;
+  bool waitingForBad = false;
+  // Commit checked out for testing.
+  QString currentCommit;
+  QString currentSummary;
+  // First bad commit when finished.
+  QString firstBadCommit;
+  QString firstBadSummary;
+  // Commits that are still candidates and the estimated steps left.
+  int remaining = 0;
+  int steps = 0;
+};
+
 GitErrorContext getLastError();
 
 void initForCurrentThread();
@@ -829,6 +885,15 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
 bool squashBranches(git_repository *repo, const QString &sourceBranch,
                     const QString &destinationBranch, const QString &author,
                     const QString &email, const bool signCommit);
+
+// Binary search for the commit that introduced a change. The state is kept
+// in the git directory (refs/bisect/*, BISECT_START, BISECT_LOG) so the
+// session is compatible with the git command line.
+bool bisect(git_repository *repo, BisectAction action, const QString &commit,
+            BisectStatus &status);
+
+// Commit SHA to BisectMark for the session in progress, empty otherwise.
+QHash<QString, int> getBisectMarks(git_repository *repo);
 
 git_repository *openRepository(const QString &path, const QString &author,
                                const QString &email);

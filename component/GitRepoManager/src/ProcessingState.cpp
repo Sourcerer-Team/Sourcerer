@@ -401,6 +401,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForSquash(squashCommand);
     break;
   }
+  case EventType::Bisect: {
+    const auto bisectCommand = event.nextParam<GitRepoBisectCommand>();
+    scheduleWorkerForBisect(bisectCommand);
+    break;
+  }
   case EventType::GitFlow: {
     const auto gitFlowCommand = event.nextParam<GitRepoGitFlowCommand>();
     scheduleWorkerForGitFlow(gitFlowCommand);
@@ -2090,6 +2095,46 @@ void ProcessingState::squashWorker(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::bisectWorker(
+    const Structs::GitRepoBisectCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerBisectError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  GitRepo::BisectStatus status;
+  const bool success =
+      GitRepo::bisect(repo, command.action, command.commit, status);
+  if (!success) {
+    const auto lastError = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerBisectError, command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerBisectResult, command.syncUuid);
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type, QVariant::fromValue(status)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::gitFlowWorker(
     const Structs::GitRepoGitFlowCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2207,6 +2252,25 @@ void ProcessingState::scheduleWorkerForSquash(
   }
 
   (*it)->commandsQueue.push(new GitRepoSquashCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForBisect(
+    const Structs::GitRepoBisectCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerBisectError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoBisectCommand(command));
 
   LOG_PERF(0, "Exit");
 }
@@ -5982,6 +6046,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoRebaseCommand *>(command);
       if (rebaseCommand) {
         rebaseWorker(*rebaseCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::Bisect: {
+      const auto *bisectCommand =
+          dynamic_cast<const GitRepoBisectCommand *>(command);
+      if (bisectCommand) {
+        bisectWorker(*bisectCommand);
       }
       break;
     }

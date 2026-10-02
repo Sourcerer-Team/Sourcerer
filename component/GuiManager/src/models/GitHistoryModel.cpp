@@ -5,6 +5,7 @@
 #include <Log.h>
 #include <Uuid.h>
 
+#include <QBrush>
 #include <QDateTime>
 #include <QFont>
 #include <QFontMetrics>
@@ -176,6 +177,21 @@ Util::ResizableMatrix<Slice> GitHistoryModel::patchedDrawableSlices(int count) {
   return slices;
 }
 
+int GitHistoryModel::bisectMarkForSourceRow(const int sourceRow) const {
+  if (_bisectMarks.isEmpty()) {
+    return static_cast<int>(GitRepo::BisectMark::None);
+  }
+
+  const int indexRow =
+      _historyWithStatus.status.hasChanges() ? sourceRow - 1 : sourceRow;
+  if (indexRow < 0 || indexRow >= _historyWithStatus.history.commits.count()) {
+    return static_cast<int>(GitRepo::BisectMark::None);
+  }
+
+  return _bisectMarks.value(_historyWithStatus.history.commits.at(indexRow),
+                            static_cast<int>(GitRepo::BisectMark::None));
+}
+
 bool GitHistoryModel::commitMatchesFilters(const QString &commit) const {
   const GitRepo::GitCommitInfo &commitInfo =
       _historyWithStatus.history.commitInfos.value(commit);
@@ -226,8 +242,19 @@ void GitHistoryModel::updateHistoryAndStatus(
 
   {
     LOCKGUARD(_mutex);
+
+    // Marks are not part of the history comparison below, so a change in them
+    // only needs a repaint and not a full rebuild.
+    const bool marksChanged =
+        _bisectMarks != historyWithStatus.history.bisectMarks;
+    _bisectMarks = historyWithStatus.history.bisectMarks;
+
     // Save us from updates with same data
     if (_historyWithStatus == historyWithStatus) {
+      if (marksChanged && !_visibleRows.isEmpty()) {
+        emit dataChanged(createIndex(0, COLUMN_FIRST),
+                         createIndex(_visibleRows.size() - 1, COLUMN_LAST));
+      }
       LOG_PERF(0, "Exit");
       return;
     }
@@ -394,6 +421,21 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
 
     const QString &commit = _historyWithStatus.history.commits.at(indexRow);
     return _commitRefs.value(commit);
+  }
+
+  if (role == BisectMarkRole) {
+    return bisectMarkForSourceRow(sourceRow);
+  }
+
+  if (role == Qt::BackgroundRole) {
+    const int mark = bisectMarkForSourceRow(sourceRow);
+    if (mark == static_cast<int>(GitRepo::BisectMark::None)) {
+      return {};
+    }
+
+    QColor color = bisectMarkColor(mark);
+    color.setAlpha(45);
+    return QBrush(color);
   }
 
   if (role != Qt::DisplayRole) {

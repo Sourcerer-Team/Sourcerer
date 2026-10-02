@@ -3436,6 +3436,10 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   QAction actionHardResetToCommit(tr("Hard reset"), this);
   QAction actionRevertCommit(tr("Revert"), this);
   QAction actionCherryPickCommit(tr("Cherry-pick"), this);
+  QAction actionBisectGood(tr("Mark as good"), this);
+  QAction actionBisectBad(tr("Mark as bad"), this);
+  QAction actionBisectSkip(tr("Skip"), this);
+  QAction actionBisectReset(tr("Reset bisect"), this);
   QAction actionApplyPatch(tr("Apply patch"), this);
   QAction actionRenameBranch(QString(tr("Rename %1")).arg(_activeBranch), this);
   QAction actionCreateTagFromCommit(tr("Create tag from commit"), this);
@@ -3462,6 +3466,14 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
           [=]() { onRevertCommit(commit); });
   connect(&actionCherryPickCommit, &QAction::triggered, this,
           [=]() { onCherryPickCommit(); });
+  connect(&actionBisectGood, &QAction::triggered, this,
+          [=]() { onBisect(GitRepo::BisectAction::Good, commit); });
+  connect(&actionBisectBad, &QAction::triggered, this,
+          [=]() { onBisect(GitRepo::BisectAction::Bad, commit); });
+  connect(&actionBisectSkip, &QAction::triggered, this,
+          [=]() { onBisect(GitRepo::BisectAction::Skip, commit); });
+  connect(&actionBisectReset, &QAction::triggered, this,
+          [=]() { onBisect(GitRepo::BisectAction::Reset, commit); });
   connect(&actionApplyPatch, &QAction::triggered, this,
           &GitRepoContainer::onApplyPatch);
   connect(&actionRenameBranch, &QAction::triggered, this,
@@ -3476,6 +3488,13 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   resetMenu.addAction(&actionMixedResetToCommit);
   resetMenu.addAction(&actionHardResetToCommit);
 
+  QMenu bisectMenu(tr("Bisect"), this);
+  bisectMenu.addAction(&actionBisectGood);
+  bisectMenu.addAction(&actionBisectBad);
+  bisectMenu.addAction(&actionBisectSkip);
+  bisectMenu.addSeparator();
+  bisectMenu.addAction(&actionBisectReset);
+
   QMenu menu(this);
   menu.addAction(&actionPull);
   menu.addAction(&actionPush);
@@ -3489,6 +3508,8 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
     menu.addMenu(&resetMenu);
     menu.addAction(&actionRevertCommit);
     menu.addAction(&actionCherryPickCommit);
+    menu.addSeparator();
+    menu.addMenu(&bisectMenu);
     menu.addSeparator();
   }
 
@@ -4904,6 +4925,24 @@ void GitRepoContainer::onCherryPickCommit() {
   inputOverlay->show();
   inputOverlay->raise();
 
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onBisect(GitRepo::BisectAction action,
+                                const QString &commit) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Bisect requested: action {} commit '{}' in repository '{}'",
+            static_cast<int>(action), commit.toStdString(),
+            _path.toStdString());
+
+  startOverlayTimer();
+  LOG_DEBUG("Spinner overlay timer started");
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { _bridge->bisect(guard, action, commit); });
+
+  LOG_DEBUG("Bisect operation dispatched");
   LOG_PERF(0, "Exit");
 }
 

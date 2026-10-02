@@ -70,6 +70,7 @@ enum class GitRepoCommandType : int {
   ListTags,
   Merge,
   Squash,
+  Bisect,
   GitFlow,
   Open,
   Pull,
@@ -663,6 +664,15 @@ struct GitRepoRebaseCommand final : GitRepoCommand {
   bool signCommit = false;
 };
 
+struct GitRepoBisectCommand final : GitRepoCommand {
+  GitRepoBisectCommand() : GitRepoCommand(GitRepoCommandType::Bisect) {}
+
+  ~GitRepoBisectCommand() override = default;
+
+  GitRepo::BisectAction action = GitRepo::BisectAction::Reset;
+  QString commit;
+};
+
 struct GitRepoSquashCommand final : GitRepoCommand {
   GitRepoSquashCommand() : GitRepoCommand(GitRepoCommandType::Squash) {}
 
@@ -959,5 +969,6 @@ Q_DECLARE_METATYPE(QVector<GitRepo::RemoteInfo>)
 Q_DECLARE_METATYPE(GitRepo::BlameLineInfo)
 Q_DECLARE_METATYPE(GitRepo::BlameFileInfo)
 Q_DECLARE_METATYPE(GitRepo::BlameReport)
+Q_DECLARE_METATYPE(GitRepo::BisectStatus)
 Q_DECLARE_METATYPE(GitRepoManager::Structs::GitRepoBlameCommand)
 Q_DECLARE_METATYPE(GitRepoManager::Structs::GitRepoBlameCommandResult)
