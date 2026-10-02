@@ -349,6 +349,26 @@ QMenu *TitleBarMenuButton::createMenu() {
   const auto menuColor =
       StylesheetManager::StylesheetManager::menuBarButtonIconColor();
 
+  const auto setActionIcon = [&menuColor](QAction *action,
+                                          const QString &path) {
+    action->setProperty("iconSource", path);
+    action->setIcon(QIcon(
+        StylesheetManager::StylesheetManager::renderSvgToPixmap(path,
+                                                                menuColor)));
+  };
+  setActionIcon(_openAction, QStringLiteral(":/icons/repo-open.svg"));
+  setActionIcon(_cloneAction, QStringLiteral(":/icons/repo-clone.svg"));
+  setActionIcon(_initAction, QStringLiteral(":/icons/repo-init.svg"));
+  setActionIcon(_terminalAction, QStringLiteral(":/icons/terminal.svg"));
+  setActionIcon(_connectToGitHubIssueTrackerAction,
+                QStringLiteral(":/icons/issue-trackers/github.svg"));
+  setActionIcon(_connectToGitLabIssueTrackerAction,
+                QStringLiteral(":/icons/issue-trackers/gitlab.svg"));
+  setActionIcon(_connectToAzureIssueTrackerAction,
+                QStringLiteral(":/icons/issue-trackers/azure.svg"));
+  setActionIcon(_connectToBitbucketIssueTrackerAction,
+                QStringLiteral(":/icons/issue-trackers/bitbucket.svg"));
+
   _settingsAction->setIcon(
       QIcon(StylesheetManager::StylesheetManager::recolorPixmap(
           QPixmap(QStringLiteral(":icons/settings.png")), menuColor)));
