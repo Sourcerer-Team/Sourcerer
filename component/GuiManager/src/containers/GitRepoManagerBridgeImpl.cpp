@@ -935,6 +935,7 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
     _container._historyViewAll = true;
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.updateAllBranchesActions();
       _container.ui->localPage->updateActiveBranch(QString(ALL_BRANCHES));
       _container.ui->remotePage->updateActiveBranch(QString());
       _container.ui->tagsPage->updateActiveTag(QString());
@@ -1014,6 +1015,7 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       // A real checkout leaves the history of all branches.
       _container._historyViewAll = false;
+      _container.updateAllBranchesActions();
       _container.updateModelActiveBranch(guard, result.branchName,
                                          result.branchType);
 

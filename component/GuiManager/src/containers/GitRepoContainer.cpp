@@ -1271,6 +1271,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   actionFinishHotfix->setIcon(themedIcon(":/icons/gitflow_finish.svg"));
   gitFlowDropdown->setMenu(gitFlowMenu);
 
+  _pullFetchButton = pullFetchDropdown;
+  _pushButton = pushButtonPush;
+  _singleBranchShortcutActions = {actionPullMenu,       actionPullWithRebaseMenu,
+                                  actionPushMenu,       actionForcePushMenu,
+                                  actionFinishFeature,  actionFinishRelease,
+                                  actionFinishHotfix};
+
   auto *pushButtonStash = new QPushButton();
   pushButtonStash->setObjectName("pushButtonStash");
   pushButtonStash->setProperty("iconSource", QStringLiteral(":icons/stash"));
@@ -1666,8 +1673,16 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(_repoDirWatcherTimer, &QTimer::timeout, this,
           &GitRepoContainer::onRepoDirChangedTimeout);
 
-  connect(pullFetchDropdown, &QToolButton::clicked, this,
-          &GitRepoContainer::onPull);
+  // With the history of all branches shown there is no single branch to pull
+  // into, so the button opens the menu, where Fetch All is still available.
+  connect(pullFetchDropdown, &QToolButton::clicked, this, [=](bool) {
+    if (_historyViewAll) {
+      pullFetchDropdown->showMenu();
+      return;
+    }
+
+    onPull();
+  });
   connect(actionPullMenu, &QAction::triggered, this, &GitRepoContainer::onPull);
   connect(actionPullWithRebaseMenu, &QAction::triggered, this,
           [=](bool) { onPull(true); });
@@ -3477,6 +3492,15 @@ void GitRepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   menu.addAction(&actionPush);
   menu.addSeparator();
 
+  // These work on a single branch, which is not the case while the history of
+  // all branches is shown.
+  if (_historyViewAll) {
+    actionPull.setEnabled(false);
+    actionPush.setEnabled(false);
+    actionRenameBranch.setEnabled(false);
+    resetMenu.setEnabled(false);
+  }
+
   if (!commit.isEmpty()) {
     menu.addAction(&actionCheckoutCommit);
     menu.addAction(&actionCopyShaToClipboard);
@@ -5095,6 +5119,22 @@ void GitRepoContainer::persistHistoryColumnVisibility() {
   _configManager.save();
 
   LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::updateAllBranchesActions() {
+  const bool allBranches = _historyViewAll;
+
+  // Pull is left enabled, because its dropdown also has Fetch All; the
+  // pull items in it are disabled below.
+  if (_pushButton) {
+    _pushButton->setEnabled(!allBranches);
+  }
+
+  for (QAction *action : _singleBranchShortcutActions) {
+    if (action) {
+      action->setEnabled(!allBranches);
+    }
+  }
 }
 
 void GitRepoContainer::applyHistoryColumnVisibility() {

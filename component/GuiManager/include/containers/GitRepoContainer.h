@@ -293,6 +293,7 @@ private:
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
   void applyHistoryColumnVisibility();
+  void updateAllBranchesActions();
   void persistHistoryColumnVisibility();
   void saveRepoInRecentList() const;
   void saveThreeWayMergeResultFile(const WeakPtr &guard,
@@ -366,6 +367,11 @@ private:
   // out branch stays in _activeBranch, the history is requested for all
   // branches instead of it.
   std::atomic_bool _historyViewAll{false};
+  // Shortcuts bar items that need a single branch, so they are disabled
+  // while the history of all branches is shown.
+  QToolButton *_pullFetchButton{nullptr};
+  QToolButton *_pushButton{nullptr};
+  QVector<QAction *> _singleBranchShortcutActions;
   // Commit the user asked for that is not loaded yet, selected once the
   // history page containing it arrives.
   QString _pendingSelectCommit;
