@@ -396,6 +396,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForRebase(rebaseCommand);
     break;
   }
+  case EventType::Squash: {
+    const auto squashCommand = event.nextParam<GitRepoSquashCommand>();
+    scheduleWorkerForSquash(squashCommand);
+    break;
+  }
   case EventType::GitFlow: {
     const auto gitFlowCommand = event.nextParam<GitRepoGitFlowCommand>();
     scheduleWorkerForGitFlow(gitFlowCommand);
@@ -2045,6 +2050,46 @@ void ProcessingState::rebaseWorker(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::squashWorker(
+    const Structs::GitRepoSquashCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerSquashError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::squashBranches(
+      repo, command.sourceBranch, command.destinationBranch, command.author,
+      command.email, command.signCommit);
+  if (!success) {
+    const auto lastError = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerSquashError, command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerSquashResult, command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::gitFlowWorker(
     const Structs::GitRepoGitFlowCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2143,6 +2188,25 @@ void ProcessingState::scheduleWorkerForRebase(
   }
 
   (*it)->commandsQueue.push(new GitRepoRebaseCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForSquash(
+    const Structs::GitRepoSquashCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerSquashError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoSquashCommand(command));
 
   LOG_PERF(0, "Exit");
 }
@@ -5918,6 +5982,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoRebaseCommand *>(command);
       if (rebaseCommand) {
         rebaseWorker(*rebaseCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::Squash: {
+      const auto *squashCommand =
+          dynamic_cast<const GitRepoSquashCommand *>(command);
+      if (squashCommand) {
+        squashWorker(*squashCommand);
       }
       break;
     }

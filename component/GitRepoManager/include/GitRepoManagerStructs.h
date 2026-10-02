@@ -69,6 +69,7 @@ enum class GitRepoCommandType : int {
   ListSubmodulesWithStatus,
   ListTags,
   Merge,
+  Squash,
   GitFlow,
   Open,
   Pull,
@@ -653,6 +654,18 @@ struct GitRepoRebaseCommand final : GitRepoCommand {
   GitRepoRebaseCommand() : GitRepoCommand(GitRepoCommandType::Rebase) {}
 
   ~GitRepoRebaseCommand() override = default;
+
+  QString sourceBranch;
+  QString destinationBranch;
+  QString author;
+  QString email;
+  bool signCommit = false;
+};
+
+struct GitRepoSquashCommand final : GitRepoCommand {
+  GitRepoSquashCommand() : GitRepoCommand(GitRepoCommandType::Squash) {}
+
+  ~GitRepoSquashCommand() override = default;
 
   QString sourceBranch;
   QString destinationBranch;

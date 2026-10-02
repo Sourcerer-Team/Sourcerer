@@ -351,6 +351,21 @@ enum class GitError : int {
   RebaseBranchesFailedToCommitRebaseStepWithConflicts,
   RebaseBranchesFailedToFinishRebase,
   RebaseBranchesFailedToAbortRebase,
+  SquashBranchesInvalidArguments,
+  SquashBranchesRepositoryBusy,
+  SquashBranchesFailedToLookupBranch,
+  SquashBranchesFailedToLookupDestinationBranch,
+  SquashBranchesFailedToPeelReference,
+  SquashBranchesFailedToCheckoutTree,
+  SquashBranchesFailedToSetHead,
+  SquashBranchesFailedToCreateAnnotatedCommit,
+  SquashBranchesFailedToAnalyzeMerge,
+  SquashBranchesFailedToMerge,
+  SquashBranchesFailedToGetRepositoryIndex,
+  SquashBranchesFailedWithConflicts,
+  SquashBranchesFailedToWriteIndexTree,
+  SquashBranchesFailedToLookupHeadCommit,
+  SquashBranchesFailedToCleanupRepositoryState,
   ListConflictsForAFileFailedToGetRepositoryIndex,
   ListConflictsForAFileFailedToCreateConflictIterator,
   AbortMergeFailedToCleanupRepositoryState,
@@ -801,6 +816,10 @@ bool merge(git_repository *repo, const QString &sourceBranch,
            const QString &destinationBranch, const QString &author,
            const QString &email);
 bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
+                    const QString &destinationBranch, const QString &author,
+                    const QString &email, const bool signCommit);
+
+bool squashBranches(git_repository *repo, const QString &sourceBranch,
                     const QString &destinationBranch, const QString &author,
                     const QString &email, const bool signCommit);
 
