@@ -564,6 +564,7 @@ QString makeDarkStylesheet() {
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#pushButtonClose,
       QPushButton#pushButtonSubmit{
         ba)__DARK_8__") +
          QStringLiteral(R"__DARK_9__(ckground-color: #006400;
@@ -571,6 +572,7 @@ QString makeDarkStylesheet() {
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#pushButtonClose:hover,
       QPushButton#pushButtonSubmit:hover{
         background-color: #008400;
         border: 1px solid gray;
@@ -1663,12 +1665,14 @@ QString makeLightStylesheet() {
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#pushButtonClose,
       QPushButton#pushButtonSubmit{
         background-color: #E7F5E7;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
+      QPushButton#pushButtonClose:hover,
       QPushButton#pushButtonSubmit:hover{
         background-color: #D7EFD7;
         border: 1px solid gray;

@@ -64,6 +64,8 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::onTerminal);
   connect(ui->menuButton, &TitleBarMenuButton::bugReport, this,
           &TitlebarWidget::onBugReport);
+  connect(ui->menuButton, &TitleBarMenuButton::releaseNotes, this,
+          &TitlebarWidget::releaseNotes);
   connect(ui->menuButton, &TitleBarMenuButton::about, this,
           &TitlebarWidget::onAbout);
   connect(ui->menuButton, &TitleBarMenuButton::themeChanged, this,

@@ -37,7 +37,8 @@ TitleBarMenuButton::TitleBarMenuButton(QWidget *parent)
       _connectToBitbucketIssueTrackerAction(nullptr),
       _connectToCustomIssueTrackerAction(nullptr), _settingsAction(nullptr),
       _credentialsAction(nullptr), _sshKeysAction(nullptr),
-      _terminalAction(nullptr), _aboutAction(nullptr) {
+      _terminalAction(nullptr), _aboutAction(nullptr),
+      _releaseNotesAction(nullptr) {
   LOG_PERF(0, "Enter");
 
   setMouseTracking(true);
@@ -280,6 +281,11 @@ void TitleBarMenuButton::createActions() {
   connect(_bugReportAction, &QAction::triggered, this,
           &TitleBarMenuButton::onBugReport);
 
+  _releaseNotesAction = new QAction(this);
+  _releaseNotesAction->setText(tr("Release notes"));
+  connect(_releaseNotesAction, &QAction::triggered, this,
+          &TitleBarMenuButton::releaseNotes);
+
   _aboutAction = new QAction(this);
   _aboutAction->setText(tr("About"));
   connect(_aboutAction, &QAction::triggered, this,
@@ -359,6 +365,7 @@ QMenu *TitleBarMenuButton::createMenu() {
   menu->addSeparator();
   menu->addAction(_settingsAction);
   menu->addAction(_bugReportAction);
+  menu->addAction(_releaseNotesAction);
   menu->addAction(_aboutAction);
 
   const auto menuColor =

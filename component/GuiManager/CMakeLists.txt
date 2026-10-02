@@ -27,6 +27,7 @@ set(UI_FILES
         src/containers/InitGitRepoContainer.ui
         src/containers/IssueTrackerContainer.ui
         src/containers/PleaseWaitContainer.ui
+        src/containers/ReleaseNotesContainer.ui
         src/containers/SettingsContainer.ui
         src/dialogs/AboutDialog.ui
         src/widgets/GitSubmodulesPage.ui
@@ -64,6 +65,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/MainWindow.h
         include/MousePositionCorrection.h
         include/QScintillaLexerFactory.h
+        include/ReleaseNotes.h
         include/containers/BugReportContainer.h
         include/containers/CloneGitRepoContainer.h
         include/containers/GitCredentialsContainer.h
@@ -75,6 +77,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/containers/InitGitRepoContainer.h
         include/containers/IssueTrackerContainer.h
         include/containers/PleaseWaitContainer.h
+        include/containers/ReleaseNotesContainer.h
         include/containers/SettingsContainer.h
         include/delegates/ElideDelegate.h
         include/delegates/ElidePartialColorDelegate.h
@@ -169,6 +172,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/MainWindow.cpp
         src/MousePositionCorrection.cpp
         src/QScintillaLexerFactory.cpp
+        src/ReleaseNotes.cpp
         src/containers/BugReportContainer.cpp
         src/containers/CloneGitRepoContainer.cpp
         src/containers/GitCredentialsContainer.cpp
@@ -179,6 +183,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/containers/InitGitRepoContainer.cpp
         src/containers/IssueTrackerContainer.cpp
         src/containers/PleaseWaitContainer.cpp
+        src/containers/ReleaseNotesContainer.cpp
         src/containers/SettingsContainer.cpp
         src/delegates/HistorySliceTableColumnDelegate.cpp
         src/delegates/HistorySummaryTableColumnDelegate.cpp

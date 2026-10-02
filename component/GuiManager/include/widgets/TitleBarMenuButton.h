@@ -39,6 +39,7 @@ signals:
   void sshKeys();
   void terminal();
   void bugReport();
+  void releaseNotes();
   void about();
   void themeChanged();
 
@@ -83,6 +84,7 @@ private:
   QAction *_terminalAction;
   QAction *_bugReportAction;
   QAction *_aboutAction;
+  QAction *_releaseNotesAction;
 };
 
 } // namespace GuiManager::Widgets
