@@ -1392,7 +1392,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       StylesheetManager::StylesheetManager::currentStylesheet() ==
       StylesheetManager::StylesheetKey::SourcererLight;
   const QColor hunkMarkerColor =
-      lightTheme ? QColor(255, 241, 201) : QColor(Qt::darkYellow);
+      lightTheme ? QColor(255, 241, 201) : QColor(0x4d4021);
   ui->scintillaTextEditorUnified->setMarkerBackgroundColor(hunkMarkerColor, 1);
   ui->scintillaTextEditorUnified->setReadOnly(true);
 
