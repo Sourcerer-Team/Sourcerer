@@ -162,21 +162,6 @@ int GitHistoryModel::bisectMarkForSourceRow(const int sourceRow) const {
                             static_cast<int>(GitRepo::BisectMark::None));
 }
 
-int GitHistoryModel::bisectMarkForSourceRow(const int sourceRow) const {
-  if (_bisectMarks.isEmpty()) {
-    return static_cast<int>(GitRepo::BisectMark::None);
-  }
-
-  const int indexRow =
-      _historyWithStatus.status.hasChanges() ? sourceRow - 1 : sourceRow;
-  if (indexRow < 0 || indexRow >= _historyWithStatus.history.commits.count()) {
-    return static_cast<int>(GitRepo::BisectMark::None);
-  }
-
-  return _bisectMarks.value(_historyWithStatus.history.commits.at(indexRow),
-                            static_cast<int>(GitRepo::BisectMark::None));
-}
-
 bool GitHistoryModel::commitMatchesFilters(const QString &commit) const {
   const GitRepo::GitCommitInfo &commitInfo =
       _historyWithStatus.history.commitInfos.value(commit);
