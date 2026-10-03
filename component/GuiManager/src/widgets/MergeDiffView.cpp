@@ -180,9 +180,9 @@ void MergeDiffView::refreshScintillaTheme() {
       StylesheetManager::StylesheetManager::currentStylesheet() ==
       StylesheetManager::StylesheetKey::SourcererLight;
   const QColor deletedColor =
-      lightTheme ? QColor(255, 231, 231) : QColor(0x3b1313);
+      lightTheme ? QColor(255, 231, 231) : QColor(0x4a2327);
   const QColor addedColor =
-      lightTheme ? QColor(232, 246, 232) : QColor(0x133b13);
+      lightTheme ? QColor(232, 246, 232) : QColor(0x1f3d2b);
   const QColor plusColor =
       lightTheme ? QColor(200, 230, 251) : QColor(0xc8e6c9);
   const QColor rightPlusColor =
@@ -190,7 +190,7 @@ void MergeDiffView::refreshScintillaTheme() {
   const QColor marginColor =
       lightTheme ? QColor(243, 246, 248) : QColor(0x23272e);
   const QColor changedColor =
-      lightTheme ? QColor(255, 241, 201) : QColor(Qt::darkYellow);
+      lightTheme ? QColor(255, 241, 201) : QColor(0x4d4021);
 
   _leftEditor->setMarginsBackgroundColor(marginColor);
   _rightEditor->setMarginsBackgroundColor(marginColor);
