@@ -1,4 +1,5 @@
 
+
 ## 1.0.36
 
 Sourcerer 1.0.36 reworks how the commit history is loaded and drawn. It is faster on large repositories and easier to read.
@@ -19,7 +20,6 @@ Sourcerer 1.0.36 reworks how the commit history is loaded and drawn. It is faste
 - Fixed a join between two branches where the right-hand branch wasn't connected to the join.
 - Fixed junctions where the two arcs weren't merged into one: the arc from middle left to middle top and the line from middle right now join at the middle top.
 
----
 
 ## 1.0.35
 
@@ -35,7 +35,6 @@ Sourcerer 1.0.36 reworks how the commit history is loaded and drawn. It is faste
 
 - No fixes in this release.
 
----
 
 ## 1.0.34
 

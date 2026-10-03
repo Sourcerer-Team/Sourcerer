@@ -38,7 +38,8 @@ QVector<Section> parseSections(const QString &markdown) {
 
   const auto flush = [&]() {
     if (inSection && !current.version.isNull()) {
-      current.text = current.text.trimmed();
+      // Trailing empty lines are part of the section: they are the spacing
+      // the author put between the versions.
       sections.append(current);
     }
     current = Section();
@@ -70,6 +71,47 @@ QVector<Section> parseSections(const QString &markdown) {
   flush();
 
   return sections;
+}
+
+// Markdown collapses any number of empty lines into one paragraph break. Every
+// empty line after the first one is turned into a paragraph holding a no-break
+// space, which is rendered as an empty line, so the spacing written in the
+// release notes file is kept. Empty lines in code fences are left alone, and
+// the ones at the start and at the end are dropped.
+QString preserveEmptyLines(const QString &markdown) {
+  const QChar nbsp(0x00A0);
+
+  QStringList out;
+  bool inCodeFence = false;
+  int emptyLines = 0;
+
+  const QStringList lines = markdown.split(QLatin1Char('\n'));
+  for (const QString &rawLine : lines) {
+    const QString line =
+        rawLine.endsWith(QLatin1Char('\r')) ? rawLine.chopped(1) : rawLine;
+
+    if (!inCodeFence && line.trimmed().isEmpty()) {
+      ++emptyLines;
+      continue;
+    }
+
+    if (emptyLines > 0 && !out.isEmpty()) {
+      out.append(QString());
+      for (int i = 0; i < emptyLines; ++i) {
+        out.append(QString(nbsp));
+        out.append(QString());
+      }
+    }
+    emptyLines = 0;
+
+    if (line.trimmed().startsWith(QLatin1String("```"))) {
+      inCodeFence = !inCodeFence;
+    }
+
+    out.append(line);
+  }
+
+  return out.join(QLatin1Char('\n'));
 }
 
 } // namespace
@@ -122,7 +164,7 @@ QString sectionsBetween(const QString &markdown, const QString &lastVersion,
   }
 
   LOG_PERF(0, "Exit");
-  return texts.join(QStringLiteral("\n\n"));
+  return preserveEmptyLines(texts.join(QString()));
 }
 
 } // namespace GuiManager::ReleaseNotes
