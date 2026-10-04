@@ -1389,18 +1389,19 @@ void MainWindow::eventCallback(EventManager::Event event) {
         } else {
           overlayWidget = new SshPassphraseOverlayWidget(request.id, parent);
           _passphraseWidgets[request.id] = overlayWidget;
+          connect(overlayWidget, &SshPassphraseOverlayWidget::error, this,
+                  [=]() {
+                    hidePassphraseOverlay(overlayWidget);
+                    _passphraseWidgets.remove(request.id);
+                    delete overlayWidget;
+                  });
+          connect(overlayWidget, &SshPassphraseOverlayWidget::finished, this,
+                  [=]() {
+                    hidePassphraseOverlay(overlayWidget);
+                    _passphraseWidgets.remove(request.id);
+                    delete overlayWidget;
+                  });
         }
-        connect(overlayWidget, &SshPassphraseOverlayWidget::error, this, [=]() {
-          hidePassphraseOverlay(overlayWidget);
-          _passphraseWidgets.remove(request.id);
-          delete overlayWidget;
-        });
-        connect(overlayWidget, &SshPassphraseOverlayWidget::finished, this,
-                [=]() {
-                  hidePassphraseOverlay(overlayWidget);
-                  _passphraseWidgets.remove(request.id);
-                  delete overlayWidget;
-                });
         showPassphraseOverlay(request, overlayWidget);
       } else {
         GitCredentialsOverlayWidget *overlayWidget = nullptr;
@@ -1409,19 +1410,19 @@ void MainWindow::eventCallback(EventManager::Event event) {
         } else {
           overlayWidget = new GitCredentialsOverlayWidget(request.id, parent);
           _credentialsWidgets[request.id] = overlayWidget;
+          connect(overlayWidget, &GitCredentialsOverlayWidget::error, this,
+                  [=]() {
+                    hideCredentialsOverlay(overlayWidget);
+                    _credentialsWidgets.remove(request.id);
+                    delete overlayWidget;
+                  });
+          connect(overlayWidget, &GitCredentialsOverlayWidget::finished, this,
+                  [=]() {
+                    hideCredentialsOverlay(overlayWidget);
+                    _credentialsWidgets.remove(request.id);
+                    delete overlayWidget;
+                  });
         }
-        connect(overlayWidget, &GitCredentialsOverlayWidget::error, this,
-                [=]() {
-                  hideCredentialsOverlay(overlayWidget);
-                  _credentialsWidgets.remove(request.id);
-                  delete overlayWidget;
-                });
-        connect(overlayWidget, &GitCredentialsOverlayWidget::finished, this,
-                [=]() {
-                  hideCredentialsOverlay(overlayWidget);
-                  _credentialsWidgets.remove(request.id);
-                  delete overlayWidget;
-                });
         showCredentialsOverlay(request, overlayWidget);
       }
     });

@@ -113,6 +113,13 @@ private:
   void scheduleWorkerForListSubmodulesWithStatus(
       const Structs::GitRepoListSubmodulesWithStatusCommand &command);
   void listTagsWorker(const Structs::GitRepoListTagsCommand &command);
+  void listWorktreesWorker(const Structs::GitRepoListWorktreesCommand &command);
+  void addWorktreeWorker(const Structs::GitRepoAddWorktreeCommand &command);
+  void
+  removeWorktreeWorker(const Structs::GitRepoRemoveWorktreeCommand &command);
+  void lockWorktreeWorker(const Structs::GitRepoLockWorktreeCommand &command);
+  void
+  unlockWorktreeWorker(const Structs::GitRepoUnlockWorktreeCommand &command);
   void mergeWorker(const Structs::GitRepoMergeCommand &command);
   void openRepoWorker(const Structs::GitRepoOpenCommand &command);
   void pullWorker(const Structs::GitRepoPullCommand &command);
@@ -247,6 +254,16 @@ private:
       const Structs::GitRepoListSubmodulesCommand &command);
   void
   scheduleWorkerForListTags(const Structs::GitRepoListTagsCommand &command);
+  void scheduleWorkerForListWorktrees(
+      const Structs::GitRepoListWorktreesCommand &command);
+  void scheduleWorkerForAddWorktree(
+      const Structs::GitRepoAddWorktreeCommand &command);
+  void scheduleWorkerForRemoveWorktree(
+      const Structs::GitRepoRemoveWorktreeCommand &command);
+  void scheduleWorkerForLockWorktree(
+      const Structs::GitRepoLockWorktreeCommand &command);
+  void scheduleWorkerForUnlockWorktree(
+      const Structs::GitRepoUnlockWorktreeCommand &command);
   void scheduleWorkerForMerge(const Structs::GitRepoMergeCommand &command);
   void scheduleWorkerForOpenRepo(const Structs::GitRepoOpenCommand &command);
   void scheduleWorkerForPull(const Structs::GitRepoPullCommand &command);

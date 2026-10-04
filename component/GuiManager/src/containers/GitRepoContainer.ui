@@ -244,6 +244,25 @@
                  <string>Remotes</string>
                 </attribute>
                </widget>
+               <widget class="GuiManager::Widgets::GitWorktreesPage" name="worktreesPage">
+                <property name="geometry">
+                 <rect>
+                  <x>0</x>
+                  <y>0</y>
+                  <width>83</width>
+                  <height>193</height>
+                 </rect>
+                </property>
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <attribute name="label">
+                 <string>Worktrees</string>
+                </attribute>
+               </widget>
               </widget>
              </item>
             </layout>
@@ -2372,6 +2391,12 @@
    <class>GuiManager::Widgets::GitSubmodulesPage</class>
    <extends>QWidget</extends>
    <header>widgets/GitSubmodulesPage.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>GuiManager::Widgets::GitWorktreesPage</class>
+   <extends>QWidget</extends>
+   <header>widgets/GitWorktreesPage.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>

@@ -166,8 +166,7 @@ RefBadgesOverlay::RefBadgesOverlay(QTableView *view)
     refresh();
     refreshHoveredRow();
   };
-  connect(view->verticalScrollBar(), &QScrollBar::valueChanged, this,
-          onScroll);
+  connect(view->verticalScrollBar(), &QScrollBar::valueChanged, this, onScroll);
   connect(view->horizontalScrollBar(), &QScrollBar::valueChanged, this,
           onScroll);
 
@@ -210,10 +209,9 @@ void RefBadgesOverlay::refresh() {
 
 void RefBadgesOverlay::setHoveredIndex(const QModelIndex &index) {
   // Only the graph column shows the extra badges.
-  const QModelIndex first = index.isValid() &&
-                                    index.column() == COLUMN_HISTORY_SLICE
-                                ? index
-                                : QModelIndex();
+  const QModelIndex first =
+      index.isValid() && index.column() == COLUMN_HISTORY_SLICE ? index
+                                                                : QModelIndex();
 
   if (_index.isValid() == first.isValid() &&
       (!first.isValid() || _index.row() == first.row())) {

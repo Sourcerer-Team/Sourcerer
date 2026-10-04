@@ -14,6 +14,7 @@
 #include "widgets/AddRemoteOverlayWidget.h"
 #include "widgets/AddSubmoduleOverlayWidget.h"
 #include "widgets/AddTargetOverlayWidget.h"
+#include "widgets/AddWorktreeOverlayWidget.h"
 #include "widgets/AnnotatedTagOverlayWidget.h"
 #include "widgets/ClickableHeaderView.h"
 #include "widgets/ConsoleWidget.h"
@@ -48,6 +49,7 @@
 #include <QCursor>
 #include <QDate>
 #include <QDateEdit>
+#include <QDir>
 #include <QDirIterator>
 #include <QEvent>
 #include <QFile>
@@ -612,8 +614,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _historyFilterButton(nullptr), _refBadgesOverlay(nullptr),
       _authorAvatarNetworkManager(new QNetworkAccessManager(this)),
       _authorNameValueLabel(nullptr), _authorEmailValueLabel(nullptr),
-      _dispatcher(20),
-      _spinnerOverlay(new SpinnerOverlayWidget(this)),
+      _dispatcher(20), _spinnerOverlay(new SpinnerOverlayWidget(this)),
       _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
       _applyingHistoryColumnWidths(false), _displayFilesAllCheckBox(nullptr),
@@ -664,6 +665,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->stashesPage->setContentsMargins(0, 0, 0, 0);
   ui->submodulesPage->setContentsMargins(0, 0, 0, 0);
   ui->remotesPage->setContentsMargins(0, 0, 0, 0);
+  ui->worktreesPage->setContentsMargins(0, 0, 0, 0);
 
   ToolBoxFixer::apply(ui->toolBox);
 
@@ -673,6 +675,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->toolBox->setItemText(3, tr("Submodules"));
   ui->toolBox->setItemText(4, tr("Stashes"));
   ui->toolBox->setItemText(5, tr("Remotes"));
+  ui->toolBox->setItemText(6, tr("Worktrees"));
 
   ui->toolBox->setAttribute(Qt::WA_StyledBackground, true);
 
@@ -1273,9 +1276,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _pullFetchButton = pullFetchDropdown;
   _pushButton = pushButtonPush;
-  _singleBranchShortcutActions = {actionPullMenu,       actionPullWithRebaseMenu,
-                                  actionPushMenu,       actionForcePushMenu,
-                                  actionFinishFeature,  actionFinishRelease,
+  _singleBranchShortcutActions = {actionPullMenu,      actionPullWithRebaseMenu,
+                                  actionPushMenu,      actionForcePushMenu,
+                                  actionFinishFeature, actionFinishRelease,
                                   actionFinishHotfix};
 
   auto *pushButtonStash = new QPushButton();
@@ -1495,7 +1498,6 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           .toUtf8());
   ui->splitterStashContent->restoreState(stashSplitterState);
 
-
   connect(ui->splitter, &QSplitter::splitterMoved, this,
           &GitRepoContainer::onSplitterMoved);
   connect(ui->splitterStashContent, &QSplitter::splitterMoved, this,
@@ -1556,6 +1558,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onSubmoduleSelected);
   connect(ui->submodulesPage, &GitSubmodulesPage::submoduleRightClicked, this,
           &GitRepoContainer::onSubmoduleRightClicked);
+
+  connect(ui->worktreesPage, &GitWorktreesPage::rightClicked, this,
+          &GitRepoContainer::onWorktreePanelRightClicked);
+  connect(ui->worktreesPage, &GitWorktreesPage::worktreeSelected, this,
+          &GitRepoContainer::onWorktreeSelected);
+  connect(ui->worktreesPage, &GitWorktreesPage::worktreeRightClicked, this,
+          &GitRepoContainer::onWorktreeRightClicked);
 
   connect(_spinnerOverlayTimer, &QTimer::timeout, this,
           &GitRepoContainer::onShowSpinnerOverlay);
@@ -2005,6 +2014,75 @@ void GitRepoContainer::onAddSubmodule() {
   overlayWidget->raise();
 
   LOG_DEBUG("Add submodule dialog displayed");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onAddWorktree() {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Add worktree dialog requested for repository: '{}'",
+            _path.toStdString());
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  // Suggest a sibling folder of the repository, e.g. /work/repo-<branch>.
+  const QFileInfo repoInfo(QDir::cleanPath(_path));
+  const QString defaultPath = repoInfo.absolutePath() + QStringLiteral("/") +
+                              repoInfo.fileName() + QStringLiteral("-");
+
+  QStringList branches = _localBranches;
+  branches.removeAll(QStringLiteral("*"));
+
+  const auto overlayWidget =
+      new AddWorktreeOverlayWidget(this, defaultPath, branches, _activeBranch);
+
+  connect(overlayWidget, &AddWorktreeOverlayWidget::canceled, this, [=]() {
+    LOG_DEBUG("Add worktree dialog cancelled");
+    overlayWidget->hide();
+    delete overlayWidget;
+  });
+
+  connect(
+      overlayWidget, &AddWorktreeOverlayWidget::submitted, this,
+      [=](const QString &path, const QString &branch, const bool createBranch,
+          const QString &baseBranch) {
+        if (path.isEmpty() || branch.isEmpty()) {
+          showErrorToast(tr("Worktree folder and branch are required."),
+                         tr("Error"));
+          return;
+        }
+
+        if (!createBranch) {
+          // Git refuses to check out one branch in two worktrees.
+          const QString usedBy =
+              branch == _activeBranch ? _path : _worktreeBranches.value(branch);
+          if (!usedBy.isEmpty()) {
+            showErrorToast(
+                tr("Branch '%1' is already checked out in '%2'. Choose "
+                   "another branch or create a new one.")
+                    .arg(branch, usedBy),
+                tr("Error"));
+            return;
+          }
+        }
+
+        LOG_DEBUG("Adding worktree - Path: '{}', Branch: '{}', Create "
+                  "branch: {}, Base branch: '{}'",
+                  path.toStdString(), branch.toStdString(), createBranch,
+                  baseBranch.toStdString());
+        overlayWidget->hide();
+        delete overlayWidget;
+
+        startOverlayTimer();
+
+        _dispatcher.dispatch([=]() {
+          _bridge->addWorktree(guard, path, branch, createBranch, baseBranch);
+        });
+      });
+
+  overlayWidget->show();
+  overlayWidget->raise();
+
+  LOG_DEBUG("Add worktree dialog displayed");
   LOG_PERF(0, "Exit");
 }
 
@@ -2933,6 +3011,16 @@ void GitRepoContainer::onDeleteBranch(const QString &branchName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Delete branch requested: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
+
+  if (const QString worktreePath = _worktreeBranches.value(branchName);
+      !worktreePath.isEmpty()) {
+    showErrorToast(tr("Branch '%1' is checked out in worktree '%2' and can't "
+                      "be deleted.")
+                       .arg(branchName, worktreePath),
+                   tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   const QString question =
       QString("Are you sure that you want to delete branch '%1'?")
@@ -3964,6 +4052,20 @@ void GitRepoContainer::onLocalBranchSelected(const QString &branchName) {
 
   // The '*' item only changes the history that is shown, nothing is checked
   // out, so there is nothing to warn about.
+  if (branchName != ALL_BRANCHES) {
+    if (const QString worktreePath = _worktreeBranches.value(branchName);
+        !worktreePath.isEmpty()) {
+      showErrorToast(tr("Branch '%1' is checked out in worktree '%2'.")
+                         .arg(branchName, worktreePath),
+                     tr("Error"));
+      // Restore the highlight of the branch that is really checked out.
+      ui->localPage->updateActiveBranch(_historyViewAll ? QString(ALL_BRANCHES)
+                                                        : _activeBranch);
+      LOG_PERF(0, "Exit");
+      return;
+    }
+  }
+
   if (branchName != ALL_BRANCHES && !showWarningForBranchCheckout()) {
     LOG_DEBUG("Create branch cancelled by user");
     return;
@@ -3999,6 +4101,19 @@ void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
   QAction actionRanameBranch(tr("Rename branch"), this);
   QAction actionSetUpstream(tr("Set Upstream"), this);
   QAction actionDeleteBranch(tr("Delete branch"), this);
+
+  // Git refuses to checkout or delete a branch that is checked out in another
+  // worktree.
+  if (const QString worktreePath = _worktreeBranches.value(branchName);
+      !worktreePath.isEmpty()) {
+    const QString reason = tr("Checked out in worktree '%1'").arg(worktreePath);
+    actionCheckoutBranch.setEnabled(false);
+    actionCheckoutBranch.setToolTip(reason);
+    actionRanameBranch.setEnabled(false);
+    actionRanameBranch.setToolTip(reason);
+    actionDeleteBranch.setEnabled(false);
+    actionDeleteBranch.setToolTip(reason);
+  }
 
   connect(&actionCheckoutBranch, &QAction::triggered, this, [=]() {
     LOG_DEBUG("Checkout branch action triggered");
@@ -4705,6 +4820,16 @@ void GitRepoContainer::onRenameBranch(const QString &branchName) {
   LOG_DEBUG("Rename branch dialog requested for: '{}' in repository '{}'",
             branchName.toStdString(), _path.toStdString());
 
+  if (const QString worktreePath = _worktreeBranches.value(branchName);
+      !worktreePath.isEmpty()) {
+    showErrorToast(tr("Branch '%1' is checked out in worktree '%2' and can't "
+                      "be renamed.")
+                       .arg(branchName, worktreePath),
+                   tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const auto inputOverlay = new TextInputOverlayWidget(this);
   inputOverlay->setPlaceholderText(tr("New branch name"));
   inputOverlay->setText(branchName);
@@ -5068,6 +5193,161 @@ void GitRepoContainer::onDeleteSubmodule(const QString &submoduleName) {
       [=]() { _bridge->deleteSubmodule(guard, submoduleName); });
 
   LOG_DEBUG("Delete submodule operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onWorktreePanelRightClicked(const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Worktree panel right-clicked for repository: '{}'",
+            _path.toStdString());
+
+  QAction actionAddWorktree(tr("Add"), this);
+
+  connect(&actionAddWorktree, &QAction::triggered, this,
+          &GitRepoContainer::onAddWorktree);
+
+  QMenu menu;
+  menu.addAction(&actionAddWorktree);
+
+  menu.exec(pos);
+
+  LOG_DEBUG("Worktree panel context menu closed");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onWorktreeRightClicked(
+    const GitRepo::WorktreeInfo &worktree, const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Worktree right-clicked: '{}' in repository '{}'",
+            worktree.path.toStdString(), _path.toStdString());
+
+  QAction actionOpenWorktree(tr("Open"), this);
+  QAction actionAddWorktree(tr("Add"), this);
+  QAction actionLockWorktree(worktree.locked ? tr("Unlock") : tr("Lock"), this);
+  QAction actionRemoveWorktree(tr("Remove"), this);
+
+  // The worktree that is already opened in this tab can't be opened again, and
+  // neither the main worktree nor the current one can be removed. Only linked
+  // worktrees can be locked.
+  actionOpenWorktree.setEnabled(!worktree.isCurrent && worktree.valid);
+  actionLockWorktree.setEnabled(!worktree.isMain);
+  actionRemoveWorktree.setEnabled(!worktree.isMain && !worktree.isCurrent);
+
+  connect(&actionOpenWorktree, &QAction::triggered, this,
+          [=]() { onWorktreeSelected(worktree); });
+  connect(&actionAddWorktree, &QAction::triggered, this,
+          &GitRepoContainer::onAddWorktree);
+  connect(&actionLockWorktree, &QAction::triggered, this, [=]() {
+    if (worktree.locked) {
+      onUnlockWorktree(worktree);
+    } else {
+      onLockWorktree(worktree);
+    }
+  });
+  connect(&actionRemoveWorktree, &QAction::triggered, this,
+          [=]() { onRemoveWorktree(worktree); });
+
+  QMenu menu;
+  menu.addAction(&actionOpenWorktree);
+  menu.addAction(&actionAddWorktree);
+  menu.addSeparator();
+  menu.addAction(&actionLockWorktree);
+  menu.addAction(&actionRemoveWorktree);
+
+  menu.exec(pos);
+
+  LOG_DEBUG("Worktree context menu closed");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onWorktreeSelected(
+    const GitRepo::WorktreeInfo &worktree) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Worktree selected: '{}' in repository '{}'",
+            worktree.path.toStdString(), _path.toStdString());
+
+  if (worktree.isCurrent) {
+    LOG_DEBUG("Worktree is already opened");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!worktree.valid || !QFileInfo::exists(worktree.path)) {
+    showErrorToast(
+        tr("Worktree folder '%1' does not exist.").arg(worktree.path),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  emit openRepoRequested(worktree.path);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onRemoveWorktree(const GitRepo::WorktreeInfo &worktree) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Remove worktree requested: '{}' in repository '{}'",
+            worktree.path.toStdString(), _path.toStdString());
+
+  QString question =
+      tr("Are you sure that you want to remove worktree '%1'?\n\nIts folder "
+         "'%2' will be deleted, including any uncommitted changes in it.")
+          .arg(worktree.name, worktree.path);
+  if (worktree.locked) {
+    question += tr("\n\nThe worktree is locked and will be removed anyway.");
+  }
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_DEBUG("Remove worktree cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  const QString name = worktree.name;
+  const bool force = worktree.locked;
+
+  _dispatcher.dispatch([=]() { _bridge->removeWorktree(guard, name, force); });
+
+  LOG_DEBUG("Remove worktree operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onLockWorktree(const GitRepo::WorktreeInfo &worktree) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Lock worktree requested: '{}' in repository '{}'",
+            worktree.path.toStdString(), _path.toStdString());
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  const QString name = worktree.name;
+
+  _dispatcher.dispatch(
+      [=]() { _bridge->lockWorktree(guard, name, QString()); });
+
+  LOG_DEBUG("Lock worktree operation dispatched");
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onUnlockWorktree(const GitRepo::WorktreeInfo &worktree) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Unlock worktree requested: '{}' in repository '{}'",
+            worktree.path.toStdString(), _path.toStdString());
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+  const QString name = worktree.name;
+
+  _dispatcher.dispatch([=]() { _bridge->unlockWorktree(guard, name); });
+
+  LOG_DEBUG("Unlock worktree operation dispatched");
   LOG_PERF(0, "Exit");
 }
 
@@ -6914,6 +7194,10 @@ void GitRepoContainer::applyToolBoxIcons() {
       5, shiftIconVertically(
              QIcon(themedIcon(QStringLiteral(":icons/header-remotes.svg"))), 20,
              6));
+  ui->toolBox->setItemIcon(
+      6, shiftIconVertically(
+             QIcon(themedIcon(QStringLiteral(":icons/header-worktrees.svg"))),
+             20, 6));
 
   LOG_PERF(0, "Exit");
 }
@@ -7829,7 +8113,7 @@ void GitRepoContainer::prepareWatcher(const WeakPtr &guard) {
 bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
   LOG_PERF(0, "Enter");
 
-  int taskCount = 9;
+  int taskCount = 10;
 
   _historyRefreshSemaphore = new QSemaphore(0);
 
@@ -7844,6 +8128,7 @@ bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
   ok &= ok && _bridge->getSubmodules();
   ok &= ok && _bridge->getRemotes(guard);
   ok &= ok && _bridge->getStashes(guard);
+  ok &= ok && _bridge->getWorktrees(guard);
 
   const int count = _historyRefreshSemaphore->available();
 
@@ -8520,6 +8805,8 @@ void GitRepoContainer::updateLocalBranchesModel(
 
   finalBranches += localBranches;
 
+  _localBranches = localBranches;
+
   if (const auto locked = guard.lock()) {
     ui->localPage->updateModel(finalBranches);
   }
@@ -8676,6 +8963,25 @@ void GitRepoContainer::updateSubmodulesModelWithStatus(
 
   if (const auto locked = guard.lock()) {
     ui->submodulesPage->updateModelWithStatus(submodulesWithStatus);
+  }
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoContainer::updateWorktreesModel(
+    const WeakPtr &guard,
+    const QVector<GitRepo::WorktreeInfo> &worktrees) const {
+  LOG_PERF(0, "Enter");
+
+  if (const auto locked = guard.lock()) {
+    _worktreeBranches.clear();
+    for (const GitRepo::WorktreeInfo &worktree : worktrees) {
+      if (!worktree.isCurrent && !worktree.branch.isEmpty()) {
+        _worktreeBranches.insert(worktree.branch, worktree.path);
+      }
+    }
+
+    ui->worktreesPage->updateModel(worktrees);
   }
 
   LOG_PERF(0, "Exit")

@@ -30,6 +30,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAddTarget, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerAddWorktree, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerEditTarget, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerDeleteTarget, callbackFunc));
@@ -145,6 +147,12 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListTags, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerListWorktrees, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerLockWorktree, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerUnlockWorktree, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerMerge, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerRebase, callbackFunc));
@@ -164,6 +172,8 @@ GitRepoManager::GitRepoManager()
       EventManager::EventType::GitRepoManagerPushAllTags, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerRemoveRemote, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerRemoveWorktree, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerRenameBranch, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
@@ -208,6 +218,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerAddSubmodule, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerAddTarget, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerAddWorktree, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerEditTarget, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -322,6 +334,12 @@ GitRepoManager::~GitRepoManager() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerListTags, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerListWorktrees, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerLockWorktree, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerUnlockWorktree, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerMerge, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerRebase, callbackFunc));
@@ -341,6 +359,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerPushAllTags, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerRemoveRemote, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerRemoveWorktree, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerRenameBranch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -433,6 +453,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent addTargetEvent(EventType::AddTarget);
     addTargetEvent.addParam(QVariant::fromValue(addTargetCommand));
     _fsm.send(addTargetEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerAddWorktree: {
+    const auto addWorktreeCommand = event.data<GitRepoAddWorktreeCommand>();
+    GitRepoManagerEvent addWorktreeEvent(EventType::AddWorktree);
+    addWorktreeEvent.addParam(QVariant::fromValue(addWorktreeCommand));
+    _fsm.send(addWorktreeEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerEditTarget: {
@@ -853,6 +880,28 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     _fsm.send(listTagsEvent);
     break;
   }
+  case EventManager::EventType::GitRepoManagerListWorktrees: {
+    const auto listWorktreesCommand = event.data<GitRepoListWorktreesCommand>();
+    GitRepoManagerEvent listWorktreesEvent(EventType::ListWorktrees);
+    listWorktreesEvent.addParam(QVariant::fromValue(listWorktreesCommand));
+    _fsm.send(listWorktreesEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerLockWorktree: {
+    const auto lockWorktreeCommand = event.data<GitRepoLockWorktreeCommand>();
+    GitRepoManagerEvent lockWorktreeEvent(EventType::LockWorktree);
+    lockWorktreeEvent.addParam(QVariant::fromValue(lockWorktreeCommand));
+    _fsm.send(lockWorktreeEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerUnlockWorktree: {
+    const auto unlockWorktreeCommand =
+        event.data<GitRepoUnlockWorktreeCommand>();
+    GitRepoManagerEvent unlockWorktreeEvent(EventType::UnlockWorktree);
+    unlockWorktreeEvent.addParam(QVariant::fromValue(unlockWorktreeCommand));
+    _fsm.send(unlockWorktreeEvent);
+    break;
+  }
   case EventManager::EventType::GitRepoManagerMerge: {
     const auto mergeCommand = event.data<GitRepoMergeCommand>();
     GitRepoManagerEvent mergeEvent(EventType::Merge);
@@ -921,6 +970,14 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     GitRepoManagerEvent removeRemoteEvent(EventType::RemoveRemote);
     removeRemoteEvent.addParam(QVariant::fromValue(removeRemoteCommand));
     _fsm.send(removeRemoteEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerRemoveWorktree: {
+    const auto removeWorktreeCommand =
+        event.data<GitRepoRemoveWorktreeCommand>();
+    GitRepoManagerEvent removeWorktreeEvent(EventType::RemoveWorktree);
+    removeWorktreeEvent.addParam(QVariant::fromValue(removeWorktreeCommand));
+    _fsm.send(removeWorktreeEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerRenameBranch: {
