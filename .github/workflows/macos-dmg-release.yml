@@ -1,0 +1,94 @@
+name: Build macOS DMG and Create Release
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  QT_VERSION: 6.10.3
+  # Lowest macOS version supported by Qt $QT_VERSION.
+  MACOSX_DEPLOYMENT_TARGET: "13.0"
+
+jobs:
+  build-and-release:
+    # Apple Silicon runner. The universal (arm64 + x86_64) binary is built
+    # natively; the x86_64 slice is cross-compiled.
+    runs-on: macos-15
+
+    env:
+      # Optional. Without them the app is only ad-hoc signed and not notarized.
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      MACOS_CODESIGN_IDENTITY: ${{ secrets.MACOS_CODESIGN_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Release Tag Name
+        run: |
+          FILE="./component/ConfigManager/GitVersion.h.in"
+          VERSION=$(sed -n 's/.*APPLICATION_VERSION *= *"\([^"]*\)".*/\1/p' "$FILE")
+          echo "TAG_NAME=v$VERSION" >> "$GITHUB_ENV"
+          echo "TAG_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Install Qt
+        run: |
+          python3 -m venv "$RUNNER_TEMP/aqt"
+          "$RUNNER_TEMP/aqt/bin/pip" install aqtinstall
+          "$RUNNER_TEMP/aqt/bin/aqt" install-qt mac desktop "$QT_VERSION" clang_64 \
+            -m qtscxml qtnetworkauth qt5compat qtwebengine qtwebchannel qtpositioning \
+            --outputdir "$HOME/Qt"
+          echo "QT_PREFIX=$HOME/Qt/$QT_VERSION/macos" >> "$GITHUB_ENV"
+
+      - name: Install build tools
+        run: brew install ninja
+
+      - name: Import Developer ID certificate
+        if: ${{ env.MACOS_CERTIFICATE != '' }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" login.keychain-db
+          rm "$RUNNER_TEMP/certificate.p12"
+          echo "CODESIGN_IDENTITY=$MACOS_CODESIGN_IDENTITY" >> "$GITHUB_ENV"
+          echo "NOTARIZE=1" >> "$GITHUB_ENV"
+
+      - name: Build, sign and package
+        run: installer/macos/build-macos.sh
+
+      - name: Verify DMG
+        run: |
+          ls -la installer/Sourcerer-Installer.dmg
+          hdiutil verify installer/Sourcerer-Installer.dmg
+
+      - name: Create GitHub Release and Upload DMG
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # The AppImage and Windows workflows publish to the same release and
+          # may create it first (or at the same moment).
+          if ! gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            gh release create "$TAG_NAME" \
+              --title "Release $TAG_VERSION" \
+              --generate-notes || gh release view "$TAG_NAME" >/dev/null
+          fi
+          gh release upload "$TAG_NAME" installer/Sourcerer-Installer.dmg --clobber

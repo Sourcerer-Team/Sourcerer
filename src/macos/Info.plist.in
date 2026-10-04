@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
+
+	<key>CFBundleName</key>
+	<string>Sourcerer</string>
+	<key>CFBundleDisplayName</key>
+	<string>Sourcerer</string>
+	<key>CFBundleExecutable</key>
+	<string>@MACOSX_BUNDLE_EXECUTABLE_NAME@</string>
+	<key>CFBundleIdentifier</key>
+	<string>@MACOSX_BUNDLE_GUI_IDENTIFIER@</string>
+	<key>CFBundleIconFile</key>
+	<string>@MACOSX_BUNDLE_ICON_FILE@</string>
+
+	<key>CFBundleVersion</key>
+	<string>@MACOSX_BUNDLE_BUNDLE_VERSION@</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@MACOSX_BUNDLE_SHORT_VERSION_STRING@</string>
+
+	<key>LSMinimumSystemVersion</key>
+	<string>@SOURCERER_MACOS_MIN_VERSION@</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.developer-tools</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright (c) 2026 Sourcerer Team. All Rights Reserved.</string>
+
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+</dict>
+</plist>

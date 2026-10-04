@@ -1,4 +1,9 @@
 #include <ConfigManager.h>
+#include <UpdateStaging.h>
+
+#ifdef Q_OS_MACOS
+#include "macos/MacUpdater.h"
+#endif
 
 #include <QCoreApplication>
 #include <QDir>
@@ -13,6 +18,7 @@
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qboxlayout.h>
 #include <QtWidgets/qlabel.h>
+#include <QtWidgets/qmessagebox.h>
 #include <QtWidgets/qwidget.h>
 
 namespace {
@@ -88,14 +94,20 @@ QString executablePath() {
 }
 
 QString stagePattern() {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN)
   return QStringLiteral("Sourcerer-Update*.exe");
+#elif defined(Q_OS_MACOS)
+  return Util::UpdateStaging::macosStagedUpdatePattern();
 #else
   return QStringLiteral("Sourcerer-Update*.AppImage");
 #endif
 }
 
 QString stagedUpdateFile(const QString &installDir) {
+#ifdef Q_OS_MACOS
+  Q_UNUSED(installDir);
+  return Util::UpdateStaging::macosStagedUpdateFile();
+#else
   const QDir dir(installDir);
   const QFileInfoList files = dir.entryInfoList(
       {stagePattern()}, QDir::Files | QDir::Readable, QDir::Time);
@@ -104,8 +116,11 @@ QString stagedUpdateFile(const QString &installDir) {
   }
 
   return files.first().absoluteFilePath();
+#endif
 }
 
+#ifndef Q_OS_MACOS
+// macOS is handled by MacUpdater (see main()).
 QString nativePath(const QString &path) {
   return QDir::toNativeSeparators(path);
 }
@@ -242,8 +257,22 @@ bool runUpdate(const QString &updatePath) {
   return result;
 #endif
 }
+#endif // !Q_OS_MACOS
 
 int launchApplication(const QString &program, const QStringList &arguments) {
+#ifdef Q_OS_MACOS
+  // Start the application through LaunchServices, like a double click would,
+  // so it gets a clean environment and (after an update) the new bundle.
+  const QString bundle = Util::UpdateStaging::macosBundlePath();
+  if (!bundle.isEmpty()) {
+    QStringList openArguments = {QStringLiteral("-n"), bundle};
+    if (!arguments.isEmpty()) {
+      openArguments << QStringLiteral("--args") << arguments;
+    }
+    return QProcess::startDetached(QStringLiteral("/usr/bin/open"),
+                                   openArguments);
+  }
+#endif
   QProcess process;
   process.setWorkingDirectory(QFileInfo(program).absolutePath());
   return process.startDetached(program, arguments);
@@ -252,6 +281,16 @@ int launchApplication(const QString &program, const QStringList &arguments) {
 } // namespace
 
 int main(int argc, char *argv[]) {
+#ifdef Q_OS_MACOS
+  // Privileged helper mode: started as root through the system password
+  // dialog by the regular launcher. No GUI is needed (or wanted) here.
+  if (argc >= 2 &&
+      QString::fromLocal8Bit(argv[1]) == MacUpdater::privilegedHelperSwitch()) {
+    QCoreApplication helperApp(argc, argv);
+    return MacUpdater::runPrivilegedHelper(helperApp.arguments().mid(2));
+  }
+#endif
+
   QApplication app(argc, argv);
 
   // Main window setup
@@ -299,20 +338,69 @@ int main(int argc, char *argv[]) {
 
   const QString installDir = installationDirectory();
   const QString updatePath = stagedUpdateFile(installDir);
-  const QStringList arguments = app.arguments().mid(1);
+  QStringList arguments = app.arguments().mid(1);
 
   bool updateApplied = false;
+#ifdef Q_OS_MACOS
+  bool keepStagedUpdate = false;
+#endif
+  QString failureMessage;
+
+#ifdef Q_OS_MACOS
   if (!updatePath.isEmpty()) {
-    updateApplied = runUpdate(updatePath);
-    if (updateApplied) {
-      QFile::remove(updatePath);
+    MacUpdater::Callbacks callbacks;
+    callbacks.status = [label](const QString &text) { label->setText(text); };
+    callbacks.setWindowVisible = [&window](bool visible) {
+      window.setVisible(visible);
+    };
+
+    const MacUpdater::Outcome outcome =
+        MacUpdater::installFromDmg(updatePath, callbacks);
+    switch (outcome.status) {
+    case MacUpdater::Status::Installed:
+    case MacUpdater::Status::UpToDate:
+      updateApplied = true;
+      break;
+    case MacUpdater::Status::Cancelled:
+      // Offer the update again on the next start.
+      keepStagedUpdate = true;
+      failureMessage = outcome.message;
+      break;
+    case MacUpdater::Status::Failed:
+      failureMessage = outcome.message;
+      break;
     }
   }
-
-  if (!updateApplied && !updatePath.isEmpty()) {
-    // Keep the staged update available for the next start, but still try to
-    // open the app so the user is not blocked.
+#else
+  if (!updatePath.isEmpty()) {
+    updateApplied = runUpdate(updatePath);
   }
+#endif
+
+#ifdef Q_OS_MACOS
+  // A failed macOS update is unusable (corrupt, wrong publisher, ...); only a
+  // cancelled password prompt is worth offering again.
+  const bool removeStagedUpdate = !keepStagedUpdate;
+#else
+  const bool removeStagedUpdate = updateApplied;
+#endif
+  if (!updatePath.isEmpty() && removeStagedUpdate) {
+    QFile::remove(updatePath);
+  }
+
+  if (!updatePath.isEmpty() && !updateApplied) {
+    // Tell the application not to hand control straight back to this
+    // launcher because of the staged update that just failed.
+    arguments.prepend(Util::UpdateStaging::skipUpdateArgument());
+  }
+
+#ifdef Q_OS_MACOS
+  if (!failureMessage.isEmpty()) {
+    window.hide();
+    QMessageBox::warning(nullptr, QStringLiteral("Sourcerer update"),
+                         failureMessage);
+  }
+#endif
 
   const QString appExecutable = executablePath();
   return launchApplication(appExecutable, arguments);

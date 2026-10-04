@@ -2,6 +2,7 @@
 
 #include <StylesheetManager.h>
 
+#include <FileManager.h>
 #include <Log.h>
 
 #include <QColor>
@@ -20,26 +21,6 @@
 #define THREAD_ID "NewsToast"
 
 namespace GuiManager::Widgets {
-
-#ifndef Q_OS_WIN
-static void openUrlFromAppImage(const QUrl &url) {
-  QProcess process;
-  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-
-  // Unset AppImage environment variables so external processes load host system
-  // libraries
-  env.remove("LD_LIBRARY_PATH");
-  env.remove("QT_PLUGIN_PATH");
-  env.remove("QML2_IMPORT_PATH");
-
-  process.setProcessEnvironment(env);
-  process.setProgram(QStringLiteral("xdg-open"));
-  process.setArguments(QStringList()
-                       << url.toString()); // Allow xdg-open to run
-                                           // independently without blocking
-  process.startDetached();
-}
-#endif
 
 NewsToast::NewsToast(const NewsTracker::Structs::NewsItem &news,
                      QWidget *parent)
@@ -81,11 +62,7 @@ NewsToast::NewsToast(const NewsTracker::Structs::NewsItem &news,
         new QPushButton(tr("Download update"), buttonRow);
     downloadButton->setCursor(Qt::PointingHandCursor);
     connect(downloadButton, &QPushButton::clicked, this, [downloadUrl]() {
-#ifdef Q_OS_WIN
-      QDesktopServices::openUrl(QUrl(downloadUrl));
-#else
-      openUrlFromAppImage(QUrl(downloadUrl));
-#endif
+      FileManager::openExternalUrl(QUrl(downloadUrl));
     });
 
     buttonLayout->addWidget(downloadButton, 0, Qt::AlignLeft);

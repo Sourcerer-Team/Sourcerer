@@ -15,7 +15,11 @@
 #include <qvterminal.h>
 
 #include <fcntl.h>
+#ifdef Q_OS_MACOS
+#include <util.h>
+#else
 #include <pty.h>
+#endif
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
@@ -327,7 +331,14 @@ void BashShellWidget::startBash() {
       shell = "/bin/bash";
     }
 
+    // A GUI application inherits a minimal environment from launchd on macOS
+    // (PATH=/usr/bin:/bin:...), so, like Terminal.app, start a login shell to
+    // get the user's regular PATH (Homebrew, git-lfs, ...).
+#ifdef Q_OS_MACOS
+    execl(shell, shell, "-l", "-i", nullptr);
+#else
     execl(shell, shell, "-i", nullptr);
+#endif
 
     // If execl fails
     LOG_ERROR(Log::ErrorId::Gui, "Failed to execute shell: {}",

@@ -48,7 +48,7 @@ if(WIN32)
 )
 endif()
 
-if(UNIX AND NOT APPLE)
+if(UNIX)
   set(PLATFORM_SOURCES
         include/widgets/linux/BashShellWidget.h
         src/widgets/linux/BashShellWidget.cpp
@@ -62,6 +62,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/DarkThemeLexersHighlighter.h
         include/GuiManager.h
         include/HitDetector.h
+        include/WindowResize.h
         include/InitResources.h
         include/MainWindow.h
         include/MousePositionCorrection.h
@@ -173,6 +174,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/DarkThemeLexersHighlighter.cpp
         src/GuiManager.cpp
         src/HitDetector.cpp
+        src/WindowResize.cpp
         src/InitResources.cpp
         src/MainWindow.cpp
         src/MousePositionCorrection.cpp

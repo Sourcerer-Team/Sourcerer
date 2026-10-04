@@ -4,6 +4,7 @@
 
 #include <Log.h>
 #include <NewsTrackerStructs.h>
+#include <UpdateStaging.h>
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -107,6 +108,12 @@ QString resolveRunningAppImagePath() {
 #endif
 
 QString installationDirectory() {
+#ifdef Q_OS_MACOS
+  // Never stage inside the signed .app bundle; see UpdateStaging.h.
+  const QString stagingDir = Util::UpdateStaging::macosStagingDirectory();
+  QDir().mkpath(stagingDir);
+  return stagingDir;
+#endif
 #ifdef Q_OS_LINUX
   const QString runningAppImagePath = resolveRunningAppImagePath();
   if (!runningAppImagePath.isEmpty()) {
@@ -225,6 +232,21 @@ bool UpdatingState::workerLoop(const NewsTracker::Structs::NewsItem &newsItem) {
     LOG_PERF(0, "Exit");
     return false;
   }
+
+#ifdef Q_OS_MACOS
+  {
+    const QUrl url(downloadUrl);
+    if (url.scheme().compare(QStringLiteral("https"), Qt::CaseInsensitive) !=
+            0 ||
+        !url.path().endsWith(QStringLiteral(".dmg"), Qt::CaseInsensitive)) {
+      LOG_WARN("Refusing macOS update '{}': '{}' is not an https URL of a "
+               ".dmg file.",
+               newsItem.id.toStdString(), downloadUrl.toStdString());
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+#endif
 
   QString downloadedFilePath;
   if (!downloadUpdate(newsItem, downloadedFilePath)) {
