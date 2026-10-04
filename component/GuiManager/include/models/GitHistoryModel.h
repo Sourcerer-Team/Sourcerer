@@ -176,8 +176,8 @@ private:
   int commitIndexForSourceRow(int sourceRow) const;
   bool commitMatchesFilters(const QString &commit) const;
   void rebuildVisibleRows();
-  bool isSameFirstPage(
-      const GitRepo::GitHistoryWithStatus &historyWithStatus) const;
+  bool
+  isSameFirstPage(const GitRepo::GitHistoryWithStatus &historyWithStatus) const;
   // Adds the commits of `history` starting at `firstCommitIndex` of
   // _historyWithStatus.history.commits to the graph and column widths.
   void appendGraphAndWidths(int firstCommitIndex);

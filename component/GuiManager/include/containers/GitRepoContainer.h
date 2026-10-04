@@ -49,7 +49,7 @@ class GitCommitTreeModel;
 namespace GuiManager::Widgets {
 class RefBadgesOverlay;
 class ScrollbarMarksWidget;
-}
+} // namespace GuiManager::Widgets
 
 class QEvent;
 class QCheckBox;
@@ -107,6 +107,7 @@ protected:
 
 private slots:
   void onAddSubmodule();
+  void onAddWorktree();
   void onAddTarget(int remoteIndex);
   void onApplyPatch();
   void onApplyStash(int stashIndex);
@@ -206,6 +207,13 @@ private slots:
   void onTagRightClicked(const QString &tagName, const QPoint &pos);
   void onTagsEmptyAreaRightClicked(const QPoint &pos);
   void onTagSelected(const QString &tagName);
+  void onWorktreeRightClicked(const GitRepo::WorktreeInfo &worktree,
+                              const QPoint &pos);
+  void onWorktreePanelRightClicked(const QPoint &pos);
+  void onWorktreeSelected(const GitRepo::WorktreeInfo &worktree);
+  void onRemoveWorktree(const GitRepo::WorktreeInfo &worktree);
+  void onLockWorktree(const GitRepo::WorktreeInfo &worktree);
+  void onUnlockWorktree(const GitRepo::WorktreeInfo &worktree);
   void onShowSpinnerOverlay();
   void onDeleteSubmodule(const QString &submoduleName);
   void onGraphColumnExpand(int section);
@@ -352,6 +360,9 @@ private:
   void updateSubmodulesModelWithStatus(
       const WeakPtr &guard,
       const QVector<GitRepo::SubmoduleInfo> &submodulesWithStatus) const;
+  void
+  updateWorktreesModel(const WeakPtr &guard,
+                       const QVector<GitRepo::WorktreeInfo> &worktrees) const;
   void updateTagsModel(const WeakPtr &guard, const QStringList &tags) const;
   void refreshHistoryFilterButtonIcon();
   void updateHistoryFilterButtonGeometry();
@@ -363,6 +374,12 @@ private:
   QString _uuid;
   QString _path;
   QString _activeBranch;
+  // Local branches as of the last refresh. Used to populate the branch
+  // dropdown of the add worktree dialog.
+  mutable QStringList _localBranches;
+  // Branches checked out in other worktrees as of the last refresh (branch ->
+  // worktree path). Git refuses to checkout or delete such branches.
+  mutable QHash<QString, QString> _worktreeBranches;
   // True while the history of all branches ('*' item) is shown. The checked
   // out branch stays in _activeBranch, the history is requested for all
   // branches instead of it.

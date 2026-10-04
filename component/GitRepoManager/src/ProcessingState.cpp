@@ -386,6 +386,36 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForListTags(listTagsCommand);
     break;
   }
+  case EventType::ListWorktrees: {
+    const auto listWorktreesCommand =
+        event.nextParam<GitRepoListWorktreesCommand>();
+    scheduleWorkerForListWorktrees(listWorktreesCommand);
+    break;
+  }
+  case EventType::AddWorktree: {
+    const auto addWorktreeCommand =
+        event.nextParam<GitRepoAddWorktreeCommand>();
+    scheduleWorkerForAddWorktree(addWorktreeCommand);
+    break;
+  }
+  case EventType::RemoveWorktree: {
+    const auto removeWorktreeCommand =
+        event.nextParam<GitRepoRemoveWorktreeCommand>();
+    scheduleWorkerForRemoveWorktree(removeWorktreeCommand);
+    break;
+  }
+  case EventType::LockWorktree: {
+    const auto lockWorktreeCommand =
+        event.nextParam<GitRepoLockWorktreeCommand>();
+    scheduleWorkerForLockWorktree(lockWorktreeCommand);
+    break;
+  }
+  case EventType::UnlockWorktree: {
+    const auto unlockWorktreeCommand =
+        event.nextParam<GitRepoUnlockWorktreeCommand>();
+    scheduleWorkerForUnlockWorktree(unlockWorktreeCommand);
+    break;
+  }
   case EventType::Merge: {
     const auto mergeCommand = event.nextParam<GitRepoMergeCommand>();
     scheduleWorkerForMerge(mergeCommand);
@@ -3211,6 +3241,201 @@ void ProcessingState::listTagsWorker(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::listWorktreesWorker(
+    const Structs::GitRepoListWorktreesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerListWorktreesError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const QVector<GitRepo::WorktreeInfo> worktrees = GitRepo::listWorktrees(repo);
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::GitRepoManagerListWorktreesResult,
+      command.syncUuid);
+  resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                    QVariant::fromValue(worktrees)});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::addWorktreeWorker(
+    const Structs::GitRepoAddWorktreeCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerAddWorktreeError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success =
+      GitRepo::addWorktree(repo, command.name, command.path, command.branch,
+                           command.createBranch, command.baseBranch);
+  if (!success) {
+    const auto lastError = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerAddWorktreeError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerAddWorktreeResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::removeWorktreeWorker(
+    const Structs::GitRepoRemoveWorktreeCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerRemoveWorktreeError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success =
+      GitRepo::removeWorktree(repo, command.name, command.force);
+  if (!success) {
+    const auto lastError = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerRemoveWorktreeError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerRemoveWorktreeResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::lockWorktreeWorker(
+    const Structs::GitRepoLockWorktreeCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerLockWorktreeError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success =
+      GitRepo::lockWorktree(repo, command.name, command.reason);
+  if (!success) {
+    const auto lastError = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerLockWorktreeError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerLockWorktreeResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::unlockWorktreeWorker(
+    const Structs::GitRepoUnlockWorktreeCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerUnlockWorktreeError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  const bool success = GitRepo::unlockWorktree(repo, command.name);
+  if (!success) {
+    const auto lastError = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerUnlockWorktreeError,
+        command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerUnlockWorktreeResult,
+        command.syncUuid);
+    resultEvent.addData(GitRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::mergeWorker(const Structs::GitRepoMergeCommand &command) {
   LOG_PERF(0, "Enter");
 
@@ -5594,6 +5819,101 @@ void ProcessingState::scheduleWorkerForListTags(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForListWorktrees(
+    const Structs::GitRepoListWorktreesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerListWorktreesError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoListWorktreesCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForAddWorktree(
+    const Structs::GitRepoAddWorktreeCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerAddWorktreeError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoAddWorktreeCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForRemoveWorktree(
+    const Structs::GitRepoRemoveWorktreeCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerRemoveWorktreeError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoRemoveWorktreeCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForLockWorktree(
+    const Structs::GitRepoLockWorktreeCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerLockWorktreeError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoLockWorktreeCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::scheduleWorkerForUnlockWorktree(
+    const Structs::GitRepoUnlockWorktreeCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerUnlockWorktreeError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoUnlockWorktreeCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForMerge(
     const Structs::GitRepoMergeCommand &command) {
   LOG_PERF(0, "Enter");
@@ -6033,6 +6353,46 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
       }
       break;
     }
+    case GitRepoCommandType::ListWorktrees: {
+      const auto *listWorktreesCommand =
+          dynamic_cast<const GitRepoListWorktreesCommand *>(command);
+      if (listWorktreesCommand) {
+        listWorktreesWorker(*listWorktreesCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::AddWorktree: {
+      const auto *addWorktreeCommand =
+          dynamic_cast<const GitRepoAddWorktreeCommand *>(command);
+      if (addWorktreeCommand) {
+        addWorktreeWorker(*addWorktreeCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::RemoveWorktree: {
+      const auto *removeWorktreeCommand =
+          dynamic_cast<const GitRepoRemoveWorktreeCommand *>(command);
+      if (removeWorktreeCommand) {
+        removeWorktreeWorker(*removeWorktreeCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::LockWorktree: {
+      const auto *lockWorktreeCommand =
+          dynamic_cast<const GitRepoLockWorktreeCommand *>(command);
+      if (lockWorktreeCommand) {
+        lockWorktreeWorker(*lockWorktreeCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::UnlockWorktree: {
+      const auto *unlockWorktreeCommand =
+          dynamic_cast<const GitRepoUnlockWorktreeCommand *>(command);
+      if (unlockWorktreeCommand) {
+        unlockWorktreeWorker(*unlockWorktreeCommand);
+      }
+      break;
+    }
     case GitRepoCommandType::Merge: {
       const auto *mergeCommand =
           dynamic_cast<const GitRepoMergeCommand *>(command);
@@ -6289,6 +6649,9 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
     }
 
     delete command;
+
+    // Make sure no credentials overlay outlives the command that raised it.
+    GitRepo::finishPendingCredentialPrompts();
   }
 
   GitRepo::shutdownForCurrentThread();

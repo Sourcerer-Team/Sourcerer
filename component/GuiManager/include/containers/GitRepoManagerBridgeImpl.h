@@ -25,6 +25,16 @@ public:
   void addSubmodule(const QWeakPointer<GitRepoContainer> &guard,
                     const QString &url, const QString &name,
                     const QString &branch) override;
+  void addWorktree(const QWeakPointer<GitRepoContainer> &guard,
+                   const QString &path, const QString &branch,
+                   bool createBranch, const QString &baseBranch) override;
+  void removeWorktree(const QWeakPointer<GitRepoContainer> &guard,
+                      const QString &name, bool force) override;
+  void lockWorktree(const QWeakPointer<GitRepoContainer> &guard,
+                    const QString &name, const QString &reason) override;
+  void unlockWorktree(const QWeakPointer<GitRepoContainer> &guard,
+                      const QString &name) override;
+  bool getWorktrees(const QWeakPointer<GitRepoContainer> &guard) override;
   void amend(const QWeakPointer<GitRepoContainer> &guard,
              const QString &summary, const QString &description,
              const QString &author, const QString &email, bool signoff,

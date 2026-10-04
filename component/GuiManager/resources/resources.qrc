@@ -64,6 +64,7 @@
         <file>icons/header-stashes.svg</file>
         <file>icons/header-submodules.svg</file>
         <file>icons/header-tags.svg</file>
+        <file>icons/header-worktrees.svg</file>
         <file>icons/header-local-branches.svg</file>
         <file>icons/header-remote-branches.svg</file>
         <file>icons/repo-open.svg</file>

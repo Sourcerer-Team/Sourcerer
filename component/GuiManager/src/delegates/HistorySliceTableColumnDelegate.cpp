@@ -61,8 +61,8 @@ void drawLine(QPainter *painter, const QColor &color, const QPoint &from,
 
 // Quarter turn between the middle of a horizontal edge and the middle of a
 // vertical edge of the cell. The curve bends toward the cell center.
-void drawCorner(QPainter *painter, const QColor &color, const QPoint &horizontal,
-                const QPoint &vertical) {
+void drawCorner(QPainter *painter, const QColor &color,
+                const QPoint &horizontal, const QPoint &vertical) {
   QPainterPath path;
   path.moveTo(horizontal);
   path.quadTo(QPoint(vertical.x(), horizontal.y()), vertical);

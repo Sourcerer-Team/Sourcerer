@@ -34,6 +34,16 @@ public:
   virtual void addSubmodule(const QWeakPointer<GitRepoContainer> &guard,
                             const QString &url, const QString &name,
                             const QString &branch) = 0;
+  virtual void addWorktree(const QWeakPointer<GitRepoContainer> &guard,
+                           const QString &path, const QString &branch,
+                           bool createBranch, const QString &baseBranch) = 0;
+  virtual void removeWorktree(const QWeakPointer<GitRepoContainer> &guard,
+                              const QString &name, bool force) = 0;
+  virtual void lockWorktree(const QWeakPointer<GitRepoContainer> &guard,
+                            const QString &name, const QString &reason) = 0;
+  virtual void unlockWorktree(const QWeakPointer<GitRepoContainer> &guard,
+                              const QString &name) = 0;
+  virtual bool getWorktrees(const QWeakPointer<GitRepoContainer> &guard) = 0;
   virtual void amend(const QWeakPointer<GitRepoContainer> &guard,
                      const QString &summary, const QString &description,
                      const QString &author, const QString &email, bool signoff,
@@ -117,11 +127,10 @@ public:
   // Loads page `page` of the history in the background and hands it to the
   // history model on the GUI thread (GitHistoryModel::appendPage or
   // GitHistoryModel::pageFailed).
-  virtual void
-  getBranchHistoryPage(const QWeakPointer<GitRepoContainer> &guard,
-                       const QString &branchName,
-                       GitRepo::BranchType branchType, int page,
-                       quint64 generation) = 0;
+  virtual void getBranchHistoryPage(const QWeakPointer<GitRepoContainer> &guard,
+                                    const QString &branchName,
+                                    GitRepo::BranchType branchType, int page,
+                                    quint64 generation) = 0;
   virtual QStringList
   getCommitBranches(const QWeakPointer<GitRepoContainer> &guard,
                     const QString &commit) const = 0;

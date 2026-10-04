@@ -420,6 +420,23 @@ enum class GitError : int {
   AmendFailedToSignCommit,
   AmendFailedToCreateSignedAmendCommit,
   AmendFailedToAmendCommit,
+  ListWorktreesFailedToListWorktrees,
+  ListWorktreesFailedToOpenWorktree,
+  AddWorktreeBranchRequired,
+  AddWorktreeFailedToResolveHead,
+  AddWorktreeFailedToCreateBranch,
+  AddWorktreeFailedToLookupBranch,
+  AddWorktreeFailedToCreateDirectory,
+  AddWorktreeFailedToAddWorktree,
+  RemoveWorktreeFailedToLookupWorktree,
+  RemoveWorktreeMainNotAllowed,
+  RemoveWorktreeFailedToPrune,
+  LockWorktreeFailedToLookupWorktree,
+  LockWorktreeMainNotAllowed,
+  LockWorktreeFailedToLock,
+  UnlockWorktreeFailedToLookupWorktree,
+  UnlockWorktreeMainNotAllowed,
+  UnlockWorktreeFailedToUnlock,
   Last
 };
 
@@ -687,6 +704,33 @@ struct SubmoduleInfo {
            statusInfo.status == other.statusInfo.status;
   }
 };
+
+struct WorktreeInfo {
+  // Admin name under .git/worktrees; for the main worktree the directory name
+  // of the main working directory.
+  QString name;
+  // Absolute working directory path, forward slashes, no trailing slash.
+  QString path;
+  // Short branch name (e.g. "feature/x"); empty if HEAD is detached.
+  QString branch;
+  // 7-char abbreviated HEAD commit sha (empty if unborn/unreadable).
+  QString head;
+  // The main (non-linked) working tree.
+  bool isMain = false;
+  // The worktree whose working directory backs the repository passed in.
+  bool isCurrent = false;
+  bool locked = false;
+  // git_worktree_validate() == 0 (always true for the main worktree).
+  bool valid = true;
+
+  bool operator==(const WorktreeInfo &other) const {
+    return name == other.name && path == other.path && branch == other.branch &&
+           head == other.head && isMain == other.isMain &&
+           isCurrent == other.isCurrent && locked == other.locked &&
+           valid == other.valid;
+  }
+};
+
 struct RemoteTarget {
   QString name; // e.g., "Default", "Backup", etc.
   QString fetchUrl;
@@ -824,6 +868,9 @@ GitErrorContext getLastError();
 
 void initForCurrentThread();
 
+// Closes every credentials/passphrase overlay raised on the current thread.
+void finishPendingCredentialPrompts();
+
 void shutdownForCurrentThread();
 
 Lfs::StorageStatus getLfsStorageStatus(git_repository *repo);
@@ -896,6 +943,32 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex);
 QStringList listSubmodules(git_repository *repo);
 QVector<SubmoduleInfo> listSubmodulesWithStatus(git_repository *repo,
                                                 const bool &quitFlag);
+
+// Main worktree first (if the repository is not bare), then linked worktrees
+// sorted by name (case-insensitive). Works when `repo` is a linked worktree.
+// Returns {} and sets error on failure.
+QVector<WorktreeInfo> listWorktrees(git_repository *repo);
+
+// Creates a linked worktree `name` at `path`. If `createBranch` is true, a new
+// local branch `branch` is created at the tip of the local branch `baseBranch`
+// (or at the commit HEAD resolves to when `baseBranch` is empty) and checked
+// out in the new worktree; otherwise `branch` must be an existing local branch
+// and `baseBranch` is ignored. An empty `branch` is not supported.
+bool addWorktree(git_repository *repo, const QString &name, const QString &path,
+                 const QString &branch, bool createBranch,
+                 const QString &baseBranch = QString());
+
+// Removes a linked worktree (its working directory and admin data).
+bool removeWorktree(git_repository *repo, const QString &name, bool force);
+
+// Locks a linked worktree so that it can't be pruned. `reason` is optional.
+// Locking an already locked worktree is treated as success.
+bool lockWorktree(git_repository *repo, const QString &name,
+                  const QString &reason);
+
+// Unlocks a linked worktree. Unlocking a worktree that is not locked is
+// treated as success.
+bool unlockWorktree(git_repository *repo, const QString &name);
 
 QStringList listTags(git_repository *repo);
 
