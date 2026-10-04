@@ -82,6 +82,13 @@ echo "== Deploying Qt"
 # would keep pointing at the Qt installation of the build machine.
 "$QT_PREFIX/bin/macdeployqt" "$APP" -executable="$APP/Contents/MacOS/SourcererLauncher"
 
+# Bundle the JWT public key so Finder-launched apps can find it even though the
+# current working directory is not the app's executable directory.
+if [[ -f "$REPO_ROOT/keys/cloud_jwt_public_key.pem" ]]; then
+    mkdir -p "$APP/Contents/Resources/keys"
+    cp "$REPO_ROOT/keys/cloud_jwt_public_key.pem" "$APP/Contents/Resources/keys/"
+fi
+
 echo "== Signing ($CODESIGN_IDENTITY)"
 SIGN_ARGS=(--force --sign "$CODESIGN_IDENTITY")
 if [[ "$CODESIGN_IDENTITY" != "-" ]]; then

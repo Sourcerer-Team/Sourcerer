@@ -4,7 +4,10 @@
 #include <Log.h>
 
 #include <QByteArray>
+#include <QCoreApplication>
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QIODevice>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -132,24 +135,61 @@ bool JWTDecoder::verifySignature(const QString &jwt,
   return signatureValid;
 }
 
+namespace {
+
+QString resolvePublicKeyPath(const QString &configuredPath) {
+  if (configuredPath.isEmpty()) {
+    return QString();
+  }
+
+  const QFileInfo configuredInfo(configuredPath);
+  if (configuredInfo.isAbsolute() && configuredInfo.exists()) {
+    return configuredInfo.absoluteFilePath();
+  }
+
+  const QString appDir = QCoreApplication::applicationDirPath();
+  const QString appDirCandidate = QDir(appDir).absoluteFilePath(configuredPath);
+  if (QFileInfo::exists(appDirCandidate)) {
+    return appDirCandidate;
+  }
+
+#ifdef Q_OS_MACOS
+  QDir bundleDir(appDir); // <bundle>.app/Contents/MacOS
+  if (bundleDir.cdUp()) { // Contents
+    const QString resourcesCandidate =
+        QDir(bundleDir.absoluteFilePath(QStringLiteral("Resources")))
+            .absoluteFilePath(configuredPath);
+    if (QFileInfo::exists(resourcesCandidate)) {
+      return resourcesCandidate;
+    }
+  }
+#endif
+
+  return configuredPath;
+}
+
+} // namespace
+
 QString JWTDecoder::getJWTPublicKey() {
   LOG_PERF(0, "Enter");
 
   ConfigManager::ConfigManager &configManager =
       ConfigManager::ConfigManager::getInstance();
-  QString publicKeyPath =
+  const QString configuredPath =
       configManager.getString(ConfigManager::ConfigKey::CloudJwtPublicKeyPath);
+  const QString publicKeyPath = resolvePublicKeyPath(configuredPath);
   if (!publicKeyPath.isEmpty()) {
     QFile keyFile(publicKeyPath);
     if (keyFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-      QString publicKey = QString::fromUtf8(keyFile.readAll());
+      const QString publicKey = QString::fromUtf8(keyFile.readAll());
       keyFile.close();
       LOG_PERF(0, "Exit");
       return publicKey;
     }
   }
 
-  LOG_WARN("JWT public key not configured");
+  LOG_WARN("JWT public key not configured or not found at '{}'",
+           configuredPath.toStdString());
   LOG_PERF(0, "Exit");
   return QString();
 }

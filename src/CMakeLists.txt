@@ -170,6 +170,19 @@ if (APPLE)
                   "$<TARGET_BUNDLE_CONTENT_DIR:Sourcerer>/MacOS/SourcererLauncher"
           COMMENT "Embedding SourcererLauncher into the application bundle"
   )
+
+  set(SOURCERER_JWT_PUBLIC_KEY
+      "${CMAKE_CURRENT_SOURCE_DIR}/../keys/cloud_jwt_public_key.pem")
+  if (EXISTS "${SOURCERER_JWT_PUBLIC_KEY}")
+    add_custom_command(TARGET Sourcerer POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                    "$<TARGET_BUNDLE_CONTENT_DIR:Sourcerer>/Resources/keys"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${SOURCERER_JWT_PUBLIC_KEY}"
+                    "$<TARGET_BUNDLE_CONTENT_DIR:Sourcerer>/Resources/keys/cloud_jwt_public_key.pem"
+            COMMENT "Embedding JWT public key into the application bundle"
+    )
+  endif ()
 endif ()
 
 qt_finalize_target(Sourcerer)
