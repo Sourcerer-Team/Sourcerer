@@ -57,8 +57,8 @@
 #include <QStyleOptionViewItem>
 #include <QSvgRenderer>
 #include <QTextStream>
-#include <QTimer>
 #include <QThreadPool>
+#include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
 #include <Qsci/qsciscintilla.h>
@@ -650,6 +650,253 @@ void GitRepoManagerBridgeImpl::addSubmodule(
     LOG_PERF(0, "Exit")
     return;
   }
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { _container.showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::addWorktree(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &path,
+    const QString &branch, const bool createBranch, const QString &baseBranch) {
+  LOG_PERF(0, "Enter");
+
+  _container.stopWatcher(guard);
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoAddWorktreeCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.name = QFileInfo(QDir::cleanPath(path)).fileName();
+  command.path = QDir::cleanPath(path);
+  command.branch = branch;
+  command.createBranch = createBranch;
+  command.baseBranch = baseBranch;
+
+  EventManager::Event addWorktreeEvent(
+      EventManager::EventType::GitRepoManagerAddWorktree, eventUuid);
+  addWorktreeEvent.addData(command);
+  _container._eventManager.send(addWorktreeEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerAddWorktreeError,
+      EventManager::EventType::GitRepoManagerAddWorktreeResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to add worktree.")),
+          _container.tr("Error"));
+    });
+    _container.prepareWatcher(guard);
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerAddWorktreeResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+    _container.prepareWatcher(guard);
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  // A new branch may have been created, so refresh everything.
+  _container.refreshHistory(guard);
+  _container.prepareWatcher(guard);
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { _container.showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::removeWorktree(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &name,
+    const bool force) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoRemoveWorktreeCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.name = name;
+  command.force = force;
+
+  EventManager::Event removeWorktreeEvent(
+      EventManager::EventType::GitRepoManagerRemoveWorktree, eventUuid);
+  removeWorktreeEvent.addData(command);
+  _container._eventManager.send(removeWorktreeEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerRemoveWorktreeError,
+      EventManager::EventType::GitRepoManagerRemoveWorktreeResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to remove worktree.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerRemoveWorktreeResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getWorktrees(guard);
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { _container.showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::lockWorktree(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &name,
+    const QString &reason) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoLockWorktreeCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.name = name;
+  command.reason = reason;
+
+  EventManager::Event lockWorktreeEvent(
+      EventManager::EventType::GitRepoManagerLockWorktree, eventUuid);
+  lockWorktreeEvent.addData(command);
+  _container._eventManager.send(lockWorktreeEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerLockWorktreeError,
+      EventManager::EventType::GitRepoManagerLockWorktreeResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to lock worktree.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerLockWorktreeResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getWorktrees(guard);
+
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { _container.showSpinnerOverlay(false); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::unlockWorktree(
+    const QWeakPointer<GitRepoContainer> &guard, const QString &name) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoUnlockWorktreeCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.name = name;
+
+  EventManager::Event unlockWorktreeEvent(
+      EventManager::EventType::GitRepoManagerUnlockWorktree, eventUuid);
+  unlockWorktreeEvent.addData(command);
+  _container._eventManager.send(unlockWorktreeEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerUnlockWorktreeError,
+      EventManager::EventType::GitRepoManagerUnlockWorktreeResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to unlock worktree.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerUnlockWorktreeResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getWorktrees(guard);
 
   Util::Dispatcher::dispatchToMainThread(
       guard, [&]() { _container.showSpinnerOverlay(false); });
@@ -3368,12 +3615,14 @@ void GitRepoManagerBridgeImpl::getBranchHistoryPage(
         eventManager->waitForAnswer(token, eventUuid, types);
 
     const bool ok =
-        success && resultEvent.type() ==
-                       EventManager::EventType::GitRepoManagerGetBranchHistoryResult;
+        success &&
+        resultEvent.type() ==
+            EventManager::EventType::GitRepoManagerGetBranchHistoryResult;
 
     GitRepo::GitHistory history;
     if (ok) {
-      history = resultEvent.data<GitRepoResult>().value.value<GitRepo::GitHistory>();
+      history =
+          resultEvent.data<GitRepoResult>().value.value<GitRepo::GitHistory>();
     }
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
@@ -3869,6 +4118,72 @@ bool GitRepoManagerBridgeImpl::getSubmodules() {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.updateSubmodulesModelWithStatus(guard, submodulesWithStatus);
+    _container.releaseHistoryRefreshSemaphore();
+  });
+
+  LOG_PERF(0, "Exit")
+
+  return true;
+}
+
+bool GitRepoManagerBridgeImpl::getWorktrees(
+    const QWeakPointer<GitRepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoListWorktreesCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event listWorktreesEvent(
+      EventManager::EventType::GitRepoManagerListWorktrees, eventUuid);
+  listWorktreesEvent.addData(command);
+  _container._eventManager.send(listWorktreesEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerListWorktreesError,
+      EventManager::EventType::GitRepoManagerListWorktreesResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to retrieve the list of worktrees."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerListWorktreesResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    _container.releaseHistoryRefreshSemaphore();
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const auto worktrees =
+      commandResult.value.value<QVector<GitRepo::WorktreeInfo>>();
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateWorktreesModel(guard, worktrees);
     _container.releaseHistoryRefreshSemaphore();
   });
 

@@ -205,6 +205,11 @@ void SshPassphraseOverlayWidget::onCancelClicked() {
 
   _eventManager.send(cancelEvent);
 
+  // Always close the overlay locally; the backend may no longer be waiting.
+  // Queued because the owner deletes this widget in response to the signal.
+  QMetaObject::invokeMethod(
+      this, [this]() { emit finished(); }, Qt::QueuedConnection);
+
   LOG_PERF(0, "Exit");
 }
 

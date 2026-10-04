@@ -184,23 +184,31 @@ void JobExecutor::startNextIfNoneRunning()
         connect(next, &Job::finished, this, &JobExecutor::jobFinished);
         connect(next, &Job::destroyed, this, &JobExecutor::jobDestroyed);
         m_jobRunning = true;
+        m_currentJob = next;
         next->scheduledStart();
     }
 }
 
 void JobExecutor::jobDestroyed(QObject *object)
 {
-    Job *job = static_cast<Job *>(object);
-    Q_UNUSED(object) // for release mode
-    job->disconnect(this);
+    // `object` is a dangling pointer by now when the job lived on another
+    // thread, so it must not be dereferenced. Qt drops the connections of a
+    // destroyed sender on its own.
+    if (object != m_currentJob)
+        return;
+    m_currentJob = nullptr;
     m_jobRunning = false;
     startNextIfNoneRunning();
 }
 
 void JobExecutor::jobFinished(Job *job)
 {
-    Q_UNUSED(job) // for release mode
-    job->disconnect(this);
+    // Same as above: `job` may already have been destroyed (e.g. a job created
+    // on the stack and waited for with a local event loop), so only compare
+    // it. Stale notifications of an earlier job are ignored.
+    if (static_cast<QObject *>(job) != m_currentJob)
+        return;
+    m_currentJob = nullptr;
     m_jobRunning = false;
     startNextIfNoneRunning();
 }

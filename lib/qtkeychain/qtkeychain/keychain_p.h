@@ -161,6 +161,10 @@ private:
     static JobExecutor *s_instance;
     QQueue<QPointer<Job>> m_queue;
     bool m_jobRunning;
+    // Only ever compared, never dereferenced: the job may live on another
+    // thread and be gone by the time its queued finished()/destroyed() signal
+    // is delivered to the executor.
+    QObject *m_currentJob = nullptr;
 };
 
 } // namespace QKeychain

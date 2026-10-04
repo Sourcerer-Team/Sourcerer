@@ -251,6 +251,12 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerAddTargetResult";
   case EventType::GitRepoManagerAddTargetError:
     return "GitRepoManagerAddTargetError";
+  case EventType::GitRepoManagerAddWorktree:
+    return "GitRepoManagerAddWorktree";
+  case EventType::GitRepoManagerAddWorktreeResult:
+    return "GitRepoManagerAddWorktreeResult";
+  case EventType::GitRepoManagerAddWorktreeError:
+    return "GitRepoManagerAddWorktreeError";
   case EventType::GitRepoManagerEditTarget:
     return "GitRepoManagerEditTarget";
   case EventType::GitRepoManagerEditTargetResult:
@@ -557,6 +563,18 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerListTagsResult";
   case EventType::GitRepoManagerListTagsError:
     return "GitRepoManagerListTagsError";
+  case EventType::GitRepoManagerListWorktrees:
+    return "GitRepoManagerListWorktrees";
+  case EventType::GitRepoManagerListWorktreesResult:
+    return "GitRepoManagerListWorktreesResult";
+  case EventType::GitRepoManagerListWorktreesError:
+    return "GitRepoManagerListWorktreesError";
+  case EventType::GitRepoManagerLockWorktree:
+    return "GitRepoManagerLockWorktree";
+  case EventType::GitRepoManagerLockWorktreeResult:
+    return "GitRepoManagerLockWorktreeResult";
+  case EventType::GitRepoManagerLockWorktreeError:
+    return "GitRepoManagerLockWorktreeError";
   case EventType::GitRepoManagerMerge:
     return "GitRepoManagerMerge";
   case EventType::GitRepoManagerMergeResult:
@@ -635,6 +653,18 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerRemoveRemoteResult";
   case EventType::GitRepoManagerRemoveRemoteError:
     return "GitRepoManagerRemoveRemoteError";
+  case EventType::GitRepoManagerRemoveWorktree:
+    return "GitRepoManagerRemoveWorktree";
+  case EventType::GitRepoManagerRemoveWorktreeResult:
+    return "GitRepoManagerRemoveWorktreeResult";
+  case EventType::GitRepoManagerRemoveWorktreeError:
+    return "GitRepoManagerRemoveWorktreeError";
+  case EventType::GitRepoManagerUnlockWorktree:
+    return "GitRepoManagerUnlockWorktree";
+  case EventType::GitRepoManagerUnlockWorktreeResult:
+    return "GitRepoManagerUnlockWorktreeResult";
+  case EventType::GitRepoManagerUnlockWorktreeError:
+    return "GitRepoManagerUnlockWorktreeError";
   case EventType::GitRepoManagerRenameBranch:
     return "GitRepoManagerRenameBranch";
   case EventType::GitRepoManagerRenameBranchResult:

@@ -40,6 +40,7 @@
 #include <git2/sys/errors.h>
 #include <git2/tag.h>
 #include <git2/types.h>
+#include <git2/worktree.h>
 
 #include <QByteArray>
 #include <QFile>
@@ -2199,6 +2200,63 @@ static QString gitErrorName(const GitError errorType) {
   case GitError::AmendFailedToAmendCommit:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to amend commit while amending the commit.");
+  case GitError::ListWorktreesFailedToListWorktrees:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to list worktrees while listing worktrees.");
+  case GitError::ListWorktreesFailedToOpenWorktree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to open worktree while listing worktrees.");
+  case GitError::AddWorktreeBranchRequired:
+    return QCoreApplication::translate(
+        "GitRepoError", "A branch is required while adding the worktree.");
+  case GitError::AddWorktreeFailedToResolveHead:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to resolve HEAD while adding the worktree.");
+  case GitError::AddWorktreeFailedToCreateBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create branch while adding the worktree.");
+  case GitError::AddWorktreeFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup branch while adding the worktree.");
+  case GitError::AddWorktreeFailedToCreateDirectory:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create directory while adding the worktree.");
+  case GitError::AddWorktreeFailedToAddWorktree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to add worktree while adding the worktree.");
+  case GitError::RemoveWorktreeFailedToLookupWorktree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup worktree while removing the worktree.");
+  case GitError::RemoveWorktreeMainNotAllowed:
+    return QCoreApplication::translate("GitRepoError",
+                                       "The main worktree cannot be removed.");
+  case GitError::RemoveWorktreeFailedToPrune:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to remove worktree while removing the worktree.");
+  case GitError::LockWorktreeFailedToLookupWorktree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup worktree while locking the worktree.");
+  case GitError::LockWorktreeMainNotAllowed:
+    return QCoreApplication::translate("GitRepoError",
+                                       "The main worktree cannot be locked.");
+  case GitError::LockWorktreeFailedToLock:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lock worktree while locking the worktree.");
+  case GitError::UnlockWorktreeFailedToLookupWorktree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup worktree while unlocking the worktree.");
+  case GitError::UnlockWorktreeMainNotAllowed:
+    return QCoreApplication::translate("GitRepoError",
+                                       "The main worktree cannot be unlocked.");
+  case GitError::UnlockWorktreeFailedToUnlock:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to unlock worktree while unlocking the worktree.");
   case GitError::Last:
     return QCoreApplication::translate("GitRepoError",
                                        "Invalid Git error marker.");
@@ -2212,10 +2270,12 @@ static QString gitErrorMessage(const GitError errorType) {
   return gitErrorName(errorType);
 }
 
-static void setErrorContext(const GitError errorType, const int errorCode) {
+static void setErrorContext(const GitError errorType,
+                            const QString &gitErrorMessage,
+                            const int errorCode) {
   LOCKGUARD(gErrorMutex);
-  gErrorMap[std::this_thread::get_id()] = {errorType, errorCode,
-                                           gitErrorMessage(errorType)};
+  gErrorMap[std::this_thread::get_id()] = {
+      errorType, errorCode, gitErrorMessage, /*gitErrorMessage(errorType)*/};
 }
 
 static void setError(const GitError errorType, const int error) {
@@ -2226,7 +2286,7 @@ static void setError(const GitError errorType, const int error) {
           ? capitalizeFirst(QString::fromUtf8(gitError->message))
           : QString();
 
-  setErrorContext(errorType, encodeLibgitError(error, klass));
+  setErrorContext(errorType, libgitMessage, encodeLibgitError(error, klass));
 
   LOG_ERROR(
       Log::ErrorId::Git,
@@ -2715,6 +2775,8 @@ static void invalidateCredentials(const QString &url) {
   if (it != gGitCredentials.end())
     gGitCredentials.erase(it);
 }
+
+static thread_local std::set<size_t> gPromptedCredentialIds;
 
 static void sendInvalidCredentialsSignal(const QString &url) {
   EventManager::EventManager &eventManager =
@@ -3234,6 +3296,9 @@ static bool promptForSshPassphrase(const QString &repoPath, const QString &url,
   request.allowedTypes = GIT_CREDENTIAL_SSH_KEY;
   request.repoPath = repoPath;
   request.needsPassphrase = true;
+
+  const size_t promptId = request.id;
+  gPromptedCredentialIds.insert(promptId);
 
   EventManager::Event credentialsEvent(
       EventManager::EventType::GitRepoManagerGetCredentials);
@@ -3837,7 +3902,10 @@ static QStringList listCheckoutBranches(git_repository *repo,
         continue;
       }
 
-      error = git_branch_is_checked_out(ref);
+      // git_branch_is_head() looks at this repository's HEAD only. Unlike
+      // git_branch_is_checked_out() it ignores branches that are checked out
+      // in other worktrees, which must not be reported as active here.
+      error = git_branch_is_head(ref);
       if (error == 1) {
         activeBranches += branchName;
       } else if (error != 0) {
@@ -5461,6 +5529,26 @@ static void finishCredentialsAcquiring(const QString &url) {
   eventManager.send(credentialsFinishedEvent);
 }
 
+void finishPendingCredentialPrompts() {
+  // Credential prompts are keyed by a hash of the URL they were raised for.
+  // That URL is not always the remote URL the calling operation knows about
+  // (e.g. Git LFS endpoints), and prompts can also be raised outside of the
+  // fetch/push window (e.g. LFS smudge during checkout). Close every prompt
+  // raised on this thread so that no overlay is left behind.
+  std::set<size_t> ids;
+  ids.swap(gPromptedCredentialIds);
+
+  EventManager::EventManager &eventManager =
+      EventManager::EventManager::getInstance();
+
+  for (const size_t id : ids) {
+    EventManager::Event event(
+        EventManager::EventType::GitRepoManagerGetCredentialsFinished);
+    event.addData(id);
+    eventManager.send(event);
+  }
+}
+
 static std::tuple<bool, GitPlaintextCredentials>
 acquireCredentials(const QString &repoPath, const QString &url,
                    const QString &username, const int allowedTypes) {
@@ -5515,6 +5603,8 @@ acquireCredentials(const QString &repoPath, const QString &url,
   request.username = username;
   request.allowedTypes = allowedTypes;
   request.repoPath = normalizedRepoPath;
+
+  gPromptedCredentialIds.insert(request.id);
 
   EventManager::Event credentialsEvent(
       EventManager::EventType::GitRepoManagerGetCredentials);
@@ -5965,11 +6055,9 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
 
   LOG_DEBUG("git_clone returned with error code: {}", error);
 
-  finishFetchProgress(uuid, error != 0, true);
+  finishCredentialsAcquiring(url);
 
-  if (commercial) {
-    finishCredentialsAcquiring(url);
-  }
+  finishFetchProgress(uuid, error != 0, true);
 
   if (error || !repo) {
     LOG_ERROR(Log::ErrorId::Git,
@@ -6044,10 +6132,9 @@ static void collectHistoryRefs(git_repository *repo, const char *glob,
   }
   git_reference_iterator_free(it);
 
-  std::sort(found.begin(), found.end(),
-            [](const HistoryRef &a, const HistoryRef &b) {
-              return a.key < b.key;
-            });
+  std::sort(
+      found.begin(), found.end(),
+      [](const HistoryRef &a, const HistoryRef &b) { return a.key < b.key; });
   out += found;
 }
 
@@ -6069,8 +6156,8 @@ static void collectRefLabels(git_repository *repo, const char *glob,
       const QString fullName = QString::fromUtf8(name);
       // Skip symbolic remote HEADs like refs/remotes/origin/HEAD.
       if (!fullName.endsWith(QStringLiteral("/") + QLatin1String(HEAD))) {
-        found.push_back(
-            {fullName, QString::fromLatin1(git_oid_tostr_s(git_object_id(obj)))});
+        found.push_back({fullName, QString::fromLatin1(
+                                       git_oid_tostr_s(git_object_id(obj)))});
       }
     }
 
@@ -6095,8 +6182,8 @@ static QSharedPointer<HistoryCursor>
 buildHistoryCursor(git_repository *repo, const QString &branchName,
                    const BranchType type, const QString &cursorKey,
                    const bool &quitFlag) {
-  const bool allRefs = type == BranchType::All ||
-                       (branchName == ALL_BRANCHES && type == BranchType::Local);
+  const bool allRefs = type == BranchType::All || (branchName == ALL_BRANCHES &&
+                                                   type == BranchType::Local);
   const bool allRemotes =
       branchName == ALL_BRANCHES && type == BranchType::Remote;
 
@@ -6172,7 +6259,8 @@ buildHistoryCursor(git_repository *repo, const QString &branchName,
       error = git_revwalk_push_head(walker);
     } else {
       error = git_revwalk_push_ref(
-          walker, QString("refs/heads/%1").arg(branchName).toStdString().c_str());
+          walker,
+          QString("refs/heads/%1").arg(branchName).toStdString().c_str());
     }
     if (error) {
       setError(GitError::GetBranchHistoryFailedToAddLocalBranchToRevwalk,
@@ -6261,9 +6349,10 @@ static bool loadHistoryCommit(git_repository *repo, const git_oid &oid,
 
     const char *parentStr = git_oid_tostr_s(parentOid);
     if (!parentStr) {
-      LOG_ERROR(Log::ErrorId::Git,
-                "Can't convert parent oid at index {} for oid \"{}\" to string.",
-                i, oidStr);
+      LOG_ERROR(
+          Log::ErrorId::Git,
+          "Can't convert parent oid at index {} for oid \"{}\" to string.", i,
+          oidStr);
       git_commit_free(commit);
       return false;
     }
@@ -8274,11 +8363,9 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(fetchUuid, error != 0, false);
+  finishCredentialsAcquiring(urlStr);
 
-  if (commercial) {
-    finishCredentialsAcquiring(urlStr);
-  }
+  finishFetchProgress(fetchUuid, error != 0, false);
 
   if (error) {
     setError(GitError::PullFailedToFetchRemoteWithCredentials, error);
@@ -8613,11 +8700,9 @@ static bool fetchRemoteInternal(git_repository *repo,
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(fetchUuid, error != 0, false);
+  finishCredentialsAcquiring(urlStr);
 
-  if (commercial) {
-    finishCredentialsAcquiring(urlStr);
-  }
+  finishFetchProgress(fetchUuid, error != 0, false);
 
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to fetch from remote '{}': error={}",
@@ -8904,11 +8989,9 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(pushUuid, error != 0, false);
+  finishCredentialsAcquiring(urlStr);
 
-  if (commercial) {
-    finishCredentialsAcquiring(urlStr);
-  }
+  finishFetchProgress(pushUuid, error != 0, false);
 
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
@@ -9056,9 +9139,9 @@ bool pushTag(git_repository *repo, const QString &tagName) {
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(progressData.uuid, error != 0, false);
-
   finishCredentialsAcquiring(url);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
 
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
@@ -9203,9 +9286,9 @@ bool pushAllTags(git_repository *repo) {
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(progressData.uuid, error != 0, false);
-
   finishCredentialsAcquiring(url);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
 
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
@@ -10236,9 +10319,9 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(progressData.uuid, error != 0, false);
-
   finishCredentialsAcquiring(url);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
 
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
@@ -10700,9 +10783,9 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(progressData.uuid, error != 0, false);
-
   finishCredentialsAcquiring(url);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
 
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
@@ -11016,8 +11099,8 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(uuid, error != 0, false);
   finishCredentialsAcquiring(urlStr);
+  finishFetchProgress(uuid, error != 0, false);
 
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
@@ -11310,8 +11393,8 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   error = git_submodule_clone(&subRepo, subModule, &cloneOpts);
   if (error) {
     setError(GitError::AddSubmoduleFailedToCloneSubmodule, error);
-    finishFetchProgress(uuid, true, false);
     finishCredentialsAcquiring(url);
+    finishFetchProgress(uuid, true, false);
     if (subRepo) {
       git_repository_free(subRepo);
     }
@@ -11323,13 +11406,13 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   }
 
   // Send completion event to hide progress toast
+  // Dismiss the credentials overlay first (same url key used for the widget);
+  // finishFetchProgress sleeps and would otherwise keep the overlay open.
+  finishCredentialsAcquiring(url);
+
   // This is needed even if no progress callbacks were fired (e.g., local path
   // submodules)
   finishFetchProgress(uuid, error != 0, false);
-
-  // Dismiss credentials overlay using the URL (same key used for storing the
-  // widget)
-  finishCredentialsAcquiring(url);
 
   // Submodules must always track a branch. Use the branch chosen in the add
   // submodule dialog; if none was provided, fall back to whatever branch the
@@ -11391,6 +11474,441 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 
   git_repository_free(subRepo);
   git_submodule_free(subModule);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+static QString normalizeWorktreePath(const QString &path) {
+  return QDir::cleanPath(QDir::fromNativeSeparators(path));
+}
+
+static bool isSameWorktreePath(const QString &lhs, const QString &rhs) {
+  if (lhs.isEmpty() || rhs.isEmpty()) {
+    return false;
+  }
+
+#ifdef _WIN32
+  return lhs.compare(rhs, Qt::CaseInsensitive) == 0;
+#else
+  return lhs == rhs;
+#endif
+}
+
+// Best-effort read of the branch and abbreviated HEAD commit of a worktree.
+static void readWorktreeHeadInfo(git_repository *worktreeRepo, QString &branch,
+                                 QString &head) {
+  git_reference *headRef = nullptr;
+
+  if (git_repository_head(&headRef, worktreeRepo) == 0) {
+    if (git_reference_is_branch(headRef)) {
+      if (const char *shorthand = git_reference_shorthand(headRef)) {
+        branch = QString::fromUtf8(shorthand);
+      }
+    }
+
+    if (const git_oid *oid = git_reference_target(headRef)) {
+      char buffer[GIT_OID_HEXSZ + 1] = {0};
+      git_oid_tostr(buffer, 8, oid);
+      head = QString::fromLatin1(buffer);
+    }
+
+    git_reference_free(headRef);
+    return;
+  }
+
+  // Unborn branch: HEAD is a symbolic reference to a branch without commits.
+  git_reference *symbolicRef = nullptr;
+  if (git_reference_lookup(&symbolicRef, worktreeRepo, "HEAD") == 0) {
+    if (git_reference_type(symbolicRef) == GIT_REFERENCE_SYMBOLIC) {
+      const char *target = git_reference_symbolic_target(symbolicRef);
+      const QString prefix = QStringLiteral("refs/heads/");
+      if (target) {
+        const QString targetName = QString::fromUtf8(target);
+        if (targetName.startsWith(prefix)) {
+          branch = targetName.mid(prefix.length());
+        }
+      }
+    }
+
+    git_reference_free(symbolicRef);
+  }
+}
+
+QVector<WorktreeInfo> listWorktrees(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_strarray names = {nullptr, 0};
+  if (const int error = git_worktree_list(&names, repo)) {
+    setError(GitError::ListWorktreesFailedToListWorktrees, error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const char *currentWorkdir = git_repository_workdir(repo);
+  const QString currentPath =
+      currentWorkdir ? normalizeWorktreePath(QString::fromUtf8(currentWorkdir))
+                     : QString();
+
+  QVector<WorktreeInfo> result;
+
+  // The main worktree. When `repo` is itself a linked worktree the main one is
+  // found through the common directory.
+  git_repository *mainRepo = repo;
+  bool ownsMainRepo = false;
+
+  if (git_repository_is_worktree(repo)) {
+    mainRepo = nullptr;
+
+    const char *commonDir = git_repository_commondir(repo);
+    if (commonDir && git_repository_open(&mainRepo, commonDir) == 0) {
+      ownsMainRepo = true;
+    } else {
+      mainRepo = nullptr;
+      LOG_WARN("Failed to open the main repository of the worktree");
+    }
+  }
+
+  if (mainRepo && !git_repository_is_bare(mainRepo)) {
+    if (const char *mainWorkdir = git_repository_workdir(mainRepo)) {
+      WorktreeInfo info;
+      info.path = normalizeWorktreePath(QString::fromUtf8(mainWorkdir));
+      info.name = QFileInfo(info.path).fileName();
+      info.isMain = true;
+      info.isCurrent = isSameWorktreePath(info.path, currentPath);
+      info.locked = false;
+      info.valid = true;
+      readWorktreeHeadInfo(mainRepo, info.branch, info.head);
+
+      result.push_back(info);
+    }
+  }
+
+  if (ownsMainRepo) {
+    git_repository_free(mainRepo);
+  }
+
+  // Linked worktrees.
+  QVector<WorktreeInfo> linked;
+
+  for (size_t i = 0; i < names.count; ++i) {
+    const char *name = names.strings[i];
+    if (!name) {
+      continue;
+    }
+
+    git_worktree *worktree = nullptr;
+    if (const int error = git_worktree_lookup(&worktree, repo, name)) {
+      LOG_WARN("{}: '{}' (error {})",
+               gitErrorName(GitError::ListWorktreesFailedToOpenWorktree)
+                   .toStdString(),
+               name, error);
+      continue;
+    }
+
+    WorktreeInfo info;
+    info.name = QString::fromUtf8(name);
+    if (const char *worktreePath = git_worktree_path(worktree)) {
+      info.path = normalizeWorktreePath(QString::fromUtf8(worktreePath));
+    }
+    info.isMain = false;
+    info.isCurrent = isSameWorktreePath(info.path, currentPath);
+    info.locked = git_worktree_is_locked(nullptr, worktree) > 0;
+    info.valid = git_worktree_validate(worktree) == 0;
+
+    git_repository *worktreeRepo = nullptr;
+    if (git_repository_open_from_worktree(&worktreeRepo, worktree) == 0) {
+      readWorktreeHeadInfo(worktreeRepo, info.branch, info.head);
+      git_repository_free(worktreeRepo);
+    }
+
+    git_worktree_free(worktree);
+
+    linked.push_back(info);
+  }
+
+  git_strarray_dispose(&names);
+
+  std::sort(linked.begin(), linked.end(),
+            [](const WorktreeInfo &lhs, const WorktreeInfo &rhs) {
+              return lhs.name.compare(rhs.name, Qt::CaseInsensitive) < 0;
+            });
+
+  result += linked;
+
+  LOG_PERF(0, "Exit");
+
+  return result;
+}
+
+bool addWorktree(git_repository *repo, const QString &name, const QString &path,
+                 const QString &branch, const bool createBranch,
+                 const QString &baseBranch) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (branch.isEmpty()) {
+    setError(GitError::AddWorktreeBranchRequired, GIT_EINVALIDSPEC);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const std::string branchName = branch.toStdString();
+
+  git_reference *branchRef = nullptr;
+
+  if (createBranch) {
+    git_commit *baseCommit = nullptr;
+    int error = 0;
+
+    if (baseBranch.isEmpty()) {
+      git_reference *headRef = nullptr;
+      error = git_repository_head(&headRef, repo);
+      if (error) {
+        setError(GitError::AddWorktreeFailedToResolveHead, error);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      error =
+          git_commit_lookup(&baseCommit, repo, git_reference_target(headRef));
+      git_reference_free(headRef);
+      if (error) {
+        setError(GitError::AddWorktreeFailedToResolveHead, error);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+    } else {
+      git_reference *baseRef = nullptr;
+      error = git_branch_lookup(
+          &baseRef, repo, baseBranch.toStdString().c_str(), GIT_BRANCH_LOCAL);
+      if (error) {
+        setError(GitError::AddWorktreeFailedToLookupBranch, error);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      error =
+          git_commit_lookup(&baseCommit, repo, git_reference_target(baseRef));
+      git_reference_free(baseRef);
+      if (error) {
+        setError(GitError::AddWorktreeFailedToLookupBranch, error);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+    }
+
+    error =
+        git_branch_create(&branchRef, repo, branchName.c_str(), baseCommit, 0);
+    git_commit_free(baseCommit);
+    if (error) {
+      setError(GitError::AddWorktreeFailedToCreateBranch, error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  } else {
+    const int error = git_branch_lookup(&branchRef, repo, branchName.c_str(),
+                                        GIT_BRANCH_LOCAL);
+    if (error) {
+      setError(GitError::AddWorktreeFailedToLookupBranch, error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  // Removes the branch created above so a failed add leaves no leftovers.
+  const auto cleanupBranch = [&branchRef, createBranch]() {
+    if (createBranch) {
+      git_branch_delete(branchRef);
+    }
+    git_reference_free(branchRef);
+    branchRef = nullptr;
+  };
+
+  const QString worktreePath = normalizeWorktreePath(path);
+  const QString parentPath = QFileInfo(worktreePath).absolutePath();
+
+  if (!QDir().mkpath(parentPath)) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to create directory '{}'",
+              parentPath.toStdString());
+    setError(GitError::AddWorktreeFailedToCreateDirectory, -1);
+    cleanupBranch();
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // libgit2 refuses to use a working directory that already exists, so reuse a
+  // folder the user created (or picked) as long as it is completely empty.
+  if (const QDir worktreeDir(worktreePath);
+      worktreeDir.exists() &&
+      worktreeDir.isEmpty(QDir::AllEntries | QDir::NoDotAndDotDot |
+                          QDir::Hidden | QDir::System)) {
+    QDir().rmdir(worktreePath);
+  }
+
+  git_worktree_add_options options = GIT_WORKTREE_ADD_OPTIONS_INIT;
+  options.ref = branchRef;
+
+  git_worktree *worktree = nullptr;
+  const int error =
+      git_worktree_add(&worktree, repo, name.toStdString().c_str(),
+                       worktreePath.toStdString().c_str(), &options);
+  if (error) {
+    setError(GitError::AddWorktreeFailedToAddWorktree, error);
+    cleanupBranch();
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree_free(worktree);
+  git_reference_free(branchRef);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+bool removeWorktree(git_repository *repo, const QString &name,
+                    const bool force) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree *worktree = nullptr;
+  const int lookupError =
+      git_worktree_lookup(&worktree, repo, name.toStdString().c_str());
+  if (lookupError) {
+    // Only linked worktrees have an administrative directory, so a missing one
+    // means the name does not refer to a removable worktree (e.g. the main
+    // one).
+    if (lookupError == GIT_ENOTFOUND) {
+      setError(GitError::RemoveWorktreeMainNotAllowed, lookupError);
+    } else {
+      setError(GitError::RemoveWorktreeFailedToLookupWorktree, lookupError);
+    }
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree_prune_options options = GIT_WORKTREE_PRUNE_OPTIONS_INIT;
+  options.flags = GIT_WORKTREE_PRUNE_VALID | GIT_WORKTREE_PRUNE_WORKING_TREE;
+  if (force) {
+    options.flags |= GIT_WORKTREE_PRUNE_LOCKED;
+  }
+
+  if (const int error = git_worktree_prune(worktree, &options)) {
+    setError(GitError::RemoveWorktreeFailedToPrune, error);
+    git_worktree_free(worktree);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree_free(worktree);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+bool lockWorktree(git_repository *repo, const QString &name,
+                  const QString &reason) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree *worktree = nullptr;
+  const int lookupError =
+      git_worktree_lookup(&worktree, repo, name.toStdString().c_str());
+  if (lookupError) {
+    // Only linked worktrees have an administrative directory.
+    if (lookupError == GIT_ENOTFOUND) {
+      setError(GitError::LockWorktreeMainNotAllowed, lookupError);
+    } else {
+      setError(GitError::LockWorktreeFailedToLookupWorktree, lookupError);
+    }
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const std::string reasonUtf8 = reason.toStdString();
+  const int error = git_worktree_lock(
+      worktree, reasonUtf8.empty() ? nullptr : reasonUtf8.c_str());
+  // GIT_ELOCKED: already locked, which is the state that was asked for.
+  if (error && error != GIT_ELOCKED) {
+    setError(GitError::LockWorktreeFailedToLock, error);
+    git_worktree_free(worktree);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree_free(worktree);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+bool unlockWorktree(git_repository *repo, const QString &name) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree *worktree = nullptr;
+  const int lookupError =
+      git_worktree_lookup(&worktree, repo, name.toStdString().c_str());
+  if (lookupError) {
+    if (lookupError == GIT_ENOTFOUND) {
+      setError(GitError::UnlockWorktreeMainNotAllowed, lookupError);
+    } else {
+      setError(GitError::UnlockWorktreeFailedToLookupWorktree, lookupError);
+    }
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Returns 1 if the worktree was not locked, 0 on success, < 0 on error.
+  if (const int error = git_worktree_unlock(worktree); error < 0) {
+    setError(GitError::UnlockWorktreeFailedToUnlock, error);
+    git_worktree_free(worktree);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree_free(worktree);
 
   LOG_PERF(0, "Exit");
 

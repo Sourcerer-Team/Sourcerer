@@ -32,6 +32,7 @@ set(UI_FILES
         src/dialogs/AboutDialog.ui
         src/widgets/GitSubmodulesPage.ui
         src/widgets/GitTagsPage.ui
+        src/widgets/GitWorktreesPage.ui
         src/widgets/LocalGitBranchesPage.ui
         src/widgets/ProfileBoardWidget.ui
         src/widgets/RemoteGitBranchesPage.ui
@@ -98,9 +99,11 @@ set(GUIMANAGER_SOURCE_FILES
         include/models/SubmodulesModel.h
         include/models/TagsModel.h
         include/models/WorkspacesModel.h
+        include/models/WorktreesModel.h
         include/widgets/AddRemoteOverlayWidget.h
         include/widgets/AddSubmoduleOverlayWidget.h
         include/widgets/AddTargetOverlayWidget.h
+        include/widgets/AddWorktreeOverlayWidget.h
         include/widgets/AnnotatedTagOverlayWidget.h
         include/widgets/CentralWidget.h
         include/widgets/ClickableHeaderView.h
@@ -118,6 +121,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/GitSubmodulesPage.h
         include/widgets/GitProgressToast.h
         include/widgets/GitTagsPage.h
+        include/widgets/GitWorktreesPage.h
         include/widgets/InfoToast.h
         include/widgets/LocalGitBranchesPage.h
         include/widgets/NewsToast.h
@@ -201,10 +205,12 @@ set(GUIMANAGER_SOURCE_FILES
         src/models/StashesModel.cpp
         src/models/SubmodulesModel.cpp
         src/models/WorkspacesModel.cpp
+        src/models/WorktreesModel.cpp
         src/models/TagsModel.cpp
         src/widgets/AddRemoteOverlayWidget.cpp
         src/widgets/AddSubmoduleOverlayWidget.cpp
         src/widgets/AddTargetOverlayWidget.cpp
+        src/widgets/AddWorktreeOverlayWidget.cpp
         src/widgets/AnnotatedTagOverlayWidget.cpp
         src/widgets/CentralWidget.cpp
         src/widgets/ColorButton.cpp
@@ -219,6 +225,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/GitProgressToast.cpp
         src/widgets/GitSubmodulesPage.cpp
         src/widgets/GitTagsPage.cpp
+        src/widgets/GitWorktreesPage.cpp
         src/widgets/InfoToast.cpp
         src/widgets/LocalGitBranchesPage.cpp
         src/widgets/NewsToast.cpp

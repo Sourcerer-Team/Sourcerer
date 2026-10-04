@@ -59,6 +59,8 @@ QString GitRepoManagerFsm::eventName(int event) const {
     return "AddSubmodule";
   case EventType::AddTarget:
     return "AddTarget";
+  case EventType::AddWorktree:
+    return "AddWorktree";
   case EventType::Amend:
     return "Amend";
   case EventType::ApplyPatch:
@@ -153,6 +155,10 @@ QString GitRepoManagerFsm::eventName(int event) const {
     return "ListSubmodulesWithStatus";
   case EventType::ListTags:
     return "ListTags";
+  case EventType::ListWorktrees:
+    return "ListWorktrees";
+  case EventType::LockWorktree:
+    return "LockWorktree";
   case EventType::Merge:
     return "Merge";
   case EventType::Rebase:
@@ -175,6 +181,10 @@ QString GitRepoManagerFsm::eventName(int event) const {
     return "PushAllTags";
   case EventType::RemoveRemote:
     return "RemoveRemote";
+  case EventType::RemoveWorktree:
+    return "RemoveWorktree";
+  case EventType::UnlockWorktree:
+    return "UnlockWorktree";
   case EventType::RenameBranch:
     return "RenameBranch";
   case EventType::RenameTag:

@@ -56,9 +56,9 @@ static QVector<int> headerColumnWidths() {
   const QStringList headers = headerTitles();
   const qsizetype one0 = metrics.horizontalAdvance("0");
   for (int column = COLUMN_FIRST; column <= COLUMN_LAST; ++column) {
-    widths[column] = std::max(
-        qsizetype(1),
-        metrics.horizontalAdvance(headers.value(column)) + MULTIPLIER * one0);
+    widths[column] = std::max(qsizetype(1),
+                              metrics.horizontalAdvance(headers.value(column)) +
+                                  MULTIPLIER * one0);
   }
   return widths;
 }
@@ -136,7 +136,6 @@ void GitHistoryModel::setFilter(const int column, const QString &filter) {
   rebuildVisibleRows();
   endResetModel();
 }
-
 
 int GitHistoryModel::commitIndexForSourceRow(const int sourceRow) const {
   const int indexRow =
@@ -258,8 +257,7 @@ void GitHistoryModel::appendGraphAndWidths(const int firstCommitIndex) {
 
     growWidth(COLUMN_SUMMARY, textWidth(commitInfo.summary.trimmed()));
     growWidth(COLUMN_AUTHOR_NAME, textWidth(commitInfo.authorName.trimmed()));
-    growWidth(COLUMN_AUTHOR_EMAIL,
-              textWidth(commitInfo.authorEmail.trimmed()));
+    growWidth(COLUMN_AUTHOR_EMAIL, textWidth(commitInfo.authorEmail.trimmed()));
     growWidth(COLUMN_COMMIT_DATETIME,
               textWidth(QLocale::system().toString(
                   QDateTime::fromMSecsSinceEpoch(commitInfo.timeStamp).toUTC(),
@@ -461,7 +459,8 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
   }
 
   const int sourceRow = _visibleRows.at(index.row());
-  const bool isStatusRow = sourceRow == 0 && _historyWithStatus.status.hasChanges();
+  const bool isStatusRow =
+      sourceRow == 0 && _historyWithStatus.status.hasChanges();
 
   if (role == HistorySliceWidthRole) {
     return _graphBuilder.maxLanes();

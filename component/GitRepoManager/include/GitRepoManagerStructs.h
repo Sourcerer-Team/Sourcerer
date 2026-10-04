@@ -17,6 +17,7 @@ enum class GitRepoCommandType : int {
   AbortMerge,
   AbortRebase,
   AddSubmodule,
+  AddWorktree,
   AddRemote,
   Amend,
   Blame,
@@ -68,6 +69,8 @@ enum class GitRepoCommandType : int {
   ListSubmodules,
   ListSubmodulesWithStatus,
   ListTags,
+  ListWorktrees,
+  LockWorktree,
   Merge,
   Squash,
   Bisect,
@@ -78,6 +81,8 @@ enum class GitRepoCommandType : int {
   PushTag,
   PushAllTags,
   RemoveRemote,
+  RemoveWorktree,
+  UnlockWorktree,
   RenameBranch,
   RenameTag,
   Reset,
@@ -152,6 +157,19 @@ struct GitRepoAddSubmoduleCommand final : GitRepoCommand {
   QString url;
   QString name;
   QString branch;
+};
+
+struct GitRepoAddWorktreeCommand final : GitRepoCommand {
+  GitRepoAddWorktreeCommand()
+      : GitRepoCommand(GitRepoCommandType::AddWorktree) {}
+
+  ~GitRepoAddWorktreeCommand() override = default;
+
+  QString name;
+  QString path;
+  QString branch;
+  bool createBranch = false;
+  QString baseBranch;
 };
 
 struct GitRepoAmendCommand final : GitRepoCommand {
@@ -641,6 +659,32 @@ struct GitRepoListTagsCommand final : GitRepoCommand {
   ~GitRepoListTagsCommand() override = default;
 };
 
+struct GitRepoListWorktreesCommand final : GitRepoCommand {
+  GitRepoListWorktreesCommand()
+      : GitRepoCommand(GitRepoCommandType::ListWorktrees) {}
+
+  ~GitRepoListWorktreesCommand() override = default;
+};
+
+struct GitRepoLockWorktreeCommand final : GitRepoCommand {
+  GitRepoLockWorktreeCommand()
+      : GitRepoCommand(GitRepoCommandType::LockWorktree) {}
+
+  ~GitRepoLockWorktreeCommand() override = default;
+
+  QString name;
+  QString reason;
+};
+
+struct GitRepoUnlockWorktreeCommand final : GitRepoCommand {
+  GitRepoUnlockWorktreeCommand()
+      : GitRepoCommand(GitRepoCommandType::UnlockWorktree) {}
+
+  ~GitRepoUnlockWorktreeCommand() override = default;
+
+  QString name;
+};
+
 struct GitRepoMergeCommand final : GitRepoCommand {
   GitRepoMergeCommand() : GitRepoCommand(GitRepoCommandType::Merge) {}
 
@@ -747,6 +791,16 @@ struct GitRepoRemoveRemoteCommand final : GitRepoCommand {
   ~GitRepoRemoveRemoteCommand() override = default;
 
   QString remoteName;
+};
+
+struct GitRepoRemoveWorktreeCommand final : GitRepoCommand {
+  GitRepoRemoveWorktreeCommand()
+      : GitRepoCommand(GitRepoCommandType::RemoveWorktree) {}
+
+  ~GitRepoRemoveWorktreeCommand() override = default;
+
+  QString name;
+  bool force = false;
 };
 
 struct GitRepoRenameBranchCommand final : GitRepoCommand {
@@ -962,6 +1016,8 @@ Q_DECLARE_METATYPE(GitRepo::SubmoduleStatusType)
 Q_DECLARE_METATYPE(GitRepo::SubmoduleStatus)
 Q_DECLARE_METATYPE(GitRepo::SubmoduleInfo)
 Q_DECLARE_METATYPE(QVector<GitRepo::SubmoduleInfo>)
+Q_DECLARE_METATYPE(GitRepo::WorktreeInfo)
+Q_DECLARE_METATYPE(QVector<GitRepo::WorktreeInfo>)
 Q_DECLARE_METATYPE(GitRepo::RemoteTarget)
 Q_DECLARE_METATYPE(QVector<GitRepo::RemoteTarget>)
 Q_DECLARE_METATYPE(GitRepo::RemoteInfo)

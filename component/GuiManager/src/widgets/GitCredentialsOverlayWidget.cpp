@@ -276,6 +276,13 @@ void GitCredentialsOverlayWidget::onCancelClicked() {
 
   _eventManager.send(cancelEvent);
 
+  // Always close the overlay locally. The backend may no longer be waiting for
+  // a response (e.g. the operation already failed), in which case no
+  // `GetCredentialsFinished` event would ever arrive. The emit is queued
+  // because the owner deletes this widget in response to the signal.
+  QMetaObject::invokeMethod(
+      this, [this]() { emit finished(); }, Qt::QueuedConnection);
+
   LOG_PERF(0, "Exit");
 }
 
