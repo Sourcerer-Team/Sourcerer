@@ -1,11 +1,27 @@
 
+## 1.0.37
+
+Sourcerer 1.0.37 adds Git worktrees support and makes the diff and merge viewers easier to read in dark themes.
+
+### New
+- **Worktrees:** a new Worktrees panel lists the main worktree and all linked worktrees of a repository. You can open a worktree in its own tab, add a new one, lock or unlock it, and remove it. #635
+- **Add worktree dialog:** choose the folder and the branch to base the worktree on from a dropdown. You can also create a new branch from the selected one.
+
+### Improved
+- **Diff and merge viewer colors:** the change markers have new colors that look better on dark themes. #634
+- **Branch actions with worktrees:** a branch that is checked out in another worktree can't be checked out, renamed or deleted. These actions are disabled in the branch menu, with a message that names the worktree.
+
+### Fixes
+- Fixed the release notes being displayed badly. #633
+- Fixed the active branch shown for a repository when other worktrees have different branches checked out.
+
 
 ## 1.0.36
 
 Sourcerer 1.0.36 reworks how the commit history is loaded and drawn. It is faster on large repositories and easier to read.
 
 ### New
-- **Paged history loading:** repository history now loads page by page instead of all at once, so large repositories open faster and stay responsive. ([#626](https://github.com/Sourcerer-Team/Sourcerer/pull/626))
+- **Paged history loading:** repository history now loads page by page instead of all at once, so large repositories open faster and stay responsive. (#626
 - **All branches (`*`) item:** the local branches panel has a `*` item that shows the combined history of all branches.
 - **Ref badges in the graph:** branches and tags now appear as badges on the commits they point at. Hover the graph column to also see the local branches that contain a commit.
 
