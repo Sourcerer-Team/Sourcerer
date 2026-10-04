@@ -79,6 +79,7 @@ installer/packages/*/data/
 installer/appimagetool-extracted/
 
 *.AppImage
+*.dmg
 
 installer/Sourcerer.AppDir/
 

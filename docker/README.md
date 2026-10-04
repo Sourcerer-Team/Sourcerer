@@ -24,6 +24,10 @@ The Docker setup provides consistent build environments with all necessary depen
 
 **Note:** The Windows build now uses MSVC 2022, not MinGW.
 
+### macOS
+
+There is no Docker environment for macOS: macOS builds need Xcode and cannot run in a container. Docker Desktop on a Mac only runs the *Linux* images above. The macOS app and DMG are built natively with `installer/macos/build-macos.sh` (see the main `README.md`) or by the `macos-dmg-release.yml` GitHub Actions workflow.
+
 ## Files
 
 - `Dockerfile.linux` - Linux build environment

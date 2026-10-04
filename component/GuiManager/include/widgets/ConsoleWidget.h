@@ -21,7 +21,7 @@ class BashShellWidget;
  *
  * This widget provides a container for platform-specific terminal widgets:
  * - PowerShellWidget on Windows
- * - BashShellWidget on Linux
+ * - BashShellWidget on Linux and macOS
  */
 class ConsoleWidget : public QWidget {
   Q_OBJECT
@@ -79,7 +79,7 @@ private:
   Win32::PowerShellWidget *getPowerShellWidget() const;
 #endif
 
-#ifdef Q_OS_LINUX
+#ifdef Q_OS_UNIX
   /**
    * @brief Gets the Bash shell widget instance (Linux only)
    * @return Pointer to the BashShellWidget, or nullptr if not available
@@ -105,7 +105,7 @@ private:
   Win32::PowerShellWidget *_powerShellWidget;
 #endif
 
-#ifdef Q_OS_LINUX
+#ifdef Q_OS_UNIX
   Linux::BashShellWidget *_bashShellWidget;
 #endif
 };

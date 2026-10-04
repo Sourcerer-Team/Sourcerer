@@ -8,7 +8,7 @@
 #include <QColor>
 #include <QEvent>
 
-#ifdef Q_OS_LINUX
+#ifdef Q_OS_UNIX
 #include "widgets/linux/BashShellWidget.h"
 #endif
 
@@ -64,7 +64,7 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
       ,
       _powerShellWidget(nullptr)
 #endif
-#ifdef Q_OS_LINUX
+#ifdef Q_OS_UNIX
       ,
       _bashShellWidget(nullptr)
 #endif
@@ -146,7 +146,7 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
           &ConsoleWidget::consoleStopped);
   connect(_powerShellWidget, &Win32::PowerShellWidget::errorOccurred, this,
           &ConsoleWidget::consoleError);
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   // Create and add Bash shell widget
   _bashShellWidget = new Linux::BashShellWidget(this);
   _bashShellWidget->setSizePolicy(QSizePolicy::Expanding,
@@ -186,7 +186,7 @@ void ConsoleWidget::init() {
   if (_powerShellWidget) {
     _powerShellWidget->init();
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     _bashShellWidget->init();
   }
@@ -204,7 +204,7 @@ bool ConsoleWidget::executeCommand(const QString &command) {
     LOG_PERF(0, "Exit");
     return result;
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     bool result = _bashShellWidget->executeCommand(command);
     LOG_PERF(0, "Exit");
@@ -221,7 +221,7 @@ bool ConsoleWidget::isConsoleRunning() const {
   if (_powerShellWidget) {
     return _powerShellWidget->isRunning();
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     return _bashShellWidget->isRunning();
   }
@@ -236,7 +236,7 @@ void ConsoleWidget::restartConsole() {
   if (_powerShellWidget) {
     _powerShellWidget->restart();
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     _bashShellWidget->restart();
   }
@@ -251,7 +251,7 @@ void ConsoleWidget::setWorkingDirectory(const QString &path) {
   if (_powerShellWidget) {
     _powerShellWidget->setWorkingDirectory(path);
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     _bashShellWidget->setWorkingDirectory(path);
   }
@@ -299,7 +299,7 @@ void ConsoleWidget::applyTheme() {
   if (_powerShellWidget) {
     _powerShellWidget->refreshTheme();
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     _bashShellWidget->refreshTheme();
   }
@@ -330,7 +330,7 @@ Win32::PowerShellWidget *ConsoleWidget::getPowerShellWidget() const {
 }
 #endif
 
-#ifdef Q_OS_LINUX
+#ifdef Q_OS_UNIX
 Linux::BashShellWidget *ConsoleWidget::getBashShellWidget() const {
   return _bashShellWidget;
 }
@@ -346,7 +346,7 @@ void ConsoleWidget::setFocusToConsole() {
     QTimer::singleShot(0, _powerShellWidget,
                        [this]() { _powerShellWidget->setFocusToInput(); });
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     // Use QTimer::singleShot to ensure the widget is fully visible before
     // setting focus

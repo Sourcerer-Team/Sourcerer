@@ -2,6 +2,7 @@
 
 #include "HttpClient.h"
 
+#include <FileManager.h>
 #include <Log.h>
 
 #include <QApplication>
@@ -86,26 +87,6 @@ QString parseErrorDescription(const QJsonObject &obj) {
 
   return QStringLiteral("Unknown GitHub OAuth error");
 }
-
-#ifndef Q_OS_WIN
-void openUrlFromAppImage(const QUrl &url) {
-  QProcess process;
-  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-
-  // Unset AppImage environment variables so external processes load host system
-  // libraries
-  env.remove("LD_LIBRARY_PATH");
-  env.remove("QT_PLUGIN_PATH");
-  env.remove("QML2_IMPORT_PATH");
-
-  process.setProcessEnvironment(env);
-  process.setProgram(QStringLiteral("xdg-open"));
-  process.setArguments(QStringList()
-                       << url.toString()); // Allow xdg-open to run
-                                           // independently without blocking
-  process.startDetached();
-}
-#endif
 
 QMap<QNetworkRequest::KnownHeaders, QString> githubJsonHeaders() {
   QMap<QNetworkRequest::KnownHeaders, QString> httpHeaders;
@@ -245,11 +226,7 @@ QVariantMap GitHubRepo::authenticate(const QVariantMap &parameters) {
     QObject::connect(openButton, &QPushButton::clicked, dialog,
                      [verificationUrl]() {
                        if (verificationUrl.isValid()) {
-#ifdef Q_OS_WIN
-                         QDesktopServices::openUrl(verificationUrl);
-#else
-                         openUrlFromAppImage(verificationUrl);
-#endif
+                         FileManager::openExternalUrl(verificationUrl);
                        }
                      });
     QObject::connect(cancelButton, &QPushButton::clicked, dialog,

@@ -4,6 +4,8 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QProcess>
+#include <QProcessEnvironment>
+#include <QSet>
 #include <QUrl>
 
 // clang-format off
@@ -41,6 +43,28 @@ void revealInFileManager(const QStringList &files) {
   }
 }
 
+#elif defined(Q_OS_MACOS)
+
+void revealInFileManager(const QStringList &files) {
+  if (files.isEmpty()) {
+    return;
+  }
+
+  // `open -R` reveals (selects) each item in a Finder window.
+  QStringList arguments;
+  arguments << QStringLiteral("-R");
+  for (const QString &file : files) {
+    const QFileInfo fileInfo(file);
+    if (fileInfo.exists()) {
+      arguments << fileInfo.absoluteFilePath();
+    }
+  }
+
+  if (arguments.size() > 1) {
+    QProcess::startDetached(QStringLiteral("/usr/bin/open"), arguments);
+  }
+}
+
 #else // Linux and other Unix-like systems
 
 void revealInFileManager(const QStringList &files) {
@@ -66,5 +90,25 @@ void revealInFileManager(const QStringList &files) {
 }
 
 #endif
+
+bool openExternalUrl(const QUrl &url) {
+#ifdef Q_OS_LINUX
+  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+
+  // Unset AppImage environment variables so external processes load host
+  // system libraries
+  env.remove(QStringLiteral("LD_LIBRARY_PATH"));
+  env.remove(QStringLiteral("QT_PLUGIN_PATH"));
+  env.remove(QStringLiteral("QML2_IMPORT_PATH"));
+
+  QProcess process;
+  process.setProcessEnvironment(env);
+  process.setProgram(QStringLiteral("xdg-open"));
+  process.setArguments(QStringList() << url.toString());
+  return process.startDetached();
+#else
+  return QDesktopServices::openUrl(url);
+#endif
+}
 
 } // namespace FileManager

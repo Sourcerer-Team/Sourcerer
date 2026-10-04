@@ -3,6 +3,7 @@
 #include <GuiManager.h>
 #include <NewsTracker.h>
 #include <UpdateManager.h>
+#include <UpdateStaging.h>
 
 #include <QApplication>
 #include <QByteArray>
@@ -43,6 +44,10 @@ QString installationDirectory() {
 }
 
 QString stagedUpdateFile(const QString &installDir) {
+#ifdef Q_OS_MACOS
+  Q_UNUSED(installDir);
+  return Util::UpdateStaging::macosStagedUpdateFile();
+#else
 #ifdef Q_OS_LINUX
   const QString pattern = QStringLiteral("Sourcerer-Update*.AppImage");
 #else
@@ -56,6 +61,7 @@ QString stagedUpdateFile(const QString &installDir) {
   }
 
   return files.first().absoluteFilePath();
+#endif
 }
 
 QString launcherPath() {
@@ -100,10 +106,39 @@ struct WebEngineLoggingInitializer {
 
 const WebEngineLoggingInitializer webEngineLoggingInitializer;
 
+#ifdef Q_OS_MACOS
+// Applications started from Finder/Dock inherit launchd's minimal PATH
+// (/usr/bin:/bin:/usr/sbin:/sbin), which lacks the locations where Homebrew
+// installs git-lfs and friends. They are appended, so system tools still win.
+void extendPathForGuiLaunch() {
+  QByteArray path = qgetenv("PATH");
+  const QList<QByteArray> existing = path.split(':');
+  for (const char *extra :
+       {"/opt/homebrew/bin", "/opt/homebrew/sbin", "/usr/local/bin"}) {
+    if (existing.contains(QByteArray(extra))) {
+      continue;
+    }
+    if (!path.isEmpty()) {
+      path.append(':');
+    }
+    path.append(extra);
+  }
+  qputenv("PATH", path);
+}
+#endif
+
 } // namespace
 
 int main(int argc, char *argv[]) {
+#ifdef Q_OS_MACOS
+  extendPathForGuiLaunch();
+#endif
+
+#ifndef Q_OS_MACOS
+  // Software rendering is a workaround for the Windows/Linux GPU stacks. On
+  // macOS Qt uses Metal, and forcing software OpenGL would only slow it down.
   QCoreApplication::setAttribute(Qt::AA_UseSoftwareOpenGL);
+#endif
 
 #ifdef QT_NO_DEBUG
   {
@@ -112,7 +147,11 @@ int main(int argc, char *argv[]) {
 
     const QString installDir = installationDirectory();
     const QString updatePath = stagedUpdateFile(installDir);
-    if (!updatePath.isEmpty() && launcherAvailable()) {
+    // The launcher passes --skip-update when it could not apply the staged
+    // update, otherwise the two executables would start each other forever.
+    const bool skipUpdate =
+        app.arguments().contains(Util::UpdateStaging::skipUpdateArgument());
+    if (!skipUpdate && !updatePath.isEmpty() && launcherAvailable()) {
       if (launchLauncherDetached(app.arguments().mid(1))) {
         return 0;
       }

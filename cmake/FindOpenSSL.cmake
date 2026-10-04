@@ -12,6 +12,15 @@ include(FindPackageHandleStandardArgs)
 
 set(_openssl_candidate_roots)
 
+# An explicitly requested OpenSSL installation always wins on every platform.
+# This is how CI points the build at a custom (e.g. universal macOS) build.
+foreach(_openssl_root_hint IN ITEMS
+        "${OPENSSL_ROOT_DIR}" "$ENV{OPENSSL_ROOT_DIR}")
+    if(NOT "${_openssl_root_hint}" STREQUAL "")
+        list(APPEND _openssl_candidate_roots "${_openssl_root_hint}")
+    endif()
+endforeach()
+
 # Qt on Windows typically installs OpenSSL under C:\Qt\Tools\OpenSSLv3\Win_x64
 # when the OpenSSL tools package is added. Prefer that installation first.
 foreach(_qt_root_var IN ITEMS QT_DIR Qt6_DIR)
@@ -44,9 +53,20 @@ if(DEFINED ENV{QT_DIR} AND NOT "$ENV{QT_DIR}" STREQUAL "")
     )
 endif()
 
-# Common Windows installation locations used by Chocolatey and other installers.
+# Common installation locations used by package managers and installers.
+if(APPLE)
+    # Homebrew installs OpenSSL keg-only, so it is never in a default prefix.
+    # Note: Homebrew libraries are single-architecture; universal builds must
+    # pass a universal OPENSSL_ROOT_DIR (see installer/macos/build-openssl-universal.sh).
+    list(APPEND _openssl_candidate_roots
+        "/opt/homebrew/opt/openssl@3"
+        "/usr/local/opt/openssl@3"
+    )
+else()
+    list(APPEND _openssl_candidate_roots "/usr")
+endif()
+
 list(APPEND _openssl_candidate_roots
-    "/usr"
     "C:/Program Files/OpenSSL"
     "C:/Program Files/OpenSSL-Win64"
     "C:/Program Files (x86)/OpenSSL"
@@ -141,6 +161,37 @@ if(NOT OPENSSL_FOUND)
 endif()
 
 if(OPENSSL_FOUND)
+    # A universal build can only link against OpenSSL libraries that contain
+    # every requested architecture. Fail early with a clear message instead of
+    # a cryptic linker error.
+    list(LENGTH CMAKE_OSX_ARCHITECTURES _openssl_arch_count)
+    if(APPLE AND _openssl_arch_count GREATER 1)
+        find_program(_openssl_lipo lipo)
+        if(_openssl_lipo)
+            foreach(_openssl_lib IN ITEMS
+                    "${OPENSSL_SSL_LIBRARY}" "${OPENSSL_CRYPTO_LIBRARY}")
+                execute_process(
+                    COMMAND "${_openssl_lipo}" -archs "${_openssl_lib}"
+                    OUTPUT_VARIABLE _openssl_lib_archs
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    ERROR_QUIET
+                )
+                string(REPLACE " " ";" _openssl_lib_archs
+                    "${_openssl_lib_archs}")
+                foreach(_openssl_arch IN LISTS CMAKE_OSX_ARCHITECTURES)
+                    if(NOT _openssl_arch IN_LIST _openssl_lib_archs)
+                        message(FATAL_ERROR
+                            "OpenSSL library '${_openssl_lib}' does not contain "
+                            "architecture '${_openssl_arch}' (found: "
+                            "${_openssl_lib_archs}). Build a universal OpenSSL "
+                            "with installer/macos/build-openssl-universal.sh and "
+                            "pass -DOPENSSL_ROOT_DIR=<prefix>.")
+                    endif()
+                endforeach()
+            endforeach()
+        endif()
+    endif()
+
     if(NOT TARGET OpenSSL::Crypto)
         add_library(OpenSSL::Crypto UNKNOWN IMPORTED)
         set_target_properties(OpenSSL::Crypto PROPERTIES

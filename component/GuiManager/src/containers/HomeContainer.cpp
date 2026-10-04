@@ -11,6 +11,7 @@
 #include <BitbucketRepo.h>
 #include <GitHubRepo.h>
 #include <GitLabRepo.h>
+#include <FileManager.h>
 #include <Log.h>
 #include <StylesheetManager.h>
 #include <TokensStorage.h>
@@ -323,26 +324,6 @@ void writeHttpResponse(QTcpSocket *socket, const QString &body,
   socket->flush();
   socket->disconnectFromHost();
 }
-
-#ifndef Q_OS_WIN
-void openUrlFromAppImage(const QUrl &url) {
-  QProcess process;
-  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-
-  // Unset AppImage environment variables so external processes load host system
-  // libraries
-  env.remove("LD_LIBRARY_PATH");
-  env.remove("QT_PLUGIN_PATH");
-  env.remove("QML2_IMPORT_PATH");
-
-  process.setProcessEnvironment(env);
-  process.setProgram(QStringLiteral("xdg-open"));
-  process.setArguments(QStringList()
-                       << url.toString()); // Allow xdg-open to run
-                                           // independently without blocking
-  process.startDetached();
-}
-#endif
 
 } // namespace
 
@@ -1141,11 +1122,7 @@ void HomeContainer::onAzureIssueTrackerConnectClicked() {
   openAuthPageButton->setEnabled(authUrl.isValid());
   connect(openAuthPageButton, &QPushButton::clicked, this, [authUrl]() {
     if (authUrl.isValid()) {
-#ifdef Q_OS_WIN
-      QDesktopServices::openUrl(authUrl);
-#else
-      openUrlFromAppImage(authUrl);
-#endif
+      FileManager::openExternalUrl(authUrl);
     } else {
       QMessageBox::critical(nullptr, tr("Failure"),
                             tr("Azure authorization URL is invalid."));
@@ -1534,11 +1511,7 @@ void HomeContainer::onBitbucketOAuthConnectClicked() {
   openAuthPageButton->setEnabled(authUrl.isValid());
   connect(openAuthPageButton, &QPushButton::clicked, this, [authUrl]() {
     if (authUrl.isValid()) {
-#ifdef Q_OS_WIN
-      QDesktopServices::openUrl(authUrl);
-#else
-      openUrlFromAppImage(authUrl);
-#endif
+      FileManager::openExternalUrl(authUrl);
     }
   });
   layout->addWidget(openAuthPageButton, 0, Qt::AlignLeft);
