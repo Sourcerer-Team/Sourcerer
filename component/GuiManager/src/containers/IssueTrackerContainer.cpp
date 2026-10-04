@@ -5,6 +5,7 @@
 
 #include <AzureRepo.h>
 #include <BitbucketRepo.h>
+#include <FileManager.h>
 #include <GitHubRepo.h>
 #include <GitLabRepo.h>
 #include <Log.h>
@@ -314,26 +315,6 @@ QString unsupportedMessage(const QString &serviceType,
   return QObject::tr("This issue tracker is not supported yet: %1 %2")
       .arg(serviceType.trimmed(), repositoryName.trimmed());
 }
-
-#ifndef Q_OS_WIN
-void openUrlFromAppImage(const QUrl &url) {
-  QProcess process;
-  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-
-  // Unset AppImage environment variables so external processes load host system
-  // libraries
-  env.remove("LD_LIBRARY_PATH");
-  env.remove("QT_PLUGIN_PATH");
-  env.remove("QML2_IMPORT_PATH");
-
-  process.setProcessEnvironment(env);
-  process.setProgram(QStringLiteral("xdg-open"));
-  process.setArguments(QStringList()
-                       << url.toString()); // Allow xdg-open to run
-                                           // independently without blocking
-  process.startDetached();
-}
-#endif
 
 } // namespace
 
@@ -947,11 +928,7 @@ void IssueTrackerContainer::openIssueTrackerExternallyAndClose() {
 
   _externalBrowserOpened = true;
   if (_issuesUrl.isValid()) {
-#ifdef Q_OS_WIN
-    QDesktopServices::openUrl(_issuesUrl);
-#else
-    openUrlFromAppImage(_issuesUrl);
-#endif
+    FileManager::openExternalUrl(_issuesUrl);
   }
   emit close();
 }

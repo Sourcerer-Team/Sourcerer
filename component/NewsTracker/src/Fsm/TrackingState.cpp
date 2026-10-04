@@ -151,6 +151,8 @@ bool TrackingState::parseNewsItem(const QJsonObject &object,
       object.value(QStringLiteral("download_url_linux")).toString().trimmed();
   newsItem.downloadUrlWindows =
       object.value(QStringLiteral("download_url_windows")).toString().trimmed();
+  newsItem.downloadUrlMacos =
+      object.value(QStringLiteral("download_url_macos")).toString().trimmed();
 
   return newsItem.type != Structs::NewsType::Unknown;
 }

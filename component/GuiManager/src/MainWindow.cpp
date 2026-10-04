@@ -3,6 +3,7 @@
 #include "Constants.h"
 #include "GitRepoManagerStructs.h"
 #include "ReleaseNotes.h"
+#include "WindowResize.h"
 #include "containers/BugReportContainer.h"
 #include "containers/CloneGitRepoContainer.h"
 #include "containers/GitCredentialsContainer.h"
@@ -74,14 +75,14 @@ protected:
     }
 
     QWidget *parentWindow = window();
-    if (parentWindow && parentWindow->windowHandle()) {
+    if (parentWindow) {
       Qt::Edges edges = Qt::BottomEdge;
       if (event->pos().x() <= 6) {
         edges |= Qt::LeftEdge;
       } else if (event->pos().x() >= width() - 6) {
         edges |= Qt::RightEdge;
       }
-      parentWindow->windowHandle()->startSystemResize(edges);
+      GuiManager::beginInteractiveResize(parentWindow, edges);
     }
   }
 
@@ -968,7 +969,7 @@ void MainWindow::onTitleBarDrag() const {
 void MainWindow::onEdgeHit(Qt::Edges edges) const {
   LOG_PERF(0, "Enter");
 
-  windowHandle()->startSystemResize(edges);
+  beginInteractiveResize(const_cast<MainWindow *>(this), edges);
 
   LOG_PERF(0, "Exit");
 }

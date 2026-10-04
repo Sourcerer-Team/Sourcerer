@@ -17,6 +17,7 @@ struct NewsItem {
   QString version;
   QString downloadUrlLinux;
   QString downloadUrlWindows;
+  QString downloadUrlMacos;
 
   bool isValid() const { return !id.trimmed().isEmpty(); }
 
@@ -42,8 +43,10 @@ struct NewsItem {
   }
 
   QString downloadUrl() const {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN)
     return downloadUrlWindows;
+#elif defined(Q_OS_MACOS)
+    return downloadUrlMacos;
 #else
     return downloadUrlLinux;
 #endif

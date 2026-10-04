@@ -4,6 +4,7 @@
 #include "widgets/ui_ProfileBoardWidget.h"
 
 #include <ConfigManager.h>
+#include <FileManager.h>
 #include <Log.h>
 #include <WaitingSpinnerWidget.h>
 
@@ -27,26 +28,6 @@
 #define THREAD_ID "ProfileBoardWidget"
 
 namespace GuiManager::Widgets {
-
-#ifndef Q_OS_WIN
-static void openUrlFromAppImage(const QUrl &url) {
-  QProcess process;
-  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-
-  // Unset AppImage environment variables so external processes load host system
-  // libraries
-  env.remove("LD_LIBRARY_PATH");
-  env.remove("QT_PLUGIN_PATH");
-  env.remove("QML2_IMPORT_PATH");
-
-  process.setProcessEnvironment(env);
-  process.setProgram(QStringLiteral("xdg-open"));
-  process.setArguments(QStringList()
-                       << url.toString()); // Allow xdg-open to run
-                                           // independently without blocking
-  process.startDetached();
-}
-#endif
 
 ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
     : QWidget(parent, Qt::FramelessWindowHint), ui(new Ui::ProfileBoardWidget),
@@ -215,11 +196,7 @@ void ProfileBoardWidget::onSignupLinkClicked() {
 
   const QString signupUrl =
       configManager.getString(::ConfigManager::ConfigKey::CloudSignupUrl);
-#ifdef Q_OS_WIN
-  QDesktopServices::openUrl(QUrl(signupUrl));
-#else
-  openUrlFromAppImage(QUrl(signupUrl));
-#endif
+  FileManager::openExternalUrl(QUrl(signupUrl));
 }
 
 void ProfileBoardWidget::onSkipSigninClicked() {
