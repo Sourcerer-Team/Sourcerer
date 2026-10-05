@@ -23,15 +23,14 @@ set(QT_NO_PRIVATE_MODULE_WARNING ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
 find_package(LibSSH2 REQUIRED)
-if(APPLE)
-  # Only a probe: the vendored libgit2 pcre2 target is what gets linked, and a
-  # clean macOS machine has no system pcre2.
-  find_package(pcre2 QUIET)
-else()
-  find_package(pcre2 REQUIRED)
-endif()
+# Only a probe: the vendored libgit2 pcre2 target (USE_REGEX "builtin") is
+# what gets linked, a system pcre2 is not required on any platform.
+find_package(pcre2 QUIET)
 find_package(zlib REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets LinguistTools)
+# Every Qt module used by the linked libraries must be known here, otherwise
+# qt_finalize_target() warns about undeclared dependencies.
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Svg Core5Compat
+             LinguistTools OPTIONAL_COMPONENTS WebEngineWidgets)
 
 set(PROJECT_SOURCES
         main.cpp

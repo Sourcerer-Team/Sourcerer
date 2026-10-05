@@ -87,6 +87,8 @@ set(BUILD_EXAMPLES OFF CACHE BOOL "Disable examples" FORCE)
 set(BUILD_DOC OFF CACHE BOOL "Disable docs" FORCE)
 set(LIBZIP_DO_INSTALL OFF CACHE BOOL "Disable install targets" FORCE)
 set(ENABLE_ZSTD OFF CACHE BOOL "Disable Zstandard" FORCE)
+set(ENABLE_BZIP2 OFF CACHE BOOL "Disable BZip2" FORCE)
+set(ENABLE_LZMA OFF CACHE BOOL "Disable LZMA" FORCE)
 
 add_subdirectory(../../lib/libzip "libzip")
 
@@ -104,7 +106,11 @@ set(USE_REGEX "builtin" CACHE STRING "Selects regex provider.")
 set(USE_GSSAPI OFF CACHE BOOL "Disable Kerberos/GSSAPI" FORCE)
 # Use the same dynamic CRT as the rest of the application.
 set(STATIC_CRT OFF CACHE BOOL "Link the static CRT libraries" FORCE)
+# libgit2 still declares cmake_minimum_required() < 3.10, raise its policy
+# version to the project minimum to avoid the CMake deprecation warning.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
 add_subdirectory(../../lib/libgit2 "libgit2")
+unset(CMAKE_POLICY_VERSION_MINIMUM)
 
 add_subdirectory(../../lib/qtkeychain "qtkeychain")
 

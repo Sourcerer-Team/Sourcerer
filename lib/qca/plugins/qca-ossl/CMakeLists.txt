@@ -14,7 +14,7 @@ if(OPENSSL_FOUND)
   set(CMAKE_REQUIRED_LIBRARIES ${OPENSSL_LIBRARIES})
 
   if(DEFINED OPENSSL_VERSION_MAJOR AND OPENSSL_VERSION_MAJOR GREATER_EQUAL 3)
-    message(WARNING
+    message(STATUS
       "qca-ossl will be compiled without MD2 digest algorithm support")
   else()
     check_symbol_exists(EVP_md2 "openssl/evp.h" HAVE_OPENSSL_MD2)
@@ -51,7 +51,7 @@ if(OPENSSL_FOUND)
   endif()
 
   if(DEFINED OPENSSL_VERSION_MAJOR AND OPENSSL_VERSION_MAJOR GREATER_EQUAL 3)
-    message(WARNING
+    message(STATUS
       "qca-ossl will be compiled without SHA-0 digest algorithm support")
   else()
     check_symbol_exists(EVP_sha "openssl/evp.h" HAVE_OPENSSL_SHA0)
