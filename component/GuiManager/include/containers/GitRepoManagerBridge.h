@@ -167,6 +167,28 @@ public:
   virtual void finishGitFlowBranch(const QWeakPointer<GitRepoContainer> &guard,
                                    const GitRepo::GitFlowBranchType branchType,
                                    const QString &branchName) = 0;
+  // branchName is the feature or release branch, or the environment branch
+  // to promote, depending on the action.
+  virtual void runGitLabFlowAction(const QWeakPointer<GitRepoContainer> &guard,
+                                   const GitRepo::GitLabFlowAction action,
+                                   const QString &branchName,
+                                   const QString &commit = QString()) = 0;
+  virtual void runGitHubFlowAction(const QWeakPointer<GitRepoContainer> &guard,
+                                   const GitRepo::GitHubFlowAction action,
+                                   const QString &branchName) = 0;
+  // name is the main branch for Init, the topic branch type for Start and the
+  // branch for Finish and Update; argument is the develop branch for Init and
+  // the new branch for Start.
+  virtual void runGitFlowNextAction(const QWeakPointer<GitRepoContainer> &guard,
+                                    const GitRepo::GitFlowNextAction action,
+                                    const QString &name,
+                                    const QString &argument = QString()) = 0;
+  virtual void
+  applyGitFlowNextWorkflow(const QWeakPointer<GitRepoContainer> &guard,
+                           const GitRepo::GitFlowNextWorkflow &workflow) = 0;
+  virtual void getWorkflowType(const QWeakPointer<GitRepoContainer> &guard) = 0;
+  virtual void setWorkflowType(const QWeakPointer<GitRepoContainer> &guard,
+                               const GitRepo::WorkflowType workflow) = 0;
   virtual bool openRepo(const QWeakPointer<GitRepoContainer> &guard) = 0;
   virtual void pull(const QWeakPointer<GitRepoContainer> &guard,
                     bool rebase = false) = 0;

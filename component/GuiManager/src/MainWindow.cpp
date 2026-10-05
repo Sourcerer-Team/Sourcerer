@@ -295,6 +295,21 @@ MainWindow::~MainWindow() {
   LOG_PERF(0, "Exit");
 }
 
+void MainWindow::activateFromAnotherInstance(const QStringList &arguments) {
+  LOG_PERF(0, "Enter");
+  LOG_INFO("Activated by another instance, arguments: '{}'",
+           arguments.join(QLatin1Char(' ')).toStdString());
+
+  if (isMinimized()) {
+    setWindowState(windowState() & ~Qt::WindowMinimized);
+  }
+  show();
+  raise();
+  activateWindow();
+
+  LOG_PERF(0, "Exit");
+}
+
 QStringList MainWindow::containerPaths() const {
   LOG_PERF(0, "Enter");
 
@@ -656,7 +671,9 @@ void MainWindow::onSubmitWorkspace(const QString &name) {
       if (type == ContainerType::IssueTracker) {
         const auto issueTrackerContainer =
             qobject_cast<IssueTrackerContainer *>(repoContainer);
-        if (!issueTrackerContainer) {
+        // Pages opened at a given URL, e.g. pull requests, are not restored.
+        if (!issueTrackerContainer ||
+            issueTrackerContainer->startUrl().isValid()) {
           continue;
         }
 
@@ -1048,6 +1065,12 @@ void MainWindow::addGitRepoContainer(const QString &path) {
 
   connect(container.get(), &GitRepoContainer::openRepoRequested, this,
           &MainWindow::onOpenRepo);
+  connect(container.get(), &GitRepoContainer::openPullRequestRequested, this,
+          [this](const QString &repositoryName, const QUrl &url,
+                 const QString &title) {
+            addIssueTrackerContainer(QStringLiteral("github"), repositoryName,
+                                     url, title);
+          });
 
   _containers += container;
 
@@ -1267,20 +1290,24 @@ void MainWindow::showReleaseNotesIfUpdated() {
 }
 
 void MainWindow::addIssueTrackerContainer(const QString &serviceType,
-                                          const QString &repositoryName) {
+                                          const QString &repositoryName,
+                                          const QUrl &startUrl,
+                                          const QString &title) {
   LOG_PERF(0, "Enter");
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
   const auto container = QSharedPointer<IssueTrackerContainer>::create(
-      serviceType.trimmed(), repositoryName.trimmed(), this);
+      serviceType.trimmed(), repositoryName.trimmed(), startUrl, this);
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
   container->init();
   container->selected();
   container->setupShortcuts();
   _containers += container;
-  _topBarWidget->titleBarWidget()->addTab(QStringLiteral("%1: %2").arg(
-      serviceType.trimmed(), repositoryName.trimmed()));
+  _topBarWidget->titleBarWidget()->addTab(
+      title.isEmpty() ? QStringLiteral("%1: %2").arg(serviceType.trimmed(),
+                                                     repositoryName.trimmed())
+                      : title);
   connect(container.get(), &IssueTrackerContainer::close, this,
           [this, container]() { closeContainer(container.get()); });
   _topBarWidget->titleBarWidget()->selectTab(

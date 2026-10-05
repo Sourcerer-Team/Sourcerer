@@ -146,6 +146,7 @@ private:
   void updateRemoteWorker(const Structs::GitRepoUpdateRemoteCommand &command);
   void setDefaultRemoteWorker(
       const Structs::GitRepoSetDefaultRemoteCommand &command);
+  void workflowWorker(const Structs::GitRepoWorkflowCommand &command);
   void addTargetWorker(const Structs::GitRepoAddTargetCommand &command);
   void editTargetWorker(const Structs::GitRepoEditTargetCommand &command);
   void deleteTargetWorker(const Structs::GitRepoDeleteTargetCommand &command);
@@ -297,6 +298,8 @@ private:
       const Structs::GitRepoUpdateRemoteCommand &command);
   void scheduleWorkerForSetDefaultRemote(
       const Structs::GitRepoSetDefaultRemoteCommand &command);
+  void
+  scheduleWorkerForWorkflow(const Structs::GitRepoWorkflowCommand &command);
   void
   scheduleWorkerForAddTarget(const Structs::GitRepoAddTargetCommand &command);
   void

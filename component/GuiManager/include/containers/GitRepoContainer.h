@@ -10,6 +10,7 @@
 #include <Dispatcher.h>
 #include <EventManager.h>
 #include <GitRepo.h>
+#include <GraphiteUtils.h>
 #include <LockGuard.h>
 #include <UserProfileManager.h>
 
@@ -25,17 +26,22 @@
 #include <QItemSelection>
 #include <QListView>
 #include <QMenu>
+#include <QProcess>
 #include <QPushButton>
 #include <QSemaphore>
 #include <QSet>
 #include <QString>
+#include <QTimer>
 #include <QToolButton>
 #include <QTreeView>
+#include <QUrl>
 #include <QWidget>
 
 #include <atomic>
 #include <functional>
 #include <memory>
+
+class QActionGroup;
 
 namespace Ui {
 class GitRepoContainer;
@@ -98,6 +104,8 @@ public:
 signals:
   void historyViewRightClicked(const QModelIndex &index, const QPoint &pos);
   void openRepoRequested(const QString &path);
+  void openPullRequestRequested(const QString &repositoryName, const QUrl &url,
+                                const QString &title);
 
 protected:
   void hideEvent(QHideEvent *event) override;
@@ -181,6 +189,36 @@ private slots:
   void onPush(bool force = false);
   void onStartGitFlowBranch(GitRepo::GitFlowBranchType branchType);
   void onFinishGitFlowBranch(GitRepo::GitFlowBranchType branchType);
+  void onWorkflowSelected(GitRepo::WorkflowType workflow);
+  void onStartGitLabFlowFeature();
+  void onFinishGitLabFlowFeature();
+  void onPromoteGitLabFlow();
+  void onStartGitLabFlowRelease();
+  void onCherryPickToGitLabFlowRelease(const QString &releaseBranchName);
+  void onStartGitHubFlowBranch();
+  void onUpdateGitHubFlowBranch();
+  void onFinishGitHubFlowBranch();
+  void onOpenGitHubPullRequest();
+  void onInitGitFlowNext();
+  void onStartGitFlowNextBranch(const QString &typeName);
+  void onFinishGitFlowNextBranch();
+  void onUpdateGitFlowNextBranch();
+  void onInitGraphite();
+  void onCreateGraphiteBranch();
+  void onModifyGraphiteBranch();
+  void onModifyGraphiteBranchWithCommit();
+  void onNavigateGraphiteStack(const QString &command);
+  void chooseGraphiteBranch(const QString &command,
+                            const QStringList &branches);
+  void onTrackGraphiteBranch(const QString &branchName);
+  void onCustomWorkflowSelected(const QString &id);
+  void onNewCustomWorkflow();
+  void onSaveRepositoryWorkflow();
+  void onEditCustomWorkflow(const QString &id);
+  void onRemoveCustomWorkflow(const QString &id);
+  void onRestackGraphite();
+  void onSyncGraphite();
+  void onSubmitGraphiteStack();
   void onRemoteBranchSelected(const QString &branchName);
   void onRemoteBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onRenameBranch(const QString &branchName);
@@ -327,6 +365,49 @@ private:
   QString gitFlowBranchNameForInput(GitRepo::GitFlowBranchType branchType,
                                     const QString &name) const;
   QString currentGitFlowBranchName(GitRepo::GitFlowBranchType branchType) const;
+  void promptToStartBranch(
+      const QString &placeholderText,
+      const std::function<QString(const QString &)> &branchNameForInput,
+      const std::function<void(const WeakPtr &, const QString &)> &startBranch);
+  void runFlowOperation(const std::function<void(const WeakPtr &)> &operation);
+  void applyWorkflow(GitRepo::WorkflowType workflow);
+  void applyWorkflowState(const GitRepo::WorkflowState &state);
+  // The git-flow-next entries depend on the repository configuration and the
+  // current branch, so they are recreated whenever the menu opens.
+  void rebuildGitFlowNextMenu();
+  // The custom GitFlow-Next workflows of the Workflow submenu.
+  void rebuildCustomWorkflowMenu();
+  void showCustomWorkflowEditor(const GitRepo::GitFlowNextWorkflow &workflow);
+  // Shows how to install the git-flow-next command line tool when it is not
+  // in PATH. Returns true if it was found.
+  bool ensureGitFlowNextCli();
+  bool ensureGraphiteCli();
+  bool ensureCliInstalled(const QString &executable, const QString &toolName,
+                          const QString &workflowName, const QString &url);
+  bool graphiteInitialized() const;
+  void updateGraphiteMenu();
+  // The local branches panel shows the Graphite stacks read by gt state.
+  void requestGraphiteStacksReload() const;
+  void reloadGraphiteStacks();
+  void setGraphiteStacks(const GitRepo::GraphiteStacks &stacks);
+  void addGraphiteBranchActions(QMenu &menu, const QString &branchName);
+  // Run on the dispatcher thread and return an error message, or an empty
+  // string on success.
+  QString runGraphiteCli(const QStringList &arguments,
+                         QString *output = nullptr) const;
+  QString runGitCli(const QStringList &arguments,
+                    int *exitCode = nullptr) const;
+  QString commitAllChanges(const QString &message, const QString &author,
+                           const QString &email) const;
+  void runGraphiteOperation(const std::function<QString()> &operation,
+                            const QString &successMessage);
+  void updateGitLabFlowMenu();
+  void updateGitLabFlowCherryPickMenu();
+  QString gitLabFlowMainBranchName() const;
+  QStringList gitLabFlowEnvironmentChain() const;
+  QString gitLabFlowReleaseBranchSuffix() const;
+  QString gitHubFlowMainBranchName() const;
+  QString selectedHistoryCommit() const;
   void copyFilePathsToClipboard(const QStringList &filePaths);
   bool showWarningForUncommittedChanges(const QString &title,
                                         const QString &message) const;
@@ -377,6 +458,7 @@ private:
   // Local branches as of the last refresh. Used to populate the branch
   // dropdown of the add worktree dialog.
   mutable QStringList _localBranches;
+  mutable QStringList _remoteBranches;
   // Branches checked out in other worktrees as of the last refresh (branch ->
   // worktree path). Git refuses to checkout or delete such branches.
   mutable QHash<QString, QString> _worktreeBranches;
@@ -389,6 +471,34 @@ private:
   QToolButton *_pullFetchButton{nullptr};
   QToolButton *_pushButton{nullptr};
   QVector<QAction *> _singleBranchShortcutActions;
+  QToolButton *_gitFlowButton{nullptr};
+  QAction *_gitFlowWorkflowAction{nullptr};
+  QAction *_gitLabFlowWorkflowAction{nullptr};
+  QAction *_gitHubFlowWorkflowAction{nullptr};
+  QAction *_gitFlowNextWorkflowAction{nullptr};
+  QAction *_graphiteWorkflowAction{nullptr};
+  QMenu *_workflowMenu{nullptr};
+  QActionGroup *_workflowGroup{nullptr};
+  QVector<QAction *> _customWorkflowMenuActions;
+  QVector<QMenu *> _customWorkflowSubmenus;
+  QString _customWorkflowId;
+  int _customWorkflowRevision{0};
+  QAction *_graphiteInitAction{nullptr};
+  QMenu *_gitFlowMenu{nullptr};
+  QAction *_gitLabFlowPromoteAction{nullptr};
+  QMenu *_gitLabFlowCherryPickMenu{nullptr};
+  // Menu entries, separators included, shown for each workflow.
+  QVector<QAction *> _gitFlowActions;
+  QVector<QAction *> _gitLabFlowActions;
+  QVector<QAction *> _gitHubFlowActions;
+  QVector<QAction *> _gitFlowNextActions;
+  QVector<QAction *> _graphiteActions;
+  QTimer *_graphiteStacksTimer{nullptr};
+  QProcess *_graphiteStacksProcess{nullptr};
+  bool _graphiteStacksReloadPending{false};
+  GitRepo::GraphiteStacks _graphiteStacks;
+  GitRepo::GitFlowNextConfig _gitFlowNextConfig;
+  GitRepo::WorkflowType _workflow{GitRepo::WorkflowType::GitFlow};
   // Commit the user asked for that is not loaded yet, selected once the
   // history page containing it arrives.
   QString _pendingSelectCommit;

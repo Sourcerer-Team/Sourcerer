@@ -2,6 +2,10 @@
 
 #include "GitRepoManagerBridge.h"
 
+namespace GitRepoManager::Structs {
+struct GitRepoGitFlowCommand;
+} // namespace GitRepoManager::Structs
+
 namespace GuiManager::Containers {
 
 class GitRepoContainer;
@@ -148,6 +152,23 @@ public:
   void finishGitFlowBranch(const QWeakPointer<GitRepoContainer> &guard,
                            const GitRepo::GitFlowBranchType branchType,
                            const QString &branchName) override;
+  void runGitLabFlowAction(const QWeakPointer<GitRepoContainer> &guard,
+                           const GitRepo::GitLabFlowAction action,
+                           const QString &branchName,
+                           const QString &commit = QString()) override;
+  void runGitHubFlowAction(const QWeakPointer<GitRepoContainer> &guard,
+                           const GitRepo::GitHubFlowAction action,
+                           const QString &branchName) override;
+  void runGitFlowNextAction(const QWeakPointer<GitRepoContainer> &guard,
+                            const GitRepo::GitFlowNextAction action,
+                            const QString &name,
+                            const QString &argument = QString()) override;
+  void applyGitFlowNextWorkflow(
+      const QWeakPointer<GitRepoContainer> &guard,
+      const GitRepo::GitFlowNextWorkflow &workflow) override;
+  void getWorkflowType(const QWeakPointer<GitRepoContainer> &guard) override;
+  void setWorkflowType(const QWeakPointer<GitRepoContainer> &guard,
+                       const GitRepo::WorkflowType workflow) override;
   bool openRepo(const QWeakPointer<GitRepoContainer> &guard) override;
   void pull(const QWeakPointer<GitRepoContainer> &guard,
             bool rebase = false) override;
@@ -198,6 +219,15 @@ public:
                                const QString &commit) override;
 
 private:
+  // Runs a Git Flow or GitLab Flow command and reports the outcome in toasts.
+  // conflictMessage is shown instead of successMessage when a cherry-pick
+  // left conflicts behind.
+  void sendGitFlowCommand(
+      const QWeakPointer<GitRepoContainer> &guard,
+      const GitRepoManager::Structs::GitRepoGitFlowCommand &gitFlowCommand,
+      const QString &failureMessage, const QString &successMessage,
+      const QString &conflictMessage = QString());
+
   GitRepoContainer &_container;
 };
 

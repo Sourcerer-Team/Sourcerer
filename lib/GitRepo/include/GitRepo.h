@@ -6,6 +6,9 @@
 #include <QStringList>
 #include <QVector>
 
+#include "GitFlowNextWorkflow.h"
+#include "WorkflowUtils.h"
+
 #include <git2/repository.h>
 #include <git2/status.h>
 
@@ -437,6 +440,25 @@ enum class GitError : int {
   UnlockWorktreeFailedToLookupWorktree,
   UnlockWorktreeMainNotAllowed,
   UnlockWorktreeFailedToUnlock,
+  GitLabFlowBranchNameEmpty,
+  GitLabFlowFailedToLookupBaseBranch,
+  GitLabFlowPromoteNotDownstream,
+  GitLabFlowFailedToLookupReleaseBranch,
+  GitHubFlowBranchNameEmpty,
+  GitHubFlowFailedToLookupMainBranch,
+  GitHubFlowMainBranchNotAllowed,
+  GitFlowNextFailedToReadConfig,
+  GitFlowNextFailedToWriteConfig,
+  GitFlowNextNotInitialized,
+  GitFlowNextUnknownBranchType,
+  GitFlowNextNotATopicBranch,
+  GitFlowNextBranchNameEmpty,
+  GitFlowNextFailedToLookupBranch,
+  GitFlowNextUnsupportedStrategy,
+  GitFlowNextTagExists,
+  GitFlowNextInvalidWorkflow,
+  SetWorkflowTypeFailedToGetRepositoryConfig,
+  SetWorkflowTypeFailedToWriteConfig,
   Last
 };
 
@@ -914,6 +936,83 @@ bool finishGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
                          const QString &branchName, const QString &author,
                          const QString &email,
                          const QString &developmentBranchName = {});
+
+bool startGitLabFlowFeature(git_repository *repo, const QString &branchName,
+                            const QString &mainBranchName);
+
+bool finishGitLabFlowFeature(git_repository *repo, const QString &branchName,
+                             const QString &mainBranchName,
+                             const QString &author, const QString &email);
+
+// Merges sourceBranchName into the next environment branch of the chain,
+// creating that branch from sourceBranchName if it does not exist yet.
+bool promoteGitLabFlowEnvironment(git_repository *repo,
+                                  const QStringList &environmentChain,
+                                  const QString &sourceBranchName,
+                                  const QString &author, const QString &email);
+
+bool startGitLabFlowRelease(git_repository *repo,
+                            const QString &releaseBranchName,
+                            const QString &mainBranchName);
+
+// Cherry-picks commit onto releaseBranchName and returns to the original
+// branch. On conflicts the release branch stays checked out and conflicted
+// is set.
+bool cherryPickToGitLabFlowRelease(git_repository *repo, const QString &commit,
+                                   const QString &releaseBranchName,
+                                   const QString &author, const QString &email,
+                                   bool *conflicted = nullptr);
+
+bool startGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                           const QString &mainBranchName);
+
+// Merges the main branch into branchName to bring it up to date.
+bool updateGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                            const QString &mainBranchName,
+                            const QString &author, const QString &email);
+
+// Merges branchName into the main branch and deletes it.
+bool finishGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                            const QString &mainBranchName,
+                            const QString &author, const QString &email);
+
+// git-flow-next keeps its branch model in the repository config, shared with
+// the git flow command line tool. See WorkflowUtils.h.
+bool readGitFlowNextConfig(git_repository *repo, GitFlowNextConfig *config);
+
+// Writes the classic preset and creates the develop branch if it is missing.
+bool initGitFlowNext(git_repository *repo, const QString &mainBranchName,
+                     const QString &developBranchName);
+
+bool startGitFlowNextBranch(git_repository *repo, const QString &branchType,
+                            const QString &branchName);
+
+// Integrates branchName into its parent with the upstream strategy, tags it
+// if configured, updates the auto-update base branches of the parent and
+// deletes branchName.
+bool finishGitFlowNextBranch(git_repository *repo, const QString &branchName,
+                             const QString &author, const QString &email);
+
+// Brings branchName up to date with its parent using the downstream strategy.
+bool updateGitFlowNextBranch(git_repository *repo, const QString &branchName,
+                             const QString &author, const QString &email);
+
+// Reads sourcerer.workflow from the repository config. Missing or unknown
+// values mean classic Git Flow.
+WorkflowType getWorkflowType(git_repository *repo);
+
+// Writes a custom workflow into the repository: replaces the gitflow.branch.*
+// configuration, creates missing base branches from their parents and
+// records the workflow id and revision (sourcerer.gitflownext.*).
+bool applyGitFlowNextWorkflow(git_repository *repo,
+                              const GitFlowNextWorkflow &workflow);
+
+// The custom workflow last applied to the repository. Returns false if the
+// repository doesn't use one.
+bool getGitFlowNextWorkflowReference(git_repository *repo, QString *id,
+                                     int *revision);
+
+bool setWorkflowType(git_repository *repo, WorkflowType type);
 
 bool deleteStash(git_repository *repo, int stashIndex);
 // Delete all stashes in the repository

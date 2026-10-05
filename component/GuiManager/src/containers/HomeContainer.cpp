@@ -9,9 +9,9 @@
 
 #include <AzureRepo.h>
 #include <BitbucketRepo.h>
+#include <FileManager.h>
 #include <GitHubRepo.h>
 #include <GitLabRepo.h>
-#include <FileManager.h>
 #include <Log.h>
 #include <StylesheetManager.h>
 #include <TokensStorage.h>

@@ -93,8 +93,9 @@ void UpdateManager::eventCallback(const EventManager::Event &event) {
     const auto news = event.data<NewsTracker::Structs::NewsItem>();
     if (news.isUpdate() && !news.downloadUrl().trimmed().isEmpty()) {
 #ifdef Q_OS_MACOS
-      const QString blockedReason = Util::UpdateStaging::macosSelfUpdateBlockedReason(
-          Util::UpdateStaging::macosBundlePath());
+      const QString blockedReason =
+          Util::UpdateStaging::macosSelfUpdateBlockedReason(
+              Util::UpdateStaging::macosBundlePath());
       if (!blockedReason.isEmpty()) {
         // The news toast still offers the download link for a manual update.
         LOG_INFO("Not staging update '{}' automatically: {}.",

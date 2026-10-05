@@ -505,6 +505,11 @@ bool ProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForSetDefaultRemote(setDefaultRemoteCommand);
     break;
   }
+  case EventType::Workflow: {
+    const auto workflowCommand = event.nextParam<GitRepoWorkflowCommand>();
+    scheduleWorkerForWorkflow(workflowCommand);
+    break;
+  }
   case EventType::AddTarget: {
     const auto addTargetCommand = event.nextParam<GitRepoAddTargetCommand>();
     scheduleWorkerForAddTarget(addTargetCommand);
@@ -2165,6 +2170,87 @@ void ProcessingState::bisectWorker(
   LOG_PERF(0, "Exit");
 }
 
+static bool runGitLabFlowAction(git_repository *repo,
+                                const Structs::GitRepoGitFlowCommand &command,
+                                bool *conflicted) {
+  switch (command.gitLabFlowAction) {
+  case GitRepo::GitLabFlowAction::StartFeature:
+    return GitRepo::startGitLabFlowFeature(repo, command.branchName,
+                                           command.mainBranchName);
+  case GitRepo::GitLabFlowAction::FinishFeature:
+    return GitRepo::finishGitLabFlowFeature(repo, command.branchName,
+                                            command.mainBranchName,
+                                            command.author, command.email);
+  case GitRepo::GitLabFlowAction::Promote:
+    return GitRepo::promoteGitLabFlowEnvironment(repo, command.environmentChain,
+                                                 command.branchName,
+                                                 command.author, command.email);
+  case GitRepo::GitLabFlowAction::StartRelease:
+    return GitRepo::startGitLabFlowRelease(repo, command.branchName,
+                                           command.mainBranchName);
+  case GitRepo::GitLabFlowAction::CherryPickToRelease:
+    return GitRepo::cherryPickToGitLabFlowRelease(
+        repo, command.commit, command.branchName, command.author, command.email,
+        conflicted);
+  case GitRepo::GitLabFlowAction::Unknown:
+  case GitRepo::GitLabFlowAction::last:
+  default:
+    LOG_ERROR(Log::ErrorId::Git, "Unknown GitLab Flow action {}",
+              static_cast<int>(command.gitLabFlowAction));
+    return false;
+  }
+}
+
+static bool
+runGitFlowNextAction(git_repository *repo,
+                     const Structs::GitRepoGitFlowCommand &command) {
+  switch (command.gitFlowNextAction) {
+  case GitRepo::GitFlowNextAction::Init:
+    return GitRepo::initGitFlowNext(repo, command.mainBranchName,
+                                    command.developmentBranchName);
+  case GitRepo::GitFlowNextAction::Start:
+    return GitRepo::startGitFlowNextBranch(repo, command.topicType,
+                                           command.branchName);
+  case GitRepo::GitFlowNextAction::Finish:
+    return GitRepo::finishGitFlowNextBranch(repo, command.branchName,
+                                            command.author, command.email);
+  case GitRepo::GitFlowNextAction::Update:
+    return GitRepo::updateGitFlowNextBranch(repo, command.branchName,
+                                            command.author, command.email);
+  case GitRepo::GitFlowNextAction::Apply:
+    return GitRepo::applyGitFlowNextWorkflow(repo, command.customWorkflow);
+  case GitRepo::GitFlowNextAction::Unknown:
+  case GitRepo::GitFlowNextAction::last:
+  default:
+    LOG_ERROR(Log::ErrorId::Git, "Unknown git-flow-next action {}",
+              static_cast<int>(command.gitFlowNextAction));
+    return false;
+  }
+}
+
+static bool runGitHubFlowAction(git_repository *repo,
+                                const Structs::GitRepoGitFlowCommand &command) {
+  switch (command.gitHubFlowAction) {
+  case GitRepo::GitHubFlowAction::StartBranch:
+    return GitRepo::startGitHubFlowBranch(repo, command.branchName,
+                                          command.mainBranchName);
+  case GitRepo::GitHubFlowAction::UpdateBranch:
+    return GitRepo::updateGitHubFlowBranch(repo, command.branchName,
+                                           command.mainBranchName,
+                                           command.author, command.email);
+  case GitRepo::GitHubFlowAction::FinishBranch:
+    return GitRepo::finishGitHubFlowBranch(repo, command.branchName,
+                                           command.mainBranchName,
+                                           command.author, command.email);
+  case GitRepo::GitHubFlowAction::Unknown:
+  case GitRepo::GitHubFlowAction::last:
+  default:
+    LOG_ERROR(Log::ErrorId::Git, "Unknown GitHub Flow action {}",
+              static_cast<int>(command.gitHubFlowAction));
+    return false;
+  }
+}
+
 void ProcessingState::gitFlowWorker(
     const Structs::GitRepoGitFlowCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2184,14 +2270,24 @@ void ProcessingState::gitFlowWorker(
     repo = ctx->gitRepo;
   }
 
-  const bool success =
-      command.start
-          ? GitRepo::startGitFlowBranch(repo, command.branchType,
-                                        command.branchName,
-                                        command.developmentBranchName)
-          : GitRepo::finishGitFlowBranch(
-                repo, command.branchType, command.branchName, command.author,
-                command.email, command.developmentBranchName);
+  bool conflicted = false;
+  bool success = false;
+  if (command.workflow == GitRepo::WorkflowType::GitLabFlow) {
+    success = runGitLabFlowAction(repo, command, &conflicted);
+  } else if (command.workflow == GitRepo::WorkflowType::GitHubFlow) {
+    success = runGitHubFlowAction(repo, command);
+  } else if (command.workflow == GitRepo::WorkflowType::GitFlowNext) {
+    success = runGitFlowNextAction(repo, command);
+  } else {
+    success = command.start
+                  ? GitRepo::startGitFlowBranch(repo, command.branchType,
+                                                command.branchName,
+                                                command.developmentBranchName)
+                  : GitRepo::finishGitFlowBranch(repo, command.branchType,
+                                                 command.branchName,
+                                                 command.author, command.email,
+                                                 command.developmentBranchName);
+  }
   if (!success) {
     const auto lastError = GitRepo::getLastError();
     EventManager::Event errorEvent(
@@ -2202,8 +2298,9 @@ void ProcessingState::gitFlowWorker(
   } else {
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerGitFlowResult, command.syncUuid);
+    // The result value tells whether a cherry-pick left conflicts behind.
     resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                      QVariant::fromValue(success)});
+                                      QVariant::fromValue(conflicted)});
     _eventManager.send(resultEvent);
   }
 
@@ -3859,6 +3956,25 @@ void ProcessingState::scheduleWorkerForSetDefaultRemote(
   LOG_PERF(0, "Exit");
 }
 
+void ProcessingState::scheduleWorkerForWorkflow(
+    const Structs::GitRepoWorkflowCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::GitRepoManagerWorkflowError,
+                tr("Git repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new GitRepoWorkflowCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void ProcessingState::scheduleWorkerForAddTarget(
     const Structs::GitRepoAddTargetCommand &command) {
   LOG_PERF(0, "Enter");
@@ -4802,6 +4918,65 @@ void ProcessingState::setDefaultRemoteWorker(
         command.syncUuid);
     resultEvent.addData(GitRepoResult{command.uuid, command.type,
                                       QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void ProcessingState::workflowWorker(
+    const Structs::GitRepoWorkflowCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const GitRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::GitRepoManagerWorkflowError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  git_repository *repo = nullptr;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->gitRepo;
+  }
+
+  GitRepo::WorkflowState state;
+  state.type = command.workflow;
+  bool success = true;
+  if (command.write) {
+    success = GitRepo::setWorkflowType(repo, command.workflow);
+  } else {
+    state.type = GitRepo::getWorkflowType(repo);
+  }
+
+  // Without a readable configuration the repository counts as not
+  // initialized, which the menu offers to fix.
+  // The git-flow-next configuration is read for every workflow, so it can be
+  // saved as a custom workflow from any of them.
+  if (success) {
+    GitRepo::readGitFlowNextConfig(repo, &state.gitFlowNext);
+    if (state.type == GitRepo::WorkflowType::GitFlowNext) {
+      GitRepo::getGitFlowNextWorkflowReference(repo, &state.customWorkflowId,
+                                               &state.customWorkflowRevision);
+    }
+  }
+
+  if (!success) {
+    const auto lastError = GitRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::GitRepoManagerWorkflowError, command.syncUuid);
+    errorEvent.addData(GitRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::GitRepoManagerWorkflowResult,
+        command.syncUuid);
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type, QVariant::fromValue(state)});
     _eventManager.send(resultEvent);
   }
 
@@ -6542,6 +6717,14 @@ void ProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const GitRepoSetDefaultRemoteCommand *>(command);
       if (setDefaultRemoteCommand) {
         setDefaultRemoteWorker(*setDefaultRemoteCommand);
+      }
+      break;
+    }
+    case GitRepoCommandType::Workflow: {
+      const auto *workflowCommand =
+          dynamic_cast<const GitRepoWorkflowCommand *>(command);
+      if (workflowCommand) {
+        workflowWorker(*workflowCommand);
       }
       break;
     }

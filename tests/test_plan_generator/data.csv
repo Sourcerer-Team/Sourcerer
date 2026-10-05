@@ -840,3 +840,175 @@ TC-175,Working Directory,Delete Selected Files from Changes View,"1. Create or m
 Repository status refreshes
 Diff viewer closes if it was open
 User cancellation leaves files untouched",High,Not Tested,
+TC-176,Branches - Local,Switch Workflow per Repository,"1. Open two repositories
+2. In the first, open the Git Flow dropdown and select Workflow > GitLab Flow
+3. Open the dropdown in the second repository
+4. Restart the application and reopen both repositories","First repository shows the GitLab Flow items and the GitLab Flow tooltip
+Second repository still shows the classic Git Flow items
+Both choices survive the restart
+git config sourcerer.workflow shows gitlabflow in the first repository",High,Not Tested,Repositories without sourcerer.workflow use classic Git Flow
+TC-177,Branches - Local,GitLab Flow Start and Finish Feature,"1. Select Workflow > GitLab Flow
+2. Select Start feature and enter a name
+3. Commit a change
+4. Select Finish feature and confirm","feature/<name> is created from the GitLab Flow main branch and checked out
+Finishing merges it into the main branch and deletes the feature branch
+Main branch is checked out afterwards",High,Not Tested,
+TC-178,Branches - Local,GitLab Flow Promote to Environment,"1. Select Workflow > GitLab Flow
+2. Checkout the main branch and open the dropdown
+3. Select Promote to pre-production and confirm
+4. Repeat from pre-production
+5. Checkout production and select Promote","Menu item names the next environment
+Missing environment branch is created from the promoted branch
+Existing environment branch receives a merge of the promoted branch
+Promoting the last environment or a branch outside the chain shows an error",High,Not Tested,
+TC-179,Branches - Local,GitLab Flow Start Release,"1. Select Workflow > GitLab Flow
+2. Select Start release
+3. Enter 1.2",Branch 1-2-stable is created from the main branch and checked out,Medium,Not Tested,
+TC-180,Branches - Local,GitLab Flow Cherry-pick to Release,"1. Create a release branch with Start release
+2. Commit a fix on the main branch and select it in the history
+3. Open Cherry-pick to release and select the release branch
+4. Repeat with a fix that conflicts with the release branch","Release branches are listed newest first
+Fix is committed on the release branch and the original branch is checked out again
+On conflicts the release branch stays checked out and a conflict message is shown
+Without a selected commit a commit SHA is asked for",High,Not Tested,
+TC-181,Settings,GitLab Flow Settings,"1. Open Settings and find the GitLab Flow settings
+2. Change the environment branches to staging,production
+3. Clear the main branch value
+4. Promote from main","Promote targets staging
+Empty values fall back to the defaults main, pre-production,production and -stable",Medium,Not Tested,
+TC-182,Branches - Local,GitLab Flow Actions with All Branches,"1. Select Workflow > GitLab Flow
+2. Select the * item in the local branches panel
+3. Open the Git Flow dropdown","Finish feature, Promote and Cherry-pick to release are disabled
+Start feature and Start release stay enabled",Low,Not Tested,
+TC-183,Branches - Local,"GitHub Flow Start, Update and Finish Branch","1. Select Workflow > GitHub Flow
+2. Select Start branch and enter a descriptive name
+3. Commit a change, then commit another change on main
+4. Checkout the branch and select Update from main
+5. Select Finish branch and confirm","Branch is created from the GitHub Flow main branch with the entered name and no prefix
+Update from main merges main into the branch and keeps it checked out
+Finish merges the branch into main, deletes it and checks out main
+Update and Finish on main show an error",High,Not Tested,Repository workflow is stored as sourcerer.workflow=githubflow
+TC-184,Branches - Local,GitHub Flow Open Pull Request,"1. Select Workflow > GitHub Flow in a repository with a github.com remote
+2. Start a branch, commit and push it
+3. Select Open pull request
+4. Repeat in a repository without a github.com remote","A new "Pull request: <branch>" tab opens the GitHub compare page for the branch against main
+Signing in from that tab keeps the GitHub session of the repository issue tracker
+The tab is not restored with the workspace
+The default remote is used when several GitHub remotes exist
+Without a github.com remote an error is shown",Medium,Not Tested,"Supports https, git@github.com: and ssh:// remote URLs"
+TC-185,Settings,GitHub Flow Main Branch Setting,"1. Open Settings and change the GitHub Flow main branch to trunk
+2. Start a GitHub Flow branch
+3. Clear the setting","Branch is created from trunk
+Empty value falls back to main",Low,Not Tested,
+TC-186,UI - General,Single Instance Activation,"1. Start Sourcerer
+2. Minimize the main window
+3. Start Sourcerer again from the Start menu, Dock or a terminal","No second window or process is started
+The running window is restored and brought to the front
+On Windows the window gets focus instead of only flashing in the taskbar",High,Not Tested,"Applies to Windows, macOS and Linux (AppImage)"
+TC-187,UI - General,Single Instance After Crash,"1. Start Sourcerer
+2. End the Sourcerer process from the task manager
+3. Start Sourcerer again","Sourcerer starts normally, the stale instance lock is ignored",High,Not Tested,
+TC-188,UI - General,Single Instance With Staged Update,"1. Let Sourcerer download an update
+2. With Sourcerer still running, start it a second time","The running window is brought to the front
+The update is not applied until the running instance is closed and started again",Medium,Not Tested,
+TC-189,Integration,Debug Build Next To Installed Release,"1. Start the installed Sourcerer
+2. Start a Debug build
+3. Open the same GitHub issue tracker in both","Both run at the same time
+The Debug build stores WebEngine data in webengine-debug and issue-trackers/webengine-debug
+No ""database is locked"" messages in the Debug output",Low,Not Tested,Development only
+TC-190,Branches - Local,git-flow-next Initialize,"1. Open a repository without git-flow configuration
+2. Select Workflow > GitFlow-Next
+3. Select Initialize git-flow-next and confirm","The classic preset is written to .git/config (gitflow.branch.* keys)
+The develop branch is created from main if it is missing
+The menu then lists Start feature, Start hotfix and Start release",High,Not Tested,Main and develop names come from the Git Flow settings
+TC-191,Branches - Local,"git-flow-next Start, Update and Finish Feature","1. Select Start feature and enter a name
+2. Commit on the feature and on develop
+3. Select Update from develop
+4. Select Finish and confirm","The feature starts at develop
+Update rebases the feature onto develop (downstreamStrategy=rebase)
+Finish merges it into develop, checks out develop and deletes the feature",High,Not Tested,
+TC-192,Branches - Local,git-flow-next Finish Release,"1. Start release 1.0 and commit
+2. Select Finish and confirm","The confirmation lists merge into main, tag 1.0, update develop from main and delete
+main contains the release, annotated tag 1.0 points at main
+develop contains main",High,Not Tested,A finish is refused when the tag already exists
+TC-193,Branches - Local,git-flow-next Custom Configuration,"1. Edit .git/config: add a topic type (e.g. gitflow.branch.bugfix.type=topic, parent=develop) and set gitflow.branch.hotfix.upstreamStrategy=squash
+2. Open the git-flow-next menu
+3. Finish a hotfix","Start bugfix appears in the menu
+The hotfix is squashed into one commit on main
+Configuration written by the git flow command line tool is used the same way",Medium,Not Tested,
+TC-194,Branches - Local,GitFlow-Next Without the CLI,"1. Make sure git-flow (git-flow-next) is not in PATH
+2. Select Workflow > GitFlow-Next
+3. Select any GitFlow-Next menu item","A dialog says the git-flow-next command line tool was not found and asks to download it and add its installation directory to PATH
+The link https://github.com/gittower/git-flow-next opens in the browser
+The selected action is not run",High,Not Tested,"After installing, Sourcerer must be restarted to see the new PATH"
+TC-195,Branches - Local,Graphite Without the CLI,"1. Make sure gt is not in PATH
+2. Select Workflow > Graphite
+3. Select any Graphite menu item","A dialog says the Graphite CLI (gt) was not found and asks to install it and add its installation directory to PATH
+The link https://graphite.com/docs/install-the-cli opens in the browser
+The selected action is not run",High,Not Tested,
+TC-196,Branches - Local,Graphite Initialize and Create Stack,"1. Select Workflow > Graphite in a repository not initialized for Graphite
+2. Select Initialize Graphite and confirm
+3. Make changes, select Create branch, enter a name and a commit message
+4. Repeat to stack a second branch","Initialize runs gt init with the GitHub Flow main branch as trunk and is then hidden
+Each branch is stacked on the current one and holds one commit with the entered message and the profile author
+An empty message creates an empty branch
+Names with spaces or characters like & % ^ are refused",High,Not Tested,
+TC-197,Branches - Local,"Graphite Modify, Navigate and Restack","1. Check out the lower branch of a stack and change a file
+2. Select Modify (amend)
+3. Change another file and select Modify with new commit
+4. Use Up, Down, Top of stack and Bottom of stack","Modify amends the last commit and restacks the branches above
+Modify with new commit adds a commit and restacks
+Navigation checks out the matching branch, errors from gt (e.g. already at the top) are shown
+Where the stack forks, Up and Top of stack ask which branch to check out",High,Not Tested,
+TC-198,Remote Operations,Graphite Sync and Submit,"1. Authenticate gt (gt auth)
+2. Select Submit stack and confirm
+3. Merge the bottom pull request on GitHub
+4. Select Sync with trunk","Submit pushes the stack and creates or updates its pull requests
+Sync pulls the trunk and restacks the open branches
+Without authentication the gt error is shown",Medium,Not Tested,Needs a GitHub repository connected to Graphite
+TC-199,Branches - Local,Graphite Stacks in Local Branches Panel,"1. Select Workflow > Graphite in an initialized repository with a forked stack and an untracked branch
+2. Look at the local branches panel in the dark and light themes
+3. Hover a branch","Branches are shown as stacks with the trunk on top and children indented below their parent, with connecting lines
+The current branch has a filled dot and a bold name
+Branches that need a restack show a restack badge, branches with pull requests a #number badge (draft, merged, closed)
+Untracked branches are listed under Not tracked by Graphite
+The tooltip shows parent, children, restack state and pull request",High,Not Tested,
+TC-200,Branches - Local,Graphite Panel Refresh,"1. With the Graphite workflow selected, run gt create in a terminal
+2. Switch back to Sourcerer
+3. Commit on a branch that has branches stacked on it
+4. Switch the workflow to Git Flow","The new branch appears in its stack after Sourcerer is activated again
+The branches above the committed branch get a restack badge
+With another workflow the panel shows the plain branch list again",Medium,Not Tested,"gt state takes about a second, the panel updates shortly after"
+TC-201,Branches - Local,Graphite Branch Context Menu,"1. Right-click a tracked branch: Restack, Submit stack, Open pull request, Stop tracking with Graphite
+2. Right-click an untracked branch: Track with Graphite and choose a parent
+3. Right-click the section header","The actions run gt restack --branch, gt submit --branch --stack, open the pull request tab and gt untrack --force after confirmations
+Track runs gt track --parent and the branch moves into the chosen stack
+Branch names with characters like & or % have these actions disabled
+The header has no context menu and can not be selected, dragged or dropped on",High,Not Tested,
+TC-202,Branches - Local,Graphite Panel Without CLI,1. Select Workflow > Graphite with gt not in PATH or in a repository without gt init,"The local branches panel shows the plain branch list, no dialog appears until a Graphite menu item is used",Low,Not Tested,
+TC-203,Branches - Local,Create Custom GitFlow-Next Workflow,"1. Open the Git Flow dropdown > Workflow > New custom workflow...
+2. Add base branches (e.g. develop with parent main, staging with parent develop) and topic types with prefixes, parents, start points, strategies, tag and keep
+3. Try an invalid model (missing prefix slash, two roots, a cycle, an empty name)
+4. Save with the check button or Ctrl+Enter","The editor opens as an overlay over the repository tab and scrolls when the window is small
+Problems are listed below the rows and saving stays disabled while there are any
+Esc cancels
+The workflow is saved to gitflow-next-workflows.json in the application data folder and listed under Custom workflows in every open repository",High,Not Tested,
+TC-204,Branches - Local,Apply Custom GitFlow-Next Workflow,"1. In a repository with main only, select the custom workflow under Workflow
+2. Confirm the dialog
+3. Open the Git Flow dropdown","The confirmation lists the base branches that will be created from their parents
+The gitflow.branch.* configuration in .git/config is replaced, sourcerer.gitflownext.workflow and .revision are set
+The dropdown lists Start items for the workflow topic types
+Without the git-flow-next CLI the install dialog is shown and nothing is applied
+Cancelling keeps the previous workflow checked",High,Not Tested,
+TC-205,Branches - Local,"Update, Edit and Remove Custom Workflows","1. Edit a workflow used by an open repository and save
+2. Open the Git Flow dropdown in that repository
+3. Select Apply updated and confirm
+4. Select Workflow > GitFlow-Next
+5. Remove the workflow","Apply updated <name>... appears only after the definition changed and rewrites the configuration
+Choosing GitFlow-Next keeps the configuration but no longer checks the custom workflow
+Removing asks for confirmation, the repository keeps its configuration",High,Not Tested,
+TC-206,Branches - Local,Save Repository Configuration as Custom Workflow,"1. Open a repository configured with the git flow command line tool or Initialize git-flow-next
+2. Select Workflow > Save this repository's configuration as...
+3. Enter a name and save","The editor opens with the base branches and topic types of the repository
+The saved workflow can be applied to other repositories
+The item is disabled in repositories without git-flow-next configuration",Medium,Not Tested,

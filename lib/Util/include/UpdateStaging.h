@@ -17,7 +17,9 @@ namespace Util::UpdateStaging {
 // Passed by the launcher to the application it starts after an update attempt,
 // so that the application does not immediately hand control back to the
 // launcher because of a staged update that could not be applied.
-inline QString skipUpdateArgument() { return QStringLiteral("--skip-update"); }
+inline QString skipUpdateArgument() {
+  return QStringLiteral("--skip-update");
+}
 
 #ifdef Q_OS_MACOS
 // The update payload on macOS is a .dmg. It must never be staged inside the
@@ -39,9 +41,8 @@ inline QString macosStagedUpdatePattern() {
 // Returns the newest staged update, or an empty string if there is none.
 inline QString macosStagedUpdateFile() {
   const QDir dir(macosStagingDirectory());
-  const QFileInfoList files =
-      dir.entryInfoList({macosStagedUpdatePattern()},
-                        QDir::Files | QDir::Readable, QDir::Time);
+  const QFileInfoList files = dir.entryInfoList(
+      {macosStagedUpdatePattern()}, QDir::Files | QDir::Readable, QDir::Time);
   return files.isEmpty() ? QString() : files.first().absoluteFilePath();
 }
 
@@ -53,9 +54,8 @@ inline QString macosBundlePath() {
     return QString();
   }
   const QString path = dir.absolutePath();
-  return path.endsWith(QStringLiteral(".app"), Qt::CaseInsensitive)
-             ? path
-             : QString();
+  return path.endsWith(QStringLiteral(".app"), Qt::CaseInsensitive) ? path
+                                                                    : QString();
 }
 
 // Explains why the running copy cannot be replaced in place, or returns an

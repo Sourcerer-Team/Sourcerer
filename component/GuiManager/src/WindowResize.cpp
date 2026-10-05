@@ -39,8 +39,8 @@ private:
     QRect geometry = _startGeometry;
 
     if (_edges.testFlag(Qt::LeftEdge)) {
-      const int left =
-          qMin(geometry.left() + delta.x(), geometry.right() - minimum.width() + 1);
+      const int left = qMin(geometry.left() + delta.x(),
+                            geometry.right() - minimum.width() + 1);
       geometry.setLeft(left);
     }
     if (_edges.testFlag(Qt::RightEdge)) {
@@ -48,8 +48,8 @@ private:
                              geometry.left() + minimum.width() - 1));
     }
     if (_edges.testFlag(Qt::TopEdge)) {
-      const int top =
-          qMin(geometry.top() + delta.y(), geometry.bottom() - minimum.height() + 1);
+      const int top = qMin(geometry.top() + delta.y(),
+                           geometry.bottom() - minimum.height() + 1);
       geometry.setTop(top);
     }
     if (_edges.testFlag(Qt::BottomEdge)) {

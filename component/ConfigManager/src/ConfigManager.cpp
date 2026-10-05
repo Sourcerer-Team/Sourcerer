@@ -56,6 +56,14 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::GitRepoGitFlowMainBranchName, "git/gitflow/mainBranchName"},
     {ConfigKey::GitRepoGitFlowDevelopmentBranchName,
      "git/gitflow/developmentBranchName"},
+    {ConfigKey::GitRepoGitLabFlowMainBranchName,
+     "git/gitlabflow/mainBranchName"},
+    {ConfigKey::GitRepoGitLabFlowEnvironmentBranches,
+     "git/gitlabflow/environmentBranches"},
+    {ConfigKey::GitRepoGitLabFlowReleaseBranchSuffix,
+     "git/gitlabflow/releaseBranchSuffix"},
+    {ConfigKey::GitRepoGitHubFlowMainBranchName,
+     "git/githubflow/mainBranchName"},
     {ConfigKey::GitRepoDiffViewType, "git/diffViewType"},
     {ConfigKey::HttpClientCaCertFile, "network/httpClient/caCertFile"},
     {ConfigKey::HttpClientTimeout, "network/httpClient/timeout"},
@@ -119,6 +127,19 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::GitRepoGitFlowDevelopmentBranchName,
      {"Git Flow development branch",
       "Name of the branch used as Git Flow's development branch"}},
+    {ConfigKey::GitRepoGitLabFlowMainBranchName,
+     {"GitLab Flow main branch",
+      "Name of the branch used as GitLab Flow's main branch"}},
+    {ConfigKey::GitRepoGitLabFlowEnvironmentBranches,
+     {"GitLab Flow environment branches",
+      "Comma-separated environment branches promoted from the main branch, "
+      "ordered upstream to downstream"}},
+    {ConfigKey::GitRepoGitLabFlowReleaseBranchSuffix,
+     {"GitLab Flow release branch suffix",
+      "Suffix of GitLab Flow release branches, e.g. 1-2-stable"}},
+    {ConfigKey::GitRepoGitHubFlowMainBranchName,
+     {"GitHub Flow main branch",
+      "Name of the branch used as GitHub Flow's main branch"}},
 };
 
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {
@@ -188,6 +209,11 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::GitRepoMonospaceFontName, "Lucida Console"},
     {ConfigKey::GitRepoGitFlowMainBranchName, "main"},
     {ConfigKey::GitRepoGitFlowDevelopmentBranchName, "develop"},
+    {ConfigKey::GitRepoGitLabFlowMainBranchName, "main"},
+    {ConfigKey::GitRepoGitLabFlowEnvironmentBranches,
+     "pre-production,production"},
+    {ConfigKey::GitRepoGitLabFlowReleaseBranchSuffix, "-stable"},
+    {ConfigKey::GitRepoGitHubFlowMainBranchName, "main"},
     {ConfigKey::GitRepoStashSplitterPos,
      "000000ff0000000100000002000001660000026001ffffffff010000000200"},
     {ConfigKey::HttpClientCaCertFile, "ca-certificates.crt"},
@@ -238,6 +264,16 @@ static QString defaultStringForKey(ConfigKey key, const QSettings *settings) {
   }
 
   return DEFAULT_STRINGS.value(key);
+}
+
+static bool usesDefaultWhenEmpty(ConfigKey key) {
+  return key == ConfigKey::GitRepoSigningProgram ||
+         key == ConfigKey::GitRepoGitFlowMainBranchName ||
+         key == ConfigKey::GitRepoGitFlowDevelopmentBranchName ||
+         key == ConfigKey::GitRepoGitLabFlowMainBranchName ||
+         key == ConfigKey::GitRepoGitLabFlowEnvironmentBranches ||
+         key == ConfigKey::GitRepoGitLabFlowReleaseBranchSuffix ||
+         key == ConfigKey::GitRepoGitHubFlowMainBranchName;
 }
 
 ConfigManager::ConfigManager()
@@ -292,10 +328,7 @@ QString ConfigManager::getString(ConfigKey key) const {
   const QString keyName = KEY_NAMES.value(key);
   if (_settings.contains(keyName)) {
     const QString value = _settings.value(keyName).toString();
-    if ((key == ConfigKey::GitRepoSigningProgram ||
-         key == ConfigKey::GitRepoGitFlowMainBranchName ||
-         key == ConfigKey::GitRepoGitFlowDevelopmentBranchName) &&
-        value.trimmed().isEmpty()) {
+    if (usesDefaultWhenEmpty(key) && value.trimmed().isEmpty()) {
       return defaultStringForKey(key, &_settings);
     }
 
@@ -310,10 +343,7 @@ QString ConfigManager::getString(const QString &key) const {
   if (_settings.contains(key)) {
     const QString value = _settings.value(key).toString();
     const ConfigKey configKey = getKey(key);
-    if ((configKey == ConfigKey::GitRepoSigningProgram ||
-         configKey == ConfigKey::GitRepoGitFlowMainBranchName ||
-         configKey == ConfigKey::GitRepoGitFlowDevelopmentBranchName) &&
-        value.trimmed().isEmpty()) {
+    if (usesDefaultWhenEmpty(configKey) && value.trimmed().isEmpty()) {
       return defaultStringForKey(configKey, &_settings);
     }
 
@@ -321,9 +351,7 @@ QString ConfigManager::getString(const QString &key) const {
   }
 
   const ConfigKey configKey = getKey(key);
-  if (configKey == ConfigKey::GitRepoSigningProgram ||
-      configKey == ConfigKey::GitRepoGitFlowMainBranchName ||
-      configKey == ConfigKey::GitRepoGitFlowDevelopmentBranchName) {
+  if (usesDefaultWhenEmpty(configKey)) {
     return defaultStringForKey(configKey, &_settings);
   }
 

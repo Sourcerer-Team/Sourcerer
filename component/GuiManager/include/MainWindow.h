@@ -21,6 +21,7 @@
 #include <QMap>
 #include <QResizeEvent>
 #include <QSet>
+#include <QUrl>
 
 namespace GuiManager {
 
@@ -41,6 +42,9 @@ public:
   SharedPtr getSelf() { return sharedFromThis(); }
 
   QStringList containerPaths() const;
+
+  // Brings the window to the front when another Sourcerer process was started.
+  void activateFromAnotherInstance(const QStringList &arguments);
 
   // QWidget interface
 protected:
@@ -104,7 +108,9 @@ private:
   void addGitRepoContainer(const QString &path);
   void addGitCredentialsContainer();
   void addIssueTrackerContainer(const QString &serviceType,
-                                const QString &repositoryName);
+                                const QString &repositoryName,
+                                const QUrl &startUrl = QUrl(),
+                                const QString &title = QString());
   void addGitKeysContainer();
   void addHomeContainer();
   void addInitGitRepoContainer();
