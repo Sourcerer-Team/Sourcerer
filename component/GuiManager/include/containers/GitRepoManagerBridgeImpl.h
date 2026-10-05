@@ -163,6 +163,9 @@ public:
                             const GitRepo::GitFlowNextAction action,
                             const QString &name,
                             const QString &argument = QString()) override;
+  void applyGitFlowNextWorkflow(
+      const QWeakPointer<GitRepoContainer> &guard,
+      const GitRepo::GitFlowNextWorkflow &workflow) override;
   void getWorkflowType(const QWeakPointer<GitRepoContainer> &guard) override;
   void setWorkflowType(const QWeakPointer<GitRepoContainer> &guard,
                        const GitRepo::WorkflowType workflow) override;

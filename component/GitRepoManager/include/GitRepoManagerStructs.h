@@ -753,6 +753,8 @@ struct GitRepoGitFlowCommand final : GitRepoCommand {
   GitRepo::GitFlowNextAction gitFlowNextAction =
       GitRepo::GitFlowNextAction::Unknown;
   QString topicType;
+  // The custom workflow to write for GitFlowNextAction::Apply.
+  GitRepo::GitFlowNextWorkflow customWorkflow;
   QString mainBranchName;
   QStringList environmentChain;
   QString commit;

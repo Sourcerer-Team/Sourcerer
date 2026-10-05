@@ -6,6 +6,7 @@
 #include <QStringList>
 #include <QVector>
 
+#include "GitFlowNextWorkflow.h"
 #include "WorkflowUtils.h"
 
 #include <git2/repository.h>
@@ -455,6 +456,7 @@ enum class GitError : int {
   GitFlowNextFailedToLookupBranch,
   GitFlowNextUnsupportedStrategy,
   GitFlowNextTagExists,
+  GitFlowNextInvalidWorkflow,
   SetWorkflowTypeFailedToGetRepositoryConfig,
   SetWorkflowTypeFailedToWriteConfig,
   Last
@@ -998,6 +1000,17 @@ bool updateGitFlowNextBranch(git_repository *repo, const QString &branchName,
 // Reads sourcerer.workflow from the repository config. Missing or unknown
 // values mean classic Git Flow.
 WorkflowType getWorkflowType(git_repository *repo);
+
+// Writes a custom workflow into the repository: replaces the gitflow.branch.*
+// configuration, creates missing base branches from their parents and
+// records the workflow id and revision (sourcerer.gitflownext.*).
+bool applyGitFlowNextWorkflow(git_repository *repo,
+                              const GitFlowNextWorkflow &workflow);
+
+// The custom workflow last applied to the repository. Returns false if the
+// repository doesn't use one.
+bool getGitFlowNextWorkflowReference(git_repository *repo, QString *id,
+                                     int *revision);
 
 bool setWorkflowType(git_repository *repo, WorkflowType type);
 

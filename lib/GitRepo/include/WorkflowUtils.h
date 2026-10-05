@@ -27,6 +27,8 @@ enum class GitFlowNextAction {
   Start,
   Finish,
   Update,
+  // Writes a custom workflow into the repository.
+  Apply,
 
   last
 };
@@ -542,6 +544,9 @@ inline QStringList graphiteAmbiguousBranches(const QString &output) {
 struct WorkflowState {
   WorkflowType type = WorkflowType::GitFlow;
   GitFlowNextConfig gitFlowNext;
+  // The custom GitFlow-Next workflow written into the repository, if any.
+  QString customWorkflowId;
+  int customWorkflowRevision = 0;
 };
 
 } // namespace GitRepo

@@ -2309,6 +2309,9 @@ static QString gitErrorName(const GitError errorType) {
         "GitRepoError",
         "The git-flow-next merge strategy is not supported. Use merge, rebase "
         "or squash.");
+  case GitError::GitFlowNextInvalidWorkflow:
+    return QCoreApplication::translate(
+        "GitRepoError", "The custom GitFlow-Next workflow is not valid.");
   case GitError::GitFlowNextTagExists:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -5864,6 +5867,176 @@ bool updateGitFlowNextBranch(git_repository *repo, const QString &branchName,
   return updated;
 }
 
+static const char *kWorkflowIdKey = "sourcerer.gitflownext.workflow";
+static const char *kWorkflowRevisionKey = "sourcerer.gitflownext.revision";
+
+// Removes the reference to a custom GitFlow-Next workflow, if there is one.
+static void clearGitFlowNextWorkflowReference(git_config *localConfig) {
+  for (const char *key : {kWorkflowIdKey, kWorkflowRevisionKey}) {
+    const int error = git_config_delete_entry(localConfig, key);
+    if (error && error != GIT_ENOTFOUND) {
+      LOG_WARN("Failed to remove '{}' from the repository config: error={}",
+               key, error);
+    }
+  }
+}
+
+bool applyGitFlowNextWorkflow(git_repository *repo,
+                              const GitFlowNextWorkflow &workflow) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!validateGitFlowNextWorkflow(workflow).isEmpty()) {
+    setWorkflowError(GitError::GitFlowNextInvalidWorkflow);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // The root base branch is where the missing base branches start from.
+  QStringList existingBaseBranches;
+  for (const GitFlowNextBranch &branch : workflow.baseBranches()) {
+    if (localBranchExists(repo, branch.name)) {
+      existingBaseBranches.append(branch.name);
+    } else if (branch.parent.isEmpty()) {
+      setWorkflowError(GitError::GitFlowNextFailedToLookupBranch);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  git_config *config = nullptr;
+  int error = git_repository_config(&config, repo);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToWriteConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Only the repository's own configuration is changed, never the global one.
+  git_config *localConfig = nullptr;
+  error = git_config_open_level(&localConfig, config, GIT_CONFIG_LEVEL_LOCAL);
+  git_config_free(config);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToWriteConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Replace the previous branch model, including branch types that the new
+  // workflow doesn't have.
+  QStringList oldKeys;
+  git_config_foreach_match(
+      localConfig, "^gitflow\\.(branch\\..+|[^.]+\\.finish\\..+)$",
+      [](const git_config_entry *entry, void *payload) -> int {
+        static_cast<QStringList *>(payload)->append(
+            QString::fromUtf8(entry->name));
+        return 0;
+      },
+      &oldKeys);
+  for (const QString &key : std::as_const(oldKeys)) {
+    error = git_config_delete_entry(localConfig, key.toUtf8().constData());
+    if (error && error != GIT_ENOTFOUND) {
+      setError(GitError::GitFlowNextFailedToWriteConfig, error);
+      git_config_free(localConfig);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  const auto entries = gitFlowNextConfigEntries(workflow);
+  for (const auto &[key, value] : entries) {
+    error = git_config_set_string(localConfig, key.toUtf8().constData(),
+                                  value.toUtf8().constData());
+    if (error) {
+      setError(GitError::GitFlowNextFailedToWriteConfig, error);
+      git_config_free(localConfig);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  error = git_config_set_string(
+      localConfig, "sourcerer.workflow",
+      workflowTypeToString(WorkflowType::GitFlowNext).toUtf8().constData());
+  if (!error) {
+    error = git_config_set_string(localConfig, kWorkflowIdKey,
+                                  workflow.id.toUtf8().constData());
+  }
+  if (!error) {
+    error = git_config_set_int32(localConfig, kWorkflowRevisionKey,
+                                 workflow.revision);
+  }
+  git_config_free(localConfig);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToWriteConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QStringList toCreate =
+      gitFlowNextBaseBranchesToCreate(workflow, existingBaseBranches);
+  const QVector<GitFlowNextBranch> baseBranches = workflow.baseBranches();
+  for (const QString &name : toCreate) {
+    const auto branch = std::find_if(baseBranches.cbegin(), baseBranches.cend(),
+                                     [&](const GitFlowNextBranch &candidate) {
+                                       return candidate.name == name;
+                                     });
+    LOG_DEBUG("Creating base branch '{}' from '{}'", name.toStdString(),
+              branch->parent.toStdString());
+    if (!createBranchFromCommit(repo, branchTipId(repo, branch->parent),
+                                name)) {
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool getGitFlowNextWorkflowReference(git_repository *repo, QString *id,
+                                     int *revision) {
+  if (!repo) {
+    return false;
+  }
+
+  git_config *config = nullptr;
+  if (git_repository_config(&config, repo)) {
+    return false;
+  }
+  git_config *snapshot = nullptr;
+  const int snapshotError = git_config_snapshot(&snapshot, config);
+  git_config_free(config);
+  if (snapshotError) {
+    return false;
+  }
+
+  git_buf buf = GIT_BUF_INIT;
+  int32_t storedRevision = 0;
+  const bool found =
+      git_config_get_string_buf(&buf, snapshot, kWorkflowIdKey) == 0 &&
+      buf.ptr && buf.ptr[0] != '\0';
+  if (found) {
+    if (id) {
+      *id = QString::fromUtf8(buf.ptr);
+    }
+    git_config_get_int32(&storedRevision, snapshot, kWorkflowRevisionKey);
+    if (revision) {
+      *revision = storedRevision;
+    }
+  }
+  git_buf_dispose(&buf);
+  git_config_free(snapshot);
+  return found;
+}
+
 WorkflowType getWorkflowType(git_repository *repo) {
   LOG_PERF(0, "Enter");
 
@@ -5917,6 +6090,15 @@ bool setWorkflowType(git_repository *repo, WorkflowType type) {
   error =
       git_config_set_string(config, "sourcerer.workflow",
                             workflowTypeToString(type).toUtf8().constData());
+
+  // Choosing a workflow from the menu ends the use of a custom GitFlow-Next
+  // workflow; applyGitFlowNextWorkflow() sets it again.
+  git_config *localConfig = nullptr;
+  if (!error &&
+      !git_config_open_level(&localConfig, config, GIT_CONFIG_LEVEL_LOCAL)) {
+    clearGitFlowNextWorkflowReference(localConfig);
+    git_config_free(localConfig);
+  }
   git_config_free(config);
 
   if (error) {

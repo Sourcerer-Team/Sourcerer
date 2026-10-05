@@ -1,4 +1,5 @@
 #include "containers/GitRepoContainer.h"
+#include "CustomWorkflowStore.h"
 #include "DarkThemeLexersHighlighter.h"
 #include "MainWindow.h"
 #include "MousePositionCorrection.h"
@@ -21,6 +22,7 @@
 #include "widgets/EditRemoteOverlayWidget.h"
 #include "widgets/EditTargetOverlayWidget.h"
 #include "widgets/ErrorToast.h"
+#include "widgets/GitFlowNextWorkflowOverlayWidget.h"
 #include "widgets/InfoToast.h"
 #include "widgets/MultilineTextInputOverlayWidget.h"
 #include "widgets/RefBadgesOverlay.h"
@@ -1274,6 +1276,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _graphiteWorkflowAction = workflowMenu->addAction(tr("Graphite"));
   _graphiteWorkflowAction->setCheckable(true);
   workflowGroup->addAction(_graphiteWorkflowAction);
+  _workflowMenu = workflowMenu;
+  _workflowGroup = workflowGroup;
   gitFlowMenu->addSeparator();
 
   auto *actionStartFeature = gitFlowMenu->addAction(tr("Start feature"));
@@ -1403,8 +1407,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       tr("Top of stack"), QStringLiteral(":/icons/up_arrow.png"));
   auto *actionGraphiteBottom = addGraphiteAction(
       tr("Bottom of stack"), QStringLiteral(":/icons/down_arrow.png"));
-  auto *actionGraphiteTrunk = addGraphiteAction(
-      tr("Trunk"), QStringLiteral(":/icons/down_arrow.png"));
+  auto *actionGraphiteTrunk =
+      addGraphiteAction(tr("Trunk"), QStringLiteral(":/icons/down_arrow.png"));
   _graphiteActions.append(gitFlowMenu->addSeparator());
   auto *actionGraphiteRestack = addGraphiteAction(
       tr("Restack"), QStringLiteral(":/icons/gitlabflow_promote.svg"));
@@ -1946,6 +1950,11 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::rebuildGitFlowNextMenu);
   connect(gitFlowMenu, &QMenu::aboutToShow, this,
           &GitRepoContainer::updateGraphiteMenu);
+  connect(workflowMenu, &QMenu::aboutToShow, this,
+          &GitRepoContainer::rebuildCustomWorkflowMenu);
+  // Workflows edited in another repository tab show up here too.
+  connect(&CustomWorkflowStore::instance(), &CustomWorkflowStore::changed, this,
+          &GitRepoContainer::rebuildCustomWorkflowMenu);
   connect(_gitLabFlowCherryPickMenu, &QMenu::aboutToShow, this,
           &GitRepoContainer::updateGitLabFlowCherryPickMenu);
   connect(pushButtonStash, &QPushButton::clicked, this,
@@ -4699,6 +4708,7 @@ void GitRepoContainer::applyWorkflow(GitRepo::WorkflowType workflow) {
   }
 
   rebuildGitFlowNextMenu();
+  rebuildCustomWorkflowMenu();
   updateGraphiteMenu();
   requestGraphiteStacksReload();
 
@@ -4759,11 +4769,15 @@ void GitRepoContainer::updateGitLabFlowCherryPickMenu() {
 void GitRepoContainer::onWorkflowSelected(GitRepo::WorkflowType workflow) {
   LOG_PERF(0, "Enter");
 
-  if (workflow == _workflow) {
+  // Choosing GitFlow-Next while a custom workflow is used keeps the
+  // configuration but ends the use of the custom workflow.
+  if (workflow == _workflow && _customWorkflowId.isEmpty()) {
     LOG_PERF(0, "Exit");
     return;
   }
 
+  _customWorkflowId.clear();
+  _customWorkflowRevision = 0;
   applyWorkflow(workflow);
 
   const WeakPtr guard = getSelf().toWeakRef();
@@ -5160,6 +5174,8 @@ void GitRepoContainer::onOpenGitHubPullRequest() {
 
 void GitRepoContainer::applyWorkflowState(const GitRepo::WorkflowState &state) {
   _gitFlowNextConfig = state.gitFlowNext;
+  _customWorkflowId = state.customWorkflowId;
+  _customWorkflowRevision = state.customWorkflowRevision;
   applyWorkflow(state.type);
 }
 
@@ -5197,6 +5213,20 @@ void GitRepoContainer::rebuildGitFlowNextMenu() {
   const QString startIcon = QStringLiteral(":/icons/gitflow_start.svg");
   const QString finishIcon = QStringLiteral(":/icons/gitflow_finish.svg");
   const QString updateIcon = QStringLiteral(":/icons/gitlabflow_promote.svg");
+
+  // The custom workflow was changed after it was written into the repository.
+  if (!_customWorkflowId.isEmpty()) {
+    const auto workflow =
+        CustomWorkflowStore::instance().workflow(_customWorkflowId);
+    if (workflow && workflow->revision > _customWorkflowRevision) {
+      const QString id = workflow->id;
+      QAction *applyAction = addAction(
+          tr("Apply updated '%1'...").arg(escaped(workflow->name)), updateIcon);
+      connect(applyAction, &QAction::triggered, this,
+              [this, id]() { onCustomWorkflowSelected(id); });
+      _gitFlowNextActions.append(_gitFlowMenu->addSeparator());
+    }
+  }
 
   if (!_gitFlowNextConfig.initialized) {
     QAction *initAction =
@@ -6264,6 +6294,257 @@ void GitRepoContainer::onTrackGraphiteBranch(const QString &branchName) {
                                QStringLiteral("--parent"), parent});
       },
       tr("'%1' is now tracked on top of '%2'.").arg(branchName, parent));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::rebuildCustomWorkflowMenu() {
+  LOG_PERF(0, "Enter");
+
+  if (!_workflowMenu || !_workflowGroup) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  for (QAction *action : std::as_const(_customWorkflowMenuActions)) {
+    _workflowGroup->removeAction(action);
+    _workflowMenu->removeAction(action);
+    action->deleteLater();
+  }
+  _customWorkflowMenuActions.clear();
+  for (QMenu *menu : std::as_const(_customWorkflowSubmenus)) {
+    menu->deleteLater();
+  }
+  _customWorkflowSubmenus.clear();
+
+  // Menu texts treat '&' as a mnemonic marker.
+  const auto escaped = [](QString text) {
+    return text.replace(QLatin1Char('&'), QStringLiteral("&&"));
+  };
+  const auto keep = [this](QAction *action) {
+    _customWorkflowMenuActions.append(action);
+    return action;
+  };
+
+  const QVector<GitRepo::GitFlowNextWorkflow> workflows =
+      CustomWorkflowStore::instance().workflows();
+  const bool customSelected = _workflow == GitRepo::WorkflowType::GitFlowNext &&
+                              !_customWorkflowId.isEmpty();
+
+  if (!workflows.isEmpty()) {
+    keep(_workflowMenu->addSection(tr("Custom workflows")));
+    for (const GitRepo::GitFlowNextWorkflow &workflow : workflows) {
+      QAction *action = keep(_workflowMenu->addAction(escaped(workflow.name)));
+      action->setCheckable(true);
+      action->setToolTip(tr("GitFlow-Next workflow"));
+      _workflowGroup->addAction(action);
+      action->setChecked(customSelected && workflow.id == _customWorkflowId);
+      const QString id = workflow.id;
+      connect(action, &QAction::triggered, this,
+              [this, id]() { onCustomWorkflowSelected(id); });
+    }
+  }
+
+  keep(_workflowMenu->addSeparator());
+
+  QAction *newAction =
+      keep(_workflowMenu->addAction(tr("New custom workflow...")));
+  connect(newAction, &QAction::triggered, this,
+          &GitRepoContainer::onNewCustomWorkflow);
+
+  QAction *saveAction = keep(_workflowMenu->addAction(
+      tr("Save this repository's configuration as...")));
+  saveAction->setEnabled(_gitFlowNextConfig.initialized);
+  saveAction->setToolTip(
+      _gitFlowNextConfig.initialized
+          ? tr("Create a custom workflow from the git-flow-next configuration "
+               "of this repository.")
+          : tr("This repository has no git-flow-next configuration."));
+  connect(saveAction, &QAction::triggered, this,
+          &GitRepoContainer::onSaveRepositoryWorkflow);
+
+  const auto addSubmenu =
+      [&](const QString &title,
+          const std::function<void(const QString &)> &onSelected) {
+        auto *menu = new QMenu(title, _workflowMenu);
+        _customWorkflowSubmenus.append(menu);
+        for (const GitRepo::GitFlowNextWorkflow &workflow : workflows) {
+          QAction *action = menu->addAction(escaped(workflow.name));
+          const QString id = workflow.id;
+          connect(action, &QAction::triggered, this,
+                  [onSelected, id]() { onSelected(id); });
+        }
+        QAction *menuAction = keep(_workflowMenu->addMenu(menu));
+        menuAction->setEnabled(!workflows.isEmpty());
+      };
+  addSubmenu(tr("Edit custom workflow"),
+             [this](const QString &id) { onEditCustomWorkflow(id); });
+  addSubmenu(tr("Remove custom workflow"),
+             [this](const QString &id) { onRemoveCustomWorkflow(id); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onCustomWorkflowSelected(const QString &id) {
+  LOG_PERF(0, "Enter");
+
+  // Until the workflow is applied, the menu shows what the repository uses.
+  const auto restoreSelection = [this]() { applyWorkflow(_workflow); };
+
+  const std::optional<GitRepo::GitFlowNextWorkflow> workflow =
+      CustomWorkflowStore::instance().workflow(id);
+  if (!workflow) {
+    restoreSelection();
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!ensureGitFlowNextCli()) {
+    restoreSelection();
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QStringList problems = GitRepo::validateGitFlowNextWorkflow(*workflow);
+  if (!problems.isEmpty()) {
+    showErrorToast(tr("The workflow '%1' is not valid: %2")
+                       .arg(workflow->name, problems.first()),
+                   tr("Error"));
+    restoreSelection();
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString root;
+  QHash<QString, QString> parents;
+  for (const GitRepo::GitFlowNextBranch &branch : workflow->baseBranches()) {
+    parents.insert(branch.name, branch.parent);
+    if (branch.parent.isEmpty()) {
+      root = branch.name;
+    }
+  }
+  if (!_localBranches.contains(root)) {
+    showErrorToast(tr("The workflow '%1' starts from '%2', which doesn't exist "
+                      "in this repository.")
+                       .arg(workflow->name, root),
+                   tr("Error"));
+    restoreSelection();
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString message = tr("Apply the workflow '%1' to this repository?\n\nIt "
+                       "replaces the git-flow-next configuration in "
+                       ".git/config.")
+                        .arg(workflow->name);
+  const QStringList toCreate =
+      GitRepo::gitFlowNextBaseBranchesToCreate(*workflow, _localBranches);
+  if (!toCreate.isEmpty()) {
+    QStringList lines;
+    for (const QString &branch : toCreate) {
+      lines.append(tr("- %1 from %2").arg(branch, parents.value(branch)));
+    }
+    message += tr("\n\nThese base branches will be created:\n%1")
+                   .arg(lines.join(QLatin1Char('\n')));
+  }
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Apply custom workflow"), message,
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (reply != QMessageBox::Yes) {
+    restoreSelection();
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const GitRepo::GitFlowNextWorkflow selected = *workflow;
+  runFlowOperation([=](const WeakPtr &guard) {
+    _bridge->applyGitFlowNextWorkflow(guard, selected);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::showCustomWorkflowEditor(
+    const GitRepo::GitFlowNextWorkflow &workflow) {
+  LOG_PERF(0, "Enter");
+
+  const auto overlay = new GitFlowNextWorkflowOverlayWidget(this, workflow);
+  connect(overlay, &GitFlowNextWorkflowOverlayWidget::canceled, this,
+          [overlay]() {
+            overlay->hide();
+            overlay->deleteLater();
+          });
+  connect(overlay, &GitFlowNextWorkflowOverlayWidget::submitted, this,
+          [this, overlay](const GitRepo::GitFlowNextWorkflow &edited) {
+            GitRepo::GitFlowNextWorkflow saved = edited;
+            QString error;
+            if (!CustomWorkflowStore::instance().save(saved, &error)) {
+              showErrorToast(error, tr("Error"));
+              return;
+            }
+            overlay->hide();
+            overlay->deleteLater();
+            showToast(tr("Saved the workflow '%1'.").arg(saved.name),
+                      tr("Info"));
+          });
+
+  overlay->show();
+  overlay->raise();
+  overlay->focusName();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onNewCustomWorkflow() {
+  // Start from the root most repositories have.
+  GitRepo::GitFlowNextWorkflow workflow;
+  GitRepo::GitFlowNextBranch root;
+  root.name =
+      _configManager
+          .getString(ConfigManager::ConfigKey::GitRepoGitFlowMainBranchName)
+          .trimmed();
+  workflow.branches.append(root);
+  showCustomWorkflowEditor(workflow);
+}
+
+void GitRepoContainer::onSaveRepositoryWorkflow() {
+  showCustomWorkflowEditor(
+      GitRepo::gitFlowNextWorkflowFromConfig(_gitFlowNextConfig));
+}
+
+void GitRepoContainer::onEditCustomWorkflow(const QString &id) {
+  if (const auto workflow = CustomWorkflowStore::instance().workflow(id)) {
+    showCustomWorkflowEditor(*workflow);
+  }
+}
+
+void GitRepoContainer::onRemoveCustomWorkflow(const QString &id) {
+  LOG_PERF(0, "Enter");
+
+  const auto workflow = CustomWorkflowStore::instance().workflow(id);
+  if (!workflow) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Remove custom workflow"),
+      tr("Remove the custom workflow '%1'?\n\nRepositories that use it keep "
+         "their git-flow-next configuration.")
+          .arg(workflow->name),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString error;
+  if (CustomWorkflowStore::instance().remove(id, &error)) {
+    showToast(tr("Removed the workflow '%1'.").arg(workflow->name), tr("Info"));
+  } else {
+    showErrorToast(error, tr("Error"));
+  }
 
   LOG_PERF(0, "Exit");
 }

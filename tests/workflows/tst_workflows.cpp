@@ -1,3 +1,4 @@
+#include <GitFlowNextWorkflow.h>
 #include <GraphiteUtils.h>
 #include <WorkflowUtils.h>
 
@@ -25,6 +26,40 @@ QByteArray graphiteStateJson() {
               "'right': {'trunk': false, 'needs_restack': true,"
               "          'parents': [{'ref': 'base', 'sha': '92aade5'}]}"
               "}");
+}
+
+GitFlowNextWorkflow releaseTrain() {
+  GitFlowNextWorkflow workflow;
+  workflow.id = QStringLiteral("0b1c");
+  workflow.name = QStringLiteral("Release train");
+  workflow.revision = 3;
+  GitFlowNextBranch main;
+  main.name = QStringLiteral("main");
+  GitFlowNextBranch develop;
+  develop.name = QStringLiteral("develop");
+  develop.parent = QStringLiteral("main");
+  develop.autoUpdate = true;
+  GitFlowNextBranch staging;
+  staging.name = QStringLiteral("staging");
+  staging.parent = QStringLiteral("develop");
+  GitFlowNextBranch feature;
+  feature.topic = true;
+  feature.name = QStringLiteral("feature");
+  feature.prefix = QStringLiteral("feature/");
+  feature.parent = QStringLiteral("develop");
+  feature.downstreamStrategy = QStringLiteral("rebase");
+  GitFlowNextBranch release;
+  release.topic = true;
+  release.name = QStringLiteral("release");
+  release.prefix = QStringLiteral("release/");
+  release.parent = QStringLiteral("main");
+  release.startPoint = QStringLiteral("staging");
+  release.upstreamStrategy = QStringLiteral("squash");
+  release.tag = true;
+  release.tagPrefix = QStringLiteral("v");
+  release.keepOnFinish = true;
+  workflow.branches = {main, develop, staging, feature, release};
+  return workflow;
 }
 
 } // namespace
@@ -418,6 +453,123 @@ private slots:
     QCOMPARE(rows.at(1).depth, 0);
     QCOMPARE(rows.at(2).depth, 1);
     QVERIFY(!rows.at(0).hasChildren);
+  }
+
+  void customWorkflowJsonRoundTrip() {
+    const GitFlowNextWorkflow workflow = releaseTrain();
+    const QVector<GitFlowNextWorkflow> parsed =
+        parseGitFlowNextWorkflows(serializeGitFlowNextWorkflows({workflow}));
+    QCOMPARE(parsed.size(), 1);
+    QCOMPARE(parsed.first().id, workflow.id);
+    QCOMPARE(parsed.first().name, workflow.name);
+    QCOMPARE(parsed.first().revision, 3);
+    QCOMPARE(parsed.first().branches.size(), 5);
+    const GitFlowNextBranch release = parsed.first().branches.at(4);
+    QVERIFY(release.topic && release.tag && release.keepOnFinish);
+    QCOMPARE(release.startPoint, QStringLiteral("staging"));
+    QCOMPARE(release.upstreamStrategy, QStringLiteral("squash"));
+    QCOMPARE(release.tagPrefix, QStringLiteral("v"));
+    QVERIFY(parseGitFlowNextWorkflows("not json").isEmpty());
+  }
+
+  // What is written into .git/config reads back as the same model.
+  void customWorkflowConfigEntries() {
+    const GitFlowNextWorkflow workflow = releaseTrain();
+    QList<QPair<QString, QString>> entries;
+    for (const auto &[key, value] : gitFlowNextConfigEntries(workflow)) {
+      // libgit2 reports variable names in lower case.
+      const qsizetype dot = key.lastIndexOf(QLatin1Char('.'));
+      entries.append({key.left(dot + 1) + key.mid(dot + 1).toLower(), value});
+    }
+    const GitFlowNextConfig config = parseGitFlowNextConfig(entries);
+    QVERIFY(config.initialized);
+    QCOMPARE(config.branches.size(), 5);
+    const GitFlowNextWorkflow back = gitFlowNextWorkflowFromConfig(config);
+    for (int i = 0; i < 5; ++i) {
+      const GitFlowNextBranch &a = workflow.branches.at(i);
+      const GitFlowNextBranch &b = back.branches.at(i);
+      QCOMPARE(b.name, a.name);
+      QCOMPARE(b.topic, a.topic);
+      QCOMPARE(b.parent, a.parent);
+      QCOMPARE(b.startPoint, a.startPoint);
+      QCOMPARE(b.upstreamStrategy, a.upstreamStrategy);
+      QCOMPARE(b.downstreamStrategy, a.downstreamStrategy);
+      QCOMPARE(b.tag, a.tag);
+      QCOMPARE(b.tagPrefix, a.tagPrefix);
+      QCOMPARE(b.keepOnFinish, a.keepOnFinish);
+      QCOMPARE(b.autoUpdate, a.autoUpdate);
+      if (a.topic) {
+        QCOMPARE(b.prefix, a.prefix);
+      }
+    }
+  }
+
+  void customWorkflowValid() {
+    QVERIFY(validateGitFlowNextWorkflow(releaseTrain()).isEmpty());
+  }
+
+  void customWorkflowValidation_data() {
+    QTest::addColumn<int>("change");
+    for (int i = 0; i < 12; ++i) {
+      QTest::newRow(QByteArray::number(i).constData()) << i;
+    }
+  }
+
+  void customWorkflowValidation() {
+    QFETCH(int, change);
+    GitFlowNextWorkflow workflow = releaseTrain();
+    auto &b = workflow.branches;
+    switch (change) {
+    case 0:
+      workflow.name = QStringLiteral("  ");
+      break; // name
+    case 1:
+      b[1].parent.clear();
+      break; // 2 roots
+    case 2:
+      b[0].parent = QStringLiteral("staging");
+      break; // cycle
+    case 3:
+      b[2].name = QStringLiteral("develop");
+      break; // twice
+    case 4:
+      b[1].name = QStringLiteral("dev elop");
+      break; // ref
+    case 5:
+      b[3].name = QStringLiteral("fea.ture");
+      break; // type
+    case 6:
+      b[3].prefix = QStringLiteral("feature");
+      break; // no /
+    case 7:
+      b[4].prefix = QStringLiteral("feature/");
+      break; // dup
+    case 8:
+      b[3].parent = QStringLiteral("feature");
+      break; // parent
+    case 9:
+      b[4].startPoint = QStringLiteral("nowhere");
+      break; // start
+    case 10:
+      b[3].upstreamStrategy = QStringLiteral("cherry");
+      break; // strat
+    case 11:
+      b.remove(0, 3);
+      break; // no base
+    }
+    QVERIFY2(!validateGitFlowNextWorkflow(workflow).isEmpty(),
+             qPrintable(QString::number(change)));
+  }
+
+  void customWorkflowBranchesToCreate() {
+    const GitFlowNextWorkflow workflow = releaseTrain();
+    QCOMPARE(gitFlowNextBaseBranchesToCreate(workflow, {"main"}),
+             QStringList({"develop", "staging"}));
+    QCOMPARE(gitFlowNextBaseBranchesToCreate(workflow, {"main", "develop"}),
+             QStringList{"staging"});
+    QVERIFY(gitFlowNextBaseBranchesToCreate(workflow,
+                                            {"main", "develop", "staging"})
+                .isEmpty());
   }
 };
 
