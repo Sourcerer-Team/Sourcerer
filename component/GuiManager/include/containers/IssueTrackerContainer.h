@@ -36,7 +36,10 @@ class IssueTrackerContainer final : public ContainerWidget {
   Q_OBJECT
 
 public:
+  // startUrl replaces the repository issues page as the first page, e.g. a
+  // GitHub pull request page.
   explicit IssueTrackerContainer(QString serviceType, QString repositoryName,
+                                 QUrl startUrl = QUrl(),
                                  QWidget *parent = nullptr);
   ~IssueTrackerContainer() override;
 
@@ -46,6 +49,7 @@ public:
 
   QString serviceType() const { return _serviceType; }
   QString repositoryName() const { return _repositoryName; }
+  QUrl startUrl() const { return _startUrl; }
   QString path() const override { return QString(); }
 
 protected:
@@ -59,6 +63,9 @@ signals:
 private:
   void updateIssueUrl();
   void loadIssuePage();
+#if GUI_MANAGER_HAS_WEBENGINE
+  void loadAfterGitHubLoginCheck();
+#endif
   void showUnsupportedMessage(const QString &message);
   void showLoadFailedMessage(const QString &message);
   void openIssueTrackerExternallyAndClose();
@@ -80,6 +87,7 @@ private:
   QString _serviceType;
   QString _repositoryName;
   QString _serviceHost;
+  QUrl _startUrl;
   QUrl _issuesUrl;
   QWidget *_toolbarWidget;
   QWidget *_toolbarHandle;
@@ -88,6 +96,7 @@ private:
   QToolButton *_refreshButton;
   bool _draggingToolbar;
   bool _externalBrowserOpened;
+  bool _pageLoaded;
   QPoint _toolbarDragOffset;
   QPoint _toolbarRelativePosition;
 #if GUI_MANAGER_HAS_WEBENGINE

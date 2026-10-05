@@ -2271,6 +2271,16 @@ static QString gitErrorName(const GitError errorType) {
   case GitError::GitLabFlowFailedToLookupReleaseBranch:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to lookup the GitLab Flow release branch.");
+  case GitError::GitHubFlowBranchNameEmpty:
+    return QCoreApplication::translate("GitRepoError",
+                                       "GitHub Flow branch name is empty.");
+  case GitError::GitHubFlowFailedToLookupMainBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup the GitHub Flow main branch.");
+  case GitError::GitHubFlowMainBranchNotAllowed:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The GitHub Flow main branch can't be updated or finished.");
   case GitError::SetWorkflowTypeFailedToGetRepositoryConfig:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -5117,9 +5127,9 @@ bool finishGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
   return true;
 }
 
-static void setGitLabFlowError(const GitError errorType) {
+static void setWorkflowError(const GitError errorType) {
   setErrorContext(errorType, gitErrorMessage(errorType), -1);
-  LOG_ERROR(Log::ErrorId::Git, "GitLab Flow error: {}",
+  LOG_ERROR(Log::ErrorId::Git, "Workflow error: {}",
             gitErrorMessage(errorType).toStdString());
 }
 
@@ -5147,14 +5157,14 @@ bool startGitLabFlowFeature(git_repository *repo, const QString &branchName,
 
   const QString normalizedBranchName = gitLabFlowFeatureBranchName(branchName);
   if (normalizedBranchName.isEmpty()) {
-    setGitLabFlowError(GitError::GitLabFlowBranchNameEmpty);
+    setWorkflowError(GitError::GitLabFlowBranchNameEmpty);
     LOG_PERF(0, "Exit");
     return false;
   }
 
   const QString baseBranchName = mainBranchName.trimmed();
   if (!localBranchExists(repo, baseBranchName)) {
-    setGitLabFlowError(GitError::GitLabFlowFailedToLookupBaseBranch);
+    setWorkflowError(GitError::GitLabFlowFailedToLookupBaseBranch);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5181,14 +5191,14 @@ bool finishGitLabFlowFeature(git_repository *repo, const QString &branchName,
 
   const QString normalizedBranchName = gitLabFlowFeatureBranchName(branchName);
   if (normalizedBranchName.isEmpty()) {
-    setGitLabFlowError(GitError::GitLabFlowBranchNameEmpty);
+    setWorkflowError(GitError::GitLabFlowBranchNameEmpty);
     LOG_PERF(0, "Exit");
     return false;
   }
 
   const QString destinationBranchName = mainBranchName.trimmed();
   if (!localBranchExists(repo, destinationBranchName)) {
-    setGitLabFlowError(GitError::GitLabFlowFailedToLookupBaseBranch);
+    setWorkflowError(GitError::GitLabFlowFailedToLookupBaseBranch);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5226,7 +5236,7 @@ bool promoteGitLabFlowEnvironment(git_repository *repo,
   const QString destinationBranchName =
       gitLabFlowNextEnvironment(environmentChain, normalizedSourceBranchName);
   if (destinationBranchName.isEmpty()) {
-    setGitLabFlowError(GitError::GitLabFlowPromoteNotDownstream);
+    setWorkflowError(GitError::GitLabFlowPromoteNotDownstream);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5263,14 +5273,14 @@ bool startGitLabFlowRelease(git_repository *repo,
 
   const QString normalizedBranchName = releaseBranchName.trimmed();
   if (normalizedBranchName.isEmpty()) {
-    setGitLabFlowError(GitError::GitLabFlowBranchNameEmpty);
+    setWorkflowError(GitError::GitLabFlowBranchNameEmpty);
     LOG_PERF(0, "Exit");
     return false;
   }
 
   const QString baseBranchName = mainBranchName.trimmed();
   if (!localBranchExists(repo, baseBranchName)) {
-    setGitLabFlowError(GitError::GitLabFlowFailedToLookupBaseBranch);
+    setWorkflowError(GitError::GitLabFlowFailedToLookupBaseBranch);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5302,7 +5312,7 @@ bool cherryPickToGitLabFlowRelease(git_repository *repo, const QString &commit,
 
   const QString normalizedBranchName = releaseBranchName.trimmed();
   if (!localBranchExists(repo, normalizedBranchName)) {
-    setGitLabFlowError(GitError::GitLabFlowFailedToLookupReleaseBranch);
+    setWorkflowError(GitError::GitLabFlowFailedToLookupReleaseBranch);
     LOG_PERF(0, "Exit");
     return false;
   }
@@ -5334,6 +5344,127 @@ bool cherryPickToGitLabFlowRelease(git_repository *repo, const QString &commit,
   if (!originalBranchName.isEmpty() &&
       originalBranchName != normalizedBranchName &&
       !checkoutBranch(repo, originalBranchName, BranchType::Local)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool startGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                           const QString &mainBranchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName = branchName.trimmed();
+  if (normalizedBranchName.isEmpty()) {
+    setWorkflowError(GitError::GitHubFlowBranchNameEmpty);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString baseBranchName = mainBranchName.trimmed();
+  if (!localBranchExists(repo, baseBranchName)) {
+    setWorkflowError(GitError::GitHubFlowFailedToLookupMainBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const bool created =
+      createAndCheckoutBranch(repo, baseBranchName, normalizedBranchName);
+
+  LOG_PERF(0, "Exit");
+  return created;
+}
+
+bool updateGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                            const QString &mainBranchName,
+                            const QString &author, const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName = branchName.trimmed();
+  const QString normalizedMainBranchName = mainBranchName.trimmed();
+  if (normalizedBranchName.isEmpty()) {
+    setWorkflowError(GitError::GitHubFlowBranchNameEmpty);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (normalizedBranchName == normalizedMainBranchName) {
+    setWorkflowError(GitError::GitHubFlowMainBranchNotAllowed);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!localBranchExists(repo, normalizedMainBranchName)) {
+    setWorkflowError(GitError::GitHubFlowFailedToLookupMainBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const bool merged = merge(repo, normalizedMainBranchName,
+                            normalizedBranchName, author, email);
+
+  LOG_PERF(0, "Exit");
+  return merged;
+}
+
+bool finishGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                            const QString &mainBranchName,
+                            const QString &author, const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName = branchName.trimmed();
+  const QString normalizedMainBranchName = mainBranchName.trimmed();
+  if (normalizedBranchName.isEmpty()) {
+    setWorkflowError(GitError::GitHubFlowBranchNameEmpty);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (normalizedBranchName == normalizedMainBranchName) {
+    setWorkflowError(GitError::GitHubFlowMainBranchNotAllowed);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!localBranchExists(repo, normalizedMainBranchName)) {
+    setWorkflowError(GitError::GitHubFlowFailedToLookupMainBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!merge(repo, normalizedBranchName, normalizedMainBranchName, author,
+             email)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!deleteBranch(repo, normalizedBranchName)) {
     LOG_PERF(0, "Exit");
     return false;
   }

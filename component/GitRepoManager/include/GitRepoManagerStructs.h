@@ -742,11 +742,13 @@ struct GitRepoGitFlowCommand final : GitRepoCommand {
   QString author;
   QString email;
 
-  // GitLab Flow. branchName holds the feature, release or promoted source
-  // branch, depending on the action.
+  // GitLab Flow and GitHub Flow. branchName holds the feature, release,
+  // promoted source or GitHub Flow branch, depending on the action.
   GitRepo::WorkflowType workflow = GitRepo::WorkflowType::GitFlow;
   GitRepo::GitLabFlowAction gitLabFlowAction =
       GitRepo::GitLabFlowAction::Unknown;
+  GitRepo::GitHubFlowAction gitHubFlowAction =
+      GitRepo::GitHubFlowAction::Unknown;
   QString mainBranchName;
   QStringList environmentChain;
   QString commit;

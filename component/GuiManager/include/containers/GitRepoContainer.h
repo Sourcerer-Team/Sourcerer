@@ -31,6 +31,7 @@
 #include <QString>
 #include <QToolButton>
 #include <QTreeView>
+#include <QUrl>
 #include <QWidget>
 
 #include <atomic>
@@ -98,6 +99,8 @@ public:
 signals:
   void historyViewRightClicked(const QModelIndex &index, const QPoint &pos);
   void openRepoRequested(const QString &path);
+  void openPullRequestRequested(const QString &repositoryName, const QUrl &url,
+                                const QString &title);
 
 protected:
   void hideEvent(QHideEvent *event) override;
@@ -187,6 +190,10 @@ private slots:
   void onPromoteGitLabFlow();
   void onStartGitLabFlowRelease();
   void onCherryPickToGitLabFlowRelease(const QString &releaseBranchName);
+  void onStartGitHubFlowBranch();
+  void onUpdateGitHubFlowBranch();
+  void onFinishGitHubFlowBranch();
+  void onOpenGitHubPullRequest();
   void onRemoteBranchSelected(const QString &branchName);
   void onRemoteBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onRenameBranch(const QString &branchName);
@@ -344,6 +351,7 @@ private:
   QString gitLabFlowMainBranchName() const;
   QStringList gitLabFlowEnvironmentChain() const;
   QString gitLabFlowReleaseBranchSuffix() const;
+  QString gitHubFlowMainBranchName() const;
   QString selectedHistoryCommit() const;
   void copyFilePathsToClipboard(const QStringList &filePaths);
   bool showWarningForUncommittedChanges(const QString &title,
@@ -395,6 +403,7 @@ private:
   // Local branches as of the last refresh. Used to populate the branch
   // dropdown of the add worktree dialog.
   mutable QStringList _localBranches;
+  mutable QStringList _remoteBranches;
   // Branches checked out in other worktrees as of the last refresh (branch ->
   // worktree path). Git refuses to checkout or delete such branches.
   mutable QHash<QString, QString> _worktreeBranches;
@@ -410,11 +419,13 @@ private:
   QToolButton *_gitFlowButton{nullptr};
   QAction *_gitFlowWorkflowAction{nullptr};
   QAction *_gitLabFlowWorkflowAction{nullptr};
+  QAction *_gitHubFlowWorkflowAction{nullptr};
   QAction *_gitLabFlowPromoteAction{nullptr};
   QMenu *_gitLabFlowCherryPickMenu{nullptr};
   // Menu entries, separators included, shown for each workflow.
   QVector<QAction *> _gitFlowActions;
   QVector<QAction *> _gitLabFlowActions;
+  QVector<QAction *> _gitHubFlowActions;
   GitRepo::WorkflowType _workflow{GitRepo::WorkflowType::GitFlow};
   // Commit the user asked for that is not loaded yet, selected once the
   // history page containing it arrives.

@@ -1254,6 +1254,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _gitLabFlowWorkflowAction = workflowMenu->addAction(tr("GitLab Flow"));
   _gitLabFlowWorkflowAction->setCheckable(true);
   workflowGroup->addAction(_gitLabFlowWorkflowAction);
+  _gitHubFlowWorkflowAction = workflowMenu->addAction(tr("GitHub Flow"));
+  _gitHubFlowWorkflowAction->setCheckable(true);
+  workflowGroup->addAction(_gitHubFlowWorkflowAction);
   gitFlowMenu->addSeparator();
 
   auto *actionStartFeature = gitFlowMenu->addAction(tr("Start feature"));
@@ -1325,6 +1328,35 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   actionGitLabFlowCherryPick->setIconVisibleInMenu(true);
   actionGitLabFlowCherryPick->setIcon(
       themedIcon(":/icons/gitlabflow_cherrypick.svg"));
+
+  auto *actionGitHubFlowStartBranch =
+      gitFlowMenu->addAction(tr("Start branch"));
+  actionGitHubFlowStartBranch->setProperty(
+      "iconSource", QStringLiteral(":/icons/gitflow_start.svg"));
+  actionGitHubFlowStartBranch->setIconVisibleInMenu(true);
+  actionGitHubFlowStartBranch->setIcon(themedIcon(":/icons/gitflow_start.svg"));
+  auto *actionGitHubFlowUpdateBranch =
+      gitFlowMenu->addAction(tr("Update from main"));
+  actionGitHubFlowUpdateBranch->setProperty(
+      "iconSource", QStringLiteral(":/icons/gitlabflow_promote.svg"));
+  actionGitHubFlowUpdateBranch->setIconVisibleInMenu(true);
+  actionGitHubFlowUpdateBranch->setIcon(
+      themedIcon(":/icons/gitlabflow_promote.svg"));
+  auto *actionGitHubFlowFinishBranch =
+      gitFlowMenu->addAction(tr("Finish branch"));
+  actionGitHubFlowFinishBranch->setProperty(
+      "iconSource", QStringLiteral(":/icons/gitflow_finish.svg"));
+  actionGitHubFlowFinishBranch->setIconVisibleInMenu(true);
+  actionGitHubFlowFinishBranch->setIcon(
+      themedIcon(":/icons/gitflow_finish.svg"));
+  auto *gitHubFlowPullRequestSeparator = gitFlowMenu->addSeparator();
+  auto *actionGitHubFlowPullRequest =
+      gitFlowMenu->addAction(tr("Open pull request"));
+  actionGitHubFlowPullRequest->setProperty(
+      "iconSource", QStringLiteral(":/icons/githubflow_pullrequest.svg"));
+  actionGitHubFlowPullRequest->setIconVisibleInMenu(true);
+  actionGitHubFlowPullRequest->setIcon(
+      themedIcon(":/icons/githubflow_pullrequest.svg"));
   gitFlowDropdown->setMenu(gitFlowMenu);
 
   _gitFlowButton = gitFlowDropdown;
@@ -1337,16 +1369,27 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       gitLabFlowPromoteSeparator,   _gitLabFlowPromoteAction,
       gitLabFlowReleaseSeparator,   actionGitLabFlowStartRelease,
       actionGitLabFlowCherryPick};
+  _gitHubFlowActions = {
+      actionGitHubFlowStartBranch, actionGitHubFlowUpdateBranch,
+      actionGitHubFlowFinishBranch, gitHubFlowPullRequestSeparator,
+      actionGitHubFlowPullRequest};
   applyWorkflow(GitRepo::WorkflowType::GitFlow);
 
   _pullFetchButton = pullFetchDropdown;
   _pushButton = pushButtonPush;
-  _singleBranchShortcutActions = {
-      actionPullMenu,           actionPullWithRebaseMenu,
-      actionPushMenu,           actionForcePushMenu,
-      actionFinishFeature,      actionFinishRelease,
-      actionFinishHotfix,       actionGitLabFlowFinishFeature,
-      _gitLabFlowPromoteAction, actionGitLabFlowCherryPick};
+  _singleBranchShortcutActions = {actionPullMenu,
+                                  actionPullWithRebaseMenu,
+                                  actionPushMenu,
+                                  actionForcePushMenu,
+                                  actionFinishFeature,
+                                  actionFinishRelease,
+                                  actionFinishHotfix,
+                                  actionGitLabFlowFinishFeature,
+                                  _gitLabFlowPromoteAction,
+                                  actionGitLabFlowCherryPick,
+                                  actionGitHubFlowUpdateBranch,
+                                  actionGitHubFlowFinishBranch,
+                                  actionGitHubFlowPullRequest};
 
   auto *pushButtonStash = new QPushButton();
   pushButtonStash->setObjectName("pushButtonStash");
@@ -1787,6 +1830,16 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           [=]() { onWorkflowSelected(GitRepo::WorkflowType::GitFlow); });
   connect(_gitLabFlowWorkflowAction, &QAction::triggered, this,
           [=]() { onWorkflowSelected(GitRepo::WorkflowType::GitLabFlow); });
+  connect(_gitHubFlowWorkflowAction, &QAction::triggered, this,
+          [=]() { onWorkflowSelected(GitRepo::WorkflowType::GitHubFlow); });
+  connect(actionGitHubFlowStartBranch, &QAction::triggered, this,
+          &GitRepoContainer::onStartGitHubFlowBranch);
+  connect(actionGitHubFlowUpdateBranch, &QAction::triggered, this,
+          &GitRepoContainer::onUpdateGitHubFlowBranch);
+  connect(actionGitHubFlowFinishBranch, &QAction::triggered, this,
+          &GitRepoContainer::onFinishGitHubFlowBranch);
+  connect(actionGitHubFlowPullRequest, &QAction::triggered, this,
+          &GitRepoContainer::onOpenGitHubPullRequest);
   connect(actionGitLabFlowStartFeature, &QAction::triggered, this,
           &GitRepoContainer::onStartGitLabFlowFeature);
   connect(actionGitLabFlowFinishFeature, &QAction::triggered, this,
@@ -4505,21 +4558,30 @@ void GitRepoContainer::applyWorkflow(GitRepo::WorkflowType workflow) {
   _workflow = workflow;
 
   const bool gitLabFlow = workflow == GitRepo::WorkflowType::GitLabFlow;
+  const bool gitHubFlow = workflow == GitRepo::WorkflowType::GitHubFlow;
   for (QAction *action : _gitFlowActions) {
-    action->setVisible(!gitLabFlow);
+    action->setVisible(!gitLabFlow && !gitHubFlow);
   }
   for (QAction *action : _gitLabFlowActions) {
     action->setVisible(gitLabFlow);
   }
-
-  if (gitLabFlow) {
-    _gitLabFlowWorkflowAction->setChecked(true);
-  } else {
-    _gitFlowWorkflowAction->setChecked(true);
+  for (QAction *action : _gitHubFlowActions) {
+    action->setVisible(gitHubFlow);
   }
 
+  QAction *workflowAction = _gitFlowWorkflowAction;
+  QString toolTip = tr("Git Flow");
+  if (gitLabFlow) {
+    workflowAction = _gitLabFlowWorkflowAction;
+    toolTip = tr("GitLab Flow");
+  } else if (gitHubFlow) {
+    workflowAction = _gitHubFlowWorkflowAction;
+    toolTip = tr("GitHub Flow");
+  }
+  workflowAction->setChecked(true);
+
   if (_gitFlowButton) {
-    _gitFlowButton->setToolTip(gitLabFlow ? tr("GitLab Flow") : tr("Git Flow"));
+    _gitFlowButton->setToolTip(toolTip);
   }
 
   LOG_PERF(0, "Exit");
@@ -4791,6 +4853,189 @@ void GitRepoContainer::onCherryPickToGitLabFlowRelease(
   inputOverlay->show();
   inputOverlay->raise();
   inputOverlay->focusAndSelectAll();
+
+  LOG_PERF(0, "Exit");
+}
+
+QString GitRepoContainer::gitHubFlowMainBranchName() const {
+  return _configManager
+      .getString(ConfigManager::ConfigKey::GitRepoGitHubFlowMainBranchName)
+      .trimmed();
+}
+
+void GitRepoContainer::onStartGitHubFlowBranch() {
+  LOG_PERF(0, "Enter");
+
+  promptToStartBranch(
+      tr("Enter a descriptive branch name"),
+      [=](const QString &input) { return input.trimmed(); },
+      [=](const WeakPtr &guard, const QString &branchName) {
+        _bridge->runGitHubFlowAction(
+            guard, GitRepo::GitHubFlowAction::StartBranch, branchName);
+      });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onUpdateGitHubFlowBranch() {
+  LOG_PERF(0, "Enter");
+
+  if (!_userProfileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString branchName = _activeBranch;
+  const QString mainBranchName = gitHubFlowMainBranchName();
+  if (branchName.isEmpty() || branchName == mainBranchName) {
+    showErrorToast(tr("Please checkout a branch other than '%1' first.")
+                       .arg(mainBranchName),
+                   tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!showWarningForUncommittedChanges(
+          tr("Uncommitted Changes"),
+          tr("You have uncommitted changes on the current branch.\n\n"
+             "Do you really want to update the branch?\n\n"
+             "To keep your changes, stash them before updating."))) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Confirm GitHub Flow update"),
+      tr("Merge '%1' into '%2'?").arg(mainBranchName, branchName),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  runFlowOperation([=](const WeakPtr &guard) {
+    _bridge->runGitHubFlowAction(guard, GitRepo::GitHubFlowAction::UpdateBranch,
+                                 branchName);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onFinishGitHubFlowBranch() {
+  LOG_PERF(0, "Enter");
+
+  if (!_userProfileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString branchName = _activeBranch;
+  const QString mainBranchName = gitHubFlowMainBranchName();
+  if (branchName.isEmpty() || branchName == mainBranchName) {
+    showErrorToast(tr("Please checkout a branch other than '%1' first.")
+                       .arg(mainBranchName),
+                   tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!showWarningForUncommittedChanges(
+          tr("Uncommitted Changes"),
+          tr("You have uncommitted changes on the current branch.\n\n"
+             "Do you really want to finish the branch?\n\n"
+             "To keep your changes, stash them before finishing."))) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Confirm GitHub Flow finish"),
+      tr("Finish branch '%1'?\n\nThis will merge it into '%2' locally and "
+         "delete the branch. To merge through a pull request instead, use "
+         "Open pull request.")
+          .arg(branchName, mainBranchName),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  runFlowOperation([=](const WeakPtr &guard) {
+    _bridge->runGitHubFlowAction(guard, GitRepo::GitHubFlowAction::FinishBranch,
+                                 branchName);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onOpenGitHubPullRequest() {
+  LOG_PERF(0, "Enter");
+
+  const QString branchName = _activeBranch;
+  const QString mainBranchName = gitHubFlowMainBranchName();
+  if (branchName.isEmpty() || branchName == mainBranchName) {
+    showErrorToast(tr("Please checkout a branch other than '%1' first.")
+                       .arg(mainBranchName),
+                   tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto &remotes = ui->remotesPage->remotes();
+  QString remoteUrl;
+  QString remoteName;
+  for (const auto &remote : remotes) {
+    const QString url = remote.getDefaultTarget().fetchUrl;
+    if (GitRepo::gitHubRepositoryName(url).isEmpty()) {
+      continue;
+    }
+
+    // Prefer the default remote, otherwise use the first GitHub remote.
+    if (remoteUrl.isEmpty() || remote.isDefault) {
+      remoteUrl = url;
+      remoteName = remote.name;
+    }
+    if (remote.isDefault) {
+      break;
+    }
+  }
+
+  const QString pullRequestUrl =
+      GitRepo::gitHubPullRequestUrl(remoteUrl, mainBranchName, branchName);
+  if (pullRequestUrl.isEmpty()) {
+    showErrorToast(tr("Open pull request needs a remote on github.com."),
+                   tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // GitHub answers with a 404 page for branches it doesn't have yet.
+  const QString remoteBranchName =
+      remoteName + QStringLiteral("/") + branchName;
+  if (!_remoteBranches.isEmpty() &&
+      !_remoteBranches.contains(remoteBranchName)) {
+    showErrorToast(tr("Push branch '%1' to '%2' before opening a pull "
+                      "request.")
+                       .arg(branchName, remoteName),
+                   tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  LOG_DEBUG("Opening pull request page '{}'", pullRequestUrl.toStdString());
+  emit openPullRequestRequested(GitRepo::gitHubRepositoryName(remoteUrl),
+                                QUrl(pullRequestUrl),
+                                tr("Pull request: %1").arg(branchName));
 
   LOG_PERF(0, "Exit");
 }
@@ -9311,6 +9556,11 @@ void GitRepoContainer::updateRemoteBranchesModelWithStatus(
   QVector<GitRepo::BranchInfo> finalBranchesWithStatus;
 
   finalBranchesWithStatus += branchesWithStatus;
+
+  _remoteBranches.clear();
+  for (const auto &branch : branchesWithStatus) {
+    _remoteBranches.append(branch.name);
+  }
 
   if (const auto locked = guard.lock()) {
     ui->remotePage->updateModelWithStatus(finalBranchesWithStatus);

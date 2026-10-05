@@ -62,6 +62,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
      "git/gitlabflow/environmentBranches"},
     {ConfigKey::GitRepoGitLabFlowReleaseBranchSuffix,
      "git/gitlabflow/releaseBranchSuffix"},
+    {ConfigKey::GitRepoGitHubFlowMainBranchName,
+     "git/githubflow/mainBranchName"},
     {ConfigKey::GitRepoDiffViewType, "git/diffViewType"},
     {ConfigKey::HttpClientCaCertFile, "network/httpClient/caCertFile"},
     {ConfigKey::HttpClientTimeout, "network/httpClient/timeout"},
@@ -135,6 +137,9 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
     {ConfigKey::GitRepoGitLabFlowReleaseBranchSuffix,
      {"GitLab Flow release branch suffix",
       "Suffix of GitLab Flow release branches, e.g. 1-2-stable"}},
+    {ConfigKey::GitRepoGitHubFlowMainBranchName,
+     {"GitHub Flow main branch",
+      "Name of the branch used as GitHub Flow's main branch"}},
 };
 
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {
@@ -208,6 +213,7 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
     {ConfigKey::GitRepoGitLabFlowEnvironmentBranches,
      "pre-production,production"},
     {ConfigKey::GitRepoGitLabFlowReleaseBranchSuffix, "-stable"},
+    {ConfigKey::GitRepoGitHubFlowMainBranchName, "main"},
     {ConfigKey::GitRepoStashSplitterPos,
      "000000ff0000000100000002000001660000026001ffffffff010000000200"},
     {ConfigKey::HttpClientCaCertFile, "ca-certificates.crt"},
@@ -266,7 +272,8 @@ static bool usesDefaultWhenEmpty(ConfigKey key) {
          key == ConfigKey::GitRepoGitFlowDevelopmentBranchName ||
          key == ConfigKey::GitRepoGitLabFlowMainBranchName ||
          key == ConfigKey::GitRepoGitLabFlowEnvironmentBranches ||
-         key == ConfigKey::GitRepoGitLabFlowReleaseBranchSuffix;
+         key == ConfigKey::GitRepoGitLabFlowReleaseBranchSuffix ||
+         key == ConfigKey::GitRepoGitHubFlowMainBranchName;
 }
 
 ConfigManager::ConfigManager()
