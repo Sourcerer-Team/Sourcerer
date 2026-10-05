@@ -22,6 +22,7 @@ add_library(GitRepo STATIC
     include/GitRepo.h
     include/WorkflowUtils.h
     include/GraphiteUtils.h
+    include/GitFlowNextWorkflow.h
     include/GitCredentialStorage.h
     include/GitKeyStorage.h
     include/PatchFileUtils.h

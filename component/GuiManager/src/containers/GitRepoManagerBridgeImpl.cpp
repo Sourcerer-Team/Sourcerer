@@ -4963,6 +4963,27 @@ void GitRepoManagerBridgeImpl::runGitFlowNextAction(
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoManagerBridgeImpl::applyGitFlowNextWorkflow(
+    const QWeakPointer<GitRepoContainer> &guard,
+    const GitRepo::GitFlowNextWorkflow &workflow) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGitFlowCommand command;
+  command.workflow = GitRepo::WorkflowType::GitFlowNext;
+  command.gitFlowNextAction = GitRepo::GitFlowNextAction::Apply;
+  command.customWorkflow = workflow;
+
+  sendGitFlowCommand(
+      guard, command,
+      _container.tr("Failed to apply the workflow '%1'.").arg(workflow.name),
+      _container.tr("Applied the workflow '%1' to this repository.")
+          .arg(workflow.name));
+  // The menu is built from the configuration that was just written.
+  getWorkflowType(guard);
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoManagerBridgeImpl::getWorkflowType(
     const QWeakPointer<GitRepoContainer> &guard) {
   LOG_PERF(0, "Enter");

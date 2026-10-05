@@ -2217,6 +2217,8 @@ runGitFlowNextAction(git_repository *repo,
   case GitRepo::GitFlowNextAction::Update:
     return GitRepo::updateGitFlowNextBranch(repo, command.branchName,
                                             command.author, command.email);
+  case GitRepo::GitFlowNextAction::Apply:
+    return GitRepo::applyGitFlowNextWorkflow(repo, command.customWorkflow);
   case GitRepo::GitFlowNextAction::Unknown:
   case GitRepo::GitFlowNextAction::last:
   default:
@@ -4952,8 +4954,14 @@ void ProcessingState::workflowWorker(
 
   // Without a readable configuration the repository counts as not
   // initialized, which the menu offers to fix.
-  if (success && state.type == GitRepo::WorkflowType::GitFlowNext) {
+  // The git-flow-next configuration is read for every workflow, so it can be
+  // saved as a custom workflow from any of them.
+  if (success) {
     GitRepo::readGitFlowNextConfig(repo, &state.gitFlowNext);
+    if (state.type == GitRepo::WorkflowType::GitFlowNext) {
+      GitRepo::getGitFlowNextWorkflowReference(repo, &state.customWorkflowId,
+                                               &state.customWorkflowRevision);
+    }
   }
 
   if (!success) {

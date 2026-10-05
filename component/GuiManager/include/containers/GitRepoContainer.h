@@ -41,6 +41,8 @@
 #include <functional>
 #include <memory>
 
+class QActionGroup;
+
 namespace Ui {
 class GitRepoContainer;
 }
@@ -209,6 +211,11 @@ private slots:
   void chooseGraphiteBranch(const QString &command,
                             const QStringList &branches);
   void onTrackGraphiteBranch(const QString &branchName);
+  void onCustomWorkflowSelected(const QString &id);
+  void onNewCustomWorkflow();
+  void onSaveRepositoryWorkflow();
+  void onEditCustomWorkflow(const QString &id);
+  void onRemoveCustomWorkflow(const QString &id);
   void onRestackGraphite();
   void onSyncGraphite();
   void onSubmitGraphiteStack();
@@ -368,6 +375,9 @@ private:
   // The git-flow-next entries depend on the repository configuration and the
   // current branch, so they are recreated whenever the menu opens.
   void rebuildGitFlowNextMenu();
+  // The custom GitFlow-Next workflows of the Workflow submenu.
+  void rebuildCustomWorkflowMenu();
+  void showCustomWorkflowEditor(const GitRepo::GitFlowNextWorkflow &workflow);
   // Shows how to install the git-flow-next command line tool when it is not
   // in PATH. Returns true if it was found.
   bool ensureGitFlowNextCli();
@@ -467,6 +477,12 @@ private:
   QAction *_gitHubFlowWorkflowAction{nullptr};
   QAction *_gitFlowNextWorkflowAction{nullptr};
   QAction *_graphiteWorkflowAction{nullptr};
+  QMenu *_workflowMenu{nullptr};
+  QActionGroup *_workflowGroup{nullptr};
+  QVector<QAction *> _customWorkflowMenuActions;
+  QVector<QMenu *> _customWorkflowSubmenus;
+  QString _customWorkflowId;
+  int _customWorkflowRevision{0};
   QAction *_graphiteInitAction{nullptr};
   QMenu *_gitFlowMenu{nullptr};
   QAction *_gitLabFlowPromoteAction{nullptr};

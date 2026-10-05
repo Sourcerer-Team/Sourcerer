@@ -986,3 +986,29 @@ Track runs gt track --parent and the branch moves into the chosen stack
 Branch names with characters like & or % have these actions disabled
 The header has no context menu and can not be selected, dragged or dropped on",High,Not Tested,
 TC-202,Branches - Local,Graphite Panel Without CLI,1. Select Workflow > Graphite with gt not in PATH or in a repository without gt init,"The local branches panel shows the plain branch list, no dialog appears until a Graphite menu item is used",Low,Not Tested,
+TC-203,Branches - Local,Create Custom GitFlow-Next Workflow,"1. Open the Git Flow dropdown > Workflow > New custom workflow...
+2. Add base branches (e.g. develop with parent main, staging with parent develop) and topic types with prefixes, parents, start points, strategies, tag and keep
+3. Try an invalid model (missing prefix slash, two roots, a cycle, an empty name)
+4. Save with the check button or Ctrl+Enter","The editor opens as an overlay over the repository tab and scrolls when the window is small
+Problems are listed below the rows and saving stays disabled while there are any
+Esc cancels
+The workflow is saved to gitflow-next-workflows.json in the application data folder and listed under Custom workflows in every open repository",High,Not Tested,
+TC-204,Branches - Local,Apply Custom GitFlow-Next Workflow,"1. In a repository with main only, select the custom workflow under Workflow
+2. Confirm the dialog
+3. Open the Git Flow dropdown","The confirmation lists the base branches that will be created from their parents
+The gitflow.branch.* configuration in .git/config is replaced, sourcerer.gitflownext.workflow and .revision are set
+The dropdown lists Start items for the workflow topic types
+Without the git-flow-next CLI the install dialog is shown and nothing is applied
+Cancelling keeps the previous workflow checked",High,Not Tested,
+TC-205,Branches - Local,"Update, Edit and Remove Custom Workflows","1. Edit a workflow used by an open repository and save
+2. Open the Git Flow dropdown in that repository
+3. Select Apply updated and confirm
+4. Select Workflow > GitFlow-Next
+5. Remove the workflow","Apply updated <name>... appears only after the definition changed and rewrites the configuration
+Choosing GitFlow-Next keeps the configuration but no longer checks the custom workflow
+Removing asks for confirmation, the repository keeps its configuration",High,Not Tested,
+TC-206,Branches - Local,Save Repository Configuration as Custom Workflow,"1. Open a repository configured with the git flow command line tool or Initialize git-flow-next
+2. Select Workflow > Save this repository's configuration as...
+3. Enter a name and save","The editor opens with the base branches and topic types of the repository
+The saved workflow can be applied to other repositories
+The item is disabled in repositories without git-flow-next configuration",Medium,Not Tested,
