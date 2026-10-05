@@ -46,6 +46,7 @@ signals:
 
   void closedTab(int index);
   void selectedTab(int index);
+  void movedTab(int from, int to);
   void resizeTabBar();
 
   void dragged();
