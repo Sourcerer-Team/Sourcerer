@@ -39,9 +39,9 @@
 #include <memory>
 
 #if GUI_MANAGER_HAS_WEBENGINE
-#include <QWebEngineLoadingInfo>
-#include <QWebEngineScript>
-#include <QWebEngineScriptCollection>
+#include <QtWebEngineCore/QWebEngineLoadingInfo>
+#include <QtWebEngineCore/QWebEngineScript>
+#include <QtWebEngineCore/QWebEngineScriptCollection>
 #include <QtWebEngineCore/QWebEngineCookieStore>
 #include <QtWebEngineCore/QWebEngineHistory>
 #include <QtWebEngineCore/QWebEngineNewWindowRequest>
