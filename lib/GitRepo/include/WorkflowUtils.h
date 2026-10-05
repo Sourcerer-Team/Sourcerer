@@ -15,6 +15,7 @@ enum class WorkflowType {
   GitLabFlow,
   GitHubFlow,
   GitFlowNext,
+  Graphite,
 
   last
 };
@@ -61,6 +62,8 @@ inline QString workflowTypeToString(WorkflowType type) {
     return QStringLiteral("githubflow");
   case WorkflowType::GitFlowNext:
     return QStringLiteral("gitflownext");
+  case WorkflowType::Graphite:
+    return QStringLiteral("graphite");
   case WorkflowType::GitFlow:
   case WorkflowType::last:
   default:
@@ -82,6 +85,10 @@ inline WorkflowType workflowTypeFromString(const QString &value) {
   if (trimmed.compare(QStringLiteral("gitflownext"), Qt::CaseInsensitive) ==
       0) {
     return WorkflowType::GitFlowNext;
+  }
+
+  if (trimmed.compare(QStringLiteral("graphite"), Qt::CaseInsensitive) == 0) {
+    return WorkflowType::Graphite;
   }
 
   return WorkflowType::GitFlow;
@@ -471,6 +478,64 @@ gitFlowNextAutoUpdateBranches(const GitFlowNextConfig &config,
     }
   }
   return result;
+}
+
+// Branch names passed to the Graphite CLI. On Windows gt is usually an npm
+// .cmd script run by cmd.exe, so only characters cmd.exe treats literally are
+// accepted, within git's reference name rules.
+inline bool isSafeGraphiteBranchName(const QString &name) {
+  if (name.isEmpty() || name.startsWith(QLatin1Char('-')) ||
+      name.startsWith(QLatin1Char('/')) || name.endsWith(QLatin1Char('/')) ||
+      name.endsWith(QLatin1Char('.')) ||
+      name.endsWith(QStringLiteral(".lock")) ||
+      name.contains(QStringLiteral("..")) ||
+      name.contains(QStringLiteral("//")) ||
+      name.contains(QStringLiteral("/."))) {
+    return false;
+  }
+
+  for (const QChar c : name) {
+    const bool allowed = (c >= QLatin1Char('a') && c <= QLatin1Char('z')) ||
+                         (c >= QLatin1Char('A') && c <= QLatin1Char('Z')) ||
+                         (c >= QLatin1Char('0') && c <= QLatin1Char('9')) ||
+                         c == QLatin1Char('.') || c == QLatin1Char('_') ||
+                         c == QLatin1Char('-') || c == QLatin1Char('/');
+    if (!allowed) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// The branches gt lists when `gt up` or `gt top` can't choose in
+// non-interactive mode because the stack forks, e.g.
+//   ERROR: Cannot get upstack branch in non-interactive mode; multiple choices
+//   available:
+//   left
+//   right
+// Empty for any other output.
+inline QStringList graphiteAmbiguousBranches(const QString &output) {
+  const QStringList lines = output.split(QLatin1Char('\n'));
+  QStringList branches;
+  bool listing = false;
+  for (const QString &line : lines) {
+    const QString trimmed = line.trimmed();
+    if (!listing) {
+      listing = trimmed.contains(QStringLiteral("multiple choices available"),
+                                 Qt::CaseInsensitive);
+      continue;
+    }
+    if (trimmed.isEmpty()) {
+      break;
+    }
+    // Lines such as tips are not branch names.
+    if (trimmed.contains(QLatin1Char(' ')) ||
+        trimmed.contains(QLatin1Char(':'))) {
+      break;
+    }
+    branches.append(trimmed);
+  }
+  return branches;
 }
 
 // What the workflow menu of a repository is built from.

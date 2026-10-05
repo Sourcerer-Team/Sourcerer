@@ -941,3 +941,48 @@ TC-194,Branches - Local,GitFlow-Next Without the CLI,"1. Make sure git-flow (git
 3. Select any GitFlow-Next menu item","A dialog says the git-flow-next command line tool was not found and asks to download it and add its installation directory to PATH
 The link https://github.com/gittower/git-flow-next opens in the browser
 The selected action is not run",High,Not Tested,"After installing, Sourcerer must be restarted to see the new PATH"
+TC-195,Branches - Local,Graphite Without the CLI,"1. Make sure gt is not in PATH
+2. Select Workflow > Graphite
+3. Select any Graphite menu item","A dialog says the Graphite CLI (gt) was not found and asks to install it and add its installation directory to PATH
+The link https://graphite.com/docs/install-the-cli opens in the browser
+The selected action is not run",High,Not Tested,
+TC-196,Branches - Local,Graphite Initialize and Create Stack,"1. Select Workflow > Graphite in a repository not initialized for Graphite
+2. Select Initialize Graphite and confirm
+3. Make changes, select Create branch, enter a name and a commit message
+4. Repeat to stack a second branch","Initialize runs gt init with the GitHub Flow main branch as trunk and is then hidden
+Each branch is stacked on the current one and holds one commit with the entered message and the profile author
+An empty message creates an empty branch
+Names with spaces or characters like & % ^ are refused",High,Not Tested,
+TC-197,Branches - Local,"Graphite Modify, Navigate and Restack","1. Check out the lower branch of a stack and change a file
+2. Select Modify (amend)
+3. Change another file and select Modify with new commit
+4. Use Up, Down, Top of stack and Bottom of stack","Modify amends the last commit and restacks the branches above
+Modify with new commit adds a commit and restacks
+Navigation checks out the matching branch, errors from gt (e.g. already at the top) are shown
+Where the stack forks, Up and Top of stack ask which branch to check out",High,Not Tested,
+TC-198,Remote Operations,Graphite Sync and Submit,"1. Authenticate gt (gt auth)
+2. Select Submit stack and confirm
+3. Merge the bottom pull request on GitHub
+4. Select Sync with trunk","Submit pushes the stack and creates or updates its pull requests
+Sync pulls the trunk and restacks the open branches
+Without authentication the gt error is shown",Medium,Not Tested,Needs a GitHub repository connected to Graphite
+TC-199,Branches - Local,Graphite Stacks in Local Branches Panel,"1. Select Workflow > Graphite in an initialized repository with a forked stack and an untracked branch
+2. Look at the local branches panel in the dark and light themes
+3. Hover a branch","Branches are shown as stacks with the trunk on top and children indented below their parent, with connecting lines
+The current branch has a filled dot and a bold name
+Branches that need a restack show a restack badge, branches with pull requests a #number badge (draft, merged, closed)
+Untracked branches are listed under Not tracked by Graphite
+The tooltip shows parent, children, restack state and pull request",High,Not Tested,
+TC-200,Branches - Local,Graphite Panel Refresh,"1. With the Graphite workflow selected, run gt create in a terminal
+2. Switch back to Sourcerer
+3. Commit on a branch that has branches stacked on it
+4. Switch the workflow to Git Flow","The new branch appears in its stack after Sourcerer is activated again
+The branches above the committed branch get a restack badge
+With another workflow the panel shows the plain branch list again",Medium,Not Tested,"gt state takes about a second, the panel updates shortly after"
+TC-201,Branches - Local,Graphite Branch Context Menu,"1. Right-click a tracked branch: Restack, Submit stack, Open pull request, Stop tracking with Graphite
+2. Right-click an untracked branch: Track with Graphite and choose a parent
+3. Right-click the section header","The actions run gt restack --branch, gt submit --branch --stack, open the pull request tab and gt untrack --force after confirmations
+Track runs gt track --parent and the branch moves into the chosen stack
+Branch names with characters like & or % have these actions disabled
+The header has no context menu and can not be selected, dragged or dropped on",High,Not Tested,
+TC-202,Branches - Local,Graphite Panel Without CLI,1. Select Workflow > Graphite with gt not in PATH or in a repository without gt init,"The local branches panel shows the plain branch list, no dialog appears until a Graphite menu item is used",Low,Not Tested,

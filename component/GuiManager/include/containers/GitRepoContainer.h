@@ -10,6 +10,7 @@
 #include <Dispatcher.h>
 #include <EventManager.h>
 #include <GitRepo.h>
+#include <GraphiteUtils.h>
 #include <LockGuard.h>
 #include <UserProfileManager.h>
 
@@ -25,10 +26,12 @@
 #include <QItemSelection>
 #include <QListView>
 #include <QMenu>
+#include <QProcess>
 #include <QPushButton>
 #include <QSemaphore>
 #include <QSet>
 #include <QString>
+#include <QTimer>
 #include <QToolButton>
 #include <QTreeView>
 #include <QUrl>
@@ -198,6 +201,17 @@ private slots:
   void onStartGitFlowNextBranch(const QString &typeName);
   void onFinishGitFlowNextBranch();
   void onUpdateGitFlowNextBranch();
+  void onInitGraphite();
+  void onCreateGraphiteBranch();
+  void onModifyGraphiteBranch();
+  void onModifyGraphiteBranchWithCommit();
+  void onNavigateGraphiteStack(const QString &command);
+  void chooseGraphiteBranch(const QString &command,
+                            const QStringList &branches);
+  void onTrackGraphiteBranch(const QString &branchName);
+  void onRestackGraphite();
+  void onSyncGraphite();
+  void onSubmitGraphiteStack();
   void onRemoteBranchSelected(const QString &branchName);
   void onRemoteBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onRenameBranch(const QString &branchName);
@@ -357,6 +371,26 @@ private:
   // Shows how to install the git-flow-next command line tool when it is not
   // in PATH. Returns true if it was found.
   bool ensureGitFlowNextCli();
+  bool ensureGraphiteCli();
+  bool ensureCliInstalled(const QString &executable, const QString &toolName,
+                          const QString &workflowName, const QString &url);
+  bool graphiteInitialized() const;
+  void updateGraphiteMenu();
+  // The local branches panel shows the Graphite stacks read by gt state.
+  void requestGraphiteStacksReload() const;
+  void reloadGraphiteStacks();
+  void setGraphiteStacks(const GitRepo::GraphiteStacks &stacks);
+  void addGraphiteBranchActions(QMenu &menu, const QString &branchName);
+  // Run on the dispatcher thread and return an error message, or an empty
+  // string on success.
+  QString runGraphiteCli(const QStringList &arguments,
+                         QString *output = nullptr) const;
+  QString runGitCli(const QStringList &arguments,
+                    int *exitCode = nullptr) const;
+  QString commitAllChanges(const QString &message, const QString &author,
+                           const QString &email) const;
+  void runGraphiteOperation(const std::function<QString()> &operation,
+                            const QString &successMessage);
   void updateGitLabFlowMenu();
   void updateGitLabFlowCherryPickMenu();
   QString gitLabFlowMainBranchName() const;
@@ -432,6 +466,8 @@ private:
   QAction *_gitLabFlowWorkflowAction{nullptr};
   QAction *_gitHubFlowWorkflowAction{nullptr};
   QAction *_gitFlowNextWorkflowAction{nullptr};
+  QAction *_graphiteWorkflowAction{nullptr};
+  QAction *_graphiteInitAction{nullptr};
   QMenu *_gitFlowMenu{nullptr};
   QAction *_gitLabFlowPromoteAction{nullptr};
   QMenu *_gitLabFlowCherryPickMenu{nullptr};
@@ -440,6 +476,11 @@ private:
   QVector<QAction *> _gitLabFlowActions;
   QVector<QAction *> _gitHubFlowActions;
   QVector<QAction *> _gitFlowNextActions;
+  QVector<QAction *> _graphiteActions;
+  QTimer *_graphiteStacksTimer{nullptr};
+  QProcess *_graphiteStacksProcess{nullptr};
+  bool _graphiteStacksReloadPending{false};
+  GitRepo::GraphiteStacks _graphiteStacks;
   GitRepo::GitFlowNextConfig _gitFlowNextConfig;
   GitRepo::WorkflowType _workflow{GitRepo::WorkflowType::GitFlow};
   // Commit the user asked for that is not loaded yet, selected once the
