@@ -32,6 +32,7 @@ enum class ConfigKey {
   GitRepoGitLabFlowMainBranchName,
   GitRepoGitLabFlowEnvironmentBranches,
   GitRepoGitLabFlowReleaseBranchSuffix,
+  GitRepoGitHubFlowMainBranchName,
   GitRepoDiffViewType,
 
   // GitRepo library

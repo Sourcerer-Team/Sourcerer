@@ -4861,6 +4861,51 @@ void GitRepoManagerBridgeImpl::runGitLabFlowAction(
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoManagerBridgeImpl::runGitHubFlowAction(
+    const QWeakPointer<GitRepoContainer> &guard,
+    const GitRepo::GitHubFlowAction action, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGitFlowCommand command;
+  command.workflow = GitRepo::WorkflowType::GitHubFlow;
+  command.gitHubFlowAction = action;
+  command.branchName = branchName;
+  command.mainBranchName = _container.gitHubFlowMainBranchName();
+  command.author = _container._userProfileManager.currentProfile().author;
+  command.email = _container._userProfileManager.currentProfile().email;
+
+  switch (action) {
+  case GitRepo::GitHubFlowAction::StartBranch:
+    sendGitFlowCommand(
+        guard, command, _container.tr("Failed to start GitHub Flow branch."),
+        _container.tr("Successfully started branch '%1'.").arg(branchName));
+    break;
+  case GitRepo::GitHubFlowAction::UpdateBranch:
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to update branch '%1' from '%2'.")
+            .arg(branchName, command.mainBranchName),
+        _container.tr("Successfully updated branch '%1' from '%2'.")
+            .arg(branchName, command.mainBranchName));
+    break;
+  case GitRepo::GitHubFlowAction::FinishBranch:
+    sendGitFlowCommand(
+        guard, command, _container.tr("Failed to finish GitHub Flow branch."),
+        _container.tr("Successfully finished branch '%1'.").arg(branchName));
+    break;
+  case GitRepo::GitHubFlowAction::Unknown:
+  case GitRepo::GitHubFlowAction::last:
+  default:
+    LOG_ERROR(Log::ErrorId::Gui, "Unknown GitHub Flow action {}",
+              static_cast<int>(action));
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showSpinnerOverlay(false); });
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoManagerBridgeImpl::getWorkflowType(
     const QWeakPointer<GitRepoContainer> &guard) {
   LOG_PERF(0, "Enter");

@@ -880,3 +880,39 @@ TC-182,Branches - Local,GitLab Flow Actions with All Branches,"1. Select Workflo
 2. Select the * item in the local branches panel
 3. Open the Git Flow dropdown","Finish feature, Promote and Cherry-pick to release are disabled
 Start feature and Start release stay enabled",Low,Not Tested,
+TC-183,Branches - Local,"GitHub Flow Start, Update and Finish Branch","1. Select Workflow > GitHub Flow
+2. Select Start branch and enter a descriptive name
+3. Commit a change, then commit another change on main
+4. Checkout the branch and select Update from main
+5. Select Finish branch and confirm","Branch is created from the GitHub Flow main branch with the entered name and no prefix
+Update from main merges main into the branch and keeps it checked out
+Finish merges the branch into main, deletes it and checks out main
+Update and Finish on main show an error",High,Not Tested,Repository workflow is stored as sourcerer.workflow=githubflow
+TC-184,Branches - Local,GitHub Flow Open Pull Request,"1. Select Workflow > GitHub Flow in a repository with a github.com remote
+2. Start a branch, commit and push it
+3. Select Open pull request
+4. Repeat in a repository without a github.com remote","A new "Pull request: <branch>" tab opens the GitHub compare page for the branch against main
+Signing in from that tab keeps the GitHub session of the repository issue tracker
+The tab is not restored with the workspace
+The default remote is used when several GitHub remotes exist
+Without a github.com remote an error is shown",Medium,Not Tested,"Supports https, git@github.com: and ssh:// remote URLs"
+TC-185,Settings,GitHub Flow Main Branch Setting,"1. Open Settings and change the GitHub Flow main branch to trunk
+2. Start a GitHub Flow branch
+3. Clear the setting","Branch is created from trunk
+Empty value falls back to main",Low,Not Tested,
+TC-186,UI - General,Single Instance Activation,"1. Start Sourcerer
+2. Minimize the main window
+3. Start Sourcerer again from the Start menu, Dock or a terminal","No second window or process is started
+The running window is restored and brought to the front
+On Windows the window gets focus instead of only flashing in the taskbar",High,Not Tested,"Applies to Windows, macOS and Linux (AppImage)"
+TC-187,UI - General,Single Instance After Crash,"1. Start Sourcerer
+2. End the Sourcerer process from the task manager
+3. Start Sourcerer again","Sourcerer starts normally, the stale instance lock is ignored",High,Not Tested,
+TC-188,UI - General,Single Instance With Staged Update,"1. Let Sourcerer download an update
+2. With Sourcerer still running, start it a second time","The running window is brought to the front
+The update is not applied until the running instance is closed and started again",Medium,Not Tested,
+TC-189,Integration,Debug Build Next To Installed Release,"1. Start the installed Sourcerer
+2. Start a Debug build
+3. Open the same GitHub issue tracker in both","Both run at the same time
+The Debug build stores WebEngine data in webengine-debug and issue-trackers/webengine-debug
+No ""database is locked"" messages in the Debug output",Low,Not Tested,Development only

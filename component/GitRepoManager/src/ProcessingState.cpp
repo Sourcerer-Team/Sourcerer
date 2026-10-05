@@ -2201,6 +2201,29 @@ static bool runGitLabFlowAction(git_repository *repo,
   }
 }
 
+static bool runGitHubFlowAction(git_repository *repo,
+                                const Structs::GitRepoGitFlowCommand &command) {
+  switch (command.gitHubFlowAction) {
+  case GitRepo::GitHubFlowAction::StartBranch:
+    return GitRepo::startGitHubFlowBranch(repo, command.branchName,
+                                          command.mainBranchName);
+  case GitRepo::GitHubFlowAction::UpdateBranch:
+    return GitRepo::updateGitHubFlowBranch(repo, command.branchName,
+                                           command.mainBranchName,
+                                           command.author, command.email);
+  case GitRepo::GitHubFlowAction::FinishBranch:
+    return GitRepo::finishGitHubFlowBranch(repo, command.branchName,
+                                           command.mainBranchName,
+                                           command.author, command.email);
+  case GitRepo::GitHubFlowAction::Unknown:
+  case GitRepo::GitHubFlowAction::last:
+  default:
+    LOG_ERROR(Log::ErrorId::Git, "Unknown GitHub Flow action {}",
+              static_cast<int>(command.gitHubFlowAction));
+    return false;
+  }
+}
+
 void ProcessingState::gitFlowWorker(
     const Structs::GitRepoGitFlowCommand &command) {
   LOG_PERF(0, "Enter");
@@ -2224,6 +2247,8 @@ void ProcessingState::gitFlowWorker(
   bool success = false;
   if (command.workflow == GitRepo::WorkflowType::GitLabFlow) {
     success = runGitLabFlowAction(repo, command, &conflicted);
+  } else if (command.workflow == GitRepo::WorkflowType::GitHubFlow) {
+    success = runGitHubFlowAction(repo, command);
   } else {
     success = command.start
                   ? GitRepo::startGitFlowBranch(repo, command.branchType,

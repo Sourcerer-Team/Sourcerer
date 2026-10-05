@@ -8,6 +8,7 @@
 #include <EventManager.h>
 #include <Log.h>
 #include <QStyle>
+#include <SingleInstanceGuard.h>
 #include <StylesheetManager.h>
 
 #include <QApplication>
@@ -28,6 +29,21 @@
 
 namespace GuiManager {
 
+QString webEngineStoragePath(const QString &directoryName) {
+  const QString storageBaseDir =
+      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  if (storageBaseDir.isEmpty()) {
+    return QString();
+  }
+
+#ifdef QT_DEBUG
+  return QDir(storageBaseDir)
+      .absoluteFilePath(directoryName + QStringLiteral("-debug"));
+#else
+  return QDir(storageBaseDir).absoluteFilePath(directoryName);
+#endif
+}
+
 #if defined(QT_WEBENGINECORE_LIB)
 QWebEngineProfile *sharedWebEngineProfile() {
   static QSharedPointer<QWebEngineProfile> profile;
@@ -35,14 +51,10 @@ QWebEngineProfile *sharedWebEngineProfile() {
     return profile.get();
   }
 
-  const QString storageBaseDir =
-      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-  if (storageBaseDir.isEmpty()) {
+  const QString storagePath = webEngineStoragePath(QStringLiteral("webengine"));
+  if (storagePath.isEmpty()) {
     return nullptr;
   }
-
-  const QString storagePath =
-      QDir(storageBaseDir).absoluteFilePath(QStringLiteral("webengine"));
   QDir().mkpath(storagePath);
 
   profile = QSharedPointer<QWebEngineProfile>::create(
@@ -138,12 +150,27 @@ void GuiManager::start() {
     w->show();
   }
 
+  if (Util::SingleInstanceGuard *instanceGuard =
+          Util::SingleInstanceGuard::instance()) {
+    const QWeakPointer<MainWindow> window = w.toWeakRef();
+    instanceGuard->setActivationHandler([window](const QStringList &arguments) {
+      if (const auto locked = window.lock()) {
+        locked->activateFromAnotherInstance(arguments);
+      }
+    });
+  }
+
   EventManager::Event startedEvent(EventManager::EventType::ComponentStarted);
   EventManager::EventManager &eventManager =
       EventManager::EventManager::getInstance();
   eventManager.send(startedEvent);
 
   QApplication::exec();
+
+  if (Util::SingleInstanceGuard *instanceGuard =
+          Util::SingleInstanceGuard::instance()) {
+    instanceGuard->setActivationHandler(nullptr);
+  }
 
   LOG_PERF(0, "Exit");
 }

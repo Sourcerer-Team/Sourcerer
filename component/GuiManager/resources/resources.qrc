@@ -12,6 +12,7 @@
         <file>icons/gitflow_start.svg</file>
         <file>icons/gitlabflow_cherrypick.svg</file>
         <file>icons/gitlabflow_promote.svg</file>
+        <file>icons/githubflow_pullrequest.svg</file>
         <file>icons/history_filter_calendar_dark.svg</file>
         <file>icons/history_filter_calendar_light.svg</file>
         <file>icons/close_button.png</file>

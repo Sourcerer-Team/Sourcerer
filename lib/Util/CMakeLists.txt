@@ -36,6 +36,7 @@ add_library(Util STATIC
    include/LockGuard.h
    include/ResizableVector.h
    include/ResizableMatrix.h
+   include/SingleInstanceGuard.h
 
    include/TokenString.h
    include/Uuid.h
@@ -49,6 +50,7 @@ add_library(Util STATIC
    src/HttpClient.cpp
    src/JWTDecoder.cpp
    src/LockGuard.cpp
+   src/SingleInstanceGuard.cpp
 
    src/TokenString.cpp
    src/Uuid.cpp

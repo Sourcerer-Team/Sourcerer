@@ -173,6 +173,9 @@ public:
                                    const GitRepo::GitLabFlowAction action,
                                    const QString &branchName,
                                    const QString &commit = QString()) = 0;
+  virtual void runGitHubFlowAction(const QWeakPointer<GitRepoContainer> &guard,
+                                   const GitRepo::GitHubFlowAction action,
+                                   const QString &branchName) = 0;
   virtual void getWorkflowType(const QWeakPointer<GitRepoContainer> &guard) = 0;
   virtual void setWorkflowType(const QWeakPointer<GitRepoContainer> &guard,
                                const GitRepo::WorkflowType workflow) = 0;

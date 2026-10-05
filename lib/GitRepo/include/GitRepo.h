@@ -6,7 +6,7 @@
 #include <QStringList>
 #include <QVector>
 
-#include "GitLabFlowUtils.h"
+#include "WorkflowUtils.h"
 
 #include <git2/repository.h>
 #include <git2/status.h>
@@ -443,6 +443,9 @@ enum class GitError : int {
   GitLabFlowFailedToLookupBaseBranch,
   GitLabFlowPromoteNotDownstream,
   GitLabFlowFailedToLookupReleaseBranch,
+  GitHubFlowBranchNameEmpty,
+  GitHubFlowFailedToLookupMainBranch,
+  GitHubFlowMainBranchNotAllowed,
   SetWorkflowTypeFailedToGetRepositoryConfig,
   SetWorkflowTypeFailedToWriteConfig,
   Last
@@ -948,6 +951,19 @@ bool cherryPickToGitLabFlowRelease(git_repository *repo, const QString &commit,
                                    const QString &releaseBranchName,
                                    const QString &author, const QString &email,
                                    bool *conflicted = nullptr);
+
+bool startGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                           const QString &mainBranchName);
+
+// Merges the main branch into branchName to bring it up to date.
+bool updateGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                            const QString &mainBranchName,
+                            const QString &author, const QString &email);
+
+// Merges branchName into the main branch and deletes it.
+bool finishGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                            const QString &mainBranchName,
+                            const QString &author, const QString &email);
 
 // Reads sourcerer.workflow from the repository config. Missing or unknown
 // values mean classic Git Flow.

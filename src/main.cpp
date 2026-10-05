@@ -2,6 +2,7 @@
 #include <GitRepoManager.h>
 #include <GuiManager.h>
 #include <NewsTracker.h>
+#include <SingleInstanceGuard.h>
 #include <UpdateManager.h>
 #include <UpdateStaging.h>
 
@@ -140,11 +141,26 @@ int main(int argc, char *argv[]) {
   QCoreApplication::setAttribute(Qt::AA_UseSoftwareOpenGL);
 #endif
 
-#ifdef QT_NO_DEBUG
+  // Lives as long as the process, so the lock is held until it exits.
+  Util::SingleInstanceGuard instanceGuard;
+
   {
     QCoreApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("Sourcerer"));
 
+    // Only one process may use the data directory and its WebEngine profiles.
+    // Before the update check, so a second launch never applies an update
+    // underneath the running instance.
+    if (!instanceGuard.acquire()) {
+      if (instanceGuard.activateRunningInstance(app.arguments().mid(1))) {
+        return 0;
+      }
+      if (!instanceGuard.isPrimary()) {
+        return 1;
+      }
+    }
+
+#ifdef QT_NO_DEBUG
     const QString installDir = installationDirectory();
     const QString updatePath = stagedUpdateFile(installDir);
     // The launcher passes --skip-update when it could not apply the staged
@@ -156,10 +172,11 @@ int main(int argc, char *argv[]) {
         return 0;
       }
     }
-  }
 #endif
+  }
 
   QApplication app(argc, argv);
+  instanceGuard.listen();
 
   ComponentManager::ComponentManager componentManager;
   componentManager.addThread<GitRepoManager::GitRepoManager>();
