@@ -133,6 +133,117 @@ private slots:
     QVERIFY(
         !isGitLabFlowReleaseBranch(QStringLiteral("1-2-stable"), QString()));
   }
+  void gitFlowNextWorkflowType() {
+    QCOMPARE(workflowTypeToString(WorkflowType::GitFlowNext),
+             QStringLiteral("gitflownext"));
+    QCOMPARE(workflowTypeFromString(QStringLiteral("gitflownext")),
+             WorkflowType::GitFlowNext);
+  }
+
+  void gitFlowNextClassicPresetRoundTrip() {
+    const GitFlowNextConfig config =
+        parseGitFlowNextConfig(gitFlowNextClassicPreset(
+            QStringLiteral("main"), QStringLiteral("develop")));
+    QVERIFY(config.initialized);
+    QCOMPARE(config.branches.size(), 5);
+
+    const QVector<GitFlowNextBranch> types = config.topicTypes();
+    QCOMPARE(types.size(), 3);
+    QCOMPARE(types.at(0).name, QStringLiteral("feature"));
+    QCOMPARE(types.at(0).parent, QStringLiteral("develop"));
+    QCOMPARE(types.at(0).prefix, QStringLiteral("feature/"));
+    QCOMPARE(types.at(0).downstreamStrategy, QStringLiteral("rebase"));
+    QVERIFY(!types.at(0).tag);
+    QCOMPARE(types.at(1).name, QStringLiteral("release"));
+    QCOMPARE(types.at(1).parent, QStringLiteral("main"));
+    QCOMPARE(gitFlowNextStartPoint(types.at(1)), QStringLiteral("develop"));
+    QVERIFY(types.at(1).tag);
+    QCOMPARE(gitFlowNextStartPoint(types.at(2)), QStringLiteral("main"));
+
+    QCOMPARE(gitFlowNextAutoUpdateBranches(config, QStringLiteral("main")),
+             QStringList{QStringLiteral("develop")});
+    QVERIFY(gitFlowNextAutoUpdateBranches(config, QStringLiteral("develop"))
+                .isEmpty());
+  }
+
+  // libgit2 reports section and variable names in lower case.
+  void gitFlowNextParsesNormalizedKeys() {
+    const GitFlowNextConfig config = parseGitFlowNextConfig({
+        {QStringLiteral("gitflow.branch.trunk.type"), QStringLiteral("base")},
+        {QStringLiteral("gitflow.branch.task.type"), QStringLiteral("topic")},
+        {QStringLiteral("gitflow.branch.task.parent"), QStringLiteral("trunk")},
+        {QStringLiteral("gitflow.branch.task.upstreamstrategy"),
+         QStringLiteral("Squash")},
+        {QStringLiteral("gitflow.branch.task.tag"), QStringLiteral("yes")},
+        {QStringLiteral("gitflow.branch.task.tagprefix"), QStringLiteral("v")},
+        {QStringLiteral("gitflow.task.finish.keep"), QStringLiteral("true")},
+        {QStringLiteral("gitflow.branch.orphan.parent"),
+         QStringLiteral("trunk")},
+    });
+
+    QVERIFY(config.initialized);
+    QCOMPARE(config.branches.size(), 2); // orphan has no type
+    const GitFlowNextBranch task = config.topicTypes().first();
+    QCOMPARE(task.prefix, QStringLiteral("task/"));
+    QCOMPARE(task.upstreamStrategy, QStringLiteral("squash"));
+    QCOMPARE(task.downstreamStrategy, QStringLiteral("merge"));
+    QVERIFY(task.tag);
+    QVERIFY(task.keepOnFinish);
+    QCOMPARE(gitFlowNextStartPoint(task), QStringLiteral("trunk"));
+    QCOMPARE(gitFlowNextTagName(task, QStringLiteral("task/1.2")),
+             QStringLiteral("v1.2"));
+  }
+
+  void gitFlowNextNoTagOverridesTag() {
+    const GitFlowNextConfig config = parseGitFlowNextConfig({
+        {QStringLiteral("gitflow.branch.release.type"),
+         QStringLiteral("topic")},
+        {QStringLiteral("gitflow.branch.release.tag"), QStringLiteral("true")},
+        {QStringLiteral("gitflow.release.finish.notag"),
+         QStringLiteral("true")},
+    });
+    QVERIFY(!config.topicTypes().first().tag);
+  }
+
+  void gitFlowNextUninitialized() {
+    const GitFlowNextConfig config = parseGitFlowNextConfig(
+        {{QStringLiteral("gitflow.version"), QStringLiteral("1.0")}});
+    QVERIFY(!config.initialized);
+    QVERIFY(config.branches.isEmpty());
+  }
+
+  void gitFlowNextTopicTypeMatching() {
+    const GitFlowNextConfig config = parseGitFlowNextConfig({
+        {QStringLiteral("gitflow.branch.main.type"), QStringLiteral("base")},
+        {QStringLiteral("gitflow.branch.feature.type"),
+         QStringLiteral("topic")},
+        {QStringLiteral("gitflow.branch.ui.type"), QStringLiteral("topic")},
+        {QStringLiteral("gitflow.branch.ui.prefix"),
+         QStringLiteral("feature/ui/")},
+    });
+
+    const auto typeOf = [&](const char *branch) {
+      const GitFlowNextBranch *type =
+          gitFlowNextTopicTypeForBranch(config, QString::fromLatin1(branch));
+      return type ? type->name : QString();
+    };
+    QCOMPARE(typeOf("feature/login"), QStringLiteral("feature"));
+    QCOMPARE(typeOf("feature/ui/dark-mode"), QStringLiteral("ui"));
+    QCOMPARE(typeOf("feature/"), QString());
+    QCOMPARE(typeOf("main"), QString());
+    QCOMPARE(typeOf("bugfix/x"), QString());
+  }
+
+  void gitFlowNextBranchNameFromInput() {
+    GitFlowNextBranch type;
+    type.prefix = QStringLiteral("feature/");
+    QCOMPARE(gitFlowNextBranchNameForInput(type, QStringLiteral(" login ")),
+             QStringLiteral("feature/login"));
+    QCOMPARE(
+        gitFlowNextBranchNameForInput(type, QStringLiteral("feature/login")),
+        QStringLiteral("feature/login"));
+    QVERIFY(gitFlowNextBranchNameForInput(type, QStringLiteral(" ")).isEmpty());
+  }
 };
 
 QTEST_APPLESS_MAIN(WorkflowsTest)

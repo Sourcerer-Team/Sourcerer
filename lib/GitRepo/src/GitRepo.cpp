@@ -2281,6 +2281,38 @@ static QString gitErrorName(const GitError errorType) {
     return QCoreApplication::translate(
         "GitRepoError",
         "The GitHub Flow main branch can't be updated or finished.");
+  case GitError::GitFlowNextFailedToReadConfig:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read the git-flow-next configuration.");
+  case GitError::GitFlowNextFailedToWriteConfig:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to write the git-flow-next configuration.");
+  case GitError::GitFlowNextNotInitialized:
+    return QCoreApplication::translate(
+        "GitRepoError", "git-flow-next is not initialized in this repository.");
+  case GitError::GitFlowNextUnknownBranchType:
+    return QCoreApplication::translate(
+        "GitRepoError", "The git-flow-next branch type is not configured.");
+  case GitError::GitFlowNextNotATopicBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The branch doesn't belong to a git-flow-next topic branch type.");
+  case GitError::GitFlowNextBranchNameEmpty:
+    return QCoreApplication::translate("GitRepoError",
+                                       "git-flow-next branch name is empty.");
+  case GitError::GitFlowNextFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "A branch of the git-flow-next configuration doesn't exist locally.");
+  case GitError::GitFlowNextUnsupportedStrategy:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The git-flow-next merge strategy is not supported. Use merge, rebase "
+        "or squash.");
+  case GitError::GitFlowNextTagExists:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The tag for this git-flow-next branch already exists.");
   case GitError::SetWorkflowTypeFailedToGetRepositoryConfig:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -5471,6 +5503,365 @@ bool finishGitHubFlowBranch(git_repository *repo, const QString &branchName,
 
   LOG_PERF(0, "Exit");
   return true;
+}
+
+bool readGitFlowNextConfig(git_repository *repo, GitFlowNextConfig *config) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+  Q_ASSERT(config != nullptr);
+
+  if (!repo || !config) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository or config pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_config *repoConfig = nullptr;
+  int error = git_repository_config(&repoConfig, repo);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToReadConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_config *snapshot = nullptr;
+  error = git_config_snapshot(&snapshot, repoConfig);
+  git_config_free(repoConfig);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToReadConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  QList<QPair<QString, QString>> entries;
+  error = git_config_foreach_match(
+      snapshot, "^gitflow\\.",
+      [](const git_config_entry *entry, void *payload) -> int {
+        static_cast<QList<QPair<QString, QString>> *>(payload)->append(
+            {QString::fromUtf8(entry->name), QString::fromUtf8(entry->value)});
+        return 0;
+      },
+      &entries);
+  git_config_free(snapshot);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToReadConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  *config = parseGitFlowNextConfig(entries);
+  LOG_DEBUG("git-flow-next config: initialized={}, {} branch definitions",
+            config->initialized, config->branches.size());
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool initGitFlowNext(git_repository *repo, const QString &mainBranchName,
+                     const QString &developBranchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString main = mainBranchName.trimmed();
+  const QString develop = developBranchName.trimmed();
+  if (main.isEmpty() || develop.isEmpty()) {
+    setWorkflowError(GitError::GitFlowNextBranchNameEmpty);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!localBranchExists(repo, main)) {
+    setWorkflowError(GitError::GitFlowNextFailedToLookupBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_config *config = nullptr;
+  int error = git_repository_config(&config, repo);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToWriteConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const auto entries = gitFlowNextClassicPreset(main, develop);
+  for (const auto &[key, value] : entries) {
+    error = git_config_set_string(config, key.toUtf8().constData(),
+                                  value.toUtf8().constData());
+    if (error) {
+      setError(GitError::GitFlowNextFailedToWriteConfig, error);
+      git_config_free(config);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+  git_config_free(config);
+
+  if (!localBranchExists(repo, develop) &&
+      !createAndCheckoutBranch(repo, main, develop)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+static bool loadInitializedGitFlowNextConfig(git_repository *repo,
+                                             GitFlowNextConfig &config) {
+  if (!readGitFlowNextConfig(repo, &config)) {
+    return false;
+  }
+
+  if (!config.initialized) {
+    setWorkflowError(GitError::GitFlowNextNotInitialized);
+    return false;
+  }
+
+  return true;
+}
+
+static QString branchTipId(git_repository *repo, const QString &branchName) {
+  git_oid oid;
+  const QString refName = QStringLiteral("refs/heads/") + branchName;
+  if (git_reference_name_to_id(&oid, repo, refName.toUtf8().constData())) {
+    return {};
+  }
+
+  char buffer[GIT_OID_HEXSZ + 1] = {0};
+  git_oid_tostr(buffer, sizeof(buffer), &oid);
+  return QString::fromLatin1(buffer);
+}
+
+static bool tagExists(git_repository *repo, const QString &tagName) {
+  git_oid oid;
+  const QString refName = QStringLiteral("refs/tags/") + tagName;
+  return git_reference_name_to_id(&oid, repo, refName.toUtf8().constData()) ==
+         0;
+}
+
+// Brings branchName up to date with parentBranch, see downstreamStrategy.
+static bool updateFromParent(git_repository *repo, const QString &branchName,
+                             const QString &parentBranch,
+                             const QString &strategy, const QString &author,
+                             const QString &email) {
+  if (strategy == QStringLiteral("rebase")) {
+    return rebaseBranches(repo, branchName, parentBranch, author, email, false);
+  }
+
+  if (strategy == QStringLiteral("merge")) {
+    return merge(repo, parentBranch, branchName, author, email);
+  }
+
+  setWorkflowError(GitError::GitFlowNextUnsupportedStrategy);
+  return false;
+}
+
+bool startGitFlowNextBranch(git_repository *repo, const QString &branchType,
+                            const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  GitFlowNextConfig config;
+  if (!loadInitializedGitFlowNextConfig(repo, config)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QVector<GitFlowNextBranch> types = config.topicTypes();
+  const auto type = std::find_if(
+      types.cbegin(), types.cend(), [&](const GitFlowNextBranch &candidate) {
+        return candidate.name == branchType.trimmed();
+      });
+  if (type == types.cend()) {
+    setWorkflowError(GitError::GitFlowNextUnknownBranchType);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName =
+      gitFlowNextBranchNameForInput(*type, branchName);
+  if (normalizedBranchName.isEmpty() || normalizedBranchName == type->prefix) {
+    setWorkflowError(GitError::GitFlowNextBranchNameEmpty);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString startPoint = gitFlowNextStartPoint(*type);
+  if (!localBranchExists(repo, startPoint)) {
+    setWorkflowError(GitError::GitFlowNextFailedToLookupBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Starting '{}' from '{}'", normalizedBranchName.toStdString(),
+            startPoint.toStdString());
+  const bool created =
+      createAndCheckoutBranch(repo, startPoint, normalizedBranchName);
+
+  LOG_PERF(0, "Exit");
+  return created;
+}
+
+bool finishGitFlowNextBranch(git_repository *repo, const QString &branchName,
+                             const QString &author, const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  GitFlowNextConfig config;
+  if (!loadInitializedGitFlowNextConfig(repo, config)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString branch = branchName.trimmed();
+  const GitFlowNextBranch *type = gitFlowNextTopicTypeForBranch(config, branch);
+  if (!type) {
+    setWorkflowError(GitError::GitFlowNextNotATopicBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString parent = type->parent;
+  if (!localBranchExists(repo, branch) || !localBranchExists(repo, parent)) {
+    setWorkflowError(GitError::GitFlowNextFailedToLookupBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString tagName =
+      type->tag ? gitFlowNextTagName(*type, branch) : QString();
+  if (!tagName.isEmpty() && tagExists(repo, tagName)) {
+    setWorkflowError(GitError::GitFlowNextTagExists);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Finishing '{}' into '{}' with strategy '{}'", branch.toStdString(),
+            parent.toStdString(), type->upstreamStrategy.toStdString());
+
+  bool integrated = false;
+  if (type->upstreamStrategy == QStringLiteral("merge")) {
+    integrated = merge(repo, branch, parent, author, email);
+  } else if (type->upstreamStrategy == QStringLiteral("rebase")) {
+    // Replay the branch onto its parent, then fast-forward the parent.
+    integrated = rebaseBranches(repo, branch, parent, author, email, false) &&
+                 merge(repo, branch, parent, author, email);
+  } else if (type->upstreamStrategy == QStringLiteral("squash")) {
+    integrated = squashBranches(repo, branch, parent, author, email, false);
+  } else {
+    setWorkflowError(GitError::GitFlowNextUnsupportedStrategy);
+  }
+
+  if (!integrated) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!tagName.isEmpty() &&
+      !createTagFromCommit(repo, branchTipId(repo, parent), tagName, author,
+                           email, tagName)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QStringList autoUpdateBranches =
+      gitFlowNextAutoUpdateBranches(config, parent);
+  for (const QString &baseBranch : autoUpdateBranches) {
+    if (!localBranchExists(repo, baseBranch)) {
+      continue;
+    }
+
+    const auto base =
+        std::find_if(config.branches.cbegin(), config.branches.cend(),
+                     [&](const GitFlowNextBranch &candidate) {
+                       return !candidate.topic && candidate.name == baseBranch;
+                     });
+    LOG_DEBUG("Updating '{}' from '{}'", baseBranch.toStdString(),
+              parent.toStdString());
+    if (!updateFromParent(repo, baseBranch, parent, base->downstreamStrategy,
+                          author, email)) {
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  if (!checkoutBranch(repo, parent, BranchType::Local)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!type->keepOnFinish && !deleteBranch(repo, branch)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool updateGitFlowNextBranch(git_repository *repo, const QString &branchName,
+                             const QString &author, const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  GitFlowNextConfig config;
+  if (!loadInitializedGitFlowNextConfig(repo, config)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString branch = branchName.trimmed();
+  const GitFlowNextBranch *type = gitFlowNextTopicTypeForBranch(config, branch);
+  if (!type) {
+    setWorkflowError(GitError::GitFlowNextNotATopicBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!localBranchExists(repo, branch) ||
+      !localBranchExists(repo, type->parent)) {
+    setWorkflowError(GitError::GitFlowNextFailedToLookupBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Updating '{}' from '{}' with strategy '{}'", branch.toStdString(),
+            type->parent.toStdString(), type->downstreamStrategy.toStdString());
+  const bool updated = updateFromParent(
+      repo, branch, type->parent, type->downstreamStrategy, author, email);
+
+  LOG_PERF(0, "Exit");
+  return updated;
 }
 
 WorkflowType getWorkflowType(git_repository *repo) {

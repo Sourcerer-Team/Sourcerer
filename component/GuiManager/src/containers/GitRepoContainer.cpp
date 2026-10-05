@@ -82,6 +82,7 @@
 #include <QSignalBlocker>
 #include <QSize>
 #include <QSizePolicy>
+#include <QStandardPaths>
 #include <QStringList>
 #include <QStyle>
 #include <QStyleOptionViewItem>
@@ -1257,6 +1258,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _gitHubFlowWorkflowAction = workflowMenu->addAction(tr("GitHub Flow"));
   _gitHubFlowWorkflowAction->setCheckable(true);
   workflowGroup->addAction(_gitHubFlowWorkflowAction);
+  _gitFlowNextWorkflowAction = workflowMenu->addAction(tr("GitFlow-Next"));
+  _gitFlowNextWorkflowAction->setCheckable(true);
+  workflowGroup->addAction(_gitFlowNextWorkflowAction);
   gitFlowMenu->addSeparator();
 
   auto *actionStartFeature = gitFlowMenu->addAction(tr("Start feature"));
@@ -1359,6 +1363,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       themedIcon(":/icons/githubflow_pullrequest.svg"));
   gitFlowDropdown->setMenu(gitFlowMenu);
 
+  _gitFlowMenu = gitFlowMenu;
   _gitFlowButton = gitFlowDropdown;
   _gitFlowActions = {actionStartFeature,  actionStartRelease,
                      actionStartHotfix,   gitFlowFinishSeparator,
@@ -1832,6 +1837,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           [=]() { onWorkflowSelected(GitRepo::WorkflowType::GitLabFlow); });
   connect(_gitHubFlowWorkflowAction, &QAction::triggered, this,
           [=]() { onWorkflowSelected(GitRepo::WorkflowType::GitHubFlow); });
+  connect(_gitFlowNextWorkflowAction, &QAction::triggered, this,
+          [=]() { onWorkflowSelected(GitRepo::WorkflowType::GitFlowNext); });
   connect(actionGitHubFlowStartBranch, &QAction::triggered, this,
           &GitRepoContainer::onStartGitHubFlowBranch);
   connect(actionGitHubFlowUpdateBranch, &QAction::triggered, this,
@@ -1850,6 +1857,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::onStartGitLabFlowRelease);
   connect(gitFlowMenu, &QMenu::aboutToShow, this,
           &GitRepoContainer::updateGitLabFlowMenu);
+  connect(gitFlowMenu, &QMenu::aboutToShow, this,
+          &GitRepoContainer::rebuildGitFlowNextMenu);
   connect(_gitLabFlowCherryPickMenu, &QMenu::aboutToShow, this,
           &GitRepoContainer::updateGitLabFlowCherryPickMenu);
   connect(pushButtonStash, &QPushButton::clicked, this,
@@ -4559,8 +4568,9 @@ void GitRepoContainer::applyWorkflow(GitRepo::WorkflowType workflow) {
 
   const bool gitLabFlow = workflow == GitRepo::WorkflowType::GitLabFlow;
   const bool gitHubFlow = workflow == GitRepo::WorkflowType::GitHubFlow;
+  const bool gitFlowNext = workflow == GitRepo::WorkflowType::GitFlowNext;
   for (QAction *action : _gitFlowActions) {
-    action->setVisible(!gitLabFlow && !gitHubFlow);
+    action->setVisible(!gitLabFlow && !gitHubFlow && !gitFlowNext);
   }
   for (QAction *action : _gitLabFlowActions) {
     action->setVisible(gitLabFlow);
@@ -4577,12 +4587,17 @@ void GitRepoContainer::applyWorkflow(GitRepo::WorkflowType workflow) {
   } else if (gitHubFlow) {
     workflowAction = _gitHubFlowWorkflowAction;
     toolTip = tr("GitHub Flow");
+  } else if (gitFlowNext) {
+    workflowAction = _gitFlowNextWorkflowAction;
+    toolTip = tr("GitFlow-Next");
   }
   workflowAction->setChecked(true);
 
   if (_gitFlowButton) {
     _gitFlowButton->setToolTip(toolTip);
   }
+
+  rebuildGitFlowNextMenu();
 
   LOG_PERF(0, "Exit");
 }
@@ -5036,6 +5051,342 @@ void GitRepoContainer::onOpenGitHubPullRequest() {
   emit openPullRequestRequested(GitRepo::gitHubRepositoryName(remoteUrl),
                                 QUrl(pullRequestUrl),
                                 tr("Pull request: %1").arg(branchName));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::applyWorkflowState(const GitRepo::WorkflowState &state) {
+  _gitFlowNextConfig = state.gitFlowNext;
+  applyWorkflow(state.type);
+}
+
+void GitRepoContainer::rebuildGitFlowNextMenu() {
+  LOG_PERF(0, "Enter");
+
+  if (!_gitFlowMenu) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  for (QAction *action : std::as_const(_gitFlowNextActions)) {
+    _gitFlowMenu->removeAction(action);
+    action->deleteLater();
+  }
+  _gitFlowNextActions.clear();
+
+  if (_workflow != GitRepo::WorkflowType::GitFlowNext) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Menu texts treat '&' as a mnemonic marker.
+  const auto escaped = [](QString text) {
+    return text.replace(QLatin1Char('&'), QStringLiteral("&&"));
+  };
+  const auto addAction = [this](const QString &text, const QString &icon) {
+    QAction *action = _gitFlowMenu->addAction(text);
+    action->setProperty("iconSource", icon);
+    action->setIconVisibleInMenu(true);
+    action->setIcon(themedIcon(icon));
+    _gitFlowNextActions.append(action);
+    return action;
+  };
+  const QString startIcon = QStringLiteral(":/icons/gitflow_start.svg");
+  const QString finishIcon = QStringLiteral(":/icons/gitflow_finish.svg");
+  const QString updateIcon = QStringLiteral(":/icons/gitlabflow_promote.svg");
+
+  if (!_gitFlowNextConfig.initialized) {
+    QAction *initAction =
+        addAction(tr("Initialize git-flow-next..."), startIcon);
+    connect(initAction, &QAction::triggered, this,
+            &GitRepoContainer::onInitGitFlowNext);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QVector<GitRepo::GitFlowNextBranch> types =
+      _gitFlowNextConfig.topicTypes();
+  for (const GitRepo::GitFlowNextBranch &type : types) {
+    const QString typeName = type.name;
+    QAction *startAction =
+        addAction(tr("Start %1").arg(escaped(typeName)), startIcon);
+    connect(startAction, &QAction::triggered, this,
+            [this, typeName]() { onStartGitFlowNextBranch(typeName); });
+  }
+
+  _gitFlowNextActions.append(_gitFlowMenu->addSeparator());
+
+  const GitRepo::GitFlowNextBranch *currentType =
+      GitRepo::gitFlowNextTopicTypeForBranch(_gitFlowNextConfig, _activeBranch);
+  const bool topicBranch = currentType != nullptr;
+
+  QAction *updateAction =
+      addAction(topicBranch ? tr("Update '%1' from '%2'")
+                                  .arg(escaped(_activeBranch),
+                                       escaped(currentType->parent))
+                            : tr("Update topic branch"),
+                updateIcon);
+  updateAction->setEnabled(topicBranch && !_historyViewAll);
+  connect(updateAction, &QAction::triggered, this,
+          &GitRepoContainer::onUpdateGitFlowNextBranch);
+
+  QAction *finishAction =
+      addAction(topicBranch ? tr("Finish '%1'").arg(escaped(_activeBranch))
+                            : tr("Finish topic branch"),
+                finishIcon);
+  finishAction->setEnabled(topicBranch && !_historyViewAll);
+  connect(finishAction, &QAction::triggered, this,
+          &GitRepoContainer::onFinishGitFlowNextBranch);
+
+  LOG_PERF(0, "Exit");
+}
+
+bool GitRepoContainer::ensureGitFlowNextCli() {
+  // git-flow-next installs a git-flow executable, which makes `git flow`
+  // available. The running process keeps the PATH it was started with.
+  if (!QStandardPaths::findExecutable(QStringLiteral("git-flow")).isEmpty()) {
+    return true;
+  }
+
+  LOG_WARN("git-flow-next command line tool not found in PATH");
+
+  const QString url =
+      QStringLiteral("https://github.com/gittower/git-flow-next");
+  QMessageBox messageBox(QMessageBox::Information,
+                         tr("git-flow-next not found"), QString(),
+                         QMessageBox::Ok, this);
+  messageBox.setTextFormat(Qt::RichText);
+  messageBox.setText(
+      tr("GitFlow-Next needs the git-flow-next command line tool, which "
+         "could not be found.<br><br>"
+         "Download git-flow-next from <a href=\"%1\">%1</a>, add its "
+         "installation directory to the PATH environment variable and "
+         "restart Sourcerer.")
+          .arg(url));
+  messageBox.setTextInteractionFlags(Qt::TextBrowserInteraction);
+  if (auto *label =
+          messageBox.findChild<QLabel *>(QStringLiteral("qt_msgbox_label"))) {
+    label->setOpenExternalLinks(true);
+  }
+  messageBox.exec();
+
+  return false;
+}
+
+void GitRepoContainer::onInitGitFlowNext() {
+  LOG_PERF(0, "Enter");
+
+  if (!ensureGitFlowNextCli()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString mainBranchName =
+      _configManager
+          .getString(ConfigManager::ConfigKey::GitRepoGitFlowMainBranchName)
+          .trimmed();
+  const QString developBranchName =
+      _configManager
+          .getString(
+              ConfigManager::ConfigKey::GitRepoGitFlowDevelopmentBranchName)
+          .trimmed();
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Initialize git-flow-next"),
+      tr("Write the classic git-flow-next configuration to this "
+         "repository?\n\n"
+         "Base branches: '%1' and '%2' ('%2' is created from '%1' if it "
+         "doesn't exist)\n"
+         "Topic branches: feature/, release/ and hotfix/\n\n"
+         "The configuration is stored in .git/config and is shared with the "
+         "git flow command line tool.")
+          .arg(mainBranchName, developBranchName),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!showWarningForBranchCheckout()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  runFlowOperation([=](const WeakPtr &guard) {
+    _bridge->runGitFlowNextAction(guard, GitRepo::GitFlowNextAction::Init,
+                                  mainBranchName, developBranchName);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onStartGitFlowNextBranch(const QString &typeName) {
+  LOG_PERF(0, "Enter");
+
+  if (!ensureGitFlowNextCli()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QVector<GitRepo::GitFlowNextBranch> types =
+      _gitFlowNextConfig.topicTypes();
+  const auto type =
+      std::find_if(types.cbegin(), types.cend(),
+                   [&](const GitRepo::GitFlowNextBranch &candidate) {
+                     return candidate.name == typeName;
+                   });
+  if (type == types.cend()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const GitRepo::GitFlowNextBranch branchType = *type;
+  promptToStartBranch(
+      tr("Enter the %1 name, it starts from '%2'")
+          .arg(typeName, GitRepo::gitFlowNextStartPoint(branchType)),
+      [branchType](const QString &input) {
+        const QString branchName =
+            GitRepo::gitFlowNextBranchNameForInput(branchType, input);
+        return branchName == branchType.prefix ? QString() : branchName;
+      },
+      [=](const WeakPtr &guard, const QString &branchName) {
+        _bridge->runGitFlowNextAction(guard, GitRepo::GitFlowNextAction::Start,
+                                      typeName, branchName);
+      });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onFinishGitFlowNextBranch() {
+  LOG_PERF(0, "Enter");
+
+  if (!ensureGitFlowNextCli()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!_userProfileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString branchName = _activeBranch;
+  const GitRepo::GitFlowNextBranch *type =
+      GitRepo::gitFlowNextTopicTypeForBranch(_gitFlowNextConfig, branchName);
+  if (!type) {
+    showErrorToast(tr("Please checkout a topic branch first."), tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!showWarningForUncommittedChanges(
+          tr("Uncommitted Changes"),
+          tr("You have uncommitted changes on the current branch.\n\n"
+             "Do you really want to finish the branch?\n\n"
+             "To keep your changes, stash them before finishing."))) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QStringList steps;
+  if (type->upstreamStrategy == QStringLiteral("rebase")) {
+    steps.append(
+        tr("rebase it onto '%1' and fast-forward '%1'").arg(type->parent));
+  } else if (type->upstreamStrategy == QStringLiteral("squash")) {
+    steps.append(
+        tr("squash it into a single commit on '%1'").arg(type->parent));
+  } else {
+    steps.append(tr("merge it into '%1'").arg(type->parent));
+  }
+  if (type->tag) {
+    steps.append(
+        tr("tag '%1' as '%2'")
+            .arg(type->parent, GitRepo::gitFlowNextTagName(*type, branchName)));
+  }
+  const QStringList autoUpdateBranches =
+      GitRepo::gitFlowNextAutoUpdateBranches(_gitFlowNextConfig, type->parent);
+  for (const QString &baseBranch : autoUpdateBranches) {
+    steps.append(tr("update '%1' from '%2'").arg(baseBranch, type->parent));
+  }
+  if (!type->keepOnFinish) {
+    steps.append(tr("delete '%1'").arg(branchName));
+  }
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Confirm git-flow-next finish"),
+      tr("Finish '%1'?\n\nThis will:\n- %2")
+          .arg(branchName, steps.join(QStringLiteral("\n- "))),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  runFlowOperation([=](const WeakPtr &guard) {
+    _bridge->runGitFlowNextAction(guard, GitRepo::GitFlowNextAction::Finish,
+                                  branchName);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onUpdateGitFlowNextBranch() {
+  LOG_PERF(0, "Enter");
+
+  if (!ensureGitFlowNextCli()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!_userProfileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString branchName = _activeBranch;
+  const GitRepo::GitFlowNextBranch *type =
+      GitRepo::gitFlowNextTopicTypeForBranch(_gitFlowNextConfig, branchName);
+  if (!type) {
+    showErrorToast(tr("Please checkout a topic branch first."), tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!showWarningForUncommittedChanges(
+          tr("Uncommitted Changes"),
+          tr("You have uncommitted changes on the current branch.\n\n"
+             "Do you really want to update the branch?\n\n"
+             "To keep your changes, stash them before updating."))) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString step =
+      type->downstreamStrategy == QStringLiteral("rebase")
+          ? tr("rebase '%1' onto '%2'").arg(branchName, type->parent)
+          : tr("merge '%2' into '%1'").arg(branchName, type->parent);
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Confirm git-flow-next update"),
+      tr("Update '%1' from '%2'?\n\nThis will %3.")
+          .arg(branchName, type->parent, step),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  runFlowOperation([=](const WeakPtr &guard) {
+    _bridge->runGitFlowNextAction(guard, GitRepo::GitFlowNextAction::Update,
+                                  branchName);
+  });
 
   LOG_PERF(0, "Exit");
 }

@@ -446,6 +446,15 @@ enum class GitError : int {
   GitHubFlowBranchNameEmpty,
   GitHubFlowFailedToLookupMainBranch,
   GitHubFlowMainBranchNotAllowed,
+  GitFlowNextFailedToReadConfig,
+  GitFlowNextFailedToWriteConfig,
+  GitFlowNextNotInitialized,
+  GitFlowNextUnknownBranchType,
+  GitFlowNextNotATopicBranch,
+  GitFlowNextBranchNameEmpty,
+  GitFlowNextFailedToLookupBranch,
+  GitFlowNextUnsupportedStrategy,
+  GitFlowNextTagExists,
   SetWorkflowTypeFailedToGetRepositoryConfig,
   SetWorkflowTypeFailedToWriteConfig,
   Last
@@ -964,6 +973,27 @@ bool updateGitHubFlowBranch(git_repository *repo, const QString &branchName,
 bool finishGitHubFlowBranch(git_repository *repo, const QString &branchName,
                             const QString &mainBranchName,
                             const QString &author, const QString &email);
+
+// git-flow-next keeps its branch model in the repository config, shared with
+// the git flow command line tool. See WorkflowUtils.h.
+bool readGitFlowNextConfig(git_repository *repo, GitFlowNextConfig *config);
+
+// Writes the classic preset and creates the develop branch if it is missing.
+bool initGitFlowNext(git_repository *repo, const QString &mainBranchName,
+                     const QString &developBranchName);
+
+bool startGitFlowNextBranch(git_repository *repo, const QString &branchType,
+                            const QString &branchName);
+
+// Integrates branchName into its parent with the upstream strategy, tags it
+// if configured, updates the auto-update base branches of the parent and
+// deletes branchName.
+bool finishGitFlowNextBranch(git_repository *repo, const QString &branchName,
+                             const QString &author, const QString &email);
+
+// Brings branchName up to date with its parent using the downstream strategy.
+bool updateGitFlowNextBranch(git_repository *repo, const QString &branchName,
+                             const QString &author, const QString &email);
 
 // Reads sourcerer.workflow from the repository config. Missing or unknown
 // values mean classic Git Flow.

@@ -2201,6 +2201,31 @@ static bool runGitLabFlowAction(git_repository *repo,
   }
 }
 
+static bool
+runGitFlowNextAction(git_repository *repo,
+                     const Structs::GitRepoGitFlowCommand &command) {
+  switch (command.gitFlowNextAction) {
+  case GitRepo::GitFlowNextAction::Init:
+    return GitRepo::initGitFlowNext(repo, command.mainBranchName,
+                                    command.developmentBranchName);
+  case GitRepo::GitFlowNextAction::Start:
+    return GitRepo::startGitFlowNextBranch(repo, command.topicType,
+                                           command.branchName);
+  case GitRepo::GitFlowNextAction::Finish:
+    return GitRepo::finishGitFlowNextBranch(repo, command.branchName,
+                                            command.author, command.email);
+  case GitRepo::GitFlowNextAction::Update:
+    return GitRepo::updateGitFlowNextBranch(repo, command.branchName,
+                                            command.author, command.email);
+  case GitRepo::GitFlowNextAction::Unknown:
+  case GitRepo::GitFlowNextAction::last:
+  default:
+    LOG_ERROR(Log::ErrorId::Git, "Unknown git-flow-next action {}",
+              static_cast<int>(command.gitFlowNextAction));
+    return false;
+  }
+}
+
 static bool runGitHubFlowAction(git_repository *repo,
                                 const Structs::GitRepoGitFlowCommand &command) {
   switch (command.gitHubFlowAction) {
@@ -2249,6 +2274,8 @@ void ProcessingState::gitFlowWorker(
     success = runGitLabFlowAction(repo, command, &conflicted);
   } else if (command.workflow == GitRepo::WorkflowType::GitHubFlow) {
     success = runGitHubFlowAction(repo, command);
+  } else if (command.workflow == GitRepo::WorkflowType::GitFlowNext) {
+    success = runGitFlowNextAction(repo, command);
   } else {
     success = command.start
                   ? GitRepo::startGitFlowBranch(repo, command.branchType,
@@ -4914,12 +4941,19 @@ void ProcessingState::workflowWorker(
     repo = ctx->gitRepo;
   }
 
-  GitRepo::WorkflowType workflow = command.workflow;
+  GitRepo::WorkflowState state;
+  state.type = command.workflow;
   bool success = true;
   if (command.write) {
     success = GitRepo::setWorkflowType(repo, command.workflow);
   } else {
-    workflow = GitRepo::getWorkflowType(repo);
+    state.type = GitRepo::getWorkflowType(repo);
+  }
+
+  // Without a readable configuration the repository counts as not
+  // initialized, which the menu offers to fix.
+  if (success && state.type == GitRepo::WorkflowType::GitFlowNext) {
+    GitRepo::readGitFlowNextConfig(repo, &state.gitFlowNext);
   }
 
   if (!success) {
@@ -4933,8 +4967,8 @@ void ProcessingState::workflowWorker(
     EventManager::Event resultEvent(
         EventManager::EventType::GitRepoManagerWorkflowResult,
         command.syncUuid);
-    resultEvent.addData(GitRepoResult{command.uuid, command.type,
-                                      QVariant::fromValue(workflow)});
+    resultEvent.addData(
+        GitRepoResult{command.uuid, command.type, QVariant::fromValue(state)});
     _eventManager.send(resultEvent);
   }
 

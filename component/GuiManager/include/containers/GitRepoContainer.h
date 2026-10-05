@@ -194,6 +194,10 @@ private slots:
   void onUpdateGitHubFlowBranch();
   void onFinishGitHubFlowBranch();
   void onOpenGitHubPullRequest();
+  void onInitGitFlowNext();
+  void onStartGitFlowNextBranch(const QString &typeName);
+  void onFinishGitFlowNextBranch();
+  void onUpdateGitFlowNextBranch();
   void onRemoteBranchSelected(const QString &branchName);
   void onRemoteBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onRenameBranch(const QString &branchName);
@@ -346,6 +350,13 @@ private:
       const std::function<void(const WeakPtr &, const QString &)> &startBranch);
   void runFlowOperation(const std::function<void(const WeakPtr &)> &operation);
   void applyWorkflow(GitRepo::WorkflowType workflow);
+  void applyWorkflowState(const GitRepo::WorkflowState &state);
+  // The git-flow-next entries depend on the repository configuration and the
+  // current branch, so they are recreated whenever the menu opens.
+  void rebuildGitFlowNextMenu();
+  // Shows how to install the git-flow-next command line tool when it is not
+  // in PATH. Returns true if it was found.
+  bool ensureGitFlowNextCli();
   void updateGitLabFlowMenu();
   void updateGitLabFlowCherryPickMenu();
   QString gitLabFlowMainBranchName() const;
@@ -420,12 +431,16 @@ private:
   QAction *_gitFlowWorkflowAction{nullptr};
   QAction *_gitLabFlowWorkflowAction{nullptr};
   QAction *_gitHubFlowWorkflowAction{nullptr};
+  QAction *_gitFlowNextWorkflowAction{nullptr};
+  QMenu *_gitFlowMenu{nullptr};
   QAction *_gitLabFlowPromoteAction{nullptr};
   QMenu *_gitLabFlowCherryPickMenu{nullptr};
   // Menu entries, separators included, shown for each workflow.
   QVector<QAction *> _gitFlowActions;
   QVector<QAction *> _gitLabFlowActions;
   QVector<QAction *> _gitHubFlowActions;
+  QVector<QAction *> _gitFlowNextActions;
+  GitRepo::GitFlowNextConfig _gitFlowNextConfig;
   GitRepo::WorkflowType _workflow{GitRepo::WorkflowType::GitFlow};
   // Commit the user asked for that is not loaded yet, selected once the
   // history page containing it arrives.

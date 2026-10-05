@@ -4906,6 +4906,63 @@ void GitRepoManagerBridgeImpl::runGitHubFlowAction(
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoManagerBridgeImpl::runGitFlowNextAction(
+    const QWeakPointer<GitRepoContainer> &guard,
+    const GitRepo::GitFlowNextAction action, const QString &name,
+    const QString &argument) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGitFlowCommand command;
+  command.workflow = GitRepo::WorkflowType::GitFlowNext;
+  command.gitFlowNextAction = action;
+  command.author = _container._userProfileManager.currentProfile().author;
+  command.email = _container._userProfileManager.currentProfile().email;
+
+  switch (action) {
+  case GitRepo::GitFlowNextAction::Init:
+    command.mainBranchName = name;
+    command.developmentBranchName = argument;
+    sendGitFlowCommand(
+        guard, command, _container.tr("Failed to initialize git-flow-next."),
+        _container.tr("Initialized git-flow-next with '%1' and '%2'.")
+            .arg(name, argument));
+    // The menu is built from the configuration that was just written.
+    getWorkflowType(guard);
+    break;
+  case GitRepo::GitFlowNextAction::Start:
+    command.topicType = name;
+    command.branchName = argument;
+    sendGitFlowCommand(
+        guard, command, _container.tr("Failed to start %1 branch.").arg(name),
+        _container.tr("Successfully started branch '%1'.").arg(argument));
+    break;
+  case GitRepo::GitFlowNextAction::Finish:
+    command.branchName = name;
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to finish branch '%1'.").arg(name),
+        _container.tr("Successfully finished branch '%1'.").arg(name));
+    break;
+  case GitRepo::GitFlowNextAction::Update:
+    command.branchName = name;
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to update branch '%1'.").arg(name),
+        _container.tr("Successfully updated branch '%1'.").arg(name));
+    break;
+  case GitRepo::GitFlowNextAction::Unknown:
+  case GitRepo::GitFlowNextAction::last:
+  default:
+    LOG_ERROR(Log::ErrorId::Gui, "Unknown git-flow-next action {}",
+              static_cast<int>(action));
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showSpinnerOverlay(false); });
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitRepoManagerBridgeImpl::getWorkflowType(
     const QWeakPointer<GitRepoContainer> &guard) {
   LOG_PERF(0, "Enter");
@@ -4939,10 +4996,10 @@ void GitRepoManagerBridgeImpl::getWorkflowType(
     return;
   }
 
-  const auto workflow =
-      event.data<GitRepoResult>().value.value<GitRepo::WorkflowType>();
+  const auto state =
+      event.data<GitRepoResult>().value.value<GitRepo::WorkflowState>();
   Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { _container.applyWorkflow(workflow); });
+      guard, [=]() { _container.applyWorkflowState(state); });
 
   LOG_PERF(0, "Exit");
 }
@@ -4987,6 +5044,12 @@ void GitRepoManagerBridgeImpl::setWorkflowType(
     LOG_PERF(0, "Exit")
     return;
   }
+
+  // The result also carries the git-flow-next configuration of the repository.
+  const auto state =
+      event.data<GitRepoResult>().value.value<GitRepo::WorkflowState>();
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() { _container.applyWorkflowState(state); });
 
   LOG_PERF(0, "Exit");
 }
