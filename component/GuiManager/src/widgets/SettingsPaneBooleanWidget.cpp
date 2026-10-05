@@ -49,7 +49,7 @@ QWidget *SettingsPaneBooleanWidget::createWidget() {
   outerLayout->addWidget(nameLabel);
   outerLayout->addLayout(innerLayout);
 
-  connect(checkBox, &QCheckBox::stateChanged, this,
+  connect(checkBox, &QCheckBox::checkStateChanged, this,
           &SettingsPaneBooleanWidget::onStateChanged);
 
   LOG_PERF(0, "Exit");
@@ -68,7 +68,7 @@ void SettingsPaneBooleanWidget::save() const {
   LOG_PERF(0, "Exit");
 }
 
-void SettingsPaneBooleanWidget::onStateChanged(int state) {
+void SettingsPaneBooleanWidget::onStateChanged(Qt::CheckState state) {
   LOG_PERF(0, "Enter");
 
   item().setValue(state == Qt::CheckState::Checked);

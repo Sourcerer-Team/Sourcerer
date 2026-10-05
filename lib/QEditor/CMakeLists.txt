@@ -15,8 +15,16 @@ set(CMAKE_AUTOUIC ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 if(NOT TARGET tree-sitter)
+  # tree-sitter adds /W4 itself, drop the default /W3 to avoid MSVC D9025
+  # warnings.
+  set(_SAVED_C_FLAGS "${CMAKE_C_FLAGS}")
+  set(_SAVED_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  string(REGEX REPLACE "/W[0-4]" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+  string(REGEX REPLACE "/W[0-4]" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../tree-sitter
                    ${CMAKE_BINARY_DIR}/tree-sitter)
+  set(CMAKE_C_FLAGS "${_SAVED_C_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${_SAVED_CXX_FLAGS}")
 endif()
 
 file(GLOB TREE_SITTER_LANGUAGE_SOURCES CONFIGURE_DEPENDS

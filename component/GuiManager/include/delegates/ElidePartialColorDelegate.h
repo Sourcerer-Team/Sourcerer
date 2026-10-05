@@ -146,8 +146,6 @@ public:
       }
     }
 
-    separatorIndex != -1 ? elided.mid(separatorIndex + 1) : QString();
-
     // Draw prefix (normal color)
     painter->setPen(opt.palette.color(QPalette::Text));
     painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter, prefix);

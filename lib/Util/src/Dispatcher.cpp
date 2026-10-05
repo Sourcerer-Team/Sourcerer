@@ -5,6 +5,8 @@
 #include <QCoreApplication>
 #include <QTimer>
 
+#include <limits>
+
 #define THREAD_ID "Dispatcher"
 
 namespace Util {
@@ -117,7 +119,7 @@ bool Dispatcher::dispatch(
 
   LOCKGUARD(_mutex);
 
-  int minSize = INT_MAX;
+  size_t minSize = std::numeric_limits<size_t>::max();
   int index = static_cast<int>(channel);
 
   if (index == static_cast<int>(DispatcherChannel::Any)) {
@@ -141,7 +143,7 @@ bool Dispatcher::dispatch(
       }
 
       if (v->_queue->size() < minSize) {
-        index = k;
+        index = static_cast<int>(k);
         minSize = v->_queue->size();
       }
 

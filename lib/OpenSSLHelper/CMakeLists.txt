@@ -18,6 +18,11 @@ endif()
 
 add_library(OpenSSLHelper STATIC ${OPENSSLHELPER_SOURCE_FILES})
 
+if(MSVC)
+    # applink.c is shipped by OpenSSL, silence MSVC CRT deprecation.
+    target_compile_definitions(OpenSSLHelper PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+
 include(../../cmake/helpers.cmake)
 
 target_link_libraries(OpenSSLHelper PRIVATE

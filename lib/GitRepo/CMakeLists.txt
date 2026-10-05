@@ -34,6 +34,12 @@ add_library(GitRepo STATIC
     src/PatchFileUtils.cpp
 )
 
+if(MSVC)
+    # fopen() and strdup() are used portably, silence MSVC deprecation.
+    target_compile_definitions(GitRepo PRIVATE _CRT_SECURE_NO_WARNINGS
+                                               _CRT_NONSTDC_NO_WARNINGS)
+endif()
+
 include(../../cmake/helpers.cmake)
 
 includeComponent(GitRepo ConfigManager)
@@ -64,7 +70,14 @@ set(BUILD_TESTING OFF CACHE BOOL "Disable tests" FORCE)
 set(LIBSSH2_BUILD_DOCS OFF CACHE BOOL "Disable docs" FORCE)
 set(LIBSSH2_DISABLE_INSTALL ON CACHE BOOL "Disable install targets" FORCE)
 
+# libssh2 adds /W4 itself, drop the default /W3 to avoid MSVC D9025 warnings.
+set(_SAVED_C_FLAGS "${CMAKE_C_FLAGS}")
+set(_SAVED_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+string(REGEX REPLACE "/W[0-4]" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+string(REGEX REPLACE "/W[0-4]" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 add_subdirectory(../../lib/libssh2 "libssh2")
+set(CMAKE_C_FLAGS "${_SAVED_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "${_SAVED_CXX_FLAGS}")
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libraries" FORCE)
 set(BUILD_TOOLS OFF CACHE BOOL "Disable tools" FORCE)
@@ -89,6 +102,8 @@ set(USE_COMPRESSION "zlib" CACHE STRING "Selects compression backend.")
 set(USE_REGEX "builtin" CACHE STRING "Selects regex provider.")
 
 set(USE_GSSAPI OFF CACHE BOOL "Disable Kerberos/GSSAPI" FORCE)
+# Use the same dynamic CRT as the rest of the application.
+set(STATIC_CRT OFF CACHE BOOL "Link the static CRT libraries" FORCE)
 add_subdirectory(../../lib/libgit2 "libgit2")
 
 add_subdirectory(../../lib/qtkeychain "qtkeychain")
