@@ -185,6 +185,8 @@ GitRepoManager::GitRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSetDefaultRemote, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerWorkflow, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSetUpstream, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerStageFiles, callbackFunc));
@@ -371,6 +373,8 @@ GitRepoManager::~GitRepoManager() {
       EventManager::EventType::GitRepoManagerRevert, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSetDefaultRemote, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::GitRepoManagerWorkflow, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerSetUpstream, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -1015,6 +1019,13 @@ void GitRepoManager::eventCallback(const EventManager::Event &event) {
     setDefaultRemoteEvent.addParam(
         QVariant::fromValue(setDefaultRemoteCommand));
     _fsm.send(setDefaultRemoteEvent);
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerWorkflow: {
+    const auto workflowCommand = event.data<GitRepoWorkflowCommand>();
+    GitRepoManagerEvent workflowEvent(EventType::Workflow);
+    workflowEvent.addParam(QVariant::fromValue(workflowCommand));
+    _fsm.send(workflowEvent);
     break;
   }
   case EventManager::EventType::GitRepoManagerSetUpstream: {

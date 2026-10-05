@@ -4676,19 +4676,81 @@ void GitRepoManagerBridgeImpl::bisect(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoManagerBridgeImpl::startGitFlowBranch(
+void GitRepoManagerBridgeImpl::sendGitFlowCommand(
     const QWeakPointer<GitRepoContainer> &guard,
-    const GitRepo::GitFlowBranchType branchType, const QString &branchName) {
+    const GitRepoGitFlowCommand &gitFlowCommand, const QString &failureMessage,
+    const QString &successMessage, const QString &conflictMessage) {
   LOG_PERF(0, "Enter");
+
+  GitRepoGitFlowCommand command = gitFlowCommand;
 
   _container.stopWatcher(guard);
 
   const QString eventUuid = Uuid::createUuid();
   const int token = _container._eventManager.startWait();
 
-  GitRepoGitFlowCommand command;
   command.uuid = _container._uuid;
   command.syncUuid = eventUuid;
+
+  EventManager::Event gitFlowEvent(
+      EventManager::EventType::GitRepoManagerGitFlow, eventUuid);
+  gitFlowEvent.addData(command);
+  _container._eventManager.send(gitFlowEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGitFlowError,
+      EventManager::EventType::GitRepoManagerGitFlowResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(failureMessage, _container.tr("Error"));
+    });
+
+    _container.prepareWatcher(guard);
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerGitFlowResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    _container.prepareWatcher(guard);
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const bool conflicted = event.data<GitRepoResult>().value.toBool();
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    if (conflicted && !conflictMessage.isEmpty()) {
+      _container.showErrorToast(conflictMessage, _container.tr("Conflicts"));
+    } else {
+      _container.showToast(successMessage, _container.tr("Info"));
+    }
+  });
+
+  _container.prepareWatcher(guard);
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::startGitFlowBranch(
+    const QWeakPointer<GitRepoContainer> &guard,
+    const GitRepo::GitFlowBranchType branchType, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGitFlowCommand command;
   command.branchType = branchType;
   command.start = true;
   command.branchName = branchName;
@@ -4698,54 +4760,10 @@ void GitRepoManagerBridgeImpl::startGitFlowBranch(
               ConfigManager::ConfigKey::GitRepoGitFlowDevelopmentBranchName)
           .trimmed();
 
-  EventManager::Event gitFlowEvent(
-      EventManager::EventType::GitRepoManagerGitFlow, eventUuid);
-  gitFlowEvent.addData(command);
-  _container._eventManager.send(gitFlowEvent);
+  sendGitFlowCommand(
+      guard, command, _container.tr("Failed to start GitFlow branch."),
+      _container.tr("Successfully started branch '%1'.").arg(branchName));
 
-  static std::set types = {
-      EventManager::EventType::GitRepoManagerGitFlowError,
-      EventManager::EventType::GitRepoManagerGitFlowResult};
-
-  const auto &[success, event] =
-      _container._eventManager.waitForAnswer(token, eventUuid, types);
-
-  if (!success) {
-    closeRepo();
-
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorPage();
-      _container.showErrorToast(
-          _container.tr("Failed to start GitFlow branch."),
-          _container.tr("Error"));
-    });
-
-    _container.prepareWatcher(guard);
-    LOG_PERF(0, "Exit")
-    return;
-  }
-
-  if (event.type() != EventManager::EventType::GitRepoManagerGitFlowResult) {
-    const auto error = event.data<GitRepoError>();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorToast(error.message, _container.tr("Error"));
-    });
-
-    _container.prepareWatcher(guard);
-    LOG_PERF(0, "Exit")
-    return;
-  }
-
-  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
-    _container.showToast(
-        _container.tr("Successfully started branch '%1'.").arg(branchName),
-        _container.tr("Info"));
-  });
-
-  _container.prepareWatcher(guard);
   LOG_PERF(0, "Exit");
 }
 
@@ -4754,17 +4772,7 @@ void GitRepoManagerBridgeImpl::finishGitFlowBranch(
     const GitRepo::GitFlowBranchType branchType, const QString &branchName) {
   LOG_PERF(0, "Enter");
 
-  const QString author = _container._userProfileManager.currentProfile().author;
-  const QString email = _container._userProfileManager.currentProfile().email;
-
-  _container.stopWatcher(guard);
-
-  const QString eventUuid = Uuid::createUuid();
-  const int token = _container._eventManager.startWait();
-
   GitRepoGitFlowCommand command;
-  command.uuid = _container._uuid;
-  command.syncUuid = eventUuid;
   command.branchType = branchType;
   command.start = false;
   command.branchName = branchName;
@@ -4773,57 +4781,168 @@ void GitRepoManagerBridgeImpl::finishGitFlowBranch(
           .getString(
               ConfigManager::ConfigKey::GitRepoGitFlowDevelopmentBranchName)
           .trimmed();
-  command.author = author;
-  command.email = email;
+  command.author = _container._userProfileManager.currentProfile().author;
+  command.email = _container._userProfileManager.currentProfile().email;
 
-  EventManager::Event gitFlowEvent(
-      EventManager::EventType::GitRepoManagerGitFlow, eventUuid);
-  gitFlowEvent.addData(command);
-  _container._eventManager.send(gitFlowEvent);
+  sendGitFlowCommand(
+      guard, command, _container.tr("Failed to finish GitFlow branch."),
+      _container.tr("Successfully finished branch '%1'.").arg(branchName));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::runGitLabFlowAction(
+    const QWeakPointer<GitRepoContainer> &guard,
+    const GitRepo::GitLabFlowAction action, const QString &branchName,
+    const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGitFlowCommand command;
+  command.workflow = GitRepo::WorkflowType::GitLabFlow;
+  command.gitLabFlowAction = action;
+  command.branchName = branchName;
+  command.commit = commit;
+  command.mainBranchName = _container.gitLabFlowMainBranchName();
+  command.environmentChain = _container.gitLabFlowEnvironmentChain();
+  command.author = _container._userProfileManager.currentProfile().author;
+  command.email = _container._userProfileManager.currentProfile().email;
+
+  const QString shortCommit = commit.left(7);
+
+  switch (action) {
+  case GitRepo::GitLabFlowAction::StartFeature:
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to start GitLab Flow feature branch."),
+        _container.tr("Successfully started branch '%1'.").arg(branchName));
+    break;
+  case GitRepo::GitLabFlowAction::FinishFeature:
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to finish GitLab Flow feature branch."),
+        _container.tr("Successfully finished branch '%1'.").arg(branchName));
+    break;
+  case GitRepo::GitLabFlowAction::Promote:
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to promote branch '%1'.").arg(branchName),
+        _container.tr("Successfully promoted '%1' to '%2'.")
+            .arg(branchName, GitRepo::gitLabFlowNextEnvironment(
+                                 command.environmentChain, branchName)));
+    break;
+  case GitRepo::GitLabFlowAction::StartRelease:
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to start GitLab Flow release branch."),
+        _container.tr("Successfully started release branch '%1'.")
+            .arg(branchName));
+    break;
+  case GitRepo::GitLabFlowAction::CherryPickToRelease:
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to cherry-pick commit to release branch."),
+        _container.tr("Successfully cherry-picked commit %1 to '%2'.")
+            .arg(shortCommit, branchName),
+        _container
+            .tr("Cherry-picking commit %1 to '%2' produced conflicts. "
+                "Resolve them on '%2' and commit.")
+            .arg(shortCommit, branchName));
+    break;
+  case GitRepo::GitLabFlowAction::Unknown:
+  case GitRepo::GitLabFlowAction::last:
+  default:
+    LOG_ERROR(Log::ErrorId::Gui, "Unknown GitLab Flow action {}",
+              static_cast<int>(action));
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showSpinnerOverlay(false); });
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::getWorkflowType(
+    const QWeakPointer<GitRepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+  const int token = _container._eventManager.startWait();
+
+  GitRepoWorkflowCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.write = false;
+
+  EventManager::Event workflowEvent(
+      EventManager::EventType::GitRepoManagerWorkflow, eventUuid);
+  workflowEvent.addData(command);
+  _container._eventManager.send(workflowEvent);
 
   static std::set types = {
-      EventManager::EventType::GitRepoManagerGitFlowError,
-      EventManager::EventType::GitRepoManagerGitFlowResult};
+      EventManager::EventType::GitRepoManagerWorkflowError,
+      EventManager::EventType::GitRepoManagerWorkflowResult};
 
   const auto &[success, event] =
       _container._eventManager.waitForAnswer(token, eventUuid, types);
 
-  if (!success) {
-    closeRepo();
-
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorPage();
-      _container.showErrorToast(
-          _container.tr("Failed to finish GitFlow branch."),
-          _container.tr("Error"));
-    });
-
-    _container.prepareWatcher(guard);
+  // Repositories without a stored workflow use classic Git Flow, which is
+  // what the menu shows until a result arrives.
+  if (!success ||
+      event.type() != EventManager::EventType::GitRepoManagerWorkflowResult) {
+    LOG_DEBUG("Failed to read the repository workflow, using Git Flow");
     LOG_PERF(0, "Exit")
     return;
   }
 
-  if (event.type() != EventManager::EventType::GitRepoManagerGitFlowResult) {
-    const auto error = event.data<GitRepoError>();
+  const auto workflow =
+      event.data<GitRepoResult>().value.value<GitRepo::WorkflowType>();
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() { _container.applyWorkflow(workflow); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::setWorkflowType(
+    const QWeakPointer<GitRepoContainer> &guard,
+    const GitRepo::WorkflowType workflow) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+  const int token = _container._eventManager.startWait();
+
+  GitRepoWorkflowCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.write = true;
+  command.workflow = workflow;
+
+  EventManager::Event workflowEvent(
+      EventManager::EventType::GitRepoManagerWorkflow, eventUuid);
+  workflowEvent.addData(command);
+  _container._eventManager.send(workflowEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerWorkflowError,
+      EventManager::EventType::GitRepoManagerWorkflowResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success ||
+      event.type() != EventManager::EventType::GitRepoManagerWorkflowResult) {
+    const QString message =
+        success ? event.data<GitRepoError>().message
+                : _container.tr("Failed to save the repository workflow.");
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorToast(error.message, _container.tr("Error"));
+      _container.showErrorToast(message, _container.tr("Error"));
     });
 
-    _container.prepareWatcher(guard);
+    // Bring the menu back in line with what is stored in the repository.
+    getWorkflowType(guard);
     LOG_PERF(0, "Exit")
     return;
   }
 
-  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
-    _container.showToast(
-        _container.tr("Successfully finished branch '%1'.").arg(branchName),
-        _container.tr("Info"));
-  });
-
-  _container.prepareWatcher(guard);
   LOG_PERF(0, "Exit");
 }
 

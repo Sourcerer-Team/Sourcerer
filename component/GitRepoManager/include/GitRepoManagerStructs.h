@@ -89,6 +89,7 @@ enum class GitRepoCommandType : int {
   Revert,
   CherryPick,
   SetDefaultRemote,
+  Workflow,
   AddTarget,
   EditTarget,
   DeleteTarget,
@@ -740,6 +741,15 @@ struct GitRepoGitFlowCommand final : GitRepoCommand {
   QString developmentBranchName;
   QString author;
   QString email;
+
+  // GitLab Flow. branchName holds the feature, release or promoted source
+  // branch, depending on the action.
+  GitRepo::WorkflowType workflow = GitRepo::WorkflowType::GitFlow;
+  GitRepo::GitLabFlowAction gitLabFlowAction =
+      GitRepo::GitLabFlowAction::Unknown;
+  QString mainBranchName;
+  QStringList environmentChain;
+  QString commit;
 };
 
 struct GitRepoOpenCommand final : GitRepoCommand {
@@ -849,6 +859,16 @@ struct GitRepoSetDefaultRemoteCommand final : GitRepoCommand {
   ~GitRepoSetDefaultRemoteCommand() override = default;
 
   QString remoteName;
+};
+
+struct GitRepoWorkflowCommand final : GitRepoCommand {
+  GitRepoWorkflowCommand() : GitRepoCommand(GitRepoCommandType::Workflow) {}
+
+  ~GitRepoWorkflowCommand() override = default;
+
+  // Reads the repository workflow when false, writes workflow when true.
+  bool write = false;
+  GitRepo::WorkflowType workflow = GitRepo::WorkflowType::GitFlow;
 };
 
 struct GitRepoAddTargetCommand final : GitRepoCommand {

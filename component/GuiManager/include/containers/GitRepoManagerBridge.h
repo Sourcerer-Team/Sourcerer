@@ -167,6 +167,15 @@ public:
   virtual void finishGitFlowBranch(const QWeakPointer<GitRepoContainer> &guard,
                                    const GitRepo::GitFlowBranchType branchType,
                                    const QString &branchName) = 0;
+  // branchName is the feature or release branch, or the environment branch
+  // to promote, depending on the action.
+  virtual void runGitLabFlowAction(const QWeakPointer<GitRepoContainer> &guard,
+                                   const GitRepo::GitLabFlowAction action,
+                                   const QString &branchName,
+                                   const QString &commit = QString()) = 0;
+  virtual void getWorkflowType(const QWeakPointer<GitRepoContainer> &guard) = 0;
+  virtual void setWorkflowType(const QWeakPointer<GitRepoContainer> &guard,
+                               const GitRepo::WorkflowType workflow) = 0;
   virtual bool openRepo(const QWeakPointer<GitRepoContainer> &guard) = 0;
   virtual void pull(const QWeakPointer<GitRepoContainer> &guard,
                     bool rebase = false) = 0;
