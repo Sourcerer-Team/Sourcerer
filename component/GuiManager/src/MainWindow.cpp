@@ -216,6 +216,8 @@ MainWindow::MainWindow(QWidget *parent)
           &MainWindow::onClosedTab);
   connect(_topBarWidget, &TopBarWidget::selectedTab, this,
           &MainWindow::onSelectedTab);
+  connect(_topBarWidget, &TopBarWidget::movedTab, this,
+          &MainWindow::onMovedTab);
   connect(_topBarWidget, &TopBarWidget::resizeTabBar, this,
           &MainWindow::onTabBarResize);
   connect(_topBarWidget, &TopBarWidget::minimized, this,
@@ -926,6 +928,32 @@ void MainWindow::onSelectedTab(const int index) {
   LOG_PERF(0, "Exit");
 }
 
+void MainWindow::onMovedTab(const int from, const int to) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Tab moved from {} to {}.", from, to);
+
+  if (from < 0 || from >= _containers.length() || to < 0 ||
+      to >= _containers.length() || from == to) {
+    LOG_WARN("Invalid tab move from {} to {}.", from, to);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Keep container order in sync with the tab order, tab index is used as
+  // container index everywhere.
+  _containers.move(from, to);
+
+  if (_current == from) {
+    _current = to;
+  } else if (from < _current && _current <= to) {
+    _current--;
+  } else if (to <= _current && _current < from) {
+    _current++;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void MainWindow::onTabBarResize() {
   LOG_PERF(0, "Enter");
 
@@ -1104,7 +1132,7 @@ void MainWindow::addHomeContainer() {
   container->selected();
   container->setupShortcuts();
   _containers += container;
-  _topBarWidget->titleBarWidget()->addTab(tr("Home"), QString(), false);
+  _topBarWidget->titleBarWidget()->addTab(tr("Home"), QString(), false, true);
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 

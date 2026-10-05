@@ -94,6 +94,7 @@ private slots:
   void onThemeChanged();
   void onClosedTab(int index);
   void onSelectedTab(int index);
+  void onMovedTab(int from, int to);
   static void onTabBarResize();
   void onToastHostSizeChanged(const QSize &newSize);
   void onMinimizeClicked();

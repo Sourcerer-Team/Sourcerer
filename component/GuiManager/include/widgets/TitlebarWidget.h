@@ -21,7 +21,7 @@ public:
   ~TitlebarWidget() override;
 
   void addTab(const QString &text, const QString &toolTip = QString(),
-              const bool closeButton = true) const;
+              const bool closeButton = true, const bool pinned = false) const;
   void removeTab(int index) const;
   void selectTab(int index) const;
   int tabsCount() const;
@@ -49,6 +49,7 @@ signals:
 
   void closedTab(int index);
   void selectedTab(int index);
+  void movedTab(int from, int to);
   void resizeTabBar();
 
 private slots:
@@ -66,6 +67,7 @@ private slots:
 
   void onClosedTab(int index);
   void onSelectedTab(int index);
+  void onMovedTab(int from, int to);
   void onTabBarResized();
 
 private:

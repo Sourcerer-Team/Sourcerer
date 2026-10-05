@@ -284,6 +284,8 @@ TopBarWidget::TopBarWidget(QWidget *parent)
           &TopBarWidget::closedTab);
   connect(_titleBarWidget, &TitlebarWidget::selectedTab, this,
           &TopBarWidget::selectedTab);
+  connect(_titleBarWidget, &TitlebarWidget::movedTab, this,
+          &TopBarWidget::movedTab);
   connect(_titleBarWidget, &TitlebarWidget::resizeTabBar, this,
           &TopBarWidget::resizeTabBar);
 
