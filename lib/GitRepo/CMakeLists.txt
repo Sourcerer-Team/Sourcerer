@@ -21,6 +21,7 @@ add_compile_definitions(QT_USE_STRING_BUILDER)
 add_library(GitRepo STATIC
     include/GitRepo.h
     include/WorkflowUtils.h
+    include/GraphiteUtils.h
     include/GitCredentialStorage.h
     include/GitKeyStorage.h
     include/PatchFileUtils.h

@@ -40,6 +40,7 @@
 #include <FileManager.h>
 #include <GitRepoManagerStructs.h>
 #include <Log.h>
+#include <ProcessRunner.h>
 #include <StylesheetManager.h>
 #include <Uuid.h>
 
@@ -65,6 +66,7 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QImage>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
@@ -77,6 +79,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QPixmap>
+#include <QProcess>
 #include <QScrollBar>
 #include <QSet>
 #include <QSignalBlocker>
@@ -87,6 +90,7 @@
 #include <QStyle>
 #include <QStyleOptionViewItem>
 #include <QSvgRenderer>
+#include <QTemporaryFile>
 #include <QTextStream>
 #include <QTimer>
 #include <QToolButton>
@@ -634,6 +638,12 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
+
+  _graphiteStacksTimer = new QTimer(this);
+  _graphiteStacksTimer->setSingleShot(true);
+  _graphiteStacksTimer->setInterval(500);
+  connect(_graphiteStacksTimer, &QTimer::timeout, this,
+          &GitRepoContainer::reloadGraphiteStacks);
 
   _authorNameValueLabel = new Widgets::ElidedLabel(ui->groupBoxInfo);
   _authorNameValueLabel->setTextElideMode(Qt::ElideRight);
@@ -1261,6 +1271,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _gitFlowNextWorkflowAction = workflowMenu->addAction(tr("GitFlow-Next"));
   _gitFlowNextWorkflowAction->setCheckable(true);
   workflowGroup->addAction(_gitFlowNextWorkflowAction);
+  _graphiteWorkflowAction = workflowMenu->addAction(tr("Graphite"));
+  _graphiteWorkflowAction->setCheckable(true);
+  workflowGroup->addAction(_graphiteWorkflowAction);
   gitFlowMenu->addSeparator();
 
   auto *actionStartFeature = gitFlowMenu->addAction(tr("Start feature"));
@@ -1361,6 +1374,44 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   actionGitHubFlowPullRequest->setIconVisibleInMenu(true);
   actionGitHubFlowPullRequest->setIcon(
       themedIcon(":/icons/githubflow_pullrequest.svg"));
+
+  const auto addGraphiteAction = [&](const QString &text, const QString &icon) {
+    QAction *action = gitFlowMenu->addAction(text);
+    action->setProperty("iconSource", icon);
+    action->setIconVisibleInMenu(true);
+    action->setIcon(themedIcon(icon));
+    _graphiteActions.append(action);
+    return action;
+  };
+  const QString graphiteStartIcon = QStringLiteral(":/icons/gitflow_start.svg");
+  const QString graphiteFinishIcon =
+      QStringLiteral(":/icons/gitflow_finish.svg");
+  _graphiteInitAction =
+      addGraphiteAction(tr("Initialize Graphite..."), graphiteStartIcon);
+  auto *actionGraphiteCreate =
+      addGraphiteAction(tr("Create branch..."), graphiteStartIcon);
+  auto *actionGraphiteModify =
+      addGraphiteAction(tr("Modify (amend)"), graphiteFinishIcon);
+  auto *actionGraphiteModifyCommit =
+      addGraphiteAction(tr("Modify with new commit..."), graphiteFinishIcon);
+  _graphiteActions.append(gitFlowMenu->addSeparator());
+  auto *actionGraphiteUp =
+      addGraphiteAction(tr("Up"), QStringLiteral(":/icons/up_arrow.png"));
+  auto *actionGraphiteDown =
+      addGraphiteAction(tr("Down"), QStringLiteral(":/icons/down_arrow.png"));
+  auto *actionGraphiteTop = addGraphiteAction(
+      tr("Top of stack"), QStringLiteral(":/icons/up_arrow.png"));
+  auto *actionGraphiteBottom = addGraphiteAction(
+      tr("Bottom of stack"), QStringLiteral(":/icons/down_arrow.png"));
+  auto *actionGraphiteTrunk = addGraphiteAction(
+      tr("Trunk"), QStringLiteral(":/icons/down_arrow.png"));
+  _graphiteActions.append(gitFlowMenu->addSeparator());
+  auto *actionGraphiteRestack = addGraphiteAction(
+      tr("Restack"), QStringLiteral(":/icons/gitlabflow_promote.svg"));
+  auto *actionGraphiteSync = addGraphiteAction(
+      tr("Sync with trunk"), QStringLiteral(":/icons/pull.png"));
+  auto *actionGraphiteSubmit = addGraphiteAction(
+      tr("Submit stack"), QStringLiteral(":/icons/githubflow_pullrequest.svg"));
   gitFlowDropdown->setMenu(gitFlowMenu);
 
   _gitFlowMenu = gitFlowMenu;
@@ -1394,7 +1445,15 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
                                   actionGitLabFlowCherryPick,
                                   actionGitHubFlowUpdateBranch,
                                   actionGitHubFlowFinishBranch,
-                                  actionGitHubFlowPullRequest};
+                                  actionGitHubFlowPullRequest,
+                                  actionGraphiteModify,
+                                  actionGraphiteModifyCommit,
+                                  actionGraphiteUp,
+                                  actionGraphiteDown,
+                                  actionGraphiteTop,
+                                  actionGraphiteBottom,
+                                  actionGraphiteRestack,
+                                  actionGraphiteSubmit};
 
   auto *pushButtonStash = new QPushButton();
   pushButtonStash->setObjectName("pushButtonStash");
@@ -1839,6 +1898,32 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           [=]() { onWorkflowSelected(GitRepo::WorkflowType::GitHubFlow); });
   connect(_gitFlowNextWorkflowAction, &QAction::triggered, this,
           [=]() { onWorkflowSelected(GitRepo::WorkflowType::GitFlowNext); });
+  connect(_graphiteWorkflowAction, &QAction::triggered, this,
+          [=]() { onWorkflowSelected(GitRepo::WorkflowType::Graphite); });
+  connect(_graphiteInitAction, &QAction::triggered, this,
+          &GitRepoContainer::onInitGraphite);
+  connect(actionGraphiteCreate, &QAction::triggered, this,
+          &GitRepoContainer::onCreateGraphiteBranch);
+  connect(actionGraphiteModify, &QAction::triggered, this,
+          &GitRepoContainer::onModifyGraphiteBranch);
+  connect(actionGraphiteModifyCommit, &QAction::triggered, this,
+          &GitRepoContainer::onModifyGraphiteBranchWithCommit);
+  connect(actionGraphiteUp, &QAction::triggered, this,
+          [=]() { onNavigateGraphiteStack(QStringLiteral("up")); });
+  connect(actionGraphiteDown, &QAction::triggered, this,
+          [=]() { onNavigateGraphiteStack(QStringLiteral("down")); });
+  connect(actionGraphiteTop, &QAction::triggered, this,
+          [=]() { onNavigateGraphiteStack(QStringLiteral("top")); });
+  connect(actionGraphiteBottom, &QAction::triggered, this,
+          [=]() { onNavigateGraphiteStack(QStringLiteral("bottom")); });
+  connect(actionGraphiteTrunk, &QAction::triggered, this,
+          [=]() { onNavigateGraphiteStack(QStringLiteral("trunk")); });
+  connect(actionGraphiteRestack, &QAction::triggered, this,
+          &GitRepoContainer::onRestackGraphite);
+  connect(actionGraphiteSync, &QAction::triggered, this,
+          &GitRepoContainer::onSyncGraphite);
+  connect(actionGraphiteSubmit, &QAction::triggered, this,
+          &GitRepoContainer::onSubmitGraphiteStack);
   connect(actionGitHubFlowStartBranch, &QAction::triggered, this,
           &GitRepoContainer::onStartGitHubFlowBranch);
   connect(actionGitHubFlowUpdateBranch, &QAction::triggered, this,
@@ -1859,6 +1944,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
           &GitRepoContainer::updateGitLabFlowMenu);
   connect(gitFlowMenu, &QMenu::aboutToShow, this,
           &GitRepoContainer::rebuildGitFlowNextMenu);
+  connect(gitFlowMenu, &QMenu::aboutToShow, this,
+          &GitRepoContainer::updateGraphiteMenu);
   connect(_gitLabFlowCherryPickMenu, &QMenu::aboutToShow, this,
           &GitRepoContainer::updateGitLabFlowCherryPickMenu);
   connect(pushButtonStash, &QPushButton::clicked, this,
@@ -2092,6 +2179,12 @@ void GitRepoContainer::changeEvent(QEvent *event) {
   case QEvent::StyleChange:
     refreshScintillaTheme();
     refreshHistoryFilterButtonIcon();
+    break;
+  case QEvent::ActivationChange:
+    // gt may have been used in a terminal meanwhile.
+    if (isActiveWindow()) {
+      requestGraphiteStacksReload();
+    }
     break;
   default:
     break;
@@ -4293,6 +4386,7 @@ void GitRepoContainer::onLocalBranchRightClicked(const QString &branchName,
   menu.addAction(&actionSetUpstream);
   menu.addSeparator();
   menu.addAction(&actionDeleteBranch);
+  addGraphiteBranchActions(menu, branchName);
 
   menu.exec(pos);
 
@@ -4569,8 +4663,12 @@ void GitRepoContainer::applyWorkflow(GitRepo::WorkflowType workflow) {
   const bool gitLabFlow = workflow == GitRepo::WorkflowType::GitLabFlow;
   const bool gitHubFlow = workflow == GitRepo::WorkflowType::GitHubFlow;
   const bool gitFlowNext = workflow == GitRepo::WorkflowType::GitFlowNext;
+  const bool graphite = workflow == GitRepo::WorkflowType::Graphite;
   for (QAction *action : _gitFlowActions) {
-    action->setVisible(!gitLabFlow && !gitHubFlow && !gitFlowNext);
+    action->setVisible(!gitLabFlow && !gitHubFlow && !gitFlowNext && !graphite);
+  }
+  for (QAction *action : _graphiteActions) {
+    action->setVisible(graphite);
   }
   for (QAction *action : _gitLabFlowActions) {
     action->setVisible(gitLabFlow);
@@ -4590,6 +4688,9 @@ void GitRepoContainer::applyWorkflow(GitRepo::WorkflowType workflow) {
   } else if (gitFlowNext) {
     workflowAction = _gitFlowNextWorkflowAction;
     toolTip = tr("GitFlow-Next");
+  } else if (graphite) {
+    workflowAction = _graphiteWorkflowAction;
+    toolTip = tr("Graphite");
   }
   workflowAction->setChecked(true);
 
@@ -4598,6 +4699,8 @@ void GitRepoContainer::applyWorkflow(GitRepo::WorkflowType workflow) {
   }
 
   rebuildGitFlowNextMenu();
+  updateGraphiteMenu();
+  requestGraphiteStacksReload();
 
   LOG_PERF(0, "Exit");
 }
@@ -5143,34 +5246,10 @@ void GitRepoContainer::rebuildGitFlowNextMenu() {
 
 bool GitRepoContainer::ensureGitFlowNextCli() {
   // git-flow-next installs a git-flow executable, which makes `git flow`
-  // available. The running process keeps the PATH it was started with.
-  if (!QStandardPaths::findExecutable(QStringLiteral("git-flow")).isEmpty()) {
-    return true;
-  }
-
-  LOG_WARN("git-flow-next command line tool not found in PATH");
-
-  const QString url =
-      QStringLiteral("https://github.com/gittower/git-flow-next");
-  QMessageBox messageBox(QMessageBox::Information,
-                         tr("git-flow-next not found"), QString(),
-                         QMessageBox::Ok, this);
-  messageBox.setTextFormat(Qt::RichText);
-  messageBox.setText(
-      tr("GitFlow-Next needs the git-flow-next command line tool, which "
-         "could not be found.<br><br>"
-         "Download git-flow-next from <a href=\"%1\">%1</a>, add its "
-         "installation directory to the PATH environment variable and "
-         "restart Sourcerer.")
-          .arg(url));
-  messageBox.setTextInteractionFlags(Qt::TextBrowserInteraction);
-  if (auto *label =
-          messageBox.findChild<QLabel *>(QStringLiteral("qt_msgbox_label"))) {
-    label->setOpenExternalLinks(true);
-  }
-  messageBox.exec();
-
-  return false;
+  // available.
+  return ensureCliInstalled(
+      QStringLiteral("git-flow"), tr("git-flow-next"), tr("GitFlow-Next"),
+      QStringLiteral("https://github.com/gittower/git-flow-next"));
 }
 
 void GitRepoContainer::onInitGitFlowNext() {
@@ -5387,6 +5466,804 @@ void GitRepoContainer::onUpdateGitFlowNextBranch() {
     _bridge->runGitFlowNextAction(guard, GitRepo::GitFlowNextAction::Update,
                                   branchName);
   });
+
+  LOG_PERF(0, "Exit");
+}
+
+namespace {
+
+// The git directory shared by all worktrees of the repository at workDir.
+QString gitCommonDirectory(const QString &workDir) {
+  const QFileInfo dotGit(QDir(workDir).filePath(QStringLiteral(".git")));
+  if (dotGit.isDir()) {
+    return dotGit.absoluteFilePath();
+  }
+  if (!dotGit.isFile()) {
+    return {};
+  }
+
+  // A linked worktree: .git is a file pointing at its git directory, whose
+  // commondir file points at the main one.
+  QFile file(dotGit.absoluteFilePath());
+  if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    return {};
+  }
+  const QString line = QString::fromUtf8(file.readLine()).trimmed();
+  if (!line.startsWith(QStringLiteral("gitdir:"))) {
+    return {};
+  }
+  const QString gitDir = QDir(workDir).absoluteFilePath(line.mid(7).trimmed());
+
+  QFile commonDirFile(QDir(gitDir).filePath(QStringLiteral("commondir")));
+  if (!commonDirFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    return gitDir;
+  }
+  return QDir::cleanPath(QDir(gitDir).absoluteFilePath(
+      QString::fromUtf8(commonDirFile.readLine()).trimmed()));
+}
+
+} // namespace
+
+bool GitRepoContainer::ensureCliInstalled(const QString &executable,
+                                          const QString &toolName,
+                                          const QString &workflowName,
+                                          const QString &url) {
+  // The running process keeps the PATH it was started with.
+  if (!QStandardPaths::findExecutable(executable).isEmpty()) {
+    return true;
+  }
+
+  LOG_WARN("{} not found in PATH", executable.toStdString());
+
+  QMessageBox messageBox(QMessageBox::Information,
+                         tr("%1 not found").arg(toolName), QString(),
+                         QMessageBox::Ok, this);
+  messageBox.setTextFormat(Qt::RichText);
+  messageBox.setText(
+      tr("%1 needs the %2 command line tool, which could not be found."
+         "<br><br>"
+         "Download %2 from <a href=\"%3\">%3</a>, add its installation "
+         "directory to the PATH environment variable and restart Sourcerer.")
+          .arg(workflowName, toolName, url));
+  messageBox.setTextInteractionFlags(Qt::TextBrowserInteraction);
+  if (auto *label =
+          messageBox.findChild<QLabel *>(QStringLiteral("qt_msgbox_label"))) {
+    label->setOpenExternalLinks(true);
+  }
+  messageBox.exec();
+
+  return false;
+}
+
+bool GitRepoContainer::ensureGraphiteCli() {
+  return ensureCliInstalled(
+      QStringLiteral("gt"), tr("Graphite CLI (gt)"), tr("Graphite"),
+      QStringLiteral("https://graphite.com/docs/install-the-cli"));
+}
+
+bool GitRepoContainer::graphiteInitialized() const {
+  const QString commonDir = gitCommonDirectory(_path);
+  return !commonDir.isEmpty() && QFileInfo::exists(QDir(commonDir).filePath(
+                                     QStringLiteral(".graphite_repo_config")));
+}
+
+QString GitRepoContainer::runGraphiteCli(const QStringList &arguments,
+                                         QString *output) const {
+  const QString gt = QStandardPaths::findExecutable(QStringLiteral("gt"));
+  if (gt.isEmpty()) {
+    return tr("The Graphite CLI (gt) was not found in PATH.");
+  }
+
+  const Util::ProcessResult result = Util::runProcess(
+      gt, arguments + QStringList{QStringLiteral("--no-interactive")}, _path);
+  if (output) {
+    *output = result.output;
+  }
+  if (!result.started) {
+    return tr("Failed to start gt: %1").arg(result.output);
+  }
+  if (result.exitCode != 0) {
+    return tr("gt %1 failed:\n%2")
+        .arg(arguments.join(QLatin1Char(' ')), Util::lastLines(result.output));
+  }
+  return {};
+}
+
+QString GitRepoContainer::runGitCli(const QStringList &arguments,
+                                    int *exitCode) const {
+  const QString git = QStandardPaths::findExecutable(QStringLiteral("git"));
+  if (git.isEmpty()) {
+    return tr("git was not found in PATH.");
+  }
+
+  const Util::ProcessResult result = Util::runProcess(git, arguments, _path);
+  if (exitCode) {
+    *exitCode = result.exitCode;
+    return result.started ? QString() : result.output;
+  }
+  if (!result.started || result.exitCode != 0) {
+    return tr("git %1 failed:\n%2")
+        .arg(arguments.join(QLatin1Char(' ')), Util::lastLines(result.output));
+  }
+  return {};
+}
+
+QString GitRepoContainer::commitAllChanges(const QString &message,
+                                           const QString &author,
+                                           const QString &email) const {
+  QString error = runGitCli({QStringLiteral("add"), QStringLiteral("--all")});
+  if (!error.isEmpty()) {
+    return error;
+  }
+
+  int exitCode = -1;
+  error = runGitCli({QStringLiteral("diff"), QStringLiteral("--cached"),
+                     QStringLiteral("--quiet")},
+                    &exitCode);
+  if (!error.isEmpty()) {
+    return error;
+  }
+  if (exitCode == 0) {
+    return tr("There are no changes to commit.");
+  }
+
+  // The message goes through a file, so no shell ever sees it.
+  QTemporaryFile messageFile;
+  if (!messageFile.open()) {
+    return tr("Failed to write the commit message.");
+  }
+  messageFile.write(message.toUtf8());
+  messageFile.flush();
+
+  return runGitCli({QStringLiteral("-c"), QStringLiteral("user.name=") + author,
+                    QStringLiteral("-c"), QStringLiteral("user.email=") + email,
+                    QStringLiteral("commit"), QStringLiteral("--quiet"),
+                    QStringLiteral("--file"), messageFile.fileName()});
+}
+
+void GitRepoContainer::runGraphiteOperation(
+    const std::function<QString()> &operation, const QString &successMessage) {
+  runFlowOperation([=](const WeakPtr &guard) {
+    // gt rewrites several branches; refresh once at the end.
+    stopWatcher(guard);
+    const QString error = operation();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      if (error.isEmpty()) {
+        showToast(successMessage, tr("Info"));
+      } else {
+        showErrorToast(error, tr("Error"));
+      }
+    });
+    prepareWatcher(guard);
+  });
+}
+
+void GitRepoContainer::updateGraphiteMenu() {
+  if (_workflow != GitRepo::WorkflowType::Graphite || !_graphiteInitAction) {
+    return;
+  }
+
+  const bool initialized = graphiteInitialized();
+  _graphiteInitAction->setVisible(!initialized);
+  for (QAction *action : std::as_const(_graphiteActions)) {
+    if (action != _graphiteInitAction) {
+      action->setVisible(initialized);
+    }
+  }
+}
+
+void GitRepoContainer::onInitGraphite() {
+  LOG_PERF(0, "Enter");
+
+  if (!ensureGraphiteCli()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString trunk = gitHubFlowMainBranchName();
+  if (!GitRepo::isSafeGraphiteBranchName(trunk)) {
+    showErrorToast(tr("'%1' can't be used as the Graphite trunk.").arg(trunk),
+                   tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Initialize Graphite"),
+      tr("Initialize Graphite in this repository with '%1' as the trunk "
+         "branch?\n\nThe trunk is the GitHub Flow main branch from the "
+         "settings.")
+          .arg(trunk),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  runGraphiteOperation(
+      [=]() {
+        return runGraphiteCli(
+            {QStringLiteral("init"), QStringLiteral("--trunk"), trunk});
+      },
+      tr("Initialized Graphite with trunk '%1'.").arg(trunk));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onCreateGraphiteBranch() {
+  LOG_PERF(0, "Enter");
+
+  if (!ensureGraphiteCli()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!_userProfileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString author = _userProfileManager.currentProfile().author;
+  const QString email = _userProfileManager.currentProfile().email;
+
+  const auto nameOverlay = new TextInputOverlayWidget(this);
+  nameOverlay->setPlaceholderText(
+      tr("Enter the name of the branch stacked on '%1'").arg(_activeBranch));
+  connect(nameOverlay, &TextInputOverlayWidget::canceled, this, [=]() {
+    nameOverlay->hide();
+    delete nameOverlay;
+  });
+  connect(
+      nameOverlay, &TextInputOverlayWidget::submitted, this,
+      [=](const QString &input) {
+        nameOverlay->hide();
+        delete nameOverlay;
+
+        const QString branchName = input.trimmed();
+        if (!GitRepo::isSafeGraphiteBranchName(branchName)) {
+          showErrorToast(tr("Branch names may only contain letters, digits "
+                            "and the characters . _ - /"),
+                         tr("Error"));
+          return;
+        }
+
+        const auto messageOverlay = new TextInputOverlayWidget(this);
+        messageOverlay->setPlaceholderText(
+            tr("Commit message for all changes, leave empty for an empty "
+               "branch"));
+        connect(messageOverlay, &TextInputOverlayWidget::canceled, this, [=]() {
+          messageOverlay->hide();
+          delete messageOverlay;
+        });
+        connect(messageOverlay, &TextInputOverlayWidget::submitted, this,
+                [=](const QString &messageInput) {
+                  messageOverlay->hide();
+                  delete messageOverlay;
+
+                  const QString message = messageInput.trimmed();
+                  runGraphiteOperation(
+                      [=]() {
+                        // gt create commits staged changes, which needs a
+                        // message. The commit is made separately instead, so
+                        // the message never passes through a shell.
+                        QString error = runGitCli({QStringLiteral("reset"),
+                                                   QStringLiteral("--quiet")});
+                        if (error.isEmpty()) {
+                          error = runGraphiteCli(
+                              {QStringLiteral("create"), branchName});
+                        }
+                        if (error.isEmpty() && !message.isEmpty()) {
+                          error = commitAllChanges(message, author, email);
+                        }
+                        return error;
+                      },
+                      tr("Created branch '%1'.").arg(branchName));
+                });
+        messageOverlay->show();
+        messageOverlay->raise();
+        messageOverlay->focusAndSelectAll();
+      });
+  nameOverlay->show();
+  nameOverlay->raise();
+  nameOverlay->focusAndSelectAll();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onModifyGraphiteBranch() {
+  LOG_PERF(0, "Enter");
+
+  if (!ensureGraphiteCli()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString branchName = _activeBranch;
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Confirm Graphite modify"),
+      tr("Amend the last commit of '%1' with all changes and restack the "
+         "branches above it?")
+          .arg(branchName),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  runGraphiteOperation(
+      [=]() {
+        return runGraphiteCli(
+            {QStringLiteral("modify"), QStringLiteral("--all")});
+      },
+      tr("Amended '%1' and restacked the branches above it.").arg(branchName));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onModifyGraphiteBranchWithCommit() {
+  LOG_PERF(0, "Enter");
+
+  if (!ensureGraphiteCli()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!_userProfileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString author = _userProfileManager.currentProfile().author;
+  const QString email = _userProfileManager.currentProfile().email;
+  const QString branchName = _activeBranch;
+
+  const auto messageOverlay = new TextInputOverlayWidget(this);
+  messageOverlay->setPlaceholderText(
+      tr("Commit message for all changes on '%1'").arg(branchName));
+  connect(messageOverlay, &TextInputOverlayWidget::canceled, this, [=]() {
+    messageOverlay->hide();
+    delete messageOverlay;
+  });
+  connect(messageOverlay, &TextInputOverlayWidget::submitted, this,
+          [=](const QString &input) {
+            messageOverlay->hide();
+            delete messageOverlay;
+
+            const QString message = input.trimmed();
+            if (message.isEmpty()) {
+              showErrorToast(tr("Please enter a commit message."), tr("Error"));
+              return;
+            }
+
+            runGraphiteOperation(
+                [=]() {
+                  QString error = commitAllChanges(message, author, email);
+                  if (error.isEmpty()) {
+                    error = runGraphiteCli({QStringLiteral("restack")});
+                  }
+                  return error;
+                },
+                tr("Committed to '%1' and restacked the branches above it.")
+                    .arg(branchName));
+          });
+  messageOverlay->show();
+  messageOverlay->raise();
+  messageOverlay->focusAndSelectAll();
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onNavigateGraphiteStack(const QString &command) {
+  LOG_PERF(0, "Enter");
+
+  if (!ensureGraphiteCli()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!showWarningForBranchCheckout()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  QString successMessage;
+  if (command == QStringLiteral("up")) {
+    successMessage = tr("Checked out the branch above.");
+  } else if (command == QStringLiteral("down")) {
+    successMessage = tr("Checked out the branch below.");
+  } else if (command == QStringLiteral("top")) {
+    successMessage = tr("Checked out the top of the stack.");
+  } else if (command == QStringLiteral("trunk")) {
+    successMessage = tr("Checked out the trunk.");
+  } else {
+    successMessage = tr("Checked out the bottom of the stack.");
+  }
+
+  // gt bottom stops at the first branch above the trunk; the trunk itself is
+  // checked out with gt checkout --trunk.
+  const QStringList arguments =
+      command == QStringLiteral("trunk")
+          ? QStringList{QStringLiteral("checkout"), QStringLiteral("--trunk")}
+          : QStringList{command};
+
+  runFlowOperation([=](const WeakPtr &guard) {
+    stopWatcher(guard);
+    QString output;
+    const QString error = runGraphiteCli(arguments, &output);
+    // Where the stack forks, gt up and gt top need to be told which branch to
+    // take, which they only ask for interactively.
+    const QStringList choices =
+        error.isEmpty() ? QStringList()
+                        : GitRepo::graphiteAmbiguousBranches(output);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      showSpinnerOverlay(false);
+      if (!choices.isEmpty()) {
+        chooseGraphiteBranch(command, choices);
+      } else if (error.isEmpty()) {
+        showToast(successMessage, tr("Info"));
+      } else {
+        showErrorToast(error, tr("Error"));
+      }
+    });
+    prepareWatcher(guard);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::chooseGraphiteBranch(const QString &command,
+                                            const QStringList &branches) {
+  LOG_PERF(0, "Enter");
+
+  const QString label =
+      command == QStringLiteral("top")
+          ? tr("The stack above '%1' forks. Choose the top to check out:")
+                .arg(_activeBranch)
+          : tr("Several branches are stacked on '%1'. Choose the one to "
+               "check out:")
+                .arg(_activeBranch);
+
+  bool ok = false;
+  const QString branch = QInputDialog::getItem(this, tr("Choose branch"), label,
+                                               branches, 0, false, &ok);
+  if (!ok || branch.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // git runs without a shell, so any branch name is safe here.
+  runGraphiteOperation(
+      [=]() {
+        return runGitCli(
+            {QStringLiteral("switch"), QStringLiteral("--quiet"), branch});
+      },
+      tr("Checked out '%1'.").arg(branch));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onRestackGraphite() {
+  LOG_PERF(0, "Enter");
+
+  if (!ensureGraphiteCli()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  runGraphiteOperation(
+      [=]() { return runGraphiteCli({QStringLiteral("restack")}); },
+      tr("Restacked the current stack."));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onSyncGraphite() {
+  LOG_PERF(0, "Enter");
+
+  if (!ensureGraphiteCli()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (!showWarningForUncommittedChanges(
+          tr("Uncommitted Changes"),
+          tr("You have uncommitted changes on the current branch.\n\n"
+             "Do you really want to sync?\n\n"
+             "To keep your changes, stash them before syncing."))) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  runGraphiteOperation(
+      [=]() { return runGraphiteCli({QStringLiteral("sync")}); },
+      tr("Synced with the trunk and restacked the open branches."));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::onSubmitGraphiteStack() {
+  LOG_PERF(0, "Enter");
+
+  if (!ensureGraphiteCli()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Confirm Graphite submit"),
+      tr("Push the stack of '%1' and create or update its pull requests?\n\n"
+         "Branches are force pushed. Graphite must be authenticated, see gt "
+         "auth.")
+          .arg(_activeBranch),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+  if (reply != QMessageBox::Yes) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  runGraphiteOperation(
+      [=]() {
+        return runGraphiteCli(
+            {QStringLiteral("submit"), QStringLiteral("--stack")});
+      },
+      tr("Submitted the stack."));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::requestGraphiteStacksReload() const {
+  // Callable from any thread. Bursts of requests, e.g. while a refresh
+  // reloads several lists, end up in a single gt call.
+  if (_graphiteStacksTimer) {
+    QMetaObject::invokeMethod(_graphiteStacksTimer, qOverload<>(&QTimer::start),
+                              Qt::QueuedConnection);
+  }
+}
+
+void GitRepoContainer::setGraphiteStacks(
+    const GitRepo::GraphiteStacks &stacks) {
+  _graphiteStacks = stacks;
+  if (stacks.valid) {
+    ui->localPage->setGraphiteStacks(stacks);
+  } else {
+    ui->localPage->clearGraphiteStacks();
+  }
+}
+
+void GitRepoContainer::reloadGraphiteStacks() {
+  LOG_PERF(0, "Enter");
+
+  const QString gt = QStandardPaths::findExecutable(QStringLiteral("gt"));
+  if (_workflow != GitRepo::WorkflowType::Graphite || gt.isEmpty() ||
+      !graphiteInitialized()) {
+    if (_graphiteStacks.valid) {
+      setGraphiteStacks({});
+    }
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (_graphiteStacksProcess) {
+    _graphiteStacksReloadPending = true;
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // gt state prints the tracked branches as JSON. It takes about a second,
+  // so it runs asynchronously instead of on the dispatcher.
+  auto *process = new QProcess(this);
+  _graphiteStacksProcess = process;
+  process->setWorkingDirectory(_path);
+
+  const auto finish = [this, process](bool ok) {
+    if (_graphiteStacksProcess != process) {
+      return;
+    }
+    _graphiteStacksProcess = nullptr;
+    const QByteArray output =
+        ok ? process->readAllStandardOutput() : QByteArray();
+    process->deleteLater();
+
+    GitRepo::GraphiteStacks stacks = GitRepo::parseGraphiteState(output);
+    if (stacks.valid) {
+      QFile prInfo(QDir(gitCommonDirectory(_path))
+                       .filePath(QStringLiteral(".graphite_pr_info")));
+      if (prInfo.open(QIODevice::ReadOnly)) {
+        GitRepo::applyGraphitePrInfo(stacks, prInfo.readAll());
+      }
+    } else {
+      LOG_WARN("Could not read the Graphite stacks: {}",
+               QString::fromUtf8(output.left(200)).toStdString());
+    }
+
+    if (_workflow == GitRepo::WorkflowType::Graphite) {
+      setGraphiteStacks(stacks);
+    }
+
+    if (_graphiteStacksReloadPending) {
+      _graphiteStacksReloadPending = false;
+      _graphiteStacksTimer->start();
+    }
+  };
+
+  connect(process, &QProcess::finished, this,
+          [=](int exitCode, QProcess::ExitStatus status) {
+            finish(status == QProcess::NormalExit && exitCode == 0);
+          });
+  connect(process, &QProcess::errorOccurred, this,
+          [=](QProcess::ProcessError error) {
+            if (error == QProcess::FailedToStart) {
+              finish(false);
+            }
+          });
+  // Never let a hanging gt block further reloads.
+  QTimer::singleShot(30000, process, [process]() { process->kill(); });
+
+  process->start(gt,
+                 {QStringLiteral("state"), QStringLiteral("--no-interactive")});
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoContainer::addGraphiteBranchActions(QMenu &menu,
+                                                const QString &branchName) {
+  if (_workflow != GitRepo::WorkflowType::Graphite || !_graphiteStacks.valid) {
+    return;
+  }
+
+  const bool tracked = _graphiteStacks.isTracked(branchName);
+  const GitRepo::GraphiteBranch branch =
+      _graphiteStacks.branches.value(branchName);
+  if (branch.trunk) {
+    return;
+  }
+
+  menu.addSeparator();
+
+  // gt is usually an npm .cmd script on Windows, so only names cmd.exe takes
+  // literally are passed to it.
+  const bool safeName = GitRepo::isSafeGraphiteBranchName(branchName);
+  const QString unsafeReason =
+      tr("The branch name can't be passed to the Graphite CLI safely.");
+  const auto addAction = [&](const QString &text) {
+    QAction *action = menu.addAction(text);
+    if (!safeName) {
+      action->setEnabled(false);
+      action->setToolTip(unsafeReason);
+    }
+    return action;
+  };
+
+  if (!tracked) {
+    QAction *trackAction = addAction(tr("Track with Graphite..."));
+    connect(trackAction, &QAction::triggered, this,
+            [=]() { onTrackGraphiteBranch(branchName); });
+    return;
+  }
+
+  QAction *restackAction = addAction(tr("Restack"));
+  connect(restackAction, &QAction::triggered, this, [=]() {
+    if (!ensureGraphiteCli()) {
+      return;
+    }
+    runGraphiteOperation(
+        [=]() {
+          return runGraphiteCli({QStringLiteral("restack"),
+                                 QStringLiteral("--branch"), branchName});
+        },
+        tr("Restacked the stack of '%1'.").arg(branchName));
+  });
+
+  QAction *submitAction = addAction(tr("Submit stack"));
+  connect(submitAction, &QAction::triggered, this, [=]() {
+    if (!ensureGraphiteCli()) {
+      return;
+    }
+    const QMessageBox::StandardButton reply = QMessageBox::question(
+        this, tr("Confirm Graphite submit"),
+        tr("Push the stack of '%1' and create or update its pull "
+           "requests?\n\nBranches are force pushed. Graphite must be "
+           "authenticated, see gt auth.")
+            .arg(branchName),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (reply != QMessageBox::Yes) {
+      return;
+    }
+    runGraphiteOperation(
+        [=]() {
+          return runGraphiteCli({QStringLiteral("submit"),
+                                 QStringLiteral("--branch"), branchName,
+                                 QStringLiteral("--stack")});
+        },
+        tr("Submitted the stack of '%1'.").arg(branchName));
+  });
+
+  const GitRepo::GraphitePullRequest pullRequest = branch.pullRequest;
+  if (pullRequest.number > 0 && !pullRequest.url.isEmpty()) {
+    // Only opens a page, so the branch name doesn't matter here.
+    QAction *openAction =
+        menu.addAction(tr("Open pull request #%1").arg(pullRequest.number));
+    connect(openAction, &QAction::triggered, this, [=]() {
+      const QString repositoryName =
+          GitRepo::gitHubRepositoryFromPullRequestUrl(pullRequest.url);
+      emit openPullRequestRequested(repositoryName, QUrl(pullRequest.url),
+                                    tr("Pull request: %1").arg(branchName));
+    });
+  }
+
+  QAction *untrackAction = addAction(tr("Stop tracking with Graphite"));
+  connect(untrackAction, &QAction::triggered, this, [=]() {
+    if (!ensureGraphiteCli()) {
+      return;
+    }
+    const QMessageBox::StandardButton reply = QMessageBox::question(
+        this, tr("Confirm Graphite untrack"),
+        tr("Stop tracking '%1' with Graphite?\n\nBranches stacked on it are "
+           "untracked too. The branches themselves are kept.")
+            .arg(branchName),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (reply != QMessageBox::Yes) {
+      return;
+    }
+    runGraphiteOperation(
+        [=]() {
+          return runGraphiteCli({QStringLiteral("untrack"), branchName,
+                                 QStringLiteral("--force")});
+        },
+        tr("Stopped tracking '%1'.").arg(branchName));
+  });
+}
+
+void GitRepoContainer::onTrackGraphiteBranch(const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  if (!ensureGraphiteCli()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Trunks first, then the other tracked branches that can be passed safely.
+  QStringList parents = _graphiteStacks.trunks();
+  std::sort(parents.begin(), parents.end());
+  QStringList others;
+  for (const GitRepo::GraphiteBranch &branch : _graphiteStacks.branches) {
+    if (!branch.trunk && branch.name != branchName &&
+        GitRepo::isSafeGraphiteBranchName(branch.name)) {
+      others.append(branch.name);
+    }
+  }
+  std::sort(others.begin(), others.end());
+  parents += others;
+  if (parents.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  bool ok = false;
+  const QString parent = QInputDialog::getItem(
+      this, tr("Track with Graphite"),
+      tr("Choose the branch '%1' is stacked on:").arg(branchName), parents, 0,
+      false, &ok);
+  if (!ok || parent.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  runGraphiteOperation(
+      [=]() {
+        return runGraphiteCli({QStringLiteral("track"), branchName,
+                               QStringLiteral("--parent"), parent});
+      },
+      tr("'%1' is now tracked on top of '%2'.").arg(branchName, parent));
 
   LOG_PERF(0, "Exit");
 }
@@ -9842,6 +10719,9 @@ void GitRepoContainer::updateLocalBranchesModel(
   if (const auto locked = guard.lock()) {
     ui->localPage->updateModel(finalBranches);
   }
+
+  // Commits, checkouts and gt commands change the stacks too.
+  requestGraphiteStacksReload();
 
   LOG_PERF(0, "Exit")
 }

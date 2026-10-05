@@ -32,6 +32,11 @@ QString BranchesModel::iconPath() const {
 }
 
 Qt::ItemFlags BranchesModel::flags(const QModelIndex &index) const {
+  // The section header can't be selected, dragged or dropped on.
+  if (index.isValid() && isHeaderRow(index.row())) {
+    return Qt::ItemIsEnabled;
+  }
+
   Qt::ItemFlags defaultFlags = QStandardItemModel::flags(index);
   if (index.isValid())
     return defaultFlags | Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled;
@@ -101,11 +106,12 @@ bool BranchesModel::dropMimeData(const QMimeData *data, Qt::DropAction action,
   const QString sourceBranch = branches.first();
   QString destBranch;
 
-  if (row == -1 && column == -1) {
-    destBranch = parent.data().toString();
-  } else {
-    destBranch = index(row, column, parent).data().toString();
+  const QModelIndex destination =
+      row == -1 && column == -1 ? parent : index(row, column, parent);
+  if (isHeaderRow(destination.row())) {
+    return true;
   }
+  destBranch = destination.data().toString();
 
   const QStringList splitted = destBranch.split(' ');
   if (splitted.length() > 1) {
@@ -124,6 +130,9 @@ int BranchesModel::indexForBranch(const QString &branch) const {
 
   const int _rowCount = rowCount();
   for (int i = 0; i < _rowCount; ++i) {
+    if (isHeaderRow(i)) {
+      continue;
+    }
     QString modelBranchName = index(i, 0).data().toString();
     // Handle the case where the branch name might have status indicators
     const QStringList splitted = modelBranchName.split(' ');
@@ -144,7 +153,7 @@ int BranchesModel::indexForBranch(const QString &branch) const {
 QString BranchesModel::branchForIndex(int index) const {
   LOG_PERF(0, "Enter");
 
-  if (index < 0 || index >= rowCount()) {
+  if (index < 0 || index >= rowCount() || isHeaderRow(index)) {
     LOG_PERF(0, "Exit");
     return {};
   }
@@ -304,6 +313,122 @@ void BranchesModel::updateModelWithStatus(
   setActiveIndex(activeIndex);
 
   LOG_PERF(0, "Exit");
+}
+
+QVariant BranchesModel::data(const QModelIndex &index, int role) const {
+  if (!index.isValid()) {
+    return QStandardItemModel::data(index, role);
+  }
+
+  if (role == ActiveRole) {
+    return index.row() == _prevIndex;
+  }
+
+  if (isHeaderRow(index.row())) {
+    switch (role) {
+    case Qt::DisplayRole:
+      return tr("Not tracked by Graphite");
+    case GraphiteRowRole: {
+      GitRepo::GraphiteBranchRow header;
+      header.kind = GitRepo::GraphiteBranchRow::Kind::UntrackedHeader;
+      return QVariant::fromValue(header);
+    }
+    case Qt::DecorationRole:
+    case Qt::ToolTipRole:
+      return {};
+    default:
+      return QStandardItemModel::data(index, role);
+    }
+  }
+
+  if (_graphiteRows.isEmpty() ||
+      (role != GraphiteRowRole && role != GraphiteBranchRole &&
+       role != Qt::ToolTipRole)) {
+    return QStandardItemModel::data(index, role);
+  }
+
+  // Items are recreated when the active branch changes, so the Graphite data
+  // is looked up by branch name instead of being stored on the item.
+  const QString branch =
+      QStandardItemModel::data(index, Qt::DisplayRole).toString();
+  const auto row = _graphiteRows.constFind(branch);
+  if (row == _graphiteRows.constEnd()) {
+    return QStandardItemModel::data(index, role);
+  }
+
+  switch (role) {
+  case GraphiteRowRole:
+    return QVariant::fromValue(*row);
+  case GraphiteBranchRole:
+    return QVariant::fromValue(_graphiteStacks.branches.value(branch));
+  case Qt::ToolTipRole:
+    return graphiteToolTip(branch);
+  default:
+    return QStandardItemModel::data(index, role);
+  }
+}
+
+void BranchesModel::setGraphite(const QVector<GitRepo::GraphiteBranchRow> &rows,
+                                const GitRepo::GraphiteStacks &stacks,
+                                const int headerRow) {
+  _graphiteRows.clear();
+  for (const GitRepo::GraphiteBranchRow &row : rows) {
+    if (row.kind == GitRepo::GraphiteBranchRow::Kind::Branch) {
+      _graphiteRows.insert(row.branch, row);
+    }
+  }
+  _graphiteStacks = stacks;
+  _graphiteHeaderRow = headerRow;
+}
+
+void BranchesModel::clearGraphite() {
+  _graphiteRows.clear();
+  _graphiteStacks = {};
+  _graphiteHeaderRow = -1;
+}
+
+bool BranchesModel::isHeaderRow(const int row) const {
+  return _graphiteHeaderRow >= 0 && row == _graphiteHeaderRow;
+}
+
+QString BranchesModel::graphiteToolTip(const QString &branch) const {
+  if (!_graphiteStacks.isTracked(branch)) {
+    return tr("%1\nNot tracked by Graphite").arg(branch);
+  }
+
+  const GitRepo::GraphiteBranch info = _graphiteStacks.branches.value(branch);
+  QStringList lines = {branch};
+  if (info.trunk) {
+    lines.append(tr("Graphite trunk"));
+  } else if (!info.parent.isEmpty()) {
+    lines.append(tr("Stacked on %1").arg(info.parent));
+  }
+  if (!info.children.isEmpty()) {
+    lines.append(tr("Branches stacked on it: %1")
+                     .arg(info.children.join(QStringLiteral(", "))));
+  }
+  if (info.needsRestack) {
+    lines.append(tr("Needs restack: %1 has new commits").arg(info.parent));
+  }
+  if (info.pullRequest.number > 0) {
+    QString state = tr("open");
+    if (info.pullRequest.state == QStringLiteral("MERGED")) {
+      state = tr("merged");
+    } else if (info.pullRequest.state == QStringLiteral("CLOSED")) {
+      state = tr("closed");
+    } else if (info.pullRequest.draft) {
+      state = tr("draft");
+    }
+    lines.append(
+        tr("Pull request #%1 (%2)").arg(info.pullRequest.number).arg(state));
+    if (!info.pullRequest.title.isEmpty()) {
+      lines.append(info.pullRequest.title);
+    }
+    if (!info.pullRequest.url.isEmpty()) {
+      lines.append(info.pullRequest.url);
+    }
+  }
+  return lines.join(QLatin1Char('\n'));
 }
 
 } // namespace GuiManager::Models

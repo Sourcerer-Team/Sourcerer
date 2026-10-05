@@ -84,6 +84,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/delegates/ElideDelegate.h
         include/delegates/ElidePartialColorDelegate.h
         include/delegates/FixedHeightDelegate.h
+        include/delegates/GraphiteBranchDelegate.h
         include/delegates/HistorySliceTableColumnDelegate.h
         include/delegates/HistorySummaryTableColumnDelegate.h
         include/delegates/HomeRecentItemDelegate.h
@@ -192,6 +193,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/containers/PleaseWaitContainer.cpp
         src/containers/ReleaseNotesContainer.cpp
         src/containers/SettingsContainer.cpp
+        src/delegates/GraphiteBranchDelegate.cpp
         src/delegates/HistorySliceTableColumnDelegate.cpp
         src/delegates/HistorySummaryTableColumnDelegate.cpp
         src/delegates/HomeRecentItemDelegate.cpp

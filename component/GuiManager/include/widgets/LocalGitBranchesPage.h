@@ -2,7 +2,11 @@
 
 #include "models/BranchesModel.h"
 
+#include <GraphiteUtils.h>
+
 #include <QWidget>
+
+class QAbstractItemDelegate;
 
 namespace Ui {
 class LocalGitBranchesPage;
@@ -21,6 +25,10 @@ public:
   void updateActiveBranch(const QString &branchName);
   void updateModel(const QStringList &localBranches);
 
+  // Shows the branches as Graphite stacks until clearGraphiteStacks().
+  void setGraphiteStacks(const GitRepo::GraphiteStacks &stacks);
+  void clearGraphiteStacks();
+
 signals:
   void branchSelected(const QString &branchName);
   void branchRightClicked(const QString &branchName, const QPoint &pos);
@@ -32,10 +40,17 @@ private slots:
   void onListViewDoubleClicked(const QModelIndex &index);
 
 private:
+  void rebuild();
+
   Models::BranchesModel *_model;
   Ui::LocalGitBranchesPage *ui;
 
   int _previous;
+  QStringList _localBranches;
+  QString _activeBranch;
+  GitRepo::GraphiteStacks _graphiteStacks;
+  QAbstractItemDelegate *_defaultDelegate{nullptr};
+  QAbstractItemDelegate *_graphiteDelegate{nullptr};
 };
 
 } // namespace GuiManager::Widgets
