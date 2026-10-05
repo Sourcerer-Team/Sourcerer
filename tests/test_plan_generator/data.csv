@@ -916,3 +916,28 @@ TC-189,Integration,Debug Build Next To Installed Release,"1. Start the installed
 3. Open the same GitHub issue tracker in both","Both run at the same time
 The Debug build stores WebEngine data in webengine-debug and issue-trackers/webengine-debug
 No ""database is locked"" messages in the Debug output",Low,Not Tested,Development only
+TC-190,Branches - Local,git-flow-next Initialize,"1. Open a repository without git-flow configuration
+2. Select Workflow > GitFlow-Next
+3. Select Initialize git-flow-next and confirm","The classic preset is written to .git/config (gitflow.branch.* keys)
+The develop branch is created from main if it is missing
+The menu then lists Start feature, Start hotfix and Start release",High,Not Tested,Main and develop names come from the Git Flow settings
+TC-191,Branches - Local,"git-flow-next Start, Update and Finish Feature","1. Select Start feature and enter a name
+2. Commit on the feature and on develop
+3. Select Update from develop
+4. Select Finish and confirm","The feature starts at develop
+Update rebases the feature onto develop (downstreamStrategy=rebase)
+Finish merges it into develop, checks out develop and deletes the feature",High,Not Tested,
+TC-192,Branches - Local,git-flow-next Finish Release,"1. Start release 1.0 and commit
+2. Select Finish and confirm","The confirmation lists merge into main, tag 1.0, update develop from main and delete
+main contains the release, annotated tag 1.0 points at main
+develop contains main",High,Not Tested,A finish is refused when the tag already exists
+TC-193,Branches - Local,git-flow-next Custom Configuration,"1. Edit .git/config: add a topic type (e.g. gitflow.branch.bugfix.type=topic, parent=develop) and set gitflow.branch.hotfix.upstreamStrategy=squash
+2. Open the git-flow-next menu
+3. Finish a hotfix","Start bugfix appears in the menu
+The hotfix is squashed into one commit on main
+Configuration written by the git flow command line tool is used the same way",Medium,Not Tested,
+TC-194,Branches - Local,GitFlow-Next Without the CLI,"1. Make sure git-flow (git-flow-next) is not in PATH
+2. Select Workflow > GitFlow-Next
+3. Select any GitFlow-Next menu item","A dialog says the git-flow-next command line tool was not found and asks to download it and add its installation directory to PATH
+The link https://github.com/gittower/git-flow-next opens in the browser
+The selected action is not run",High,Not Tested,"After installing, Sourcerer must be restarted to see the new PATH"

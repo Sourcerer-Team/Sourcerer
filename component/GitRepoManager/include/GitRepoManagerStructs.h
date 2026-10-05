@@ -749,6 +749,10 @@ struct GitRepoGitFlowCommand final : GitRepoCommand {
       GitRepo::GitLabFlowAction::Unknown;
   GitRepo::GitHubFlowAction gitHubFlowAction =
       GitRepo::GitHubFlowAction::Unknown;
+  // git-flow-next. topicType is the configured topic branch type to start.
+  GitRepo::GitFlowNextAction gitFlowNextAction =
+      GitRepo::GitFlowNextAction::Unknown;
+  QString topicType;
   QString mainBranchName;
   QStringList environmentChain;
   QString commit;

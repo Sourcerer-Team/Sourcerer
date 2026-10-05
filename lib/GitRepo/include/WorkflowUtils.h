@@ -1,8 +1,12 @@
 #pragma once
 
+#include <QHash>
+#include <QList>
+#include <QPair>
 #include <QString>
 #include <QStringList>
 #include <QUrl>
+#include <QVector>
 
 namespace GitRepo {
 
@@ -10,6 +14,18 @@ enum class WorkflowType {
   GitFlow = 0,
   GitLabFlow,
   GitHubFlow,
+  GitFlowNext,
+
+  last
+};
+
+enum class GitFlowNextAction {
+  Unknown = 0,
+
+  Init,
+  Start,
+  Finish,
+  Update,
 
   last
 };
@@ -43,6 +59,8 @@ inline QString workflowTypeToString(WorkflowType type) {
     return QStringLiteral("gitlabflow");
   case WorkflowType::GitHubFlow:
     return QStringLiteral("githubflow");
+  case WorkflowType::GitFlowNext:
+    return QStringLiteral("gitflownext");
   case WorkflowType::GitFlow:
   case WorkflowType::last:
   default:
@@ -59,6 +77,11 @@ inline WorkflowType workflowTypeFromString(const QString &value) {
 
   if (trimmed.compare(QStringLiteral("githubflow"), Qt::CaseInsensitive) == 0) {
     return WorkflowType::GitHubFlow;
+  }
+
+  if (trimmed.compare(QStringLiteral("gitflownext"), Qt::CaseInsensitive) ==
+      0) {
+    return WorkflowType::GitFlowNext;
   }
 
   return WorkflowType::GitFlow;
@@ -186,5 +209,274 @@ inline bool isGitLabFlowReleaseBranch(const QString &branchName,
   return !trimmedSuffix.isEmpty() && branchName.size() > trimmedSuffix.size() &&
          branchName.endsWith(trimmedSuffix);
 }
+
+// git-flow-next (https://github.com/gittower/git-flow-next) keeps its branch
+// model in the repository config under gitflow.branch.<name>.<property>.
+// Base branches (e.g. main, develop) are long lived, topic branch types (e.g.
+// feature, release, hotfix) describe the short lived branches started from
+// and finished into them.
+struct GitFlowNextBranch {
+  // Branch name for base branches, branch type name for topic branches.
+  QString name;
+  bool topic = false;
+  QString parent;
+  QString startPoint;
+  QString prefix;
+  // merge, rebase or squash when finishing into the parent.
+  QString upstreamStrategy = QStringLiteral("merge");
+  // merge or rebase when updating from the parent.
+  QString downstreamStrategy = QStringLiteral("merge");
+  bool tag = false;
+  QString tagPrefix;
+  bool autoUpdate = false;
+  // gitflow.<type>.finish.keep
+  bool keepOnFinish = false;
+};
+
+struct GitFlowNextConfig {
+  bool initialized = false;
+  QVector<GitFlowNextBranch> branches;
+
+  QVector<GitFlowNextBranch> topicTypes() const {
+    QVector<GitFlowNextBranch> result;
+    for (const GitFlowNextBranch &branch : branches) {
+      if (branch.topic) {
+        result.append(branch);
+      }
+    }
+    return result;
+  }
+};
+
+inline bool gitFlowNextIsTrue(const QString &value) {
+  const QString normalized = value.trimmed().toLower();
+  return normalized == QStringLiteral("true") ||
+         normalized == QStringLiteral("yes") ||
+         normalized == QStringLiteral("on") ||
+         normalized == QStringLiteral("1");
+}
+
+// Builds the model from gitflow.* config entries. Keys are matched case
+// insensitively, as git does for section and variable names.
+inline GitFlowNextConfig
+parseGitFlowNextConfig(const QList<QPair<QString, QString>> &entries) {
+  GitFlowNextConfig config;
+  QStringList order;
+  QHash<QString, GitFlowNextBranch> branches;
+  QHash<QString, bool> hasType;
+  QHash<QString, QString> keep;
+  QHash<QString, QString> noTag;
+
+  const QString branchPrefix = QStringLiteral("gitflow.branch.");
+  for (const auto &[key, value] : entries) {
+    if (key.compare(QStringLiteral("gitflow.initialized"),
+                    Qt::CaseInsensitive) == 0) {
+      config.initialized = gitFlowNextIsTrue(value);
+      continue;
+    }
+
+    if (!key.startsWith(QStringLiteral("gitflow."), Qt::CaseInsensitive)) {
+      continue;
+    }
+
+    if (!key.startsWith(branchPrefix, Qt::CaseInsensitive)) {
+      // Command options: gitflow.<type>.finish.<option>
+      const QStringList parts = key.mid(8).split(QLatin1Char('.'));
+      if (parts.size() == 3 && parts.at(1).compare(QStringLiteral("finish"),
+                                                   Qt::CaseInsensitive) == 0) {
+        const QString option = parts.at(2).toLower();
+        if (option == QStringLiteral("keep")) {
+          keep.insert(parts.at(0), value);
+        } else if (option == QStringLiteral("notag")) {
+          noTag.insert(parts.at(0), value);
+        }
+      }
+      continue;
+    }
+
+    const QString rest = key.mid(branchPrefix.size());
+    const qsizetype dot = rest.lastIndexOf(QLatin1Char('.'));
+    if (dot <= 0) {
+      continue;
+    }
+
+    const QString name = rest.left(dot);
+    const QString property = rest.mid(dot + 1).toLower();
+    if (!branches.contains(name)) {
+      order.append(name);
+      GitFlowNextBranch branch;
+      branch.name = name;
+      branches.insert(name, branch);
+    }
+
+    GitFlowNextBranch &branch = branches[name];
+    const QString trimmed = value.trimmed();
+    if (property == QStringLiteral("type")) {
+      branch.topic =
+          trimmed.compare(QStringLiteral("topic"), Qt::CaseInsensitive) == 0;
+      hasType.insert(name, true);
+    } else if (property == QStringLiteral("parent")) {
+      branch.parent = trimmed;
+    } else if (property == QStringLiteral("startpoint")) {
+      branch.startPoint = trimmed;
+    } else if (property == QStringLiteral("prefix")) {
+      branch.prefix = trimmed;
+    } else if (property == QStringLiteral("upstreamstrategy")) {
+      branch.upstreamStrategy = trimmed.toLower();
+    } else if (property == QStringLiteral("downstreamstrategy")) {
+      branch.downstreamStrategy = trimmed.toLower();
+    } else if (property == QStringLiteral("tag")) {
+      branch.tag = gitFlowNextIsTrue(trimmed);
+    } else if (property == QStringLiteral("tagprefix")) {
+      branch.tagPrefix = trimmed;
+    } else if (property == QStringLiteral("autoupdate")) {
+      branch.autoUpdate = gitFlowNextIsTrue(trimmed);
+    }
+  }
+
+  for (const QString &name : order) {
+    if (!hasType.value(name)) {
+      continue;
+    }
+
+    GitFlowNextBranch branch = branches.value(name);
+    if (branch.topic) {
+      if (branch.prefix.isEmpty()) {
+        branch.prefix = name + QLatin1Char('/');
+      }
+      if (keep.contains(name)) {
+        branch.keepOnFinish = gitFlowNextIsTrue(keep.value(name));
+      }
+      if (noTag.contains(name) && gitFlowNextIsTrue(noTag.value(name))) {
+        branch.tag = false;
+      }
+    }
+    config.branches.append(branch);
+  }
+
+  if (!config.branches.isEmpty()) {
+    config.initialized = true;
+  }
+
+  return config;
+}
+
+// The configuration `git flow init --preset=classic` writes.
+inline QList<QPair<QString, QString>>
+gitFlowNextClassicPreset(const QString &mainBranchName,
+                         const QString &developBranchName) {
+  const QString main = mainBranchName.trimmed();
+  const QString develop = developBranchName.trimmed();
+  const auto key = [](const QString &branch, const char *property) {
+    return QStringLiteral("gitflow.branch.%1.%2")
+        .arg(branch, QString::fromLatin1(property));
+  };
+
+  QList<QPair<QString, QString>> entries = {
+      {QStringLiteral("gitflow.version"), QStringLiteral("1.0")},
+      {QStringLiteral("gitflow.initialized"), QStringLiteral("true")},
+
+      {key(main, "type"), QStringLiteral("base")},
+      {key(main, "upstreamStrategy"), QStringLiteral("merge")},
+      {key(main, "downstreamStrategy"), QStringLiteral("merge")},
+      {key(main, "autoUpdate"), QStringLiteral("false")},
+
+      {key(develop, "type"), QStringLiteral("base")},
+      {key(develop, "parent"), main},
+      {key(develop, "startPoint"), main},
+      {key(develop, "upstreamStrategy"), QStringLiteral("merge")},
+      {key(develop, "downstreamStrategy"), QStringLiteral("merge")},
+      {key(develop, "autoUpdate"), QStringLiteral("true")},
+  };
+
+  struct Topic {
+    const char *name;
+    QString parent;
+    QString startPoint;
+    const char *downstreamStrategy;
+    const char *tag;
+  };
+  const Topic topics[] = {
+      {"feature", develop, develop, "rebase", "false"},
+      {"release", main, develop, "merge", "true"},
+      {"hotfix", main, main, "merge", "true"},
+  };
+  for (const Topic &topic : topics) {
+    const QString name = QString::fromLatin1(topic.name);
+    entries.append({key(name, "type"), QStringLiteral("topic")});
+    entries.append({key(name, "parent"), topic.parent});
+    entries.append({key(name, "startPoint"), topic.startPoint});
+    entries.append({key(name, "prefix"), name + QLatin1Char('/')});
+    entries.append({key(name, "upstreamStrategy"), QStringLiteral("merge")});
+    entries.append({key(name, "downstreamStrategy"),
+                    QString::fromLatin1(topic.downstreamStrategy)});
+    entries.append({key(name, "tag"), QString::fromLatin1(topic.tag)});
+  }
+
+  return entries;
+}
+
+// The topic branch type a branch belongs to, by the longest matching prefix.
+// Returns nullptr for base branches and unrelated branches.
+inline const GitFlowNextBranch *
+gitFlowNextTopicTypeForBranch(const GitFlowNextConfig &config,
+                              const QString &branchName) {
+  const GitFlowNextBranch *match = nullptr;
+  for (const GitFlowNextBranch &branch : config.branches) {
+    if (!branch.topic || branch.prefix.isEmpty() ||
+        branchName.size() <= branch.prefix.size() ||
+        !branchName.startsWith(branch.prefix)) {
+      continue;
+    }
+    if (!match || branch.prefix.size() > match->prefix.size()) {
+      match = &branch;
+    }
+  }
+  return match;
+}
+
+inline QString gitFlowNextStartPoint(const GitFlowNextBranch &type) {
+  return type.startPoint.isEmpty() ? type.parent : type.startPoint;
+}
+
+inline QString gitFlowNextBranchNameForInput(const GitFlowNextBranch &type,
+                                             const QString &input) {
+  const QString trimmed = input.trimmed();
+  if (trimmed.isEmpty() || trimmed.startsWith(type.prefix)) {
+    return trimmed;
+  }
+  return type.prefix + trimmed;
+}
+
+// Tag created when finishing branchName, e.g. release/1.2 -> v1.2 for the
+// tag prefix "v".
+inline QString gitFlowNextTagName(const GitFlowNextBranch &type,
+                                  const QString &branchName) {
+  const QString shortName = branchName.startsWith(type.prefix)
+                                ? branchName.mid(type.prefix.size())
+                                : branchName;
+  return type.tagPrefix + shortName;
+}
+
+// Base branches kept up to date with parentBranch, e.g. develop after a
+// release was finished into main.
+inline QStringList
+gitFlowNextAutoUpdateBranches(const GitFlowNextConfig &config,
+                              const QString &parentBranch) {
+  QStringList result;
+  for (const GitFlowNextBranch &branch : config.branches) {
+    if (!branch.topic && branch.autoUpdate && branch.parent == parentBranch &&
+        branch.name != parentBranch) {
+      result.append(branch.name);
+    }
+  }
+  return result;
+}
+
+// What the workflow menu of a repository is built from.
+struct WorkflowState {
+  WorkflowType type = WorkflowType::GitFlow;
+  GitFlowNextConfig gitFlowNext;
+};
 
 } // namespace GitRepo

@@ -159,6 +159,10 @@ public:
   void runGitHubFlowAction(const QWeakPointer<GitRepoContainer> &guard,
                            const GitRepo::GitHubFlowAction action,
                            const QString &branchName) override;
+  void runGitFlowNextAction(const QWeakPointer<GitRepoContainer> &guard,
+                            const GitRepo::GitFlowNextAction action,
+                            const QString &name,
+                            const QString &argument = QString()) override;
   void getWorkflowType(const QWeakPointer<GitRepoContainer> &guard) override;
   void setWorkflowType(const QWeakPointer<GitRepoContainer> &guard,
                        const GitRepo::WorkflowType workflow) override;

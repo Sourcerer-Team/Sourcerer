@@ -176,6 +176,13 @@ public:
   virtual void runGitHubFlowAction(const QWeakPointer<GitRepoContainer> &guard,
                                    const GitRepo::GitHubFlowAction action,
                                    const QString &branchName) = 0;
+  // name is the main branch for Init, the topic branch type for Start and the
+  // branch for Finish and Update; argument is the develop branch for Init and
+  // the new branch for Start.
+  virtual void runGitFlowNextAction(const QWeakPointer<GitRepoContainer> &guard,
+                                    const GitRepo::GitFlowNextAction action,
+                                    const QString &name,
+                                    const QString &argument = QString()) = 0;
   virtual void getWorkflowType(const QWeakPointer<GitRepoContainer> &guard) = 0;
   virtual void setWorkflowType(const QWeakPointer<GitRepoContainer> &guard,
                                const GitRepo::WorkflowType workflow) = 0;
