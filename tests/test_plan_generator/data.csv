@@ -840,3 +840,43 @@ TC-175,Working Directory,Delete Selected Files from Changes View,"1. Create or m
 Repository status refreshes
 Diff viewer closes if it was open
 User cancellation leaves files untouched",High,Not Tested,
+TC-176,Branches - Local,Switch Workflow per Repository,"1. Open two repositories
+2. In the first, open the Git Flow dropdown and select Workflow > GitLab Flow
+3. Open the dropdown in the second repository
+4. Restart the application and reopen both repositories","First repository shows the GitLab Flow items and the GitLab Flow tooltip
+Second repository still shows the classic Git Flow items
+Both choices survive the restart
+git config sourcerer.workflow shows gitlabflow in the first repository",High,Not Tested,Repositories without sourcerer.workflow use classic Git Flow
+TC-177,Branches - Local,GitLab Flow Start and Finish Feature,"1. Select Workflow > GitLab Flow
+2. Select Start feature and enter a name
+3. Commit a change
+4. Select Finish feature and confirm","feature/<name> is created from the GitLab Flow main branch and checked out
+Finishing merges it into the main branch and deletes the feature branch
+Main branch is checked out afterwards",High,Not Tested,
+TC-178,Branches - Local,GitLab Flow Promote to Environment,"1. Select Workflow > GitLab Flow
+2. Checkout the main branch and open the dropdown
+3. Select Promote to pre-production and confirm
+4. Repeat from pre-production
+5. Checkout production and select Promote","Menu item names the next environment
+Missing environment branch is created from the promoted branch
+Existing environment branch receives a merge of the promoted branch
+Promoting the last environment or a branch outside the chain shows an error",High,Not Tested,
+TC-179,Branches - Local,GitLab Flow Start Release,"1. Select Workflow > GitLab Flow
+2. Select Start release
+3. Enter 1.2",Branch 1-2-stable is created from the main branch and checked out,Medium,Not Tested,
+TC-180,Branches - Local,GitLab Flow Cherry-pick to Release,"1. Create a release branch with Start release
+2. Commit a fix on the main branch and select it in the history
+3. Open Cherry-pick to release and select the release branch
+4. Repeat with a fix that conflicts with the release branch","Release branches are listed newest first
+Fix is committed on the release branch and the original branch is checked out again
+On conflicts the release branch stays checked out and a conflict message is shown
+Without a selected commit a commit SHA is asked for",High,Not Tested,
+TC-181,Settings,GitLab Flow Settings,"1. Open Settings and find the GitLab Flow settings
+2. Change the environment branches to staging,production
+3. Clear the main branch value
+4. Promote from main","Promote targets staging
+Empty values fall back to the defaults main, pre-production,production and -stable",Medium,Not Tested,
+TC-182,Branches - Local,GitLab Flow Actions with All Branches,"1. Select Workflow > GitLab Flow
+2. Select the * item in the local branches panel
+3. Open the Git Flow dropdown","Finish feature, Promote and Cherry-pick to release are disabled
+Start feature and Start release stay enabled",Low,Not Tested,

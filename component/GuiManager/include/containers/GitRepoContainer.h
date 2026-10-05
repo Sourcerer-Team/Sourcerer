@@ -181,6 +181,12 @@ private slots:
   void onPush(bool force = false);
   void onStartGitFlowBranch(GitRepo::GitFlowBranchType branchType);
   void onFinishGitFlowBranch(GitRepo::GitFlowBranchType branchType);
+  void onWorkflowSelected(GitRepo::WorkflowType workflow);
+  void onStartGitLabFlowFeature();
+  void onFinishGitLabFlowFeature();
+  void onPromoteGitLabFlow();
+  void onStartGitLabFlowRelease();
+  void onCherryPickToGitLabFlowRelease(const QString &releaseBranchName);
   void onRemoteBranchSelected(const QString &branchName);
   void onRemoteBranchRightClicked(const QString &branchName, const QPoint &pos);
   void onRenameBranch(const QString &branchName);
@@ -327,6 +333,18 @@ private:
   QString gitFlowBranchNameForInput(GitRepo::GitFlowBranchType branchType,
                                     const QString &name) const;
   QString currentGitFlowBranchName(GitRepo::GitFlowBranchType branchType) const;
+  void promptToStartBranch(
+      const QString &placeholderText,
+      const std::function<QString(const QString &)> &branchNameForInput,
+      const std::function<void(const WeakPtr &, const QString &)> &startBranch);
+  void runFlowOperation(const std::function<void(const WeakPtr &)> &operation);
+  void applyWorkflow(GitRepo::WorkflowType workflow);
+  void updateGitLabFlowMenu();
+  void updateGitLabFlowCherryPickMenu();
+  QString gitLabFlowMainBranchName() const;
+  QStringList gitLabFlowEnvironmentChain() const;
+  QString gitLabFlowReleaseBranchSuffix() const;
+  QString selectedHistoryCommit() const;
   void copyFilePathsToClipboard(const QStringList &filePaths);
   bool showWarningForUncommittedChanges(const QString &title,
                                         const QString &message) const;
@@ -389,6 +407,15 @@ private:
   QToolButton *_pullFetchButton{nullptr};
   QToolButton *_pushButton{nullptr};
   QVector<QAction *> _singleBranchShortcutActions;
+  QToolButton *_gitFlowButton{nullptr};
+  QAction *_gitFlowWorkflowAction{nullptr};
+  QAction *_gitLabFlowWorkflowAction{nullptr};
+  QAction *_gitLabFlowPromoteAction{nullptr};
+  QMenu *_gitLabFlowCherryPickMenu{nullptr};
+  // Menu entries, separators included, shown for each workflow.
+  QVector<QAction *> _gitFlowActions;
+  QVector<QAction *> _gitLabFlowActions;
+  GitRepo::WorkflowType _workflow{GitRepo::WorkflowType::GitFlow};
   // Commit the user asked for that is not loaded yet, selected once the
   // history page containing it arrives.
   QString _pendingSelectCommit;

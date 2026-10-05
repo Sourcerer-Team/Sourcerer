@@ -99,7 +99,8 @@ QString plistValue(const QString &bundlePath, const QString &key) {
       QStringLiteral("/usr/bin/plutil"),
       {QStringLiteral("-extract"), key, QStringLiteral("raw"),
        QStringLiteral("-o"), QStringLiteral("-"),
-       QDir(bundlePath).absoluteFilePath(QStringLiteral("Contents/Info.plist"))});
+       QDir(bundlePath)
+           .absoluteFilePath(QStringLiteral("Contents/Info.plist"))});
   return result.ok() ? result.output.trimmed() : QString();
 }
 
@@ -123,11 +124,11 @@ QString teamIdentifier(const QString &bundlePath) {
 }
 
 bool verifySignature(const QString &bundlePath, QString &error) {
-  const ProcessResult result = runProcess(
-      QStringLiteral("/usr/bin/codesign"),
-      {QStringLiteral("--verify"), QStringLiteral("--deep"),
-       QStringLiteral("--strict"), bundlePath},
-      LONG_TIMEOUT_MS);
+  const ProcessResult result =
+      runProcess(QStringLiteral("/usr/bin/codesign"),
+                 {QStringLiteral("--verify"), QStringLiteral("--deep"),
+                  QStringLiteral("--strict"), bundlePath},
+                 LONG_TIMEOUT_MS);
   if (!result.ok()) {
     error = QStringLiteral("The code signature of the update is invalid: %1")
                 .arg(result.output.trimmed());
@@ -171,9 +172,8 @@ bool copyBundle(const QString &source, const QString &destination,
     return false;
   }
 
-  const ProcessResult result =
-      runProcess(QStringLiteral("/usr/bin/ditto"), {source, destination},
-                 LONG_TIMEOUT_MS);
+  const ProcessResult result = runProcess(
+      QStringLiteral("/usr/bin/ditto"), {source, destination}, LONG_TIMEOUT_MS);
   if (!result.ok()) {
     error = QStringLiteral("Unable to copy the update: %1")
                 .arg(result.output.trimmed());
@@ -248,13 +248,13 @@ struct MountedImage {
     }
 
     // The image was verified before; -noverify avoids doing it twice.
-    const ProcessResult result = runProcess(
-        QStringLiteral("/usr/bin/hdiutil"),
-        {QStringLiteral("attach"), QStringLiteral("-nobrowse"),
-         QStringLiteral("-readonly"), QStringLiteral("-noautoopen"),
-         QStringLiteral("-noverify"), QStringLiteral("-mountpoint"), where,
-         dmgPath},
-        LONG_TIMEOUT_MS);
+    const ProcessResult result =
+        runProcess(QStringLiteral("/usr/bin/hdiutil"),
+                   {QStringLiteral("attach"), QStringLiteral("-nobrowse"),
+                    QStringLiteral("-readonly"), QStringLiteral("-noautoopen"),
+                    QStringLiteral("-noverify"), QStringLiteral("-mountpoint"),
+                    where, dmgPath},
+                   LONG_TIMEOUT_MS);
     if (!result.ok()) {
       error = QStringLiteral("Unable to mount the update image: %1")
                   .arg(result.output.trimmed());
@@ -311,8 +311,8 @@ Inspection inspectApplication(const QString &newBundle,
     return Inspection::Rejected;
   }
 
-  const QDir macOsDir(QDir(newBundle).absoluteFilePath(
-      QStringLiteral("Contents/MacOS")));
+  const QDir macOsDir(
+      QDir(newBundle).absoluteFilePath(QStringLiteral("Contents/MacOS")));
   if (!macOsDir.exists(QStringLiteral("Sourcerer")) ||
       !macOsDir.exists(QStringLiteral("SourcererLauncher"))) {
     error = QStringLiteral("The update is missing required executables.");
@@ -324,9 +324,8 @@ Inspection inspectApplication(const QString &newBundle,
       runProcess(QStringLiteral("/usr/bin/lipo"),
                  {QStringLiteral("-archs"),
                   macOsDir.absoluteFilePath(QStringLiteral("Sourcerer"))});
-  if (!archs.ok() ||
-      !archs.output.split(QLatin1Char(' '), Qt::SkipEmptyParts)
-           .contains(architecture)) {
+  if (!archs.ok() || !archs.output.split(QLatin1Char(' '), Qt::SkipEmptyParts)
+                          .contains(architecture)) {
     error = QStringLiteral("The update does not support this Mac (%1).")
                 .arg(architecture);
     return Inspection::Rejected;
@@ -382,8 +381,8 @@ bool copyAndValidate(const QString &source, const QString &destination,
 }
 
 bool runElevatedInstall(const QString &verifiedCopy,
-                        const QString &currentBundle, const Callbacks &callbacks,
-                        Outcome &outcome) {
+                        const QString &currentBundle,
+                        const Callbacks &callbacks, Outcome &outcome) {
   const QFileInfo bundleInfo(currentBundle);
   const QString team = teamIdentifier(currentBundle);
 
@@ -407,9 +406,9 @@ bool runElevatedInstall(const QString &verifiedCopy,
   if (callbacks.setWindowVisible) {
     callbacks.setWindowVisible(false);
   }
-  const ProcessResult result = runProcess(
-      QStringLiteral("/usr/bin/osascript"), {QStringLiteral("-e"), script},
-      LONG_TIMEOUT_MS);
+  const ProcessResult result =
+      runProcess(QStringLiteral("/usr/bin/osascript"),
+                 {QStringLiteral("-e"), script}, LONG_TIMEOUT_MS);
   if (callbacks.setWindowVisible) {
     callbacks.setWindowVisible(true);
   }
@@ -449,15 +448,17 @@ Outcome failed(const QString &message) {
 
 } // namespace
 
-QString privilegedHelperSwitch() { return QStringLiteral("--apply-update"); }
+QString privilegedHelperSwitch() {
+  return QStringLiteral("--apply-update");
+}
 
 Outcome installFromDmg(const QString &dmgPath, const Callbacks &callbacks) {
   const QString currentBundle = Util::UpdateStaging::macosBundlePath();
   const QString blocked =
       Util::UpdateStaging::macosSelfUpdateBlockedReason(currentBundle);
   if (!blocked.isEmpty()) {
-    return failed(QStringLiteral("The update cannot be installed: %1.")
-                      .arg(blocked));
+    return failed(
+        QStringLiteral("The update cannot be installed: %1.").arg(blocked));
   }
 
   if (!QFileInfo(dmgPath).isFile()) {
@@ -465,10 +466,10 @@ Outcome installFromDmg(const QString &dmgPath, const Callbacks &callbacks) {
   }
 
   report(callbacks, QStringLiteral("Verifying update..."));
-  const ProcessResult verify = runProcess(
-      QStringLiteral("/usr/bin/hdiutil"),
-      {QStringLiteral("verify"), QStringLiteral("-quiet"), dmgPath},
-      LONG_TIMEOUT_MS);
+  const ProcessResult verify =
+      runProcess(QStringLiteral("/usr/bin/hdiutil"),
+                 {QStringLiteral("verify"), QStringLiteral("-quiet"), dmgPath},
+                 LONG_TIMEOUT_MS);
   if (!verify.ok()) {
     return failed(QStringLiteral("The downloaded update is corrupt: %1")
                       .arg(verify.output.trimmed()));
@@ -561,16 +562,14 @@ int runPrivilegedHelper(const QStringList &arguments) {
   const QString source = arguments.at(0);
   const QString bundle = arguments.at(1);
   const QString owner = arguments.at(2) + QLatin1Char(':') + arguments.at(3);
-  const QString team = arguments.at(4) == QStringLiteral("-")
-                           ? QString()
-                           : arguments.at(4);
+  const QString team =
+      arguments.at(4) == QStringLiteral("-") ? QString() : arguments.at(4);
 
   bool numeric = false;
   arguments.at(2).toUInt(&numeric);
   bool numericGroup = false;
   arguments.at(3).toUInt(&numericGroup);
-  if (!numeric || !numericGroup ||
-      !bundle.endsWith(QStringLiteral(".app")) ||
+  if (!numeric || !numericGroup || !bundle.endsWith(QStringLiteral(".app")) ||
       QFileInfo(bundle).fileName() != QStringLiteral("Sourcerer.app") ||
       !QFileInfo(source).isDir()) {
     return HELPER_BAD_ARGUMENTS;

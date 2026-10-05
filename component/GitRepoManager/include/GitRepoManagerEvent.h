@@ -92,6 +92,7 @@ enum class EventType : int {
   CherryPick,
   SetDefaultRemote,
   SetDefaultTarget,
+  Workflow,
   Setup,
   SetUpstream,
   StageFiles,

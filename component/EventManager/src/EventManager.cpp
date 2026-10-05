@@ -695,6 +695,12 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerSetDefaultRemoteResult";
   case EventType::GitRepoManagerSetDefaultRemoteError:
     return "GitRepoManagerSetDefaultRemoteError";
+  case EventType::GitRepoManagerWorkflow:
+    return "GitRepoManagerWorkflow";
+  case EventType::GitRepoManagerWorkflowResult:
+    return "GitRepoManagerWorkflowResult";
+  case EventType::GitRepoManagerWorkflowError:
+    return "GitRepoManagerWorkflowError";
   case EventType::GitRepoManagerSetUpstream:
     return "GitRepoManagerSetUpstream";
   case EventType::GitRepoManagerSetUpstreamResult:

@@ -29,6 +29,9 @@ enum class ConfigKey {
   GitRepoMonospaceFontSize,
   GitRepoGitFlowMainBranchName,
   GitRepoGitFlowDevelopmentBranchName,
+  GitRepoGitLabFlowMainBranchName,
+  GitRepoGitLabFlowEnvironmentBranches,
+  GitRepoGitLabFlowReleaseBranchSuffix,
   GitRepoDiffViewType,
 
   // GitRepo library

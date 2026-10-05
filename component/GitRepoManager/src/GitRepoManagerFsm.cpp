@@ -199,6 +199,8 @@ QString GitRepoManagerFsm::eventName(int event) const {
     return "SetDefaultRemote";
   case EventType::SetDefaultTarget:
     return "SetDefaultTarget";
+  case EventType::Workflow:
+    return "Workflow";
   case EventType::Setup:
     return "Setup";
   case EventType::SetUpstream:

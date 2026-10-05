@@ -59,10 +59,11 @@ TitleBarButton *macWindowButton(MacWindowButtonRole role, QWidget *parent,
   button->setToolTip(tooltip);
   button->setProperty("iconSource", QStringLiteral("macWindowButton"));
   button->setFlat(true);
-  button->setStyleSheet(QStringLiteral(
-      "QPushButton { background-color: transparent; border: none; padding: 0; margin: 0; }"
-      "QPushButton:hover { background-color: transparent; }"
-      "QPushButton:pressed { background-color: transparent; }"));
+  button->setStyleSheet(
+      QStringLiteral("QPushButton { background-color: transparent; border: "
+                     "none; padding: 0; margin: 0; }"
+                     "QPushButton:hover { background-color: transparent; }"
+                     "QPushButton:pressed { background-color: transparent; }"));
   button->setMinimumSize(QSize(15, 15));
   button->setMaximumSize(QSize(15, 15));
   button->setIconSize(QSize(14, 14));
@@ -130,15 +131,15 @@ TopBarWidget::TopBarWidget(QWidget *parent)
   QPushButton *maximizeButton = nullptr;
   QPushButton *closeButton = nullptr;
 #ifdef Q_OS_MACOS
-  minimizeButton = macWindowButton(MacWindowButtonRole::Minimize, this,
-                                   QStringLiteral("titleBarMinimizeButton"),
-                                   tr("Minimize"));
-  maximizeButton = macWindowButton(MacWindowButtonRole::Zoom, this,
-                                   QStringLiteral("titleBarMaximizeButton"),
-                                   tr("Maximize"));
-  closeButton = macWindowButton(MacWindowButtonRole::Close, this,
-                                QStringLiteral("titleBarCloseButton"),
-                                tr("Close"));
+  minimizeButton =
+      macWindowButton(MacWindowButtonRole::Minimize, this,
+                      QStringLiteral("titleBarMinimizeButton"), tr("Minimize"));
+  maximizeButton =
+      macWindowButton(MacWindowButtonRole::Zoom, this,
+                      QStringLiteral("titleBarMaximizeButton"), tr("Maximize"));
+  closeButton =
+      macWindowButton(MacWindowButtonRole::Close, this,
+                      QStringLiteral("titleBarCloseButton"), tr("Close"));
 #else
   if (!tilingWm) {
     minimizeButton = new TitleBarButton(
