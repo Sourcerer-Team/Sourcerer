@@ -46,14 +46,14 @@ template <typename Mutex>
 SPDLOG_INLINE filename_t septa_file_sink<Mutex>::calc_filename(
     const filename_t &filename, std::size_t index) {
   time_t theTime = time(NULL);
-  struct tm *currentTime = localtime(&theTime);
+  const std::tm currentTime = details::os::localtime(theTime);
 
-  int year = currentTime->tm_year + 1900;
-  int month = currentTime->tm_mon + 1;
-  int day = currentTime->tm_mday;
-  int hour = currentTime->tm_hour;
-  int minute = currentTime->tm_min;
-  int second = currentTime->tm_sec;
+  int year = currentTime.tm_year + 1900;
+  int month = currentTime.tm_mon + 1;
+  int day = currentTime.tm_mday;
+  int hour = currentTime.tm_hour;
+  int minute = currentTime.tm_min;
+  int second = currentTime.tm_sec;
 
   std::string logFileName = std::to_string(year);
 

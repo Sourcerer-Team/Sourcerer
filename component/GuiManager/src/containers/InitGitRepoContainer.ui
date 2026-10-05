@@ -144,7 +144,7 @@
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout0">
      <item>
-      <spacer name="horizontalSpacerLeft">
+      <spacer name="horizontalSpacerLeftBottom">
        <property name="orientation">
         <enum>Qt::Horizontal</enum>
        </property>

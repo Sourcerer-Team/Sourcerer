@@ -1106,7 +1106,7 @@ public:
       return -1;
     }
 
-    hasher.addData(buffer, static_cast<int>(len));
+    hasher.addData(QByteArrayView(buffer, static_cast<qsizetype>(len)));
     size += static_cast<qint64>(len);
     return 0;
   }

@@ -27,7 +27,7 @@ void TokenString::addEmpty() {
 }
 
 bool TokenString::hasNext() const {
-  return _str.length() > _currentIndex;
+  return static_cast<size_t>(_str.length()) > _currentIndex;
 }
 
 QString TokenString::getNextToken() {
@@ -36,7 +36,7 @@ QString TokenString::getNextToken() {
 
   bool foundSeparator = false;
 
-  while (pos < _str.length()) {
+  while (pos < static_cast<size_t>(_str.length())) {
     if (_str[pos] == _separator) {
       foundSeparator = true;
       break;

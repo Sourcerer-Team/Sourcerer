@@ -430,7 +430,7 @@ QString avatarInitialsForName(const QString &authorName,
 }
 
 QColor avatarBackgroundColorForKey(const QString &key) {
-  const uint hash = qHash(key.trimmed().toLower());
+  const size_t hash = qHash(key.trimmed().toLower());
   return QColor::fromHsl(static_cast<int>(hash % 360), 170, 120);
 }
 

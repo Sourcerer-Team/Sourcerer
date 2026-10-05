@@ -23,7 +23,7 @@ protected:
   void save() const override;
 
 private slots:
-  void onStateChanged(int state);
+  void onStateChanged(Qt::CheckState state);
 };
 
 } // namespace Widgets

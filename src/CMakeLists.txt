@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 # Must be set before project() so CMake picks it up for the whole build tree.
 # The deployment target is intentionally not forced here: it has to match (or
