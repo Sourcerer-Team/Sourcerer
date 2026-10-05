@@ -19,13 +19,18 @@ namespace Ui {
 class IssueTrackerContainer;
 }
 
-#if __has_include(<QtWebEngineWidgets/QWebEngineView>)
+// Set by CMake only when Qt6::WebEngineWidgets is found and linked. Do not
+// detect via __has_include: the headers may be installed without the
+// WebEngine CMake package being available, which breaks compile and link.
+#ifndef GUI_MANAGER_HAS_WEBENGINE
+#define GUI_MANAGER_HAS_WEBENGINE 0
+#endif
+
+#if GUI_MANAGER_HAS_WEBENGINE
 #include <QtWebEngineCore/QWebEngineProfile>
 #include <QtWebEngineWidgets/QWebEngineView>
-#define GUI_MANAGER_HAS_WEBENGINE 1
 #else
 #include <QtWidgets/QTextBrowser>
-#define GUI_MANAGER_HAS_WEBENGINE 0
 #endif
 
 namespace GuiManager::Containers {

@@ -310,6 +310,7 @@ target_link_libraries(GuiManager PRIVATE
 
 if(TARGET Qt6::WebEngineWidgets)
   target_link_libraries(GuiManager PRIVATE Qt6::WebEngineWidgets)
+  target_compile_definitions(GuiManager PRIVATE GUI_MANAGER_HAS_WEBENGINE=1)
 endif()
 
 target_include_directories(GuiManager PRIVATE
