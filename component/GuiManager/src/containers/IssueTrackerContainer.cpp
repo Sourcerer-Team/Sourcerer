@@ -39,14 +39,14 @@
 #include <memory>
 
 #if GUI_MANAGER_HAS_WEBENGINE
-#include <QtWebEngineCore/QWebEngineLoadingInfo>
-#include <QtWebEngineCore/QWebEngineScript>
-#include <QtWebEngineCore/QWebEngineScriptCollection>
 #include <QtWebEngineCore/QWebEngineCookieStore>
 #include <QtWebEngineCore/QWebEngineHistory>
+#include <QtWebEngineCore/QWebEngineLoadingInfo>
 #include <QtWebEngineCore/QWebEngineNewWindowRequest>
 #include <QtWebEngineCore/QWebEnginePage>
 #include <QtWebEngineCore/QWebEngineProfile>
+#include <QtWebEngineCore/QWebEngineScript>
+#include <QtWebEngineCore/QWebEngineScriptCollection>
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
 #include <QtWebEngineCore/QWebEngineWebAuthUxRequest>
 #endif
