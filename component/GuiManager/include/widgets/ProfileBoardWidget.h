@@ -93,8 +93,7 @@ private:
   void fillProfiles();
   void selectCurrentProfile();
   void resetButtons();
-  void updateProfileAvatar(int row, const QString &authorName,
-                           const QString &authorEmail);
+  void updateProfileAvatar(int row, const QString &authorEmail);
 
   bool validateEmail(const QString &email, QString &errorMsg) const;
   bool validatePassword(const QString &password, QString &errorMsg) const;

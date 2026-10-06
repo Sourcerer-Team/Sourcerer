@@ -62,11 +62,6 @@ JWTDecoder::Claims JWTDecoder::decodeClaims(const QString &jwt) {
   claims.roles = claimsObj.value("roles").toVariant().toStringList().toVector();
   claims.exp = claimsObj.value("exp").toVariant().toLongLong();
 
-  LOG_INFO("Extracted JWT claims - Given Name: {}, Family Name: {}, Email: {}, "
-           "Roles: {}",
-           claims.givenName, claims.familyName, claims.email,
-           claims.roles.toList().join(","));
-
   LOG_PERF(0, "Exit");
   return claims;
 }
@@ -273,7 +268,6 @@ bool JWTDecoder::verifyRSASignature(const QString &message,
         "Key must be in PKCS#8 PEM format (BEGIN PUBLIC KEY...END PUBLIC KEY). "
         "Key length: {} bytes",
         errBuf, errCode, keyBytes.length());
-    LOG_DEBUG("First 100 chars of key: {}", keyBytes.left(100).constData());
     LOG_PERF(0, "Exit");
     return false;
   }
