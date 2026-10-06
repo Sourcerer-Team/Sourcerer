@@ -31,6 +31,8 @@ const TSLanguage *tree_sitter_typescript(void);
 #include <QPlainTextEdit>
 #include <QResizeEvent>
 #include <QScopedValueRollback>
+#include <QSyntaxHighlighter>
+#include <QTimer>
 
 #include <QTextBlock>
 #include <QTextCharFormat>
@@ -38,9 +40,11 @@ const TSLanguage *tree_sitter_typescript(void);
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QTextFormat>
+#include <QTextLayout>
 
 #include <algorithm>
-#include <functional>
+#include <cstring>
+#include <vector>
 
 QsciLexer::QsciLexer(QObject *parent, const QString &treeSitterLanguage)
     : QObject(parent), _treeSitterLanguage(treeSitterLanguage) {}
@@ -150,6 +154,38 @@ QEDITOR_DEFINE_LEXER(QsciLexerSpice, "spice")
 QEDITOR_DEFINE_LEXER(QsciLexerCustom, "custom")
 
 #undef QEDITOR_DEFINE_LEXER
+
+// Applies precomputed tree-sitter formats as layout formats, so highlighting
+// never modifies the document (no undo entries, no contentsChanged feedback).
+class QEditorTreeSitterHighlighter final : public QSyntaxHighlighter {
+public:
+  using BlockFormats = QVector<QVector<QTextLayout::FormatRange>>;
+
+  explicit QEditorTreeSitterHighlighter(QTextDocument *document)
+      : QSyntaxHighlighter(document) {}
+
+  void setBlockFormats(BlockFormats formats) {
+    _blockFormats = std::move(formats);
+  }
+  void clearBlockFormats() { _blockFormats.clear(); }
+
+protected:
+  void highlightBlock(const QString &text) override {
+    Q_UNUSED(text);
+
+    const int blockNumber = currentBlock().blockNumber();
+    if (blockNumber < 0 || blockNumber >= _blockFormats.size()) {
+      return;
+    }
+
+    for (const auto &range : _blockFormats.at(blockNumber)) {
+      setFormat(range.start, range.length, range.format);
+    }
+  }
+
+private:
+  BlockFormats _blockFormats;
+};
 
 class QLineNumberArea final : public QWidget {
 public:
@@ -353,6 +389,182 @@ QTextCharFormat formatForTreeSitterNode(const char *nodeType) {
   return format;
 }
 
+bool isCFamilyLanguage(const TSLanguage *language) {
+  return language && (language == tree_sitter_c() ||
+                      language == tree_sitter_cpp());
+}
+
+bool typeEquals(const char *type, const char *expected) {
+  return std::strcmp(type, expected) == 0;
+}
+
+bool isIdentifierToken(const char *type) {
+  const auto isStart = [](char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+  };
+  if (!isStart(type[0])) {
+    return false;
+  }
+  for (const char *c = type + 1; *c; ++c) {
+    if (!isStart(*c) && !(*c >= '0' && *c <= '9')) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool isOperatorToken(const char *type) {
+  if (!type[0]) {
+    return false;
+  }
+  for (const char *c = type; *c; ++c) {
+    if (!std::strchr("!%&*+-./:<=>?^|~()[]{};,", *c)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+int cFamilyCommentStyle(const QByteArray &source, uint32_t startByte) {
+  const auto at = [&source](uint32_t index) {
+    return index < static_cast<uint32_t>(source.size()) ? source.at(index)
+                                                         : '\0';
+  };
+
+  const char third = at(startByte + 2);
+  if (at(startByte + 1) == '/') {
+    const bool doc =
+        third == '!' || (third == '/' && at(startByte + 3) != '/');
+    return doc ? QsciLexerCPP::CommentDoc : QsciLexerCPP::CommentLine;
+  }
+
+  const bool doc = third == '!' || (third == '*' && at(startByte + 3) != '/');
+  return doc ? QsciLexerCPP::CommentDoc : QsciLexerCPP::Comment;
+}
+
+// Maps a C/C++ tree-sitter node to a QsciLexerCPP style, or -1 when the node
+// itself is not highlighted. Literal and comment nodes are styled as a whole,
+// so their children don't need to be visited.
+int cFamilyStyleForNode(TSNode node, const QByteArray &source, bool &descend) {
+  descend = true;
+
+  const char *type = ts_node_type(node);
+  if (!type) {
+    return -1;
+  }
+
+  if (ts_node_is_named(node)) {
+    descend = false;
+    if (typeEquals(type, "comment")) {
+      return cFamilyCommentStyle(source, ts_node_start_byte(node));
+    }
+    if (typeEquals(type, "string_literal") ||
+        typeEquals(type, "system_lib_string")) {
+      return QsciLexerCPP::DoubleQuotedString;
+    }
+    if (typeEquals(type, "char_literal")) {
+      return QsciLexerCPP::SingleQuotedString;
+    }
+    if (typeEquals(type, "raw_string_literal")) {
+      return QsciLexerCPP::RawString;
+    }
+    if (typeEquals(type, "number_literal")) {
+      return QsciLexerCPP::Number;
+    }
+    if (typeEquals(type, "true") || typeEquals(type, "false") ||
+        typeEquals(type, "null") || typeEquals(type, "nullptr") ||
+        typeEquals(type, "this")) {
+      return QsciLexerCPP::Keyword;
+    }
+    if (typeEquals(type, "primitive_type")) {
+      return QsciLexerCPP::KeywordSet2;
+    }
+    if (typeEquals(type, "type_identifier")) {
+      return QsciLexerCPP::GlobalClass;
+    }
+    if (typeEquals(type, "preproc_directive")) {
+      return QsciLexerCPP::PreProcessor;
+    }
+
+    descend = true;
+    return -1;
+  }
+
+  // Anonymous nodes are the grammar's literal tokens: directives, keywords
+  // and punctuation.
+  if (type[0] == '#' || typeEquals(type, "defined")) {
+    return QsciLexerCPP::PreProcessor;
+  }
+  if (typeEquals(type, "unsigned") || typeEquals(type, "signed") ||
+      typeEquals(type, "long") || typeEquals(type, "short")) {
+    return QsciLexerCPP::KeywordSet2;
+  }
+  if (isIdentifierToken(type)) {
+    return QsciLexerCPP::Keyword;
+  }
+  if (isOperatorToken(type)) {
+    return QsciLexerCPP::Operator;
+  }
+
+  return -1;
+}
+
+// Uses the colors configured on the lexer (theme aware) and falls back to a
+// dark palette when the lexer has not been themed.
+QTextCharFormat cFamilyFormatForStyle(const QsciLexer *lexer, int style) {
+  QColor fallbackColor;
+  bool fallbackBold = false;
+  bool italic = false;
+
+  switch (style) {
+  case QsciLexerCPP::Comment:
+  case QsciLexerCPP::CommentLine:
+  case QsciLexerCPP::CommentDoc:
+    fallbackColor = QColor(92, 99, 112);
+    italic = true;
+    break;
+  case QsciLexerCPP::Keyword:
+    fallbackColor = QColor(198, 120, 221);
+    fallbackBold = true;
+    break;
+  case QsciLexerCPP::KeywordSet2:
+  case QsciLexerCPP::Operator:
+    fallbackColor = QColor(86, 182, 194);
+    break;
+  case QsciLexerCPP::DoubleQuotedString:
+  case QsciLexerCPP::SingleQuotedString:
+  case QsciLexerCPP::RawString:
+    fallbackColor = QColor(152, 195, 121);
+    break;
+  case QsciLexerCPP::Number:
+    fallbackColor = QColor(209, 154, 102);
+    break;
+  case QsciLexerCPP::PreProcessor:
+    fallbackColor = QColor(97, 175, 239);
+    break;
+  case QsciLexerCPP::GlobalClass:
+    fallbackColor = QColor(229, 192, 123);
+    break;
+  default:
+    return {};
+  }
+
+  QTextCharFormat format;
+  const QColor lexerColor = lexer ? lexer->color(style) : QColor();
+  if (lexerColor.isValid()) {
+    const QFont lexerFont = lexer->font(style);
+    format.setForeground(lexerColor);
+    format.setFontWeight(lexerFont.bold() ? QFont::Bold : QFont::Normal);
+    format.setFontItalic(italic || lexerFont.italic());
+  } else {
+    format.setForeground(fallbackColor);
+    format.setFontWeight(fallbackBold ? QFont::Bold : QFont::Normal);
+    format.setFontItalic(italic);
+  }
+
+  return format;
+}
+
 } // namespace
 
 QsciScintilla::QsciScintilla(QWidget *parent)
@@ -361,7 +573,8 @@ QsciScintilla::QsciScintilla(QWidget *parent)
       _indentationGuides(false), _foldStyle(NoFoldStyle),
       _braceMatch(NoBraceMatch), _lineNumberArea(nullptr),
       _treeSitterLanguage(nullptr), _updatingTreeSitterHighlighting(false),
-      _treeSitterHighlightingEnabled(true), _parser(nullptr), _tree(nullptr) {
+      _treeSitterHighlightingEnabled(true), _parser(nullptr), _tree(nullptr),
+      _highlighter(nullptr), _highlightTimer(new QTimer(this)) {
   for (int i = 0; i < 4; ++i) {
     _marginLineNumbers[i] = false;
     _marginSensitivity[i] = false;
@@ -379,6 +592,10 @@ QsciScintilla::QsciScintilla(QWidget *parent)
   connect(this, &QPlainTextEdit::cursorPositionChanged, this,
           &QsciScintilla::refreshCurrentLineHighlight);
   connect(document(), &QTextDocument::contentsChanged, this,
+          &QsciScintilla::updateTreeSitterHighlighting);
+  _highlightTimer->setSingleShot(true);
+  _highlightTimer->setInterval(0);
+  connect(_highlightTimer, &QTimer::timeout, this,
           &QsciScintilla::updateTreeSitterHighlighting);
   updateLineNumberAreaWidth(0);
   _parser = ts_parser_new();
@@ -408,79 +625,182 @@ void QsciScintilla::setText(const QString &text) {
   refreshCurrentLineHighlight();
 }
 
+void QsciScintilla::scheduleTreeSitterHighlighting() {
+  // Lexer configuration emits changed() once per style; coalesce them into a
+  // single re-highlight.
+  _highlightTimer->start();
+}
+
 void QsciScintilla::updateTreeSitterHighlighting() {
-  if (_updatingTreeSitterHighlighting || !_treeSitterHighlightingEnabled) {
+  if (_updatingTreeSitterHighlighting) {
     return;
   }
   const QScopedValueRollback<bool> updateGuard(_updatingTreeSitterHighlighting,
                                                true);
+
+  _highlightTimer->stop();
 
   if (_tree) {
     ts_tree_delete(_tree);
     _tree = nullptr;
   }
 
-  QTextCharFormat defaultFormat;
-  defaultFormat.setForeground(_color.isValid() ? _color
-                                               : palette().text().color());
-  defaultFormat.setFontWeight(QFont::Normal);
-  defaultFormat.setFontItalic(false);
-  QTextCursor documentCursor(document());
-  documentCursor.select(QTextCursor::Document);
-  documentCursor.setCharFormat(defaultFormat);
+  if (!_treeSitterHighlightingEnabled) {
+    // Drop formats so blocks changed while disabled are not painted with
+    // stale ranges.
+    if (_highlighter) {
+      _highlighter->clearBlockFormats();
+    }
+    return;
+  }
 
   if (!_parser || !_treeSitterLanguage) {
+    if (_highlighter) {
+      _highlighter->clearBlockFormats();
+      _highlighter->rehighlight();
+    }
     return;
+  }
+
+  if (!_highlighter) {
+    _highlighter = new QEditorTreeSitterHighlighter(document());
   }
 
   const QByteArray source = toPlainText().toUtf8();
   _tree = ts_parser_parse_string(_parser, nullptr, source.constData(),
                                  static_cast<uint32_t>(source.size()));
   if (!_tree) {
+    _highlighter->clearBlockFormats();
+    _highlighter->rehighlight();
     return;
   }
 
   const int documentLength = document()->characterCount() - 1;
-  const auto utf8ByteToUtf16 = [&source](uint32_t byteOffset) {
-    const int boundedOffset =
-        std::min(static_cast<int>(byteOffset), static_cast<int>(source.size()));
-    return QString::fromUtf8(source.constData(), boundedOffset).size();
+
+  // tree-sitter reports UTF-8 byte offsets, the document uses UTF-16.
+  std::vector<int> utf16Offsets(static_cast<size_t>(source.size()) + 1, 0);
+  int utf16Offset = 0;
+  for (int byteIndex = 0; byteIndex < source.size(); ++byteIndex) {
+    const auto byte = static_cast<unsigned char>(source.at(byteIndex));
+    utf16Offsets[static_cast<size_t>(byteIndex)] = utf16Offset;
+    if ((byte & 0xC0) != 0x80) {
+      utf16Offset += byte >= 0xF0 ? 2 : 1;
+    }
+  }
+  utf16Offsets[static_cast<size_t>(source.size())] = utf16Offset;
+
+  const auto utf8ByteToUtf16 = [&utf16Offsets](uint32_t byteOffset) {
+    const size_t index =
+        std::min(static_cast<size_t>(byteOffset), utf16Offsets.size() - 1);
+    return utf16Offsets[index];
   };
 
-  std::function<void(TSNode)> applyNode = [&](TSNode node) {
+  std::vector<int> blockStarts;
+  blockStarts.reserve(static_cast<size_t>(document()->blockCount()));
+  for (QTextBlock block = document()->begin(); block.isValid();
+       block = block.next()) {
+    blockStarts.push_back(block.position());
+  }
+  const int blockCount = static_cast<int>(blockStarts.size());
+
+  QEditorTreeSitterHighlighter::BlockFormats blockFormats(blockCount);
+
+  const auto addRange = [&](int start, int end,
+                            const QTextCharFormat &format) {
+    start = std::max(0, start);
+    end = std::min(end, documentLength);
+    if (start >= end || blockCount == 0) {
+      return;
+    }
+
+    int block = static_cast<int>(std::upper_bound(blockStarts.begin(),
+                                                  blockStarts.end(), start) -
+                                 blockStarts.begin()) -
+                1;
+    block = std::max(block, 0);
+
+    // Multi-line nodes (block comments, raw strings) are split per block.
+    for (; block < blockCount && blockStarts[block] < end; ++block) {
+      const int blockStart = blockStarts[block];
+      const int blockEnd = block + 1 < blockCount
+                               ? blockStarts[block + 1] - 1
+                               : documentLength;
+      const int rangeStart = std::max(start, blockStart);
+      const int rangeEnd = std::min(end, blockEnd);
+      if (rangeStart < rangeEnd) {
+        QTextLayout::FormatRange range;
+        range.start = rangeStart - blockStart;
+        range.length = rangeEnd - rangeStart;
+        range.format = format;
+        blockFormats[block].append(range);
+      }
+    }
+  };
+
+  const bool cFamily = isCFamilyLanguage(_treeSitterLanguage);
+  QHash<int, QTextCharFormat> cFamilyFormats;
+
+  const auto formatForNode = [&](TSNode node, bool &descend) -> QTextCharFormat {
+    if (cFamily) {
+      const int style = cFamilyStyleForNode(node, source, descend);
+      if (style < 0) {
+        return QTextCharFormat();
+      }
+      auto it = cFamilyFormats.find(style);
+      if (it == cFamilyFormats.end()) {
+        it = cFamilyFormats.insert(style, cFamilyFormatForStyle(_lexer, style));
+      }
+      return it.value();
+    }
+
+    descend = true;
     const char *nodeType = ts_node_type(node);
     QTextCharFormat format = formatForTreeSitterNode(nodeType);
-
-    if (format.hasProperty(QTextFormat::ForegroundBrush) &&
-        format.foreground().color().isValid()) {
+    if (format.hasProperty(QTextFormat::ForegroundBrush)) {
       const TSNode parent = ts_node_parent(node);
-      if (QString::fromUtf8(nodeType ? nodeType : "") ==
-              QLatin1String("string") &&
+      if (nodeType && typeEquals(nodeType, "string") &&
           !ts_node_is_null(parent) &&
-          QString::fromUtf8(ts_node_type(parent)) == QLatin1String("pair") &&
+          typeEquals(ts_node_type(parent), "pair") &&
           ts_node_eq(ts_node_named_child(parent, 0), node)) {
         format.setForeground(QColor(97, 175, 239));
         format.setFontWeight(QFont::Bold);
       }
-
-      const int start = utf8ByteToUtf16(ts_node_start_byte(node));
-      const int end = utf8ByteToUtf16(ts_node_end_byte(node));
-      if (start < end && start < documentLength) {
-        QTextCursor cursor(document());
-        cursor.setPosition(start);
-        cursor.setPosition(std::min(end, documentLength),
-                           QTextCursor::KeepAnchor);
-        cursor.setCharFormat(format);
-      }
     }
-
-    const uint32_t childCount = ts_node_child_count(node);
-    for (uint32_t index = 0; index < childCount; ++index) {
-      applyNode(ts_node_child(node, index));
-    }
+    return format;
   };
 
-  applyNode(ts_tree_root_node(_tree));
+  // Pre-order walk: parents are added before children, so child ranges take
+  // precedence when they overlap.
+  TSTreeCursor treeCursor = ts_tree_cursor_new(ts_tree_root_node(_tree));
+  for (;;) {
+    const TSNode node = ts_tree_cursor_current_node(&treeCursor);
+    bool descend = true;
+    const QTextCharFormat format = formatForNode(node, descend);
+    if (format.hasProperty(QTextFormat::ForegroundBrush) &&
+        format.foreground().color().isValid()) {
+      addRange(utf8ByteToUtf16(ts_node_start_byte(node)),
+               utf8ByteToUtf16(ts_node_end_byte(node)), format);
+    }
+
+    if (descend && ts_tree_cursor_goto_first_child(&treeCursor)) {
+      continue;
+    }
+
+    bool finished = false;
+    while (!ts_tree_cursor_goto_next_sibling(&treeCursor)) {
+      if (!ts_tree_cursor_goto_parent(&treeCursor)) {
+        finished = true;
+        break;
+      }
+    }
+    if (finished) {
+      break;
+    }
+  }
+  ts_tree_cursor_delete(&treeCursor);
+
+  _highlighter->setBlockFormats(std::move(blockFormats));
+  _highlighter->rehighlight();
 }
 
 QString QsciScintilla::text() const {
@@ -533,7 +853,12 @@ void QsciScintilla::setLexer(QsciLexer *lexer) {
     connect(_lexer, &QsciLexer::changed, this,
             &QsciScintilla::applyCurrentPalette);
     connect(_lexer, &QsciLexer::changed, this,
-            &QsciScintilla::updateTreeSitterHighlighting);
+            &QsciScintilla::scheduleTreeSitterHighlighting);
+    connect(_lexer, &QObject::destroyed, this, [this]() {
+      _lexer = nullptr;
+      _treeSitterLanguage = nullptr;
+      scheduleTreeSitterHighlighting();
+    });
   }
 
   applyCurrentPalette();

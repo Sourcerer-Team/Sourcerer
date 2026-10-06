@@ -1,6 +1,7 @@
 #include "QScintillaLexerFactory.h"
 #include <QDebug>
 #include <QFileInfo>
+#include <QSet>
 #include <Qsci/qscilexer.h>
 #include <Qsci/qscilexerbash.h>
 #include <Qsci/qscilexercsharp.h>
@@ -111,6 +112,21 @@ QScintillaLexerFactory::createLexerForExtension(const QString &extension,
 QsciLexer *QScintillaLexerFactory::createLexerByName(const QString &lexerName,
                                                      QObject *parent) const {
   return createLexerByType(lexerName, parent);
+}
+
+QsciLexer *
+QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
+                                                     QObject *parent) {
+  static const QSet<QString> cppExtensions = {
+      QStringLiteral("h"),   QStringLiteral("hh"),  QStringLiteral("hxx"),
+      QStringLiteral("hpp"), QStringLiteral("c"),   QStringLiteral("cpp"),
+      QStringLiteral("cxx"), QStringLiteral("cc")};
+
+  if (cppExtensions.contains(extractExtension(filePath))) {
+    return new QsciLexerCPP(parent);
+  }
+
+  return nullptr;
 }
 
 QStringList QScintillaLexerFactory::supportedExtensions() const {

@@ -29,6 +29,11 @@ public:
   QsciLexer *createLexerByName(const QString &lexerName,
                                QObject *parent = nullptr) const;
 
+  // Returns a lexer only for files the diff viewers can highlight with
+  // tree-sitter, nullptr otherwise.
+  static QsciLexer *createDiffViewerLexerForFile(const QString &filePath,
+                                                 QObject *parent = nullptr);
+
   // Information methods
   QStringList supportedExtensions() const;
   QStringList supportedLexerNames() const;
