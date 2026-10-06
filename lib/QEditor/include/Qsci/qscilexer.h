@@ -75,16 +75,6 @@ QEDITOR_DECLARE_LEXER(QsciLexerJavaScript, "javascript", Default = 0, Comment,
                       DoubleQuotedString, SingleQuotedString, UnclosedString,
                       Number, Operator, Identifier, GlobalClass, Regex)
 
-QEDITOR_DECLARE_LEXER(QsciLexerJava, "java", Default = 0)
-QEDITOR_DECLARE_LEXER(QsciLexerTypeScript, "typescript", Default = 0)
-QEDITOR_DECLARE_LEXER(QsciLexerTSX, "tsx", Default = 0)
-QEDITOR_DECLARE_LEXER(QsciLexerCSharp, "csharp", Default = 0)
-QEDITOR_DECLARE_LEXER(QsciLexerRust, "rust", Default = 0)
-QEDITOR_DECLARE_LEXER(QsciLexerOCaml, "ocaml", Default = 0)
-QEDITOR_DECLARE_LEXER(QsciLexerOCamlInterface, "ocaml_interface", Default = 0)
-QEDITOR_DECLARE_LEXER(QsciLexerOCamlType, "ocaml_type", Default = 0)
-QEDITOR_DECLARE_LEXER(QsciLexerHaskell, "haskell", Default = 0)
-QEDITOR_DECLARE_LEXER(QsciLexerPowerShell, "powershell", Default = 0)
 
 QEDITOR_DECLARE_LEXER(QsciLexerHTML, "html", Default = 0, Tag, UnknownTag,
                       Attribute, UnknownAttribute, HTMLDoubleQuotedString,
@@ -254,3 +244,26 @@ QEDITOR_DECLARE_LEXER(QsciLexerSpice, "spice", Default = 0, Identifier, Command,
 QEDITOR_DECLARE_LEXER(QsciLexerCustom, "custom", Default = 0)
 
 #undef QEDITOR_DECLARE_LEXER
+
+// Languages without a style set of their own reuse the style set of a related
+// lexer (like QScintilla's C-like lexers), so themes configured for the base
+// lexer apply to them as well.
+#define QEDITOR_DECLARE_DERIVED_LEXER(ClassName, BaseClass)                    \
+  class QSCI_EXPORT ClassName : public BaseClass {                             \
+  public:                                                                      \
+    explicit ClassName(QObject *parent = nullptr);                             \
+  };
+
+QEDITOR_DECLARE_DERIVED_LEXER(QsciLexerDart, QsciLexerCPP)
+QEDITOR_DECLARE_DERIVED_LEXER(QsciLexerJava, QsciLexerCPP)
+QEDITOR_DECLARE_DERIVED_LEXER(QsciLexerCSharp, QsciLexerCPP)
+QEDITOR_DECLARE_DERIVED_LEXER(QsciLexerRust, QsciLexerCPP)
+QEDITOR_DECLARE_DERIVED_LEXER(QsciLexerOCaml, QsciLexerCPP)
+QEDITOR_DECLARE_DERIVED_LEXER(QsciLexerOCamlInterface, QsciLexerCPP)
+QEDITOR_DECLARE_DERIVED_LEXER(QsciLexerOCamlType, QsciLexerCPP)
+QEDITOR_DECLARE_DERIVED_LEXER(QsciLexerHaskell, QsciLexerCPP)
+QEDITOR_DECLARE_DERIVED_LEXER(QsciLexerPowerShell, QsciLexerCPP)
+QEDITOR_DECLARE_DERIVED_LEXER(QsciLexerTypeScript, QsciLexerJavaScript)
+QEDITOR_DECLARE_DERIVED_LEXER(QsciLexerTSX, QsciLexerJavaScript)
+
+#undef QEDITOR_DECLARE_DERIVED_LEXER

@@ -8,6 +8,7 @@ const TSLanguage *tree_sitter_c(void);
 const TSLanguage *tree_sitter_c_sharp(void);
 const TSLanguage *tree_sitter_cpp(void);
 const TSLanguage *tree_sitter_css(void);
+const TSLanguage *tree_sitter_dart(void);
 const TSLanguage *tree_sitter_haskell(void);
 const TSLanguage *tree_sitter_html(void);
 const TSLanguage *tree_sitter_java(void);
@@ -31,6 +32,8 @@ const TSLanguage *tree_sitter_typescript(void);
 #include <QPlainTextEdit>
 #include <QResizeEvent>
 #include <QScopedValueRollback>
+#include <QSyntaxHighlighter>
+#include <QTimer>
 
 #include <QTextBlock>
 #include <QTextCharFormat>
@@ -38,9 +41,12 @@ const TSLanguage *tree_sitter_typescript(void);
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QTextFormat>
+#include <QTextLayout>
 
 #include <algorithm>
-#include <functional>
+#include <cstring>
+#include <initializer_list>
+#include <vector>
 
 QsciLexer::QsciLexer(QObject *parent, const QString &treeSitterLanguage)
     : QObject(parent), _treeSitterLanguage(treeSitterLanguage) {}
@@ -104,16 +110,6 @@ QFont QsciLexer::font(int style) const {
 QEDITOR_DEFINE_LEXER(QsciLexerCPP, "cpp")
 QEDITOR_DEFINE_LEXER(QsciLexerPython, "python")
 QEDITOR_DEFINE_LEXER(QsciLexerJavaScript, "javascript")
-QEDITOR_DEFINE_LEXER(QsciLexerJava, "java")
-QEDITOR_DEFINE_LEXER(QsciLexerTypeScript, "typescript")
-QEDITOR_DEFINE_LEXER(QsciLexerTSX, "tsx")
-QEDITOR_DEFINE_LEXER(QsciLexerCSharp, "csharp")
-QEDITOR_DEFINE_LEXER(QsciLexerRust, "rust")
-QEDITOR_DEFINE_LEXER(QsciLexerOCaml, "ocaml")
-QEDITOR_DEFINE_LEXER(QsciLexerOCamlInterface, "ocaml_interface")
-QEDITOR_DEFINE_LEXER(QsciLexerOCamlType, "ocaml_type")
-QEDITOR_DEFINE_LEXER(QsciLexerHaskell, "haskell")
-QEDITOR_DEFINE_LEXER(QsciLexerPowerShell, "powershell")
 QEDITOR_DEFINE_LEXER(QsciLexerHTML, "html")
 QEDITOR_DEFINE_LEXER(QsciLexerCSS, "css")
 QEDITOR_DEFINE_LEXER(QsciLexerXML, "xml")
@@ -150,6 +146,59 @@ QEDITOR_DEFINE_LEXER(QsciLexerSpice, "spice")
 QEDITOR_DEFINE_LEXER(QsciLexerCustom, "custom")
 
 #undef QEDITOR_DEFINE_LEXER
+
+#define QEDITOR_DEFINE_DERIVED_LEXER(ClassName, BaseClass, LanguageId)        \
+  ClassName::ClassName(QObject *parent) : BaseClass(parent) {                  \
+    setTreeSitterLanguage(QStringLiteral(LanguageId));                         \
+  }
+
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerDart, QsciLexerCPP, "dart")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerJava, QsciLexerCPP, "java")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerCSharp, QsciLexerCPP, "csharp")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerRust, QsciLexerCPP, "rust")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerOCaml, QsciLexerCPP, "ocaml")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerOCamlInterface, QsciLexerCPP,
+                             "ocaml_interface")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerOCamlType, QsciLexerCPP, "ocaml_type")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerHaskell, QsciLexerCPP, "haskell")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerPowerShell, QsciLexerCPP, "powershell")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTypeScript, QsciLexerJavaScript,
+                             "typescript")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTSX, QsciLexerJavaScript, "tsx")
+
+#undef QEDITOR_DEFINE_DERIVED_LEXER
+
+// Applies precomputed tree-sitter formats as layout formats, so highlighting
+// never modifies the document (no undo entries, no contentsChanged feedback).
+class QEditorTreeSitterHighlighter final : public QSyntaxHighlighter {
+public:
+  using BlockFormats = QVector<QVector<QTextLayout::FormatRange>>;
+
+  explicit QEditorTreeSitterHighlighter(QTextDocument *document)
+      : QSyntaxHighlighter(document) {}
+
+  void setBlockFormats(BlockFormats formats) {
+    _blockFormats = std::move(formats);
+  }
+  void clearBlockFormats() { _blockFormats.clear(); }
+
+protected:
+  void highlightBlock(const QString &text) override {
+    Q_UNUSED(text);
+
+    const int blockNumber = currentBlock().blockNumber();
+    if (blockNumber < 0 || blockNumber >= _blockFormats.size()) {
+      return;
+    }
+
+    for (const auto &range : _blockFormats.at(blockNumber)) {
+      setFormat(range.start, range.length, range.format);
+    }
+  }
+
+private:
+  BlockFormats _blockFormats;
+};
 
 class QLineNumberArea final : public QWidget {
 public:
@@ -233,6 +282,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("css"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_css();
   }
+  if (language.compare(QStringLiteral("dart"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_dart();
+  }
   if (language.compare(QStringLiteral("haskell"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_haskell();
   }
@@ -281,76 +333,1278 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   return nullptr;
 }
 
-QTextCharFormat formatForTreeSitterNode(const char *nodeType) {
-  QTextCharFormat format;
-  const QString type = QString::fromUtf8(nodeType ? nodeType : "").toLower();
+// Semantic kinds produced by the tree-sitter classifiers. Each lexer style set
+// maps them onto its own style ids, so the colors configured on the lexer
+// (theme) are used.
+enum class Token {
+  None,
+  Default,
+  Comment,
+  CommentLine,
+  CommentDoc,
+  String,
+  SingleQuotedString,
+  TripleQuotedString,
+  RawString,
+  Number,
+  Keyword,
+  BuiltinType,
+  Type,
+  Operator,
+  Preprocessor,
+  Regex,
+  Escape,
+  FunctionName,
+  Variable,
+  Property,
+  Tag,
+  UnknownTag,
+  Attribute,
+  Entity,
+  ClassSelector,
+  IdSelector,
+  PseudoClass,
+  PseudoElement,
+  Value,
+  Important,
+  AtRule
+};
 
-  if (type.contains(QStringLiteral("comment"))) {
-    format.setForeground(QColor(92, 99, 112));
-    format.setFontItalic(true);
-  } else if (type.contains(QStringLiteral("string")) ||
-             type.contains(QStringLiteral("heredoc")) ||
-             type.contains(QStringLiteral("template_string")) ||
-             type.contains(QStringLiteral("raw_string"))) {
-    format.setForeground(QColor(152, 195, 121));
-  } else if (type.contains(QStringLiteral("number")) ||
-             type.contains(QStringLiteral("integer")) ||
-             type.contains(QStringLiteral("float"))) {
-    format.setForeground(QColor(209, 154, 102));
-  } else if (type == QLatin1String("true") || type == QLatin1String("false") ||
-             type == QLatin1String("null") || type == QLatin1String("nil") ||
-             type == QLatin1String("none") ||
-             type == QLatin1String("undefined")) {
-    format.setForeground(QColor(198, 120, 221));
-    format.setFontWeight(QFont::Bold);
-  } else if (type.contains(QStringLiteral("escape"))) {
-    format.setForeground(QColor(86, 182, 194));
-  } else if (type.startsWith(QStringLiteral("preproc")) ||
-             type == QLatin1String("directive") ||
-             type == QLatin1String("decorator")) {
-    format.setForeground(QColor(97, 175, 239));
-    format.setFontWeight(QFont::Bold);
-  } else {
-    static const QSet<QString> keywordNodes = {
-        QStringLiteral("as"),         QStringLiteral("await"),
-        QStringLiteral("break"),      QStringLiteral("case"),
-        QStringLiteral("catch"),      QStringLiteral("class"),
-        QStringLiteral("const"),      QStringLiteral("continue"),
-        QStringLiteral("def"),        QStringLiteral("delete"),
-        QStringLiteral("do"),         QStringLiteral("else"),
-        QStringLiteral("enum"),       QStringLiteral("export"),
-        QStringLiteral("extends"),    QStringLiteral("final"),
-        QStringLiteral("for"),        QStringLiteral("foreach"),
-        QStringLiteral("from"),       QStringLiteral("fun"),
-        QStringLiteral("function"),   QStringLiteral("if"),
-        QStringLiteral("implements"), QStringLiteral("import"),
-        QStringLiteral("include"),    QStringLiteral("in"),
-        QStringLiteral("interface"),  QStringLiteral("let"),
-        QStringLiteral("match"),      QStringLiteral("module"),
-        QStringLiteral("mutable"),    QStringLiteral("namespace"),
-        QStringLiteral("new"),        QStringLiteral("newtype"),
-        QStringLiteral("of"),         QStringLiteral("package"),
-        QStringLiteral("param"),      QStringLiteral("private"),
-        QStringLiteral("protected"),  QStringLiteral("public"),
-        QStringLiteral("record"),     QStringLiteral("rec"),
-        QStringLiteral("return"),     QStringLiteral("sealed"),
-        QStringLiteral("static"),     QStringLiteral("struct"),
-        QStringLiteral("switch"),     QStringLiteral("template"),
-        QStringLiteral("then"),       QStringLiteral("throw"),
-        QStringLiteral("throws"),     QStringLiteral("trait"),
-        QStringLiteral("try"),        QStringLiteral("type"),
-        QStringLiteral("typedef"),    QStringLiteral("unsafe"),
-        QStringLiteral("using"),      QStringLiteral("var"),
-        QStringLiteral("virtual"),    QStringLiteral("where"),
-        QStringLiteral("while"),      QStringLiteral("with"),
-        QStringLiteral("yield")};
-    if (keywordNodes.contains(type)) {
-      format.setForeground(QColor(198, 120, 221));
-      format.setFontWeight(QFont::Bold);
+enum class StyledLanguage {
+  None,
+  CFamily,
+  Dart,
+  Html,
+  Css,
+  JavaScript,
+  Python,
+  Bash,
+  Json,
+  Java,
+  CSharp,
+  Rust,
+  OCaml,
+  Haskell,
+  PowerShell,
+  // Only reached through <script>/<style> injections in HTML documents.
+  EmbeddedJavaScript,
+  EmbeddedCss
+};
+
+// The lexer style ids a language is highlighted with.
+enum class StyleSet {
+  Cpp,
+  JavaScript,
+  Python,
+  Bash,
+  Json,
+  Css,
+  // QsciLexerHTML ids for markup and embedded CSS.
+  Html,
+  // QsciLexerHTML ids for embedded JavaScript.
+  HtmlScript
+};
+
+StyledLanguage styledLanguageFor(const TSLanguage *language) {
+  if (!language) {
+    return StyledLanguage::None;
+  }
+  if (language == tree_sitter_c() || language == tree_sitter_cpp()) {
+    return StyledLanguage::CFamily;
+  }
+  if (language == tree_sitter_dart()) {
+    return StyledLanguage::Dart;
+  }
+  if (language == tree_sitter_html()) {
+    return StyledLanguage::Html;
+  }
+  if (language == tree_sitter_css()) {
+    return StyledLanguage::Css;
+  }
+  if (language == tree_sitter_javascript() ||
+      language == tree_sitter_typescript() || language == tree_sitter_tsx()) {
+    return StyledLanguage::JavaScript;
+  }
+  if (language == tree_sitter_python()) {
+    return StyledLanguage::Python;
+  }
+  if (language == tree_sitter_bash()) {
+    return StyledLanguage::Bash;
+  }
+  if (language == tree_sitter_json()) {
+    return StyledLanguage::Json;
+  }
+  if (language == tree_sitter_java()) {
+    return StyledLanguage::Java;
+  }
+  if (language == tree_sitter_c_sharp()) {
+    return StyledLanguage::CSharp;
+  }
+  if (language == tree_sitter_rust()) {
+    return StyledLanguage::Rust;
+  }
+  if (language == tree_sitter_ocaml() ||
+      language == tree_sitter_ocaml_interface() ||
+      language == tree_sitter_ocaml_type()) {
+    return StyledLanguage::OCaml;
+  }
+  if (language == tree_sitter_haskell()) {
+    return StyledLanguage::Haskell;
+  }
+  if (language == tree_sitter_powershell()) {
+    return StyledLanguage::PowerShell;
+  }
+  return StyledLanguage::None;
+}
+
+// Must match the lexer created for the language (see qscilexer.h): languages
+// without a style set of their own use the C++ one.
+StyleSet styleSetFor(StyledLanguage language) {
+  switch (language) {
+  case StyledLanguage::JavaScript:
+    return StyleSet::JavaScript;
+  case StyledLanguage::Python:
+    return StyleSet::Python;
+  case StyledLanguage::Bash:
+    return StyleSet::Bash;
+  case StyledLanguage::Json:
+    return StyleSet::Json;
+  case StyledLanguage::Css:
+    return StyleSet::Css;
+  case StyledLanguage::Html:
+  case StyledLanguage::EmbeddedCss:
+    return StyleSet::Html;
+  case StyledLanguage::EmbeddedJavaScript:
+    return StyleSet::HtmlScript;
+  case StyledLanguage::None:
+  case StyledLanguage::CFamily:
+  case StyledLanguage::Dart:
+  case StyledLanguage::Java:
+  case StyledLanguage::CSharp:
+  case StyledLanguage::Rust:
+  case StyledLanguage::OCaml:
+  case StyledLanguage::Haskell:
+  case StyledLanguage::PowerShell:
+    break;
+  }
+  return StyleSet::Cpp;
+}
+
+// A node as seen by the classifiers, with the context of its position in the
+// tree. Strings are never null; missing values are empty.
+struct NodeContext {
+  TSNode node;
+  const char *type;
+  const char *field;
+  const char *parent;
+  const char *grandparent;
+  bool named;
+};
+
+bool typeEquals(const char *type, const char *expected) {
+  return std::strcmp(type, expected) == 0;
+}
+
+bool typeIn(const char *type, std::initializer_list<const char *> types) {
+  for (const char *candidate : types) {
+    if (typeEquals(type, candidate)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool typeContains(const char *type, const char *part) {
+  return std::strstr(type, part) != nullptr;
+}
+
+bool typeEndsWith(const char *type, const char *suffix) {
+  const size_t typeLength = std::strlen(type);
+  const size_t suffixLength = std::strlen(suffix);
+  return typeLength >= suffixLength &&
+         typeEquals(type + typeLength - suffixLength, suffix);
+}
+
+bool isAsciiLetter(char c) {
+  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+}
+
+bool isAsciiDigit(char c) { return c >= '0' && c <= '9'; }
+
+bool isIdentifierToken(const char *type) {
+  if (!isAsciiLetter(type[0]) && type[0] != '_') {
+    return false;
+  }
+  for (const char *c = type + 1; *c; ++c) {
+    if (!isAsciiLetter(*c) && !isAsciiDigit(*c) && *c != '_') {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Anonymous word tokens are keywords, including multi-word ones such as
+// "is not" or "macro_rules!". Single letters are excluded: they are
+// expansion operators (bash) or quasi-quoter names (Haskell).
+bool isKeywordToken(const char *type) {
+  if ((!isAsciiLetter(type[0]) && type[0] != '_') || !type[1]) {
+    return false;
+  }
+  for (const char *c = type + 1; *c; ++c) {
+    if (!isAsciiLetter(*c) && !isAsciiDigit(*c) && !std::strchr("_ -!", *c)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool isTokenOf(const char *type, const char *characters) {
+  if (!type[0]) {
+    return false;
+  }
+  for (const char *c = type; *c; ++c) {
+    if (!std::strchr(characters, *c)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool isOperatorToken(const char *type) {
+  return isTokenOf(type, "!%&*+-./:<=>?^|~()[]{};,");
+}
+
+char byteAt(const QByteArray &source, uint32_t index) {
+  return index < static_cast<uint32_t>(source.size())
+             ? source.at(static_cast<qsizetype>(index))
+             : '\0';
+}
+
+bool startsWithSingleQuote(TSNode node, const QByteArray &source) {
+  return byteAt(source, ts_node_start_byte(node)) == '\'';
+}
+
+Token commentTokenAt(const QByteArray &source, uint32_t start) {
+  const char first = byteAt(source, start);
+  const char second = byteAt(source, start + 1);
+  const char third = byteAt(source, start + 2);
+  const char fourth = byteAt(source, start + 3);
+
+  if (first == '/' && second == '/') {
+    const bool doc = third == '!' || (third == '/' && fourth != '/');
+    return doc ? Token::CommentDoc : Token::CommentLine;
+  }
+  if (first == '/' && second == '*') {
+    const bool doc = third == '!' || (third == '*' && fourth != '/');
+    return doc ? Token::CommentDoc : Token::Comment;
+  }
+  if (first == '(' && second == '*') {
+    return third == '*' && fourth != ')' ? Token::CommentDoc : Token::Comment;
+  }
+  if (first == '#' || (first == '-' && second == '-')) {
+    return Token::CommentLine;
+  }
+  return Token::Comment;
+}
+
+Token stringTokenAt(const char *type, const QByteArray &source,
+                    uint32_t start) {
+  if (typeEquals(type, "raw_string_literal")) {
+    return Token::RawString;
+  }
+
+  // Skip prefixes such as r, b, f, u, @ and $.
+  uint32_t quoteIndex = start;
+  while (isAsciiLetter(byteAt(source, quoteIndex)) ||
+         byteAt(source, quoteIndex) == '@' ||
+         byteAt(source, quoteIndex) == '$') {
+    ++quoteIndex;
+  }
+  const char quote = byteAt(source, quoteIndex);
+  if (quote != '"' && quote != '\'') {
+    return Token::String;
+  }
+  if (byteAt(source, quoteIndex + 1) == quote &&
+      byteAt(source, quoteIndex + 2) == quote) {
+    return Token::TripleQuotedString;
+  }
+  return quote == '\'' ? Token::SingleQuotedString : Token::String;
+}
+
+// Classifies a C/C++ node. Literal and comment nodes are styled as a whole,
+// so their children don't need to be visited.
+Token cFamilyTokenForNode(const NodeContext &context, const QByteArray &source,
+                          bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (context.named) {
+    descend = false;
+    if (typeEquals(type, "comment")) {
+      return commentTokenAt(source, ts_node_start_byte(context.node));
+    }
+    if (typeEquals(type, "string_literal") ||
+        typeEquals(type, "system_lib_string")) {
+      return Token::String;
+    }
+    if (typeEquals(type, "char_literal")) {
+      return Token::SingleQuotedString;
+    }
+    if (typeEquals(type, "raw_string_literal")) {
+      return Token::RawString;
+    }
+    if (typeEquals(type, "number_literal")) {
+      return Token::Number;
+    }
+    if (typeIn(type, {"true", "false", "null", "nullptr", "this"})) {
+      return Token::Keyword;
+    }
+    if (typeEquals(type, "primitive_type")) {
+      return Token::BuiltinType;
+    }
+    if (typeEquals(type, "type_identifier")) {
+      return Token::Type;
+    }
+    if (typeEquals(type, "preproc_directive")) {
+      return Token::Preprocessor;
+    }
+
+    descend = true;
+    return Token::None;
+  }
+
+  // Anonymous nodes are the grammar's literal tokens: directives, keywords
+  // and punctuation.
+  if (type[0] == '#' || typeEquals(type, "defined")) {
+    return Token::Preprocessor;
+  }
+  if (typeIn(type, {"unsigned", "signed", "long", "short"})) {
+    return Token::BuiltinType;
+  }
+  if (isIdentifierToken(type)) {
+    return Token::Keyword;
+  }
+  if (isOperatorToken(type)) {
+    return Token::Operator;
+  }
+
+  return Token::None;
+}
+
+// Classifies a Dart node.
+Token dartTokenForNode(const NodeContext &context, const QByteArray &source,
+                       bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (context.named) {
+    // Strings are visited so interpolations (${...}) can be reset to the
+    // default color and highlighted as code.
+    if (typeEquals(type, "string_literal")) {
+      return Token::String;
+    }
+    if (typeEquals(type, "template_substitution")) {
+      return Token::Default;
+    }
+    if (typeEquals(type, "identifier")) {
+      const uint32_t start = ts_node_start_byte(context.node);
+      const bool annotationName = start > 0 && byteAt(source, start - 1) == '@';
+      return annotationName ? Token::Preprocessor : Token::None;
+    }
+
+    descend = false;
+    if (typeEquals(type, "comment")) {
+      return commentTokenAt(source, ts_node_start_byte(context.node));
+    }
+    if (typeEquals(type, "documentation_comment")) {
+      return Token::CommentDoc;
+    }
+    if (typeIn(type, {"decimal_integer_literal", "decimal_floating_point_literal",
+                      "hex_integer_literal", "symbol_literal"})) {
+      return Token::Number;
+    }
+    if (typeIn(type, {"true", "false", "null_literal", "this", "super",
+                      "inferred_type", "void_type", "is_operator"}) ||
+        typeEndsWith(type, "_builtin")) {
+      return Token::Keyword;
+    }
+    if (typeEquals(type, "type_identifier")) {
+      return Token::Type;
+    }
+    if (typeEndsWith(type, "_operator")) {
+      return Token::Operator;
+    }
+
+    descend = true;
+    return Token::None;
+  }
+
+  // Every identifier-like anonymous token in the Dart grammar is a (possibly
+  // contextual) keyword.
+  if (isIdentifierToken(type) || typeIn(type, {"async*", "sync*"})) {
+    return Token::Keyword;
+  }
+  if (typeEquals(type, "@")) {
+    return Token::Preprocessor;
+  }
+  if (isOperatorToken(type)) {
+    return Token::Operator;
+  }
+
+  return Token::None;
+}
+
+// Classifies an HTML node. Text and <script>/<style> bodies keep the default
+// color.
+Token htmlTokenForNode(const NodeContext &context, const QByteArray &source,
+                       bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (context.named) {
+    descend = false;
+    if (typeEquals(type, "comment")) {
+      return Token::Comment;
+    }
+    if (typeEquals(type, "doctype") || typeEquals(type, "tag_name")) {
+      return Token::Tag;
+    }
+    if (typeEquals(type, "erroneous_end_tag_name")) {
+      return Token::UnknownTag;
+    }
+    if (typeEquals(type, "attribute_name")) {
+      return Token::Attribute;
+    }
+    if (typeEquals(type, "quoted_attribute_value")) {
+      return startsWithSingleQuote(context.node, source)
+                 ? Token::SingleQuotedString
+                 : Token::String;
+    }
+    if (typeEquals(type, "attribute_value")) {
+      // Only unquoted values get here; quoted ones are styled as a whole.
+      const uint32_t start = ts_node_start_byte(context.node);
+      const uint32_t end = std::min(ts_node_end_byte(context.node),
+                                    static_cast<uint32_t>(source.size()));
+      bool numeric = start < end;
+      for (uint32_t i = start; numeric && i < end; ++i) {
+        const char c = byteAt(source, i);
+        numeric = isAsciiDigit(c) || c == '.' || c == '%';
+      }
+      return numeric ? Token::Number : Token::String;
+    }
+    if (typeEquals(type, "entity")) {
+      return Token::Entity;
+    }
+
+    descend = true;
+    return Token::None;
+  }
+
+  // Tag delimiters share the tag color.
+  if (typeIn(type, {"<", ">", "</", "/>", "<!"})) {
+    return Token::Tag;
+  }
+
+  return Token::None;
+}
+
+// Classifies a CSS node, standalone or embedded in HTML.
+Token cssTokenForNode(const NodeContext &context, const QByteArray &source,
+                      bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (context.named) {
+    descend = false;
+    if (typeEquals(type, "comment") || typeEquals(type, "js_comment")) {
+      return Token::Comment;
+    }
+    if (typeEquals(type, "tag_name")) {
+      return typeEquals(context.parent, "pseudo_element_selector")
+                 ? Token::PseudoElement
+                 : Token::Tag;
+    }
+    if (typeEquals(type, "nesting_selector") ||
+        typeEquals(type, "universal_selector")) {
+      return Token::Tag;
+    }
+    if (typeEquals(type, "class_name")) {
+      return typeEquals(context.parent, "pseudo_class_selector")
+                 ? Token::PseudoClass
+                 : Token::ClassSelector;
+    }
+    if (typeEquals(type, "id_name")) {
+      return Token::IdSelector;
+    }
+    if (typeEquals(type, "attribute_name")) {
+      return Token::Attribute;
+    }
+    if (typeEquals(type, "property_name") ||
+        typeEquals(type, "feature_name")) {
+      return Token::Property;
+    }
+    if (typeEquals(type, "string_value")) {
+      return startsWithSingleQuote(context.node, source)
+                 ? Token::SingleQuotedString
+                 : Token::String;
+    }
+    if (typeIn(type, {"integer_value", "float_value", "color_value"})) {
+      return Token::Number;
+    }
+    if (typeEquals(type, "plain_value")) {
+      return Token::Value;
+    }
+    if (typeEquals(type, "at_keyword")) {
+      return Token::AtRule;
+    }
+    if (typeEquals(type, "important")) {
+      return Token::Important;
+    }
+    if (typeEquals(type, "function_name")) {
+      return Token::FunctionName;
+    }
+
+    descend = true;
+    return Token::None;
+  }
+
+  // At-rules (@media, @import, ...) and media query operators.
+  if (type[0] == '@') {
+    return Token::AtRule;
+  }
+  if (typeIn(type, {"and", "or", "not", "only"})) {
+    return Token::Keyword;
+  }
+  if (isOperatorToken(type)) {
+    return Token::Operator;
+  }
+
+  return Token::None;
+}
+
+bool isIdentifierNode(const char *type) {
+  return typeIn(type, {"identifier", "type_identifier", "simple_name"});
+}
+
+// Classifies a node of the remaining grammars (Java, C#, Rust, OCaml,
+// Haskell, PowerShell, Python, Bash, JSON and JavaScript/TypeScript), which
+// share most of their node naming conventions.
+Token genericTokenForNode(StyledLanguage language, const NodeContext &context,
+                          const QByteArray &source, bool &descend) {
+  descend = true;
+  const char *type = context.type;
+  const char *field = context.field;
+  const char *parent = context.parent;
+
+  if (!context.named) {
+    // C# preprocessor directives (#if, #region, ...).
+    if (type[0] == '#' && isAsciiLetter(type[1])) {
+      return Token::Preprocessor;
+    }
+    if ((typeEquals(type, "@") &&
+         typeIn(parent, {"decorator", "annotation", "marker_annotation"})) ||
+        (typeEquals(type, "!") && typeEquals(parent, "macro_invocation"))) {
+      return Token::Preprocessor;
+    }
+    // PowerShell operators (-eq, -and, ...).
+    if (type[0] == '-' && isAsciiLetter(type[1])) {
+      return Token::Operator;
+    }
+    // Java's @interface.
+    if (type[0] == '@' && isAsciiLetter(type[1])) {
+      return Token::Keyword;
+    }
+    if (isKeywordToken(type)) {
+      return Token::Keyword;
+    }
+    if (isTokenOf(type, "!%&*+-./:<=>?^|~()[]{};,\\@$#")) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  const uint32_t start = ts_node_start_byte(context.node);
+
+  if (typeContains(type, "comment") ||
+      typeIn(type, {"shebang", "hash_bang_line", "shebang_directive"})) {
+    descend = false;
+    return commentTokenAt(source, start);
+  }
+  if (typeEquals(type, "haddock")) {
+    descend = false;
+    return Token::CommentDoc;
+  }
+
+  // Decorator, annotation, attribute and macro names.
+  if (typeEquals(parent, "decorator")) {
+    if (typeIn(type, {"call", "call_expression"})) {
+      return Token::None;
+    }
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if ((typeEquals(field, "function") &&
+       typeIn(parent, {"call", "call_expression"}) &&
+       typeEquals(context.grandparent, "decorator")) ||
+      (typeEquals(field, "name") &&
+       (typeIn(parent, {"annotation", "marker_annotation"}) ||
+        (language == StyledLanguage::CSharp &&
+         typeEquals(parent, "attribute")))) ||
+      (typeEquals(field, "macro") && typeEquals(parent, "macro_invocation"))) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+
+  // Language specific nodes.
+  switch (language) {
+  case StyledLanguage::Rust:
+    if (typeIn(type, {"attribute_item", "inner_attribute_item"})) {
+      descend = false;
+      return Token::Preprocessor;
+    }
+    break;
+  case StyledLanguage::Haskell:
+    if (typeIn(type, {"pragma", "cpp"})) {
+      descend = false;
+      return Token::Preprocessor;
+    }
+    if (typeIn(type, {"operator", "constructor_operator"})) {
+      descend = false;
+      return Token::Operator;
+    }
+    if (typeEquals(type, "name")) {
+      descend = false;
+      return Token::Type;
+    }
+    break;
+  case StyledLanguage::OCaml:
+    if (typeIn(type, {"attribute", "item_attribute", "floating_attribute",
+                      "directive", "toplevel_directive",
+                      "line_number_directive"})) {
+      descend = false;
+      return Token::Preprocessor;
+    }
+    if (typeEndsWith(type, "_operator")) {
+      descend = false;
+      return Token::Operator;
+    }
+    break;
+  case StyledLanguage::PowerShell:
+    if (typeEquals(type, "attribute")) {
+      descend = false;
+      return Token::Preprocessor;
+    }
+    if (typeIn(type, {"variable", "braced_variable"})) {
+      descend = false;
+      return Token::Variable;
+    }
+    if (typeEquals(type, "command_parameter")) {
+      descend = false;
+      return Token::Operator;
+    }
+    if (typeEquals(type, "function_name")) {
+      descend = false;
+      return Token::FunctionName;
+    }
+    break;
+  case StyledLanguage::Bash:
+    if (typeIn(type, {"simple_expansion", "expansion", "variable_name"})) {
+      descend = false;
+      return Token::Variable;
+    }
+    if (typeEquals(type, "test_operator")) {
+      descend = false;
+      return Token::Operator;
+    }
+    if (typeIn(type, {"heredoc_start", "heredoc_end"})) {
+      descend = false;
+      return Token::Preprocessor;
+    }
+    break;
+  case StyledLanguage::Python:
+    if (typeEquals(type, "type")) {
+      descend = false;
+      return Token::Type;
+    }
+    break;
+  case StyledLanguage::Json:
+    if (typeEquals(field, "key")) {
+      descend = false;
+      return Token::Property;
+    }
+    break;
+  default:
+    break;
+  }
+
+  // Characters, strings and their contents. Strings are visited so
+  // interpolations can be reset to the default color and highlighted as code.
+  if (typeIn(type, {"char_literal", "character_literal", "char", "character"})) {
+    descend = false;
+    return Token::SingleQuotedString;
+  }
+  if (typeEquals(type, "string") || typeEndsWith(type, "_string") ||
+      typeEndsWith(type, "string_literal") ||
+      typeIn(type, {"interpolated_string_expression", "heredoc_body",
+                    "quasiquote_body"})) {
+    return stringTokenAt(type, source, start);
+  }
+  if (typeIn(type, {"interpolation", "template_substitution",
+                    "string_interpolation", "command_substitution",
+                    "arithmetic_expansion", "sub_expression"})) {
+    return Token::Default;
+  }
+  if (typeIn(type, {"escape_sequence", "escape_interpolation"})) {
+    descend = false;
+    return Token::Escape;
+  }
+  if (typeEquals(type, "regex")) {
+    descend = false;
+    return Token::Regex;
+  }
+
+  if (((typeContains(type, "number") || typeContains(type, "integer") ||
+        typeContains(type, "float") || typeContains(type, "real_literal")) &&
+       !typeContains(type, "type")) ||
+      typeEquals(type, "file_descriptor")) {
+    descend = false;
+    return Token::Number;
+  }
+
+  if (typeIn(type, {"true", "false", "null", "nil", "none", "undefined", "this",
+                    "self", "super", "crate", "null_literal", "boolean_literal",
+                    "boolean", "unit", "this_type", "mutable_specifier",
+                    "implicit_type"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeIn(type, {"primitive_type", "predefined_type", "integral_type",
+                    "floating_point_type", "boolean_type", "void_type"})) {
+    descend = false;
+    return Token::BuiltinType;
+  }
+  if (typeIn(type, {"type_identifier", "constructor", "constructor_name",
+                    "type_constructor", "module_name", "module_type_name",
+                    "class_name", "class_type_name", "module_id",
+                    "type_variable", "type_name", "type_literal"})) {
+    descend = false;
+    return Token::Type;
+  }
+
+  if (isIdentifierNode(type)) {
+    if (typeEquals(field, "type") || typeEquals(parent, "generic_name") ||
+        // PowerShell class and enum names have no field.
+        (typeEquals(type, "simple_name") &&
+         typeIn(parent, {"class_statement", "enum_statement"})) ||
+        (typeEquals(field, "name") &&
+         typeIn(parent,
+                {"class_declaration", "class", "abstract_class_declaration",
+                 "struct_declaration", "interface_declaration",
+                 "enum_declaration", "record_declaration",
+                 "delegate_declaration", "class_definition"}))) {
+      descend = false;
+      return Token::Type;
+    }
+    if (typeEquals(field, "name") &&
+        typeIn(parent,
+               {"function_definition", "function_declaration",
+                "generator_function_declaration", "method_declaration",
+                "method_definition", "function_item", "function_signature_item",
+                "local_function_statement"})) {
+      descend = false;
+      return Token::FunctionName;
     }
   }
 
+  return Token::None;
+}
+
+Token tokenForNode(StyledLanguage language, const NodeContext &context,
+                   const QByteArray &source, bool &descend) {
+  switch (language) {
+  case StyledLanguage::None:
+    descend = true;
+    return Token::None;
+  case StyledLanguage::CFamily:
+    return cFamilyTokenForNode(context, source, descend);
+  case StyledLanguage::Dart:
+    return dartTokenForNode(context, source, descend);
+  case StyledLanguage::Html:
+    return htmlTokenForNode(context, source, descend);
+  case StyledLanguage::Css:
+  case StyledLanguage::EmbeddedCss:
+    return cssTokenForNode(context, source, descend);
+  case StyledLanguage::EmbeddedJavaScript:
+    return genericTokenForNode(StyledLanguage::JavaScript, context, source,
+                               descend);
+  case StyledLanguage::JavaScript:
+  case StyledLanguage::Python:
+  case StyledLanguage::Bash:
+  case StyledLanguage::Json:
+  case StyledLanguage::Java:
+  case StyledLanguage::CSharp:
+  case StyledLanguage::Rust:
+  case StyledLanguage::OCaml:
+  case StyledLanguage::Haskell:
+  case StyledLanguage::PowerShell:
+    break;
+  }
+  return genericTokenForNode(language, context, source, descend);
+}
+
+QByteArray nodeBytes(TSNode node, const QByteArray &source) {
+  const auto size = static_cast<uint32_t>(source.size());
+  const uint32_t start = std::min(ts_node_start_byte(node), size);
+  const uint32_t end = std::min(ts_node_end_byte(node), size);
+  return start < end ? source.mid(static_cast<qsizetype>(start),
+                                  static_cast<qsizetype>(end - start))
+                     : QByteArray();
+}
+
+// Returns the language of an HTML raw_text node based on its <script> or
+// <style> element and that element's type attribute.
+StyledLanguage embeddedLanguageFor(TSNode rawText, const QByteArray &source) {
+  const TSNode element = ts_node_parent(rawText);
+  if (ts_node_is_null(element)) {
+    return StyledLanguage::None;
+  }
+  const bool script = typeEquals(ts_node_type(element), "script_element");
+  if (!script && !typeEquals(ts_node_type(element), "style_element")) {
+    return StyledLanguage::None;
+  }
+
+  QByteArray typeValue;
+  const TSNode startTag = ts_node_named_child(element, 0);
+  if (!ts_node_is_null(startTag) &&
+      typeEquals(ts_node_type(startTag), "start_tag")) {
+    const uint32_t count = ts_node_named_child_count(startTag);
+    for (uint32_t i = 0; i < count; ++i) {
+      const TSNode attribute = ts_node_named_child(startTag, i);
+      if (!typeEquals(ts_node_type(attribute), "attribute")) {
+        continue;
+      }
+      const TSNode name = ts_node_named_child(attribute, 0);
+      if (ts_node_is_null(name) ||
+          nodeBytes(name, source).toLower() != QByteArrayLiteral("type")) {
+        continue;
+      }
+      TSNode value = ts_node_named_child(attribute, 1);
+      if (!ts_node_is_null(value) &&
+          typeEquals(ts_node_type(value), "quoted_attribute_value")) {
+        value = ts_node_named_child(value, 0);
+      }
+      if (!ts_node_is_null(value)) {
+        typeValue = nodeBytes(value, source).trimmed().toLower();
+      }
+      break;
+    }
+  }
+
+  if (script) {
+    const bool javaScript =
+        typeValue.isEmpty() || typeValue == QByteArrayLiteral("module") ||
+        typeValue.contains("javascript") || typeValue.contains("ecmascript") ||
+        typeValue.contains("jsx") || typeValue.contains("babel");
+    return javaScript ? StyledLanguage::EmbeddedJavaScript
+                      : StyledLanguage::None;
+  }
+  return typeValue.isEmpty() || typeValue == QByteArrayLiteral("text/css")
+             ? StyledLanguage::EmbeddedCss
+             : StyledLanguage::None;
+}
+
+// Style ids for each token; -1 leaves the token unstyled (it keeps the color
+// of the enclosing node).
+int cppStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerCPP::Default;
+  case Token::Comment:
+    return QsciLexerCPP::Comment;
+  case Token::CommentLine:
+    return QsciLexerCPP::CommentLine;
+  case Token::CommentDoc:
+    return QsciLexerCPP::CommentDoc;
+  case Token::String:
+    return QsciLexerCPP::DoubleQuotedString;
+  case Token::SingleQuotedString:
+    return QsciLexerCPP::SingleQuotedString;
+  case Token::TripleQuotedString:
+    return QsciLexerCPP::VerbatimString;
+  case Token::RawString:
+    return QsciLexerCPP::RawString;
+  case Token::Number:
+    return QsciLexerCPP::Number;
+  case Token::Keyword:
+    return QsciLexerCPP::Keyword;
+  case Token::BuiltinType:
+  case Token::Variable:
+    return QsciLexerCPP::KeywordSet2;
+  case Token::Type:
+    return QsciLexerCPP::GlobalClass;
+  case Token::Operator:
+  case Token::Escape:
+    return QsciLexerCPP::Operator;
+  case Token::Preprocessor:
+    return QsciLexerCPP::PreProcessor;
+  case Token::Regex:
+    return QsciLexerCPP::Regex;
+  default:
+    return -1;
+  }
+}
+
+int javaScriptStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerJavaScript::Default;
+  case Token::Comment:
+    return QsciLexerJavaScript::Comment;
+  case Token::CommentLine:
+    return QsciLexerJavaScript::CommentLine;
+  case Token::CommentDoc:
+    return QsciLexerJavaScript::CommentDoc;
+  case Token::String:
+  case Token::TripleQuotedString:
+  case Token::RawString:
+    return QsciLexerJavaScript::DoubleQuotedString;
+  case Token::SingleQuotedString:
+    return QsciLexerJavaScript::SingleQuotedString;
+  case Token::Number:
+    return QsciLexerJavaScript::Number;
+  case Token::Keyword:
+    return QsciLexerJavaScript::Keyword;
+  case Token::BuiltinType:
+  case Token::Preprocessor:
+    return QsciLexerJavaScript::KeywordSet2;
+  case Token::Type:
+    return QsciLexerJavaScript::GlobalClass;
+  case Token::Operator:
+  case Token::Escape:
+    return QsciLexerJavaScript::Operator;
+  case Token::Regex:
+    return QsciLexerJavaScript::Regex;
+  default:
+    return -1;
+  }
+}
+
+int pythonStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerPython::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerPython::Comment;
+  case Token::String:
+  case Token::RawString:
+    return QsciLexerPython::DoubleQuotedString;
+  case Token::SingleQuotedString:
+    return QsciLexerPython::SingleQuotedString;
+  case Token::TripleQuotedString:
+    return QsciLexerPython::TripleDoubleQuotedString;
+  case Token::Number:
+    return QsciLexerPython::Number;
+  case Token::Keyword:
+    return QsciLexerPython::Keyword;
+  case Token::Type:
+    return QsciLexerPython::ClassName;
+  case Token::FunctionName:
+    return QsciLexerPython::FunctionMethodName;
+  case Token::Preprocessor:
+    return QsciLexerPython::Decorator;
+  case Token::Operator:
+  case Token::Escape:
+    return QsciLexerPython::Operator;
+  default:
+    return -1;
+  }
+}
+
+int bashStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerBash::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerBash::Comment;
+  case Token::String:
+  case Token::TripleQuotedString:
+  case Token::RawString:
+    return QsciLexerBash::DoubleQuotedString;
+  case Token::SingleQuotedString:
+    return QsciLexerBash::SingleQuotedString;
+  case Token::Number:
+    return QsciLexerBash::Number;
+  case Token::Keyword:
+    return QsciLexerBash::Keyword;
+  case Token::Operator:
+  case Token::Escape:
+    return QsciLexerBash::Operator;
+  case Token::Variable:
+    return QsciLexerBash::Scalar;
+  case Token::Preprocessor:
+    return QsciLexerBash::HereDocumentDelimiter;
+  default:
+    return -1;
+  }
+}
+
+int jsonStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerJSON::Default;
+  case Token::CommentLine:
+    return QsciLexerJSON::CommentLine;
+  case Token::Comment:
+  case Token::CommentDoc:
+    return QsciLexerJSON::CommentBlock;
+  case Token::String:
+  case Token::SingleQuotedString:
+  case Token::TripleQuotedString:
+  case Token::RawString:
+    return QsciLexerJSON::String;
+  case Token::Number:
+    return QsciLexerJSON::Number;
+  case Token::Keyword:
+    return QsciLexerJSON::Keyword;
+  case Token::Operator:
+    return QsciLexerJSON::Operator;
+  case Token::Property:
+    return QsciLexerJSON::Property;
+  case Token::Escape:
+    return QsciLexerJSON::EscapeSequence;
+  default:
+    return -1;
+  }
+}
+
+int cssStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerCSS::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerCSS::Comment;
+  case Token::Tag:
+    return QsciLexerCSS::Tag;
+  case Token::ClassSelector:
+    return QsciLexerCSS::ClassSelector;
+  case Token::IdSelector:
+    return QsciLexerCSS::IDSelector;
+  case Token::PseudoClass:
+    return QsciLexerCSS::PseudoClass;
+  case Token::PseudoElement:
+    return QsciLexerCSS::PseudoElement;
+  case Token::Attribute:
+    return QsciLexerCSS::Attribute;
+  case Token::Property:
+    return QsciLexerCSS::CSS1Property;
+  case Token::Number:
+  case Token::Value:
+    return QsciLexerCSS::Value;
+  case Token::String:
+    return QsciLexerCSS::DoubleQuotedString;
+  case Token::SingleQuotedString:
+    return QsciLexerCSS::SingleQuotedString;
+  case Token::Operator:
+    return QsciLexerCSS::Operator;
+  case Token::Important:
+    return QsciLexerCSS::Important;
+  case Token::Keyword:
+  case Token::AtRule:
+    return QsciLexerCSS::AtRule;
+  default:
+    return -1;
+  }
+}
+
+int htmlStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerHTML::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerHTML::HTMLComment;
+  case Token::String:
+  case Token::TripleQuotedString:
+  case Token::RawString:
+    return QsciLexerHTML::HTMLDoubleQuotedString;
+  case Token::SingleQuotedString:
+    return QsciLexerHTML::HTMLSingleQuotedString;
+  case Token::Number:
+    return QsciLexerHTML::HTMLNumber;
+  case Token::Tag:
+  case Token::PseudoElement:
+    return QsciLexerHTML::Tag;
+  case Token::UnknownTag:
+    return QsciLexerHTML::UnknownTag;
+  case Token::Attribute:
+  case Token::ClassSelector:
+  case Token::IdSelector:
+  case Token::PseudoClass:
+    return QsciLexerHTML::Attribute;
+  case Token::Property:
+  case Token::Entity:
+    return QsciLexerHTML::Entity;
+  case Token::FunctionName:
+    return QsciLexerHTML::Script;
+  case Token::Keyword:
+  case Token::Important:
+  case Token::AtRule:
+    return QsciLexerHTML::JavaScriptKeyword;
+  default:
+    return -1;
+  }
+}
+
+int htmlScriptStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerHTML::Default;
+  case Token::Comment:
+    return QsciLexerHTML::JavaScriptComment;
+  case Token::CommentLine:
+    return QsciLexerHTML::JavaScriptCommentLine;
+  case Token::CommentDoc:
+    return QsciLexerHTML::JavaScriptCommentDoc;
+  case Token::String:
+  case Token::TripleQuotedString:
+  case Token::RawString:
+    return QsciLexerHTML::JavaScriptDoubleQuotedString;
+  case Token::SingleQuotedString:
+    return QsciLexerHTML::JavaScriptSingleQuotedString;
+  case Token::Number:
+    return QsciLexerHTML::JavaScriptNumber;
+  case Token::Keyword:
+    return QsciLexerHTML::JavaScriptKeyword;
+  case Token::Regex:
+    return QsciLexerHTML::JavaScriptRegex;
+  default:
+    return -1;
+  }
+}
+
+int styleFor(StyleSet styleSet, Token token) {
+  switch (styleSet) {
+  case StyleSet::Cpp:
+    return cppStyleFor(token);
+  case StyleSet::JavaScript:
+    return javaScriptStyleFor(token);
+  case StyleSet::Python:
+    return pythonStyleFor(token);
+  case StyleSet::Bash:
+    return bashStyleFor(token);
+  case StyleSet::Json:
+    return jsonStyleFor(token);
+  case StyleSet::Css:
+    return cssStyleFor(token);
+  case StyleSet::Html:
+    return htmlStyleFor(token);
+  case StyleSet::HtmlScript:
+    return htmlScriptStyleFor(token);
+  }
+  return -1;
+}
+
+// Uses the color configured on the lexer for the style (theme aware) and falls
+// back to the given dark palette color when the lexer has not been themed.
+QTextCharFormat lexerStyleFormat(const QsciLexer *lexer, int style,
+                                 const QColor &fallbackColor,
+                                 bool fallbackBold, bool italic) {
+  QTextCharFormat format;
+  const QColor lexerColor = lexer ? lexer->color(style) : QColor();
+  if (lexerColor.isValid()) {
+    const QFont lexerFont = lexer->font(style);
+    format.setForeground(lexerColor);
+    format.setFontWeight(lexerFont.bold() ? QFont::Bold : QFont::Normal);
+    format.setFontItalic(italic || lexerFont.italic());
+  } else {
+    format.setForeground(fallbackColor);
+    format.setFontWeight(fallbackBold ? QFont::Bold : QFont::Normal);
+    format.setFontItalic(italic);
+  }
+
   return format;
+}
+
+QTextCharFormat formatForToken(const QsciLexer *lexer, StyleSet styleSet,
+                               Token token, const QColor &defaultColor) {
+  const int style = styleFor(styleSet, token);
+  if (style < 0) {
+    return {};
+  }
+
+  QColor fallbackColor;
+  bool fallbackBold = false;
+  bool italic = false;
+  switch (token) {
+  case Token::None:
+    return {};
+  case Token::Default:
+    fallbackColor = defaultColor;
+    break;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    fallbackColor = QColor(92, 99, 112);
+    italic = true;
+    break;
+  case Token::Keyword:
+  case Token::Important:
+    fallbackColor = QColor(198, 120, 221);
+    fallbackBold = true;
+    break;
+  case Token::PseudoClass:
+  case Token::AtRule:
+    fallbackColor = QColor(198, 120, 221);
+    break;
+  case Token::String:
+  case Token::SingleQuotedString:
+  case Token::TripleQuotedString:
+  case Token::RawString:
+  case Token::Value:
+    fallbackColor = QColor(152, 195, 121);
+    break;
+  case Token::Number:
+  case Token::Attribute:
+    fallbackColor = QColor(209, 154, 102);
+    break;
+  case Token::BuiltinType:
+  case Token::Operator:
+  case Token::Escape:
+  case Token::Property:
+  case Token::Entity:
+  case Token::PseudoElement:
+    fallbackColor = QColor(86, 182, 194);
+    break;
+  case Token::Preprocessor:
+  case Token::FunctionName:
+  case Token::IdSelector:
+    fallbackColor = QColor(97, 175, 239);
+    break;
+  case Token::Type:
+  case Token::ClassSelector:
+    fallbackColor = QColor(229, 192, 123);
+    break;
+  case Token::Regex:
+    fallbackColor = QColor(255, 138, 101);
+    break;
+  case Token::Tag:
+  case Token::UnknownTag:
+    fallbackColor = QColor(224, 108, 117);
+    fallbackBold = true;
+    break;
+  case Token::Variable:
+    fallbackColor = QColor(224, 108, 117);
+    break;
+  }
+
+  return lexerStyleFormat(lexer, style, fallbackColor, fallbackBold, italic);
 }
 
 } // namespace
@@ -361,7 +1615,8 @@ QsciScintilla::QsciScintilla(QWidget *parent)
       _indentationGuides(false), _foldStyle(NoFoldStyle),
       _braceMatch(NoBraceMatch), _lineNumberArea(nullptr),
       _treeSitterLanguage(nullptr), _updatingTreeSitterHighlighting(false),
-      _treeSitterHighlightingEnabled(true), _parser(nullptr), _tree(nullptr) {
+      _treeSitterHighlightingEnabled(true), _parser(nullptr), _tree(nullptr),
+      _highlighter(nullptr), _highlightTimer(new QTimer(this)) {
   for (int i = 0; i < 4; ++i) {
     _marginLineNumbers[i] = false;
     _marginSensitivity[i] = false;
@@ -380,11 +1635,33 @@ QsciScintilla::QsciScintilla(QWidget *parent)
           &QsciScintilla::refreshCurrentLineHighlight);
   connect(document(), &QTextDocument::contentsChanged, this,
           &QsciScintilla::updateTreeSitterHighlighting);
+  _highlightTimer->setSingleShot(true);
+  _highlightTimer->setInterval(0);
+  connect(_highlightTimer, &QTimer::timeout, this,
+          &QsciScintilla::updateTreeSitterHighlighting);
   updateLineNumberAreaWidth(0);
   _parser = ts_parser_new();
 }
 
 QsciScintilla::~QsciScintilla() {
+
+  // Base-class destructors delete child objects (the timer, and lexers that
+  // are parented to this editor) and the document; their signals must not
+  // reach slots of this already-destroyed subclass.
+  if (_lexer) {
+    disconnect(_lexer, nullptr, this, nullptr);
+    _lexer = nullptr;
+
+  }
+
+  _treeSitterLanguage = nullptr;
+  disconnect(document(), nullptr, this, nullptr);
+
+  disconnect(this, nullptr, this, nullptr);
+  _highlightTimer->stop();
+  disconnect(_highlightTimer, nullptr, this, nullptr);
+
+
   if (_tree) {
     ts_tree_delete(_tree);
     _tree = nullptr;
@@ -408,79 +1685,233 @@ void QsciScintilla::setText(const QString &text) {
   refreshCurrentLineHighlight();
 }
 
+void QsciScintilla::scheduleTreeSitterHighlighting() {
+  // Lexer configuration emits changed() once per style; coalesce them into a
+  // single re-highlight.
+  _highlightTimer->start();
+}
+
 void QsciScintilla::updateTreeSitterHighlighting() {
-  if (_updatingTreeSitterHighlighting || !_treeSitterHighlightingEnabled) {
+  if (_updatingTreeSitterHighlighting) {
     return;
   }
   const QScopedValueRollback<bool> updateGuard(_updatingTreeSitterHighlighting,
                                                true);
+
+  _highlightTimer->stop();
 
   if (_tree) {
     ts_tree_delete(_tree);
     _tree = nullptr;
   }
 
-  QTextCharFormat defaultFormat;
-  defaultFormat.setForeground(_color.isValid() ? _color
-                                               : palette().text().color());
-  defaultFormat.setFontWeight(QFont::Normal);
-  defaultFormat.setFontItalic(false);
-  QTextCursor documentCursor(document());
-  documentCursor.select(QTextCursor::Document);
-  documentCursor.setCharFormat(defaultFormat);
+  if (!_treeSitterHighlightingEnabled) {
+    // Drop formats so blocks changed while disabled are not painted with
+    // stale ranges.
+    if (_highlighter) {
+      _highlighter->clearBlockFormats();
+    }
+    return;
+  }
 
   if (!_parser || !_treeSitterLanguage) {
+    if (_highlighter) {
+      _highlighter->clearBlockFormats();
+      _highlighter->rehighlight();
+    }
     return;
+  }
+
+  if (!_highlighter) {
+    _highlighter = new QEditorTreeSitterHighlighter(document());
   }
 
   const QByteArray source = toPlainText().toUtf8();
   _tree = ts_parser_parse_string(_parser, nullptr, source.constData(),
                                  static_cast<uint32_t>(source.size()));
   if (!_tree) {
+    _highlighter->clearBlockFormats();
+    _highlighter->rehighlight();
     return;
   }
 
   const int documentLength = document()->characterCount() - 1;
-  const auto utf8ByteToUtf16 = [&source](uint32_t byteOffset) {
-    const int boundedOffset =
-        std::min(static_cast<int>(byteOffset), static_cast<int>(source.size()));
-    return QString::fromUtf8(source.constData(), boundedOffset).size();
+
+  // tree-sitter reports UTF-8 byte offsets, the document uses UTF-16.
+  std::vector<int> utf16Offsets(static_cast<size_t>(source.size()) + 1, 0);
+  int utf16Offset = 0;
+  for (int byteIndex = 0; byteIndex < source.size(); ++byteIndex) {
+    const auto byte = static_cast<unsigned char>(source.at(byteIndex));
+    utf16Offsets[static_cast<size_t>(byteIndex)] = utf16Offset;
+    if ((byte & 0xC0) != 0x80) {
+      utf16Offset += byte >= 0xF0 ? 2 : 1;
+    }
+  }
+  utf16Offsets[static_cast<size_t>(source.size())] = utf16Offset;
+
+  const auto utf8ByteToUtf16 = [&utf16Offsets](uint32_t byteOffset) {
+    const size_t index =
+        std::min(static_cast<size_t>(byteOffset), utf16Offsets.size() - 1);
+    return utf16Offsets[index];
   };
 
-  std::function<void(TSNode)> applyNode = [&](TSNode node) {
-    const char *nodeType = ts_node_type(node);
-    QTextCharFormat format = formatForTreeSitterNode(nodeType);
+  std::vector<int> blockStarts;
+  blockStarts.reserve(static_cast<size_t>(document()->blockCount()));
+  for (QTextBlock block = document()->begin(); block.isValid();
+       block = block.next()) {
+    blockStarts.push_back(block.position());
+  }
+  const int blockCount = static_cast<int>(blockStarts.size());
 
-    if (format.hasProperty(QTextFormat::ForegroundBrush) &&
-        format.foreground().color().isValid()) {
-      const TSNode parent = ts_node_parent(node);
-      if (QString::fromUtf8(nodeType ? nodeType : "") ==
-              QLatin1String("string") &&
-          !ts_node_is_null(parent) &&
-          QString::fromUtf8(ts_node_type(parent)) == QLatin1String("pair") &&
-          ts_node_eq(ts_node_named_child(parent, 0), node)) {
-        format.setForeground(QColor(97, 175, 239));
-        format.setFontWeight(QFont::Bold);
-      }
+  QEditorTreeSitterHighlighter::BlockFormats blockFormats(blockCount);
 
-      const int start = utf8ByteToUtf16(ts_node_start_byte(node));
-      const int end = utf8ByteToUtf16(ts_node_end_byte(node));
-      if (start < end && start < documentLength) {
-        QTextCursor cursor(document());
-        cursor.setPosition(start);
-        cursor.setPosition(std::min(end, documentLength),
-                           QTextCursor::KeepAnchor);
-        cursor.setCharFormat(format);
-      }
+  const auto addRange = [&](int start, int end,
+                            const QTextCharFormat &format) {
+    start = std::max(0, start);
+    end = std::min(end, documentLength);
+    if (start >= end || blockCount == 0) {
+      return;
     }
 
-    const uint32_t childCount = ts_node_child_count(node);
-    for (uint32_t index = 0; index < childCount; ++index) {
-      applyNode(ts_node_child(node, index));
+    int block = static_cast<int>(std::upper_bound(blockStarts.begin(),
+                                                  blockStarts.end(), start) -
+                                 blockStarts.begin()) -
+                1;
+    block = std::max(block, 0);
+
+    // Multi-line nodes (block comments, raw strings) are split per block.
+    for (; block < blockCount && blockStarts[block] < end; ++block) {
+      const int blockStart = blockStarts[block];
+      const int blockEnd = block + 1 < blockCount
+                               ? blockStarts[block + 1] - 1
+                               : documentLength;
+      const int rangeStart = std::max(start, blockStart);
+      const int rangeEnd = std::min(end, blockEnd);
+      if (rangeStart < rangeEnd) {
+        QTextLayout::FormatRange range;
+        range.start = rangeStart - blockStart;
+        range.length = rangeEnd - rangeStart;
+        range.format = format;
+        blockFormats[block].append(range);
+      }
     }
   };
 
-  applyNode(ts_tree_root_node(_tree));
+  const StyledLanguage documentLanguage =
+      styledLanguageFor(_treeSitterLanguage);
+  const QColor defaultColor =
+      _color.isValid() ? _color : palette().text().color();
+  // Keyed by style set and token; embedded languages use their own sets.
+  QHash<int, QTextCharFormat> tokenFormats;
+
+  const auto formatFor = [&](StyleSet styleSet, Token token) {
+    const int key = static_cast<int>(styleSet) * 256 + static_cast<int>(token);
+    auto it = tokenFormats.find(key);
+    if (it == tokenFormats.end()) {
+      it = tokenFormats.insert(
+          key, formatForToken(_lexer, styleSet, token, defaultColor));
+    }
+    return it.value();
+  };
+
+  struct Injection {
+    StyledLanguage language;
+    TSRange range;
+  };
+  std::vector<Injection> injections;
+
+  // Pre-order walk: parents are added before children, so child ranges take
+  // precedence when they overlap.
+  const auto walk = [&](TSNode root, StyledLanguage language) {
+    const StyleSet styleSet = styleSetFor(language);
+    // Types of the current node's ancestors, innermost last.
+    std::vector<const char *> ancestors;
+    TSTreeCursor treeCursor = ts_tree_cursor_new(root);
+    for (;;) {
+      const TSNode node = ts_tree_cursor_current_node(&treeCursor);
+      const char *type = ts_node_type(node);
+      const char *field = ts_tree_cursor_current_field_name(&treeCursor);
+      const size_t depth = ancestors.size();
+      const NodeContext context{node,
+                                type ? type : "",
+                                field ? field : "",
+                                depth > 0 ? ancestors[depth - 1] : "",
+                                depth > 1 ? ancestors[depth - 2] : "",
+                                ts_node_is_named(node)};
+
+      bool descend = true;
+      const Token token = tokenForNode(language, context, source, descend);
+      if (token != Token::None) {
+        const QTextCharFormat format = formatFor(styleSet, token);
+        if (format.hasProperty(QTextFormat::ForegroundBrush) &&
+            format.foreground().color().isValid()) {
+          addRange(utf8ByteToUtf16(ts_node_start_byte(node)),
+                   utf8ByteToUtf16(ts_node_end_byte(node)), format);
+        }
+      }
+
+      if (language == StyledLanguage::Html &&
+          typeEquals(context.type, "raw_text")) {
+        const StyledLanguage embedded = embeddedLanguageFor(node, source);
+        if (embedded != StyledLanguage::None) {
+          injections.push_back(
+              {embedded,
+               {ts_node_start_point(node), ts_node_end_point(node),
+                ts_node_start_byte(node), ts_node_end_byte(node)}});
+        }
+      }
+
+      if (descend && ts_tree_cursor_goto_first_child(&treeCursor)) {
+        ancestors.push_back(context.type);
+        continue;
+      }
+
+      bool finished = false;
+      while (!ts_tree_cursor_goto_next_sibling(&treeCursor)) {
+        if (!ts_tree_cursor_goto_parent(&treeCursor)) {
+          finished = true;
+          break;
+        }
+        ancestors.pop_back();
+      }
+      if (finished) {
+        break;
+      }
+    }
+    ts_tree_cursor_delete(&treeCursor);
+  };
+
+  walk(ts_tree_root_node(_tree), documentLanguage);
+
+  // <script> and <style> bodies are parsed separately with their own grammar,
+  // restricted to the body's range. Their ranges are added after the HTML
+  // ranges, so they take precedence.
+  if (!injections.empty()) {
+    TSParser *injectionParser = ts_parser_new();
+    for (const Injection &injection : injections) {
+      const TSLanguage *language =
+          injection.language == StyledLanguage::EmbeddedJavaScript
+              ? tree_sitter_javascript()
+              : tree_sitter_css();
+      if (!ts_parser_set_language(injectionParser, language) ||
+          !ts_parser_set_included_ranges(injectionParser, &injection.range,
+                                         1)) {
+        continue;
+      }
+      TSTree *injectionTree = ts_parser_parse_string(
+          injectionParser, nullptr, source.constData(),
+          static_cast<uint32_t>(source.size()));
+      if (!injectionTree) {
+        continue;
+      }
+      walk(ts_tree_root_node(injectionTree), injection.language);
+      ts_tree_delete(injectionTree);
+    }
+    ts_parser_delete(injectionParser);
+  }
+
+  _highlighter->setBlockFormats(std::move(blockFormats));
+  _highlighter->rehighlight();
 }
 
 QString QsciScintilla::text() const {
@@ -533,7 +1964,12 @@ void QsciScintilla::setLexer(QsciLexer *lexer) {
     connect(_lexer, &QsciLexer::changed, this,
             &QsciScintilla::applyCurrentPalette);
     connect(_lexer, &QsciLexer::changed, this,
-            &QsciScintilla::updateTreeSitterHighlighting);
+            &QsciScintilla::scheduleTreeSitterHighlighting);
+    connect(_lexer, &QObject::destroyed, this, [this]() {
+      _lexer = nullptr;
+      _treeSitterLanguage = nullptr;
+      scheduleTreeSitterHighlighting();
+    });
   }
 
   applyCurrentPalette();

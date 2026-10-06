@@ -16,7 +16,9 @@ class QMouseEvent;
 class QPaintEvent;
 class QResizeEvent;
 class QFocusEvent;
+class QTimer;
 class QWidget;
+class QEditorTreeSitterHighlighter;
 
 class QSCI_EXPORT QsciScintilla : public QPlainTextEdit {
   Q_OBJECT
@@ -101,6 +103,7 @@ private:
   void updateLineNumberAreaWidth(int);
   void updateLineNumberArea(const QRect &rect, int dy);
   void updateTreeSitterHighlighting();
+  void scheduleTreeSitterHighlighting();
 
 private:
   QsciLexer *_lexer;
@@ -141,4 +144,6 @@ private:
   bool _treeSitterHighlightingEnabled;
   TSParser *_parser;
   TSTree *_tree;
+  QEditorTreeSitterHighlighter *_highlighter;
+  QTimer *_highlightTimer;
 };

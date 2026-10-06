@@ -296,6 +296,8 @@ void SideBySideDiffView::clearContent() {
 
   _leftEditor->setLexer(nullptr);
   _rightEditor->setLexer(nullptr);
+  delete _lexer;
+  _lexer = nullptr;
   _leftEditor->clear();
   _rightEditor->clear();
   _leftEditor->markerDeleteAll();
@@ -384,6 +386,12 @@ void SideBySideDiffView::loadAndHighlight(
 void SideBySideDiffView::setupEditors(const QString &filePath) {
   LOG_PERF(0, "Enter");
 
+  // The lexer has to be attached before theming so its styles get the
+  // current theme colors.
+  _lexer = QScintillaLexerFactory::createDiffViewerLexerForFile(filePath, this);
+  _leftEditor->setLexer(_lexer);
+  _rightEditor->setLexer(_lexer);
+
   DarkThemeLexersHighlighter highlighter;
   highlighter.applyDarkTheme(_leftEditor);
   highlighter.applyDarkTheme(_rightEditor);
@@ -391,14 +399,6 @@ void SideBySideDiffView::setupEditors(const QString &filePath) {
   _leftEditor->setReadOnly(true);
   _rightEditor->setReadOnly(true);
 
-  const QScintillaLexerFactory factory;
-
-  /*
-  auto *lexer = factory.createLexerForFile(filePath, this);
-
-  _leftEditor->setLexer(lexer);
-  _rightEditor->setLexer(lexer);
-*/
   _leftEditor->setMarginType(0, QsciScintilla::NumberMargin);
   _leftEditor->setMarginType(1, QsciScintilla::SymbolMargin);
   _leftEditor->setMarginWidth(1, 2);
