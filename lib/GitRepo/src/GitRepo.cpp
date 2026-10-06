@@ -60,7 +60,6 @@
 
 #include <QCoreApplication>
 #include <QDateTime>
-#include <QTimeZone>
 #include <QDir>
 #include <QFile>
 #include <QLocale>
@@ -69,6 +68,7 @@
 #include <QStandardPaths>
 #include <QString>
 #include <QStringList>
+#include <QTimeZone>
 
 #include <algorithm>
 #include <cstring>
@@ -6406,8 +6406,8 @@ static int certificateCheckCallback(git_cert *cert, int valid, const char *host,
       // Parse the certificate using OpenSSL
       const unsigned char *cert_data =
           reinterpret_cast<const unsigned char *>(x509_cert->data);
-      X509 *x509 = d2i_X509(nullptr, &cert_data,
-                            static_cast<long>(x509_cert->len));
+      X509 *x509 =
+          d2i_X509(nullptr, &cert_data, static_cast<long>(x509_cert->len));
 
       if (x509) {
         // Get subject name

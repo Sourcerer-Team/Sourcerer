@@ -103,9 +103,8 @@ void TitleBarTabBar::mouseMoveEvent(QMouseEvent *event) {
 
   // Don't let the dragged tab's left edge go past the last pinned tab, so
   // it can't be dropped before it.
-  const qreal minimumX =
-      _pressedX - (tabRect(_pressedIndex).left() -
-                   tabRect(pinned - 1).right() - 1);
+  const qreal minimumX = _pressedX - (tabRect(_pressedIndex).left() -
+                                      tabRect(pinned - 1).right() - 1);
 
   if (event->position().x() >= minimumX) {
     QTabBar::mouseMoveEvent(event);
@@ -116,7 +115,8 @@ void TitleBarTabBar::mouseMoveEvent(QMouseEvent *event) {
   QMouseEvent clamped(event->type(), event->position() + offset,
                       event->scenePosition() + offset,
                       event->globalPosition() + offset, event->button(),
-                      event->buttons(), event->modifiers(), event->pointingDevice());
+                      event->buttons(), event->modifiers(),
+                      event->pointingDevice());
   QTabBar::mouseMoveEvent(&clamped);
   event->setAccepted(clamped.isAccepted());
 }

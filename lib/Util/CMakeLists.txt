@@ -27,6 +27,7 @@ add_library(Util STATIC
    include/Dispatcher.h
    include/FileManager.h
    include/Timer.h
+   include/Avatar.h
    include/FileLock.h
    include/General.h
    include/Graph.h
@@ -41,6 +42,7 @@ add_library(Util STATIC
 
    include/TokenString.h
    include/Uuid.h
+   src/Avatar.cpp
    src/CloudCredentialStorage.cpp
    src/CloudRepo.cpp
    src/Dispatcher.cpp
