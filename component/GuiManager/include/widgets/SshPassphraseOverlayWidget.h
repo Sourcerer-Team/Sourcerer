@@ -25,7 +25,7 @@ public:
   typedef QWeakPointer<SshPassphraseOverlayWidget> WeakPtr;
 
 public:
-  explicit SshPassphraseOverlayWidget(uint id, QWidget *parent);
+  explicit SshPassphraseOverlayWidget(size_t id, QWidget *parent);
   ~SshPassphraseOverlayWidget() override;
 
   SharedPtr getSelf() { return sharedFromThis(); }

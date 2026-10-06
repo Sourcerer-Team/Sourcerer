@@ -68,6 +68,7 @@
 #include <QStandardPaths>
 #include <QString>
 #include <QStringList>
+#include <QTimeZone>
 
 #include <algorithm>
 #include <cstring>
@@ -175,7 +176,8 @@ static QString commitSignatureDateToString(const git_signature *signature) {
   }
 
   const QDateTime dateTime = QDateTime::fromSecsSinceEpoch(
-      signature->when.time, Qt::OffsetFromUTC, signature->when.offset * 60);
+      signature->when.time,
+      QTimeZone::fromSecondsAheadOfUtc(signature->when.offset * 60));
   return QLocale::system().toString(dateTime, QLocale::ShortFormat);
 }
 
@@ -6404,7 +6406,8 @@ static int certificateCheckCallback(git_cert *cert, int valid, const char *host,
       // Parse the certificate using OpenSSL
       const unsigned char *cert_data =
           reinterpret_cast<const unsigned char *>(x509_cert->data);
-      X509 *x509 = d2i_X509(nullptr, &cert_data, x509_cert->len);
+      X509 *x509 =
+          d2i_X509(nullptr, &cert_data, static_cast<long>(x509_cert->len));
 
       if (x509) {
         // Get subject name
@@ -7350,7 +7353,8 @@ static bool loadHistoryCommit(git_repository *repo, const git_oid &oid,
   const std::size_t parentCount = git_commit_parentcount(commit);
 
   for (std::size_t i = 0; i < parentCount; ++i) {
-    const git_oid *parentOid = git_commit_parent_id(commit, i);
+    const git_oid *parentOid =
+        git_commit_parent_id(commit, static_cast<unsigned int>(i));
     if (!parentOid) {
       LOG_ERROR(Log::ErrorId::Git,
                 "Can't lookup parent oid at index {} for oid \"{}\"", i,
@@ -8121,7 +8125,8 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   parentCount = git_commit_parentcount(commit);
   status.parentShas.reserve(parentCount);
   for (int i = 0; i < parentCount; ++i) {
-    const git_oid *parentOid = git_commit_parent_id(commit, i);
+    const git_oid *parentOid =
+        git_commit_parent_id(commit, static_cast<unsigned int>(i));
     if (!parentOid) {
       continue;
     }
@@ -13491,7 +13496,6 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   } else if (analysis & GIT_MERGE_ANALYSIS_FASTFORWARD) {
     LOG_DEBUG("Performing fast-forward merge...");
 
-    git_oid targetOid;
     git_commit *srcCommitObj = nullptr;
     error = git_commit_lookup(&srcCommitObj, repo,
                               git_annotated_commit_id(srcCommit));

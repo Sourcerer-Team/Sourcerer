@@ -38,7 +38,7 @@ find_library(PCRE2_LIBRARY
 )
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(PCRE2
+find_package_handle_standard_args(pcre2
     REQUIRED_VARS PCRE2_LIBRARY PCRE2_INCLUDE_DIR
     VERSION_VAR PC_PCRE2_VERSION
 )

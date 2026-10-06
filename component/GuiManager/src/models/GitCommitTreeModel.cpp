@@ -4,7 +4,7 @@
 #include <Log.h>
 
 #include <QDir>
-#include <QScopedPointer>
+#include <memory>
 
 #define THREAD_ID "GitCommitTreeModel"
 
@@ -80,7 +80,7 @@ GitCommitTreeModel::from(const GitRepo::GitCommitStatus &commitStatus) {
               return x._filePath < y._filePath;
             });
 
-  QScopedPointer<GitCommitTreeModel> model(new GitCommitTreeModel());
+  std::unique_ptr<GitCommitTreeModel> model(new GitCommitTreeModel());
 
   for (const auto &modification : transformedModifications) {
     QStandardItem *parent = model->invisibleRootItem();
@@ -108,7 +108,7 @@ GitCommitTreeModel::from(const GitRepo::GitCommitStatus &commitStatus) {
 
   LOG_PERF(0, "Exit");
 
-  return model.take();
+  return model.release();
 }
 
 GitCommitTreeModel *GitCommitTreeModel::from(const GitRepo::GitStatus &status) {
@@ -169,7 +169,7 @@ GitCommitTreeModel *GitCommitTreeModel::from(const GitRepo::GitStatus &status) {
               return x._filePath < y._filePath;
             });
 
-  QScopedPointer<GitCommitTreeModel> model(new GitCommitTreeModel());
+  std::unique_ptr<GitCommitTreeModel> model(new GitCommitTreeModel());
 
   for (const auto &modification : transformedModifications) {
     QStandardItem *parent = model->invisibleRootItem();
@@ -200,7 +200,7 @@ GitCommitTreeModel *GitCommitTreeModel::from(const GitRepo::GitStatus &status) {
 
   LOG_PERF(0, "Exit");
 
-  return model.take();
+  return model.release();
 }
 
 GitCommitTreeModel *GitCommitTreeModel::from(const QStringList &files) {
@@ -230,7 +230,7 @@ GitCommitTreeModel *GitCommitTreeModel::from(
               return x._filePath < y._filePath;
             });
 
-  QScopedPointer<GitCommitTreeModel> model(new GitCommitTreeModel());
+  std::unique_ptr<GitCommitTreeModel> model(new GitCommitTreeModel());
 
   for (const auto &modification : modifications) {
     QStandardItem *parent = model->invisibleRootItem();
@@ -261,7 +261,7 @@ GitCommitTreeModel *GitCommitTreeModel::from(
 
   LOG_PERF(0, "Exit");
 
-  return model.take();
+  return model.release();
 }
 
 GitCommitTreeModel *
@@ -316,7 +316,7 @@ GitCommitTreeModel::fromStaged(const GitRepo::GitStatus &status) {
               return x._filePath < y._filePath;
             });
 
-  QScopedPointer<GitCommitTreeModel> model(new GitCommitTreeModel());
+  std::unique_ptr<GitCommitTreeModel> model(new GitCommitTreeModel());
 
   for (const auto &modification : transformedModifications) {
     QStandardItem *parent = model->invisibleRootItem();
@@ -347,7 +347,7 @@ GitCommitTreeModel::fromStaged(const GitRepo::GitStatus &status) {
 
   LOG_PERF(0, "Exit");
 
-  return model.take();
+  return model.release();
 }
 
 } // namespace GuiManager::Models

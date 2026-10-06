@@ -38,6 +38,7 @@
 #include <QActionGroup>
 #include <QCollator>
 
+#include <Avatar.h>
 #include <Dispatcher.h>
 #include <FileManager.h>
 #include <GitRepoManagerStructs.h>
@@ -51,7 +52,6 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCoreApplication>
-#include <QCryptographicHash>
 #include <QCursor>
 #include <QDate>
 #include <QDateEdit>
@@ -390,177 +390,6 @@ void setIconLabel(QLabel *label, const QPixmap &icon,
   label->setAccessibleName(accessibleText);
 }
 
-QString avatarInitialsForName(const QString &authorName,
-                              const QString &authorEmail) {
-  QStringList initialsParts;
-  const QString simplifiedName = authorName.simplified();
-  if (!simplifiedName.isEmpty()) {
-    const QStringList nameParts =
-        simplifiedName.split(QChar::fromLatin1(' '), Qt::SkipEmptyParts);
-    for (const QString &part : nameParts) {
-      if (!part.isEmpty() && part.at(0).isLetterOrNumber()) {
-        initialsParts << part.left(1).toUpper();
-      }
-    }
-  }
-
-  QString initials = initialsParts.join(QString());
-  if (initials.size() > 2) {
-    initials = initials.left(2);
-  }
-
-  if (initials.isEmpty()) {
-    const QString localPart =
-        authorEmail.section(QChar::fromLatin1('@'), 0, 0).simplified();
-    for (const QChar ch : localPart) {
-      if (ch.isLetterOrNumber()) {
-        initials.append(ch.toUpper());
-        if (initials.size() == 2) {
-          break;
-        }
-      }
-    }
-  }
-
-  if (initials.isEmpty()) {
-    initials = QStringLiteral("?");
-  }
-
-  return initials;
-}
-
-QColor avatarBackgroundColorForKey(const QString &key) {
-  const uint hash = qHash(key.trimmed().toLower());
-  return QColor::fromHsl(static_cast<int>(hash % 360), 170, 120);
-}
-
-QPixmap createAuthorInitialsAvatar(const QString &authorName,
-                                   const QString &authorEmail,
-                                   const QSize &size) {
-  QPixmap pixmap(size);
-  pixmap.fill(Qt::transparent);
-
-  QPainter painter(&pixmap);
-  painter.setRenderHint(QPainter::Antialiasing, true);
-  painter.setPen(Qt::NoPen);
-  painter.setBrush(avatarBackgroundColorForKey(
-      !authorEmail.trimmed().isEmpty() ? authorEmail : authorName));
-  painter.drawEllipse(pixmap.rect().adjusted(1, 1, -1, -1));
-
-  QFont font = painter.font();
-  font.setBold(true);
-  font.setPointSizeF(size.height() * 0.38);
-  painter.setFont(font);
-  painter.setPen(Qt::white);
-  painter.drawText(pixmap.rect(), Qt::AlignCenter,
-                   avatarInitialsForName(authorName, authorEmail));
-
-  return pixmap;
-}
-
-QPixmap circularCropPixmap(const QImage &image, const QSize &size) {
-  if (image.isNull() || size.isEmpty()) {
-    return {};
-  }
-
-  QPixmap source = QPixmap::fromImage(image.scaled(
-      size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation));
-  if (source.isNull()) {
-    return {};
-  }
-
-  QPixmap target(size);
-  target.fill(Qt::transparent);
-
-  QPainter painter(&target);
-  painter.setRenderHint(QPainter::Antialiasing, true);
-  QPainterPath clipPath;
-  clipPath.addEllipse(target.rect().adjusted(1, 1, -1, -1));
-  painter.setClipPath(clipPath);
-
-  const QPoint offset((target.width() - source.width()) / 2,
-                      (target.height() - source.height()) / 2);
-  painter.drawPixmap(offset, source);
-  return target;
-}
-
-QString avatarUserNameFromEmail(const QString &normalizedEmail) {
-  const QString localPart =
-      normalizedEmail.section(QChar::fromLatin1('@'), 0, 0);
-  const int plusIndex = localPart.indexOf(QChar::fromLatin1('+'));
-  if (plusIndex >= 0 && plusIndex + 1 < localPart.size()) {
-    return localPart.mid(plusIndex + 1);
-  }
-  return localPart;
-}
-
-void appendAvatarUrl(QStringList &avatarUrls, const QString &url) {
-  if (!url.isEmpty() && !avatarUrls.contains(url)) {
-    avatarUrls << url;
-  }
-}
-
-QStringList avatarUrlsForEmail(const QString &normalizedEmail) {
-  QStringList avatarUrls;
-  const QString domain = normalizedEmail.section(QChar::fromLatin1('@'), 1, 1);
-  const QString userName = avatarUserNameFromEmail(normalizedEmail);
-  const QString encodedUserName =
-      QString::fromLatin1(QUrl::toPercentEncoding(userName.trimmed()));
-
-  if (domain.endsWith(QStringLiteral("gmail.com")) ||
-      domain.endsWith(QStringLiteral("googlemail.com"))) {
-    appendAvatarUrl(
-        avatarUrls,
-        QStringLiteral(
-            "https://profiles.google.com/s2/photos/profile/%1?sz=128")
-            .arg(
-                QString::fromLatin1(QUrl::toPercentEncoding(normalizedEmail))));
-  }
-
-  if (domain.endsWith(QStringLiteral("github.com"))) {
-    appendAvatarUrl(avatarUrls,
-                    QStringLiteral("https://github.com/%1.png?size=128")
-                        .arg(encodedUserName));
-  }
-
-  if (domain.endsWith(QStringLiteral("gitlab.com"))) {
-    appendAvatarUrl(avatarUrls,
-                    QStringLiteral("https://gitlab.com/%1.png?width=128")
-                        .arg(encodedUserName));
-  }
-
-  if (domain.endsWith(QStringLiteral("bitbucket.org"))) {
-    appendAvatarUrl(
-        avatarUrls,
-        QStringLiteral("https://bitbucket.org/account/%1/avatar/128/")
-            .arg(encodedUserName));
-  }
-
-  if (domain.endsWith(QStringLiteral("azure.com")) ||
-      domain.endsWith(QStringLiteral("visualstudio.com")) ||
-      domain.endsWith(QStringLiteral("microsoft.com")) ||
-      domain.endsWith(QStringLiteral("outlook.com")) ||
-      domain.endsWith(QStringLiteral("hotmail.com")) ||
-      domain.endsWith(QStringLiteral("live.com"))) {
-    appendAvatarUrl(avatarUrls,
-                    QStringLiteral("https://outlook.office.com/owa/service.svc/"
-                                   "s/GetPersonaPhoto?email=%1&size=HR64x64")
-                        .arg(QString::fromLatin1(
-                            QUrl::toPercentEncoding(normalizedEmail))));
-  }
-
-  const QString gravatarHash =
-      QString::fromLatin1(QCryptographicHash::hash(normalizedEmail.toUtf8(),
-                                                   QCryptographicHash::Md5)
-                              .toHex());
-  appendAvatarUrl(
-      avatarUrls,
-      QStringLiteral("https://www.gravatar.com/avatar/%1?s=128&d=404")
-          .arg(gravatarHash));
-
-  return avatarUrls;
-}
-
 void setAvatarLabel(QLabel *label, const QPixmap &avatar,
                     const QString &accessibleText) {
   if (!label) {
@@ -670,10 +499,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->horizontalLayoutPageDisplayGroupBoxInfoAuthorDetails->setStretch(0, 1);
   ui->horizontalLayoutPageDisplayGroupBoxInfoAuthorDetails->setStretch(1, 0);
 
-  setAvatarLabel(
-      ui->labelPageDisplayAuthorAvatar,
-      createAuthorInitialsAvatar(QString(), QString(), kCommitAuthorAvatarSize),
-      tr("Commit author avatar"));
+  setAvatarLabel(ui->labelPageDisplayAuthorAvatar,
+                 Util::Avatar::createInitialsAvatar(QString(), QString(),
+                                                    kCommitAuthorAvatarSize),
+                 tr("Commit author avatar"));
 
   ui->localPage->setContentsMargins(0, 0, 0, 0);
   ui->remotePage->setContentsMargins(0, 0, 0, 0);
@@ -9446,7 +9275,7 @@ void GitRepoContainer::updateAuthorAvatar(const QVector<QLabel *> &labels,
                          : QStringLiteral(" <") + normalizedEmail +
                                QLatin1Char('>'));
 
-  const QPixmap fallbackAvatar = createAuthorInitialsAvatar(
+  const QPixmap fallbackAvatar = Util::Avatar::createInitialsAvatar(
       authorName, authorEmail, kCommitAuthorAvatarSize);
   for (QLabel *label : labels) {
     setAvatarLabel(label, fallbackAvatar, accessibleText);
@@ -9478,70 +9307,39 @@ void GitRepoContainer::updateAuthorAvatar(const QVector<QLabel *> &labels,
   _authorAvatarInFlight.insert(cacheKey);
   const quint64 requestSerial = ++authorAvatarRequestSerial;
 
-  const QStringList avatarUrls = avatarUrlsForEmail(normalizedEmail);
+  const bool started = Util::Avatar::requestAvatarPixmap(
+      _authorAvatarNetworkManager, normalizedEmail, kCommitAuthorAvatarSize,
+      [this, requestSerial, cacheKey, accessibleText, labels,
+       &currentAuthorAvatarKey,
+       &authorAvatarRequestSerial](const QPixmap &avatar) {
+        if (requestSerial != authorAvatarRequestSerial ||
+            cacheKey != currentAuthorAvatarKey) {
+          _authorAvatarInFlight.remove(cacheKey);
+          return;
+        }
 
-  auto tryNextSource = std::make_shared<std::function<void(int)>>();
-  *tryNextSource = [this, requestSerial, cacheKey, avatarUrls, accessibleText,
-                    labels, tryNextSource, &currentAuthorAvatarKey,
-                    &authorAvatarRequestSerial](int index) {
-    if (index >= avatarUrls.size()) {
-      _authorAvatarInFlight.remove(cacheKey);
-      LOG_PERF(0, "Exit");
-      return;
-    }
+        _authorAvatarCache.insert(cacheKey, avatar);
+        _authorAvatarInFlight.remove(cacheKey);
+        for (QLabel *label : labels) {
+          setAvatarLabel(label, avatar, accessibleText);
+        }
+      },
+      [this, requestSerial, cacheKey, &currentAuthorAvatarKey,
+       &authorAvatarRequestSerial]() {
+        if (requestSerial != authorAvatarRequestSerial ||
+            cacheKey != currentAuthorAvatarKey) {
+          _authorAvatarInFlight.remove(cacheKey);
+          return;
+        }
 
-    QNetworkRequest request{QUrl(avatarUrls[index])};
-    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
-                         QNetworkRequest::NoLessSafeRedirectPolicy);
-    request.setRawHeader(QByteArrayLiteral("User-Agent"),
-                         QByteArrayLiteral("Sourcerer"));
-    request.setRawHeader(
-        QByteArrayLiteral("Accept"),
-        QByteArrayLiteral("image/avif,image/webp,image/*,*/*;q=0.8"));
+        _authorAvatarInFlight.remove(cacheKey);
+      });
 
-    QNetworkReply *reply = _authorAvatarNetworkManager->get(request);
-    connect(reply, &QNetworkReply::finished, this,
-            [this, reply, requestSerial, cacheKey, accessibleText, labels,
-             tryNextSource, index, &currentAuthorAvatarKey,
-             &authorAvatarRequestSerial]() {
-              if (requestSerial != authorAvatarRequestSerial ||
-                  cacheKey != currentAuthorAvatarKey) {
-                _authorAvatarInFlight.remove(cacheKey);
-                reply->deleteLater();
-                return;
-              }
-
-              const int statusCode =
-                  reply->attribute(QNetworkRequest::HttpStatusCodeAttribute)
-                      .toInt();
-              const bool httpSuccess = statusCode >= 200 && statusCode < 300;
-              if (reply->error() != QNetworkReply::NoError || !httpSuccess) {
-                reply->deleteLater();
-                (*tryNextSource)(index + 1);
-                return;
-              }
-
-              const QByteArray payload = reply->readAll();
-              const QImage image = QImage::fromData(payload);
-              const QPixmap avatar =
-                  circularCropPixmap(image, kCommitAuthorAvatarSize);
-              if (avatar.isNull()) {
-                reply->deleteLater();
-                (*tryNextSource)(index + 1);
-                return;
-              }
-
-              _authorAvatarCache.insert(cacheKey, avatar);
-              _authorAvatarInFlight.remove(cacheKey);
-              for (QLabel *label : labels) {
-                setAvatarLabel(label, avatar, accessibleText);
-              }
-              reply->deleteLater();
-            });
-  };
+  if (!started) {
+    _authorAvatarInFlight.remove(cacheKey);
+  }
 
   LOG_PERF(0, "Exit");
-  (*tryNextSource)(0);
 }
 
 void GitRepoContainer::updateCommitAuthorAvatar(const QString &authorName,

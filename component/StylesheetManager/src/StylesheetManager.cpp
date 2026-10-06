@@ -2275,7 +2275,16 @@ const QString &StylesheetManager::stylesheet(StylesheetKey key) {
 
   const auto &styleMap = stylesheets();
   const auto resolvedKey = styleMap.contains(key) ? key : CURRENT_STYLESHEET;
-  return styleMap[resolvedKey];
+
+  // QMap::operator[] const returns by value, look up the stored element to
+  // return a reference that outlives this call.
+  const auto it = styleMap.constFind(resolvedKey);
+  if (it == styleMap.constEnd()) {
+    static const QString empty;
+    return empty;
+  }
+
+  return it.value();
 }
 
 StylesheetKey StylesheetManager::currentStylesheet() {

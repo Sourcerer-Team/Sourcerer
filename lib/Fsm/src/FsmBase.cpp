@@ -6,6 +6,8 @@
 
 #include <QString>
 
+#include <utility>
+
 #define THREAD_ID "FsmBase"
 
 const int STOP_EVENT = -1;
@@ -21,7 +23,7 @@ FsmBase::FsmBase() : QObject(), _thread(nullptr) {
 FsmBase::~FsmBase() {
   LOG_PERF(0, "Enter");
 
-  for (auto item : qAsConst(_stateTable))
+  for (auto item : std::as_const(_stateTable))
     delete item;
 
   stop();

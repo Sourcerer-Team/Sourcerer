@@ -18,7 +18,7 @@
 
 namespace GuiManager::Widgets {
 
-GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
+GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(size_t id,
                                                          QWidget *parent)
     : OverlayWidget(parent, ALPHA),
       _eventManager(::EventManager::EventManager::getInstance()),
@@ -315,7 +315,7 @@ void GitCredentialsOverlayWidget::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCredentialsFinished: {
-    if (const uint id = event.data<size_t>(); id != _id) {
+    if (const size_t id = event.data<size_t>(); id != _id) {
       break;
     }
     const auto guard = _holder.toWeakRef();
@@ -324,7 +324,7 @@ void GitCredentialsOverlayWidget::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCredentialsInvalid: {
-    if (const uint id = event.data<size_t>(); id != _id) {
+    if (const size_t id = event.data<size_t>(); id != _id) {
       break;
     }
     const auto guard = _holder.toWeakRef();

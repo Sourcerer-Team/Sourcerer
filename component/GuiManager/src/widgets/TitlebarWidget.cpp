@@ -75,6 +75,8 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::onSelectedTab);
   connect(ui->tabBar, &TitleBarTabBar::tabCloseRequested, this,
           &TitlebarWidget::onClosedTab);
+  connect(ui->tabBar, &TitleBarTabBar::tabMoved, this,
+          &TitlebarWidget::onMovedTab);
   connect(ui->tabBar, &TitleBarTabBar::resizeTabBar, this,
           &TitlebarWidget::onTabBarResized);
 
@@ -90,11 +92,12 @@ TitlebarWidget::~TitlebarWidget() {
 }
 
 void TitlebarWidget::addTab(const QString &text, const QString &toolTip,
-                            const bool closeButton) const {
+                            const bool closeButton, const bool pinned) const {
   LOG_PERF(0, "Enter");
 
   const int index = ui->tabBar->addTab(text);
   ui->tabBar->setTabToolTip(index, toolTip.isEmpty() ? text : toolTip);
+  ui->tabBar->setTabPinned(index, pinned);
 
   if (!closeButton) {
     ui->tabBar->setTabButton(index, QTabBar::RightSide, nullptr);
@@ -246,6 +249,14 @@ void TitlebarWidget::onSelectedTab(const int index) {
   LOG_PERF(0, "Enter");
 
   emit selectedTab(index);
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitlebarWidget::onMovedTab(const int from, const int to) {
+  LOG_PERF(0, "Enter");
+
+  emit movedTab(from, to);
 
   LOG_PERF(0, "Exit");
 }

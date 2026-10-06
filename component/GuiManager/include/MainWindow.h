@@ -94,6 +94,7 @@ private slots:
   void onThemeChanged();
   void onClosedTab(int index);
   void onSelectedTab(int index);
+  void onMovedTab(int from, int to);
   static void onTabBarResize();
   void onToastHostSizeChanged(const QSize &newSize);
   void onMinimizeClicked();
@@ -148,8 +149,8 @@ private:
   QWidget *_bottomResizeGrip;
   QSharedPointer<ProfileBoardWidget> _profileBoardWidget;
   bool _profileBoardActive;
-  QMap<uint, GitCredentialsOverlayWidget *> _credentialsWidgets;
-  QMap<uint, SshPassphraseOverlayWidget *> _passphraseWidgets;
+  QMap<size_t, GitCredentialsOverlayWidget *> _credentialsWidgets;
+  QMap<size_t, SshPassphraseOverlayWidget *> _passphraseWidgets;
 };
 
 } // namespace GuiManager

@@ -17,7 +17,8 @@
 
 namespace GuiManager::Widgets {
 
-SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(uint id, QWidget *parent)
+SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(size_t id,
+                                                       QWidget *parent)
     : OverlayWidget(parent, ALPHA),
       _eventManager(::EventManager::EventManager::getInstance()),
       _passphraseLineEdit(new PersistentPlaceholderLineEdit(
@@ -243,7 +244,7 @@ void SshPassphraseOverlayWidget::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCredentialsFinished: {
-    if (const uint id = event.data<size_t>(); id != _id) {
+    if (const size_t id = event.data<size_t>(); id != _id) {
       break;
     }
     const auto guard = _holder.toWeakRef();
@@ -252,7 +253,7 @@ void SshPassphraseOverlayWidget::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCredentialsInvalid: {
-    if (const uint id = event.data<size_t>(); id != _id) {
+    if (const size_t id = event.data<size_t>(); id != _id) {
       break;
     }
     const auto guard = _holder.toWeakRef();
