@@ -130,6 +130,10 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
   if (extension == QLatin1String("dart")) {
     return new QsciLexerDart(parent);
   }
+  if (extension == QLatin1String("htm") ||
+      extension == QLatin1String("html")) {
+    return new QsciLexerHTML(parent);
+  }
 
   return nullptr;
 }

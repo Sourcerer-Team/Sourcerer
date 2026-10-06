@@ -397,7 +397,15 @@ QTextCharFormat formatForTreeSitterNode(const char *nodeType) {
   return format;
 }
 
-enum class StyledLanguage { None, CFamily, Dart };
+enum class StyledLanguage {
+  None,
+  CFamily,
+  Dart,
+  Html,
+  // Only reached through <script>/<style> injections in HTML documents.
+  EmbeddedJavaScript,
+  EmbeddedCss
+};
 
 StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (!language) {
@@ -408,6 +416,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   }
   if (language == tree_sitter_dart()) {
     return StyledLanguage::Dart;
+  }
+  if (language == tree_sitter_html()) {
+    return StyledLanguage::Html;
   }
   return StyledLanguage::None;
 }
@@ -608,6 +619,318 @@ int dartStyleForNode(TSNode node, const QByteArray &source, bool &descend) {
   return -1;
 }
 
+// Maps an HTML tree-sitter node to a QsciLexerHTML style, or -1 when the node
+// itself is not highlighted. Text and <script>/<style> bodies keep the default
+// color.
+int htmlStyleForNode(TSNode node, const QByteArray &source, bool &descend) {
+  descend = true;
+
+  const char *type = ts_node_type(node);
+  if (!type) {
+    return -1;
+  }
+
+  if (ts_node_is_named(node)) {
+    descend = false;
+    if (typeEquals(type, "comment")) {
+      return QsciLexerHTML::HTMLComment;
+    }
+    if (typeEquals(type, "doctype") || typeEquals(type, "tag_name")) {
+      return QsciLexerHTML::Tag;
+    }
+    if (typeEquals(type, "erroneous_end_tag_name")) {
+      return QsciLexerHTML::UnknownTag;
+    }
+    if (typeEquals(type, "attribute_name")) {
+      return QsciLexerHTML::Attribute;
+    }
+    if (typeEquals(type, "quoted_attribute_value")) {
+      const uint32_t start = ts_node_start_byte(node);
+      const bool singleQuoted =
+          start < static_cast<uint32_t>(source.size()) &&
+          source.at(static_cast<qsizetype>(start)) == '\'';
+      return singleQuoted ? QsciLexerHTML::HTMLSingleQuotedString
+                          : QsciLexerHTML::HTMLDoubleQuotedString;
+    }
+    if (typeEquals(type, "attribute_value")) {
+      // Only unquoted values get here; quoted ones are styled as a whole.
+      const uint32_t start = ts_node_start_byte(node);
+      const uint32_t end = std::min(ts_node_end_byte(node),
+                                    static_cast<uint32_t>(source.size()));
+      bool numeric = start < end;
+      for (uint32_t i = start; numeric && i < end; ++i) {
+        const char c = source.at(static_cast<qsizetype>(i));
+        numeric = (c >= '0' && c <= '9') || c == '.' || c == '%';
+      }
+      return numeric ? QsciLexerHTML::HTMLNumber
+                     : QsciLexerHTML::HTMLDoubleQuotedString;
+    }
+    if (typeEquals(type, "entity")) {
+      return QsciLexerHTML::Entity;
+    }
+
+    descend = true;
+    return -1;
+  }
+
+  // Tag delimiters share the tag color.
+  if (typeEquals(type, "<") || typeEquals(type, ">") ||
+      typeEquals(type, "</") || typeEquals(type, "/>") ||
+      typeEquals(type, "<!")) {
+    return QsciLexerHTML::Tag;
+  }
+
+  return -1;
+}
+
+QByteArray nodeBytes(TSNode node, const QByteArray &source) {
+  const auto size = static_cast<uint32_t>(source.size());
+  const uint32_t start = std::min(ts_node_start_byte(node), size);
+  const uint32_t end = std::min(ts_node_end_byte(node), size);
+  return start < end ? source.mid(static_cast<qsizetype>(start),
+                                  static_cast<qsizetype>(end - start))
+                     : QByteArray();
+}
+
+bool startsWithSingleQuote(TSNode node, const QByteArray &source) {
+  const uint32_t start = ts_node_start_byte(node);
+  return start < static_cast<uint32_t>(source.size()) &&
+         source.at(static_cast<qsizetype>(start)) == '\'';
+}
+
+// Returns the language of an HTML raw_text node based on its <script> or
+// <style> element and that element's type attribute.
+StyledLanguage embeddedLanguageFor(TSNode rawText, const QByteArray &source) {
+  const TSNode element = ts_node_parent(rawText);
+  if (ts_node_is_null(element)) {
+    return StyledLanguage::None;
+  }
+  const bool script = typeEquals(ts_node_type(element), "script_element");
+  if (!script && !typeEquals(ts_node_type(element), "style_element")) {
+    return StyledLanguage::None;
+  }
+
+  QByteArray typeValue;
+  const TSNode startTag = ts_node_named_child(element, 0);
+  if (!ts_node_is_null(startTag) &&
+      typeEquals(ts_node_type(startTag), "start_tag")) {
+    const uint32_t count = ts_node_named_child_count(startTag);
+    for (uint32_t i = 0; i < count; ++i) {
+      const TSNode attribute = ts_node_named_child(startTag, i);
+      if (!typeEquals(ts_node_type(attribute), "attribute")) {
+        continue;
+      }
+      const TSNode name = ts_node_named_child(attribute, 0);
+      if (ts_node_is_null(name) ||
+          nodeBytes(name, source).toLower() != QByteArrayLiteral("type")) {
+        continue;
+      }
+      TSNode value = ts_node_named_child(attribute, 1);
+      if (!ts_node_is_null(value) &&
+          typeEquals(ts_node_type(value), "quoted_attribute_value")) {
+        value = ts_node_named_child(value, 0);
+      }
+      if (!ts_node_is_null(value)) {
+        typeValue = nodeBytes(value, source).trimmed().toLower();
+      }
+      break;
+    }
+  }
+
+  if (script) {
+    const bool javaScript =
+        typeValue.isEmpty() || typeValue == QByteArrayLiteral("module") ||
+        typeValue.contains("javascript") || typeValue.contains("ecmascript") ||
+        typeValue.contains("jsx") || typeValue.contains("babel");
+    return javaScript ? StyledLanguage::EmbeddedJavaScript
+                      : StyledLanguage::None;
+  }
+  return typeValue.isEmpty() || typeValue == QByteArrayLiteral("text/css")
+             ? StyledLanguage::EmbeddedCss
+             : StyledLanguage::None;
+}
+
+// Maps a JavaScript tree-sitter node to a QsciLexerHTML JavaScript style, or -1
+// when the node itself is not highlighted.
+int javaScriptStyleForNode(TSNode node, const QByteArray &source,
+                           bool &descend) {
+  descend = true;
+
+  const char *type = ts_node_type(node);
+  if (!type) {
+    return -1;
+  }
+
+  if (ts_node_is_named(node)) {
+    // Template strings are visited so ${...} can be reset to the default
+    // color and highlighted as code.
+    if (typeEquals(type, "template_string")) {
+      return QsciLexerHTML::JavaScriptDoubleQuotedString;
+    }
+    if (typeEquals(type, "template_substitution")) {
+      return QsciLexerHTML::Default;
+    }
+
+    descend = false;
+    if (typeEquals(type, "comment")) {
+      switch (slashCommentStyle(source, ts_node_start_byte(node))) {
+      case QsciLexerCPP::CommentLine:
+        return QsciLexerHTML::JavaScriptCommentLine;
+      case QsciLexerCPP::CommentDoc:
+        return QsciLexerHTML::JavaScriptCommentDoc;
+      default:
+        return QsciLexerHTML::JavaScriptComment;
+      }
+    }
+    if (typeEquals(type, "html_comment")) {
+      return QsciLexerHTML::JavaScriptComment;
+    }
+    if (typeEquals(type, "hash_bang_line")) {
+      return QsciLexerHTML::JavaScriptCommentLine;
+    }
+    if (typeEquals(type, "string")) {
+      return startsWithSingleQuote(node, source)
+                 ? QsciLexerHTML::JavaScriptSingleQuotedString
+                 : QsciLexerHTML::JavaScriptDoubleQuotedString;
+    }
+    if (typeEquals(type, "number")) {
+      return QsciLexerHTML::JavaScriptNumber;
+    }
+    if (typeEquals(type, "regex")) {
+      return QsciLexerHTML::JavaScriptRegex;
+    }
+    if (typeEquals(type, "true") || typeEquals(type, "false") ||
+        typeEquals(type, "null") || typeEquals(type, "undefined") ||
+        typeEquals(type, "this") || typeEquals(type, "super")) {
+      return QsciLexerHTML::JavaScriptKeyword;
+    }
+
+    descend = true;
+    return -1;
+  }
+
+  // Every identifier-like anonymous token in the JavaScript grammar is a
+  // (possibly contextual) keyword.
+  if (isIdentifierToken(type)) {
+    return QsciLexerHTML::JavaScriptKeyword;
+  }
+
+  return -1;
+}
+
+// Maps a CSS tree-sitter node to a QsciLexerHTML style, or -1 when the node
+// itself is not highlighted.
+int cssStyleForNode(TSNode node, const QByteArray &source, bool &descend) {
+  descend = true;
+
+  const char *type = ts_node_type(node);
+  if (!type) {
+    return -1;
+  }
+
+  if (ts_node_is_named(node)) {
+    descend = false;
+    if (typeEquals(type, "comment") || typeEquals(type, "js_comment")) {
+      return QsciLexerHTML::HTMLComment;
+    }
+    if (typeEquals(type, "tag_name") || typeEquals(type, "nesting_selector") ||
+        typeEquals(type, "universal_selector")) {
+      return QsciLexerHTML::Tag;
+    }
+    if (typeEquals(type, "class_name") || typeEquals(type, "id_name") ||
+        typeEquals(type, "attribute_name")) {
+      return QsciLexerHTML::Attribute;
+    }
+    if (typeEquals(type, "property_name") ||
+        typeEquals(type, "feature_name")) {
+      return QsciLexerHTML::Entity;
+    }
+    if (typeEquals(type, "string_value")) {
+      return startsWithSingleQuote(node, source)
+                 ? QsciLexerHTML::HTMLSingleQuotedString
+                 : QsciLexerHTML::HTMLDoubleQuotedString;
+    }
+    if (typeEquals(type, "integer_value") || typeEquals(type, "float_value") ||
+        typeEquals(type, "color_value")) {
+      return QsciLexerHTML::HTMLNumber;
+    }
+    if (typeEquals(type, "at_keyword") || typeEquals(type, "important")) {
+      return QsciLexerHTML::JavaScriptKeyword;
+    }
+    if (typeEquals(type, "function_name")) {
+      return QsciLexerHTML::Script;
+    }
+
+    descend = true;
+    return -1;
+  }
+
+  // At-rules (@media, @import, ...) and media query operators.
+  if (type[0] == '@' || typeEquals(type, "and") || typeEquals(type, "or") ||
+      typeEquals(type, "not") || typeEquals(type, "only")) {
+    return QsciLexerHTML::JavaScriptKeyword;
+  }
+
+  return -1;
+}
+
+// Uses the color configured on the lexer for the style (theme aware) and falls
+// back to the given dark palette color when the lexer has not been themed.
+QTextCharFormat lexerStyleFormat(const QsciLexer *lexer, int style,
+                                 const QColor &fallbackColor,
+                                 bool fallbackBold, bool italic) {
+  QTextCharFormat format;
+  const QColor lexerColor = lexer ? lexer->color(style) : QColor();
+  if (lexerColor.isValid()) {
+    const QFont lexerFont = lexer->font(style);
+    format.setForeground(lexerColor);
+    format.setFontWeight(lexerFont.bold() ? QFont::Bold : QFont::Normal);
+    format.setFontItalic(italic || lexerFont.italic());
+  } else {
+    format.setForeground(fallbackColor);
+    format.setFontWeight(fallbackBold ? QFont::Bold : QFont::Normal);
+    format.setFontItalic(italic);
+  }
+
+  return format;
+}
+
+QTextCharFormat formatForHtmlStyle(const QsciLexer *lexer, int style,
+                                   const QColor &defaultColor) {
+  switch (style) {
+  case QsciLexerHTML::Default:
+    return lexerStyleFormat(lexer, style, defaultColor, false, false);
+  case QsciLexerHTML::Tag:
+  case QsciLexerHTML::UnknownTag:
+    return lexerStyleFormat(lexer, style, QColor(224, 108, 117), true, false);
+  case QsciLexerHTML::Attribute:
+    return lexerStyleFormat(lexer, style, QColor(209, 154, 102), false, false);
+  case QsciLexerHTML::HTMLDoubleQuotedString:
+  case QsciLexerHTML::HTMLSingleQuotedString:
+  case QsciLexerHTML::JavaScriptDoubleQuotedString:
+  case QsciLexerHTML::JavaScriptSingleQuotedString:
+    return lexerStyleFormat(lexer, style, QColor(152, 195, 121), false, false);
+  case QsciLexerHTML::HTMLNumber:
+  case QsciLexerHTML::JavaScriptNumber:
+    return lexerStyleFormat(lexer, style, QColor(209, 154, 102), false, false);
+  case QsciLexerHTML::HTMLComment:
+  case QsciLexerHTML::JavaScriptComment:
+  case QsciLexerHTML::JavaScriptCommentLine:
+  case QsciLexerHTML::JavaScriptCommentDoc:
+    return lexerStyleFormat(lexer, style, QColor(92, 99, 112), false, true);
+  case QsciLexerHTML::Entity:
+    return lexerStyleFormat(lexer, style, QColor(86, 182, 194), false, false);
+  case QsciLexerHTML::Script:
+    return lexerStyleFormat(lexer, style, QColor(97, 175, 239), false, false);
+  case QsciLexerHTML::JavaScriptKeyword:
+    return lexerStyleFormat(lexer, style, QColor(198, 120, 221), true, false);
+  case QsciLexerHTML::JavaScriptRegex:
+    return lexerStyleFormat(lexer, style, QColor(255, 138, 101), false, false);
+  default:
+    return {};
+  }
+}
+
 // Uses the colors configured on the lexer (theme aware) and falls back to a
 // dark palette when the lexer has not been themed.
 QTextCharFormat formatForCppStyle(const QsciLexer *lexer, int style,
@@ -652,20 +975,7 @@ QTextCharFormat formatForCppStyle(const QsciLexer *lexer, int style,
     return {};
   }
 
-  QTextCharFormat format;
-  const QColor lexerColor = lexer ? lexer->color(style) : QColor();
-  if (lexerColor.isValid()) {
-    const QFont lexerFont = lexer->font(style);
-    format.setForeground(lexerColor);
-    format.setFontWeight(lexerFont.bold() ? QFont::Bold : QFont::Normal);
-    format.setFontItalic(italic || lexerFont.italic());
-  } else {
-    format.setForeground(fallbackColor);
-    format.setFontWeight(fallbackBold ? QFont::Bold : QFont::Normal);
-    format.setFontItalic(italic);
-  }
-
-  return format;
+  return lexerStyleFormat(lexer, style, fallbackColor, fallbackBold, italic);
 }
 
 } // namespace
@@ -840,26 +1150,46 @@ void QsciScintilla::updateTreeSitterHighlighting() {
     }
   };
 
-  const StyledLanguage styledLanguage = styledLanguageFor(_treeSitterLanguage);
+  const StyledLanguage documentLanguage =
+      styledLanguageFor(_treeSitterLanguage);
   const QColor defaultColor =
       _color.isValid() ? _color : palette().text().color();
+  // A document uses either the QsciLexerCPP or the QsciLexerHTML style ids
+  // (HTML shares its ids with the embedded languages), so caching by id is
+  // unambiguous.
+  const bool cppStyles = documentLanguage == StyledLanguage::CFamily ||
+                         documentLanguage == StyledLanguage::Dart;
   QHash<int, QTextCharFormat> styleFormats;
 
-  const auto formatForNode = [&](TSNode node, bool &descend) -> QTextCharFormat {
-    if (styledLanguage != StyledLanguage::None) {
-      const int style =
-          styledLanguage == StyledLanguage::Dart
-              ? dartStyleForNode(node, source, descend)
-              : cFamilyStyleForNode(node, source, descend);
-      if (style < 0) {
-        return QTextCharFormat();
-      }
-      auto it = styleFormats.find(style);
-      if (it == styleFormats.end()) {
-        it = styleFormats.insert(
-            style, formatForCppStyle(_lexer, style, defaultColor));
-      }
-      return it.value();
+  const auto styledFormat = [&](int style) -> QTextCharFormat {
+    if (style < 0) {
+      return QTextCharFormat();
+    }
+    auto it = styleFormats.find(style);
+    if (it == styleFormats.end()) {
+      it = styleFormats.insert(
+          style, cppStyles
+                     ? formatForCppStyle(_lexer, style, defaultColor)
+                     : formatForHtmlStyle(_lexer, style, defaultColor));
+    }
+    return it.value();
+  };
+
+  const auto formatForNode = [&](StyledLanguage language, TSNode node,
+                                 bool &descend) -> QTextCharFormat {
+    switch (language) {
+    case StyledLanguage::CFamily:
+      return styledFormat(cFamilyStyleForNode(node, source, descend));
+    case StyledLanguage::Dart:
+      return styledFormat(dartStyleForNode(node, source, descend));
+    case StyledLanguage::Html:
+      return styledFormat(htmlStyleForNode(node, source, descend));
+    case StyledLanguage::EmbeddedJavaScript:
+      return styledFormat(javaScriptStyleForNode(node, source, descend));
+    case StyledLanguage::EmbeddedCss:
+      return styledFormat(cssStyleForNode(node, source, descend));
+    case StyledLanguage::None:
+      break;
     }
 
     descend = true;
@@ -878,35 +1208,83 @@ void QsciScintilla::updateTreeSitterHighlighting() {
     return format;
   };
 
+  struct Injection {
+    StyledLanguage language;
+    TSRange range;
+  };
+  std::vector<Injection> injections;
+
   // Pre-order walk: parents are added before children, so child ranges take
   // precedence when they overlap.
-  TSTreeCursor treeCursor = ts_tree_cursor_new(ts_tree_root_node(_tree));
-  for (;;) {
-    const TSNode node = ts_tree_cursor_current_node(&treeCursor);
-    bool descend = true;
-    const QTextCharFormat format = formatForNode(node, descend);
-    if (format.hasProperty(QTextFormat::ForegroundBrush) &&
-        format.foreground().color().isValid()) {
-      addRange(utf8ByteToUtf16(ts_node_start_byte(node)),
-               utf8ByteToUtf16(ts_node_end_byte(node)), format);
-    }
+  const auto walk = [&](TSNode root, StyledLanguage language) {
+    TSTreeCursor treeCursor = ts_tree_cursor_new(root);
+    for (;;) {
+      const TSNode node = ts_tree_cursor_current_node(&treeCursor);
+      bool descend = true;
+      const QTextCharFormat format = formatForNode(language, node, descend);
+      if (format.hasProperty(QTextFormat::ForegroundBrush) &&
+          format.foreground().color().isValid()) {
+        addRange(utf8ByteToUtf16(ts_node_start_byte(node)),
+                 utf8ByteToUtf16(ts_node_end_byte(node)), format);
+      }
 
-    if (descend && ts_tree_cursor_goto_first_child(&treeCursor)) {
-      continue;
-    }
+      if (language == StyledLanguage::Html &&
+          typeEquals(ts_node_type(node), "raw_text")) {
+        const StyledLanguage embedded = embeddedLanguageFor(node, source);
+        if (embedded != StyledLanguage::None) {
+          injections.push_back(
+              {embedded,
+               {ts_node_start_point(node), ts_node_end_point(node),
+                ts_node_start_byte(node), ts_node_end_byte(node)}});
+        }
+      }
 
-    bool finished = false;
-    while (!ts_tree_cursor_goto_next_sibling(&treeCursor)) {
-      if (!ts_tree_cursor_goto_parent(&treeCursor)) {
-        finished = true;
+      if (descend && ts_tree_cursor_goto_first_child(&treeCursor)) {
+        continue;
+      }
+
+      bool finished = false;
+      while (!ts_tree_cursor_goto_next_sibling(&treeCursor)) {
+        if (!ts_tree_cursor_goto_parent(&treeCursor)) {
+          finished = true;
+          break;
+        }
+      }
+      if (finished) {
         break;
       }
     }
-    if (finished) {
-      break;
+    ts_tree_cursor_delete(&treeCursor);
+  };
+
+  walk(ts_tree_root_node(_tree), documentLanguage);
+
+  // <script> and <style> bodies are parsed separately with their own grammar,
+  // restricted to the body's range. Their ranges are added after the HTML
+  // ranges, so they take precedence.
+  if (!injections.empty()) {
+    TSParser *injectionParser = ts_parser_new();
+    for (const Injection &injection : injections) {
+      const TSLanguage *language =
+          injection.language == StyledLanguage::EmbeddedJavaScript
+              ? tree_sitter_javascript()
+              : tree_sitter_css();
+      if (!ts_parser_set_language(injectionParser, language) ||
+          !ts_parser_set_included_ranges(injectionParser, &injection.range,
+                                         1)) {
+        continue;
+      }
+      TSTree *injectionTree = ts_parser_parse_string(
+          injectionParser, nullptr, source.constData(),
+          static_cast<uint32_t>(source.size()));
+      if (!injectionTree) {
+        continue;
+      }
+      walk(ts_tree_root_node(injectionTree), injection.language);
+      ts_tree_delete(injectionTree);
     }
+    ts_parser_delete(injectionParser);
   }
-  ts_tree_cursor_delete(&treeCursor);
 
   _highlighter->setBlockFormats(std::move(blockFormats));
   _highlighter->rehighlight();
