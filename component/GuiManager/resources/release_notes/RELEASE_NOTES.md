@@ -1,3 +1,18 @@
+## 1.0.39
+
+### Summary
+Version 1.0.39 introduces syntax highlighting and resolves essential GDPR compliance requirements.
+
+### New
+* Implemented syntax highlighting
+
+### Improved
+* Updated release version bump to 1.0.39
+
+### Fixes
+* Addressed GDPR compliance issues
+
+
 ## 1.0.38
 
 ### Summary
