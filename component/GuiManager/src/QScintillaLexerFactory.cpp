@@ -53,6 +53,14 @@
 
 using namespace GuiManager;
 
+namespace {
+
+template <typename Lexer> QsciLexer *createLexer(QObject *parent) {
+  return new Lexer(parent);
+}
+
+} // namespace
+
 QScintillaLexerFactory::QScintillaLexerFactory(QObject *parent)
     : QObject(parent) {
   initializeExtensionMappings();
@@ -118,24 +126,53 @@ QsciLexer *QScintillaLexerFactory::createLexerByName(const QString &lexerName,
 QsciLexer *
 QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
                                                      QObject *parent) {
-  static const QSet<QString> cppExtensions = {
-      QStringLiteral("h"),   QStringLiteral("hh"),  QStringLiteral("hxx"),
-      QStringLiteral("hpp"), QStringLiteral("c"),   QStringLiteral("cpp"),
-      QStringLiteral("cxx"), QStringLiteral("cc")};
+  using Creator = QsciLexer *(*)(QObject *);
+  // Only extensions whose content the tree-sitter grammar parses correctly
+  // (e.g. not scss/less with the CSS grammar).
+  static const QHash<QString, Creator> creators = {
+      {QStringLiteral("c"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("cc"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("cpp"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("cxx"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("c++"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("h"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("hh"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("hpp"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("hxx"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("h++"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("dart"), &createLexer<QsciLexerDart>},
+      {QStringLiteral("htm"), &createLexer<QsciLexerHTML>},
+      {QStringLiteral("html"), &createLexer<QsciLexerHTML>},
+      {QStringLiteral("xhtml"), &createLexer<QsciLexerHTML>},
+      {QStringLiteral("shtml"), &createLexer<QsciLexerHTML>},
+      {QStringLiteral("css"), &createLexer<QsciLexerCSS>},
+      {QStringLiteral("js"), &createLexer<QsciLexerJavaScript>},
+      {QStringLiteral("jsx"), &createLexer<QsciLexerJavaScript>},
+      {QStringLiteral("mjs"), &createLexer<QsciLexerJavaScript>},
+      {QStringLiteral("ts"), &createLexer<QsciLexerTypeScript>},
+      {QStringLiteral("tsx"), &createLexer<QsciLexerTSX>},
+      {QStringLiteral("java"), &createLexer<QsciLexerJava>},
+      {QStringLiteral("cs"), &createLexer<QsciLexerCSharp>},
+      {QStringLiteral("csx"), &createLexer<QsciLexerCSharp>},
+      {QStringLiteral("rs"), &createLexer<QsciLexerRust>},
+      {QStringLiteral("ml"), &createLexer<QsciLexerOCaml>},
+      {QStringLiteral("mli"), &createLexer<QsciLexerOCamlInterface>},
+      {QStringLiteral("mlt"), &createLexer<QsciLexerOCamlType>},
+      {QStringLiteral("hs"), &createLexer<QsciLexerHaskell>},
+      {QStringLiteral("ps1"), &createLexer<QsciLexerPowerShell>},
+      {QStringLiteral("psm1"), &createLexer<QsciLexerPowerShell>},
+      {QStringLiteral("psd1"), &createLexer<QsciLexerPowerShell>},
+      {QStringLiteral("py"), &createLexer<QsciLexerPython>},
+      {QStringLiteral("pyi"), &createLexer<QsciLexerPython>},
+      {QStringLiteral("pyw"), &createLexer<QsciLexerPython>},
+      {QStringLiteral("sh"), &createLexer<QsciLexerBash>},
+      {QStringLiteral("bash"), &createLexer<QsciLexerBash>},
+      {QStringLiteral("zsh"), &createLexer<QsciLexerBash>},
+      {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
+      {QStringLiteral("jsonc"), &createLexer<QsciLexerJSON>}};
 
-  const QString extension = extractExtension(filePath);
-  if (cppExtensions.contains(extension)) {
-    return new QsciLexerCPP(parent);
-  }
-  if (extension == QLatin1String("dart")) {
-    return new QsciLexerDart(parent);
-  }
-  if (extension == QLatin1String("htm") ||
-      extension == QLatin1String("html")) {
-    return new QsciLexerHTML(parent);
-  }
-
-  return nullptr;
+  const Creator creator = creators.value(extractExtension(filePath), nullptr);
+  return creator ? creator(parent) : nullptr;
 }
 
 QStringList QScintillaLexerFactory::supportedExtensions() const {
