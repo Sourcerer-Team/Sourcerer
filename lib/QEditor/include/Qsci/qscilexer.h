@@ -254,3 +254,10 @@ QEDITOR_DECLARE_LEXER(QsciLexerSpice, "spice", Default = 0, Identifier, Command,
 QEDITOR_DECLARE_LEXER(QsciLexerCustom, "custom", Default = 0)
 
 #undef QEDITOR_DECLARE_LEXER
+
+// Dart reuses the C++ style set (like QScintilla's C-like lexers), so themes
+// configured for QsciLexerCPP apply to it as well.
+class QSCI_EXPORT QsciLexerDart : public QsciLexerCPP {
+public:
+  explicit QsciLexerDart(QObject *parent = nullptr);
+};

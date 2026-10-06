@@ -42,6 +42,7 @@ qt_add_library(QEditor STATIC
   include/Qsci/qscilexer.h
   include/Qsci/qscilexerbash.h
   include/Qsci/qscilexercsharp.h
+  include/Qsci/qscilexerdart.h
   include/Qsci/qscilexerhaskell.h
   include/Qsci/qscilexerjava.h
   include/Qsci/qscilexerocaml.h

@@ -5,6 +5,7 @@
 #include <Qsci/qscilexer.h>
 #include <Qsci/qscilexerbash.h>
 #include <Qsci/qscilexercsharp.h>
+#include <Qsci/qscilexerdart.h>
 #include <Qsci/qscilexerhaskell.h>
 #include <Qsci/qscilexerjava.h>
 #include <Qsci/qscilexerocaml.h>
@@ -122,8 +123,12 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       QStringLiteral("hpp"), QStringLiteral("c"),   QStringLiteral("cpp"),
       QStringLiteral("cxx"), QStringLiteral("cc")};
 
-  if (cppExtensions.contains(extractExtension(filePath))) {
+  const QString extension = extractExtension(filePath);
+  if (cppExtensions.contains(extension)) {
     return new QsciLexerCPP(parent);
+  }
+  if (extension == QLatin1String("dart")) {
+    return new QsciLexerDart(parent);
   }
 
   return nullptr;
@@ -229,6 +234,10 @@ QsciLexer *QScintillaLexerFactory::createTSXLexer(QObject *parent) const {
 
 QsciLexer *QScintillaLexerFactory::createCSharpLexer(QObject *parent) const {
   return new QsciLexerCSharp(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createDartLexer(QObject *parent) const {
+  return new QsciLexerDart(parent);
 }
 
 QsciLexer *QScintillaLexerFactory::createRustLexer(QObject *parent) const {
@@ -404,6 +413,8 @@ QsciLexer *QScintillaLexerFactory::createLexerByType(const QString &lexerName,
     return createTSXLexer(parent);
   if (lexerName == "CSharp")
     return createCSharpLexer(parent);
+  if (lexerName == "Dart")
+    return createDartLexer(parent);
   if (lexerName == "Rust")
     return createRustLexer(parent);
   if (lexerName == "OCaml")
@@ -520,9 +531,10 @@ void QScintillaLexerFactory::initializeExtensionMappings() {
   _extensionToLexer["ts"] = "TypeScript";
   _extensionToLexer["tsx"] = "TSX";
 
-  // C# / Rust / OCaml / Haskell / PowerShell
+  // C# / Dart / Rust / OCaml / Haskell / PowerShell
   _extensionToLexer["cs"] = "CSharp";
   _extensionToLexer["csx"] = "CSharp";
+  _extensionToLexer["dart"] = "Dart";
   _extensionToLexer["rs"] = "Rust";
   _extensionToLexer["ml"] = "OCaml";
   _extensionToLexer["mli"] = "OCamlInterface";
@@ -715,6 +727,7 @@ void QScintillaLexerFactory::initializeLexerDescriptions() {
   _lexerDescriptions["TypeScript"] = "TypeScript Programming Language";
   _lexerDescriptions["TSX"] = "TypeScript JSX Programming Language";
   _lexerDescriptions["CSharp"] = "C# Programming Language";
+  _lexerDescriptions["Dart"] = "Dart Programming Language";
   _lexerDescriptions["Rust"] = "Rust Programming Language";
   _lexerDescriptions["OCaml"] = "OCaml Programming Language";
   _lexerDescriptions["OCamlInterface"] = "OCaml Interface File";

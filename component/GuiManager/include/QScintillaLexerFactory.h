@@ -66,6 +66,7 @@ private:
   QsciLexer *createTypeScriptLexer(QObject *parent) const;
   QsciLexer *createTSXLexer(QObject *parent) const;
   QsciLexer *createCSharpLexer(QObject *parent) const;
+  QsciLexer *createDartLexer(QObject *parent) const;
   QsciLexer *createRustLexer(QObject *parent) const;
   QsciLexer *createOCamlLexer(QObject *parent) const;
   QsciLexer *createOCamlInterfaceLexer(QObject *parent) const;

@@ -8,6 +8,7 @@ const TSLanguage *tree_sitter_c(void);
 const TSLanguage *tree_sitter_c_sharp(void);
 const TSLanguage *tree_sitter_cpp(void);
 const TSLanguage *tree_sitter_css(void);
+const TSLanguage *tree_sitter_dart(void);
 const TSLanguage *tree_sitter_haskell(void);
 const TSLanguage *tree_sitter_html(void);
 const TSLanguage *tree_sitter_java(void);
@@ -155,6 +156,10 @@ QEDITOR_DEFINE_LEXER(QsciLexerCustom, "custom")
 
 #undef QEDITOR_DEFINE_LEXER
 
+QsciLexerDart::QsciLexerDart(QObject *parent) : QsciLexerCPP(parent) {
+  setTreeSitterLanguage(QStringLiteral("dart"));
+}
+
 // Applies precomputed tree-sitter formats as layout formats, so highlighting
 // never modifies the document (no undo entries, no contentsChanged feedback).
 class QEditorTreeSitterHighlighter final : public QSyntaxHighlighter {
@@ -268,6 +273,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   }
   if (language.compare(QStringLiteral("css"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_css();
+  }
+  if (language.compare(QStringLiteral("dart"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_dart();
   }
   if (language.compare(QStringLiteral("haskell"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_haskell();
@@ -389,9 +397,19 @@ QTextCharFormat formatForTreeSitterNode(const char *nodeType) {
   return format;
 }
 
-bool isCFamilyLanguage(const TSLanguage *language) {
-  return language && (language == tree_sitter_c() ||
-                      language == tree_sitter_cpp());
+enum class StyledLanguage { None, CFamily, Dart };
+
+StyledLanguage styledLanguageFor(const TSLanguage *language) {
+  if (!language) {
+    return StyledLanguage::None;
+  }
+  if (language == tree_sitter_c() || language == tree_sitter_cpp()) {
+    return StyledLanguage::CFamily;
+  }
+  if (language == tree_sitter_dart()) {
+    return StyledLanguage::Dart;
+  }
+  return StyledLanguage::None;
 }
 
 bool typeEquals(const char *type, const char *expected) {
@@ -425,7 +443,7 @@ bool isOperatorToken(const char *type) {
   return true;
 }
 
-int cFamilyCommentStyle(const QByteArray &source, uint32_t startByte) {
+int slashCommentStyle(const QByteArray &source, uint32_t startByte) {
   const auto at = [&source](uint32_t index) {
     return index < static_cast<uint32_t>(source.size()) ? source.at(index)
                                                          : '\0';
@@ -456,7 +474,7 @@ int cFamilyStyleForNode(TSNode node, const QByteArray &source, bool &descend) {
   if (ts_node_is_named(node)) {
     descend = false;
     if (typeEquals(type, "comment")) {
-      return cFamilyCommentStyle(source, ts_node_start_byte(node));
+      return slashCommentStyle(source, ts_node_start_byte(node));
     }
     if (typeEquals(type, "string_literal") ||
         typeEquals(type, "system_lib_string")) {
@@ -509,14 +527,99 @@ int cFamilyStyleForNode(TSNode node, const QByteArray &source, bool &descend) {
   return -1;
 }
 
+// Maps a Dart tree-sitter node to a QsciLexerCPP style (QsciLexerDart shares
+// the C++ style set), or -1 when the node itself is not highlighted.
+int dartStyleForNode(TSNode node, const QByteArray &source, bool &descend) {
+  descend = true;
+
+  const char *type = ts_node_type(node);
+  if (!type) {
+    return -1;
+  }
+
+  if (ts_node_is_named(node)) {
+    // Strings are visited so interpolations (${...}) can be reset to the
+    // default color and highlighted as code.
+    if (typeEquals(type, "string_literal")) {
+      return QsciLexerCPP::DoubleQuotedString;
+    }
+    if (typeEquals(type, "template_substitution")) {
+      return QsciLexerCPP::Default;
+    }
+    if (typeEquals(type, "identifier")) {
+      const uint32_t start = ts_node_start_byte(node);
+      const bool annotationName =
+          start > 0 && start <= static_cast<uint32_t>(source.size()) &&
+          source.at(static_cast<qsizetype>(start) - 1) == '@';
+      return annotationName ? QsciLexerCPP::PreProcessor : -1;
+    }
+
+    descend = false;
+    if (typeEquals(type, "comment")) {
+      return slashCommentStyle(source, ts_node_start_byte(node));
+    }
+    if (typeEquals(type, "documentation_comment")) {
+      return QsciLexerCPP::CommentDoc;
+    }
+    if (typeEquals(type, "decimal_integer_literal") ||
+        typeEquals(type, "decimal_floating_point_literal") ||
+        typeEquals(type, "hex_integer_literal") ||
+        typeEquals(type, "symbol_literal")) {
+      return QsciLexerCPP::Number;
+    }
+    if (typeEquals(type, "true") || typeEquals(type, "false") ||
+        typeEquals(type, "null_literal") || typeEquals(type, "this") ||
+        typeEquals(type, "super") || typeEquals(type, "inferred_type") ||
+        typeEquals(type, "void_type") || typeEquals(type, "is_operator")) {
+      return QsciLexerCPP::Keyword;
+    }
+    const size_t typeLength = std::strlen(type);
+    const size_t builtinSuffixLength = std::strlen("_builtin");
+    if (typeLength > builtinSuffixLength &&
+        typeEquals(type + typeLength - builtinSuffixLength, "_builtin")) {
+      return QsciLexerCPP::Keyword;
+    }
+    if (typeEquals(type, "type_identifier")) {
+      return QsciLexerCPP::GlobalClass;
+    }
+    const size_t operatorSuffixLength = std::strlen("_operator");
+    if (typeLength > operatorSuffixLength &&
+        typeEquals(type + typeLength - operatorSuffixLength, "_operator")) {
+      return QsciLexerCPP::Operator;
+    }
+
+    descend = true;
+    return -1;
+  }
+
+  // Every identifier-like anonymous token in the Dart grammar is a (possibly
+  // contextual) keyword.
+  if (isIdentifierToken(type) || typeEquals(type, "async*") ||
+      typeEquals(type, "sync*")) {
+    return QsciLexerCPP::Keyword;
+  }
+  if (typeEquals(type, "@")) {
+    return QsciLexerCPP::PreProcessor;
+  }
+  if (isOperatorToken(type)) {
+    return QsciLexerCPP::Operator;
+  }
+
+  return -1;
+}
+
 // Uses the colors configured on the lexer (theme aware) and falls back to a
 // dark palette when the lexer has not been themed.
-QTextCharFormat cFamilyFormatForStyle(const QsciLexer *lexer, int style) {
+QTextCharFormat formatForCppStyle(const QsciLexer *lexer, int style,
+                                  const QColor &defaultColor) {
   QColor fallbackColor;
   bool fallbackBold = false;
   bool italic = false;
 
   switch (style) {
+  case QsciLexerCPP::Default:
+    fallbackColor = defaultColor;
+    break;
   case QsciLexerCPP::Comment:
   case QsciLexerCPP::CommentLine:
   case QsciLexerCPP::CommentDoc:
@@ -737,18 +840,24 @@ void QsciScintilla::updateTreeSitterHighlighting() {
     }
   };
 
-  const bool cFamily = isCFamilyLanguage(_treeSitterLanguage);
-  QHash<int, QTextCharFormat> cFamilyFormats;
+  const StyledLanguage styledLanguage = styledLanguageFor(_treeSitterLanguage);
+  const QColor defaultColor =
+      _color.isValid() ? _color : palette().text().color();
+  QHash<int, QTextCharFormat> styleFormats;
 
   const auto formatForNode = [&](TSNode node, bool &descend) -> QTextCharFormat {
-    if (cFamily) {
-      const int style = cFamilyStyleForNode(node, source, descend);
+    if (styledLanguage != StyledLanguage::None) {
+      const int style =
+          styledLanguage == StyledLanguage::Dart
+              ? dartStyleForNode(node, source, descend)
+              : cFamilyStyleForNode(node, source, descend);
       if (style < 0) {
         return QTextCharFormat();
       }
-      auto it = cFamilyFormats.find(style);
-      if (it == cFamilyFormats.end()) {
-        it = cFamilyFormats.insert(style, cFamilyFormatForStyle(_lexer, style));
+      auto it = styleFormats.find(style);
+      if (it == styleFormats.end()) {
+        it = styleFormats.insert(
+            style, formatForCppStyle(_lexer, style, defaultColor));
       }
       return it.value();
     }
