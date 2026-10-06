@@ -53,7 +53,7 @@ public:
 
   void loadAndHighlight(const QString &leftContent,
                         const GitRepo::FilesDiffDelta &rightDelta,
-                        const QString &extension);
+                        const QString &filePath);
   void clearContent();
 
 protected:
@@ -67,6 +67,7 @@ private:
 private:
   QsciScintilla *_leftEditor;
   QsciScintilla *_rightEditor;
+  QsciLexer *_lexer = nullptr;
   ScrollbarMarksWidget *_leftMarks;
   ScrollbarMarksWidget *_rightMarks;
   ::ConfigManager::ConfigManager &_configManager;

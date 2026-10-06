@@ -1,9 +1,11 @@
 #include "QScintillaLexerFactory.h"
 #include <QDebug>
 #include <QFileInfo>
+#include <QSet>
 #include <Qsci/qscilexer.h>
 #include <Qsci/qscilexerbash.h>
 #include <Qsci/qscilexercsharp.h>
+#include <Qsci/qscilexerdart.h>
 #include <Qsci/qscilexerhaskell.h>
 #include <Qsci/qscilexerjava.h>
 #include <Qsci/qscilexerocaml.h>
@@ -50,6 +52,14 @@
 #include <Qsci/qscilexeryaml.h>
 
 using namespace GuiManager;
+
+namespace {
+
+template <typename Lexer> QsciLexer *createLexer(QObject *parent) {
+  return new Lexer(parent);
+}
+
+} // namespace
 
 QScintillaLexerFactory::QScintillaLexerFactory(QObject *parent)
     : QObject(parent) {
@@ -111,6 +121,58 @@ QScintillaLexerFactory::createLexerForExtension(const QString &extension,
 QsciLexer *QScintillaLexerFactory::createLexerByName(const QString &lexerName,
                                                      QObject *parent) const {
   return createLexerByType(lexerName, parent);
+}
+
+QsciLexer *
+QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
+                                                     QObject *parent) {
+  using Creator = QsciLexer *(*)(QObject *);
+  // Only extensions whose content the tree-sitter grammar parses correctly
+  // (e.g. not scss/less with the CSS grammar).
+  static const QHash<QString, Creator> creators = {
+      {QStringLiteral("c"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("cc"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("cpp"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("cxx"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("c++"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("h"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("hh"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("hpp"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("hxx"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("h++"), &createLexer<QsciLexerCPP>},
+      {QStringLiteral("dart"), &createLexer<QsciLexerDart>},
+      {QStringLiteral("htm"), &createLexer<QsciLexerHTML>},
+      {QStringLiteral("html"), &createLexer<QsciLexerHTML>},
+      {QStringLiteral("xhtml"), &createLexer<QsciLexerHTML>},
+      {QStringLiteral("shtml"), &createLexer<QsciLexerHTML>},
+      {QStringLiteral("css"), &createLexer<QsciLexerCSS>},
+      {QStringLiteral("js"), &createLexer<QsciLexerJavaScript>},
+      {QStringLiteral("jsx"), &createLexer<QsciLexerJavaScript>},
+      {QStringLiteral("mjs"), &createLexer<QsciLexerJavaScript>},
+      {QStringLiteral("ts"), &createLexer<QsciLexerTypeScript>},
+      {QStringLiteral("tsx"), &createLexer<QsciLexerTSX>},
+      {QStringLiteral("java"), &createLexer<QsciLexerJava>},
+      {QStringLiteral("cs"), &createLexer<QsciLexerCSharp>},
+      {QStringLiteral("csx"), &createLexer<QsciLexerCSharp>},
+      {QStringLiteral("rs"), &createLexer<QsciLexerRust>},
+      {QStringLiteral("ml"), &createLexer<QsciLexerOCaml>},
+      {QStringLiteral("mli"), &createLexer<QsciLexerOCamlInterface>},
+      {QStringLiteral("mlt"), &createLexer<QsciLexerOCamlType>},
+      {QStringLiteral("hs"), &createLexer<QsciLexerHaskell>},
+      {QStringLiteral("ps1"), &createLexer<QsciLexerPowerShell>},
+      {QStringLiteral("psm1"), &createLexer<QsciLexerPowerShell>},
+      {QStringLiteral("psd1"), &createLexer<QsciLexerPowerShell>},
+      {QStringLiteral("py"), &createLexer<QsciLexerPython>},
+      {QStringLiteral("pyi"), &createLexer<QsciLexerPython>},
+      {QStringLiteral("pyw"), &createLexer<QsciLexerPython>},
+      {QStringLiteral("sh"), &createLexer<QsciLexerBash>},
+      {QStringLiteral("bash"), &createLexer<QsciLexerBash>},
+      {QStringLiteral("zsh"), &createLexer<QsciLexerBash>},
+      {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
+      {QStringLiteral("jsonc"), &createLexer<QsciLexerJSON>}};
+
+  const Creator creator = creators.value(extractExtension(filePath), nullptr);
+  return creator ? creator(parent) : nullptr;
 }
 
 QStringList QScintillaLexerFactory::supportedExtensions() const {
@@ -213,6 +275,10 @@ QsciLexer *QScintillaLexerFactory::createTSXLexer(QObject *parent) const {
 
 QsciLexer *QScintillaLexerFactory::createCSharpLexer(QObject *parent) const {
   return new QsciLexerCSharp(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createDartLexer(QObject *parent) const {
+  return new QsciLexerDart(parent);
 }
 
 QsciLexer *QScintillaLexerFactory::createRustLexer(QObject *parent) const {
@@ -388,6 +454,8 @@ QsciLexer *QScintillaLexerFactory::createLexerByType(const QString &lexerName,
     return createTSXLexer(parent);
   if (lexerName == "CSharp")
     return createCSharpLexer(parent);
+  if (lexerName == "Dart")
+    return createDartLexer(parent);
   if (lexerName == "Rust")
     return createRustLexer(parent);
   if (lexerName == "OCaml")
@@ -504,9 +572,10 @@ void QScintillaLexerFactory::initializeExtensionMappings() {
   _extensionToLexer["ts"] = "TypeScript";
   _extensionToLexer["tsx"] = "TSX";
 
-  // C# / Rust / OCaml / Haskell / PowerShell
+  // C# / Dart / Rust / OCaml / Haskell / PowerShell
   _extensionToLexer["cs"] = "CSharp";
   _extensionToLexer["csx"] = "CSharp";
+  _extensionToLexer["dart"] = "Dart";
   _extensionToLexer["rs"] = "Rust";
   _extensionToLexer["ml"] = "OCaml";
   _extensionToLexer["mli"] = "OCamlInterface";
@@ -699,6 +768,7 @@ void QScintillaLexerFactory::initializeLexerDescriptions() {
   _lexerDescriptions["TypeScript"] = "TypeScript Programming Language";
   _lexerDescriptions["TSX"] = "TypeScript JSX Programming Language";
   _lexerDescriptions["CSharp"] = "C# Programming Language";
+  _lexerDescriptions["Dart"] = "Dart Programming Language";
   _lexerDescriptions["Rust"] = "Rust Programming Language";
   _lexerDescriptions["OCaml"] = "OCaml Programming Language";
   _lexerDescriptions["OCamlInterface"] = "OCaml Interface File";

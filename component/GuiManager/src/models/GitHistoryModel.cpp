@@ -14,7 +14,8 @@
 
 #define MULTIPLIER 5
 
-namespace GuiManager::Models {
+namespace GuiManager {
+namespace Models {
 
 static StatusFieldsMap createStatusFieldsMap(const GitRepo::GitStatus &status) {
   LOG_PERF(0, "Enter");
@@ -666,4 +667,5 @@ void GitHistoryModel::fetchMore(const QModelIndex &parent_) {
   LOG_PERF(0, "Exit");
 }
 
-} // namespace GuiManager::Models
+} // namespace Models
+} // namespace GuiManager

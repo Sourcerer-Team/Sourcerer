@@ -233,6 +233,8 @@ void MergeDiffView::clearContent() {
   _leftEditor->setLexer(nullptr);
   _rightEditor->setLexer(nullptr);
   _bottomEditor->setLexer(nullptr);
+  delete _lexer;
+  _lexer = nullptr;
   _leftEditor->clear();
   _rightEditor->clear();
   _bottomEditor->clear();
@@ -772,15 +774,13 @@ void MergeDiffView::setupEditors(const QString &filePath) {
   _rightEditor->setReadOnly(true);
   _bottomEditor->setReadOnly(true);
 
-  /*
-  const QScintillaLexerFactory factory;
+  // The lexer has to be attached before theming so its styles get the
+  // current theme colors.
+  _lexer = QScintillaLexerFactory::createDiffViewerLexerForFile(filePath, this);
+  _leftEditor->setLexer(_lexer);
+  _rightEditor->setLexer(_lexer);
+  _bottomEditor->setLexer(_lexer);
 
-  auto *lexer = factory.createLexerForFile(filePath, this);
-
-  _leftEditor->setLexer(lexer);
-  _rightEditor->setLexer(lexer);
-  _bottomEditor->setLexer(lexer);
-*/
   _leftEditor->setMarginType(0, QsciScintilla::NumberMargin);
   _leftEditor->setMarginType(1, QsciScintilla::SymbolMargin);
   _leftEditor->setMarginType(2, QsciScintilla::SymbolMargin);

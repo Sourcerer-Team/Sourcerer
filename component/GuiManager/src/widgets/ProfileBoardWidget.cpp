@@ -580,7 +580,7 @@ void ProfileBoardWidget::fillProfiles() {
     item->setData(i); // Store index for retrieval
     item->setData(profile.email, kProfileEmailRole);
     _model->appendRow(item);
-    updateProfileAvatar(i, profile.author, profile.email);
+    updateProfileAvatar(i, profile.email);
   }
 
   ui->listViewProfiles->setModel(_model);
@@ -590,7 +590,7 @@ void ProfileBoardWidget::fillProfiles() {
   LOG_PERF(0, "Exit");
 }
 
-void ProfileBoardWidget::updateProfileAvatar(int row, const QString &authorName,
+void ProfileBoardWidget::updateProfileAvatar(int row,
                                              const QString &authorEmail) {
   const QString normalizedEmail = authorEmail.trimmed().toLower();
   if (normalizedEmail.isEmpty()) {

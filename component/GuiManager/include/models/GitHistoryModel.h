@@ -43,7 +43,8 @@
 // refs/tags/...) of the refs pointing to the commit of the row.
 #define RefBadgesRole (Qt::UserRole + 6)
 
-namespace GuiManager::Models {
+namespace GuiManager {
+namespace Models {
 
 enum class StatusFields {
   Unknown = 0,
@@ -209,4 +210,5 @@ private:
   int _nextPage;
 };
 
-} // namespace GuiManager::Models
+} // namespace Models
+} // namespace GuiManager

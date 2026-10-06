@@ -93,6 +93,7 @@ private:
   QsciScintilla *_leftEditor;
   QsciScintilla *_rightEditor;
   QsciScintilla *_bottomEditor;
+  QsciLexer *_lexer = nullptr;
   ScrollbarMarksWidget *_leftMarks;
   ScrollbarMarksWidget *_rightMarks;
   ScrollbarMarksWidget *_bottomMarks;
