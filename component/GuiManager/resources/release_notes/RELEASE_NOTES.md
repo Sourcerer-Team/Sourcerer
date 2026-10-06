@@ -1,3 +1,26 @@
+## 1.0.38
+
+### Summary
+Version 1.0.38 introduces macOS porting support, multiple workflow additions (GitLab-Flow, GitHub-Flow, GitFlow-Next, and Graphite.dev), a custom workflow editor, profile user avatars, and drag-and-drop tab reordering, alongside macOS title bar alignment improvements and Windows build fix updates.
+
+### New
+* macOS porting
+* Implement GitLab-Flow workflow
+* Implement GitHub-Flow workflow
+* Implement GitFlow-Next workflow
+* Implement Graphite.dev workflow
+* Implement editor to create custom workflows like GitFlow
+* Implement user avatars in profile manager
+* Allow reordering of title bar tabs with drag and drop
+
+### Improved
+* [Mac] Title bar icons are now positioned the macOS way
+
+### Fixes
+* Fixes GitHub build error in Windows build
+* Fixes C++ warnings during Windows build
+* Fixes CMake warnings during Windows build
+* 
 
 ## 1.0.37
 
