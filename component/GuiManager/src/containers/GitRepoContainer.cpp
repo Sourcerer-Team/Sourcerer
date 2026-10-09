@@ -996,7 +996,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(_historyModel.get(), &Models::GitHistoryModel::pageLoadFailed, this,
           [this]() { _pendingSelectCommit.clear(); });
 
-  _spinnerBreakTimer->start(2000);
+  _spinnerBreakTimer->start(1000);
   _spinnerOverlayTimer->setSingleShot(true);
   _repoDirWatcherTimer->setSingleShot(true);
 
