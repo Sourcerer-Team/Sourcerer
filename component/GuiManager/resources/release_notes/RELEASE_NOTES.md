@@ -1,3 +1,24 @@
+## 1.0.40
+
+### Summary
+
+Release v1.0.40 introduces stability improvements for UI spinners, layout refinements for the navigation bar and commit details group box, and visual adjustments to shortcut button colors.
+
+### New
+
+* Introduce a spinner break timer that hides the spinner if the dispatcher is inactive, with a timeout set to 1000ms.
+
+### Improved
+
+* Update project version to 1.0.40.
+* Change shortcuts button colors.
+
+### Fixes
+
+* Adjust layout spacing to prevent the navigation bar from being too close to the commit details group box.
+* Fix an issue where the loading spinner hangs during repeated calls to onHistoryChanged.
+
+
 ## 1.0.39
 
 ### Summary
