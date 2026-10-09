@@ -124,9 +124,12 @@ public:
     }
   }
 
-  void clear() {
+  // Removes all queued items and returns how many were removed.
+  size_t clear() {
     std::unique_lock<std::mutex> guard(myMutex);
+    const size_t removed = myQueue.size();
     myQueue.clear();
+    return removed;
   }
 
   T operator[](size_t index) const {

@@ -253,6 +253,7 @@ private slots:
   void onLockWorktree(const GitRepo::WorktreeInfo &worktree);
   void onUnlockWorktree(const GitRepo::WorktreeInfo &worktree);
   void onShowSpinnerOverlay();
+  void onSpinnerBreakTimer();
   void onDeleteSubmodule(const QString &submoduleName);
   void onGraphColumnExpand(int section);
   void onWorkingTreeFlatListViewContextMenuRequested(const QPoint &pos);
@@ -529,6 +530,7 @@ private:
 
   Widgets::SpinnerOverlayWidget *_spinnerOverlay;
   QTimer *_spinnerOverlayTimer;
+  QTimer *_spinnerBreakTimer;
 
   bool _quitGettingHistory;
 
