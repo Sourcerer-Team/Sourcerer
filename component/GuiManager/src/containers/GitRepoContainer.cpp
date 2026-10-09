@@ -563,7 +563,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   auto *historyNavigationWidget = new QWidget(ui->pageDisplay);
   auto *historyNavigationLayout = new QHBoxLayout(historyNavigationWidget);
-  historyNavigationLayout->setContentsMargins(0, 0, 0, 0);
+  historyNavigationLayout->setContentsMargins(0, 0, 0, 8);
   historyNavigationLayout->setSpacing(0);
 
   _historyBackButton = new QToolButton(historyNavigationWidget);
