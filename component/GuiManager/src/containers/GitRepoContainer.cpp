@@ -3556,7 +3556,6 @@ void GitRepoContainer::onHistorySelectionChanged(
       ui->stackedWidgetCommitAndMerge->setCurrentIndex(
           static_cast<int>(CommitAndMergeStackIndexes::Display));
 
-      _dispatcher.clearPool();
       _dispatcher.dispatch([=]() { showCommit(guard, commitHash); });
     }
   } else {
@@ -3564,7 +3563,6 @@ void GitRepoContainer::onHistorySelectionChanged(
     ui->stackedWidgetCommitAndMerge->setCurrentIndex(
         static_cast<int>(CommitAndMergeStackIndexes::CommitAndMerge));
 
-    _dispatcher.clearPool();
     _dispatcher.dispatch([=]() { _bridge->showCommitAndMerge(guard); });
   }
 
@@ -7183,13 +7181,9 @@ void GitRepoContainer::onShowSpinnerOverlay() {
 }
 
 void GitRepoContainer::onSpinnerBreakTimer() {
-    LOG_PERF(0, "Enter");
-
     if (_dispatcher.idle()) {
         showSpinnerOverlay(false);
     }
-
-    LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::onDeleteSubmodule(const QString &submoduleName) {
