@@ -374,8 +374,8 @@ QString makeDarkStylesheet() {
       QToolButton#pullFetchDropdown,
       QToolButton#pushButtonPush,
       QToolButton#gitFlowDropdown{
-        background-color: #006400;
-        border: 1px solid gray;
+        background-color: #424242;
+        border: 1px solid #5A5A5A;
         border-radius: 5px;
         padding: 5px;
       }
@@ -385,10 +385,18 @@ QString makeDarkStylesheet() {
       QToolButton#pullFetchDropdown:hover,
       QToolButton#pushButtonPush:hover,
       QToolButton#gitFlowDropdown:hover{
-        background-color: #008400;
-        border: 1px solid gray;
+        background-color: #4D4D4D;
+        border: 1px solid #2A82DA;
         border-radius: 5px;
         padding: 5px;
+      }
+      QPushButton#pushButtonPop:pressed,
+      QPushButton#pushButtonStash:pressed,
+      QToolButton#pullFetchDropdown:pressed,
+      QToolButton#pushButtonPush:pressed,
+      QToolButton#gitFlowDropdown:pressed{
+        background-color: #2D4A66;
+        border: 1px solid #2A82DA;
       }
       QToolButton#pullFetchDropdown::menu-button,
       QToolButton#pushButtonPush::menu-button,
@@ -1475,8 +1483,8 @@ QString makeLightStylesheet() {
       QToolButton#pullFetchDropdown,
       QToolButton#pushButtonPush,
       QToolButton#gitFlowDropdown{
-        background-color: #E7F5E7;
-        border: 1px solid gray;
+        background-color: #FFFFFF;
+        border: 1px solid #C8C8C8;
         border-radius: 5px;
         padding: 5px;
       }
@@ -1485,10 +1493,18 @@ QString makeLightStylesheet() {
       QToolButton#pullFetchDropdown:hover,
       QToolButton#pushButtonPush:hover,
       QToolButton#gitFlowDropdown:hover{
-        background-color: #D7EFD7;
-        border: 1px solid gray;
+        background-color: #E5F1FB;
+        border: 1px solid #0078D7;
         border-radius: 5px;
         padding: 5px;
+      }
+      QPushButton#pushButtonPop:pressed,
+      QPushButton#pushButtonStash:pressed,
+      QToolButton#pullFetchDropdown:pressed,
+      QToolButton#pushButtonPush:pressed,
+      QToolButton#gitFlowDropdown:pressed{
+        background-color: #CCE4F7;
+        border: 1px solid #0078D7;
       }
       QToolButton#pullFetchDropdown::menu-button,
       QToolButton#pushButtonPush::menu-button,
