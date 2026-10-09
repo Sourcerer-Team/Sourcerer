@@ -454,7 +454,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _authorAvatarNetworkManager(new QNetworkAccessManager(this)),
       _authorNameValueLabel(nullptr), _authorEmailValueLabel(nullptr),
       _dispatcher(20), _spinnerOverlay(new SpinnerOverlayWidget(this)),
-      _spinnerOverlayTimer(new QTimer(this)), _quitGettingHistory(false),
+      _spinnerOverlayTimer(new QTimer(this)),
+      _spinnerBreakTimer(new QTimer(this)), _quitGettingHistory(false),
       _resizedHeaderSection(-1), _resizedHeaderSectionPreviousWidth(-1),
       _applyingHistoryColumnWidths(false), _displayFilesAllCheckBox(nullptr),
       _displayTreeExpanded(false), _displayFilesShowAll(false),
@@ -995,6 +996,7 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(_historyModel.get(), &Models::GitHistoryModel::pageLoadFailed, this,
           [this]() { _pendingSelectCommit.clear(); });
 
+  _spinnerBreakTimer->start(2000);
   _spinnerOverlayTimer->setSingleShot(true);
   _repoDirWatcherTimer->setSingleShot(true);
 
@@ -1575,6 +1577,8 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   connect(_spinnerOverlayTimer, &QTimer::timeout, this,
           &GitRepoContainer::onShowSpinnerOverlay);
+  connect(_spinnerBreakTimer, &QTimer::timeout, this,
+          &GitRepoContainer::onSpinnerBreakTimer);
 
   connect(header, &ClickableHeaderView::headerDoubleClicked, this,
           &GitRepoContainer::onGraphColumnExpand);
@@ -2240,7 +2244,6 @@ void GitRepoContainer::onDeleteStash(const int stashIndex) {
                              if (closeStashViewer) {
                                onStashContentCloseClicked();
                              }
-                             showSpinnerOverlay(false);
                            });
                          });
   });
@@ -3004,7 +3007,6 @@ void GitRepoContainer::onCreateBranchFromCommit(const QString &commit) {
                         guard, branchName, GitRepo::BranchType::Local,
                         [=](const WeakPtr &guard) {
                           Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-                            showSpinnerOverlay(false);
                             showToast(tr("Branch created sucesfully."),
                                       tr("Info"));
                           });
@@ -3743,8 +3745,6 @@ void GitRepoContainer::onListViewTabWidgetFlatSelected(
 
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [=]() { showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }
@@ -3948,8 +3948,6 @@ void GitRepoContainer::onTreeViewTabWidgetTreeSelected(
 
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [=]() { showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }
@@ -5487,7 +5485,6 @@ void GitRepoContainer::runGraphiteOperation(
     stopWatcher(guard);
     const QString error = operation();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
       if (error.isEmpty()) {
         showToast(successMessage, tr("Info"));
       } else {
@@ -5764,7 +5761,6 @@ void GitRepoContainer::onNavigateGraphiteStack(const QString &command) {
         error.isEmpty() ? QStringList()
                         : GitRepo::graphiteAmbiguousBranches(output);
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
       if (!choices.isEmpty()) {
         chooseGraphiteBranch(command, choices);
       } else if (error.isEmpty()) {
@@ -7186,6 +7182,16 @@ void GitRepoContainer::onShowSpinnerOverlay() {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::onSpinnerBreakTimer() {
+    LOG_PERF(0, "Enter");
+
+    if (_dispatcher.idle()) {
+        showSpinnerOverlay(false);
+    }
+
+    LOG_PERF(0, "Exit");
+}
+
 void GitRepoContainer::onDeleteSubmodule(const QString &submoduleName) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Delete submodule requested: '{}' in repository '{}'",
@@ -7568,7 +7574,6 @@ void GitRepoContainer::saveThreeWayMergeResultFile(const WeakPtr &guard,
   _bridge->stageFiles(guard, QStringList() << filePath);
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    showSpinnerOverlay(false);
     ui->pushButtonMergeDiffSave->setEnabled(false);
   });
 
@@ -7665,8 +7670,6 @@ void GitRepoContainer::onWorkingTreeFlatListViewClicked(
 
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [=]() { showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }
@@ -7978,8 +7981,6 @@ void GitRepoContainer::onWorkingTreeTreeTreeViewClicked(
 
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [=]() { showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }
@@ -8281,8 +8282,6 @@ void GitRepoContainer::onIndexFlatListViewClicked(const QModelIndex &index) {
 
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [=]() { showSpinnerOverlay(false); });
     LOG_PERF(0, "Exit")
     return;
   }
@@ -8572,7 +8571,6 @@ void GitRepoContainer::onIndexTreeTreeViewClicked(const QModelIndex &index) {
   // Guard against malicious multiple calls
   if (!_lastDiffRepoStatusChanged && _lastDiffedFilePath == filePath) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
       ui->stackedWidgetMiddle->setCurrentIndex(static_cast<int>(
           conflicted ? MainViewPanes::ThreeWayDiff : MainViewPanes::Diff));
     });
@@ -9377,15 +9375,11 @@ void GitRepoContainer::deleteFiles(const WeakPtr &guard,
 
   if (failed) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
       showErrorToast(tr("Failed to delete some files."), tr("Error"));
     });
   }
 
   _bridge->refreshStatus(guard);
-
-  Util::Dispatcher::dispatchToMainThread(guard,
-                                         [&]() { showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit")
 }
@@ -9395,11 +9389,7 @@ void GitRepoContainer::popStash(const WeakPtr &guard, int stashIndex) {
 
   _bridge->applyStash(guard, stashIndex,
                       [=](const WeakPtr &guard, const int index) {
-                        _bridge->deleteStash(
-                            guard, index, [=](const WeakPtr &guard, const int) {
-                              Util::Dispatcher::dispatchToMainThread(
-                                  guard, [&]() { showSpinnerOverlay(false); });
-                            });
+                        _bridge->deleteStash(guard, index);
                       });
 
   LOG_PERF(0, "Exit")
@@ -9425,7 +9415,6 @@ void GitRepoContainer::onStashApplyClicked() {
                           Util::Dispatcher::dispatchToMainThread(guard, [&]() {
                             ui->stackedWidgetMiddle->setCurrentIndex(
                                 static_cast<int>(MainViewPanes::History));
-                            showSpinnerOverlay(false);
                           });
                         });
   });
@@ -9453,7 +9442,6 @@ void GitRepoContainer::onStashPopClicked() {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       ui->stackedWidgetMiddle->setCurrentIndex(
           static_cast<int>(MainViewPanes::History));
-      showSpinnerOverlay(false);
     });
   });
 
@@ -9787,7 +9775,6 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
   QFile file(ignoreFilePath);
   if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
       showErrorToast(QString(tr("Failed to open %1 for writing."))
                          .arg(GIT_IGNORE_FILENAME),
                      tr("Error"));
@@ -9818,7 +9805,6 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
   _bridge->refreshStatus(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    showSpinnerOverlay(false);
     simulateClickOnFirstHistoryRow();
   });
 
@@ -9835,7 +9821,6 @@ void GitRepoContainer::ignoreFilesRecursive(const WeakPtr &guard,
   QFile file(ignoreFilePath);
   if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
       showErrorToast(QString(tr("Failed to open %1 for writing."))
                          .arg(GIT_IGNORE_FILENAME),
                      tr("Error"));
@@ -9875,7 +9860,6 @@ void GitRepoContainer::ignoreFilesRecursive(const WeakPtr &guard,
   _bridge->refreshStatus(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    showSpinnerOverlay(false);
     simulateClickOnFirstHistoryRow();
   });
 
@@ -9906,7 +9890,6 @@ void GitRepoContainer::addFilesToLfs(const WeakPtr &guard,
   if (entriesToAdd.isEmpty()) {
     _bridge->refreshStatus(guard);
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showSpinnerOverlay(false);
       simulateClickOnFirstHistoryRow();
     });
     LOG_PERF(0, "Exit");
@@ -9933,7 +9916,6 @@ void GitRepoContainer::addFilesToLfs(const WeakPtr &guard,
   QFile file(attributesFilePath);
   if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
       showErrorToast(QString(tr("Failed to open %1 for writing."))
                          .arg(GIT_ATTRIBUTES_FILENAME),
                      tr("Error"));
@@ -9965,7 +9947,6 @@ void GitRepoContainer::addFilesToLfs(const WeakPtr &guard,
   _bridge->refreshStatus(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    showSpinnerOverlay(false);
     simulateClickOnFirstHistoryRow();
   });
 
@@ -9989,7 +9970,6 @@ void GitRepoContainer::removeFilesFromLfs(const WeakPtr &guard,
   if (patternsToRemove.isEmpty()) {
     _bridge->refreshStatus(guard);
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      showSpinnerOverlay(false);
       simulateClickOnFirstHistoryRow();
     });
     LOG_PERF(0, "Exit");
@@ -10010,7 +9990,6 @@ void GitRepoContainer::removeFilesFromLfs(const WeakPtr &guard,
     readFile.close();
   } else if (QFile::exists(attributesFilePath)) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
       showErrorToast(QString(tr("Failed to open %1 for reading."))
                          .arg(GIT_ATTRIBUTES_FILENAME),
                      tr("Error"));
@@ -10040,7 +10019,6 @@ void GitRepoContainer::removeFilesFromLfs(const WeakPtr &guard,
   if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate |
                  QIODevice::Text)) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
       showErrorToast(QString(tr("Failed to open %1 for writing."))
                          .arg(GIT_ATTRIBUTES_FILENAME),
                      tr("Error"));
@@ -10060,7 +10038,6 @@ void GitRepoContainer::removeFilesFromLfs(const WeakPtr &guard,
   _bridge->refreshStatus(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    showSpinnerOverlay(false);
     simulateClickOnFirstHistoryRow();
   });
 
@@ -10142,7 +10119,6 @@ bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
 
   if (!ok) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showSpinnerOverlay(false);
       showErrorPage();
     });
   }
@@ -10432,7 +10408,6 @@ void GitRepoContainer::refreshDisplayFilesModels() {
           relativeFiles, modificationTypes,
           Models::GitCommitListModificationType::Other));
       applyDisplayFilesModels();
-      showSpinnerOverlay(false);
     });
   });
 
@@ -10772,7 +10747,6 @@ void GitRepoContainer::updateBranchHistory(
         ui->historyView->model()->rowCount(QModelIndex()) > 0;
 
     ui->historyView->setVisible(hasHistoryRows);
-    showSpinnerOverlay(false);
 
     if (!hasHistoryRows) {
       return;

@@ -96,6 +96,8 @@ void Dispatcher::processor(QSharedPointer<DispatcherPoolElement> poolElement) {
         LOG_ERROR(Log::ErrorId::Generic, "Unknown exception has been thrown!");
       }
 
+      poolElement->_pendingTasks.fetch_sub(1);
+
       LOG_DEBUG("Task with id of {} finished.", _taskId);
 
       break;
@@ -204,7 +206,27 @@ bool Dispatcher::dispatch(
 
   LOG_DEBUG("Enqueing task with id {}", runRecord._taskId);
 
+  // Counted before the push so that the task is never seen as finished before
+  // it has been accounted for.
+  poolElement->_pendingTasks.fetch_add(1);
   poolElement->_queue->push(runRecord);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+bool Dispatcher::idle() const {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_mutex);
+
+  for (const auto &v : _pool) {
+    if (v && v->_pendingTasks.load() > 0) {
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
 
   LOG_PERF(0, "Exit");
 
@@ -262,7 +284,8 @@ void Dispatcher::clearPool() {
       continue;
     }
 
-    v->_queue->clear();
+    const size_t removed = v->_queue->clear();
+    v->_pendingTasks.fetch_sub(removed);
   }
 
   LOG_PERF(0, "Exit");

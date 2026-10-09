@@ -9,6 +9,7 @@
 #include <QThread>
 #include <QTimer>
 
+#include <atomic>
 #include <climits>
 #include <functional>
 #include <map>
@@ -36,6 +37,8 @@ struct DispatcherRecord {
 struct DispatcherPoolElement {
   BlockingQueue<DispatcherRecord> *_queue = nullptr;
   QThread *_thread = nullptr;
+  // Tasks queued on this element or currently being executed by it.
+  std::atomic<size_t> _pendingTasks{0};
 };
 
 class Dispatcher : public QObject {
@@ -101,6 +104,9 @@ public:
     return dispatchToMainThread(guard, 0, callback);
   }
 
+  // Returns true if no task is queued or currently being executed.
+  bool idle() const;
+
   void stopAll();
 
   void clearPool();
@@ -109,7 +115,7 @@ private:
   static void processor(QSharedPointer<DispatcherPoolElement> poolElement);
 
 private:
-  Util::Mutex _mutex;
+  mutable Util::Mutex _mutex;
   QMap<size_t, QSharedPointer<DispatcherPoolElement>> _pool;
 };
 
