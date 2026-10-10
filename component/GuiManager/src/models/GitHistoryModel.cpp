@@ -125,6 +125,16 @@ void GitHistoryModel::cancelFetchAll() {
   finishFetchAll();
 }
 
+bool GitHistoryModel::isCommitLoaded(const QString &commit) const {
+  LOCKGUARD(_mutex);
+  return _historyWithStatus.history.commits.contains(commit);
+}
+
+bool GitHistoryModel::isCurrentGeneration(const quint64 generation) const {
+  LOCKGUARD(_mutex);
+  return generation == _generation;
+}
+
 void GitHistoryModel::finishFetchAll() {
   if (!_fetchAll) {
     return;

@@ -1034,6 +1034,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   connect(ui->pushButtonHistorySearchRepository, &QPushButton::clicked, this,
           [this]() {
             if (_historyModel->isFetchingAll()) {
+              // Stopping also gives up on a commit waiting to be selected, it
+              // would keep loading pages until found.
+              _pendingSelectCommit.clear();
               _historyModel->cancelFetchAll();
             } else {
               _historyModel->fetchAll();
@@ -3514,6 +3517,13 @@ void GitRepoContainer::selectHistoryCommit(const QString &commit) {
       LOG_PERF(0, "Exit");
       return;
     }
+  }
+
+  // A loaded commit that is not in the view is hidden by the filters; loading
+  // more pages would not show it and would go through the whole history.
+  if (_historyModel->isCommitLoaded(commit)) {
+    LOG_PERF(0, "Exit");
+    return;
   }
 
   // The commit may be on a page that has not been loaded yet. Load the next

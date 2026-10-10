@@ -3451,8 +3451,19 @@ void GitRepoManagerBridgeImpl::getBranchHistoryPage(
 
   const QString uuid = _container._uuid;
   EventManager::EventManager *eventManager = &_container._eventManager;
+  const QWeakPointer<Models::GitHistoryModel> historyModel =
+      _container._historyModel;
 
   const auto loadPage = [=]() {
+    // A low priority page waits for the other requests and may be outdated
+    // (searching stopped, other branch) by the time it starts.
+    if (lowPriority) {
+      const auto model = historyModel.toStrongRef();
+      if (!model || !model->isCurrentGeneration(generation)) {
+        return;
+      }
+    }
+
     const QString eventUuid = Uuid::createUuid();
 
     const int token = eventManager->startWait();
