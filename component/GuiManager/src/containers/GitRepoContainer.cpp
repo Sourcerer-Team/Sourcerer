@@ -7577,7 +7577,8 @@ void GitRepoContainer::updateHistorySearchRepositoryButton() {
   QPushButton *button = ui->pushButtonHistorySearchRepository;
   const bool fetchingAll = _historyModel->isFetchingAll();
 
-  button->setEnabled(fetchingAll || _historyModel->hasMoreCommits());
+  // Once the whole history is loaded there is nothing left to search.
+  button->setVisible(fetchingAll || _historyModel->hasMoreCommits());
   button->setText(fetchingAll ? tr("Stop searching") : tr("Search repository"));
   button->setToolTip(
       fetchingAll
