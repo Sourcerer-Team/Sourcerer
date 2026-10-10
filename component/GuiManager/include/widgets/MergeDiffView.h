@@ -91,6 +91,10 @@ public:
   void goToNextConflict();
   void goToPreviousConflict();
 
+signals:
+  // current is 1-based, 0 when there are no conflicts.
+  void currentConflictChanged(int current, int total);
+
 private slots:
   void leftMarginClicked(int margin, int line, Qt::KeyboardModifiers state);
   void rightMarginClicked(int margin, int line, Qt::KeyboardModifiers state);
@@ -105,6 +109,7 @@ private:
   void updateTopPlusMarkers();
   void applyConflictChoice(int rangeIndex, MergeDiffResolutionType side);
   void scrollToConflict(int rangeIndex);
+  void setCurrentConflictIndex(int rangeIndex);
   void setupEditors(const QString &filePath);
   void refreshScintillaTheme();
   void syncScrollbars();

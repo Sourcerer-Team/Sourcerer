@@ -1365,6 +1365,21 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMergeDiffUp->setMinimumSize(32, 32);
   ui->pushButtonMergeDiffUp->setMaximumSize(32, 32);
 
+  // Wide enough for "999/999", so the buttons do not move while navigating.
+  ui->labelMergeDiffConflicts->setMinimumWidth(
+      ui->labelMergeDiffConflicts->fontMetrics().horizontalAdvance(
+          QStringLiteral("999/999")) +
+      8);
+  connect(ui->mergeDiffViewer, &Widgets::MergeDiffView::currentConflictChanged,
+          this, [this](int current, int total) {
+            ui->labelMergeDiffConflicts->setText(
+                QStringLiteral("%1/%2").arg(current).arg(total));
+            ui->labelMergeDiffConflicts->setToolTip(
+                tr("Conflict %1 of %2").arg(current).arg(total));
+            ui->pushButtonMergeDiffUp->setEnabled(current > 1);
+            ui->pushButtonMergeDiffDown->setEnabled(current < total);
+          });
+
   ui->pushButtonMergeDiffSave->setMinimumHeight(32);
   ui->pushButtonMergeDiffSave->setMaximumHeight(32);
 

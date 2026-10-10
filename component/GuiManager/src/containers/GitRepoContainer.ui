@@ -599,7 +599,7 @@
                   <item>
                    <layout class="QVBoxLayout" name="verticalLayoutMergeDiffHeader">
                     <item>
-                     <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="0,0,0,0,0,0">
+                     <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="0,0,0,0,0,0,0">
                       <item>
                        <spacer name="horizontalSpacer_1">
                         <property name="orientation">
@@ -636,6 +636,16 @@
                         </property>
                         <property name="flat">
                          <bool>false</bool>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="labelMergeDiffConflicts">
+                        <property name="text">
+                         <string notr="true">0/0</string>
+                        </property>
+                        <property name="alignment">
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                        </widget>
                       </item>
