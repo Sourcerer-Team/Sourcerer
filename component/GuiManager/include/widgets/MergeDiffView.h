@@ -19,19 +19,35 @@ enum class MergeDiffResolutionType {
 
   Left,
   Right,
+  LeftThenRight,
+  RightThenLeft,
 
   last
 };
 
+// Line ranges of a conflict. In the top editors the ranges are half-open
+// ([start, end)). In the bottom editor the ranges are inclusive and -1 marks
+// a side that is not present; while unresolved, leftStart/rightEnd point to
+// the conflict markers and leftEnd == rightStart to the separator.
 struct MergeDiffRange {
   int leftStart = -1;
   int leftEnd = -1;
   int rightStart = -1;
   int rightEnd = -1;
-  int removedCount = -1;
+  int blockStart = -1;
+  int blockEnd = -1;
   QString startMarkerLabel;
   QString endMarkerLabel;
   MergeDiffResolutionType resolution = MergeDiffResolutionType::Unknown;
+};
+
+// Original text of a conflict, used to rebuild the merged content.
+struct MergeDiffConflict {
+  QString startMarkerLine;
+  QString separatorLine;
+  QString endMarkerLine;
+  QStringList leftLines;
+  QStringList rightLines;
 };
 
 struct MergeDiffContent {
@@ -44,6 +60,10 @@ struct MergeDiffContent {
   QVector<int> rightMarks1;
   QVector<MergeDiffRange> rangesTop;
   QVector<MergeDiffRange> rangesBottom;
+  // commonChunks[i] precedes conflicts[i]; the last chunk follows the last
+  // conflict, so commonChunks.size() == conflicts.size() + 1.
+  QVector<QStringList> commonChunks;
+  QVector<MergeDiffConflict> conflicts;
   bool windowsFile = false;
 };
 
@@ -77,15 +97,11 @@ protected:
 private:
   int conflictsBeforeIndex(int index) const;
   void highlightConflictsInBottomEditor();
-  void applyConflictChoice(int rangeIndex, MergeDiffResolutionType resolution);
-  int removedLinesBeforeRange(int rangeIndex) const;
+  void updateTopPlusMarkers();
+  void applyConflictChoice(int rangeIndex, MergeDiffResolutionType side);
   void setupEditors(const QString &filePath);
   void refreshScintillaTheme();
   void syncScrollbars();
-  void updateBottomRangesFromIndex(int index,
-                                   MergeDiffResolutionType resolution,
-                                   int newStart, int newEnd);
-  ;
 
 private:
   QString _filePath;

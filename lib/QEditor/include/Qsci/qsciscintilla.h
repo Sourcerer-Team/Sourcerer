@@ -30,7 +30,7 @@ public:
   enum FoldStyle { NoFoldStyle = 0, BoxedTreeFoldStyle };
   enum WrapMode { WrapNone = 0, WrapWord };
   enum MarginType { NumberMargin = 0, SymbolMargin };
-  enum MarkerSymbol { Background = 0, BoxedPlus };
+  enum MarkerSymbol { Background = 0, BoxedPlus, BoxedArrowDown, BoxedCheck };
 
   explicit QsciScintilla(QWidget *parent = nullptr);
   ~QsciScintilla() override;
@@ -75,6 +75,7 @@ public:
   void setUnmatchedBraceBackgroundColor(const QColor &color);
   void setMarkerBackgroundColor(const QColor &color, int marker);
   void setMarkerForegroundColor(const QColor &color, int marker);
+  void setMarkerToolTip(const QString &toolTip, int marker);
   int markerAdd(int line, int marker);
   void markerDelete(int line, int marker);
   int markersAtLine(int line) const;
@@ -98,6 +99,8 @@ private:
   void applyCurrentPalette();
   void updateViewportMargins();
   int lineFromPoint(const QPoint &point) const;
+  int marginAtX(int x) const;
+  int clickableMarkerAt(int margin, int line) const;
   int lineNumberAreaWidth() const;
   void lineNumberAreaPaintEvent(QPaintEvent *event);
   void updateLineNumberAreaWidth(int);
@@ -136,6 +139,7 @@ private:
   QHash<int, QColor> _markerBackgroundColors;
   QHash<int, QColor> _markerForegroundColors;
   QHash<int, int> _markerSymbols;
+  QHash<int, QString> _markerToolTips;
   QHash<int, QSet<int>> _markers;
   QHash<int, QHash<int, QString>> _marginTexts;
   QWidget *_lineNumberArea;
