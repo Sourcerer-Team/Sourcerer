@@ -26,6 +26,7 @@ const TSLanguage *tree_sitter_typescript(void);
 
 #include <QFocusEvent>
 #include <QFrame>
+#include <QHelpEvent>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
@@ -34,6 +35,7 @@ const TSLanguage *tree_sitter_typescript(void);
 #include <QScopedValueRollback>
 #include <QSyntaxHighlighter>
 #include <QTimer>
+#include <QToolTip>
 
 #include <QTextBlock>
 #include <QTextCharFormat>
@@ -203,7 +205,9 @@ private:
 class QLineNumberArea final : public QWidget {
 public:
   explicit QLineNumberArea(QsciScintilla *editor)
-      : QWidget(editor), _editor(editor) {}
+      : QWidget(editor), _editor(editor) {
+    setMouseTracking(true);
+  }
 
   QSize sizeHint() const override {
     return QSize(_editor ? _editor->lineNumberAreaWidth() : 0, 0);
@@ -216,35 +220,42 @@ protected:
     }
   }
 
+  bool event(QEvent *event) override {
+    if (_editor && event && event->type() == QEvent::ToolTip) {
+      auto *helpEvent = static_cast<QHelpEvent *>(event);
+      const int marker = markerAt(helpEvent->pos());
+      const QString toolTip = _editor->_markerToolTips.value(marker);
+
+      if (toolTip.isEmpty()) {
+        QToolTip::hideText();
+        event->ignore();
+      } else {
+        QToolTip::showText(helpEvent->globalPos(), toolTip, this);
+      }
+
+      return true;
+    }
+
+    return QWidget::event(event);
+  }
+
+  void mouseMoveEvent(QMouseEvent *event) override {
+    if (_editor && event) {
+      if (markerAt(event->position().toPoint()) >= 0) {
+        setCursor(Qt::PointingHandCursor);
+      } else {
+        unsetCursor();
+      }
+    }
+
+    QWidget::mouseMoveEvent(event);
+  }
+
   void mousePressEvent(QMouseEvent *event) override {
     if (_editor && event && event->button() == Qt::LeftButton) {
       const QPoint editorPoint = mapTo(_editor, event->position().toPoint());
       const int line = _editor->lineFromPoint(editorPoint);
-
-      int margin = -1;
-      int x = 0;
-      for (int i = 0; i < 4; ++i) {
-        int width = 0;
-        if (i == 0 && _editor->_marginLineNumbers[0]) {
-          const int digits =
-              QString::number(std::max(1, _editor->blockCount())).size();
-          width = _editor->fontMetrics().horizontalAdvance(
-                      QString(digits, QChar('9'))) +
-                  12;
-        } else if (_editor->_marginWidths[i] > 0) {
-          width = _editor->_marginWidths[i];
-        }
-
-        if (width <= 0) {
-          continue;
-        }
-
-        if (event->position().x() >= x && event->position().x() < x + width) {
-          margin = i;
-          break;
-        }
-        x += width;
-      }
+      const int margin = _editor->marginAtX(event->position().toPoint().x());
 
       if (margin != -1) {
         emit _editor->marginClicked(margin, line, event->modifiers());
@@ -256,6 +267,17 @@ protected:
   }
 
 private:
+  // Returns the clickable marker under the point, or -1.
+  int markerAt(const QPoint &point) const {
+    const int margin = _editor->marginAtX(point.x());
+    if (margin == -1) {
+      return -1;
+    }
+
+    const int line = _editor->lineFromPoint(mapTo(_editor, point));
+    return _editor->clickableMarkerAt(margin, line);
+  }
+
   QsciScintilla *_editor;
 };
 
@@ -2161,6 +2183,55 @@ void QsciScintilla::setMarkerForegroundColor(const QColor &color, int marker) {
   refreshCurrentLineHighlight();
 }
 
+void QsciScintilla::setMarkerToolTip(const QString &toolTip, int marker) {
+  _markerToolTips[marker] = toolTip;
+}
+
+int QsciScintilla::marginAtX(int x) const {
+  const int digits = QString::number(std::max(1, blockCount())).size();
+  int offset = 0;
+
+  for (int i = 0; i < 4; ++i) {
+    int width = 0;
+    if (i == 0 && _marginLineNumbers[0]) {
+      width = fontMetrics().horizontalAdvance(QString(digits, QChar('9'))) + 12;
+    } else if (_marginWidths[i] > 0) {
+      width = _marginWidths[i];
+    }
+
+    if (width <= 0) {
+      continue;
+    }
+
+    if (x >= offset && x < offset + width) {
+      return i;
+    }
+
+    offset += width;
+  }
+
+  return -1;
+}
+
+int QsciScintilla::clickableMarkerAt(int margin, int line) const {
+  if (margin < 0 || margin >= 4 || line < 0 || !_marginSensitivity[margin]) {
+    return -1;
+  }
+
+  const int visibleMarkers = markersAtLine(line) & _marginMarkerMasks[margin];
+  if (visibleMarkers == 0) {
+    return -1;
+  }
+
+  for (int marker = 0; marker < 32; ++marker) {
+    if (visibleMarkers & (1 << marker)) {
+      return marker;
+    }
+  }
+
+  return -1;
+}
+
 int QsciScintilla::markerAdd(int line, int marker) {
   _markers[line].insert(marker);
   viewport()->update();
@@ -2244,11 +2315,20 @@ void QsciScintilla::refreshCurrentLineHighlight() {
       continue;
     }
 
+    // Only background markers color the line; symbol markers are drawn in
+    // the margins.
     int marker = -1;
     for (int candidate : markerSet) {
+      if (_markerSymbols.value(candidate, Background) != Background) {
+        continue;
+      }
       if (marker == -1 || candidate < marker) {
         marker = candidate;
       }
+    }
+
+    if (marker == -1) {
+      continue;
     }
 
     QColor background = _markerBackgroundColors.value(marker);
@@ -2452,14 +2532,49 @@ void QsciScintilla::lineNumberAreaPaintEvent(QPaintEvent *event) {
 
         painter.setRenderHint(QPainter::Antialiasing, true);
         switch (symbol) {
-        case BoxedPlus: {
-          painter.setPen(QPen(strokeColor, 1.5));
+        case BoxedPlus:
+        case BoxedArrowDown:
+        case BoxedCheck: {
+          // A square badge centered in the margin, with the glyph drawn in
+          // the foreground color.
+          const qreal side = std::max(
+              8, std::min(marginRect.width(), marginRect.height()) - 2);
+          const QRectF badge(marginRect.center().x() - side / 2.0 + 0.5,
+                             marginRect.center().y() - side / 2.0 + 0.5, side,
+                             side);
+          const qreal inset = side * 0.25;
+          const QRectF glyph = badge.adjusted(inset, inset, -inset, -inset);
+
+          painter.setPen(Qt::NoPen);
           painter.setBrush(fillColor);
-          painter.drawRoundedRect(symbolRect, 2, 2);
-          painter.drawLine(symbolRect.center().x(), symbolRect.top() + 3,
-                           symbolRect.center().x(), symbolRect.bottom() - 3);
-          painter.drawLine(symbolRect.left() + 3, symbolRect.center().y(),
-                           symbolRect.right() - 3, symbolRect.center().y());
+          painter.drawRoundedRect(badge, side * 0.2, side * 0.2);
+
+          QPen glyphPen(strokeColor, std::max(1.5, side / 7.0));
+          glyphPen.setCapStyle(Qt::RoundCap);
+          glyphPen.setJoinStyle(Qt::RoundJoin);
+          painter.setPen(glyphPen);
+          painter.setBrush(Qt::NoBrush);
+
+          if (symbol == BoxedPlus) {
+            painter.drawLine(QPointF(glyph.center().x(), glyph.top()),
+                             QPointF(glyph.center().x(), glyph.bottom()));
+            painter.drawLine(QPointF(glyph.left(), glyph.center().y()),
+                             QPointF(glyph.right(), glyph.center().y()));
+          } else if (symbol == BoxedArrowDown) {
+            painter.drawLine(QPointF(glyph.center().x(), glyph.top()),
+                             QPointF(glyph.center().x(), glyph.bottom()));
+            painter.drawPolyline(QPolygonF(
+                {QPointF(glyph.left(), glyph.center().y()),
+                 QPointF(glyph.center().x(), glyph.bottom()),
+                 QPointF(glyph.right(), glyph.center().y())}));
+          } else {
+            painter.drawPolyline(QPolygonF(
+                {QPointF(glyph.left(), glyph.center().y()),
+                 QPointF(glyph.left() + glyph.width() * 0.4, glyph.bottom()),
+                 QPointF(glyph.right(), glyph.top())}));
+          }
+
+          painter.setRenderHint(QPainter::Antialiasing, false);
           break;
         }
         case Background:
