@@ -3826,12 +3826,16 @@ void GitRepoContainer::onMergeDiffDownClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Merge diff down navigation");
 
+  ui->mergeDiffViewer->goToNextConflict();
+
   LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::onMergeDiffUpClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Merge diff up navigation");
+
+  ui->mergeDiffViewer->goToPreviousConflict();
 
   LOG_PERF(0, "Exit");
 }

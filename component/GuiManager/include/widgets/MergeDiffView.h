@@ -28,7 +28,9 @@ enum class MergeDiffResolutionType {
 // Line ranges of a conflict. In the top editors the ranges are half-open
 // ([start, end)). In the bottom editor the ranges are inclusive and -1 marks
 // a side that is not present; while unresolved, leftStart/rightEnd point to
-// the conflict markers and leftEnd == rightStart to the separator.
+// the conflict markers and leftEnd == rightStart to the separator. blockStart
+// is always the first line of the conflict in the bottom editor, while
+// blockEnd is -1 when the resolved conflict has no lines.
 struct MergeDiffRange {
   int leftStart = -1;
   int leftEnd = -1;
@@ -86,6 +88,9 @@ public:
 
   void clearContent();
 
+  void goToNextConflict();
+  void goToPreviousConflict();
+
 private slots:
   void leftMarginClicked(int margin, int line, Qt::KeyboardModifiers state);
   void rightMarginClicked(int margin, int line, Qt::KeyboardModifiers state);
@@ -99,6 +104,7 @@ private:
   void highlightConflictsInBottomEditor();
   void updateTopPlusMarkers();
   void applyConflictChoice(int rangeIndex, MergeDiffResolutionType side);
+  void scrollToConflict(int rangeIndex);
   void setupEditors(const QString &filePath);
   void refreshScintillaTheme();
   void syncScrollbars();
@@ -110,6 +116,7 @@ private:
   QsciScintilla *_rightEditor;
   QsciScintilla *_bottomEditor;
   QsciLexer *_lexer = nullptr;
+  int _currentConflictIndex = -1;
   ScrollbarMarksWidget *_leftMarks;
   ScrollbarMarksWidget *_rightMarks;
   ScrollbarMarksWidget *_bottomMarks;

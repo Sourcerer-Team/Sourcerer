@@ -14,6 +14,8 @@
 #include <QScrollBar>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 #define THREAD_ID "MergeDiffView"
 
 // Markers in the top editors: take the side into the merge result, or append
@@ -268,7 +270,7 @@ static void buildBottomContent(MergeDiffContent &content) {
     }
 
     const bool blockEmpty = lines.length() == blockStart;
-    range.blockStart = blockEmpty ? -1 : blockStart;
+    range.blockStart = blockStart;
     range.blockEnd = blockEmpty ? -1 : lines.length() - 1;
   }
 
@@ -383,6 +385,7 @@ void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
   _bottomEditor->setTreeSitterHighlightingEnabled(false);
 
   _filePath = filePath;
+  _currentConflictIndex = -1;
 
   _content = parseContentWithMarkers(contentWithMarkers);
   buildBottomContent(_content);
@@ -543,6 +546,7 @@ void MergeDiffView::applyConflictChoice(int rangeIndex,
   }
 
   rangeBottom.resolution = resolution;
+  _currentConflictIndex = rangeIndex;
   buildBottomContent(_content);
 
   const int horizontalScrollbarPosition =
@@ -556,6 +560,60 @@ void MergeDiffView::applyConflictChoice(int rangeIndex,
 
   updateTopPlusMarkers();
   highlightConflictsInBottomEditor();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MergeDiffView::goToNextConflict() {
+  LOG_PERF(0, "Enter");
+
+  if (_content.rangesTop.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  scrollToConflict(std::min(_currentConflictIndex + 1,
+                            int(_content.rangesTop.length()) - 1));
+
+  LOG_PERF(0, "Exit");
+}
+
+void MergeDiffView::goToPreviousConflict() {
+  LOG_PERF(0, "Enter");
+
+  if (_content.rangesTop.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  scrollToConflict(std::max(_currentConflictIndex - 1, 0));
+
+  LOG_PERF(0, "Exit");
+}
+
+void MergeDiffView::scrollToConflict(int rangeIndex) {
+  LOG_PERF(0, "Enter");
+
+  if (rangeIndex < 0 || rangeIndex >= _content.rangesTop.length()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Lines of context shown above the conflict.
+  constexpr int contextLines = 3;
+
+  _currentConflictIndex = rangeIndex;
+
+  const int topLine =
+      std::max(0, _content.rangesTop[rangeIndex].leftStart - contextLines);
+  const int bottomLine =
+      std::max(0, _content.rangesBottom[rangeIndex].blockStart - contextLines);
+
+  // The top editors are kept in sync and drag the bottom editor along, so
+  // the bottom editor, whose lines differ, is positioned last.
+  _leftEditor->verticalScrollBar()->setValue(topLine);
+  _rightEditor->verticalScrollBar()->setValue(topLine);
+  _bottomEditor->verticalScrollBar()->setValue(bottomLine);
 
   LOG_PERF(0, "Exit");
 }
