@@ -371,6 +371,9 @@ void MergeDiffView::clearContent() {
   _rightMarks->setMarks({}, {});
   _bottomMarks->setMarks({}, {});
 
+  _currentConflictIndex = -1;
+  emit currentConflictChanged(0, 0);
+
   LOG_PERF(0, "Exit");
 }
 
@@ -385,7 +388,6 @@ void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
   _bottomEditor->setTreeSitterHighlightingEnabled(false);
 
   _filePath = filePath;
-  _currentConflictIndex = -1;
 
   _content = parseContentWithMarkers(contentWithMarkers);
   buildBottomContent(_content);
@@ -463,6 +465,9 @@ void MergeDiffView::loadAndHighlight(const QString &contentWithMarkers,
 
   _leftEditor->verticalScrollBar()->triggerAction(
       QAbstractSlider::SliderToMinimum);
+
+  // Start at the first conflict, so it is the current one.
+  scrollToConflict(0);
 
   LOG_PERF(0, "Exit");
 }
@@ -546,7 +551,7 @@ void MergeDiffView::applyConflictChoice(int rangeIndex,
   }
 
   rangeBottom.resolution = resolution;
-  _currentConflictIndex = rangeIndex;
+  setCurrentConflictIndex(rangeIndex);
   buildBottomContent(_content);
 
   const int horizontalScrollbarPosition =
@@ -602,7 +607,7 @@ void MergeDiffView::scrollToConflict(int rangeIndex) {
   // Lines of context shown above the conflict.
   constexpr int contextLines = 3;
 
-  _currentConflictIndex = rangeIndex;
+  setCurrentConflictIndex(rangeIndex);
 
   const int topLine =
       std::max(0, _content.rangesTop[rangeIndex].leftStart - contextLines);
@@ -616,6 +621,12 @@ void MergeDiffView::scrollToConflict(int rangeIndex) {
   _bottomEditor->verticalScrollBar()->setValue(bottomLine);
 
   LOG_PERF(0, "Exit");
+}
+
+void MergeDiffView::setCurrentConflictIndex(int rangeIndex) {
+  _currentConflictIndex = rangeIndex;
+  emit currentConflictChanged(rangeIndex + 1,
+                              int(_content.rangesTop.length()));
 }
 
 void MergeDiffView::bottomMarginClicked(int margin, int line,
