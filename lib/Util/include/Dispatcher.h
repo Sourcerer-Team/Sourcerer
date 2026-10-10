@@ -11,13 +11,25 @@
 
 #include <atomic>
 #include <climits>
+#include <condition_variable>
+#include <deque>
 #include <functional>
 #include <map>
+#include <mutex>
 #include <qcoreapplication.h>
 
 namespace Util {
 
 enum class DispatcherChannel { Any = -1, Pool0 = 0 };
+
+enum class DispatcherPriority {
+  Normal = 0,
+  // Executed one at a time, in the order of dispatching, and only while no
+  // normal priority task is queued or being executed. A low priority task
+  // that has already started is not interrupted by normal ones dispatched
+  // after it.
+  Low,
+};
 
 enum class DispatcherCommand {
   Unknown = 0,
@@ -34,11 +46,25 @@ struct DispatcherRecord {
   int _taskId = -1;
 };
 
+// Low priority tasks waiting for the normal priority ones to finish.
+struct DispatcherLowPriorityLane {
+  std::mutex _mutex;
+  std::condition_variable _condition;
+  std::deque<DispatcherRecord> _tasks;
+  // Normal priority tasks queued or currently being executed by the pool.
+  size_t _normalPending = 0;
+  bool _quit = false;
+
+  void normalTasksAdded(size_t count);
+  void normalTasksRemoved(size_t count);
+};
+
 struct DispatcherPoolElement {
   BlockingQueue<DispatcherRecord> *_queue = nullptr;
   QThread *_thread = nullptr;
   // Tasks queued on this element or currently being executed by it.
   std::atomic<size_t> _pendingTasks{0};
+  QSharedPointer<DispatcherLowPriorityLane> _lane;
 };
 
 class Dispatcher : public QObject {
@@ -48,11 +74,14 @@ public:
   explicit Dispatcher(int coresNum = INT_MAX);
   ~Dispatcher() override;
 
+  // `channel` is ignored for low priority tasks, they have a thread of their
+  // own.
   bool dispatch(
       const std::function<void()> &task,
       const std::function<void()> &finalTask = nullptr,
       const std::function<void(const std::exception &)> &errorTask = nullptr,
-      DispatcherChannel channel = DispatcherChannel::Any);
+      DispatcherChannel channel = DispatcherChannel::Any,
+      DispatcherPriority priority = DispatcherPriority::Normal);
 
   template <class T>
   static bool
@@ -104,7 +133,8 @@ public:
     return dispatchToMainThread(guard, 0, callback);
   }
 
-  // Returns true if no task is queued or currently being executed.
+  // Returns true if no normal priority task is queued or currently being
+  // executed. Low priority tasks are not taken into account.
   bool idle() const;
 
   void stopAll();
@@ -113,10 +143,13 @@ public:
 
 private:
   static void processor(QSharedPointer<DispatcherPoolElement> poolElement);
+  static void
+  lowPriorityProcessor(QSharedPointer<DispatcherLowPriorityLane> lane);
 
 private:
   mutable Util::Mutex _mutex;
   QMap<size_t, QSharedPointer<DispatcherPoolElement>> _pool;
+  QSharedPointer<DispatcherLowPriorityLane> _lane;
 };
 
 } // namespace Util

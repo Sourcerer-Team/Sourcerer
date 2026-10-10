@@ -75,7 +75,6 @@ QEDITOR_DECLARE_LEXER(QsciLexerJavaScript, "javascript", Default = 0, Comment,
                       DoubleQuotedString, SingleQuotedString, UnclosedString,
                       Number, Operator, Identifier, GlobalClass, Regex)
 
-
 QEDITOR_DECLARE_LEXER(QsciLexerHTML, "html", Default = 0, Tag, UnknownTag,
                       Attribute, UnknownAttribute, HTMLDoubleQuotedString,
                       HTMLSingleQuotedString, HTMLNumber, HTMLComment, Entity,

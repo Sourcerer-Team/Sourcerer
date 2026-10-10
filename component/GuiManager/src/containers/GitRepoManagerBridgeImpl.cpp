@@ -293,8 +293,7 @@ void GitRepoManagerBridgeImpl::blame(
       editor->setMarginText(row, 0, blameLineNumbers.at(row));
       editor->setMarginText(row, commitMargin,
                             blameCommits.at(row).left(shortShaLength));
-      editor->setMarginToolTip(row, commitMargin,
-                               blameCommitToolTips.at(row));
+      editor->setMarginToolTip(row, commitMargin, blameCommitToolTips.at(row));
       editor->setMarginText(row, authorMargin, blameAuthors.at(row));
     }
 
@@ -1241,9 +1240,7 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
       _container.updateModelActiveBranch(guard, result.branchName,
                                          result.branchType);
 
-      _container._dispatcher.dispatch([=]() {
-        getBranchHistory(guard);
-      });
+      _container._dispatcher.dispatch([=]() { getBranchHistory(guard); });
     });
 
     if (branchType == GitRepo::BranchType::Tag) {
@@ -2153,9 +2150,8 @@ void GitRepoManagerBridgeImpl::pushTag(
   if (!success) {
     closeRepo();
 
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -2220,9 +2216,8 @@ void GitRepoManagerBridgeImpl::pushAllTags(
   if (!success) {
     closeRepo();
 
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -3451,15 +3446,13 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
 void GitRepoManagerBridgeImpl::getBranchHistoryPage(
     const QWeakPointer<GitRepoContainer> &guard, const QString &branchName,
     const GitRepo::BranchType branchType, const int page,
-    const quint64 generation) {
+    const quint64 generation, const bool lowPriority) {
   LOG_PERF(0, "Enter");
 
   const QString uuid = _container._uuid;
   EventManager::EventManager *eventManager = &_container._eventManager;
 
-  // Not the container's dispatcher: its pool is cleared whenever the selection
-  // changes, which would drop the request and leave the model waiting for it.
-  QThreadPool::globalInstance()->start([=]() {
+  const auto loadPage = [=]() {
     const QString eventUuid = Uuid::createUuid();
 
     const int token = eventManager->startWait();
@@ -3501,7 +3494,20 @@ void GitRepoManagerBridgeImpl::getBranchHistoryPage(
         _container._historyModel->pageFailed(generation);
       }
     });
-  });
+  };
+
+  if (lowPriority) {
+    // Loading the whole history must not hold back other requests, so it
+    // waits until the container's dispatcher has nothing else to do.
+    _container._dispatcher.dispatch(loadPage, nullptr, nullptr,
+                                    Util::DispatcherChannel::Any,
+                                    Util::DispatcherPriority::Low);
+  } else {
+    // Not the container's dispatcher: its pool is cleared whenever the
+    // selection changes, which would drop the request and leave the model
+    // waiting for it.
+    QThreadPool::globalInstance()->start(loadPage);
+  }
 
   LOG_PERF(0, "Exit")
 }
@@ -4954,18 +4960,16 @@ bool GitRepoManagerBridgeImpl::openRepo(
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return false;
   }
 
   if (event.type() != EventManager::EventType::GitRepoManagerOpenRepoResult) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return false;
@@ -5009,9 +5013,8 @@ void GitRepoManagerBridgeImpl::pull(const QWeakPointer<GitRepoContainer> &guard,
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -5078,9 +5081,8 @@ void GitRepoManagerBridgeImpl::fetchAll(
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -5146,9 +5148,8 @@ void GitRepoManagerBridgeImpl::fetchRemote(
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -5215,9 +5216,8 @@ void GitRepoManagerBridgeImpl::push(const QWeakPointer<GitRepoContainer> &guard,
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -6030,9 +6030,8 @@ void GitRepoManagerBridgeImpl::reset(
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -6105,9 +6104,8 @@ void GitRepoManagerBridgeImpl::revert(
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -6194,9 +6192,8 @@ void GitRepoManagerBridgeImpl::cherryPick(
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;

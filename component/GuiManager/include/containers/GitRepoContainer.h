@@ -448,6 +448,7 @@ private:
   void updateTagsModel(const WeakPtr &guard, const QStringList &tags) const;
   void refreshHistoryFilterButtonIcon();
   void updateHistoryFilterButtonGeometry();
+  void updateHistorySearchRepositoryButton();
   void updateStashContentInfo(int stashIndex,
                               const GitRepo::GitCommitStatus &stashStatus);
 
@@ -521,6 +522,9 @@ private:
   Widgets::ToastHostWidget &_toastHost;
   QSharedPointer<Models::GitHistoryModel> _historyModel;
   QToolButton *_historyFilterButton;
+  // Animates the icon of the search repository button while searching.
+  QTimer *_historySearchSpinnerTimer;
+  int _historySearchSpinnerAngle;
   Widgets::RefBadgesOverlay *_refBadgesOverlay;
   QPixmap *_errorPixmap;
   QNetworkAccessManager *_authorAvatarNetworkManager;

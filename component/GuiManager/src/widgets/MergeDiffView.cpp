@@ -29,8 +29,10 @@
 #define BOTTOM_APPEND_RIGHT_MARKER 7
 #define ACTION_MARKER_MARGIN_WIDTH 28
 #define TOP_ACTION_MARKERS ((1 << TAKE_MARKER) | (1 << APPEND_MARKER))
-#define BOTTOM_LEFT_ACTION_MARKERS                                               ((1 << BOTTOM_TAKE_LEFT_MARKER) | (1 << BOTTOM_APPEND_LEFT_MARKER))
-#define BOTTOM_RIGHT_ACTION_MARKERS                                              ((1 << BOTTOM_TAKE_RIGHT_MARKER) | (1 << BOTTOM_APPEND_RIGHT_MARKER))
+#define BOTTOM_LEFT_ACTION_MARKERS                                             \
+  ((1 << BOTTOM_TAKE_LEFT_MARKER) | (1 << BOTTOM_APPEND_LEFT_MARKER))
+#define BOTTOM_RIGHT_ACTION_MARKERS                                            \
+  ((1 << BOTTOM_TAKE_RIGHT_MARKER) | (1 << BOTTOM_APPEND_RIGHT_MARKER))
 #define STASHED_CHANGES "Stashed changes"
 #define UPDATED_UPSTREAM "Updated upstream"
 
@@ -304,8 +306,7 @@ void MergeDiffView::refreshScintillaTheme() {
       lightTheme ? QColor(255, 231, 231) : QColor(0x4a2327);
   const QColor addedColor =
       lightTheme ? QColor(232, 246, 232) : QColor(0x1f3d2b);
-  const QColor actionColor =
-      lightTheme ? QColor(0x0969da) : QColor(0x2f81f7);
+  const QColor actionColor = lightTheme ? QColor(0x0969da) : QColor(0x2f81f7);
   const QColor actionGlyphColor = Qt::white;
   const QColor marginColor =
       lightTheme ? QColor(243, 246, 248) : QColor(0x23272e);
@@ -625,8 +626,7 @@ void MergeDiffView::scrollToConflict(int rangeIndex) {
 
 void MergeDiffView::setCurrentConflictIndex(int rangeIndex) {
   _currentConflictIndex = rangeIndex;
-  emit currentConflictChanged(rangeIndex + 1,
-                              int(_content.rangesTop.length()));
+  emit currentConflictChanged(rangeIndex + 1, int(_content.rangesTop.length()));
 }
 
 void MergeDiffView::bottomMarginClicked(int margin, int line,
@@ -639,8 +639,8 @@ void MergeDiffView::bottomMarginClicked(int margin, int line,
     return;
   }
 
-  const int markers = margin == 1 ? BOTTOM_LEFT_ACTION_MARKERS
-                                  : BOTTOM_RIGHT_ACTION_MARKERS;
+  const int markers =
+      margin == 1 ? BOTTOM_LEFT_ACTION_MARKERS : BOTTOM_RIGHT_ACTION_MARKERS;
 
   if (!(_bottomEditor->markersAtLine(line) & markers)) {
     LOG_PERF(0, "Exit");

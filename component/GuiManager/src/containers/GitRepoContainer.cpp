@@ -354,6 +354,30 @@ QIcon shiftIconVertically(const QIcon &originalIcon, int targetSize,
   return originalIcon;
 }
 
+// Matches the text color of the button in the searching state, see
+// StylesheetManager.
+const QColor kSearchSpinnerColor(Qt::white);
+
+// One frame of the spinner shown on the search repository button: an arc
+// rotated by `angle` degrees.
+QPixmap searchSpinnerPixmap(const QColor &color, const int angle,
+                            const qreal devicePixelRatio) {
+  QPixmap pixmap(QSize(16, 16) * devicePixelRatio);
+  pixmap.setDevicePixelRatio(devicePixelRatio);
+  pixmap.fill(Qt::transparent);
+
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setPen(QPen(color, 2.0, Qt::SolidLine, Qt::RoundCap));
+  painter.setBrush(Qt::NoBrush);
+
+  // QPainter angles are in 1/16 degree, counter-clockwise; negate to spin
+  // clockwise.
+  painter.drawArc(QRectF(2.0, 2.0, 12.0, 12.0), -angle * 16, 270 * 16);
+
+  return pixmap;
+}
+
 QPixmap filterIconPixmap(const QColor &color) {
   QPixmap pixmap(16, 16);
   pixmap.fill(Qt::transparent);
@@ -450,7 +474,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()),
-      _historyFilterButton(nullptr), _refBadgesOverlay(nullptr),
+      _historyFilterButton(nullptr),
+      _historySearchSpinnerTimer(new QTimer(this)),
+      _historySearchSpinnerAngle(0), _refBadgesOverlay(nullptr),
       _authorAvatarNetworkManager(new QNetworkAccessManager(this)),
       _authorNameValueLabel(nullptr), _authorEmailValueLabel(nullptr),
       _dispatcher(20), _spinnerOverlay(new SpinnerOverlayWidget(this)),
@@ -974,9 +1000,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _historyModel->setPageRequester(
       [this](const QString &branchName, const GitRepo::BranchType branchType,
-             const int page, const quint64 generation) {
+             const int page, const quint64 generation, const bool lowPriority) {
         _bridge->getBranchHistoryPage(getSelf().toWeakRef(), branchName,
-                                      branchType, page, generation);
+                                      branchType, page, generation,
+                                      lowPriority);
       });
 
   connect(_historyModel.get(), &Models::GitHistoryModel::columnWidthsChanged,
@@ -995,6 +1022,31 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   connect(_historyModel.get(), &Models::GitHistoryModel::pageLoadFailed, this,
           [this]() { _pendingSelectCommit.clear(); });
+
+  _historySearchSpinnerTimer->setInterval(50);
+  connect(_historySearchSpinnerTimer, &QTimer::timeout, this, [this]() {
+    QPushButton *button = ui->pushButtonHistorySearchRepository;
+    _historySearchSpinnerAngle = (_historySearchSpinnerAngle + 30) % 360;
+    button->setIcon(QIcon(searchSpinnerPixmap(kSearchSpinnerColor,
+                                              _historySearchSpinnerAngle,
+                                              button->devicePixelRatioF())));
+  });
+  connect(ui->pushButtonHistorySearchRepository, &QPushButton::clicked, this,
+          [this]() {
+            if (_historyModel->isFetchingAll()) {
+              _historyModel->cancelFetchAll();
+            } else {
+              _historyModel->fetchAll();
+            }
+            updateHistorySearchRepositoryButton();
+          });
+  connect(_historyModel.get(), &Models::GitHistoryModel::fetchAllFinished, this,
+          [this]() { updateHistorySearchRepositoryButton(); });
+  connect(_historyModel.get(), &Models::GitHistoryModel::pageAppended, this,
+          [this]() { updateHistorySearchRepositoryButton(); });
+  connect(_historyModel.get(), &QAbstractItemModel::modelReset, this,
+          [this]() { updateHistorySearchRepositoryButton(); });
+  updateHistorySearchRepositoryButton();
 
   _spinnerBreakTimer->start(1000);
   _spinnerOverlayTimer->setSingleShot(true);
@@ -7226,9 +7278,9 @@ void GitRepoContainer::onShowSpinnerOverlay() {
 }
 
 void GitRepoContainer::onSpinnerBreakTimer() {
-    if (_dispatcher.idle()) {
-        showSpinnerOverlay(false);
-    }
+  if (_dispatcher.idle()) {
+    showSpinnerOverlay(false);
+  }
 }
 
 void GitRepoContainer::onDeleteSubmodule(const QString &submoduleName) {
@@ -7507,6 +7559,42 @@ void GitRepoContainer::applyHistoryColumnVisibility() {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::updateHistorySearchRepositoryButton() {
+  if (!ui || !_historyModel) {
+    return;
+  }
+
+  QPushButton *button = ui->pushButtonHistorySearchRepository;
+  const bool fetchingAll = _historyModel->isFetchingAll();
+
+  button->setEnabled(fetchingAll || _historyModel->hasMoreCommits());
+  button->setText(fetchingAll ? tr("Stop searching") : tr("Search repository"));
+  button->setToolTip(
+      fetchingAll
+          ? tr("Stop loading the repository history")
+          : tr("Load the whole repository history from disk and apply the "
+               "filters to it"));
+
+  // The stylesheet shows the button in red while searching.
+  if (button->property("searching").toBool() != fetchingAll) {
+    button->setProperty("searching", fetchingAll);
+    button->style()->unpolish(button);
+    button->style()->polish(button);
+    button->update();
+  }
+
+  if (fetchingAll && !_historySearchSpinnerTimer->isActive()) {
+    _historySearchSpinnerAngle = 0;
+    button->setIcon(QIcon(searchSpinnerPixmap(kSearchSpinnerColor,
+                                              _historySearchSpinnerAngle,
+                                              button->devicePixelRatioF())));
+    _historySearchSpinnerTimer->start();
+  } else if (!fetchingAll && _historySearchSpinnerTimer->isActive()) {
+    _historySearchSpinnerTimer->stop();
+    button->setIcon(QIcon());
+  }
+}
+
 void GitRepoContainer::updateHistoryFilterButtonGeometry() {
   if (!_historyFilterButton || !ui || !ui->historyView) {
     return;
@@ -7612,9 +7700,8 @@ void GitRepoContainer::saveThreeWayMergeResultFile(const WeakPtr &guard,
 
   _bridge->stageFiles(guard, QStringList() << filePath);
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    ui->pushButtonMergeDiffSave->setEnabled(false);
-  });
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { ui->pushButtonMergeDiffSave->setEnabled(false); });
 
   LOG_PERF(0, "Exit");
 }
@@ -9843,9 +9930,8 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
 
   _bridge->refreshStatus(guard);
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    simulateClickOnFirstHistoryRow();
-  });
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { simulateClickOnFirstHistoryRow(); });
 
   LOG_PERF(0, "Exit")
 }
@@ -9898,9 +9984,8 @@ void GitRepoContainer::ignoreFilesRecursive(const WeakPtr &guard,
 
   _bridge->refreshStatus(guard);
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    simulateClickOnFirstHistoryRow();
-  });
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { simulateClickOnFirstHistoryRow(); });
 
   LOG_PERF(0, "Exit")
 }
@@ -9928,9 +10013,8 @@ void GitRepoContainer::addFilesToLfs(const WeakPtr &guard,
 
   if (entriesToAdd.isEmpty()) {
     _bridge->refreshStatus(guard);
-    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      simulateClickOnFirstHistoryRow();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { simulateClickOnFirstHistoryRow(); });
     LOG_PERF(0, "Exit");
     return;
   }
@@ -9985,9 +10069,8 @@ void GitRepoContainer::addFilesToLfs(const WeakPtr &guard,
 
   _bridge->refreshStatus(guard);
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    simulateClickOnFirstHistoryRow();
-  });
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { simulateClickOnFirstHistoryRow(); });
 
   LOG_PERF(0, "Exit")
 }
@@ -10008,9 +10091,8 @@ void GitRepoContainer::removeFilesFromLfs(const WeakPtr &guard,
 
   if (patternsToRemove.isEmpty()) {
     _bridge->refreshStatus(guard);
-    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      simulateClickOnFirstHistoryRow();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { simulateClickOnFirstHistoryRow(); });
     LOG_PERF(0, "Exit");
     return;
   }
@@ -10076,9 +10158,8 @@ void GitRepoContainer::removeFilesFromLfs(const WeakPtr &guard,
 
   _bridge->refreshStatus(guard);
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    simulateClickOnFirstHistoryRow();
-  });
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { simulateClickOnFirstHistoryRow(); });
 
   LOG_PERF(0, "Exit")
 }
@@ -10157,9 +10238,7 @@ bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
   _branchHistorySemaphore = nullptr;
 
   if (!ok) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() { showErrorPage(); });
   }
 
   LOG_PERF(0, "Exit")

@@ -101,10 +101,10 @@ class GitHistoryModel final : public QAbstractTableModel,
 public:
   /// Asks for page `page` of the history of the given branch. The answer must
   /// be delivered with appendPage() or pageFailed() using the same
-  /// `generation`.
+  /// `generation`. `lowPriority` is set for pages requested by fetchAll().
   typedef std::function<void(const QString &branchName,
                              GitRepo::BranchType branchType, int page,
-                             quint64 generation)>
+                             quint64 generation, bool lowPriority)>
       PageRequester;
 
   explicit GitHistoryModel(QObject *parent = nullptr);
@@ -152,6 +152,17 @@ public:
 
   bool hasMoreCommits() const { return _hasMore; }
 
+  /// Requests the remaining pages one after another until the whole history
+  /// is loaded, so the filters are applied to all commits of the repository.
+  /// fetchAllFinished() is emitted when done, failed or cancelled.
+  void fetchAll();
+
+  /// Stops loading started with fetchAll(), the pages loaded so far are kept.
+  /// fetchAllFinished() is emitted.
+  void cancelFetchAll();
+
+  bool isFetchingAll() const { return _fetchAll; }
+
   // QAbstractTableModel interface
 public:
   QModelIndex index(int row, int column,
@@ -169,6 +180,8 @@ signals:
   void pageAppended();
   /// Emitted when a requested page could not be loaded.
   void pageLoadFailed();
+  /// Emitted when loading started with fetchAll() has ended.
+  void fetchAllFinished();
   /// Emitted when the preferred width of a column has grown.
   void columnWidthsChanged();
 
@@ -182,6 +195,7 @@ private:
   // Adds the commits of `history` starting at `firstCommitIndex` of
   // _historyWithStatus.history.commits to the graph and column widths.
   void appendGraphAndWidths(int firstCommitIndex);
+  void finishFetchAll();
 
 private:
   mutable Util::RecursiveMutex _mutex;
@@ -207,6 +221,10 @@ private:
   quint64 _generation;
   bool _hasMore;
   bool _fetchInFlight;
+  // Set by fetchAll(): every appended page requests the next one.
+  bool _fetchAll;
+  // The page in flight was requested with low priority.
+  bool _lowPriorityInFlight;
   int _nextPage;
 };
 
