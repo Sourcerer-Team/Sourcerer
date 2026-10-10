@@ -503,6 +503,12 @@ private:
   // Commit the user asked for that is not loaded yet, selected once the
   // history page containing it arrives.
   QString _pendingSelectCommit;
+  // Full commit SHA of each line of the blame viewer, empty for lines that
+  // are not blamed to a commit.
+  QStringList _blameCommits;
+  static constexpr int BlameCommitMargin = 1;
+  static constexpr int BlameAuthorMargin = 2;
+  static constexpr int BlameShortShaLength = 6;
   QString _lastDiffedCommit;
   QString _lastDiffedFilePath;
   QString _currentSignature;

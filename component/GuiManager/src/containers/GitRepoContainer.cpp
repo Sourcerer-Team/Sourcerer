@@ -1420,9 +1420,32 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaBlameEditor->setLexer(nullptr);
   ui->scintillaBlameEditor->setMarginsBackgroundColor(QColor(0x384D59));
   ui->scintillaBlameEditor->setMarginType(0, QsciScintilla::NumberMargin);
-  ui->scintillaBlameEditor->setMarginType(1, QsciScintilla::NumberMargin);
-  ui->scintillaBlameEditor->setMarginWidth(1, 2);
+  ui->scintillaBlameEditor->setMarginType(BlameCommitMargin,
+                                          QsciScintilla::NumberMargin);
+  ui->scintillaBlameEditor->setMarginType(BlameAuthorMargin,
+                                          QsciScintilla::NumberMargin);
+  ui->scintillaBlameEditor->setMarginWidth(BlameCommitMargin, 2);
+  ui->scintillaBlameEditor->setMarginWidth(BlameAuthorMargin, 2);
+  ui->scintillaBlameEditor->setMarginSensitivity(BlameCommitMargin, true);
+  ui->scintillaBlameEditor->setMarginTextColor(BlameCommitMargin,
+                                               QColor(0x8cc8ff));
   ui->scintillaBlameEditor->setReadOnly(true);
+
+  connect(ui->scintillaBlameEditor, &QsciScintilla::marginClicked, this,
+          [this](int margin, int line, Qt::KeyboardModifiers) {
+            if (margin != BlameCommitMargin) {
+              return;
+            }
+
+            const QString commit = _blameCommits.value(line);
+            if (commit.isEmpty()) {
+              return;
+            }
+
+            LOG_DEBUG("Blame commit {} clicked", commit.toStdString());
+            closeDiffViewerIfOpen();
+            selectHistoryCommit(commit);
+          });
 
   DarkThemeLexersHighlighter blameHighlighter;
   blameHighlighter.applyDarkTheme(ui->scintillaBlameEditor);
@@ -3300,8 +3323,11 @@ void GitRepoContainer::closeDiffViewerIfOpen() {
 
   if (ui->stackedWidgetMiddle->currentIndex() ==
       static_cast<int>(MainViewPanes::Blame)) {
+    QsciLexer *blameLexer = ui->scintillaBlameEditor->lexer();
     ui->scintillaBlameEditor->setText(QString());
     ui->scintillaBlameEditor->setLexer(nullptr);
+    delete blameLexer;
+    _blameCommits.clear();
   }
 
   // Hide scrollbar marks to prevent them from appearing in history view

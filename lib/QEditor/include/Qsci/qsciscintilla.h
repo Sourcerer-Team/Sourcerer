@@ -57,6 +57,8 @@ public:
   void setMarginWidth(int margin, const QString &text);
   void setMarginWidth(int margin, int width);
   void setMarginText(int line, int margin, const QString &text);
+  void setMarginTextColor(int margin, const QColor &color);
+  void setMarginToolTip(int line, int margin, const QString &toolTip);
   void setMarginType(int margin, MarginType type);
   void setMarginSensitivity(int margin, bool sensitivity);
   void setMarginMarkerMask(int margin, int mask);
@@ -99,8 +101,13 @@ private:
   void applyCurrentPalette();
   void updateViewportMargins();
   int lineFromPoint(const QPoint &point) const;
+  int marginLineAt(int y) const;
+  int marginPixelWidth(int margin) const;
   int marginAtX(int x) const;
+  QRect marginCellRect(int margin, int line) const;
   int clickableMarkerAt(int margin, int line) const;
+  bool hasClickableMarginText(int margin, int line) const;
+  void setHoveredMarginText(int margin, int line);
   int lineNumberAreaWidth() const;
   void lineNumberAreaPaintEvent(QPaintEvent *event);
   void updateLineNumberAreaWidth(int);
@@ -142,6 +149,10 @@ private:
   QHash<int, QString> _markerToolTips;
   QHash<int, QSet<int>> _markers;
   QHash<int, QHash<int, QString>> _marginTexts;
+  QHash<int, QHash<int, QString>> _marginToolTips;
+  QHash<int, QColor> _marginTextColors;
+  int _hoveredMargin = -1;
+  int _hoveredMarginLine = -1;
   QWidget *_lineNumberArea;
   const TSLanguage *_treeSitterLanguage;
   bool _updatingTreeSitterHighlighting;

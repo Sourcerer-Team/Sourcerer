@@ -222,15 +222,8 @@ protected:
 
   bool event(QEvent *event) override {
     if (_editor && event && event->type() == QEvent::ToolTip) {
-      auto *helpEvent = static_cast<QHelpEvent *>(event);
-      const int marker = markerAt(helpEvent->pos());
-      const QString toolTip = _editor->_markerToolTips.value(marker);
-
-      if (toolTip.isEmpty()) {
-        QToolTip::hideText();
+      if (!showToolTipAt(static_cast<QHelpEvent *>(event)->pos())) {
         event->ignore();
-      } else {
-        QToolTip::showText(helpEvent->globalPos(), toolTip, this);
       }
 
       return true;
@@ -241,7 +234,22 @@ protected:
 
   void mouseMoveEvent(QMouseEvent *event) override {
     if (_editor && event) {
-      if (markerAt(event->position().toPoint()) >= 0) {
+      const QPoint point = event->position().toPoint();
+      const int margin = _editor->marginAtX(point.x());
+      const int line = _editor->marginLineAt(point.y());
+      const bool overText = _editor->hasClickableMarginText(margin, line);
+
+      _editor->setHoveredMarginText(overText ? margin : -1,
+                                    overText ? line : -1);
+
+      // Qt only replaces a visible tooltip after the mouse rests, so switch
+      // it to the new cell right away.
+      if (QToolTip::isVisible() &&
+          (margin != _toolTipMargin || line != _toolTipLine)) {
+        showToolTipAt(point);
+      }
+
+      if (overText || markerAt(point) >= 0) {
         setCursor(Qt::PointingHandCursor);
       } else {
         unsetCursor();
@@ -249,6 +257,17 @@ protected:
     }
 
     QWidget::mouseMoveEvent(event);
+  }
+
+  void leaveEvent(QEvent *event) override {
+    if (_editor) {
+      _editor->setHoveredMarginText(-1, -1);
+    }
+
+    _toolTipMargin = -1;
+    _toolTipLine = -1;
+    unsetCursor();
+    QWidget::leaveEvent(event);
   }
 
   void mousePressEvent(QMouseEvent *event) override {
@@ -267,6 +286,33 @@ protected:
   }
 
 private:
+  // Shows the tooltip of the marker or margin text under the point, or hides
+  // the tooltip when there is none. Returns whether a tooltip is shown.
+  bool showToolTipAt(const QPoint &point) {
+    const int margin = _editor->marginAtX(point.x());
+    const int line = _editor->marginLineAt(point.y());
+
+    QString toolTip = _editor->_markerToolTips.value(markerAt(point));
+    if (toolTip.isEmpty()) {
+      toolTip = _editor->_marginToolTips.value(line).value(margin);
+    }
+
+    if (toolTip.isEmpty()) {
+      _toolTipMargin = -1;
+      _toolTipLine = -1;
+      QToolTip::hideText();
+      return false;
+    }
+
+    _toolTipMargin = margin;
+    _toolTipLine = line;
+
+    // Show the tooltip at the mouse, limited to the hovered cell.
+    QToolTip::showText(mapToGlobal(point), toolTip, this,
+                       _editor->marginCellRect(margin, line));
+    return true;
+  }
+
   // Returns the clickable marker under the point, or -1.
   int markerAt(const QPoint &point) const {
     const int margin = _editor->marginAtX(point.x());
@@ -274,11 +320,13 @@ private:
       return -1;
     }
 
-    const int line = _editor->lineFromPoint(mapTo(_editor, point));
+    const int line = _editor->marginLineAt(point.y());
     return _editor->clickableMarkerAt(margin, line);
   }
 
   QsciScintilla *_editor;
+  int _toolTipMargin = -1;
+  int _toolTipLine = -1;
 };
 
 namespace {
@@ -1696,6 +1744,9 @@ QsciScintilla::~QsciScintilla() {
 
 void QsciScintilla::setText(const QString &text) {
   _marginTexts.clear();
+  _marginToolTips.clear();
+  _hoveredMargin = -1;
+  _hoveredMarginLine = -1;
 
   QTextCursor cursor(document());
   cursor.beginEditBlock();
@@ -2092,6 +2143,46 @@ void QsciScintilla::setMarginText(int line, int margin, const QString &text) {
   }
 }
 
+void QsciScintilla::setMarginTextColor(int margin, const QColor &color) {
+  if (margin < 0 || margin >= 4) {
+    return;
+  }
+
+  _marginTextColors[margin] = color;
+  if (_lineNumberArea) {
+    _lineNumberArea->update();
+  }
+}
+
+void QsciScintilla::setMarginToolTip(int line, int margin,
+                                     const QString &toolTip) {
+  if (line < 0 || margin < 0 || margin >= 4) {
+    return;
+  }
+
+  _marginToolTips[line][margin] = toolTip;
+}
+
+bool QsciScintilla::hasClickableMarginText(int margin, int line) const {
+  if (margin < 0 || margin >= 4 || line < 0 || !_marginSensitivity[margin]) {
+    return false;
+  }
+
+  return !_marginTexts.value(line).value(margin).isEmpty();
+}
+
+void QsciScintilla::setHoveredMarginText(int margin, int line) {
+  if (margin == _hoveredMargin && line == _hoveredMarginLine) {
+    return;
+  }
+
+  _hoveredMargin = margin;
+  _hoveredMarginLine = line;
+  if (_lineNumberArea) {
+    _lineNumberArea->update();
+  }
+}
+
 void QsciScintilla::setMarginType(int margin, MarginType type) {
   if (margin < 0 || margin >= 4) {
     return;
@@ -2187,18 +2278,20 @@ void QsciScintilla::setMarkerToolTip(const QString &toolTip, int marker) {
   _markerToolTips[marker] = toolTip;
 }
 
+int QsciScintilla::marginPixelWidth(int margin) const {
+  if (margin == 0 && _marginLineNumbers[0]) {
+    const int digits = QString::number(std::max(1, blockCount())).size();
+    return fontMetrics().horizontalAdvance(QString(digits, QChar('9'))) + 12;
+  }
+
+  return std::max(0, _marginWidths[margin]);
+}
+
 int QsciScintilla::marginAtX(int x) const {
-  const int digits = QString::number(std::max(1, blockCount())).size();
   int offset = 0;
 
   for (int i = 0; i < 4; ++i) {
-    int width = 0;
-    if (i == 0 && _marginLineNumbers[0]) {
-      width = fontMetrics().horizontalAdvance(QString(digits, QChar('9'))) + 12;
-    } else if (_marginWidths[i] > 0) {
-      width = _marginWidths[i];
-    }
-
+    const int width = marginPixelWidth(i);
     if (width <= 0) {
       continue;
     }
@@ -2211,6 +2304,49 @@ int QsciScintilla::marginAtX(int x) const {
   }
 
   return -1;
+}
+
+// Returns the line drawn at y in the margins, or -1. It walks the visible
+// blocks the same way the margins are painted, so the result matches what is
+// shown.
+int QsciScintilla::marginLineAt(int y) const {
+  QTextBlock block = firstVisibleBlock();
+  int top = static_cast<int>(
+      blockBoundingGeometry(block).translated(contentOffset()).top());
+
+  while (block.isValid() && top <= y) {
+    const int bottom =
+        top + static_cast<int>(blockBoundingRect(block).height());
+    if (block.isVisible() && y < bottom) {
+      return block.blockNumber();
+    }
+
+    block = block.next();
+    top = bottom;
+  }
+
+  return -1;
+}
+
+QRect QsciScintilla::marginCellRect(int margin, int line) const {
+  if (margin < 0 || margin >= 4) {
+    return {};
+  }
+
+  const QTextBlock block = document()->findBlockByNumber(line);
+  if (!block.isValid()) {
+    return {};
+  }
+
+  int offset = 0;
+  for (int i = 0; i < margin; ++i) {
+    offset += marginPixelWidth(i);
+  }
+
+  const QRect lineRect =
+      blockBoundingGeometry(block).translated(contentOffset()).toRect();
+  return QRect(offset, lineRect.top(), marginPixelWidth(margin),
+               lineRect.height());
 }
 
 int QsciScintilla::clickableMarkerAt(int margin, int line) const {
@@ -2489,9 +2625,18 @@ void QsciScintilla::lineNumberAreaPaintEvent(QPaintEvent *event) {
               const Qt::Alignment alignment =
                   margin == 0 ? (Qt::AlignRight | Qt::AlignVCenter)
                               : (Qt::AlignLeft | Qt::AlignVCenter);
-              painter.setPen(textColor);
+              const bool hovered =
+                  margin == _hoveredMargin && blockNumber == _hoveredMarginLine;
+              painter.save();
+              painter.setPen(_marginTextColors.value(margin, textColor));
+              if (hovered) {
+                QFont font = painter.font();
+                font.setUnderline(true);
+                painter.setFont(font);
+              }
               painter.drawText(marginRect.adjusted(4, 0, -4, 0), alignment,
                                *textIt);
+              painter.restore();
             }
             continue;
           }
@@ -2563,10 +2708,10 @@ void QsciScintilla::lineNumberAreaPaintEvent(QPaintEvent *event) {
           } else if (symbol == BoxedArrowDown) {
             painter.drawLine(QPointF(glyph.center().x(), glyph.top()),
                              QPointF(glyph.center().x(), glyph.bottom()));
-            painter.drawPolyline(QPolygonF(
-                {QPointF(glyph.left(), glyph.center().y()),
-                 QPointF(glyph.center().x(), glyph.bottom()),
-                 QPointF(glyph.right(), glyph.center().y())}));
+            painter.drawPolyline(
+                QPolygonF({QPointF(glyph.left(), glyph.center().y()),
+                           QPointF(glyph.center().x(), glyph.bottom()),
+                           QPointF(glyph.right(), glyph.center().y())}));
           } else {
             painter.drawPolyline(QPolygonF(
                 {QPointF(glyph.left(), glyph.center().y()),

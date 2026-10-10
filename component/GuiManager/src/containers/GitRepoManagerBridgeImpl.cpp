@@ -182,41 +182,64 @@ void GitRepoManagerBridgeImpl::blame(
   QStringList blameLines;
   QStringList blameLineNumbers;
   QStringList blameAuthors;
+  QStringList blameCommits;
+  QStringList blameCommitToolTips;
   QString widestAuthor;
   QString lexerFilePath;
 
+  // Adds a line that is not blamed to a commit.
+  const auto appendPlainLine = [&](const QString &line) {
+    blameLines += line;
+    blameLineNumbers += QString();
+    blameAuthors += QString();
+    blameCommits += QString();
+    blameCommitToolTips += QString();
+  };
+
   const auto appendSeparator = [&]() {
     if (!blameLines.isEmpty()) {
-      blameLines += QString();
-      blameLineNumbers += QString();
-      blameAuthors += QString();
+      appendPlainLine(QString());
     }
   };
 
   for (const auto &fileInfo : blameResult.report.fileInfos) {
     appendSeparator();
-    blameLines += QStringLiteral("File: %1").arg(fileInfo.filePath);
-    blameLineNumbers += QString();
-    blameAuthors += QString();
+    appendPlainLine(QStringLiteral("File: %1").arg(fileInfo.filePath));
 
     if (lexerFilePath.isEmpty() && !fileInfo.filePath.isEmpty()) {
       lexerFilePath = fileInfo.filePath;
     }
 
     if (!fileInfo.errorMessage.isEmpty()) {
-      blameLines += QStringLiteral("  [Failed to retrieve blame: %1]")
-                        .arg(fileInfo.errorMessage);
-      blameLineNumbers += QString();
-      blameAuthors += QString();
+      appendPlainLine(QStringLiteral("  [Failed to retrieve blame: %1]")
+                          .arg(fileInfo.errorMessage));
       continue;
     }
 
     for (const auto &lineInfo : fileInfo.lineInfos) {
+      const QString author =
+          lineInfo.email.isEmpty()
+              ? lineInfo.author
+              : QStringLiteral("%1 <%2>").arg(lineInfo.author, lineInfo.email);
+      // Uncommitted lines are blamed to the all zeros commit, which is not
+      // in the history.
+      const bool committed =
+          !lineInfo.commit.isEmpty() &&
+          lineInfo.commit.count(QChar('0')) != lineInfo.commit.size();
+
       blameLines += lineInfo.content;
       blameLineNumbers += QString::number(lineInfo.lineNumber);
-      blameAuthors += lineInfo.author;
-      if (lineInfo.author.size() > widestAuthor.size()) {
-        widestAuthor = lineInfo.author;
+      blameAuthors += author;
+      blameCommits += committed ? lineInfo.commit : QString();
+      blameCommitToolTips +=
+          committed ? _container
+                          .tr("%1\n%2\n\nClick to show the commit in the "
+                              "history.")
+                          .arg(lineInfo.commit, lineInfo.summary)
+                    : _container.tr("Not committed yet");
+
+      if (author.size() > widestAuthor.size()) {
+        widestAuthor = author;
       }
     }
   }
@@ -232,30 +255,47 @@ void GitRepoManagerBridgeImpl::blame(
   const QString lineNumberMask = QString(lineWidth, QChar('9'));
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    QsciLexer *lexer = nullptr;
-    /*
-    if (!lexerFilePath.isEmpty()) {
-      const GuiManager::QScintillaLexerFactory factory;
-      lexer = factory.createLexerForFile(lexerFilePath,
-                                         _container.ui->scintillaBlameEditor);
-    }
+    auto *editor = _container.ui->scintillaBlameEditor;
 
-    _container.ui->scintillaBlameEditor->setLexer(nullptr);
-  */
-    _container.ui->scintillaBlameEditor->setText(blameLines.join('\n'));
-    _container.ui->scintillaBlameEditor->verticalScrollBar()->triggerAction(
+    QsciLexer *previousLexer = editor->lexer();
+    editor->setLexer(nullptr);
+    delete previousLexer;
+
+    editor->setTreeSitterHighlightingEnabled(false);
+    editor->setText(blameLines.join('\n'));
+    editor->verticalScrollBar()->triggerAction(
         QAbstractSlider::SliderToMinimum);
-    //_container.ui->scintillaBlameEditor->setLexer(lexer);
 
-    _container.ui->scintillaBlameEditor->setMarginWidth(0, lineNumberMask);
-    _container.ui->scintillaBlameEditor->setMarginWidth(
-        1, widestAuthor.isEmpty() ? QStringLiteral(" ") : widestAuthor);
+    // The lexer has to be attached before theming so its styles get the
+    // current theme colors. It is picked by the first blamed file.
+    editor->setLexer(QScintillaLexerFactory::createDiffViewerLexerForFile(
+        lexerFilePath, editor));
+
+    DarkThemeLexersHighlighter highlighter;
+    highlighter.applyDarkTheme(editor);
+
+    editor->setTreeSitterHighlightingEnabled(true);
+
+    constexpr int commitMargin = GitRepoContainer::BlameCommitMargin;
+    constexpr int authorMargin = GitRepoContainer::BlameAuthorMargin;
+    constexpr int shortShaLength = GitRepoContainer::BlameShortShaLength;
+
+    _container._blameCommits = blameCommits;
+
+    editor->setMarginWidth(0, lineNumberMask);
+    editor->setMarginWidth(commitMargin,
+                           QString(shortShaLength + 1, QChar('9')));
+    editor->setMarginWidth(authorMargin, widestAuthor.isEmpty()
+                                             ? QStringLiteral(" ")
+                                             : widestAuthor);
 
     for (int row = 0; row < blameLineNumbers.size(); ++row) {
-      _container.ui->scintillaBlameEditor->setMarginText(
-          row, 0, blameLineNumbers.at(row));
-      _container.ui->scintillaBlameEditor->setMarginText(row, 1,
-                                                         blameAuthors.at(row));
+      editor->setMarginText(row, 0, blameLineNumbers.at(row));
+      editor->setMarginText(row, commitMargin,
+                            blameCommits.at(row).left(shortShaLength));
+      editor->setMarginToolTip(row, commitMargin,
+                               blameCommitToolTips.at(row));
+      editor->setMarginText(row, authorMargin, blameAuthors.at(row));
     }
 
     _container.ui->stackedWidgetMiddle->setCurrentIndex(
