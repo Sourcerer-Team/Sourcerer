@@ -149,7 +149,7 @@ QEDITOR_DEFINE_LEXER(QsciLexerCustom, "custom")
 
 #undef QEDITOR_DEFINE_LEXER
 
-#define QEDITOR_DEFINE_DERIVED_LEXER(ClassName, BaseClass, LanguageId)        \
+#define QEDITOR_DEFINE_DERIVED_LEXER(ClassName, BaseClass, LanguageId)         \
   ClassName::ClassName(QObject *parent) : BaseClass(parent) {                  \
     setTreeSitterLanguage(QStringLiteral(LanguageId));                         \
   }
@@ -599,7 +599,9 @@ bool isAsciiLetter(char c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
-bool isAsciiDigit(char c) { return c >= '0' && c <= '9'; }
+bool isAsciiDigit(char c) {
+  return c >= '0' && c <= '9';
+}
 
 bool isIdentifierToken(const char *type) {
   if (!isAsciiLetter(type[0]) && type[0] != '_') {
@@ -789,8 +791,9 @@ Token dartTokenForNode(const NodeContext &context, const QByteArray &source,
     if (typeEquals(type, "documentation_comment")) {
       return Token::CommentDoc;
     }
-    if (typeIn(type, {"decimal_integer_literal", "decimal_floating_point_literal",
-                      "hex_integer_literal", "symbol_literal"})) {
+    if (typeIn(type,
+               {"decimal_integer_literal", "decimal_floating_point_literal",
+                "hex_integer_literal", "symbol_literal"})) {
       return Token::Number;
     }
     if (typeIn(type, {"true", "false", "null_literal", "this", "super",
@@ -909,8 +912,7 @@ Token cssTokenForNode(const NodeContext &context, const QByteArray &source,
     if (typeEquals(type, "attribute_name")) {
       return Token::Attribute;
     }
-    if (typeEquals(type, "property_name") ||
-        typeEquals(type, "feature_name")) {
+    if (typeEquals(type, "property_name") || typeEquals(type, "feature_name")) {
       return Token::Property;
     }
     if (typeEquals(type, "string_value")) {
@@ -1048,9 +1050,9 @@ Token genericTokenForNode(StyledLanguage language, const NodeContext &context,
     }
     break;
   case StyledLanguage::OCaml:
-    if (typeIn(type, {"attribute", "item_attribute", "floating_attribute",
-                      "directive", "toplevel_directive",
-                      "line_number_directive"})) {
+    if (typeIn(type,
+               {"attribute", "item_attribute", "floating_attribute",
+                "directive", "toplevel_directive", "line_number_directive"})) {
       descend = false;
       return Token::Preprocessor;
     }
@@ -1109,7 +1111,8 @@ Token genericTokenForNode(StyledLanguage language, const NodeContext &context,
 
   // Characters, strings and their contents. Strings are visited so
   // interpolations can be reset to the default color and highlighted as code.
-  if (typeIn(type, {"char_literal", "character_literal", "char", "character"})) {
+  if (typeIn(type,
+             {"char_literal", "character_literal", "char", "character"})) {
     descend = false;
     return Token::SingleQuotedString;
   }
@@ -1584,8 +1587,8 @@ int styleFor(StyleSet styleSet, Token token) {
 // Uses the color configured on the lexer for the style (theme aware) and falls
 // back to the given dark palette color when the lexer has not been themed.
 QTextCharFormat lexerStyleFormat(const QsciLexer *lexer, int style,
-                                 const QColor &fallbackColor,
-                                 bool fallbackBold, bool italic) {
+                                 const QColor &fallbackColor, bool fallbackBold,
+                                 bool italic) {
   QTextCharFormat format;
   const QColor lexerColor = lexer ? lexer->color(style) : QColor();
   if (lexerColor.isValid()) {
@@ -1721,7 +1724,6 @@ QsciScintilla::~QsciScintilla() {
   if (_lexer) {
     disconnect(_lexer, nullptr, this, nullptr);
     _lexer = nullptr;
-
   }
 
   _treeSitterLanguage = nullptr;
@@ -1730,7 +1732,6 @@ QsciScintilla::~QsciScintilla() {
   disconnect(this, nullptr, this, nullptr);
   _highlightTimer->stop();
   disconnect(_highlightTimer, nullptr, this, nullptr);
-
 
   if (_tree) {
     ts_tree_delete(_tree);
@@ -1838,8 +1839,7 @@ void QsciScintilla::updateTreeSitterHighlighting() {
 
   QEditorTreeSitterHighlighter::BlockFormats blockFormats(blockCount);
 
-  const auto addRange = [&](int start, int end,
-                            const QTextCharFormat &format) {
+  const auto addRange = [&](int start, int end, const QTextCharFormat &format) {
     start = std::max(0, start);
     end = std::min(end, documentLength);
     if (start >= end || blockCount == 0) {
@@ -1855,9 +1855,8 @@ void QsciScintilla::updateTreeSitterHighlighting() {
     // Multi-line nodes (block comments, raw strings) are split per block.
     for (; block < blockCount && blockStarts[block] < end; ++block) {
       const int blockStart = blockStarts[block];
-      const int blockEnd = block + 1 < blockCount
-                               ? blockStarts[block + 1] - 1
-                               : documentLength;
+      const int blockEnd =
+          block + 1 < blockCount ? blockStarts[block + 1] - 1 : documentLength;
       const int rangeStart = std::max(start, blockStart);
       const int rangeEnd = std::min(end, blockEnd);
       if (rangeStart < rangeEnd) {
@@ -1971,9 +1970,9 @@ void QsciScintilla::updateTreeSitterHighlighting() {
                                          1)) {
         continue;
       }
-      TSTree *injectionTree = ts_parser_parse_string(
-          injectionParser, nullptr, source.constData(),
-          static_cast<uint32_t>(source.size()));
+      TSTree *injectionTree =
+          ts_parser_parse_string(injectionParser, nullptr, source.constData(),
+                                 static_cast<uint32_t>(source.size()));
       if (!injectionTree) {
         continue;
       }

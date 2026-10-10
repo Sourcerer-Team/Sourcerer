@@ -1123,6 +1123,16 @@ QString makeDarkStylesheet() {
         background-color: #384D59;
         color: white;
       }
+      QPushButton#pushButtonHistorySearchRepository[searching="true"] {
+        background-color: #B00020;
+        border: 1px solid #7F0018;
+        border-radius: 4px;
+        padding: 4px 12px;
+        color: white;
+      }
+      QPushButton#pushButtonHistorySearchRepository[searching="true"]:hover {
+        background-color: #D32F2F;
+      }
     )__DARK_21__");
 }
 
@@ -2247,6 +2257,16 @@ QString makeLightStylesheet() {
       QTabWidget#tabWidgetStashFiles QTabBar::tab:hover {
         background-color: #E7EEF4;
         color: #202020;
+      }
+      QPushButton#pushButtonHistorySearchRepository[searching="true"] {
+        background-color: #C62828;
+        border: 1px solid #8E0000;
+        border-radius: 4px;
+        padding: 4px 12px;
+        color: white;
+      }
+      QPushButton#pushButtonHistorySearchRepository[searching="true"]:hover {
+        background-color: #E53935;
       }
 
     )__LIGHT_23__");
