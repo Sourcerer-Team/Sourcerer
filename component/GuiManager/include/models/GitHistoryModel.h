@@ -163,6 +163,14 @@ public:
 
   bool isFetchingAll() const { return _fetchAll; }
 
+  /// Returns true if `commit` is among the loaded commits, whether it is
+  /// visible with the current filters or not.
+  bool isCommitLoaded(const QString &commit) const;
+
+  /// Returns false once the answer to a page requested with `generation`
+  /// would be ignored, so loading it can be skipped.
+  bool isCurrentGeneration(quint64 generation) const;
+
   // QAbstractTableModel interface
 public:
   QModelIndex index(int row, int column,
