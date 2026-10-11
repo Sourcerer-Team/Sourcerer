@@ -91,6 +91,11 @@ public:
 
   QString path() const override { return _path; }
 
+  // Line background markers of the unified diff viewers.
+  static constexpr int UnifiedDiffHunkMarker = 1;
+  static constexpr int UnifiedDiffDeletedMarker = 2;
+  static constexpr int UnifiedDiffAddedMarker = 3;
+
   // QObject interface
 public:
   bool eventFilter(QObject *watched, QEvent *event) override;
@@ -302,6 +307,7 @@ private:
   void closeDiffViewerIfOpen();
   void refreshScintillaTheme();
   void refreshSigningControls();
+  void refreshUnifiedDiffMarkerColors();
   void updateAuthorAvatar(const QVector<QLabel *> &labels,
                           const QString &authorName, const QString &authorEmail,
                           QString &currentAuthorAvatarKey,

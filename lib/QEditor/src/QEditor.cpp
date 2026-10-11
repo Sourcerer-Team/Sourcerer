@@ -1688,8 +1688,9 @@ QsciScintilla::QsciScintilla(QWidget *parent)
       _indentationGuides(false), _foldStyle(NoFoldStyle),
       _braceMatch(NoBraceMatch), _lineNumberArea(nullptr),
       _treeSitterLanguage(nullptr), _updatingTreeSitterHighlighting(false),
-      _treeSitterHighlightingEnabled(true), _parser(nullptr), _tree(nullptr),
-      _highlighter(nullptr), _highlightTimer(new QTimer(this)) {
+      _treeSitterHighlightingEnabled(true), _unifiedDiffHighlighting(false),
+      _parser(nullptr), _highlighter(nullptr),
+      _highlightTimer(new QTimer(this)) {
   for (int i = 0; i < 4; ++i) {
     _marginLineNumbers[i] = false;
     _marginSensitivity[i] = false;
@@ -1733,10 +1734,6 @@ QsciScintilla::~QsciScintilla() {
   _highlightTimer->stop();
   disconnect(_highlightTimer, nullptr, this, nullptr);
 
-  if (_tree) {
-    ts_tree_delete(_tree);
-    _tree = nullptr;
-  }
   if (_parser) {
     ts_parser_delete(_parser);
     _parser = nullptr;
@@ -1774,11 +1771,6 @@ void QsciScintilla::updateTreeSitterHighlighting() {
 
   _highlightTimer->stop();
 
-  if (_tree) {
-    ts_tree_delete(_tree);
-    _tree = nullptr;
-  }
-
   if (!_treeSitterHighlightingEnabled) {
     // Drop formats so blocks changed while disabled are not painted with
     // stale ranges.
@@ -1800,35 +1792,6 @@ void QsciScintilla::updateTreeSitterHighlighting() {
     _highlighter = new QEditorTreeSitterHighlighter(document());
   }
 
-  const QByteArray source = toPlainText().toUtf8();
-  _tree = ts_parser_parse_string(_parser, nullptr, source.constData(),
-                                 static_cast<uint32_t>(source.size()));
-  if (!_tree) {
-    _highlighter->clearBlockFormats();
-    _highlighter->rehighlight();
-    return;
-  }
-
-  const int documentLength = document()->characterCount() - 1;
-
-  // tree-sitter reports UTF-8 byte offsets, the document uses UTF-16.
-  std::vector<int> utf16Offsets(static_cast<size_t>(source.size()) + 1, 0);
-  int utf16Offset = 0;
-  for (int byteIndex = 0; byteIndex < source.size(); ++byteIndex) {
-    const auto byte = static_cast<unsigned char>(source.at(byteIndex));
-    utf16Offsets[static_cast<size_t>(byteIndex)] = utf16Offset;
-    if ((byte & 0xC0) != 0x80) {
-      utf16Offset += byte >= 0xF0 ? 2 : 1;
-    }
-  }
-  utf16Offsets[static_cast<size_t>(source.size())] = utf16Offset;
-
-  const auto utf8ByteToUtf16 = [&utf16Offsets](uint32_t byteOffset) {
-    const size_t index =
-        std::min(static_cast<size_t>(byteOffset), utf16Offsets.size() - 1);
-    return utf16Offsets[index];
-  };
-
   std::vector<int> blockStarts;
   blockStarts.reserve(static_cast<size_t>(document()->blockCount()));
   for (QTextBlock block = document()->begin(); block.isValid();
@@ -1838,36 +1801,6 @@ void QsciScintilla::updateTreeSitterHighlighting() {
   const int blockCount = static_cast<int>(blockStarts.size());
 
   QEditorTreeSitterHighlighter::BlockFormats blockFormats(blockCount);
-
-  const auto addRange = [&](int start, int end, const QTextCharFormat &format) {
-    start = std::max(0, start);
-    end = std::min(end, documentLength);
-    if (start >= end || blockCount == 0) {
-      return;
-    }
-
-    int block = static_cast<int>(std::upper_bound(blockStarts.begin(),
-                                                  blockStarts.end(), start) -
-                                 blockStarts.begin()) -
-                1;
-    block = std::max(block, 0);
-
-    // Multi-line nodes (block comments, raw strings) are split per block.
-    for (; block < blockCount && blockStarts[block] < end; ++block) {
-      const int blockStart = blockStarts[block];
-      const int blockEnd =
-          block + 1 < blockCount ? blockStarts[block + 1] - 1 : documentLength;
-      const int rangeStart = std::max(start, blockStart);
-      const int rangeEnd = std::min(end, blockEnd);
-      if (rangeStart < rangeEnd) {
-        QTextLayout::FormatRange range;
-        range.start = rangeStart - blockStart;
-        range.length = rangeEnd - rangeStart;
-        range.format = format;
-        blockFormats[block].append(range);
-      }
-    }
-  };
 
   const StyledLanguage documentLanguage =
       styledLanguageFor(_treeSitterLanguage);
@@ -1886,100 +1819,252 @@ void QsciScintilla::updateTreeSitterHighlighting() {
     return it.value();
   };
 
-  struct Injection {
-    StyledLanguage language;
-    TSRange range;
+  // A line of the parsed source: where it starts in the source (UTF-16) and
+  // the block and column it is shown at in the document.
+  struct SourceLine {
+    int sourceStart;
+    int block;
+    int column;
   };
-  std::vector<Injection> injections;
 
-  // Pre-order walk: parents are added before children, so child ranges take
-  // precedence when they overlap.
-  const auto walk = [&](TSNode root, StyledLanguage language) {
-    const StyleSet styleSet = styleSetFor(language);
-    // Types of the current node's ancestors, innermost last.
-    std::vector<const char *> ancestors;
-    TSTreeCursor treeCursor = ts_tree_cursor_new(root);
-    for (;;) {
-      const TSNode node = ts_tree_cursor_current_node(&treeCursor);
-      const char *type = ts_node_type(node);
-      const char *field = ts_tree_cursor_current_field_name(&treeCursor);
-      const size_t depth = ancestors.size();
-      const NodeContext context{node,
-                                type ? type : "",
-                                field ? field : "",
-                                depth > 0 ? ancestors[depth - 1] : "",
-                                depth > 1 ? ancestors[depth - 2] : "",
-                                ts_node_is_named(node)};
+  // Parses the text and adds the formats of its nodes to the blocks its lines
+  // are shown in.
+  const auto highlightSource = [&](const QString &text,
+                                   const std::vector<SourceLine> &lines) {
+    if (lines.empty()) {
+      return;
+    }
 
-      bool descend = true;
-      const Token token = tokenForNode(language, context, source, descend);
-      if (token != Token::None) {
-        const QTextCharFormat format = formatFor(styleSet, token);
-        if (format.hasProperty(QTextFormat::ForegroundBrush) &&
-            format.foreground().color().isValid()) {
-          addRange(utf8ByteToUtf16(ts_node_start_byte(node)),
-                   utf8ByteToUtf16(ts_node_end_byte(node)), format);
+    const QByteArray source = text.toUtf8();
+    TSTree *tree = ts_parser_parse_string(_parser, nullptr, source.constData(),
+                                          static_cast<uint32_t>(source.size()));
+    if (!tree) {
+      return;
+    }
+
+    // tree-sitter reports UTF-8 byte offsets, the text uses UTF-16.
+    std::vector<int> utf16Offsets(static_cast<size_t>(source.size()) + 1, 0);
+    int utf16Offset = 0;
+    for (int byteIndex = 0; byteIndex < source.size(); ++byteIndex) {
+      const auto byte = static_cast<unsigned char>(source.at(byteIndex));
+      utf16Offsets[static_cast<size_t>(byteIndex)] = utf16Offset;
+      if ((byte & 0xC0) != 0x80) {
+        utf16Offset += byte >= 0xF0 ? 2 : 1;
+      }
+    }
+    utf16Offsets[static_cast<size_t>(source.size())] = utf16Offset;
+
+    const auto utf8ByteToUtf16 = [&utf16Offsets](uint32_t byteOffset) {
+      const size_t index =
+          std::min(static_cast<size_t>(byteOffset), utf16Offsets.size() - 1);
+      return utf16Offsets[index];
+    };
+
+    const int lineCount = static_cast<int>(lines.size());
+    const int textLength = static_cast<int>(text.size());
+    // Excludes the newline that terminates the last line.
+    const int lastLineEnd =
+        text.endsWith(QChar('\n')) ? textLength - 1 : textLength;
+
+    const auto addRange = [&](int start, int end,
+                              const QTextCharFormat &format) {
+      start = std::max(0, start);
+      end = std::min(end, textLength);
+      if (start >= end) {
+        return;
+      }
+
+      int line = static_cast<int>(
+                     std::upper_bound(lines.begin(), lines.end(), start,
+                                      [](int offset, const SourceLine &l) {
+                                        return offset < l.sourceStart;
+                                      }) -
+                     lines.begin()) -
+                 1;
+      line = std::max(line, 0);
+
+      // Multi-line nodes (block comments, raw strings) are split per line.
+      for (; line < lineCount && lines[line].sourceStart < end; ++line) {
+        const SourceLine &sourceLine = lines[line];
+        const int lineEnd = line + 1 < lineCount
+                                ? lines[line + 1].sourceStart - 1
+                                : lastLineEnd;
+        const int rangeStart = std::max(start, sourceLine.sourceStart);
+        const int rangeEnd = std::min(end, lineEnd);
+        if (rangeStart < rangeEnd && sourceLine.block < blockCount) {
+          QTextLayout::FormatRange range;
+          range.start = rangeStart - sourceLine.sourceStart + sourceLine.column;
+          range.length = rangeEnd - rangeStart;
+          range.format = format;
+          blockFormats[sourceLine.block].append(range);
         }
       }
+    };
 
-      if (language == StyledLanguage::Html &&
-          typeEquals(context.type, "raw_text")) {
-        const StyledLanguage embedded = embeddedLanguageFor(node, source);
-        if (embedded != StyledLanguage::None) {
-          injections.push_back(
-              {embedded,
-               {ts_node_start_point(node), ts_node_end_point(node),
-                ts_node_start_byte(node), ts_node_end_byte(node)}});
+    struct Injection {
+      StyledLanguage language;
+      TSRange range;
+    };
+    std::vector<Injection> injections;
+
+    // Pre-order walk: parents are added before children, so child ranges
+    // take precedence when they overlap.
+    const auto walk = [&](TSNode root, StyledLanguage language) {
+      const StyleSet styleSet = styleSetFor(language);
+      // Types of the current node's ancestors, innermost last.
+      std::vector<const char *> ancestors;
+      TSTreeCursor treeCursor = ts_tree_cursor_new(root);
+      for (;;) {
+        const TSNode node = ts_tree_cursor_current_node(&treeCursor);
+        const char *type = ts_node_type(node);
+        const char *field = ts_tree_cursor_current_field_name(&treeCursor);
+        const size_t depth = ancestors.size();
+        const NodeContext context{node,
+                                  type ? type : "",
+                                  field ? field : "",
+                                  depth > 0 ? ancestors[depth - 1] : "",
+                                  depth > 1 ? ancestors[depth - 2] : "",
+                                  ts_node_is_named(node)};
+
+        bool descend = true;
+        const Token token = tokenForNode(language, context, source, descend);
+        if (token != Token::None) {
+          const QTextCharFormat format = formatFor(styleSet, token);
+          if (format.hasProperty(QTextFormat::ForegroundBrush) &&
+              format.foreground().color().isValid()) {
+            addRange(utf8ByteToUtf16(ts_node_start_byte(node)),
+                     utf8ByteToUtf16(ts_node_end_byte(node)), format);
+          }
         }
-      }
 
-      if (descend && ts_tree_cursor_goto_first_child(&treeCursor)) {
-        ancestors.push_back(context.type);
-        continue;
-      }
+        if (language == StyledLanguage::Html &&
+            typeEquals(context.type, "raw_text")) {
+          const StyledLanguage embedded = embeddedLanguageFor(node, source);
+          if (embedded != StyledLanguage::None) {
+            injections.push_back(
+                {embedded,
+                 {ts_node_start_point(node), ts_node_end_point(node),
+                  ts_node_start_byte(node), ts_node_end_byte(node)}});
+          }
+        }
 
-      bool finished = false;
-      while (!ts_tree_cursor_goto_next_sibling(&treeCursor)) {
-        if (!ts_tree_cursor_goto_parent(&treeCursor)) {
-          finished = true;
+        if (descend && ts_tree_cursor_goto_first_child(&treeCursor)) {
+          ancestors.push_back(context.type);
+          continue;
+        }
+
+        bool finished = false;
+        while (!ts_tree_cursor_goto_next_sibling(&treeCursor)) {
+          if (!ts_tree_cursor_goto_parent(&treeCursor)) {
+            finished = true;
+            break;
+          }
+          ancestors.pop_back();
+        }
+        if (finished) {
           break;
         }
-        ancestors.pop_back();
       }
-      if (finished) {
-        break;
+      ts_tree_cursor_delete(&treeCursor);
+    };
+
+    walk(ts_tree_root_node(tree), documentLanguage);
+    ts_tree_delete(tree);
+
+    // <script> and <style> bodies are parsed separately with their own
+    // grammar, restricted to the body's range. Their ranges are added after
+    // the HTML ranges, so they take precedence.
+    if (!injections.empty()) {
+      TSParser *injectionParser = ts_parser_new();
+      for (const Injection &injection : injections) {
+        const TSLanguage *language =
+            injection.language == StyledLanguage::EmbeddedJavaScript
+                ? tree_sitter_javascript()
+                : tree_sitter_css();
+        if (!ts_parser_set_language(injectionParser, language) ||
+            !ts_parser_set_included_ranges(injectionParser, &injection.range,
+                                           1)) {
+          continue;
+        }
+        TSTree *injectionTree =
+            ts_parser_parse_string(injectionParser, nullptr, source.constData(),
+                                   static_cast<uint32_t>(source.size()));
+        if (!injectionTree) {
+          continue;
+        }
+        walk(ts_tree_root_node(injectionTree), injection.language);
+        ts_tree_delete(injectionTree);
       }
+      ts_parser_delete(injectionParser);
     }
-    ts_tree_cursor_delete(&treeCursor);
   };
 
-  walk(ts_tree_root_node(_tree), documentLanguage);
-
-  // <script> and <style> bodies are parsed separately with their own grammar,
-  // restricted to the body's range. Their ranges are added after the HTML
-  // ranges, so they take precedence.
-  if (!injections.empty()) {
-    TSParser *injectionParser = ts_parser_new();
-    for (const Injection &injection : injections) {
-      const TSLanguage *language =
-          injection.language == StyledLanguage::EmbeddedJavaScript
-              ? tree_sitter_javascript()
-              : tree_sitter_css();
-      if (!ts_parser_set_language(injectionParser, language) ||
-          !ts_parser_set_included_ranges(injectionParser, &injection.range,
-                                         1)) {
-        continue;
-      }
-      TSTree *injectionTree =
-          ts_parser_parse_string(injectionParser, nullptr, source.constData(),
-                                 static_cast<uint32_t>(source.size()));
-      if (!injectionTree) {
-        continue;
-      }
-      walk(ts_tree_root_node(injectionTree), injection.language);
-      ts_tree_delete(injectionTree);
+  if (!_unifiedDiffHighlighting) {
+    // The document is the source, line by line.
+    std::vector<SourceLine> lines;
+    lines.reserve(static_cast<size_t>(blockCount));
+    for (int block = 0; block < blockCount; ++block) {
+      lines.push_back({blockStarts[block], block, 0});
     }
-    ts_parser_delete(injectionParser);
+    highlightSource(toPlainText(), lines);
+  } else {
+    // The document is a unified diff. The old side of each file (context and
+    // removed lines) and its new side (context and added lines) are parsed
+    // separately, without the line prefixes. Headers are not highlighted.
+    struct Side {
+      QString text;
+      std::vector<SourceLine> lines;
+
+      void append(const QString &blockText, int block) {
+        lines.push_back({static_cast<int>(text.size()), block,
+                         blockText.isEmpty() ? 0 : 1});
+        text += QStringView(blockText).mid(blockText.isEmpty() ? 0 : 1);
+        text += QChar('\n');
+      }
+    };
+
+    Side oldSide;
+    Side newSide;
+
+    const auto flush = [&]() {
+      highlightSource(oldSide.text, oldSide.lines);
+      highlightSource(newSide.text, newSide.lines);
+      oldSide = Side();
+      newSide = Side();
+    };
+
+    bool inHunk = false;
+    for (QTextBlock textBlock = document()->begin(); textBlock.isValid();
+         textBlock = textBlock.next()) {
+      const QString blockText = textBlock.text();
+      const int block = textBlock.blockNumber();
+
+      if (blockText.startsWith(QStringLiteral("diff "))) {
+        flush();
+        inHunk = false;
+        continue;
+      }
+
+      if (blockText.startsWith(QStringLiteral("@@"))) {
+        inHunk = true;
+        continue;
+      }
+
+      if (!inHunk) {
+        continue;
+      }
+
+      const QChar origin = blockText.isEmpty() ? QChar(' ') : blockText.at(0);
+      if (origin == QChar(' ')) {
+        oldSide.append(blockText, block);
+        newSide.append(blockText, block);
+      } else if (origin == QChar('-')) {
+        oldSide.append(blockText, block);
+      } else if (origin == QChar('+')) {
+        newSide.append(blockText, block);
+      }
+    }
+    flush();
   }
 
   _highlighter->setBlockFormats(std::move(blockFormats));
@@ -2015,6 +2100,15 @@ void QsciScintilla::setTreeSitterHighlightingEnabled(bool enabled) {
   if (_treeSitterHighlightingEnabled) {
     updateTreeSitterHighlighting();
   }
+}
+
+void QsciScintilla::setUnifiedDiffHighlighting(bool enabled) {
+  if (_unifiedDiffHighlighting == enabled) {
+    return;
+  }
+
+  _unifiedDiffHighlighting = enabled;
+  updateTreeSitterHighlighting();
 }
 
 void QsciScintilla::setLexer(QsciLexer *lexer) {
