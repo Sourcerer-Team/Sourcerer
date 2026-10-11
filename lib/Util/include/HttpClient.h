@@ -9,6 +9,7 @@
 #include <QNetworkRequest>
 #include <QObject>
 #include <QSslCertificate>
+#include <QSslConfiguration>
 #include <QThread>
 
 class QNetworkAccessManager;
@@ -102,6 +103,8 @@ signals:
               const QMap<QString, QString> &rawHeaders,
               const QByteArray &requestBody);
 
+  Util::HttpReply downloadFile(const QString &url, const QString &filePath);
+
 private slots:
 
   void clearConnections_();
@@ -116,7 +119,11 @@ private slots:
                const QMap<QString, QString> &rawHeaders,
                const QByteArray &requestBody);
 
+  Util::HttpReply downloadFile_(const QString &url, const QString &filePath);
+
 private:
+  QSslConfiguration sslConfiguration() const;
+
   void loadClientCertificate();
 
   void start();
@@ -151,6 +158,11 @@ public:
               const QMap<QNetworkRequest::KnownHeaders, QString> &httpHeaders,
               const QMap<QString, QString> &rawHeaders,
               const QByteArray &requestBody);
+
+  // Streams the response body into filePath. Unlike sendRequest(), the
+  // timeout only applies while no data is received, so large files can take
+  // as long as they need.
+  Util::HttpReply downloadFile(const QString &url, const QString &filePath);
 
   void clearConnections();
 };
