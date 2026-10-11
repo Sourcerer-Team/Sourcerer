@@ -269,7 +269,7 @@ bool UpdatingState::workerLoop(const NewsTracker::Structs::NewsItem &newsItem) {
   QFile::remove(downloadedFilePath);
 
   EventManager::Event updatedEvent(EventManager::EventType::ApplicationUpdated);
-  updatedEvent.addData(newsItem.version);
+  updatedEvent.addData(newsItem);
 
   _eventManager.send(updatedEvent);
 
