@@ -1,3 +1,22 @@
+## 1.0.42
+
+### Summary
+
+* Release version updated to 1.0.42.
+
+### New
+
+* Added development updates.
+
+### Improved
+
+* Increased download timeout for update files to 30 seconds.
+
+### Fixes
+
+* Fixed an issue where updates were marked as seen before they finished downloading.
+ 
+
 ## 1.0.41
 
 ### Summary
