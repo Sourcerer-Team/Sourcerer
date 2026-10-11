@@ -1,3 +1,26 @@
+## 1.0.41
+
+### Summary
+
+Version 1.0.41 introduces improvements to repository navigation, search capabilities, and conflict resolution workflows, alongside important bug fixes for code editors.
+
+### New
+
+* Added a **Search repository** button in the filtering widget.
+* Added support for showing the conflict position in the `1/n` format in the toolbar.
+
+### Improved
+
+* The search button now automatically disappears after the entire repository has been loaded.
+* Optimized parent link and navigation buttons to prevent the app from unexpectedly loading the entire repository.
+
+### Fixes
+
+* Fixed an issue where bug and conflict resolution markers were unrecognized.
+* Enabled syntax highlighting for the Git blame viewer.
+* Fixed syntax highlighting for unified diff editors.
+
+
 ## 1.0.40
 
 ### Summary
