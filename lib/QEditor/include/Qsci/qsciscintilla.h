@@ -11,7 +11,6 @@
 
 struct TSParser;
 struct TSLanguage;
-struct TSTree;
 class QMouseEvent;
 class QPaintEvent;
 class QResizeEvent;
@@ -85,6 +84,11 @@ public:
   bool treeSitterHighlightingEnabled() const {
     return _treeSitterHighlightingEnabled;
   }
+  // Treats the text as a unified diff: the old and new sides of each hunk are
+  // highlighted with the lexer's language, the line prefixes and headers are
+  // left as plain text.
+  void setUnifiedDiffHighlighting(bool enabled);
+  bool unifiedDiffHighlighting() const { return _unifiedDiffHighlighting; }
 
 signals:
   void marginClicked(int margin, int line, Qt::KeyboardModifiers state);
@@ -157,8 +161,8 @@ private:
   const TSLanguage *_treeSitterLanguage;
   bool _updatingTreeSitterHighlighting;
   bool _treeSitterHighlightingEnabled;
+  bool _unifiedDiffHighlighting;
   TSParser *_parser;
-  TSTree *_tree;
   QEditorTreeSitterHighlighter *_highlighter;
   QTimer *_highlightTimer;
 };

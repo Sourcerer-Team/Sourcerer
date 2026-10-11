@@ -56,6 +56,7 @@
 #include <QSignalBlocker>
 #include <QStyleOptionViewItem>
 #include <QSvgRenderer>
+#include <QTextBlock>
 #include <QTextStream>
 #include <QThreadPool>
 #include <QTimer>
@@ -118,6 +119,66 @@ commitSummaryFromHistoryModel(const Models::GitHistoryModel *historyModel,
   }
 
   return {};
+}
+
+// Shows the unified diff of a file, highlighted with the file's language, and
+// marks its hunk headers, deleted and added lines. Returns the deleted and
+// added lines.
+static std::pair<QVector<int>, QVector<int>>
+showUnifiedDiff(QsciScintilla *editor, const QString &diff,
+                const QString &filePath) {
+  const QString normalized =
+      QString(diff).replace("\r\n", "\n").replace('\r', '\n');
+  const int lineCount = normalized.count('\n') + 1;
+  const int width = QString::number(lineCount).length();
+  const QString mask = QString::number(0).rightJustified(width + 1, '0');
+
+  QsciLexer *previousLexer = editor->lexer();
+  editor->setLexer(nullptr);
+  delete previousLexer;
+
+  editor->setTreeSitterHighlightingEnabled(false);
+  editor->markerDeleteAll();
+  editor->setMarginWidth(0, mask);
+  editor->setText(diff);
+  editor->verticalScrollBar()->triggerAction(QAbstractSlider::SliderToMinimum);
+
+  // The lexer has to be attached before theming so its styles get the
+  // current theme colors.
+  editor->setLexer(
+      QScintillaLexerFactory::createDiffViewerLexerForFile(filePath, editor));
+
+  DarkThemeLexersHighlighter highlighter;
+  highlighter.applyDarkTheme(editor);
+
+  editor->setTreeSitterHighlightingEnabled(true);
+
+  QVector<int> deletedLines;
+  QVector<int> addedLines;
+
+  // Only lines inside hunks are content, the "---" and "+++" lines before
+  // them are file headers.
+  bool inHunk = false;
+  for (QTextBlock block = editor->document()->begin(); block.isValid();
+       block = block.next()) {
+    const QString lineText = block.text();
+    const int line = block.blockNumber();
+
+    if (lineText.startsWith("diff ")) {
+      inHunk = false;
+    } else if (lineText.startsWith("@@")) {
+      inHunk = true;
+      editor->markerAdd(line, GitRepoContainer::UnifiedDiffHunkMarker);
+    } else if (inHunk && lineText.startsWith('-')) {
+      editor->markerAdd(line, GitRepoContainer::UnifiedDiffDeletedMarker);
+      deletedLines.append(line);
+    } else if (inHunk && lineText.startsWith('+')) {
+      editor->markerAdd(line, GitRepoContainer::UnifiedDiffAddedMarker);
+      addedLines.append(line);
+    }
+  }
+
+  return {deletedLines, addedLines};
 }
 
 GitRepoManagerBridgeImpl::GitRepoManagerBridgeImpl(GitRepoContainer &container)
@@ -2626,15 +2687,8 @@ void GitRepoManagerBridgeImpl::onStashFileSelected(const QModelIndex &index) {
 
     // Display diff in stash viewers
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      const QString normalized =
-          QString(filesDiff.diff).replace("\r\n", "\n").replace('\r', '\n');
-      const int lineCount = normalized.count('\n') + 1;
-      const int width = QString::number(lineCount).length();
-      const QString mask = QString::number(0).rightJustified(width + 1, '0');
-
-      _container.ui->scintillaStashDiffUnified->markerDeleteAll();
-      _container.ui->scintillaStashDiffUnified->setMarginWidth(0, mask);
-      _container.ui->scintillaStashDiffUnified->setText(filesDiff.diff);
+      showUnifiedDiff(_container.ui->scintillaStashDiffUnified, filesDiff.diff,
+                      filePath);
 
       if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
         const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
@@ -2798,34 +2852,8 @@ void GitRepoManagerBridgeImpl::diff(const QWeakPointer<GitRepoContainer> &guard,
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    const QString normalized =
-        QString(filesDiff.diff).replace("\r\n", "\n").replace('\r', '\n');
-    const int lineCount = normalized.count('\n') + 1;
-    const int width = QString::number(lineCount).length();
-    const QString mask = QString::number(0).rightJustified(width + 1, '0');
-
-    _container.ui->scintillaTextEditorUnified->markerDeleteAll();
-    _container.ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
-    _container.ui->scintillaTextEditorUnified->setText(filesDiff.diff);
-    _container.ui->scintillaTextEditorUnified->verticalScrollBar()
-        ->triggerAction(QAbstractSlider::SliderToMinimum);
-    // Collect added and deleted lines for scrollbar marks
-    QVector<int> deletedLines;
-    QVector<int> addedLines;
-
-    // Mark hunk headers
-    for (int i = 0; i < _container.ui->scintillaTextEditorUnified->lines();
-         ++i) {
-      const QString lineText =
-          _container.ui->scintillaTextEditorUnified->text(i);
-      if (lineText.startsWith("@@ ")) {
-        _container.ui->scintillaTextEditorUnified->markerAdd(i, 1);
-      } else if (lineText.startsWith("-") && !lineText.startsWith("---")) {
-        deletedLines.append(i);
-      } else if (lineText.startsWith("+") && !lineText.startsWith("+++")) {
-        addedLines.append(i);
-      }
-    }
+    const auto [deletedLines, addedLines] = showUnifiedDiff(
+        _container.ui->scintillaTextEditorUnified, filesDiff.diff, filePath);
 
     // Update scrollbar marks
     _container._unifiedDiffMarks->setMarks(deletedLines, addedLines);
@@ -3014,35 +3042,8 @@ void GitRepoManagerBridgeImpl::diffFromCommit(
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    const QString normalized =
-        QString(filesDiff.diff).replace("\r\n", "\n").replace('\r', '\n');
-    const int lineCount = normalized.count('\n') + 1;
-    const int width = QString::number(lineCount).length();
-    const QString mask = QString::number(0).rightJustified(width + 1, '0');
-
-    _container.ui->scintillaTextEditorUnified->markerDeleteAll();
-    _container.ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
-    _container.ui->scintillaTextEditorUnified->setText(filesDiff.diff);
-    _container.ui->scintillaTextEditorUnified->verticalScrollBar()
-        ->triggerAction(QAbstractSlider::SliderToMinimum);
-
-    // Collect added and deleted lines for scrollbar marks
-    QVector<int> deletedLines;
-    QVector<int> addedLines;
-
-    // Mark hunk headers
-    for (int i = 0; i < _container.ui->scintillaTextEditorUnified->lines();
-         ++i) {
-      const QString lineText =
-          _container.ui->scintillaTextEditorUnified->text(i);
-      if (lineText.startsWith("@@ ")) {
-        _container.ui->scintillaTextEditorUnified->markerAdd(i, 1);
-      } else if (lineText.startsWith("-") && !lineText.startsWith("---")) {
-        deletedLines.append(i);
-      } else if (lineText.startsWith("+") && !lineText.startsWith("+++")) {
-        addedLines.append(i);
-      }
-    }
+    const auto [deletedLines, addedLines] = showUnifiedDiff(
+        _container.ui->scintillaTextEditorUnified, filesDiff.diff, filePath);
 
     // Update scrollbar marks
     _container._unifiedDiffMarks->setMarks(deletedLines, addedLines);

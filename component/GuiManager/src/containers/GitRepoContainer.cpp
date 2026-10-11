@@ -1469,13 +1469,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaTextEditorUnified->setMarginType(0, QsciScintilla::NumberMargin);
   ui->scintillaTextEditorUnified->setMarginType(1, QsciScintilla::SymbolMargin);
   ui->scintillaTextEditorUnified->setMarginWidth(1, 2);
-  ui->scintillaTextEditorUnified->markerDefine(QsciScintilla::Background, 1);
-  const bool lightTheme =
-      StylesheetManager::StylesheetManager::currentStylesheet() ==
-      StylesheetManager::StylesheetKey::SourcererLight;
-  const QColor hunkMarkerColor =
-      lightTheme ? QColor(255, 241, 201) : QColor(0x4d4021);
-  ui->scintillaTextEditorUnified->setMarkerBackgroundColor(hunkMarkerColor, 1);
+  ui->scintillaTextEditorUnified->markerDefine(QsciScintilla::Background,
+                                               UnifiedDiffHunkMarker);
+  ui->scintillaTextEditorUnified->markerDefine(QsciScintilla::Background,
+                                               UnifiedDiffDeletedMarker);
+  ui->scintillaTextEditorUnified->markerDefine(QsciScintilla::Background,
+                                               UnifiedDiffAddedMarker);
+  ui->scintillaTextEditorUnified->setUnifiedDiffHighlighting(true);
   ui->scintillaTextEditorUnified->setReadOnly(true);
 
   DarkThemeLexersHighlighter highlighter;
@@ -1542,14 +1542,21 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaStashDiffUnified->setMarginType(0, QsciScintilla::NumberMargin);
   ui->scintillaStashDiffUnified->setMarginType(1, QsciScintilla::SymbolMargin);
   ui->scintillaStashDiffUnified->setMarginWidth(1, 2);
-  ui->scintillaStashDiffUnified->markerDefine(QsciScintilla::Background, 1);
-  ui->scintillaStashDiffUnified->setMarkerBackgroundColor(hunkMarkerColor, 1);
+  ui->scintillaStashDiffUnified->markerDefine(QsciScintilla::Background,
+                                              UnifiedDiffHunkMarker);
+  ui->scintillaStashDiffUnified->markerDefine(QsciScintilla::Background,
+                                              UnifiedDiffDeletedMarker);
+  ui->scintillaStashDiffUnified->markerDefine(QsciScintilla::Background,
+                                              UnifiedDiffAddedMarker);
+  ui->scintillaStashDiffUnified->setUnifiedDiffHighlighting(true);
   ui->scintillaStashDiffUnified->setReadOnly(true);
 
   DarkThemeLexersHighlighter stashHighlighter;
   stashHighlighter.applyDarkTheme(ui->scintillaStashDiffUnified);
 
   ui->scintillaStashDiffUnified->setFolding(QsciScintilla::NoFoldStyle);
+
+  refreshUnifiedDiffMarkerColors();
 
   // Setup stash apply and pop buttons as corner widgets
   _stashApplyButton = new QPushButton(tr("Apply"), ui->tabWidgetStashFiles);
@@ -2142,6 +2149,32 @@ void GitRepoContainer::refreshScintillaTheme() {
 
   for (auto *editor : editors) {
     highlighter.applyDarkTheme(editor);
+  }
+
+  refreshUnifiedDiffMarkerColors();
+}
+
+void GitRepoContainer::refreshUnifiedDiffMarkerColors() {
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+  const QColor hunkColor =
+      lightTheme ? QColor(255, 241, 201) : QColor(0x4d4021);
+  const QColor deletedColor =
+      lightTheme ? QColor(255, 231, 231) : QColor(0x4a2327);
+  const QColor addedColor =
+      lightTheme ? QColor(232, 246, 232) : QColor(0x1f3d2b);
+
+  const auto editors = findChildren<QsciScintilla *>();
+
+  for (auto *editor : editors) {
+    if (!editor->unifiedDiffHighlighting()) {
+      continue;
+    }
+
+    editor->setMarkerBackgroundColor(hunkColor, UnifiedDiffHunkMarker);
+    editor->setMarkerBackgroundColor(deletedColor, UnifiedDiffDeletedMarker);
+    editor->setMarkerBackgroundColor(addedColor, UnifiedDiffAddedMarker);
   }
 }
 
