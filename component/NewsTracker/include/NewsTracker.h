@@ -18,6 +18,9 @@ public:
   void stop() override;
 
 private:
+  void eventCallback(const EventManager::Event &event);
+
+private:
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
   Fsm::NewsTrackerFsm _fsm;

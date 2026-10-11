@@ -52,6 +52,8 @@ QString NewsTrackerFsm::eventName(int event) const {
     return QStringLiteral("Initialize");
   case EventType::RetrieveNews:
     return QStringLiteral("RetrieveNews");
+  case EventType::MarkNewsSeen:
+    return QStringLiteral("MarkNewsSeen");
   default:
     break;
   }
