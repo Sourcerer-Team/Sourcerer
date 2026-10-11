@@ -290,48 +290,46 @@ bool UpdatingState::downloadUpdate(
   const QString downloadPath = buildDownloadFilePath(newsItem, downloadUrl);
 
   for (int attempt = 1; attempt <= DOWNLOAD_RETRY_COUNT; ++attempt) {
-    const Util::HttpReply reply = _httpClient.sendRequest(
-        downloadUrl, Util::HttpMethod::Get, {}, QByteArray());
-    if (reply.error() != QNetworkReply::NoError) {
-      LOG_WARN("Failed to download update '{}' from '{}' on attempt {}/{}. "
-               "Error: {}",
-               newsItem.id.toStdString(), downloadUrl.toStdString(), attempt,
-               DOWNLOAD_RETRY_COUNT, static_cast<int>(reply.error()));
+    QTemporaryFile tempFile(downloadPath);
+    tempFile.setAutoRemove(false);
+
+    if (!tempFile.open()) {
+      LOG_WARN("Failed to create temporary file for update '{}' on attempt "
+               "{}/{}.",
+               newsItem.id.toStdString(), attempt, DOWNLOAD_RETRY_COUNT);
     } else {
-      const QByteArray response = reply.response();
-      if (response.isEmpty()) {
+      const QString tempFilePath = tempFile.fileName();
+      tempFile.close();
+
+      // Installers are large, so stream them to disk instead of using
+      // sendRequest(), whose timeout caps the duration of the whole request.
+      const Util::HttpReply reply =
+          _httpClient.downloadFile(downloadUrl, tempFilePath);
+      if (reply.error() != QNetworkReply::NoError) {
+        LOG_WARN("Failed to download update '{}' from '{}' on attempt {}/{}. "
+                 "Error: {}, '{}'",
+                 newsItem.id.toStdString(), downloadUrl.toStdString(), attempt,
+                 DOWNLOAD_RETRY_COUNT, static_cast<int>(reply.error()),
+                 reply.errorString().toStdString());
+        QFile::remove(tempFilePath);
+      } else if (QFileInfo(tempFilePath).size() == 0) {
         LOG_WARN("Downloaded update '{}' is empty on attempt {}/{}.",
                  newsItem.id.toStdString(), attempt, DOWNLOAD_RETRY_COUNT);
+        QFile::remove(tempFilePath);
       } else {
-        QTemporaryFile tempFile(downloadPath);
-        tempFile.setAutoRemove(false);
+        downloadedFilePath = tempFilePath;
 
-        if (!tempFile.open()) {
-          LOG_WARN("Failed to create temporary file for update '{}' on attempt "
-                   "{}/{}.",
-                   newsItem.id.toStdString(), attempt, DOWNLOAD_RETRY_COUNT);
-        } else if (tempFile.write(response) != response.size()) {
-          LOG_WARN("Failed to write downloaded update '{}' on attempt {}/{}.",
-                   newsItem.id.toStdString(), attempt, DOWNLOAD_RETRY_COUNT);
-          tempFile.close();
-          QFile::remove(tempFile.fileName());
-        } else {
-          tempFile.flush();
-          downloadedFilePath = tempFile.fileName();
-          tempFile.close();
-
-          if (!makeExecutableIfNeeded(downloadedFilePath)) {
-            LOG_WARN("Failed to update permissions for downloaded update '{}'.",
-                     downloadedFilePath.toStdString());
-          }
-
-          LOG_INFO("Downloaded update '{}' to '{}' on attempt {}/{}.",
-                   newsItem.id.toStdString(), downloadedFilePath.toStdString(),
-                   attempt, DOWNLOAD_RETRY_COUNT);
-
-          LOG_PERF(0, "Exit");
-          return true;
+        if (!makeExecutableIfNeeded(downloadedFilePath)) {
+          LOG_WARN("Failed to update permissions for downloaded update '{}'.",
+                   downloadedFilePath.toStdString());
         }
+
+        LOG_INFO("Downloaded update '{}' to '{}' on attempt {}/{}.",
+                 newsItem.id.toStdString(), downloadedFilePath.toStdString(),
+                 attempt, DOWNLOAD_RETRY_COUNT);
+
+        LOG_PERF(0, "Exit");
+        return true;
       }
     }
 
