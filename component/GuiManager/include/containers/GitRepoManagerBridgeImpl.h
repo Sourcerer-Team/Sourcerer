@@ -117,7 +117,7 @@ public:
   void getBranchHistoryPage(const QWeakPointer<GitRepoContainer> &guard,
                             const QString &branchName,
                             GitRepo::BranchType branchType, int page,
-                            quint64 generation) override;
+                            quint64 generation, bool lowPriority) override;
   QStringList getCommitBranches(const QWeakPointer<GitRepoContainer> &guard,
                                 const QString &commit) const override;
   QStringList getCommitTags(const QWeakPointer<GitRepoContainer> &guard,

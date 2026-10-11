@@ -418,6 +418,33 @@
                        </property>
                       </widget>
                      </item>
+                     <item row="3" column="0" colspan="4">
+                      <layout class="QHBoxLayout" name="historySearchRepositoryLayout">
+                       <item>
+                        <spacer name="historySearchRepositorySpacer">
+                         <property name="orientation">
+                          <enum>Qt::Orientation::Horizontal</enum>
+                         </property>
+                         <property name="sizeHint" stdset="0">
+                          <size>
+                           <width>40</width>
+                           <height>20</height>
+                          </size>
+                         </property>
+                        </spacer>
+                       </item>
+                       <item>
+                        <widget class="QPushButton" name="pushButtonHistorySearchRepository">
+                         <property name="toolTip">
+                          <string>Load the whole repository history from disk and apply the filters to it</string>
+                         </property>
+                         <property name="text">
+                          <string>Search repository</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </item>
                     </layout>
                    </widget>
                   </item>
@@ -599,7 +626,7 @@
                   <item>
                    <layout class="QVBoxLayout" name="verticalLayoutMergeDiffHeader">
                     <item>
-                     <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="0,0,0,0,0,0">
+                     <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="0,0,0,0,0,0,0">
                       <item>
                        <spacer name="horizontalSpacer_1">
                         <property name="orientation">
@@ -636,6 +663,16 @@
                         </property>
                         <property name="flat">
                          <bool>false</bool>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="labelMergeDiffConflicts">
+                        <property name="text">
+                         <string notr="true">0/0</string>
+                        </property>
+                        <property name="alignment">
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                        </widget>
                       </item>

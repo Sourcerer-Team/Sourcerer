@@ -840,8 +840,9 @@ struct BlameLineInfo {
   QString filePath;
   qint64 lineNumber = -1;
   QString content;
-  QString commit;
+  QString commit; // Full SHA, all zeros for uncommitted lines.
   QString author;
+  QString email;
   QString summary;
 };
 

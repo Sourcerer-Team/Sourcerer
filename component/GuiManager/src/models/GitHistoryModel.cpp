@@ -67,7 +67,8 @@ static QVector<int> headerColumnWidths() {
 GitHistoryModel::GitHistoryModel(QObject *parent)
     : QAbstractTableModel(parent), _graphBuilder(GRAPH_PALETTE_SIZE),
       _selectionModel(nullptr), _generation(0), _hasMore(false),
-      _fetchInFlight(false), _nextPage(1) {
+      _fetchInFlight(false), _fetchAll(false), _lowPriorityInFlight(false),
+      _nextPage(1) {
   LOG_PERF(0, "Enter");
 
   _columnWidths = headerColumnWidths();
@@ -86,6 +87,61 @@ void GitHistoryModel::quitUpdate() {
 
   ++_generation;
   _fetchInFlight = false;
+  finishFetchAll();
+}
+
+void GitHistoryModel::fetchAll() {
+  LOCKGUARD(_mutex);
+
+  if (_fetchAll) {
+    return;
+  }
+
+  if (!_hasMore || !_pageRequester) {
+    emit fetchAllFinished();
+    return;
+  }
+
+  _fetchAll = true;
+
+  // With a page already in flight the chain continues when it arrives.
+  fetchMore(QModelIndex());
+}
+
+void GitHistoryModel::cancelFetchAll() {
+  LOCKGUARD(_mutex);
+
+  if (!_fetchAll) {
+    return;
+  }
+
+  if (_fetchInFlight && _lowPriorityInFlight) {
+    // A low priority page can wait behind other requests for a long time.
+    // Its answer is ignored, so the view can ask for the page again.
+    ++_generation;
+    _fetchInFlight = false;
+  }
+
+  finishFetchAll();
+}
+
+bool GitHistoryModel::isCommitLoaded(const QString &commit) const {
+  LOCKGUARD(_mutex);
+  return _historyWithStatus.history.commits.contains(commit);
+}
+
+bool GitHistoryModel::isCurrentGeneration(const quint64 generation) const {
+  LOCKGUARD(_mutex);
+  return generation == _generation;
+}
+
+void GitHistoryModel::finishFetchAll() {
+  if (!_fetchAll) {
+    return;
+  }
+
+  _fetchAll = false;
+  emit fetchAllFinished();
 }
 
 void GitHistoryModel::updateStatus(const GitRepo::GitStatus &status) {
@@ -307,6 +363,13 @@ void GitHistoryModel::updateHistoryAndStatus(
   ++_generation;
   _fetchInFlight = false;
 
+  // Loading the whole history continues for a refreshed history of the same
+  // branch, a different branch has to be asked for again.
+  const bool continueFetchAll =
+      _fetchAll &&
+      _historyWithStatus.branchName == historyWithStatus.branchName &&
+      _historyWithStatus.branchType == historyWithStatus.branchType;
+
   _historyWithStatus = historyWithStatus;
   _historyWithStatus.page = 0;
   _refTips = historyWithStatus.history.refTips;
@@ -323,6 +386,12 @@ void GitHistoryModel::updateHistoryAndStatus(
   rebuildVisibleRows();
 
   endResetModel();
+
+  if (continueFetchAll && _hasMore) {
+    fetchMore(QModelIndex());
+  } else {
+    finishFetchAll();
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -343,6 +412,7 @@ void GitHistoryModel::appendPage(const GitRepo::GitHistory &history,
   if (page != _nextPage || history.commits.isEmpty()) {
     // Nothing new (or an unexpected page): stop asking for more.
     _hasMore = false;
+    finishFetchAll();
     LOG_PERF(0, "Exit");
     return;
   }
@@ -383,9 +453,12 @@ void GitHistoryModel::appendPage(const GitRepo::GitHistory &history,
 
   emit pageAppended();
 
-  if (newVisibleRows.isEmpty() && _hasMore) {
-    // Everything on this page is filtered out, so the view has nothing new
-    // to scroll to and would not ask for more by itself.
+  if (!_hasMore) {
+    finishFetchAll();
+  } else if (_fetchAll || newVisibleRows.isEmpty()) {
+    // Either the whole history was asked for, or everything on this page is
+    // filtered out, so the view has nothing new to scroll to and would not
+    // ask for more by itself.
     fetchMore(QModelIndex());
   }
 
@@ -403,6 +476,8 @@ void GitHistoryModel::pageFailed(const quint64 generation) {
   _hasMore = false;
 
   emit pageLoadFailed();
+
+  finishFetchAll();
 }
 
 bool GitHistoryModel::hasStatus() const {
@@ -643,6 +718,7 @@ void GitHistoryModel::fetchMore(const QModelIndex &parent_) {
   GitRepo::BranchType branchType;
   int page;
   quint64 generation;
+  bool lowPriority;
 
   {
     LOCKGUARD(_mutex);
@@ -653,16 +729,18 @@ void GitHistoryModel::fetchMore(const QModelIndex &parent_) {
     }
 
     _fetchInFlight = true;
+    _lowPriorityInFlight = _fetchAll;
 
     branchName = _historyWithStatus.branchName;
     branchType = _historyWithStatus.branchType;
     page = _nextPage;
     generation = _generation;
+    lowPriority = _fetchAll;
   }
 
   // The request is processed in the background, the answer comes back through
   // appendPage() or pageFailed().
-  _pageRequester(branchName, branchType, page, generation);
+  _pageRequester(branchName, branchType, page, generation, lowPriority);
 
   LOG_PERF(0, "Exit");
 }

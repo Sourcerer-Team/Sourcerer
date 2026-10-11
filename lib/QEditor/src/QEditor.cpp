@@ -26,6 +26,7 @@ const TSLanguage *tree_sitter_typescript(void);
 
 #include <QFocusEvent>
 #include <QFrame>
+#include <QHelpEvent>
 #include <QMouseEvent>
 #include <QPaintEvent>
 #include <QPainter>
@@ -34,6 +35,7 @@ const TSLanguage *tree_sitter_typescript(void);
 #include <QScopedValueRollback>
 #include <QSyntaxHighlighter>
 #include <QTimer>
+#include <QToolTip>
 
 #include <QTextBlock>
 #include <QTextCharFormat>
@@ -147,7 +149,7 @@ QEDITOR_DEFINE_LEXER(QsciLexerCustom, "custom")
 
 #undef QEDITOR_DEFINE_LEXER
 
-#define QEDITOR_DEFINE_DERIVED_LEXER(ClassName, BaseClass, LanguageId)        \
+#define QEDITOR_DEFINE_DERIVED_LEXER(ClassName, BaseClass, LanguageId)         \
   ClassName::ClassName(QObject *parent) : BaseClass(parent) {                  \
     setTreeSitterLanguage(QStringLiteral(LanguageId));                         \
   }
@@ -203,7 +205,9 @@ private:
 class QLineNumberArea final : public QWidget {
 public:
   explicit QLineNumberArea(QsciScintilla *editor)
-      : QWidget(editor), _editor(editor) {}
+      : QWidget(editor), _editor(editor) {
+    setMouseTracking(true);
+  }
 
   QSize sizeHint() const override {
     return QSize(_editor ? _editor->lineNumberAreaWidth() : 0, 0);
@@ -216,35 +220,61 @@ protected:
     }
   }
 
+  bool event(QEvent *event) override {
+    if (_editor && event && event->type() == QEvent::ToolTip) {
+      if (!showToolTipAt(static_cast<QHelpEvent *>(event)->pos())) {
+        event->ignore();
+      }
+
+      return true;
+    }
+
+    return QWidget::event(event);
+  }
+
+  void mouseMoveEvent(QMouseEvent *event) override {
+    if (_editor && event) {
+      const QPoint point = event->position().toPoint();
+      const int margin = _editor->marginAtX(point.x());
+      const int line = _editor->marginLineAt(point.y());
+      const bool overText = _editor->hasClickableMarginText(margin, line);
+
+      _editor->setHoveredMarginText(overText ? margin : -1,
+                                    overText ? line : -1);
+
+      // Qt only replaces a visible tooltip after the mouse rests, so switch
+      // it to the new cell right away.
+      if (QToolTip::isVisible() &&
+          (margin != _toolTipMargin || line != _toolTipLine)) {
+        showToolTipAt(point);
+      }
+
+      if (overText || markerAt(point) >= 0) {
+        setCursor(Qt::PointingHandCursor);
+      } else {
+        unsetCursor();
+      }
+    }
+
+    QWidget::mouseMoveEvent(event);
+  }
+
+  void leaveEvent(QEvent *event) override {
+    if (_editor) {
+      _editor->setHoveredMarginText(-1, -1);
+    }
+
+    _toolTipMargin = -1;
+    _toolTipLine = -1;
+    unsetCursor();
+    QWidget::leaveEvent(event);
+  }
+
   void mousePressEvent(QMouseEvent *event) override {
     if (_editor && event && event->button() == Qt::LeftButton) {
       const QPoint editorPoint = mapTo(_editor, event->position().toPoint());
       const int line = _editor->lineFromPoint(editorPoint);
-
-      int margin = -1;
-      int x = 0;
-      for (int i = 0; i < 4; ++i) {
-        int width = 0;
-        if (i == 0 && _editor->_marginLineNumbers[0]) {
-          const int digits =
-              QString::number(std::max(1, _editor->blockCount())).size();
-          width = _editor->fontMetrics().horizontalAdvance(
-                      QString(digits, QChar('9'))) +
-                  12;
-        } else if (_editor->_marginWidths[i] > 0) {
-          width = _editor->_marginWidths[i];
-        }
-
-        if (width <= 0) {
-          continue;
-        }
-
-        if (event->position().x() >= x && event->position().x() < x + width) {
-          margin = i;
-          break;
-        }
-        x += width;
-      }
+      const int margin = _editor->marginAtX(event->position().toPoint().x());
 
       if (margin != -1) {
         emit _editor->marginClicked(margin, line, event->modifiers());
@@ -256,7 +286,47 @@ protected:
   }
 
 private:
+  // Shows the tooltip of the marker or margin text under the point, or hides
+  // the tooltip when there is none. Returns whether a tooltip is shown.
+  bool showToolTipAt(const QPoint &point) {
+    const int margin = _editor->marginAtX(point.x());
+    const int line = _editor->marginLineAt(point.y());
+
+    QString toolTip = _editor->_markerToolTips.value(markerAt(point));
+    if (toolTip.isEmpty()) {
+      toolTip = _editor->_marginToolTips.value(line).value(margin);
+    }
+
+    if (toolTip.isEmpty()) {
+      _toolTipMargin = -1;
+      _toolTipLine = -1;
+      QToolTip::hideText();
+      return false;
+    }
+
+    _toolTipMargin = margin;
+    _toolTipLine = line;
+
+    // Show the tooltip at the mouse, limited to the hovered cell.
+    QToolTip::showText(mapToGlobal(point), toolTip, this,
+                       _editor->marginCellRect(margin, line));
+    return true;
+  }
+
+  // Returns the clickable marker under the point, or -1.
+  int markerAt(const QPoint &point) const {
+    const int margin = _editor->marginAtX(point.x());
+    if (margin == -1) {
+      return -1;
+    }
+
+    const int line = _editor->marginLineAt(point.y());
+    return _editor->clickableMarkerAt(margin, line);
+  }
+
   QsciScintilla *_editor;
+  int _toolTipMargin = -1;
+  int _toolTipLine = -1;
 };
 
 namespace {
@@ -529,7 +599,9 @@ bool isAsciiLetter(char c) {
   return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
-bool isAsciiDigit(char c) { return c >= '0' && c <= '9'; }
+bool isAsciiDigit(char c) {
+  return c >= '0' && c <= '9';
+}
 
 bool isIdentifierToken(const char *type) {
   if (!isAsciiLetter(type[0]) && type[0] != '_') {
@@ -719,8 +791,9 @@ Token dartTokenForNode(const NodeContext &context, const QByteArray &source,
     if (typeEquals(type, "documentation_comment")) {
       return Token::CommentDoc;
     }
-    if (typeIn(type, {"decimal_integer_literal", "decimal_floating_point_literal",
-                      "hex_integer_literal", "symbol_literal"})) {
+    if (typeIn(type,
+               {"decimal_integer_literal", "decimal_floating_point_literal",
+                "hex_integer_literal", "symbol_literal"})) {
       return Token::Number;
     }
     if (typeIn(type, {"true", "false", "null_literal", "this", "super",
@@ -839,8 +912,7 @@ Token cssTokenForNode(const NodeContext &context, const QByteArray &source,
     if (typeEquals(type, "attribute_name")) {
       return Token::Attribute;
     }
-    if (typeEquals(type, "property_name") ||
-        typeEquals(type, "feature_name")) {
+    if (typeEquals(type, "property_name") || typeEquals(type, "feature_name")) {
       return Token::Property;
     }
     if (typeEquals(type, "string_value")) {
@@ -978,9 +1050,9 @@ Token genericTokenForNode(StyledLanguage language, const NodeContext &context,
     }
     break;
   case StyledLanguage::OCaml:
-    if (typeIn(type, {"attribute", "item_attribute", "floating_attribute",
-                      "directive", "toplevel_directive",
-                      "line_number_directive"})) {
+    if (typeIn(type,
+               {"attribute", "item_attribute", "floating_attribute",
+                "directive", "toplevel_directive", "line_number_directive"})) {
       descend = false;
       return Token::Preprocessor;
     }
@@ -1039,7 +1111,8 @@ Token genericTokenForNode(StyledLanguage language, const NodeContext &context,
 
   // Characters, strings and their contents. Strings are visited so
   // interpolations can be reset to the default color and highlighted as code.
-  if (typeIn(type, {"char_literal", "character_literal", "char", "character"})) {
+  if (typeIn(type,
+             {"char_literal", "character_literal", "char", "character"})) {
     descend = false;
     return Token::SingleQuotedString;
   }
@@ -1514,8 +1587,8 @@ int styleFor(StyleSet styleSet, Token token) {
 // Uses the color configured on the lexer for the style (theme aware) and falls
 // back to the given dark palette color when the lexer has not been themed.
 QTextCharFormat lexerStyleFormat(const QsciLexer *lexer, int style,
-                                 const QColor &fallbackColor,
-                                 bool fallbackBold, bool italic) {
+                                 const QColor &fallbackColor, bool fallbackBold,
+                                 bool italic) {
   QTextCharFormat format;
   const QColor lexerColor = lexer ? lexer->color(style) : QColor();
   if (lexerColor.isValid()) {
@@ -1615,8 +1688,9 @@ QsciScintilla::QsciScintilla(QWidget *parent)
       _indentationGuides(false), _foldStyle(NoFoldStyle),
       _braceMatch(NoBraceMatch), _lineNumberArea(nullptr),
       _treeSitterLanguage(nullptr), _updatingTreeSitterHighlighting(false),
-      _treeSitterHighlightingEnabled(true), _parser(nullptr), _tree(nullptr),
-      _highlighter(nullptr), _highlightTimer(new QTimer(this)) {
+      _treeSitterHighlightingEnabled(true), _unifiedDiffHighlighting(false),
+      _parser(nullptr), _highlighter(nullptr),
+      _highlightTimer(new QTimer(this)) {
   for (int i = 0; i < 4; ++i) {
     _marginLineNumbers[i] = false;
     _marginSensitivity[i] = false;
@@ -1651,7 +1725,6 @@ QsciScintilla::~QsciScintilla() {
   if (_lexer) {
     disconnect(_lexer, nullptr, this, nullptr);
     _lexer = nullptr;
-
   }
 
   _treeSitterLanguage = nullptr;
@@ -1661,11 +1734,6 @@ QsciScintilla::~QsciScintilla() {
   _highlightTimer->stop();
   disconnect(_highlightTimer, nullptr, this, nullptr);
 
-
-  if (_tree) {
-    ts_tree_delete(_tree);
-    _tree = nullptr;
-  }
   if (_parser) {
     ts_parser_delete(_parser);
     _parser = nullptr;
@@ -1674,6 +1742,9 @@ QsciScintilla::~QsciScintilla() {
 
 void QsciScintilla::setText(const QString &text) {
   _marginTexts.clear();
+  _marginToolTips.clear();
+  _hoveredMargin = -1;
+  _hoveredMarginLine = -1;
 
   QTextCursor cursor(document());
   cursor.beginEditBlock();
@@ -1700,11 +1771,6 @@ void QsciScintilla::updateTreeSitterHighlighting() {
 
   _highlightTimer->stop();
 
-  if (_tree) {
-    ts_tree_delete(_tree);
-    _tree = nullptr;
-  }
-
   if (!_treeSitterHighlightingEnabled) {
     // Drop formats so blocks changed while disabled are not painted with
     // stale ranges.
@@ -1726,35 +1792,6 @@ void QsciScintilla::updateTreeSitterHighlighting() {
     _highlighter = new QEditorTreeSitterHighlighter(document());
   }
 
-  const QByteArray source = toPlainText().toUtf8();
-  _tree = ts_parser_parse_string(_parser, nullptr, source.constData(),
-                                 static_cast<uint32_t>(source.size()));
-  if (!_tree) {
-    _highlighter->clearBlockFormats();
-    _highlighter->rehighlight();
-    return;
-  }
-
-  const int documentLength = document()->characterCount() - 1;
-
-  // tree-sitter reports UTF-8 byte offsets, the document uses UTF-16.
-  std::vector<int> utf16Offsets(static_cast<size_t>(source.size()) + 1, 0);
-  int utf16Offset = 0;
-  for (int byteIndex = 0; byteIndex < source.size(); ++byteIndex) {
-    const auto byte = static_cast<unsigned char>(source.at(byteIndex));
-    utf16Offsets[static_cast<size_t>(byteIndex)] = utf16Offset;
-    if ((byte & 0xC0) != 0x80) {
-      utf16Offset += byte >= 0xF0 ? 2 : 1;
-    }
-  }
-  utf16Offsets[static_cast<size_t>(source.size())] = utf16Offset;
-
-  const auto utf8ByteToUtf16 = [&utf16Offsets](uint32_t byteOffset) {
-    const size_t index =
-        std::min(static_cast<size_t>(byteOffset), utf16Offsets.size() - 1);
-    return utf16Offsets[index];
-  };
-
   std::vector<int> blockStarts;
   blockStarts.reserve(static_cast<size_t>(document()->blockCount()));
   for (QTextBlock block = document()->begin(); block.isValid();
@@ -1764,38 +1801,6 @@ void QsciScintilla::updateTreeSitterHighlighting() {
   const int blockCount = static_cast<int>(blockStarts.size());
 
   QEditorTreeSitterHighlighter::BlockFormats blockFormats(blockCount);
-
-  const auto addRange = [&](int start, int end,
-                            const QTextCharFormat &format) {
-    start = std::max(0, start);
-    end = std::min(end, documentLength);
-    if (start >= end || blockCount == 0) {
-      return;
-    }
-
-    int block = static_cast<int>(std::upper_bound(blockStarts.begin(),
-                                                  blockStarts.end(), start) -
-                                 blockStarts.begin()) -
-                1;
-    block = std::max(block, 0);
-
-    // Multi-line nodes (block comments, raw strings) are split per block.
-    for (; block < blockCount && blockStarts[block] < end; ++block) {
-      const int blockStart = blockStarts[block];
-      const int blockEnd = block + 1 < blockCount
-                               ? blockStarts[block + 1] - 1
-                               : documentLength;
-      const int rangeStart = std::max(start, blockStart);
-      const int rangeEnd = std::min(end, blockEnd);
-      if (rangeStart < rangeEnd) {
-        QTextLayout::FormatRange range;
-        range.start = rangeStart - blockStart;
-        range.length = rangeEnd - rangeStart;
-        range.format = format;
-        blockFormats[block].append(range);
-      }
-    }
-  };
 
   const StyledLanguage documentLanguage =
       styledLanguageFor(_treeSitterLanguage);
@@ -1814,100 +1819,252 @@ void QsciScintilla::updateTreeSitterHighlighting() {
     return it.value();
   };
 
-  struct Injection {
-    StyledLanguage language;
-    TSRange range;
+  // A line of the parsed source: where it starts in the source (UTF-16) and
+  // the block and column it is shown at in the document.
+  struct SourceLine {
+    int sourceStart;
+    int block;
+    int column;
   };
-  std::vector<Injection> injections;
 
-  // Pre-order walk: parents are added before children, so child ranges take
-  // precedence when they overlap.
-  const auto walk = [&](TSNode root, StyledLanguage language) {
-    const StyleSet styleSet = styleSetFor(language);
-    // Types of the current node's ancestors, innermost last.
-    std::vector<const char *> ancestors;
-    TSTreeCursor treeCursor = ts_tree_cursor_new(root);
-    for (;;) {
-      const TSNode node = ts_tree_cursor_current_node(&treeCursor);
-      const char *type = ts_node_type(node);
-      const char *field = ts_tree_cursor_current_field_name(&treeCursor);
-      const size_t depth = ancestors.size();
-      const NodeContext context{node,
-                                type ? type : "",
-                                field ? field : "",
-                                depth > 0 ? ancestors[depth - 1] : "",
-                                depth > 1 ? ancestors[depth - 2] : "",
-                                ts_node_is_named(node)};
+  // Parses the text and adds the formats of its nodes to the blocks its lines
+  // are shown in.
+  const auto highlightSource = [&](const QString &text,
+                                   const std::vector<SourceLine> &lines) {
+    if (lines.empty()) {
+      return;
+    }
 
-      bool descend = true;
-      const Token token = tokenForNode(language, context, source, descend);
-      if (token != Token::None) {
-        const QTextCharFormat format = formatFor(styleSet, token);
-        if (format.hasProperty(QTextFormat::ForegroundBrush) &&
-            format.foreground().color().isValid()) {
-          addRange(utf8ByteToUtf16(ts_node_start_byte(node)),
-                   utf8ByteToUtf16(ts_node_end_byte(node)), format);
+    const QByteArray source = text.toUtf8();
+    TSTree *tree = ts_parser_parse_string(_parser, nullptr, source.constData(),
+                                          static_cast<uint32_t>(source.size()));
+    if (!tree) {
+      return;
+    }
+
+    // tree-sitter reports UTF-8 byte offsets, the text uses UTF-16.
+    std::vector<int> utf16Offsets(static_cast<size_t>(source.size()) + 1, 0);
+    int utf16Offset = 0;
+    for (int byteIndex = 0; byteIndex < source.size(); ++byteIndex) {
+      const auto byte = static_cast<unsigned char>(source.at(byteIndex));
+      utf16Offsets[static_cast<size_t>(byteIndex)] = utf16Offset;
+      if ((byte & 0xC0) != 0x80) {
+        utf16Offset += byte >= 0xF0 ? 2 : 1;
+      }
+    }
+    utf16Offsets[static_cast<size_t>(source.size())] = utf16Offset;
+
+    const auto utf8ByteToUtf16 = [&utf16Offsets](uint32_t byteOffset) {
+      const size_t index =
+          std::min(static_cast<size_t>(byteOffset), utf16Offsets.size() - 1);
+      return utf16Offsets[index];
+    };
+
+    const int lineCount = static_cast<int>(lines.size());
+    const int textLength = static_cast<int>(text.size());
+    // Excludes the newline that terminates the last line.
+    const int lastLineEnd =
+        text.endsWith(QChar('\n')) ? textLength - 1 : textLength;
+
+    const auto addRange = [&](int start, int end,
+                              const QTextCharFormat &format) {
+      start = std::max(0, start);
+      end = std::min(end, textLength);
+      if (start >= end) {
+        return;
+      }
+
+      int line = static_cast<int>(
+                     std::upper_bound(lines.begin(), lines.end(), start,
+                                      [](int offset, const SourceLine &l) {
+                                        return offset < l.sourceStart;
+                                      }) -
+                     lines.begin()) -
+                 1;
+      line = std::max(line, 0);
+
+      // Multi-line nodes (block comments, raw strings) are split per line.
+      for (; line < lineCount && lines[line].sourceStart < end; ++line) {
+        const SourceLine &sourceLine = lines[line];
+        const int lineEnd = line + 1 < lineCount
+                                ? lines[line + 1].sourceStart - 1
+                                : lastLineEnd;
+        const int rangeStart = std::max(start, sourceLine.sourceStart);
+        const int rangeEnd = std::min(end, lineEnd);
+        if (rangeStart < rangeEnd && sourceLine.block < blockCount) {
+          QTextLayout::FormatRange range;
+          range.start = rangeStart - sourceLine.sourceStart + sourceLine.column;
+          range.length = rangeEnd - rangeStart;
+          range.format = format;
+          blockFormats[sourceLine.block].append(range);
         }
       }
+    };
 
-      if (language == StyledLanguage::Html &&
-          typeEquals(context.type, "raw_text")) {
-        const StyledLanguage embedded = embeddedLanguageFor(node, source);
-        if (embedded != StyledLanguage::None) {
-          injections.push_back(
-              {embedded,
-               {ts_node_start_point(node), ts_node_end_point(node),
-                ts_node_start_byte(node), ts_node_end_byte(node)}});
+    struct Injection {
+      StyledLanguage language;
+      TSRange range;
+    };
+    std::vector<Injection> injections;
+
+    // Pre-order walk: parents are added before children, so child ranges
+    // take precedence when they overlap.
+    const auto walk = [&](TSNode root, StyledLanguage language) {
+      const StyleSet styleSet = styleSetFor(language);
+      // Types of the current node's ancestors, innermost last.
+      std::vector<const char *> ancestors;
+      TSTreeCursor treeCursor = ts_tree_cursor_new(root);
+      for (;;) {
+        const TSNode node = ts_tree_cursor_current_node(&treeCursor);
+        const char *type = ts_node_type(node);
+        const char *field = ts_tree_cursor_current_field_name(&treeCursor);
+        const size_t depth = ancestors.size();
+        const NodeContext context{node,
+                                  type ? type : "",
+                                  field ? field : "",
+                                  depth > 0 ? ancestors[depth - 1] : "",
+                                  depth > 1 ? ancestors[depth - 2] : "",
+                                  ts_node_is_named(node)};
+
+        bool descend = true;
+        const Token token = tokenForNode(language, context, source, descend);
+        if (token != Token::None) {
+          const QTextCharFormat format = formatFor(styleSet, token);
+          if (format.hasProperty(QTextFormat::ForegroundBrush) &&
+              format.foreground().color().isValid()) {
+            addRange(utf8ByteToUtf16(ts_node_start_byte(node)),
+                     utf8ByteToUtf16(ts_node_end_byte(node)), format);
+          }
         }
-      }
 
-      if (descend && ts_tree_cursor_goto_first_child(&treeCursor)) {
-        ancestors.push_back(context.type);
-        continue;
-      }
+        if (language == StyledLanguage::Html &&
+            typeEquals(context.type, "raw_text")) {
+          const StyledLanguage embedded = embeddedLanguageFor(node, source);
+          if (embedded != StyledLanguage::None) {
+            injections.push_back(
+                {embedded,
+                 {ts_node_start_point(node), ts_node_end_point(node),
+                  ts_node_start_byte(node), ts_node_end_byte(node)}});
+          }
+        }
 
-      bool finished = false;
-      while (!ts_tree_cursor_goto_next_sibling(&treeCursor)) {
-        if (!ts_tree_cursor_goto_parent(&treeCursor)) {
-          finished = true;
+        if (descend && ts_tree_cursor_goto_first_child(&treeCursor)) {
+          ancestors.push_back(context.type);
+          continue;
+        }
+
+        bool finished = false;
+        while (!ts_tree_cursor_goto_next_sibling(&treeCursor)) {
+          if (!ts_tree_cursor_goto_parent(&treeCursor)) {
+            finished = true;
+            break;
+          }
+          ancestors.pop_back();
+        }
+        if (finished) {
           break;
         }
-        ancestors.pop_back();
       }
-      if (finished) {
-        break;
+      ts_tree_cursor_delete(&treeCursor);
+    };
+
+    walk(ts_tree_root_node(tree), documentLanguage);
+    ts_tree_delete(tree);
+
+    // <script> and <style> bodies are parsed separately with their own
+    // grammar, restricted to the body's range. Their ranges are added after
+    // the HTML ranges, so they take precedence.
+    if (!injections.empty()) {
+      TSParser *injectionParser = ts_parser_new();
+      for (const Injection &injection : injections) {
+        const TSLanguage *language =
+            injection.language == StyledLanguage::EmbeddedJavaScript
+                ? tree_sitter_javascript()
+                : tree_sitter_css();
+        if (!ts_parser_set_language(injectionParser, language) ||
+            !ts_parser_set_included_ranges(injectionParser, &injection.range,
+                                           1)) {
+          continue;
+        }
+        TSTree *injectionTree =
+            ts_parser_parse_string(injectionParser, nullptr, source.constData(),
+                                   static_cast<uint32_t>(source.size()));
+        if (!injectionTree) {
+          continue;
+        }
+        walk(ts_tree_root_node(injectionTree), injection.language);
+        ts_tree_delete(injectionTree);
       }
+      ts_parser_delete(injectionParser);
     }
-    ts_tree_cursor_delete(&treeCursor);
   };
 
-  walk(ts_tree_root_node(_tree), documentLanguage);
-
-  // <script> and <style> bodies are parsed separately with their own grammar,
-  // restricted to the body's range. Their ranges are added after the HTML
-  // ranges, so they take precedence.
-  if (!injections.empty()) {
-    TSParser *injectionParser = ts_parser_new();
-    for (const Injection &injection : injections) {
-      const TSLanguage *language =
-          injection.language == StyledLanguage::EmbeddedJavaScript
-              ? tree_sitter_javascript()
-              : tree_sitter_css();
-      if (!ts_parser_set_language(injectionParser, language) ||
-          !ts_parser_set_included_ranges(injectionParser, &injection.range,
-                                         1)) {
-        continue;
-      }
-      TSTree *injectionTree = ts_parser_parse_string(
-          injectionParser, nullptr, source.constData(),
-          static_cast<uint32_t>(source.size()));
-      if (!injectionTree) {
-        continue;
-      }
-      walk(ts_tree_root_node(injectionTree), injection.language);
-      ts_tree_delete(injectionTree);
+  if (!_unifiedDiffHighlighting) {
+    // The document is the source, line by line.
+    std::vector<SourceLine> lines;
+    lines.reserve(static_cast<size_t>(blockCount));
+    for (int block = 0; block < blockCount; ++block) {
+      lines.push_back({blockStarts[block], block, 0});
     }
-    ts_parser_delete(injectionParser);
+    highlightSource(toPlainText(), lines);
+  } else {
+    // The document is a unified diff. The old side of each file (context and
+    // removed lines) and its new side (context and added lines) are parsed
+    // separately, without the line prefixes. Headers are not highlighted.
+    struct Side {
+      QString text;
+      std::vector<SourceLine> lines;
+
+      void append(const QString &blockText, int block) {
+        lines.push_back({static_cast<int>(text.size()), block,
+                         blockText.isEmpty() ? 0 : 1});
+        text += QStringView(blockText).mid(blockText.isEmpty() ? 0 : 1);
+        text += QChar('\n');
+      }
+    };
+
+    Side oldSide;
+    Side newSide;
+
+    const auto flush = [&]() {
+      highlightSource(oldSide.text, oldSide.lines);
+      highlightSource(newSide.text, newSide.lines);
+      oldSide = Side();
+      newSide = Side();
+    };
+
+    bool inHunk = false;
+    for (QTextBlock textBlock = document()->begin(); textBlock.isValid();
+         textBlock = textBlock.next()) {
+      const QString blockText = textBlock.text();
+      const int block = textBlock.blockNumber();
+
+      if (blockText.startsWith(QStringLiteral("diff "))) {
+        flush();
+        inHunk = false;
+        continue;
+      }
+
+      if (blockText.startsWith(QStringLiteral("@@"))) {
+        inHunk = true;
+        continue;
+      }
+
+      if (!inHunk) {
+        continue;
+      }
+
+      const QChar origin = blockText.isEmpty() ? QChar(' ') : blockText.at(0);
+      if (origin == QChar(' ')) {
+        oldSide.append(blockText, block);
+        newSide.append(blockText, block);
+      } else if (origin == QChar('-')) {
+        oldSide.append(blockText, block);
+      } else if (origin == QChar('+')) {
+        newSide.append(blockText, block);
+      }
+    }
+    flush();
   }
 
   _highlighter->setBlockFormats(std::move(blockFormats));
@@ -1943,6 +2100,15 @@ void QsciScintilla::setTreeSitterHighlightingEnabled(bool enabled) {
   if (_treeSitterHighlightingEnabled) {
     updateTreeSitterHighlighting();
   }
+}
+
+void QsciScintilla::setUnifiedDiffHighlighting(bool enabled) {
+  if (_unifiedDiffHighlighting == enabled) {
+    return;
+  }
+
+  _unifiedDiffHighlighting = enabled;
+  updateTreeSitterHighlighting();
 }
 
 void QsciScintilla::setLexer(QsciLexer *lexer) {
@@ -2070,6 +2236,46 @@ void QsciScintilla::setMarginText(int line, int margin, const QString &text) {
   }
 }
 
+void QsciScintilla::setMarginTextColor(int margin, const QColor &color) {
+  if (margin < 0 || margin >= 4) {
+    return;
+  }
+
+  _marginTextColors[margin] = color;
+  if (_lineNumberArea) {
+    _lineNumberArea->update();
+  }
+}
+
+void QsciScintilla::setMarginToolTip(int line, int margin,
+                                     const QString &toolTip) {
+  if (line < 0 || margin < 0 || margin >= 4) {
+    return;
+  }
+
+  _marginToolTips[line][margin] = toolTip;
+}
+
+bool QsciScintilla::hasClickableMarginText(int margin, int line) const {
+  if (margin < 0 || margin >= 4 || line < 0 || !_marginSensitivity[margin]) {
+    return false;
+  }
+
+  return !_marginTexts.value(line).value(margin).isEmpty();
+}
+
+void QsciScintilla::setHoveredMarginText(int margin, int line) {
+  if (margin == _hoveredMargin && line == _hoveredMarginLine) {
+    return;
+  }
+
+  _hoveredMargin = margin;
+  _hoveredMarginLine = line;
+  if (_lineNumberArea) {
+    _lineNumberArea->update();
+  }
+}
+
 void QsciScintilla::setMarginType(int margin, MarginType type) {
   if (margin < 0 || margin >= 4) {
     return;
@@ -2161,6 +2367,100 @@ void QsciScintilla::setMarkerForegroundColor(const QColor &color, int marker) {
   refreshCurrentLineHighlight();
 }
 
+void QsciScintilla::setMarkerToolTip(const QString &toolTip, int marker) {
+  _markerToolTips[marker] = toolTip;
+}
+
+int QsciScintilla::marginPixelWidth(int margin) const {
+  if (margin == 0 && _marginLineNumbers[0]) {
+    const int digits = QString::number(std::max(1, blockCount())).size();
+    return fontMetrics().horizontalAdvance(QString(digits, QChar('9'))) + 12;
+  }
+
+  return std::max(0, _marginWidths[margin]);
+}
+
+int QsciScintilla::marginAtX(int x) const {
+  int offset = 0;
+
+  for (int i = 0; i < 4; ++i) {
+    const int width = marginPixelWidth(i);
+    if (width <= 0) {
+      continue;
+    }
+
+    if (x >= offset && x < offset + width) {
+      return i;
+    }
+
+    offset += width;
+  }
+
+  return -1;
+}
+
+// Returns the line drawn at y in the margins, or -1. It walks the visible
+// blocks the same way the margins are painted, so the result matches what is
+// shown.
+int QsciScintilla::marginLineAt(int y) const {
+  QTextBlock block = firstVisibleBlock();
+  int top = static_cast<int>(
+      blockBoundingGeometry(block).translated(contentOffset()).top());
+
+  while (block.isValid() && top <= y) {
+    const int bottom =
+        top + static_cast<int>(blockBoundingRect(block).height());
+    if (block.isVisible() && y < bottom) {
+      return block.blockNumber();
+    }
+
+    block = block.next();
+    top = bottom;
+  }
+
+  return -1;
+}
+
+QRect QsciScintilla::marginCellRect(int margin, int line) const {
+  if (margin < 0 || margin >= 4) {
+    return {};
+  }
+
+  const QTextBlock block = document()->findBlockByNumber(line);
+  if (!block.isValid()) {
+    return {};
+  }
+
+  int offset = 0;
+  for (int i = 0; i < margin; ++i) {
+    offset += marginPixelWidth(i);
+  }
+
+  const QRect lineRect =
+      blockBoundingGeometry(block).translated(contentOffset()).toRect();
+  return QRect(offset, lineRect.top(), marginPixelWidth(margin),
+               lineRect.height());
+}
+
+int QsciScintilla::clickableMarkerAt(int margin, int line) const {
+  if (margin < 0 || margin >= 4 || line < 0 || !_marginSensitivity[margin]) {
+    return -1;
+  }
+
+  const int visibleMarkers = markersAtLine(line) & _marginMarkerMasks[margin];
+  if (visibleMarkers == 0) {
+    return -1;
+  }
+
+  for (int marker = 0; marker < 32; ++marker) {
+    if (visibleMarkers & (1 << marker)) {
+      return marker;
+    }
+  }
+
+  return -1;
+}
+
 int QsciScintilla::markerAdd(int line, int marker) {
   _markers[line].insert(marker);
   viewport()->update();
@@ -2244,11 +2544,20 @@ void QsciScintilla::refreshCurrentLineHighlight() {
       continue;
     }
 
+    // Only background markers color the line; symbol markers are drawn in
+    // the margins.
     int marker = -1;
     for (int candidate : markerSet) {
+      if (_markerSymbols.value(candidate, Background) != Background) {
+        continue;
+      }
       if (marker == -1 || candidate < marker) {
         marker = candidate;
       }
+    }
+
+    if (marker == -1) {
+      continue;
     }
 
     QColor background = _markerBackgroundColors.value(marker);
@@ -2409,9 +2718,18 @@ void QsciScintilla::lineNumberAreaPaintEvent(QPaintEvent *event) {
               const Qt::Alignment alignment =
                   margin == 0 ? (Qt::AlignRight | Qt::AlignVCenter)
                               : (Qt::AlignLeft | Qt::AlignVCenter);
-              painter.setPen(textColor);
+              const bool hovered =
+                  margin == _hoveredMargin && blockNumber == _hoveredMarginLine;
+              painter.save();
+              painter.setPen(_marginTextColors.value(margin, textColor));
+              if (hovered) {
+                QFont font = painter.font();
+                font.setUnderline(true);
+                painter.setFont(font);
+              }
               painter.drawText(marginRect.adjusted(4, 0, -4, 0), alignment,
                                *textIt);
+              painter.restore();
             }
             continue;
           }
@@ -2452,14 +2770,49 @@ void QsciScintilla::lineNumberAreaPaintEvent(QPaintEvent *event) {
 
         painter.setRenderHint(QPainter::Antialiasing, true);
         switch (symbol) {
-        case BoxedPlus: {
-          painter.setPen(QPen(strokeColor, 1.5));
+        case BoxedPlus:
+        case BoxedArrowDown:
+        case BoxedCheck: {
+          // A square badge centered in the margin, with the glyph drawn in
+          // the foreground color.
+          const qreal side = std::max(
+              8, std::min(marginRect.width(), marginRect.height()) - 2);
+          const QRectF badge(marginRect.center().x() - side / 2.0 + 0.5,
+                             marginRect.center().y() - side / 2.0 + 0.5, side,
+                             side);
+          const qreal inset = side * 0.25;
+          const QRectF glyph = badge.adjusted(inset, inset, -inset, -inset);
+
+          painter.setPen(Qt::NoPen);
           painter.setBrush(fillColor);
-          painter.drawRoundedRect(symbolRect, 2, 2);
-          painter.drawLine(symbolRect.center().x(), symbolRect.top() + 3,
-                           symbolRect.center().x(), symbolRect.bottom() - 3);
-          painter.drawLine(symbolRect.left() + 3, symbolRect.center().y(),
-                           symbolRect.right() - 3, symbolRect.center().y());
+          painter.drawRoundedRect(badge, side * 0.2, side * 0.2);
+
+          QPen glyphPen(strokeColor, std::max(1.5, side / 7.0));
+          glyphPen.setCapStyle(Qt::RoundCap);
+          glyphPen.setJoinStyle(Qt::RoundJoin);
+          painter.setPen(glyphPen);
+          painter.setBrush(Qt::NoBrush);
+
+          if (symbol == BoxedPlus) {
+            painter.drawLine(QPointF(glyph.center().x(), glyph.top()),
+                             QPointF(glyph.center().x(), glyph.bottom()));
+            painter.drawLine(QPointF(glyph.left(), glyph.center().y()),
+                             QPointF(glyph.right(), glyph.center().y()));
+          } else if (symbol == BoxedArrowDown) {
+            painter.drawLine(QPointF(glyph.center().x(), glyph.top()),
+                             QPointF(glyph.center().x(), glyph.bottom()));
+            painter.drawPolyline(
+                QPolygonF({QPointF(glyph.left(), glyph.center().y()),
+                           QPointF(glyph.center().x(), glyph.bottom()),
+                           QPointF(glyph.right(), glyph.center().y())}));
+          } else {
+            painter.drawPolyline(QPolygonF(
+                {QPointF(glyph.left(), glyph.center().y()),
+                 QPointF(glyph.left() + glyph.width() * 0.4, glyph.bottom()),
+                 QPointF(glyph.right(), glyph.top())}));
+          }
+
+          painter.setRenderHint(QPainter::Antialiasing, false);
           break;
         }
         case Background:

@@ -354,6 +354,30 @@ QIcon shiftIconVertically(const QIcon &originalIcon, int targetSize,
   return originalIcon;
 }
 
+// Matches the text color of the button in the searching state, see
+// StylesheetManager.
+const QColor kSearchSpinnerColor(Qt::white);
+
+// One frame of the spinner shown on the search repository button: an arc
+// rotated by `angle` degrees.
+QPixmap searchSpinnerPixmap(const QColor &color, const int angle,
+                            const qreal devicePixelRatio) {
+  QPixmap pixmap(QSize(16, 16) * devicePixelRatio);
+  pixmap.setDevicePixelRatio(devicePixelRatio);
+  pixmap.fill(Qt::transparent);
+
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing, true);
+  painter.setPen(QPen(color, 2.0, Qt::SolidLine, Qt::RoundCap));
+  painter.setBrush(Qt::NoBrush);
+
+  // QPainter angles are in 1/16 degree, counter-clockwise; negate to spin
+  // clockwise.
+  painter.drawArc(QRectF(2.0, 2.0, 12.0, 12.0), -angle * 16, 270 * 16);
+
+  return pixmap;
+}
+
 QPixmap filterIconPixmap(const QColor &color) {
   QPixmap pixmap(16, 16);
   pixmap.fill(Qt::transparent);
@@ -450,7 +474,9 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()),
-      _historyFilterButton(nullptr), _refBadgesOverlay(nullptr),
+      _historyFilterButton(nullptr),
+      _historySearchSpinnerTimer(new QTimer(this)),
+      _historySearchSpinnerAngle(0), _refBadgesOverlay(nullptr),
       _authorAvatarNetworkManager(new QNetworkAccessManager(this)),
       _authorNameValueLabel(nullptr), _authorEmailValueLabel(nullptr),
       _dispatcher(20), _spinnerOverlay(new SpinnerOverlayWidget(this)),
@@ -974,9 +1000,10 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   _historyModel->setPageRequester(
       [this](const QString &branchName, const GitRepo::BranchType branchType,
-             const int page, const quint64 generation) {
+             const int page, const quint64 generation, const bool lowPriority) {
         _bridge->getBranchHistoryPage(getSelf().toWeakRef(), branchName,
-                                      branchType, page, generation);
+                                      branchType, page, generation,
+                                      lowPriority);
       });
 
   connect(_historyModel.get(), &Models::GitHistoryModel::columnWidthsChanged,
@@ -995,6 +1022,34 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
 
   connect(_historyModel.get(), &Models::GitHistoryModel::pageLoadFailed, this,
           [this]() { _pendingSelectCommit.clear(); });
+
+  _historySearchSpinnerTimer->setInterval(50);
+  connect(_historySearchSpinnerTimer, &QTimer::timeout, this, [this]() {
+    QPushButton *button = ui->pushButtonHistorySearchRepository;
+    _historySearchSpinnerAngle = (_historySearchSpinnerAngle + 30) % 360;
+    button->setIcon(QIcon(searchSpinnerPixmap(kSearchSpinnerColor,
+                                              _historySearchSpinnerAngle,
+                                              button->devicePixelRatioF())));
+  });
+  connect(ui->pushButtonHistorySearchRepository, &QPushButton::clicked, this,
+          [this]() {
+            if (_historyModel->isFetchingAll()) {
+              // Stopping also gives up on a commit waiting to be selected, it
+              // would keep loading pages until found.
+              _pendingSelectCommit.clear();
+              _historyModel->cancelFetchAll();
+            } else {
+              _historyModel->fetchAll();
+            }
+            updateHistorySearchRepositoryButton();
+          });
+  connect(_historyModel.get(), &Models::GitHistoryModel::fetchAllFinished, this,
+          [this]() { updateHistorySearchRepositoryButton(); });
+  connect(_historyModel.get(), &Models::GitHistoryModel::pageAppended, this,
+          [this]() { updateHistorySearchRepositoryButton(); });
+  connect(_historyModel.get(), &QAbstractItemModel::modelReset, this,
+          [this]() { updateHistorySearchRepositoryButton(); });
+  updateHistorySearchRepositoryButton();
 
   _spinnerBreakTimer->start(1000);
   _spinnerOverlayTimer->setSingleShot(true);
@@ -1365,6 +1420,21 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->pushButtonMergeDiffUp->setMinimumSize(32, 32);
   ui->pushButtonMergeDiffUp->setMaximumSize(32, 32);
 
+  // Wide enough for "999/999", so the buttons do not move while navigating.
+  ui->labelMergeDiffConflicts->setMinimumWidth(
+      ui->labelMergeDiffConflicts->fontMetrics().horizontalAdvance(
+          QStringLiteral("999/999")) +
+      8);
+  connect(ui->mergeDiffViewer, &Widgets::MergeDiffView::currentConflictChanged,
+          this, [this](int current, int total) {
+            ui->labelMergeDiffConflicts->setText(
+                QStringLiteral("%1/%2").arg(current).arg(total));
+            ui->labelMergeDiffConflicts->setToolTip(
+                tr("Conflict %1 of %2").arg(current).arg(total));
+            ui->pushButtonMergeDiffUp->setEnabled(current > 1);
+            ui->pushButtonMergeDiffDown->setEnabled(current < total);
+          });
+
   ui->pushButtonMergeDiffSave->setMinimumHeight(32);
   ui->pushButtonMergeDiffSave->setMaximumHeight(32);
 
@@ -1399,13 +1469,13 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaTextEditorUnified->setMarginType(0, QsciScintilla::NumberMargin);
   ui->scintillaTextEditorUnified->setMarginType(1, QsciScintilla::SymbolMargin);
   ui->scintillaTextEditorUnified->setMarginWidth(1, 2);
-  ui->scintillaTextEditorUnified->markerDefine(QsciScintilla::Background, 1);
-  const bool lightTheme =
-      StylesheetManager::StylesheetManager::currentStylesheet() ==
-      StylesheetManager::StylesheetKey::SourcererLight;
-  const QColor hunkMarkerColor =
-      lightTheme ? QColor(255, 241, 201) : QColor(0x4d4021);
-  ui->scintillaTextEditorUnified->setMarkerBackgroundColor(hunkMarkerColor, 1);
+  ui->scintillaTextEditorUnified->markerDefine(QsciScintilla::Background,
+                                               UnifiedDiffHunkMarker);
+  ui->scintillaTextEditorUnified->markerDefine(QsciScintilla::Background,
+                                               UnifiedDiffDeletedMarker);
+  ui->scintillaTextEditorUnified->markerDefine(QsciScintilla::Background,
+                                               UnifiedDiffAddedMarker);
+  ui->scintillaTextEditorUnified->setUnifiedDiffHighlighting(true);
   ui->scintillaTextEditorUnified->setReadOnly(true);
 
   DarkThemeLexersHighlighter highlighter;
@@ -1420,9 +1490,32 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaBlameEditor->setLexer(nullptr);
   ui->scintillaBlameEditor->setMarginsBackgroundColor(QColor(0x384D59));
   ui->scintillaBlameEditor->setMarginType(0, QsciScintilla::NumberMargin);
-  ui->scintillaBlameEditor->setMarginType(1, QsciScintilla::NumberMargin);
-  ui->scintillaBlameEditor->setMarginWidth(1, 2);
+  ui->scintillaBlameEditor->setMarginType(BlameCommitMargin,
+                                          QsciScintilla::NumberMargin);
+  ui->scintillaBlameEditor->setMarginType(BlameAuthorMargin,
+                                          QsciScintilla::NumberMargin);
+  ui->scintillaBlameEditor->setMarginWidth(BlameCommitMargin, 2);
+  ui->scintillaBlameEditor->setMarginWidth(BlameAuthorMargin, 2);
+  ui->scintillaBlameEditor->setMarginSensitivity(BlameCommitMargin, true);
+  ui->scintillaBlameEditor->setMarginTextColor(BlameCommitMargin,
+                                               QColor(0x8cc8ff));
   ui->scintillaBlameEditor->setReadOnly(true);
+
+  connect(ui->scintillaBlameEditor, &QsciScintilla::marginClicked, this,
+          [this](int margin, int line, Qt::KeyboardModifiers) {
+            if (margin != BlameCommitMargin) {
+              return;
+            }
+
+            const QString commit = _blameCommits.value(line);
+            if (commit.isEmpty()) {
+              return;
+            }
+
+            LOG_DEBUG("Blame commit {} clicked", commit.toStdString());
+            closeDiffViewerIfOpen();
+            selectHistoryCommit(commit);
+          });
 
   DarkThemeLexersHighlighter blameHighlighter;
   blameHighlighter.applyDarkTheme(ui->scintillaBlameEditor);
@@ -1449,14 +1542,21 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   ui->scintillaStashDiffUnified->setMarginType(0, QsciScintilla::NumberMargin);
   ui->scintillaStashDiffUnified->setMarginType(1, QsciScintilla::SymbolMargin);
   ui->scintillaStashDiffUnified->setMarginWidth(1, 2);
-  ui->scintillaStashDiffUnified->markerDefine(QsciScintilla::Background, 1);
-  ui->scintillaStashDiffUnified->setMarkerBackgroundColor(hunkMarkerColor, 1);
+  ui->scintillaStashDiffUnified->markerDefine(QsciScintilla::Background,
+                                              UnifiedDiffHunkMarker);
+  ui->scintillaStashDiffUnified->markerDefine(QsciScintilla::Background,
+                                              UnifiedDiffDeletedMarker);
+  ui->scintillaStashDiffUnified->markerDefine(QsciScintilla::Background,
+                                              UnifiedDiffAddedMarker);
+  ui->scintillaStashDiffUnified->setUnifiedDiffHighlighting(true);
   ui->scintillaStashDiffUnified->setReadOnly(true);
 
   DarkThemeLexersHighlighter stashHighlighter;
   stashHighlighter.applyDarkTheme(ui->scintillaStashDiffUnified);
 
   ui->scintillaStashDiffUnified->setFolding(QsciScintilla::NoFoldStyle);
+
+  refreshUnifiedDiffMarkerColors();
 
   // Setup stash apply and pop buttons as corner widgets
   _stashApplyButton = new QPushButton(tr("Apply"), ui->tabWidgetStashFiles);
@@ -2049,6 +2149,32 @@ void GitRepoContainer::refreshScintillaTheme() {
 
   for (auto *editor : editors) {
     highlighter.applyDarkTheme(editor);
+  }
+
+  refreshUnifiedDiffMarkerColors();
+}
+
+void GitRepoContainer::refreshUnifiedDiffMarkerColors() {
+  const bool lightTheme =
+      StylesheetManager::StylesheetManager::currentStylesheet() ==
+      StylesheetManager::StylesheetKey::SourcererLight;
+  const QColor hunkColor =
+      lightTheme ? QColor(255, 241, 201) : QColor(0x4d4021);
+  const QColor deletedColor =
+      lightTheme ? QColor(255, 231, 231) : QColor(0x4a2327);
+  const QColor addedColor =
+      lightTheme ? QColor(232, 246, 232) : QColor(0x1f3d2b);
+
+  const auto editors = findChildren<QsciScintilla *>();
+
+  for (auto *editor : editors) {
+    if (!editor->unifiedDiffHighlighting()) {
+      continue;
+    }
+
+    editor->setMarkerBackgroundColor(hunkColor, UnifiedDiffHunkMarker);
+    editor->setMarkerBackgroundColor(deletedColor, UnifiedDiffDeletedMarker);
+    editor->setMarkerBackgroundColor(addedColor, UnifiedDiffAddedMarker);
   }
 }
 
@@ -3300,8 +3426,11 @@ void GitRepoContainer::closeDiffViewerIfOpen() {
 
   if (ui->stackedWidgetMiddle->currentIndex() ==
       static_cast<int>(MainViewPanes::Blame)) {
+    QsciLexer *blameLexer = ui->scintillaBlameEditor->lexer();
     ui->scintillaBlameEditor->setText(QString());
     ui->scintillaBlameEditor->setLexer(nullptr);
+    delete blameLexer;
+    _blameCommits.clear();
   }
 
   // Hide scrollbar marks to prevent them from appearing in history view
@@ -3421,6 +3550,13 @@ void GitRepoContainer::selectHistoryCommit(const QString &commit) {
       LOG_PERF(0, "Exit");
       return;
     }
+  }
+
+  // A loaded commit that is not in the view is hidden by the filters; loading
+  // more pages would not show it and would go through the whole history.
+  if (_historyModel->isCommitLoaded(commit)) {
+    LOG_PERF(0, "Exit");
+    return;
   }
 
   // The commit may be on a page that has not been loaded yet. Load the next
@@ -3826,12 +3962,16 @@ void GitRepoContainer::onMergeDiffDownClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Merge diff down navigation");
 
+  ui->mergeDiffViewer->goToNextConflict();
+
   LOG_PERF(0, "Exit");
 }
 
 void GitRepoContainer::onMergeDiffUpClicked() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Merge diff up navigation");
+
+  ui->mergeDiffViewer->goToPreviousConflict();
 
   LOG_PERF(0, "Exit");
 }
@@ -7181,9 +7321,9 @@ void GitRepoContainer::onShowSpinnerOverlay() {
 }
 
 void GitRepoContainer::onSpinnerBreakTimer() {
-    if (_dispatcher.idle()) {
-        showSpinnerOverlay(false);
-    }
+  if (_dispatcher.idle()) {
+    showSpinnerOverlay(false);
+  }
 }
 
 void GitRepoContainer::onDeleteSubmodule(const QString &submoduleName) {
@@ -7462,6 +7602,43 @@ void GitRepoContainer::applyHistoryColumnVisibility() {
   LOG_PERF(0, "Exit");
 }
 
+void GitRepoContainer::updateHistorySearchRepositoryButton() {
+  if (!ui || !_historyModel) {
+    return;
+  }
+
+  QPushButton *button = ui->pushButtonHistorySearchRepository;
+  const bool fetchingAll = _historyModel->isFetchingAll();
+
+  // Once the whole history is loaded there is nothing left to search.
+  button->setVisible(fetchingAll || _historyModel->hasMoreCommits());
+  button->setText(fetchingAll ? tr("Stop searching") : tr("Search repository"));
+  button->setToolTip(
+      fetchingAll
+          ? tr("Stop loading the repository history")
+          : tr("Load the whole repository history from disk and apply the "
+               "filters to it"));
+
+  // The stylesheet shows the button in red while searching.
+  if (button->property("searching").toBool() != fetchingAll) {
+    button->setProperty("searching", fetchingAll);
+    button->style()->unpolish(button);
+    button->style()->polish(button);
+    button->update();
+  }
+
+  if (fetchingAll && !_historySearchSpinnerTimer->isActive()) {
+    _historySearchSpinnerAngle = 0;
+    button->setIcon(QIcon(searchSpinnerPixmap(kSearchSpinnerColor,
+                                              _historySearchSpinnerAngle,
+                                              button->devicePixelRatioF())));
+    _historySearchSpinnerTimer->start();
+  } else if (!fetchingAll && _historySearchSpinnerTimer->isActive()) {
+    _historySearchSpinnerTimer->stop();
+    button->setIcon(QIcon());
+  }
+}
+
 void GitRepoContainer::updateHistoryFilterButtonGeometry() {
   if (!_historyFilterButton || !ui || !ui->historyView) {
     return;
@@ -7567,9 +7744,8 @@ void GitRepoContainer::saveThreeWayMergeResultFile(const WeakPtr &guard,
 
   _bridge->stageFiles(guard, QStringList() << filePath);
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    ui->pushButtonMergeDiffSave->setEnabled(false);
-  });
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { ui->pushButtonMergeDiffSave->setEnabled(false); });
 
   LOG_PERF(0, "Exit");
 }
@@ -9798,9 +9974,8 @@ void GitRepoContainer::ignoreFiles(const WeakPtr &guard,
 
   _bridge->refreshStatus(guard);
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    simulateClickOnFirstHistoryRow();
-  });
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { simulateClickOnFirstHistoryRow(); });
 
   LOG_PERF(0, "Exit")
 }
@@ -9853,9 +10028,8 @@ void GitRepoContainer::ignoreFilesRecursive(const WeakPtr &guard,
 
   _bridge->refreshStatus(guard);
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    simulateClickOnFirstHistoryRow();
-  });
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { simulateClickOnFirstHistoryRow(); });
 
   LOG_PERF(0, "Exit")
 }
@@ -9883,9 +10057,8 @@ void GitRepoContainer::addFilesToLfs(const WeakPtr &guard,
 
   if (entriesToAdd.isEmpty()) {
     _bridge->refreshStatus(guard);
-    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      simulateClickOnFirstHistoryRow();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { simulateClickOnFirstHistoryRow(); });
     LOG_PERF(0, "Exit");
     return;
   }
@@ -9940,9 +10113,8 @@ void GitRepoContainer::addFilesToLfs(const WeakPtr &guard,
 
   _bridge->refreshStatus(guard);
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    simulateClickOnFirstHistoryRow();
-  });
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { simulateClickOnFirstHistoryRow(); });
 
   LOG_PERF(0, "Exit")
 }
@@ -9963,9 +10135,8 @@ void GitRepoContainer::removeFilesFromLfs(const WeakPtr &guard,
 
   if (patternsToRemove.isEmpty()) {
     _bridge->refreshStatus(guard);
-    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      simulateClickOnFirstHistoryRow();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [&]() { simulateClickOnFirstHistoryRow(); });
     LOG_PERF(0, "Exit");
     return;
   }
@@ -10031,9 +10202,8 @@ void GitRepoContainer::removeFilesFromLfs(const WeakPtr &guard,
 
   _bridge->refreshStatus(guard);
 
-  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    simulateClickOnFirstHistoryRow();
-  });
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [&]() { simulateClickOnFirstHistoryRow(); });
 
   LOG_PERF(0, "Exit")
 }
@@ -10112,9 +10282,7 @@ bool GitRepoContainer::refreshHistory(const WeakPtr &guard) {
   _branchHistorySemaphore = nullptr;
 
   if (!ok) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() { showErrorPage(); });
   }
 
   LOG_PERF(0, "Exit")

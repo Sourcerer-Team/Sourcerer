@@ -181,14 +181,22 @@ static QString commitSignatureDateToString(const git_signature *signature) {
   return QLocale::system().toString(dateTime, QLocale::ShortFormat);
 }
 
+static QString blameSignatureEmail(const git_signature *signature) {
+  if (!signature || !signature->email) {
+    return {};
+  }
+
+  return QString::fromUtf8(signature->email).trimmed();
+}
+
 static QString blameCommitToString(const git_oid *oid) {
   if (!oid) {
-    return QStringLiteral("0000000");
+    return QString(GIT_OID_HEXSZ, QChar('0'));
   }
 
   char buffer[GIT_OID_HEXSZ + 1] = {0};
   git_oid_tostr(buffer, sizeof(buffer), oid);
-  return QString::fromLatin1(buffer).left(7);
+  return QString::fromLatin1(buffer);
 }
 
 static BlameReport createBlameReport(git_repository *repo,
@@ -251,6 +259,8 @@ static BlameReport createBlameReport(git_repository *repo,
           blameCommitToString(hunk ? &hunk->final_commit_id : nullptr);
       lineInfo.author =
           blameSignatureToString(hunk ? hunk->final_signature : nullptr);
+      lineInfo.email =
+          blameSignatureEmail(hunk ? hunk->final_signature : nullptr);
       lineInfo.summary =
           hunk && hunk->summary ? QString::fromUtf8(hunk->summary) : QString();
 
