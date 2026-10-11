@@ -31,6 +31,9 @@ HttpClientWorker::HttpClientWorker(QObject *parent)
   connect(this, &HttpClientWorker::sendRequest, this,
           &HttpClientWorker::sendRequest_, Qt::BlockingQueuedConnection);
 
+  connect(this, &HttpClientWorker::downloadFile, this,
+          &HttpClientWorker::downloadFile_, Qt::BlockingQueuedConnection);
+
   start();
 
   LOG_PERF(0, "Exit");
@@ -60,17 +63,9 @@ HttpReply HttpClientWorker::sendRequest_(
   const qlonglong readTimeout =
       configManager.getLong(::ConfigManager::ConfigKey::HttpClientTimeout);
 
-  QSslConfiguration sslConfig = QSslConfiguration::defaultConfiguration();
-  sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
-
-  // Only add certificate if it was successfully loaded
-  if (!_certificate.isNull()) {
-    sslConfig.addCaCertificate(_certificate);
-  }
-
   QNetworkRequest request;
   request.setUrl(url);
-  request.setSslConfiguration(sslConfig);
+  request.setSslConfiguration(sslConfiguration());
 
   LOG_DEBUG("Request URL: {}", url.toStdString());
 
@@ -176,6 +171,106 @@ HttpReply HttpClientWorker::sendRequest_(
 
     return httpReply;
   }
+}
+
+HttpReply HttpClientWorker::downloadFile_(const QString &url,
+                                          const QString &filePath) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_replyMutex);
+
+  ::ConfigManager::ConfigManager &configManager =
+      ::ConfigManager::ConfigManager::getInstance();
+
+  const qlonglong stallTimeout =
+      configManager.getLong(::ConfigManager::ConfigKey::HttpClientTimeout);
+
+  QFile file(filePath);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    LOG_PERF(0, "Exit");
+    return HttpReply(QNetworkReply::UnknownContentError, {},
+                     QStringLiteral("Unable to open '%1' for writing: %2")
+                         .arg(filePath, file.errorString()));
+  }
+
+  QNetworkRequest request;
+  request.setUrl(url);
+  request.setSslConfiguration(sslConfiguration());
+
+  LOG_DEBUG("Download URL: {}", url.toStdString());
+
+  QTimer timer;
+  timer.setSingleShot(true);
+
+  QEventLoop eventLoop;
+
+  _reply = _accessManager->get(request);
+
+  bool timedOut = false;
+  bool writeFailed = false;
+
+  connect(&timer, &QTimer::timeout, &eventLoop, [&]() {
+    timedOut = true;
+    eventLoop.quit();
+  });
+  connect(_reply, &QNetworkReply::readyRead, &eventLoop, [&]() {
+    // Any received data restarts the stall timer.
+    timer.start(stallTimeout);
+    if (file.write(_reply->readAll()) < 0) {
+      writeFailed = true;
+      eventLoop.quit();
+    }
+  });
+  connect(_reply, &QNetworkReply::finished, &eventLoop, &QEventLoop::quit);
+  connect(_reply, SIGNAL(sslErrors(const QList<QSslError> &)), this,
+          SLOT(replySslErrors(const QList<QSslError> &)));
+
+  timer.start(stallTimeout);
+
+  eventLoop.exec();
+
+  timer.stop();
+
+  HttpReply httpReply;
+  if (timedOut) {
+    _reply->abort();
+    httpReply = HttpReply(QNetworkReply::TimeoutError, {},
+                          QStringLiteral("Download stalled"));
+  } else if (writeFailed) {
+    _reply->abort();
+    httpReply = HttpReply(QNetworkReply::UnknownContentError, {},
+                          QStringLiteral("Unable to write to '%1': %2")
+                              .arg(filePath, file.errorString()));
+  } else {
+    if (_reply->error() == QNetworkReply::NoError &&
+        file.write(_reply->readAll()) < 0) {
+      httpReply = HttpReply(QNetworkReply::UnknownContentError, {},
+                            QStringLiteral("Unable to write to '%1': %2")
+                                .arg(filePath, file.errorString()));
+    } else {
+      httpReply = HttpReply(_reply->error(), {}, _reply->errorString());
+    }
+  }
+
+  file.close();
+
+  _reply = nullptr;
+
+  LOG_PERF(0, "Exit");
+
+  return httpReply;
+}
+
+QSslConfiguration HttpClientWorker::sslConfiguration() const {
+  QSslConfiguration sslConfig = QSslConfiguration::defaultConfiguration();
+  sslConfig.setPeerVerifyMode(QSslSocket::VerifyNone);
+
+  // Only add certificate if it was successfully loaded
+  if (!_certificate.isNull()) {
+    sslConfig.addCaCertificate(_certificate);
+  }
+
+  return sslConfig;
 }
 
 void HttpClientWorker::clearConnections_() {
@@ -311,6 +406,11 @@ HttpReply HttpClient::sendRequest(
     const QMap<QString, QString> &rawHeaders, const QByteArray &requestBody) {
   return emit worker() -> sendRequest(url, httpMethod, httpHeaders, rawHeaders,
                                       requestBody);
+}
+
+HttpReply HttpClient::downloadFile(const QString &url,
+                                   const QString &filePath) {
+  return emit worker() -> downloadFile(url, filePath);
 }
 
 void HttpClient::clearConnections() {
