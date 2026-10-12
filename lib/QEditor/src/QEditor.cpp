@@ -21,6 +21,7 @@ const TSLanguage *tree_sitter_powershell(void);
 const TSLanguage *tree_sitter_python(void);
 const TSLanguage *tree_sitter_rust(void);
 const TSLanguage *tree_sitter_tsx(void);
+const TSLanguage *tree_sitter_xml(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -387,6 +388,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
       0) {
     return tree_sitter_powershell();
   }
+  if (language.compare(QStringLiteral("xml"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_xml();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -442,7 +446,9 @@ enum class Token {
   // Batch files: labels, the @ prefix and external commands.
   Label,
   HideCommand,
-  ExternalCommand
+  ExternalCommand,
+  // XML: CDATA sections.
+  CData
 };
 
 enum class StyledLanguage {
@@ -461,6 +467,7 @@ enum class StyledLanguage {
   OCaml,
   Haskell,
   PowerShell,
+  Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
   EmbeddedCss
@@ -479,7 +486,9 @@ enum class StyleSet {
   // QsciLexerHTML ids for embedded JavaScript.
   HtmlScript,
   // QsciLexerBatch ids.
-  Batch
+  Batch,
+  // QsciLexerXML ids.
+  Xml
 };
 
 StyledLanguage styledLanguageFor(const TSLanguage *language) {
@@ -531,6 +540,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_powershell()) {
     return StyledLanguage::PowerShell;
   }
+  if (language == tree_sitter_xml()) {
+    return StyledLanguage::Xml;
+  }
   return StyledLanguage::None;
 }
 
@@ -553,6 +565,8 @@ StyleSet styleSetFor(StyledLanguage language) {
     return StyleSet::Html;
   case StyledLanguage::EmbeddedJavaScript:
     return StyleSet::HtmlScript;
+  case StyledLanguage::Xml:
+    return StyleSet::Xml;
   case StyledLanguage::None:
   case StyledLanguage::CFamily:
   case StyledLanguage::Dart:
@@ -1199,6 +1213,56 @@ Token genericTokenForNode(StyledLanguage language, const NodeContext &context,
   return Token::None;
 }
 
+// Classifies an XML node. Tag delimiters share the tag color, as in HTML.
+Token xmlTokenForNode(const NodeContext &context, const QByteArray &source,
+                      bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (context.named) {
+    descend = false;
+    if (typeEquals(type, "comment")) {
+      return Token::Comment;
+    }
+    if (typeEquals(type, "cdata_section")) {
+      return Token::CData;
+    }
+    if (typeIn(type, {"doctype", "declaration_start"})) {
+      return Token::Preprocessor;
+    }
+    if (typeEquals(type, "name")) {
+      if (typeEquals(context.parent, "processing_instruction")) {
+        return Token::Preprocessor;
+      }
+      // Attribute names are the name of an attribute, element names are not.
+      return typeEquals(context.field, "name") ? Token::Attribute : Token::Tag;
+    }
+    if (typeEquals(type, "attribute_value")) {
+      return startsWithSingleQuote(context.node, source)
+                 ? Token::SingleQuotedString
+                 : Token::String;
+    }
+    if (typeEquals(type, "entity_reference")) {
+      return Token::Entity;
+    }
+
+    descend = true;
+    return Token::None;
+  }
+
+  if (typeIn(type, {"<", ">", "</", "/>"})) {
+    return Token::Tag;
+  }
+  if (typeIn(type, {"<?", "?>"})) {
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "=")) {
+    return Token::Operator;
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -1214,6 +1278,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
   case StyledLanguage::Css:
   case StyledLanguage::EmbeddedCss:
     return cssTokenForNode(context, source, descend);
+  case StyledLanguage::Xml:
+    return xmlTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
@@ -1801,6 +1867,39 @@ int htmlStyleFor(Token token) {
   }
 }
 
+int xmlStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerXML::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerXML::HTMLComment;
+  case Token::String:
+  case Token::TripleQuotedString:
+  case Token::RawString:
+    return QsciLexerXML::HTMLDoubleQuotedString;
+  case Token::SingleQuotedString:
+    return QsciLexerXML::HTMLSingleQuotedString;
+  case Token::Tag:
+    return QsciLexerXML::Tag;
+  case Token::UnknownTag:
+    return QsciLexerXML::UnknownTag;
+  case Token::Attribute:
+    return QsciLexerXML::Attribute;
+  case Token::Entity:
+    return QsciLexerXML::Entity;
+  case Token::CData:
+    return QsciLexerXML::CDATA;
+  case Token::Preprocessor:
+    return QsciLexerXML::XMLStart;
+  case Token::Operator:
+    return QsciLexerXML::OtherInTag;
+  default:
+    return -1;
+  }
+}
+
 int htmlScriptStyleFor(Token token) {
   switch (token) {
   case Token::Default:
@@ -1848,6 +1947,8 @@ int styleFor(StyleSet styleSet, Token token) {
     return htmlScriptStyleFor(token);
   case StyleSet::Batch:
     return batchStyleFor(token);
+  case StyleSet::Xml:
+    return xmlStyleFor(token);
   }
   return -1;
 }
@@ -1952,6 +2053,9 @@ QTextCharFormat formatForToken(const QsciLexer *lexer, StyleSet styleSet,
     break;
   case Token::ExternalCommand:
     fallbackColor = QColor(97, 175, 239);
+    break;
+  case Token::CData:
+    fallbackColor = QColor(152, 195, 121);
     break;
   }
 
