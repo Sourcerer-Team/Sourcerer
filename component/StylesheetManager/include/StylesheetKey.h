@@ -10,6 +10,7 @@ enum class StylesheetKey {
   SourcererBlue,
   SourcererMonokai,
   SourcererGruvbox,
+  SourcererSolarized,
 
   last,
   Default = SourcererDark
