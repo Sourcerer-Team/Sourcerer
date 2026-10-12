@@ -290,6 +290,23 @@ void DarkThemeLexersHighlighter::initializeColorSchemes() {
   solarized.identifier = QColor(131, 148, 150);
   solarized.phpDefault = QColor(131, 148, 150);
   _colorSchemes["solarized"] = solarized;
+
+  DarkThemeColors dracula = DEFAULT_DARK_COLORS;
+  dracula.background = QColor(40, 42, 54);
+  dracula.foreground = QColor(248, 248, 242);
+  dracula.selection = QColor(248, 248, 242);
+  dracula.selectionBackground = QColor(68, 71, 90);
+  dracula.currentLine = QColor(50, 52, 66);
+  dracula.lineNumbers = QColor(98, 114, 164);
+  dracula.lineNumbersBackground = QColor(33, 34, 44);
+  dracula.foldMargin = QColor(33, 34, 44);
+  dracula.foldMarginBackground = QColor(33, 34, 44);
+  dracula.indentationGuides = QColor(68, 71, 90);
+  dracula.caretLine = QColor(50, 52, 66);
+  dracula.caretForeground = QColor(248, 248, 242);
+  dracula.identifier = QColor(248, 248, 242);
+  dracula.phpDefault = QColor(248, 248, 242);
+  _colorSchemes["dracula"] = dracula;
 }
 
 void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
@@ -316,6 +333,9 @@ void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
     break;
   case StylesheetManager::StylesheetKey::SourcererSolarized:
     _currentScheme = QStringLiteral("solarized");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererDracula:
+    _currentScheme = QStringLiteral("dracula");
     break;
   default:
     _currentScheme = QStringLiteral("default");

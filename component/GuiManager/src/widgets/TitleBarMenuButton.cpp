@@ -366,6 +366,8 @@ QMenu *TitleBarMenuButton::createMenu() {
                  StylesheetManager::StylesheetKey::SourcererGruvbox);
   addThemeAction(tr("Sourcerer Solarized"),
                  StylesheetManager::StylesheetKey::SourcererSolarized);
+  addThemeAction(tr("Sourcerer Dracula"),
+                 StylesheetManager::StylesheetKey::SourcererDracula);
 
   menu->addSeparator();
   menu->addAction(_terminalAction);

@@ -52,6 +52,9 @@ ConsoleThemeColors consoleThemeColors() {
   case StylesheetManager::StylesheetKey::SourcererSolarized:
     return ConsoleThemeColors{QColor(0, 43, 54), QColor(131, 148, 150),
                               QColor(7, 54, 66), QColor(14, 74, 90)};
+  case StylesheetManager::StylesheetKey::SourcererDracula:
+    return ConsoleThemeColors{QColor(40, 42, 54), QColor(248, 248, 242),
+                              QColor(50, 52, 66), QColor(68, 71, 90)};
   default:
     return ConsoleThemeColors{QColor(45, 45, 48), QColor(255, 255, 255),
                               QColor(62, 62, 66), QColor(0, 122, 204)};
