@@ -7,6 +7,7 @@
 #include <Qsci/qscilexercsharp.h>
 #include <Qsci/qscilexerdart.h>
 #include <Qsci/qscilexerfsharp.h>
+#include <Qsci/qscilexerscala.h>
 #include <Qsci/qscilexerhaskell.h>
 #include <Qsci/qscilexerjava.h>
 #include <Qsci/qscilexerocaml.h>
@@ -181,6 +182,8 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("fsi"), &createLexer<QsciLexerFSharp>},
       {QStringLiteral("fsx"), &createLexer<QsciLexerFSharp>},
       {QStringLiteral("lua"), &createLexer<QsciLexerLua>},
+      {QStringLiteral("scala"), &createLexer<QsciLexerScala>},
+      {QStringLiteral("sc"), &createLexer<QsciLexerScala>},
       {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
       {QStringLiteral("jsonc"), &createLexer<QsciLexerJSON>}};
 
@@ -316,6 +319,10 @@ QsciLexer *QScintillaLexerFactory::createHaskellLexer(QObject *parent) const {
 
 QsciLexer *QScintillaLexerFactory::createFSharpLexer(QObject *parent) const {
   return new QsciLexerFSharp(parent);
+}
+
+QsciLexer *QScintillaLexerFactory::createScalaLexer(QObject *parent) const {
+  return new QsciLexerScala(parent);
 }
 
 QsciLexer *QScintillaLexerFactory::createPowerShellLexer(QObject *parent) const {
@@ -485,6 +492,8 @@ QsciLexer *QScintillaLexerFactory::createLexerByType(const QString &lexerName,
     return createHaskellLexer(parent);
   if (lexerName == "FSharp")
     return createFSharpLexer(parent);
+  if (lexerName == "Scala")
+    return createScalaLexer(parent);
   if (lexerName == "PowerShell")
     return createPowerShellLexer(parent);
   if (lexerName == "JavaScript")
@@ -605,6 +614,8 @@ void QScintillaLexerFactory::initializeExtensionMappings() {
   _extensionToLexer["fsi"] = "FSharp";
   _extensionToLexer["fsx"] = "FSharp";
   _extensionToLexer["fsscript"] = "FSharp";
+  _extensionToLexer["scala"] = "Scala";
+  _extensionToLexer["sc"] = "Scala";
   _extensionToLexer["ps1"] = "PowerShell";
   _extensionToLexer["psm1"] = "PowerShell";
   _extensionToLexer["psd1"] = "PowerShell";
@@ -798,6 +809,7 @@ void QScintillaLexerFactory::initializeLexerDescriptions() {
   _lexerDescriptions["OCamlType"] = "OCaml Type File";
   _lexerDescriptions["Haskell"] = "Haskell Programming Language";
   _lexerDescriptions["FSharp"] = "F# Programming Language";
+  _lexerDescriptions["Scala"] = "Scala Programming Language";
   _lexerDescriptions["PowerShell"] = "PowerShell Scripting Language";
   _lexerDescriptions["JavaScript"] = "JavaScript Programming Language";
   _lexerDescriptions["HTML"] = "HyperText Markup Language";
