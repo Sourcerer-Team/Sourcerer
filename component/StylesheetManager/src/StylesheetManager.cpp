@@ -25,6 +25,7 @@
 #define SOURCERER_PURPLE_THEME_NAME "SourcererPurple"
 #define SOURCERER_BLUE_THEME_NAME "SourcererBlue"
 #define SOURCERER_MONOKAI_THEME_NAME "SourcererMonokai"
+#define SOURCERER_GRUVBOX_THEME_NAME "SourcererGruvbox"
 
 namespace StylesheetManager {
 namespace {
@@ -135,6 +136,31 @@ void applyPalette(QApplication *app, StylesheetKey key) {
     palette.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
     palette.setColor(QPalette::Disabled, QPalette::HighlightedText,
                      QColor(117, 113, 94));
+  } else if (key == StylesheetKey::SourcererGruvbox) {
+    palette.setColor(QPalette::Window, QColor(40, 40, 40));
+    palette.setColor(QPalette::WindowText, QColor(235, 219, 178));
+    palette.setColor(QPalette::Disabled, QPalette::WindowText,
+                     QColor(146, 131, 116));
+    palette.setColor(QPalette::Base, QColor(29, 32, 33));
+    palette.setColor(QPalette::AlternateBase, QColor(50, 48, 47));
+    palette.setColor(QPalette::ToolTipBase, QColor(60, 56, 54));
+    palette.setColor(QPalette::ToolTipText, QColor(235, 219, 178));
+    palette.setColor(QPalette::Text, QColor(235, 219, 178));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(146, 131, 116));
+    palette.setColor(QPalette::Dark, QColor(29, 32, 33));
+    palette.setColor(QPalette::Shadow, QColor(20, 22, 23));
+    palette.setColor(QPalette::Button, QColor(50, 48, 47));
+    palette.setColor(QPalette::ButtonText, QColor(235, 219, 178));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText,
+                     QColor(146, 131, 116));
+    palette.setColor(QPalette::BrightText, QColor(255, 0, 0));
+    palette.setColor(QPalette::Link, QColor(131, 165, 152));
+    palette.setColor(QPalette::Highlight, QColor(80, 73, 69));
+    palette.setColor(QPalette::Disabled, QPalette::Highlight,
+                     QColor(60, 56, 54));
+    palette.setColor(QPalette::HighlightedText, QColor(251, 241, 199));
+    palette.setColor(QPalette::Disabled, QPalette::HighlightedText,
+                     QColor(146, 131, 116));
   } else {
     palette.setColor(QPalette::Window, QColor(53, 53, 53));
     palette.setColor(QPalette::WindowText, QColor(255, 255, 255));
@@ -2482,11 +2508,50 @@ QString makeMonokaiStylesheet() {
   return makeDarkDerivedStylesheet(colorMap, QStringLiteral("#75715E"));
 }
 
+// Gruvbox (dark, medium contrast) keeps the dark theme's layout and recolors
+// its greys and accents to the Gruvbox palette (background #282828, grey
+// #928374, yellow #FABD2F).
+QString makeGruvboxStylesheet() {
+  static const QList<QPair<QString, QString>> colorMap = {
+      {QStringLiteral("#202020"), QStringLiteral("#1D2021")},
+      {QStringLiteral("#2A2A2A"), QStringLiteral("#32302F")},
+      {QStringLiteral("#30383D"), QStringLiteral("#3C3836")},
+      {QStringLiteral("#353535"), QStringLiteral("#3C3836")},
+      {QStringLiteral("#3A3A3A"), QStringLiteral("#3C3836")},
+      {QStringLiteral("#3E3E42"), QStringLiteral("#3C3836")},
+      {QStringLiteral("#424242"), QStringLiteral("#504945")},
+      {QStringLiteral("#4D4D4D"), QStringLiteral("#665C54")},
+      {QStringLiteral("#5A5A5A"), QStringLiteral("#7C6F64")},
+      {QStringLiteral("#5E5E5E"), QStringLiteral("#7C6F64")},
+      {QStringLiteral("#686868"), QStringLiteral("#928374")},
+      {QStringLiteral("#6D6E6E"), QStringLiteral("#928374")},
+      {QStringLiteral("#9E9E9E"), QStringLiteral("#A89984")},
+      {QStringLiteral("#C0C0C0"), QStringLiteral("#D5C4A1")},
+      {QStringLiteral("#012456"), QStringLiteral("#1D2021")},
+      {QStringLiteral("#384D59"), QStringLiteral("#504945")},
+      {QStringLiteral("#4A5A66"), QStringLiteral("#504945")},
+      {QStringLiteral("#4A6070"), QStringLiteral("#504945")},
+      {QStringLiteral("#4D5A61"), QStringLiteral("#504945")},
+      {QStringLiteral("#607481"), QStringLiteral("#665C54")},
+      {QStringLiteral("#718793"), QStringLiteral("#7C6F64")},
+      {QStringLiteral("#8A9AA3"), QStringLiteral("#A89984")},
+      {QStringLiteral("#8D999F"), QStringLiteral("#A89984")},
+      {QStringLiteral("#9BAAB3"), QStringLiteral("#BDAE93")},
+      {QStringLiteral("#DCE4E8"), QStringLiteral("#EBDBB2")},
+      {QStringLiteral("#F5F7F8"), QStringLiteral("#FBF1C7")},
+      {QStringLiteral("#0078D7"), QStringLiteral("#FABD2F")},
+      {QStringLiteral("#2A82DA"), QStringLiteral("#FABD2F")},
+      {QStringLiteral("#53A0ED"), QStringLiteral("#FABD2F")},
+  };
+  return makeDarkDerivedStylesheet(colorMap, QStringLiteral("#928374"));
+}
+
 const QString SOURCERER_DARK_STYLESHEET = makeDarkStylesheet();
 const QString SOURCERER_LIGHT_STYLESHEET = makeLightStylesheet();
 const QString SOURCERER_PURPLE_STYLESHEET = makePurpleStylesheet();
 const QString SOURCERER_BLUE_STYLESHEET = makeBlueStylesheet();
 const QString SOURCERER_MONOKAI_STYLESHEET = makeMonokaiStylesheet();
+const QString SOURCERER_GRUVBOX_STYLESHEET = makeGruvboxStylesheet();
 
 const QMap<StylesheetKey, QString> &stylesheets() {
   static const QMap<StylesheetKey, QString> map = []() {
@@ -2500,6 +2565,8 @@ const QMap<StylesheetKey, QString> &stylesheets() {
                        SOURCERER_BLUE_STYLESHEET);
     stylesheets.insert(StylesheetKey::SourcererMonokai,
                        SOURCERER_MONOKAI_STYLESHEET);
+    stylesheets.insert(StylesheetKey::SourcererGruvbox,
+                       SOURCERER_GRUVBOX_STYLESHEET);
     return stylesheets;
   }();
 
@@ -2568,6 +2635,8 @@ QString StylesheetManager::stylesheetKeyName(StylesheetKey key) {
     return SOURCERER_BLUE_THEME_NAME;
   case StylesheetKey::SourcererMonokai:
     return SOURCERER_MONOKAI_THEME_NAME;
+  case StylesheetKey::SourcererGruvbox:
+    return SOURCERER_GRUVBOX_THEME_NAME;
   default:
     return SOURCERER_DARK_THEME_NAME;
   }
@@ -2584,6 +2653,8 @@ StylesheetKey StylesheetManager::stylesheetKeyFromName(const QString &name) {
     return StylesheetKey::SourcererBlue;
   if (name == SOURCERER_MONOKAI_THEME_NAME)
     return StylesheetKey::SourcererMonokai;
+  if (name == SOURCERER_GRUVBOX_THEME_NAME)
+    return StylesheetKey::SourcererGruvbox;
   return StylesheetKey::SourcererDark;
 }
 
@@ -2604,6 +2675,8 @@ QColor StylesheetManager::historyBadgeFillColor() {
     return QColor("#2D4A66");
   case StylesheetKey::SourcererMonokai:
     return QColor("#49483E");
+  case StylesheetKey::SourcererGruvbox:
+    return QColor("#504945");
   case StylesheetKey::SourcererDark:
   default:
     return QColor("#4A5A66");

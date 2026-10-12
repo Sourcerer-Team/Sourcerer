@@ -256,6 +256,23 @@ void DarkThemeLexersHighlighter::initializeColorSchemes() {
   monokai.identifier = QColor(248, 248, 242);
   monokai.phpDefault = QColor(248, 248, 242);
   _colorSchemes["monokai"] = monokai;
+
+  DarkThemeColors gruvbox = DEFAULT_DARK_COLORS;
+  gruvbox.background = QColor(40, 40, 40);
+  gruvbox.foreground = QColor(235, 219, 178);
+  gruvbox.selection = QColor(235, 219, 178);
+  gruvbox.selectionBackground = QColor(80, 73, 69);
+  gruvbox.currentLine = QColor(60, 56, 54);
+  gruvbox.lineNumbers = QColor(146, 131, 116);
+  gruvbox.lineNumbersBackground = QColor(29, 32, 33);
+  gruvbox.foldMargin = QColor(29, 32, 33);
+  gruvbox.foldMarginBackground = QColor(29, 32, 33);
+  gruvbox.indentationGuides = QColor(80, 73, 69);
+  gruvbox.caretLine = QColor(60, 56, 54);
+  gruvbox.caretForeground = QColor(235, 219, 178);
+  gruvbox.identifier = QColor(235, 219, 178);
+  gruvbox.phpDefault = QColor(235, 219, 178);
+  _colorSchemes["gruvbox"] = gruvbox;
 }
 
 void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
@@ -276,6 +293,9 @@ void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
     break;
   case StylesheetManager::StylesheetKey::SourcererMonokai:
     _currentScheme = QStringLiteral("monokai");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererGruvbox:
+    _currentScheme = QStringLiteral("gruvbox");
     break;
   default:
     _currentScheme = QStringLiteral("default");
