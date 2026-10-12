@@ -7,6 +7,7 @@ enum class StylesheetKey {
   SourcererLight,
   SourcererDark,
   SourcererPurple,
+  SourcererBlue,
 
   last,
   Default = SourcererDark

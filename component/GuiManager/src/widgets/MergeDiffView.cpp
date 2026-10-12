@@ -304,6 +304,8 @@ void MergeDiffView::refreshScintillaTheme() {
       theme == StylesheetManager::StylesheetKey::SourcererLight;
   const bool purpleTheme =
       theme == StylesheetManager::StylesheetKey::SourcererPurple;
+  const bool blueTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererBlue;
   const QColor deletedColor =
       lightTheme ? QColor(255, 231, 231) : QColor(0x4a2327);
   const QColor addedColor =
@@ -312,6 +314,7 @@ void MergeDiffView::refreshScintillaTheme() {
   const QColor actionGlyphColor = Qt::white;
   const QColor marginColor = lightTheme    ? QColor(243, 246, 248)
                              : purpleTheme ? QColor(0x2b2735)
+                             : blueTheme   ? QColor(0x1a2435)
                                            : QColor(0x23272e);
   const QColor changedColor =
       lightTheme ? QColor(255, 241, 201) : QColor(0x4d4021);

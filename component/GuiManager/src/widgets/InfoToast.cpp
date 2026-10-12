@@ -42,6 +42,8 @@ InfoToast::InfoToast(const QString &message, const QString &title,
     applyToastColors(QColor("#FFF4E2"), QColor("#E3AE5A"), QColor("#2E2418"));
   } else if (theme == StylesheetManager::StylesheetKey::SourcererPurple) {
     applyToastColors(QColor("#4A4656"), QColor("#B8860B"), QColor("#FFFFFF"));
+  } else if (theme == StylesheetManager::StylesheetKey::SourcererBlue) {
+    applyToastColors(QColor("#2D3B55"), QColor("#B8860B"), QColor("#FFFFFF"));
   } else {
     applyToastColors(QColor("#505050"), QColor("#B8860B"), QColor("#FFFFFF"));
   }

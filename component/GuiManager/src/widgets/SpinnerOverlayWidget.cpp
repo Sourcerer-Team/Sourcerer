@@ -57,11 +57,14 @@ SpinnerOverlayWidget::SpinnerOverlayWidget(QWidget *parent)
   _labelStatus->setPalette(palette);
   _labelStatus->setVisible(false);
 
+  const auto theme = StylesheetManager::StylesheetManager::currentStylesheet();
   const bool purpleTheme =
-      StylesheetManager::StylesheetManager::currentStylesheet() ==
-      StylesheetManager::StylesheetKey::SourcererPurple;
+      theme == StylesheetManager::StylesheetKey::SourcererPurple;
+  const bool blueTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererBlue;
   _spinner->setColor(lightTheme    ? QColor(44, 84, 150)
                      : purpleTheme ? QColor(143, 180, 224)
+                     : blueTheme   ? QColor(81, 186, 229)
                                    : QColor(100, 200, 255));
   _spinner->setInnerRadius(20);
   _spinner->setLineLength(lightTheme ? 10 : 6);
