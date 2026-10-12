@@ -682,13 +682,13 @@ QString makeDarkStylesheet() {
         padding: 5px;
         text-decoration: none;
       }
-      QPushButton#openButton, QToolButton#cloneButton, QToolButton#connectToButton, QPushButton#initButton{
+      QPushButton#openButton, QToolButton#cloneButton, QToolButton#connectToButton, QToolButton#initButton{
         background-color: #384D59;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#openButton:hover, QToolButton#cloneButton:hover, QToolButton#connectToButton:hover, QPushButton#initButton:hover{
+      QPushButton#openButton:hover, QToolButton#cloneButton:hover, QToolButton#connectToButton:hover, QToolButton#initButton:hover{
         background-color: #4a6070;
         border: 1px solid gray;
         border-radius: 5px;
@@ -1769,6 +1769,19 @@ QString makeLightStylesheet() {
         padding: 5px;
       }
       QToolButton#cloneButton:hover{
+        background-color: #4a6070;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+        text-decoration: none;
+      }
+      QToolButton#initButton{
+        background-color: #E7EEF4;
+        border: 1px solid gray;
+        border-radius: 5px;
+        padding: 5px;
+      }
+      QToolButton#initButton:hover{
         background-color: #4a6070;
         border: 1px solid gray;
         border-radius: 5px;

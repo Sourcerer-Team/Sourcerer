@@ -3,6 +3,7 @@
 #include "Constants.h"
 #include "GitRepoManagerStructs.h"
 #include "ReleaseNotes.h"
+#include "SvnRepoManagerStructs.h"
 #include "WindowResize.h"
 #include "containers/BugReportContainer.h"
 #include "containers/CloneRepoContainer.h"
@@ -12,7 +13,7 @@
 #include "containers/RepoContainer.h"
 
 #include "containers/HomeContainer.h"
-#include "containers/InitGitRepoContainer.h"
+#include "containers/InitRepoContainer.h"
 #include "containers/ReleaseNotesContainer.h"
 #include "containers/SettingsContainer.h"
 #include "dialogs/AboutDialog.h"
@@ -262,6 +263,8 @@ MainWindow::MainWindow(QWidget *parent)
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCredentials, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
@@ -297,6 +300,8 @@ MainWindow::~MainWindow() {
       EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerInitRepoResult, callbackFunc));
   _eventManager.unsubscribe(
       CAPTURE_CALLBACK(EventManager::EventType::NewsTrackerNews, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -557,6 +562,14 @@ void MainWindow::onInit() {
   LOG_PERF(0, "Enter");
 
   addInitRepoContainer();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onInitSubversion() {
+  LOG_PERF(0, "Enter");
+
+  addInitRepoContainer(Containers::InitType::Subversion);
 
   LOG_PERF(0, "Exit");
 }
@@ -1270,6 +1283,8 @@ void MainWindow::addHomeContainer() {
   connect(container.get(), &HomeContainer::cloneSubversion, this,
           &MainWindow::onCloneSubversion);
   connect(container.get(), &HomeContainer::init, this, &MainWindow::onInit);
+  connect(container.get(), &HomeContainer::initSubversion, this,
+          &MainWindow::onInitSubversion);
   connect(container.get(), &HomeContainer::open, this, &MainWindow::onOpen);
   connect(container.get(), &HomeContainer::issueTrackerClicked, this,
           &MainWindow::onIssueTrackerClicked);
@@ -1281,25 +1296,27 @@ void MainWindow::addHomeContainer() {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::addInitRepoContainer() {
+void MainWindow::addInitRepoContainer(Containers::InitType type) {
   LOG_PERF(0, "Enter");
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  const auto container = QSharedPointer<InitGitRepoContainer>::create(this);
+  const auto container =
+      QSharedPointer<InitRepoContainer>::create(this, type);
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
   container->init();
   container->selected();
   container->setupShortcuts();
   _containers += container;
-  _topBarWidget->titleBarWidget()->addTab(tr("Init"));
+  _topBarWidget->titleBarWidget()->addTab(
+      type == Containers::InitType::Git ? tr("Init") : tr("Init Subversion"));
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   const auto handlerFunc =
       std::bind(&MainWindow::onInitFinished, this, container.get());
 
-  connect(container.get(), &InitGitRepoContainer::initialized, this,
+  connect(container.get(), &InitRepoContainer::initialized, this,
           handlerFunc);
 
   LOG_PERF(0, "Exit");
@@ -1663,6 +1680,14 @@ void MainWindow::eventCallback(EventManager::Event event) {
     const auto repoPath = commandResult.value.toString();
     Util::Dispatcher::dispatchToMainThread(
         getSelf().toWeakRef(), [=]() { addGitRepoContainer(repoPath); });
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerInitRepoResult: {
+    const auto commandResult =
+        event.data<SvnRepoManager::Structs::SvnRepoResult>();
+    const auto repoPath = commandResult.value.toString();
+    Util::Dispatcher::dispatchToMainThread(
+        getSelf().toWeakRef(), [=]() { addSvnRepoContainer(repoPath); });
     break;
   }
   case EventManager::EventType::NewsTrackerNews: {

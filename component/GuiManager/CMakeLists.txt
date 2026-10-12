@@ -24,7 +24,7 @@ set(UI_FILES
         src/containers/GitKeysContainer.ui
         src/containers/RepoContainer.ui
         src/containers/HomeContainer.ui
-        src/containers/InitGitRepoContainer.ui
+        src/containers/InitRepoContainer.ui
         src/containers/IssueTrackerContainer.ui
         src/containers/PleaseWaitContainer.ui
         src/containers/ReleaseNotesContainer.ui
@@ -77,7 +77,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/containers/GitRepoManagerBridgeImpl.h
         include/containers/SvnRepoManagerBridgeImpl.h
         include/containers/HomeContainer.h
-        include/containers/InitGitRepoContainer.h
+        include/containers/InitRepoContainer.h
         include/containers/IssueTrackerContainer.h
         include/containers/PleaseWaitContainer.h
         include/containers/ReleaseNotesContainer.h
@@ -192,7 +192,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/containers/GitRepoManagerBridgeImpl.cpp
         src/containers/SvnRepoManagerBridgeImpl.cpp
         src/containers/HomeContainer.cpp
-        src/containers/InitGitRepoContainer.cpp
+        src/containers/InitRepoContainer.cpp
         src/containers/IssueTrackerContainer.cpp
         src/containers/PleaseWaitContainer.cpp
         src/containers/ReleaseNotesContainer.cpp

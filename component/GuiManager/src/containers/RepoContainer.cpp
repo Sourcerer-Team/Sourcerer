@@ -586,13 +586,9 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
 
   ui->localPage->setShowAllBranchesItem(gitType);
 
+  // Subversion repositories keep every page, the bridge fills them in.
   if (gitType) {
     removeToolBoxPage(ui->remoteTagsPage);
-  } else {
-    removeToolBoxPage(ui->submodulesPage);
-    removeToolBoxPage(ui->stashesPage);
-    removeToolBoxPage(ui->remotesPage);
-    removeToolBoxPage(ui->worktreesPage);
   }
 
   ToolBoxFixer::apply(ui->toolBox);
@@ -1447,25 +1443,17 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   pullFetchDropdown->show();
   pushButtonPush->show();
 
-  if (gitType) {
-    _shortcutsWidget->addShortcutWidget(gitFlowDropdown);
-    _shortcutsWidget->addShortcutWidget(pushButtonStash);
-    _shortcutsWidget->addShortcutWidget(pushButtonPop);
+  _shortcutsWidget->addShortcutWidget(gitFlowDropdown);
+  _shortcutsWidget->addShortcutWidget(pushButtonStash);
+  _shortcutsWidget->addShortcutWidget(pushButtonPop);
 
-    gitFlowDropdown->show();
-    pushButtonStash->show();
-    pushButtonPop->show();
-  } else {
-    // Git only shortcuts are not shown for Subversion repositories, they are
-    // owned by the container so they are released with it.
-    gitFlowDropdown->setParent(this);
-    pushButtonStash->setParent(this);
-    pushButtonPop->setParent(this);
+  gitFlowDropdown->show();
+  pushButtonStash->show();
+  pushButtonPop->show();
 
-    gitFlowDropdown->hide();
-    pushButtonStash->hide();
-    pushButtonPop->hide();
-  }
+  // Git Flow is not supported for Subversion repositories, the button stays
+  // visible but disabled.
+  gitFlowDropdown->setEnabled(gitType);
 
   ui->leftVerticalLayout->insertWidget(0, _shortcutsWidget);
 

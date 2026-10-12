@@ -92,7 +92,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QPushButton" name="initButton">
+          <widget class="QToolButton" name="initButton">
            <property name="minimumSize">
             <size>
              <width>120</width>
@@ -110,6 +110,18 @@
            </property>
            <property name="text">
             <string>Init</string>
+           </property>
+           <property name="popupMode">
+            <enum>QToolButton::ToolButtonPopupMode::InstantPopup</enum>
+           </property>
+           <property name="toolButtonStyle">
+            <enum>Qt::ToolButtonStyle::ToolButtonTextBesideIcon</enum>
+           </property>
+           <property name="autoRaise">
+            <bool>false</bool>
+           </property>
+           <property name="arrowType">
+            <enum>Qt::ArrowType::NoArrow</enum>
            </property>
           </widget>
          </item>

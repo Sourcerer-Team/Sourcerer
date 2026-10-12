@@ -9,22 +9,25 @@
 #include <QWidget>
 
 namespace Ui {
-class InitGitRepoContainer;
+class InitRepoContainer;
 }
 
 namespace GuiManager::Containers {
 
-class InitGitRepoContainer final
+enum class InitType { Git, Subversion };
+
+class InitRepoContainer final
     : public Widgets::ContainerWidget,
-      public QEnableSharedFromThis<InitGitRepoContainer> {
+      public QEnableSharedFromThis<InitRepoContainer> {
   Q_OBJECT
 
-  typedef QSharedPointer<InitGitRepoContainer> SharedPtr;
-  typedef QWeakPointer<InitGitRepoContainer> WeakPtr;
+  typedef QSharedPointer<InitRepoContainer> SharedPtr;
+  typedef QWeakPointer<InitRepoContainer> WeakPtr;
 
 public:
-  explicit InitGitRepoContainer(QWidget *parent = nullptr);
-  ~InitGitRepoContainer() override;
+  explicit InitRepoContainer(QWidget *parent = nullptr,
+                                InitType initType = InitType::Git);
+  ~InitRepoContainer() override;
 
   SharedPtr getSelf() { return sharedFromThis(); }
 
@@ -41,9 +44,10 @@ private:
   void showErrorToast(const QString &message, const QString &title);
 
 private:
-  Ui::InitGitRepoContainer *ui;
+  Ui::InitRepoContainer *ui;
   Widgets::ToastHostWidget &_toastHost;
   EventManager::EventManager &_eventManager;
+  InitType _initType;
   QString _uuid;
 };
 

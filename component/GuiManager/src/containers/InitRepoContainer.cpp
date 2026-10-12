@@ -1,11 +1,12 @@
-#include "containers/InitGitRepoContainer.h"
-#include "containers/ui_InitGitRepoContainer.h"
+#include "containers/InitRepoContainer.h"
+#include "containers/ui_InitRepoContainer.h"
 #include "widgets/ErrorToast.h"
 #include "widgets/InfoToast.h"
 
 #include <Dispatcher.h>
 #include <GitRepoManagerStructs.h>
 #include <Log.h>
+#include <SvnRepoManagerStructs.h>
 #include <UserProfileManager.h>
 #include <Uuid.h>
 
@@ -13,61 +14,79 @@
 #include <QFileDialog>
 #include <QStandardPaths>
 
-#define THREAD_ID "InitGitRepoContainer"
+#define THREAD_ID "InitRepoContainer"
 
 using namespace GuiManager::Widgets;
 using namespace GitRepoManager::Structs;
+using namespace SvnRepoManager::Structs;
 
 namespace GuiManager {
 
 namespace Containers {
 
-InitGitRepoContainer::InitGitRepoContainer(QWidget *parent)
-    : Widgets::ContainerWidget(Widgets::ContainerType::InitGitRepo, parent),
-      ui(new Ui::InitGitRepoContainer),
+InitRepoContainer::InitRepoContainer(QWidget *parent, InitType initType)
+    : Widgets::ContainerWidget(Widgets::ContainerType::InitRepo, parent),
+      ui(new Ui::InitRepoContainer),
       _toastHost(Widgets::ToastHostWidget::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
+      _initType(initType),
       _uuid(Uuid::createUuid()) {
 
   LOG_PERF(0, "Enter");
   ui->setupUi(this);
 
+  const bool gitInit = _initType == InitType::Git;
+  setWindowTitle(gitInit ? tr("Init Git repository")
+                         : tr("Init Subversion repository"));
+  ui->labelWorkingDir->setText(gitInit ? tr("Working directory")
+                                       : tr("Parent directory"));
+  ui->labelDefaultBrnach->setVisible(gitInit);
+  ui->lineEditDefaultBranch->setVisible(gitInit);
+
   QTimer::singleShot(0, ui->lineEditName,
                      [this] { ui->lineEditName->setFocus(); });
 
   connect(ui->pushButtonBrowse, &QPushButton::clicked, this,
-          &InitGitRepoContainer::onBrowseClicked);
+          &InitRepoContainer::onBrowseClicked);
   connect(ui->pushButtonInit, &QPushButton::clicked, this,
-          &InitGitRepoContainer::onInitClicked);
+          &InitRepoContainer::onInitClicked);
 
-  const auto callbackFunc = std::bind(&InitGitRepoContainer::eventCallback,
+  const auto callbackFunc = std::bind(&InitRepoContainer::eventCallback,
                                       this, std::placeholders::_1);
 
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoError, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerInitRepoError, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerInitRepoResult, callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
 
-InitGitRepoContainer::~InitGitRepoContainer() {
+InitRepoContainer::~InitRepoContainer() {
   LOG_PERF(0, "Enter");
 
-  const auto callbackFunc = std::bind(&InitGitRepoContainer::eventCallback,
+  const auto callbackFunc = std::bind(&InitRepoContainer::eventCallback,
                                       this, std::placeholders::_1);
 
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoError, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerInitRepoError, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerInitRepoResult, callbackFunc));
 
   delete ui;
 
   LOG_PERF(0, "Exit");
 }
 
-void InitGitRepoContainer::onBrowseClicked() {
+void InitRepoContainer::onBrowseClicked() {
   LOG_PERF(0, "Enter");
 
   const QStringList documentsPaths =
@@ -85,14 +104,8 @@ void InitGitRepoContainer::onBrowseClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void InitGitRepoContainer::onInitClicked() {
+void InitRepoContainer::onInitClicked() {
   LOG_PERF(0, "Enter");
-
-  GitRepoInitRepoCommand command;
-  command.uuid = _uuid;
-  command.repoName = ui->lineEditName->text();
-  command.workingDir = ui->lineEditWorkingDir->text();
-  command.defaultBranch = ui->lineEditDefaultBranch->text();
 
   const Common::UserProfileManager &profileManager =
       Common::UserProfileManager::instance();
@@ -106,6 +119,33 @@ void InitGitRepoContainer::onInitClicked() {
   }
 
   const Common::UserProfile &profile = profileManager.currentProfile();
+
+  if (_initType == InitType::Subversion) {
+    // The working copy is created in <parent directory>/<name>, the
+    // repository next to it, see SvnRepo::initRepository.
+    SvnRepoInitRepoCommand command;
+    command.uuid = _uuid;
+    command.repoName = ui->lineEditName->text();
+    command.workingDir =
+        QDir(ui->lineEditWorkingDir->text()).filePath(command.repoName);
+    command.author = profile.author;
+    command.email = profile.email;
+
+    EventManager::Event initEvent(
+        EventManager::EventType::SvnRepoManagerInitRepo);
+    initEvent.addData(command);
+
+    _eventManager.send(initEvent);
+
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  GitRepoInitRepoCommand command;
+  command.uuid = _uuid;
+  command.repoName = ui->lineEditName->text();
+  command.workingDir = ui->lineEditWorkingDir->text();
+  command.defaultBranch = ui->lineEditDefaultBranch->text();
   command.author = profile.author;
   command.email = profile.email;
 
@@ -118,7 +158,7 @@ void InitGitRepoContainer::onInitClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void InitGitRepoContainer::eventCallback(EventManager::Event event) {
+void InitRepoContainer::eventCallback(EventManager::Event event) {
   LOG_PERF(0, "Enter");
 
   const EventManager::EventType eventType = event.type();
@@ -144,6 +184,26 @@ void InitGitRepoContainer::eventCallback(EventManager::Event event) {
     emit initialized();
     break;
   }
+  case EventManager::EventType::SvnRepoManagerInitRepoError: {
+    if (const SvnRepoError svnError = event.data<SvnRepoError>();
+        svnError.uuid != _uuid)
+      break;
+
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      showErrorToast(tr("Unable to initialize Subversion repository"),
+                     tr("Error"));
+    });
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerInitRepoResult: {
+    if (const auto commandResult = event.data<SvnRepoResult>();
+        commandResult.uuid != _uuid) {
+      break;
+    }
+
+    emit initialized();
+    break;
+  }
   default: {
     LOG_WARN("Unhandled event.");
     break;
@@ -153,7 +213,7 @@ void InitGitRepoContainer::eventCallback(EventManager::Event event) {
   LOG_PERF(0, "Exit");
 }
 
-void InitGitRepoContainer::showToast(const QString &message,
+void InitRepoContainer::showToast(const QString &message,
                                      const QString &title) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
@@ -165,7 +225,7 @@ void InitGitRepoContainer::showToast(const QString &message,
   LOG_PERF(0, "Exit")
 }
 
-void InitGitRepoContainer::showErrorToast(const QString &message,
+void InitRepoContainer::showErrorToast(const QString &message,
                                           const QString &title) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);

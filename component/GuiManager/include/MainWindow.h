@@ -12,6 +12,7 @@
 #include "widgets/TopBarWidget.h"
 
 #include "containers/CloneRepoContainer.h"
+#include "containers/InitRepoContainer.h"
 #include "containers/RepoContainer.h"
 
 #include <ConfigManager.h>
@@ -75,6 +76,7 @@ private slots:
   void onCloneSubversion();
   void onCloneFinished(ContainerWidget *sender);
   void onInit();
+  void onInitSubversion();
   void onInitFinished(ContainerWidget *sender);
   void onOpenRepo(const QString &path);
   void onRecentClicked(const QString &path);
@@ -121,7 +123,8 @@ private:
                                 const QString &title = QString());
   void addGitKeysContainer();
   void addHomeContainer();
-  void addInitRepoContainer();
+  void addInitRepoContainer(
+      Containers::InitType type = Containers::InitType::Git);
   void addSettingsContainer();
   void addBugReportContainer();
   void addReleaseNotesContainer(const QString &title, const QString &markdown);

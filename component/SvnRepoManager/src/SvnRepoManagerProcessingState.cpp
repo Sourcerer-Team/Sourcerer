@@ -2517,7 +2517,9 @@ void SvnRepoManagerProcessingState::initRepoWorker(
                                     lastError.errorCode, lastError.error});
     _eventManager.send(errorEvent);
   } else {
-    const QString repoPath = command.workingDir + "/" + command.repoName;
+    // The working copy is checked out into workingDir itself, see
+    // SvnRepo::initRepository.
+    const QString repoPath = command.workingDir;
 
     EventManager::Event resultEvent(
         EventManager::EventType::SvnRepoManagerInitRepoResult,
