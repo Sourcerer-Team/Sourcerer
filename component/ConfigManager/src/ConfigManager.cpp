@@ -65,6 +65,8 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::GitRepoGitHubFlowMainBranchName,
      "git/githubflow/mainBranchName"},
     {ConfigKey::GitRepoDiffViewType, "git/diffViewType"},
+    {ConfigKey::GitRepoCommitSignOff, "git/commit/signOff"},
+    {ConfigKey::GitRepoCommitSign, "git/commit/sign"},
     {ConfigKey::HttpClientCaCertFile, "network/httpClient/caCertFile"},
     {ConfigKey::HttpClientTimeout, "network/httpClient/timeout"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
@@ -145,7 +147,9 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {
     {ConfigKey::GitRepoDiffViewType,
      false}, // false = unified, true = side-by-side
-    {ConfigKey::GitRepoSigningEnabled, true}};
+    {ConfigKey::GitRepoSigningEnabled, true},
+    {ConfigKey::GitRepoCommitSignOff, false},
+    {ConfigKey::GitRepoCommitSign, false}};
 
 QMap<ConfigKey, QColor> DEFAULT_COLORS = {
     {ConfigKey::TestColor, QColor(10, 10, 10)},

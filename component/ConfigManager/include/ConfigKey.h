@@ -34,6 +34,8 @@ enum class ConfigKey {
   GitRepoGitLabFlowReleaseBranchSuffix,
   GitRepoGitHubFlowMainBranchName,
   GitRepoDiffViewType,
+  GitRepoCommitSignOff,
+  GitRepoCommitSign,
 
   // GitRepo library
   GitRepoGitCredentialsExpirationTime,

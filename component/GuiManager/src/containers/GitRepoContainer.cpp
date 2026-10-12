@@ -791,6 +791,22 @@ GitRepoContainer::GitRepoContainer(QString path, QWidget *parent)
   _actionCommitSignOff->setCheckable(true);
   _actionCommitSign = commitAmendSignMenu->addAction(tr("Sign commit"));
   _actionCommitSign->setCheckable(true);
+
+  // Reapply the sign-off and sign choices saved from the previous session
+  _actionCommitSignOff->setChecked(_configManager.getBoolean(
+      ConfigManager::ConfigKey::GitRepoCommitSignOff));
+  _actionCommitSign->setChecked(_configManager.getBoolean(
+      ConfigManager::ConfigKey::GitRepoCommitSign));
+  connect(_actionCommitSignOff, &QAction::toggled, this, [this](bool checked) {
+    _configManager.setBoolean(ConfigManager::ConfigKey::GitRepoCommitSignOff,
+                              checked);
+    _configManager.save();
+  });
+  connect(_actionCommitSign, &QAction::toggled, this, [this](bool checked) {
+    _configManager.setBoolean(ConfigManager::ConfigKey::GitRepoCommitSign,
+                              checked);
+    _configManager.save();
+  });
   _commitAmendSignButton->setMenu(commitAmendSignMenu);
 
   commitButtonLayout->addWidget(_commitAmendSignButton);
