@@ -72,6 +72,7 @@ private:
   QsciLexer *createOCamlInterfaceLexer(QObject *parent) const;
   QsciLexer *createOCamlTypeLexer(QObject *parent) const;
   QsciLexer *createHaskellLexer(QObject *parent) const;
+  QsciLexer *createFSharpLexer(QObject *parent) const;
   QsciLexer *createPowerShellLexer(QObject *parent) const;
   QsciLexer *createJavaScriptLexer(QObject *parent) const;
   QsciLexer *createHtmlLexer(QObject *parent) const;
