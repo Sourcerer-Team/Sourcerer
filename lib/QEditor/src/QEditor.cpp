@@ -22,6 +22,7 @@ const TSLanguage *tree_sitter_python(void);
 const TSLanguage *tree_sitter_rust(void);
 const TSLanguage *tree_sitter_tsx(void);
 const TSLanguage *tree_sitter_xml(void);
+const TSLanguage *tree_sitter_fsharp(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -166,6 +167,7 @@ QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerOCamlInterface, QsciLexerCPP,
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerOCamlType, QsciLexerCPP, "ocaml_type")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerHaskell, QsciLexerCPP, "haskell")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerPowerShell, QsciLexerCPP, "powershell")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerFSharp, QsciLexerCPP, "fsharp")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTypeScript, QsciLexerJavaScript,
                              "typescript")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTSX, QsciLexerJavaScript, "tsx")
@@ -391,6 +393,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("xml"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_xml();
   }
+  if (language.compare(QStringLiteral("fsharp"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_fsharp();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -467,6 +472,7 @@ enum class StyledLanguage {
   OCaml,
   Haskell,
   PowerShell,
+  FSharp,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -543,6 +549,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_xml()) {
     return StyledLanguage::Xml;
   }
+  if (language == tree_sitter_fsharp()) {
+    return StyledLanguage::FSharp;
+  }
   return StyledLanguage::None;
 }
 
@@ -576,6 +585,7 @@ StyleSet styleSetFor(StyledLanguage language) {
   case StyledLanguage::OCaml:
   case StyledLanguage::Haskell:
   case StyledLanguage::PowerShell:
+  case StyledLanguage::FSharp:
     break;
   }
   return StyleSet::Cpp;
@@ -1263,6 +1273,146 @@ Token xmlTokenForNode(const NodeContext &context, const QByteArray &source,
   return Token::None;
 }
 
+// Keywords of F#, as the anonymous nodes the grammar produces for them.
+bool isFSharpKeyword(const char *type) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("abstract"),  QStringLiteral("and"),
+      QStringLiteral("and!"),      QStringLiteral("as"),
+      QStringLiteral("assert"),    QStringLiteral("begin"),
+      QStringLiteral("class"),     QStringLiteral("default"),
+      QStringLiteral("delegate"),  QStringLiteral("do"),
+      QStringLiteral("do!"),       QStringLiteral("done"),
+      QStringLiteral("downcast"),  QStringLiteral("downto"),
+      QStringLiteral("elif"),      QStringLiteral("else"),
+      QStringLiteral("end"),       QStringLiteral("enum"),
+      QStringLiteral("exception"), QStringLiteral("extern"),
+      QStringLiteral("false"),     QStringLiteral("finally"),
+      QStringLiteral("fixed"),     QStringLiteral("for"),
+      QStringLiteral("fun"),       QStringLiteral("function"),
+      QStringLiteral("get"),       QStringLiteral("global"),
+      QStringLiteral("if"),        QStringLiteral("in"),
+      QStringLiteral("inherit"),   QStringLiteral("inline"),
+      QStringLiteral("interface"), QStringLiteral("internal"),
+      QStringLiteral("lazy"),      QStringLiteral("let"),
+      QStringLiteral("let!"),      QStringLiteral("match"),
+      QStringLiteral("match!"),    QStringLiteral("member"),
+      QStringLiteral("module"),    QStringLiteral("mutable"),
+      QStringLiteral("namespace"), QStringLiteral("new"),
+      QStringLiteral("not"),       QStringLiteral("null"),
+      QStringLiteral("of"),        QStringLiteral("open"),
+      QStringLiteral("or"),        QStringLiteral("override"),
+      QStringLiteral("private"),   QStringLiteral("public"),
+      QStringLiteral("rec"),       QStringLiteral("return"),
+      QStringLiteral("return!"),   QStringLiteral("set"),
+      QStringLiteral("static"),    QStringLiteral("struct"),
+      QStringLiteral("then"),      QStringLiteral("to"),
+      QStringLiteral("true"),      QStringLiteral("try"),
+      QStringLiteral("type"),      QStringLiteral("upcast"),
+      QStringLiteral("use"),       QStringLiteral("use!"),
+      QStringLiteral("val"),       QStringLiteral("when"),
+      QStringLiteral("while"),     QStringLiteral("while!"),
+      QStringLiteral("with"),      QStringLiteral("yield"),
+      QStringLiteral("yield!")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Classifies an F# node. Names of functions, types, modules, record fields
+// and union cases are colored where they are declared.
+Token fsharpTokenForNode(const NodeContext &context, const QByteArray &source,
+                         bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isFSharpKeyword(type)) {
+      return Token::Keyword;
+    }
+    if (typeIn(type, {"[<", ">]"})) {
+      return Token::Preprocessor;
+    }
+    // Compiler directives such as #if, #r and #load.
+    if (type[0] == '#' && type[1] != '\0') {
+      return Token::Preprocessor;
+    }
+    // Symbolic operators, not brackets or separators.
+    const char first = type[0];
+    if ((first != '\0' && std::strchr("+-*/%=<>!&|^~?", first) != nullptr) ||
+        (first == ':' && type[1] != '\0')) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeIn(type, {"line_comment", "block_comment"})) {
+    descend = false;
+    return Token::Comment;
+  }
+  if (typeEquals(type, "xml_doc")) {
+    descend = false;
+    return Token::CommentDoc;
+  }
+  if (typeIn(type, {"string", "triple_quoted_string", "verbatim_string",
+                    "verbatim_bytearray", "format_string",
+                    "format_triple_quoted_string"})) {
+    descend = false;
+    return Token::String;
+  }
+  if (typeEquals(type, "char")) {
+    descend = false;
+    return Token::SingleQuotedString;
+  }
+  if (typeIn(type,
+             {"xint", "int", "int16", "int32", "int64", "uint16", "uint32",
+              "uint64", "nativeint", "unativeint", "byte", "sbyte", "bytearray",
+              "ieee32", "ieee64", "float", "decimal", "bignum"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeEquals(type, "bool")) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeIn(type, {"compiler_directive_decl", "preproc_line"})) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "preproc_inactive")) {
+    // Code in an inactive #if branch is shown like a comment.
+    descend = false;
+    return Token::Comment;
+  }
+  if (typeIn(type, {"simple_type", "atomic_type", "type_argument",
+                    "generic_type", "type_name", "measure_atom"})) {
+    return Token::Type;
+  }
+  if (typeEquals(type, "identifier")) {
+    const char *parent = context.parent;
+    const char *grandparent = context.grandparent;
+    if (typeEquals(parent, "function_declaration_left") &&
+        ts_node_is_null(ts_node_prev_named_sibling(context.node))) {
+      return Token::FunctionName;
+    }
+    if (typeIn(parent, {"record_field", "field_initializer"}) ||
+        (typeEquals(parent, "long_identifier") &&
+         typeEquals(grandparent, "field_initializer"))) {
+      return Token::Property;
+    }
+    if (typeIn(parent, {"union_type_case", "enum_type_case", "type_name"})) {
+      return Token::Type;
+    }
+    if (typeEquals(parent, "long_identifier") &&
+        typeIn(grandparent, {"named_module", "namespace", "module_defn"})) {
+      return Token::Type;
+    }
+    if (typeEquals(context.field, "method")) {
+      return Token::FunctionName;
+    }
+    return Token::None;
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -1280,6 +1430,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return cssTokenForNode(context, source, descend);
   case StyledLanguage::Xml:
     return xmlTokenForNode(context, source, descend);
+  case StyledLanguage::FSharp:
+    return fsharpTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
