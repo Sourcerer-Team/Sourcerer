@@ -207,20 +207,20 @@ void DarkThemeLexersHighlighter::initializeColorSchemes() {
 
   // Purple keeps the dark syntax colors and only tints the editor chrome.
   DarkThemeColors purple = DEFAULT_DARK_COLORS;
-  purple.background = QColor(36, 28, 52);
-  purple.foreground = QColor(214, 204, 235);
-  purple.selection = QColor(177, 140, 255);
-  purple.selectionBackground = QColor(138, 92, 230, 70);
-  purple.currentLine = QColor(46, 36, 66);
-  purple.lineNumbers = QColor(150, 134, 180);
-  purple.lineNumbersBackground = QColor(30, 23, 44);
-  purple.foldMargin = QColor(30, 23, 44);
-  purple.foldMarginBackground = QColor(30, 23, 44);
-  purple.indentationGuides = QColor(66, 54, 90);
-  purple.caretLine = QColor(46, 36, 66);
-  purple.caretForeground = QColor(214, 204, 235);
-  purple.identifier = QColor(214, 204, 235);
-  purple.phpDefault = QColor(214, 204, 235);
+  purple.background = QColor(43, 39, 53);
+  purple.foreground = QColor(224, 221, 232);
+  purple.selection = QColor(224, 221, 232);
+  purple.selectionBackground = QColor(55, 70, 89);
+  purple.currentLine = QColor(56, 51, 66);
+  purple.lineNumbers = QColor(138, 134, 150);
+  purple.lineNumbersBackground = QColor(36, 33, 46);
+  purple.foldMargin = QColor(36, 33, 46);
+  purple.foldMarginBackground = QColor(36, 33, 46);
+  purple.indentationGuides = QColor(74, 69, 86);
+  purple.caretLine = QColor(56, 51, 66);
+  purple.caretForeground = QColor(224, 221, 232);
+  purple.identifier = QColor(224, 221, 232);
+  purple.phpDefault = QColor(224, 221, 232);
   _colorSchemes["purple"] = purple;
 }
 

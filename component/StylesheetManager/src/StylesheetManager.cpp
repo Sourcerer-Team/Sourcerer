@@ -59,30 +59,30 @@ void applyPalette(QApplication *app, StylesheetKey key) {
     palette.setColor(QPalette::Disabled, QPalette::HighlightedText,
                      QColor(160, 160, 160));
   } else if (key == StylesheetKey::SourcererPurple) {
-    palette.setColor(QPalette::Window, QColor(43, 33, 64));
-    palette.setColor(QPalette::WindowText, QColor(243, 238, 255));
+    palette.setColor(QPalette::Window, QColor(51, 47, 63));
+    palette.setColor(QPalette::WindowText, QColor(232, 230, 238));
     palette.setColor(QPalette::Disabled, QPalette::WindowText,
-                     QColor(132, 118, 160));
-    palette.setColor(QPalette::Base, QColor(34, 26, 51));
-    palette.setColor(QPalette::AlternateBase, QColor(58, 46, 82));
-    palette.setColor(QPalette::ToolTipBase, QColor(75, 54, 112));
-    palette.setColor(QPalette::ToolTipText, QColor(243, 238, 255));
-    palette.setColor(QPalette::Text, QColor(243, 238, 255));
-    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(132, 118, 160));
-    palette.setColor(QPalette::Dark, QColor(28, 21, 42));
-    palette.setColor(QPalette::Shadow, QColor(16, 11, 26));
-    palette.setColor(QPalette::Button, QColor(43, 33, 64));
-    palette.setColor(QPalette::ButtonText, QColor(243, 238, 255));
+                     QColor(125, 120, 137));
+    palette.setColor(QPalette::Base, QColor(43, 39, 53));
+    palette.setColor(QPalette::AlternateBase, QColor(56, 51, 63));
+    palette.setColor(QPalette::ToolTipBase, QColor(63, 58, 76));
+    palette.setColor(QPalette::ToolTipText, QColor(232, 230, 238));
+    palette.setColor(QPalette::Text, QColor(232, 230, 238));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(125, 120, 137));
+    palette.setColor(QPalette::Dark, QColor(38, 34, 46));
+    palette.setColor(QPalette::Shadow, QColor(27, 24, 33));
+    palette.setColor(QPalette::Button, QColor(51, 47, 63));
+    palette.setColor(QPalette::ButtonText, QColor(232, 230, 238));
     palette.setColor(QPalette::Disabled, QPalette::ButtonText,
-                     QColor(132, 118, 160));
+                     QColor(125, 120, 137));
     palette.setColor(QPalette::BrightText, QColor(255, 0, 0));
-    palette.setColor(QPalette::Link, QColor(177, 140, 255));
-    palette.setColor(QPalette::Highlight, QColor(138, 92, 230));
+    palette.setColor(QPalette::Link, QColor(42, 130, 218));
+    palette.setColor(QPalette::Highlight, QColor(55, 70, 89));
     palette.setColor(QPalette::Disabled, QPalette::Highlight,
-                     QColor(78, 64, 104));
+                     QColor(74, 70, 86));
     palette.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
     palette.setColor(QPalette::Disabled, QPalette::HighlightedText,
-                     QColor(132, 118, 160));
+                     QColor(125, 120, 137));
   } else {
     palette.setColor(QPalette::Window, QColor(53, 53, 53));
     palette.setColor(QPalette::WindowText, QColor(255, 255, 255));
@@ -2305,43 +2305,35 @@ QString makeLightStylesheet() {
 // colors, so the two stay in sync when the dark stylesheet changes.
 QString makePurpleStylesheet() {
   static const QList<QPair<QString, QString>> colorMap = {
-      // Backgrounds and neutral surfaces
-      {QStringLiteral("#202020"), QStringLiteral("#1B1428")},
-      {QStringLiteral("#282828"), QStringLiteral("#20182F")},
-      {QStringLiteral("#2A2A2A"), QStringLiteral("#221A33")},
-      {QStringLiteral("#30383D"), QStringLiteral("#2F2540")},
-      {QStringLiteral("#353535"), QStringLiteral("#2B2140")},
-      {QStringLiteral("#3A3A3A"), QStringLiteral("#3A2E52")},
-      {QStringLiteral("#3E3E42"), QStringLiteral("#3E3256")},
-      {QStringLiteral("#424242"), QStringLiteral("#43365C")},
-      {QStringLiteral("#4D4D4D"), QStringLiteral("#4D3F66")},
-      {QStringLiteral("#5A5A5A"), QStringLiteral("#5A4B75")},
-      {QStringLiteral("#5E5E5E"), QStringLiteral("#5E4F7A")},
-      {QStringLiteral("#686868"), QStringLiteral("#6A5A86")},
-      {QStringLiteral("#6D6E6E"), QStringLiteral("#6E5C8C")},
-      {QStringLiteral("#9E9E9E"), QStringLiteral("#A99BC2")},
-      {QStringLiteral("#C0C0C0"), QStringLiteral("#CFC4E2")},
-      {QStringLiteral("#012456"), QStringLiteral("#1E1233")},
-      // Selection and slate accents
-      {QStringLiteral("#384D59"), QStringLiteral("#4B3670")},
-      {QStringLiteral("#4A5A66"), QStringLiteral("#574A72")},
-      {QStringLiteral("#4A6070"), QStringLiteral("#5C4385")},
-      {QStringLiteral("#4D5A61"), QStringLiteral("#5A4C70")},
-      {QStringLiteral("#607481"), QStringLiteral("#725A99")},
-      {QStringLiteral("#718793"), QStringLiteral("#8A74AE")},
-      {QStringLiteral("#8A9AA3"), QStringLiteral("#A08CC0")},
-      {QStringLiteral("#8D999F"), QStringLiteral("#A393BF")},
-      {QStringLiteral("#9BAAB3"), QStringLiteral("#B3A2D0")},
-      {QStringLiteral("#DCE4E8"), QStringLiteral("#E6DDF3")},
-      {QStringLiteral("#F5F7F8"), QStringLiteral("#F7F3FC")},
-      // Focus and highlight blues
-      {QStringLiteral("#0078D7"), QStringLiteral("#9B6BFF")},
-      {QStringLiteral("#2A82DA"), QStringLiteral("#A77BFF")},
-      {QStringLiteral("#2D4A66"), QStringLiteral("#4E3478")},
-      {QStringLiteral("#53A0ED"), QStringLiteral("#C29BFF")},
-      // Action button greens
-      {QStringLiteral("#006400"), QStringLiteral("#6A2FB8")},
-      {QStringLiteral("#008400"), QStringLiteral("#8445D6")},
+      // Neutral surfaces: the dark theme's greys, tinted toward purple-grey
+      {QStringLiteral("#202020"), QStringLiteral("#26222E")},
+      {QStringLiteral("#282828"), QStringLiteral("#2B2735")},
+      {QStringLiteral("#2A2A2A"), QStringLiteral("#2B2735")},
+      {QStringLiteral("#30383D"), QStringLiteral("#352F40")},
+      {QStringLiteral("#353535"), QStringLiteral("#332F3F")},
+      {QStringLiteral("#3A3A3A"), QStringLiteral("#3B3646")},
+      {QStringLiteral("#3E3E42"), QStringLiteral("#3E3A48")},
+      {QStringLiteral("#424242"), QStringLiteral("#433E4D")},
+      {QStringLiteral("#4D4D4D"), QStringLiteral("#4A4556")},
+      {QStringLiteral("#5A5A5A"), QStringLiteral("#5A5566")},
+      {QStringLiteral("#5E5E5E"), QStringLiteral("#5E5970")},
+      {QStringLiteral("#686868"), QStringLiteral("#686474")},
+      {QStringLiteral("#6D6E6E"), QStringLiteral("#6E6A7A")},
+      {QStringLiteral("#9E9E9E"), QStringLiteral("#9C98A8")},
+      {QStringLiteral("#C0C0C0"), QStringLiteral("#C8C5D0")},
+      {QStringLiteral("#012456"), QStringLiteral("#1F1C27")},
+      // Slate selection and tooltip tones, as seen in the reference
+      {QStringLiteral("#384D59"), QStringLiteral("#374659")},
+      {QStringLiteral("#4A5A66"), QStringLiteral("#3F4D63")},
+      {QStringLiteral("#4A6070"), QStringLiteral("#41526A")},
+      {QStringLiteral("#4D5A61"), QStringLiteral("#4A5566")},
+      {QStringLiteral("#607481"), QStringLiteral("#5F6F85")},
+      {QStringLiteral("#718793"), QStringLiteral("#6F7F95")},
+      {QStringLiteral("#8A9AA3"), QStringLiteral("#8A97AB")},
+      {QStringLiteral("#8D999F"), QStringLiteral("#8D98AA")},
+      {QStringLiteral("#9BAAB3"), QStringLiteral("#9BA6B8")},
+      {QStringLiteral("#DCE4E8"), QStringLiteral("#DCE2EC")},
+      {QStringLiteral("#F5F7F8"), QStringLiteral("#F4F5F8")},
   };
 
   QString stylesheet = makeDarkStylesheet();
@@ -2354,7 +2346,7 @@ QString makePurpleStylesheet() {
 
   static const QRegularExpression grayPattern(
       QStringLiteral("\\bgr[ae]y\\b"));
-  stylesheet.replace(grayPattern, QStringLiteral("#7A6A96"));
+  stylesheet.replace(grayPattern, QStringLiteral("#7D7889"));
 
   return stylesheet;
 }
