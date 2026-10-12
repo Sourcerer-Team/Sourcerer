@@ -1,3 +1,26 @@
+## 1.0.43
+
+### Summary
+
+This release adds six new color themes and syntax highlighting for 20 more languages, and it fixes a few bugs in the main window and in the highlighting for Makefiles.
+
+### New
+
+* **Themes:** purple (a darker variant), blue, Monokai, Gruvbox, Solarized, Dracula and Ayu.
+* **Syntax highlighting** for BAT, XML, F#, Lua, Scala, Makefile, Ruby, Go, Zig, Kotlin, assembly, Objective-C, Swift, SQL, Terraform, Dockerfile and CMake files.
+
+### Improves
+
+* The sign-off and sign states are now saved between sessions.
+* Theme names in the main menu have been renamed.
+
+### Fixes
+
+* A parent line in the commit graph no longer stretches far above the junction with its two children.
+* On Windows, closing the main window while the application is maximized now works correctly.
+* `.mk` files are now highlighted.
+
+
 ## 1.0.42
 
 ### Summary
