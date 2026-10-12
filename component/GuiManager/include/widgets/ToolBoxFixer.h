@@ -160,7 +160,15 @@ private:
 
   void setColorsBasedOnTheme() {
     const auto theme = StylesheetManager::StylesheetManager::currentStylesheet();
-    if (theme == StylesheetManager::StylesheetKey::SourcererDracula) {
+    if (theme == StylesheetManager::StylesheetKey::SourcererAyu) {
+      m_normalBg = QColor("#0F1419");
+      m_hoverBg = QColor("#0F1419");
+      m_selectedBg = QColor("#253340");
+      m_borderColor = QColor("#2E3C4A");
+      m_selectedBorderColor = QColor("#2E3C4A");
+      m_textColor = QColor("#E6E1CF");
+      m_selectedTextColor = QColor("#FFFFFF");
+    } else if (theme == StylesheetManager::StylesheetKey::SourcererDracula) {
       m_normalBg = QColor("#282A36");
       m_hoverBg = QColor("#282A36");
       m_selectedBg = QColor("#44475A");

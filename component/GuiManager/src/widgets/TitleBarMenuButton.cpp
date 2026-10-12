@@ -368,6 +368,8 @@ QMenu *TitleBarMenuButton::createMenu() {
                  StylesheetManager::StylesheetKey::SourcererSolarized);
   addThemeAction(tr("Sourcerer Dracula"),
                  StylesheetManager::StylesheetKey::SourcererDracula);
+  addThemeAction(tr("Sourcerer Ayu"),
+                 StylesheetManager::StylesheetKey::SourcererAyu);
 
   menu->addSeparator();
   menu->addAction(_terminalAction);

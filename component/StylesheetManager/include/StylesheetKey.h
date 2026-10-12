@@ -12,6 +12,7 @@ enum class StylesheetKey {
   SourcererGruvbox,
   SourcererSolarized,
   SourcererDracula,
+  SourcererAyu,
 
   last,
   Default = SourcererDark

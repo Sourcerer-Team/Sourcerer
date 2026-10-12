@@ -314,6 +314,7 @@ void MergeDiffView::refreshScintillaTheme() {
       theme == StylesheetManager::StylesheetKey::SourcererSolarized;
   const bool draculaTheme =
       theme == StylesheetManager::StylesheetKey::SourcererDracula;
+  const bool ayuTheme = theme == StylesheetManager::StylesheetKey::SourcererAyu;
   const QColor deletedColor =
       lightTheme ? QColor(255, 231, 231) : QColor(0x4a2327);
   const QColor addedColor =
@@ -327,6 +328,7 @@ void MergeDiffView::refreshScintillaTheme() {
                              : gruvboxTheme ? QColor(0x1d2021)
                              : solarizedTheme ? QColor(0x00232c)
                              : draculaTheme ? QColor(0x21222c)
+                             : ayuTheme ? QColor(0x0d1016)
                                             : QColor(0x23272e);
   const QColor changedColor =
       lightTheme ? QColor(255, 241, 201) : QColor(0x4d4021);
