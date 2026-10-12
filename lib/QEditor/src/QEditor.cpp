@@ -23,6 +23,7 @@ const TSLanguage *tree_sitter_rust(void);
 const TSLanguage *tree_sitter_tsx(void);
 const TSLanguage *tree_sitter_xml(void);
 const TSLanguage *tree_sitter_fsharp(void);
+const TSLanguage *tree_sitter_lua(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -396,6 +397,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("fsharp"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_fsharp();
   }
+  if (language.compare(QStringLiteral("lua"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_lua();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -473,6 +477,7 @@ enum class StyledLanguage {
   Haskell,
   PowerShell,
   FSharp,
+  Lua,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -494,7 +499,9 @@ enum class StyleSet {
   // QsciLexerBatch ids.
   Batch,
   // QsciLexerXML ids.
-  Xml
+  Xml,
+  // QsciLexerLua ids.
+  Lua
 };
 
 StyledLanguage styledLanguageFor(const TSLanguage *language) {
@@ -552,6 +559,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_fsharp()) {
     return StyledLanguage::FSharp;
   }
+  if (language == tree_sitter_lua()) {
+    return StyledLanguage::Lua;
+  }
   return StyledLanguage::None;
 }
 
@@ -576,6 +586,8 @@ StyleSet styleSetFor(StyledLanguage language) {
     return StyleSet::HtmlScript;
   case StyledLanguage::Xml:
     return StyleSet::Xml;
+  case StyledLanguage::Lua:
+    return StyleSet::Lua;
   case StyledLanguage::None:
   case StyledLanguage::CFamily:
   case StyledLanguage::Dart:
@@ -1413,6 +1425,114 @@ Token fsharpTokenForNode(const NodeContext &context, const QByteArray &source,
   return Token::None;
 }
 
+// Keywords of Lua.
+bool isLuaKeyword(const char *type) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("and"),    QStringLiteral("break"),
+      QStringLiteral("do"),     QStringLiteral("else"),
+      QStringLiteral("elseif"), QStringLiteral("end"),
+      QStringLiteral("for"),    QStringLiteral("function"),
+      QStringLiteral("goto"),   QStringLiteral("if"),
+      QStringLiteral("in"),     QStringLiteral("local"),
+      QStringLiteral("not"),    QStringLiteral("or"),
+      QStringLiteral("repeat"), QStringLiteral("return"),
+      QStringLiteral("then"),   QStringLiteral("until"),
+      QStringLiteral("while")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Block comments are --[[ ... ]] and --[==[ ... ]==], any level of '='.
+bool isLuaBlockComment(const QByteArray &source, uint32_t start) {
+  const auto size = static_cast<uint32_t>(source.size());
+  uint32_t i = start + 2;
+  if (i >= size || byteAt(source, i) != '[') {
+    return false;
+  }
+  for (++i; i < size && byteAt(source, i) == '='; ++i) {
+  }
+  return i < size && byteAt(source, i) == '[';
+}
+
+// Classifies a Lua node. Function names are the names of the functions
+// defined or called, Label is the name of a goto target or label.
+Token luaTokenForNode(const NodeContext &context, const QByteArray &source,
+                      bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isLuaKeyword(type)) {
+      return Token::Keyword;
+    }
+    const char first = type[0];
+    if ((first != '\0' && std::strchr("#%&*+-/<=>^|~", first) != nullptr) ||
+        typeIn(type, {"..", "...", ":"})) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  const uint32_t start = ts_node_start_byte(context.node);
+  if (typeEquals(type, "comment")) {
+    descend = false;
+    return isLuaBlockComment(source, start) ? Token::Comment
+                                            : Token::CommentLine;
+  }
+  if (typeEquals(type, "shebang")) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "string")) {
+    descend = false;
+    const char quote = byteAt(source, start);
+    if (quote == '\'') {
+      return Token::SingleQuotedString;
+    }
+    return quote == '[' ? Token::RawString : Token::String;
+  }
+  if (typeEquals(type, "number")) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"true", "false", "nil"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeEquals(type, "identifier")) {
+    const char *parent = context.parent;
+    const char *grandparent = context.grandparent;
+    const char *field = context.field;
+
+    if (typeEquals(field, "key") && typeEquals(parent, "field")) {
+      return Token::Property;
+    }
+    if (typeIn(parent, {"label_statement", "goto_statement"})) {
+      return Token::Label;
+    }
+    if (typeEquals(parent, "attribute")) {
+      return Token::Preprocessor;
+    }
+    if (typeEquals(parent, "local_function_definition_statement") &&
+        typeEquals(field, "name")) {
+      return Token::FunctionName;
+    }
+    // Method calls: obj:method(...).
+    if (typeEquals(field, "method")) {
+      return Token::FunctionName;
+    }
+    // The last part of a function name or of a called expression:
+    // function M.add(...), print(...), M.add(...). The table of a called
+    // expression (M in M.add) is not a function.
+    if (typeEquals(parent, "variable") && typeIn(field, {"name", "field"}) &&
+        typeIn(grandparent, {"function_definition_statement", "call"})) {
+      return Token::FunctionName;
+    }
+    return Token::None;
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -1432,6 +1552,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return xmlTokenForNode(context, source, descend);
   case StyledLanguage::FSharp:
     return fsharpTokenForNode(context, source, descend);
+  case StyledLanguage::Lua:
+    return luaTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
@@ -2052,6 +2174,44 @@ int xmlStyleFor(Token token) {
   }
 }
 
+// Lua style ids: the theme colors Comment, LineComment, Keyword, Number,
+// String, Character, LiteralString, Operator, Preprocessor, Label,
+// BasicFunctions and Identifier.
+int luaStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerLua::Default;
+  case Token::Comment:
+  case Token::CommentDoc:
+    return QsciLexerLua::Comment;
+  case Token::CommentLine:
+    return QsciLexerLua::LineComment;
+  case Token::Number:
+    return QsciLexerLua::Number;
+  case Token::Keyword:
+    return QsciLexerLua::Keyword;
+  case Token::String:
+  case Token::TripleQuotedString:
+    return QsciLexerLua::String;
+  case Token::SingleQuotedString:
+    return QsciLexerLua::Character;
+  case Token::RawString:
+    return QsciLexerLua::LiteralString;
+  case Token::Operator:
+    return QsciLexerLua::Operator;
+  case Token::Preprocessor:
+    return QsciLexerLua::Preprocessor;
+  case Token::Label:
+    return QsciLexerLua::Label;
+  case Token::FunctionName:
+    return QsciLexerLua::BasicFunctions;
+  case Token::Property:
+    return QsciLexerLua::Identifier;
+  default:
+    return -1;
+  }
+}
+
 int htmlScriptStyleFor(Token token) {
   switch (token) {
   case Token::Default:
@@ -2101,6 +2261,8 @@ int styleFor(StyleSet styleSet, Token token) {
     return batchStyleFor(token);
   case StyleSet::Xml:
     return xmlStyleFor(token);
+  case StyleSet::Lua:
+    return luaStyleFor(token);
   }
   return -1;
 }
