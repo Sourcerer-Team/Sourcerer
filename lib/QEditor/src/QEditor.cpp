@@ -35,6 +35,7 @@ const TSLanguage *tree_sitter_objc(void);
 const TSLanguage *tree_sitter_swift(void);
 const TSLanguage *tree_sitter_sql(void);
 const TSLanguage *tree_sitter_hcl(void);
+const TSLanguage *tree_sitter_dockerfile(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -187,6 +188,7 @@ QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerKotlin, QsciLexerCPP, "kotlin")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerObjectiveC, QsciLexerCPP, "objc")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerSwift, QsciLexerCPP, "swift")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerHCL, QsciLexerCPP, "hcl")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerDockerfile, QsciLexerCPP, "dockerfile")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTypeScript, QsciLexerJavaScript,
                              "typescript")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTSX, QsciLexerJavaScript, "tsx")
@@ -451,6 +453,10 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("hcl"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_hcl();
   }
+  if (language.compare(QStringLiteral("dockerfile"), Qt::CaseInsensitive) ==
+      0) {
+    return tree_sitter_dockerfile();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -546,6 +552,7 @@ enum class StyledLanguage {
   Swift,
   Sql,
   Hcl,
+  Dockerfile,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -670,6 +677,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_hcl()) {
     return StyledLanguage::Hcl;
   }
+  if (language == tree_sitter_dockerfile()) {
+    return StyledLanguage::Dockerfile;
+  }
   return StyledLanguage::None;
 }
 
@@ -717,6 +727,7 @@ StyleSet styleSetFor(StyledLanguage language) {
   case StyledLanguage::ObjectiveC:
   case StyledLanguage::Swift:
   case StyledLanguage::Hcl:
+  case StyledLanguage::Dockerfile:
     break;
   case StyledLanguage::Sql:
     return StyleSet::Sql;
@@ -2936,6 +2947,81 @@ Token hclTokenForNode(const NodeContext &context, const QByteArray &source,
   return Token::None;
 }
 
+// Classifies a Dockerfile node. Instructions are keywords, variables are
+// variables, flags are directives and the image and port of a line are types
+// and numbers.
+Token dockerfileTokenForNode(const NodeContext &context,
+                             const QByteArray &source, bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    // The instruction keywords (FROM, RUN, AS...) are literal tokens of their
+    // instruction.
+    if (isAsciiLetter(type[0]) &&
+        typeEndsWith(context.parent, "_instruction")) {
+      return Token::Keyword;
+    }
+    if (typeIn(type, {"=", "@"})) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeEquals(type, "comment")) {
+    descend = false;
+    return Token::CommentLine;
+  }
+  if (typeEquals(type, "variable")) {
+    descend = false;
+    return Token::Variable;
+  }
+  if (typeEquals(type, "expansion")) {
+    return Token::Variable;
+  }
+  if (typeIn(type, {"double_quoted_string", "single_quoted_string",
+                    "json_string", "heredoc_block", "heredoc_line"})) {
+    return Token::String;
+  }
+  if (typeIn(type, {"heredoc_marker", "heredoc_end"})) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "escape_sequence")) {
+    descend = false;
+    return Token::Escape;
+  }
+  if (typeIn(type, {"param", "mount_param", "mount_param_param"})) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeIn(type, {"image_name", "image_alias"})) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeIn(type, {"image_tag", "image_digest"})) {
+    descend = false;
+    return Token::Variable;
+  }
+  if (typeEquals(type, "expose_port")) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeEquals(type, "line_continuation")) {
+    descend = false;
+    return Token::Operator;
+  }
+  // The names of ARG, ENV and LABEL pairs.
+  if (typeEquals(type, "unquoted_string") &&
+      typeIn(context.field, {"name", "key"})) {
+    descend = false;
+    return Token::Variable;
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -2979,6 +3065,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return sqlTokenForNode(context, source, descend);
   case StyledLanguage::Hcl:
     return hclTokenForNode(context, source, descend);
+  case StyledLanguage::Dockerfile:
+    return dockerfileTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
