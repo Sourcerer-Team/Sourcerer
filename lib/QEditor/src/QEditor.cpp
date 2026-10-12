@@ -24,6 +24,7 @@ const TSLanguage *tree_sitter_tsx(void);
 const TSLanguage *tree_sitter_xml(void);
 const TSLanguage *tree_sitter_fsharp(void);
 const TSLanguage *tree_sitter_lua(void);
+const TSLanguage *tree_sitter_scala(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -169,6 +170,7 @@ QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerOCamlType, QsciLexerCPP, "ocaml_type")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerHaskell, QsciLexerCPP, "haskell")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerPowerShell, QsciLexerCPP, "powershell")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerFSharp, QsciLexerCPP, "fsharp")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerScala, QsciLexerCPP, "scala")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTypeScript, QsciLexerJavaScript,
                              "typescript")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTSX, QsciLexerJavaScript, "tsx")
@@ -400,6 +402,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("lua"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_lua();
   }
+  if (language.compare(QStringLiteral("scala"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_scala();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -478,6 +483,7 @@ enum class StyledLanguage {
   PowerShell,
   FSharp,
   Lua,
+  Scala,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -562,6 +568,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_lua()) {
     return StyledLanguage::Lua;
   }
+  if (language == tree_sitter_scala()) {
+    return StyledLanguage::Scala;
+  }
   return StyledLanguage::None;
 }
 
@@ -598,6 +607,7 @@ StyleSet styleSetFor(StyledLanguage language) {
   case StyledLanguage::Haskell:
   case StyledLanguage::PowerShell:
   case StyledLanguage::FSharp:
+  case StyledLanguage::Scala:
     break;
   }
   return StyleSet::Cpp;
@@ -1533,6 +1543,133 @@ Token luaTokenForNode(const NodeContext &context, const QByteArray &source,
   return Token::None;
 }
 
+// Keywords of Scala, as the anonymous nodes the grammar produces for them.
+bool isScalaKeyword(const char *type) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("abstract"),    QStringLiteral("as"),
+      QStringLiteral("case"),        QStringLiteral("catch"),
+      QStringLiteral("class"),       QStringLiteral("def"),
+      QStringLiteral("derives"),     QStringLiteral("do"),
+      QStringLiteral("else"),        QStringLiteral("end"),
+      QStringLiteral("enum"),        QStringLiteral("export"),
+      QStringLiteral("extends"),     QStringLiteral("extension"),
+      QStringLiteral("final"),       QStringLiteral("finally"),
+      QStringLiteral("for"),         QStringLiteral("given"),
+      QStringLiteral("if"),          QStringLiteral("implicit"),
+      QStringLiteral("import"),      QStringLiteral("infix"),
+      QStringLiteral("inline"),      QStringLiteral("lazy"),
+      QStringLiteral("macro"),       QStringLiteral("match"),
+      QStringLiteral("new"),         QStringLiteral("object"),
+      QStringLiteral("opaque"),      QStringLiteral("open"),
+      QStringLiteral("override"),    QStringLiteral("package"),
+      QStringLiteral("private"),     QStringLiteral("protected"),
+      QStringLiteral("return"),      QStringLiteral("sealed"),
+      QStringLiteral("then"),        QStringLiteral("this"),
+      QStringLiteral("throw"),       QStringLiteral("trait"),
+      QStringLiteral("transparent"), QStringLiteral("try"),
+      QStringLiteral("type"),        QStringLiteral("using"),
+      QStringLiteral("val"),         QStringLiteral("var"),
+      QStringLiteral("while"),       QStringLiteral("with"),
+      QStringLiteral("yield")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Classifies a Scala node. Type names are the declared types and the types
+// used in annotations, function names are the names of defined and called
+// functions.
+Token scalaTokenForNode(const NodeContext &context, const QByteArray &source,
+                        bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isScalaKeyword(type)) {
+      return Token::Keyword;
+    }
+    // Annotations and the # of the shebang line.
+    if (typeIn(type, {"@", "#!"})) {
+      return Token::Preprocessor;
+    }
+    const char first = type[0];
+    // Quotes are the delimiters of strings and are not operators.
+    if (first != '\0' && first != '"' && first != '\'' && first != '$' &&
+        std::strchr("!%&*+-/<=>?^|~\\", first) != nullptr) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  const uint32_t start = ts_node_start_byte(context.node);
+  if (typeEquals(type, "comment")) {
+    descend = false;
+    return Token::CommentLine;
+  }
+  if (typeEquals(type, "block_comment")) {
+    descend = false;
+    // Scaladoc comments start with /**.
+    const bool doc =
+        byteAt(source, start + 2) == '*' && byteAt(source, start + 3) != '/';
+    return doc ? Token::CommentDoc : Token::Comment;
+  }
+  if (typeEquals(type, "string")) {
+    descend = false;
+    const bool triple = byteAt(source, start) == '"' &&
+                        byteAt(source, start + 1) == '"' &&
+                        byteAt(source, start + 2) == '"';
+    return triple ? Token::TripleQuotedString : Token::String;
+  }
+  if (typeIn(type, {"interpolated_string", "escape_sequence"})) {
+    descend = false;
+    return Token::String;
+  }
+  if (typeEquals(type, "character_literal")) {
+    descend = false;
+    return Token::SingleQuotedString;
+  }
+  if (typeIn(type, {"integer_literal", "floating_point_literal"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"boolean_literal", "null_literal"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeEquals(type, "annotation")) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeIn(type, {"type_identifier", "operator_identifier"})) {
+    descend = false;
+    return typeEquals(type, "type_identifier") ? Token::Type : Token::Operator;
+  }
+  if (typeEquals(type, "identifier")) {
+    const char *parent = context.parent;
+    const char *grandparent = context.grandparent;
+    const char *field = context.field;
+
+    if (typeEquals(field, "name") &&
+        typeIn(parent, {"class_definition", "trait_definition",
+                        "object_definition", "enum_definition"})) {
+      return Token::Type;
+    }
+    if (typeEquals(field, "name") &&
+        typeIn(parent, {"function_definition", "function_declaration"})) {
+      return Token::FunctionName;
+    }
+    if (typeEquals(field, "function")) {
+      return Token::FunctionName;
+    }
+    // Member access: obj.method(...) is a call, obj.field is a property.
+    if (typeEquals(field, "field") && typeEquals(parent, "field_expression")) {
+      return typeEquals(grandparent, "call_expression") ? Token::FunctionName
+                                                        : Token::Property;
+    }
+    return Token::None;
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -1554,6 +1691,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return fsharpTokenForNode(context, source, descend);
   case StyledLanguage::Lua:
     return luaTokenForNode(context, source, descend);
+  case StyledLanguage::Scala:
+    return scalaTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
