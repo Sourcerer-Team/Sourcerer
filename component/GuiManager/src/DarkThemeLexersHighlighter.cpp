@@ -273,6 +273,23 @@ void DarkThemeLexersHighlighter::initializeColorSchemes() {
   gruvbox.identifier = QColor(235, 219, 178);
   gruvbox.phpDefault = QColor(235, 219, 178);
   _colorSchemes["gruvbox"] = gruvbox;
+
+  DarkThemeColors solarized = DEFAULT_DARK_COLORS;
+  solarized.background = QColor(0, 43, 54);
+  solarized.foreground = QColor(131, 148, 150);
+  solarized.selection = QColor(147, 161, 161);
+  solarized.selectionBackground = QColor(14, 74, 90);
+  solarized.currentLine = QColor(7, 54, 66);
+  solarized.lineNumbers = QColor(88, 110, 117);
+  solarized.lineNumbersBackground = QColor(0, 35, 44);
+  solarized.foldMargin = QColor(0, 35, 44);
+  solarized.foldMarginBackground = QColor(0, 35, 44);
+  solarized.indentationGuides = QColor(7, 54, 66);
+  solarized.caretLine = QColor(7, 54, 66);
+  solarized.caretForeground = QColor(147, 161, 161);
+  solarized.identifier = QColor(131, 148, 150);
+  solarized.phpDefault = QColor(131, 148, 150);
+  _colorSchemes["solarized"] = solarized;
 }
 
 void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
@@ -296,6 +313,9 @@ void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
     break;
   case StylesheetManager::StylesheetKey::SourcererGruvbox:
     _currentScheme = QStringLiteral("gruvbox");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererSolarized:
+    _currentScheme = QStringLiteral("solarized");
     break;
   default:
     _currentScheme = QStringLiteral("default");

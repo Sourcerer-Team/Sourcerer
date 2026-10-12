@@ -81,6 +81,8 @@ public:
       return QColor::fromString("#3E3D32");
     case StylesheetManager::StylesheetKey::SourcererGruvbox:
       return QColor::fromString("#3C3836");
+    case StylesheetManager::StylesheetKey::SourcererSolarized:
+      return QColor::fromString("#073642");
     default:
       return QColor::fromString("#384D59");
     }

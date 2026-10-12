@@ -310,6 +310,8 @@ void MergeDiffView::refreshScintillaTheme() {
       theme == StylesheetManager::StylesheetKey::SourcererMonokai;
   const bool gruvboxTheme =
       theme == StylesheetManager::StylesheetKey::SourcererGruvbox;
+  const bool solarizedTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererSolarized;
   const QColor deletedColor =
       lightTheme ? QColor(255, 231, 231) : QColor(0x4a2327);
   const QColor addedColor =
@@ -321,6 +323,7 @@ void MergeDiffView::refreshScintillaTheme() {
                              : blueTheme    ? QColor(0x1a2435)
                              : monokaiTheme ? QColor(0x2f3029)
                              : gruvboxTheme ? QColor(0x1d2021)
+                             : solarizedTheme ? QColor(0x00232c)
                                             : QColor(0x23272e);
   const QColor changedColor =
       lightTheme ? QColor(255, 241, 201) : QColor(0x4d4021);

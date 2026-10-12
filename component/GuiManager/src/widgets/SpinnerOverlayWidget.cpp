@@ -66,11 +66,14 @@ SpinnerOverlayWidget::SpinnerOverlayWidget(QWidget *parent)
       theme == StylesheetManager::StylesheetKey::SourcererMonokai;
   const bool gruvboxTheme =
       theme == StylesheetManager::StylesheetKey::SourcererGruvbox;
+  const bool solarizedTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererSolarized;
   _spinner->setColor(lightTheme     ? QColor(44, 84, 150)
                      : purpleTheme  ? QColor(143, 180, 224)
                      : blueTheme    ? QColor(81, 186, 229)
                      : monokaiTheme ? QColor(166, 226, 46)
                      : gruvboxTheme ? QColor(250, 189, 47)
+                     : solarizedTheme ? QColor(38, 139, 210)
                                     : QColor(100, 200, 255));
   _spinner->setInnerRadius(20);
   _spinner->setLineLength(lightTheme ? 10 : 6);

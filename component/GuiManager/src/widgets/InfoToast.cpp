@@ -48,6 +48,8 @@ InfoToast::InfoToast(const QString &message, const QString &title,
     applyToastColors(QColor("#3E3D32"), QColor("#B8860B"), QColor("#FFFFFF"));
   } else if (theme == StylesheetManager::StylesheetKey::SourcererGruvbox) {
     applyToastColors(QColor("#3C3836"), QColor("#B8860B"), QColor("#FBF1C7"));
+  } else if (theme == StylesheetManager::StylesheetKey::SourcererSolarized) {
+    applyToastColors(QColor("#073642"), QColor("#B8860B"), QColor("#FDF6E3"));
   } else {
     applyToastColors(QColor("#505050"), QColor("#B8860B"), QColor("#FFFFFF"));
   }
