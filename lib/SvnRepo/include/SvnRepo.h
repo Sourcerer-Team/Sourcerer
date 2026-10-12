@@ -1,17 +1,26 @@
 #pragma once
 
+#include <GitRepo.h>
+
+#include <QHash>
 #include <QMap>
 #include <QString>
 #include <QStringList>
 #include <QVector>
 
-#include <svn_client.h>
-
 #include <tuple>
 
+// Subversion counterpart of the GitRepo free functions. Every function takes
+// the absolute path of a working copy where GitRepo takes a git_repository.
+//
+// Repositories are expected to use the standard layout: trunk, branches/<name>
+// and tags/<name> directly below the repository root. "Commits" are revision
+// numbers, given as "123" or "r123".
+//
+// Operations that only exist in Git (rebase, bisect, worktrees, branching
+// workflows, LFS, ...) are declared for API parity. They fail, and
+// getLastError() reports SvnError::UnsupportedOperation.
 namespace SvnRepo {
-
-struct git_repository;
 
 enum class BranchType : int {
   Unknown = 0,
@@ -47,6 +56,21 @@ enum class SvnError : int {
   CommitFailed,
   HistoryFailed,
   ErrorWhileOpening,
+  UnsupportedOperation,
+  SwitchFailed,
+  CopyFailed,
+  MoveFailed,
+  MergeFailed,
+  DiffFailed,
+  BlameFailed,
+  ShelveFailed,
+  PropertyFailed,
+  PatchFailed,
+  RelocateFailed,
+  InfoFailed,
+  InvalidRevision,
+  InvalidArgument,
+  Cancelled,
   Last
 };
 
@@ -145,6 +169,9 @@ struct SvnErrorContext {
   QString errorMessage;
 };
 
+// Subversion has no staging area. Versioned local changes, which are what a
+// commit sends, are reported in the *Staged* lists; unversioned files are
+// reported in untrackedFiles and newFiles.
 struct SvnStatus {
   QString path;
   QStringList newFiles;
@@ -194,8 +221,33 @@ struct SvnCommitInfo {
 
 struct SvnHistory {
   bool valid = false;
+  // Revisions, newest first.
   QVector<QString> commits;
   QMap<QString, SvnCommitInfo> commitInfos;
+  // True if there are older revisions after this page.
+  bool hasMore = false;
+};
+
+struct BlameLineInfo {
+  QString filePath;
+  qint64 lineNumber = -1;
+  QString content;
+  // Revision, empty for locally modified lines.
+  QString commit;
+  QString author;
+  QString email;
+  QString summary;
+};
+
+struct BlameFileInfo {
+  QString filePath;
+  QVector<BlameLineInfo> lineInfos;
+  QString errorMessage;
+};
+
+struct BlameReport {
+  QVector<BlameFileInfo> fileInfos;
+  bool valid = false;
 };
 
 SvnErrorContext getLastError();
@@ -205,35 +257,120 @@ void shutdownForCurrentThread();
 
 bool init();
 
-bool abortMerge(const QString &path);
-bool addSubmodule(const QString &path, const QString &url, const QString &name,
-                  const QString &branch, const QString &uuid);
+// Credentials.
+void finishPendingCredentialPrompts();
+void clearCachedCredentials(const QString &repoPath);
+QString getBasicAuthHeader(const QString &repoPath, const QString &url);
+GitRepo::GitSshAuthInfo
+getSshAuthInfo(const QString &repoPath, const QString &url,
+               const QString &usernameFromUrl = QString());
+
+// Repository.
+QString openRepository(const QString &path);
+void closeRepository(const QString &repo);
+bool cloneRepository(const QString &url, const QString &destinationDir,
+                     const QString &uuid = QString());
+bool initRepository(const QString &repoName, const QString &workingDir,
+                    const QString &defaultBranch, const QString &author,
+                    const QString &email);
+
+// Working copy.
+SvnStatus getStatus(const QString &path, const bool &quitFlag);
+bool hasConflicts(const QString &path);
+bool stageFiles(const QString &path, const QStringList &files);
+bool unstageFiles(const QString &path, const QStringList &files);
+bool discardFiles(const QString &path, const QStringList &files);
+bool commitStaged(const QString &path, const QString &summary,
+                  const QString &message, const QString &author,
+                  const QString &email, bool cleanup, bool signoff,
+                  bool signCommit);
 bool amend(const QString &path, const QString &summary, const QString &message,
            const QString &author, const QString &email, bool signoff,
            bool signCommit);
 bool applyPatch(const QString &path, const QString &patchContent);
-bool applyStash(const QString &path, int index);
-QString listConflictsForStashFile(const QString &path, int index,
-                                  const QString &filePath);
+bool checkoutCommit(const QString &path, const QString &commit);
+bool resetToCommit(const QString &path, const QString &commit, ResetType type);
+QString listConflictsForAFile(const QString &path, const QString &filePath);
+bool getIsMergeInProgress(const QString &path);
+bool abortMerge(const QString &path);
+
+// Diffs and blame.
+FilesDiff diffFiles(const QString &path, const QStringList &files);
+FilesDiff diffFilesFromCommit(const QString &path, const QStringList &files,
+                              const QString &commit);
+QString createPatchFromCommit(const QString &path, const QString &commit);
+qint64 getFileSizeFromCommit(const QString &path, const QString &filePath,
+                             const QString &commit);
+BlameReport blame(const QString &path, const QStringList &files);
+
+// History.
+SvnHistory getBranchHistory(const QString &path, const QString &branchName,
+                            BranchType branchType, int page,
+                            const bool &quitFlag);
+SvnHistory getHistory(const QString &path, int limit = 100);
+CommitStatus getCommitStatus(const QString &path, const QString &commitOid);
+QStringList getCommitBranches(const QString &path, const QString &commitOid,
+                              const bool &quitFlag);
+QStringList getCommitTags(const QString &path, const QString &commitOid,
+                          const bool &quitFlag);
+QStringList getCommitHeads(const QString &path, const QString &commitOid,
+                           const bool &quitFlag);
+bool getCommitIsHead(const QString &path, const QString &commitOid,
+                     const bool &quitFlag);
+
+// Branches and tags.
+QString getActiveBranch(const QString &path, BranchType type,
+                        const bool &quitFlag);
+QStringList listLocalBranches(const QString &path, const bool &quitFlag);
+QStringList listRemoteBranches(const QString &path, const bool &quitFlag);
+QVector<BranchInfo> listRemoteBranchesWithStatus(const QString &path,
+                                                 const bool &quitFlag);
 bool checkoutBranch(const QString &path, const QString &branchOrTagName,
                     BranchType type);
-bool checkoutCommit(const QString &path, const QString &commit);
-
-QString openRepository(const QString &path);
-void closeRepository(const QString &repo);
-
-bool cloneRepository(const QString &url, const QString &destinationDir,
-                     const QString &uuid = QString());
-bool commitStaged(const QString &path, const QString &author,
-                  const QString &email, const QString &summary,
-                  const QString &message, bool cleanup, bool signoff,
-                  bool signCommit);
 bool createBranchFromCommit(const QString &path, const QString &commit,
                             const QString &branchName);
-QString createPatchFromCommit(const QString &path, const QString &commit);
+bool deleteBranch(const QString &path, const QString &branchName);
+bool deleteRemoteBranch(const QString &path, const QString &branchName);
+bool renameBranch(const QString &path, const QString &oldBranchName,
+                  const QString &newBranchName);
+QStringList listTags(const QString &path);
+QStringList listRemoteTags(const QString &path);
 bool createTagFromCommit(const QString &path, const QString &commit,
                          const QString &tagName, const QString &author,
                          const QString &email, const QString &message);
+bool deleteTag(const QString &path, const QString &tagName);
+bool deleteRemoteTag(const QString &path, const QString &tagName);
+bool renameTag(const QString &path, const QString &oldTagName,
+               const QString &newTagName);
+bool pushTag(const QString &path, const QString &tagName);
+bool pushAllTags(const QString &path);
+
+// Merging.
+bool merge(const QString &path, const QString &sourceBranch,
+           const QString &destinationBranch, const QString &author,
+           const QString &email);
+bool cherryPickCommit(const QString &path, const QString &commit,
+                      const QString &author, const QString &email);
+bool revertCommit(const QString &path, const QString &commit,
+                  const QString &author, const QString &email,
+                  const QString &message);
+
+// Synchronization.
+bool pull(const QString &path, const QString &activeBranchName, bool rebase);
+bool push(const QString &path, const QString &activeBranchName, bool force);
+bool fetchAll(const QString &path);
+bool fetchRemote(const QString &path, const QString &remoteName);
+
+// Remotes. A working copy has a single remote, "origin", the repository root.
+QVector<RemoteInfo> listRemotes(const QString &path);
+QString getDefaultRemote(const QString &path);
+bool addRemote(const QString &path, const QString &remoteName,
+               const QString &fetchUrl, const QString &pushUrl);
+bool updateRemote(const QString &path, const QString &remoteName,
+                  const QString &newRemoteName, const QString &fetchUrl,
+                  const QString &pushUrl);
+bool removeRemote(const QString &path, const QString &remoteName);
+bool setDefaultRemote(const QString &path, const QString &remoteName);
 bool addTarget(const QString &path, const QString &remoteName,
                const QString &targetName, const QString &fetchUrl,
                const QString &pushUrl);
@@ -244,94 +381,98 @@ bool deleteTarget(const QString &path, const QString &remoteName,
                   const QString &targetName);
 bool setDefaultTarget(const QString &path, const QString &remoteName,
                       const QString &targetName);
-bool deleteBranch(const QString &path, const QString &branchName);
-bool deleteRemoteBranch(const QString &path, const QString &branchName);
-bool deleteStash(const QString &path, int index);
-bool deleteAllStashes(const QString &path);
-bool deleteSubmodule(const QString &path, const QString &submoduleName,
-                     const QString &submodulePath);
-bool deleteTag(const QString &path, const QString &tagName);
-bool deleteRemoteTag(const QString &path, const QString &tagName);
-
-FilesDiff diffFiles(const QString &path, const QStringList &files);
-FilesDiff diffFilesFromCommit(const QString &path, const QStringList &files,
-                              const QString &commit);
-bool discardFiles(const QString &path, const QStringList &files);
-
-bool fetchAll(const QString &path);
-bool fetchRemote(const QString &path, const QString &remoteName);
-bool rebaseBranches(const QString &path, const QString &sourceBranch,
-                    const QString &destinationBranch, const QString &author,
-                    const QString &email);
-
-qint64 getFileSizeFromCommit(const QString &path, const QString &filePath,
-                             const QString &commit);
-QString getActiveBranch(const QString &path, BranchType type, bool quitFlag);
-QStringList getCommitBranches(const QString &path, const QString &commitOid,
-                              bool quitFlag);
-QStringList getCommitTags(const QString &path, const QString &commitOid,
-                          bool quitFlag);
-QStringList getCommitHeads(const QString &path, const QString &commitOid,
-                           bool quitFlag);
-bool getCommitIsHead(const QString &path, const QString &commitOid,
-                     bool quitFlag);
-CommitStatus getCommitStatus(const QString &path, const QString &commitOid);
-CommitStatus getStashStatus(const QString &path, int stashIndex);
-bool getIsMergeInProgress(const QString &path);
-SvnHistory getBranchHistory(const QString &path, const QString &branchName,
-                            BranchType branchType, bool quitFlag);
-QString getSubmodulePath(const QString &path, const QString &submoduleName);
 std::tuple<bool, QString, QString> getUpstream(const QString &path,
                                                const QString &localBranchName);
-bool initRepository(const QString &repoName, const QString &workingDir,
-                    const QString &defaultBranch);
-QString listConflictsForAFile(const QString &path, const QString &filePath);
-QStringList listLocalBranches(const QString &path, const bool &quitFlag);
-QStringList listRemoteBranches(const QString &path, const bool &quitFlag);
-QVector<BranchInfo> listRemoteBranchesWithStatus(const QString &path,
-                                                 const bool &quitFlag);
-QStringList listStashes(const QString &path, const bool &quitFlag);
-QStringList listSubmodules(const QString &path);
-QVector<SubmoduleInfo> listSubmodulesWithStatus(const QString &path,
-                                                const bool &quitFlag);
-QStringList listTags(const QString &path);
-QStringList listRemoteTags(const QString &path);
-bool merge(const QString &path, const QString &sourceBranch,
-           const QString &destinationBranch, const QString &author,
-           const QString &email);
-bool pull(const QString &path, const QString &activeBranchName, bool rebase);
-bool push(const QString &path, const QString &activeBranchName, bool force);
-bool pushTag(const QString &path, const QString &tagName);
-bool pushAllTags(const QString &path);
-bool removeRemote(const QString &path, const QString &remoteName);
-bool renameBranch(const QString &path, const QString &oldBranchName,
-                  const QString &newBranchName);
-bool renameTag(const QString &path, const QString &oldTagName,
-               const QString &newTagName);
-bool resetToCommit(const QString &path, const QString &commit, ResetType type);
-bool revertCommit(const QString &path, const QString &commit,
-                  const QString &author, const QString &email,
-                  const QString &message);
-bool cherryPickCommit(const QString &path, const QString &commit,
-                      const QString &author, const QString &email);
 bool setUpstream(const QString &path, const QString &remoteName,
                  const QString &remoteBranchName,
                  const QString &localBranchName);
-bool stageFiles(const QString &path, const QStringList &files);
-bool stash(const QString &path);
-SvnStatus getStatus(const QString &path, const bool &quitFlag);
-bool updateSubmodule(const QString &path, const QString &submoduleName);
-bool unstageFiles(const QString &path, const QStringList &files);
-QVector<RemoteInfo> listRemotes(const QString &path);
-bool addRemote(const QString &path, const QString &remoteName,
-               const QString &fetchUrl, const QString &pushUrl);
-bool updateRemote(const QString &path, const QString &remoteName,
-                  const QString &newRemoteName, const QString &fetchUrl,
-                  const QString &pushUrl);
-bool setDefaultRemote(const QString &path, const QString &remoteName);
-QString getDefaultRemote(const QString &path);
 
-SvnHistory getHistory(const QString &path, int limit = 100);
+// Submodules, backed by svn:externals definitions.
+QStringList listSubmodules(const QString &path);
+QVector<SubmoduleInfo> listSubmodulesWithStatus(const QString &path,
+                                                const bool &quitFlag);
+QString getSubmodulePath(const QString &path, const QString &submoduleName);
+bool addSubmodule(const QString &path, const QString &url, const QString &name,
+                  const QString &branch, const QString &uuid);
+bool deleteSubmodule(const QString &path, const QString &submoduleName,
+                     const QString &submodulePath);
+bool updateSubmodule(const QString &path, const QString &submoduleName);
+
+// Stashes, backed by Subversion shelves. Index 0 is the newest stash.
+bool stash(const QString &path, const QString &note);
+QStringList listStashes(const QString &path, const bool &quitFlag);
+bool applyStash(const QString &path, int index);
+bool deleteStash(const QString &path, int index);
+bool deleteAllStashes(const QString &path);
+CommitStatus getStashStatus(const QString &path, int stashIndex);
+QString listConflictsForStashFile(const QString &path, int index,
+                                  const QString &filePath);
+
+// Git only operations.
+GitRepo::Lfs::StorageStatus getLfsStorageStatus(const QString &path);
+bool rebaseBranches(const QString &path, const QString &sourceBranch,
+                    const QString &destinationBranch, const QString &author,
+                    const QString &email, const bool signCommit);
+bool squashBranches(const QString &path, const QString &sourceBranch,
+                    const QString &destinationBranch, const QString &author,
+                    const QString &email, const bool signCommit);
+bool getIsRebaseInProgress(const QString &path);
+bool abortRebase(const QString &path);
+bool commitRebase(const QString &path, const QString &summary,
+                  const QString &message, const QString &author,
+                  const QString &email, bool cleanup, bool signoff,
+                  bool signCommit);
+bool bisect(const QString &path, GitRepo::BisectAction action,
+            const QString &commit, GitRepo::BisectStatus &status);
+QHash<QString, int> getBisectMarks(const QString &path);
+QVector<GitRepo::WorktreeInfo> listWorktrees(const QString &path);
+bool addWorktree(const QString &path, const QString &name,
+                 const QString &worktreePath, const QString &branch,
+                 bool createBranch, const QString &baseBranch = QString());
+bool removeWorktree(const QString &path, const QString &name, bool force);
+bool lockWorktree(const QString &path, const QString &name,
+                  const QString &reason);
+bool unlockWorktree(const QString &path, const QString &name);
+bool startGitLabFlowFeature(const QString &path, const QString &branchName,
+                            const QString &mainBranchName);
+bool finishGitLabFlowFeature(const QString &path, const QString &branchName,
+                             const QString &mainBranchName,
+                             const QString &author, const QString &email);
+bool promoteGitLabFlowEnvironment(const QString &path,
+                                  const QStringList &environmentChain,
+                                  const QString &sourceBranchName,
+                                  const QString &author, const QString &email);
+bool startGitLabFlowRelease(const QString &path,
+                            const QString &releaseBranchName,
+                            const QString &mainBranchName);
+bool cherryPickToGitLabFlowRelease(const QString &path, const QString &commit,
+                                   const QString &releaseBranchName,
+                                   const QString &author, const QString &email,
+                                   bool *conflicted = nullptr);
+bool startGitHubFlowBranch(const QString &path, const QString &branchName,
+                           const QString &mainBranchName);
+bool updateGitHubFlowBranch(const QString &path, const QString &branchName,
+                            const QString &mainBranchName,
+                            const QString &author, const QString &email);
+bool finishGitHubFlowBranch(const QString &path, const QString &branchName,
+                            const QString &mainBranchName,
+                            const QString &author, const QString &email);
+bool readGitFlowNextConfig(const QString &path,
+                           GitRepo::GitFlowNextConfig *config);
+bool initGitFlowNext(const QString &path, const QString &mainBranchName,
+                     const QString &developBranchName);
+bool startGitFlowNextBranch(const QString &path, const QString &branchType,
+                            const QString &branchName);
+bool finishGitFlowNextBranch(const QString &path, const QString &branchName,
+                             const QString &author, const QString &email);
+bool updateGitFlowNextBranch(const QString &path, const QString &branchName,
+                             const QString &author, const QString &email);
+GitRepo::WorkflowType getWorkflowType(const QString &path);
+bool setWorkflowType(const QString &path, GitRepo::WorkflowType type);
+bool applyGitFlowNextWorkflow(const QString &path,
+                              const GitRepo::GitFlowNextWorkflow &workflow);
+bool getGitFlowNextWorkflowReference(const QString &path, QString *id,
+                                     int *revision);
 
 } // namespace SvnRepo
 

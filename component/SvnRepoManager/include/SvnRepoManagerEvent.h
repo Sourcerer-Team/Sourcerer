@@ -14,6 +14,7 @@ enum class EventType : int {
   AddSubmodule,
   AddTarget,
   Amend,
+  Blame,
   ApplyPatch,
   ApplyStash,
   CheckoutBranch,

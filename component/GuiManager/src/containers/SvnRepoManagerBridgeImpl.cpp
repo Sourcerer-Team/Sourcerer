@@ -3,6 +3,7 @@
 #include "MainWindow.h"
 #include "MousePositionCorrection.h"
 #include "QScintillaLexerFactory.h"
+#include "containers/GitRepoManagerBridgeImpl.h"
 #include "containers/RepoContainer.h"
 #include "containers/ui_RepoContainer.h"
 #include "delegates/ElidePartialColorDelegate.h"
@@ -57,6 +58,7 @@
 #include <QStyleOptionViewItem>
 #include <QSvgRenderer>
 #include <QTextStream>
+#include <QThreadPool>
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
@@ -216,9 +218,6 @@ void SvnRepoManagerBridgeImpl::stash(const QWeakPointer<RepoContainer> &guard,
                                      const QString &note) {
   LOG_PERF(0, "Enter");
 
-  // Subversion shelves have no message attached.
-  Q_UNUSED(note);
-
   const QString eventUuid = Uuid::createUuid();
 
   const int token = _container._eventManager.startWait();
@@ -226,6 +225,7 @@ void SvnRepoManagerBridgeImpl::stash(const QWeakPointer<RepoContainer> &guard,
   SvnRepoStashCommand command;
   command.uuid = _container._uuid;
   command.syncUuid = eventUuid;
+  command.note = note;
 
   EventManager::Event stashFilesEvent(
       EventManager::EventType::SvnRepoManagerStash, eventUuid);
@@ -2903,6 +2903,7 @@ convertSvnHistoryToGitHistory(const SvnRepo::SvnHistory &history) {
   GitRepo::GitHistory gitHistory;
   gitHistory.commits = history.commits;
   gitHistory.valid = history.valid;
+  gitHistory.hasMore = history.hasMore;
 
   for (const auto &key : history.commitInfos.keys()) {
     const SvnRepo::SvnCommitInfo &commitInfo = history.commitInfos[key];
@@ -2939,6 +2940,7 @@ bool SvnRepoManagerBridgeImpl::getBranchHistory(
   historyCommand.branchName = _container._activeBranch;
   historyCommand.branchType =
       static_cast<SvnRepo::BranchType>(_container._activeBranchType);
+  historyCommand.page = 0;
   historyCommand.syncUuid = historyEventUuid;
 
   EventManager::Event historyEvent(
@@ -3046,10 +3048,8 @@ bool SvnRepoManagerBridgeImpl::getBranchHistory(
 
   const auto status = statusCommandResult.value.value<SvnRepo::SvnStatus>();
 
-  // The whole history is loaded at once, there are no more pages to request.
   GitRepo::GitHistoryWithStatus historyWithStatus;
   historyWithStatus.history = convertSvnHistoryToGitHistory(history);
-  historyWithStatus.history.hasMore = false;
   historyWithStatus.status = convertSvnStatusToGitStatus(status);
   historyWithStatus.branchName = _container._activeBranch;
   historyWithStatus.branchType = _container._activeBranchType;
@@ -3934,9 +3934,6 @@ void SvnRepoManagerBridgeImpl::rebase(const QWeakPointer<RepoContainer> &guard,
                                       bool signCommit) {
   LOG_PERF(0, "Enter");
 
-  // Subversion commits are not signed.
-  Q_UNUSED(signCommit);
-
   const QString author = _container._userProfileManager.currentProfile().author;
   const QString email = _container._userProfileManager.currentProfile().email;
 
@@ -3951,6 +3948,7 @@ void SvnRepoManagerBridgeImpl::rebase(const QWeakPointer<RepoContainer> &guard,
   command.destinationBranch = destBranch;
   command.author = author;
   command.email = email;
+  command.signCommit = signCommit;
 
   EventManager::Event rebaseEvent(EventManager::EventType::SvnRepoManagerRebase,
                                   eventUuid);
@@ -5900,10 +5898,79 @@ void SvnRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,
                                      const QStringList &files) {
   LOG_PERF(0, "Enter");
 
-  Q_UNUSED(guard);
-  Q_UNUSED(files);
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
-  reportUnsupportedOperation(_container.tr("Blame"));
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoBlameCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.files = files;
+
+  EventManager::Event blameEvent(EventManager::EventType::SvnRepoManagerBlame,
+                                 eventUuid);
+  blameEvent.addData(command);
+  _container._eventManager.send(blameEvent);
+
+  static std::set types = {EventManager::EventType::SvnRepoManagerBlameError,
+                           EventManager::EventType::SvnRepoManagerBlameResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to retrieve blame."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerBlameResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto blameResult =
+      event.data<SvnRepoResult>().value.value<SvnRepoBlameCommandResult>();
+
+  GitRepo::BlameReport report;
+  report.valid = blameResult.report.valid;
+  for (const SvnRepo::BlameFileInfo &svnFileInfo :
+       blameResult.report.fileInfos) {
+    GitRepo::BlameFileInfo fileInfo;
+    fileInfo.filePath = svnFileInfo.filePath;
+    fileInfo.errorMessage = svnFileInfo.errorMessage;
+    for (const SvnRepo::BlameLineInfo &svnLineInfo : svnFileInfo.lineInfos) {
+      GitRepo::BlameLineInfo lineInfo;
+      lineInfo.filePath = svnLineInfo.filePath;
+      lineInfo.lineNumber = svnLineInfo.lineNumber;
+      lineInfo.content = svnLineInfo.content;
+      lineInfo.commit = svnLineInfo.commit;
+      lineInfo.author = svnLineInfo.author;
+      lineInfo.email = svnLineInfo.email;
+      lineInfo.summary = svnLineInfo.summary;
+      fileInfo.lineInfos.append(lineInfo);
+    }
+    report.fileInfos.append(fileInfo);
+  }
+
+  GitRepoManagerBridgeImpl::showBlameReport(_container, guard, report);
 
   LOG_PERF(0, "Exit");
 }
@@ -6015,16 +6082,76 @@ void SvnRepoManagerBridgeImpl::getBranchHistoryPage(
     const quint64 generation, const bool lowPriority) {
   LOG_PERF(0, "Enter");
 
-  Q_UNUSED(branchName);
-  Q_UNUSED(branchType);
-  Q_UNUSED(lowPriority);
+  const QString uuid = _container._uuid;
+  EventManager::EventManager *eventManager = &_container._eventManager;
+  const QWeakPointer<Models::GitHistoryModel> historyModel =
+      _container._historyModel;
 
-  // getBranchHistory loads the whole history, so an empty page is reported to
-  // stop the model from asking for more.
-  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container._historyModel->appendPage(GitRepo::GitHistory(), page,
-                                         generation);
-  });
+  const auto loadPage = [=]() {
+    // A low priority page waits for the other requests and may be outdated
+    // (searching stopped, other branch) by the time it starts.
+    if (lowPriority) {
+      const auto model = historyModel.toStrongRef();
+      if (!model || !model->isCurrentGeneration(generation)) {
+        return;
+      }
+    }
+
+    const QString eventUuid = Uuid::createUuid();
+
+    const int token = eventManager->startWait();
+
+    SvnRepoGetBranchHistoryCommand command;
+    command.uuid = uuid;
+    command.branchName = branchName;
+    command.branchType = static_cast<SvnRepo::BranchType>(branchType);
+    command.syncUuid = eventUuid;
+    command.page = page;
+
+    EventManager::Event event(
+        EventManager::EventType::SvnRepoManagerGetBranchHistory, eventUuid);
+    event.addData(command);
+    eventManager->send(event);
+
+    static const std::set types = {
+        EventManager::EventType::SvnRepoManagerGetBranchHistoryError,
+        EventManager::EventType::SvnRepoManagerGetBranchHistoryResult};
+
+    const auto &[success, resultEvent] =
+        eventManager->waitForAnswer(token, eventUuid, types);
+
+    const bool ok =
+        success &&
+        resultEvent.type() ==
+            EventManager::EventType::SvnRepoManagerGetBranchHistoryResult;
+
+    GitRepo::GitHistory history;
+    if (ok) {
+      history = convertSvnHistoryToGitHistory(
+          resultEvent.data<SvnRepoResult>().value.value<SvnRepo::SvnHistory>());
+    }
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      if (ok) {
+        _container._historyModel->appendPage(history, page, generation);
+      } else {
+        _container._historyModel->pageFailed(generation);
+      }
+    });
+  };
+
+  if (lowPriority) {
+    // Loading the whole history must not hold back other requests, so it
+    // waits until the container's dispatcher has nothing else to do.
+    _container._dispatcher.dispatch(loadPage, nullptr, nullptr,
+                                    Util::DispatcherChannel::Any,
+                                    Util::DispatcherPriority::Low);
+  } else {
+    // Not the container's dispatcher: its pool is cleared whenever the
+    // selection changes, which would drop the request and leave the model
+    // waiting for it.
+    QThreadPool::globalInstance()->start(loadPage);
+  }
 
   LOG_PERF(0, "Exit");
 }

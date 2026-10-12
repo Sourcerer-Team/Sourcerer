@@ -16,6 +16,11 @@ public:
 
   void blame(const QWeakPointer<RepoContainer> &guard,
              const QStringList &files) override;
+
+  // Shows a blame report in the blame view of container.
+  static void showBlameReport(RepoContainer &container,
+                              const QWeakPointer<RepoContainer> &guard,
+                              const GitRepo::BlameReport &report);
   void
   setUpstream(const QWeakPointer<RepoContainer> &guard,
               const QString &branchName, const QString &remoteName,
@@ -39,10 +44,9 @@ public:
   void unlockWorktree(const QWeakPointer<RepoContainer> &guard,
                       const QString &name) override;
   bool getWorktrees(const QWeakPointer<RepoContainer> &guard) override;
-  void amend(const QWeakPointer<RepoContainer> &guard,
-             const QString &summary, const QString &description,
-             const QString &author, const QString &email, bool signoff,
-             bool signCommit) override;
+  void amend(const QWeakPointer<RepoContainer> &guard, const QString &summary,
+             const QString &description, const QString &author,
+             const QString &email, bool signoff, bool signCommit) override;
   void applyPatch(const QWeakPointer<RepoContainer> &guard,
                   const QString &filePath) override;
   void
@@ -57,10 +61,10 @@ public:
   void checkoutCommit(const QWeakPointer<RepoContainer> &guard,
                       const QString &commit) override;
   void closeRepo() const override;
-  void commit(const QWeakPointer<RepoContainer> &guard,
-              const QString &summary, const QString &description,
-              const QString &author, const QString &email, bool cleanup,
-              bool signoff, bool signCommit) override;
+  void commit(const QWeakPointer<RepoContainer> &guard, const QString &summary,
+              const QString &description, const QString &author,
+              const QString &email, bool cleanup, bool signoff,
+              bool signCommit) override;
   void commitRebase(const QWeakPointer<RepoContainer> &guard,
                     const QString &summary, const QString &description,
                     const QString &author, const QString &email, bool cleanup,

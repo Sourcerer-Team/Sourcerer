@@ -1,0 +1,483 @@
+#include "SvnRepo.h"
+#include "SvnRepoPrivate.h"
+
+#include <svn_diff.h>
+#include <svn_hash.h>
+#include <svn_io.h>
+#include <svn_props.h>
+#include <svn_string.h>
+#include <svn_wc.h>
+
+#include <ConfigManager.h>
+#include <Log.h>
+
+#include <QDir>
+#include <QFileInfo>
+
+#define THREAD_ID "SvnRepo"
+
+namespace SvnRepo {
+
+using namespace Private;
+
+namespace {
+
+static qint64 maxDiffFileSize() {
+  return ConfigManager::ConfigManager::getInstance().getLong(
+      ConfigManager::ConfigKey::GitRepoMaxDiffFileSize);
+}
+
+// Diff between two revisions of path_or_url as unified diff text.
+static svn_error_t *
+runDiff(QString *diff, const QString &pathOrUrl, const svn_opt_revision_t &peg,
+        const svn_opt_revision_t &start, const svn_opt_revision_t &end,
+        const QString &relativeToDir, svn_depth_t depth, bool gitFormat,
+        svn_client_ctx_t *ctx, apr_pool_t *pool) {
+  svn_stringbuf_t *outBuffer = svn_stringbuf_create_empty(pool);
+  svn_stream_t *outStream = svn_stream_from_stringbuf(outBuffer, pool);
+  svn_stream_t *errStream = svn_stream_empty(pool);
+
+  const QByteArray target = pathOrUrl.toUtf8();
+  const QByteArray relativeTo = relativeToDir.toUtf8();
+  SVN_ERR(svn_client_diff_peg7(
+      nullptr, target.constData(), &peg, &start, &end,
+      relativeToDir.isEmpty() ? nullptr : relativeTo.constData(), depth, FALSE,
+      FALSE, FALSE, gitFormat, FALSE, !gitFormat, FALSE, gitFormat, FALSE,
+      "UTF-8", outStream, errStream, nullptr, ctx, pool));
+  SVN_ERR(svn_stream_close(outStream));
+
+  *diff = QString::fromUtf8(outBuffer->data, static_cast<int>(outBuffer->len));
+  return SVN_NO_ERROR;
+}
+
+// Delta adding every line of content, for unversioned files.
+static FilesDiffDelta addedFileDelta(const QString &file,
+                                     const QString &content) {
+  FilesDiffDelta delta;
+  delta.oldFilePath = file;
+  delta.newFilePath = file;
+
+  QStringList lines = QString(content).remove('\r').split('\n');
+  if (!lines.isEmpty() && lines.last().isEmpty()) {
+    lines.removeLast();
+  }
+
+  if (lines.isEmpty()) {
+    return delta;
+  }
+
+  FilesDiffHunk hunk;
+  hunk.oldStart = 0;
+  hunk.oldLines = 0;
+  hunk.newStart = 1;
+  hunk.newLines = static_cast<int>(lines.size());
+  for (const QString &line : lines) {
+    hunk.lines.append(FilesDiffLine{QChar('+'), line});
+  }
+  delta.hunks.append(hunk);
+  return delta;
+}
+
+// Diff text in the format GitRepo uses for FilesDiff::diff.
+static QString diffText(const QVector<FilesDiffDelta> &deltas) {
+  QString text;
+  for (const FilesDiffDelta &delta : deltas) {
+    text += QStringLiteral("diff --git a/%1 b/%2\n")
+                .arg(delta.oldFilePath, delta.newFilePath);
+    for (const FilesDiffHunk &hunk : delta.hunks) {
+      text += QStringLiteral("@@ -%1,%2 +%3,%4 @@\n")
+                  .arg(hunk.oldStart)
+                  .arg(hunk.oldLines)
+                  .arg(hunk.newStart)
+                  .arg(hunk.newLines);
+      for (const FilesDiffLine &line : hunk.lines) {
+        text += line.origin + line.content + QStringLiteral("\n");
+      }
+    }
+  }
+  return text;
+}
+
+struct FileStatusBaton {
+  svn_wc_status_kind status = svn_wc_status_none;
+};
+
+static svn_error_t *fileStatusCallback(void *baton, const char *,
+                                       const svn_client_status_t *status,
+                                       apr_pool_t *) {
+  if (baton && status) {
+    static_cast<FileStatusBaton *>(baton)->status = status->node_status;
+  }
+  return SVN_NO_ERROR;
+}
+
+static QString contentWithinLimit(const QByteArray &content) {
+  const qint64 limit = maxDiffFileSize();
+  if (limit > 0 && content.size() > limit) {
+    return QString();
+  }
+  return QString::fromUtf8(content);
+}
+
+struct FileSizeBaton {
+  qint64 size = -1;
+};
+
+static svn_error_t *fileSizeCallback(void *baton, const char *,
+                                     const svn_dirent_t *dirent,
+                                     const svn_lock_t *, const char *,
+                                     const char *, const char *, apr_pool_t *) {
+  if (baton && dirent && dirent->kind == svn_node_file) {
+    static_cast<FileSizeBaton *>(baton)->size =
+        static_cast<qint64>(dirent->size);
+  }
+  return SVN_NO_ERROR;
+}
+
+struct BlameBaton {
+  BlameFileInfo *file = nullptr;
+};
+
+static QString revisionProperty(apr_hash_t *properties, const char *name) {
+  if (!properties) {
+    return QString();
+  }
+
+  const auto *value =
+      static_cast<const svn_string_t *>(svn_hash_gets(properties, name));
+  return value ? QString::fromUtf8(value->data, static_cast<int>(value->len))
+               : QString();
+}
+
+static svn_error_t *blameCallback(void *baton, apr_int64_t lineNumber,
+                                  svn_revnum_t revision,
+                                  apr_hash_t *revisionProperties, svn_revnum_t,
+                                  apr_hash_t *, const char *,
+                                  const svn_string_t *line,
+                                  svn_boolean_t localChange, apr_pool_t *) {
+  auto *payload = static_cast<BlameBaton *>(baton);
+  if (!payload || !payload->file) {
+    return SVN_NO_ERROR;
+  }
+
+  BlameLineInfo info;
+  info.filePath = payload->file->filePath;
+  info.lineNumber = static_cast<qint64>(lineNumber) + 1;
+  info.content =
+      line ? QString::fromUtf8(line->data, static_cast<int>(line->len))
+                 .remove('\r')
+           : QString();
+  if (!localChange && SVN_IS_VALID_REVNUM(revision)) {
+    info.commit = QString::number(revision);
+    info.author =
+        revisionProperty(revisionProperties, SVN_PROP_REVISION_AUTHOR);
+    info.summary = revisionProperty(revisionProperties, SVN_PROP_REVISION_LOG)
+                       .section('\n', 0, 0)
+                       .trimmed();
+  }
+
+  payload->file->lineInfos.append(info);
+  return SVN_NO_ERROR;
+}
+
+} // namespace
+
+FilesDiff diffFiles(const QString &path, const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  const QString wcPath = normalizedPath(path);
+  FilesDiff result;
+
+  const bool success = runWithClientContext(
+      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        for (const QString &file : files) {
+          const QString absolutePath = absoluteFilePath(wcPath, file);
+          const QByteArray pathBytes = absolutePath.toUtf8();
+
+          FileStatusBaton status;
+          const svn_opt_revision_t working = revisionWorking();
+          svn_revnum_t youngest = SVN_INVALID_REVNUM;
+          if (!reportError(
+                  SvnError::StatusFailed,
+                  svn_client_status6(&youngest, ctx, pathBytes.constData(),
+                                     &working, svn_depth_empty, TRUE, FALSE,
+                                     TRUE, TRUE, TRUE, FALSE, nullptr,
+                                     fileStatusCallback, &status, pool))) {
+            return false;
+          }
+
+          const QFileInfo fileInfo(absolutePath);
+          const bool onDisk = fileInfo.isFile();
+          const QString workingContent =
+              onDisk && (maxDiffFileSize() <= 0 ||
+                         fileInfo.size() <= maxDiffFileSize())
+                  ? readTextFile(absolutePath)
+                  : QString();
+          result.filesContent.insert(file, workingContent);
+
+          if (status.status == svn_wc_status_unversioned ||
+              status.status == svn_wc_status_ignored ||
+              status.status == svn_wc_status_none) {
+            result.repoContent.insert(file, QString());
+            result.deltas.append(addedFileDelta(file, workingContent));
+            continue;
+          }
+
+          QByteArray baseContent;
+          if (status.status != svn_wc_status_added) {
+            svn_error_t *error = readFileAtRevision(&baseContent, absolutePath,
+                                                    revisionUnspecified(),
+                                                    revisionBase(), ctx, pool);
+            if (error) {
+              svn_error_clear(error);
+              baseContent.clear();
+            }
+          }
+          result.repoContent.insert(file, contentWithinLimit(baseContent));
+
+          QString diff;
+          if (!reportError(SvnError::DiffFailed,
+                           runDiff(&diff, absolutePath, revisionUnspecified(),
+                                   revisionBase(), revisionWorking(), wcPath,
+                                   svn_depth_empty, false, ctx, pool))) {
+            return false;
+          }
+
+          const QVector<FilesDiffDelta> deltas = parseUnifiedDiff(diff);
+          for (FilesDiffDelta delta : deltas) {
+            delta.oldFilePath = file;
+            delta.newFilePath = file;
+            result.deltas.append(delta);
+          }
+        }
+
+        return true;
+      },
+      wcPath);
+
+  if (!success) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  result.diff = diffText(result.deltas);
+  result.valid = true;
+
+  LOG_PERF(0, "Exit");
+  return result;
+}
+
+FilesDiff diffFilesFromCommit(const QString &path, const QStringList &files,
+                              const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  svn_revnum_t revision = SVN_INVALID_REVNUM;
+  if (!parseRevision(commit, &revision)) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const QString wcPath = normalizedPath(path);
+  FilesDiff result;
+
+  const bool success = runWithClientContext(
+      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        WorkingCopyInfo info;
+        if (!reportError(
+                SvnError::InfoFailed,
+                readInfo(&info, wcPath, revisionUnspecified(), ctx, pool))) {
+          return false;
+        }
+
+        const svn_opt_revision_t peg = revisionNumber(revision);
+        const svn_opt_revision_t previous =
+            revisionNumber(revision > 0 ? revision - 1 : 0);
+
+        for (const QString &file : files) {
+          const QString relativePath = QFileInfo(file).isAbsolute()
+                                           ? relativeFilePath(wcPath, file)
+                                           : QDir::fromNativeSeparators(file);
+          const QString fileUrl =
+              trimmedUrl(info.url) + QStringLiteral("/") + relativePath;
+
+          QByteArray oldContent;
+          svn_error_t *error = readFileAtRevision(
+              &oldContent, fileUrl, previous, previous, ctx, pool);
+          if (error) {
+            svn_error_clear(error);
+            oldContent.clear();
+          }
+          result.repoContent.insert(file, contentWithinLimit(oldContent));
+
+          QByteArray newContent;
+          error = readFileAtRevision(&newContent, fileUrl, peg, peg, ctx, pool);
+          if (error) {
+            svn_error_clear(error);
+            newContent.clear();
+          }
+          result.filesContent.insert(file, contentWithinLimit(newContent));
+
+          QString diff;
+          error = runDiff(&diff, fileUrl, peg, previous, peg, QString(),
+                          svn_depth_empty, false, ctx, pool);
+          if (error) {
+            // The file did not exist before the revision.
+            svn_error_clear(error);
+            result.deltas.append(
+                addedFileDelta(file, QString::fromUtf8(newContent)));
+            continue;
+          }
+
+          const QVector<FilesDiffDelta> deltas = parseUnifiedDiff(diff);
+          for (FilesDiffDelta delta : deltas) {
+            delta.oldFilePath = file;
+            delta.newFilePath = file;
+            result.deltas.append(delta);
+          }
+        }
+
+        return true;
+      },
+      wcPath);
+
+  if (!success) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  result.diff = diffText(result.deltas);
+  result.valid = true;
+
+  LOG_PERF(0, "Exit");
+  return result;
+}
+
+QString createPatchFromCommit(const QString &path, const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  svn_revnum_t revision = SVN_INVALID_REVNUM;
+  if (!parseRevision(commit, &revision)) {
+    LOG_PERF(0, "Exit");
+    return QString();
+  }
+
+  const QString wcPath = normalizedPath(path);
+  QString patch;
+
+  const bool success = runWithClientContext(
+      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        WorkingCopyInfo info;
+        if (!reportError(
+                SvnError::InfoFailed,
+                readInfo(&info, wcPath, revisionUnspecified(), ctx, pool))) {
+          return false;
+        }
+
+        // Git format, so the patch can be applied to Git repositories too.
+        const svn_opt_revision_t peg = revisionNumber(revision);
+        const svn_opt_revision_t previous =
+            revisionNumber(revision > 0 ? revision - 1 : 0);
+        return reportError(SvnError::DiffFailed,
+                           runDiff(&patch, info.url, peg, previous, peg,
+                                   QString(), svn_depth_infinity, true, ctx,
+                                   pool));
+      },
+      wcPath);
+
+  LOG_PERF(0, "Exit");
+  return success ? patch : QString();
+}
+
+qint64 getFileSizeFromCommit(const QString &path, const QString &filePath,
+                             const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  svn_revnum_t revision = SVN_INVALID_REVNUM;
+  if (!parseRevision(commit, &revision)) {
+    LOG_PERF(0, "Exit");
+    return -1;
+  }
+
+  const QString wcPath = normalizedPath(path);
+  FileSizeBaton baton;
+
+  const bool success = runWithClientContext(
+      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        WorkingCopyInfo info;
+        if (!reportError(
+                SvnError::InfoFailed,
+                readInfo(&info, wcPath, revisionUnspecified(), ctx, pool))) {
+          return false;
+        }
+
+        const QString relativePath = QFileInfo(filePath).isAbsolute()
+                                         ? relativeFilePath(wcPath, filePath)
+                                         : QDir::fromNativeSeparators(filePath);
+        const QByteArray fileUrl =
+            (trimmedUrl(info.url) + QStringLiteral("/") + relativePath)
+                .toUtf8();
+        const svn_opt_revision_t peg = revisionNumber(revision);
+        return reportError(SvnError::InfoFailed,
+                           svn_client_list4(fileUrl.constData(), &peg, &peg,
+                                            nullptr, svn_depth_empty,
+                                            SVN_DIRENT_KIND | SVN_DIRENT_SIZE,
+                                            FALSE, FALSE, fileSizeCallback,
+                                            &baton, ctx, pool));
+      },
+      wcPath);
+
+  LOG_PERF(0, "Exit");
+  return success ? baton.size : -1;
+}
+
+BlameReport blame(const QString &path, const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  const QString wcPath = normalizedPath(path);
+  BlameReport report;
+
+  const bool success = runWithClientContext(
+      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        for (const QString &file : files) {
+          BlameFileInfo fileInfo;
+          fileInfo.filePath = file;
+
+          BlameBaton baton;
+          baton.file = &fileInfo;
+
+          const QByteArray pathBytes = absoluteFilePath(wcPath, file).toUtf8();
+          const svn_opt_revision_t peg = revisionWorking();
+          const svn_opt_revision_t start = revisionNumber(0);
+          const svn_opt_revision_t end = revisionWorking();
+          svn_revnum_t startRevision = SVN_INVALID_REVNUM;
+          svn_revnum_t endRevision = SVN_INVALID_REVNUM;
+          const svn_diff_file_options_t *diffOptions =
+              svn_diff_file_options_create(pool);
+          svn_error_t *error = svn_client_blame6(
+              &startRevision, &endRevision, pathBytes.constData(), &peg, &start,
+              &end, diffOptions, FALSE, FALSE, blameCallback, &baton, ctx,
+              pool);
+          if (error) {
+            if (error->apr_err == SVN_ERR_CANCELLED) {
+              return reportError(SvnError::BlameFailed, error);
+            }
+
+            fileInfo.lineInfos.clear();
+            fileInfo.errorMessage = svnErrorMessage(error);
+            svn_error_clear(error);
+          }
+
+          report.fileInfos.append(fileInfo);
+        }
+
+        return true;
+      },
+      wcPath);
+
+  report.valid = success;
+
+  LOG_PERF(0, "Exit");
+  return report;
+}
+
+} // namespace SvnRepo

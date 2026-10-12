@@ -101,6 +101,11 @@ bool SvnRepoManagerProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForAmend(amendCommand);
     break;
   }
+  case EventType::Blame: {
+    const auto blameCommand = event.nextParam<SvnRepoBlameCommand>();
+    scheduleWorkerForBlame(blameCommand);
+    break;
+  }
   case EventType::ApplyPatch: {
     const auto applyPatchCommand = event.nextParam<SvnRepoApplyPatchCommand>();
     scheduleWorkerForApplyPatch(applyPatchCommand);
@@ -595,6 +600,47 @@ void SvnRepoManagerProcessingState::addSubmoduleWorker(
   LOG_PERF(0, "Exit");
 }
 
+void SvnRepoManagerProcessingState::blameWorker(
+    const Structs::SvnRepoBlameCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const SvnRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::SvnRepoManagerBlameError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  QString repo;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->SvnRepo;
+  }
+
+  const SvnRepo::BlameReport blameReport = SvnRepo::blame(repo, command.files);
+  if (!blameReport.valid) {
+    const auto lastError = SvnRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::SvnRepoManagerBlameError, command.syncUuid);
+    errorEvent.addData(SvnRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
+    _eventManager.send(errorEvent);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  EventManager::Event resultEvent(
+      EventManager::EventType::SvnRepoManagerBlameResult, command.syncUuid);
+  resultEvent.addData(SvnRepoResult{
+      command.uuid, command.type,
+      QVariant::fromValue(SvnRepoBlameCommandResult{blameReport})});
+  _eventManager.send(resultEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
 void SvnRepoManagerProcessingState::amendWorker(
     const Structs::SvnRepoAmendCommand &command) {
   LOG_PERF(0, "Enter");
@@ -855,7 +901,7 @@ void SvnRepoManagerProcessingState::cloneRepoWorker(
 
   {
     LOCKGUARD(_contextsMutex);
-    ctx->SvnRepo = nullptr;
+    ctx->SvnRepo.clear();
   }
 
   LOG_PERF(0, "Exit");
@@ -1880,9 +1926,9 @@ void SvnRepoManagerProcessingState::rebaseWorker(
     repo = ctx->SvnRepo;
   }
 
-  const bool success = SvnRepo::rebaseBranches(repo, command.sourceBranch,
-                                               command.destinationBranch,
-                                               command.author, command.email);
+  const bool success = SvnRepo::rebaseBranches(
+      repo, command.sourceBranch, command.destinationBranch, command.author,
+      command.email, command.signCommit);
   if (!success) {
     const auto lastError = SvnRepo::getLastError();
     EventManager::Event errorEvent(
@@ -2325,7 +2371,7 @@ void SvnRepoManagerProcessingState::getBranchHistoryWorker(
   }
 
   const SvnRepo::SvnHistory history = SvnRepo::getBranchHistory(
-      repo, command.branchName, command.branchType, *pQuit);
+      repo, command.branchName, command.branchType, command.page, *pQuit);
 
   bool quit = false;
 
@@ -2461,7 +2507,8 @@ void SvnRepoManagerProcessingState::initRepoWorker(
   }
 
   const bool success = SvnRepo::initRepository(
-      command.repoName, command.workingDir, command.defaultBranch);
+      command.repoName, command.workingDir, command.defaultBranch,
+      command.author, command.email);
   if (!success) {
     const auto lastError = SvnRepo::getLastError();
     EventManager::Event errorEvent(
@@ -2481,7 +2528,7 @@ void SvnRepoManagerProcessingState::initRepoWorker(
 
   {
     LOCKGUARD(_contextsMutex);
-    ctx->SvnRepo = nullptr;
+    ctx->SvnRepo.clear();
   }
 
   LOG_PERF(0, "Exit");
@@ -3884,7 +3931,7 @@ void SvnRepoManagerProcessingState::stashWorker(
     repo = ctx->SvnRepo;
   }
 
-  const bool success = SvnRepo::stash(repo);
+  const bool success = SvnRepo::stash(repo, command.note);
   if (!success) {
     const auto lastError = SvnRepo::getLastError();
     EventManager::Event errorEvent(
@@ -4266,6 +4313,25 @@ void SvnRepoManagerProcessingState::scheduleWorkerForAddSubmodule(
   }
 
   (*it)->commandsQueue.push(new SvnRepoAddSubmoduleCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerProcessingState::scheduleWorkerForBlame(
+    const Structs::SvnRepoBlameCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::SvnRepoManagerBlameError,
+                tr("Subversion repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new SvnRepoBlameCommand(command));
 
   LOG_PERF(0, "Exit");
 }
@@ -5217,6 +5283,14 @@ void SvnRepoManagerProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const SvnRepoAmendCommand *>(command);
       if (amendCommand) {
         amendWorker(*amendCommand);
+      }
+      break;
+    }
+    case SvnRepoCommandType::Blame: {
+      const auto blameCommand =
+          dynamic_cast<const SvnRepoBlameCommand *>(command);
+      if (blameCommand) {
+        blameWorker(*blameCommand);
       }
       break;
     }

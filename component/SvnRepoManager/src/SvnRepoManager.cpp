@@ -36,6 +36,8 @@ SvnRepoManager::SvnRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerAmend, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerBlame, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerApplyPatch, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerApplyStash, callbackFunc));
@@ -201,6 +203,8 @@ SvnRepoManager::~SvnRepoManager() {
       EventManager::EventType::SvnRepoManagerSetDefaultTarget, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerAmend, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerBlame, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerApplyPatch, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -430,6 +434,13 @@ void SvnRepoManager::eventCallback(const EventManager::Event &event) {
     SvnRepoManagerEvent amendEvent(EventType::Amend);
     amendEvent.addParam(QVariant::fromValue(amendCommand));
     _fsm.send(amendEvent);
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerBlame: {
+    const auto blameCommand = event.data<SvnRepoBlameCommand>();
+    SvnRepoManagerEvent blameEvent(EventType::Blame);
+    blameEvent.addParam(QVariant::fromValue(blameCommand));
+    _fsm.send(blameEvent);
     break;
   }
   case EventManager::EventType::SvnRepoManagerApplyPatch: {

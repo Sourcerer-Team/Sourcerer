@@ -20,8 +20,15 @@ add_compile_definitions(QT_USE_STRING_BUILDER)
 
 add_library(SvnRepo STATIC
     include/SvnRepo.h
+    src/SvnRepoPrivate.h
     src/SvnRepo.cpp
-
+    src/SvnRepoBranches.cpp
+    src/SvnRepoDiff.cpp
+    src/SvnRepoHistory.cpp
+    src/SvnRepoRemotes.cpp
+    src/SvnRepoShelves.cpp
+    src/SvnRepoUnsupported.cpp
+    src/SvnRepoWorkingCopy.cpp
 )
 
 include(../../cmake/helpers.cmake)
@@ -305,6 +312,7 @@ target_link_libraries(SvnRepo PUBLIC
     libsvnxx
     libsvn_client
     libsvn_wc
+    libsvn_repos
     libsvn_ra
     libsvn_delta
     libsvn_diff

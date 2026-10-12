@@ -184,8 +184,8 @@ showUnifiedDiff(QsciScintilla *editor, const QString &diff,
 GitRepoManagerBridgeImpl::GitRepoManagerBridgeImpl(RepoContainer &container)
     : _container(container) {}
 
-void GitRepoManagerBridgeImpl::blame(
-    const QWeakPointer<RepoContainer> &guard, const QStringList &files) {
+void GitRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,
+                                     const QStringList &files) {
   LOG_PERF(0, "Enter");
 
   if (files.isEmpty()) {
@@ -240,6 +240,16 @@ void GitRepoManagerBridgeImpl::blame(
   const auto blameResult =
       commandResult.value.value<GitRepoBlameCommandResult>();
 
+  showBlameReport(_container, guard, blameResult.report);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::showBlameReport(
+    RepoContainer &container, const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::BlameReport &report) {
+  LOG_PERF(0, "Enter");
+
   QStringList blameLines;
   QStringList blameLineNumbers;
   QStringList blameAuthors;
@@ -263,7 +273,7 @@ void GitRepoManagerBridgeImpl::blame(
     }
   };
 
-  for (const auto &fileInfo : blameResult.report.fileInfos) {
+  for (const auto &fileInfo : report.fileInfos) {
     appendSeparator();
     appendPlainLine(QStringLiteral("File: %1").arg(fileInfo.filePath));
 
@@ -293,11 +303,11 @@ void GitRepoManagerBridgeImpl::blame(
       blameAuthors += author;
       blameCommits += committed ? lineInfo.commit : QString();
       blameCommitToolTips +=
-          committed ? _container
+          committed ? container
                           .tr("%1\n%2\n\nClick to show the commit in the "
                               "history.")
                           .arg(lineInfo.commit, lineInfo.summary)
-                    : _container.tr("Not committed yet");
+                    : container.tr("Not committed yet");
 
       if (author.size() > widestAuthor.size()) {
         widestAuthor = author;
@@ -315,8 +325,8 @@ void GitRepoManagerBridgeImpl::blame(
   const int lineWidth = maxLineNumberDigits;
   const QString lineNumberMask = QString(lineWidth, QChar('9'));
 
-  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    auto *editor = _container.ui->scintillaBlameEditor;
+  Util::Dispatcher::dispatchToMainThread(guard, [=, &container]() {
+    auto *editor = container.ui->scintillaBlameEditor;
 
     QsciLexer *previousLexer = editor->lexer();
     editor->setLexer(nullptr);
@@ -341,7 +351,7 @@ void GitRepoManagerBridgeImpl::blame(
     constexpr int authorMargin = RepoContainer::BlameAuthorMargin;
     constexpr int shortShaLength = RepoContainer::BlameShortShaLength;
 
-    _container._blameCommits = blameCommits;
+    container._blameCommits = blameCommits;
 
     editor->setMarginWidth(0, lineNumberMask);
     editor->setMarginWidth(commitMargin,
@@ -358,7 +368,7 @@ void GitRepoManagerBridgeImpl::blame(
       editor->setMarginText(row, authorMargin, blameAuthors.at(row));
     }
 
-    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+    container.ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::Blame));
   });
 
@@ -451,8 +461,8 @@ void GitRepoManagerBridgeImpl::setUpstream(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoManagerBridgeImpl::stash(
-    const QWeakPointer<RepoContainer> &guard, const QString &note) {
+void GitRepoManagerBridgeImpl::stash(const QWeakPointer<RepoContainer> &guard,
+                                     const QString &note) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -4328,9 +4338,10 @@ void GitRepoManagerBridgeImpl::merge(const QWeakPointer<RepoContainer> &guard,
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoManagerBridgeImpl::rebase(
-    const QWeakPointer<RepoContainer> &guard, const QString &sourceBranch,
-    const QString &destBranch, bool signCommit) {
+void GitRepoManagerBridgeImpl::rebase(const QWeakPointer<RepoContainer> &guard,
+                                      const QString &sourceBranch,
+                                      const QString &destBranch,
+                                      bool signCommit) {
   LOG_PERF(0, "Enter");
 
   const QString author = _container._userProfileManager.currentProfile().author;
@@ -4401,9 +4412,10 @@ void GitRepoManagerBridgeImpl::rebase(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoManagerBridgeImpl::squash(
-    const QWeakPointer<RepoContainer> &guard, const QString &sourceBranch,
-    const QString &destBranch, bool signCommit) {
+void GitRepoManagerBridgeImpl::squash(const QWeakPointer<RepoContainer> &guard,
+                                      const QString &sourceBranch,
+                                      const QString &destBranch,
+                                      bool signCommit) {
   LOG_PERF(0, "Enter");
 
   const QString author = _container._userProfileManager.currentProfile().author;
@@ -4463,9 +4475,9 @@ void GitRepoManagerBridgeImpl::squash(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoManagerBridgeImpl::bisect(
-    const QWeakPointer<RepoContainer> &guard, GitRepo::BisectAction action,
-    const QString &commit) {
+void GitRepoManagerBridgeImpl::bisect(const QWeakPointer<RepoContainer> &guard,
+                                      GitRepo::BisectAction action,
+                                      const QString &commit) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();

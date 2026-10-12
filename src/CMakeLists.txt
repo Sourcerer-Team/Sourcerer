@@ -112,6 +112,12 @@ else ()
   set(ADDITIONAL_LIBRARIES)
 endif ()
 
+option(SOURCERER_BUILD_SVNREPO_TESTS "Build the SvnRepo tests" OFF)
+if (SOURCERER_BUILD_SVNREPO_TESTS)
+  enable_testing()
+  add_subdirectory(../tests/svnrepo ${CMAKE_BINARY_DIR}/tests/svnrepo)
+endif ()
+
 target_link_libraries(Sourcerer PRIVATE
         Qt6::Widgets
         libssh2
@@ -130,6 +136,7 @@ target_link_libraries(Sourcerer PRIVATE
         libsvnxx
         libsvn_client
         libsvn_wc
+        libsvn_repos
         libsvn_ra
         libsvn_delta
         libsvn_diff

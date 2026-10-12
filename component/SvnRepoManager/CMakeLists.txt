@@ -47,4 +47,6 @@ target_include_directories(SvnRepoManager PRIVATE
    ${CMAKE_CURRENT_SOURCE_DIR}/include
    ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/subversion/subversion/include
    ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/subversion/subversion/bindings/cxx/include
+   # SvnRepo.h uses GitRepo types.
+   ${CMAKE_CURRENT_SOURCE_DIR}/../../lib/libgit2/include
 )

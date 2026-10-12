@@ -86,6 +86,7 @@ enum class SvnRepoCommandType : int {
   SubmoduleUpdate,
   UnstageFiles,
   UpdateRemote,
+  Blame,
   Quit,
   Last
 };
@@ -109,6 +110,18 @@ struct SvnRepoCommand {
   SvnRepoCommandType type;
   QString uuid;
   QString syncUuid;
+};
+
+struct SvnRepoBlameCommand final : SvnRepoCommand {
+  SvnRepoBlameCommand() : SvnRepoCommand(SvnRepoCommandType::Blame) {}
+
+  ~SvnRepoBlameCommand() override = default;
+
+  QStringList files;
+};
+
+struct SvnRepoBlameCommandResult {
+  SvnRepo::BlameReport report;
 };
 
 struct SvnRepoAbortMergeCommand final : SvnRepoCommand {
@@ -474,6 +487,7 @@ struct SvnRepoGetBranchHistoryCommand final : SvnRepoCommand {
 
   QString branchName;
   SvnRepo::BranchType branchType = SvnRepo::BranchType::Unknown;
+  int page = 0;
 };
 
 struct SvnRepoGetIsMergeInProgressCommand final : SvnRepoCommand {
@@ -518,6 +532,8 @@ struct SvnRepoInitRepoCommand final : SvnRepoCommand {
   QString repoName;
   QString workingDir;
   QString defaultBranch;
+  QString author;
+  QString email;
 };
 
 struct SvnRepoListConflictsCommand final : SvnRepoCommand {
@@ -615,6 +631,7 @@ struct SvnRepoRebaseCommand final : SvnRepoCommand {
   QString destinationBranch;
   QString author;
   QString email;
+  bool signCommit = false;
 };
 
 struct SvnRepoOpenCommand final : SvnRepoCommand {
@@ -779,6 +796,8 @@ struct SvnRepoStashCommand final : SvnRepoCommand {
   SvnRepoStashCommand() : SvnRepoCommand(SvnRepoCommandType::Stash) {}
 
   ~SvnRepoStashCommand() override = default;
+
+  QString note;
 };
 
 struct SvnRepoStatusCommand final : SvnRepoCommand {
@@ -862,6 +881,9 @@ struct SvnRepoContext {
 } // namespace SvnRepoManager::Structs
 
 Q_DECLARE_METATYPE(SvnRepo::SvnError)
+Q_DECLARE_METATYPE(SvnRepo::BlameReport)
+Q_DECLARE_METATYPE(SvnRepoManager::Structs::SvnRepoBlameCommand)
+Q_DECLARE_METATYPE(SvnRepoManager::Structs::SvnRepoBlameCommandResult)
 Q_DECLARE_METATYPE(SvnRepo::SvnStatus)
 Q_DECLARE_METATYPE(SvnRepo::SvnHistory)
 Q_DECLARE_METATYPE(SvnRepo::CommitStatus)
