@@ -239,6 +239,23 @@ void DarkThemeLexersHighlighter::initializeColorSchemes() {
   blue.identifier = QColor(213, 222, 234);
   blue.phpDefault = QColor(213, 222, 234);
   _colorSchemes["blue"] = blue;
+
+  DarkThemeColors monokai = DEFAULT_DARK_COLORS;
+  monokai.background = QColor(39, 40, 34);
+  monokai.foreground = QColor(248, 248, 242);
+  monokai.selection = QColor(248, 248, 242);
+  monokai.selectionBackground = QColor(73, 72, 62);
+  monokai.currentLine = QColor(62, 61, 50);
+  monokai.lineNumbers = QColor(144, 144, 138);
+  monokai.lineNumbersBackground = QColor(35, 36, 30);
+  monokai.foldMargin = QColor(35, 36, 30);
+  monokai.foldMarginBackground = QColor(35, 36, 30);
+  monokai.indentationGuides = QColor(73, 72, 62);
+  monokai.caretLine = QColor(62, 61, 50);
+  monokai.caretForeground = QColor(248, 248, 242);
+  monokai.identifier = QColor(248, 248, 242);
+  monokai.phpDefault = QColor(248, 248, 242);
+  _colorSchemes["monokai"] = monokai;
 }
 
 void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
@@ -256,6 +273,9 @@ void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
     break;
   case StylesheetManager::StylesheetKey::SourcererBlue:
     _currentScheme = QStringLiteral("blue");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererMonokai:
+    _currentScheme = QStringLiteral("monokai");
     break;
   default:
     _currentScheme = QStringLiteral("default");

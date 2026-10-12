@@ -306,16 +306,19 @@ void MergeDiffView::refreshScintillaTheme() {
       theme == StylesheetManager::StylesheetKey::SourcererPurple;
   const bool blueTheme =
       theme == StylesheetManager::StylesheetKey::SourcererBlue;
+  const bool monokaiTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererMonokai;
   const QColor deletedColor =
       lightTheme ? QColor(255, 231, 231) : QColor(0x4a2327);
   const QColor addedColor =
       lightTheme ? QColor(232, 246, 232) : QColor(0x1f3d2b);
   const QColor actionColor = lightTheme ? QColor(0x0969da) : QColor(0x2f81f7);
   const QColor actionGlyphColor = Qt::white;
-  const QColor marginColor = lightTheme    ? QColor(243, 246, 248)
-                             : purpleTheme ? QColor(0x2b2735)
-                             : blueTheme   ? QColor(0x1a2435)
-                                           : QColor(0x23272e);
+  const QColor marginColor = lightTheme     ? QColor(243, 246, 248)
+                             : purpleTheme  ? QColor(0x2b2735)
+                             : blueTheme    ? QColor(0x1a2435)
+                             : monokaiTheme ? QColor(0x2f3029)
+                                            : QColor(0x23272e);
   const QColor changedColor =
       lightTheme ? QColor(255, 241, 201) : QColor(0x4d4021);
 

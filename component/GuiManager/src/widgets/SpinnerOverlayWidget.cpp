@@ -62,10 +62,13 @@ SpinnerOverlayWidget::SpinnerOverlayWidget(QWidget *parent)
       theme == StylesheetManager::StylesheetKey::SourcererPurple;
   const bool blueTheme =
       theme == StylesheetManager::StylesheetKey::SourcererBlue;
-  _spinner->setColor(lightTheme    ? QColor(44, 84, 150)
-                     : purpleTheme ? QColor(143, 180, 224)
-                     : blueTheme   ? QColor(81, 186, 229)
-                                   : QColor(100, 200, 255));
+  const bool monokaiTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererMonokai;
+  _spinner->setColor(lightTheme     ? QColor(44, 84, 150)
+                     : purpleTheme  ? QColor(143, 180, 224)
+                     : blueTheme    ? QColor(81, 186, 229)
+                     : monokaiTheme ? QColor(166, 226, 46)
+                                    : QColor(100, 200, 255));
   _spinner->setInnerRadius(20);
   _spinner->setLineLength(lightTheme ? 10 : 6);
   _spinner->setLineWidth(lightTheme ? 6 : 4);
