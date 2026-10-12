@@ -47,6 +47,7 @@
 #include <Qsci/qscilexergo.h>
 #include <Qsci/qscilexerkotlin.h>
 #include <Qsci/qscilexerobjectivec.h>
+#include <Qsci/qscilexerhcl.h>
 #include <Qsci/qscilexerswift.h>
 #include <Qsci/qscilexerzig.h>
 #include <Qsci/qscilexerruby.h>
@@ -203,6 +204,9 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("kts"), &createLexer<QsciLexerKotlin>},
       {QStringLiteral("mm"), &createLexer<QsciLexerObjectiveC>},
       {QStringLiteral("swift"), &createLexer<QsciLexerSwift>},
+      {QStringLiteral("tf"), &createLexer<QsciLexerHCL>},
+      {QStringLiteral("tfvars"), &createLexer<QsciLexerHCL>},
+      {QStringLiteral("hcl"), &createLexer<QsciLexerHCL>},
       {QStringLiteral("sql"), &createLexer<QsciLexerSQL>},
       {QStringLiteral("ruby"), &createLexer<QsciLexerRuby>},
       {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
@@ -448,6 +452,10 @@ QsciLexer *QScintillaLexerFactory::createObjectiveCLexer(QObject *parent) const 
   return new QsciLexerObjectiveC(parent);
 }
 
+QsciLexer *QScintillaLexerFactory::createHclLexer(QObject *parent) const {
+  return new QsciLexerHCL(parent);
+}
+
 QsciLexer *QScintillaLexerFactory::createSwiftLexer(QObject *parent) const {
   return new QsciLexerSwift(parent);
 }
@@ -601,6 +609,8 @@ QsciLexer *QScintillaLexerFactory::createLexerByType(const QString &lexerName,
     return createObjectiveCLexer(parent);
   if (lexerName == "Swift")
     return createSwiftLexer(parent);
+  if (lexerName == "HCL")
+    return createHclLexer(parent);
   if (lexerName == "Fortran")
     return createFortranLexer(parent);
   if (lexerName == "Fortran77")
@@ -773,6 +783,9 @@ void QScintillaLexerFactory::initializeExtensionMappings() {
   _extensionToLexer["kts"] = "Kotlin";
   _extensionToLexer["mm"] = "ObjectiveC";
   _extensionToLexer["swift"] = "Swift";
+  _extensionToLexer["tf"] = "HCL";
+  _extensionToLexer["tfvars"] = "HCL";
+  _extensionToLexer["hcl"] = "HCL";
   _extensionToLexer["lua"] = "Lua";
   _extensionToLexer["tcl"] = "TCL";
   _extensionToLexer["tk"] = "TCL";
@@ -909,6 +922,7 @@ void QScintillaLexerFactory::initializeLexerDescriptions() {
   _lexerDescriptions["Kotlin"] = "Kotlin Programming Language";
   _lexerDescriptions["ObjectiveC"] = "Objective-C Programming Language";
   _lexerDescriptions["Swift"] = "Swift Programming Language";
+  _lexerDescriptions["HCL"] = "HashiCorp Configuration Language (Terraform)";
   _lexerDescriptions["Fortran"] = "Fortran 90+ Programming Language";
   _lexerDescriptions["Fortran77"] = "Fortran 77 Programming Language";
   _lexerDescriptions["IDL"] = "Interactive Data Language";

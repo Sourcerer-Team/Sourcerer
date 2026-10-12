@@ -34,6 +34,7 @@ const TSLanguage *tree_sitter_asm(void);
 const TSLanguage *tree_sitter_objc(void);
 const TSLanguage *tree_sitter_swift(void);
 const TSLanguage *tree_sitter_sql(void);
+const TSLanguage *tree_sitter_hcl(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -185,6 +186,7 @@ QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerZig, QsciLexerCPP, "zig")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerKotlin, QsciLexerCPP, "kotlin")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerObjectiveC, QsciLexerCPP, "objc")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerSwift, QsciLexerCPP, "swift")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerHCL, QsciLexerCPP, "hcl")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTypeScript, QsciLexerJavaScript,
                              "typescript")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTSX, QsciLexerJavaScript, "tsx")
@@ -446,6 +448,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("sql"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_sql();
   }
+  if (language.compare(QStringLiteral("hcl"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_hcl();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -540,6 +545,7 @@ enum class StyledLanguage {
   ObjectiveC,
   Swift,
   Sql,
+  Hcl,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -661,6 +667,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_sql()) {
     return StyledLanguage::Sql;
   }
+  if (language == tree_sitter_hcl()) {
+    return StyledLanguage::Hcl;
+  }
   return StyledLanguage::None;
 }
 
@@ -707,6 +716,7 @@ StyleSet styleSetFor(StyledLanguage language) {
   case StyledLanguage::Kotlin:
   case StyledLanguage::ObjectiveC:
   case StyledLanguage::Swift:
+  case StyledLanguage::Hcl:
     break;
   case StyledLanguage::Sql:
     return StyleSet::Sql;
@@ -2843,6 +2853,89 @@ int sqlStyleFor(Token token) {
   }
 }
 
+// Operator tokens of HCL and Terraform, listed exactly.
+bool isHclOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),  QStringLiteral("!="), QStringLiteral("%"),
+      QStringLiteral("&&"), QStringLiteral("*"),  QStringLiteral("+"),
+      QStringLiteral("-"),  QStringLiteral("/"),  QStringLiteral("<"),
+      QStringLiteral("<="), QStringLiteral("="),  QStringLiteral("=="),
+      QStringLiteral("=>"), QStringLiteral(">"),  QStringLiteral(">="),
+      QStringLiteral("?"),  QStringLiteral("||"), QStringLiteral("..."),
+      QStringLiteral("[*]")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Classifies an HCL or Terraform node. The first identifier of a block is its
+// type (resource, variable, module...), attribute names and selected members
+// are properties, variable references are variables.
+Token hclTokenForNode(const NodeContext &context, const QByteArray &source,
+                      bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (typeIn(type, {"for", "in", "if", "else", "endfor", "endif", "true",
+                      "false", "null"})) {
+      return Token::Keyword;
+    }
+    return isHclOperator(type) ? Token::Operator : Token::None;
+  }
+
+  const uint32_t start = ts_node_start_byte(context.node);
+  if (typeEquals(type, "comment")) {
+    descend = false;
+    return byteAt(source, start + 1) == '*' ? Token::Comment
+                                            : Token::CommentLine;
+  }
+  if (typeEquals(type, "string_lit")) {
+    return Token::String;
+  }
+  // Code in ${...} and %{...} is colored by its own nodes, the rest is text.
+  if (typeIn(type, {"template_interpolation", "template_directive"})) {
+    return Token::Default;
+  }
+  if (typeEquals(type, "heredoc_template")) {
+    return Token::String;
+  }
+  if (typeIn(type, {"heredoc_start", "heredoc_identifier"})) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "numeric_lit")) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"bool_lit", "null_lit"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeEquals(type, "identifier")) {
+    descend = false;
+    const char *parent = context.parent;
+    const bool first =
+        ts_node_is_null(ts_node_prev_named_sibling(context.node));
+    if (typeEquals(parent, "block") && first) {
+      return Token::Keyword;
+    }
+    if (typeEquals(parent, "attribute") && first) {
+      return Token::Property;
+    }
+    if (typeEquals(parent, "get_attr")) {
+      return Token::Property;
+    }
+    if (typeEquals(parent, "variable_expr")) {
+      return Token::Variable;
+    }
+    if (typeEquals(parent, "function_call")) {
+      return Token::FunctionName;
+    }
+    descend = true;
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -2884,6 +2977,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return swiftTokenForNode(context, source, descend);
   case StyledLanguage::Sql:
     return sqlTokenForNode(context, source, descend);
+  case StyledLanguage::Hcl:
+    return hclTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
