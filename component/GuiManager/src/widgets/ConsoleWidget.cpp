@@ -46,6 +46,9 @@ ConsoleThemeColors consoleThemeColors() {
   case StylesheetManager::StylesheetKey::SourcererMonokai:
     return ConsoleThemeColors{QColor(39, 40, 34), QColor(248, 248, 242),
                               QColor(62, 61, 50), QColor(73, 72, 62)};
+  case StylesheetManager::StylesheetKey::SourcererGruvbox:
+    return ConsoleThemeColors{QColor(40, 40, 40), QColor(235, 219, 178),
+                              QColor(60, 56, 54), QColor(80, 73, 69)};
   default:
     return ConsoleThemeColors{QColor(45, 45, 48), QColor(255, 255, 255),
                               QColor(62, 62, 66), QColor(0, 122, 204)};

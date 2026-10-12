@@ -79,6 +79,8 @@ public:
       return QColor::fromString("#2D4A66");
     case StylesheetManager::StylesheetKey::SourcererMonokai:
       return QColor::fromString("#3E3D32");
+    case StylesheetManager::StylesheetKey::SourcererGruvbox:
+      return QColor::fromString("#3C3836");
     default:
       return QColor::fromString("#384D59");
     }
