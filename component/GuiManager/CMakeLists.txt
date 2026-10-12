@@ -64,6 +64,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/HitDetector.h
         include/WindowResize.h
         include/InitResources.h
+        include/RepositoryType.h
         include/MainWindow.h
         include/MousePositionCorrection.h
         include/QScintillaLexerFactory.h

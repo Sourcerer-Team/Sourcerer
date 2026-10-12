@@ -3687,67 +3687,6 @@ bool SvnRepoManagerBridgeImpl::getTags() {
   return true;
 }
 
-bool SvnRepoManagerBridgeImpl::getRemoteTags() {
-  LOG_PERF(0, "Enter");
-
-  const QString eventUuid = Uuid::createUuid();
-
-  const int token = _container._eventManager.startWait();
-
-  SvnRepoListRemoteTagsCommand command;
-  command.uuid = _container._uuid;
-  command.syncUuid = eventUuid;
-
-  EventManager::Event listTagsEvent(
-      EventManager::EventType::SvnRepoManagerListRemoteTags, eventUuid);
-  listTagsEvent.addData(command);
-  _container._eventManager.send(listTagsEvent);
-
-  static std::set types = {
-      EventManager::EventType::SvnRepoManagerListRemoteTagsError,
-      EventManager::EventType::SvnRepoManagerListRemoteTagsResult};
-
-  const auto &[success, event] =
-      _container._eventManager.waitForAnswer(token, eventUuid, types);
-
-  const QWeakPointer<RepoContainer> guard = _container.getSelf().toWeakRef();
-
-  if (!success) {
-    closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showErrorPage();
-      _container.showErrorToast(
-          _container.tr("Failed to retrieve the list of remote tags."),
-          _container.tr("Error"));
-    });
-
-    LOG_PERF(0, "Exit")
-    return false;
-  }
-
-  if (event.type() !=
-      EventManager::EventType::SvnRepoManagerListRemoteTagsResult) {
-    const auto error = event.data<SvnRepoError>();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showErrorToast(error.message, _container.tr("Error"));
-    });
-
-    LOG_PERF(0, "Exit")
-    return false;
-  }
-
-  const auto commandResult = event.data<SvnRepoResult>();
-
-  const auto tags = commandResult.value.value<QStringList>();
-
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { _container.updateRemoteTagsModel(guard, tags); });
-
-  LOG_PERF(0, "Exit")
-
-  return true;
-}
-
 QPair<QString, QString> SvnRepoManagerBridgeImpl::getUpstream(
     const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");

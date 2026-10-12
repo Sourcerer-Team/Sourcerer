@@ -191,21 +191,6 @@
                                                                     </string>
                 </attribute>
                </widget>
-               <widget class="GuiManager::Widgets::GitTagsPage" name="remoteTagsPage">
-                <property name="geometry">
-                 <rect>
-                  <x>0</x>
-                  <y>0</y>
-                  <width>73</width>
-                  <height>185</height>
-                 </rect>
-                </property>
-                <attribute name="label">
-                 <string>
-                                                                        Remote tags
-                                                                    </string>
-                </attribute>
-               </widget>
                <widget class="GuiManager::Widgets::GitSubmodulesPage" name="submodulesPage">
                 <property name="geometry">
                  <rect>

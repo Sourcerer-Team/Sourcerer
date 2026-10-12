@@ -144,7 +144,6 @@ public:
   virtual bool getRemotes(const QWeakPointer<RepoContainer> &guard) = 0;
   virtual bool getSubmodules() = 0;
   virtual bool getTags() = 0;
-  virtual bool getRemoteTags() = 0;
   virtual QPair<QString, QString>
   getUpstream(const QWeakPointer<RepoContainer> &guard) = 0;
   virtual QPair<QString, QString>

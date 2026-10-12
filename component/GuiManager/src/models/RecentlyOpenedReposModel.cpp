@@ -1,5 +1,7 @@
 #include "models/RecentlyOpenedReposModel.h"
 
+#include <StylesheetManager.h>
+
 #include <Git.h>
 #include <Log.h>
 #include <TokenString.h>
@@ -46,7 +48,8 @@ QVariant RecentlyOpenedReposModel::data(const QModelIndex &index,
     return boldFont;
   }
 
-  if (role != Qt::ItemDataRole::DisplayRole)
+  if (role != Qt::ItemDataRole::DisplayRole &&
+      role != Qt::ItemDataRole::DecorationRole)
     return QVariant();
 
   if (column < 0 || column > 2)
@@ -55,6 +58,13 @@ QVariant RecentlyOpenedReposModel::data(const QModelIndex &index,
   const int row = index.row();
   if (row < 0 || row > _recentlyOpened.length() - 1)
     return QVariant();
+
+  if (role == Qt::ItemDataRole::DecorationRole) {
+    if (column != 0) {
+      return QVariant();
+    }
+    return repositoryTypeIcon(_recentlyOpened[row].type);
+  }
 
   return column == 0 ? _recentlyOpened[row].name
                      : QDir::toNativeSeparators(_recentlyOpened[row].path);
@@ -69,6 +79,54 @@ void RecentlyOpenedReposModel::reload() {
   load();
 }
 
+QString RecentlyOpenedReposModel::makeRecentEntry(const QString &path,
+                                                 const RepositoryType type) {
+  return QDir::fromNativeSeparators(path) + QStringLiteral("|") +
+         repositoryTypeKey(type);
+}
+
+QString RecentlyOpenedReposModel::recentEntryPath(const QString &entry) {
+  return parseRecentEntry(entry).path;
+}
+
+RecentlyOpenedRepo
+RecentlyOpenedReposModel::parseRecentEntry(const QString &entry) {
+  const int separator = entry.lastIndexOf(QLatin1Char('|'));
+  RepositoryType type = RepositoryType::Git;
+
+  // Entries saved before the type was stored have no suffix, their type is
+  // detected from the repository itself.
+  if (separator == -1 ||
+      !repositoryTypeFromKey(entry.mid(separator + 1), &type)) {
+    const QString path = QDir::fromNativeSeparators(entry);
+    const QStringList parts = path.split("/", Qt::SkipEmptyParts);
+    return RecentlyOpenedRepo{path, parts.isEmpty() ? QString() : parts.last(),
+                              repositoryTypeOf(path)};
+  }
+
+  const QString path = QDir::fromNativeSeparators(entry.left(separator));
+  const QStringList parts = path.split("/", Qt::SkipEmptyParts);
+  return RecentlyOpenedRepo{path, parts.isEmpty() ? QString() : parts.last(),
+                            type};
+}
+
+QIcon RecentlyOpenedReposModel::repositoryTypeIcon(
+    const RepositoryType type) const {
+  // The icons are recoloured like the other Home icons and rendered again only
+  // when the theme icon colour changes.
+  const QColor color =
+      StylesheetManager::StylesheetManager::menuBarButtonIconColor();
+  if (_gitIcon.isNull() || color != _iconColor) {
+    _iconColor = color;
+    _gitIcon = QIcon(StylesheetManager::StylesheetManager::renderSvgToPixmap(
+        QStringLiteral(":/icons/repo-type-git.svg"), color));
+    _svnIcon = QIcon(StylesheetManager::StylesheetManager::renderSvgToPixmap(
+        QStringLiteral(":/icons/repo-type-svn.svg"), color));
+  }
+
+  return type == RepositoryType::Subversion ? _svnIcon : _gitIcon;
+}
+
 void RecentlyOpenedReposModel::load() {
   beginResetModel();
 
@@ -77,13 +135,13 @@ void RecentlyOpenedReposModel::load() {
   Util::TokenString tokenizer(recents, ';');
 
   while (tokenizer.hasNext()) {
-    const QString path = QDir::fromNativeSeparators(tokenizer.getNextToken());
-    const QStringList parts = path.split("/", Qt::SkipEmptyParts);
-    if (path.length() < 1) {
+    const RecentlyOpenedRepo repo =
+        parseRecentEntry(tokenizer.getNextToken());
+    if (repo.path.length() < 1) {
       continue;
     }
-    const QString name = parts.last();
-    _recentlyOpened += RecentlyOpenedRepo{QDir::toNativeSeparators(path), name};
+    _recentlyOpened += RecentlyOpenedRepo{QDir::toNativeSeparators(repo.path),
+                                          repo.name, repo.type};
   }
 
   endResetModel();

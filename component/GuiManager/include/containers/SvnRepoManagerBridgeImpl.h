@@ -126,7 +126,6 @@ public:
   bool getRemotes(const QWeakPointer<RepoContainer> &guard) override;
   bool getSubmodules() override;
   bool getTags() override;
-  bool getRemoteTags() override;
   QPair<QString, QString>
   getUpstream(const QWeakPointer<RepoContainer> &guard) override;
   QPair<QString, QString>

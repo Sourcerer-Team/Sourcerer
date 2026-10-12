@@ -1821,7 +1821,10 @@ void HomeContainer::onRecentRightClicked(const QString &path,
         _configManager.getString(ConfigManager::ConfigKey::RecentlyOpenedRepos);
     QStringList pathsList = recentPaths.split(";", Qt::SkipEmptyParts);
 
-    pathsList.removeAll(QDir::fromNativeSeparators(path));
+    const QString repoPath = QDir::fromNativeSeparators(path);
+    pathsList.removeIf([&repoPath](const QString &entry) {
+      return RecentlyOpenedReposModel::recentEntryPath(entry) == repoPath;
+    });
     recentPaths = pathsList.join(";");
 
     _configManager.setString(ConfigManager::ConfigKey::RecentlyOpenedRepos,

@@ -8,6 +8,7 @@
 #include "containers/SvnRepoManagerBridgeImpl.h"
 #include "containers/ui_RepoContainer.h"
 #include "delegates/ElidePartialColorDelegate.h"
+#include "models/RecentlyOpenedReposModel.h"
 #include "delegates/HistorySliceTableColumnDelegate.h"
 #include "delegates/HistorySummaryTableColumnDelegate.h"
 #include "models/GitCommitListModel.h"
@@ -297,11 +298,6 @@ using namespace GuiManager::Widgets;
 using namespace GitRepoManager::Structs;
 
 namespace GuiManager::Containers {
-enum class RepositoryType {
-  Git = 0,
-  Subversion,
-};
-
 enum class CommitAndMergeStackIndexes {
   Unknown = -1,
 
@@ -470,20 +466,9 @@ QStringList traverseModelIndexSubtree(const QModelIndex &parent,
   return files;
 }
 
-static RepositoryType detectRepositoryType(const QString &path) {
-  const QDir repoDir(path);
-  if (repoDir.exists(QStringLiteral(GIT_SUBDIR))) {
-    return RepositoryType::Git;
-  }
-  if (repoDir.exists(QStringLiteral(SVN_SUBDIR))) {
-    return RepositoryType::Subversion;
-  }
-  return RepositoryType::Git;
-}
-
 static const char *repoAdminSubdir(const QString &path) {
-  return detectRepositoryType(path) == RepositoryType::Subversion ? SVN_SUBDIR
-                                                                  : GIT_SUBDIR;
+  return repositoryTypeOf(path) == RepositoryType::Subversion ? SVN_SUBDIR
+                                                              : GIT_SUBDIR;
 }
 
 static std::unique_ptr<GitRepoManagerBridge>
@@ -502,7 +487,7 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
       _activeBranchType(GitRepo::BranchType::All),
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
-      _bridge(createRepoBridge(*this, detectRepositoryType(_path))),
+      _bridge(createRepoBridge(*this, repositoryTypeOf(_path))),
       _userProfileManager(Common::UserProfileManager::instance()),
       _toastHost(ToastHostWidget::getInstance()),
       _historyModel(new Models::GitHistoryModel()),
@@ -566,7 +551,6 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   ui->localPage->setContentsMargins(0, 0, 0, 0);
   ui->remotePage->setContentsMargins(0, 0, 0, 0);
   ui->tagsPage->setContentsMargins(0, 0, 0, 0);
-  ui->remoteTagsPage->setContentsMargins(0, 0, 0, 0);
   ui->stashesPage->setContentsMargins(0, 0, 0, 0);
   ui->submodulesPage->setContentsMargins(0, 0, 0, 0);
   ui->remotesPage->setContentsMargins(0, 0, 0, 0);
@@ -574,22 +558,7 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
 
   const bool gitType = type == ContainerType::GitRepo;
 
-  // Pages that do not apply to the repository type are removed from the tool
-  // box, so the remaining items are addressed by their page widget.
-  const auto removeToolBoxPage = [this](QWidget *page) {
-    page->hide();
-    const int index = ui->toolBox->indexOf(page);
-    if (index != -1) {
-      ui->toolBox->removeItem(index);
-    }
-  };
-
   ui->localPage->setShowAllBranchesItem(gitType);
-
-  // Subversion repositories keep every page, the bridge fills them in.
-  if (gitType) {
-    removeToolBoxPage(ui->remoteTagsPage);
-  }
 
   ToolBoxFixer::apply(ui->toolBox);
 
@@ -603,7 +572,6 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   setToolBoxItemText(ui->localPage, tr("Local Branches"));
   setToolBoxItemText(ui->remotePage, tr("Remote Branches"));
   setToolBoxItemText(ui->tagsPage, tr("Tags"));
-  setToolBoxItemText(ui->remoteTagsPage, tr("Remote tags"));
   setToolBoxItemText(ui->submodulesPage, tr("Submodules"));
   setToolBoxItemText(ui->stashesPage, tr("Stashes"));
   setToolBoxItemText(ui->remotesPage, tr("Remotes"));
@@ -1718,13 +1686,6 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   connect(ui->tagsPage, &GitTagsPage::tagRightClicked, this,
           &RepoContainer::onTagRightClicked);
   connect(ui->tagsPage, &GitTagsPage::emptyAreaRightClicked, this,
-          &RepoContainer::onTagsEmptyAreaRightClicked);
-
-  connect(ui->remoteTagsPage, &GitTagsPage::tagSelected, this,
-          &RepoContainer::onTagSelected);
-  connect(ui->remoteTagsPage, &GitTagsPage::tagRightClicked, this,
-          &RepoContainer::onTagRightClicked);
-  connect(ui->remoteTagsPage, &GitTagsPage::emptyAreaRightClicked, this,
           &RepoContainer::onTagsEmptyAreaRightClicked);
 
   connect(ui->stashesPage, &StashesPage::stashSelected, this,
@@ -7809,16 +7770,21 @@ void RepoContainer::saveRepoInRecentList() const {
       _configManager.getString(ConfigManager::ConfigKey::RecentlyOpenedRepos);
 
   QStringList recentReposList = recentRepos.split(";", Qt::SkipEmptyParts);
-  if (recentReposList.contains(QDir::fromNativeSeparators(_path))) {
-    LOG_PERF(0, "Exit");
-    return;
+  const QString repoPath = QDir::fromNativeSeparators(_path);
+  for (const QString &entry : recentReposList) {
+    if (Models::RecentlyOpenedReposModel::recentEntryPath(entry) ==
+        repoPath) {
+      LOG_PERF(0, "Exit");
+      return;
+    }
   }
 
   if (recentReposList.length() > 9) {
     recentReposList = recentReposList.mid(1, 9);
   }
 
-  recentReposList += QDir::fromNativeSeparators(_path);
+  recentReposList += Models::RecentlyOpenedReposModel::makeRecentEntry(
+      _path, repositoryTypeOf(_path));
   recentRepos = recentReposList.join(";");
 
   _configManager.setString(ConfigManager::ConfigKey::RecentlyOpenedRepos,
@@ -9456,8 +9422,6 @@ void RepoContainer::applyToolBoxIcons() {
   setToolBoxItemIcon(ui->remotePage,
                      QStringLiteral(":icons/header-remote-branches.svg"));
   setToolBoxItemIcon(ui->tagsPage, QStringLiteral(":icons/header-tags.svg"));
-  setToolBoxItemIcon(ui->remoteTagsPage,
-                     QStringLiteral(":icons/header-tags.svg"));
   setToolBoxItemIcon(ui->submodulesPage,
                      QStringLiteral(":icons/header-submodules.svg"));
   setToolBoxItemIcon(ui->stashesPage,
@@ -10334,7 +10298,6 @@ bool RepoContainer::refreshHistory(const WeakPtr &guard) {
 
   ok &= ok && _bridge->getTags();
   ok &= ok && getActiveTag();
-  ok &= ok && _bridge->getRemoteTags();
   ok &= ok && _bridge->getLocalBranches();
   ok &= ok && getActiveLocalBranch();
   ok &= ok && _bridge->getRemoteBranches();
@@ -11047,9 +11010,6 @@ void RepoContainer::updateLocalBranchesModelActiveBranch(
     ui->remotePage->updateActiveBranch(
         QString());                           // deselect remote branch if any
     ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
-    if (type() == ContainerType::SvnRepo) {
-      ui->remoteTagsPage->updateActiveTag(QString());
-    }
 
     // Update the active remote in RemotesPage to match the branch's upstream
     _dispatcher.dispatch([=]() {
@@ -11122,9 +11082,6 @@ void RepoContainer::updateRemoteBranchesModelActiveBranch(
     ui->localPage->updateActiveBranch(
         QString());                           // deselect remote branch if any
     ui->tagsPage->updateActiveTag(QString()); // deselect remote branch if any
-    if (type() == ContainerType::SvnRepo) {
-      ui->remoteTagsPage->updateActiveTag(QString());
-    }
   }
 
   LOG_PERF(0, "Exit")
@@ -11163,9 +11120,6 @@ void RepoContainer::updateTagsModelActiveTag(const WeakPtr &guard,
     ui->remotePage->clearCached();
     ui->remotePage->updateActiveBranch(QString());
     ui->tagsPage->updateActiveTag(activeTag); // deselect local branch if any
-    if (type() == ContainerType::SvnRepo) {
-      ui->remoteTagsPage->updateActiveTag(activeTag);
-    }
   }
 
   LOG_PERF(0, "Exit")
@@ -11219,19 +11173,6 @@ void RepoContainer::updateTagsModel(const WeakPtr &guard,
 
   if (const auto locked = guard.lock()) {
     ui->tagsPage->updateModel(tags);
-  }
-
-  LOG_PERF(0, "Exit")
-}
-
-void RepoContainer::updateRemoteTagsModel(const WeakPtr &guard,
-                                          const QStringList &tags) const {
-  LOG_PERF(0, "Enter");
-
-  if (const auto locked = guard.lock()) {
-    if (type() == ContainerType::SvnRepo) {
-      ui->remoteTagsPage->updateModel(tags);
-    }
   }
 
   LOG_PERF(0, "Exit")

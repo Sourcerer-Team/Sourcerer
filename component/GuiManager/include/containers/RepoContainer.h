@@ -454,8 +454,6 @@ private:
   updateWorktreesModel(const WeakPtr &guard,
                        const QVector<GitRepo::WorktreeInfo> &worktrees) const;
   void updateTagsModel(const WeakPtr &guard, const QStringList &tags) const;
-  void updateRemoteTagsModel(const WeakPtr &guard,
-                             const QStringList &tags) const;
   void refreshHistoryFilterButtonIcon();
   void updateHistoryFilterButtonGeometry();
   void updateHistorySearchRepositoryButton();
