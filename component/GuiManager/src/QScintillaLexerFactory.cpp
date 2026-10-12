@@ -47,6 +47,7 @@
 #include <Qsci/qscilexergo.h>
 #include <Qsci/qscilexerkotlin.h>
 #include <Qsci/qscilexerobjectivec.h>
+#include <Qsci/qscilexerdockerfile.h>
 #include <Qsci/qscilexerhcl.h>
 #include <Qsci/qscilexerswift.h>
 #include <Qsci/qscilexerzig.h>
@@ -207,6 +208,7 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("tf"), &createLexer<QsciLexerHCL>},
       {QStringLiteral("tfvars"), &createLexer<QsciLexerHCL>},
       {QStringLiteral("hcl"), &createLexer<QsciLexerHCL>},
+      {QStringLiteral("dockerfile"), &createLexer<QsciLexerDockerfile>},
       {QStringLiteral("sql"), &createLexer<QsciLexerSQL>},
       {QStringLiteral("ruby"), &createLexer<QsciLexerRuby>},
       {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
@@ -221,6 +223,10 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
   if (fileName == QStringLiteral("gemfile") ||
       fileName == QStringLiteral("rakefile")) {
     return createLexer<QsciLexerRuby>(parent);
+  }
+  if (fileName == QStringLiteral("dockerfile") ||
+      fileName == QStringLiteral("containerfile")) {
+    return createLexer<QsciLexerDockerfile>(parent);
   }
 
   const Creator creator = creators.value(extractExtension(filePath), nullptr);
@@ -452,6 +458,10 @@ QsciLexer *QScintillaLexerFactory::createObjectiveCLexer(QObject *parent) const 
   return new QsciLexerObjectiveC(parent);
 }
 
+QsciLexer *QScintillaLexerFactory::createDockerfileLexer(QObject *parent) const {
+  return new QsciLexerDockerfile(parent);
+}
+
 QsciLexer *QScintillaLexerFactory::createHclLexer(QObject *parent) const {
   return new QsciLexerHCL(parent);
 }
@@ -611,6 +621,8 @@ QsciLexer *QScintillaLexerFactory::createLexerByType(const QString &lexerName,
     return createSwiftLexer(parent);
   if (lexerName == "HCL")
     return createHclLexer(parent);
+  if (lexerName == "Dockerfile")
+    return createDockerfileLexer(parent);
   if (lexerName == "Fortran")
     return createFortranLexer(parent);
   if (lexerName == "Fortran77")
@@ -786,6 +798,7 @@ void QScintillaLexerFactory::initializeExtensionMappings() {
   _extensionToLexer["tf"] = "HCL";
   _extensionToLexer["tfvars"] = "HCL";
   _extensionToLexer["hcl"] = "HCL";
+  _extensionToLexer["dockerfile"] = "Dockerfile";
   _extensionToLexer["lua"] = "Lua";
   _extensionToLexer["tcl"] = "TCL";
   _extensionToLexer["tk"] = "TCL";
@@ -857,8 +870,8 @@ void QScintillaLexerFactory::initializeFilenameMappings() {
   _filenameToLexer["makefile"] = "Makefile";
   _filenameToLexer["gnumakefile"] = "Makefile";
   _filenameToLexer["bsdmakefile"] = "Makefile";
-  _filenameToLexer["dockerfile"] = "Bash";
-  _filenameToLexer["containerfile"] = "Bash";
+  _filenameToLexer["dockerfile"] = "Dockerfile";
+  _filenameToLexer["containerfile"] = "Dockerfile";
   _filenameToLexer["gitignore"] = "Properties";
   _filenameToLexer["gitattributes"] = "Properties";
   _filenameToLexer["gitmodules"] = "Properties";
@@ -923,6 +936,7 @@ void QScintillaLexerFactory::initializeLexerDescriptions() {
   _lexerDescriptions["ObjectiveC"] = "Objective-C Programming Language";
   _lexerDescriptions["Swift"] = "Swift Programming Language";
   _lexerDescriptions["HCL"] = "HashiCorp Configuration Language (Terraform)";
+  _lexerDescriptions["Dockerfile"] = "Dockerfile";
   _lexerDescriptions["Fortran"] = "Fortran 90+ Programming Language";
   _lexerDescriptions["Fortran77"] = "Fortran 77 Programming Language";
   _lexerDescriptions["IDL"] = "Interactive Data Language";
