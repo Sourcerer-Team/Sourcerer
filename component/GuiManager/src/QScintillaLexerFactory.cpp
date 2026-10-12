@@ -209,6 +209,7 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("tfvars"), &createLexer<QsciLexerHCL>},
       {QStringLiteral("hcl"), &createLexer<QsciLexerHCL>},
       {QStringLiteral("dockerfile"), &createLexer<QsciLexerDockerfile>},
+      {QStringLiteral("cmake"), &createLexer<QsciLexerCMake>},
       {QStringLiteral("sql"), &createLexer<QsciLexerSQL>},
       {QStringLiteral("ruby"), &createLexer<QsciLexerRuby>},
       {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
@@ -223,6 +224,9 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
   if (fileName == QStringLiteral("gemfile") ||
       fileName == QStringLiteral("rakefile")) {
     return createLexer<QsciLexerRuby>(parent);
+  }
+  if (fileName == QStringLiteral("cmakelists.txt")) {
+    return createLexer<QsciLexerCMake>(parent);
   }
   if (fileName == QStringLiteral("dockerfile") ||
       fileName == QStringLiteral("containerfile")) {
@@ -884,6 +888,7 @@ void QScintillaLexerFactory::initializeFilenameMappings() {
   _filenameToLexer["copying"] = "Markdown";
   _filenameToLexer["procfile"] = "Bash";
   _filenameToLexer["gemfile"] = "Ruby";
+  _filenameToLexer["cmakelists.txt"] = "CMake";
   _filenameToLexer["rakefile"] = "Ruby";
   _filenameToLexer["vagrantfile"] = "Ruby";
   _filenameToLexer["brewfile"] = "Ruby";

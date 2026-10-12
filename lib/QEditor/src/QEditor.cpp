@@ -36,6 +36,7 @@ const TSLanguage *tree_sitter_swift(void);
 const TSLanguage *tree_sitter_sql(void);
 const TSLanguage *tree_sitter_hcl(void);
 const TSLanguage *tree_sitter_dockerfile(void);
+const TSLanguage *tree_sitter_cmake(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -457,6 +458,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
       0) {
     return tree_sitter_dockerfile();
   }
+  if (language.compare(QStringLiteral("cmake"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_cmake();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -553,6 +557,7 @@ enum class StyledLanguage {
   Sql,
   Hcl,
   Dockerfile,
+  CMake,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -583,7 +588,9 @@ enum class StyleSet {
   // QsciLexerAsm ids.
   Asm,
   // QsciLexerSQL ids.
-  Sql
+  Sql,
+  // QsciLexerCMake ids.
+  CMake
 };
 
 StyledLanguage styledLanguageFor(const TSLanguage *language) {
@@ -680,6 +687,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_dockerfile()) {
     return StyledLanguage::Dockerfile;
   }
+  if (language == tree_sitter_cmake()) {
+    return StyledLanguage::CMake;
+  }
   return StyledLanguage::None;
 }
 
@@ -729,6 +739,8 @@ StyleSet styleSetFor(StyledLanguage language) {
   case StyledLanguage::Hcl:
   case StyledLanguage::Dockerfile:
     break;
+  case StyledLanguage::CMake:
+    return StyleSet::CMake;
   case StyledLanguage::Sql:
     return StyleSet::Sql;
   case StyledLanguage::Asm:
@@ -3022,6 +3034,75 @@ Token dockerfileTokenForNode(const NodeContext &context,
   return Token::None;
 }
 
+// Keywords that CMake takes as arguments of commands, such as PUBLIC or
+// VERSION. They are not reserved, so they are only colored in arguments.
+bool isCMakeArgumentKeyword(const QString &word) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("ALIAS"),      QStringLiteral("COMMAND"),
+      QStringLiteral("COMPONENTS"), QStringLiteral("DESTINATION"),
+      QStringLiteral("FALSE"),      QStringLiteral("FORCE"),
+      QStringLiteral("INTERFACE"),  QStringLiteral("LANGUAGES"),
+      QStringLiteral("MODULE"),     QStringLiteral("OFF"),
+      QStringLiteral("ON"),         QStringLiteral("PARENT_SCOPE"),
+      QStringLiteral("PRIVATE"),    QStringLiteral("PROPERTIES"),
+      QStringLiteral("PUBLIC"),     QStringLiteral("REQUIRED"),
+      QStringLiteral("SHARED"),     QStringLiteral("STATIC"),
+      QStringLiteral("TARGETS"),    QStringLiteral("TRUE"),
+      QStringLiteral("VERSION")};
+  return keywords.contains(word.toUpper());
+}
+
+// Classifies a CMake node. Command names are functions, the block commands
+// (if, foreach, function...) are keywords, and ${...} references are
+// variables.
+Token cmakeTokenForNode(const NodeContext &context, const QByteArray &source,
+                        bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    return Token::None;
+  }
+
+  if (typeIn(type, {"line_comment", "bracket_comment"})) {
+    descend = false;
+    return Token::Comment;
+  }
+  if (typeEquals(type, "bracket_argument")) {
+    descend = false;
+    return Token::String;
+  }
+  // Quoted arguments keep their quotes, variables inside are highlighted.
+  if (typeEquals(type, "quoted_argument")) {
+    return Token::String;
+  }
+  if (typeIn(type, {"variable_ref", "normal_var", "env_var", "cache_var"})) {
+    descend = false;
+    return Token::Variable;
+  }
+  if (typeIn(type, {"if", "elseif", "else", "endif", "foreach", "endforeach",
+                    "while", "endwhile", "function", "endfunction", "macro",
+                    "endmacro", "block", "endblock"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeEquals(type, "unquoted_argument")) {
+    descend = false;
+    const uint32_t start = ts_node_start_byte(context.node);
+    const uint32_t end = ts_node_end_byte(context.node);
+    const QString word = QString::fromUtf8(
+        source.mid(static_cast<int>(start), static_cast<int>(end - start)));
+    return isCMakeArgumentKeyword(word) ? Token::BuiltinType : Token::None;
+  }
+  if (typeEquals(type, "identifier") &&
+      typeEquals(context.parent, "normal_command")) {
+    descend = false;
+    return Token::FunctionName;
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -3067,6 +3148,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return hclTokenForNode(context, source, descend);
   case StyledLanguage::Dockerfile:
     return dockerfileTokenForNode(context, source, descend);
+  case StyledLanguage::CMake:
+    return cmakeTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
@@ -3821,6 +3904,37 @@ int asmStyleFor(Token token) {
   }
 }
 
+// CMake style ids. Block keywords use the keyword color, argument keywords the
+// label color.
+int cmakeStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerCMake::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerCMake::Comment;
+  case Token::String:
+  case Token::TripleQuotedString:
+  case Token::RawString:
+    return QsciLexerCMake::String;
+  case Token::SingleQuotedString:
+    return QsciLexerCMake::StringLeftQuote;
+  case Token::Number:
+    return QsciLexerCMake::Number;
+  case Token::Keyword:
+    return QsciLexerCMake::KeywordSet3;
+  case Token::FunctionName:
+    return QsciLexerCMake::Function;
+  case Token::Variable:
+    return QsciLexerCMake::Variable;
+  case Token::BuiltinType:
+    return QsciLexerCMake::Label;
+  default:
+    return -1;
+  }
+}
+
 int htmlScriptStyleFor(Token token) {
   switch (token) {
   case Token::Default:
@@ -3880,6 +3994,8 @@ int styleFor(StyleSet styleSet, Token token) {
     return asmStyleFor(token);
   case StyleSet::Sql:
     return sqlStyleFor(token);
+  case StyleSet::CMake:
+    return cmakeStyleFor(token);
   }
   return -1;
 }
