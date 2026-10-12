@@ -222,6 +222,23 @@ void DarkThemeLexersHighlighter::initializeColorSchemes() {
   purple.identifier = QColor(224, 221, 232);
   purple.phpDefault = QColor(224, 221, 232);
   _colorSchemes["purple"] = purple;
+
+  DarkThemeColors blue = DEFAULT_DARK_COLORS;
+  blue.background = QColor(33, 45, 67);
+  blue.foreground = QColor(213, 222, 234);
+  blue.selection = QColor(213, 222, 234);
+  blue.selectionBackground = QColor(32, 84, 114);
+  blue.currentLine = QColor(36, 50, 71);
+  blue.lineNumbers = QColor(127, 143, 166);
+  blue.lineNumbersBackground = QColor(23, 33, 49);
+  blue.foldMargin = QColor(23, 33, 49);
+  blue.foldMarginBackground = QColor(23, 33, 49);
+  blue.indentationGuides = QColor(51, 66, 96);
+  blue.caretLine = QColor(36, 50, 71);
+  blue.caretForeground = QColor(213, 222, 234);
+  blue.identifier = QColor(213, 222, 234);
+  blue.phpDefault = QColor(213, 222, 234);
+  _colorSchemes["blue"] = blue;
 }
 
 void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
@@ -236,6 +253,9 @@ void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
     break;
   case StylesheetManager::StylesheetKey::SourcererPurple:
     _currentScheme = QStringLiteral("purple");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererBlue:
+    _currentScheme = QStringLiteral("blue");
     break;
   default:
     _currentScheme = QStringLiteral("default");

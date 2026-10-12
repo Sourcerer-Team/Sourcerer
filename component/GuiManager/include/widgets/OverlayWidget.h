@@ -75,6 +75,8 @@ public:
       return QColor(255, 244, 224);
     case StylesheetManager::StylesheetKey::SourcererPurple:
       return QColor::fromString("#374659");
+    case StylesheetManager::StylesheetKey::SourcererBlue:
+      return QColor::fromString("#2D4A66");
     default:
       return QColor::fromString("#384D59");
     }
