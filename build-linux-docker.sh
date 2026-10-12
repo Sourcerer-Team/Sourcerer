@@ -54,11 +54,17 @@ fi
 if [ "$REBUILD" = true ] || ! docker image inspect "$IMAGE_NAME" &> /dev/null; then
     echo -e "${BLUE}Building Docker image...${NC}"
 
-    # Prompt for Qt account credentials
-    echo -e "${BLUE}Qt account credentials are required for downloading Qt components.${NC}"
-    read -p "Qt Account Email: " QT_EMAIL
-    read -sp "Qt Account Password: " QT_PASSWORD
-    echo ""
+    if [[ -z "$QT_EMAIL" ]] || [[ -z "$QT_PASSWORD" ]]; then
+        echo -e "${BLUE}Qt account credentials are required for downloading Qt components.${NC}"
+        read -p "Qt Account Email: " QT_EMAIL
+        read -sp "Qt Account Password: " QT_PASSWORD
+        echo ""
+    fi
+
+    if [[ -z "$QT_EMAIL" ]] || [[ -z "$QT_PASSWORD" ]]; then
+        echo -e "${RED}Error: Qt account credentials are required.${NC}"
+        exit 1
+    fi
 
     if [[ -z "$QT_EMAIL" ]] || [[ -z "$QT_PASSWORD" ]]; then
         echo -e "${RED}Error: Qt account credentials are required.${NC}"
@@ -83,8 +89,18 @@ mkdir -p "$PROJECT_ROOT/installer"
 
 echo -e "${BLUE}Running build in Docker container...${NC}"
 
+
+CPUS=20
+
+if [ "$GITHUB_ACTIONS" = "true" ]; then
+    echo -e "Running on GitHub Actions${NC}"
+    CPUS=2
+else
+    echo -e "Running locally${NC}"
+fi
+
 # Run the build in Docker container as current user
-docker run --cpus 20 docker run --memory 16g --memory-swap 16g --rm \
+docker run --cpus $CPUS --memory 16g --memory-swap 16g --rm \
     --name "$CONTAINER_NAME" \
     --user "$(id -u):$(id -g)" \
     -v "$PROJECT_ROOT:/workspace:z" \
@@ -93,10 +109,10 @@ docker run --cpus 20 docker run --memory 16g --memory-swap 16g --rm \
     bash -c "
         set -e
         echo '=== Building Sourcerer ==='
-        cd /workspace/installer
 
         # Run the build-installer.sh script with build mode
-        bash ./build-installer.sh
+        cd /workspace/installer
+        ./build-installer.sh
 
         echo '=== Build Complete ==='
         echo 'Build artifacts:'

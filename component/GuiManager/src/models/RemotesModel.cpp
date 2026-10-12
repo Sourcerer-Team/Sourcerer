@@ -8,8 +8,9 @@
 
 namespace GuiManager::Models {
 
-static auto ICON_PATH = ":/icons/git_remote.png";
+static auto ICON_PATH = ":/icons/git_remote.svg";
 static auto ICON_ACTIVE_PATH = ":/icons/git_branch_active.png";
+static auto ICON_TARGET_PATH = ":/icons/git_remote_target.svg";
 
 RemotesModel::RemotesModel(QObject *parent)
     : QStandardItemModel{parent}, _prevIndex(-1) {
@@ -203,7 +204,8 @@ void RemotesModel::updateModel(const QVector<GitRepo::RemoteInfo> &remotes,
         continue;
       }
 
-      QStandardItem *targetItem = new QStandardItem(target.name);
+      QStandardItem *targetItem =
+          new QStandardItem(QIcon(ICON_TARGET_PATH), target.name);
       targetItem->setData(remote.name,
                           Qt::UserRole + 2); // Store parent remote name
       targetItem->setData("target", Qt::UserRole + 3);        // Mark as target

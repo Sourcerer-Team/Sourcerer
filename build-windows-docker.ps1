@@ -91,8 +91,19 @@ $ContainerScriptPath = Join-Path $ProjectRoot "docker\build-windows-container.ps
 
 Write-Host "Running build in Docker container..." -ForegroundColor Blue
 
+if ($env:GITHUB_ACTIONS -eq 'true') {
+    $CPUS = 2
+    $env:CPUS = 2
+} else {
+    # Default fallback for local machine execution (e.g. use all available logical cores)
+    $CPUS = $env:NUMBER_OF_PROCESSORS
+    $env:CPUS = $env:NUMBER_OF_PROCESSORS
+}
+
+Write-Host "CPUS set to: $env:CPUS"
+
 # Run the complete build process in Docker container (build project + create installer)
-docker run --isolation=hyperv --cpus 20 --memory 16g --rm `
+docker run --isolation=hyperv --cpus $CPUS --memory 16g --rm `
     --name $ContainerName `
     -v "${ProjectRoot}:C:\workspace" `
     -w "C:\workspace" `

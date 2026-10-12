@@ -20,7 +20,8 @@ public:
   explicit TitlebarWidget(QWidget *parent = nullptr);
   ~TitlebarWidget() override;
 
-  void addTab(const QString &text, const QString &toolTip = QString()) const;
+  void addTab(const QString &text, const QString &toolTip = QString(),
+              const bool closeButton = true, const bool pinned = false) const;
   void removeTab(int index) const;
   void selectTab(int index) const;
   int tabsCount() const;
@@ -36,15 +37,19 @@ signals:
   void connectToGitLabIssueTracker();
   void connectToAzureIssueTracker();
   void connectToBitbucketIssueTracker();
+  void connectToCustomIssueTracker();
   void settings();
   void credentials();
   void sshKeys();
   void terminal();
   void bugReport();
+  void releaseNotes();
   void about();
+  void themeChanged();
 
   void closedTab(int index);
   void selectedTab(int index);
+  void movedTab(int from, int to);
   void resizeTabBar();
 
 private slots:
@@ -58,9 +63,11 @@ private slots:
   void onTerminal();
   void onBugReport();
   void onAbout();
+  void onThemeChanged();
 
   void onClosedTab(int index);
   void onSelectedTab(int index);
+  void onMovedTab(int from, int to);
   void onTabBarResized();
 
 private:

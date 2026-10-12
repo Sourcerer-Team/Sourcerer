@@ -2,12 +2,17 @@
 
 #include <StylesheetManager.h>
 
+#include <FileManager.h>
 #include <Log.h>
 
 #include <QColor>
 #include <QDesktopServices>
 #include <QHBoxLayout>
 #include <QLabel>
+#ifndef Q_OS_WIN
+#include <QProcess>
+#include <QProcessEnvironment>
+#endif
 #include <QPushButton>
 #include <QSizePolicy>
 #include <QUrl>
@@ -56,8 +61,9 @@ NewsToast::NewsToast(const NewsTracker::Structs::NewsItem &news,
     const auto downloadButton =
         new QPushButton(tr("Download update"), buttonRow);
     downloadButton->setCursor(Qt::PointingHandCursor);
-    connect(downloadButton, &QPushButton::clicked, this,
-            [downloadUrl]() { QDesktopServices::openUrl(QUrl(downloadUrl)); });
+    connect(downloadButton, &QPushButton::clicked, this, [downloadUrl]() {
+      FileManager::openExternalUrl(QUrl(downloadUrl));
+    });
 
     buttonLayout->addWidget(downloadButton, 0, Qt::AlignLeft);
     buttonLayout->addStretch();

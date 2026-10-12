@@ -15,7 +15,11 @@
 #include <qvterminal.h>
 
 #include <fcntl.h>
+#ifdef Q_OS_MACOS
+#include <util.h>
+#else
 #include <pty.h>
+#endif
 #include <signal.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
@@ -34,14 +38,26 @@ struct TerminalThemeColors {
 };
 
 TerminalThemeColors terminalThemeColors() {
-  const bool lightTheme =
-      StylesheetManager::StylesheetManager::currentStylesheet() ==
-      StylesheetManager::StylesheetKey::SourcererLight;
-
-  return lightTheme
-             ? TerminalThemeColors{QColor(48, 48, 48), QColor(245, 238, 228)}
-             : TerminalThemeColors{QColor(187, 187, 187),
-                                   QColor(0x23, 0x26, 0x29)};
+  switch (StylesheetManager::StylesheetManager::currentStylesheet()) {
+  case StylesheetManager::StylesheetKey::SourcererLight:
+    return TerminalThemeColors{QColor(48, 48, 48), QColor(245, 238, 228)};
+  case StylesheetManager::StylesheetKey::SourcererPurple:
+    return TerminalThemeColors{QColor(216, 213, 224), QColor(0x1F, 0x1C, 0x27)};
+  case StylesheetManager::StylesheetKey::SourcererBlue:
+    return TerminalThemeColors{QColor(200, 214, 229), QColor(0x0F, 0x1C, 0x2E)};
+  case StylesheetManager::StylesheetKey::SourcererMonokai:
+    return TerminalThemeColors{QColor(248, 248, 242), QColor(0x27, 0x28, 0x22)};
+  case StylesheetManager::StylesheetKey::SourcererGruvbox:
+    return TerminalThemeColors{QColor(235, 219, 178), QColor(0x28, 0x28, 0x28)};
+  case StylesheetManager::StylesheetKey::SourcererSolarized:
+    return TerminalThemeColors{QColor(131, 148, 150), QColor(0x00, 0x2B, 0x36)};
+  case StylesheetManager::StylesheetKey::SourcererDracula:
+    return TerminalThemeColors{QColor(248, 248, 242), QColor(0x28, 0x2A, 0x36)};
+  case StylesheetManager::StylesheetKey::SourcererAyu:
+    return TerminalThemeColors{QColor(230, 225, 207), QColor(0x0F, 0x14, 0x19)};
+  default:
+    return TerminalThemeColors{QColor(187, 187, 187), QColor(0x23, 0x26, 0x29)};
+  }
 }
 
 TerminalGeometry calculateTerminalGeometry(QVTerminal *terminal) {
@@ -327,7 +343,14 @@ void BashShellWidget::startBash() {
       shell = "/bin/bash";
     }
 
+    // A GUI application inherits a minimal environment from launchd on macOS
+    // (PATH=/usr/bin:/bin:...), so, like Terminal.app, start a login shell to
+    // get the user's regular PATH (Homebrew, git-lfs, ...).
+#ifdef Q_OS_MACOS
+    execl(shell, shell, "-l", "-i", nullptr);
+#else
     execl(shell, shell, "-i", nullptr);
+#endif
 
     // If execl fails
     LOG_ERROR(Log::ErrorId::Gui, "Failed to execute shell: {}",

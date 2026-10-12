@@ -37,6 +37,8 @@ public:
          QPixmap(":/icons/file-add.png")},
         {GuiManager::Models::GitCommitListModificationType::Untracked,
          QPixmap(":/icons/file-add.png")},
+        {GuiManager::Models::GitCommitListModificationType::Other,
+         QPixmap(":/icons/file-other.png")},
     };
   }
 
@@ -143,8 +145,6 @@ public:
         suffix = QFileInfo(elided).fileName();
       }
     }
-
-    separatorIndex != -1 ? elided.mid(separatorIndex + 1) : QString();
 
     // Draw prefix (normal color)
     painter->setPen(opt.palette.color(QPalette::Text));

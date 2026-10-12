@@ -1,0 +1,81 @@
+name: Build AppImage and Create Release
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Free Disk Space on Runner
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/powershell
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/local/.ghcup
+          docker system prune -a --volumes -f
+          df -h
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Release Tag Name
+        id: vars
+        run: |
+          # Generate version tag (e.g. v2026.09.28-42)
+          FILE="./component/ConfigManager/GitVersion.h.in"
+          VERSION=$(sed -n 's/.*APPLICATION_VERSION *= *"\([^"]*\)".*/\1/p' "$FILE")
+          TAG="v$VERSION"
+          echo "TAG_NAME=$TAG" >> $GITHUB_ENV
+          echo "TAG_VERSION=$VERSION" >> $GITHUB_ENV
+
+      # Option A: Using your Docker build script directly
+      - name: Run Docker Build Script
+        env:
+          QT_EMAIL: ${{ secrets.QT_ACCOUNT_EMAIL }}
+          QT_PASSWORD: ${{ secrets.QT_ACCOUNT_PASSWORD }}
+          DOCKER_HOST: unix:///var/run/docker.sock
+        run: |
+          if [ -f ./build-linux-docker.sh ]; then
+            chmod +x ./build-linux-docker.sh
+            ./build-linux-docker.sh --rebuild
+          else
+            echo "No build script found, skipping Docker build."
+          fi
+
+      # Option B: Extract AppImage directly from container if built inside image
+      # - name: Extract AppImage from Container
+      #   run: |
+      #     docker create --name temp-builder appimage-builder
+      #     docker cp temp-builder:/build/your-app.AppImage ./out/
+      #     docker rm temp-builder
+
+      - name: Verify AppImage Output
+        run: |
+          ls -la installer/Sourcerer-Installer.AppImage
+
+      - name: Create GitHub Release and Upload AppImage
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "${{ env.TAG_NAME }}" >/dev/null 2>&1; then
+            echo "Release ${{ env.TAG_NAME }} exists. Uploading/updating assets..."
+            gh release upload "${{ env.TAG_NAME }}" installer/Sourcerer-Installer.AppImage --clobber
+          else
+            echo "Release ${{ env.TAG_NAME }} does not exist. Creating new release..."
+            gh release create "${{ env.TAG_NAME }}" installer/Sourcerer-Installer.AppImage \
+              --title "Release ${{ env.TAG_VERSION }}" \
+              --generate-notes
+          fi

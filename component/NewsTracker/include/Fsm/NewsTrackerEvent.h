@@ -14,6 +14,7 @@ enum class EventType : int {
 
   Initialize,
   RetrieveNews,
+  MarkNewsSeen,
 
   last
 };

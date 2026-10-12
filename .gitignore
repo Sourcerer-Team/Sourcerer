@@ -23,7 +23,6 @@ tags
 .DS_Store
 .directory
 *.debug
-Makefile*
 *.prl
 build*/*.app/
 src/build*/*.app/
@@ -80,6 +79,7 @@ installer/packages/*/data/
 installer/appimagetool-extracted/
 
 *.AppImage
+*.dmg
 
 installer/Sourcerer.AppDir/
 
@@ -88,8 +88,6 @@ build-output.txt
 installer/Sourcerer-Installer.msi
 
 installer/Sourcerer-Installer.wixpdb
-
-keys/**
 
 .idea/
 .vscode/

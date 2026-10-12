@@ -24,6 +24,7 @@
 #include <QMap>
 #include <QResizeEvent>
 #include <QSet>
+#include <QUrl>
 
 namespace GuiManager {
 
@@ -45,6 +46,9 @@ public:
 
   QStringList containerPaths() const;
 
+  // Brings the window to the front when another Sourcerer process was started.
+  void activateFromAnotherInstance(const QStringList &arguments);
+
   // QWidget interface
 protected:
   void mouseMoveEvent(QMouseEvent *event) override;
@@ -52,6 +56,11 @@ protected:
   void resizeEvent(QResizeEvent *event) override;
   void closeEvent(QCloseEvent *event) override;
   void showEvent(QShowEvent *event) override;
+
+#ifdef Q_OS_WIN
+  bool nativeEvent(const QByteArray &eventType, void *message,
+                   qintptr *result) override;
+#endif
 
   // QObject interface
 public:
@@ -74,6 +83,7 @@ private slots:
   void onConnectToGitLabIssueTracker();
   void onConnectToAzureIssueTracker();
   void onConnectToBitbucketIssueTracker();
+  void onConnectToCustomIssueTracker();
   void onIssueTrackerClicked(const QString &serviceType,
                              const QString &repositoryName);
   void onSettings();
@@ -83,9 +93,12 @@ private slots:
   void onTerminal();
   void onWorkspaceClicked(const QString &name);
   void onBugReport();
+  void onReleaseNotes();
   void onAbout() const;
+  void onThemeChanged();
   void onClosedTab(int index);
   void onSelectedTab(int index);
+  void onMovedTab(int from, int to);
   static void onTabBarResize();
   void onToastHostSizeChanged(const QSize &newSize);
   void onMinimizeClicked();
@@ -103,12 +116,16 @@ private:
   void openRepositoryByType(const QString &path, const QString &sourceLabel);
   void addGitCredentialsContainer();
   void addIssueTrackerContainer(const QString &serviceType,
-                                const QString &repositoryName);
+                                const QString &repositoryName,
+                                const QUrl &startUrl = QUrl(),
+                                const QString &title = QString());
   void addGitKeysContainer();
   void addHomeContainer();
   void addInitRepoContainer();
   void addSettingsContainer();
   void addBugReportContainer();
+  void addReleaseNotesContainer(const QString &title, const QString &markdown);
+  void showReleaseNotesIfUpdated();
   void closeContainer(const ContainerWidget *container);
   void eventCallback(EventManager::Event event);
   void saveNewWorkspace();
@@ -140,8 +157,8 @@ private:
   QWidget *_bottomResizeGrip;
   QSharedPointer<ProfileBoardWidget> _profileBoardWidget;
   bool _profileBoardActive;
-  QMap<uint, GitCredentialsOverlayWidget *> _credentialsWidgets;
-  QMap<uint, SshPassphraseOverlayWidget *> _passphraseWidgets;
+  QMap<size_t, GitCredentialsOverlayWidget *> _credentialsWidgets;
+  QMap<size_t, SshPassphraseOverlayWidget *> _passphraseWidgets;
 };
 
 } // namespace GuiManager

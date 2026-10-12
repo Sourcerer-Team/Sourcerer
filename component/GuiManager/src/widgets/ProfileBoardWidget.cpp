@@ -3,24 +3,40 @@
 #include "delegates/FixedHeightDelegate.h"
 #include "widgets/ui_ProfileBoardWidget.h"
 
+#include <Avatar.h>
 #include <ConfigManager.h>
+#include <FileManager.h>
 #include <Log.h>
 #include <WaitingSpinnerWidget.h>
 
 #include <QByteArray>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QIcon>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QMessageBox>
 #include <QMouseEvent>
+#include <QNetworkAccessManager>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPalette>
+#ifndef Q_OS_WIN
+#include <QProcess>
+#include <QProcessEnvironment>
+#endif
 #include <QRegularExpression>
+#include <QSize>
 #include <QUrl>
 
 #define THREAD_ID "ProfileBoardWidget"
+
+namespace {
+
+constexpr int kProfileEmailRole = Qt::UserRole + 1;
+constexpr QSize kProfileAvatarSize(24, 24);
+
+} // namespace
 
 namespace GuiManager::Widgets {
 
@@ -28,6 +44,7 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
     : QWidget(parent, Qt::FramelessWindowHint), ui(new Ui::ProfileBoardWidget),
       _arrowX(0), _currentlyEditProfileIndex(-1),
       _operation(OperationType::Unknown), _model(new QStandardItemModel),
+      _profileAvatarNetworkManager(new QNetworkAccessManager(this)),
       _userProfileManager(Common::UserProfileManager::instance()),
       _cloudCredentialStorage(Util::CloudCredentialtorage::getInstance()),
       _cloudRepo(Util::CloudRepo::getInstance()), _autoLogin(false) {
@@ -44,6 +61,7 @@ ProfileBoardWidget::ProfileBoardWidget(QWidget *parent)
 
   ui->listViewProfiles->setAttribute(Qt::WA_StyledBackground, true);
   ui->listViewProfiles->setAutoFillBackground(true);
+  ui->listViewProfiles->setIconSize(QSize(24, 24));
   ui->listViewProfiles->setItemDelegate(
       new Delegates::FixedHeightDelegate(ui->listViewProfiles));
 
@@ -191,7 +209,7 @@ void ProfileBoardWidget::onSignupLinkClicked() {
 
   const QString signupUrl =
       configManager.getString(::ConfigManager::ConfigKey::CloudSignupUrl);
-  QDesktopServices::openUrl(QUrl(signupUrl));
+  FileManager::openExternalUrl(QUrl(signupUrl));
 }
 
 void ProfileBoardWidget::onSkipSigninClicked() {
@@ -291,11 +309,11 @@ ProfileBoardWidget::~ProfileBoardWidget() {
 bool ProfileBoardWidget::eventFilter(QObject *watched, QEvent *event) {
   if (event->type() == QEvent::MouseButtonPress) {
     const QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(event);
-    const QPoint globalPos =
-        MousePositionCorrection::instance().correctedGlobalPosition(mouseEvent);
-
+    const QPoint globalTopLeft = mapToGlobal(QPoint(0, 0));
+    const QRect globalFrameRect = QRect(globalTopLeft, size());
     // Check if click is outside this widget
-    if (isVisible() && !frameGeometry().contains(globalPos)) {
+    if (isVisible() &&
+        !globalFrameRect.contains(mouseEvent->globalPosition().toPoint())) {
       hide();
       emit hidden();
       LOG_DEBUG("Clicked outside the widget!");
@@ -338,7 +356,7 @@ void ProfileBoardWidget::paintEvent(QPaintEvent *event) {
   path.closeSubpath();
 
   const QColor fillColor = palette().color(QPalette::Window);
-  const QColor borderColor = palette().color(QPalette::Mid);
+  const QColor borderColor = palette().color(QPalette::Highlight);
 
   painter.setBrush(fillColor);
   painter.setPen(QPen(borderColor, 1));
@@ -552,17 +570,17 @@ void ProfileBoardWidget::fillProfiles() {
   _model->clear();
 
   const auto &profiles = _userProfileManager.profiles();
-  const auto &currentProfile = _userProfileManager.currentProfile();
 
   for (int i = 0; i < profiles.size(); ++i) {
     const auto &profile = profiles.at(i);
-    QStandardItem *item =
-        new QStandardItem(profile.email == currentProfile.email
-                              ? QPixmap(":icons/profile-default.png")
-                              : QPixmap(":icons/profile.png"),
-                          profile.author);
+    QStandardItem *item = new QStandardItem(
+        QIcon(Util::Avatar::createInitialsAvatar(profile.author, profile.email,
+                                                 kProfileAvatarSize)),
+        profile.author);
     item->setData(i); // Store index for retrieval
+    item->setData(profile.email, kProfileEmailRole);
     _model->appendRow(item);
+    updateProfileAvatar(i, profile.email);
   }
 
   ui->listViewProfiles->setModel(_model);
@@ -570,6 +588,45 @@ void ProfileBoardWidget::fillProfiles() {
   selectCurrentProfile();
 
   LOG_PERF(0, "Exit");
+}
+
+void ProfileBoardWidget::updateProfileAvatar(int row,
+                                             const QString &authorEmail) {
+  const QString normalizedEmail = authorEmail.trimmed().toLower();
+  if (normalizedEmail.isEmpty()) {
+    return;
+  }
+
+  if (_profileAvatarCache.contains(normalizedEmail)) {
+    if (QStandardItem *item = _model->item(row)) {
+      if (item->data(kProfileEmailRole).toString().trimmed().toLower() ==
+          normalizedEmail) {
+        item->setIcon(QIcon(_profileAvatarCache.value(normalizedEmail)));
+      }
+    }
+    return;
+  }
+
+  if (_profileAvatarInFlight.contains(normalizedEmail)) {
+    return;
+  }
+
+  _profileAvatarInFlight.insert(normalizedEmail);
+  Util::Avatar::requestAvatarPixmap(
+      _profileAvatarNetworkManager, normalizedEmail, kProfileAvatarSize,
+      [this, row, normalizedEmail](const QPixmap &avatar) {
+        _profileAvatarCache.insert(normalizedEmail, avatar);
+        _profileAvatarInFlight.remove(normalizedEmail);
+        if (QStandardItem *item = _model->item(row)) {
+          if (item->data(kProfileEmailRole).toString().trimmed().toLower() ==
+              normalizedEmail) {
+            item->setIcon(QIcon(avatar));
+          }
+        }
+      },
+      [this, normalizedEmail]() {
+        _profileAvatarInFlight.remove(normalizedEmail);
+      });
 }
 
 void ProfileBoardWidget::selectCurrentProfile() {

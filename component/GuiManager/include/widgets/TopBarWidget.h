@@ -34,15 +34,19 @@ signals:
   void connectToGitLabIssueTracker();
   void connectToAzureIssueTracker();
   void connectToBitbucketIssueTracker();
+  void connectToCustomIssueTracker();
   void settings();
   void credentials();
   void sshKeys();
   void terminal();
   void bugReport();
+  void releaseNotes();
   void about();
+  void themeChanged();
 
   void closedTab(int index);
   void selectedTab(int index);
+  void movedTab(int from, int to);
   void resizeTabBar();
 
   void dragged();

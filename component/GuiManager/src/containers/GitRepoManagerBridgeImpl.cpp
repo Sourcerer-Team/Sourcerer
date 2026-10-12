@@ -56,7 +56,9 @@
 #include <QSignalBlocker>
 #include <QStyleOptionViewItem>
 #include <QSvgRenderer>
+#include <QTextBlock>
 #include <QTextStream>
+#include <QThreadPool>
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
@@ -69,7 +71,6 @@
 
 #define THREAD_ID "RepoContainer"
 
-#define ALL_BRANCHES "*"
 #define HEAD "HEAD"
 
 #define MAXIMUM_PARENTS_IN_LABEL 3
@@ -88,8 +89,9 @@ enum class MainViewPanes {
 
   History = 0,
   Diff = 1,
-  ThreeWayDiff = 2,
-  StashContent = 3,
+  Blame = 2,
+  ThreeWayDiff = 3,
+  StashContent = 4,
 
   last
 };
@@ -119,8 +121,249 @@ commitSummaryFromHistoryModel(const Models::GitHistoryModel *historyModel,
   return {};
 }
 
+// Shows the unified diff of a file, highlighted with the file's language, and
+// marks its hunk headers, deleted and added lines. Returns the deleted and
+// added lines.
+static std::pair<QVector<int>, QVector<int>>
+showUnifiedDiff(QsciScintilla *editor, const QString &diff,
+                const QString &filePath) {
+  const QString normalized =
+      QString(diff).replace("\r\n", "\n").replace('\r', '\n');
+  const int lineCount = normalized.count('\n') + 1;
+  const int width = QString::number(lineCount).length();
+  const QString mask = QString::number(0).rightJustified(width + 1, '0');
+
+  QsciLexer *previousLexer = editor->lexer();
+  editor->setLexer(nullptr);
+  delete previousLexer;
+
+  editor->setTreeSitterHighlightingEnabled(false);
+  editor->markerDeleteAll();
+  editor->setMarginWidth(0, mask);
+  editor->setText(diff);
+  editor->verticalScrollBar()->triggerAction(QAbstractSlider::SliderToMinimum);
+
+  // The lexer has to be attached before theming so its styles get the
+  // current theme colors.
+  editor->setLexer(
+      QScintillaLexerFactory::createDiffViewerLexerForFile(filePath, editor));
+
+  DarkThemeLexersHighlighter highlighter;
+  highlighter.applyDarkTheme(editor);
+
+  editor->setTreeSitterHighlightingEnabled(true);
+
+  QVector<int> deletedLines;
+  QVector<int> addedLines;
+
+  // Only lines inside hunks are content, the "---" and "+++" lines before
+  // them are file headers.
+  bool inHunk = false;
+  for (QTextBlock block = editor->document()->begin(); block.isValid();
+       block = block.next()) {
+    const QString lineText = block.text();
+    const int line = block.blockNumber();
+
+    if (lineText.startsWith("diff ")) {
+      inHunk = false;
+    } else if (lineText.startsWith("@@")) {
+      inHunk = true;
+      editor->markerAdd(line, RepoContainer::UnifiedDiffHunkMarker);
+    } else if (inHunk && lineText.startsWith('-')) {
+      editor->markerAdd(line, RepoContainer::UnifiedDiffDeletedMarker);
+      deletedLines.append(line);
+    } else if (inHunk && lineText.startsWith('+')) {
+      editor->markerAdd(line, RepoContainer::UnifiedDiffAddedMarker);
+      addedLines.append(line);
+    }
+  }
+
+  return {deletedLines, addedLines};
+}
+
 GitRepoManagerBridgeImpl::GitRepoManagerBridgeImpl(RepoContainer &container)
     : _container(container) {}
+
+void GitRepoManagerBridgeImpl::blame(
+    const QWeakPointer<RepoContainer> &guard, const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoBlameCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.files = files;
+
+  EventManager::Event blameEvent(EventManager::EventType::GitRepoManagerBlame,
+                                 eventUuid);
+  blameEvent.addData(command);
+  _container._eventManager.send(blameEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerBlameError,
+                           EventManager::EventType::GitRepoManagerBlameResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to retrieve blame."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerBlameResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const auto blameResult =
+      commandResult.value.value<GitRepoBlameCommandResult>();
+
+  QStringList blameLines;
+  QStringList blameLineNumbers;
+  QStringList blameAuthors;
+  QStringList blameCommits;
+  QStringList blameCommitToolTips;
+  QString widestAuthor;
+  QString lexerFilePath;
+
+  // Adds a line that is not blamed to a commit.
+  const auto appendPlainLine = [&](const QString &line) {
+    blameLines += line;
+    blameLineNumbers += QString();
+    blameAuthors += QString();
+    blameCommits += QString();
+    blameCommitToolTips += QString();
+  };
+
+  const auto appendSeparator = [&]() {
+    if (!blameLines.isEmpty()) {
+      appendPlainLine(QString());
+    }
+  };
+
+  for (const auto &fileInfo : blameResult.report.fileInfos) {
+    appendSeparator();
+    appendPlainLine(QStringLiteral("File: %1").arg(fileInfo.filePath));
+
+    if (lexerFilePath.isEmpty() && !fileInfo.filePath.isEmpty()) {
+      lexerFilePath = fileInfo.filePath;
+    }
+
+    if (!fileInfo.errorMessage.isEmpty()) {
+      appendPlainLine(QStringLiteral("  [Failed to retrieve blame: %1]")
+                          .arg(fileInfo.errorMessage));
+      continue;
+    }
+
+    for (const auto &lineInfo : fileInfo.lineInfos) {
+      const QString author =
+          lineInfo.email.isEmpty()
+              ? lineInfo.author
+              : QStringLiteral("%1 <%2>").arg(lineInfo.author, lineInfo.email);
+      // Uncommitted lines are blamed to the all zeros commit, which is not
+      // in the history.
+      const bool committed =
+          !lineInfo.commit.isEmpty() &&
+          lineInfo.commit.count(QChar('0')) != lineInfo.commit.size();
+
+      blameLines += lineInfo.content;
+      blameLineNumbers += QString::number(lineInfo.lineNumber);
+      blameAuthors += author;
+      blameCommits += committed ? lineInfo.commit : QString();
+      blameCommitToolTips +=
+          committed ? _container
+                          .tr("%1\n%2\n\nClick to show the commit in the "
+                              "history.")
+                          .arg(lineInfo.commit, lineInfo.summary)
+                    : _container.tr("Not committed yet");
+
+      if (author.size() > widestAuthor.size()) {
+        widestAuthor = author;
+      }
+    }
+  }
+
+  int maxLineNumberDigits = 1;
+  for (const auto &lineNumber : std::as_const(blameLineNumbers)) {
+    if (!lineNumber.isEmpty()) {
+      maxLineNumberDigits =
+          std::max(maxLineNumberDigits, static_cast<int>(lineNumber.size()));
+    }
+  }
+  const int lineWidth = maxLineNumberDigits;
+  const QString lineNumberMask = QString(lineWidth, QChar('9'));
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    auto *editor = _container.ui->scintillaBlameEditor;
+
+    QsciLexer *previousLexer = editor->lexer();
+    editor->setLexer(nullptr);
+    delete previousLexer;
+
+    editor->setTreeSitterHighlightingEnabled(false);
+    editor->setText(blameLines.join('\n'));
+    editor->verticalScrollBar()->triggerAction(
+        QAbstractSlider::SliderToMinimum);
+
+    // The lexer has to be attached before theming so its styles get the
+    // current theme colors. It is picked by the first blamed file.
+    editor->setLexer(QScintillaLexerFactory::createDiffViewerLexerForFile(
+        lexerFilePath, editor));
+
+    DarkThemeLexersHighlighter highlighter;
+    highlighter.applyDarkTheme(editor);
+
+    editor->setTreeSitterHighlightingEnabled(true);
+
+    constexpr int commitMargin = RepoContainer::BlameCommitMargin;
+    constexpr int authorMargin = RepoContainer::BlameAuthorMargin;
+    constexpr int shortShaLength = RepoContainer::BlameShortShaLength;
+
+    _container._blameCommits = blameCommits;
+
+    editor->setMarginWidth(0, lineNumberMask);
+    editor->setMarginWidth(commitMargin,
+                           QString(shortShaLength + 1, QChar('9')));
+    editor->setMarginWidth(authorMargin, widestAuthor.isEmpty()
+                                             ? QStringLiteral(" ")
+                                             : widestAuthor);
+
+    for (int row = 0; row < blameLineNumbers.size(); ++row) {
+      editor->setMarginText(row, 0, blameLineNumbers.at(row));
+      editor->setMarginText(row, commitMargin,
+                            blameCommits.at(row).left(shortShaLength));
+      editor->setMarginToolTip(row, commitMargin, blameCommitToolTips.at(row));
+      editor->setMarginText(row, authorMargin, blameAuthors.at(row));
+    }
+
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::Blame));
+  });
+
+  LOG_PERF(0, "Exit");
+}
 
 void GitRepoManagerBridgeImpl::setUpstream(
     const QWeakPointer<RepoContainer> &guard, const QString &branchName,
@@ -155,7 +398,6 @@ void GitRepoManagerBridgeImpl::setUpstream(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to set upstream.")),
@@ -170,7 +412,6 @@ void GitRepoManagerBridgeImpl::setUpstream(
       EventManager::EventType::GitRepoManagerSetUpstreamResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -185,7 +426,6 @@ void GitRepoManagerBridgeImpl::setUpstream(
 
   if (!setUpstreamSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to set upstream."),
                                 _container.tr("Error"));
     });
@@ -203,7 +443,6 @@ void GitRepoManagerBridgeImpl::setUpstream(
     onSuccess(guard);
   } else {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showToast(_container.tr("Successfully set upstream."),
                            _container.tr("Info"));
     });
@@ -212,7 +451,8 @@ void GitRepoManagerBridgeImpl::setUpstream(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoManagerBridgeImpl::stash(const QWeakPointer<RepoContainer> &guard) {
+void GitRepoManagerBridgeImpl::stash(
+    const QWeakPointer<RepoContainer> &guard, const QString &note) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -222,6 +462,7 @@ void GitRepoManagerBridgeImpl::stash(const QWeakPointer<RepoContainer> &guard) {
   GitRepoStashCommand command;
   command.uuid = _container._uuid;
   command.syncUuid = eventUuid;
+  command.note = note;
 
   EventManager::Event stashFilesEvent(
       EventManager::EventType::GitRepoManagerStash, eventUuid);
@@ -237,7 +478,6 @@ void GitRepoManagerBridgeImpl::stash(const QWeakPointer<RepoContainer> &guard) {
   if (!success) {
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(_container.tr("Failed to stash changes."),
                                 _container.tr("Error"));
@@ -250,7 +490,6 @@ void GitRepoManagerBridgeImpl::stash(const QWeakPointer<RepoContainer> &guard) {
   if (event.type() != EventManager::EventType::GitRepoManagerStashResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -266,7 +505,6 @@ void GitRepoManagerBridgeImpl::stash(const QWeakPointer<RepoContainer> &guard) {
 
   if (!stashSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to stash changes."),
                                 _container.tr("Error"));
     });
@@ -274,9 +512,6 @@ void GitRepoManagerBridgeImpl::stash(const QWeakPointer<RepoContainer> &guard) {
     LOG_PERF(0, "Exit")
     return;
   }
-
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [&]() { _container.showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit");
 }
@@ -307,7 +542,6 @@ void GitRepoManagerBridgeImpl::abortMerge(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to abort merge.")),
@@ -321,7 +555,6 @@ void GitRepoManagerBridgeImpl::abortMerge(
   if (event.type() != EventManager::EventType::GitRepoManagerAbortMergeResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -336,7 +569,6 @@ void GitRepoManagerBridgeImpl::abortMerge(
 
   if (!abortSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to abort merge."),
                                 _container.tr("Error"));
     });
@@ -346,7 +578,76 @@ void GitRepoManagerBridgeImpl::abortMerge(
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    _container.showSpinnerOverlay(false);
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::History));
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::abortRebase(
+    const QWeakPointer<RepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoAbortRebaseCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event abortRebaseEvent(
+      EventManager::EventType::GitRepoManagerAbortRebase, eventUuid);
+  abortRebaseEvent.addData(command);
+  _container._eventManager.send(abortRebaseEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerAbortRebaseError,
+      EventManager::EventType::GitRepoManagerAbortRebaseResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to abort rebase.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerAbortRebaseResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+  const bool abortSuccess = commandResult.value.toBool();
+
+  _container.refreshHistory(guard);
+
+  if (!abortSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorToast(_container.tr("Failed to abort rebase."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
     _container.ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::History));
   });
@@ -358,6 +659,8 @@ void GitRepoManagerBridgeImpl::addSubmodule(
     const QWeakPointer<RepoContainer> &guard, const QString &url,
     const QString &name, const QString &branch) {
   LOG_PERF(0, "Enter");
+
+  _container.stopWatcher(guard);
 
   const QString eventUuid = Uuid::createUuid();
 
@@ -384,12 +687,12 @@ void GitRepoManagerBridgeImpl::addSubmodule(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to add submodule.")),
           _container.tr("Error"));
     });
+    _container.prepareWatcher(guard);
 
     LOG_PERF(0, "Exit")
     return;
@@ -399,9 +702,9 @@ void GitRepoManagerBridgeImpl::addSubmodule(
       EventManager::EventType::GitRepoManagerAddSubmoduleResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
+    _container.prepareWatcher(guard);
 
     LOG_PERF(0, "Exit")
     return;
@@ -411,10 +714,10 @@ void GitRepoManagerBridgeImpl::addSubmodule(
   const bool addSuccess = commandResult.value.toBool();
 
   _container.refreshHistory(guard);
+  _container.prepareWatcher(guard);
 
   if (!addSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to add submodule."),
                                 _container.tr("Error"));
     });
@@ -423,8 +726,232 @@ void GitRepoManagerBridgeImpl::addSubmodule(
     return;
   }
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [&]() { _container.showSpinnerOverlay(false); });
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::addWorktree(
+    const QWeakPointer<RepoContainer> &guard, const QString &path,
+    const QString &branch, const bool createBranch, const QString &baseBranch) {
+  LOG_PERF(0, "Enter");
+
+  _container.stopWatcher(guard);
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoAddWorktreeCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.name = QFileInfo(QDir::cleanPath(path)).fileName();
+  command.path = QDir::cleanPath(path);
+  command.branch = branch;
+  command.createBranch = createBranch;
+  command.baseBranch = baseBranch;
+
+  EventManager::Event addWorktreeEvent(
+      EventManager::EventType::GitRepoManagerAddWorktree, eventUuid);
+  addWorktreeEvent.addData(command);
+  _container._eventManager.send(addWorktreeEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerAddWorktreeError,
+      EventManager::EventType::GitRepoManagerAddWorktreeResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to add worktree.")),
+          _container.tr("Error"));
+    });
+    _container.prepareWatcher(guard);
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerAddWorktreeResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+    _container.prepareWatcher(guard);
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  // A new branch may have been created, so refresh everything.
+  _container.refreshHistory(guard);
+  _container.prepareWatcher(guard);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::removeWorktree(
+    const QWeakPointer<RepoContainer> &guard, const QString &name,
+    const bool force) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoRemoveWorktreeCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.name = name;
+  command.force = force;
+
+  EventManager::Event removeWorktreeEvent(
+      EventManager::EventType::GitRepoManagerRemoveWorktree, eventUuid);
+  removeWorktreeEvent.addData(command);
+  _container._eventManager.send(removeWorktreeEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerRemoveWorktreeError,
+      EventManager::EventType::GitRepoManagerRemoveWorktreeResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to remove worktree.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerRemoveWorktreeResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getWorktrees(guard);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::lockWorktree(
+    const QWeakPointer<RepoContainer> &guard, const QString &name,
+    const QString &reason) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoLockWorktreeCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.name = name;
+  command.reason = reason;
+
+  EventManager::Event lockWorktreeEvent(
+      EventManager::EventType::GitRepoManagerLockWorktree, eventUuid);
+  lockWorktreeEvent.addData(command);
+  _container._eventManager.send(lockWorktreeEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerLockWorktreeError,
+      EventManager::EventType::GitRepoManagerLockWorktreeResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to lock worktree.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerLockWorktreeResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getWorktrees(guard);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::unlockWorktree(
+    const QWeakPointer<RepoContainer> &guard, const QString &name) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoUnlockWorktreeCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.name = name;
+
+  EventManager::Event unlockWorktreeEvent(
+      EventManager::EventType::GitRepoManagerUnlockWorktree, eventUuid);
+  unlockWorktreeEvent.addData(command);
+  _container._eventManager.send(unlockWorktreeEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerUnlockWorktreeError,
+      EventManager::EventType::GitRepoManagerUnlockWorktreeResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          QString(_container.tr("Failed to unlock worktree.")),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerUnlockWorktreeResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  getWorktrees(guard);
 
   LOG_PERF(0, "Exit");
 }
@@ -478,7 +1005,6 @@ void GitRepoManagerBridgeImpl::amend(const QWeakPointer<RepoContainer> &guard,
   if (event.type() != EventManager::EventType::GitRepoManagerAmendResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -492,7 +1018,6 @@ void GitRepoManagerBridgeImpl::amend(const QWeakPointer<RepoContainer> &guard,
 
   if (!commitSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to amend changes."),
                                 _container.tr("Error"));
     });
@@ -507,7 +1032,6 @@ void GitRepoManagerBridgeImpl::amend(const QWeakPointer<RepoContainer> &guard,
     if (commitSuccess) {
       _container.clearSummaryAndDescription();
     }
-    _container.showSpinnerOverlay(false);
     _container.ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::History));
   });
@@ -557,7 +1081,6 @@ void GitRepoManagerBridgeImpl::applyPatch(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to apply patch.")),
@@ -571,7 +1094,6 @@ void GitRepoManagerBridgeImpl::applyPatch(
   if (event.type() != EventManager::EventType::GitRepoManagerApplyPatchResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -586,7 +1108,6 @@ void GitRepoManagerBridgeImpl::applyPatch(
 
   if (!applySuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to apply patch."),
                                 _container.tr("Error"));
     });
@@ -594,9 +1115,6 @@ void GitRepoManagerBridgeImpl::applyPatch(
     LOG_PERF(0, "Exit")
     return;
   }
-
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [&]() { _container.showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit");
 }
@@ -632,7 +1150,6 @@ void GitRepoManagerBridgeImpl::applyStash(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to apply stash.")),
@@ -646,7 +1163,6 @@ void GitRepoManagerBridgeImpl::applyStash(
   if (event.type() != EventManager::EventType::GitRepoManagerApplyStashResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -666,7 +1182,6 @@ void GitRepoManagerBridgeImpl::applyStash(
 
   if (!applySuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to apply stash."),
                                 _container.tr("Error"));
     });
@@ -678,7 +1193,6 @@ void GitRepoManagerBridgeImpl::applyStash(
   // If stash was applied but has conflicts, show merge conflict resolution UI
   if (hasConflicts) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showToast(
           _container.tr(
               "Stash applied with conflicts. Resolve conflicts to continue."),
@@ -688,9 +1202,6 @@ void GitRepoManagerBridgeImpl::applyStash(
 
   if (onSuccess) {
     onSuccess(guard, stashIndex);
-  } else {
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [&]() { _container.showSpinnerOverlay(false); });
   }
 
   LOG_PERF(0, "Exit");
@@ -703,8 +1214,18 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
   LOG_PERF(0, "Enter");
 
   if (branchName == ALL_BRANCHES) {
-    _container.updateModelActiveBranch(
-        guard, branchName, static_cast<GitRepo::BranchType>(branchType));
+    // The checked out branch does not change, so _activeBranch is left alone.
+    // Only the history that is shown changes.
+    _container._historyViewAll = true;
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.updateAllBranchesActions();
+      _container.ui->localPage->updateActiveBranch(QString(ALL_BRANCHES));
+      _container.ui->remotePage->updateActiveBranch(QString());
+      _container.ui->tagsPage->updateActiveTag(QString());
+    });
+
+    getBranchHistory(guard);
   } else {
     _container.stopWatcher(guard);
 
@@ -742,7 +1263,6 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
       closeRepo();
 
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        _container.showSpinnerOverlay(false);
         _container.showErrorPage();
         _container.showErrorToast(
             QString(_container.tr("Failed to checkout branch. %1"))
@@ -758,7 +1278,6 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
         EventManager::EventType::GitRepoManagerCheckoutBranchResult) {
       const auto error = event.data<GitRepoError>();
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        _container.showSpinnerOverlay(false);
         _container.showErrorToast(error.message, _container.tr("Error"));
       });
 
@@ -776,9 +1295,13 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
         commandResult.value.value<GitRepoCheckoutBranchCommandResult>();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      // A real checkout leaves the history of all branches.
+      _container._historyViewAll = false;
+      _container.updateAllBranchesActions();
       _container.updateModelActiveBranch(guard, result.branchName,
                                          result.branchType);
-      _container.showSpinnerOverlay(false);
+
+      _container._dispatcher.dispatch([=]() { getBranchHistory(guard); });
     });
 
     if (branchType == static_cast<int>(GitRepo::BranchType::Tag)) {
@@ -841,7 +1364,6 @@ void GitRepoManagerBridgeImpl::checkoutCommit(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to checkout commit. %1"))
@@ -857,7 +1379,6 @@ void GitRepoManagerBridgeImpl::checkoutCommit(
       EventManager::EventType::GitRepoManagerCheckoutCommitResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -872,7 +1393,6 @@ void GitRepoManagerBridgeImpl::checkoutCommit(
 
   if (!checkoutSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(
           QString(_container.tr("Failed to checkout commit. %1"))
               .arg(additionalClarificationMessage),
@@ -884,7 +1404,6 @@ void GitRepoManagerBridgeImpl::checkoutCommit(
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container
                              .tr("You are now in detached HEAD state after "
                                  "checking out commit '%1'.")
@@ -964,7 +1483,6 @@ void GitRepoManagerBridgeImpl::commit(const QWeakPointer<RepoContainer> &guard,
       EventManager::EventType::GitRepoManagerCommitStagedResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -978,7 +1496,6 @@ void GitRepoManagerBridgeImpl::commit(const QWeakPointer<RepoContainer> &guard,
 
   if (!commitSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(
           _container.tr("Failed to commit staged changes."),
           _container.tr("Error"));
@@ -994,7 +1511,92 @@ void GitRepoManagerBridgeImpl::commit(const QWeakPointer<RepoContainer> &guard,
     if (commitSuccess) {
       _container.clearSummaryAndDescription();
     }
-    _container.showSpinnerOverlay(false);
+    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+        static_cast<int>(MainViewPanes::History));
+  });
+
+  LOG_PERF(0, "Exit")
+}
+
+void GitRepoManagerBridgeImpl::commitRebase(
+    const QWeakPointer<RepoContainer> &guard, const QString &summary,
+    const QString &description, const QString &author, const QString &email,
+    bool cleanup, bool signoff, bool signCommit) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoCommitRebaseCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.author = author;
+  command.email = email;
+  command.summary = summary;
+  command.message = description;
+  command.cleanup = cleanup;
+  command.signoff = signoff;
+  command.signCommit = signCommit;
+
+  EventManager::Event commitRebaseEvent(
+      EventManager::EventType::GitRepoManagerCommitRebase, eventUuid);
+  commitRebaseEvent.addData(command);
+  _container._eventManager.send(commitRebaseEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerCommitRebaseError,
+      EventManager::EventType::GitRepoManagerCommitRebaseResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to commit staged changes."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerCommitRebaseResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const bool commitSuccess = commandResult.value.toBool();
+
+  if (!commitSuccess) {
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorToast(
+          _container.tr("Failed to commit staged changes."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    if (commitSuccess) {
+      _container.clearSummaryAndDescription();
+    }
     _container.ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::History));
   });
@@ -1049,7 +1651,6 @@ void GitRepoManagerBridgeImpl::createBranchFromCommit(
       EventManager::EventType::GitRepoManagerCreateBranchFromCommitResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -1063,9 +1664,6 @@ void GitRepoManagerBridgeImpl::createBranchFromCommit(
 
   if (onSuccess) {
     onSuccess(guard, branchName);
-  } else {
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [=]() { _container.showSpinnerOverlay(false); });
   }
 
   LOG_PERF(0, "Exit")
@@ -1114,7 +1712,6 @@ void GitRepoManagerBridgeImpl::createPatchFromCommit(
       EventManager::EventType::GitRepoManagerCreatePatchFromCommitResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -1128,8 +1725,6 @@ void GitRepoManagerBridgeImpl::createPatchFromCommit(
       commandResult.value.value<GitRepoCreatePatchFromCommitCommandResult>();
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
-
     if (result.patchContent.isEmpty()) {
       _container.showErrorToast(
           _container.tr("Failed to create patch from commit."),
@@ -1213,7 +1808,6 @@ void GitRepoManagerBridgeImpl::createTagFromCommit(
       EventManager::EventType::GitRepoManagerCreateTagFromCommitResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -1224,9 +1818,6 @@ void GitRepoManagerBridgeImpl::createTagFromCommit(
   const auto commandResult = event.data<GitRepoResult>();
 
   _container.refreshHistory(guard);
-
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { _container.showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit")
 }
@@ -1260,7 +1851,6 @@ void GitRepoManagerBridgeImpl::deleteBranch(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to delete branch.")),
@@ -1275,7 +1865,6 @@ void GitRepoManagerBridgeImpl::deleteBranch(
       EventManager::EventType::GitRepoManagerDeleteBranchResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -1287,9 +1876,6 @@ void GitRepoManagerBridgeImpl::deleteBranch(
   const bool deleteSuccess = commandResult.value.toBool();
 
   _container.refreshHistory(guard);
-
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [&]() { _container.showSpinnerOverlay(false); });
 
   if (!deleteSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
@@ -1333,7 +1919,6 @@ void GitRepoManagerBridgeImpl::deleteRemoteBranch(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to delete remote branch.")),
@@ -1348,7 +1933,6 @@ void GitRepoManagerBridgeImpl::deleteRemoteBranch(
       EventManager::EventType::GitRepoManagerDeleteRemoteBranchResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -1363,7 +1947,6 @@ void GitRepoManagerBridgeImpl::deleteRemoteBranch(
 
   if (!deleteSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(
           _container.tr("Failed to delete remote branch."),
           _container.tr("Error"));
@@ -1374,7 +1957,6 @@ void GitRepoManagerBridgeImpl::deleteRemoteBranch(
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(
         _container.tr("Successfully deleted branch from remote."),
         _container.tr("Info"));
@@ -1414,7 +1996,6 @@ void GitRepoManagerBridgeImpl::deleteStash(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to delete stash.")),
@@ -1429,7 +2010,6 @@ void GitRepoManagerBridgeImpl::deleteStash(
       EventManager::EventType::GitRepoManagerDeleteStashResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -1445,7 +2025,6 @@ void GitRepoManagerBridgeImpl::deleteStash(
 
   if (!deleteSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to delete stash."),
                                 _container.tr("Error"));
     });
@@ -1456,9 +2035,6 @@ void GitRepoManagerBridgeImpl::deleteStash(
 
   if (onSuccess) {
     onSuccess(guard, stashIndex);
-  } else {
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [&]() { _container.showSpinnerOverlay(false); });
   }
 
   LOG_PERF(0, "Exit")
@@ -1493,7 +2069,6 @@ void GitRepoManagerBridgeImpl::deleteAllStashes(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to delete all stashes.")),
@@ -1508,7 +2083,6 @@ void GitRepoManagerBridgeImpl::deleteAllStashes(
       EventManager::EventType::GitRepoManagerDeleteAllStashesResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -1524,7 +2098,6 @@ void GitRepoManagerBridgeImpl::deleteAllStashes(
 
   if (!deleteSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to delete all stashes."),
                                 _container.tr("Error"));
     });
@@ -1534,7 +2107,6 @@ void GitRepoManagerBridgeImpl::deleteAllStashes(
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("All stashes deleted successfully."),
                          _container.tr("Success"));
   });
@@ -1575,7 +2147,6 @@ void GitRepoManagerBridgeImpl::deleteTag(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(QString(_container.tr("Failed to delete tag.")),
                                 _container.tr("Error"));
@@ -1588,7 +2159,6 @@ void GitRepoManagerBridgeImpl::deleteTag(
   if (event.type() != EventManager::EventType::GitRepoManagerDeleteTagResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -1603,7 +2173,6 @@ void GitRepoManagerBridgeImpl::deleteTag(
 
   if (!deleteSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to delete tag."),
                                 _container.tr("Error"));
     });
@@ -1611,9 +2180,6 @@ void GitRepoManagerBridgeImpl::deleteTag(
     LOG_PERF(0, "Exit")
     return;
   }
-
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [&]() { _container.showSpinnerOverlay(false); });
 
   LOG_PERF(0, "Exit");
 }
@@ -1646,10 +2212,8 @@ void GitRepoManagerBridgeImpl::pushTag(const QWeakPointer<RepoContainer> &guard,
   if (!success) {
     closeRepo();
 
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -1658,7 +2222,6 @@ void GitRepoManagerBridgeImpl::pushTag(const QWeakPointer<RepoContainer> &guard,
   if (event.type() != EventManager::EventType::GitRepoManagerPushTagResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -1670,7 +2233,6 @@ void GitRepoManagerBridgeImpl::pushTag(const QWeakPointer<RepoContainer> &guard,
 
   if (const bool pushed = commandResult.value.toBool(); !pushed) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to push tag to remote."),
                                 _container.tr("Error"));
     });
@@ -1682,7 +2244,6 @@ void GitRepoManagerBridgeImpl::pushTag(const QWeakPointer<RepoContainer> &guard,
   _container.refreshHistory(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Successfully pushed tag to remote."),
                          _container.tr("Info"));
   });
@@ -1717,10 +2278,8 @@ void GitRepoManagerBridgeImpl::pushAllTags(
   if (!success) {
     closeRepo();
 
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -1730,7 +2289,6 @@ void GitRepoManagerBridgeImpl::pushAllTags(
       EventManager::EventType::GitRepoManagerPushAllTagsResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -1742,7 +2300,6 @@ void GitRepoManagerBridgeImpl::pushAllTags(
 
   if (const bool pushed = commandResult.value.toBool(); !pushed) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(
           _container.tr("Failed to push all tags to remote."),
           _container.tr("Error"));
@@ -1755,7 +2312,6 @@ void GitRepoManagerBridgeImpl::pushAllTags(
   _container.refreshHistory(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(
         _container.tr("Successfully pushed all tags to remote."),
         _container.tr("Info"));
@@ -1793,7 +2349,6 @@ void GitRepoManagerBridgeImpl::deleteRemoteTag(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to delete remote tag.")),
@@ -1808,7 +2363,6 @@ void GitRepoManagerBridgeImpl::deleteRemoteTag(
       EventManager::EventType::GitRepoManagerDeleteRemoteTagResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -1823,7 +2377,6 @@ void GitRepoManagerBridgeImpl::deleteRemoteTag(
 
   if (!deleteSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to delete remote tag."),
                                 _container.tr("Error"));
     });
@@ -1833,7 +2386,6 @@ void GitRepoManagerBridgeImpl::deleteRemoteTag(
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Successfully deleted tag from remote."),
                          _container.tr("Info"));
   });
@@ -1870,7 +2422,6 @@ void GitRepoManagerBridgeImpl::openSubmodule(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to get submodule path.")),
@@ -1885,7 +2436,6 @@ void GitRepoManagerBridgeImpl::openSubmodule(
       EventManager::EventType::GitRepoManagerGetSubmodulePathResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -1899,7 +2449,6 @@ void GitRepoManagerBridgeImpl::openSubmodule(
 
   if (result.submodulePath.isEmpty()) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to get submodule path."),
                                 _container.tr("Error"));
     });
@@ -1909,8 +2458,6 @@ void GitRepoManagerBridgeImpl::openSubmodule(
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
-
     const QString fullPath =
         QDir(_container._path).filePath(result.submodulePath);
     emit _container.openRepoRequested(fullPath);
@@ -1947,7 +2494,6 @@ void GitRepoManagerBridgeImpl::showStashContent(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(
           QString(_container.tr("Failed to get stash content.")),
           _container.tr("Error"));
@@ -1961,7 +2507,6 @@ void GitRepoManagerBridgeImpl::showStashContent(
       EventManager::EventType::GitRepoManagerGetStashStatusResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -1977,6 +2522,8 @@ void GitRepoManagerBridgeImpl::showStashContent(
   _container._lastStashCommit = stashStatus.commit;
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateStashContentInfo(stashIndex, stashStatus);
+
     // Update flat list view
     _container._stashFilesModel.reset(
         Models::GitCommitListModel::from(stashStatus));
@@ -2024,8 +2571,6 @@ void GitRepoManagerBridgeImpl::showStashContent(
     // Switch to stash content page
     _container.ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::StashContent));
-
-    _container.showSpinnerOverlay(false);
   });
 
   LOG_PERF(0, "Exit");
@@ -2110,7 +2655,6 @@ void GitRepoManagerBridgeImpl::onStashFileSelected(const QModelIndex &index) {
 
     if (!success) {
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        _container.showSpinnerOverlay(false);
         _container.showErrorToast(_container.tr("Failed to create file diff."),
                                   _container.tr("Error"));
       });
@@ -2123,7 +2667,6 @@ void GitRepoManagerBridgeImpl::onStashFileSelected(const QModelIndex &index) {
         EventManager::EventType::GitRepoManagerDiffFilesFromCommitResult) {
       const auto error = event.data<GitRepoError>();
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        _container.showSpinnerOverlay(false);
         _container.showErrorToast(error.message, _container.tr("Error"));
       });
 
@@ -2136,7 +2679,6 @@ void GitRepoManagerBridgeImpl::onStashFileSelected(const QModelIndex &index) {
 
     if (filesDiff.diff.isEmpty()) {
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-        _container.showSpinnerOverlay(false);
         _container.showToast(_container.tr("No difference in stash file."),
                              _container.tr("Info"));
       });
@@ -2146,25 +2688,18 @@ void GitRepoManagerBridgeImpl::onStashFileSelected(const QModelIndex &index) {
 
     // Display diff in stash viewers
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      const QString normalized =
-          QString(filesDiff.diff).replace("\r\n", "\n").replace('\r', '\n');
-      const int lineCount = normalized.count('\n') + 1;
-      const int width = QString::number(lineCount).length();
-      const QString mask = QString::number(0).rightJustified(width + 1, '0');
-
-      _container.ui->scintillaStashDiffUnified->setMarginWidth(0, mask);
-      _container.ui->scintillaStashDiffUnified->setText(filesDiff.diff);
+      showUnifiedDiff(_container.ui->scintillaStashDiffUnified, filesDiff.diff,
+                      filePath);
 
       if (!filesDiff.deltas.isEmpty() && !filesDiff.repoContent.isEmpty()) {
         const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
         _container.ui->sideBySideDiffViewerStash->loadAndHighlight(
             filesDiff.repoContent.first(), filesDiff.deltas.first(),
-            fileInfo.suffix());
+            fileInfo.absoluteFilePath());
       }
 
       _container.ui->stackedWidgetStashDiff->setCurrentIndex(
           0); // Show unified view by default
-      _container.showSpinnerOverlay(false);
     });
   });
 
@@ -2208,7 +2743,6 @@ void GitRepoManagerBridgeImpl::deleteSubmodule(
     _container.prepareWatcher(guard);
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(_container.tr("Failed to delete submodule."),
                                 _container.tr("Error"));
@@ -2224,7 +2758,6 @@ void GitRepoManagerBridgeImpl::deleteSubmodule(
     _container.prepareWatcher(guard);
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -2239,7 +2772,6 @@ void GitRepoManagerBridgeImpl::deleteSubmodule(
     _container.prepareWatcher(guard);
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to delete submodule."),
                                 _container.tr("Error"));
     });
@@ -2252,27 +2784,12 @@ void GitRepoManagerBridgeImpl::deleteSubmodule(
 
   _container.prepareWatcher(guard);
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { _container.showSpinnerOverlay(false); });
-
   LOG_PERF(0, "Exit")
 }
 
 void GitRepoManagerBridgeImpl::diff(const QWeakPointer<RepoContainer> &guard,
                                     const QString &filePath) {
   LOG_PERF(0, "Enter");
-
-  // Guard against malicious multiple calls
-  if (!_container._lastDiffRepoStatusChanged &&
-      _container._lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.ui->stackedWidgetMiddle->setCurrentIndex(
-          static_cast<int>(MainViewPanes::Diff));
-    });
-    LOG_PERF(0, "Exit")
-    return;
-  }
 
   _container._lastDiffedFilePath = filePath;
 
@@ -2301,7 +2818,6 @@ void GitRepoManagerBridgeImpl::diff(const QWeakPointer<RepoContainer> &guard,
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(_container.tr("Failed to create file diff."),
                                 _container.tr("Error"));
@@ -2314,7 +2830,6 @@ void GitRepoManagerBridgeImpl::diff(const QWeakPointer<RepoContainer> &guard,
   if (event.type() != EventManager::EventType::GitRepoManagerDiffFilesResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -2328,7 +2843,6 @@ void GitRepoManagerBridgeImpl::diff(const QWeakPointer<RepoContainer> &guard,
 
   if (filesDiff.diff.isEmpty()) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showToast(
           _container.tr("No difference compared to the HEAD commit."),
           _container.tr("Info"));
@@ -2339,32 +2853,8 @@ void GitRepoManagerBridgeImpl::diff(const QWeakPointer<RepoContainer> &guard,
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    const QString normalized =
-        QString(filesDiff.diff).replace("\r\n", "\n").replace('\r', '\n');
-    const int lineCount = normalized.count('\n') + 1;
-    const int width = QString::number(lineCount).length();
-    const QString mask = QString::number(0).rightJustified(width + 1, '0');
-
-    _container.ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
-    _container.ui->scintillaTextEditorUnified->setText(filesDiff.diff);
-
-    // Collect added and deleted lines for scrollbar marks
-    QVector<int> deletedLines;
-    QVector<int> addedLines;
-
-    // Mark hunk headers
-    for (int i = 0; i < _container.ui->scintillaTextEditorUnified->lines();
-         ++i) {
-      const QString lineText =
-          _container.ui->scintillaTextEditorUnified->text(i);
-      if (lineText.startsWith("@@ ")) {
-        _container.ui->scintillaTextEditorUnified->markerAdd(i, 1);
-      } else if (lineText.startsWith("-") && !lineText.startsWith("---")) {
-        deletedLines.append(i);
-      } else if (lineText.startsWith("+") && !lineText.startsWith("+++")) {
-        addedLines.append(i);
-      }
-    }
+    const auto [deletedLines, addedLines] = showUnifiedDiff(
+        _container.ui->scintillaTextEditorUnified, filesDiff.diff, filePath);
 
     // Update scrollbar marks
     _container._unifiedDiffMarks->setMarks(deletedLines, addedLines);
@@ -2380,10 +2870,9 @@ void GitRepoManagerBridgeImpl::diff(const QWeakPointer<RepoContainer> &guard,
       const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
       _container.ui->sideBySideDiffViewer->loadAndHighlight(
           filesDiff.repoContent.first(), filesDiff.deltas.first(),
-          fileInfo.suffix());
+          fileInfo.absoluteFilePath());
     }
 
-    _container.showSpinnerOverlay(false);
     _container.ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::Diff));
   });
@@ -2394,18 +2883,6 @@ void GitRepoManagerBridgeImpl::diff(const QWeakPointer<RepoContainer> &guard,
 void GitRepoManagerBridgeImpl::diffThreeWay(
     const QWeakPointer<RepoContainer> &guard, const QString &filePath) {
   LOG_PERF(0, "Enter");
-
-  // Guard against malicious multiple calls
-  if (!_container._lastDiffRepoStatusChanged &&
-      _container._lastDiffedFilePath == filePath) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.ui->stackedWidgetMiddle->setCurrentIndex(
-          static_cast<int>(MainViewPanes::Diff));
-    });
-    LOG_PERF(0, "Exit")
-    return;
-  }
 
   _container._lastDiffedFilePath = filePath;
 
@@ -2434,7 +2911,6 @@ void GitRepoManagerBridgeImpl::diffThreeWay(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(_container.tr("Failed to create file diff."),
                                 _container.tr("Error"));
@@ -2448,7 +2924,6 @@ void GitRepoManagerBridgeImpl::diffThreeWay(
       EventManager::EventType::GitRepoManagerListConflictsResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -2462,7 +2937,6 @@ void GitRepoManagerBridgeImpl::diffThreeWay(
 
   if (listConflictsResult.fileContentWithMarkers.isEmpty()) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showToast(
           _container.tr("No difference compared to the HEAD commit."),
           _container.tr("Info"));
@@ -2480,7 +2954,6 @@ void GitRepoManagerBridgeImpl::diffThreeWay(
     _container.ui->mergeDiffViewer->loadAndHighlight(
         listConflictsResult.fileContentWithMarkers, filePath);
 
-    _container.showSpinnerOverlay(false);
     _container.ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::ThreeWayDiff));
   });
@@ -2498,7 +2971,6 @@ void GitRepoManagerBridgeImpl::diffFromCommit(
       _container._lastDiffedCommit == commit &&
       _container._lastDiffedFilePath == filePath) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.ui->stackedWidgetMiddle->setCurrentIndex(
           static_cast<int>(MainViewPanes::Diff));
     });
@@ -2535,7 +3007,6 @@ void GitRepoManagerBridgeImpl::diffFromCommit(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(_container.tr("Failed to create file diff."),
                                 _container.tr("Error"));
@@ -2549,7 +3020,6 @@ void GitRepoManagerBridgeImpl::diffFromCommit(
       EventManager::EventType::GitRepoManagerDiffFilesFromCommitResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -2563,7 +3033,6 @@ void GitRepoManagerBridgeImpl::diffFromCommit(
 
   if (filesDiff.diff.isEmpty()) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showToast(
           _container.tr("No difference compared to the HEAD commit."),
           _container.tr("Info"));
@@ -2574,32 +3043,8 @@ void GitRepoManagerBridgeImpl::diffFromCommit(
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    const QString normalized =
-        QString(filesDiff.diff).replace("\r\n", "\n").replace('\r', '\n');
-    const int lineCount = normalized.count('\n') + 1;
-    const int width = QString::number(lineCount).length();
-    const QString mask = QString::number(0).rightJustified(width + 1, '0');
-
-    _container.ui->scintillaTextEditorUnified->setMarginWidth(0, mask);
-    _container.ui->scintillaTextEditorUnified->setText(filesDiff.diff);
-
-    // Collect added and deleted lines for scrollbar marks
-    QVector<int> deletedLines;
-    QVector<int> addedLines;
-
-    // Mark hunk headers
-    for (int i = 0; i < _container.ui->scintillaTextEditorUnified->lines();
-         ++i) {
-      const QString lineText =
-          _container.ui->scintillaTextEditorUnified->text(i);
-      if (lineText.startsWith("@@ ")) {
-        _container.ui->scintillaTextEditorUnified->markerAdd(i, 1);
-      } else if (lineText.startsWith("-") && !lineText.startsWith("---")) {
-        deletedLines.append(i);
-      } else if (lineText.startsWith("+") && !lineText.startsWith("+++")) {
-        addedLines.append(i);
-      }
-    }
+    const auto [deletedLines, addedLines] = showUnifiedDiff(
+        _container.ui->scintillaTextEditorUnified, filesDiff.diff, filePath);
 
     // Update scrollbar marks
     _container._unifiedDiffMarks->setMarks(deletedLines, addedLines);
@@ -2622,10 +3067,9 @@ void GitRepoManagerBridgeImpl::diffFromCommit(
       const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
       _container.ui->sideBySideDiffViewer->loadAndHighlight(
           filesDiff.repoContent.first(), filesDiff.deltas.first(),
-          fileInfo.suffix());
+          fileInfo.absoluteFilePath());
     }
 
-    _container.showSpinnerOverlay(false);
     _container.ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::Diff));
   });
@@ -2662,7 +3106,6 @@ void GitRepoManagerBridgeImpl::diffFiles(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(_container.tr("Failed to create diff file."),
                                 _container.tr("Error"));
@@ -2675,7 +3118,6 @@ void GitRepoManagerBridgeImpl::diffFiles(
   if (event.type() != EventManager::EventType::GitRepoManagerDiffFilesResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -2689,7 +3131,6 @@ void GitRepoManagerBridgeImpl::diffFiles(
 
   if (filesDiff.diff.isEmpty()) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showToast(
           _container.tr("No difference compared to the HEAD commit."),
           _container.tr("Info"));
@@ -2700,8 +3141,6 @@ void GitRepoManagerBridgeImpl::diffFiles(
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
-
     const QString filePath = QFileDialog::getSaveFileName(
         nullptr, _container.tr("Save Diff File"), QString(),
         _container.tr("Patch Files (*.patch)"));
@@ -2754,7 +3193,6 @@ void GitRepoManagerBridgeImpl::discardFiles(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(_container.tr("Failed to discard file(s)."),
                                 _container.tr("Error"));
@@ -2768,7 +3206,6 @@ void GitRepoManagerBridgeImpl::discardFiles(
       EventManager::EventType::GitRepoManagerDiscardFilesResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -2781,7 +3218,6 @@ void GitRepoManagerBridgeImpl::discardFiles(
 
   if (!discarded) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showToast(_container.tr("Failed to discard file(s)."),
                            _container.tr("Info"));
     });
@@ -2793,7 +3229,6 @@ void GitRepoManagerBridgeImpl::discardFiles(
   refreshStatus(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    _container.showSpinnerOverlay(false);
     _container.simulateClickOnFirstHistoryRow();
     _container.ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::History));
@@ -2828,6 +3263,8 @@ bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
       _container._eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
+
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
@@ -2848,6 +3285,8 @@ bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -2860,6 +3299,7 @@ bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.updateModelActiveBranch(
         guard, result.branchName, static_cast<GitRepo::BranchType>(branchType));
+    _container.releaseHistoryRefreshSemaphore();
   });
 
   LOG_PERF(0, "Exit")
@@ -2875,11 +3315,18 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
 
   const int historyToken = _container._eventManager.startWait();
 
+  const bool viewAll = _container._historyViewAll;
+  const QString historyBranchName =
+      viewAll ? QString(ALL_BRANCHES) : _container._activeBranch;
+  const GitRepo::BranchType historyBranchType =
+      viewAll ? GitRepo::BranchType::All : _container._activeBranchType;
+
   GitRepoGetBranchHistoryCommand historyCommand;
   historyCommand.uuid = _container._uuid;
-  historyCommand.branchName = _container._activeBranch;
-  historyCommand.branchType = _container._activeBranchType;
+  historyCommand.branchName = historyBranchName;
+  historyCommand.branchType = historyBranchType;
   historyCommand.syncUuid = historyEventUuid;
+  historyCommand.page = 0;
 
   EventManager::Event historyEvent(
       EventManager::EventType::GitRepoManagerGetBranchHistory,
@@ -2896,10 +3343,11 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
                                              historyTypes);
 
   if (!historySuccess) {
+    _container.releaseBranchHistorySemaphore();
+
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to retrieve the history of branch %1."))
@@ -2915,9 +3363,10 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
       EventManager::EventType::GitRepoManagerGetBranchHistoryResult) {
     const auto error = historyResultEvent.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
+
+    _container.releaseBranchHistorySemaphore();
 
     LOG_PERF(0, "Exit")
     return false;
@@ -2949,9 +3398,9 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
                                              statusTypes);
 
   if (!statusSuccess) {
+    _container.releaseBranchHistorySemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           _container.tr("Failed to retrieve the repository status."),
@@ -2966,9 +3415,10 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
       EventManager::EventType::GitRepoManagerStatusResult) {
     const auto error = statusResultEvent.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
+
+    _container.releaseBranchHistorySemaphore();
 
     LOG_PERF(0, "Exit")
     return false;
@@ -2981,15 +3431,98 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
   GitRepo::GitHistoryWithStatus historyWithStatus;
   historyWithStatus.history = history;
   historyWithStatus.status = status;
-
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { _container.ui->labelProgress->setText("0%"); });
+  historyWithStatus.branchName = historyBranchName;
+  historyWithStatus.branchType = historyBranchType;
+  historyWithStatus.uuid = _container._uuid;
+  historyWithStatus.page = 0;
 
   _container.updateBranchHistory(guard, historyWithStatus);
+
+  _container.releaseBranchHistorySemaphore();
 
   LOG_PERF(0, "Exit")
 
   return true;
+}
+
+void GitRepoManagerBridgeImpl::getBranchHistoryPage(
+    const QWeakPointer<RepoContainer> &guard, const QString &branchName,
+    const GitRepo::BranchType branchType, const int page,
+    const quint64 generation, const bool lowPriority) {
+  LOG_PERF(0, "Enter");
+
+  const QString uuid = _container._uuid;
+  EventManager::EventManager *eventManager = &_container._eventManager;
+  const QWeakPointer<Models::GitHistoryModel> historyModel =
+      _container._historyModel;
+
+  const auto loadPage = [=]() {
+    // A low priority page waits for the other requests and may be outdated
+    // (searching stopped, other branch) by the time it starts.
+    if (lowPriority) {
+      const auto model = historyModel.toStrongRef();
+      if (!model || !model->isCurrentGeneration(generation)) {
+        return;
+      }
+    }
+
+    const QString eventUuid = Uuid::createUuid();
+
+    const int token = eventManager->startWait();
+
+    GitRepoGetBranchHistoryCommand command;
+    command.uuid = uuid;
+    command.branchName = branchName;
+    command.branchType = branchType;
+    command.syncUuid = eventUuid;
+    command.page = page;
+
+    EventManager::Event event(
+        EventManager::EventType::GitRepoManagerGetBranchHistory, eventUuid);
+    event.addData(command);
+    eventManager->send(event);
+
+    static const std::set types = {
+        EventManager::EventType::GitRepoManagerGetBranchHistoryError,
+        EventManager::EventType::GitRepoManagerGetBranchHistoryResult};
+
+    const auto &[success, resultEvent] =
+        eventManager->waitForAnswer(token, eventUuid, types);
+
+    const bool ok =
+        success &&
+        resultEvent.type() ==
+            EventManager::EventType::GitRepoManagerGetBranchHistoryResult;
+
+    GitRepo::GitHistory history;
+    if (ok) {
+      history =
+          resultEvent.data<GitRepoResult>().value.value<GitRepo::GitHistory>();
+    }
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      if (ok) {
+        _container._historyModel->appendPage(history, page, generation);
+      } else {
+        _container._historyModel->pageFailed(generation);
+      }
+    });
+  };
+
+  if (lowPriority) {
+    // Loading the whole history must not hold back other requests, so it
+    // waits until the container's dispatcher has nothing else to do.
+    _container._dispatcher.dispatch(loadPage, nullptr, nullptr,
+                                    Util::DispatcherChannel::Any,
+                                    Util::DispatcherPriority::Low);
+  } else {
+    // Not the container's dispatcher: its pool is cleared whenever the
+    // selection changes, which would drop the request and leave the model
+    // waiting for it.
+    QThreadPool::globalInstance()->start(loadPage);
+  }
+
+  LOG_PERF(0, "Exit")
 }
 
 QStringList GitRepoManagerBridgeImpl::getCommitBranches(
@@ -3160,6 +3693,7 @@ bool GitRepoManagerBridgeImpl::getLocalBranches() {
   const QWeakPointer<RepoContainer> guard = _container.getSelf().toWeakRef();
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showErrorPage();
@@ -3179,6 +3713,8 @@ bool GitRepoManagerBridgeImpl::getLocalBranches() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3189,6 +3725,7 @@ bool GitRepoManagerBridgeImpl::getLocalBranches() {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.updateLocalBranchesModel(guard, localBranches);
+    _container.releaseHistoryRefreshSemaphore();
   });
 
   LOG_PERF(0, "Exit")
@@ -3224,6 +3761,7 @@ bool GitRepoManagerBridgeImpl::getRemoteBranches() {
       _container._eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showErrorPage();
@@ -3243,6 +3781,8 @@ bool GitRepoManagerBridgeImpl::getRemoteBranches() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3254,6 +3794,7 @@ bool GitRepoManagerBridgeImpl::getRemoteBranches() {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.updateRemoteBranchesModelWithStatus(guard, branchesWithStatus);
+    _container.releaseHistoryRefreshSemaphore();
   });
 
   LOG_PERF(0, "Exit")
@@ -3286,6 +3827,7 @@ bool GitRepoManagerBridgeImpl::getStashes(
       _container._eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showErrorPage();
@@ -3305,6 +3847,8 @@ bool GitRepoManagerBridgeImpl::getStashes(
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3313,8 +3857,10 @@ bool GitRepoManagerBridgeImpl::getStashes(
 
   const auto stashes = commandResult.value.value<QStringList>();
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { _container.updateStashesModel(guard, stashes); });
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateStashesModel(guard, stashes);
+    _container.releaseHistoryRefreshSemaphore();
+  });
 
   LOG_PERF(0, "Exit")
 
@@ -3346,6 +3892,7 @@ bool GitRepoManagerBridgeImpl::getRemotes(
       _container._eventManager.waitForAnswer(token, eventUuid, types);
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showErrorPage();
@@ -3365,6 +3912,8 @@ bool GitRepoManagerBridgeImpl::getRemotes(
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3376,6 +3925,7 @@ bool GitRepoManagerBridgeImpl::getRemotes(
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.ui->remotesPage->updateModel(remotes);
+    _container.releaseHistoryRefreshSemaphore();
 
     // Set the active remote to the current branch's upstream remote
     if (!_container._activeBranch.isEmpty() &&
@@ -3423,6 +3973,7 @@ bool GitRepoManagerBridgeImpl::getSubmodules() {
   const QWeakPointer<RepoContainer> guard = _container.getSelf().toWeakRef();
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showErrorPage();
@@ -3442,6 +3993,8 @@ bool GitRepoManagerBridgeImpl::getSubmodules() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3453,6 +4006,73 @@ bool GitRepoManagerBridgeImpl::getSubmodules() {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.updateSubmodulesModelWithStatus(guard, submodulesWithStatus);
+    _container.releaseHistoryRefreshSemaphore();
+  });
+
+  LOG_PERF(0, "Exit")
+
+  return true;
+}
+
+bool GitRepoManagerBridgeImpl::getWorktrees(
+    const QWeakPointer<RepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoListWorktreesCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event listWorktreesEvent(
+      EventManager::EventType::GitRepoManagerListWorktrees, eventUuid);
+  listWorktreesEvent.addData(command);
+  _container._eventManager.send(listWorktreesEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerListWorktreesError,
+      EventManager::EventType::GitRepoManagerListWorktreesResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to retrieve the list of worktrees."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  if (event.type() !=
+      EventManager::EventType::GitRepoManagerListWorktreesResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    _container.releaseHistoryRefreshSemaphore();
+
+    LOG_PERF(0, "Exit")
+    return false;
+  }
+
+  const auto commandResult = event.data<GitRepoResult>();
+
+  const auto worktrees =
+      commandResult.value.value<QVector<GitRepo::WorktreeInfo>>();
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateWorktreesModel(guard, worktrees);
+    _container.releaseHistoryRefreshSemaphore();
   });
 
   LOG_PERF(0, "Exit")
@@ -3486,6 +4106,7 @@ bool GitRepoManagerBridgeImpl::getTags() {
   const QWeakPointer<RepoContainer> guard = _container.getSelf().toWeakRef();
 
   if (!success) {
+    _container.releaseHistoryRefreshSemaphore();
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showErrorPage();
@@ -3504,6 +4125,8 @@ bool GitRepoManagerBridgeImpl::getTags() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3512,8 +4135,10 @@ bool GitRepoManagerBridgeImpl::getTags() {
 
   const auto tags = commandResult.value.value<QStringList>();
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { _container.updateTagsModel(guard, tags); });
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateTagsModel(guard, tags);
+    _container.releaseHistoryRefreshSemaphore();
+  });
 
   LOG_PERF(0, "Exit")
 
@@ -3557,7 +4182,6 @@ QPair<QString, QString> GitRepoManagerBridgeImpl::getUpstream(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           QString(_container.tr("Failed to get upstream.")),
@@ -3571,8 +4195,6 @@ QPair<QString, QString> GitRepoManagerBridgeImpl::getUpstream(
   if (event.type() !=
       EventManager::EventType::GitRepoManagerGetUpstreamResult) {
     const auto error = event.data<GitRepoError>();
-    Util::Dispatcher::dispatchToMainThread(
-        guard, [=]() { _container.showSpinnerOverlay(false); });
 
     LOG_PERF(0, "Exit")
     return {};
@@ -3669,7 +4291,6 @@ void GitRepoManagerBridgeImpl::merge(const QWeakPointer<RepoContainer> &guard,
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(_container.tr("Failed to merge branches."),
                                 _container.tr("Error"));
@@ -3682,7 +4303,6 @@ void GitRepoManagerBridgeImpl::merge(const QWeakPointer<RepoContainer> &guard,
   if (event.type() != EventManager::EventType::GitRepoManagerMergeResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -3708,9 +4328,9 @@ void GitRepoManagerBridgeImpl::merge(const QWeakPointer<RepoContainer> &guard,
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoManagerBridgeImpl::rebase(const QWeakPointer<RepoContainer> &guard,
-                                      const QString &sourceBranch,
-                                      const QString &destBranch) {
+void GitRepoManagerBridgeImpl::rebase(
+    const QWeakPointer<RepoContainer> &guard, const QString &sourceBranch,
+    const QString &destBranch, bool signCommit) {
   LOG_PERF(0, "Enter");
 
   const QString author = _container._userProfileManager.currentProfile().author;
@@ -3727,6 +4347,7 @@ void GitRepoManagerBridgeImpl::rebase(const QWeakPointer<RepoContainer> &guard,
   command.destinationBranch = destBranch;
   command.author = author;
   command.email = email;
+  command.signCommit = signCommit;
 
   EventManager::Event rebaseEvent(EventManager::EventType::GitRepoManagerRebase,
                                   eventUuid);
@@ -3743,7 +4364,6 @@ void GitRepoManagerBridgeImpl::rebase(const QWeakPointer<RepoContainer> &guard,
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(_container.tr("Failed to rebase branches."),
                                 _container.tr("Error"));
@@ -3756,7 +4376,6 @@ void GitRepoManagerBridgeImpl::rebase(const QWeakPointer<RepoContainer> &guard,
   if (event.type() != EventManager::EventType::GitRepoManagerRebaseResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -3779,12 +4398,563 @@ void GitRepoManagerBridgeImpl::rebase(const QWeakPointer<RepoContainer> &guard,
     return;
   }
 
-  LOG_PERF(0, "Exit")
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::squash(
+    const QWeakPointer<RepoContainer> &guard, const QString &sourceBranch,
+    const QString &destBranch, bool signCommit) {
+  LOG_PERF(0, "Enter");
+
+  const QString author = _container._userProfileManager.currentProfile().author;
+  const QString email = _container._userProfileManager.currentProfile().email;
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoSquashCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.sourceBranch = sourceBranch;
+  command.destinationBranch = destBranch;
+  command.author = author;
+  command.email = email;
+  command.signCommit = signCommit;
+
+  EventManager::Event squashEvent(EventManager::EventType::GitRepoManagerSquash,
+                                  eventUuid);
+  squashEvent.addData(command);
+  _container._eventManager.send(squashEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerSquashError,
+                           EventManager::EventType::GitRepoManagerSquashResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to squash branches."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerSquashResult) {
+    const auto error = event.data<GitRepoError>();
+    // Conflicts and failures can leave the working tree changed.
+    _container.refreshHistory(guard);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  _container.refreshHistory(guard);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::bisect(
+    const QWeakPointer<RepoContainer> &guard, GitRepo::BisectAction action,
+    const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  GitRepoBisectCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.action = action;
+  command.commit = commit;
+
+  EventManager::Event bisectEvent(EventManager::EventType::GitRepoManagerBisect,
+                                  eventUuid);
+  bisectEvent.addData(command);
+  _container._eventManager.send(bisectEvent);
+
+  static std::set types = {EventManager::EventType::GitRepoManagerBisectError,
+                           EventManager::EventType::GitRepoManagerBisectResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to run bisect."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerBisectResult) {
+    const auto error = event.data<GitRepoError>();
+    // A failed checkout can leave the session active with new marks.
+    _container.refreshHistory(guard);
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto result = event.data<GitRepoResult>();
+  const auto status = result.value.value<GitRepo::BisectStatus>();
+
+  _container.refreshHistory(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    const auto shortSha = [](const QString &sha) { return sha.left(7); };
+
+    QString message;
+    if (action == GitRepo::BisectAction::Reset) {
+      message = _container.tr("Bisect finished. The original state has been "
+                              "restored.");
+    } else if (status.finished && status.ambiguous) {
+      message = _container
+                    .tr("Only skipped commits are left to test. The "
+                        "first bad commit is %1 or one of the skipped "
+                        "commits.")
+                    .arg(shortSha(status.firstBadCommit));
+    } else if (status.finished) {
+      message =
+          _container.tr("%1 is the first bad commit: %2")
+              .arg(shortSha(status.firstBadCommit), status.firstBadSummary);
+    } else if (status.waitingForGood && status.waitingForBad) {
+      message = _container.tr("Bisect started. Mark a good and a bad "
+                              "commit to continue.");
+    } else if (status.waitingForGood) {
+      message = _container.tr("Mark a good commit to continue bisecting.");
+    } else if (status.waitingForBad) {
+      message = _container.tr("Mark a bad commit to continue bisecting.");
+    } else {
+      message =
+          _container
+              .tr("Bisecting: %1 revisions left to test (about %2 steps). "
+                  "Checked out %3: %4")
+              .arg(QString::number(status.remaining),
+                   QString::number(status.steps),
+                   shortSha(status.currentCommit), status.currentSummary);
+    }
+
+    _container.showToast(message, _container.tr("Info"));
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::sendGitFlowCommand(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepoGitFlowCommand &gitFlowCommand, const QString &failureMessage,
+    const QString &successMessage, const QString &conflictMessage) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGitFlowCommand command = gitFlowCommand;
+
+  _container.stopWatcher(guard);
+
+  const QString eventUuid = Uuid::createUuid();
+  const int token = _container._eventManager.startWait();
+
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+
+  EventManager::Event gitFlowEvent(
+      EventManager::EventType::GitRepoManagerGitFlow, eventUuid);
+  gitFlowEvent.addData(command);
+  _container._eventManager.send(gitFlowEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerGitFlowError,
+      EventManager::EventType::GitRepoManagerGitFlowResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorPage();
+      _container.showErrorToast(failureMessage, _container.tr("Error"));
+    });
+
+    _container.prepareWatcher(guard);
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (event.type() != EventManager::EventType::GitRepoManagerGitFlowResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    _container.prepareWatcher(guard);
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const bool conflicted = event.data<GitRepoResult>().value.toBool();
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    if (conflicted && !conflictMessage.isEmpty()) {
+      _container.showErrorToast(conflictMessage, _container.tr("Conflicts"));
+    } else {
+      _container.showToast(successMessage, _container.tr("Info"));
+    }
+  });
+
+  _container.prepareWatcher(guard);
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::startGitFlowBranch(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::GitFlowBranchType branchType, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGitFlowCommand command;
+  command.branchType = branchType;
+  command.start = true;
+  command.branchName = branchName;
+  command.developmentBranchName =
+      _container._configManager
+          .getString(
+              ConfigManager::ConfigKey::GitRepoGitFlowDevelopmentBranchName)
+          .trimmed();
+
+  sendGitFlowCommand(
+      guard, command, _container.tr("Failed to start GitFlow branch."),
+      _container.tr("Successfully started branch '%1'.").arg(branchName));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::finishGitFlowBranch(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::GitFlowBranchType branchType, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGitFlowCommand command;
+  command.branchType = branchType;
+  command.start = false;
+  command.branchName = branchName;
+  command.developmentBranchName =
+      _container._configManager
+          .getString(
+              ConfigManager::ConfigKey::GitRepoGitFlowDevelopmentBranchName)
+          .trimmed();
+  command.author = _container._userProfileManager.currentProfile().author;
+  command.email = _container._userProfileManager.currentProfile().email;
+
+  sendGitFlowCommand(
+      guard, command, _container.tr("Failed to finish GitFlow branch."),
+      _container.tr("Successfully finished branch '%1'.").arg(branchName));
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::runGitLabFlowAction(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::GitLabFlowAction action, const QString &branchName,
+    const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGitFlowCommand command;
+  command.workflow = GitRepo::WorkflowType::GitLabFlow;
+  command.gitLabFlowAction = action;
+  command.branchName = branchName;
+  command.commit = commit;
+  command.mainBranchName = _container.gitLabFlowMainBranchName();
+  command.environmentChain = _container.gitLabFlowEnvironmentChain();
+  command.author = _container._userProfileManager.currentProfile().author;
+  command.email = _container._userProfileManager.currentProfile().email;
+
+  const QString shortCommit = commit.left(7);
+
+  switch (action) {
+  case GitRepo::GitLabFlowAction::StartFeature:
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to start GitLab Flow feature branch."),
+        _container.tr("Successfully started branch '%1'.").arg(branchName));
+    break;
+  case GitRepo::GitLabFlowAction::FinishFeature:
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to finish GitLab Flow feature branch."),
+        _container.tr("Successfully finished branch '%1'.").arg(branchName));
+    break;
+  case GitRepo::GitLabFlowAction::Promote:
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to promote branch '%1'.").arg(branchName),
+        _container.tr("Successfully promoted '%1' to '%2'.")
+            .arg(branchName, GitRepo::gitLabFlowNextEnvironment(
+                                 command.environmentChain, branchName)));
+    break;
+  case GitRepo::GitLabFlowAction::StartRelease:
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to start GitLab Flow release branch."),
+        _container.tr("Successfully started release branch '%1'.")
+            .arg(branchName));
+    break;
+  case GitRepo::GitLabFlowAction::CherryPickToRelease:
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to cherry-pick commit to release branch."),
+        _container.tr("Successfully cherry-picked commit %1 to '%2'.")
+            .arg(shortCommit, branchName),
+        _container
+            .tr("Cherry-picking commit %1 to '%2' produced conflicts. "
+                "Resolve them on '%2' and commit.")
+            .arg(shortCommit, branchName));
+    break;
+  case GitRepo::GitLabFlowAction::Unknown:
+  case GitRepo::GitLabFlowAction::last:
+  default:
+    LOG_ERROR(Log::ErrorId::Gui, "Unknown GitLab Flow action {}",
+              static_cast<int>(action));
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::runGitHubFlowAction(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::GitHubFlowAction action, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGitFlowCommand command;
+  command.workflow = GitRepo::WorkflowType::GitHubFlow;
+  command.gitHubFlowAction = action;
+  command.branchName = branchName;
+  command.mainBranchName = _container.gitHubFlowMainBranchName();
+  command.author = _container._userProfileManager.currentProfile().author;
+  command.email = _container._userProfileManager.currentProfile().email;
+
+  switch (action) {
+  case GitRepo::GitHubFlowAction::StartBranch:
+    sendGitFlowCommand(
+        guard, command, _container.tr("Failed to start GitHub Flow branch."),
+        _container.tr("Successfully started branch '%1'.").arg(branchName));
+    break;
+  case GitRepo::GitHubFlowAction::UpdateBranch:
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to update branch '%1' from '%2'.")
+            .arg(branchName, command.mainBranchName),
+        _container.tr("Successfully updated branch '%1' from '%2'.")
+            .arg(branchName, command.mainBranchName));
+    break;
+  case GitRepo::GitHubFlowAction::FinishBranch:
+    sendGitFlowCommand(
+        guard, command, _container.tr("Failed to finish GitHub Flow branch."),
+        _container.tr("Successfully finished branch '%1'.").arg(branchName));
+    break;
+  case GitRepo::GitHubFlowAction::Unknown:
+  case GitRepo::GitHubFlowAction::last:
+  default:
+    LOG_ERROR(Log::ErrorId::Gui, "Unknown GitHub Flow action {}",
+              static_cast<int>(action));
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::runGitFlowNextAction(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::GitFlowNextAction action, const QString &name,
+    const QString &argument) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGitFlowCommand command;
+  command.workflow = GitRepo::WorkflowType::GitFlowNext;
+  command.gitFlowNextAction = action;
+  command.author = _container._userProfileManager.currentProfile().author;
+  command.email = _container._userProfileManager.currentProfile().email;
+
+  switch (action) {
+  case GitRepo::GitFlowNextAction::Init:
+    command.mainBranchName = name;
+    command.developmentBranchName = argument;
+    sendGitFlowCommand(
+        guard, command, _container.tr("Failed to initialize git-flow-next."),
+        _container.tr("Initialized git-flow-next with '%1' and '%2'.")
+            .arg(name, argument));
+    // The menu is built from the configuration that was just written.
+    getWorkflowType(guard);
+    break;
+  case GitRepo::GitFlowNextAction::Start:
+    command.topicType = name;
+    command.branchName = argument;
+    sendGitFlowCommand(
+        guard, command, _container.tr("Failed to start %1 branch.").arg(name),
+        _container.tr("Successfully started branch '%1'.").arg(argument));
+    break;
+  case GitRepo::GitFlowNextAction::Finish:
+    command.branchName = name;
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to finish branch '%1'.").arg(name),
+        _container.tr("Successfully finished branch '%1'.").arg(name));
+    break;
+  case GitRepo::GitFlowNextAction::Update:
+    command.branchName = name;
+    sendGitFlowCommand(
+        guard, command,
+        _container.tr("Failed to update branch '%1'.").arg(name),
+        _container.tr("Successfully updated branch '%1'.").arg(name));
+    break;
+  case GitRepo::GitFlowNextAction::Unknown:
+  case GitRepo::GitFlowNextAction::last:
+  default:
+    LOG_ERROR(Log::ErrorId::Gui, "Unknown git-flow-next action {}",
+              static_cast<int>(action));
+    break;
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::applyGitFlowNextWorkflow(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::GitFlowNextWorkflow &workflow) {
+  LOG_PERF(0, "Enter");
+
+  GitRepoGitFlowCommand command;
+  command.workflow = GitRepo::WorkflowType::GitFlowNext;
+  command.gitFlowNextAction = GitRepo::GitFlowNextAction::Apply;
+  command.customWorkflow = workflow;
+
+  sendGitFlowCommand(
+      guard, command,
+      _container.tr("Failed to apply the workflow '%1'.").arg(workflow.name),
+      _container.tr("Applied the workflow '%1' to this repository.")
+          .arg(workflow.name));
+  // The menu is built from the configuration that was just written.
+  getWorkflowType(guard);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::getWorkflowType(
+    const QWeakPointer<RepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+  const int token = _container._eventManager.startWait();
+
+  GitRepoWorkflowCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.write = false;
+
+  EventManager::Event workflowEvent(
+      EventManager::EventType::GitRepoManagerWorkflow, eventUuid);
+  workflowEvent.addData(command);
+  _container._eventManager.send(workflowEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerWorkflowError,
+      EventManager::EventType::GitRepoManagerWorkflowResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  // Repositories without a stored workflow use classic Git Flow, which is
+  // what the menu shows until a result arrives.
+  if (!success ||
+      event.type() != EventManager::EventType::GitRepoManagerWorkflowResult) {
+    LOG_DEBUG("Failed to read the repository workflow, using Git Flow");
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const auto state =
+      event.data<GitRepoResult>().value.value<GitRepo::WorkflowState>();
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() { _container.applyWorkflowState(state); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::setWorkflowType(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::WorkflowType workflow) {
+  LOG_PERF(0, "Enter");
+
+  const QString eventUuid = Uuid::createUuid();
+  const int token = _container._eventManager.startWait();
+
+  GitRepoWorkflowCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.write = true;
+  command.workflow = workflow;
+
+  EventManager::Event workflowEvent(
+      EventManager::EventType::GitRepoManagerWorkflow, eventUuid);
+  workflowEvent.addData(command);
+  _container._eventManager.send(workflowEvent);
+
+  static std::set types = {
+      EventManager::EventType::GitRepoManagerWorkflowError,
+      EventManager::EventType::GitRepoManagerWorkflowResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success ||
+      event.type() != EventManager::EventType::GitRepoManagerWorkflowResult) {
+    const QString message =
+        success ? event.data<GitRepoError>().message
+                : _container.tr("Failed to save the repository workflow.");
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(message, _container.tr("Error"));
+    });
+
+    // Bring the menu back in line with what is stored in the repository.
+    getWorkflowType(guard);
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  // The result also carries the git-flow-next configuration of the repository.
+  const auto state =
+      event.data<GitRepoResult>().value.value<GitRepo::WorkflowState>();
+  Util::Dispatcher::dispatchToMainThread(
+      guard, [=]() { _container.applyWorkflowState(state); });
+
+  LOG_PERF(0, "Exit");
 }
 
 bool GitRepoManagerBridgeImpl::openRepo(
     const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
+
+  const Common::UserProfile profile =
+      Common::UserProfileManager::instance().currentProfile();
 
   const QString eventUuid = Uuid::createUuid();
 
@@ -3794,6 +4964,8 @@ bool GitRepoManagerBridgeImpl::openRepo(
   command.uuid = _container._uuid;
   command.syncUuid = eventUuid;
   command.path = _container._path;
+  command.author = profile.author;
+  command.email = profile.email;
 
   EventManager::Event openRepoEvent(
       EventManager::EventType::GitRepoManagerOpenRepo, eventUuid);
@@ -3809,20 +4981,16 @@ bool GitRepoManagerBridgeImpl::openRepo(
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return false;
   }
 
   if (event.type() != EventManager::EventType::GitRepoManagerOpenRepoResult) {
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return false;
@@ -3866,10 +5034,8 @@ void GitRepoManagerBridgeImpl::pull(const QWeakPointer<RepoContainer> &guard,
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -3878,7 +5044,6 @@ void GitRepoManagerBridgeImpl::pull(const QWeakPointer<RepoContainer> &guard,
   if (event.type() != EventManager::EventType::GitRepoManagerPullResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -3891,7 +5056,6 @@ void GitRepoManagerBridgeImpl::pull(const QWeakPointer<RepoContainer> &guard,
   if (const bool pulled = commandResult.value.toBool(); !pulled) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -3901,10 +5065,8 @@ void GitRepoManagerBridgeImpl::pull(const QWeakPointer<RepoContainer> &guard,
 
   _container.refreshHistory(guard);
   refreshStatus(guard);
-  getBranchHistory(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(
         rebase ? _container.tr("Pull with rebase completed successfully.")
                : _container.tr("Git repository is up to-date."),
@@ -3940,10 +5102,8 @@ void GitRepoManagerBridgeImpl::fetchAll(
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -3952,7 +5112,6 @@ void GitRepoManagerBridgeImpl::fetchAll(
   if (event.type() != EventManager::EventType::GitRepoManagerFetchAllResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -3964,7 +5123,6 @@ void GitRepoManagerBridgeImpl::fetchAll(
 
   if (const bool fetched = commandResult.value.toBool(); !fetched) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to fetch from remotes."),
                                 _container.tr("Error"));
     });
@@ -3977,7 +5135,6 @@ void GitRepoManagerBridgeImpl::fetchAll(
   refreshStatus(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Fetch completed successfully."),
                          _container.tr("Info"));
   });
@@ -4012,10 +5169,8 @@ void GitRepoManagerBridgeImpl::fetchRemote(
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -4025,7 +5180,6 @@ void GitRepoManagerBridgeImpl::fetchRemote(
       EventManager::EventType::GitRepoManagerFetchRemoteResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4037,7 +5191,6 @@ void GitRepoManagerBridgeImpl::fetchRemote(
 
   if (const bool fetched = commandResult.value.toBool(); !fetched) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to fetch from remote."),
                                 _container.tr("Error"));
     });
@@ -4050,7 +5203,6 @@ void GitRepoManagerBridgeImpl::fetchRemote(
   refreshStatus(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Fetch completed successfully."),
                          _container.tr("Info"));
   });
@@ -4085,10 +5237,8 @@ void GitRepoManagerBridgeImpl::push(const QWeakPointer<RepoContainer> &guard,
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -4097,7 +5247,6 @@ void GitRepoManagerBridgeImpl::push(const QWeakPointer<RepoContainer> &guard,
   if (event.type() != EventManager::EventType::GitRepoManagerPushResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4110,7 +5259,6 @@ void GitRepoManagerBridgeImpl::push(const QWeakPointer<RepoContainer> &guard,
   if (const bool pushed = commandResult.value.toBool(); !pushed) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4122,7 +5270,6 @@ void GitRepoManagerBridgeImpl::push(const QWeakPointer<RepoContainer> &guard,
   refreshStatus(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(
         force ? _container.tr("Successfully force-pushed to remote.")
               : _container.tr("Successfully pushed to remote."),
@@ -4164,7 +5311,6 @@ void GitRepoManagerBridgeImpl::addRemote(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to add remote."),
                                 _container.tr("Error"));
     });
@@ -4176,7 +5322,6 @@ void GitRepoManagerBridgeImpl::addRemote(
   if (event.type() != EventManager::EventType::GitRepoManagerAddRemoteResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4187,7 +5332,6 @@ void GitRepoManagerBridgeImpl::addRemote(
   getRemotes(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Remote added successfully."),
                          _container.tr("Info"));
   });
@@ -4205,7 +5349,6 @@ void GitRepoManagerBridgeImpl::editRemote(
       remoteIndex >= _container.ui->remotesPage->remotes().size()) {
     LOG_DEBUG("Invalid remote index: {}", remoteIndex);
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Invalid remote index."),
                                 _container.tr("Error"));
     });
@@ -4243,7 +5386,6 @@ void GitRepoManagerBridgeImpl::editRemote(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to update remote."),
                                 _container.tr("Error"));
     });
@@ -4256,7 +5398,6 @@ void GitRepoManagerBridgeImpl::editRemote(
       EventManager::EventType::GitRepoManagerUpdateRemoteResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4267,7 +5408,6 @@ void GitRepoManagerBridgeImpl::editRemote(
   getRemotes(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Remote updated successfully."),
                          _container.tr("Info"));
   });
@@ -4283,7 +5423,6 @@ void GitRepoManagerBridgeImpl::deleteRemote(
       remoteIndex >= _container.ui->remotesPage->remotes().size()) {
     LOG_DEBUG("Invalid remote index: {}", remoteIndex);
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Invalid remote index."),
                                 _container.tr("Error"));
     });
@@ -4317,7 +5456,6 @@ void GitRepoManagerBridgeImpl::deleteRemote(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to delete remote."),
                                 _container.tr("Error"));
     });
@@ -4330,7 +5468,6 @@ void GitRepoManagerBridgeImpl::deleteRemote(
       EventManager::EventType::GitRepoManagerRemoveRemoteResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4341,7 +5478,6 @@ void GitRepoManagerBridgeImpl::deleteRemote(
   getRemotes(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Remote deleted successfully."),
                          _container.tr("Info"));
   });
@@ -4357,7 +5493,6 @@ void GitRepoManagerBridgeImpl::setDefaultRemote(
       remoteIndex >= _container.ui->remotesPage->remotes().size()) {
     LOG_DEBUG("Invalid remote index: {}", remoteIndex);
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Invalid remote index."),
                                 _container.tr("Error"));
     });
@@ -4391,7 +5526,6 @@ void GitRepoManagerBridgeImpl::setDefaultRemote(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to set default remote."),
                                 _container.tr("Error"));
     });
@@ -4404,7 +5538,6 @@ void GitRepoManagerBridgeImpl::setDefaultRemote(
       EventManager::EventType::GitRepoManagerSetDefaultRemoteResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4415,7 +5548,6 @@ void GitRepoManagerBridgeImpl::setDefaultRemote(
   getRemotes(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Default remote set successfully."),
                          _container.tr("Info"));
   });
@@ -4433,7 +5565,6 @@ void GitRepoManagerBridgeImpl::addTarget(
       remoteIndex >= _container.ui->remotesPage->remotes().size()) {
     LOG_DEBUG("Invalid remote index: {}", remoteIndex);
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Invalid remote index."),
                                 _container.tr("Error"));
     });
@@ -4471,7 +5602,6 @@ void GitRepoManagerBridgeImpl::addTarget(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to add target."),
                                 _container.tr("Error"));
     });
@@ -4483,7 +5613,6 @@ void GitRepoManagerBridgeImpl::addTarget(
   if (event.type() != EventManager::EventType::GitRepoManagerAddTargetResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4495,7 +5624,6 @@ void GitRepoManagerBridgeImpl::addTarget(
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.ui->remotesPage->expandRemote(remote.name);
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Target added successfully."),
                          _container.tr("Info"));
   });
@@ -4512,7 +5640,6 @@ void GitRepoManagerBridgeImpl::editTarget(
       remoteIndex >= _container.ui->remotesPage->remotes().size()) {
     LOG_DEBUG("Invalid remote index: {}", remoteIndex);
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Invalid remote index."),
                                 _container.tr("Error"));
     });
@@ -4524,7 +5651,6 @@ void GitRepoManagerBridgeImpl::editTarget(
   if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
     LOG_DEBUG("Invalid target index: {}", targetIndex);
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Invalid target index."),
                                 _container.tr("Error"));
     });
@@ -4562,7 +5688,6 @@ void GitRepoManagerBridgeImpl::editTarget(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to edit target."),
                                 _container.tr("Error"));
     });
@@ -4574,7 +5699,6 @@ void GitRepoManagerBridgeImpl::editTarget(
   if (event.type() != EventManager::EventType::GitRepoManagerEditTargetResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4585,7 +5709,6 @@ void GitRepoManagerBridgeImpl::editTarget(
   getRemotes(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Target edited successfully."),
                          _container.tr("Info"));
   });
@@ -4602,7 +5725,6 @@ void GitRepoManagerBridgeImpl::deleteTarget(
       remoteIndex >= _container.ui->remotesPage->remotes().size()) {
     LOG_DEBUG("Invalid remote index: {}", remoteIndex);
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Invalid remote index."),
                                 _container.tr("Error"));
     });
@@ -4614,7 +5736,6 @@ void GitRepoManagerBridgeImpl::deleteTarget(
   if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
     LOG_DEBUG("Invalid target index: {}", targetIndex);
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Invalid target index."),
                                 _container.tr("Error"));
     });
@@ -4650,7 +5771,6 @@ void GitRepoManagerBridgeImpl::deleteTarget(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to delete target."),
                                 _container.tr("Error"));
     });
@@ -4663,7 +5783,6 @@ void GitRepoManagerBridgeImpl::deleteTarget(
       EventManager::EventType::GitRepoManagerDeleteTargetResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4674,7 +5793,6 @@ void GitRepoManagerBridgeImpl::deleteTarget(
   getRemotes(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Target deleted successfully."),
                          _container.tr("Info"));
   });
@@ -4691,7 +5809,6 @@ void GitRepoManagerBridgeImpl::setDefaultTarget(
       remoteIndex >= _container.ui->remotesPage->remotes().size()) {
     LOG_DEBUG("Invalid remote index: {}", remoteIndex);
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Invalid remote index."),
                                 _container.tr("Error"));
     });
@@ -4703,7 +5820,6 @@ void GitRepoManagerBridgeImpl::setDefaultTarget(
   if (targetIndex < 0 || targetIndex >= remote.targets.size()) {
     LOG_DEBUG("Invalid target index: {}", targetIndex);
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Invalid target index."),
                                 _container.tr("Error"));
     });
@@ -4739,7 +5855,6 @@ void GitRepoManagerBridgeImpl::setDefaultTarget(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to set default target."),
                                 _container.tr("Error"));
     });
@@ -4752,7 +5867,6 @@ void GitRepoManagerBridgeImpl::setDefaultTarget(
       EventManager::EventType::GitRepoManagerSetDefaultTargetResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4763,7 +5877,6 @@ void GitRepoManagerBridgeImpl::setDefaultTarget(
   getRemotes(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Default target set successfully."),
                          _container.tr("Info"));
   });
@@ -4800,7 +5913,6 @@ void GitRepoManagerBridgeImpl::renameBranch(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to rename branch"),
                                 _container.tr("Error"));
     });
@@ -4813,7 +5925,6 @@ void GitRepoManagerBridgeImpl::renameBranch(
       EventManager::EventType::GitRepoManagerRenameBranchResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4825,7 +5936,6 @@ void GitRepoManagerBridgeImpl::renameBranch(
 
   if (const bool pushed = commandResult.value.toBool(); !pushed) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to rename branch"),
                                 _container.tr("Error"));
     });
@@ -4837,7 +5947,6 @@ void GitRepoManagerBridgeImpl::renameBranch(
   _container.refreshHistory(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Successfully renamed branch."),
                          _container.tr("Info"));
   });
@@ -4874,7 +5983,6 @@ void GitRepoManagerBridgeImpl::renameTag(
 
   if (!success) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to rename tag"),
                                 _container.tr("Error"));
     });
@@ -4886,7 +5994,6 @@ void GitRepoManagerBridgeImpl::renameTag(
   if (event.type() != EventManager::EventType::GitRepoManagerRenameTagResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4898,7 +6005,6 @@ void GitRepoManagerBridgeImpl::renameTag(
 
   if (const bool pushed = commandResult.value.toBool(); !pushed) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to rename tag"),
                                 _container.tr("Error"));
     });
@@ -4910,7 +6016,6 @@ void GitRepoManagerBridgeImpl::renameTag(
   _container.refreshHistory(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Successfully renamed tag."),
                          _container.tr("Info"));
   });
@@ -4945,10 +6050,8 @@ void GitRepoManagerBridgeImpl::reset(const QWeakPointer<RepoContainer> &guard,
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -4957,7 +6060,6 @@ void GitRepoManagerBridgeImpl::reset(const QWeakPointer<RepoContainer> &guard,
   if (event.type() != EventManager::EventType::GitRepoManagerResetResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -4969,7 +6071,6 @@ void GitRepoManagerBridgeImpl::reset(const QWeakPointer<RepoContainer> &guard,
 
   if (const bool pushed = commandResult.value.toBool(); !pushed) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to reset to commit."),
                                 _container.tr("Error"));
     });
@@ -4981,7 +6082,6 @@ void GitRepoManagerBridgeImpl::reset(const QWeakPointer<RepoContainer> &guard,
   _container.refreshHistory(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Successfully reset to commit."),
                          _container.tr("Info"));
   });
@@ -5024,10 +6124,8 @@ void GitRepoManagerBridgeImpl::revert(const QWeakPointer<RepoContainer> &guard,
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -5036,7 +6134,6 @@ void GitRepoManagerBridgeImpl::revert(const QWeakPointer<RepoContainer> &guard,
   if (event.type() != EventManager::EventType::GitRepoManagerRevertResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -5048,7 +6145,6 @@ void GitRepoManagerBridgeImpl::revert(const QWeakPointer<RepoContainer> &guard,
 
   if (const bool pushed = commandResult.value.toBool(); !pushed) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to revert commit."),
                                 _container.tr("Error"));
     });
@@ -5060,7 +6156,6 @@ void GitRepoManagerBridgeImpl::revert(const QWeakPointer<RepoContainer> &guard,
   _container.refreshHistory(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Successfully reverted commit."),
                          _container.tr("Info"));
   });
@@ -5117,10 +6212,8 @@ void GitRepoManagerBridgeImpl::cherryPick(
 
   if (!success) {
     closeRepo();
-    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
-      _container.showErrorPage();
-    });
+    Util::Dispatcher::dispatchToMainThread(
+        guard, [=]() { _container.showErrorPage(); });
 
     LOG_PERF(0, "Exit")
     return;
@@ -5129,7 +6222,6 @@ void GitRepoManagerBridgeImpl::cherryPick(
   if (event.type() != EventManager::EventType::GitRepoManagerCherryPickResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -5141,7 +6233,6 @@ void GitRepoManagerBridgeImpl::cherryPick(
 
   if (const bool picked = commandResult.value.toBool(); !picked) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to cherry-pick commit."),
                                 _container.tr("Error"));
     });
@@ -5153,7 +6244,6 @@ void GitRepoManagerBridgeImpl::cherryPick(
   _container.refreshHistory(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Successfully cherry-picked commit."),
                          _container.tr("Info"));
   });
@@ -5243,9 +6333,9 @@ void GitRepoManagerBridgeImpl::showCommitAndMerge(
     QWeakPointer<RepoContainer> guard) {
   LOG_PERF(0, "Enter");
 
-  const QString eventUuid = Uuid::createUuid();
+  QString eventUuid = Uuid::createUuid();
 
-  const int token = _container._eventManager.startWait();
+  int token = _container._eventManager.startWait();
 
   GitRepoGetIsMergeInProgressCommand command;
   command.uuid = _container._uuid;
@@ -5256,7 +6346,7 @@ void GitRepoManagerBridgeImpl::showCommitAndMerge(
   getIsMergeInProgressEvent.addData(command);
   _container._eventManager.send(getIsMergeInProgressEvent);
 
-  static std::set types = {
+  std::set types = {
       EventManager::EventType::GitRepoManagerGetIsMergeInProgressError,
       EventManager::EventType::GitRepoManagerGetIsMergeInProgressResult};
 
@@ -5266,7 +6356,6 @@ void GitRepoManagerBridgeImpl::showCommitAndMerge(
   if (!success) {
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(
           _container.tr("Failed to get merge progress status."),
@@ -5281,7 +6370,6 @@ void GitRepoManagerBridgeImpl::showCommitAndMerge(
       EventManager::EventType::GitRepoManagerGetIsMergeInProgressResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -5289,9 +6377,56 @@ void GitRepoManagerBridgeImpl::showCommitAndMerge(
     return;
   }
 
-  const auto commandResult = event.data<GitRepoResult>();
+  auto commandResult = event.data<GitRepoResult>();
 
   _container._mergeInProgress = commandResult.value.toBool();
+
+  eventUuid = Uuid::createUuid();
+
+  token = _container._eventManager.startWait();
+
+  GitRepoGetIsRebaseInProgressCommand commandRebase;
+  commandRebase.uuid = _container._uuid;
+  commandRebase.syncUuid = eventUuid;
+
+  EventManager::Event getIsRebaseInProgressEvent(
+      EventManager::EventType::GitRepoManagerGetIsRebaseInProgress, eventUuid);
+  getIsRebaseInProgressEvent.addData(commandRebase);
+  _container._eventManager.send(getIsRebaseInProgressEvent);
+
+  types = {EventManager::EventType::GitRepoManagerGetIsRebaseInProgressError,
+           EventManager::EventType::GitRepoManagerGetIsRebaseInProgressResult};
+
+  const auto &[successRebase, eventRebase] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!successRebase) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showErrorPage();
+      _container.showErrorToast(
+          _container.tr("Failed to get rebase progress status."),
+          _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  if (eventRebase.type() !=
+      EventManager::EventType::GitRepoManagerGetIsRebaseInProgressResult) {
+    const auto error = event.data<GitRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  commandResult = eventRebase.data<GitRepoResult>();
+
+  _container._rebaseInProgress = commandResult.value.toBool();
 
   const GitRepo::GitHistoryWithStatus historyAndStatus =
       _container._historyModel->historyWithStatus();
@@ -5386,7 +6521,6 @@ void GitRepoManagerBridgeImpl::stageFiles(
   Q_ASSERT(!files.isEmpty());
 
   if (files.isEmpty()) {
-    _container.showSpinnerOverlay(false);
     LOG_PERF(0, "Exit")
     return;
   }
@@ -5415,7 +6549,6 @@ void GitRepoManagerBridgeImpl::stageFiles(
   if (!success) {
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(_container.tr("Failed to stage files."),
                                 _container.tr("Error"));
@@ -5428,7 +6561,6 @@ void GitRepoManagerBridgeImpl::stageFiles(
   if (event.type() != EventManager::EventType::GitRepoManagerStageFilesResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -5443,7 +6575,6 @@ void GitRepoManagerBridgeImpl::stageFiles(
 
   if (!stageAllSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to stage files."),
                                 _container.tr("Error"));
     });
@@ -5453,7 +6584,6 @@ void GitRepoManagerBridgeImpl::stageFiles(
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    _container.showSpinnerOverlay(false);
     _container.simulateClickOnFirstHistoryRow();
     _container.resetCommitAndMergeWorkingTreeTreeStageAllButton();
   });
@@ -5468,7 +6598,6 @@ void GitRepoManagerBridgeImpl::unstageFiles(
   Q_ASSERT(!files.isEmpty());
 
   if (files.isEmpty()) {
-    _container.showSpinnerOverlay(false);
     LOG_PERF(0, "Exit")
     return;
   }
@@ -5497,7 +6626,6 @@ void GitRepoManagerBridgeImpl::unstageFiles(
   if (!success) {
     closeRepo();
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(_container.tr("Failed to unstage files."),
                                 _container.tr("Error"));
@@ -5511,7 +6639,6 @@ void GitRepoManagerBridgeImpl::unstageFiles(
       EventManager::EventType::GitRepoManagerUnstageFilesResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -5526,7 +6653,6 @@ void GitRepoManagerBridgeImpl::unstageFiles(
 
   if (!unstageAllSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to unstage files."),
                                 _container.tr("Error"));
     });
@@ -5536,7 +6662,6 @@ void GitRepoManagerBridgeImpl::unstageFiles(
   }
 
   Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-    _container.showSpinnerOverlay(false);
     _container.simulateClickOnFirstHistoryRow();
     _container.resetCommitAndMergeIndexTreeUnstageAllButton();
   });
@@ -5575,7 +6700,6 @@ void GitRepoManagerBridgeImpl::updateSubmodule(
     closeRepo();
 
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorPage();
       _container.showErrorToast(_container.tr("Failed to update submodule."),
                                 _container.tr("Error"));
@@ -5589,7 +6713,6 @@ void GitRepoManagerBridgeImpl::updateSubmodule(
       EventManager::EventType::GitRepoManagerSubmoduleUpdateResult) {
     const auto error = event.data<GitRepoError>();
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
@@ -5602,7 +6725,6 @@ void GitRepoManagerBridgeImpl::updateSubmodule(
   if (const bool commandSuccess = commandResult.value.toBool();
       !commandSuccess) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
-      _container.showSpinnerOverlay(false);
       _container.showErrorToast(_container.tr("Failed to update submodule."),
                                 _container.tr("Error"));
     });
@@ -5614,7 +6736,6 @@ void GitRepoManagerBridgeImpl::updateSubmodule(
   _container.refreshHistory(guard);
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.showSpinnerOverlay(false);
     _container.showToast(_container.tr("Submodule updated successfully."),
                          _container.tr("Info"));
   });

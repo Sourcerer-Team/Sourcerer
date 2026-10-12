@@ -73,8 +73,8 @@ function(includeModule linkTo moduleName)
       target_link_libraries(${linkTo} PUBLIC ${moduleName})
       include_directories(${${moduleName}_INCLUDE_PATH})
 
-      if (DEFINED ${componentName}_INCLUDE_LIB)
-        target_link_libraries(${linkTo} PUBLIC ${${componentName}_INCLUDE_LIB})
+      if (DEFINED ${moduleName}_INCLUDE_LIB)
+        target_link_libraries(${linkTo} PUBLIC ${${moduleName}_INCLUDE_LIB})
       endif()
 
 endfunction()
@@ -92,7 +92,8 @@ function(includeLibFiles linkTo libraryName)
 
       target_include_directories(${linkTo} PUBLIC ${${libraryName}_INCLUDE_PATH})
 
-      if (DEFINED ${componentName}_INCLUDE_LIB)
-        target_link_libraries(${linkTo} PRIVATE ${${libraryName}_INCLUDE_LIB})
+      if (DEFINED ${libraryName}_INCLUDE_LIB)
+        target_link_libraries(${linkTo} PUBLIC ${${libraryName}_INCLUDE_LIB})
       endif()
+
 endfunction()

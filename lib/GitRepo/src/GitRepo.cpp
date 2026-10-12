@@ -1,6 +1,7 @@
 #include "GitRepo.h"
 #include "GitCredentialStorage.h"
 #include "GitKeyStorage.h"
+#include "GitLfs.h"
 
 #include "../../../component/GitRepoManager/include/GitRepoManagerStructs.h"
 
@@ -18,6 +19,8 @@
 #include <Uuid.h>
 
 #include <git2.h>
+#include <git2/attr.h>
+#include <git2/blame.h>
 #include <git2/blob.h>
 #include <git2/branch.h>
 #include <git2/cert.h>
@@ -34,14 +37,19 @@
 #include <git2/revwalk.h>
 #include <git2/signature.h>
 #include <git2/submodule.h>
+#include <git2/sys/errors.h>
 #include <git2/tag.h>
 #include <git2/types.h>
+#include <git2/worktree.h>
 
+#include <QByteArray>
 #include <QFile>
 #include <QFileInfo>
+#include <QHash>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
+#include <QSharedPointer>
 #include <QTemporaryDir>
 #include <QTextStream>
 
@@ -54,19 +62,23 @@
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QLocale>
 #include <QMap>
 #include <QRegularExpression>
 #include <QStandardPaths>
 #include <QString>
 #include <QStringList>
+#include <QTimeZone>
 
+#include <algorithm>
 #include <cstring>
+#include <memory>
 #include <set>
+#include <string>
 #include <thread>
 
 #define THREAD_ID "GitRepo"
 
-#define ALL_BRANCHES "*"
 #define HEAD "HEAD"
 
 namespace GitRepo {
@@ -86,6 +98,27 @@ QMap<QString, GitPlaintextCredentials> gGitCredentials;
 
 Util::Mutex gErrorMutex;
 QMap<std::thread::id, GitErrorContext> gErrorMap;
+
+namespace {
+
+struct HistoryRef {
+  QString key;
+  git_oid oid;
+};
+
+// Commit order of the history currently paged through, see getBranchHistory.
+struct HistoryCursor {
+  QString key;
+  QVector<git_oid> oids; // Newest first, children before parents.
+  QString headCommit;
+  QHash<QString, QStringList> refTips;
+  QHash<QString, QStringList> refLabels;
+};
+
+Util::Mutex gHistoryCursorsMutex;
+QMap<git_repository *, QSharedPointer<HistoryCursor>> gHistoryCursors;
+
+} // namespace
 
 static QString capitalizeFirst(const QString &str) {
   QString capitalized = str;
@@ -123,6 +156,123 @@ static QString buildCommitMessage(const QString &summary,
 
   commitMessage += signoffLine;
   return commitMessage;
+}
+
+static QString blameSignatureToString(const git_signature *signature) {
+  if (!signature) {
+    return QStringLiteral("Unknown");
+  }
+
+  const QString name =
+      signature->name ? QString::fromUtf8(signature->name) : QString();
+  const QString trimmedName = name.trimmed();
+
+  return trimmedName.isEmpty() ? QStringLiteral("Unknown") : trimmedName;
+}
+
+static QString commitSignatureDateToString(const git_signature *signature) {
+  if (!signature) {
+    return {};
+  }
+
+  const QDateTime dateTime = QDateTime::fromSecsSinceEpoch(
+      signature->when.time,
+      QTimeZone::fromSecondsAheadOfUtc(signature->when.offset * 60));
+  return QLocale::system().toString(dateTime, QLocale::ShortFormat);
+}
+
+static QString blameSignatureEmail(const git_signature *signature) {
+  if (!signature || !signature->email) {
+    return {};
+  }
+
+  return QString::fromUtf8(signature->email).trimmed();
+}
+
+static QString blameCommitToString(const git_oid *oid) {
+  if (!oid) {
+    return QString(GIT_OID_HEXSZ, QChar('0'));
+  }
+
+  char buffer[GIT_OID_HEXSZ + 1] = {0};
+  git_oid_tostr(buffer, sizeof(buffer), oid);
+  return QString::fromLatin1(buffer);
+}
+
+static BlameReport createBlameReport(git_repository *repo,
+                                     const QStringList &files) {
+  BlameReport report;
+
+  git_blame_options blameOptions = GIT_BLAME_OPTIONS_INIT;
+  blameOptions.flags = GIT_BLAME_USE_MAILMAP;
+
+  const QString repoWorkdir =
+      repo && git_repository_workdir(repo)
+          ? QString::fromUtf8(git_repository_workdir(repo))
+          : QString();
+
+  for (const QString &file : files) {
+    const QString normalizedFile = QDir::fromNativeSeparators(file);
+    BlameFileInfo fileInfo;
+    fileInfo.filePath = normalizedFile;
+
+    const QByteArray utf8Path = normalizedFile.toUtf8();
+    git_blame *blame = nullptr;
+    const int error =
+        git_blame_file(&blame, repo, utf8Path.constData(), &blameOptions);
+    if (error) {
+      const git_error *gitError = git_error_last();
+      fileInfo.errorMessage = gitError && gitError->message
+                                  ? QString::fromUtf8(gitError->message)
+                                  : QStringLiteral("Unknown error");
+      report.fileInfos += fileInfo;
+      continue;
+    }
+
+    const QString filePath = QDir(repoWorkdir).filePath(normalizedFile);
+    QFile fileObj(filePath);
+    QString fileContent;
+    if (fileObj.open(QIODevice::ReadOnly | QIODevice::Text)) {
+      fileContent = QString::fromUtf8(fileObj.readAll());
+      fileObj.close();
+    }
+
+    QStringList fileLines;
+    if (!fileContent.isEmpty()) {
+      fileLines = fileContent.split('\n', Qt::KeepEmptyParts);
+      if (fileContent.endsWith('\n') && !fileLines.isEmpty() &&
+          fileLines.last().isEmpty()) {
+        fileLines.removeLast();
+      }
+    }
+
+    const size_t lineCount = git_blame_linecount(blame);
+    for (size_t lineNumber = 1; lineNumber <= lineCount; ++lineNumber) {
+      const git_blame_hunk *hunk = git_blame_hunk_byline(blame, lineNumber);
+      BlameLineInfo lineInfo;
+      lineInfo.filePath = normalizedFile;
+      lineInfo.lineNumber = static_cast<qint64>(lineNumber);
+      lineInfo.content = lineNumber - 1 < static_cast<size_t>(fileLines.size())
+                             ? fileLines.at(static_cast<int>(lineNumber - 1))
+                             : QString();
+      lineInfo.commit =
+          blameCommitToString(hunk ? &hunk->final_commit_id : nullptr);
+      lineInfo.author =
+          blameSignatureToString(hunk ? hunk->final_signature : nullptr);
+      lineInfo.email =
+          blameSignatureEmail(hunk ? hunk->final_signature : nullptr);
+      lineInfo.summary =
+          hunk && hunk->summary ? QString::fromUtf8(hunk->summary) : QString();
+
+      fileInfo.lineInfos += lineInfo;
+    }
+
+    git_blame_free(blame);
+    report.fileInfos += fileInfo;
+  }
+
+  report.valid = true;
+  return report;
 }
 
 enum class CommitSignatureType {
@@ -218,6 +368,7 @@ struct CommitSigningConfig {
 struct CommitSigningPayload {
   CommitSigningConfig config;
   QString *errorMessage = nullptr;
+  git_repository *repo = nullptr;
 };
 
 static QString expandUserPath(const QString &path) {
@@ -519,6 +670,79 @@ static int commitSigningCallback(git_commitbuilder *builder,
   return 0;
 }
 
+static int commitRebaseSigningCallback(
+    git_oid *out, const git_signature *author, const git_signature *committer,
+    const char *message_encoding, const char *message, const git_tree *tree,
+    size_t parent_count, const git_commit *parents[], void *payload) {
+  Q_ASSERT(payload != nullptr);
+
+  if (!payload) {
+    LOG_ERROR(Log::ErrorId::Git, "Internal error! Payload not specified.");
+    return -1;
+  };
+
+  auto *signingPayload = static_cast<CommitSigningPayload *>(payload);
+
+  if (!signingPayload->config.enabled) {
+    return GIT_PASSTHROUGH;
+  }
+
+  git_repository *repo = signingPayload->repo;
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Internal error! Repository not specified.");
+    return -1;
+  }
+
+  QString errorMessage;
+  QString signature;
+
+  if (!createCommitSignature(QString::fromUtf8(message), signingPayload->config,
+                             &signature, &errorMessage)) {
+    if (signingPayload->errorMessage) {
+      *signingPayload->errorMessage = errorMessage;
+    }
+    LOG_ERROR(Log::ErrorId::Git, "Failed to create commit signature: {}",
+              errorMessage.toStdString());
+    return -1;
+  }
+
+  const QByteArray signatureUtf8 = signature.toUtf8();
+
+  git_buf commit_content = {0};
+  int error = 0;
+
+  error = git_commit_create_buffer(&commit_content, repo, author, committer,
+                                   message_encoding, message, tree,
+                                   parent_count, parents);
+  if (error) {
+    errorMessage = QStringLiteral("Failed to create commit buffer.");
+    if (signingPayload->errorMessage) {
+      *signingPayload->errorMessage = errorMessage;
+    }
+    LOG_ERROR(Log::ErrorId::Git, "Failed to create commit buffer");
+    return -1;
+  }
+
+  error = git_commit_create_with_signature(
+      out, repo, commit_content.ptr, signature.toStdString().c_str(), "gpgsig");
+  if (error) {
+    errorMessage = QStringLiteral("Failed to create commit with signature.");
+    if (signingPayload->errorMessage) {
+      *signingPayload->errorMessage = errorMessage;
+    }
+    git_buf_dispose(&commit_content);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to create commit with signature");
+    return -1;
+  }
+
+  git_buf_dispose(&commit_content);
+
+  return error;
+};
+
 static int encodeLibgitError(const int error, const int klass) {
   return (klass & 0x00ff) << 16 | (error & 0xffff);
 }
@@ -575,10 +799,10 @@ static QString gitErrorName(const GitError errorType) {
     return QCoreApplication::translate(
         "GitRepoError", "Failed to create conflict iterator while collecting "
                         "conflicted file paths from the result index.");
-  case GitError::CreateInitialCommitFailedToGetDefaultSignature:
+  case GitError::CreateInitialCommitFailedToCreateSignature:
     return QCoreApplication::translate(
-        "GitRepoError",
-        "Failed to get default signature while creating the initial commit.");
+        "GitRepoError", "Failed to create signature from profile while "
+                        "creating the initial commit.");
   case GitError::CreateInitialCommitFailedToGetRepositoryIndex:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -611,10 +835,11 @@ static QString gitErrorName(const GitError errorType) {
     return QCoreApplication::translate(
         "GitRepoError",
         "Failed to rename branch while creating the initial commit.");
-  case GitError::CreateInitialCommitWithoutStagingFailedToGetDefaultSignature:
+  case GitError::CreateInitialCommitWithoutStagingFailedToCreateSignature:
     return QCoreApplication::translate(
-        "GitRepoError", "Failed to get default signature while creating the "
-                        "initial commit without staging.");
+        "GitRepoError",
+        "Failed to create signature from profile while creating the initial "
+        "commit without staging.");
   case GitError::CreateInitialCommitWithoutStagingFailedToCreateTreeBuilder:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to create tree builder while creating the "
@@ -1014,6 +1239,12 @@ static QString gitErrorName(const GitError errorType) {
     return QCoreApplication::translate(
         "GitRepoError",
         "Failed to get repository index while committing staged changes.");
+  case GitError::CommitStagedFailedToAbortRebaseSession:
+    return QCoreApplication::translate("GitRepoError",
+                                       "Failed to abort rebase session.");
+  case GitError::CommitStagedFailedToOpenRebaseSession:
+    return QCoreApplication::translate("GitRepoError",
+                                       "Failed to open rebase session.");
   case GitError::CommitStagedFailedToWriteIndexTree:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -1737,12 +1968,111 @@ static QString gitErrorName(const GitError errorType) {
     return QCoreApplication::translate(
         "GitRepoError",
         "Failed to commit rebase step while rebasing branches.");
+  case GitError::RebaseBranchesFailedToCommitRebaseStepWithConflicts:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to commit rebase step while rebasing branches "
+                        "due to conflicts in files.");
   case GitError::RebaseBranchesFailedToFinishRebase:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to finish rebase while rebasing branches.");
   case GitError::RebaseBranchesFailedToAbortRebase:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to abort rebase while rebasing branches.");
+  case GitError::SquashBranchesInvalidArguments:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Source and destination branches must be different non-empty "
+        "branches while squashing branches.");
+  case GitError::SquashBranchesRepositoryBusy:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Another operation (merge, rebase, etc.) is in progress. Finish or "
+        "abort it before squashing branches.");
+  case GitError::SquashBranchesFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup branch while squashing branches.");
+  case GitError::SquashBranchesFailedToLookupDestinationBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup destination branch while squashing branches.");
+  case GitError::SquashBranchesFailedToPeelReference:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to peel destination reference while squashing branches.");
+  case GitError::SquashBranchesFailedToCheckoutTree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to checkout destination branch while squashing branches.");
+  case GitError::SquashBranchesFailedToSetHead:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to set repository HEAD while squashing branches.");
+  case GitError::SquashBranchesFailedToCreateAnnotatedCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create annotated commit while squashing branches.");
+  case GitError::SquashBranchesFailedToAnalyzeMerge:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to analyze merge while squashing branches.");
+  case GitError::SquashBranchesFailedToMerge:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to merge changes while squashing branches.");
+  case GitError::SquashBranchesFailedToGetRepositoryIndex:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository index while squashing branches.");
+  case GitError::SquashBranchesFailedWithConflicts:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Squash has conflicts. Resolve the conflicts in files, stage them and "
+        "commit the result.");
+  case GitError::SquashBranchesFailedToWriteIndexTree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to write index tree while squashing branches.");
+  case GitError::SquashBranchesFailedToLookupHeadCommit:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup HEAD commit while squashing branches.");
+  case GitError::SquashBranchesFailedToCleanupRepositoryState:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to cleanup repository state while squashing branches.");
+  case GitError::BisectInvalidArguments:
+    return QCoreApplication::translate("GitRepoError",
+                                       "Invalid bisect arguments.");
+  case GitError::BisectRepositoryBusy:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Cannot start bisect while another operation is in progress.");
+  case GitError::BisectNotInProgress:
+    return QCoreApplication::translate("GitRepoError",
+                                       "Bisect is not in progress.");
+  case GitError::BisectFailedToResolveCommit:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to resolve the commit while bisecting.");
+  case GitError::BisectFailedToReadState:
+    return QCoreApplication::translate("GitRepoError",
+                                       "Failed to read the bisect state.");
+  case GitError::BisectFailedToWriteState:
+    return QCoreApplication::translate("GitRepoError",
+                                       "Failed to write the bisect state.");
+  case GitError::BisectFailedToWalkHistory:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to walk the commit history while bisecting.");
+  case GitError::BisectInvalidRange:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The good commit is not older than the bad commit. Mark another "
+        "commit as good or bad, or reset bisect and start again.");
+  case GitError::BisectFailedToCheckout:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to checkout the commit while bisecting. Commit or stash "
+        "your local changes and try again.");
+  case GitError::BisectFailedToResetRepository:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to restore the original state while resetting bisect.");
   case GitError::ListConflictsForAFileFailedToGetRepositoryIndex:
     return QCoreApplication::translate(
         "GitRepoError",
@@ -1882,6 +2212,130 @@ static QString gitErrorName(const GitError errorType) {
   case GitError::AmendFailedToAmendCommit:
     return QCoreApplication::translate(
         "GitRepoError", "Failed to amend commit while amending the commit.");
+  case GitError::ListWorktreesFailedToListWorktrees:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to list worktrees while listing worktrees.");
+  case GitError::ListWorktreesFailedToOpenWorktree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to open worktree while listing worktrees.");
+  case GitError::AddWorktreeBranchRequired:
+    return QCoreApplication::translate(
+        "GitRepoError", "A branch is required while adding the worktree.");
+  case GitError::AddWorktreeFailedToResolveHead:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to resolve HEAD while adding the worktree.");
+  case GitError::AddWorktreeFailedToCreateBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to create branch while adding the worktree.");
+  case GitError::AddWorktreeFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup branch while adding the worktree.");
+  case GitError::AddWorktreeFailedToCreateDirectory:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to create directory while adding the worktree.");
+  case GitError::AddWorktreeFailedToAddWorktree:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to add worktree while adding the worktree.");
+  case GitError::RemoveWorktreeFailedToLookupWorktree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup worktree while removing the worktree.");
+  case GitError::RemoveWorktreeMainNotAllowed:
+    return QCoreApplication::translate("GitRepoError",
+                                       "The main worktree cannot be removed.");
+  case GitError::RemoveWorktreeFailedToPrune:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to remove worktree while removing the worktree.");
+  case GitError::LockWorktreeFailedToLookupWorktree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup worktree while locking the worktree.");
+  case GitError::LockWorktreeMainNotAllowed:
+    return QCoreApplication::translate("GitRepoError",
+                                       "The main worktree cannot be locked.");
+  case GitError::LockWorktreeFailedToLock:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lock worktree while locking the worktree.");
+  case GitError::UnlockWorktreeFailedToLookupWorktree:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to lookup worktree while unlocking the worktree.");
+  case GitError::UnlockWorktreeMainNotAllowed:
+    return QCoreApplication::translate("GitRepoError",
+                                       "The main worktree cannot be unlocked.");
+  case GitError::UnlockWorktreeFailedToUnlock:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to unlock worktree while unlocking the worktree.");
+  case GitError::GitLabFlowBranchNameEmpty:
+    return QCoreApplication::translate("GitRepoError",
+                                       "GitLab Flow branch name is empty.");
+  case GitError::GitLabFlowFailedToLookupBaseBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup the GitLab Flow base branch.");
+  case GitError::GitLabFlowPromoteNotDownstream:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The current branch is not an environment branch that can be "
+        "promoted downstream.");
+  case GitError::GitLabFlowFailedToLookupReleaseBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup the GitLab Flow release branch.");
+  case GitError::GitHubFlowBranchNameEmpty:
+    return QCoreApplication::translate("GitRepoError",
+                                       "GitHub Flow branch name is empty.");
+  case GitError::GitHubFlowFailedToLookupMainBranch:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to lookup the GitHub Flow main branch.");
+  case GitError::GitHubFlowMainBranchNotAllowed:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The GitHub Flow main branch can't be updated or finished.");
+  case GitError::GitFlowNextFailedToReadConfig:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to read the git-flow-next configuration.");
+  case GitError::GitFlowNextFailedToWriteConfig:
+    return QCoreApplication::translate(
+        "GitRepoError", "Failed to write the git-flow-next configuration.");
+  case GitError::GitFlowNextNotInitialized:
+    return QCoreApplication::translate(
+        "GitRepoError", "git-flow-next is not initialized in this repository.");
+  case GitError::GitFlowNextUnknownBranchType:
+    return QCoreApplication::translate(
+        "GitRepoError", "The git-flow-next branch type is not configured.");
+  case GitError::GitFlowNextNotATopicBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The branch doesn't belong to a git-flow-next topic branch type.");
+  case GitError::GitFlowNextBranchNameEmpty:
+    return QCoreApplication::translate("GitRepoError",
+                                       "git-flow-next branch name is empty.");
+  case GitError::GitFlowNextFailedToLookupBranch:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "A branch of the git-flow-next configuration doesn't exist locally.");
+  case GitError::GitFlowNextUnsupportedStrategy:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The git-flow-next merge strategy is not supported. Use merge, rebase "
+        "or squash.");
+  case GitError::GitFlowNextInvalidWorkflow:
+    return QCoreApplication::translate(
+        "GitRepoError", "The custom GitFlow-Next workflow is not valid.");
+  case GitError::GitFlowNextTagExists:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "The tag for this git-flow-next branch already exists.");
+  case GitError::SetWorkflowTypeFailedToGetRepositoryConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to get repository config while setting the workflow.");
+  case GitError::SetWorkflowTypeFailedToWriteConfig:
+    return QCoreApplication::translate(
+        "GitRepoError",
+        "Failed to write workflow config while setting the workflow.");
   case GitError::Last:
     return QCoreApplication::translate("GitRepoError",
                                        "Invalid Git error marker.");
@@ -1895,10 +2349,12 @@ static QString gitErrorMessage(const GitError errorType) {
   return gitErrorName(errorType);
 }
 
-static void setErrorContext(const GitError errorType, const int errorCode) {
+static void setErrorContext(const GitError errorType,
+                            const QString &gitErrorMessage,
+                            const int errorCode) {
   LOCKGUARD(gErrorMutex);
-  gErrorMap[std::this_thread::get_id()] = {errorType, errorCode,
-                                           gitErrorMessage(errorType)};
+  gErrorMap[std::this_thread::get_id()] = {
+      errorType, errorCode, gitErrorMessage, /*gitErrorMessage(errorType)*/};
 }
 
 static void setError(const GitError errorType, const int error) {
@@ -1909,7 +2365,7 @@ static void setError(const GitError errorType, const int error) {
           ? capitalizeFirst(QString::fromUtf8(gitError->message))
           : QString();
 
-  setErrorContext(errorType, encodeLibgitError(error, klass));
+  setErrorContext(errorType, libgitMessage, encodeLibgitError(error, klass));
 
   LOG_ERROR(
       Log::ErrorId::Git,
@@ -2286,6 +2742,66 @@ static int collectTreePathsCallback(const char *root,
   return 0;
 }
 
+static bool isLfsTrackedPath(git_repository *repo,
+                             const QString &relativePath) {
+  if (!repo || relativePath.isEmpty()) {
+    return false;
+  }
+
+  const QByteArray pathUtf8 = QDir::fromNativeSeparators(relativePath).toUtf8();
+  const char *value = nullptr;
+  if (git_attr_get(&value, repo,
+                   GIT_ATTR_CHECK_NO_SYSTEM | GIT_ATTR_CHECK_FILE_THEN_INDEX,
+                   pathUtf8.constData(), "filter") != 0 ||
+      !value) {
+    return false;
+  }
+
+  return QString::fromUtf8(value).compare(QStringLiteral("lfs"),
+                                          Qt::CaseInsensitive) == 0;
+}
+
+static bool stageLfsTrackedFile(git_repository *repo, git_index *index,
+                                const QString &relativePath,
+                                const QString &fullPath, QString *stagedOid) {
+  QFile file(fullPath);
+  if (!file.open(QIODevice::ReadOnly)) {
+    git_error_set_str(GIT_ERROR_OS, "unable to read lfs source file");
+    return false;
+  }
+
+  const QByteArray content = file.readAll();
+  file.close();
+
+  LOG_DEBUG("Staging LFS file '{}' from '{}' ({} bytes)",
+            relativePath.toStdString(), fullPath.toStdString(), content.size());
+
+  QString oid;
+  if (!GitRepo::Lfs::storeObject(repo, content, oid)) {
+    return false;
+  }
+
+  if (stagedOid) {
+    *stagedOid = oid;
+  }
+
+  const QByteArray pointer = GitRepo::Lfs::makePointer(oid, content.size());
+  git_index_entry entry = {};
+  const QByteArray relativeUtf8 = relativePath.toUtf8();
+  entry.path = relativeUtf8.constData();
+  entry.mode = GIT_FILEMODE_BLOB;
+  const int error = git_index_add_from_buffer(
+      index, &entry, pointer.constData(), pointer.size());
+  if (error) {
+    setError(GitError::StageFilesFailedToAddPathToIndex, error);
+    return false;
+  }
+
+  LOG_DEBUG("Staged LFS pointer for '{}' with oid '{}'",
+            relativePath.toStdString(), oid.toStdString());
+  return true;
+}
+
 static bool readTreeFileContent(git_repository *repo, git_tree *tree,
                                 const QString &filePath,
                                 const qint64 maxBlobSize, QString *content) {
@@ -2339,6 +2855,8 @@ static void invalidateCredentials(const QString &url) {
     gGitCredentials.erase(it);
 }
 
+static thread_local std::set<size_t> gPromptedCredentialIds;
+
 static void sendInvalidCredentialsSignal(const QString &url) {
   EventManager::EventManager &eventManager =
       EventManager::EventManager::getInstance();
@@ -2350,18 +2868,44 @@ static void sendInvalidCredentialsSignal(const QString &url) {
   eventManager.send(event);
 }
 
+static bool createProfileSignature(git_signature **sig, GitError errorId,
+                                   const QString &author,
+                                   const QString &email) {
+  if (author.isEmpty() || email.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Cannot create signature for initial commit: author or email "
+              "is empty.");
+    setError(errorId, GIT_EINVALID);
+    return false;
+  }
+
+  const std::string authorStd = author.toStdString();
+  const std::string emailStd = email.toStdString();
+
+  const int error = git_signature_now(sig, authorStd.c_str(), emailStd.c_str());
+  if (error) {
+    setError(errorId, error);
+    return false;
+  }
+
+  return true;
+}
+
 static bool createInitialCommit(git_repository *repo,
-                                const QString &defaultBranchName) {
+                                const QString &defaultBranchName,
+                                const QString &author, const QString &email) {
   LOG_PERF(0, "Enter");
 
   git_signature *sig = nullptr;
 
-  int error = git_signature_default(&sig, repo);
-  if (error) {
-    setError(GitError::CreateInitialCommitFailedToGetDefaultSignature, error);
+  if (!createProfileSignature(
+          &sig, GitError::CreateInitialCommitFailedToCreateSignature, author,
+          email)) {
     LOG_PERF(0, "Exit");
     return false;
   }
+
+  int error = 0;
 
   git_index *index = nullptr;
 
@@ -2492,19 +3036,21 @@ static bool createInitialCommit(git_repository *repo,
   return true;
 }
 
-static bool createInitialCommitWithoutStaging(git_repository *repo) {
+static bool createInitialCommitWithoutStaging(git_repository *repo,
+                                              const QString &author,
+                                              const QString &email) {
   LOG_PERF(0, "Enter");
 
   git_signature *sig = nullptr;
-  int error = git_signature_default(&sig, repo);
-
-  if (error) {
-    setError(
-        GitError::CreateInitialCommitWithoutStagingFailedToGetDefaultSignature,
-        error);
+  if (!createProfileSignature(
+          &sig,
+          GitError::CreateInitialCommitWithoutStagingFailedToCreateSignature,
+          author, email)) {
     LOG_PERF(0, "Exit");
     return false;
   }
+
+  int error = 0;
 
   // Create an empty tree builder
   git_treebuilder *builder = nullptr;
@@ -2667,6 +3213,10 @@ void initForCurrentThread() {
 
   const int numberOfCalls = git_libgit2_init();
 
+  if (!GitRepo::Lfs::initialize()) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to initialize Git LFS support");
+  }
+
   LOG_DEBUG("Number of initializations is {}", numberOfCalls);
   LOG_DEBUG("libgit2 initialized successfully, total initialization count: {}",
             numberOfCalls);
@@ -2696,6 +3246,8 @@ void shutdownForCurrentThread() {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Shutting down libgit2 for current thread");
 
+  GitRepo::Lfs::shutdown();
+
   const int numberofRemaining = git_libgit2_shutdown();
 
   LOG_DEBUG("Number of remaining initializations is {}", numberofRemaining);
@@ -2703,6 +3255,222 @@ void shutdownForCurrentThread() {
             numberofRemaining);
 
   LOG_PERF(0, "Exit");
+}
+
+Lfs::StorageStatus getLfsStorageStatus(git_repository *repo) {
+  return Lfs::getStorageStatus(repo);
+}
+
+static QString repositoryRootPath(git_repository *repo);
+static std::tuple<bool, GitPlaintextCredentials>
+acquireCredentials(const QString &repoPath, const QString &url,
+                   const QString &username, const int allowedTypes);
+static QString extractSshHost(const QString &url);
+static bool promptForSshPassphrase(const QString &repoPath, const QString &url,
+                                   const QString &username,
+                                   QString &passphrase);
+
+QString getBasicAuthHeader(const QString &repoPath, const QString &url) {
+  LOG_PERF(0, "Enter");
+
+  if (repoPath.isEmpty() || url.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  GitCredentialStorage &credStorage = GitCredentialStorage::getInstance();
+  QString username;
+  QString password;
+  if (!credStorage.getCredentials(repoPath, username, password)) {
+    const auto [success, credentials] = acquireCredentials(
+        repoPath, url, QString(), GIT_CREDENTIAL_USERPASS_PLAINTEXT);
+    if (!success) {
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    username = credentials.username;
+    password = credentials.password;
+  }
+
+  const QByteArray auth =
+      QString("%1:%2").arg(username, password).toUtf8().toBase64();
+  LOG_PERF(0, "Exit");
+  return QString::fromLatin1("Basic ") + QString::fromLatin1(auth);
+}
+
+QString getBasicAuthHeader(git_repository *repo, const QString &url) {
+  if (!repo) {
+    return {};
+  }
+
+  return getBasicAuthHeader(repositoryRootPath(repo), url);
+}
+
+static QString repoWorkdirPath(git_repository *repo) {
+  if (!repo) {
+    return {};
+  }
+
+  const char *workdir = git_repository_workdir(repo);
+  if (workdir && *workdir) {
+    return QDir::fromNativeSeparators(QString::fromUtf8(workdir));
+  }
+
+  const char *path = git_repository_path(repo);
+  return path ? QDir::fromNativeSeparators(QString::fromUtf8(path)) : QString();
+}
+
+static QString normalizeRepoRoot(QString path) {
+  if (path.endsWith("/.git/") || path.endsWith("\\.git\\")) {
+    path.chop(6);
+  } else if (path.endsWith("/.git") || path.endsWith("\\.git")) {
+    path.chop(5);
+  }
+
+  return QDir::cleanPath(path);
+}
+
+static QString repositoryRootPath(git_repository *repo) {
+  if (!repo) {
+    return {};
+  }
+
+  if (git_repository_is_bare(repo)) {
+    const char *path = git_repository_path(repo);
+    return path ? QDir::cleanPath(QString::fromUtf8(path)) : QString();
+  }
+
+  return normalizeRepoRoot(repoWorkdirPath(repo));
+}
+
+static QString extractSshHost(const QString &url) {
+  const QRegularExpression scpLike(
+      QStringLiteral(R"(^(([^@]+)@)?([^:]+):/?(.+)$)"));
+  const QRegularExpressionMatch scpMatch = scpLike.match(url);
+  if (scpMatch.hasMatch()) {
+    return scpMatch.captured(3);
+  }
+
+  const QUrl parsed(url);
+  if (parsed.isValid() &&
+      parsed.scheme().compare("ssh", Qt::CaseInsensitive) == 0) {
+    return parsed.host();
+  }
+
+  return {};
+}
+
+static bool promptForSshPassphrase(const QString &repoPath, const QString &url,
+                                   const QString &username,
+                                   QString &passphrase) {
+  EventManager::EventManager &eventManager =
+      EventManager::EventManager::getInstance();
+  const int token = eventManager.startWait();
+
+  GitCredentialsRequest request;
+  request.id = qHash(url);
+  request.url = url;
+  request.username = username;
+  request.allowedTypes = GIT_CREDENTIAL_SSH_KEY;
+  request.repoPath = repoPath;
+  request.needsPassphrase = true;
+
+  const size_t promptId = request.id;
+  gPromptedCredentialIds.insert(promptId);
+
+  EventManager::Event credentialsEvent(
+      EventManager::EventType::GitRepoManagerGetCredentials);
+  credentialsEvent.addData(request);
+  eventManager.send(credentialsEvent);
+
+  const auto predicate = [&](EventManager::Event event) -> bool {
+    switch (event.type()) {
+    case EventManager::EventType::GitRepoManagerGetCredentialsCancel: {
+      const auto [id] = event.data<GitCredentialsErrorResponse>();
+      return id == request.id;
+    }
+    case EventManager::EventType::GitRepoManagerGetCredentialsSubmit: {
+      const GitCredentialsResponse response =
+          event.data<GitCredentialsResponse>();
+      return response.id == request.id;
+    }
+    default:
+      return false;
+    }
+  };
+
+  const std::set<EventManager::EventType> types{
+      EventManager::EventType::GitRepoManagerGetCredentialsCancel,
+      EventManager::EventType::GitRepoManagerGetCredentialsSubmit};
+
+  const auto &[success, event] =
+      eventManager.waitOneOf(token, types, predicate);
+  if (!success ||
+      event.type() ==
+          EventManager::EventType::GitRepoManagerGetCredentialsCancel) {
+    return false;
+  }
+
+  const GitCredentialsResponse response = event.data<GitCredentialsResponse>();
+  passphrase =
+      !response.passphrase.isEmpty() ? response.passphrase : response.password;
+  return true;
+}
+
+GitSshAuthInfo getSshAuthInfo(const QString &repoPath, const QString &url,
+                              const QString &usernameFromUrl) {
+  LOG_PERF(0, "Enter");
+
+  GitSshAuthInfo authInfo;
+  authInfo.username =
+      usernameFromUrl.isEmpty() ? QStringLiteral("git") : usernameFromUrl;
+
+  const QString host = extractSshHost(url);
+  if (host.isEmpty()) {
+    LOG_PERF(0, "Exit");
+    return authInfo;
+  }
+
+  GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
+  GitKeyPair keyPair;
+  if (!keyStorage.getKeyPairForHost(host, keyPair)) {
+    const QString homePath =
+        QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    keyPair.privateKeyPath = QString("%1/.ssh/id_ed25519").arg(homePath);
+    keyPair.publicKeyPath = QString("%1/.ssh/id_ed25519.pub").arg(homePath);
+    keyPair.keyName = QStringLiteral("id_ed25519");
+  }
+
+  authInfo.privateKeyPath = keyPair.privateKeyPath;
+  authInfo.publicKeyPath = keyPair.publicKeyPath;
+  authInfo.passphrasePresent = false;
+  authInfo.valid = QFile::exists(authInfo.privateKeyPath) &&
+                   QFile::exists(authInfo.publicKeyPath);
+
+  if (!authInfo.valid) {
+    LOG_PERF(0, "Exit");
+    return authInfo;
+  }
+
+  QFile keyFile(authInfo.privateKeyPath);
+  if (keyFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    const QString keyContent = QString::fromUtf8(keyFile.readAll());
+    keyFile.close();
+    if (keyContent.contains("ENCRYPTED", Qt::CaseInsensitive)) {
+      authInfo.passphrasePresent = true;
+      if (!promptForSshPassphrase(repoPath, url, authInfo.username,
+                                  authInfo.passphrase)) {
+        authInfo.valid = false;
+        LOG_PERF(0, "Exit");
+        return authInfo;
+      }
+    }
+  }
+
+  authInfo.valid = true;
+  LOG_PERF(0, "Exit");
+  return authInfo;
 }
 
 void clearCachedCredentials(const QString &repoPath) {
@@ -3081,12 +3849,18 @@ void closeRepository(git_repository *repo) {
     return;
   }
 
+  {
+    LOCKGUARD(gHistoryCursorsMutex);
+    gHistoryCursors.remove(repo);
+  }
+
   git_repository_free(repo);
 
   LOG_PERF(0, "Exit");
 }
 
-git_repository *openRepository(const QString &path) {
+git_repository *openRepository(const QString &path, const QString &author,
+                               const QString &email) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Opening repository at path: '{}'", path.toStdString());
 
@@ -3106,7 +3880,7 @@ git_repository *openRepository(const QString &path) {
   if (repo && git_repository_head_unborn(repo) == 1) {
     LOG_DEBUG("Repository has unborn HEAD, creating initial commit");
     // Create empty initial commit without staging existing files
-    createInitialCommitWithoutStaging(repo);
+    createInitialCommitWithoutStaging(repo, author, email);
     LOG_DEBUG("Initial commit created for new repository");
   }
 
@@ -3207,7 +3981,10 @@ static QStringList listCheckoutBranches(git_repository *repo,
         continue;
       }
 
-      error = git_branch_is_checked_out(ref);
+      // git_branch_is_head() looks at this repository's HEAD only. Unlike
+      // git_branch_is_checked_out() it ignores branches that are checked out
+      // in other worktrees, which must not be reported as active here.
+      error = git_branch_is_head(ref);
       if (error == 1) {
         activeBranches += branchName;
       } else if (error != 0) {
@@ -3870,6 +4647,37 @@ GitCommitStatus getStashStatus(git_repository *repo, int stashIndex) {
   git_oid_tostr(oid_str, GIT_OID_HEXSZ + 1, oid);
   status.commit = QString::fromUtf8(oid_str);
 
+  if (const char *summary = git_commit_summary(stash_commit)) {
+    status.summary = QString::fromUtf8(summary);
+  } else if (const char *message = git_commit_message(stash_commit)) {
+    status.summary = QString::fromUtf8(message).section('\n', 0, 0);
+  }
+
+  const int parentCount = git_commit_parentcount(stash_commit);
+  status.parentShas.reserve(parentCount);
+  for (int i = 0; i < parentCount; ++i) {
+    const git_oid *parentOid = git_commit_parent_id(stash_commit, i);
+    if (!parentOid) {
+      continue;
+    }
+
+    char parentOidStr[GIT_OID_HEXSZ + 1] = {0};
+    git_oid_tostr(parentOidStr, GIT_OID_HEXSZ + 1, parentOid);
+    status.parentShas += QString::fromUtf8(parentOidStr);
+  }
+
+  if (const git_signature *author = git_commit_author(stash_commit)) {
+    if (author->name) {
+      status.authorName = QString::fromUtf8(author->name);
+    }
+    if (author->email) {
+      status.authorEmail = QString::fromUtf8(author->email);
+    }
+  }
+
+  status.committerDate =
+      commitSignatureDateToString(git_commit_committer(stash_commit));
+
   // Cleanup
   git_tree_free(stash_tree);
 
@@ -4039,6 +4847,135 @@ QVector<SubmoduleInfo> listSubmodulesWithStatus(git_repository *repo,
   return submodulesWithStatus;
 }
 
+static QString gitFlowBranchPrefix(GitFlowBranchType branchType) {
+  switch (branchType) {
+  case GitFlowBranchType::Feature:
+    return QStringLiteral("feature");
+  case GitFlowBranchType::Release:
+    return QStringLiteral("release");
+  case GitFlowBranchType::Hotfix:
+    return QStringLiteral("hotfix");
+  case GitFlowBranchType::Unknown:
+  default:
+    return QString();
+  }
+}
+
+static QString gitFlowBranchName(GitFlowBranchType branchType,
+                                 const QString &branchName) {
+  const QString trimmedBranchName = branchName.trimmed();
+  if (trimmedBranchName.isEmpty()) {
+    return {};
+  }
+
+  const QString prefix = gitFlowBranchPrefix(branchType);
+  if (prefix.isEmpty() ||
+      trimmedBranchName.startsWith(prefix + QStringLiteral("/"))) {
+    return trimmedBranchName;
+  }
+
+  return prefix + QStringLiteral("/") + trimmedBranchName;
+}
+
+static bool localBranchExists(git_repository *repo, const QString &branchName) {
+  git_reference *ref = nullptr;
+  const int error = git_branch_lookup(
+      &ref, repo, branchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
+  if (!error) {
+    git_reference_free(ref);
+    return true;
+  }
+  return false;
+}
+
+static QString gitFlowConfiguredBranchName(ConfigManager::ConfigKey key) {
+  return ConfigManager::ConfigManager::getInstance().getString(key).trimmed();
+}
+
+static QString
+defaultGitFlowBaseBranchName(git_repository *repo, GitFlowBranchType branchType,
+                             const QString &developmentBranchName) {
+  const auto branchExists = [repo](const QString &branchName) {
+    return localBranchExists(repo, branchName);
+  };
+
+  const QString configuredDevelopmentBranchName = gitFlowConfiguredBranchName(
+      ConfigManager::ConfigKey::GitRepoGitFlowDevelopmentBranchName);
+  const QString configuredMainBranchName = gitFlowConfiguredBranchName(
+      ConfigManager::ConfigKey::GitRepoGitFlowMainBranchName);
+  const QString configuredMasterBranchName = QStringLiteral("master");
+  const QString normalizedDevelopmentBranchName =
+      developmentBranchName.trimmed().isEmpty()
+          ? configuredDevelopmentBranchName
+          : developmentBranchName.trimmed();
+
+  switch (branchType) {
+  case GitFlowBranchType::Feature:
+  case GitFlowBranchType::Release:
+    if (branchExists(normalizedDevelopmentBranchName)) {
+      return normalizedDevelopmentBranchName;
+    }
+    break;
+  case GitFlowBranchType::Hotfix:
+    if (branchExists(configuredMainBranchName)) {
+      return configuredMainBranchName;
+    }
+    if (branchExists(configuredMasterBranchName)) {
+      return configuredMasterBranchName;
+    }
+    break;
+  case GitFlowBranchType::Unknown:
+  default:
+    break;
+  }
+
+  if (branchExists(normalizedDevelopmentBranchName)) {
+    return normalizedDevelopmentBranchName;
+  }
+
+  if (branchExists(configuredMainBranchName)) {
+    return configuredMainBranchName;
+  }
+
+  if (branchExists(configuredMasterBranchName)) {
+    return configuredMasterBranchName;
+  }
+
+  return getActiveBranch(repo, BranchType::Local, false);
+}
+
+static QString
+defaultGitFlowPrimaryBranchName(git_repository *repo,
+                                const QString &developmentBranchName) {
+  const auto branchExists = [repo](const QString &branchName) {
+    return localBranchExists(repo, branchName);
+  };
+
+  const QString configuredMainBranchName = gitFlowConfiguredBranchName(
+      ConfigManager::ConfigKey::GitRepoGitFlowMainBranchName);
+  const QString configuredMasterBranchName = QStringLiteral("master");
+  const QString configuredDevelopmentBranchName = gitFlowConfiguredBranchName(
+      ConfigManager::ConfigKey::GitRepoGitFlowDevelopmentBranchName);
+  const QString normalizedDevelopmentBranchName =
+      developmentBranchName.trimmed().isEmpty()
+          ? configuredDevelopmentBranchName
+          : developmentBranchName.trimmed();
+
+  if (branchExists(configuredMainBranchName)) {
+    return configuredMainBranchName;
+  }
+
+  if (branchExists(configuredMasterBranchName)) {
+    return configuredMasterBranchName;
+  }
+
+  if (branchExists(normalizedDevelopmentBranchName)) {
+    return normalizedDevelopmentBranchName;
+  }
+
+  return getActiveBranch(repo, BranchType::Local, false);
+}
+
 bool createBranchFromCommit(git_repository *repo, const QString &commit,
                             const QString &branchName) {
   LOG_PERF(0, "Enter");
@@ -4094,6 +5031,1095 @@ bool createBranchFromCommit(git_repository *repo, const QString &commit,
 
   LOG_PERF(0, "Exit");
 
+  return true;
+}
+
+// Creates branchName at the tip of the local baseBranchName and checks it out.
+static bool createAndCheckoutBranch(git_repository *repo,
+                                    const QString &baseBranchName,
+                                    const QString &branchName) {
+  git_reference *baseRef = nullptr;
+  const int error = git_branch_lookup(
+      &baseRef, repo, baseBranchName.toStdString().c_str(), GIT_BRANCH_LOCAL);
+  if (error) {
+    setError(GitError::CheckoutBranchFailedToLookupBranch, error);
+    return false;
+  }
+
+  const git_oid *baseOid = git_reference_target(baseRef);
+  if (!baseOid) {
+    git_reference_free(baseRef);
+    setError(GitError::CheckoutBranchFailedToLookupBranch, GIT_ENOTFOUND);
+    return false;
+  }
+
+  char oidBuffer[GIT_OID_HEXSZ + 1] = {0};
+  git_oid_tostr(oidBuffer, sizeof(oidBuffer), baseOid);
+  git_reference_free(baseRef);
+
+  if (!createBranchFromCommit(repo, QString::fromLatin1(oidBuffer),
+                              branchName)) {
+    return false;
+  }
+
+  return checkoutBranch(repo, branchName, BranchType::Local);
+}
+
+bool startGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
+                        const QString &branchName,
+                        const QString &developmentBranchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName =
+      gitFlowBranchName(branchType, branchName);
+  if (normalizedBranchName.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git, "GitFlow branch name is empty");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString baseBranchName =
+      defaultGitFlowBaseBranchName(repo, branchType, developmentBranchName);
+  if (baseBranchName.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Unable to determine the base branch for GitFlow branch '{}'",
+              normalizedBranchName.toStdString());
+    setError(GitError::CheckoutBranchFailedToLookupBranch, GIT_ENOTFOUND);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const bool created =
+      createAndCheckoutBranch(repo, baseBranchName, normalizedBranchName);
+
+  LOG_PERF(0, "Exit");
+  return created;
+}
+
+bool finishGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
+                         const QString &branchName, const QString &author,
+                         const QString &email,
+                         const QString &developmentBranchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName =
+      gitFlowBranchName(branchType, branchName);
+  if (normalizedBranchName.isEmpty()) {
+    LOG_ERROR(Log::ErrorId::Git, "GitFlow branch name is empty");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString primaryBranchName =
+      defaultGitFlowPrimaryBranchName(repo, developmentBranchName);
+  if (primaryBranchName.isEmpty()) {
+    LOG_ERROR(
+        Log::ErrorId::Git,
+        "Unable to determine the destination branch for GitFlow branch '{}'",
+        normalizedBranchName.toStdString());
+    setError(GitError::MergeFailedToLookupDestinationBranch, GIT_ENOTFOUND);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString configuredDevelopmentBranchName = gitFlowConfiguredBranchName(
+      ConfigManager::ConfigKey::GitRepoGitFlowDevelopmentBranchName);
+  const QString normalizedDevelopmentBranchName =
+      developmentBranchName.trimmed().isEmpty()
+          ? configuredDevelopmentBranchName
+          : developmentBranchName.trimmed();
+
+  const QString destinationBranchName = branchType == GitFlowBranchType::Feature
+                                            ? normalizedDevelopmentBranchName
+                                            : primaryBranchName;
+
+  if (!merge(repo, normalizedBranchName, destinationBranchName, author,
+             email)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (branchType == GitFlowBranchType::Release ||
+      branchType == GitFlowBranchType::Hotfix) {
+    if (normalizedDevelopmentBranchName != destinationBranchName &&
+        !merge(repo, normalizedBranchName, normalizedDevelopmentBranchName,
+               author, email)) {
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  if (!deleteBranch(repo, normalizedBranchName)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+static void setWorkflowError(const GitError errorType) {
+  setErrorContext(errorType, gitErrorMessage(errorType), -1);
+  LOG_ERROR(Log::ErrorId::Git, "Workflow error: {}",
+            gitErrorMessage(errorType).toStdString());
+}
+
+static QString gitLabFlowFeatureBranchName(const QString &branchName) {
+  const QString trimmedBranchName = branchName.trimmed();
+  if (trimmedBranchName.isEmpty() ||
+      trimmedBranchName.startsWith(QStringLiteral("feature/"))) {
+    return trimmedBranchName;
+  }
+
+  return QStringLiteral("feature/") + trimmedBranchName;
+}
+
+bool startGitLabFlowFeature(git_repository *repo, const QString &branchName,
+                            const QString &mainBranchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName = gitLabFlowFeatureBranchName(branchName);
+  if (normalizedBranchName.isEmpty()) {
+    setWorkflowError(GitError::GitLabFlowBranchNameEmpty);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString baseBranchName = mainBranchName.trimmed();
+  if (!localBranchExists(repo, baseBranchName)) {
+    setWorkflowError(GitError::GitLabFlowFailedToLookupBaseBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const bool created =
+      createAndCheckoutBranch(repo, baseBranchName, normalizedBranchName);
+
+  LOG_PERF(0, "Exit");
+  return created;
+}
+
+bool finishGitLabFlowFeature(git_repository *repo, const QString &branchName,
+                             const QString &mainBranchName,
+                             const QString &author, const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName = gitLabFlowFeatureBranchName(branchName);
+  if (normalizedBranchName.isEmpty()) {
+    setWorkflowError(GitError::GitLabFlowBranchNameEmpty);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString destinationBranchName = mainBranchName.trimmed();
+  if (!localBranchExists(repo, destinationBranchName)) {
+    setWorkflowError(GitError::GitLabFlowFailedToLookupBaseBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!merge(repo, normalizedBranchName, destinationBranchName, author,
+             email)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!deleteBranch(repo, normalizedBranchName)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool promoteGitLabFlowEnvironment(git_repository *repo,
+                                  const QStringList &environmentChain,
+                                  const QString &sourceBranchName,
+                                  const QString &author, const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedSourceBranchName = sourceBranchName.trimmed();
+  const QString destinationBranchName =
+      gitLabFlowNextEnvironment(environmentChain, normalizedSourceBranchName);
+  if (destinationBranchName.isEmpty()) {
+    setWorkflowError(GitError::GitLabFlowPromoteNotDownstream);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Promoting '{}' to '{}'", normalizedSourceBranchName.toStdString(),
+            destinationBranchName.toStdString());
+
+  if (!localBranchExists(repo, destinationBranchName)) {
+    const bool created = createAndCheckoutBranch(
+        repo, normalizedSourceBranchName, destinationBranchName);
+    LOG_PERF(0, "Exit");
+    return created;
+  }
+
+  const bool merged = merge(repo, normalizedSourceBranchName,
+                            destinationBranchName, author, email);
+
+  LOG_PERF(0, "Exit");
+  return merged;
+}
+
+bool startGitLabFlowRelease(git_repository *repo,
+                            const QString &releaseBranchName,
+                            const QString &mainBranchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName = releaseBranchName.trimmed();
+  if (normalizedBranchName.isEmpty()) {
+    setWorkflowError(GitError::GitLabFlowBranchNameEmpty);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString baseBranchName = mainBranchName.trimmed();
+  if (!localBranchExists(repo, baseBranchName)) {
+    setWorkflowError(GitError::GitLabFlowFailedToLookupBaseBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const bool created =
+      createAndCheckoutBranch(repo, baseBranchName, normalizedBranchName);
+
+  LOG_PERF(0, "Exit");
+  return created;
+}
+
+bool cherryPickToGitLabFlowRelease(git_repository *repo, const QString &commit,
+                                   const QString &releaseBranchName,
+                                   const QString &author, const QString &email,
+                                   bool *conflicted) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (conflicted) {
+    *conflicted = false;
+  }
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName = releaseBranchName.trimmed();
+  if (!localBranchExists(repo, normalizedBranchName)) {
+    setWorkflowError(GitError::GitLabFlowFailedToLookupReleaseBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString originalBranchName =
+      getActiveBranch(repo, BranchType::Local, false);
+
+  if (originalBranchName != normalizedBranchName &&
+      !checkoutBranch(repo, normalizedBranchName, BranchType::Local)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!cherryPickCommit(repo, commit, author, email)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (hasConflicts(repo)) {
+    LOG_DEBUG("Cherry-pick of '{}' onto '{}' has conflicts",
+              commit.toStdString(), normalizedBranchName.toStdString());
+    if (conflicted) {
+      *conflicted = true;
+    }
+    LOG_PERF(0, "Exit");
+    return true;
+  }
+
+  if (!originalBranchName.isEmpty() &&
+      originalBranchName != normalizedBranchName &&
+      !checkoutBranch(repo, originalBranchName, BranchType::Local)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool startGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                           const QString &mainBranchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName = branchName.trimmed();
+  if (normalizedBranchName.isEmpty()) {
+    setWorkflowError(GitError::GitHubFlowBranchNameEmpty);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString baseBranchName = mainBranchName.trimmed();
+  if (!localBranchExists(repo, baseBranchName)) {
+    setWorkflowError(GitError::GitHubFlowFailedToLookupMainBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const bool created =
+      createAndCheckoutBranch(repo, baseBranchName, normalizedBranchName);
+
+  LOG_PERF(0, "Exit");
+  return created;
+}
+
+bool updateGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                            const QString &mainBranchName,
+                            const QString &author, const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName = branchName.trimmed();
+  const QString normalizedMainBranchName = mainBranchName.trimmed();
+  if (normalizedBranchName.isEmpty()) {
+    setWorkflowError(GitError::GitHubFlowBranchNameEmpty);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (normalizedBranchName == normalizedMainBranchName) {
+    setWorkflowError(GitError::GitHubFlowMainBranchNotAllowed);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!localBranchExists(repo, normalizedMainBranchName)) {
+    setWorkflowError(GitError::GitHubFlowFailedToLookupMainBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const bool merged = merge(repo, normalizedMainBranchName,
+                            normalizedBranchName, author, email);
+
+  LOG_PERF(0, "Exit");
+  return merged;
+}
+
+bool finishGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                            const QString &mainBranchName,
+                            const QString &author, const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName = branchName.trimmed();
+  const QString normalizedMainBranchName = mainBranchName.trimmed();
+  if (normalizedBranchName.isEmpty()) {
+    setWorkflowError(GitError::GitHubFlowBranchNameEmpty);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (normalizedBranchName == normalizedMainBranchName) {
+    setWorkflowError(GitError::GitHubFlowMainBranchNotAllowed);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!localBranchExists(repo, normalizedMainBranchName)) {
+    setWorkflowError(GitError::GitHubFlowFailedToLookupMainBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!merge(repo, normalizedBranchName, normalizedMainBranchName, author,
+             email)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!deleteBranch(repo, normalizedBranchName)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool readGitFlowNextConfig(git_repository *repo, GitFlowNextConfig *config) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+  Q_ASSERT(config != nullptr);
+
+  if (!repo || !config) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository or config pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_config *repoConfig = nullptr;
+  int error = git_repository_config(&repoConfig, repo);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToReadConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_config *snapshot = nullptr;
+  error = git_config_snapshot(&snapshot, repoConfig);
+  git_config_free(repoConfig);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToReadConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  QList<QPair<QString, QString>> entries;
+  error = git_config_foreach_match(
+      snapshot, "^gitflow\\.",
+      [](const git_config_entry *entry, void *payload) -> int {
+        static_cast<QList<QPair<QString, QString>> *>(payload)->append(
+            {QString::fromUtf8(entry->name), QString::fromUtf8(entry->value)});
+        return 0;
+      },
+      &entries);
+  git_config_free(snapshot);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToReadConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  *config = parseGitFlowNextConfig(entries);
+  LOG_DEBUG("git-flow-next config: initialized={}, {} branch definitions",
+            config->initialized, config->branches.size());
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool initGitFlowNext(git_repository *repo, const QString &mainBranchName,
+                     const QString &developBranchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString main = mainBranchName.trimmed();
+  const QString develop = developBranchName.trimmed();
+  if (main.isEmpty() || develop.isEmpty()) {
+    setWorkflowError(GitError::GitFlowNextBranchNameEmpty);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!localBranchExists(repo, main)) {
+    setWorkflowError(GitError::GitFlowNextFailedToLookupBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_config *config = nullptr;
+  int error = git_repository_config(&config, repo);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToWriteConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const auto entries = gitFlowNextClassicPreset(main, develop);
+  for (const auto &[key, value] : entries) {
+    error = git_config_set_string(config, key.toUtf8().constData(),
+                                  value.toUtf8().constData());
+    if (error) {
+      setError(GitError::GitFlowNextFailedToWriteConfig, error);
+      git_config_free(config);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+  git_config_free(config);
+
+  if (!localBranchExists(repo, develop) &&
+      !createAndCheckoutBranch(repo, main, develop)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+static bool loadInitializedGitFlowNextConfig(git_repository *repo,
+                                             GitFlowNextConfig &config) {
+  if (!readGitFlowNextConfig(repo, &config)) {
+    return false;
+  }
+
+  if (!config.initialized) {
+    setWorkflowError(GitError::GitFlowNextNotInitialized);
+    return false;
+  }
+
+  return true;
+}
+
+static QString branchTipId(git_repository *repo, const QString &branchName) {
+  git_oid oid;
+  const QString refName = QStringLiteral("refs/heads/") + branchName;
+  if (git_reference_name_to_id(&oid, repo, refName.toUtf8().constData())) {
+    return {};
+  }
+
+  char buffer[GIT_OID_HEXSZ + 1] = {0};
+  git_oid_tostr(buffer, sizeof(buffer), &oid);
+  return QString::fromLatin1(buffer);
+}
+
+static bool tagExists(git_repository *repo, const QString &tagName) {
+  git_oid oid;
+  const QString refName = QStringLiteral("refs/tags/") + tagName;
+  return git_reference_name_to_id(&oid, repo, refName.toUtf8().constData()) ==
+         0;
+}
+
+// Brings branchName up to date with parentBranch, see downstreamStrategy.
+static bool updateFromParent(git_repository *repo, const QString &branchName,
+                             const QString &parentBranch,
+                             const QString &strategy, const QString &author,
+                             const QString &email) {
+  if (strategy == QStringLiteral("rebase")) {
+    return rebaseBranches(repo, branchName, parentBranch, author, email, false);
+  }
+
+  if (strategy == QStringLiteral("merge")) {
+    return merge(repo, parentBranch, branchName, author, email);
+  }
+
+  setWorkflowError(GitError::GitFlowNextUnsupportedStrategy);
+  return false;
+}
+
+bool startGitFlowNextBranch(git_repository *repo, const QString &branchType,
+                            const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  GitFlowNextConfig config;
+  if (!loadInitializedGitFlowNextConfig(repo, config)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QVector<GitFlowNextBranch> types = config.topicTypes();
+  const auto type = std::find_if(
+      types.cbegin(), types.cend(), [&](const GitFlowNextBranch &candidate) {
+        return candidate.name == branchType.trimmed();
+      });
+  if (type == types.cend()) {
+    setWorkflowError(GitError::GitFlowNextUnknownBranchType);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString normalizedBranchName =
+      gitFlowNextBranchNameForInput(*type, branchName);
+  if (normalizedBranchName.isEmpty() || normalizedBranchName == type->prefix) {
+    setWorkflowError(GitError::GitFlowNextBranchNameEmpty);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString startPoint = gitFlowNextStartPoint(*type);
+  if (!localBranchExists(repo, startPoint)) {
+    setWorkflowError(GitError::GitFlowNextFailedToLookupBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Starting '{}' from '{}'", normalizedBranchName.toStdString(),
+            startPoint.toStdString());
+  const bool created =
+      createAndCheckoutBranch(repo, startPoint, normalizedBranchName);
+
+  LOG_PERF(0, "Exit");
+  return created;
+}
+
+bool finishGitFlowNextBranch(git_repository *repo, const QString &branchName,
+                             const QString &author, const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  GitFlowNextConfig config;
+  if (!loadInitializedGitFlowNextConfig(repo, config)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString branch = branchName.trimmed();
+  const GitFlowNextBranch *type = gitFlowNextTopicTypeForBranch(config, branch);
+  if (!type) {
+    setWorkflowError(GitError::GitFlowNextNotATopicBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString parent = type->parent;
+  if (!localBranchExists(repo, branch) || !localBranchExists(repo, parent)) {
+    setWorkflowError(GitError::GitFlowNextFailedToLookupBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString tagName =
+      type->tag ? gitFlowNextTagName(*type, branch) : QString();
+  if (!tagName.isEmpty() && tagExists(repo, tagName)) {
+    setWorkflowError(GitError::GitFlowNextTagExists);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Finishing '{}' into '{}' with strategy '{}'", branch.toStdString(),
+            parent.toStdString(), type->upstreamStrategy.toStdString());
+
+  bool integrated = false;
+  if (type->upstreamStrategy == QStringLiteral("merge")) {
+    integrated = merge(repo, branch, parent, author, email);
+  } else if (type->upstreamStrategy == QStringLiteral("rebase")) {
+    // Replay the branch onto its parent, then fast-forward the parent.
+    integrated = rebaseBranches(repo, branch, parent, author, email, false) &&
+                 merge(repo, branch, parent, author, email);
+  } else if (type->upstreamStrategy == QStringLiteral("squash")) {
+    integrated = squashBranches(repo, branch, parent, author, email, false);
+  } else {
+    setWorkflowError(GitError::GitFlowNextUnsupportedStrategy);
+  }
+
+  if (!integrated) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!tagName.isEmpty() &&
+      !createTagFromCommit(repo, branchTipId(repo, parent), tagName, author,
+                           email, tagName)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QStringList autoUpdateBranches =
+      gitFlowNextAutoUpdateBranches(config, parent);
+  for (const QString &baseBranch : autoUpdateBranches) {
+    if (!localBranchExists(repo, baseBranch)) {
+      continue;
+    }
+
+    const auto base =
+        std::find_if(config.branches.cbegin(), config.branches.cend(),
+                     [&](const GitFlowNextBranch &candidate) {
+                       return !candidate.topic && candidate.name == baseBranch;
+                     });
+    LOG_DEBUG("Updating '{}' from '{}'", baseBranch.toStdString(),
+              parent.toStdString());
+    if (!updateFromParent(repo, baseBranch, parent, base->downstreamStrategy,
+                          author, email)) {
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  if (!checkoutBranch(repo, parent, BranchType::Local)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!type->keepOnFinish && !deleteBranch(repo, branch)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool updateGitFlowNextBranch(git_repository *repo, const QString &branchName,
+                             const QString &author, const QString &email) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  GitFlowNextConfig config;
+  if (!loadInitializedGitFlowNextConfig(repo, config)) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString branch = branchName.trimmed();
+  const GitFlowNextBranch *type = gitFlowNextTopicTypeForBranch(config, branch);
+  if (!type) {
+    setWorkflowError(GitError::GitFlowNextNotATopicBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!localBranchExists(repo, branch) ||
+      !localBranchExists(repo, type->parent)) {
+    setWorkflowError(GitError::GitFlowNextFailedToLookupBranch);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Updating '{}' from '{}' with strategy '{}'", branch.toStdString(),
+            type->parent.toStdString(), type->downstreamStrategy.toStdString());
+  const bool updated = updateFromParent(
+      repo, branch, type->parent, type->downstreamStrategy, author, email);
+
+  LOG_PERF(0, "Exit");
+  return updated;
+}
+
+static const char *kWorkflowIdKey = "sourcerer.gitflownext.workflow";
+static const char *kWorkflowRevisionKey = "sourcerer.gitflownext.revision";
+
+// Removes the reference to a custom GitFlow-Next workflow, if there is one.
+static void clearGitFlowNextWorkflowReference(git_config *localConfig) {
+  for (const char *key : {kWorkflowIdKey, kWorkflowRevisionKey}) {
+    const int error = git_config_delete_entry(localConfig, key);
+    if (error && error != GIT_ENOTFOUND) {
+      LOG_WARN("Failed to remove '{}' from the repository config: error={}",
+               key, error);
+    }
+  }
+}
+
+bool applyGitFlowNextWorkflow(git_repository *repo,
+                              const GitFlowNextWorkflow &workflow) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (!validateGitFlowNextWorkflow(workflow).isEmpty()) {
+    setWorkflowError(GitError::GitFlowNextInvalidWorkflow);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // The root base branch is where the missing base branches start from.
+  QStringList existingBaseBranches;
+  for (const GitFlowNextBranch &branch : workflow.baseBranches()) {
+    if (localBranchExists(repo, branch.name)) {
+      existingBaseBranches.append(branch.name);
+    } else if (branch.parent.isEmpty()) {
+      setWorkflowError(GitError::GitFlowNextFailedToLookupBranch);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  git_config *config = nullptr;
+  int error = git_repository_config(&config, repo);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToWriteConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Only the repository's own configuration is changed, never the global one.
+  git_config *localConfig = nullptr;
+  error = git_config_open_level(&localConfig, config, GIT_CONFIG_LEVEL_LOCAL);
+  git_config_free(config);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToWriteConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Replace the previous branch model, including branch types that the new
+  // workflow doesn't have.
+  QStringList oldKeys;
+  git_config_foreach_match(
+      localConfig, "^gitflow\\.(branch\\..+|[^.]+\\.finish\\..+)$",
+      [](const git_config_entry *entry, void *payload) -> int {
+        static_cast<QStringList *>(payload)->append(
+            QString::fromUtf8(entry->name));
+        return 0;
+      },
+      &oldKeys);
+  for (const QString &key : std::as_const(oldKeys)) {
+    error = git_config_delete_entry(localConfig, key.toUtf8().constData());
+    if (error && error != GIT_ENOTFOUND) {
+      setError(GitError::GitFlowNextFailedToWriteConfig, error);
+      git_config_free(localConfig);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  const auto entries = gitFlowNextConfigEntries(workflow);
+  for (const auto &[key, value] : entries) {
+    error = git_config_set_string(localConfig, key.toUtf8().constData(),
+                                  value.toUtf8().constData());
+    if (error) {
+      setError(GitError::GitFlowNextFailedToWriteConfig, error);
+      git_config_free(localConfig);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  error = git_config_set_string(
+      localConfig, "sourcerer.workflow",
+      workflowTypeToString(WorkflowType::GitFlowNext).toUtf8().constData());
+  if (!error) {
+    error = git_config_set_string(localConfig, kWorkflowIdKey,
+                                  workflow.id.toUtf8().constData());
+  }
+  if (!error) {
+    error = git_config_set_int32(localConfig, kWorkflowRevisionKey,
+                                 workflow.revision);
+  }
+  git_config_free(localConfig);
+  if (error) {
+    setError(GitError::GitFlowNextFailedToWriteConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QStringList toCreate =
+      gitFlowNextBaseBranchesToCreate(workflow, existingBaseBranches);
+  const QVector<GitFlowNextBranch> baseBranches = workflow.baseBranches();
+  for (const QString &name : toCreate) {
+    const auto branch = std::find_if(baseBranches.cbegin(), baseBranches.cend(),
+                                     [&](const GitFlowNextBranch &candidate) {
+                                       return candidate.name == name;
+                                     });
+    LOG_DEBUG("Creating base branch '{}' from '{}'", name.toStdString(),
+              branch->parent.toStdString());
+    if (!createBranchFromCommit(repo, branchTipId(repo, branch->parent),
+                                name)) {
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+  return true;
+}
+
+bool getGitFlowNextWorkflowReference(git_repository *repo, QString *id,
+                                     int *revision) {
+  if (!repo) {
+    return false;
+  }
+
+  git_config *config = nullptr;
+  if (git_repository_config(&config, repo)) {
+    return false;
+  }
+  git_config *snapshot = nullptr;
+  const int snapshotError = git_config_snapshot(&snapshot, config);
+  git_config_free(config);
+  if (snapshotError) {
+    return false;
+  }
+
+  git_buf buf = GIT_BUF_INIT;
+  int32_t storedRevision = 0;
+  const bool found =
+      git_config_get_string_buf(&buf, snapshot, kWorkflowIdKey) == 0 &&
+      buf.ptr && buf.ptr[0] != '\0';
+  if (found) {
+    if (id) {
+      *id = QString::fromUtf8(buf.ptr);
+    }
+    git_config_get_int32(&storedRevision, snapshot, kWorkflowRevisionKey);
+    if (revision) {
+      *revision = storedRevision;
+    }
+  }
+  git_buf_dispose(&buf);
+  git_config_free(snapshot);
+  return found;
+}
+
+WorkflowType getWorkflowType(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return WorkflowType::GitFlow;
+  }
+
+  git_config *config = nullptr;
+  if (git_repository_config(&config, repo)) {
+    LOG_DEBUG("Failed to get repository config, using Git Flow workflow");
+    LOG_PERF(0, "Exit");
+    return WorkflowType::GitFlow;
+  }
+
+  git_buf buf = GIT_BUF_INIT;
+  const int error =
+      git_config_get_string_buf(&buf, config, "sourcerer.workflow");
+  const WorkflowType type =
+      error ? WorkflowType::GitFlow
+            : workflowTypeFromString(QString::fromUtf8(buf.ptr));
+  git_buf_dispose(&buf);
+  git_config_free(config);
+
+  LOG_DEBUG("Repository workflow is '{}'",
+            workflowTypeToString(type).toStdString());
+  LOG_PERF(0, "Exit");
+  return type;
+}
+
+bool setWorkflowType(git_repository *repo, WorkflowType type) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_config *config = nullptr;
+  int error = git_repository_config(&config, repo);
+  if (error) {
+    setError(GitError::SetWorkflowTypeFailedToGetRepositoryConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error =
+      git_config_set_string(config, "sourcerer.workflow",
+                            workflowTypeToString(type).toUtf8().constData());
+
+  // Choosing a workflow from the menu ends the use of a custom GitFlow-Next
+  // workflow; applyGitFlowNextWorkflow() sets it again.
+  git_config *localConfig = nullptr;
+  if (!error &&
+      !git_config_open_level(&localConfig, config, GIT_CONFIG_LEVEL_LOCAL)) {
+    clearGitFlowNextWorkflowReference(localConfig);
+    git_config_free(localConfig);
+  }
+  git_config_free(config);
+
+  if (error) {
+    setError(GitError::SetWorkflowTypeFailedToWriteConfig, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
   return true;
 }
 
@@ -4176,7 +6202,8 @@ QString getActiveBranch(git_repository *repo, const BranchType type,
 }
 
 bool initRepository(const QString &repoName, const QString &workingDir,
-                    const QString &defaultBranch) {
+                    const QString &defaultBranch, const QString &author,
+                    const QString &email) {
   LOG_PERF(0, "Enter");
 
   git_repository_init_options opts{};
@@ -4210,7 +6237,7 @@ bool initRepository(const QString &repoName, const QString &workingDir,
     return false;
   }
 
-  const bool created = createInitialCommit(repo, defaultBranch);
+  const bool created = createInitialCommit(repo, defaultBranch, author, email);
   if (!created) {
     closeRepository(repo);
     LOG_ERROR(Log::ErrorId::Git, "Can't create initial commit.");
@@ -4223,6 +6250,50 @@ bool initRepository(const QString &repoName, const QString &workingDir,
   LOG_PERF(0, "Exit");
 
   return true;
+}
+
+struct PushReferenceStatus {
+  bool rejected = false;
+  QString refname;
+  QString status;
+};
+
+thread_local PushReferenceStatus gPushReferenceStatus;
+
+static int pushUpdateReferenceCallback(const char *refname, const char *status,
+                                       void *data) {
+  Q_UNUSED(data);
+
+  if (!status) {
+    return 0;
+  }
+
+  gPushReferenceStatus.rejected = true;
+  gPushReferenceStatus.refname =
+      refname ? QString::fromUtf8(refname) : QString();
+  gPushReferenceStatus.status = QString::fromUtf8(status);
+
+  LOG_ERROR(Log::ErrorId::Git, "Remote rejected push update for ref '{}': {}",
+            gPushReferenceStatus.refname.toStdString(),
+            gPushReferenceStatus.status.toStdString());
+
+  git_error_set_str(GIT_ERROR_NET, status);
+  return GIT_EUSER;
+}
+
+static int pushSidebandProgressCallback(const char *str, int len, void *data) {
+  Q_UNUSED(data);
+
+  if (!str || len <= 0) {
+    return 0;
+  }
+
+  const QString message = QString::fromUtf8(str, len).trimmed();
+  if (!message.isEmpty()) {
+    LOG_DEBUG("Remote push output: {}", message.toStdString());
+  }
+
+  return 0;
 }
 
 static int fetchProgressCallback(const git_indexer_progress *stats,
@@ -4345,7 +6416,8 @@ static int certificateCheckCallback(git_cert *cert, int valid, const char *host,
       // Parse the certificate using OpenSSL
       const unsigned char *cert_data =
           reinterpret_cast<const unsigned char *>(x509_cert->data);
-      X509 *x509 = d2i_X509(nullptr, &cert_data, x509_cert->len);
+      X509 *x509 =
+          d2i_X509(nullptr, &cert_data, static_cast<long>(x509_cert->len));
 
       if (x509) {
         // Get subject name
@@ -4450,6 +6522,10 @@ static int certificateCheckCallback(git_cert *cert, int valid, const char *host,
 
 static void finishFetchProgress(const QString &uuid, const bool error,
                                 const bool cloning) {
+
+  // Avoid race condition with progress toast creation
+  std::this_thread::sleep_for(1500ms);
+
   CloneProgress progress;
   progress.uuid = uuid;
   progress.completedSteps = 100;
@@ -4476,6 +6552,26 @@ static void finishCredentialsAcquiring(const QString &url) {
   credentialsFinishedEvent.addData(qHash(url));
 
   eventManager.send(credentialsFinishedEvent);
+}
+
+void finishPendingCredentialPrompts() {
+  // Credential prompts are keyed by a hash of the URL they were raised for.
+  // That URL is not always the remote URL the calling operation knows about
+  // (e.g. Git LFS endpoints), and prompts can also be raised outside of the
+  // fetch/push window (e.g. LFS smudge during checkout). Close every prompt
+  // raised on this thread so that no overlay is left behind.
+  std::set<size_t> ids;
+  ids.swap(gPromptedCredentialIds);
+
+  EventManager::EventManager &eventManager =
+      EventManager::EventManager::getInstance();
+
+  for (const size_t id : ids) {
+    EventManager::Event event(
+        EventManager::EventType::GitRepoManagerGetCredentialsFinished);
+    event.addData(id);
+    eventManager.send(event);
+  }
 }
 
 static std::tuple<bool, GitPlaintextCredentials>
@@ -4532,6 +6628,8 @@ acquireCredentials(const QString &repoPath, const QString &url,
   request.username = username;
   request.allowedTypes = allowedTypes;
   request.repoPath = normalizedRepoPath;
+
+  gPromptedCredentialIds.insert(request.id);
 
   EventManager::Event credentialsEvent(
       EventManager::EventType::GitRepoManagerGetCredentials);
@@ -4742,131 +6840,23 @@ static int credentialsAcquireCallback(git_credential **out, const char *url,
     }
 
     QString privateKeyPath;
-    QString publicKeyPath;
-
-    // Try to get key pair from GitKeyStorage for this specific host
-    GitKeyStorage &keyStorage = GitKeyStorage::getInstance();
-    GitKeyPair keyPair;
-
-    if (!host.isEmpty() && keyStorage.getKeyPairForHost(host, keyPair)) {
-      privateKeyPath = keyPair.privateKeyPath;
-      publicKeyPath = keyPair.publicKeyPath;
-      LOG_INFO("Using SSH key '{}' for host '{}'", keyPair.keyName, host);
-    } else {
-      // Fall back to default SSH key
-      const QString homePath =
-          QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-      privateKeyPath = QString("%1/.ssh/id_ed25519").arg(homePath);
-      publicKeyPath = QString("%1/.ssh/id_ed25519.pub").arg(homePath);
-      LOG_INFO(
-          "No specific SSH key configured for host '{}', using default: {}",
-          host.isEmpty() ? "unknown" : host, privateKeyPath);
-    }
-
-    // Check if the private key is encrypted (requires passphrase)
-    bool passphrasePresent = false;
-    QString passphrase;
-    QFile keyFile(privateKeyPath);
-    if (keyFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-      QString keyContent = QString::fromUtf8(keyFile.readAll());
-      keyFile.close();
-
-      // Check for encryption markers in the key file
-      if (keyContent.contains("ENCRYPTED", Qt::CaseInsensitive)) {
-        // Key is encrypted, need to ask for passphrase
-        LOG_INFO("SSH key is encrypted, requesting passphrase from user");
-
-        // Request passphrase from user using the event system
-        EventManager::EventManager &eventManager =
-            EventManager::EventManager::getInstance();
-
-        const int token = eventManager.startWait();
-
-        GitCredentialsRequest request;
-        request.id = qHash(QString::fromUtf8(url));
-        request.url = url;
-        request.username = username_from_url ? username_from_url : "git";
-        request.allowedTypes = allowed_types;
-        request.repoPath = repoPath;
-        request.needsPassphrase =
-            true; // Signal that this is a passphrase request
-
-        EventManager::Event credentialsEvent(
-            EventManager::EventType::GitRepoManagerGetCredentials);
-        credentialsEvent.addData(request);
-
-        eventManager.send(credentialsEvent);
-
-        const auto predicate = [&](EventManager::Event event) -> bool {
-          bool success = false;
-          switch (event.type()) {
-          case EventManager::EventType::GitRepoManagerGetCredentialsCancel: {
-            const auto [id] = event.data<GitCredentialsErrorResponse>();
-            success = id == request.id;
-            break;
-          }
-          case EventManager::EventType::GitRepoManagerGetCredentialsSubmit: {
-            const GitCredentialsResponse response =
-                event.data<GitCredentialsResponse>();
-            success = response.id == request.id;
-            break;
-          }
-          default: {
-            LOG_ERROR(Log::ErrorId::Git, "Internal error. Unknown event type.");
-            break;
-          }
-          }
-          return success;
-        };
-
-        const std::set<EventManager::EventType> types{
-            EventManager::EventType::GitRepoManagerGetCredentialsCancel,
-            EventManager::EventType::GitRepoManagerGetCredentialsSubmit};
-
-        const auto &[success, event] =
-            eventManager.waitOneOf(token, types, predicate);
-
-        if (success) {
-          if (event.type() ==
-              EventManager::EventType::GitRepoManagerGetCredentialsCancel) {
-            LOG_ERROR(Log::ErrorId::Git,
-                      "User cancelled passphrase request for SSH key");
-            LOG_PERF(0, "Exit");
-            return GIT_EUSER;
-          } else if (event.type() == EventManager::EventType::
-                                         GitRepoManagerGetCredentialsSubmit) {
-            const GitCredentialsResponse response =
-                event.data<GitCredentialsResponse>();
-
-            // Use the passphrase field if available, otherwise fall back to
-            // password field
-            passphrasePresent = response.needPassphrase;
-            passphrase = !response.passphrase.isEmpty() ? response.passphrase
-                                                        : response.password;
-            LOG_INFO("Received passphrase for SSH key");
-          }
-        } else {
-          LOG_ERROR(Log::ErrorId::Git, "Failed to get passphrase response");
-          LOG_PERF(0, "Exit");
-          return GIT_EUSER;
-        }
-      }
-    }
-
-    // Validate SSH keys using OpenSSL before attempting to use them
-    if (!validateSshKey(privateKeyPath, publicKeyPath, passphrasePresent,
-                        passphrase)) {
-      LOG_ERROR(Log::ErrorId::Git,
-                "SSH key validation failed for repository: {}", url);
+    const GitSshAuthInfo sshAuth =
+        getSshAuthInfo(repoPath, QString::fromUtf8(url),
+                       username_from_url ? username_from_url : "git");
+    if (!sshAuth.valid) {
+      LOG_ERROR(Log::ErrorId::Git, "Failed to acquire SSH auth info for: {}",
+                QString::fromUtf8(url));
       LOG_PERF(0, "Exit");
-      return -1;
+      return GIT_EUSER;
     }
 
     const int error = git_credential_ssh_key_new(
-        out, username_from_url ? username_from_url : "git",
-        publicKeyPath.toStdString().c_str(),
-        privateKeyPath.toStdString().c_str(),
-        passphrase.isEmpty() ? nullptr : passphrase.toStdString().c_str());
+        out, sshAuth.username.toStdString().c_str(),
+        sshAuth.publicKeyPath.toStdString().c_str(),
+        sshAuth.privateKeyPath.toStdString().c_str(),
+        sshAuth.passphrase.isEmpty()
+            ? nullptr
+            : sshAuth.passphrase.toStdString().c_str());
 
     LOG_PERF(0, "Exit");
     return error;
@@ -5090,11 +7080,9 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
 
   LOG_DEBUG("git_clone returned with error code: {}", error);
 
-  finishFetchProgress(uuid, error != 0, true);
+  finishCredentialsAcquiring(url);
 
-  if (commercial) {
-    finishCredentialsAcquiring(url);
-  }
+  finishFetchProgress(uuid, error != 0, true);
 
   if (error || !repo) {
     LOG_ERROR(Log::ErrorId::Git,
@@ -5127,28 +7115,116 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
   return true;
 }
 
-GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
-                            const BranchType type, const bool &quitFlag) {
-  LOG_PERF(0, "Enter");
-  LOG_DEBUG("Getting branch history: branchName='{}', type={}",
-            branchName.toStdString(), static_cast<int>(type));
+// Collects the commits pointed to by refs matching `glob`. Names are made
+// relative to `prefix`; for remote refs the remote name is stripped as well so
+// that "origin/main" and "main" share the same graph color key. Refs that do
+// not resolve to a commit (e.g. tags of trees) and symbolic "HEAD" refs are
+// skipped.
+static void collectHistoryRefs(git_repository *repo, const char *glob,
+                               const QString &prefix, const bool stripRemote,
+                               QVector<HistoryRef> &out) {
+  git_reference_iterator *it = nullptr;
+  if (git_reference_iterator_glob_new(&it, repo, glob) != 0) {
+    return;
+  }
 
-  Q_ASSERT(repo != nullptr);
+  QVector<HistoryRef> found;
+  git_reference *ref = nullptr;
+  while (git_reference_next(&ref, it) == 0) {
+    const char *name = git_reference_name(ref);
 
-  if (!repo) {
-    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
-    LOG_PERF(0, "Exit");
+    git_object *obj = nullptr;
+    if (name && git_reference_peel(&obj, ref, GIT_OBJECT_COMMIT) == 0) {
+      QString key = QString::fromUtf8(name);
+      if (key.startsWith(prefix)) {
+        key = key.mid(prefix.size());
+      }
+      if (stripRemote) {
+        const int slash = key.indexOf('/');
+        if (slash >= 0) {
+          key = key.mid(slash + 1);
+        }
+      }
+      if (key != QLatin1String(HEAD)) {
+        found.push_back(HistoryRef{key, *git_object_id(obj)});
+      }
+    }
+
+    if (obj) {
+      git_object_free(obj);
+    }
+    git_reference_free(ref);
+  }
+  git_reference_iterator_free(it);
+
+  std::sort(
+      found.begin(), found.end(),
+      [](const HistoryRef &a, const HistoryRef &b) { return a.key < b.key; });
+  out += found;
+}
+
+// Collects the full names of the refs matching the glob, per commit SHA.
+static void collectRefLabels(git_repository *repo, const char *glob,
+                             QHash<QString, QStringList> &out) {
+  git_reference_iterator *it = nullptr;
+  if (git_reference_iterator_glob_new(&it, repo, glob) != 0) {
+    return;
+  }
+
+  QVector<QPair<QString, QString>> found; // name, sha
+  git_reference *ref = nullptr;
+  while (git_reference_next(&ref, it) == 0) {
+    const char *name = git_reference_name(ref);
+
+    git_object *obj = nullptr;
+    if (name && git_reference_peel(&obj, ref, GIT_OBJECT_COMMIT) == 0) {
+      const QString fullName = QString::fromUtf8(name);
+      // Skip symbolic remote HEADs like refs/remotes/origin/HEAD.
+      if (!fullName.endsWith(QStringLiteral("/") + QLatin1String(HEAD))) {
+        found.push_back({fullName, QString::fromLatin1(
+                                       git_oid_tostr_s(git_object_id(obj)))});
+      }
+    }
+
+    if (obj) {
+      git_object_free(obj);
+    }
+    git_reference_free(ref);
+  }
+  git_reference_iterator_free(it);
+
+  std::sort(found.begin(), found.end(),
+            [](const QPair<QString, QString> &a,
+               const QPair<QString, QString> &b) { return a.first < b.first; });
+  for (const auto &[name, sha] : found) {
+    out[sha].push_back(name);
+  }
+}
+
+// Builds the ordered list of commits (newest first, children before parents)
+// for the requested history. Returns null on failure.
+static QSharedPointer<HistoryCursor>
+buildHistoryCursor(git_repository *repo, const QString &branchName,
+                   const BranchType type, const QString &cursorKey,
+                   const bool &quitFlag) {
+  const bool allRefs = type == BranchType::All || (branchName == ALL_BRANCHES &&
+                                                   type == BranchType::Local);
+  const bool allRemotes =
+      branchName == ALL_BRANCHES && type == BranchType::Remote;
+
+  if (branchName == ALL_BRANCHES && !allRefs && !allRemotes) {
     return {};
   }
 
-  GitHistory history_;
+  if (!allRefs && !allRemotes && branchName.isEmpty()) {
+    return {};
+  }
 
   git_revwalk *walker = nullptr;
 
   int error = git_revwalk_new(&walker, repo);
   if (error) {
     setError(GitError::GetBranchHistoryFailedToCreateRevwalk, error);
-    LOG_PERF(0, "Exit");
     return {};
   }
 
@@ -5156,97 +7232,54 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
   if (error) {
     setError(GitError::GetBranchHistoryFailedToConfigureRevwalkSorting, error);
     git_revwalk_free(walker);
-    LOG_PERF(0, "Exit");
     return {};
   }
 
-  if (type == BranchType::All || branchName == ALL_BRANCHES) {
-    git_branch_iterator *it = nullptr;
-    git_reference *ref = nullptr;
-    git_branch_t branchType;
+  // Tips of all branches and tags. They give stable color keys to the graph
+  // and are the starting points of the "all branches" history.
+  QVector<HistoryRef> refs;
+  collectHistoryRefs(repo, "refs/heads/*", QStringLiteral("refs/heads/"), false,
+                     refs);
+  collectHistoryRefs(repo, "refs/remotes/*", QStringLiteral("refs/remotes/"),
+                     true, refs);
+  collectHistoryRefs(repo, "refs/tags/*", QStringLiteral("refs/tags/"), false,
+                     refs);
 
-    if (branchName == ALL_BRANCHES) {
-      if (type == BranchType::Local) {
-        branchType = GIT_BRANCH_LOCAL;
-      } else if (type == BranchType::Remote) {
-        branchType = GIT_BRANCH_REMOTE;
-      } else {
-        git_revwalk_free(walker);
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-    } else {
-      branchType = GIT_BRANCH_ALL;
+  auto cursor = QSharedPointer<HistoryCursor>::create();
+  cursor->key = cursorKey;
+
+  for (const HistoryRef &ref : refs) {
+    const QString sha = QString::fromLatin1(git_oid_tostr_s(&ref.oid));
+    QStringList &keys = cursor->refTips[sha];
+    if (!keys.contains(ref.key)) {
+      keys.push_back(ref.key);
     }
+  }
 
-    error = git_branch_iterator_new(&it, repo, branchType);
+  git_oid headOid;
+  if (git_reference_name_to_id(&headOid, repo, HEAD) == 0) {
+    cursor->headCommit = QString::fromLatin1(git_oid_tostr_s(&headOid));
+  }
+
+  collectRefLabels(repo, "refs/heads/*", cursor->refLabels);
+  collectRefLabels(repo, "refs/remotes/*", cursor->refLabels);
+  collectRefLabels(repo, "refs/tags/*", cursor->refLabels);
+
+  if (allRefs) {
+    // Unreachable refs are ignored on purpose, the rest of the history is
+    // still valid.
+    for (const HistoryRef &ref : refs) {
+      git_revwalk_push(walker, &ref.oid);
+    }
+    git_revwalk_push_head(walker);
+  } else if (allRemotes) {
+    error = git_revwalk_push_glob(walker, "refs/remotes/*");
     if (error) {
-      setError(GitError::GetBranchHistoryFailedToCreateBranchIterator, error);
+      setError(GitError::GetBranchHistoryFailedToAddReferenceToRevwalk, error);
       git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
       return {};
     }
-
-    while (git_branch_next(&ref, &branchType, it) == 0 && !quitFlag) {
-      const char *currentBranchName = nullptr;
-
-      error = git_branch_name(&currentBranchName, ref);
-      if (error) {
-        setError(GitError::GetBranchHistoryFailedToReadBranchName, error);
-        git_reference_free(ref);
-        git_revwalk_free(walker);
-        git_branch_iterator_free(it);
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      if (!currentBranchName) {
-        git_reference_free(ref);
-        git_branch_iterator_free(it);
-        git_revwalk_free(walker);
-        LOG_ERROR(Log::ErrorId::Git, "No branch name found!");
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      QString fullBranchName;
-
-      if (branchType == GIT_BRANCH_LOCAL)
-        fullBranchName = QString("refs/heads/%1").arg(currentBranchName);
-      else if (branchType == GIT_BRANCH_REMOTE)
-        fullBranchName = QString("refs/remotes/%1").arg(currentBranchName);
-      else {
-        git_reference_free(ref);
-        git_branch_iterator_free(it);
-        git_revwalk_free(walker);
-        LOG_ERROR(Log::ErrorId::Git, "Unknown branch type!");
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      error =
-          git_revwalk_push_ref(walker, fullBranchName.toStdString().c_str());
-      if (error) {
-        setError(GitError::GetBranchHistoryFailedToAddReferenceToRevwalk,
-                 error);
-        git_reference_free(ref);
-        git_branch_iterator_free(it);
-        git_revwalk_free(walker);
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      git_reference_free(ref);
-    }
-
-    git_branch_iterator_free(it);
   } else if (type == BranchType::Local) {
-    if (branchName.isEmpty()) {
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
     if (branchName == HEAD) {
       error = git_revwalk_push_head(walker);
     } else {
@@ -5258,16 +7291,9 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
       setError(GitError::GetBranchHistoryFailedToAddLocalBranchToRevwalk,
                error);
       git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
       return {};
     }
   } else if (type == BranchType::Remote) {
-    if (branchName.isEmpty()) {
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
     error = git_revwalk_push_ref(
         walker,
         QString("refs/remotes/%1").arg(branchName).toStdString().c_str());
@@ -5275,194 +7301,232 @@ GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
       setError(GitError::GetBranchHistoryFailedToAddRemoteBranchToRevwalk,
                error);
       git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
       return {};
     }
   } else if (type == BranchType::Tag) {
-    if (branchName.isEmpty()) {
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
     error = git_revwalk_push_ref(
         walker, QString("refs/tags/%1").arg(branchName).toStdString().c_str());
     if (error) {
       setError(GitError::GetBranchHistoryFailedToAddTagToRevwalk, error);
       git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
       return {};
     }
   } else {
     git_revwalk_free(walker);
-    LOG_PERF(0, "Exit");
     return {};
   }
 
   git_oid oid;
-
-  QSet<QString> processed;
-
-  while (git_revwalk_next(&oid, walker) == 0 && !quitFlag) {
-    const char *str = git_oid_tostr_s(&oid);
-    if (!str) {
-      LOG_ERROR(Log::ErrorId::Git, "Can't convert oid to string.");
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    const QString oidStr = str;
-
-    git_commit *commit = nullptr;
-
-    error = git_commit_lookup(&commit, repo, &oid);
-    if (error) {
-      setError(GitError::GetBranchHistoryFailedToLookupCommit, error);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    if (!commit) {
-      LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit with oid \"{}\"",
-                oidStr);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    if (processed.contains(oidStr)) {
-      continue;
-    }
-
-    processed.insert(oidStr);
-
-    history_.commits.push_back(oidStr);
-
-    const std::size_t parentCount = git_commit_parentcount(commit);
-
-    for (std::size_t i = 0; i < parentCount && !quitFlag; ++i) {
-      const git_oid *parentOid = git_commit_parent_id(commit, i);
-      if (!parentOid) {
-        LOG_ERROR(Log::ErrorId::Git,
-                  "Can't lookup parent oid at index {} for oid \"{}\"", i,
-                  oidStr);
-        git_commit_free(commit);
-        git_revwalk_free(walker);
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      str = git_oid_tostr_s(parentOid);
-      if (!str) {
-        LOG_ERROR(
-            Log::ErrorId::Git,
-            "Can't convert parent oid at index {} for oid \"{}\" to string.", i,
-            oidStr);
-        git_commit_free(commit);
-        git_revwalk_free(walker);
-        LOG_PERF(0, "Exit");
-        return {};
-      }
-
-      const QString parentOidStr = str;
-
-      if (oidStr == parentOidStr) {
-        LOG_ERROR(Log::ErrorId::Git, "The commit \"{}\"is parent of itself",
-                  parentOidStr)
-        continue;
-      }
-
-      history_.commitInfos[oidStr].parents.push_back(parentOidStr);
-      history_.commitInfos[parentOidStr].children.push_back(oidStr);
-    }
-
-    history_.commitInfos[oidStr].oid = oid;
-
-    if (const char *message = git_commit_message(commit))
-      history_.commitInfos[oidStr].message = message;
-    else {
-      LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit message for oid \"{}\"",
-                oidStr);
-      git_commit_free(commit);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    if (const char *summary = git_commit_summary(commit))
-      history_.commitInfos[oidStr].summary = summary;
-    else {
-      LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit summary for oid \"{}\"",
-                oidStr);
-      git_commit_free(commit);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    if (const git_signature *signature = git_commit_author(commit)) {
-      if (signature->name)
-        history_.commitInfos[oidStr].authorName = signature->name;
-
-      if (signature->email)
-        history_.commitInfos[oidStr].authorEmail = signature->email;
-
-      history_.commitInfos[oidStr].timeStamp =
-          signature->when.time * 1000 + signature->when.offset * 60 * 1000;
-    } else {
-      LOG_ERROR(Log::ErrorId::Git,
-                "Can't lookup commit signature for oid \"{}\"", oidStr);
-      git_commit_free(commit);
-      git_revwalk_free(walker);
-      LOG_PERF(0, "Exit");
-      return {};
-    }
-
-    QString commitSignature;
-    QString commitSignatureType;
-    loadCommitSignatureInfo(repo, &oid, &commitSignature, &commitSignatureType);
-    history_.commitInfos[oidStr].signedCommit =
-        commitSignatureType != QStringLiteral("Unsigned") &&
-        commitSignatureType != QStringLiteral("Unavailable") &&
-        !commitSignature.isEmpty();
-    history_.commitInfos[oidStr].signatureType = commitSignatureType;
-    history_.commitInfos[oidStr].signature = commitSignature;
-
-    history_.commitInfos[oidStr].branches += branchName;
-
-    git_commit_free(commit);
+  while (!quitFlag && git_revwalk_next(&oid, walker) == 0) {
+    cursor->oids.push_back(oid);
   }
 
   git_revwalk_free(walker);
 
-  if (!quitFlag) {
-    std::sort(history_.commits.begin(), history_.commits.end(),
-              [&](const QString &a, const QString &b) {
-                auto it = history_.commitInfos.find(a);
-                if (it == history_.commitInfos.end()) {
-                  return false;
-                }
+  if (quitFlag) {
+    return {};
+  }
 
-                const GitCommitInfo &commitInfoA = it.value();
+  return cursor;
+}
 
-                it = history_.commitInfos.find(b);
-                if (it == history_.commitInfos.end()) {
-                  return false;
-                }
+// Reads one commit into `history`. Returns false and sets the last error on
+// failure.
+static bool loadHistoryCommit(git_repository *repo, const git_oid &oid,
+                              const QString &branchName, GitHistory &history) {
+  const char *str = git_oid_tostr_s(&oid);
+  if (!str) {
+    LOG_ERROR(Log::ErrorId::Git, "Can't convert oid to string.");
+    return false;
+  }
 
-                const GitCommitInfo &commitInfoB = it.value();
+  const QString oidStr = str;
 
-                return commitInfoA.timeStamp < commitInfoB.timeStamp;
-              });
+  git_commit *commit = nullptr;
+
+  const int error = git_commit_lookup(&commit, repo, &oid);
+  if (error) {
+    setError(GitError::GetBranchHistoryFailedToLookupCommit, error);
+    return false;
+  }
+
+  if (!commit) {
+    LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit with oid \"{}\"", oidStr);
+    return false;
+  }
+
+  history.commits.push_back(oidStr);
+
+  GitCommitInfo &info = history.commitInfos[oidStr];
+  info.oid = oid;
+
+  const std::size_t parentCount = git_commit_parentcount(commit);
+
+  for (std::size_t i = 0; i < parentCount; ++i) {
+    const git_oid *parentOid =
+        git_commit_parent_id(commit, static_cast<unsigned int>(i));
+    if (!parentOid) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Can't lookup parent oid at index {} for oid \"{}\"", i,
+                oidStr);
+      git_commit_free(commit);
+      return false;
+    }
+
+    const char *parentStr = git_oid_tostr_s(parentOid);
+    if (!parentStr) {
+      LOG_ERROR(
+          Log::ErrorId::Git,
+          "Can't convert parent oid at index {} for oid \"{}\" to string.", i,
+          oidStr);
+      git_commit_free(commit);
+      return false;
+    }
+
+    const QString parentOidStr = parentStr;
+
+    if (oidStr == parentOidStr) {
+      LOG_ERROR(Log::ErrorId::Git, "The commit \"{}\"is parent of itself",
+                parentOidStr)
+      continue;
+    }
+
+    info.parents.push_back(parentOidStr);
+  }
+
+  if (const char *message = git_commit_message(commit)) {
+    info.message = message;
+  } else {
+    LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit message for oid \"{}\"",
+              oidStr);
+    git_commit_free(commit);
+    return false;
+  }
+
+  if (const char *summary = git_commit_summary(commit)) {
+    info.summary = summary;
+  } else {
+    LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit summary for oid \"{}\"",
+              oidStr);
+    git_commit_free(commit);
+    return false;
+  }
+
+  if (const git_signature *signature = git_commit_author(commit)) {
+    if (signature->name) {
+      info.authorName = signature->name;
+    }
+
+    if (signature->email) {
+      info.authorEmail = signature->email;
+    }
+
+    info.timeStamp =
+        signature->when.time * 1000 + signature->when.offset * 60 * 1000;
+  } else {
+    LOG_ERROR(Log::ErrorId::Git, "Can't lookup commit signature for oid \"{}\"",
+              oidStr);
+    git_commit_free(commit);
+    return false;
+  }
+
+  QString commitSignature;
+  QString commitSignatureType;
+  loadCommitSignatureInfo(repo, &oid, &commitSignature, &commitSignatureType);
+  info.signedCommit = commitSignatureType != QStringLiteral("Unsigned") &&
+                      commitSignatureType != QStringLiteral("Unavailable") &&
+                      !commitSignature.isEmpty();
+  info.signatureType = commitSignatureType;
+  info.signature = commitSignature;
+
+  info.branches += branchName;
+
+  git_commit_free(commit);
+
+  return true;
+}
+
+GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
+                            const BranchType type, int page,
+                            const bool &quitFlag) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Getting branch history: branchName='{}', type={}, page={}",
+            branchName.toStdString(), static_cast<int>(type), page);
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const qint64 pageSize = std::max<qint64>(
+      1, ConfigManager::ConfigManager::getInstance().getLong(
+             ConfigManager::ConfigKey::GitRepoHistoryPageSize));
+
+  const QString cursorKey =
+      QStringLiteral("%1|%2").arg(static_cast<int>(type)).arg(branchName);
+
+  // The commit order is computed once per history (on page 0) and reused for
+  // the following pages, so paging does not walk the repository again.
+  QSharedPointer<HistoryCursor> cursor;
+
+  if (page > 0) {
+    LOCKGUARD(gHistoryCursorsMutex);
+    cursor = gHistoryCursors.value(repo);
+    if (cursor && cursor->key != cursorKey) {
+      cursor.reset();
+    }
+  }
+
+  if (!cursor) {
+    cursor = buildHistoryCursor(repo, branchName, type, cursorKey, quitFlag);
+    if (!cursor) {
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+
+    LOCKGUARD(gHistoryCursorsMutex);
+    gHistoryCursors[repo] = cursor;
+  }
+
+  GitHistory history_;
+
+  const qint64 total = cursor->oids.size();
+  const qint64 begin = page > 0 ? std::min<qint64>(total, page * pageSize) : 0;
+  const qint64 end =
+      page < 0 ? total : std::min<qint64>(total, begin + pageSize);
+
+  history_.commits.reserve(static_cast<int>(end - begin));
+
+  for (qint64 i = begin; i < end && !quitFlag; ++i) {
+    if (!loadHistoryCommit(repo, cursor->oids[static_cast<int>(i)], branchName,
+                           history_)) {
+      LOG_PERF(0, "Exit");
+      return {};
+    }
+  }
+
+  if (quitFlag) {
+    LOG_PERF(0, "Exit");
+    return {};
   }
 
   history_.valid = true;
+  history_.total = total;
+  history_.hasMore = end < total;
+
+  if (page <= 0) {
+    history_.headCommit = cursor->headCommit;
+    history_.refTips = cursor->refTips;
+    history_.refLabels = cursor->refLabels;
+    history_.bisectMarks = getBisectMarks(repo);
+  }
 
   LOG_PERF(0, "Exit");
 
-  return quitFlag ? GitHistory{} : history_;
+  return history_;
 }
 
 QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
@@ -5854,10 +7918,13 @@ GitStatus getStatus(git_repository *repo, const bool &quitFlag) {
       continue;
     }
 
-    const char *filePath =
-        entry->head_to_index      ? entry->head_to_index->new_file.path
-        : entry->index_to_workdir ? entry->index_to_workdir->new_file.path
-                                  : nullptr;
+    const git_diff_delta *delta =
+        entry->head_to_index ? entry->head_to_index : entry->index_to_workdir;
+    const char *filePath = nullptr;
+    if (delta) {
+      filePath =
+          delta->new_file.path ? delta->new_file.path : delta->old_file.path;
+    }
 
     Q_ASSERT(filePath != nullptr);
 
@@ -5983,7 +8050,7 @@ GitCommitStatus getCommitStatus(git_repository *repo,
     return {};
   }
 
-  const int parentCount = git_commit_parentcount(commit);
+  int parentCount = git_commit_parentcount(commit);
 
   // Get parent tree (if exists)
   if (parentCount > 0) {
@@ -6058,6 +8125,38 @@ GitCommitStatus getCommitStatus(git_repository *repo,
   }
 
   status.commit = commitOid;
+
+  if (const char *summary = git_commit_summary(commit)) {
+    status.summary = QString::fromUtf8(summary);
+  } else if (const char *message = git_commit_message(commit)) {
+    status.summary = QString::fromUtf8(message).section('\n', 0, 0);
+  }
+
+  parentCount = git_commit_parentcount(commit);
+  status.parentShas.reserve(parentCount);
+  for (int i = 0; i < parentCount; ++i) {
+    const git_oid *parentOid =
+        git_commit_parent_id(commit, static_cast<unsigned int>(i));
+    if (!parentOid) {
+      continue;
+    }
+
+    char parentOidStr[GIT_OID_HEXSZ + 1] = {0};
+    git_oid_tostr(parentOidStr, GIT_OID_HEXSZ + 1, parentOid);
+    status.parentShas += QString::fromUtf8(parentOidStr);
+  }
+
+  if (const git_signature *author = git_commit_author(commit)) {
+    if (author->name) {
+      status.authorName = QString::fromUtf8(author->name);
+    }
+    if (author->email) {
+      status.authorEmail = QString::fromUtf8(author->email);
+    }
+  }
+
+  status.committerDate =
+      commitSignatureDateToString(git_commit_committer(commit));
 
   // Walk the diff
   git_diff_foreach(
@@ -6136,12 +8235,13 @@ bool stageFiles(git_repository *repo, const QStringList &files) {
     return false;
   }
 
-  const QString repoPath = git_repository_workdir(repo);
+  const QString repoPath =
+      QDir::fromNativeSeparators(git_repository_workdir(repo));
   LOG_DEBUG("Repository working directory: '{}'", repoPath.toStdString());
 
   for (const auto &filePath : files) {
     const QString unixFilePath = QDir::fromNativeSeparators(filePath);
-    const QString fullPath = repoPath + unixFilePath;
+    const QString fullPath = QDir(repoPath).filePath(unixFilePath);
     const QString relativePath = QDir(repoPath).relativeFilePath(fullPath);
     LOG_DEBUG("Processing file: '{}' (relative: '{}')", fullPath.toStdString(),
               relativePath.toStdString());
@@ -7290,11 +9390,9 @@ bool pull(git_repository *repo, const QString &activeBranchName, bool rebase) {
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(fetchUuid, error != 0, false);
+  finishCredentialsAcquiring(urlStr);
 
-  if (commercial) {
-    finishCredentialsAcquiring(urlStr);
-  }
+  finishFetchProgress(fetchUuid, error != 0, false);
 
   if (error) {
     setError(GitError::PullFailedToFetchRemoteWithCredentials, error);
@@ -7629,11 +9727,9 @@ static bool fetchRemoteInternal(git_repository *repo,
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(fetchUuid, error != 0, false);
+  finishCredentialsAcquiring(urlStr);
 
-  if (commercial) {
-    finishCredentialsAcquiring(urlStr);
-  }
+  finishFetchProgress(fetchUuid, error != 0, false);
 
   if (error) {
     LOG_ERROR(Log::ErrorId::Git, "Failed to fetch from remote '{}': error={}",
@@ -7777,6 +9873,30 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
             targetBranchName.toStdString(), remoteName.toStdString(),
             remoteBranchName.toStdString());
 
+  const QString localRefName =
+      QStringLiteral("refs/heads/%1").arg(targetBranchName);
+  const QString upstreamRefName =
+      QStringLiteral("refs/remotes/%1/%2").arg(remoteName, remoteBranchName);
+  git_oid localRefOid = {};
+  git_oid upstreamRefOid = {};
+  char localOidStr[GIT_OID_HEXSZ + 1] = {0};
+  char upstreamOidStr[GIT_OID_HEXSZ + 1] = {0};
+
+  if (git_reference_name_to_id(&localRefOid, repo,
+                               localRefName.toStdString().c_str()) == 0) {
+    git_oid_tostr(localOidStr, GIT_OID_HEXSZ + 1, &localRefOid);
+  }
+  if (git_reference_name_to_id(&upstreamRefOid, repo,
+                               upstreamRefName.toStdString().c_str()) == 0) {
+    git_oid_tostr(upstreamOidStr, GIT_OID_HEXSZ + 1, &upstreamRefOid);
+  }
+
+  LOG_DEBUG("Push ref state: local='{}' ({}) upstream='{}' ({})",
+            localRefName.toStdString(),
+            localOidStr[0] ? localOidStr : "unresolved",
+            upstreamRefName.toStdString(),
+            upstreamOidStr[0] ? upstreamOidStr : "unresolved");
+
   // Push to the upstream remote
   const bool commercial = isCommercialPlan();
   int error = 0;
@@ -7829,6 +9949,15 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
     return false;
   }
 
+  if (!GitRepo::Lfs::uploadLocalObjects(
+          repo, repoPath, remoteName, urlStr,
+          QStringLiteral("refs/heads/%1").arg(targetBranchName))) {
+    setError(GitError::PushFailedToPushRemote, GIT_EUSER);
+    git_remote_free(remote);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   const QString pushUuid = Uuid::createUuid();
 
   CloneProgress progressData;
@@ -7843,12 +9972,16 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
   std::tuple<CloneProgress, GitCredentialPayload> callbackPayload(progressData,
                                                                   credPayload);
 
+  gPushReferenceStatus = {};
+
   git_push_options pushOpts;
   git_push_options_init(&pushOpts, GIT_PUSH_OPTIONS_VERSION);
   pushOpts.callbacks.credentials =
       commercial ? &credentialsAcquireCallback : nullptr;
   pushOpts.callbacks.transfer_progress = &fetchProgressCallback;
+  pushOpts.callbacks.sideband_progress = &pushSidebandProgressCallback;
   pushOpts.callbacks.certificate_check = &certificateCheckCallback;
+  pushOpts.callbacks.push_update_reference = &pushUpdateReferenceCallback;
   pushOpts.callbacks.payload = &callbackPayload;
 
   // Build refspec for pushing the branch to its upstream
@@ -7857,9 +9990,20 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
                                    targetBranchName, remoteBranchName);
   git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
   LOG_DEBUG("Using push refspec: '{}'", refspec.toStdString());
+  LOG_DEBUG("Push source commit SHA: '{}'", localOidStr);
 
   do {
+    gPushReferenceStatus = {};
     error = git_remote_push(remote, &refspecs, &pushOpts);
+
+    if (error == 0 && gPushReferenceStatus.rejected) {
+      LOG_ERROR(Log::ErrorId::Git, "Push rejected by remote for ref '{}': {}",
+                gPushReferenceStatus.refname.toStdString(),
+                gPushReferenceStatus.status.toStdString());
+      error = GIT_EUSER;
+      git_error_set_str(GIT_ERROR_NET,
+                        gPushReferenceStatus.status.toUtf8().constData());
+    }
 
     if (error) {
       setError(GitError::PushFailedToPushRemote, error);
@@ -7872,11 +10016,9 @@ bool push(git_repository *repo, const QString &activeBranchName, bool force) {
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(pushUuid, error != 0, false);
+  finishCredentialsAcquiring(urlStr);
 
-  if (commercial) {
-    finishCredentialsAcquiring(urlStr);
-  }
+  finishFetchProgress(pushUuid, error != 0, false);
 
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
@@ -7952,6 +10094,15 @@ bool pushTag(git_repository *repo, const QString &tagName) {
     return false;
   }
 
+  if (!GitRepo::Lfs::uploadLocalObjects(
+          repo, repoPath, defaultRemote, url,
+          QStringLiteral("refs/tags/%1").arg(tagName))) {
+    setError(GitError::PushTagFailedToPushRemote, GIT_EUSER);
+    git_remote_free(remote);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   CloneProgress progressData;
   progressData.uuid = Uuid::createUuid();
   progressData.cloning = false;
@@ -7968,12 +10119,16 @@ bool pushTag(git_repository *repo, const QString &tagName) {
   opts.callbacks.credentials =
       commercial ? &credentialsAcquireCallback : nullptr;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
+  opts.callbacks.sideband_progress = &pushSidebandProgressCallback;
   opts.callbacks.certificate_check = &certificateCheckCallback;
+  opts.callbacks.push_update_reference = &pushUpdateReferenceCallback;
   opts.callbacks.payload = &callbackPayload;
 
   // Push tag with refspec: refs/tags/tagName:refs/tags/tagName
   const QString refspec = QString("refs/tags/%1:refs/tags/%1").arg(tagName);
   git_strarray refspecs = qstringlist_to_git_strarray(QStringList() << refspec);
+
+  gPushReferenceStatus = {};
 
   int retries = 0;
 
@@ -8011,9 +10166,9 @@ bool pushTag(git_repository *repo, const QString &tagName) {
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(progressData.uuid, error != 0, false);
-
   finishCredentialsAcquiring(url);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
 
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
@@ -8087,6 +10242,13 @@ bool pushAllTags(git_repository *repo) {
     return false;
   }
 
+  if (!GitRepo::Lfs::uploadLocalObjects(repo, repoPath, defaultRemote, url)) {
+    setError(GitError::PushAllTagsFailedToPushRemote, GIT_EUSER);
+    git_remote_free(remote);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   CloneProgress progressData;
   progressData.uuid = Uuid::createUuid();
   progressData.cloning = false;
@@ -8103,7 +10265,9 @@ bool pushAllTags(git_repository *repo) {
   opts.callbacks.credentials =
       commercial ? &credentialsAcquireCallback : nullptr;
   opts.callbacks.transfer_progress = &fetchProgressCallback;
+  opts.callbacks.sideband_progress = &pushSidebandProgressCallback;
   opts.callbacks.certificate_check = &certificateCheckCallback;
+  opts.callbacks.push_update_reference = &pushUpdateReferenceCallback;
   opts.callbacks.payload = &callbackPayload;
 
   // Create refspecs for all tags: refs/tags/tagName:refs/tags/tagName
@@ -8149,9 +10313,9 @@ bool pushAllTags(git_repository *repo) {
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(progressData.uuid, error != 0, false);
-
   finishCredentialsAcquiring(url);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
 
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
@@ -8162,7 +10326,7 @@ bool pushAllTags(git_repository *repo) {
   return error == 0;
 }
 
-bool stash(git_repository *repo) {
+bool stash(git_repository *repo, const QString &note) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
@@ -8184,11 +10348,12 @@ bool stash(git_repository *repo) {
     return false;
   }
 
+  const QByteArray noteUtf8 = note.toUtf8();
   error = git_stash_save(
       &stashId,  // Optional: receives the stash commit ID
       repo,      // Your git_repository pointer
       signature, // Signature of the stasher
-      nullptr,   // Optional message
+      noteUtf8.isEmpty() ? nullptr : noteUtf8.constData(),
       GIT_STASH_DEFAULT | GIT_STASH_INCLUDE_UNTRACKED // Flags (can be
       // GIT_STASH_INCLUDE_UNTRACKED, etc.)
   );
@@ -9181,9 +11346,9 @@ bool deleteRemoteBranch(git_repository *repo, const QString &branchName) {
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(progressData.uuid, error != 0, false);
-
   finishCredentialsAcquiring(url);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
 
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
@@ -9645,9 +11810,9 @@ bool deleteRemoteTag(git_repository *repo, const QString &tagName) {
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(progressData.uuid, error != 0, false);
-
   finishCredentialsAcquiring(url);
+
+  finishFetchProgress(progressData.uuid, error != 0, false);
 
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
@@ -9961,8 +12126,8 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
     ++retries;
   } while (error != 0 && error != GIT_EUSER && retries < maxRetries);
 
-  finishFetchProgress(uuid, error != 0, false);
   finishCredentialsAcquiring(urlStr);
+  finishFetchProgress(uuid, error != 0, false);
 
   git_strarray_destroy(refspecs);
   git_remote_free(remote);
@@ -10039,6 +12204,10 @@ static bool checkoutSubmoduleBranch(git_repository *submoduleRepo,
   git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
   checkoutOpts.checkout_strategy =
       GIT_CHECKOUT_SAFE | GIT_CHECKOUT_RECREATE_MISSING;
+  // Submodule checkouts are routed through libgit2's filter pipeline, which
+  // can hit an internal writer lifecycle assertion on some repositories.
+  // Avoid filters here so submodule operations stay reliable.
+  checkoutOpts.disable_filters = true;
 
   error = git_checkout_head(submoduleRepo, &checkoutOpts);
   if (error) {
@@ -10089,6 +12258,10 @@ static bool checkoutLocalSubmoduleBranch(git_repository *submoduleRepo,
   git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
   checkoutOpts.checkout_strategy =
       GIT_CHECKOUT_SAFE | GIT_CHECKOUT_RECREATE_MISSING;
+  // Submodule checkouts are routed through libgit2's filter pipeline, which
+  // can hit an internal writer lifecycle assertion on some repositories.
+  // Avoid filters here so submodule operations stay reliable.
+  checkoutOpts.disable_filters = true;
 
   error = git_checkout_head(submoduleRepo, &checkoutOpts);
   git_reference_free(localRef);
@@ -10227,6 +12400,9 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 
   git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
   checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
+  // Submodule clone also uses checkout filters, which can trigger an internal
+  // libgit2 writer assertion on some repositories.
+  checkoutOpts.disable_filters = true;
   checkoutOpts.progress_payload = &progressData;
   checkoutOpts.progress_cb = &checkoutProgressCallback;
 
@@ -10244,8 +12420,8 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   error = git_submodule_clone(&subRepo, subModule, &cloneOpts);
   if (error) {
     setError(GitError::AddSubmoduleFailedToCloneSubmodule, error);
-    finishFetchProgress(uuid, true, false);
     finishCredentialsAcquiring(url);
+    finishFetchProgress(uuid, true, false);
     if (subRepo) {
       git_repository_free(subRepo);
     }
@@ -10257,13 +12433,13 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
   }
 
   // Send completion event to hide progress toast
+  // Dismiss the credentials overlay first (same url key used for the widget);
+  // finishFetchProgress sleeps and would otherwise keep the overlay open.
+  finishCredentialsAcquiring(url);
+
   // This is needed even if no progress callbacks were fired (e.g., local path
   // submodules)
   finishFetchProgress(uuid, error != 0, false);
-
-  // Dismiss credentials overlay using the URL (same key used for storing the
-  // widget)
-  finishCredentialsAcquiring(url);
 
   // Submodules must always track a branch. Use the branch chosen in the add
   // submodule dialog; if none was provided, fall back to whatever branch the
@@ -10325,6 +12501,441 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 
   git_repository_free(subRepo);
   git_submodule_free(subModule);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+static QString normalizeWorktreePath(const QString &path) {
+  return QDir::cleanPath(QDir::fromNativeSeparators(path));
+}
+
+static bool isSameWorktreePath(const QString &lhs, const QString &rhs) {
+  if (lhs.isEmpty() || rhs.isEmpty()) {
+    return false;
+  }
+
+#ifdef _WIN32
+  return lhs.compare(rhs, Qt::CaseInsensitive) == 0;
+#else
+  return lhs == rhs;
+#endif
+}
+
+// Best-effort read of the branch and abbreviated HEAD commit of a worktree.
+static void readWorktreeHeadInfo(git_repository *worktreeRepo, QString &branch,
+                                 QString &head) {
+  git_reference *headRef = nullptr;
+
+  if (git_repository_head(&headRef, worktreeRepo) == 0) {
+    if (git_reference_is_branch(headRef)) {
+      if (const char *shorthand = git_reference_shorthand(headRef)) {
+        branch = QString::fromUtf8(shorthand);
+      }
+    }
+
+    if (const git_oid *oid = git_reference_target(headRef)) {
+      char buffer[GIT_OID_HEXSZ + 1] = {0};
+      git_oid_tostr(buffer, 8, oid);
+      head = QString::fromLatin1(buffer);
+    }
+
+    git_reference_free(headRef);
+    return;
+  }
+
+  // Unborn branch: HEAD is a symbolic reference to a branch without commits.
+  git_reference *symbolicRef = nullptr;
+  if (git_reference_lookup(&symbolicRef, worktreeRepo, "HEAD") == 0) {
+    if (git_reference_type(symbolicRef) == GIT_REFERENCE_SYMBOLIC) {
+      const char *target = git_reference_symbolic_target(symbolicRef);
+      const QString prefix = QStringLiteral("refs/heads/");
+      if (target) {
+        const QString targetName = QString::fromUtf8(target);
+        if (targetName.startsWith(prefix)) {
+          branch = targetName.mid(prefix.length());
+        }
+      }
+    }
+
+    git_reference_free(symbolicRef);
+  }
+}
+
+QVector<WorktreeInfo> listWorktrees(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  git_strarray names = {nullptr, 0};
+  if (const int error = git_worktree_list(&names, repo)) {
+    setError(GitError::ListWorktreesFailedToListWorktrees, error);
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const char *currentWorkdir = git_repository_workdir(repo);
+  const QString currentPath =
+      currentWorkdir ? normalizeWorktreePath(QString::fromUtf8(currentWorkdir))
+                     : QString();
+
+  QVector<WorktreeInfo> result;
+
+  // The main worktree. When `repo` is itself a linked worktree the main one is
+  // found through the common directory.
+  git_repository *mainRepo = repo;
+  bool ownsMainRepo = false;
+
+  if (git_repository_is_worktree(repo)) {
+    mainRepo = nullptr;
+
+    const char *commonDir = git_repository_commondir(repo);
+    if (commonDir && git_repository_open(&mainRepo, commonDir) == 0) {
+      ownsMainRepo = true;
+    } else {
+      mainRepo = nullptr;
+      LOG_WARN("Failed to open the main repository of the worktree");
+    }
+  }
+
+  if (mainRepo && !git_repository_is_bare(mainRepo)) {
+    if (const char *mainWorkdir = git_repository_workdir(mainRepo)) {
+      WorktreeInfo info;
+      info.path = normalizeWorktreePath(QString::fromUtf8(mainWorkdir));
+      info.name = QFileInfo(info.path).fileName();
+      info.isMain = true;
+      info.isCurrent = isSameWorktreePath(info.path, currentPath);
+      info.locked = false;
+      info.valid = true;
+      readWorktreeHeadInfo(mainRepo, info.branch, info.head);
+
+      result.push_back(info);
+    }
+  }
+
+  if (ownsMainRepo) {
+    git_repository_free(mainRepo);
+  }
+
+  // Linked worktrees.
+  QVector<WorktreeInfo> linked;
+
+  for (size_t i = 0; i < names.count; ++i) {
+    const char *name = names.strings[i];
+    if (!name) {
+      continue;
+    }
+
+    git_worktree *worktree = nullptr;
+    if (const int error = git_worktree_lookup(&worktree, repo, name)) {
+      LOG_WARN("{}: '{}' (error {})",
+               gitErrorName(GitError::ListWorktreesFailedToOpenWorktree)
+                   .toStdString(),
+               name, error);
+      continue;
+    }
+
+    WorktreeInfo info;
+    info.name = QString::fromUtf8(name);
+    if (const char *worktreePath = git_worktree_path(worktree)) {
+      info.path = normalizeWorktreePath(QString::fromUtf8(worktreePath));
+    }
+    info.isMain = false;
+    info.isCurrent = isSameWorktreePath(info.path, currentPath);
+    info.locked = git_worktree_is_locked(nullptr, worktree) > 0;
+    info.valid = git_worktree_validate(worktree) == 0;
+
+    git_repository *worktreeRepo = nullptr;
+    if (git_repository_open_from_worktree(&worktreeRepo, worktree) == 0) {
+      readWorktreeHeadInfo(worktreeRepo, info.branch, info.head);
+      git_repository_free(worktreeRepo);
+    }
+
+    git_worktree_free(worktree);
+
+    linked.push_back(info);
+  }
+
+  git_strarray_dispose(&names);
+
+  std::sort(linked.begin(), linked.end(),
+            [](const WorktreeInfo &lhs, const WorktreeInfo &rhs) {
+              return lhs.name.compare(rhs.name, Qt::CaseInsensitive) < 0;
+            });
+
+  result += linked;
+
+  LOG_PERF(0, "Exit");
+
+  return result;
+}
+
+bool addWorktree(git_repository *repo, const QString &name, const QString &path,
+                 const QString &branch, const bool createBranch,
+                 const QString &baseBranch) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (branch.isEmpty()) {
+    setError(GitError::AddWorktreeBranchRequired, GIT_EINVALIDSPEC);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const std::string branchName = branch.toStdString();
+
+  git_reference *branchRef = nullptr;
+
+  if (createBranch) {
+    git_commit *baseCommit = nullptr;
+    int error = 0;
+
+    if (baseBranch.isEmpty()) {
+      git_reference *headRef = nullptr;
+      error = git_repository_head(&headRef, repo);
+      if (error) {
+        setError(GitError::AddWorktreeFailedToResolveHead, error);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      error =
+          git_commit_lookup(&baseCommit, repo, git_reference_target(headRef));
+      git_reference_free(headRef);
+      if (error) {
+        setError(GitError::AddWorktreeFailedToResolveHead, error);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+    } else {
+      git_reference *baseRef = nullptr;
+      error = git_branch_lookup(
+          &baseRef, repo, baseBranch.toStdString().c_str(), GIT_BRANCH_LOCAL);
+      if (error) {
+        setError(GitError::AddWorktreeFailedToLookupBranch, error);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+
+      error =
+          git_commit_lookup(&baseCommit, repo, git_reference_target(baseRef));
+      git_reference_free(baseRef);
+      if (error) {
+        setError(GitError::AddWorktreeFailedToLookupBranch, error);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+    }
+
+    error =
+        git_branch_create(&branchRef, repo, branchName.c_str(), baseCommit, 0);
+    git_commit_free(baseCommit);
+    if (error) {
+      setError(GitError::AddWorktreeFailedToCreateBranch, error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  } else {
+    const int error = git_branch_lookup(&branchRef, repo, branchName.c_str(),
+                                        GIT_BRANCH_LOCAL);
+    if (error) {
+      setError(GitError::AddWorktreeFailedToLookupBranch, error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  // Removes the branch created above so a failed add leaves no leftovers.
+  const auto cleanupBranch = [&branchRef, createBranch]() {
+    if (createBranch) {
+      git_branch_delete(branchRef);
+    }
+    git_reference_free(branchRef);
+    branchRef = nullptr;
+  };
+
+  const QString worktreePath = normalizeWorktreePath(path);
+  const QString parentPath = QFileInfo(worktreePath).absolutePath();
+
+  if (!QDir().mkpath(parentPath)) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to create directory '{}'",
+              parentPath.toStdString());
+    setError(GitError::AddWorktreeFailedToCreateDirectory, -1);
+    cleanupBranch();
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // libgit2 refuses to use a working directory that already exists, so reuse a
+  // folder the user created (or picked) as long as it is completely empty.
+  if (const QDir worktreeDir(worktreePath);
+      worktreeDir.exists() &&
+      worktreeDir.isEmpty(QDir::AllEntries | QDir::NoDotAndDotDot |
+                          QDir::Hidden | QDir::System)) {
+    QDir().rmdir(worktreePath);
+  }
+
+  git_worktree_add_options options = GIT_WORKTREE_ADD_OPTIONS_INIT;
+  options.ref = branchRef;
+
+  git_worktree *worktree = nullptr;
+  const int error =
+      git_worktree_add(&worktree, repo, name.toStdString().c_str(),
+                       worktreePath.toStdString().c_str(), &options);
+  if (error) {
+    setError(GitError::AddWorktreeFailedToAddWorktree, error);
+    cleanupBranch();
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree_free(worktree);
+  git_reference_free(branchRef);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+bool removeWorktree(git_repository *repo, const QString &name,
+                    const bool force) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree *worktree = nullptr;
+  const int lookupError =
+      git_worktree_lookup(&worktree, repo, name.toStdString().c_str());
+  if (lookupError) {
+    // Only linked worktrees have an administrative directory, so a missing one
+    // means the name does not refer to a removable worktree (e.g. the main
+    // one).
+    if (lookupError == GIT_ENOTFOUND) {
+      setError(GitError::RemoveWorktreeMainNotAllowed, lookupError);
+    } else {
+      setError(GitError::RemoveWorktreeFailedToLookupWorktree, lookupError);
+    }
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree_prune_options options = GIT_WORKTREE_PRUNE_OPTIONS_INIT;
+  options.flags = GIT_WORKTREE_PRUNE_VALID | GIT_WORKTREE_PRUNE_WORKING_TREE;
+  if (force) {
+    options.flags |= GIT_WORKTREE_PRUNE_LOCKED;
+  }
+
+  if (const int error = git_worktree_prune(worktree, &options)) {
+    setError(GitError::RemoveWorktreeFailedToPrune, error);
+    git_worktree_free(worktree);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree_free(worktree);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+bool lockWorktree(git_repository *repo, const QString &name,
+                  const QString &reason) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree *worktree = nullptr;
+  const int lookupError =
+      git_worktree_lookup(&worktree, repo, name.toStdString().c_str());
+  if (lookupError) {
+    // Only linked worktrees have an administrative directory.
+    if (lookupError == GIT_ENOTFOUND) {
+      setError(GitError::LockWorktreeMainNotAllowed, lookupError);
+    } else {
+      setError(GitError::LockWorktreeFailedToLookupWorktree, lookupError);
+    }
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const std::string reasonUtf8 = reason.toStdString();
+  const int error = git_worktree_lock(
+      worktree, reasonUtf8.empty() ? nullptr : reasonUtf8.c_str());
+  // GIT_ELOCKED: already locked, which is the state that was asked for.
+  if (error && error != GIT_ELOCKED) {
+    setError(GitError::LockWorktreeFailedToLock, error);
+    git_worktree_free(worktree);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree_free(worktree);
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+bool unlockWorktree(git_repository *repo, const QString &name) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree *worktree = nullptr;
+  const int lookupError =
+      git_worktree_lookup(&worktree, repo, name.toStdString().c_str());
+  if (lookupError) {
+    if (lookupError == GIT_ENOTFOUND) {
+      setError(GitError::UnlockWorktreeMainNotAllowed, lookupError);
+    } else {
+      setError(GitError::UnlockWorktreeFailedToLookupWorktree, lookupError);
+    }
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Returns 1 if the worktree was not locked, 0 on success, < 0 on error.
+  if (const int error = git_worktree_unlock(worktree); error < 0) {
+    setError(GitError::UnlockWorktreeFailedToUnlock, error);
+    git_worktree_free(worktree);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_worktree_free(worktree);
 
   LOG_PERF(0, "Exit");
 
@@ -10629,6 +13240,24 @@ FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
   return filesDiff;
 }
 
+BlameReport blame(git_repository *repo, const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return {};
+  }
+
+  const BlameReport report = createBlameReport(repo, files);
+
+  LOG_PERF(0, "Exit");
+
+  return report;
+}
+
 qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
                              const QString &commit) {
   LOG_PERF(0, "Enter");
@@ -10877,7 +13506,6 @@ bool merge(git_repository *repo, const QString &sourceBranch,
   } else if (analysis & GIT_MERGE_ANALYSIS_FASTFORWARD) {
     LOG_DEBUG("Performing fast-forward merge...");
 
-    git_oid targetOid;
     git_commit *srcCommitObj = nullptr;
     error = git_commit_lookup(&srcCommitObj, repo,
                               git_annotated_commit_id(srcCommit));
@@ -11107,7 +13735,7 @@ bool merge(git_repository *repo, const QString &sourceBranch,
 
 bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
                     const QString &destinationBranch, const QString &author,
-                    const QString &email) {
+                    const QString &email, const bool signCommit) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(repo != nullptr);
@@ -11206,10 +13834,38 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
     return false;
   }
 
-  git_rebase_options rebaseOpts = GIT_REBASE_OPTIONS_INIT;
-  rebaseOpts.checkout_options.checkout_strategy = GIT_CHECKOUT_SAFE;
+  CommitSigningConfig signingConfig;
+  QString signingError;
+  bool signingConfigLoaded = true;
+  if (signCommit) {
+    signingConfigLoaded =
+        loadCommitSigningConfig(&signingConfig, &signingError);
+    if (!signingConfigLoaded) {
+      git_signature_free(signature);
+      git_annotated_commit_free(baseCommit);
+      git_annotated_commit_free(dstCommit);
+      git_annotated_commit_free(srcCommit);
+      git_reference_free(dstRef);
+      git_reference_free(srcRef);
+      LOG_ERROR(Log::ErrorId::Git, "{}", signingError.toStdString());
+      setError(GitError::CommitStagedFailedToLoadSigningConfiguration, -1);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
 
   git_rebase *rebaseSession = nullptr;
+
+  CommitSigningPayload signingPayload;
+  signingPayload.config = signingConfig;
+  signingPayload.errorMessage = &signingError;
+  signingPayload.repo = repo;
+
+  git_rebase_options rebaseOpts = GIT_REBASE_OPTIONS_INIT;
+  rebaseOpts.checkout_options.checkout_strategy = GIT_CHECKOUT_SAFE;
+  rebaseOpts.commit_create_cb = commitRebaseSigningCallback;
+  rebaseOpts.payload = &signingPayload;
+
   error = git_rebase_init(&rebaseSession, repo, srcCommit, baseCommit,
                           dstCommit, &rebaseOpts);
   if (error) {
@@ -11238,10 +13894,12 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
     if (error == GIT_EUNMERGED) {
       LOG_ERROR(Log::ErrorId::Git,
                 "Rebase stopped because conflicts must be resolved manually");
+      setError(GitError::RebaseBranchesFailedToCommitRebaseStepWithConflicts,
+               error);
     } else {
       setError(GitError::RebaseBranchesFailedToCommitRebaseStep, error);
+      git_rebase_abort(rebaseSession);
     }
-    git_rebase_abort(rebaseSession);
     rebaseSuccess = false;
     break;
   }
@@ -11268,6 +13926,780 @@ bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
 
   LOG_PERF(0, "Exit");
   return rebaseSuccess;
+}
+
+bool squashBranches(git_repository *repo, const QString &sourceBranch,
+                    const QString &destinationBranch, const QString &author,
+                    const QString &email, const bool signCommit) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (sourceBranch.isEmpty() || destinationBranch.isEmpty() ||
+      sourceBranch == destinationBranch) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Invalid squash arguments: source='{}', destination='{}'",
+              sourceBranch.toStdString(), destinationBranch.toStdString());
+    setError(GitError::SquashBranchesInvalidArguments, -1);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (git_repository_state(repo) != GIT_REPOSITORY_STATE_NONE) {
+    LOG_ERROR(Log::ErrorId::Git,
+              "Cannot squash branches while another operation is in progress");
+    setError(GitError::SquashBranchesRepositoryBusy, -1);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  using RefPtr = std::unique_ptr<git_reference, decltype(&git_reference_free)>;
+  using ObjectPtr = std::unique_ptr<git_object, decltype(&git_object_free)>;
+  using AnnotatedPtr = std::unique_ptr<git_annotated_commit,
+                                       decltype(&git_annotated_commit_free)>;
+  using IndexPtr = std::unique_ptr<git_index, decltype(&git_index_free)>;
+  using CommitPtr = std::unique_ptr<git_commit, decltype(&git_commit_free)>;
+  using RevwalkPtr = std::unique_ptr<git_revwalk, decltype(&git_revwalk_free)>;
+
+  LOG_DEBUG("Starting squash operation: source='{}', destination='{}'",
+            sourceBranch.toStdString(), destinationBranch.toStdString());
+
+  git_reference *rawSrcRef = nullptr;
+  int error = git_branch_lookup(
+      &rawSrcRef, repo, sourceBranch.toStdString().c_str(), GIT_BRANCH_LOCAL);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToLookupBranch, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const RefPtr srcRef(rawSrcRef, git_reference_free);
+
+  git_reference *rawDstRef = nullptr;
+  error = git_branch_lookup(&rawDstRef, repo,
+                            destinationBranch.toStdString().c_str(),
+                            GIT_BRANCH_LOCAL);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToLookupDestinationBranch, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const RefPtr dstRef(rawDstRef, git_reference_free);
+
+  // Move HEAD to the destination branch, the squash commit is created there.
+  git_object *rawDstObj = nullptr;
+  error = git_reference_peel(&rawDstObj, dstRef.get(), GIT_OBJECT_COMMIT);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToPeelReference, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const ObjectPtr dstObj(rawDstObj, git_object_free);
+
+  git_checkout_options checkoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  checkoutOpts.checkout_strategy = GIT_CHECKOUT_SAFE;
+  error = git_checkout_tree(repo, dstObj.get(), &checkoutOpts);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToCheckoutTree, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_repository_set_head(repo, git_reference_name(dstRef.get()));
+  if (error) {
+    setError(GitError::SquashBranchesFailedToSetHead, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_annotated_commit *rawSrcCommit = nullptr;
+  error = git_annotated_commit_from_ref(&rawSrcCommit, repo, srcRef.get());
+  if (error) {
+    setError(GitError::SquashBranchesFailedToCreateAnnotatedCommit, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const AnnotatedPtr srcCommit(rawSrcCommit, git_annotated_commit_free);
+
+  const git_annotated_commit *commits[1] = {srcCommit.get()};
+
+  git_merge_analysis_t analysis;
+  git_merge_preference_t preference;
+  error = git_merge_analysis(&analysis, &preference, repo, commits, 1);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToAnalyzeMerge, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  if (analysis & GIT_MERGE_ANALYSIS_UP_TO_DATE) {
+    LOG_DEBUG("Destination branch already contains all source changes.");
+    LOG_PERF(0, "Exit");
+    return true;
+  }
+
+  // Apply the source changes to the index and working tree. The merge state it
+  // leaves behind (MERGE_HEAD) is removed below so that the resulting commit
+  // has a single parent.
+  git_merge_options mergeOpts = GIT_MERGE_OPTIONS_INIT;
+  git_checkout_options mergeCheckoutOpts = GIT_CHECKOUT_OPTIONS_INIT;
+  mergeCheckoutOpts.checkout_strategy =
+      GIT_CHECKOUT_SAFE | GIT_CHECKOUT_ALLOW_CONFLICTS;
+
+  error = git_merge(repo, commits, 1, &mergeOpts, &mergeCheckoutOpts);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToMerge, error);
+    git_repository_state_cleanup(repo);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_index *rawIndex = nullptr;
+  error = git_repository_index(&rawIndex, repo);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToGetRepositoryIndex, error);
+    git_repository_state_cleanup(repo);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const IndexPtr index(rawIndex, git_index_free);
+
+  if (git_index_has_conflicts(index.get())) {
+    LOG_DEBUG("Squash has conflicts. Resolve them before committing.");
+    // Like `git merge --squash`: keep the conflicts in the working tree but
+    // drop the merge state so the final commit is a regular one.
+    git_repository_state_cleanup(repo);
+    setError(GitError::SquashBranchesFailedWithConflicts, GIT_EUNMERGED);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_oid treeOid;
+  error = git_index_write_tree(&treeOid, index.get());
+  if (error) {
+    setError(GitError::SquashBranchesFailedToWriteIndexTree, error);
+    git_repository_state_cleanup(repo);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_commit *rawHeadCommit = nullptr;
+  error = git_commit_lookup(&rawHeadCommit, repo,
+                            git_reference_target(dstRef.get()));
+  if (error) {
+    setError(GitError::SquashBranchesFailedToLookupHeadCommit, error);
+    git_repository_state_cleanup(repo);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const CommitPtr headCommit(rawHeadCommit, git_commit_free);
+
+  if (git_oid_equal(&treeOid, git_commit_tree_id(headCommit.get()))) {
+    LOG_DEBUG("Squash produced no changes, nothing to commit.");
+    git_repository_state_cleanup(repo);
+    LOG_PERF(0, "Exit");
+    return true;
+  }
+
+  // List the squashed commits in the message body.
+  QString body;
+  git_revwalk *rawWalker = nullptr;
+  if (git_revwalk_new(&rawWalker, repo) == 0) {
+    const RevwalkPtr walker(rawWalker, git_revwalk_free);
+    git_revwalk_sorting(walker.get(), GIT_SORT_TOPOLOGICAL | GIT_SORT_TIME);
+
+    if (git_revwalk_push(walker.get(), git_reference_target(srcRef.get())) ==
+            0 &&
+        git_revwalk_hide(walker.get(), git_reference_target(dstRef.get())) ==
+            0) {
+      git_oid oid;
+      while (git_revwalk_next(&oid, walker.get()) == 0) {
+        git_commit *rawCommit = nullptr;
+        if (git_commit_lookup(&rawCommit, repo, &oid) != 0) {
+          continue;
+        }
+        const CommitPtr commit(rawCommit, git_commit_free);
+
+        const char *commitSummary = git_commit_summary(commit.get());
+        body += QString("* %1\n").arg(
+            QString::fromUtf8(commitSummary ? commitSummary : ""));
+      }
+    }
+  }
+  body = body.trimmed();
+
+  error = git_repository_state_cleanup(repo);
+  if (error) {
+    setError(GitError::SquashBranchesFailedToCleanupRepositoryState, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString summary = QString("Squash merge branch '%1' into '%2'")
+                              .arg(sourceBranch, destinationBranch);
+
+  const bool committed = commitStaged(repo, summary, body, author, email, false,
+                                      false, signCommit);
+
+  LOG_PERF(0, "Exit");
+  return committed;
+}
+
+namespace {
+using BisectCommitPtr = std::unique_ptr<git_commit, decltype(&git_commit_free)>;
+using BisectObjectPtr = std::unique_ptr<git_object, decltype(&git_object_free)>;
+using BisectRefPtr =
+    std::unique_ptr<git_reference, decltype(&git_reference_free)>;
+using BisectIteratorPtr =
+    std::unique_ptr<git_reference_iterator,
+                    decltype(&git_reference_iterator_free)>;
+using BisectRevwalkPtr =
+    std::unique_ptr<git_revwalk, decltype(&git_revwalk_free)>;
+
+constexpr auto BISECT_REF_BAD = "refs/bisect/bad";
+constexpr auto BISECT_REF_GOOD_PREFIX = "refs/bisect/good-";
+constexpr auto BISECT_REF_SKIP_PREFIX = "refs/bisect/skip-";
+constexpr auto BISECT_START_FILE = "BISECT_START";
+constexpr auto BISECT_LOG_FILE_NAME = "BISECT_LOG";
+
+struct BisectMarks {
+  bool hasBad = false;
+  git_oid bad{};
+  QVector<git_oid> good;
+  QVector<git_oid> skip;
+};
+} // namespace
+
+static QString bisectOidToString(const git_oid *oid) {
+  char buffer[GIT_OID_HEXSZ + 1] = {0};
+  git_oid_tostr(buffer, sizeof(buffer), oid);
+  return QString::fromLatin1(buffer);
+}
+
+static QString bisectStatePath(git_repository *repo, const char *name) {
+  return QDir(QString::fromUtf8(git_repository_path(repo)))
+      .filePath(QString::fromLatin1(name));
+}
+
+static QString bisectCommitSummary(git_repository *repo, const git_oid *oid) {
+  git_commit *rawCommit = nullptr;
+  if (git_commit_lookup(&rawCommit, repo, oid) != 0) {
+    return {};
+  }
+  const BisectCommitPtr commit(rawCommit, git_commit_free);
+
+  const char *summary = git_commit_summary(commit.get());
+  return summary ? QString::fromUtf8(summary) : QString();
+}
+
+static bool bisectWriteFile(const QString &path, const QString &content) {
+  QFile file(path);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    return false;
+  }
+
+  return file.write(content.toUtf8()) >= 0;
+}
+
+static void bisectAppendLog(git_repository *repo, const QString &text) {
+  QFile file(bisectStatePath(repo, BISECT_LOG_FILE_NAME));
+  if (file.open(QIODevice::WriteOnly | QIODevice::Append)) {
+    file.write(text.toUtf8());
+  }
+}
+
+static int bisectListRefs(git_repository *repo,
+                          QVector<std::pair<QString, git_oid>> &refs) {
+  git_reference_iterator *rawIterator = nullptr;
+  int error =
+      git_reference_iterator_glob_new(&rawIterator, repo, "refs/bisect/*");
+  if (error) {
+    return error;
+  }
+  const BisectIteratorPtr iterator(rawIterator, git_reference_iterator_free);
+
+  git_reference *rawRef = nullptr;
+  while ((error = git_reference_next(&rawRef, iterator.get())) == 0) {
+    const BisectRefPtr ref(rawRef, git_reference_free);
+
+    const char *name = git_reference_name(ref.get());
+    const git_oid *target = git_reference_target(ref.get());
+    if (!name || !target) {
+      continue;
+    }
+
+    refs.append({QString::fromUtf8(name), *target});
+  }
+
+  return error == GIT_ITEROVER ? 0 : error;
+}
+
+static int bisectReadMarks(git_repository *repo, BisectMarks &marks) {
+  QVector<std::pair<QString, git_oid>> refs;
+  const int error = bisectListRefs(repo, refs);
+  if (error) {
+    return error;
+  }
+
+  for (const auto &[name, oid] : refs) {
+    if (name == QLatin1String(BISECT_REF_BAD)) {
+      marks.hasBad = true;
+      marks.bad = oid;
+    } else if (name.startsWith(QLatin1String(BISECT_REF_GOOD_PREFIX))) {
+      marks.good.append(oid);
+    } else if (name.startsWith(QLatin1String(BISECT_REF_SKIP_PREFIX))) {
+      marks.skip.append(oid);
+    }
+  }
+
+  return 0;
+}
+
+static void bisectRemoveRefs(git_repository *repo) {
+  QVector<std::pair<QString, git_oid>> refs;
+  if (bisectListRefs(repo, refs) != 0) {
+    return;
+  }
+
+  for (const auto &ref : refs) {
+    git_reference_remove(repo, ref.first.toUtf8().constData());
+  }
+}
+
+static int bisectCheckout(git_repository *repo, const git_oid *oid,
+                          const char *branchRefName) {
+  git_object *rawObject = nullptr;
+  int error = git_object_lookup(&rawObject, repo, oid, GIT_OBJECT_COMMIT);
+  if (error) {
+    return error;
+  }
+  const BisectObjectPtr object(rawObject, git_object_free);
+
+  git_checkout_options opts = GIT_CHECKOUT_OPTIONS_INIT;
+  opts.checkout_strategy = GIT_CHECKOUT_SAFE;
+  error = git_checkout_tree(repo, object.get(), &opts);
+  if (error) {
+    return error;
+  }
+
+  return branchRefName ? git_repository_set_head(repo, branchRefName)
+                       : git_repository_set_head_detached(repo, oid);
+}
+
+static bool bisectFinish(git_repository *repo, const git_oid &bad,
+                         BisectStatus &status) {
+  status.finished = true;
+  status.firstBadCommit = bisectOidToString(&bad);
+  status.firstBadSummary = bisectCommitSummary(repo, &bad);
+
+  bisectAppendLog(repo,
+                  QString("# first bad commit: [%1] %2\n")
+                      .arg(status.firstBadCommit, status.firstBadSummary));
+  return true;
+}
+
+// Finds the next commit to test and checks it out.
+static bool bisectAdvance(git_repository *repo, BisectStatus &status) {
+  BisectMarks marks;
+  int error = bisectReadMarks(repo, marks);
+  if (error) {
+    setError(GitError::BisectFailedToReadState, error);
+    return false;
+  }
+
+  status.active = true;
+  status.waitingForBad = !marks.hasBad;
+  status.waitingForGood = marks.good.isEmpty();
+  if (status.waitingForBad || status.waitingForGood) {
+    return true;
+  }
+
+  git_revwalk *rawWalker = nullptr;
+  error = git_revwalk_new(&rawWalker, repo);
+  if (error) {
+    setError(GitError::BisectFailedToWalkHistory, error);
+    return false;
+  }
+  const BisectRevwalkPtr walker(rawWalker, git_revwalk_free);
+
+  // Parents are listed before their children.
+  git_revwalk_sorting(walker.get(), GIT_SORT_TOPOLOGICAL | GIT_SORT_REVERSE);
+
+  error = git_revwalk_push(walker.get(), &marks.bad);
+  for (int i = 0; !error && i < marks.good.size(); ++i) {
+    error = git_revwalk_hide(walker.get(), &marks.good[i]);
+  }
+  if (error) {
+    setError(GitError::BisectFailedToWalkHistory, error);
+    return false;
+  }
+
+  // Candidates are the commits reachable from the bad commit and not from any
+  // of the good commits.
+  QVector<git_oid> oids;
+  QVector<QString> hexes;
+  QHash<QString, int> indexOf;
+
+  git_oid oid;
+  while ((error = git_revwalk_next(&oid, walker.get())) == 0) {
+    const QString hex = bisectOidToString(&oid);
+    indexOf.insert(hex, oids.size());
+    hexes.append(hex);
+    oids.append(oid);
+  }
+  if (error != GIT_ITEROVER) {
+    setError(GitError::BisectFailedToWalkHistory, error);
+    return false;
+  }
+
+  const int count = oids.size();
+  if (count == 0) {
+    // The good commit is the bad commit or one of its descendants.
+    setError(GitError::BisectInvalidRange, -1);
+    return false;
+  }
+
+  status.remaining = count;
+  status.steps = 0;
+  for (int n = count; n > 1; n /= 2) {
+    ++status.steps;
+  }
+
+  if (count == 1) {
+    return bisectFinish(repo, marks.bad, status);
+  }
+
+  QSet<QString> skipped;
+  for (const auto &skipOid : marks.skip) {
+    skipped.insert(bisectOidToString(&skipOid));
+  }
+
+  QVector<QVector<int>> parents(count);
+  for (int i = 0; i < count; ++i) {
+    git_commit *rawCommit = nullptr;
+    if (git_commit_lookup(&rawCommit, repo, &oids[i]) != 0) {
+      setError(GitError::BisectFailedToWalkHistory, -1);
+      return false;
+    }
+    const BisectCommitPtr commit(rawCommit, git_commit_free);
+
+    const unsigned int parentCount = git_commit_parentcount(commit.get());
+    for (unsigned int p = 0; p < parentCount; ++p) {
+      const int parentIndex = indexOf.value(
+          bisectOidToString(git_commit_parent_id(commit.get(), p)), -1);
+      if (parentIndex >= 0) {
+        parents[i].append(parentIndex);
+      }
+    }
+  }
+
+  // weight[i] is the number of candidates reachable from candidate i,
+  // including itself. It only affects how well the range is halved.
+  constexpr int EXACT_MERGE_WEIGHT_LIMIT = 5000;
+  QVector<int> weight(count, 1);
+  QVector<int> stamp(count, -1);
+  for (int i = 0; i < count; ++i) {
+    const auto &commitParents = parents[i];
+    if (commitParents.isEmpty()) {
+      weight[i] = 1;
+    } else if (commitParents.size() == 1) {
+      weight[i] = weight[commitParents.first()] + 1;
+    } else if (count <= EXACT_MERGE_WEIGHT_LIMIT) {
+      int reachable = 0;
+      QVector<int> stack{i};
+      stamp[i] = i;
+      while (!stack.isEmpty()) {
+        const int current = stack.takeLast();
+        ++reachable;
+        for (const int parent : parents[current]) {
+          if (stamp[parent] != i) {
+            stamp[parent] = i;
+            stack.append(parent);
+          }
+        }
+      }
+      weight[i] = reachable;
+    } else {
+      int sum = 1;
+      for (const int parent : commitParents) {
+        sum += weight[parent];
+      }
+      weight[i] = qMin(sum, count);
+    }
+  }
+
+  int best = -1;
+  int bestScore = -1;
+  for (int i = 0; i < count; ++i) {
+    if (git_oid_equal(&oids[i], &marks.bad) || skipped.contains(hexes[i])) {
+      continue;
+    }
+
+    const int score = qMin(weight[i], count - weight[i]);
+    if (score > bestScore) {
+      bestScore = score;
+      best = i;
+    }
+  }
+
+  if (best < 0) {
+    // Every remaining candidate except the bad commit was skipped.
+    status.ambiguous = true;
+    return bisectFinish(repo, marks.bad, status);
+  }
+
+  error = bisectCheckout(repo, &oids[best], nullptr);
+  if (error) {
+    setError(GitError::BisectFailedToCheckout, error);
+    return false;
+  }
+
+  status.currentCommit = hexes[best];
+  status.currentSummary = bisectCommitSummary(repo, &oids[best]);
+
+  return true;
+}
+
+bool bisect(git_repository *repo, BisectAction action, const QString &commit,
+            BisectStatus &status) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  status = BisectStatus();
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString startFilePath = bisectStatePath(repo, BISECT_START_FILE);
+  const bool inProgress = QFile::exists(startFilePath);
+
+  if (action == BisectAction::Reset) {
+    if (!inProgress) {
+      setError(GitError::BisectNotInProgress, -1);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    QString start;
+    {
+      QFile startFile(startFilePath);
+      if (startFile.open(QIODevice::ReadOnly)) {
+        start = QString::fromUtf8(startFile.readAll()).trimmed();
+      }
+    }
+
+    if (!start.isEmpty()) {
+      const QString branchRefName = QString("refs/heads/%1").arg(start);
+
+      git_reference *rawBranchRef = nullptr;
+      git_oid startOid;
+      int error = 0;
+      const bool isBranch =
+          git_reference_lookup(&rawBranchRef, repo,
+                               branchRefName.toUtf8().constData()) == 0;
+      if (isBranch) {
+        const BisectRefPtr branchRef(rawBranchRef, git_reference_free);
+        git_oid branchOid;
+        const git_oid *target = git_reference_target(branchRef.get());
+        if (target) {
+          branchOid = *target;
+          error = bisectCheckout(repo, &branchOid,
+                                 branchRefName.toUtf8().constData());
+        } else {
+          error = -1;
+        }
+      } else {
+        error = git_oid_fromstr(&startOid, start.toUtf8().constData());
+        if (!error) {
+          error = bisectCheckout(repo, &startOid, nullptr);
+        }
+      }
+
+      if (error) {
+        setError(GitError::BisectFailedToResetRepository, error);
+        LOG_PERF(0, "Exit");
+        return false;
+      }
+    }
+
+    bisectRemoveRefs(repo);
+    QFile::remove(startFilePath);
+    QFile::remove(bisectStatePath(repo, BISECT_LOG_FILE_NAME));
+
+    LOG_PERF(0, "Exit");
+    return true;
+  }
+
+  if (commit.isEmpty()) {
+    setError(GitError::BisectInvalidArguments, -1);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_object *rawObject = nullptr;
+  int error =
+      git_revparse_single(&rawObject, repo, commit.toUtf8().constData());
+  if (error) {
+    setError(GitError::BisectFailedToResolveCommit, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const BisectObjectPtr resolved(rawObject, git_object_free);
+
+  git_object *rawCommitObject = nullptr;
+  error = git_object_peel(&rawCommitObject, resolved.get(), GIT_OBJECT_COMMIT);
+  if (error) {
+    setError(GitError::BisectFailedToResolveCommit, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  const BisectObjectPtr commitObject(rawCommitObject, git_object_free);
+  const git_oid markOid = *git_object_id(commitObject.get());
+  const QString markHex = bisectOidToString(&markOid);
+
+  if (!inProgress) {
+    if (git_repository_state(repo) != GIT_REPOSITORY_STATE_NONE) {
+      LOG_ERROR(Log::ErrorId::Git,
+                "Cannot start bisect while another operation is in progress");
+      setError(GitError::BisectRepositoryBusy, -1);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+
+    // Remember where to return to on reset.
+    git_reference *rawHead = nullptr;
+    error = git_repository_head(&rawHead, repo);
+    if (error) {
+      setError(GitError::BisectInvalidArguments, error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+    const BisectRefPtr head(rawHead, git_reference_free);
+
+    QString start;
+    if (git_repository_head_detached(repo) == 1) {
+      start = bisectOidToString(git_reference_target(head.get()));
+    } else {
+      start = QString::fromUtf8(git_reference_shorthand(head.get()));
+    }
+
+    // Make sure there are no leftovers of a previous session.
+    bisectRemoveRefs(repo);
+
+    if (!bisectWriteFile(startFilePath, start + "\n") ||
+        !bisectWriteFile(bisectStatePath(repo, BISECT_LOG_FILE_NAME),
+                         QStringLiteral("git bisect start\n"))) {
+      QFile::remove(startFilePath);
+      QFile::remove(bisectStatePath(repo, BISECT_LOG_FILE_NAME));
+      setError(GitError::BisectFailedToWriteState, -1);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  const QString goodRefName =
+      QString("%1%2").arg(QLatin1String(BISECT_REF_GOOD_PREFIX), markHex);
+  const QString skipRefName =
+      QString("%1%2").arg(QLatin1String(BISECT_REF_SKIP_PREFIX), markHex);
+
+  // A commit has a single mark, so a new one replaces the previous one.
+  git_reference_remove(repo, goodRefName.toUtf8().constData());
+  git_reference_remove(repo, skipRefName.toUtf8().constData());
+
+  QString refName;
+  QString stateName;
+  switch (action) {
+  case BisectAction::Good:
+    refName = goodRefName;
+    stateName = QStringLiteral("good");
+    break;
+  case BisectAction::Bad:
+    refName = QLatin1String(BISECT_REF_BAD);
+    stateName = QStringLiteral("bad");
+    break;
+  case BisectAction::Skip:
+    refName = skipRefName;
+    stateName = QStringLiteral("skip");
+    break;
+  default:
+    setError(GitError::BisectInvalidArguments, -1);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_reference *rawMarkRef = nullptr;
+  error = git_reference_create(&rawMarkRef, repo, refName.toUtf8().constData(),
+                               &markOid, 1, "bisect");
+  if (error) {
+    setError(GitError::BisectFailedToWriteState, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  git_reference_free(rawMarkRef);
+
+  bisectAppendLog(
+      repo, QString("# %1: [%2] %3\ngit bisect %1 %2\n")
+                .arg(stateName, markHex, bisectCommitSummary(repo, &markOid)));
+
+  const bool advanced = bisectAdvance(repo, status);
+
+  LOG_PERF(0, "Exit");
+  return advanced;
+}
+
+QHash<QString, int> getBisectMarks(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  QHash<QString, int> result;
+
+  if (!repo || !QFile::exists(bisectStatePath(repo, BISECT_START_FILE))) {
+    LOG_PERF(0, "Exit");
+    return result;
+  }
+
+  BisectMarks marks;
+  if (bisectReadMarks(repo, marks) != 0) {
+    LOG_PERF(0, "Exit");
+    return result;
+  }
+
+  for (const auto &oid : marks.good) {
+    result.insert(bisectOidToString(&oid), static_cast<int>(BisectMark::Good));
+  }
+  for (const auto &oid : marks.skip) {
+    result.insert(bisectOidToString(&oid), static_cast<int>(BisectMark::Skip));
+  }
+  if (marks.hasBad) {
+    result.insert(bisectOidToString(&marks.bad),
+                  static_cast<int>(BisectMark::Bad));
+  }
+
+  // The commit being tested is the detached HEAD once the range is known.
+  if (marks.hasBad && !marks.good.isEmpty() &&
+      git_repository_head_detached(repo) == 1) {
+    git_reference *rawHead = nullptr;
+    if (git_repository_head(&rawHead, repo) == 0) {
+      const BisectRefPtr head(rawHead, git_reference_free);
+      if (const git_oid *target = git_reference_target(head.get())) {
+        const QString hex = bisectOidToString(target);
+        if (!result.contains(hex)) {
+          result.insert(hex, static_cast<int>(BisectMark::Current));
+        }
+      }
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+  return result;
 }
 
 QString listConflictsForStashFile(git_repository *repo, int stashIndex,
@@ -11350,8 +14782,8 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
   const git_index_entry *theirs = nullptr;
 
   while (!git_index_conflict_next(&ancestor, &ours, &theirs, iterator)) {
-    if (ours->path == nullptr || ours->path != filePathStr ||
-        theirs == nullptr || theirs->path != filePathStr) {
+    if (ours == nullptr || ours->path != filePathStr || theirs == nullptr ||
+        theirs->path != filePathStr) {
       continue;
     }
 
@@ -11415,7 +14847,8 @@ QString listConflictsForAFile(git_repository *repo, const QString &filePath) {
       continue;
     }
 
-    fileContentWithMarkers += result.ptr;
+    fileContentWithMarkers +=
+        QString::fromUtf8(result.ptr, static_cast<int>(result.len));
 
     git_merge_file_result_free(&result);
     git_blob_free(blobTheirs);
@@ -12577,6 +16010,207 @@ bool amend(git_repository *repo, const QString &summary, const QString &message,
   LOG_PERF(0, "Exit");
 
   return true;
+}
+
+bool getIsRebaseInProgress(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const int state = git_repository_state(repo);
+
+  LOG_PERF(0, "Exit");
+
+  return state == GIT_REPOSITORY_STATE_REBASE ||
+         state == GIT_REPOSITORY_STATE_REBASE_INTERACTIVE ||
+         state == GIT_REPOSITORY_STATE_REBASE_MERGE;
+  ;
+}
+
+bool commitRebase(git_repository *repo, const QString &summary,
+                  const QString &message, const QString &author,
+                  const QString &email, bool cleanup, bool signoff,
+                  bool signCommit) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Creating commit: summary='{}', author='{}', email='{}'",
+            summary.toStdString(), author.toStdString(), email.toStdString());
+  LOG_DEBUG("Message length: {}, cleanup: {}, signoff: {}", message.length(),
+            cleanup, signoff);
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  CommitSigningConfig signingConfig;
+  QString signingError;
+  bool signingConfigLoaded = true;
+  if (signCommit) {
+    signingConfigLoaded =
+        loadCommitSigningConfig(&signingConfig, &signingError);
+    if (!signingConfigLoaded) {
+      LOG_ERROR(Log::ErrorId::Git, "{}", signingError.toStdString());
+      setError(GitError::CommitStagedFailedToLoadSigningConfiguration, -1);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  CommitSigningPayload signingPayload;
+  signingPayload.config = signingConfig;
+  signingPayload.errorMessage = &signingError;
+  signingPayload.repo = repo;
+
+  git_rebase *rebase = nullptr;
+  git_rebase_options rebase_opts = GIT_REBASE_OPTIONS_INIT;
+  rebase_opts.commit_create_cb = commitRebaseSigningCallback;
+  rebase_opts.payload = &signingPayload;
+
+  int error = git_rebase_open(&rebase, repo, &rebase_opts);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to open rebase session: error={}",
+              error);
+    setError(GitError::CommitStagedFailedToOpenRebaseSession, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Preparing commit: loading index and building tree");
+  git_index *index = nullptr;
+  git_oid treeId;
+  git_signature *sig = nullptr;
+
+  // Load index
+  error = git_repository_index(&index, repo);
+  if (error) {
+    git_rebase_free(rebase);
+    LOG_ERROR(Log::ErrorId::Git, "Failed to get repository index: error={}",
+              error);
+    setError(GitError::CommitStagedFailedToGetRepositoryIndex, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  // Write index to tree
+  error = git_index_write_tree(&treeId, index);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to write index to tree: error={}",
+              error);
+    setError(GitError::CommitStagedFailedToWriteIndexTree, error);
+    git_rebase_free(rebase);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_DEBUG("Tree prepared successfully");
+
+  // Create signature
+  error = git_signature_now(&sig, author.toStdString().c_str(),
+                            email.toStdString().c_str());
+  if (error) {
+    setError(GitError::CommitStagedFailedToCreateSignature, error);
+    git_rebase_free(rebase);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const QString fullMessage =
+      buildCommitMessage(summary, message, author, email, signoff);
+
+  git_oid oid;
+
+  error = git_rebase_commit(&oid, rebase, sig, sig, nullptr,
+                            fullMessage.toStdString().c_str());
+  if (error) {
+    setError(GitError::CommitStagedFailedToCreateCommit, error);
+    git_rebase_free(rebase);
+    git_signature_free(sig);
+    git_index_free(index);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_rebase_operation *operation;
+  while ((error = git_rebase_next(&operation, rebase)) == 0) {
+    git_rebase_commit(&oid, rebase, sig, sig, nullptr, nullptr);
+  }
+
+  if (error == GIT_ITEROVER) {
+    git_rebase_finish(rebase, sig);
+  }
+
+  git_rebase_free(rebase);
+  git_signature_free(sig);
+  git_index_free(index);
+
+  if (cleanup && error == 0) {
+    error = git_repository_state_cleanup(repo);
+    if (error) {
+      setError(GitError::CommitStagedFailedToCleanupRepositoryState, error);
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  LOG_PERF(0, "Exit");
+
+  return error == 0;
+}
+
+bool abortRebase(git_repository *repo) {
+  LOG_PERF(0, "Enter");
+
+  Q_ASSERT(repo != nullptr);
+
+  if (!repo) {
+    LOG_ERROR(Log::ErrorId::Git, "Repository pointer is null");
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  const int state = git_repository_state(repo);
+
+  if (state != GIT_REPOSITORY_STATE_REBASE &&
+      state != GIT_REPOSITORY_STATE_REBASE_INTERACTIVE &&
+      state != GIT_REPOSITORY_STATE_REBASE_MERGE) {
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  git_rebase *rebase = nullptr;
+  git_rebase_options rebase_opts = GIT_REBASE_OPTIONS_INIT;
+
+  int error = git_rebase_open(&rebase, repo, &rebase_opts);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to open rebase session: error={}",
+              error);
+    setError(GitError::CommitStagedFailedToOpenRebaseSession, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  error = git_rebase_abort(rebase);
+  if (error) {
+    LOG_ERROR(Log::ErrorId::Git, "Failed to abort rebase session: error={}",
+              error);
+    setError(GitError::CommitStagedFailedToAbortRebaseSession, error);
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
+  LOG_PERF(0, "Exit");
+  return error == 0;
 }
 
 } // namespace GitRepo

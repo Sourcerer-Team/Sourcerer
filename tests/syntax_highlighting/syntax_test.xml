@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE project [
+  <!ENTITY company "Sigmax">
+]>
+<?xml-stylesheet type="text/xsl" href="style.xsl"?>
+<!-- Syntax highlighting test: elements, attributes, namespaces, entities,
+     CDATA sections, processing instructions and comments -->
+<project xmlns="urn:example:build"
+         xmlns:ui='urn:example:ui'
+         version="1.0.13"
+         name='Sourcerer'>
+
+  <!-- Self-closing and empty elements -->
+  <properties>
+    <property name="platform" value="win64"/>
+    <property name="configuration" value="Release" />
+    <property name="empty"></property>
+  </properties>
+
+  <targets>
+    <target id="build" depends="prepare, compile">
+      <exec command="cmake" args="--build build --config Release">
+        <env key="PATH">C:\Qt\6.11.2\msvc2022_64\bin;%PATH%</env>
+      </exec>
+      <echo message="Tom &amp; Jerry &lt;3 &#169; &#x2713;"/>
+    </target>
+
+    <target id="prepare">
+      <mkdir dir="build"/>
+      <ui:button text="Run" enabled="true" tooltip="Starts the &quot;build&quot;"/>
+    </target>
+  </targets>
+
+  <script language="javascript"><![CDATA[
+    if (a < b && c > d) {
+      console.log("CDATA keeps <tags> & operators literal");
+    }
+  ]]></script>
+
+  <description>
+    Built by &company; for the Sourcerer team.
+    Multi-line text, with a nested <emphasis>element</emphasis> and more text.
+  </description>
+
+  <?build-hint optimize="speed"?>
+  <!-- Unicode: Ärger, 日本語 -->
+  <note lang="de">Größe &amp; Länge</note>
+</project>

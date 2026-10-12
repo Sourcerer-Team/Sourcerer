@@ -251,6 +251,12 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerAddTargetResult";
   case EventType::GitRepoManagerAddTargetError:
     return "GitRepoManagerAddTargetError";
+  case EventType::GitRepoManagerAddWorktree:
+    return "GitRepoManagerAddWorktree";
+  case EventType::GitRepoManagerAddWorktreeResult:
+    return "GitRepoManagerAddWorktreeResult";
+  case EventType::GitRepoManagerAddWorktreeError:
+    return "GitRepoManagerAddWorktreeError";
   case EventType::GitRepoManagerEditTarget:
     return "GitRepoManagerEditTarget";
   case EventType::GitRepoManagerEditTargetResult:
@@ -275,6 +281,12 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerAmendResult";
   case EventType::GitRepoManagerAmendError:
     return "GitRepoManagerAmendError";
+  case EventType::GitRepoManagerBlame:
+    return "GitRepoManagerBlame";
+  case EventType::GitRepoManagerBlameResult:
+    return "GitRepoManagerBlameResult";
+  case EventType::GitRepoManagerBlameError:
+    return "GitRepoManagerBlameError";
   case EventType::GitRepoManagerApplyPatch:
     return "GitRepoManagerApplyPatch";
   case EventType::GitRepoManagerApplyPatchResult:
@@ -457,6 +469,12 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerGetCommitStatusResult";
   case EventType::GitRepoManagerGetCommitStatusError:
     return "GitRepoManagerGetCommitStatusError";
+  case EventType::GitRepoManagerGetLfsStorageStatus:
+    return "GitRepoManagerGetLfsStorageStatus";
+  case EventType::GitRepoManagerGetLfsStorageStatusResult:
+    return "GitRepoManagerGetLfsStorageStatusResult";
+  case EventType::GitRepoManagerGetLfsStorageStatusError:
+    return "GitRepoManagerGetLfsStorageStatusError";
   case EventType::GitRepoManagerGetStashStatus:
     return "GitRepoManagerGetStashStatus";
   case EventType::GitRepoManagerGetStashStatusResult:
@@ -545,6 +563,18 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerListTagsResult";
   case EventType::GitRepoManagerListTagsError:
     return "GitRepoManagerListTagsError";
+  case EventType::GitRepoManagerListWorktrees:
+    return "GitRepoManagerListWorktrees";
+  case EventType::GitRepoManagerListWorktreesResult:
+    return "GitRepoManagerListWorktreesResult";
+  case EventType::GitRepoManagerListWorktreesError:
+    return "GitRepoManagerListWorktreesError";
+  case EventType::GitRepoManagerLockWorktree:
+    return "GitRepoManagerLockWorktree";
+  case EventType::GitRepoManagerLockWorktreeResult:
+    return "GitRepoManagerLockWorktreeResult";
+  case EventType::GitRepoManagerLockWorktreeError:
+    return "GitRepoManagerLockWorktreeError";
   case EventType::GitRepoManagerMerge:
     return "GitRepoManagerMerge";
   case EventType::GitRepoManagerMergeResult:
@@ -599,12 +629,42 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerRebaseResult";
   case EventType::GitRepoManagerRebaseError:
     return "GitRepoManagerRebaseError";
+  case EventType::GitRepoManagerSquash:
+    return "GitRepoManagerSquash";
+  case EventType::GitRepoManagerSquashResult:
+    return "GitRepoManagerSquashResult";
+  case EventType::GitRepoManagerSquashError:
+    return "GitRepoManagerSquashError";
+  case EventType::GitRepoManagerBisect:
+    return "GitRepoManagerBisect";
+  case EventType::GitRepoManagerBisectResult:
+    return "GitRepoManagerBisectResult";
+  case EventType::GitRepoManagerBisectError:
+    return "GitRepoManagerBisectError";
+  case EventType::GitRepoManagerGitFlow:
+    return "GitRepoManagerGitFlow";
+  case EventType::GitRepoManagerGitFlowResult:
+    return "GitRepoManagerGitFlowResult";
+  case EventType::GitRepoManagerGitFlowError:
+    return "GitRepoManagerGitFlowError";
   case EventType::GitRepoManagerRemoveRemote:
     return "GitRepoManagerRemoveRemote";
   case EventType::GitRepoManagerRemoveRemoteResult:
     return "GitRepoManagerRemoveRemoteResult";
   case EventType::GitRepoManagerRemoveRemoteError:
     return "GitRepoManagerRemoveRemoteError";
+  case EventType::GitRepoManagerRemoveWorktree:
+    return "GitRepoManagerRemoveWorktree";
+  case EventType::GitRepoManagerRemoveWorktreeResult:
+    return "GitRepoManagerRemoveWorktreeResult";
+  case EventType::GitRepoManagerRemoveWorktreeError:
+    return "GitRepoManagerRemoveWorktreeError";
+  case EventType::GitRepoManagerUnlockWorktree:
+    return "GitRepoManagerUnlockWorktree";
+  case EventType::GitRepoManagerUnlockWorktreeResult:
+    return "GitRepoManagerUnlockWorktreeResult";
+  case EventType::GitRepoManagerUnlockWorktreeError:
+    return "GitRepoManagerUnlockWorktreeError";
   case EventType::GitRepoManagerRenameBranch:
     return "GitRepoManagerRenameBranch";
   case EventType::GitRepoManagerRenameBranchResult:
@@ -635,6 +695,12 @@ QString EventManager::eventName(const EventType type) const {
     return "GitRepoManagerSetDefaultRemoteResult";
   case EventType::GitRepoManagerSetDefaultRemoteError:
     return "GitRepoManagerSetDefaultRemoteError";
+  case EventType::GitRepoManagerWorkflow:
+    return "GitRepoManagerWorkflow";
+  case EventType::GitRepoManagerWorkflowResult:
+    return "GitRepoManagerWorkflowResult";
+  case EventType::GitRepoManagerWorkflowError:
+    return "GitRepoManagerWorkflowError";
   case EventType::GitRepoManagerSetUpstream:
     return "GitRepoManagerSetUpstream";
   case EventType::GitRepoManagerSetUpstreamResult:

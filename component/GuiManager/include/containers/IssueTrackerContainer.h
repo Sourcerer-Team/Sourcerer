@@ -19,13 +19,18 @@ namespace Ui {
 class IssueTrackerContainer;
 }
 
-#if __has_include(<QtWebEngineWidgets/QWebEngineView>)
+// Set by CMake only when Qt6::WebEngineWidgets is found and linked. Do not
+// detect via __has_include: the headers may be installed without the
+// WebEngine CMake package being available, which breaks compile and link.
+#ifndef GUI_MANAGER_HAS_WEBENGINE
+#define GUI_MANAGER_HAS_WEBENGINE 0
+#endif
+
+#if GUI_MANAGER_HAS_WEBENGINE
 #include <QtWebEngineCore/QWebEngineProfile>
 #include <QtWebEngineWidgets/QWebEngineView>
-#define GUI_MANAGER_HAS_WEBENGINE 1
 #else
 #include <QtWidgets/QTextBrowser>
-#define GUI_MANAGER_HAS_WEBENGINE 0
 #endif
 
 namespace GuiManager::Containers {
@@ -36,7 +41,10 @@ class IssueTrackerContainer final : public ContainerWidget {
   Q_OBJECT
 
 public:
+  // startUrl replaces the repository issues page as the first page, e.g. a
+  // GitHub pull request page.
   explicit IssueTrackerContainer(QString serviceType, QString repositoryName,
+                                 QUrl startUrl = QUrl(),
                                  QWidget *parent = nullptr);
   ~IssueTrackerContainer() override;
 
@@ -46,6 +54,7 @@ public:
 
   QString serviceType() const { return _serviceType; }
   QString repositoryName() const { return _repositoryName; }
+  QUrl startUrl() const { return _startUrl; }
   QString path() const override { return QString(); }
 
 protected:
@@ -59,6 +68,9 @@ signals:
 private:
   void updateIssueUrl();
   void loadIssuePage();
+#if GUI_MANAGER_HAS_WEBENGINE
+  void loadAfterGitHubLoginCheck();
+#endif
   void showUnsupportedMessage(const QString &message);
   void showLoadFailedMessage(const QString &message);
   void openIssueTrackerExternallyAndClose();
@@ -80,6 +92,7 @@ private:
   QString _serviceType;
   QString _repositoryName;
   QString _serviceHost;
+  QUrl _startUrl;
   QUrl _issuesUrl;
   QWidget *_toolbarWidget;
   QWidget *_toolbarHandle;
@@ -88,6 +101,7 @@ private:
   QToolButton *_refreshButton;
   bool _draggingToolbar;
   bool _externalBrowserOpened;
+  bool _pageLoaded;
   QPoint _toolbarDragOffset;
   QPoint _toolbarRelativePosition;
 #if GUI_MANAGER_HAS_WEBENGINE

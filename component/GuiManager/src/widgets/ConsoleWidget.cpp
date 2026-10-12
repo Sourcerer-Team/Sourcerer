@@ -8,7 +8,7 @@
 #include <QColor>
 #include <QEvent>
 
-#ifdef Q_OS_LINUX
+#ifdef Q_OS_UNIX
 #include "widgets/linux/BashShellWidget.h"
 #endif
 
@@ -33,15 +33,35 @@ struct ConsoleThemeColors {
 };
 
 ConsoleThemeColors consoleThemeColors() {
-  const bool lightTheme =
-      StylesheetManager::StylesheetManager::currentStylesheet() ==
-      StylesheetManager::StylesheetKey::SourcererLight;
-
-  return lightTheme
-             ? ConsoleThemeColors{QColor(245, 235, 220), QColor(32, 32, 32),
-                                  QColor(230, 218, 198), QColor(214, 198, 176)}
-             : ConsoleThemeColors{QColor(45, 45, 48), QColor(255, 255, 255),
-                                  QColor(62, 62, 66), QColor(0, 122, 204)};
+  switch (StylesheetManager::StylesheetManager::currentStylesheet()) {
+  case StylesheetManager::StylesheetKey::SourcererLight:
+    return ConsoleThemeColors{QColor(245, 235, 220), QColor(32, 32, 32),
+                              QColor(230, 218, 198), QColor(214, 198, 176)};
+  case StylesheetManager::StylesheetKey::SourcererPurple:
+    return ConsoleThemeColors{QColor(43, 39, 53), QColor(232, 230, 238),
+                              QColor(62, 58, 72), QColor(55, 70, 89)};
+  case StylesheetManager::StylesheetKey::SourcererBlue:
+    return ConsoleThemeColors{QColor(26, 36, 53), QColor(230, 236, 245),
+                              QColor(42, 55, 80), QColor(32, 84, 114)};
+  case StylesheetManager::StylesheetKey::SourcererMonokai:
+    return ConsoleThemeColors{QColor(39, 40, 34), QColor(248, 248, 242),
+                              QColor(62, 61, 50), QColor(73, 72, 62)};
+  case StylesheetManager::StylesheetKey::SourcererGruvbox:
+    return ConsoleThemeColors{QColor(40, 40, 40), QColor(235, 219, 178),
+                              QColor(60, 56, 54), QColor(80, 73, 69)};
+  case StylesheetManager::StylesheetKey::SourcererSolarized:
+    return ConsoleThemeColors{QColor(0, 43, 54), QColor(131, 148, 150),
+                              QColor(7, 54, 66), QColor(14, 74, 90)};
+  case StylesheetManager::StylesheetKey::SourcererDracula:
+    return ConsoleThemeColors{QColor(40, 42, 54), QColor(248, 248, 242),
+                              QColor(50, 52, 66), QColor(68, 71, 90)};
+  case StylesheetManager::StylesheetKey::SourcererAyu:
+    return ConsoleThemeColors{QColor(15, 20, 25), QColor(230, 225, 207),
+                              QColor(20, 25, 31), QColor(37, 51, 64)};
+  default:
+    return ConsoleThemeColors{QColor(45, 45, 48), QColor(255, 255, 255),
+                              QColor(62, 62, 66), QColor(0, 122, 204)};
+  }
 }
 
 QColor consoleCloseButtonIconColor(const ConsoleThemeColors &colors) {
@@ -58,13 +78,13 @@ QColor consoleCloseButtonIconColor(const ConsoleThemeColors &colors) {
 namespace GuiManager::Widgets {
 
 ConsoleWidget::ConsoleWidget(QWidget *parent)
-    : QWidget(parent), _titleBar(nullptr), _titleLabel(nullptr),
-      _closeButton(nullptr)
+    : QWidget(parent), _titleBar(nullptr), _iconLabel(nullptr),
+      _titleLabel(nullptr), _closeButton(nullptr)
 #ifdef Q_OS_WIN
       ,
       _powerShellWidget(nullptr)
 #endif
-#ifdef Q_OS_LINUX
+#ifdef Q_OS_UNIX
       ,
       _bashShellWidget(nullptr)
 #endif
@@ -85,6 +105,13 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
   _titleBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   _titleBar->setFixedHeight(28); // Fixed height for title bar
 
+  // Add terminal icon in the top left corner of the title bar
+  _iconLabel = new QLabel(_titleBar);
+  _iconLabel->setFixedSize(16, 16);
+  _iconLabel->setScaledContents(true);
+  _iconLabel->setStyleSheet("background: transparent; padding: 0px;");
+  updateTitleIcon(colors.titleBarText);
+
   // Add title label
   _titleLabel = new QLabel("Console", _titleBar);
   _titleLabel->setStyleSheet(
@@ -95,6 +122,7 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
   auto *titleBarLayout = new QHBoxLayout(_titleBar);
   titleBarLayout->setContentsMargins(8, 4, 4, 4);
   titleBarLayout->setSpacing(4);
+  titleBarLayout->addWidget(_iconLabel);
   titleBarLayout->addWidget(_titleLabel);
   titleBarLayout->addStretch();
 
@@ -138,7 +166,7 @@ ConsoleWidget::ConsoleWidget(QWidget *parent)
           &ConsoleWidget::consoleStopped);
   connect(_powerShellWidget, &Win32::PowerShellWidget::errorOccurred, this,
           &ConsoleWidget::consoleError);
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   // Create and add Bash shell widget
   _bashShellWidget = new Linux::BashShellWidget(this);
   _bashShellWidget->setSizePolicy(QSizePolicy::Expanding,
@@ -178,7 +206,7 @@ void ConsoleWidget::init() {
   if (_powerShellWidget) {
     _powerShellWidget->init();
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     _bashShellWidget->init();
   }
@@ -196,7 +224,7 @@ bool ConsoleWidget::executeCommand(const QString &command) {
     LOG_PERF(0, "Exit");
     return result;
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     bool result = _bashShellWidget->executeCommand(command);
     LOG_PERF(0, "Exit");
@@ -213,7 +241,7 @@ bool ConsoleWidget::isConsoleRunning() const {
   if (_powerShellWidget) {
     return _powerShellWidget->isRunning();
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     return _bashShellWidget->isRunning();
   }
@@ -228,7 +256,7 @@ void ConsoleWidget::restartConsole() {
   if (_powerShellWidget) {
     _powerShellWidget->restart();
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     _bashShellWidget->restart();
   }
@@ -243,13 +271,22 @@ void ConsoleWidget::setWorkingDirectory(const QString &path) {
   if (_powerShellWidget) {
     _powerShellWidget->setWorkingDirectory(path);
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     _bashShellWidget->setWorkingDirectory(path);
   }
 #endif
 
   LOG_PERF(0, "Exit");
+}
+
+void ConsoleWidget::updateTitleIcon(const QColor &color) {
+  if (!_iconLabel) {
+    return;
+  }
+
+  _iconLabel->setPixmap(StylesheetManager::StylesheetManager::renderSvgToPixmap(
+      QStringLiteral(":/icons/terminal.svg"), color));
 }
 
 void ConsoleWidget::applyTheme() {
@@ -266,6 +303,8 @@ void ConsoleWidget::applyTheme() {
             .arg(colors.titleBarText.name()));
   }
 
+  updateTitleIcon(colors.titleBarText);
+
   if (_closeButton) {
     _closeButton->setStyleSheet(
         QString("QPushButton { background-color: transparent; border: none; "
@@ -280,7 +319,7 @@ void ConsoleWidget::applyTheme() {
   if (_powerShellWidget) {
     _powerShellWidget->refreshTheme();
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     _bashShellWidget->refreshTheme();
   }
@@ -311,7 +350,7 @@ Win32::PowerShellWidget *ConsoleWidget::getPowerShellWidget() const {
 }
 #endif
 
-#ifdef Q_OS_LINUX
+#ifdef Q_OS_UNIX
 Linux::BashShellWidget *ConsoleWidget::getBashShellWidget() const {
   return _bashShellWidget;
 }
@@ -327,7 +366,7 @@ void ConsoleWidget::setFocusToConsole() {
     QTimer::singleShot(0, _powerShellWidget,
                        [this]() { _powerShellWidget->setFocusToInput(); });
   }
-#elif defined(Q_OS_LINUX)
+#elif defined(Q_OS_UNIX)
   if (_bashShellWidget) {
     // Use QTimer::singleShot to ensure the widget is fully visible before
     // setting focus

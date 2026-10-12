@@ -37,9 +37,17 @@ if [ ! -f "$BUILD_DIR/Sourcerer" ]; then
     exit 1
 fi
 
+if [ ! -f "$BUILD_DIR/SourcererLauncher" ]; then
+    echo "Error: SourcererLauncher binary not found at $BUILD_DIR/SourcererLauncher"
+    echo "Please build the application first."
+    exit 1
+fi
+
 echo "Copying application binary..."
 cp "$BUILD_DIR/Sourcerer" "$APPDIR/usr/bin/"
+cp "$BUILD_DIR/SourcererLauncher" "$APPDIR/usr/bin/"
 chmod +x "$APPDIR/usr/bin/Sourcerer"
+chmod +x "$APPDIR/usr/bin/SourcererLauncher"
 
 if [ ! -f "$QT_DIR/$QT_VER/gcc_64/libexec/QtWebEngineProcess" ]; then
     echo "Error: QtWebEngineProcess binary not found at $QT_DIR/$QT_VER/gcc_64/libexec/QtWebEngineProcess"
@@ -172,6 +180,17 @@ for nss_lib in libnssutil3.so libsoftokn3.so; do
         echo "  Copied $nss_lib"
     else
         echo "  Warning: $nss_lib not found"
+    fi
+done
+
+echo "Ensuring qtkeychain libraries are included for GNOME/KDE/XFCE support..."
+for qtkeychain_lib in libsecret-1.so.0 libgio-2.0.so.0; do
+    lib_path=$(find /usr/lib/x86_64-linux-gnu -name "$qtkeychain_lib" 2>/dev/null | head -n 1)
+    if [ -f "$lib_path" ]; then
+        cp "$lib_path" "$APPDIR/usr/lib/" 2>/dev/null || true
+        echo "  Copied $qtkeychain_lib"
+    else
+        echo "  Warning: $qtkeychain_lib not found"
     fi
 done
 

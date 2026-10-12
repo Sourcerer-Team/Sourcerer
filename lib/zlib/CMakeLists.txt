@@ -69,7 +69,7 @@ if(NOT ZLIB_CONF_WRITTEN OR NOT EXISTS "${CONF_OUT_FILE}")
         TRUE
         CACHE BOOL "zconf.h.cmakein was created")
     mark_as_advanced(ZLIB_CONF_WRITTEN)
-endif(NOT ZLIB_CONF_WRITTEN)
+endif()
 
 #
 # Check to see if we have large file support

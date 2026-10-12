@@ -20,14 +20,25 @@ add_compile_definitions(QT_USE_STRING_BUILDER)
 
 add_library(GitRepo STATIC
     include/GitRepo.h
+    include/WorkflowUtils.h
+    include/GraphiteUtils.h
+    include/GitFlowNextWorkflow.h
     include/GitCredentialStorage.h
     include/GitKeyStorage.h
     include/PatchFileUtils.h
+    include/GitLfs.h
     src/GitRepo.cpp
     src/GitCredentialStorage.cpp
     src/GitKeyStorage.cpp
+    src/GitLfs.cpp
     src/PatchFileUtils.cpp
 )
+
+if(MSVC)
+    # fopen() and strdup() are used portably, silence MSVC deprecation.
+    target_compile_definitions(GitRepo PRIVATE _CRT_SECURE_NO_WARNINGS
+                                               _CRT_NONSTDC_NO_WARNINGS)
+endif()
 
 include(../../cmake/helpers.cmake)
 
@@ -59,7 +70,14 @@ set(BUILD_TESTING OFF CACHE BOOL "Disable tests" FORCE)
 set(LIBSSH2_BUILD_DOCS OFF CACHE BOOL "Disable docs" FORCE)
 set(LIBSSH2_DISABLE_INSTALL ON CACHE BOOL "Disable install targets" FORCE)
 
+# libssh2 adds /W4 itself, drop the default /W3 to avoid MSVC D9025 warnings.
+set(_SAVED_C_FLAGS "${CMAKE_C_FLAGS}")
+set(_SAVED_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+string(REGEX REPLACE "/W[0-4]" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+string(REGEX REPLACE "/W[0-4]" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 add_subdirectory(../../lib/libssh2 "libssh2")
+set(CMAKE_C_FLAGS "${_SAVED_C_FLAGS}")
+set(CMAKE_CXX_FLAGS "${_SAVED_CXX_FLAGS}")
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libraries" FORCE)
 set(BUILD_TOOLS OFF CACHE BOOL "Disable tools" FORCE)
@@ -68,6 +86,9 @@ set(BUILD_OSSFUZZ OFF CACHE BOOL "Disable ossfuzz" FORCE)
 set(BUILD_EXAMPLES OFF CACHE BOOL "Disable examples" FORCE)
 set(BUILD_DOC OFF CACHE BOOL "Disable docs" FORCE)
 set(LIBZIP_DO_INSTALL OFF CACHE BOOL "Disable install targets" FORCE)
+set(ENABLE_ZSTD OFF CACHE BOOL "Disable Zstandard" FORCE)
+set(ENABLE_BZIP2 OFF CACHE BOOL "Disable BZip2" FORCE)
+set(ENABLE_LZMA OFF CACHE BOOL "Disable LZMA" FORCE)
 
 add_subdirectory(../../lib/libzip "libzip")
 
@@ -82,7 +103,16 @@ set(USE_AUTH_NTLM OFF CACHE BOOL "Enable NTLM authentication" FORCE)
 set(USE_COMPRESSION "zlib" CACHE STRING "Selects compression backend.")
 set(USE_REGEX "builtin" CACHE STRING "Selects regex provider.")
 
+set(USE_GSSAPI OFF CACHE BOOL "Disable Kerberos/GSSAPI" FORCE)
+# Use the same dynamic CRT as the rest of the application.
+set(STATIC_CRT OFF CACHE BOOL "Link the static CRT libraries" FORCE)
+# libgit2 still declares cmake_minimum_required() < 3.10, raise its policy
+# version to the project minimum to avoid the CMake deprecation warning.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.10)
 add_subdirectory(../../lib/libgit2 "libgit2")
+unset(CMAKE_POLICY_VERSION_MINIMUM)
+
+add_subdirectory(../../lib/qtkeychain "qtkeychain")
 
 target_link_libraries(GitRepo PRIVATE
     Qt6::Core
@@ -95,7 +125,9 @@ target_link_libraries(GitRepo PRIVATE
     OpenSSL::SSL
     OpenSSL::Crypto
     libgit2
+    libssh2_static
     util
+    qt6keychain
     ${LIBSSH2_LIBRARY}
 )
 

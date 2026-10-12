@@ -8,6 +8,7 @@
 #include <EventManager.h>
 #include <Log.h>
 #include <QStyle>
+#include <SingleInstanceGuard.h>
 #include <StylesheetManager.h>
 
 #include <QApplication>
@@ -15,6 +16,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QEventLoop>
+#include <QSharedPointer>
 #include <QStandardPaths>
 #include <QTimer>
 #include <QTranslator>
@@ -27,24 +29,36 @@
 
 namespace GuiManager {
 
-#if defined(QT_WEBENGINECORE_LIB)
-QWebEngineProfile *sharedWebEngineProfile() {
-  static QWebEngineProfile *profile = nullptr;
-  if (profile) {
-    return profile;
-  }
-
+QString webEngineStoragePath(const QString &directoryName) {
   const QString storageBaseDir =
       QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
   if (storageBaseDir.isEmpty()) {
-    return nullptr;
+    return QString();
   }
 
-  const QString storagePath =
-      QDir(storageBaseDir).absoluteFilePath(QStringLiteral("webengine"));
+#ifdef QT_DEBUG
+  return QDir(storageBaseDir)
+      .absoluteFilePath(directoryName + QStringLiteral("-debug"));
+#else
+  return QDir(storageBaseDir).absoluteFilePath(directoryName);
+#endif
+}
+
+#if defined(QT_WEBENGINECORE_LIB)
+QWebEngineProfile *sharedWebEngineProfile() {
+  static QSharedPointer<QWebEngineProfile> profile;
+  if (profile) {
+    return profile.get();
+  }
+
+  const QString storagePath = webEngineStoragePath(QStringLiteral("webengine"));
+  if (storagePath.isEmpty()) {
+    return nullptr;
+  }
   QDir().mkpath(storagePath);
 
-  profile = new QWebEngineProfile(QStringLiteral("sourcerer"), qApp);
+  profile = QSharedPointer<QWebEngineProfile>::create(
+      QStringLiteral("sourcerer"), qApp);
   profile->setPersistentStoragePath(storagePath);
   profile->setCachePath(
       QDir(storagePath).absoluteFilePath(QStringLiteral("cache")));
@@ -52,7 +66,7 @@ QWebEngineProfile *sharedWebEngineProfile() {
       QWebEngineProfile::PersistentCookiesPolicy::ForcePersistentCookies);
   profile->setHttpCacheType(QWebEngineProfile::HttpCacheType::DiskHttpCache);
 
-  return profile;
+  return profile.get();
 }
 #endif
 
@@ -110,6 +124,7 @@ void GuiManager::start() {
   }
 
   QApplication::setWindowIcon(QIcon(":/icons/sorcerer-hat.png"));
+  QApplication::setAttribute(Qt::AA_DontShowIconsInMenus, false);
 
   QApplication::setStyle(new DarkStyle());
   QApplication::style()->setObjectName("fusion");
@@ -135,12 +150,27 @@ void GuiManager::start() {
     w->show();
   }
 
+  if (Util::SingleInstanceGuard *instanceGuard =
+          Util::SingleInstanceGuard::instance()) {
+    const QWeakPointer<MainWindow> window = w.toWeakRef();
+    instanceGuard->setActivationHandler([window](const QStringList &arguments) {
+      if (const auto locked = window.lock()) {
+        locked->activateFromAnotherInstance(arguments);
+      }
+    });
+  }
+
   EventManager::Event startedEvent(EventManager::EventType::ComponentStarted);
   EventManager::EventManager &eventManager =
       EventManager::EventManager::getInstance();
   eventManager.send(startedEvent);
 
   QApplication::exec();
+
+  if (Util::SingleInstanceGuard *instanceGuard =
+          Util::SingleInstanceGuard::instance()) {
+    instanceGuard->setActivationHandler(nullptr);
+  }
 
   LOG_PERF(0, "Exit");
 }

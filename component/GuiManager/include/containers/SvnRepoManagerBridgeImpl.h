@@ -10,17 +10,31 @@ class SvnRepoManagerBridgeImpl final : public GitRepoManagerBridge {
 public:
   explicit SvnRepoManagerBridgeImpl(RepoContainer &container);
 
+  void blame(const QWeakPointer<RepoContainer> &guard,
+             const QStringList &files) override;
   void
   setUpstream(const QWeakPointer<RepoContainer> &guard,
               const QString &branchName, const QString &remoteName,
               const QString &remoteBranchName,
               const std::function<void(const QWeakPointer<RepoContainer> &)>
                   &onSuccess = nullptr) override;
-  void stash(const QWeakPointer<RepoContainer> &guard) override;
+  void stash(const QWeakPointer<RepoContainer> &guard,
+             const QString &note) override;
   void abortMerge(const QWeakPointer<RepoContainer> &guard) override;
+  void abortRebase(const QWeakPointer<RepoContainer> &guard) override;
   void addSubmodule(const QWeakPointer<RepoContainer> &guard,
                     const QString &url, const QString &name,
                     const QString &branch) override;
+  void addWorktree(const QWeakPointer<RepoContainer> &guard,
+                   const QString &path, const QString &branch,
+                   bool createBranch, const QString &baseBranch) override;
+  void removeWorktree(const QWeakPointer<RepoContainer> &guard,
+                      const QString &name, bool force) override;
+  void lockWorktree(const QWeakPointer<RepoContainer> &guard,
+                    const QString &name, const QString &reason) override;
+  void unlockWorktree(const QWeakPointer<RepoContainer> &guard,
+                      const QString &name) override;
+  bool getWorktrees(const QWeakPointer<RepoContainer> &guard) override;
   void amend(const QWeakPointer<RepoContainer> &guard, const QString &summary,
              const QString &description, const QString &author,
              const QString &email, bool signoff, bool signCommit) override;
@@ -42,6 +56,10 @@ public:
               const QString &description, const QString &author,
               const QString &email, bool cleanup, bool signoff,
               bool signCommit) override;
+  void commitRebase(const QWeakPointer<RepoContainer> &guard,
+                    const QString &summary, const QString &description,
+                    const QString &author, const QString &email, bool cleanup,
+                    bool signoff, bool signCommit) override;
   void createBranchFromCommit(
       const QWeakPointer<RepoContainer> &guard, const QString &commit,
       const QString &branchName,
@@ -91,6 +109,10 @@ public:
   bool getActiveBranchOrTag(const QWeakPointer<RepoContainer> &guard,
                             const int branchType) override;
   bool getBranchHistory(const QWeakPointer<RepoContainer> &guard) override;
+  void getBranchHistoryPage(const QWeakPointer<RepoContainer> &guard,
+                            const QString &branchName,
+                            GitRepo::BranchType branchType, int page,
+                            quint64 generation, bool lowPriority) override;
   QStringList getCommitBranches(const QWeakPointer<RepoContainer> &guard,
                                 const QString &commit) const override;
   QStringList getCommitTags(const QWeakPointer<RepoContainer> &guard,
@@ -113,7 +135,36 @@ public:
   void merge(const QWeakPointer<RepoContainer> &guard,
              const QString &sourceBranch, const QString &destBranch) override;
   void rebase(const QWeakPointer<RepoContainer> &guard,
-              const QString &sourceBranch, const QString &destBranch) override;
+              const QString &sourceBranch, const QString &destBranch,
+              bool signCommit) override;
+  void squash(const QWeakPointer<RepoContainer> &guard,
+              const QString &sourceBranch, const QString &destBranch,
+              bool signCommit) override;
+  void bisect(const QWeakPointer<RepoContainer> &guard,
+              GitRepo::BisectAction action, const QString &commit) override;
+  void startGitFlowBranch(const QWeakPointer<RepoContainer> &guard,
+                          const GitRepo::GitFlowBranchType branchType,
+                          const QString &branchName) override;
+  void finishGitFlowBranch(const QWeakPointer<RepoContainer> &guard,
+                           const GitRepo::GitFlowBranchType branchType,
+                           const QString &branchName) override;
+  void runGitLabFlowAction(const QWeakPointer<RepoContainer> &guard,
+                           const GitRepo::GitLabFlowAction action,
+                           const QString &branchName,
+                           const QString &commit = QString()) override;
+  void runGitHubFlowAction(const QWeakPointer<RepoContainer> &guard,
+                           const GitRepo::GitHubFlowAction action,
+                           const QString &branchName) override;
+  void runGitFlowNextAction(const QWeakPointer<RepoContainer> &guard,
+                            const GitRepo::GitFlowNextAction action,
+                            const QString &name,
+                            const QString &argument = QString()) override;
+  void applyGitFlowNextWorkflow(
+      const QWeakPointer<RepoContainer> &guard,
+      const GitRepo::GitFlowNextWorkflow &workflow) override;
+  void getWorkflowType(const QWeakPointer<RepoContainer> &guard) override;
+  void setWorkflowType(const QWeakPointer<RepoContainer> &guard,
+                       const GitRepo::WorkflowType workflow) override;
   bool openRepo(const QWeakPointer<RepoContainer> &guard) override;
   void pull(const QWeakPointer<RepoContainer> &guard,
             bool rebase = false) override;
@@ -164,6 +215,10 @@ public:
                                const QString &commit) override;
 
 private:
+  // Reports that a Git only operation is not available for Subversion
+  // repositories.
+  void reportUnsupportedOperation(const QString &operation) const;
+
   RepoContainer &_container;
 };
 

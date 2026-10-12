@@ -17,6 +17,7 @@ enum class ContainerType {
   PleaseWait,
   Settings,
   IssueTracker,
+  ReleaseNotes,
   SvnRepo,
   last
 };
@@ -38,6 +39,8 @@ public:
   virtual void setupShortcuts() {}
 
   virtual QString path() const { return QString(); }
+
+  virtual void themeChanged() {};
 
 private:
   ContainerType _type;

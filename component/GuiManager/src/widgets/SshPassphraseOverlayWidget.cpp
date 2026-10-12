@@ -1,5 +1,5 @@
 #include "widgets/SshPassphraseOverlayWidget.h"
-#include "widgets/OpagueGroupBox.h"
+#include "widgets/OpaqueGroupBox.h"
 #include "widgets/OpaqueLabel.h"
 #include "widgets/OpaquePushButton.h"
 
@@ -17,7 +17,8 @@
 
 namespace GuiManager::Widgets {
 
-SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(uint id, QWidget *parent)
+SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(size_t id,
+                                                       QWidget *parent)
     : OverlayWidget(parent, ALPHA),
       _eventManager(::EventManager::EventManager::getInstance()),
       _passphraseLineEdit(new PersistentPlaceholderLineEdit(
@@ -47,15 +48,15 @@ SshPassphraseOverlayWidget::SshPassphraseOverlayWidget(uint id, QWidget *parent)
   _passphraseLineEdit->setEchoMode(QLineEdit::Password);
 
   _passphraseVisibilityAction = _passphraseLineEdit->addAction(
-      QIcon(overlayButtonIcon(":/icons/eye.svg")), QLineEdit::TrailingPosition);
+      overlayButtonIcon(":/icons/eye.svg"), QLineEdit::TrailingPosition);
   _passphraseVisibilityAction->setCheckable(true);
   _passphraseVisibilityAction->setToolTip(tr("Show passphrase"));
   connect(_passphraseVisibilityAction, &QAction::toggled, this,
           [this](bool visible) {
             _passphraseLineEdit->setEchoMode(visible ? QLineEdit::Normal
                                                      : QLineEdit::Password);
-            _passphraseVisibilityAction->setIcon(QIcon(overlayButtonIcon(
-                visible ? ":/icons/eye-off.svg" : ":/icons/eye.svg")));
+            _passphraseVisibilityAction->setIcon(overlayButtonIcon(
+                visible ? ":/icons/eye-off.svg" : ":/icons/eye.svg"));
             _passphraseVisibilityAction->setToolTip(
                 visible ? tr("Hide passphrase") : tr("Show passphrase"));
           });
@@ -205,6 +206,11 @@ void SshPassphraseOverlayWidget::onCancelClicked() {
 
   _eventManager.send(cancelEvent);
 
+  // Always close the overlay locally; the backend may no longer be waiting.
+  // Queued because the owner deletes this widget in response to the signal.
+  QMetaObject::invokeMethod(
+      this, [this]() { emit finished(); }, Qt::QueuedConnection);
+
   LOG_PERF(0, "Exit");
 }
 
@@ -238,7 +244,7 @@ void SshPassphraseOverlayWidget::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCredentialsFinished: {
-    if (const uint id = event.data<size_t>(); id != _id) {
+    if (const size_t id = event.data<size_t>(); id != _id) {
       break;
     }
     const auto guard = _holder.toWeakRef();
@@ -247,7 +253,7 @@ void SshPassphraseOverlayWidget::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCredentialsInvalid: {
-    if (const uint id = event.data<size_t>(); id != _id) {
+    if (const size_t id = event.data<size_t>(); id != _id) {
       break;
     }
     const auto guard = _holder.toWeakRef();

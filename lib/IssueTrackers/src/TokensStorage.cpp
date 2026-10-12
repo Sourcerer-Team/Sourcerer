@@ -2,10 +2,14 @@
 
 #include <Log.h>
 
+#include <qcoreapplication.h>
+#include <qtkeychain/keychain.h>
+
 #include <QCryptographicHash>
 #include <QDataStream>
 #include <QDateTime>
 #include <QDir>
+#include <QEventLoop>
 #include <QFile>
 #include <QRandomGenerator>
 #include <QStandardPaths>
@@ -27,6 +31,67 @@ constexpr int AES_IV_SIZE = 16;
 constexpr int PBKDF2_ITERATIONS = 100000;
 constexpr int STORAGE_VERSION = 3;
 
+static QString getLoggedInUser() {
+  // Returns e.g. "C:/Users/JohnDoe"
+  QString homePath = QDir::homePath();
+  return QFileInfo(homePath).fileName(); // Returns "JohnDoe"
+}
+
+static bool saveMasterKeyToWindowsStore(const QString &appName,
+                                        const QString &userName,
+                                        const QString &masterKey) {
+  // Create job on the stack (no need for manual memory cleanup or
+  // setAutoDelete)
+  QKeychain::WritePasswordJob job(appName);
+  job.setKey(userName);       // Identifier (e.g., username)
+  job.setTextData(masterKey); // Secret payload
+
+  // Local event loop to block until finished signal is emitted
+  QEventLoop loop;
+  QObject::connect(&job, &QKeychain::WritePasswordJob::finished, &loop,
+                   &QEventLoop::quit);
+
+  job.start();
+  loop.exec(); // Waits here until OS keyring operation finishes
+
+  if (job.error()) {
+    ConfigManager::ConfigManager &config =
+        ConfigManager::ConfigManager::getInstance();
+
+    config.setString(ConfigManager::ConfigKey::GitRepoCredentialsMasterKey,
+                     masterKey);
+    config.save();
+  }
+
+  return true;
+}
+
+bool readMasterKeyFromWindowsStore(const QString &appName,
+                                   const QString &userName,
+                                   QString &outMasterKey) {
+  QKeychain::ReadPasswordJob job(appName);
+  job.setKey(userName);
+
+  QEventLoop loop;
+  QObject::connect(&job, &QKeychain::ReadPasswordJob::finished, &loop,
+                   &QEventLoop::quit);
+  job.start();
+  loop.exec(); // Blocks until job emits finished signal
+
+  if (job.error()) {
+    ConfigManager::ConfigManager &config =
+        ConfigManager::ConfigManager::getInstance();
+
+    outMasterKey =
+        config.getString(ConfigManager::ConfigKey::GitRepoCredentialsMasterKey);
+
+    return !outMasterKey.isEmpty();
+  }
+
+  outMasterKey = job.textData();
+  return true;
+}
+
 QString safeKeyPart(const QString &value) {
   return value.trimmed().toLower();
 }
@@ -35,8 +100,16 @@ QString safeKeyPart(const QString &value) {
 
 TokensStorage::TokensStorage() {
   LOG_PERF(0, "Enter");
-  _masterKey = getEncryptionKey();
-  loadPersistedTokens();
+
+  try {
+    _masterKey = getEncryptionKey();
+    LOG_INFO("Master key loaded succesfully!");
+    loadPersistedTokens();
+    LOG_INFO("Persisted toekens loaded succesfully!");
+  } catch (const std::exception &ex) {
+    LOG_ERROR(Log::ErrorId::Security, "Exception: {}", ex.what());
+  }
+
   LOG_PERF(0, "Exit");
 }
 
@@ -251,9 +324,7 @@ void TokensStorage::clearAll() {
   _tokens.clear();
 
   const QString tokensFile = getTokensFilePath();
-  const QString masterKeyFile = getMasterKeyFilePath();
   QFile::remove(tokensFile);
-  QFile::remove(masterKeyFile);
 
   LOG_PERF(0, "Exit");
 }
@@ -547,34 +618,39 @@ QByteArray TokensStorage::decrypt(const QByteArray &ciphertext,
 }
 
 QByteArray TokensStorage::getEncryptionKey() {
-  const QString masterKeyFile = getMasterKeyFilePath();
-  QFile file(masterKeyFile);
-  if (file.exists() && file.open(QIODevice::ReadOnly)) {
-    const QByteArray stored = QByteArray::fromHex(file.readAll().trimmed());
-    if (stored.size() == AES_KEY_SIZE) {
-      return stored;
-    }
-  }
+  LOG_PERF(0, "Enter");
+
+  const QString userName = getLoggedInUser();
+  const QString appName = qAppName();
+
+  QString masterKey;
+  bool success = readMasterKeyFromWindowsStore(appName, userName, masterKey);
 
   QByteArray key;
-  key.resize(AES_KEY_SIZE);
-  for (int i = 0; i < AES_KEY_SIZE; ++i) {
-    key[i] = static_cast<char>(QRandomGenerator::global()->generate() & 0xFF);
+  if (!success || masterKey.isEmpty()) {
+    // Generate new key
+    key.resize(AES_KEY_SIZE);
+    if (RAND_bytes(reinterpret_cast<unsigned char *>(key.data()),
+                   AES_KEY_SIZE) != 1) {
+      LOG_ERROR(Log::ErrorId::Git, "Failed to generate master key");
+      throw std::runtime_error("Failed to generate master key");
+    }
+
+    // Store it
+    masterKey = key.toHex();
+
+    success = saveMasterKeyToWindowsStore(appName, userName, masterKey);
+    if (!success) {
+      LOG_ERROR(Log::ErrorId::Git, "Failed to save master key");
+      throw std::runtime_error("Failed to save master key");
+    }
+
+    LOG_INFO("Generated new master encryption key");
+  } else {
+    key = QByteArray::fromHex(masterKey.toUtf8());
   }
 
-  const QFileInfo fileInfo(masterKeyFile);
-  QDir dir = fileInfo.absoluteDir();
-  if (!dir.exists()) {
-    dir.mkpath(QStringLiteral("."));
-  }
-
-  QFile outFile(masterKeyFile);
-  if (outFile.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-    outFile.setPermissions(QFileDevice::ReadUser | QFileDevice::WriteUser);
-    outFile.write(key.toHex());
-    outFile.close();
-  }
-
+  LOG_PERF(0, "Exit");
   return key;
 }
 
@@ -582,12 +658,6 @@ QString TokensStorage::getTokensFilePath() const {
   const QString dataPath =
       QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
   return QDir(dataPath).filePath(QStringLiteral("issue_tracker_tokens.dat"));
-}
-
-QString TokensStorage::getMasterKeyFilePath() const {
-  const QString configPath =
-      QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-  return QDir(configPath).filePath(QStringLiteral("issue_tracker_tokens.key"));
 }
 
 QByteArray TokensStorage::deriveEntryKey(const QString &serviceType,

@@ -26,8 +26,10 @@ public:
 
 private:
   void abortMergeWorker(const Structs::GitRepoAbortMergeCommand &command);
+  void abortRebaseWorker(const Structs::GitRepoAbortRebaseCommand &command);
   void addSubmoduleWorker(const Structs::GitRepoAddSubmoduleCommand &command);
   void amendWorker(const Structs::GitRepoAmendCommand &command);
+  void blameWorker(const Structs::GitRepoBlameCommand &command);
   void applyPatchWorker(const Structs::GitRepoApplyPatchCommand &command);
   void applyStashWorker(const Structs::GitRepoApplyStashCommand &command);
   void
@@ -37,6 +39,7 @@ private:
   void cloneRepoWorker(const Structs::GitRepoCloneCommand &command);
   void closeRepoWorker(const Structs::GitRepoCloseCommand &command);
   void commitStagedWorker(const Structs::GitRepoCommitStagedCommand &command);
+  void commitRebaseWorker(const Structs::GitRepoCommitRebaseCommand &command);
   void createBranchFromCommitWorker(
       const Structs::GitRepoCreateBranchFromCommitCommand &command);
   void createPatchFromCommitWorker(
@@ -65,6 +68,9 @@ private:
   void fetchAllWorker(const Structs::GitRepoFetchAllCommand &command);
   void fetchRemoteWorker(const Structs::GitRepoFetchRemoteCommand &command);
   void rebaseWorker(const Structs::GitRepoRebaseCommand &command);
+  void squashWorker(const Structs::GitRepoSquashCommand &command);
+  void bisectWorker(const Structs::GitRepoBisectCommand &command);
+  void gitFlowWorker(const Structs::GitRepoGitFlowCommand &command);
   void
   getActiveBranchWorker(const Structs::GitRepoGetActiveBranchCommand &command);
   void getFileSizeFromCommitWorker(
@@ -78,10 +84,14 @@ private:
   getCommitIsHeadWorker(const Structs::GitRepoGetCommitIsHeadCommand &command);
   void
   getCommitStatusWorker(const Structs::GitRepoGetCommitStatusCommand &command);
+  void getLfsStorageStatusWorker(
+      const Structs::GitRepoGetLfsStorageStatusCommand &command);
   void
   getStashStatusWorker(const Structs::GitRepoGetStashStatusCommand &command);
   void getIsMergeInProgressWorker(
       const Structs::GitRepoGetIsMergeInProgressCommand &command);
+  void getIsRebaseInProgressWorker(
+      const Structs::GitRepoGetIsRebaseInProgressCommand &command);
   void getBranchHistoryWorker(
       const Structs::GitRepoGetBranchHistoryCommand &command);
   void getSubmodulePathWorker(
@@ -103,6 +113,13 @@ private:
   void scheduleWorkerForListSubmodulesWithStatus(
       const Structs::GitRepoListSubmodulesWithStatusCommand &command);
   void listTagsWorker(const Structs::GitRepoListTagsCommand &command);
+  void listWorktreesWorker(const Structs::GitRepoListWorktreesCommand &command);
+  void addWorktreeWorker(const Structs::GitRepoAddWorktreeCommand &command);
+  void
+  removeWorktreeWorker(const Structs::GitRepoRemoveWorktreeCommand &command);
+  void lockWorktreeWorker(const Structs::GitRepoLockWorktreeCommand &command);
+  void
+  unlockWorktreeWorker(const Structs::GitRepoUnlockWorktreeCommand &command);
   void mergeWorker(const Structs::GitRepoMergeCommand &command);
   void openRepoWorker(const Structs::GitRepoOpenCommand &command);
   void pullWorker(const Structs::GitRepoPullCommand &command);
@@ -129,6 +146,7 @@ private:
   void updateRemoteWorker(const Structs::GitRepoUpdateRemoteCommand &command);
   void setDefaultRemoteWorker(
       const Structs::GitRepoSetDefaultRemoteCommand &command);
+  void workflowWorker(const Structs::GitRepoWorkflowCommand &command);
   void addTargetWorker(const Structs::GitRepoAddTargetCommand &command);
   void editTargetWorker(const Structs::GitRepoEditTargetCommand &command);
   void deleteTargetWorker(const Structs::GitRepoDeleteTargetCommand &command);
@@ -139,9 +157,12 @@ private:
                    const Structs::GitRepoCommand &command) const;
   void
   scheduleWorkerForAbortMerge(const Structs::GitRepoAbortMergeCommand &command);
+  void scheduleWorkerForAbortRebase(
+      const Structs::GitRepoAbortRebaseCommand &command);
   void scheduleWorkerForAddSubmodule(
       const Structs::GitRepoAddSubmoduleCommand &command);
   void scheduleWorkerForAmend(const Structs::GitRepoAmendCommand &command);
+  void scheduleWorkerForBlame(const Structs::GitRepoBlameCommand &command);
   void
   scheduleWorkerForApplyPatch(const Structs::GitRepoApplyPatchCommand &command);
   void
@@ -154,6 +175,8 @@ private:
   void scheduleWorkerForCloseRepo(const Structs::GitRepoCloseCommand &command);
   void scheduleWorkerForCommitStagedRepo(
       const Structs::GitRepoCommitStagedCommand &command);
+  void scheduleWorkerForCommitRebaseRepo(
+      const Structs::GitRepoCommitRebaseCommand &command);
   void scheduleWorkerForCreateBranchFromCommit(
       const Structs::GitRepoCreateBranchFromCommitCommand &command);
   void scheduleWorkerForCreatePatchFromCommit(
@@ -167,6 +190,9 @@ private:
   void scheduleWorkerForFetchRemote(
       const Structs::GitRepoFetchRemoteCommand &command);
   void scheduleWorkerForRebase(const Structs::GitRepoRebaseCommand &command);
+  void scheduleWorkerForSquash(const Structs::GitRepoSquashCommand &command);
+  void scheduleWorkerForBisect(const Structs::GitRepoBisectCommand &command);
+  void scheduleWorkerForGitFlow(const Structs::GitRepoGitFlowCommand &command);
   void scheduleWorkerForGetCommitBranches(
       const Structs::GitRepoGetCommitBranchesCommand &command);
   void scheduleWorkerForGetCommitTags(
@@ -177,10 +203,14 @@ private:
       const Structs::GitRepoGetCommitIsHeadCommand &command);
   void scheduleWorkerForGetCommitStatus(
       const Structs::GitRepoGetCommitStatusCommand &command);
+  void scheduleWorkerForGetLfsStorageStatus(
+      const Structs::GitRepoGetLfsStorageStatusCommand &command);
   void scheduleWorkerForGetStashStatus(
       const Structs::GitRepoGetStashStatusCommand &command);
   void scheduleWorkerForGetIsMergeInProgress(
       const Structs::GitRepoGetIsMergeInProgressCommand &command);
+  void scheduleWorkerForGetIsRebaseInProgress(
+      const Structs::GitRepoGetIsRebaseInProgressCommand &command);
   void scheduleWorkerForGetSubmodulePath(
       const Structs::GitRepoGetSubmodulePathCommand &command);
   void scheduleWorkerForGetUpstream(
@@ -225,6 +255,16 @@ private:
       const Structs::GitRepoListSubmodulesCommand &command);
   void
   scheduleWorkerForListTags(const Structs::GitRepoListTagsCommand &command);
+  void scheduleWorkerForListWorktrees(
+      const Structs::GitRepoListWorktreesCommand &command);
+  void scheduleWorkerForAddWorktree(
+      const Structs::GitRepoAddWorktreeCommand &command);
+  void scheduleWorkerForRemoveWorktree(
+      const Structs::GitRepoRemoveWorktreeCommand &command);
+  void scheduleWorkerForLockWorktree(
+      const Structs::GitRepoLockWorktreeCommand &command);
+  void scheduleWorkerForUnlockWorktree(
+      const Structs::GitRepoUnlockWorktreeCommand &command);
   void scheduleWorkerForMerge(const Structs::GitRepoMergeCommand &command);
   void scheduleWorkerForOpenRepo(const Structs::GitRepoOpenCommand &command);
   void scheduleWorkerForPull(const Structs::GitRepoPullCommand &command);
@@ -258,6 +298,8 @@ private:
       const Structs::GitRepoUpdateRemoteCommand &command);
   void scheduleWorkerForSetDefaultRemote(
       const Structs::GitRepoSetDefaultRemoteCommand &command);
+  void
+  scheduleWorkerForWorkflow(const Structs::GitRepoWorkflowCommand &command);
   void
   scheduleWorkerForAddTarget(const Structs::GitRepoAddTargetCommand &command);
   void

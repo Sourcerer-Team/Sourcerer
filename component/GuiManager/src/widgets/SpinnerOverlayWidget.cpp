@@ -1,9 +1,14 @@
 #include "widgets/SpinnerOverlayWidget.h"
 
+#include <algorithm>
+
 #include <Log.h>
 #include <StylesheetManager.h>
 
 #include <QColor>
+#include <QFontMetrics>
+#include <QSizePolicy>
+#include <QStringList>
 
 #define THREAD_ID "SpinnerOverlayWidget"
 
@@ -24,6 +29,23 @@ SpinnerOverlayWidget::SpinnerOverlayWidget(QWidget *parent)
   _singleShotTimer->setSingleShot(true);
 
   _labelStatus->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+  _labelStatus->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+
+  const QFontMetrics fontMetrics(_labelStatus->font());
+  const QStringList reservedTexts = {
+      tr("Creating log archive..."), tr("Uploading bug report..."),
+      tr("Uploading... 100%"), QStringLiteral("100%")};
+
+  int reservedWidth = 0;
+  for (const QString &text : reservedTexts) {
+    reservedWidth =
+        std::max(reservedWidth, fontMetrics.horizontalAdvance(text));
+  }
+
+  _labelStatus->setMinimumWidth(reservedWidth);
+  _labelStatus->setMaximumWidth(reservedWidth);
+  _labelStatus->setMinimumHeight(fontMetrics.height());
+  _labelStatus->setMaximumHeight(fontMetrics.height());
 
   const bool lightTheme =
       StylesheetManager::StylesheetManager::currentStylesheet() ==
@@ -35,7 +57,29 @@ SpinnerOverlayWidget::SpinnerOverlayWidget(QWidget *parent)
   _labelStatus->setPalette(palette);
   _labelStatus->setVisible(false);
 
-  _spinner->setColor(lightTheme ? QColor(44, 84, 150) : QColor(100, 200, 255));
+  const auto theme = StylesheetManager::StylesheetManager::currentStylesheet();
+  const bool purpleTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererPurple;
+  const bool blueTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererBlue;
+  const bool monokaiTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererMonokai;
+  const bool gruvboxTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererGruvbox;
+  const bool solarizedTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererSolarized;
+  const bool draculaTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererDracula;
+  const bool ayuTheme = theme == StylesheetManager::StylesheetKey::SourcererAyu;
+  _spinner->setColor(lightTheme       ? QColor(44, 84, 150)
+                     : purpleTheme    ? QColor(143, 180, 224)
+                     : blueTheme      ? QColor(81, 186, 229)
+                     : monokaiTheme   ? QColor(166, 226, 46)
+                     : gruvboxTheme   ? QColor(250, 189, 47)
+                     : solarizedTheme ? QColor(38, 139, 210)
+                     : draculaTheme   ? QColor(189, 147, 249)
+                     : ayuTheme       ? QColor(255, 180, 84)
+                                      : QColor(100, 200, 255));
   _spinner->setInnerRadius(20);
   _spinner->setLineLength(lightTheme ? 10 : 6);
   _spinner->setLineWidth(lightTheme ? 6 : 4);
@@ -65,7 +109,7 @@ void SpinnerOverlayWidget::startSpinning() {
 }
 
 void SpinnerOverlayWidget::stopSpinning() {
-  if (_spinner && _spinner->isSpinning()) {
+  if (_spinner) {
     _singleShotTimer->stop();
     _labelStatus->setVisible(false);
     _spinner->setVisible(false);

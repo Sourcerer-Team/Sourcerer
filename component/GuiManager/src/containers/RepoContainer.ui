@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>633</width>
-    <height>524</height>
+    <height>567</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -151,8 +151,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>73</width>
-                  <height>185</height>
+                  <width>83</width>
+                  <height>193</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -166,8 +166,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>73</width>
-                  <height>185</height>
+                  <width>83</width>
+                  <height>193</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -181,8 +181,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>73</width>
-                  <height>185</height>
+                  <width>83</width>
+                  <height>193</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -211,8 +211,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>73</width>
-                  <height>185</height>
+                  <width>83</width>
+                  <height>193</height>
                  </rect>
                 </property>
                 <attribute name="label">
@@ -226,8 +226,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>73</width>
-                  <height>185</height>
+                  <width>83</width>
+                  <height>193</height>
                  </rect>
                 </property>
                 <property name="sizePolicy">
@@ -245,8 +245,8 @@
                  <rect>
                   <x>0</x>
                   <y>0</y>
-                  <width>73</width>
-                  <height>185</height>
+                  <width>83</width>
+                  <height>193</height>
                  </rect>
                 </property>
                 <property name="sizePolicy">
@@ -257,6 +257,25 @@
                 </property>
                 <attribute name="label">
                  <string>Remotes</string>
+                </attribute>
+               </widget>
+               <widget class="GuiManager::Widgets::GitWorktreesPage" name="worktreesPage">
+                <property name="geometry">
+                 <rect>
+                  <x>0</x>
+                  <y>0</y>
+                  <width>83</width>
+                  <height>193</height>
+                 </rect>
+                </property>
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <attribute name="label">
+                 <string>Worktrees</string>
                 </attribute>
                </widget>
               </widget>
@@ -291,6 +310,159 @@
                   <property name="bottomMargin">
                    <number>0</number>
                   </property>
+                  <item>
+                   <widget class="QGroupBox" name="historyFilterWidget">
+                    <property name="visible">
+                     <bool>false</bool>
+                    </property>
+                    <property name="title">
+                     <string>Filter history</string>
+                    </property>
+                    <layout class="QGridLayout" name="historyFilterLayout">
+                     <property name="leftMargin">
+                      <number>8</number>
+                     </property>
+                     <property name="topMargin">
+                      <number>6</number>
+                     </property>
+                     <property name="rightMargin">
+                      <number>8</number>
+                     </property>
+                     <property name="bottomMargin">
+                      <number>6</number>
+                     </property>
+                     <property name="horizontalSpacing">
+                      <number>8</number>
+                     </property>
+                     <property name="verticalSpacing">
+                      <number>4</number>
+                     </property>
+                     <item row="0" column="0">
+                      <widget class="QLabel" name="labelHistorySummaryFilter">
+                       <property name="text">
+                        <string>Summary</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="1">
+                      <widget class="QLineEdit" name="lineEditHistorySummaryFilter">
+                       <property name="placeholderText">
+                        <string>Search summary</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="2">
+                      <widget class="QLabel" name="labelHistoryAuthorFilter">
+                       <property name="text">
+                        <string>Author</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="3">
+                      <widget class="QLineEdit" name="lineEditHistoryAuthorFilter">
+                       <property name="placeholderText">
+                        <string>Search author</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="0">
+                      <widget class="QLabel" name="labelHistoryEmailFilter">
+                       <property name="text">
+                        <string>Email</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="1">
+                      <widget class="QLineEdit" name="lineEditHistoryEmailFilter">
+                       <property name="placeholderText">
+                        <string>Search email</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="2">
+                      <widget class="QLabel" name="labelHistoryShaFilter">
+                       <property name="text">
+                        <string>SHA</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="3">
+                      <widget class="QLineEdit" name="lineEditHistoryShaFilter">
+                       <property name="placeholderText">
+                        <string>Search SHA</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="0">
+                      <widget class="QCheckBox" name="checkBoxHistoryStartDate">
+                       <property name="text">
+                        <string>From</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="1">
+                      <widget class="QDateEdit" name="dateEditHistoryStartDate">
+                       <property name="enabled">
+                        <bool>false</bool>
+                       </property>
+                       <property name="displayFormat">
+                        <string>yyyy-MM-dd</string>
+                       </property>
+                       <property name="calendarPopup">
+                        <bool>true</bool>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="2">
+                      <widget class="QCheckBox" name="checkBoxHistoryEndDate">
+                       <property name="text">
+                        <string>To</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="3">
+                      <widget class="QDateEdit" name="dateEditHistoryEndDate">
+                       <property name="enabled">
+                        <bool>false</bool>
+                       </property>
+                       <property name="displayFormat">
+                        <string>yyyy-MM-dd</string>
+                       </property>
+                       <property name="calendarPopup">
+                        <bool>true</bool>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="3" column="0" colspan="4">
+                      <layout class="QHBoxLayout" name="historySearchRepositoryLayout">
+                       <item>
+                        <spacer name="historySearchRepositorySpacer">
+                         <property name="orientation">
+                          <enum>Qt::Orientation::Horizontal</enum>
+                         </property>
+                         <property name="sizeHint" stdset="0">
+                          <size>
+                           <width>40</width>
+                           <height>20</height>
+                          </size>
+                         </property>
+                        </spacer>
+                       </item>
+                       <item>
+                        <widget class="QPushButton" name="pushButtonHistorySearchRepository">
+                         <property name="toolTip">
+                          <string>Load the whole repository history from disk and apply the filters to it</string>
+                         </property>
+                         <property name="text">
+                          <string>Search repository</string>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
                   <item>
                    <widget class="QTableView" name="historyView">
                     <property name="focusPolicy">
@@ -430,12 +602,46 @@
                   </item>
                  </layout>
                 </widget>
+                <widget class="QWidget" name="pageBlame">
+                 <layout class="QVBoxLayout" name="verticalLayoutBlame" stretch="0,0">
+                  <item>
+                   <layout class="QHBoxLayout" name="horizontalLayoutBlameHeader" stretch="0,0">
+                    <item>
+                     <spacer name="horizontalSpacerBlameHeader">
+                      <property name="orientation">
+                       <enum>Qt::Orientation::Horizontal</enum>
+                      </property>
+                      <property name="sizeHint" stdset="0">
+                       <size>
+                        <width>40</width>
+                        <height>20</height>
+                       </size>
+                      </property>
+                     </spacer>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="pushButtonBlameClose">
+                      <property name="text">
+                       <string/>
+                      </property>
+                      <property name="flat">
+                       <bool>true</bool>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                  <item>
+                   <widget class="QsciScintilla" name="scintillaBlameEditor" native="true"/>
+                  </item>
+                 </layout>
+                </widget>
                 <widget class="QWidget" name="pageMergeDiff">
                  <layout class="QVBoxLayout" name="verticalLayout12" stretch="0">
                   <item>
-                   <layout class="QVBoxLayout" name="verticalLayout_4">
+                   <layout class="QVBoxLayout" name="verticalLayoutMergeDiffHeader">
                     <item>
-                     <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="0,0,0,0,0,0">
+                     <layout class="QHBoxLayout" name="horizontalLayout_8" stretch="0,0,0,0,0,0,0">
                       <item>
                        <spacer name="horizontalSpacer_1">
                         <property name="orientation">
@@ -472,6 +678,16 @@
                         </property>
                         <property name="flat">
                          <bool>false</bool>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="labelMergeDiffConflicts">
+                        <property name="text">
+                         <string notr="true">0/0</string>
+                        </property>
+                        <property name="alignment">
+                         <set>Qt::AlignmentFlag::AlignCenter</set>
                         </property>
                        </widget>
                       </item>
@@ -519,7 +735,7 @@
                     <item>
                      <widget class="QStackedWidget" name="stackedWidgetMergeDiff">
                       <widget class="QWidget" name="pageMergeDiffSideBySide">
-                       <layout class="QVBoxLayout" name="verticalLayout_7">
+                       <layout class="QVBoxLayout" name="verticalLayoutMergeDiffSideBySide">
                         <property name="spacing">
                          <number>0</number>
                         </property>
@@ -553,296 +769,386 @@
                   </item>
                  </layout>
                 </widget>
-                     <widget class="QWidget" name="pageStashContent">
-      <layout class="QVBoxLayout" name="verticalLayoutStashContent">
-       <property name="spacing">
-        <number>0</number>
-       </property>
-       <property name="leftMargin">
-        <number>0</number>
-       </property>
-       <property name="topMargin">
-        <number>0</number>
-       </property>
-       <property name="rightMargin">
-        <number>0</number>
-       </property>
-       <property name="bottomMargin">
-        <number>0</number>
-       </property>
-       <item>
-        <layout class="QVBoxLayout" name="verticalLayoutStashContentToolbar">
-         <property name="spacing">
-          <number>0</number>
-         </property>
-         <item>
-          <layout class="QHBoxLayout" name="horizontalLayoutStashContentButtons">
-           <item>
-            <spacer name="horizontalSpacerStashContentLeft">
-             <property name="orientation">
-              <enum>Qt::Orientation::Horizontal</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>40</width>
-               <height>20</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-           <item>
-            <spacer name="horizontalSpacerStashContentCenter">
-             <property name="orientation">
-              <enum>Qt::Orientation::Horizontal</enum>
-             </property>
-             <property name="sizeType">
-              <enum>QSizePolicy::Policy::Expanding</enum>
-             </property>
-             <property name="sizeHint" stdset="0">
-              <size>
-               <width>40</width>
-               <height>20</height>
-              </size>
-             </property>
-            </spacer>
-           </item>
-           <item>
-            <widget class="QPushButton" name="pushButtonStashClose">
-             <property name="text">
-              <string/>
-             </property>
-             <property name="flat">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-        </layout>
-       </item>
-       <item>
-        <widget class="QSplitter" name="splitterStashContent">
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
-         </property>
-         <widget class="QWidget" name="stashFilesContainer">
-          <layout class="QVBoxLayout" name="verticalLayoutStashFiles">
-           <property name="spacing">
-            <number>0</number>
-           </property>
-           <property name="leftMargin">
-            <number>0</number>
-           </property>
-           <property name="topMargin">
-            <number>0</number>
-           </property>
-           <property name="rightMargin">
-            <number>0</number>
-           </property>
-           <property name="bottomMargin">
-            <number>0</number>
-           </property>
-           <item>
-            <widget class="QTabWidget" name="tabWidgetStashFiles">
-             <property name="currentIndex">
-              <number>0</number>
-             </property>
-             <widget class="QWidget" name="tabStashFilesFlat">
-              <attribute name="title">
-               <string>Flat</string>
-              </attribute>
-              <layout class="QHBoxLayout" name="horizontalLayoutStashFilesFlat">
-               <property name="spacing">
-                <number>0</number>
-               </property>
-               <property name="leftMargin">
-                <number>0</number>
-               </property>
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="rightMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item>
-                <widget class="GuiManager::Widgets::RightClickSelectListView" name="listViewStashFilesFlat">
-                 <property name="editTriggers">
-                  <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
-                 </property>
-                 <property name="selectionMode">
-                  <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
-                 </property>
-                 <property name="selectionBehavior">
-                  <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
-                 </property>
+                <widget class="QWidget" name="pageStashContent">
+                 <layout class="QVBoxLayout" name="verticalLayoutStashContent">
+                  <property name="spacing">
+                   <number>0</number>
+                  </property>
+                  <property name="leftMargin">
+                   <number>0</number>
+                  </property>
+                  <property name="topMargin">
+                   <number>0</number>
+                  </property>
+                  <property name="rightMargin">
+                   <number>0</number>
+                  </property>
+                  <property name="bottomMargin">
+                   <number>0</number>
+                  </property>
+                  <item>
+                   <layout class="QVBoxLayout" name="verticalLayoutStashContentToolbar">
+                    <property name="spacing">
+                     <number>0</number>
+                    </property>
+                    <item>
+                     <layout class="QHBoxLayout" name="horizontalLayoutStashContentButtons">
+                      <item>
+                       <spacer name="horizontalSpacerStashContentLeft">
+                        <property name="orientation">
+                         <enum>Qt::Orientation::Horizontal</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                         <size>
+                          <width>40</width>
+                          <height>20</height>
+                         </size>
+                        </property>
+                       </spacer>
+                      </item>
+                      <item>
+                       <spacer name="horizontalSpacerStashContentCenter">
+                        <property name="orientation">
+                         <enum>Qt::Orientation::Horizontal</enum>
+                        </property>
+                        <property name="sizeType">
+                         <enum>QSizePolicy::Policy::Expanding</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                         <size>
+                          <width>40</width>
+                          <height>20</height>
+                         </size>
+                        </property>
+                       </spacer>
+                      </item>
+                      <item>
+                       <widget class="QPushButton" name="pushButtonStashClose">
+                        <property name="text">
+                         <string/>
+                        </property>
+                        <property name="flat">
+                         <bool>true</bool>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                   </layout>
+                  </item>
+                  <item>
+                   <widget class="QSplitter" name="splitterStashContent">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="orientation">
+                     <enum>Qt::Orientation::Vertical</enum>
+                    </property>
+                    <widget class="QWidget" name="stashFilesContainer">
+                     <property name="sizePolicy">
+                      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                       <horstretch>0</horstretch>
+                       <verstretch>0</verstretch>
+                      </sizepolicy>
+                     </property>
+                     <layout class="QVBoxLayout" name="verticalLayoutStashFiles">
+                      <property name="spacing">
+                       <number>0</number>
+                      </property>
+                      <property name="leftMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="topMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="rightMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="bottomMargin">
+                       <number>0</number>
+                      </property>
+                      <item>
+                       <widget class="QTabWidget" name="tabWidgetStashFiles">
+                        <property name="currentIndex">
+                         <number>0</number>
+                        </property>
+                        <widget class="QWidget" name="tabStashFilesFlat">
+                         <property name="sizePolicy">
+                          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                           <horstretch>0</horstretch>
+                           <verstretch>0</verstretch>
+                          </sizepolicy>
+                         </property>
+                         <attribute name="title">
+                          <string>Flat</string>
+                         </attribute>
+                         <layout class="QHBoxLayout" name="horizontalLayoutStashFilesFlat">
+                          <property name="spacing">
+                           <number>0</number>
+                          </property>
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                          <item>
+                           <widget class="GuiManager::Widgets::RightClickSelectListView" name="listViewStashFilesFlat">
+                            <property name="editTriggers">
+                             <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                            </property>
+                            <property name="selectionMode">
+                             <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+                            </property>
+                            <property name="selectionBehavior">
+                             <enum>QAbstractItemView::SelectionBehavior::SelectRows</enum>
+                            </property>
+                           </widget>
+                          </item>
+                         </layout>
+                        </widget>
+                        <widget class="QWidget" name="tabStashFilesTree">
+                         <property name="sizePolicy">
+                          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                           <horstretch>0</horstretch>
+                           <verstretch>0</verstretch>
+                          </sizepolicy>
+                         </property>
+                         <attribute name="title">
+                          <string>Tree</string>
+                         </attribute>
+                         <layout class="QHBoxLayout" name="horizontalLayoutStashFilesTree">
+                          <property name="spacing">
+                           <number>0</number>
+                          </property>
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                          <item>
+                           <widget class="GuiManager::Widgets::RightClickSelectTreeView" name="treeViewStashFilesTree">
+                            <property name="editTriggers">
+                             <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
+                            </property>
+                            <property name="selectionMode">
+                             <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+                            </property>
+                            <property name="indentation">
+                             <number>20</number>
+                            </property>
+                            <property name="headerHidden">
+                             <bool>true</bool>
+                            </property>
+                           </widget>
+                          </item>
+                         </layout>
+                        </widget>
+                       </widget>
+                      </item>
+                     </layout>
+                    </widget>
+                    <widget class="QWidget" name="stashDiffContainer">
+                     <property name="sizePolicy">
+                      <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                       <horstretch>0</horstretch>
+                       <verstretch>0</verstretch>
+                      </sizepolicy>
+                     </property>
+                     <layout class="QVBoxLayout" name="verticalLayoutStashDiff">
+                      <property name="spacing">
+                       <number>0</number>
+                      </property>
+                      <property name="leftMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="topMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="rightMargin">
+                       <number>0</number>
+                      </property>
+                      <property name="bottomMargin">
+                       <number>0</number>
+                      </property>
+                      <item>
+                       <layout class="QHBoxLayout" name="horizontalLayoutStashDiffButtons">
+                        <property name="spacing">
+                         <number>4</number>
+                        </property>
+                        <item>
+                         <widget class="QPushButton" name="pushButtonStashDiffUnified">
+                          <property name="text">
+                           <string/>
+                          </property>
+                          <property name="checkable">
+                           <bool>true</bool>
+                          </property>
+                          <property name="checked">
+                           <bool>true</bool>
+                          </property>
+                          <property name="flat">
+                           <bool>false</bool>
+                          </property>
+                         </widget>
+                        </item>
+                        <item>
+                         <widget class="QPushButton" name="pushButtonStashDiffSideBySide">
+                          <property name="text">
+                           <string/>
+                          </property>
+                          <property name="checkable">
+                           <bool>true</bool>
+                          </property>
+                          <property name="flat">
+                           <bool>false</bool>
+                          </property>
+                         </widget>
+                        </item>
+                        <item>
+                         <spacer name="horizontalSpacerStashDiff">
+                          <property name="orientation">
+                           <enum>Qt::Orientation::Horizontal</enum>
+                          </property>
+                          <property name="sizeType">
+                           <enum>QSizePolicy::Policy::Expanding</enum>
+                          </property>
+                          <property name="sizeHint" stdset="0">
+                           <size>
+                            <width>40</width>
+                            <height>20</height>
+                           </size>
+                          </property>
+                         </spacer>
+                        </item>
+                       </layout>
+                      </item>
+                      <item>
+                       <widget class="QStackedWidget" name="stackedWidgetStashDiff">
+                        <property name="sizePolicy">
+                         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                          <horstretch>0</horstretch>
+                          <verstretch>0</verstretch>
+                         </sizepolicy>
+                        </property>
+                        <widget class="QWidget" name="pageStashDiffUnified">
+                         <property name="sizePolicy">
+                          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                           <horstretch>0</horstretch>
+                           <verstretch>0</verstretch>
+                          </sizepolicy>
+                         </property>
+                         <layout class="QVBoxLayout" name="verticalLayoutStashDiffUnified">
+                          <property name="spacing">
+                           <number>0</number>
+                          </property>
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                          <item>
+                           <layout class="QVBoxLayout" name="verticalLayoutScintillaStashDiffUnified">
+                            <property name="spacing">
+                             <number>0</number>
+                            </property>
+                            <property name="leftMargin">
+                             <number>0</number>
+                            </property>
+                            <property name="topMargin">
+                             <number>0</number>
+                            </property>
+                            <property name="rightMargin">
+                             <number>0</number>
+                            </property>
+                            <property name="bottomMargin">
+                             <number>0</number>
+                            </property>
+                            <item>
+                             <widget class="QsciScintilla" name="scintillaStashDiffUnified" native="true"/>
+                            </item>
+                           </layout>
+                          </item>
+                         </layout>
+                        </widget>
+                        <widget class="QWidget" name="pageStashDiffSideBySide">
+                         <property name="sizePolicy">
+                          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                           <horstretch>0</horstretch>
+                           <verstretch>0</verstretch>
+                          </sizepolicy>
+                         </property>
+                         <layout class="QVBoxLayout" name="verticalLayoutStashDiffSideBySide">
+                          <property name="spacing">
+                           <number>0</number>
+                          </property>
+                          <property name="leftMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="topMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="rightMargin">
+                           <number>0</number>
+                          </property>
+                          <property name="bottomMargin">
+                           <number>0</number>
+                          </property>
+                          <item>
+                           <layout class="QVBoxLayout" name="verticalLayoutScintillaStashDiffSideBySide">
+                            <property name="spacing">
+                             <number>0</number>
+                            </property>
+                            <property name="leftMargin">
+                             <number>0</number>
+                            </property>
+                            <property name="topMargin">
+                             <number>0</number>
+                            </property>
+                            <property name="rightMargin">
+                             <number>0</number>
+                            </property>
+                            <property name="bottomMargin">
+                             <number>0</number>
+                            </property>
+                            <item>
+                             <widget class="GuiManager::Widgets::SideBySideDiffView" name="sideBySideDiffViewerStash" native="true"/>
+                            </item>
+                           </layout>
+                          </item>
+                         </layout>
+                        </widget>
+                       </widget>
+                      </item>
+                     </layout>
+                    </widget>
+                   </widget>
+                  </item>
+                 </layout>
                 </widget>
-               </item>
-              </layout>
-             </widget>
-             <widget class="QWidget" name="tabStashFilesTree">
-              <attribute name="title">
-               <string>Tree</string>
-              </attribute>
-              <layout class="QHBoxLayout" name="horizontalLayoutStashFilesTree">
-               <property name="spacing">
-                <number>0</number>
-               </property>
-               <property name="leftMargin">
-                <number>0</number>
-               </property>
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="rightMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item>
-                <widget class="GuiManager::Widgets::RightClickSelectTreeView" name="treeViewStashFilesTree">
-                 <property name="editTriggers">
-                  <set>QAbstractItemView::EditTrigger::NoEditTriggers</set>
-                 </property>
-                 <property name="selectionMode">
-                  <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
-                 </property>
-                 <property name="indentation">
-                  <number>20</number>
-                 </property>
-                 <property name="headerHidden">
-                  <bool>true</bool>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </widget>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-         <widget class="QWidget" name="stashDiffContainer">
-          <layout class="QVBoxLayout" name="verticalLayoutStashDiff">
-           <property name="spacing">
-            <number>0</number>
-           </property>
-           <property name="leftMargin">
-            <number>0</number>
-           </property>
-           <property name="topMargin">
-            <number>0</number>
-           </property>
-           <property name="rightMargin">
-            <number>0</number>
-           </property>
-           <property name="bottomMargin">
-            <number>0</number>
-           </property>
-           <item>
-            <layout class="QHBoxLayout" name="horizontalLayoutStashDiffButtons">
-             <property name="spacing">
-              <number>4</number>
-             </property>
-             <item>
-              <widget class="QPushButton" name="pushButtonStashDiffUnified">
-               <property name="text">
-                <string/>
-               </property>
-               <property name="checkable">
-                <bool>true</bool>
-               </property>
-               <property name="checked">
-                <bool>true</bool>
-               </property>
-               <property name="flat">
-                <bool>false</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="pushButtonStashDiffSideBySide">
-               <property name="text">
-                <string/>
-               </property>
-               <property name="checkable">
-                <bool>true</bool>
-               </property>
-               <property name="flat">
-                <bool>false</bool>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <spacer name="horizontalSpacerStashDiff">
-               <property name="orientation">
-                <enum>Qt::Orientation::Horizontal</enum>
-               </property>
-               <property name="sizeType">
-                <enum>QSizePolicy::Policy::Expanding</enum>
-               </property>
-               <property name="sizeHint" stdset="0">
-                <size>
-                 <width>40</width>
-                 <height>20</height>
-                </size>
-               </property>
-              </spacer>
-             </item>
-            </layout>
-           </item>
-           <item>
-            <widget class="QStackedWidget" name="stackedWidgetStashDiff">
-             <widget class="QWidget" name="pageStashDiffUnified">
-              <layout class="QVBoxLayout" name="verticalLayoutStashDiffUnified">
-               <item>
-                <layout class="QVBoxLayout" name="verticalLayoutScintillaStashDiffUnified">
-                 <item>
-                  <widget class="QsciScintilla" name="scintillaStashDiffUnified" native="true"/>
-                 </item>
-                </layout>
-               </item>
-              </layout>
-             </widget>
-             <widget class="QWidget" name="pageStashDiffSideBySide">
-              <layout class="QVBoxLayout" name="verticalLayoutStashDiffSideBySide">
-               <property name="spacing">
-                <number>0</number>
-               </property>
-               <property name="leftMargin">
-                <number>0</number>
-               </property>
-               <property name="topMargin">
-                <number>0</number>
-               </property>
-               <property name="rightMargin">
-                <number>0</number>
-               </property>
-               <property name="bottomMargin">
-                <number>0</number>
-               </property>
-               <item>
-                <layout class="QVBoxLayout" name="verticalLayoutScintillaStashDiffSideBySide">
-                 <property name="spacing">
-                  <number>0</number>
-                 </property>
-                 <item>
-                  <widget class="GuiManager::Widgets::SideBySideDiffView" name="sideBySideDiffViewerStash" native="true"/>
-                 </item>
-                </layout>
-               </item>
-              </layout>
-             </widget>
-            </widget>
-           </item>
-          </layout>
-         </widget>
-        </widget>
-       </item>
-      </layout>
-     </widget>
                </widget>
               </widget>
              </item>
@@ -859,7 +1165,7 @@
                 </sizepolicy>
                </property>
                <property name="currentIndex">
-                <number>0</number>
+                <number>1</number>
                </property>
                <widget class="QWidget" name="pageCommitAndMerge">
                 <property name="sizePolicy">
@@ -1260,6 +1566,19 @@
                            </widget>
                           </item>
                           <item>
+                           <widget class="QPushButton" name="pushButtonRebase">
+                            <property name="sizePolicy">
+                             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                              <horstretch>0</horstretch>
+                              <verstretch>0</verstretch>
+                             </sizepolicy>
+                            </property>
+                            <property name="text">
+                             <string>Rebase</string>
+                            </property>
+                           </widget>
+                          </item>
+                          <item>
                            <widget class="QPushButton" name="pushButtonAbort">
                             <property name="sizePolicy">
                              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -1322,7 +1641,7 @@
                      </sizepolicy>
                     </property>
                     <property name="title">
-                     <string/>
+                     <string>Commit</string>
                     </property>
                     <layout class="QHBoxLayout" name="horizontalLayoutGroupBoxInfo">
                      <property name="spacing">
@@ -1345,8 +1664,20 @@
                        <property name="spacing">
                         <number>0</number>
                        </property>
+                       <property name="topMargin">
+                        <number>0</number>
+                       </property>
+                       <property name="bottomMargin">
+                        <number>0</number>
+                       </property>
                        <item>
                         <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoSha">
+                         <property name="topMargin">
+                          <number>0</number>
+                         </property>
+                         <property name="bottomMargin">
+                          <number>0</number>
+                         </property>
                          <item>
                           <widget class="QLabel" name="labelPageDisplayShaLabel">
                            <property name="sizePolicy">
@@ -1388,42 +1719,135 @@
                         </layout>
                        </item>
                        <item>
-                        <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoAuthor">
+                        <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoAuthorDetails">
+                         <property name="topMargin">
+                          <number>0</number>
+                         </property>
+                         <property name="bottomMargin">
+                          <number>0</number>
+                         </property>
                          <item>
-                          <widget class="QLabel" name="labelPageDisplayAuthorLabel">
-                           <property name="sizePolicy">
-                            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                             <horstretch>0</horstretch>
-                             <verstretch>0</verstretch>
-                            </sizepolicy>
-                           </property>
-                           <property name="lineWidth">
+                          <layout class="QVBoxLayout" name="verticalLayoutPageDisplayGroupBoxInfoAuthorDetails">
+                           <property name="spacing">
                             <number>0</number>
                            </property>
-                           <property name="text">
-                            <string>author:</string>
-                           </property>
-                          </widget>
+                           <item>
+                            <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoAuthor">
+                             <property name="topMargin">
+                              <number>0</number>
+                             </property>
+                             <property name="bottomMargin">
+                              <number>0</number>
+                             </property>
+                             <item>
+                              <widget class="QLabel" name="labelPageDisplayAuthorLabel">
+                               <property name="sizePolicy">
+                                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                                 <horstretch>0</horstretch>
+                                 <verstretch>0</verstretch>
+                                </sizepolicy>
+                               </property>
+                               <property name="lineWidth">
+                                <number>0</number>
+                               </property>
+                               <property name="text">
+                                <string>author:</string>
+                               </property>
+                              </widget>
+                             </item>
+                             <item>
+                              <widget class="QLabel" name="labelPageDiaplayAuthorValue">
+                               <property name="sizePolicy">
+                                <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                                 <horstretch>0</horstretch>
+                                 <verstretch>0</verstretch>
+                                </sizepolicy>
+                               </property>
+                               <property name="lineWidth">
+                                <number>0</number>
+                               </property>
+                               <property name="text">
+                                <string/>
+                               </property>
+                               <property name="margin">
+                                <number>0</number>
+                               </property>
+                               <property name="indent">
+                                <number>4</number>
+                               </property>
+                              </widget>
+                             </item>
+                            </layout>
+                           </item>
+                           <item>
+                            <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoEmail">
+                             <property name="topMargin">
+                              <number>0</number>
+                             </property>
+                             <property name="bottomMargin">
+                              <number>0</number>
+                             </property>
+                             <item>
+                              <widget class="QLabel" name="labelPageDisplayEmailLabel">
+                               <property name="sizePolicy">
+                                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                                 <horstretch>0</horstretch>
+                                 <verstretch>0</verstretch>
+                                </sizepolicy>
+                               </property>
+                               <property name="lineWidth">
+                                <number>0</number>
+                               </property>
+                               <property name="text">
+                                <string>email:</string>
+                               </property>
+                              </widget>
+                             </item>
+                             <item>
+                              <widget class="QLabel" name="labelPageDisplayEmailValue">
+                               <property name="sizePolicy">
+                                <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                                 <horstretch>0</horstretch>
+                                 <verstretch>0</verstretch>
+                                </sizepolicy>
+                               </property>
+                               <property name="lineWidth">
+                                <number>0</number>
+                               </property>
+                               <property name="text">
+                                <string/>
+                               </property>
+                               <property name="margin">
+                                <number>0</number>
+                               </property>
+                               <property name="indent">
+                                <number>4</number>
+                               </property>
+                              </widget>
+                             </item>
+                            </layout>
+                           </item>
+                          </layout>
                          </item>
                          <item>
-                          <widget class="QLabel" name="labelPageDiaplayAuthorValue">
-                           <property name="sizePolicy">
-                            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-                             <horstretch>0</horstretch>
-                             <verstretch>0</verstretch>
-                            </sizepolicy>
+                          <widget class="QLabel" name="labelPageDisplayAuthorAvatar">
+                           <property name="minimumSize">
+                            <size>
+                             <width>56</width>
+                             <height>56</height>
+                            </size>
                            </property>
-                           <property name="lineWidth">
-                            <number>0</number>
+                           <property name="maximumSize">
+                            <size>
+                             <width>56</width>
+                             <height>56</height>
+                            </size>
                            </property>
                            <property name="text">
                             <string/>
                            </property>
-                           <property name="margin">
-                            <number>0</number>
-                           </property>
-                           <property name="indent">
-                            <number>4</number>
+                           <property name="alignment">
+                            <set>Qt::AlignmentFlag::AlignCenter</set>
                            </property>
                           </widget>
                          </item>
@@ -1431,6 +1855,12 @@
                        </item>
                        <item>
                         <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoParents">
+                         <property name="topMargin">
+                          <number>0</number>
+                         </property>
+                         <property name="bottomMargin">
+                          <number>0</number>
+                         </property>
                          <item>
                           <widget class="QLabel" name="labelPageDisplayParentsLabel">
                            <property name="sizePolicy">
@@ -1472,144 +1902,66 @@
                         </layout>
                        </item>
                        <item>
-                        <widget class="QWidget" name="widgetPageDisplaySignatureSection">
-                         <layout class="QVBoxLayout" name="verticalLayoutPageDisplaySignatureSection">
-                          <property name="spacing">
-                           <number>6</number>
-                          </property>
-                          <property name="leftMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="topMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="rightMargin">
-                           <number>0</number>
-                          </property>
-                          <property name="bottomMargin">
-                           <number>0</number>
-                          </property>
-                          <item>
-                           <widget class="QToolButton" name="toolButtonPageDisplaySignature">
-                            <property name="text">
-                             <string>Signature</string>
-                            </property>
-                            <property name="checkable">
-                             <bool>true</bool>
-                            </property>
-                            <property name="checked">
-                             <bool>false</bool>
-                            </property>
-                            <property name="toolButtonStyle">
-                             <enum>Qt::ToolButtonStyle::ToolButtonTextBesideIcon</enum>
-                            </property>
-                            <property name="arrowType">
-                             <enum>Qt::ArrowType::RightArrow</enum>
-                            </property>
-                            <property name="autoRaise">
-                             <bool>true</bool>
-                            </property>
-                           </widget>
-                          </item>
-                          <item>
-                           <widget class="QWidget" name="widgetPageDisplaySignatureContent">
-                            <property name="visible">
-                             <bool>false</bool>
-                            </property>
-                            <layout class="QVBoxLayout" name="verticalLayoutPageDisplaySignatureContent">
-                             <property name="spacing">
-                              <number>6</number>
-                             </property>
-                             <property name="leftMargin">
-                              <number>0</number>
-                             </property>
-                             <property name="topMargin">
-                              <number>0</number>
-                             </property>
-                             <property name="rightMargin">
-                              <number>0</number>
-                             </property>
-                             <property name="bottomMargin">
-                              <number>0</number>
-                             </property>
-                             <item>
-                              <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoSigned">
-                               <item>
-                                <widget class="QLabel" name="labelPageDisplaySignedLabel">
-                                 <property name="text">
-                                  <string>Signed:</string>
-                                 </property>
-                                </widget>
-                               </item>
-                               <item>
-                                <widget class="QLabel" name="labelPageDisplaySignedValue">
-                                 <property name="text">
-                                  <string/>
-                                 </property>
-                                 <property name="indent">
-                                  <number>4</number>
-                                 </property>
-                                </widget>
-                               </item>
-                              </layout>
-                             </item>
-                             <item>
-                              <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoSignatureType">
-                               <item>
-                                <widget class="QLabel" name="labelPageDisplaySignatureTypeLabel">
-                                 <property name="text">
-                                  <string>Signature type:</string>
-                                 </property>
-                                </widget>
-                               </item>
-                               <item>
-                                <widget class="QLabel" name="labelPageDisplaySignatureTypeValue">
-                                 <property name="text">
-                                  <string/>
-                                 </property>
-                                 <property name="indent">
-                                  <number>4</number>
-                                 </property>
-                                </widget>
-                               </item>
-                              </layout>
-                             </item>
-                             <item>
-                              <layout class="QHBoxLayout" name="horizontalLayoutPageDisplaySignatureCopy">
-                               <item>
-                                <widget class="QPushButton" name="pushButtonPageDisplaySignatureCopy">
-                                 <property name="text">
-                                  <string>Copy</string>
-                                 </property>
-                                 <property name="toolTip">
-                                  <string>Copy signature to clipboard</string>
-                                 </property>
-                                </widget>
-                               </item>
-                               <item>
-                                <spacer name="horizontalSpacerPageDisplaySignatureCopyRight">
-                                 <property name="orientation">
-                                  <enum>Qt::Orientation::Horizontal</enum>
-                                 </property>
-                                 <property name="sizeType">
-                                  <enum>QSizePolicy::Policy::Expanding</enum>
-                                 </property>
-                                 <property name="sizeHint" stdset="0">
-                                  <size>
-                                   <width>40</width>
-                                   <height>20</height>
-                                  </size>
-                                 </property>
-                                </spacer>
-                               </item>
-                              </layout>
-                             </item>
-
-                            </layout>
-                           </widget>
-                          </item>
-                         </layout>
-                        </widget>
+                        <layout class="QHBoxLayout" name="horizontalLayoutPageDisplayGroupBoxInfoSigned">
+                         <property name="spacing">
+                          <number>7</number>
+                         </property>
+                         <property name="topMargin">
+                          <number>8</number>
+                         </property>
+                         <property name="bottomMargin">
+                          <number>0</number>
+                         </property>
+                         <item>
+                          <widget class="QLabel" name="labelPageDisplaySignedLabel">
+                           <property name="sizePolicy">
+                            <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                             <horstretch>0</horstretch>
+                             <verstretch>0</verstretch>
+                            </sizepolicy>
+                           </property>
+                           <property name="text">
+                            <string>signed:</string>
+                           </property>
+                          </widget>
+                         </item>
+                         <item>
+                          <widget class="QLabel" name="labelPageDisplaySignedValue">
+                           <property name="sizePolicy">
+                            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+                             <horstretch>0</horstretch>
+                             <verstretch>0</verstretch>
+                            </sizepolicy>
+                           </property>
+                           <property name="text">
+                            <string/>
+                           </property>
+                           <property name="alignment">
+                            <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
+                       </item>
+                       <item>
+                        <layout class="QHBoxLayout" name="horizontalLayoutPageDisplaySignatureCopy">
+                         <property name="topMargin">
+                          <number>8</number>
+                         </property>
+                         <property name="bottomMargin">
+                          <number>0</number>
+                         </property>
+                         <item>
+                          <widget class="QPushButton" name="pushButtonPageDisplaySignatureCopy">
+                           <property name="toolTip">
+                            <string>Copy signature to clipboard</string>
+                           </property>
+                           <property name="text">
+                            <string>Copy signature</string>
+                           </property>
+                          </widget>
+                         </item>
+                        </layout>
                        </item>
                       </layout>
                      </item>
@@ -1805,7 +2157,7 @@
        </item>
       </layout>
      </widget>
-    <widget class="QWidget" name="pageError">
+     <widget class="QWidget" name="pageError">
       <layout class="QHBoxLayout" name="horizontalLayout_2">
        <item>
         <layout class="QVBoxLayout" name="verticalLayout3">
@@ -2091,6 +2443,12 @@
    <class>GuiManager::Widgets::GitSubmodulesPage</class>
    <extends>QWidget</extends>
    <header>widgets/GitSubmodulesPage.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>GuiManager::Widgets::GitWorktreesPage</class>
+   <extends>QWidget</extends>
+   <header>widgets/GitWorktreesPage.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>

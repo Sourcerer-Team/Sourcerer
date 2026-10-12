@@ -73,6 +73,14 @@ bool TrackingState::process(::Fsm::FsmEvent event) {
     pollOnce();
     break;
   }
+  case EventType::MarkNewsSeen: {
+    const auto id = event.nextParam<QString>();
+    if (!id.isEmpty() && !_seenNewsIds.contains(id)) {
+      _seenNewsIds.insert(id);
+      persistSeenNewsIds();
+    }
+    break;
+  }
   default: {
     LOG_WARN("Unhandled event {}", (int)type);
     return false;
@@ -151,6 +159,8 @@ bool TrackingState::parseNewsItem(const QJsonObject &object,
       object.value(QStringLiteral("download_url_linux")).toString().trimmed();
   newsItem.downloadUrlWindows =
       object.value(QStringLiteral("download_url_windows")).toString().trimmed();
+  newsItem.downloadUrlMacos =
+      object.value(QStringLiteral("download_url_macos")).toString().trimmed();
 
   return newsItem.type != Structs::NewsType::Unknown;
 }
@@ -194,6 +204,7 @@ void TrackingState::pollOnce() {
   Structs::NewsItem newestUpdateNewsItem;
   bool hasNewestUpdateNewsItem = false;
   QStringList newlySeenIds;
+  const QString currentVersion = _configManager.getAppVersion();
 
   for (const QJsonValue &value : newsArray) {
     if (!value.isObject()) {
@@ -205,14 +216,19 @@ void TrackingState::pollOnce() {
       continue;
     }
 
-    if (_seenNewsIds.contains(newsItem.id)) {
+    if (!newsItem.isUpdate()) {
+      if (!_seenNewsIds.contains(newsItem.id)) {
+        newlySeenIds.append(newsItem.id);
+        sendNews(newsItem);
+      }
       continue;
     }
 
-    newlySeenIds.append(newsItem.id);
-
-    if (!newsItem.isUpdate()) {
-      sendNews(newsItem);
+    // Update news is marked as seen only after the update has been staged
+    // (see MarkNewsSeen), so the newest update is picked among all of them,
+    // seen or not, to never fall back to an older one.
+    if (!newsItem.version.isEmpty() &&
+        !isNewerVersion(newsItem.version, currentVersion)) {
       continue;
     }
 
@@ -231,7 +247,8 @@ void TrackingState::pollOnce() {
     persistSeenNewsIds();
   }
 
-  if (hasNewestUpdateNewsItem) {
+  if (hasNewestUpdateNewsItem &&
+      !_seenNewsIds.contains(newestUpdateNewsItem.id)) {
     sendNews(newestUpdateNewsItem);
   }
 

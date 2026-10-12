@@ -10,6 +10,7 @@
 #include <QMap>
 #include <QNetworkRequest>
 #include <QSet>
+#include <QUrl>
 #include <QUrlQuery>
 
 #include <memory>
@@ -107,7 +108,7 @@ QString BitbucketRepo::issuesUrl() const {
     return QString();
   }
 
-  return webUrl() + QStringLiteral("/issues");
+  return webUrl() + QStringLiteral("/jira");
 }
 
 bool BitbucketRepo::isValid() const {

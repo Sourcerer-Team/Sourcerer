@@ -54,23 +54,24 @@ public:
 
   void loadAndHighlight(const QString &leftContent,
                         const GitRepo::FilesDiffDelta &rightDelta,
-                        const QString &extension);
+                        const QString &filePath);
   void loadAndHighlight(const QString &leftContent,
                         const SvnRepo::FilesDiffDelta &rightDelta,
-                        const QString &extension);
+                        const QString &filePath);
   void clearContent();
 
 protected:
   void changeEvent(QEvent *event) override;
 
 private:
-  void setupEditors(const QString &extension);
+  void setupEditors(const QString &filePath);
   void refreshScintillaTheme();
   void syncScrollbars();
 
 private:
   QsciScintilla *_leftEditor;
   QsciScintilla *_rightEditor;
+  QsciLexer *_lexer = nullptr;
   ScrollbarMarksWidget *_leftMarks;
   ScrollbarMarksWidget *_rightMarks;
   ::ConfigManager::ConfigManager &_configManager;

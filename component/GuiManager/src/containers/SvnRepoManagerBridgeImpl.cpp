@@ -212,8 +212,12 @@ void SvnRepoManagerBridgeImpl::setUpstream(
   LOG_PERF(0, "Exit");
 }
 
-void SvnRepoManagerBridgeImpl::stash(const QWeakPointer<RepoContainer> &guard) {
+void SvnRepoManagerBridgeImpl::stash(const QWeakPointer<RepoContainer> &guard,
+                                     const QString &note) {
   LOG_PERF(0, "Enter");
+
+  // Subversion shelves have no message attached.
+  Q_UNUSED(note);
 
   const QString eventUuid = Uuid::createUuid();
 
@@ -2160,7 +2164,7 @@ void SvnRepoManagerBridgeImpl::onStashFileSelected(const QModelIndex &index) {
         const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
         _container.ui->sideBySideDiffViewerStash->loadAndHighlight(
             filesDiff.repoContent.first(), filesDiff.deltas.first(),
-            fileInfo.suffix());
+            fileInfo.absoluteFilePath());
       }
 
       _container.ui->stackedWidgetStashDiff->setCurrentIndex(
@@ -2381,7 +2385,7 @@ void SvnRepoManagerBridgeImpl::diff(const QWeakPointer<RepoContainer> &guard,
       const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
       _container.ui->sideBySideDiffViewer->loadAndHighlight(
           filesDiff.repoContent.first(), filesDiff.deltas.first(),
-          fileInfo.suffix());
+          fileInfo.absoluteFilePath());
     }
 
     _container.showSpinnerOverlay(false);
@@ -2623,7 +2627,7 @@ void SvnRepoManagerBridgeImpl::diffFromCommit(
       const QFileInfo fileInfo(filesDiff.repoContent.firstKey());
       _container.ui->sideBySideDiffViewer->loadAndHighlight(
           filesDiff.repoContent.first(), filesDiff.deltas.first(),
-          fileInfo.suffix());
+          fileInfo.absoluteFilePath());
     }
 
     _container.showSpinnerOverlay(false);
@@ -2838,6 +2842,8 @@ bool SvnRepoManagerBridgeImpl::getActiveBranchOrTag(
           _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -2848,6 +2854,8 @@ bool SvnRepoManagerBridgeImpl::getActiveBranchOrTag(
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
+
+    _container.releaseHistoryRefreshSemaphore();
 
     LOG_PERF(0, "Exit")
     return false;
@@ -2861,6 +2869,7 @@ bool SvnRepoManagerBridgeImpl::getActiveBranchOrTag(
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.updateModelActiveBranch(
         guard, result.branchName, static_cast<GitRepo::BranchType>(branchType));
+    _container.releaseHistoryRefreshSemaphore();
   });
 
   LOG_PERF(0, "Exit")
@@ -2958,6 +2967,8 @@ bool SvnRepoManagerBridgeImpl::getBranchHistory(
           _container.tr("Error"));
     });
 
+    _container.releaseBranchHistorySemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -2969,6 +2980,8 @@ bool SvnRepoManagerBridgeImpl::getBranchHistory(
       _container.showSpinnerOverlay(false);
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
+
+    _container.releaseBranchHistorySemaphore();
 
     LOG_PERF(0, "Exit")
     return false;
@@ -3009,6 +3022,8 @@ bool SvnRepoManagerBridgeImpl::getBranchHistory(
           _container.tr("Error"));
     });
 
+    _container.releaseBranchHistorySemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3021,6 +3036,8 @@ bool SvnRepoManagerBridgeImpl::getBranchHistory(
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseBranchHistorySemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3029,14 +3046,22 @@ bool SvnRepoManagerBridgeImpl::getBranchHistory(
 
   const auto status = statusCommandResult.value.value<SvnRepo::SvnStatus>();
 
+  // The whole history is loaded at once, there are no more pages to request.
   GitRepo::GitHistoryWithStatus historyWithStatus;
   historyWithStatus.history = convertSvnHistoryToGitHistory(history);
+  historyWithStatus.history.hasMore = false;
   historyWithStatus.status = convertSvnStatusToGitStatus(status);
+  historyWithStatus.branchName = _container._activeBranch;
+  historyWithStatus.branchType = _container._activeBranchType;
+  historyWithStatus.uuid = _container._uuid;
+  historyWithStatus.page = 0;
 
   Util::Dispatcher::dispatchToMainThread(
       guard, [=]() { _container.ui->labelProgress->setText("0%"); });
 
   _container.updateBranchHistory(guard, historyWithStatus);
+
+  _container.releaseBranchHistorySemaphore();
 
   LOG_PERF(0, "Exit")
 
@@ -3219,6 +3244,8 @@ bool SvnRepoManagerBridgeImpl::getLocalBranches() {
           _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3230,6 +3257,8 @@ bool SvnRepoManagerBridgeImpl::getLocalBranches() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3240,6 +3269,7 @@ bool SvnRepoManagerBridgeImpl::getLocalBranches() {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.updateLocalBranchesModel(guard, localBranches);
+    _container.releaseHistoryRefreshSemaphore();
   });
 
   LOG_PERF(0, "Exit")
@@ -3295,6 +3325,8 @@ bool SvnRepoManagerBridgeImpl::getRemoteBranches() {
           _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3305,6 +3337,8 @@ bool SvnRepoManagerBridgeImpl::getRemoteBranches() {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
+
+    _container.releaseHistoryRefreshSemaphore();
 
     LOG_PERF(0, "Exit")
     return false;
@@ -3321,6 +3355,7 @@ bool SvnRepoManagerBridgeImpl::getRemoteBranches() {
       statuses += convertSvnBranchInfoToGitBranchInfo(info);
     }
     _container.updateRemoteBranchesModelWithStatus(guard, statuses);
+    _container.releaseHistoryRefreshSemaphore();
   });
 
   LOG_PERF(0, "Exit")
@@ -3361,6 +3396,8 @@ bool SvnRepoManagerBridgeImpl::getStashes(
           _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3372,6 +3409,8 @@ bool SvnRepoManagerBridgeImpl::getStashes(
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3380,8 +3419,10 @@ bool SvnRepoManagerBridgeImpl::getStashes(
 
   const auto stashes = commandResult.value.value<QStringList>();
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { _container.updateStashesModel(guard, stashes); });
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateStashesModel(guard, stashes);
+    _container.releaseHistoryRefreshSemaphore();
+  });
 
   LOG_PERF(0, "Exit")
 
@@ -3441,6 +3482,8 @@ bool SvnRepoManagerBridgeImpl::getRemotes(
           _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3451,6 +3494,8 @@ bool SvnRepoManagerBridgeImpl::getRemotes(
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
+
+    _container.releaseHistoryRefreshSemaphore();
 
     LOG_PERF(0, "Exit")
     return false;
@@ -3482,6 +3527,7 @@ bool SvnRepoManagerBridgeImpl::getRemotes(
         }
       });
     }
+    _container.releaseHistoryRefreshSemaphore();
   });
 
   LOG_PERF(0, "Exit")
@@ -3535,6 +3581,8 @@ bool SvnRepoManagerBridgeImpl::getSubmodules() {
           _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3545,6 +3593,8 @@ bool SvnRepoManagerBridgeImpl::getSubmodules() {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
+
+    _container.releaseHistoryRefreshSemaphore();
 
     LOG_PERF(0, "Exit")
     return false;
@@ -3563,6 +3613,7 @@ bool SvnRepoManagerBridgeImpl::getSubmodules() {
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.updateSubmodulesModelWithStatus(guard, gitSubmodules);
+    _container.releaseHistoryRefreshSemaphore();
   });
 
   LOG_PERF(0, "Exit")
@@ -3604,6 +3655,8 @@ bool SvnRepoManagerBridgeImpl::getTags() {
           _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3614,6 +3667,8 @@ bool SvnRepoManagerBridgeImpl::getTags() {
       _container.showErrorToast(error.message, _container.tr("Error"));
     });
 
+    _container.releaseHistoryRefreshSemaphore();
+
     LOG_PERF(0, "Exit")
     return false;
   }
@@ -3622,8 +3677,10 @@ bool SvnRepoManagerBridgeImpl::getTags() {
 
   const auto tags = commandResult.value.value<QStringList>();
 
-  Util::Dispatcher::dispatchToMainThread(
-      guard, [=]() { _container.updateTagsModel(guard, tags); });
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateTagsModel(guard, tags);
+    _container.releaseHistoryRefreshSemaphore();
+  });
 
   LOG_PERF(0, "Exit")
 
@@ -3873,8 +3930,12 @@ void SvnRepoManagerBridgeImpl::merge(const QWeakPointer<RepoContainer> &guard,
 
 void SvnRepoManagerBridgeImpl::rebase(const QWeakPointer<RepoContainer> &guard,
                                       const QString &sourceBranch,
-                                      const QString &destBranch) {
+                                      const QString &destBranch,
+                                      bool signCommit) {
   LOG_PERF(0, "Enter");
+
+  // Subversion commits are not signed.
+  Q_UNUSED(signCommit);
 
   const QString author = _container._userProfileManager.currentProfile().author;
   const QString email = _container._userProfileManager.currentProfile().email;
@@ -5823,6 +5884,290 @@ qint64 SvnRepoManagerBridgeImpl::getFileSizeFromCommit(const QString &filePath,
 
   LOG_PERF(0, "Exit");
   return fileSizeResult.fileSize;
+}
+
+void SvnRepoManagerBridgeImpl::reportUnsupportedOperation(
+    const QString &operation) const {
+  LOG_WARN("{} is not supported for Subversion repositories.", operation);
+
+  _container.showErrorToast(
+      QString(_container.tr("%1 is not supported for Subversion repositories."))
+          .arg(operation),
+      _container.tr("Error"));
+}
+
+void SvnRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,
+                                     const QStringList &files) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(files);
+
+  reportUnsupportedOperation(_container.tr("Blame"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::abortRebase(
+    const QWeakPointer<RepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+
+  reportUnsupportedOperation(_container.tr("Aborting a rebase"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::addWorktree(
+    const QWeakPointer<RepoContainer> &guard, const QString &path,
+    const QString &branch, bool createBranch, const QString &baseBranch) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(path);
+  Q_UNUSED(branch);
+  Q_UNUSED(createBranch);
+  Q_UNUSED(baseBranch);
+
+  reportUnsupportedOperation(_container.tr("Adding a worktree"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::removeWorktree(
+    const QWeakPointer<RepoContainer> &guard, const QString &name, bool force) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(name);
+  Q_UNUSED(force);
+
+  reportUnsupportedOperation(_container.tr("Removing a worktree"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::lockWorktree(
+    const QWeakPointer<RepoContainer> &guard, const QString &name,
+    const QString &reason) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(name);
+  Q_UNUSED(reason);
+
+  reportUnsupportedOperation(_container.tr("Locking a worktree"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::unlockWorktree(
+    const QWeakPointer<RepoContainer> &guard, const QString &name) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(name);
+
+  reportUnsupportedOperation(_container.tr("Unlocking a worktree"));
+
+  LOG_PERF(0, "Exit");
+}
+
+bool SvnRepoManagerBridgeImpl::getWorktrees(
+    const QWeakPointer<RepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+
+  // Subversion has no worktrees, the history refresh only waits for this
+  // request to finish.
+  _container.releaseHistoryRefreshSemaphore();
+
+  LOG_PERF(0, "Exit");
+
+  return true;
+}
+
+void SvnRepoManagerBridgeImpl::commitRebase(
+    const QWeakPointer<RepoContainer> &guard, const QString &summary,
+    const QString &description, const QString &author, const QString &email,
+    bool cleanup, bool signoff, bool signCommit) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(summary);
+  Q_UNUSED(description);
+  Q_UNUSED(author);
+  Q_UNUSED(email);
+  Q_UNUSED(cleanup);
+  Q_UNUSED(signoff);
+  Q_UNUSED(signCommit);
+
+  reportUnsupportedOperation(_container.tr("Committing during a rebase"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::getBranchHistoryPage(
+    const QWeakPointer<RepoContainer> &guard, const QString &branchName,
+    const GitRepo::BranchType branchType, const int page,
+    const quint64 generation, const bool lowPriority) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(branchName);
+  Q_UNUSED(branchType);
+  Q_UNUSED(lowPriority);
+
+  // getBranchHistory loads the whole history, so an empty page is reported to
+  // stop the model from asking for more.
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container._historyModel->appendPage(GitRepo::GitHistory(), page,
+                                         generation);
+  });
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::squash(const QWeakPointer<RepoContainer> &guard,
+                                      const QString &sourceBranch,
+                                      const QString &destBranch,
+                                      bool signCommit) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(sourceBranch);
+  Q_UNUSED(destBranch);
+  Q_UNUSED(signCommit);
+
+  reportUnsupportedOperation(_container.tr("Squash"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::bisect(const QWeakPointer<RepoContainer> &guard,
+                                      GitRepo::BisectAction action,
+                                      const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(action);
+  Q_UNUSED(commit);
+
+  reportUnsupportedOperation(_container.tr("Bisect"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::startGitFlowBranch(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::GitFlowBranchType branchType, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(branchType);
+  Q_UNUSED(branchName);
+
+  reportUnsupportedOperation(_container.tr("Git Flow"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::finishGitFlowBranch(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::GitFlowBranchType branchType, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(branchType);
+  Q_UNUSED(branchName);
+
+  reportUnsupportedOperation(_container.tr("Git Flow"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::runGitLabFlowAction(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::GitLabFlowAction action, const QString &branchName,
+    const QString &commit) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(action);
+  Q_UNUSED(branchName);
+  Q_UNUSED(commit);
+
+  reportUnsupportedOperation(_container.tr("GitLab Flow"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::runGitHubFlowAction(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::GitHubFlowAction action, const QString &branchName) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(action);
+  Q_UNUSED(branchName);
+
+  reportUnsupportedOperation(_container.tr("GitHub Flow"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::runGitFlowNextAction(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::GitFlowNextAction action, const QString &name,
+    const QString &argument) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(action);
+  Q_UNUSED(name);
+  Q_UNUSED(argument);
+
+  reportUnsupportedOperation(_container.tr("GitFlow-Next"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::applyGitFlowNextWorkflow(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::GitFlowNextWorkflow &workflow) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(workflow);
+
+  reportUnsupportedOperation(_container.tr("GitFlow-Next"));
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::getWorkflowType(
+    const QWeakPointer<RepoContainer> &guard) {
+  LOG_PERF(0, "Enter");
+
+  // Subversion repositories have no branching workflow, the default one is
+  // kept.
+  Q_UNUSED(guard);
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerBridgeImpl::setWorkflowType(
+    const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::WorkflowType workflow) {
+  LOG_PERF(0, "Enter");
+
+  Q_UNUSED(guard);
+  Q_UNUSED(workflow);
+
+  reportUnsupportedOperation(_container.tr("Changing the workflow"));
+
+  LOG_PERF(0, "Exit");
 }
 
 } // namespace GuiManager::Containers

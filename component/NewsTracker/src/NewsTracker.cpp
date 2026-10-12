@@ -16,11 +16,24 @@ NewsTracker::NewsTracker()
 
   qRegisterMetaType<Structs::NewsItem>("NewsItem");
 
+  const auto callbackFunc =
+      std::bind(&NewsTracker::eventCallback, this, std::placeholders::_1);
+
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::ApplicationUpdated, callbackFunc));
+
   LOG_PERF(0, "Exit");
 }
 
 NewsTracker::~NewsTracker() {
   LOG_PERF(0, "Enter");
+
+  const auto callbackFunc =
+      std::bind(&NewsTracker::eventCallback, this, std::placeholders::_1);
+
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::ApplicationUpdated, callbackFunc));
+
   LOG_PERF(0, "Exit");
 }
 
@@ -58,6 +71,29 @@ void NewsTracker::stop() {
 
   EventManager::Event stoppedEvent(EventManager::EventType::ComponentStopped);
   _eventManager.send(stoppedEvent);
+
+  LOG_PERF(0, "Exit");
+}
+
+void NewsTracker::eventCallback(const EventManager::Event &event) {
+  LOG_PERF(0, "Enter");
+
+  switch (event.type()) {
+  case EventManager::EventType::ApplicationUpdated: {
+    // Update news is only marked as seen once the update has been staged, so a
+    // failed download is retried on the next poll.
+    const auto news = event.data<Structs::NewsItem>();
+
+    Fsm::NewsTrackerEvent markSeenEvent(Fsm::EventType::MarkNewsSeen);
+    markSeenEvent.addParam(news.id);
+    _fsm.send(markSeenEvent);
+    break;
+  }
+  default: {
+    LOG_WARN("Unknown event type.")
+    break;
+  }
+  }
 
   LOG_PERF(0, "Exit");
 }

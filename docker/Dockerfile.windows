@@ -20,7 +20,28 @@ RUN choco install -y git
 RUN choco install -y 7zip
 RUN choco install -y python3
 RUN choco install -y ninja
-RUN choco install -y visualstudio2022buildtools --package-parameters '--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Workload.ManagedDesktopBuildTools --includeRecommended --includeOptional' ; exit 0
+RUN choco install -y dotnet-sdk
+
+# Install Visual Studio 2022 C++ Build Tools
+
+RUN $ErrorActionPreference = 'Continue'
+
+RUN choco install -y visualstudio2022buildtools --no-progress --package-parameters \
+    '--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22000 --add Microsoft.VisualStudio.Component.VC.CoreBuildTools --add Microsoft.VisualStudio.Component.Windows10SDK --add Microsoft.VisualStudio.Component.UCRT.Sdk --add Microsoft.VisualStudio.Component.VC.Redist.14.Latest --add Microsoft.VisualStudio.Component.Win11SDK.BuildTools --add Microsoft.VisualStudio.Component.Windows10SDK.19041'; \
+    $exitCode = $LASTEXITCODE; \
+    if ($exitCode -ne 0 -and $exitCode -ne 3010) { \
+        Write-Error "Chocolatey install failed with exit code $exitCode"; \
+        exit $exitCode; \
+    }; \
+    Write-Host "Terminating background Visual Studio installer processes..."; \
+    Get-Process -Name 'setup', 'vs_setup_bootstrapper', 'vs_installer', 'vs_buildtools', 'vs_installerservice' -ErrorAction SilentlyContinue | Stop-Process -Force; \
+    Write-Host "Stopping services..."; \
+    Write-Host "Cleaning up..."; \
+    Remove-Item -Recurse -Force $env:TEMP\* -ErrorAction SilentlyContinue; \
+    exit 0
+
+RUN $ErrorActionPreference = 'Stop'
+
 RUN dotnet tool install --global wix --version 7.0.0
 RUN wix eula accept wix7
 #RUN wix extension add -g WixToolset.Bal.wixext

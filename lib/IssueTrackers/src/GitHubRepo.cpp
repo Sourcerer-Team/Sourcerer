@@ -2,6 +2,7 @@
 
 #include "HttpClient.h"
 
+#include <FileManager.h>
 #include <Log.h>
 
 #include <QApplication>
@@ -22,10 +23,15 @@
 #include <QNetworkRequest>
 #include <QPoint>
 #include <QPointer>
+#ifndef Q_OS_WIN
+#include <QProcess>
+#include <QProcessEnvironment>
+#endif
 #include <QPushButton>
 #include <QSet>
 #include <QThread>
 #include <QToolTip>
+#include <QUrl>
 #include <QUrlQuery>
 #include <QVBoxLayout>
 #include <QVariantMap>
@@ -220,7 +226,7 @@ QVariantMap GitHubRepo::authenticate(const QVariantMap &parameters) {
     QObject::connect(openButton, &QPushButton::clicked, dialog,
                      [verificationUrl]() {
                        if (verificationUrl.isValid()) {
-                         QDesktopServices::openUrl(verificationUrl);
+                         FileManager::openExternalUrl(verificationUrl);
                        }
                      });
     QObject::connect(cancelButton, &QPushButton::clicked, dialog,

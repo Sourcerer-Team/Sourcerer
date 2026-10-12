@@ -4,15 +4,16 @@
 
 #include <Log.h>
 #include <NewsTrackerStructs.h>
+#include <UpdateStaging.h>
 
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
+#include <QFileDevice>
 #include <QFileInfo>
 #include <QIODevice>
 #include <QNetworkReply>
-#include <QProcess>
 #include <QStringList>
 #include <QTemporaryFile>
 #include <QTextStream>
@@ -59,15 +60,6 @@ QString resolveRunningAppImagePath() {
   const QString envAppImage =
       QString::fromLocal8Bit(qgetenv("ARGV0")).trimmed();
 
-  LOG_INFO("AppImage file path is '{}'", envAppImage);
-
-  QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
-
-  // Iterate through all environment variables
-  foreach (QString key, env.keys()) {
-    LOG_DEBUG("Key: {}, Value: {}", key, env.value(key));
-  }
-
   const QFileInfo appFileInfo(QCoreApplication::applicationFilePath());
   const QString appDir = appFileInfo.absolutePath();
 
@@ -111,11 +103,64 @@ QString resolveRunningAppImagePath() {
     }
   }
 
-  LOG_WARN("Could not resolve running AppImage file. Falling back to direct "
-           "launch.");
   return QString();
 }
 #endif
+
+QString installationDirectory() {
+#ifdef Q_OS_MACOS
+  // Never stage inside the signed .app bundle; see UpdateStaging.h.
+  const QString stagingDir = Util::UpdateStaging::macosStagingDirectory();
+  QDir().mkpath(stagingDir);
+  return stagingDir;
+#endif
+#ifdef Q_OS_LINUX
+  const QString runningAppImagePath = resolveRunningAppImagePath();
+  if (!runningAppImagePath.isEmpty()) {
+    return QFileInfo(runningAppImagePath).absolutePath();
+  }
+#endif
+  return QCoreApplication::applicationDirPath();
+}
+
+bool stageDownloadedUpdate(const QString &downloadedFilePath,
+                           const QString &stagedFilePath) {
+  const QDir stagedDir = QFileInfo(stagedFilePath).absoluteDir();
+  const QFileInfoList existingUpdates = stagedDir.entryInfoList(
+      {QStringLiteral("Sourcerer-Update*")}, QDir::Files | QDir::Readable);
+  for (const QFileInfo &existingUpdate : existingUpdates) {
+    if (existingUpdate.absoluteFilePath() == stagedFilePath) {
+      continue;
+    }
+
+    if (!QFile::remove(existingUpdate.absoluteFilePath())) {
+      return false;
+    }
+  }
+
+  if (QFile::exists(stagedFilePath) && !QFile::remove(stagedFilePath)) {
+    return false;
+  }
+
+  if (!QFile::copy(downloadedFilePath, stagedFilePath)) {
+    return false;
+  }
+
+#ifndef Q_OS_WIN
+  QFile stagedFile(stagedFilePath);
+  const QFile::Permissions permissions =
+      QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner |
+      QFileDevice::ReadUser | QFileDevice::WriteUser | QFileDevice::ExeUser |
+      QFileDevice::ReadGroup | QFileDevice::ExeGroup | QFileDevice::ReadOther |
+      QFileDevice::ExeOther;
+  if (!stagedFile.setPermissions(permissions)) {
+    return false;
+  }
+#endif
+
+  return true;
+}
+
 } // namespace
 
 UpdatingState::UpdatingState(UpdateManagerFsm &fsm)
@@ -145,12 +190,8 @@ bool UpdatingState::process(Fsm::FsmEvent event) {
     const auto news = event.nextParam<NewsTracker::Structs::NewsItem>();
 
     const bool updated = workerLoop(news);
-
-    if (updated) {
-      EventManager::Event updatedEvent(
-          EventManager::EventType::ApplicationUpdated);
-      updatedEvent.addData(news.version);
-      _eventManager.send(updatedEvent);
+    if (!updated) {
+      LOG_WARN("Update staging failed for news '{}'.", news.id.toStdString());
     }
 
     UpdateManagerEvent changeEvent(EventType::ChangeState);
@@ -192,18 +233,48 @@ bool UpdatingState::workerLoop(const NewsTracker::Structs::NewsItem &newsItem) {
     return false;
   }
 
+#ifdef Q_OS_MACOS
+  {
+    const QUrl url(downloadUrl);
+    if (url.scheme().compare(QStringLiteral("https"), Qt::CaseInsensitive) !=
+            0 ||
+        !url.path().endsWith(QStringLiteral(".dmg"), Qt::CaseInsensitive)) {
+      LOG_WARN("Refusing macOS update '{}': '{}' is not an https URL of a "
+               ".dmg file.",
+               newsItem.id.toStdString(), downloadUrl.toStdString());
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+#endif
+
   QString downloadedFilePath;
   if (!downloadUpdate(newsItem, downloadedFilePath)) {
     LOG_PERF(0, "Exit");
     return false;
   }
 
-  if (!launchInstaller(downloadedFilePath)) {
-    LOG_WARN("Failed to launch downloaded update '{}'.",
-             downloadedFilePath.toStdString());
+  const QString installDir = installationDirectory();
+  const QString stagedFilePath =
+      buildStagedUpdateFilePath(downloadUrl, installDir);
+
+  if (!stageDownloadedUpdate(downloadedFilePath, stagedFilePath)) {
+    LOG_WARN("Failed to stage downloaded update '{}' to '{}'.",
+             downloadedFilePath.toStdString(), stagedFilePath.toStdString());
+    QFile::remove(downloadedFilePath);
     LOG_PERF(0, "Exit");
     return false;
   }
+
+  QFile::remove(downloadedFilePath);
+
+  EventManager::Event updatedEvent(EventManager::EventType::ApplicationUpdated);
+  updatedEvent.addData(newsItem);
+
+  _eventManager.send(updatedEvent);
+
+  LOG_INFO("Staged update '{}' at '{}'.", newsItem.id.toStdString(),
+           stagedFilePath.toStdString());
 
   LOG_PERF(0, "Exit");
 
@@ -219,48 +290,46 @@ bool UpdatingState::downloadUpdate(
   const QString downloadPath = buildDownloadFilePath(newsItem, downloadUrl);
 
   for (int attempt = 1; attempt <= DOWNLOAD_RETRY_COUNT; ++attempt) {
-    const Util::HttpReply reply = _httpClient.sendRequest(
-        downloadUrl, Util::HttpMethod::Get, {}, QByteArray());
-    if (reply.error() != QNetworkReply::NoError) {
-      LOG_WARN("Failed to download update '{}' from '{}' on attempt {}/{}. "
-               "Error: {}",
-               newsItem.id.toStdString(), downloadUrl.toStdString(), attempt,
-               DOWNLOAD_RETRY_COUNT, static_cast<int>(reply.error()));
+    QTemporaryFile tempFile(downloadPath);
+    tempFile.setAutoRemove(false);
+
+    if (!tempFile.open()) {
+      LOG_WARN("Failed to create temporary file for update '{}' on attempt "
+               "{}/{}.",
+               newsItem.id.toStdString(), attempt, DOWNLOAD_RETRY_COUNT);
     } else {
-      const QByteArray response = reply.response();
-      if (response.isEmpty()) {
+      const QString tempFilePath = tempFile.fileName();
+      tempFile.close();
+
+      // Installers are large, so stream them to disk instead of using
+      // sendRequest(), whose timeout caps the duration of the whole request.
+      const Util::HttpReply reply =
+          _httpClient.downloadFile(downloadUrl, tempFilePath);
+      if (reply.error() != QNetworkReply::NoError) {
+        LOG_WARN("Failed to download update '{}' from '{}' on attempt {}/{}. "
+                 "Error: {}, '{}'",
+                 newsItem.id.toStdString(), downloadUrl.toStdString(), attempt,
+                 DOWNLOAD_RETRY_COUNT, static_cast<int>(reply.error()),
+                 reply.errorString().toStdString());
+        QFile::remove(tempFilePath);
+      } else if (QFileInfo(tempFilePath).size() == 0) {
         LOG_WARN("Downloaded update '{}' is empty on attempt {}/{}.",
                  newsItem.id.toStdString(), attempt, DOWNLOAD_RETRY_COUNT);
+        QFile::remove(tempFilePath);
       } else {
-        QTemporaryFile tempFile(downloadPath);
-        tempFile.setAutoRemove(false);
+        downloadedFilePath = tempFilePath;
 
-        if (!tempFile.open()) {
-          LOG_WARN("Failed to create temporary file for update '{}' on attempt "
-                   "{}/{}.",
-                   newsItem.id.toStdString(), attempt, DOWNLOAD_RETRY_COUNT);
-        } else if (tempFile.write(response) != response.size()) {
-          LOG_WARN("Failed to write downloaded update '{}' on attempt {}/{}.",
-                   newsItem.id.toStdString(), attempt, DOWNLOAD_RETRY_COUNT);
-          tempFile.close();
-          QFile::remove(tempFile.fileName());
-        } else {
-          tempFile.flush();
-          downloadedFilePath = tempFile.fileName();
-          tempFile.close();
-
-          if (!makeExecutableIfNeeded(downloadedFilePath)) {
-            LOG_WARN("Failed to update permissions for downloaded update '{}'.",
-                     downloadedFilePath.toStdString());
-          }
-
-          LOG_INFO("Downloaded update '{}' to '{}' on attempt {}/{}.",
-                   newsItem.id.toStdString(), downloadedFilePath.toStdString(),
-                   attempt, DOWNLOAD_RETRY_COUNT);
-
-          LOG_PERF(0, "Exit");
-          return true;
+        if (!makeExecutableIfNeeded(downloadedFilePath)) {
+          LOG_WARN("Failed to update permissions for downloaded update '{}'.",
+                   downloadedFilePath.toStdString());
         }
+
+        LOG_INFO("Downloaded update '{}' to '{}' on attempt {}/{}.",
+                 newsItem.id.toStdString(), downloadedFilePath.toStdString(),
+                 attempt, DOWNLOAD_RETRY_COUNT);
+
+        LOG_PERF(0, "Exit");
+        return true;
       }
     }
 
@@ -274,108 +343,26 @@ bool UpdatingState::downloadUpdate(
   return false;
 }
 
-bool UpdatingState::launchInstaller(const QString &downloadedFilePath) const {
+QString UpdatingState::buildStagedUpdateFilePath(const QString &downloadUrl,
+                                                 const QString &installDir) {
   LOG_PERF(0, "Enter");
 
-#ifdef Q_OS_WIN
-  const QFileInfo fileInfo(downloadedFilePath);
-
-  if (fileInfo.suffix().compare(QStringLiteral("msi"), Qt::CaseInsensitive) ==
-      0) {
-    const QString logPath = buildWindowsInstallerLogPath(QStringLiteral("msi"));
-    const QString program = QStringLiteral("msiexec");
-    const QStringList arguments = {
-        QStringLiteral("/i"),     QDir::toNativeSeparators(downloadedFilePath),
-        QStringLiteral("/quiet"), QStringLiteral("/norestart"),
-        QStringLiteral("/log"),   QDir::toNativeSeparators(logPath)};
-    const bool started = QProcess::startDetached(program, arguments);
-    if (!started) {
-      LOG_WARN("Failed to start msiexec for '{}'.",
-               downloadedFilePath.toStdString());
+  QString baseName = QStringLiteral("Sourcerer-Update");
+  const QString suffix = fileSuffixFromUrl(downloadUrl);
+  if (suffix.isEmpty()) {
+    const QFileInfo urlInfo(QUrl(downloadUrl).path());
+    const QString fallbackSuffix = urlInfo.suffix().trimmed();
+    if (!fallbackSuffix.isEmpty()) {
+      baseName += QStringLiteral(".") + fallbackSuffix;
     }
-    LOG_PERF(0, "Exit");
-    return started;
+  } else {
+    baseName += suffix;
   }
 
-  if (fileInfo.suffix().compare(QStringLiteral("exe"), Qt::CaseInsensitive) ==
-      0) {
-    const QString logPath = buildWindowsInstallerLogPath(QStringLiteral("exe"));
-    const QString program = QDir::toNativeSeparators(downloadedFilePath);
-    const QStringList arguments = {
-        QStringLiteral("/quiet"), QStringLiteral("/norestart"),
-        QStringLiteral("/log"), QDir::toNativeSeparators(logPath)};
-    const bool started = QProcess::startDetached(program, arguments);
-    if (!started) {
-      LOG_WARN("Failed to start bootstrapper for '{}'.",
-               downloadedFilePath.toStdString());
-    }
-    LOG_PERF(0, "Exit");
-    return started;
-  }
-#endif
-
-#ifdef Q_OS_LINUX
-  const QString runningAppImagePath = resolveRunningAppImagePath();
-  if (!runningAppImagePath.isEmpty()) {
-    const QFileInfo runningAppImageInfo(runningAppImagePath);
-    if (runningAppImageInfo.exists()) {
-      if (!runningAppImageInfo.isFile()) {
-        LOG_WARN("Resolved AppImage path '{}' is not a regular file.",
-                 runningAppImagePath.toStdString());
-        LOG_PERF(0, "Exit");
-        return false;
-      }
-
-      if (QFile::exists(runningAppImagePath) &&
-          !QFile::remove(runningAppImagePath)) {
-        LOG_WARN("Failed to remove existing AppImage '{}'.",
-                 runningAppImagePath.toStdString());
-        LOG_PERF(0, "Exit");
-        return false;
-      }
-
-      if (!QFile::copy(downloadedFilePath, runningAppImagePath)) {
-        LOG_WARN(
-            "Failed to copy downloaded update '{}' over running AppImage '{}'.",
-            downloadedFilePath.toStdString(),
-            runningAppImagePath.toStdString());
-        LOG_PERF(0, "Exit");
-        return false;
-      }
-
-      QFile copiedFile(runningAppImagePath);
-      if (!copiedFile.setPermissions(
-              QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-              QFileDevice::ExeOwner | QFileDevice::ReadUser |
-              QFileDevice::WriteUser | QFileDevice::ExeUser |
-              QFileDevice::ReadGroup | QFileDevice::ExeGroup |
-              QFileDevice::ReadOther | QFileDevice::ExeOther)) {
-        LOG_WARN("Failed to update permissions for copied AppImage '{}'.",
-                 runningAppImagePath.toStdString());
-      }
-
-      const bool started = QProcess::startDetached(
-          runningAppImagePath, QStringList{QStringLiteral("--integrate")});
-      if (!started) {
-        LOG_WARN("Failed to start AppImage '{}' with --integrate.",
-                 runningAppImagePath.toStdString());
-      }
-
-      LOG_PERF(0, "Exit");
-      return started;
-    }
-  }
-#endif
-
-  const bool started =
-      QProcess::startDetached(downloadedFilePath, QStringList());
-  if (!started) {
-    LOG_WARN("Failed to start downloaded update '{}'.",
-             downloadedFilePath.toStdString());
-  }
+  const QString stagedPath = QDir(installDir).absoluteFilePath(baseName);
 
   LOG_PERF(0, "Exit");
-  return started;
+  return stagedPath;
 }
 
 QString UpdatingState::buildDownloadFilePath(

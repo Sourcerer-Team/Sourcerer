@@ -9,12 +9,14 @@
 
 #include <AzureRepo.h>
 #include <BitbucketRepo.h>
+#include <FileManager.h>
 #include <GitHubRepo.h>
 #include <GitLabRepo.h>
 #include <Log.h>
 #include <StylesheetManager.h>
 #include <TokensStorage.h>
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QByteArray>
@@ -39,6 +41,10 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QPixmap>
+#ifndef Q_OS_WIN
+#include <QProcess>
+#include <QProcessEnvironment>
+#endif
 #include <QPushButton>
 #include <QRandomGenerator>
 #include <QSize>
@@ -49,6 +55,7 @@
 #include <QTcpSocket>
 #include <QThread>
 #include <QToolButton>
+#include <QUrl>
 #include <QUrlQuery>
 #include <QUuid>
 #include <QVBoxLayout>
@@ -352,23 +359,55 @@ HomeContainer::HomeContainer(QWidget *parent)
   ui->tableViewIssueTrackerConnections->setColumnWidth(0, 24);
   ui->tableViewIssueTrackerConnections->setIconSize(QSize(16, 16));
 
+  const auto setupButtonIcon = [](QAbstractButton *button,
+                                  const QString &path) {
+    button->setProperty("iconSource", path);
+    button->setIcon(
+        QIcon(StylesheetManager::StylesheetManager::renderSvgToPixmap(
+            path,
+            StylesheetManager::StylesheetManager::menuBarButtonIconColor())));
+    button->setIconSize(QSize(16, 16));
+  };
+  setupButtonIcon(ui->openButton, QStringLiteral(":/icons/repo-open.svg"));
+  setupButtonIcon(ui->cloneButton, QStringLiteral(":/icons/repo-clone.svg"));
+  setupButtonIcon(ui->initButton, QStringLiteral(":/icons/repo-init.svg"));
+
   auto *connectToMenu = new QMenu(ui->connectToButton);
+  const auto addConnectToAction = [connectToMenu](const QString &text,
+                                                  const QString &iconPath) {
+    auto *action = connectToMenu->addAction(text);
+    action->setProperty("iconSource", iconPath);
+    action->setIcon(
+        QIcon(StylesheetManager::StylesheetManager::renderSvgToPixmap(
+            iconPath,
+            StylesheetManager::StylesheetManager::menuBarButtonIconColor())));
+    return action;
+  };
   auto *githubIssueTrackerAction =
-      connectToMenu->addAction(tr("GitHub issue tracker"));
+      addConnectToAction(tr("GitHub issue tracker"),
+                         QStringLiteral(":/icons/issue-trackers/github.svg"));
   connect(githubIssueTrackerAction, &QAction::triggered, this,
           &HomeContainer::onGitHubIssueTrackerConnectClicked);
   auto *gitlabIssueTrackerAction =
-      connectToMenu->addAction(tr("GitLab issue tracker"));
+      addConnectToAction(tr("GitLab issue tracker"),
+                         QStringLiteral(":/icons/issue-trackers/gitlab.svg"));
   connect(gitlabIssueTrackerAction, &QAction::triggered, this,
           &HomeContainer::onGitLabIssueTrackerConnectClicked);
   auto *azureIssueTrackerAction =
-      connectToMenu->addAction(tr("Azure issue tracker"));
+      addConnectToAction(tr("Azure issue tracker"),
+                         QStringLiteral(":/icons/issue-trackers/azure.svg"));
   connect(azureIssueTrackerAction, &QAction::triggered, this,
           &HomeContainer::onAzureIssueTrackerConnectClicked);
-  auto *bitbucketIssueTrackerAction =
-      connectToMenu->addAction(tr("Bitbucket issue tracker"));
+  auto *bitbucketIssueTrackerAction = addConnectToAction(
+      tr("Bitbucket issue tracker"),
+      QStringLiteral(":/icons/issue-trackers/bitbucket.svg"));
   connect(bitbucketIssueTrackerAction, &QAction::triggered, this,
           &HomeContainer::onBitbucketOAuthConnectClicked);
+  auto *customIssueTrackerAction =
+      addConnectToAction(tr("Custom URL issue tracker"),
+                         QStringLiteral(":/icons/issue-trackers/custom.svg"));
+  connect(customIssueTrackerAction, &QAction::triggered, this,
+          &HomeContainer::onCustomIssueTrackerConnectClicked);
 
   ui->connectToButton->setMenu(connectToMenu);
 
@@ -938,6 +977,91 @@ void HomeContainer::onGitLabIssueTrackerConnectClicked() {
   });
 }
 
+void HomeContainer::onCustomIssueTrackerConnectClicked() {
+  LOG_PERF(0, "Enter");
+
+  QDialog dialog(this);
+  dialog.setWindowTitle(tr("Custom URL issue tracker"));
+  dialog.setModal(true);
+  dialog.setMinimumWidth(420);
+
+  auto *layout = new QVBoxLayout(&dialog);
+  auto *formLayout = new QFormLayout();
+
+  auto *urlEdit = new QLineEdit(&dialog);
+  urlEdit->setPlaceholderText(tr("https://issues.example.com/project"));
+  formLayout->addRow(tr("URL:"), urlEdit);
+
+  auto *nameEdit = new QLineEdit(&dialog);
+  nameEdit->setPlaceholderText(tr("Defaults to the URL host"));
+  formLayout->addRow(tr("Name:"), nameEdit);
+
+  layout->addLayout(formLayout);
+
+  auto *buttonBox = new QDialogButtonBox(
+      QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  connect(buttonBox, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  connect(buttonBox, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  layout->addWidget(buttonBox);
+
+  QUrl url;
+  QString name;
+  while (true) {
+    if (dialog.exec() != QDialog::Accepted) {
+      LOG_INFO("Custom URL issue tracker connection cancelled");
+      LOG_PERF(0, "Exit");
+      return;
+    }
+
+    QString urlText = urlEdit->text().trimmed();
+    if (urlText.isEmpty()) {
+      QMessageBox::warning(this, tr("Custom URL issue tracker"),
+                           tr("Please enter the issue tracker URL."));
+      continue;
+    }
+    if (!urlText.contains(QStringLiteral("://"))) {
+      urlText.prepend(QStringLiteral("https://"));
+    }
+
+    url = QUrl(urlText, QUrl::StrictMode);
+    const QString scheme = url.scheme().toLower();
+    if (!url.isValid() || url.host().isEmpty() ||
+        (scheme != QStringLiteral("http") &&
+         scheme != QStringLiteral("https"))) {
+      QMessageBox::warning(
+          this, tr("Custom URL issue tracker"),
+          tr("The URL is invalid. Only http and https URLs are supported."));
+      continue;
+    }
+
+    name = nameEdit->text().trimmed();
+    if (name.isEmpty()) {
+      name = url.host();
+    }
+
+    if (IssueTrackers::TokensStorage::getInstance().hasToken(
+            QStringLiteral("Custom"), name)) {
+      QMessageBox::warning(
+          this, tr("Custom URL issue tracker"),
+          tr("A custom issue tracker named \"%1\" already exists. Please "
+             "choose another name.")
+              .arg(name));
+      continue;
+    }
+
+    break;
+  }
+
+  IssueTrackers::TokensStorage::getInstance().storeTokenWithHost(
+      QStringLiteral("Custom"), name, url.toString(), QString(), QDateTime(),
+      true);
+
+  _issueTrackersModel->reload();
+  ui->tableViewIssueTrackerConnections->resizeColumnsToContents();
+
+  LOG_PERF(0, "Exit");
+}
+
 void HomeContainer::onAzureIssueTrackerConnectClicked() {
   LOG_PERF(0, "Enter");
 
@@ -1016,7 +1140,7 @@ void HomeContainer::onAzureIssueTrackerConnectClicked() {
   openAuthPageButton->setEnabled(authUrl.isValid());
   connect(openAuthPageButton, &QPushButton::clicked, this, [authUrl]() {
     if (authUrl.isValid()) {
-      QDesktopServices::openUrl(authUrl);
+      FileManager::openExternalUrl(authUrl);
     } else {
       QMessageBox::critical(nullptr, tr("Failure"),
                             tr("Azure authorization URL is invalid."));
@@ -1405,7 +1529,7 @@ void HomeContainer::onBitbucketOAuthConnectClicked() {
   openAuthPageButton->setEnabled(authUrl.isValid());
   connect(openAuthPageButton, &QPushButton::clicked, this, [authUrl]() {
     if (authUrl.isValid()) {
-      QDesktopServices::openUrl(authUrl);
+      FileManager::openExternalUrl(authUrl);
     }
   });
   layout->addWidget(openAuthPageButton, 0, Qt::AlignLeft);

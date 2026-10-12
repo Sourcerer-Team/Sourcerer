@@ -1,10 +1,12 @@
 #include "containers/IssueTrackerContainer.h"
+#include "WebEngineProfile.h"
 
 #include "src/containers/ui_IssueTrackerContainer.h"
 #include "ui_IssueTrackerContainer.h"
 
 #include <AzureRepo.h>
 #include <BitbucketRepo.h>
+#include <FileManager.h>
 #include <GitHubRepo.h>
 #include <GitLabRepo.h>
 #include <Log.h>
@@ -17,7 +19,6 @@
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
-#include <QEventLoop>
 #include <QHBoxLayout>
 #include <QHash>
 #include <QInputDialog>
@@ -25,21 +26,27 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QNetworkCookie>
+#ifndef Q_OS_WIN
+#include <QProcess>
+#include <QProcessEnvironment>
+#endif
 #include <QResizeEvent>
-#include <QStandardPaths>
 #include <QStringList>
 #include <QTimer>
 #include <QToolButton>
-#include <QUrlQuery>
+#include <QUrl>
+
+#include <memory>
 
 #if GUI_MANAGER_HAS_WEBENGINE
-#include <QWebEngineScript>
-#include <QWebEngineScriptCollection>
 #include <QtWebEngineCore/QWebEngineCookieStore>
 #include <QtWebEngineCore/QWebEngineHistory>
+#include <QtWebEngineCore/QWebEngineLoadingInfo>
 #include <QtWebEngineCore/QWebEngineNewWindowRequest>
 #include <QtWebEngineCore/QWebEnginePage>
 #include <QtWebEngineCore/QWebEngineProfile>
+#include <QtWebEngineCore/QWebEngineScript>
+#include <QtWebEngineCore/QWebEngineScriptCollection>
 #if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
 #include <QtWebEngineCore/QWebEngineWebAuthUxRequest>
 #endif
@@ -64,7 +71,7 @@ QString issueTrackerProfileId(const QString &serviceType,
 }
 
 QWebEngineProfile *
-createIssueTrackerWebEngineProfile(QObject *parent, const QString &serviceType,
+createIssueTrackerWebEngineProfile(const QString &serviceType,
                                    const QString &repositoryName,
                                    const QString &serviceHost) {
   static QHash<QString, QWebEngineProfile *> profiles;
@@ -76,20 +83,19 @@ createIssueTrackerWebEngineProfile(QObject *parent, const QString &serviceType,
   }
 
   const QString storageBaseDir =
-      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+      webEngineStoragePath(QStringLiteral("issue-trackers/webengine"));
   if (storageBaseDir.isEmpty()) {
     return nullptr;
   }
 
-  const QString storagePath =
-      QDir(storageBaseDir)
-          .absoluteFilePath(
-              QStringLiteral("issue-trackers/webengine/%1").arg(profileId));
+  const QString storagePath = QDir(storageBaseDir).absoluteFilePath(profileId);
   QDir().mkpath(storagePath);
 
+  // The profile is cached for the lifetime of the application and shared by
+  // every container of the same issue tracker, so it must not be owned by the
+  // container that happens to create it first.
   auto *profile = new QWebEngineProfile(
-      QStringLiteral("issue-tracker-%1").arg(profileId.left(16)),
-      parent ? parent : qApp);
+      QStringLiteral("issue-tracker-%1").arg(profileId.left(16)), qApp);
   profile->setPersistentStoragePath(storagePath);
   profile->setCachePath(
       QDir(storagePath).absoluteFilePath(QStringLiteral("cache")));
@@ -178,34 +184,12 @@ void handleWebAuthUxRequest(QWebEngineWebAuthUxRequest *request,
 }
 #endif
 
-bool hasGitHubLoginCookie(QWebEngineProfile *profile) {
-  if (!profile || !profile->cookieStore()) {
-    return false;
-  }
+// Time to wait for the cookie store to report the stored cookies before
+// deciding whether the GitHub login page has to be shown first.
+constexpr int kGitHubLoginCookieTimeoutMs = 500;
 
-  bool hasCookie = false;
-  QEventLoop loop;
-  QTimer timer;
-  timer.setSingleShot(true);
-
-  QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
-  QObject::connect(profile->cookieStore(), &QWebEngineCookieStore::cookieAdded,
-                   &loop, [&](const QNetworkCookie &cookie) {
-                     if (isGitHubLoginCookie(cookie)) {
-                       hasCookie = true;
-                     }
-                   });
-
-  profile->cookieStore()->loadAllCookies();
-  timer.start(500);
-  loop.exec();
-
-  return hasCookie;
-}
-
-bool shouldOpenGitHubLoginFirst(const QString &serviceType,
-                                const QString &repositoryName,
-                                QWebEngineProfile *profile) {
+bool isPrivateGitHubRepository(const QString &serviceType,
+                               const QString &repositoryName) {
   if (normalizedServiceType(serviceType) != QStringLiteral("github")) {
     return false;
   }
@@ -220,11 +204,7 @@ bool shouldOpenGitHubLoginFirst(const QString &serviceType,
   const IssueTrackers::GitHubRepo repo(parts.first(), parts.last());
   QString errorMessage;
   const auto visibility = repo.repositoryVisibility(&errorMessage);
-  if (visibility == IssueTrackers::GitHubRepo::RepositoryVisibility::Public) {
-    return false;
-  }
-
-  return !hasGitHubLoginCookie(profile);
+  return visibility != IssueTrackers::GitHubRepo::RepositoryVisibility::Public;
 }
 #endif
 
@@ -237,9 +217,12 @@ QUrl buildGitHubLoginUrl(const QUrl &issuesUrl) {
   loginUrl.setPath(QStringLiteral("/login"));
   loginUrl.setFragment(QString());
 
-  QUrlQuery query;
-  query.addQueryItem(QStringLiteral("return_to"), issuesUrl.path());
-  loginUrl.setQuery(query);
+  const QString returnTo = issuesUrl.toString(
+      QUrl::RemoveScheme | QUrl::RemoveAuthority | QUrl::RemoveFragment);
+  loginUrl.setQuery(QStringLiteral("return_to=") +
+                        QString::fromLatin1(QUrl::toPercentEncoding(
+                            returnTo, QByteArrayLiteral("/"))),
+                    QUrl::StrictMode);
 
   return loginUrl;
 }
@@ -287,6 +270,16 @@ QUrl buildIssueTrackerUrl(const QString &serviceType,
     }
   }
 
+  if (normalized == QStringLiteral("custom")) {
+    const QUrl url(serviceHost.trimmed(), QUrl::StrictMode);
+    const QString scheme = url.scheme().toLower();
+    if (url.isValid() && !url.host().isEmpty() &&
+        (scheme == QStringLiteral("http") ||
+         scheme == QStringLiteral("https"))) {
+      return url;
+    }
+  }
+
   return QUrl();
 }
 
@@ -304,18 +297,19 @@ QString unsupportedMessage(const QString &serviceType,
 
 IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
                                              QString repositoryName,
-                                             QWidget *parent)
+                                             QUrl startUrl, QWidget *parent)
     : ContainerWidget(ContainerType::IssueTracker, parent),
       _configManager(ConfigManager::ConfigManager::getInstance()),
       _toastHost(ToastHostWidget::getInstance()),
       ui(new Ui::IssueTrackerContainer), _selected(false),
       _serviceType(serviceType.trimmed()),
       _repositoryName(repositoryName.trimmed()), _serviceHost(QString()),
-      _toolbarWidget(nullptr), _toolbarHandle(nullptr), _backButton(nullptr),
-      _forwardButton(nullptr), _refreshButton(nullptr), _draggingToolbar(false),
-      _externalBrowserOpened(false), _toolbarDragOffset(0, 0),
-      _toolbarRelativePosition(0, 0), _webEngineProfile(nullptr),
-      _browserView(nullptr) {
+      _startUrl(std::move(startUrl)), _toolbarWidget(nullptr),
+      _toolbarHandle(nullptr), _backButton(nullptr), _forwardButton(nullptr),
+      _refreshButton(nullptr), _draggingToolbar(false),
+      _externalBrowserOpened(false), _pageLoaded(false),
+      _toolbarDragOffset(0, 0), _toolbarRelativePosition(0, 0),
+      _webEngineProfile(nullptr), _browserView(nullptr) {
   LOG_PERF(0, "Enter");
 
   ui->setupUi(this);
@@ -333,7 +327,7 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
 
 #if GUI_MANAGER_HAS_WEBENGINE
   _webEngineProfile = createIssueTrackerWebEngineProfile(
-      this, _serviceType, _repositoryName, _serviceHost);
+      _serviceType, _repositoryName, _serviceHost);
   _browserView = new QWebEngineView(this);
   if (_webEngineProfile) {
     // prepare script
@@ -437,7 +431,7 @@ IssueTrackerContainer::IssueTrackerContainer(QString serviceType,
   applyToolbarTheme();
   restoreToolbarPosition();
 
-  loadIssuePage();
+  // The first page is loaded by init().
 
   LOG_PERF(0, "Exit");
 }
@@ -570,7 +564,9 @@ void IssueTrackerContainer::updateIssueUrl() {
   LOG_PERF(0, "Enter");
 
   _issuesUrl =
-      buildIssueTrackerUrl(_serviceType, _repositoryName, _serviceHost);
+      _startUrl.isValid()
+          ? _startUrl
+          : buildIssueTrackerUrl(_serviceType, _repositoryName, _serviceHost);
 
   LOG_PERF(0, "Exit");
 }
@@ -643,19 +639,42 @@ void IssueTrackerContainer::buildToolbar() {
       updateNavigationState();
     }
   });
-  connect(_browserView, &QWebEngineView::loadFinished, this, [this](bool ok) {
-    if (!ok) {
-      const auto *page = _browserView ? _browserView->page() : nullptr;
-      LOG_ERROR(Log::ErrorId::Gui,
-                "WebEngine load failed: pageUrl={}, requestedUrl={}, "
-                "issuesUrl={}",
-                page ? page->url().toString() : QString(),
-                page ? page->requestedUrl().toString() : QString(),
-                _issuesUrl.toString());
-      openIssueTrackerExternallyAndClose();
-    }
-    updateNavigationState();
-  });
+  connect(_browserView->page(), &QWebEnginePage::loadingChanged, this,
+          [this](const QWebEngineLoadingInfo &info) {
+            switch (info.status()) {
+            case QWebEngineLoadingInfo::LoadStartedStatus:
+              return;
+            case QWebEngineLoadingInfo::LoadSucceededStatus:
+              _pageLoaded = true;
+              break;
+            case QWebEngineLoadingInfo::LoadStoppedStatus:
+              // Aborted or superseded navigation, not a failure.
+              break;
+            case QWebEngineLoadingInfo::LoadFailedStatus: {
+              LOG_ERROR(Log::ErrorId::Gui,
+                        "WebEngine load failed: url={}, issuesUrl={}, "
+                        "errorDomain={}, errorCode={}, error={}",
+                        info.url().toString(), _issuesUrl.toString(),
+                        static_cast<int>(info.errorDomain()), info.errorCode(),
+                        info.errorString());
+
+              // An HTTP error comes with the server's own error page, and
+              // once a page was shown the view can display later errors
+              // itself. Only fall back to the external browser when the
+              // first page could not be loaded at all.
+              const bool httpError =
+                  info.errorDomain() ==
+                  QWebEngineLoadingInfo::HttpStatusCodeDomain;
+              if (!httpError && !_pageLoaded) {
+                openIssueTrackerExternallyAndClose();
+              } else {
+                _pageLoaded = true;
+              }
+              break;
+            }
+            }
+            updateNavigationState();
+          });
   connect(_browserView, &QWebEngineView::urlChanged, this,
           [this](const QUrl &) { updateNavigationState(); });
 #else
@@ -820,13 +839,11 @@ void IssueTrackerContainer::loadIssuePage() {
 
   if (_issuesUrl.isValid()) {
 #if GUI_MANAGER_HAS_WEBENGINE
-    QWebEngineProfile *profile = _webEngineProfile;
-
-    const QUrl initialUrl =
-        shouldOpenGitHubLoginFirst(_serviceType, _repositoryName, profile)
-            ? buildGitHubLoginUrl(_issuesUrl)
-            : _issuesUrl;
-    _browserView->load(initialUrl);
+    if (isPrivateGitHubRepository(_serviceType, _repositoryName)) {
+      loadAfterGitHubLoginCheck();
+    } else {
+      _browserView->load(_issuesUrl);
+    }
 #else
     _browserView->setSource(_issuesUrl);
 #endif
@@ -839,6 +856,42 @@ void IssueTrackerContainer::loadIssuePage() {
 
   LOG_PERF(0, "Exit");
 }
+
+#if GUI_MANAGER_HAS_WEBENGINE
+void IssueTrackerContainer::loadAfterGitHubLoginCheck() {
+  LOG_PERF(0, "Enter");
+
+  QWebEngineCookieStore *cookieStore =
+      _webEngineProfile ? _webEngineProfile->cookieStore() : nullptr;
+  if (!cookieStore) {
+    _browserView->load(buildGitHubLoginUrl(_issuesUrl));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  // Collect the stored cookies asynchronously. Waiting for them in a nested
+  // event loop re-enters Chromium while the view is being set up, which trips
+  // WebEngine's internal checks.
+  auto *check = new QObject(this);
+  auto hasLoginCookie = std::make_shared<bool>(false);
+  connect(cookieStore, &QWebEngineCookieStore::cookieAdded, check,
+          [hasLoginCookie](const QNetworkCookie &cookie) {
+            if (isGitHubLoginCookie(cookie)) {
+              *hasLoginCookie = true;
+            }
+          });
+  QTimer::singleShot(
+      kGitHubLoginCookieTimeoutMs, check, [this, check, hasLoginCookie]() {
+        check->deleteLater();
+        _browserView->load(*hasLoginCookie ? _issuesUrl
+                                           : buildGitHubLoginUrl(_issuesUrl));
+        updateNavigationState();
+      });
+  cookieStore->loadAllCookies();
+
+  LOG_PERF(0, "Exit");
+}
+#endif
 
 void IssueTrackerContainer::updateNavigationState() {
   LOG_PERF(0, "Enter");
@@ -912,7 +965,7 @@ void IssueTrackerContainer::openIssueTrackerExternallyAndClose() {
 
   _externalBrowserOpened = true;
   if (_issuesUrl.isValid()) {
-    QDesktopServices::openUrl(_issuesUrl);
+    FileManager::openExternalUrl(_issuesUrl);
   }
   emit close();
 }

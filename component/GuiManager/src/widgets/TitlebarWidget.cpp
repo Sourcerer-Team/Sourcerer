@@ -52,6 +52,8 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::connectToAzureIssueTracker);
   connect(ui->menuButton, &TitleBarMenuButton::connectToBitbucketIssueTracker,
           this, &TitlebarWidget::connectToBitbucketIssueTracker);
+  connect(ui->menuButton, &TitleBarMenuButton::connectToCustomIssueTracker,
+          this, &TitlebarWidget::connectToCustomIssueTracker);
   connect(ui->menuButton, &TitleBarMenuButton::settings, this,
           &TitlebarWidget::onSettings);
   connect(ui->menuButton, &TitleBarMenuButton::credentials, this,
@@ -62,13 +64,19 @@ TitlebarWidget::TitlebarWidget(QWidget *parent)
           &TitlebarWidget::onTerminal);
   connect(ui->menuButton, &TitleBarMenuButton::bugReport, this,
           &TitlebarWidget::onBugReport);
+  connect(ui->menuButton, &TitleBarMenuButton::releaseNotes, this,
+          &TitlebarWidget::releaseNotes);
   connect(ui->menuButton, &TitleBarMenuButton::about, this,
           &TitlebarWidget::onAbout);
+  connect(ui->menuButton, &TitleBarMenuButton::themeChanged, this,
+          &TitlebarWidget::onThemeChanged);
 
   connect(ui->tabBar, &TitleBarTabBar::currentChanged, this,
           &TitlebarWidget::onSelectedTab);
   connect(ui->tabBar, &TitleBarTabBar::tabCloseRequested, this,
           &TitlebarWidget::onClosedTab);
+  connect(ui->tabBar, &TitleBarTabBar::tabMoved, this,
+          &TitlebarWidget::onMovedTab);
   connect(ui->tabBar, &TitleBarTabBar::resizeTabBar, this,
           &TitlebarWidget::onTabBarResized);
 
@@ -83,11 +91,18 @@ TitlebarWidget::~TitlebarWidget() {
   LOG_PERF(0, "Exit");
 }
 
-void TitlebarWidget::addTab(const QString &text, const QString &toolTip) const {
+void TitlebarWidget::addTab(const QString &text, const QString &toolTip,
+                            const bool closeButton, const bool pinned) const {
   LOG_PERF(0, "Enter");
 
   const int index = ui->tabBar->addTab(text);
   ui->tabBar->setTabToolTip(index, toolTip.isEmpty() ? text : toolTip);
+  ui->tabBar->setTabPinned(index, pinned);
+
+  if (!closeButton) {
+    ui->tabBar->setTabButton(index, QTabBar::RightSide, nullptr);
+    ui->tabBar->setTabButton(index, QTabBar::LeftSide, nullptr);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -214,6 +229,14 @@ void TitlebarWidget::onAbout() {
   LOG_PERF(0, "Exit");
 }
 
+void TitlebarWidget::onThemeChanged() {
+  LOG_PERF(0, "Enter");
+
+  emit themeChanged();
+
+  LOG_PERF(0, "Exit");
+}
+
 void TitlebarWidget::onClosedTab(const int index) {
   LOG_PERF(0, "Enter");
 
@@ -226,6 +249,14 @@ void TitlebarWidget::onSelectedTab(const int index) {
   LOG_PERF(0, "Enter");
 
   emit selectedTab(index);
+
+  LOG_PERF(0, "Exit");
+}
+
+void TitlebarWidget::onMovedTab(const int from, const int to) {
+  LOG_PERF(0, "Enter");
+
+  emit movedTab(from, to);
 
   LOG_PERF(0, "Exit");
 }

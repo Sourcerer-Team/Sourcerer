@@ -73,6 +73,7 @@ else
     fi
 
     cp "$RELEASE_DIR/Sourcerer" "$DATA_DIR/"
+    cp "$RELEASE_DIR/SourcererLauncher" "$DATA_DIR/"
 
     echo "Copying WebEngine files..."
 
@@ -188,8 +189,9 @@ exec "$SCRIPT_DIR/Sourcerer" "$@"
 EOF
     chmod +x "$DATA_DIR/Sourcerer-launcher.sh"
 
-    # Make main executable executable
+    # Make executables executable
     chmod +x "$DATA_DIR/Sourcerer"
+    chmod +x "$DATA_DIR/SourcererLauncher"
 
     # Copy application icon
     echo "Copying application icon..."

@@ -9,6 +9,7 @@
 #include <QVBoxLayout>
 
 #include <functional>
+#include <thread>
 
 #define THREAD_ID "GitProgressToast"
 
@@ -121,13 +122,23 @@ void GitProgressToast::eventCallback(EventManager::Event event) {
       break;
 
     if (data.finished) {
+      Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+        _progressBar->setRange(0, 100);
+        _progressBar->setValue(100);
+        _messageLabel->setText(data.stage == CloneProgressStageType::Checkout
+                                   ? tr(CHECKOUT_STR)
+                                   : tr(FETCHING_STR));
+      });
+
+      std::this_thread::sleep_for(1500ms);
+
       emit finished();
     } else {
       Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
         if (data.totalSteps == 0) {
           _progressBar->setRange(0, 0);
         } else {
-          _progressBar->setRange(0, static_cast<int>(data.totalSteps));
+          _progressBar->setRange(0, static_cast<int>(data.totalSteps) - 1);
           _progressBar->setValue(static_cast<int>(data.completedSteps));
         }
         _messageLabel->setText(data.stage == CloneProgressStageType::Checkout

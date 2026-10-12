@@ -29,6 +29,11 @@ public:
   QsciLexer *createLexerByName(const QString &lexerName,
                                QObject *parent = nullptr) const;
 
+  // Returns a lexer only for files the diff viewers can highlight with
+  // tree-sitter, nullptr otherwise.
+  static QsciLexer *createDiffViewerLexerForFile(const QString &filePath,
+                                                 QObject *parent = nullptr);
+
   // Information methods
   QStringList supportedExtensions() const;
   QStringList supportedLexerNames() const;
@@ -44,6 +49,7 @@ public:
   // Utility methods
   static QString extractExtension(const QString &filePath);
   static QString normalizeExtension(const QString &extension);
+  static QString normalizeFileName(const QString &fileName);
 
 public slots:
   void refreshMappings();
@@ -56,6 +62,19 @@ private:
   // Lexer creation methods
   QsciLexer *createCppLexer(QObject *parent) const;
   QsciLexer *createPythonLexer(QObject *parent) const;
+  QsciLexer *createJavaLexer(QObject *parent) const;
+  QsciLexer *createTypeScriptLexer(QObject *parent) const;
+  QsciLexer *createTSXLexer(QObject *parent) const;
+  QsciLexer *createCSharpLexer(QObject *parent) const;
+  QsciLexer *createDartLexer(QObject *parent) const;
+  QsciLexer *createRustLexer(QObject *parent) const;
+  QsciLexer *createOCamlLexer(QObject *parent) const;
+  QsciLexer *createOCamlInterfaceLexer(QObject *parent) const;
+  QsciLexer *createOCamlTypeLexer(QObject *parent) const;
+  QsciLexer *createHaskellLexer(QObject *parent) const;
+  QsciLexer *createFSharpLexer(QObject *parent) const;
+  QsciLexer *createScalaLexer(QObject *parent) const;
+  QsciLexer *createPowerShellLexer(QObject *parent) const;
   QsciLexer *createJavaScriptLexer(QObject *parent) const;
   QsciLexer *createHtmlLexer(QObject *parent) const;
   QsciLexer *createCssLexer(QObject *parent) const;
@@ -75,6 +94,13 @@ private:
   QsciLexer *createOctaveLexer(QObject *parent) const;
   QsciLexer *createPerlLexer(QObject *parent) const;
   QsciLexer *createRubyLexer(QObject *parent) const;
+  QsciLexer *createGoLexer(QObject *parent) const;
+  QsciLexer *createZigLexer(QObject *parent) const;
+  QsciLexer *createKotlinLexer(QObject *parent) const;
+  QsciLexer *createObjectiveCLexer(QObject *parent) const;
+  QsciLexer *createSwiftLexer(QObject *parent) const;
+  QsciLexer *createHclLexer(QObject *parent) const;
+  QsciLexer *createDockerfileLexer(QObject *parent) const;
   QsciLexer *createFortranLexer(QObject *parent) const;
   QsciLexer *createFortran77Lexer(QObject *parent) const;
   QsciLexer *createIdlLexer(QObject *parent) const;
@@ -83,6 +109,7 @@ private:
   QsciLexer *createTclLexer(QObject *parent) const;
   QsciLexer *createLuaLexer(QObject *parent) const;
   QsciLexer *createPascalLexer(QObject *parent) const;
+  QsciLexer *createAsmLexer(QObject *parent) const;
   QsciLexer *createMAsmLexer(QObject *parent) const;
   QsciLexer *createNAsmLexer(QObject *parent) const;
   QsciLexer *createCMakeLexer(QObject *parent) const;
@@ -92,12 +119,14 @@ private:
 
   // Helper methods
   void initializeExtensionMappings();
+  void initializeFilenameMappings();
   void initializeLexerDescriptions();
   QsciLexer *createLexerByType(const QString &lexerName, QObject *parent) const;
 
   // Member variables
   QHash<QString, QString> _extensionToLexer;  // extension -> lexer name
-  QHash<QString, QString> _lexerDescriptions; // lexer name -> description
+  QHash<QString, QString> _filenameToLexer;    // filename -> lexer name
+  QHash<QString, QString> _lexerDescriptions;  // lexer name -> description
 
   // Lexer information structure
   struct LexerInfo {

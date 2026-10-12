@@ -7,6 +7,10 @@
 
 namespace GuiManager::Delegates {
 
+// Width of one graph lane inside a graph cell. Lanes are as wide as the row is
+// tall, unless that would not fit `laneCount` lanes into the cell.
+int historyLaneWidth(const QRect &rect, int laneCount);
+
 class HistorySliceTableColumnDelegate final : public QStyledItemDelegate {
 
   Q_OBJECT

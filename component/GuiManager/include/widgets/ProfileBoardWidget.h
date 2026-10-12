@@ -9,10 +9,15 @@
 
 #include <QEnableSharedFromThis>
 #include <QEvent>
+#include <QHash>
 #include <QNetworkReply>
+#include <QPixmap>
+#include <QSet>
 #include <QStandardItemModel>
 #include <QString>
 #include <QWidget>
+
+class QNetworkAccessManager;
 
 namespace Ui {
 class ProfileBoardWidget;
@@ -88,6 +93,7 @@ private:
   void fillProfiles();
   void selectCurrentProfile();
   void resetButtons();
+  void updateProfileAvatar(int row, const QString &authorEmail);
 
   bool validateEmail(const QString &email, QString &errorMsg) const;
   bool validatePassword(const QString &password, QString &errorMsg) const;
@@ -104,6 +110,9 @@ private:
   int _currentlyEditProfileIndex;
   OperationType _operation;
   QStandardItemModel *_model;
+  QNetworkAccessManager *_profileAvatarNetworkManager;
+  QHash<QString, QPixmap> _profileAvatarCache;
+  QSet<QString> _profileAvatarInFlight;
   Common::UserProfileManager &_userProfileManager;
   Util::CloudCredentialtorage &_cloudCredentialStorage;
   Util::CloudRepo &_cloudRepo;

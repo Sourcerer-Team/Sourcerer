@@ -29,29 +29,44 @@ QMap<ConfigKey, QString> KEY_NAMES = {
     {ConfigKey::NewsTrackerUrl, "network/newsTracker/url"},
     {ConfigKey::NewsTrackerPollInterval, "network/newsTracker/pollInterval"},
     {ConfigKey::NewsTrackerSeenNewsIds, "network/newsTracker/seenNewsIds"},
-    {ConfigKey::GitRepoSplitterPos, "window/gitrepo/splitterPos"},
+    {ConfigKey::GitRepoSplitterPos, "window/git/splitterPos"},
+    {ConfigKey::GitRepoStashSplitterPos, "window/git/stashSplitterPos"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos,
-     "window/gitrepo/branchRecyclerViewItemsSplitterPos"},
+     "window/git/branchRecyclerViewItemsSplitterPos"},
     {ConfigKey::GitRepoHistoryViewColumnWidths,
-     "window/gitrepo/historyViewColumnWidths"},
+     "window/git/historyViewColumnWidths"},
     {ConfigKey::GitRepoHistoryViewHiddenColumns,
-     "window/gitrepo/historyViewHiddenColumns"},
+     "window/git/historyViewHiddenColumns"},
     {ConfigKey::GitRepoGitCredentialsExpirationTime,
-     "gitrepo/credentials/credentialsExpirationTime"},
-    {ConfigKey::GitRepoServerConnectTimeout, "gitrepo/server/connectTimeout"},
-    {ConfigKey::GitRepoServerTimeout, "gitrepo/server/timeout"},
+     "git/credentials/credentialsExpirationTime"},
+    {ConfigKey::GitRepoServerConnectTimeout, "git/server/connectTimeout"},
+    {ConfigKey::GitRepoServerTimeout, "git/server/timeout"},
     {ConfigKey::GitRepoSigningEnabled, "signing/enabled"},
     {ConfigKey::GitRepoSigningFormat, "signing/format"},
     {ConfigKey::GitRepoSigningKey, "signing/key"},
     {ConfigKey::GitRepoSigningProgram, "signing/program"},
-    {ConfigKey::GitRepoSpinnerOverlayTimerTimeout,
-     "gitrepo/spinnerOverlay/timer"},
+    {ConfigKey::GitRepoCredentialsMasterKey, "git/credentialsMasterKey"},
+    {ConfigKey::GitRepoHistoryPageSize, "git/historyPageSize"},
+    {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, "git/spinnerOverlay/timer"},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout,
-     "gitrepo/dirWatcher/holdbackTimeout"},
-    {ConfigKey::GitRepoMaxDiffFileSize, "gitrepo/maxDiffFileSize"},
+     "git/dirWatcher/holdbackTimeout"},
+    {ConfigKey::GitRepoMaxDiffFileSize, "git/maxDiffFileSize"},
     {ConfigKey::GitRepoMonospaceFontName, "UI/monospace/fontName"},
     {ConfigKey::GitRepoMonospaceFontSize, "UI/monospace/fontSize"},
-    {ConfigKey::GitRepoDiffViewType, "gitrepo/diffViewType"},
+    {ConfigKey::GitRepoGitFlowMainBranchName, "git/gitflow/mainBranchName"},
+    {ConfigKey::GitRepoGitFlowDevelopmentBranchName,
+     "git/gitflow/developmentBranchName"},
+    {ConfigKey::GitRepoGitLabFlowMainBranchName,
+     "git/gitlabflow/mainBranchName"},
+    {ConfigKey::GitRepoGitLabFlowEnvironmentBranches,
+     "git/gitlabflow/environmentBranches"},
+    {ConfigKey::GitRepoGitLabFlowReleaseBranchSuffix,
+     "git/gitlabflow/releaseBranchSuffix"},
+    {ConfigKey::GitRepoGitHubFlowMainBranchName,
+     "git/githubflow/mainBranchName"},
+    {ConfigKey::GitRepoDiffViewType, "git/diffViewType"},
+    {ConfigKey::GitRepoCommitSignOff, "git/commit/signOff"},
+    {ConfigKey::GitRepoCommitSign, "git/commit/sign"},
     {ConfigKey::HttpClientCaCertFile, "network/httpClient/caCertFile"},
     {ConfigKey::HttpClientTimeout, "network/httpClient/timeout"},
     {ConfigKey::InfoToastDisplayTime, "window/toasts/infoToastDisplayTime"},
@@ -108,46 +123,33 @@ QMap<ConfigKey, KeyDescription> KEY_DESCRIPTIONS = {
      {"Commit signing program", "Optional path to the signing executable"}},
     {ConfigKey::GitRepoMonospaceFontName, {"Monospace font name", ""}},
     {ConfigKey::GitRepoMonospaceFontSize, {"Monospace font size in pixels"}},
-    {ConfigKey::NewsTrackerUrl,
-     {"News feed URL", "URL polled for application news"}},
-    {ConfigKey::NewsTrackerPollInterval,
-     {"News feed poll interval", "Polling interval in milliseconds"}},
-    {ConfigKey::NewsTrackerSeenNewsIds,
-     {"Seen news ids", "Comma-separated ids already shown to the user"}},
-    {ConfigKey::GitHubOAuthClientId,
-     {"GitHub OAuth client id", "OAuth application client id"}},
-    {ConfigKey::AzureOAuthClientSecret,
-     {"Azure OAuth client secret", "OAuth application client secret"}},
-    {ConfigKey::AzureOAuthTenantId,
-     {"Azure tenant id",
-      "Microsoft Entra tenant id, common, or organizations"}},
-    {ConfigKey::AzureOAuthAuthorizeUrl,
-     {"Azure OAuth authorize URL", "Azure authorization endpoint"}},
-    {ConfigKey::AzureOAuthTokenUrl,
-     {"Azure OAuth token URL", "Azure token exchange endpoint"}},
-    {ConfigKey::AzureOAuthRedirectUrl,
-     {"Azure OAuth redirect URL",
-      "Must exactly match the callback URL registered in Azure DevOps"}},
-    {ConfigKey::AzureOAuthScope,
-     {"Azure OAuth scope", "OpenID scopes plus Azure DevOps delegated scope"}},
-    {ConfigKey::BitbucketOAuthClientId,
-     {"Bitbucket OAuth client id", "OAuth consumer client id"}},
-    {ConfigKey::BitbucketOAuthClientSecret,
-     {"Bitbucket OAuth client secret", "OAuth consumer client secret"}},
-    {ConfigKey::BitbucketOAuthAuthorizeUrl,
-     {"Bitbucket OAuth authorize URL", "Bitbucket authorization endpoint"}},
-    {ConfigKey::BitbucketOAuthTokenUrl,
-     {"Bitbucket OAuth token URL", "Bitbucket token exchange endpoint"}},
-    {ConfigKey::BitbucketOAuthRedirectUrl,
-     {"Bitbucket OAuth redirect URL",
-      "Must exactly match the callback URL registered in Bitbucket"}},
-    {ConfigKey::BitbucketOAuthScope,
-     {"Bitbucket OAuth scope", "Requested OAuth scopes"}}};
+    {ConfigKey::GitRepoGitFlowMainBranchName,
+     {"Git Flow main branch",
+      "Name of the branch used as Git Flow's main branch"}},
+    {ConfigKey::GitRepoGitFlowDevelopmentBranchName,
+     {"Git Flow development branch",
+      "Name of the branch used as Git Flow's development branch"}},
+    {ConfigKey::GitRepoGitLabFlowMainBranchName,
+     {"GitLab Flow main branch",
+      "Name of the branch used as GitLab Flow's main branch"}},
+    {ConfigKey::GitRepoGitLabFlowEnvironmentBranches,
+     {"GitLab Flow environment branches",
+      "Comma-separated environment branches promoted from the main branch, "
+      "ordered upstream to downstream"}},
+    {ConfigKey::GitRepoGitLabFlowReleaseBranchSuffix,
+     {"GitLab Flow release branch suffix",
+      "Suffix of GitLab Flow release branches, e.g. 1-2-stable"}},
+    {ConfigKey::GitRepoGitHubFlowMainBranchName,
+     {"GitHub Flow main branch",
+      "Name of the branch used as GitHub Flow's main branch"}},
+};
 
 QMap<ConfigKey, bool> DEFAULT_BOOLEANS = {
     {ConfigKey::GitRepoDiffViewType,
      false}, // false = unified, true = side-by-side
-    {ConfigKey::GitRepoSigningEnabled, true}};
+    {ConfigKey::GitRepoSigningEnabled, true},
+    {ConfigKey::GitRepoCommitSignOff, false},
+    {ConfigKey::GitRepoCommitSign, false}};
 
 QMap<ConfigKey, QColor> DEFAULT_COLORS = {
     {ConfigKey::TestColor, QColor(10, 10, 10)},
@@ -165,6 +167,7 @@ QMap<ConfigKey, qlonglong> DEFAULT_LONGS = {
     {ConfigKey::GitRepoSpinnerOverlayTimerTimeout, 1000},
     {ConfigKey::GitRepoDirWatcherHoldbackTimeout, 2000},
     {ConfigKey::GitRepoMaxDiffFileSize, 1 * 1024 * 1024}, // 1 MB
+    {ConfigKey::GitRepoHistoryPageSize, 300},
     {ConfigKey::GitRepoMonospaceFontSize, 10},
     {ConfigKey::HttpClientTimeout, 30000}, // 30 seconds
     {ConfigKey::InfoToastDisplayTime, 8000},
@@ -203,17 +206,26 @@ QMap<ConfigKey, QString> DEFAULT_STRINGS = {
 #endif
     {ConfigKey::NewsTrackerSeenNewsIds, ""},
     {ConfigKey::GitRepoSplitterPos,
-     "000000ff0000000100000003000000c0000003d30000014101ffffffff010000000100"},
+     "000000ff0000000100000003000000f0000004bc0000018801ffffffff010000000100"},
     {ConfigKey::GitRepoBranchRecyclerViewItemsSplitterPos, ""},
     {ConfigKey::GitRepoHistoryViewColumnWidths, ""},
     {ConfigKey::GitRepoHistoryViewHiddenColumns, "2,3"},
     {ConfigKey::GitRepoMonospaceFontName, "Lucida Console"},
-
+    {ConfigKey::GitRepoGitFlowMainBranchName, "main"},
+    {ConfigKey::GitRepoGitFlowDevelopmentBranchName, "develop"},
+    {ConfigKey::GitRepoGitLabFlowMainBranchName, "main"},
+    {ConfigKey::GitRepoGitLabFlowEnvironmentBranches,
+     "pre-production,production"},
+    {ConfigKey::GitRepoGitLabFlowReleaseBranchSuffix, "-stable"},
+    {ConfigKey::GitRepoGitHubFlowMainBranchName, "main"},
+    {ConfigKey::GitRepoStashSplitterPos,
+     "000000ff0000000100000002000001660000026001ffffffff010000000200"},
     {ConfigKey::HttpClientCaCertFile, "ca-certificates.crt"},
     {ConfigKey::RecentlyOpenedRepos, ""},
     {ConfigKey::UiTheme, "SourcererDark"},
     {ConfigKey::MainWindowGeometry, ""},
     {ConfigKey::GitRepoSigningKey, ""},
+    {ConfigKey::GitRepoCredentialsMasterKey, ""},
     {ConfigKey::SettingsSplitterPos, ""},
     {ConfigKey::GitHubOAuthClientId, "Ov23lilRE4FHNeTxvPBT"},
     {ConfigKey::AzureOAuthClientId, "ef27127b-3c59-4f38-af24-882e71fede7b"},
@@ -256,6 +268,16 @@ static QString defaultStringForKey(ConfigKey key, const QSettings *settings) {
   }
 
   return DEFAULT_STRINGS.value(key);
+}
+
+static bool usesDefaultWhenEmpty(ConfigKey key) {
+  return key == ConfigKey::GitRepoSigningProgram ||
+         key == ConfigKey::GitRepoGitFlowMainBranchName ||
+         key == ConfigKey::GitRepoGitFlowDevelopmentBranchName ||
+         key == ConfigKey::GitRepoGitLabFlowMainBranchName ||
+         key == ConfigKey::GitRepoGitLabFlowEnvironmentBranches ||
+         key == ConfigKey::GitRepoGitLabFlowReleaseBranchSuffix ||
+         key == ConfigKey::GitRepoGitHubFlowMainBranchName;
 }
 
 ConfigManager::ConfigManager()
@@ -310,7 +332,7 @@ QString ConfigManager::getString(ConfigKey key) const {
   const QString keyName = KEY_NAMES.value(key);
   if (_settings.contains(keyName)) {
     const QString value = _settings.value(keyName).toString();
-    if (key == ConfigKey::GitRepoSigningProgram && value.trimmed().isEmpty()) {
+    if (usesDefaultWhenEmpty(key) && value.trimmed().isEmpty()) {
       return defaultStringForKey(key, &_settings);
     }
 
@@ -324,16 +346,17 @@ QString ConfigManager::getString(const QString &key) const {
   LOCKGUARD(_mutex);
   if (_settings.contains(key)) {
     const QString value = _settings.value(key).toString();
-    if (getKey(key) == ConfigKey::GitRepoSigningProgram &&
-        value.trimmed().isEmpty()) {
-      return defaultStringForKey(ConfigKey::GitRepoSigningProgram, &_settings);
+    const ConfigKey configKey = getKey(key);
+    if (usesDefaultWhenEmpty(configKey) && value.trimmed().isEmpty()) {
+      return defaultStringForKey(configKey, &_settings);
     }
 
     return value;
   }
 
-  if (getKey(key) == ConfigKey::GitRepoSigningProgram) {
-    return defaultStringForKey(ConfigKey::GitRepoSigningProgram, &_settings);
+  const ConfigKey configKey = getKey(key);
+  if (usesDefaultWhenEmpty(configKey)) {
+    return defaultStringForKey(configKey, &_settings);
   }
 
   return QString();

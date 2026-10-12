@@ -3,9 +3,18 @@
         <file>icons/titlebar_menu.png</file>
         <file>icons/git_branch.png</file>
         <file>icons/git_remote.png</file>
+        <file>icons/git_remote.svg</file>
+        <file>icons/git_remote_target.svg</file>
         <file>icons/git_submodule.png</file>
         <file>icons/git_tag.png</file>
         <file>icons/git_branch_active.png</file>
+        <file>icons/gitflow_finish.svg</file>
+        <file>icons/gitflow_start.svg</file>
+        <file>icons/gitlabflow_cherrypick.svg</file>
+        <file>icons/gitlabflow_promote.svg</file>
+        <file>icons/githubflow_pullrequest.svg</file>
+        <file>icons/history_filter_calendar_dark.svg</file>
+        <file>icons/history_filter_calendar_light.svg</file>
         <file>icons/close_button.png</file>
         <file>icons/maximize_button.png</file>
         <file>icons/minimize_button.png</file>
@@ -13,6 +22,7 @@
         <file>icons/error.svg</file>
         <file>icons/sorcerer-hat.png</file>
         <file>icons/file-add.png</file>
+        <file>icons/file-other.png</file>
         <file>icons/file-delete.png</file>
         <file>icons/file-modify.png</file>
         <file>icons/file-rename.png</file>
@@ -39,17 +49,32 @@
         <file>icons/issue-trackers/gitlab.svg</file>
         <file>icons/issue-trackers/azure.svg</file>
         <file>icons/issue-trackers/bitbucket.svg</file>
+        <file>icons/issue-trackers/custom.svg</file>
         <file>icons/ok.png</file>
         <file>icons/cancel.png</file>
         <file>icons/checkbox-check-dark.svg</file>
         <file>icons/checkbox-check-light.svg</file>
         <file>icons/eye.svg</file>
         <file>icons/eye-off.svg</file>
+        <file>icons/filter.svg</file>
         <file>icons/diff-unified.png</file>
         <file>icons/diff-side-by-side.png</file>
         <file>icons/down_arrow.png</file>
         <file>icons/up_arrow.png</file>
         <file>icons/tree_branch_closed.svg</file>
         <file>icons/tree_branch_open.svg</file>
+        <file>icons/header-remotes.svg</file>
+        <file>icons/header-stashes.svg</file>
+        <file>icons/header-submodules.svg</file>
+        <file>icons/header-tags.svg</file>
+        <file>icons/header-worktrees.svg</file>
+        <file>icons/header-local-branches.svg</file>
+        <file>icons/header-remote-branches.svg</file>
+        <file>icons/repo-open.svg</file>
+        <file>icons/repo-clone.svg</file>
+        <file>icons/repo-init.svg</file>
+        <file>icons/terminal.svg</file>
+        <file>icons/settings.png</file>
+        <file>release_notes/RELEASE_NOTES.md</file>
     </qresource>
 </RCC>

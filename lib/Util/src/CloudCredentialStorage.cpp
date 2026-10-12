@@ -2,10 +2,14 @@
 
 #include <Log.h>
 
+#include <qcoreapplication.h>
+#include <qtkeychain/keychain.h>
+
 #include <QCryptographicHash>
 #include <QDataStream>
 #include <QDateTime>
 #include <QDir>
+#include <QEventLoop>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -26,14 +30,79 @@ constexpr int AES_KEY_SIZE = 32; // 256 bits
 constexpr int AES_IV_SIZE = 16;  // 128 bits
 constexpr int PBKDF2_ITERATIONS = 100000;
 
+static QString getLoggedInUser() {
+  // Returns e.g. "C:/Users/JohnDoe"
+  QString homePath = QDir::homePath();
+  return QFileInfo(homePath).fileName(); // Returns "JohnDoe"
+}
+
+static bool saveMasterKeyToWindowsStore(const QString &appName,
+                                        const QString &userName,
+                                        const QString &masterKey) {
+  // Create job on the stack (no need for manual memory cleanup or
+  // setAutoDelete)
+  QKeychain::WritePasswordJob job(appName);
+  job.setKey(userName);       // Identifier (e.g., username)
+  job.setTextData(masterKey); // Secret payload
+
+  // Local event loop to block until finished signal is emitted
+  QEventLoop loop;
+  QObject::connect(&job, &QKeychain::WritePasswordJob::finished, &loop,
+                   &QEventLoop::quit);
+
+  job.start();
+  loop.exec(); // Waits here until OS keyring operation finishes
+
+  if (job.error()) {
+    ConfigManager::ConfigManager &config =
+        ConfigManager::ConfigManager::getInstance();
+
+    config.setString(ConfigManager::ConfigKey::GitRepoCredentialsMasterKey,
+                     masterKey);
+    config.save();
+  }
+
+  return true;
+}
+
+bool readMasterKeyFromWindowsStore(const QString &appName,
+                                   const QString &userName,
+                                   QString &outMasterKey) {
+  QKeychain::ReadPasswordJob job(appName);
+  job.setKey(userName);
+
+  QEventLoop loop;
+  QObject::connect(&job, &QKeychain::ReadPasswordJob::finished, &loop,
+                   &QEventLoop::quit);
+  job.start();
+  loop.exec(); // Blocks until job emits finished signal
+
+  if (job.error()) {
+    ConfigManager::ConfigManager &config =
+        ConfigManager::ConfigManager::getInstance();
+
+    outMasterKey =
+        config.getString(ConfigManager::ConfigKey::GitRepoCredentialsMasterKey);
+
+    return !outMasterKey.isEmpty();
+  }
+
+  outMasterKey = job.textData();
+  return true;
+}
+
 CloudCredentialtorage::CloudCredentialtorage() {
   LOG_PERF(0, "Enter");
   LOG_INFO("CloudCredentialtorage constructor called - initializing singleton");
 
-  _masterKey = getEncryptionKey();
-  LOG_INFO("Master key initialized, loading persisted credentials...");
-  loadPersistedCredentials();
-  LOG_INFO("CloudCredentialtorage initialization complete");
+  try {
+    _masterKey = getEncryptionKey();
+    LOG_INFO("Master key initialized, loading persisted credentials...");
+    loadPersistedCredentials();
+    LOG_INFO("CloudCredentialtorage initialization complete");
+  } catch (const std::exception &ex) {
+    LOG_ERROR(Log::ErrorId::Security, "Exception: {}", ex.what());
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -478,28 +547,40 @@ QByteArray CloudCredentialtorage::decrypt(const QByteArray &ciphertext,
 }
 
 QByteArray CloudCredentialtorage::getEncryptionKey() {
-  // Generate a master key from system information and user data
-  // In a real application, this would use OS keyring or secure storage
+  LOG_PERF(0, "Enter");
 
-  // For now, derive from machine ID and app data
-  QString machineId = QSysInfo::machineHostName();
-  QString appData =
-      QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+  const QString userName = getLoggedInUser();
+  const QString appName = qAppName();
 
-  QByteArray combined = (machineId + appData).toUtf8();
-  QByteArray hash =
-      QCryptographicHash::hash(combined, QCryptographicHash::Sha256);
+  QString masterKey;
+  bool success = readMasterKeyFromWindowsStore(appName, userName, masterKey);
 
-  // Ensure we have exactly 32 bytes for AES-256
-  if (hash.size() >= AES_KEY_SIZE) {
-    return hash.left(AES_KEY_SIZE);
+  QByteArray key;
+  if (!success || masterKey.isEmpty()) {
+    // Generate new key
+    key.resize(AES_KEY_SIZE);
+    if (RAND_bytes(reinterpret_cast<unsigned char *>(key.data()),
+                   AES_KEY_SIZE) != 1) {
+      LOG_ERROR(Log::ErrorId::Git, "Failed to generate master key");
+      throw std::runtime_error("Failed to generate master key");
+    }
+
+    // Store it
+    masterKey = key.toHex();
+
+    success = saveMasterKeyToWindowsStore(appName, userName, masterKey);
+    if (!success) {
+      LOG_ERROR(Log::ErrorId::Git, "Failed to save master key");
+      throw std::runtime_error("Failed to save master key");
+    }
+
+    LOG_INFO("Generated new master encryption key");
+  } else {
+    key = QByteArray::fromHex(masterKey.toUtf8());
   }
 
-  // Pad if necessary
-  while (hash.size() < AES_KEY_SIZE) {
-    hash.append(hash);
-  }
-  return hash.left(AES_KEY_SIZE);
+  LOG_PERF(0, "Exit");
+  return key;
 }
 
 QString CloudCredentialtorage::getCredentialsFilePath() const {

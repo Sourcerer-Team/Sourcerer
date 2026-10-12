@@ -1,15 +1,33 @@
 #pragma once
 
+#include <QHash>
 #include <QMap>
 #include <QString>
 #include <QStringList>
+#include <QVector>
+
+#include "GitFlowNextWorkflow.h"
+#include "WorkflowUtils.h"
 
 #include <git2/repository.h>
 #include <git2/status.h>
 
 #include <tuple>
 
+// Pseudo branch name that stands for the history of all branches.
+#ifndef ALL_BRANCHES
+#define ALL_BRANCHES "*"
+#endif
+
 namespace GitRepo {
+
+namespace Lfs {
+struct StorageStatus {
+  QString repositoryPath;
+  qint64 objectCount = 0;
+  qint64 totalBytes = 0;
+};
+} // namespace Lfs
 
 enum class GitError : int {
   Unknown = 0,
@@ -24,7 +42,7 @@ enum class GitError : int {
   CollectConflictedFilePathsFromResultIndexFailedToGetCommitTree,
   CollectConflictedFilePathsFromResultIndexFailedToDiffTreeAgainstIndex,
   CollectConflictedFilePathsFromResultIndexFailedToCreateConflictIterator,
-  CreateInitialCommitFailedToGetDefaultSignature,
+  CreateInitialCommitFailedToCreateSignature,
   CreateInitialCommitFailedToGetRepositoryIndex,
   CreateInitialCommitFailedToWriteIndexTree,
   CreateInitialCommitFailedToLookupTree,
@@ -33,7 +51,7 @@ enum class GitError : int {
   CreateInitialCommitFailedToReadNextBranch,
   CreateInitialCommitFailedToReadBranchName,
   CreateInitialCommitFailedToRenameBranch,
-  CreateInitialCommitWithoutStagingFailedToGetDefaultSignature,
+  CreateInitialCommitWithoutStagingFailedToCreateSignature,
   CreateInitialCommitWithoutStagingFailedToCreateTreeBuilder,
   CreateInitialCommitWithoutStagingFailedToWriteTreeBuilder,
   CreateInitialCommitWithoutStagingFailedToLookupTree,
@@ -139,6 +157,8 @@ enum class GitError : int {
   UnstageFilesFailedToResolveRevision,
   UnstageFilesFailedToResetPathsToHead,
   CommitStagedFailedToGetRepositoryIndex,
+  CommitStagedFailedToAbortRebaseSession,
+  CommitStagedFailedToOpenRebaseSession,
   CommitStagedFailedToWriteIndexTree,
   CommitStagedFailedToLookupTree,
   CommitStagedFailedToCreateSignature,
@@ -337,8 +357,34 @@ enum class GitError : int {
   RebaseBranchesFailedToCreateSignature,
   RebaseBranchesFailedToStartRebase,
   RebaseBranchesFailedToCommitRebaseStep,
+  RebaseBranchesFailedToCommitRebaseStepWithConflicts,
   RebaseBranchesFailedToFinishRebase,
   RebaseBranchesFailedToAbortRebase,
+  SquashBranchesInvalidArguments,
+  SquashBranchesRepositoryBusy,
+  SquashBranchesFailedToLookupBranch,
+  SquashBranchesFailedToLookupDestinationBranch,
+  SquashBranchesFailedToPeelReference,
+  SquashBranchesFailedToCheckoutTree,
+  SquashBranchesFailedToSetHead,
+  SquashBranchesFailedToCreateAnnotatedCommit,
+  SquashBranchesFailedToAnalyzeMerge,
+  SquashBranchesFailedToMerge,
+  SquashBranchesFailedToGetRepositoryIndex,
+  SquashBranchesFailedWithConflicts,
+  SquashBranchesFailedToWriteIndexTree,
+  SquashBranchesFailedToLookupHeadCommit,
+  SquashBranchesFailedToCleanupRepositoryState,
+  BisectInvalidArguments,
+  BisectRepositoryBusy,
+  BisectNotInProgress,
+  BisectFailedToResolveCommit,
+  BisectFailedToReadState,
+  BisectFailedToWriteState,
+  BisectFailedToWalkHistory,
+  BisectInvalidRange,
+  BisectFailedToCheckout,
+  BisectFailedToResetRepository,
   ListConflictsForAFileFailedToGetRepositoryIndex,
   ListConflictsForAFileFailedToCreateConflictIterator,
   AbortMergeFailedToCleanupRepositoryState,
@@ -377,6 +423,42 @@ enum class GitError : int {
   AmendFailedToSignCommit,
   AmendFailedToCreateSignedAmendCommit,
   AmendFailedToAmendCommit,
+  ListWorktreesFailedToListWorktrees,
+  ListWorktreesFailedToOpenWorktree,
+  AddWorktreeBranchRequired,
+  AddWorktreeFailedToResolveHead,
+  AddWorktreeFailedToCreateBranch,
+  AddWorktreeFailedToLookupBranch,
+  AddWorktreeFailedToCreateDirectory,
+  AddWorktreeFailedToAddWorktree,
+  RemoveWorktreeFailedToLookupWorktree,
+  RemoveWorktreeMainNotAllowed,
+  RemoveWorktreeFailedToPrune,
+  LockWorktreeFailedToLookupWorktree,
+  LockWorktreeMainNotAllowed,
+  LockWorktreeFailedToLock,
+  UnlockWorktreeFailedToLookupWorktree,
+  UnlockWorktreeMainNotAllowed,
+  UnlockWorktreeFailedToUnlock,
+  GitLabFlowBranchNameEmpty,
+  GitLabFlowFailedToLookupBaseBranch,
+  GitLabFlowPromoteNotDownstream,
+  GitLabFlowFailedToLookupReleaseBranch,
+  GitHubFlowBranchNameEmpty,
+  GitHubFlowFailedToLookupMainBranch,
+  GitHubFlowMainBranchNotAllowed,
+  GitFlowNextFailedToReadConfig,
+  GitFlowNextFailedToWriteConfig,
+  GitFlowNextNotInitialized,
+  GitFlowNextUnknownBranchType,
+  GitFlowNextNotATopicBranch,
+  GitFlowNextBranchNameEmpty,
+  GitFlowNextFailedToLookupBranch,
+  GitFlowNextUnsupportedStrategy,
+  GitFlowNextTagExists,
+  GitFlowNextInvalidWorkflow,
+  SetWorkflowTypeFailedToGetRepositoryConfig,
+  SetWorkflowTypeFailedToWriteConfig,
   Last
 };
 
@@ -428,6 +510,15 @@ struct GitCredentialsErrorResponse {
   size_t id = -1;
 };
 
+struct GitSshAuthInfo {
+  QString username;
+  QString privateKeyPath;
+  QString publicKeyPath;
+  QString passphrase;
+  bool passphrasePresent = false;
+  bool valid = false;
+};
+
 struct GitCommitInfo {
   git_oid oid;
   QString message;
@@ -453,14 +544,48 @@ struct GitCommitInfo {
   }
 };
 
+// How a commit takes part in a bisect session in progress.
+enum class BisectMark : int {
+  None = 0,
+  Good,
+  Bad,
+  Skip,
+  // Checked out for testing and not marked yet.
+  Current,
+
+  last
+};
+
+// One page of the repository history. Commits are ordered newest first and
+// every commit's parents are listed in commitInfos[sha].parents (parents may
+// live on a later page).
 struct GitHistory {
   bool valid = false;
   QVector<QString> commits;
   QMap<QString, GitCommitInfo> commitInfos;
+  // Commit SHA to BisectMark. Empty if bisect is not in progress. Deliberately
+  // not part of operator==, see GitHistoryModel::updateHistoryAndStatus.
+  // Filled on page 0 only.
+  QHash<QString, int> bisectMarks;
+  // True if there are more commits after this page.
+  bool hasMore = false;
+  // Total number of commits in the history being paged.
+  qint64 total = 0;
+  // Filled on page 0 only: SHA of HEAD and, per tip commit SHA, the names of
+  // the refs pointing to it (local branches first, then remote branches
+  // without the remote prefix, then tags). The names are used as stable keys
+  // to choose graph colors, they are not part of operator==.
+  QString headCommit;
+  QHash<QString, QStringList> refTips;
+  // Filled on page 0 only: per tip commit SHA, the full names of the refs
+  // pointing to it (refs/heads/..., refs/remotes/..., refs/tags/...), used to
+  // show branch and tag badges. Not part of operator==.
+  QHash<QString, QStringList> refLabels;
 
   bool operator==(const GitHistory &other) const {
     return valid == other.valid && commits == other.commits &&
-           commitInfos == other.commitInfos;
+           commitInfos == other.commitInfos && hasMore == other.hasMore &&
+           total == other.total;
   }
 };
 
@@ -509,6 +634,12 @@ struct GitStatus {
 
 struct GitCommitStatus {
   QString commit;
+  QString authorName;
+  QString authorEmail;
+  QString committerDate;
+  QString note;
+  QString summary;
+  QStringList parentShas;
   QStringList newFiles;
   QStringList modifiedFiles;
   QStringList deletedFiles;
@@ -517,13 +648,30 @@ struct GitCommitStatus {
   QStringList untrackedFiles;
 };
 
+enum class BranchType {
+  Unknown = 0,
+
+  All,
+  Local,
+  Remote,
+  Tag,
+
+  last
+};
+
 struct GitHistoryWithStatus {
   ;
   GitHistory history;
   GitStatus status;
+  BranchType branchType = BranchType::Unknown;
+  QString branchName;
+  QString uuid;
+  int page = -1;
 
   bool operator==(const GitHistoryWithStatus &other) const {
-    return history == other.history && status == other.status;
+    return history == other.history && status == other.status &&
+           branchType == other.branchType && branchName == other.branchName &&
+           uuid == other.uuid && page == other.page;
   }
 };
 
@@ -578,6 +726,33 @@ struct SubmoduleInfo {
            statusInfo.status == other.statusInfo.status;
   }
 };
+
+struct WorktreeInfo {
+  // Admin name under .git/worktrees; for the main worktree the directory name
+  // of the main working directory.
+  QString name;
+  // Absolute working directory path, forward slashes, no trailing slash.
+  QString path;
+  // Short branch name (e.g. "feature/x"); empty if HEAD is detached.
+  QString branch;
+  // 7-char abbreviated HEAD commit sha (empty if unborn/unreadable).
+  QString head;
+  // The main (non-linked) working tree.
+  bool isMain = false;
+  // The worktree whose working directory backs the repository passed in.
+  bool isCurrent = false;
+  bool locked = false;
+  // git_worktree_validate() == 0 (always true for the main worktree).
+  bool valid = true;
+
+  bool operator==(const WorktreeInfo &other) const {
+    return name == other.name && path == other.path && branch == other.branch &&
+           head == other.head && isMain == other.isMain &&
+           isCurrent == other.isCurrent && locked == other.locked &&
+           valid == other.valid;
+  }
+};
+
 struct RemoteTarget {
   QString name; // e.g., "Default", "Backup", etc.
   QString fetchUrl;
@@ -613,13 +788,13 @@ struct RemoteInfo {
     return RemoteTarget{QStringLiteral("Default"), fetchUrl, pushUrl};
   }
 };
-enum class BranchType {
+
+enum class GitFlowBranchType {
   Unknown = 0,
 
-  All,
-  Local,
-  Remote,
-  Tag,
+  Feature,
+  Release,
+  Hotfix,
 
   last
 };
@@ -661,11 +836,72 @@ struct FilesDiff {
   bool valid = false;
 };
 
+struct BlameLineInfo {
+  QString filePath;
+  qint64 lineNumber = -1;
+  QString content;
+  QString commit; // Full SHA, all zeros for uncommitted lines.
+  QString author;
+  QString email;
+  QString summary;
+};
+
+struct BlameFileInfo {
+  QString filePath;
+  QVector<BlameLineInfo> lineInfos;
+  QString errorMessage;
+};
+
+struct BlameReport {
+  QVector<BlameFileInfo> fileInfos;
+  bool valid = false;
+};
+
+enum class BisectAction : int {
+  Good = 0,
+  Bad,
+  Skip,
+  Reset,
+
+  last
+};
+
+struct BisectStatus {
+  // A bisect session exists after the operation.
+  bool active = false;
+  // The first bad commit has been found.
+  bool finished = false;
+  // Only skipped commits are left, the first bad commit is one of them.
+  bool ambiguous = false;
+  // Both a good and a bad commit are needed before a commit can be tested.
+  bool waitingForGood = false;
+  bool waitingForBad = false;
+  // Commit checked out for testing.
+  QString currentCommit;
+  QString currentSummary;
+  // First bad commit when finished.
+  QString firstBadCommit;
+  QString firstBadSummary;
+  // Commits that are still candidates and the estimated steps left.
+  int remaining = 0;
+  int steps = 0;
+};
+
 GitErrorContext getLastError();
 
 void initForCurrentThread();
 
+// Closes every credentials/passphrase overlay raised on the current thread.
+void finishPendingCredentialPrompts();
+
 void shutdownForCurrentThread();
+
+Lfs::StorageStatus getLfsStorageStatus(git_repository *repo);
+
+QString getBasicAuthHeader(const QString &repoPath, const QString &url);
+QString getBasicAuthHeader(git_repository *repo, const QString &url);
+GitSshAuthInfo getSshAuthInfo(const QString &repoPath, const QString &url,
+                              const QString &usernameFromUrl = QString());
 
 // Clear cached credentials for a given repository path
 // This should be called after updating credentials to ensure fresh credentials
@@ -693,6 +929,92 @@ void closeRepository(git_repository *repo);
 bool createBranchFromCommit(git_repository *repo, const QString &commit,
                             const QString &branchName);
 
+bool startGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
+                        const QString &branchName,
+                        const QString &developmentBranchName = {});
+
+bool finishGitFlowBranch(git_repository *repo, GitFlowBranchType branchType,
+                         const QString &branchName, const QString &author,
+                         const QString &email,
+                         const QString &developmentBranchName = {});
+
+bool startGitLabFlowFeature(git_repository *repo, const QString &branchName,
+                            const QString &mainBranchName);
+
+bool finishGitLabFlowFeature(git_repository *repo, const QString &branchName,
+                             const QString &mainBranchName,
+                             const QString &author, const QString &email);
+
+// Merges sourceBranchName into the next environment branch of the chain,
+// creating that branch from sourceBranchName if it does not exist yet.
+bool promoteGitLabFlowEnvironment(git_repository *repo,
+                                  const QStringList &environmentChain,
+                                  const QString &sourceBranchName,
+                                  const QString &author, const QString &email);
+
+bool startGitLabFlowRelease(git_repository *repo,
+                            const QString &releaseBranchName,
+                            const QString &mainBranchName);
+
+// Cherry-picks commit onto releaseBranchName and returns to the original
+// branch. On conflicts the release branch stays checked out and conflicted
+// is set.
+bool cherryPickToGitLabFlowRelease(git_repository *repo, const QString &commit,
+                                   const QString &releaseBranchName,
+                                   const QString &author, const QString &email,
+                                   bool *conflicted = nullptr);
+
+bool startGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                           const QString &mainBranchName);
+
+// Merges the main branch into branchName to bring it up to date.
+bool updateGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                            const QString &mainBranchName,
+                            const QString &author, const QString &email);
+
+// Merges branchName into the main branch and deletes it.
+bool finishGitHubFlowBranch(git_repository *repo, const QString &branchName,
+                            const QString &mainBranchName,
+                            const QString &author, const QString &email);
+
+// git-flow-next keeps its branch model in the repository config, shared with
+// the git flow command line tool. See WorkflowUtils.h.
+bool readGitFlowNextConfig(git_repository *repo, GitFlowNextConfig *config);
+
+// Writes the classic preset and creates the develop branch if it is missing.
+bool initGitFlowNext(git_repository *repo, const QString &mainBranchName,
+                     const QString &developBranchName);
+
+bool startGitFlowNextBranch(git_repository *repo, const QString &branchType,
+                            const QString &branchName);
+
+// Integrates branchName into its parent with the upstream strategy, tags it
+// if configured, updates the auto-update base branches of the parent and
+// deletes branchName.
+bool finishGitFlowNextBranch(git_repository *repo, const QString &branchName,
+                             const QString &author, const QString &email);
+
+// Brings branchName up to date with its parent using the downstream strategy.
+bool updateGitFlowNextBranch(git_repository *repo, const QString &branchName,
+                             const QString &author, const QString &email);
+
+// Reads sourcerer.workflow from the repository config. Missing or unknown
+// values mean classic Git Flow.
+WorkflowType getWorkflowType(git_repository *repo);
+
+// Writes a custom workflow into the repository: replaces the gitflow.branch.*
+// configuration, creates missing base branches from their parents and
+// records the workflow id and revision (sourcerer.gitflownext.*).
+bool applyGitFlowNextWorkflow(git_repository *repo,
+                              const GitFlowNextWorkflow &workflow);
+
+// The custom workflow last applied to the repository. Returns false if the
+// repository doesn't use one.
+bool getGitFlowNextWorkflowReference(git_repository *repo, QString *id,
+                                     int *revision);
+
+bool setWorkflowType(git_repository *repo, WorkflowType type);
+
 bool deleteStash(git_repository *repo, int stashIndex);
 // Delete all stashes in the repository
 bool deleteAllStashes(git_repository *repo);
@@ -700,7 +1022,8 @@ QString getActiveBranch(git_repository *repo, BranchType type,
                         const bool &quitFlag);
 
 bool initRepository(const QString &repoName, const QString &workingDir,
-                    const QString &defaultBranch);
+                    const QString &defaultBranch, const QString &author,
+                    const QString &email);
 
 QString listConflictsForAFile(git_repository *repo, const QString &filePath);
 QString listConflictsForStashFile(git_repository *repo, int stashIndex,
@@ -721,6 +1044,32 @@ QStringList listSubmodules(git_repository *repo);
 QVector<SubmoduleInfo> listSubmodulesWithStatus(git_repository *repo,
                                                 const bool &quitFlag);
 
+// Main worktree first (if the repository is not bare), then linked worktrees
+// sorted by name (case-insensitive). Works when `repo` is a linked worktree.
+// Returns {} and sets error on failure.
+QVector<WorktreeInfo> listWorktrees(git_repository *repo);
+
+// Creates a linked worktree `name` at `path`. If `createBranch` is true, a new
+// local branch `branch` is created at the tip of the local branch `baseBranch`
+// (or at the commit HEAD resolves to when `baseBranch` is empty) and checked
+// out in the new worktree; otherwise `branch` must be an existing local branch
+// and `baseBranch` is ignored. An empty `branch` is not supported.
+bool addWorktree(git_repository *repo, const QString &name, const QString &path,
+                 const QString &branch, bool createBranch,
+                 const QString &baseBranch = QString());
+
+// Removes a linked worktree (its working directory and admin data).
+bool removeWorktree(git_repository *repo, const QString &name, bool force);
+
+// Locks a linked worktree so that it can't be pruned. `reason` is optional.
+// Locking an already locked worktree is treated as success.
+bool lockWorktree(git_repository *repo, const QString &name,
+                  const QString &reason);
+
+// Unlocks a linked worktree. Unlocking a worktree that is not locked is
+// treated as success.
+bool unlockWorktree(git_repository *repo, const QString &name);
+
 QStringList listTags(git_repository *repo);
 
 bool merge(git_repository *repo, const QString &sourceBranch,
@@ -728,12 +1077,26 @@ bool merge(git_repository *repo, const QString &sourceBranch,
            const QString &email);
 bool rebaseBranches(git_repository *repo, const QString &sourceBranch,
                     const QString &destinationBranch, const QString &author,
-                    const QString &email);
+                    const QString &email, const bool signCommit);
 
-git_repository *openRepository(const QString &path);
+bool squashBranches(git_repository *repo, const QString &sourceBranch,
+                    const QString &destinationBranch, const QString &author,
+                    const QString &email, const bool signCommit);
+
+// Binary search for the commit that introduced a change. The state is kept
+// in the git directory (refs/bisect/*, BISECT_START, BISECT_LOG) so the
+// session is compatible with the git command line.
+bool bisect(git_repository *repo, BisectAction action, const QString &commit,
+            BisectStatus &status);
+
+// Commit SHA to BisectMark for the session in progress, empty otherwise.
+QHash<QString, int> getBisectMarks(git_repository *repo);
+
+git_repository *openRepository(const QString &path, const QString &author,
+                               const QString &email);
 
 GitHistory getBranchHistory(git_repository *repo, const QString &branchName,
-                            BranchType type, const bool &quitFlag);
+                            BranchType type, int page, const bool &quitFlag);
 
 QStringList getCommitBranches(git_repository *repo, const QString &commitOid,
                               const bool &quitFlag);
@@ -760,10 +1123,17 @@ bool commitStaged(git_repository *repo, const QString &summary,
                   const QString &email, bool cleanup, bool signoff,
                   bool signCommit);
 
+bool commitRebase(git_repository *repo, const QString &summary,
+                  const QString &message, const QString &author,
+                  const QString &email, bool cleanup, bool signoff,
+                  bool signCommit);
+
 FilesDiff diffFiles(git_repository *repo, const QStringList &files);
 
 FilesDiff diffFilesFromCommit(git_repository *repo, const QStringList &files,
                               const QString &commit);
+
+BlameReport blame(git_repository *repo, const QStringList &files);
 
 qint64 getFileSizeFromCommit(git_repository *repo, const QString &filePath,
                              const QString &commit);
@@ -788,7 +1158,7 @@ bool pushTag(git_repository *repo, const QString &tagName);
 
 bool pushAllTags(git_repository *repo);
 
-bool stash(git_repository *repo);
+bool stash(git_repository *repo, const QString &note);
 
 bool setUpstream(git_repository *repo, const QString &remoteName,
                  const QString &remoteBranchName,
@@ -840,7 +1210,11 @@ bool addSubmodule(git_repository *repo, const QString &url, const QString &name,
 
 bool getIsMergeInProgress(git_repository *repo);
 
+bool getIsRebaseInProgress(git_repository *repo);
+
 bool abortMerge(git_repository *repo);
+
+bool abortRebase(git_repository *repo);
 
 // Remote management functions
 QVector<RemoteInfo> listRemotes(git_repository *repo);

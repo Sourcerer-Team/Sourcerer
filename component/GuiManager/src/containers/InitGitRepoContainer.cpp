@@ -6,6 +6,7 @@
 #include <Dispatcher.h>
 #include <GitRepoManagerStructs.h>
 #include <Log.h>
+#include <UserProfileManager.h>
 #include <Uuid.h>
 
 #include <QDir>
@@ -84,7 +85,7 @@ void InitGitRepoContainer::onBrowseClicked() {
   LOG_PERF(0, "Exit");
 }
 
-void InitGitRepoContainer::onInitClicked() const {
+void InitGitRepoContainer::onInitClicked() {
   LOG_PERF(0, "Enter");
 
   GitRepoInitRepoCommand command;
@@ -92,6 +93,21 @@ void InitGitRepoContainer::onInitClicked() const {
   command.repoName = ui->lineEditName->text();
   command.workingDir = ui->lineEditWorkingDir->text();
   command.defaultBranch = ui->lineEditDefaultBranch->text();
+
+  const Common::UserProfileManager &profileManager =
+      Common::UserProfileManager::instance();
+  if (!profileManager.hasCurrentProfile()) {
+    showErrorToast(
+        tr("You must create a Git profile in User Profiles and set it as the "
+           "default profile before performing this operation."),
+        tr("Error"));
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  const Common::UserProfile &profile = profileManager.currentProfile();
+  command.author = profile.author;
+  command.email = profile.email;
 
   EventManager::Event initEvent(
       EventManager::EventType::GitRepoManagerInitRepo);

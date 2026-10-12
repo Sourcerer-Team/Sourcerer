@@ -70,15 +70,37 @@ public:
   }
 
   static QColor overlayBackgroundColor() {
-    return StylesheetManager::StylesheetManager::currentStylesheet() ==
-                   StylesheetManager::StylesheetKey::SourcererLight
-               ? QColor(255, 244, 224)
-               : QColor::fromString("#384D59");
+    switch (StylesheetManager::StylesheetManager::currentStylesheet()) {
+    case StylesheetManager::StylesheetKey::SourcererLight:
+      return QColor(255, 244, 224);
+    case StylesheetManager::StylesheetKey::SourcererPurple:
+      return QColor::fromString("#374659");
+    case StylesheetManager::StylesheetKey::SourcererBlue:
+      return QColor::fromString("#2D4A66");
+    case StylesheetManager::StylesheetKey::SourcererMonokai:
+      return QColor::fromString("#3E3D32");
+    case StylesheetManager::StylesheetKey::SourcererGruvbox:
+      return QColor::fromString("#3C3836");
+    case StylesheetManager::StylesheetKey::SourcererSolarized:
+      return QColor::fromString("#073642");
+    case StylesheetManager::StylesheetKey::SourcererDracula:
+      return QColor::fromString("#44475A");
+    case StylesheetManager::StylesheetKey::SourcererAyu:
+      return QColor::fromString("#253340");
+    default:
+      return QColor::fromString("#384D59");
+    }
   }
 
   static QPixmap overlayButtonIcon(const QString &iconPath) {
     const QColor iconColor =
         StylesheetManager::StylesheetManager::menuBarButtonIconColor();
+
+    if (iconPath.endsWith(QStringLiteral(".svg"), Qt::CaseInsensitive)) {
+      return StylesheetManager::StylesheetManager::renderSvgToPixmap(iconPath,
+                                                                     iconColor);
+    }
+
     return StylesheetManager::StylesheetManager::recolorPixmap(
         QPixmap(iconPath), iconColor);
   }

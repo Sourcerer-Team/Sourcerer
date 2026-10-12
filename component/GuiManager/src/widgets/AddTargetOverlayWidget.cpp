@@ -1,5 +1,5 @@
 #include "widgets/AddTargetOverlayWidget.h"
-#include "widgets/OpagueGroupBox.h"
+#include "widgets/OpaqueGroupBox.h"
 #include "widgets/OpaquePushButton.h"
 
 #include <Log.h>

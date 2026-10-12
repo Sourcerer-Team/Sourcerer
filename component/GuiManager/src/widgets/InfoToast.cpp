@@ -37,11 +37,23 @@ InfoToast::InfoToast(const QString &message, const QString &title,
 
   layout()->addWidget(widget);
 
-  const bool lightTheme =
-      StylesheetManager::StylesheetManager::currentStylesheet() ==
-      StylesheetManager::StylesheetKey::SourcererLight;
-  if (lightTheme) {
+  const auto theme = StylesheetManager::StylesheetManager::currentStylesheet();
+  if (theme == StylesheetManager::StylesheetKey::SourcererLight) {
     applyToastColors(QColor("#FFF4E2"), QColor("#E3AE5A"), QColor("#2E2418"));
+  } else if (theme == StylesheetManager::StylesheetKey::SourcererPurple) {
+    applyToastColors(QColor("#4A4656"), QColor("#B8860B"), QColor("#FFFFFF"));
+  } else if (theme == StylesheetManager::StylesheetKey::SourcererBlue) {
+    applyToastColors(QColor("#2D3B55"), QColor("#B8860B"), QColor("#FFFFFF"));
+  } else if (theme == StylesheetManager::StylesheetKey::SourcererMonokai) {
+    applyToastColors(QColor("#3E3D32"), QColor("#B8860B"), QColor("#FFFFFF"));
+  } else if (theme == StylesheetManager::StylesheetKey::SourcererGruvbox) {
+    applyToastColors(QColor("#3C3836"), QColor("#B8860B"), QColor("#FBF1C7"));
+  } else if (theme == StylesheetManager::StylesheetKey::SourcererSolarized) {
+    applyToastColors(QColor("#073642"), QColor("#B8860B"), QColor("#FDF6E3"));
+  } else if (theme == StylesheetManager::StylesheetKey::SourcererDracula) {
+    applyToastColors(QColor("#44475A"), QColor("#B8860B"), QColor("#F8F8F2"));
+  } else if (theme == StylesheetManager::StylesheetKey::SourcererAyu) {
+    applyToastColors(QColor("#253340"), QColor("#B8860B"), QColor("#E6E1CF"));
   } else {
     applyToastColors(QColor("#505050"), QColor("#B8860B"), QColor("#FFFFFF"));
   }

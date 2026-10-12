@@ -18,17 +18,32 @@ class GitRepoManagerBridge {
 public:
   virtual ~GitRepoManagerBridge() = default;
 
+  virtual void blame(const QWeakPointer<RepoContainer> &guard,
+                     const QStringList &files) = 0;
+
   virtual void
   setUpstream(const QWeakPointer<RepoContainer> &guard,
               const QString &branchName, const QString &remoteName,
               const QString &remoteBranchName,
               const std::function<void(const QWeakPointer<RepoContainer> &)>
                   &onSuccess = nullptr) = 0;
-  virtual void stash(const QWeakPointer<RepoContainer> &guard) = 0;
+  virtual void stash(const QWeakPointer<RepoContainer> &guard,
+                     const QString &note) = 0;
   virtual void abortMerge(const QWeakPointer<RepoContainer> &guard) = 0;
+  virtual void abortRebase(const QWeakPointer<RepoContainer> &guard) = 0;
   virtual void addSubmodule(const QWeakPointer<RepoContainer> &guard,
                             const QString &url, const QString &name,
                             const QString &branch) = 0;
+  virtual void addWorktree(const QWeakPointer<RepoContainer> &guard,
+                           const QString &path, const QString &branch,
+                           bool createBranch, const QString &baseBranch) = 0;
+  virtual void removeWorktree(const QWeakPointer<RepoContainer> &guard,
+                              const QString &name, bool force) = 0;
+  virtual void lockWorktree(const QWeakPointer<RepoContainer> &guard,
+                            const QString &name, const QString &reason) = 0;
+  virtual void unlockWorktree(const QWeakPointer<RepoContainer> &guard,
+                              const QString &name) = 0;
+  virtual bool getWorktrees(const QWeakPointer<RepoContainer> &guard) = 0;
   virtual void amend(const QWeakPointer<RepoContainer> &guard,
                      const QString &summary, const QString &description,
                      const QString &author, const QString &email, bool signoff,
@@ -51,6 +66,10 @@ public:
                       const QString &summary, const QString &description,
                       const QString &author, const QString &email, bool cleanup,
                       bool signoff, bool signCommit) = 0;
+  virtual void commitRebase(const QWeakPointer<RepoContainer> &guard,
+                            const QString &summary, const QString &description,
+                            const QString &author, const QString &email,
+                            bool cleanup, bool signoff, bool signCommit) = 0;
   virtual void createBranchFromCommit(
       const QWeakPointer<RepoContainer> &guard, const QString &commit,
       const QString &branchName,
@@ -103,6 +122,14 @@ public:
   virtual bool getActiveBranchOrTag(const QWeakPointer<RepoContainer> &guard,
                                     const int branchType) = 0;
   virtual bool getBranchHistory(const QWeakPointer<RepoContainer> &guard) = 0;
+  // Loads page `page` of the history in the background and hands it to the
+  // history model on the GUI thread (GitHistoryModel::appendPage or
+  // GitHistoryModel::pageFailed). A `lowPriority` page is loaded only after
+  // all other requests of the container have been executed.
+  virtual void getBranchHistoryPage(const QWeakPointer<RepoContainer> &guard,
+                                    const QString &branchName,
+                                    GitRepo::BranchType branchType, int page,
+                                    quint64 generation, bool lowPriority) = 0;
   virtual QStringList
   getCommitBranches(const QWeakPointer<RepoContainer> &guard,
                     const QString &commit) const = 0;
@@ -127,8 +154,41 @@ public:
                      const QString &sourceBranch,
                      const QString &destBranch) = 0;
   virtual void rebase(const QWeakPointer<RepoContainer> &guard,
-                      const QString &sourceBranch,
-                      const QString &destBranch) = 0;
+                      const QString &sourceBranch, const QString &destBranch,
+                      bool signCommit) = 0;
+  virtual void squash(const QWeakPointer<RepoContainer> &guard,
+                      const QString &sourceBranch, const QString &destBranch,
+                      bool signCommit) = 0;
+  virtual void bisect(const QWeakPointer<RepoContainer> &guard,
+                      GitRepo::BisectAction action, const QString &commit) = 0;
+  virtual void startGitFlowBranch(const QWeakPointer<RepoContainer> &guard,
+                                  const GitRepo::GitFlowBranchType branchType,
+                                  const QString &branchName) = 0;
+  virtual void finishGitFlowBranch(const QWeakPointer<RepoContainer> &guard,
+                                   const GitRepo::GitFlowBranchType branchType,
+                                   const QString &branchName) = 0;
+  // branchName is the feature or release branch, or the environment branch
+  // to promote, depending on the action.
+  virtual void runGitLabFlowAction(const QWeakPointer<RepoContainer> &guard,
+                                   const GitRepo::GitLabFlowAction action,
+                                   const QString &branchName,
+                                   const QString &commit = QString()) = 0;
+  virtual void runGitHubFlowAction(const QWeakPointer<RepoContainer> &guard,
+                                   const GitRepo::GitHubFlowAction action,
+                                   const QString &branchName) = 0;
+  // name is the main branch for Init, the topic branch type for Start and the
+  // branch for Finish and Update; argument is the develop branch for Init and
+  // the new branch for Start.
+  virtual void runGitFlowNextAction(const QWeakPointer<RepoContainer> &guard,
+                                    const GitRepo::GitFlowNextAction action,
+                                    const QString &name,
+                                    const QString &argument = QString()) = 0;
+  virtual void
+  applyGitFlowNextWorkflow(const QWeakPointer<RepoContainer> &guard,
+                           const GitRepo::GitFlowNextWorkflow &workflow) = 0;
+  virtual void getWorkflowType(const QWeakPointer<RepoContainer> &guard) = 0;
+  virtual void setWorkflowType(const QWeakPointer<RepoContainer> &guard,
+                               const GitRepo::WorkflowType workflow) = 0;
   virtual bool openRepo(const QWeakPointer<RepoContainer> &guard) = 0;
   virtual void pull(const QWeakPointer<RepoContainer> &guard,
                     bool rebase = false) = 0;

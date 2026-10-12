@@ -15,9 +15,12 @@ namespace GitRepoManager::Structs {
 enum class GitRepoCommandType : int {
   Unknown = 0,
   AbortMerge,
+  AbortRebase,
   AddSubmodule,
+  AddWorktree,
   AddRemote,
   Amend,
+  Blame,
   ApplyPatch,
   ApplyStash,
   CheckoutBranch,
@@ -25,6 +28,7 @@ enum class GitRepoCommandType : int {
   Clone,
   Close,
   CommitStaged,
+  CommitRebase,
   CreateBranchFromCommit,
   CreatePatchFromCommit,
   CreateTagFromCommit,
@@ -43,6 +47,7 @@ enum class GitRepoCommandType : int {
   GetActiveBranch,
   Rebase,
   GetFileSizeFromCommit,
+  GetLfsStorageStatus,
   GetBranchHistory,
   GetCommitBranches,
   GetCommitTags,
@@ -50,6 +55,7 @@ enum class GitRepoCommandType : int {
   GetCommitIsHead,
   GetCommitStatus,
   GetIsMergeInProgress,
+  GetIsRebaseInProgress,
   GetStashStatus,
   GetSubmodulePath,
   GetUpstream,
@@ -63,19 +69,27 @@ enum class GitRepoCommandType : int {
   ListSubmodules,
   ListSubmodulesWithStatus,
   ListTags,
+  ListWorktrees,
+  LockWorktree,
   Merge,
+  Squash,
+  Bisect,
+  GitFlow,
   Open,
   Pull,
   Push,
   PushTag,
   PushAllTags,
   RemoveRemote,
+  RemoveWorktree,
+  UnlockWorktree,
   RenameBranch,
   RenameTag,
   Reset,
   Revert,
   CherryPick,
   SetDefaultRemote,
+  Workflow,
   AddTarget,
   EditTarget,
   DeleteTarget,
@@ -118,6 +132,13 @@ struct GitRepoAbortMergeCommand final : GitRepoCommand {
   ~GitRepoAbortMergeCommand() override = default;
 };
 
+struct GitRepoAbortRebaseCommand final : GitRepoCommand {
+  GitRepoAbortRebaseCommand()
+      : GitRepoCommand(GitRepoCommandType::AbortRebase) {}
+
+  ~GitRepoAbortRebaseCommand() override = default;
+};
+
 struct GitRepoAddRemoteCommand final : GitRepoCommand {
   GitRepoAddRemoteCommand() : GitRepoCommand(GitRepoCommandType::AddRemote) {}
 
@@ -139,6 +160,19 @@ struct GitRepoAddSubmoduleCommand final : GitRepoCommand {
   QString branch;
 };
 
+struct GitRepoAddWorktreeCommand final : GitRepoCommand {
+  GitRepoAddWorktreeCommand()
+      : GitRepoCommand(GitRepoCommandType::AddWorktree) {}
+
+  ~GitRepoAddWorktreeCommand() override = default;
+
+  QString name;
+  QString path;
+  QString branch;
+  bool createBranch = false;
+  QString baseBranch;
+};
+
 struct GitRepoAmendCommand final : GitRepoCommand {
   GitRepoAmendCommand() : GitRepoCommand(GitRepoCommandType::Amend) {}
 
@@ -150,6 +184,14 @@ struct GitRepoAmendCommand final : GitRepoCommand {
   QString message;
   bool signoff = false;
   bool signCommit = false;
+};
+
+struct GitRepoBlameCommand final : GitRepoCommand {
+  GitRepoBlameCommand() : GitRepoCommand(GitRepoCommandType::Blame) {}
+
+  ~GitRepoBlameCommand() override = default;
+
+  QStringList files;
 };
 
 struct GitRepoApplyPatchCommand final : GitRepoCommand {
@@ -217,11 +259,26 @@ struct GitRepoCloseCommand final : GitRepoCommand {
   ~GitRepoCloseCommand() override = default;
 };
 
-struct GitRepoCommitStagedCommand final : GitRepoCommand {
+struct GitRepoCommitStagedCommand : GitRepoCommand {
   GitRepoCommitStagedCommand()
       : GitRepoCommand(GitRepoCommandType::CommitStaged) {}
 
   ~GitRepoCommitStagedCommand() override = default;
+
+  QString author;
+  QString email;
+  QString summary;
+  QString message;
+  bool cleanup = false;
+  bool signoff = false;
+  bool signCommit = false;
+};
+
+struct GitRepoCommitRebaseCommand : GitRepoCommand {
+  GitRepoCommitRebaseCommand()
+      : GitRepoCommand(GitRepoCommandType::CommitRebase) {}
+
+  ~GitRepoCommitRebaseCommand() override = default;
 
   QString author;
   QString email;
@@ -370,6 +427,10 @@ struct GitRepoDiffFilesFromCommitCommandResult {
   QVector<GitRepo::FilesDiffDelta> deltas;
 };
 
+struct GitRepoBlameCommandResult {
+  GitRepo::BlameReport report;
+};
+
 struct GitRepoDiscardFilesCommand final : GitRepoCommand {
   GitRepoDiscardFilesCommand()
       : GitRepoCommand(GitRepoCommandType::DiscardFiles) {}
@@ -475,6 +536,7 @@ struct GitRepoGetBranchHistoryCommand final : GitRepoCommand {
 
   QString branchName;
   GitRepo::BranchType branchType = GitRepo::BranchType::Unknown;
+  int page = 0;
 };
 
 struct GitRepoGetIsMergeInProgressCommand final : GitRepoCommand {
@@ -482,6 +544,13 @@ struct GitRepoGetIsMergeInProgressCommand final : GitRepoCommand {
       : GitRepoCommand(GitRepoCommandType::GetIsMergeInProgress) {}
 
   ~GitRepoGetIsMergeInProgressCommand() override = default;
+};
+
+struct GitRepoGetIsRebaseInProgressCommand final : GitRepoCommand {
+  GitRepoGetIsRebaseInProgressCommand()
+      : GitRepoCommand(GitRepoCommandType::GetIsRebaseInProgress) {}
+
+  ~GitRepoGetIsRebaseInProgressCommand() override = default;
 };
 
 struct GitRepoGetSubmodulePathCommand final : GitRepoCommand {
@@ -519,6 +588,8 @@ struct GitRepoInitRepoCommand final : GitRepoCommand {
   QString repoName;
   QString workingDir;
   QString defaultBranch;
+  QString author;
+  QString email;
 };
 
 struct GitRepoListConflictsCommand final : GitRepoCommand {
@@ -589,6 +660,32 @@ struct GitRepoListTagsCommand final : GitRepoCommand {
   ~GitRepoListTagsCommand() override = default;
 };
 
+struct GitRepoListWorktreesCommand final : GitRepoCommand {
+  GitRepoListWorktreesCommand()
+      : GitRepoCommand(GitRepoCommandType::ListWorktrees) {}
+
+  ~GitRepoListWorktreesCommand() override = default;
+};
+
+struct GitRepoLockWorktreeCommand final : GitRepoCommand {
+  GitRepoLockWorktreeCommand()
+      : GitRepoCommand(GitRepoCommandType::LockWorktree) {}
+
+  ~GitRepoLockWorktreeCommand() override = default;
+
+  QString name;
+  QString reason;
+};
+
+struct GitRepoUnlockWorktreeCommand final : GitRepoCommand {
+  GitRepoUnlockWorktreeCommand()
+      : GitRepoCommand(GitRepoCommandType::UnlockWorktree) {}
+
+  ~GitRepoUnlockWorktreeCommand() override = default;
+
+  QString name;
+};
+
 struct GitRepoMergeCommand final : GitRepoCommand {
   GitRepoMergeCommand() : GitRepoCommand(GitRepoCommandType::Merge) {}
 
@@ -609,6 +706,58 @@ struct GitRepoRebaseCommand final : GitRepoCommand {
   QString destinationBranch;
   QString author;
   QString email;
+  bool signCommit = false;
+};
+
+struct GitRepoBisectCommand final : GitRepoCommand {
+  GitRepoBisectCommand() : GitRepoCommand(GitRepoCommandType::Bisect) {}
+
+  ~GitRepoBisectCommand() override = default;
+
+  GitRepo::BisectAction action = GitRepo::BisectAction::Reset;
+  QString commit;
+};
+
+struct GitRepoSquashCommand final : GitRepoCommand {
+  GitRepoSquashCommand() : GitRepoCommand(GitRepoCommandType::Squash) {}
+
+  ~GitRepoSquashCommand() override = default;
+
+  QString sourceBranch;
+  QString destinationBranch;
+  QString author;
+  QString email;
+  bool signCommit = false;
+};
+
+struct GitRepoGitFlowCommand final : GitRepoCommand {
+  GitRepoGitFlowCommand() : GitRepoCommand(GitRepoCommandType::GitFlow) {}
+
+  ~GitRepoGitFlowCommand() override = default;
+
+  GitRepo::GitFlowBranchType branchType = GitRepo::GitFlowBranchType::Unknown;
+  bool start = true;
+  QString branchName;
+  QString developmentBranchName;
+  QString author;
+  QString email;
+
+  // GitLab Flow and GitHub Flow. branchName holds the feature, release,
+  // promoted source or GitHub Flow branch, depending on the action.
+  GitRepo::WorkflowType workflow = GitRepo::WorkflowType::GitFlow;
+  GitRepo::GitLabFlowAction gitLabFlowAction =
+      GitRepo::GitLabFlowAction::Unknown;
+  GitRepo::GitHubFlowAction gitHubFlowAction =
+      GitRepo::GitHubFlowAction::Unknown;
+  // git-flow-next. topicType is the configured topic branch type to start.
+  GitRepo::GitFlowNextAction gitFlowNextAction =
+      GitRepo::GitFlowNextAction::Unknown;
+  QString topicType;
+  // The custom workflow to write for GitFlowNextAction::Apply.
+  GitRepo::GitFlowNextWorkflow customWorkflow;
+  QString mainBranchName;
+  QStringList environmentChain;
+  QString commit;
 };
 
 struct GitRepoOpenCommand final : GitRepoCommand {
@@ -616,6 +765,8 @@ struct GitRepoOpenCommand final : GitRepoCommand {
 
   ~GitRepoOpenCommand() override = default;
   QString path;
+  QString author;
+  QString email;
 };
 
 struct GitRepoPullCommand final : GitRepoCommand {
@@ -658,6 +809,16 @@ struct GitRepoRemoveRemoteCommand final : GitRepoCommand {
   ~GitRepoRemoveRemoteCommand() override = default;
 
   QString remoteName;
+};
+
+struct GitRepoRemoveWorktreeCommand final : GitRepoCommand {
+  GitRepoRemoveWorktreeCommand()
+      : GitRepoCommand(GitRepoCommandType::RemoveWorktree) {}
+
+  ~GitRepoRemoveWorktreeCommand() override = default;
+
+  QString name;
+  bool force = false;
 };
 
 struct GitRepoRenameBranchCommand final : GitRepoCommand {
@@ -706,6 +867,16 @@ struct GitRepoSetDefaultRemoteCommand final : GitRepoCommand {
   ~GitRepoSetDefaultRemoteCommand() override = default;
 
   QString remoteName;
+};
+
+struct GitRepoWorkflowCommand final : GitRepoCommand {
+  GitRepoWorkflowCommand() : GitRepoCommand(GitRepoCommandType::Workflow) {}
+
+  ~GitRepoWorkflowCommand() override = default;
+
+  // Reads the repository workflow when false, writes workflow when true.
+  bool write = false;
+  GitRepo::WorkflowType workflow = GitRepo::WorkflowType::GitFlow;
 };
 
 struct GitRepoAddTargetCommand final : GitRepoCommand {
@@ -773,12 +944,21 @@ struct GitRepoStashCommand final : GitRepoCommand {
   GitRepoStashCommand() : GitRepoCommand(GitRepoCommandType::Stash) {}
 
   ~GitRepoStashCommand() override = default;
+
+  QString note;
 };
 
 struct GitRepoStatusCommand final : GitRepoCommand {
   GitRepoStatusCommand() : GitRepoCommand(GitRepoCommandType::Status) {}
 
   ~GitRepoStatusCommand() override = default;
+};
+
+struct GitRepoGetLfsStorageStatusCommand final : GitRepoCommand {
+  GitRepoGetLfsStorageStatusCommand()
+      : GitRepoCommand(GitRepoCommandType::GetLfsStorageStatus) {}
+
+  ~GitRepoGetLfsStorageStatusCommand() override = default;
 };
 
 struct GitRepoSubmoduleUpdateCommand final : GitRepoCommand {
@@ -864,7 +1044,15 @@ Q_DECLARE_METATYPE(GitRepo::SubmoduleStatusType)
 Q_DECLARE_METATYPE(GitRepo::SubmoduleStatus)
 Q_DECLARE_METATYPE(GitRepo::SubmoduleInfo)
 Q_DECLARE_METATYPE(QVector<GitRepo::SubmoduleInfo>)
+Q_DECLARE_METATYPE(GitRepo::WorktreeInfo)
+Q_DECLARE_METATYPE(QVector<GitRepo::WorktreeInfo>)
 Q_DECLARE_METATYPE(GitRepo::RemoteTarget)
 Q_DECLARE_METATYPE(QVector<GitRepo::RemoteTarget>)
 Q_DECLARE_METATYPE(GitRepo::RemoteInfo)
 Q_DECLARE_METATYPE(QVector<GitRepo::RemoteInfo>)
+Q_DECLARE_METATYPE(GitRepo::BlameLineInfo)
+Q_DECLARE_METATYPE(GitRepo::BlameFileInfo)
+Q_DECLARE_METATYPE(GitRepo::BlameReport)
+Q_DECLARE_METATYPE(GitRepo::BisectStatus)
+Q_DECLARE_METATYPE(GitRepoManager::Structs::GitRepoBlameCommand)
+Q_DECLARE_METATYPE(GitRepoManager::Structs::GitRepoBlameCommandResult)

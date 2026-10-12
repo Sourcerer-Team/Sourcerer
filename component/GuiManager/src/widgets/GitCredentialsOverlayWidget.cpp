@@ -1,5 +1,5 @@
 #include "widgets/GitCredentialsOverlayWidget.h"
-#include "widgets/OpagueGroupBox.h"
+#include "widgets/OpaqueGroupBox.h"
 #include "widgets/OpaqueLabel.h"
 #include "widgets/OpaquePushButton.h"
 
@@ -18,7 +18,7 @@
 
 namespace GuiManager::Widgets {
 
-GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
+GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(size_t id,
                                                          QWidget *parent)
     : OverlayWidget(parent, ALPHA),
       _eventManager(::EventManager::EventManager::getInstance()),
@@ -62,15 +62,15 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(uint id,
   _passwordLineEdit->setEchoMode(QLineEdit::Password);
 
   _passwordVisibilityAction = _passwordLineEdit->addAction(
-      QIcon(overlayButtonIcon(":/icons/eye.svg")), QLineEdit::TrailingPosition);
+      overlayButtonIcon(":/icons/eye.svg"), QLineEdit::TrailingPosition);
   _passwordVisibilityAction->setToolTip(tr("Show password"));
   _passwordVisibilityAction->setCheckable(true);
   connect(_passwordVisibilityAction, &QAction::toggled, this,
           [this](bool checked) {
             _passwordLineEdit->setEchoMode(checked ? QLineEdit::Normal
                                                    : QLineEdit::Password);
-            _passwordVisibilityAction->setIcon(QIcon(overlayButtonIcon(
-                checked ? ":/icons/eye-off.svg" : ":/icons/eye.svg")));
+            _passwordVisibilityAction->setIcon(overlayButtonIcon(
+                checked ? ":/icons/eye-off.svg" : ":/icons/eye.svg"));
             _passwordVisibilityAction->setToolTip(
                 checked ? tr("Hide password") : tr("Show password"));
           });
@@ -276,6 +276,13 @@ void GitCredentialsOverlayWidget::onCancelClicked() {
 
   _eventManager.send(cancelEvent);
 
+  // Always close the overlay locally. The backend may no longer be waiting for
+  // a response (e.g. the operation already failed), in which case no
+  // `GetCredentialsFinished` event would ever arrive. The emit is queued
+  // because the owner deletes this widget in response to the signal.
+  QMetaObject::invokeMethod(
+      this, [this]() { emit finished(); }, Qt::QueuedConnection);
+
   LOG_PERF(0, "Exit");
 }
 
@@ -308,7 +315,7 @@ void GitCredentialsOverlayWidget::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCredentialsFinished: {
-    if (const uint id = event.data<size_t>(); id != _id) {
+    if (const size_t id = event.data<size_t>(); id != _id) {
       break;
     }
     const auto guard = _holder.toWeakRef();
@@ -317,7 +324,7 @@ void GitCredentialsOverlayWidget::eventCallback(EventManager::Event event) {
     break;
   }
   case EventManager::EventType::GitRepoManagerGetCredentialsInvalid: {
-    if (const uint id = event.data<size_t>(); id != _id) {
+    if (const size_t id = event.data<size_t>(); id != _id) {
       break;
     }
     const auto guard = _holder.toWeakRef();

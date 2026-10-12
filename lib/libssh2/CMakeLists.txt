@@ -370,6 +370,15 @@ if(NOT WIN32)
   check_symbol_exists("explicit_bzero" "string.h" HAVE_EXPLICIT_BZERO)
   check_symbol_exists("explicit_memset" "string.h" HAVE_EXPLICIT_MEMSET)
   check_symbol_exists("memset_s" "string.h" HAVE_MEMSET_S)
+  if(APPLE)
+    # libgit2 leaks CMAKE_C_STANDARD=90 into the cache. Under strict C90, Apple's
+    # headers hide `long long` and thus strtoll(), so build libssh2 as C99 here.
+    set(CMAKE_C_STANDARD 99)
+    # _DARWIN_C_SOURCE keeps the POSIX/BSD declarations visible in strict mode.
+    # memset_s (C11 Annex K) is additionally gated behind
+    # __STDC_WANT_LIB_EXT1__, and newer compilers reject implicit declarations.
+    add_compile_definitions(_DARWIN_C_SOURCE __STDC_WANT_LIB_EXT1__=1)
+  endif()
 endif()
 
 if(MSVC AND ENABLE_WERROR)

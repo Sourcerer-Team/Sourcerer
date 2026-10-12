@@ -27,10 +27,12 @@ set(UI_FILES
         src/containers/InitGitRepoContainer.ui
         src/containers/IssueTrackerContainer.ui
         src/containers/PleaseWaitContainer.ui
+        src/containers/ReleaseNotesContainer.ui
         src/containers/SettingsContainer.ui
         src/dialogs/AboutDialog.ui
         src/widgets/GitSubmodulesPage.ui
         src/widgets/GitTagsPage.ui
+        src/widgets/GitWorktreesPage.ui
         src/widgets/LocalGitBranchesPage.ui
         src/widgets/ProfileBoardWidget.ui
         src/widgets/RemoteGitBranchesPage.ui
@@ -46,7 +48,7 @@ if(WIN32)
 )
 endif()
 
-if(UNIX AND NOT APPLE)
+if(UNIX)
   set(PLATFORM_SOURCES
         include/widgets/linux/BashShellWidget.h
         src/widgets/linux/BashShellWidget.cpp
@@ -60,10 +62,12 @@ set(GUIMANAGER_SOURCE_FILES
         include/DarkThemeLexersHighlighter.h
         include/GuiManager.h
         include/HitDetector.h
+        include/WindowResize.h
         include/InitResources.h
         include/MainWindow.h
         include/MousePositionCorrection.h
         include/QScintillaLexerFactory.h
+        include/ReleaseNotes.h
         include/containers/BugReportContainer.h
         include/containers/CloneRepoContainer.h
         include/containers/GitCredentialsContainer.h
@@ -76,10 +80,14 @@ set(GUIMANAGER_SOURCE_FILES
         include/containers/InitGitRepoContainer.h
         include/containers/IssueTrackerContainer.h
         include/containers/PleaseWaitContainer.h
+        include/containers/ReleaseNotesContainer.h
         include/containers/SettingsContainer.h
         include/delegates/ElideDelegate.h
         include/delegates/ElidePartialColorDelegate.h
         include/delegates/FixedHeightDelegate.h
+        include/delegates/GraphiteBranchDelegate.h
+        include/CustomWorkflowStore.h
+        include/widgets/GitFlowNextWorkflowOverlayWidget.h
         include/delegates/HistorySliceTableColumnDelegate.h
         include/delegates/HistorySummaryTableColumnDelegate.h
         include/delegates/HomeRecentItemDelegate.h
@@ -96,9 +104,11 @@ set(GUIMANAGER_SOURCE_FILES
         include/models/SubmodulesModel.h
         include/models/TagsModel.h
         include/models/WorkspacesModel.h
+        include/models/WorktreesModel.h
         include/widgets/AddRemoteOverlayWidget.h
         include/widgets/AddSubmoduleOverlayWidget.h
         include/widgets/AddTargetOverlayWidget.h
+        include/widgets/AddWorktreeOverlayWidget.h
         include/widgets/AnnotatedTagOverlayWidget.h
         include/widgets/CentralWidget.h
         include/widgets/ClickableHeaderView.h
@@ -116,6 +126,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/GitSubmodulesPage.h
         include/widgets/GitProgressToast.h
         include/widgets/GitTagsPage.h
+        include/widgets/GitWorktreesPage.h
         include/widgets/InfoToast.h
         include/widgets/LocalGitBranchesPage.h
         include/widgets/NewsToast.h
@@ -123,7 +134,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/MoveProxy.h
         include/widgets/MouseTrackingSplitter.h
         include/widgets/OverlayWidget.h
-        include/widgets/OpagueGroupBox.h
+        include/widgets/OpaqueGroupBox.h
         include/widgets/OpaqueLabel.h
         include/widgets/OpaquePushButton.h
         include/widgets/PersistentPlaceholderLineEdit.h
@@ -146,9 +157,11 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/ShortcutsToolbarWidget.h
         include/widgets/SideBySideDiffView.h
         include/widgets/SpinnerDialog.h
+        include/widgets/RefBadgesOverlay.h
         include/widgets/SpinnerOverlayWidget.h
         include/widgets/StashesPage.h
         include/widgets/TextInputOverlayWidget.h
+        include/widgets/MultilineTextInputOverlayWidget.h
         include/widgets/TitleBarButton.h
         include/widgets/TitleBarHomeButton.h
         include/widgets/TitleBarMenuButton.h
@@ -157,6 +170,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/widgets/ToastCloseButton.h
         include/widgets/ToastHostWidget.h
         include/widgets/ToastWidget.h
+        include/widgets/ToolBoxFixer.h
         include/widgets/TopBarWidget.h
         include/widgets/UpstreamInputOverlayWidget.h
         include/widgets/factories/SettingsPaneItemWidgetFactory.h
@@ -164,10 +178,12 @@ set(GUIMANAGER_SOURCE_FILES
         src/DarkThemeLexersHighlighter.cpp
         src/GuiManager.cpp
         src/HitDetector.cpp
+        src/WindowResize.cpp
         src/InitResources.cpp
         src/MainWindow.cpp
         src/MousePositionCorrection.cpp
         src/QScintillaLexerFactory.cpp
+        src/ReleaseNotes.cpp
         src/containers/BugReportContainer.cpp
         src/containers/CloneRepoContainer.cpp
         src/containers/GitCredentialsContainer.cpp
@@ -179,7 +195,11 @@ set(GUIMANAGER_SOURCE_FILES
         src/containers/InitGitRepoContainer.cpp
         src/containers/IssueTrackerContainer.cpp
         src/containers/PleaseWaitContainer.cpp
+        src/containers/ReleaseNotesContainer.cpp
         src/containers/SettingsContainer.cpp
+        src/delegates/GraphiteBranchDelegate.cpp
+        src/CustomWorkflowStore.cpp
+        src/widgets/GitFlowNextWorkflowOverlayWidget.cpp
         src/delegates/HistorySliceTableColumnDelegate.cpp
         src/delegates/HistorySummaryTableColumnDelegate.cpp
         src/delegates/HomeRecentItemDelegate.cpp
@@ -195,10 +215,12 @@ set(GUIMANAGER_SOURCE_FILES
         src/models/StashesModel.cpp
         src/models/SubmodulesModel.cpp
         src/models/WorkspacesModel.cpp
+        src/models/WorktreesModel.cpp
         src/models/TagsModel.cpp
         src/widgets/AddRemoteOverlayWidget.cpp
         src/widgets/AddSubmoduleOverlayWidget.cpp
         src/widgets/AddTargetOverlayWidget.cpp
+        src/widgets/AddWorktreeOverlayWidget.cpp
         src/widgets/AnnotatedTagOverlayWidget.cpp
         src/widgets/CentralWidget.cpp
         src/widgets/ColorButton.cpp
@@ -213,6 +235,7 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/GitProgressToast.cpp
         src/widgets/GitSubmodulesPage.cpp
         src/widgets/GitTagsPage.cpp
+        src/widgets/GitWorktreesPage.cpp
         src/widgets/InfoToast.cpp
         src/widgets/LocalGitBranchesPage.cpp
         src/widgets/NewsToast.cpp
@@ -234,9 +257,11 @@ set(GUIMANAGER_SOURCE_FILES
         src/widgets/ShadeIconToolbox.cpp
         src/widgets/ShortcutsToolbarWidget.cpp
         src/widgets/SideBySideDiffView.cpp
+        src/widgets/RefBadgesOverlay.cpp
         src/widgets/SpinnerOverlayWidget.cpp
         src/widgets/StashesPage.cpp
         src/widgets/TextInputOverlayWidget.cpp
+        src/widgets/MultilineTextInputOverlayWidget.cpp
         src/widgets/TitleBarButton.cpp
         src/widgets/TitleBarHomeButton.cpp
         src/widgets/TitleBarMenuButton.cpp
@@ -273,8 +298,7 @@ includeLib(GuiManager SvnRepo)
 includeLib(GuiManager Util)
 includeLib(GuiManager QtWaitingSpinner)
 includeLib(GuiManager QVTerminal)
-
-add_subdirectory(../../lib/QScintilla/src "QScintilla")
+includeLib(GuiManager QEditor)
 
 target_link_libraries(GuiManager PRIVATE
         Qt6::Core
@@ -285,12 +309,12 @@ target_link_libraries(GuiManager PRIVATE
         libgit2
         util
         libzip::zip
-        qscintilla
         apr-1
 )
 
 if(TARGET Qt6::WebEngineWidgets)
   target_link_libraries(GuiManager PRIVATE Qt6::WebEngineWidgets)
+  target_compile_definitions(GuiManager PRIVATE GUI_MANAGER_HAS_WEBENGINE=1)
 endif()
 
 target_include_directories(GuiManager PRIVATE

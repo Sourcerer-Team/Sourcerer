@@ -72,7 +72,7 @@ RUN apt-get update && apt-get install -y \
     libxcb1-dev \
     libx11-xcb-dev \
     libxcb-glx0-dev \
-
+    libsecret-1-dev \
     p7zip-full \
     python3 \
     && rm -rf /var/lib/apt/lists/*
@@ -117,6 +117,10 @@ RUN wget -q https://download.qt.io/official_releases/online_installers/qt-online
 # Create symbolic link from /opt/Qt to actual installation directory
 RUN mkdir -p /home/ubuntu
 RUN if [ -d /opt/Qt ]; then ln -sf /opt/Qt /home/ubuntu/Qt; fi
+
+# Ensure the Qt installation tree is readable and executable by any user
+RUN chmod -R a+rX /opt
+RUN chmod -R a+rX /home
 
 # Verify Qt SSL support by checking for SSL plugins and libraries
 RUN echo "Verifying Qt and OpenSSL configuration..." && \

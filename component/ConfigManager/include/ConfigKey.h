@@ -18,6 +18,7 @@ enum class ConfigKey {
 
   // GitRepo container
   GitRepoSplitterPos,
+  GitRepoStashSplitterPos,
   GitRepoBranchRecyclerViewItemsSplitterPos,
   GitRepoHistoryViewColumnWidths,
   GitRepoHistoryViewHiddenColumns,
@@ -26,7 +27,15 @@ enum class ConfigKey {
   GitRepoMaxDiffFileSize,
   GitRepoMonospaceFontName,
   GitRepoMonospaceFontSize,
+  GitRepoGitFlowMainBranchName,
+  GitRepoGitFlowDevelopmentBranchName,
+  GitRepoGitLabFlowMainBranchName,
+  GitRepoGitLabFlowEnvironmentBranches,
+  GitRepoGitLabFlowReleaseBranchSuffix,
+  GitRepoGitHubFlowMainBranchName,
   GitRepoDiffViewType,
+  GitRepoCommitSignOff,
+  GitRepoCommitSign,
 
   // GitRepo library
   GitRepoGitCredentialsExpirationTime,
@@ -36,6 +45,8 @@ enum class ConfigKey {
   GitRepoSigningFormat,
   GitRepoSigningKey,
   GitRepoSigningProgram,
+  GitRepoCredentialsMasterKey,
+  GitRepoHistoryPageSize,
 
   // HttpClient
   HttpClientCaCertFile,
