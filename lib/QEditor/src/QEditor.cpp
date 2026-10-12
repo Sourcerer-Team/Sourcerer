@@ -30,6 +30,7 @@ const TSLanguage *tree_sitter_ruby(void);
 const TSLanguage *tree_sitter_go(void);
 const TSLanguage *tree_sitter_zig(void);
 const TSLanguage *tree_sitter_kotlin(void);
+const TSLanguage *tree_sitter_asm(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -428,6 +429,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("kotlin"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_kotlin();
   }
+  if (language.compare(QStringLiteral("asm"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_asm();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -518,6 +522,7 @@ enum class StyledLanguage {
   Go,
   Zig,
   Kotlin,
+  Asm,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -544,7 +549,9 @@ enum class StyleSet {
   Lua,
   // QsciLexerMakefile ids.
   Makefile,
-  Ruby
+  Ruby,
+  // QsciLexerAsm ids.
+  Asm
 };
 
 StyledLanguage styledLanguageFor(const TSLanguage *language) {
@@ -623,6 +630,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_kotlin()) {
     return StyledLanguage::Kotlin;
   }
+  if (language == tree_sitter_asm()) {
+    return StyledLanguage::Asm;
+  }
   return StyledLanguage::None;
 }
 
@@ -668,6 +678,8 @@ StyleSet styleSetFor(StyledLanguage language) {
   case StyledLanguage::Zig:
   case StyledLanguage::Kotlin:
     break;
+  case StyledLanguage::Asm:
+    return StyleSet::Asm;
   }
   return StyleSet::Cpp;
 }
@@ -2362,6 +2374,63 @@ Token kotlinTokenForNode(const NodeContext &context, const QByteArray &source,
   return Token::None;
 }
 
+// Classifies an assembly node (GNU syntax). Mnemonics are keywords, registers
+// are types, directives and labels are colored by their role, and the size
+// and addressing keywords (byte, qword, ptr, rel) are built-in types.
+Token asmTokenForNode(const NodeContext &context, const QByteArray &source,
+                      bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (typeIn(type, {"byte", "word", "dword", "qword", "ptr", "rel"})) {
+      return Token::BuiltinType;
+    }
+    if (typeIn(type, {"const", "label"})) {
+      return Token::Preprocessor;
+    }
+    if (typeIn(type, {"+", "-", "*", "/", "(", ")", "[", "]", "{", "}", "!",
+                      "&", "|", "^", "~", "#"})) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeIn(type, {"line_comment", "block_comment"})) {
+    descend = false;
+    return Token::Comment;
+  }
+  if (typeIn(type, {"int", "float"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeEquals(type, "string")) {
+    descend = false;
+    return Token::String;
+  }
+  if (typeEquals(type, "reg")) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeEquals(type, "meta_ident")) {
+    descend = false;
+    return typeEquals(context.parent, "label") ? Token::Label
+                                               : Token::Preprocessor;
+  }
+  if (typeEquals(type, "ident")) {
+    descend = false;
+    return Token::Label;
+  }
+  if (typeEquals(type, "word") && typeEquals(context.parent, "instruction") &&
+      typeEquals(context.field, "kind")) {
+    descend = false;
+    return Token::Keyword;
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -2395,6 +2464,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return zigTokenForNode(context, source, descend);
   case StyledLanguage::Kotlin:
     return kotlinTokenForNode(context, source, descend);
+  case StyledLanguage::Asm:
+    return asmTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
@@ -3117,6 +3188,38 @@ int rubyStyleFor(Token token) {
   }
 }
 
+// Assembly style ids: mnemonics, registers, directives and labels each have
+// their own color in the theme.
+int asmStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerAsm::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerAsm::Comment;
+  case Token::Number:
+    return QsciLexerAsm::Number;
+  case Token::Operator:
+    return QsciLexerAsm::Operator;
+  case Token::Label:
+  case Token::Variable:
+    return QsciLexerAsm::Identifier;
+  case Token::Keyword:
+    return QsciLexerAsm::CPUInstruction;
+  case Token::Type:
+    return QsciLexerAsm::Register;
+  case Token::Preprocessor:
+    return QsciLexerAsm::Directive;
+  case Token::BuiltinType:
+    return QsciLexerAsm::DirectiveOperand;
+  case Token::String:
+    return QsciLexerAsm::DirectiveOperand;
+  default:
+    return -1;
+  }
+}
+
 int htmlScriptStyleFor(Token token) {
   switch (token) {
   case Token::Default:
@@ -3172,6 +3275,8 @@ int styleFor(StyleSet styleSet, Token token) {
     return makefileStyleFor(token);
   case StyleSet::Ruby:
     return rubyStyleFor(token);
+  case StyleSet::Asm:
+    return asmStyleFor(token);
   }
   return -1;
 }

@@ -105,6 +105,7 @@ private:
   QsciLexer *createTclLexer(QObject *parent) const;
   QsciLexer *createLuaLexer(QObject *parent) const;
   QsciLexer *createPascalLexer(QObject *parent) const;
+  QsciLexer *createAsmLexer(QObject *parent) const;
   QsciLexer *createMAsmLexer(QObject *parent) const;
   QsciLexer *createNAsmLexer(QObject *parent) const;
   QsciLexer *createCMakeLexer(QObject *parent) const;

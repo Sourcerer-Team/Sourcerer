@@ -33,6 +33,7 @@
 #include <Qsci/qscilexerlua.h>
 #include <Qsci/qscilexermakefile.h>
 #include <Qsci/qscilexermarkdown.h>
+#include <Qsci/qscilexerasm.h>
 #include <Qsci/qscilexermasm.h>
 #include <Qsci/qscilexermatlab.h>
 #include <Qsci/qscilexernasm.h>
@@ -194,6 +195,8 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("rbw"), &createLexer<QsciLexerRuby>},
       {QStringLiteral("go"), &createLexer<QsciLexerGo>},
       {QStringLiteral("zig"), &createLexer<QsciLexerZig>},
+      {QStringLiteral("asm"), &createLexer<QsciLexerAsm>},
+      {QStringLiteral("s"), &createLexer<QsciLexerAsm>},
       {QStringLiteral("kt"), &createLexer<QsciLexerKotlin>},
       {QStringLiteral("kts"), &createLexer<QsciLexerKotlin>},
       {QStringLiteral("ruby"), &createLexer<QsciLexerRuby>},
@@ -476,6 +479,10 @@ QsciLexer *QScintillaLexerFactory::createPascalLexer(QObject *parent) const {
   return new QsciLexerPascal(parent);
 }
 
+QsciLexer *QScintillaLexerFactory::createAsmLexer(QObject *parent) const {
+  return new QsciLexerAsm(parent);
+}
+
 QsciLexer *QScintillaLexerFactory::createMAsmLexer(QObject *parent) const {
   return new QsciLexerMASM(parent);
 }
@@ -593,6 +600,8 @@ QsciLexer *QScintillaLexerFactory::createLexerByType(const QString &lexerName,
     return createLuaLexer(parent);
   if (lexerName == "Pascal")
     return createPascalLexer(parent);
+  if (lexerName == "Asm")
+    return createAsmLexer(parent);
   if (lexerName == "MASM")
     return createMAsmLexer(parent);
   if (lexerName == "NASM")
@@ -787,8 +796,8 @@ void QScintillaLexerFactory::initializeExtensionMappings() {
   _extensionToLexer["ss"] = "Scheme";
 
   // Assembly
-  _extensionToLexer["asm"] = "MASM";
-  _extensionToLexer["s"] = "NASM";
+  _extensionToLexer["asm"] = "Asm";
+  _extensionToLexer["s"] = "Asm";
   _extensionToLexer["inc"] = "NASM";
 
   // Modern Languages
@@ -890,6 +899,7 @@ void QScintillaLexerFactory::initializeLexerDescriptions() {
   _lexerDescriptions["Ada"] = "Ada Programming Language";
   _lexerDescriptions["Lisp"] = "Lisp Programming Language";
   _lexerDescriptions["Scheme"] = "Scheme Programming Language";
+  _lexerDescriptions["Asm"] = "Assembly Language";
   _lexerDescriptions["MASM"] = "MASM Assembly Language";
   _lexerDescriptions["NASM"] = "NASM Assembly Language";
   _lexerDescriptions["CMake"] = "CMake Build System";
