@@ -2459,8 +2459,9 @@ QString makeLightStylesheet() {
 
 // The purple, blue and monokai themes share the dark theme's layout rules and
 // only swap its colors, so they stay in sync when the dark stylesheet changes.
-QString makeDarkDerivedStylesheet(
-    const QList<QPair<QString, QString>> &colorMap, const QString &grayColor) {
+QString
+makeDarkDerivedStylesheet(const QList<QPair<QString, QString>> &colorMap,
+                          const QString &grayColor) {
   QString stylesheet = makeDarkStylesheet();
   for (const auto &[from, to] : colorMap) {
     const QRegularExpression pattern(
@@ -2469,8 +2470,7 @@ QString makeDarkDerivedStylesheet(
     stylesheet.replace(pattern, to);
   }
 
-  static const QRegularExpression grayPattern(
-      QStringLiteral("\\bgr[ae]y\\b"));
+  static const QRegularExpression grayPattern(QStringLiteral("\\bgr[ae]y\\b"));
   stylesheet.replace(grayPattern, grayColor);
 
   return stylesheet;
@@ -2756,8 +2756,7 @@ const QMap<StylesheetKey, QString> &stylesheets() {
     stylesheets.insert(StylesheetKey::SourcererDark, SOURCERER_DARK_STYLESHEET);
     stylesheets.insert(StylesheetKey::SourcererPurple,
                        SOURCERER_PURPLE_STYLESHEET);
-    stylesheets.insert(StylesheetKey::SourcererBlue,
-                       SOURCERER_BLUE_STYLESHEET);
+    stylesheets.insert(StylesheetKey::SourcererBlue, SOURCERER_BLUE_STYLESHEET);
     stylesheets.insert(StylesheetKey::SourcererMonokai,
                        SOURCERER_MONOKAI_STYLESHEET);
     stylesheets.insert(StylesheetKey::SourcererGruvbox,

@@ -29,7 +29,8 @@ void HomeRecentItemDelegate::paint(QPainter *painter,
 
   if (_indexHovered.isValid() && _indexHovered.model() == index.model() &&
       _indexHovered.row() == index.row() && index.column() == 0) {
-    const auto theme = StylesheetManager::StylesheetManager::currentStylesheet();
+    const auto theme =
+        StylesheetManager::StylesheetManager::currentStylesheet();
     const QColor hoverBackground =
         theme == StylesheetManager::StylesheetKey::SourcererLight
             ? QColor(255, 241, 201)

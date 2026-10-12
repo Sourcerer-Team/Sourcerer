@@ -321,15 +321,15 @@ void MergeDiffView::refreshScintillaTheme() {
       lightTheme ? QColor(232, 246, 232) : QColor(0x1f3d2b);
   const QColor actionColor = lightTheme ? QColor(0x0969da) : QColor(0x2f81f7);
   const QColor actionGlyphColor = Qt::white;
-  const QColor marginColor = lightTheme     ? QColor(243, 246, 248)
-                             : purpleTheme  ? QColor(0x2b2735)
-                             : blueTheme    ? QColor(0x1a2435)
-                             : monokaiTheme ? QColor(0x2f3029)
-                             : gruvboxTheme ? QColor(0x1d2021)
+  const QColor marginColor = lightTheme       ? QColor(243, 246, 248)
+                             : purpleTheme    ? QColor(0x2b2735)
+                             : blueTheme      ? QColor(0x1a2435)
+                             : monokaiTheme   ? QColor(0x2f3029)
+                             : gruvboxTheme   ? QColor(0x1d2021)
                              : solarizedTheme ? QColor(0x00232c)
-                             : draculaTheme ? QColor(0x21222c)
-                             : ayuTheme ? QColor(0x0d1016)
-                                            : QColor(0x23272e);
+                             : draculaTheme   ? QColor(0x21222c)
+                             : ayuTheme       ? QColor(0x0d1016)
+                                              : QColor(0x23272e);
   const QColor changedColor =
       lightTheme ? QColor(255, 241, 201) : QColor(0x4d4021);
 
