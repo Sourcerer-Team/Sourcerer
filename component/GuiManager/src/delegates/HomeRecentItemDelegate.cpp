@@ -37,6 +37,8 @@ void HomeRecentItemDelegate::paint(QPainter *painter,
             ? QColor(63, 77, 99)
         : theme == StylesheetManager::StylesheetKey::SourcererBlue
             ? QColor(42, 58, 85)
+        : theme == StylesheetManager::StylesheetKey::SourcererMonokai
+            ? QColor(62, 61, 50)
             : QColor(66, 66, 66);
     const auto *view = qobject_cast<const QAbstractItemView *>(option.widget);
     const int rowWidth =

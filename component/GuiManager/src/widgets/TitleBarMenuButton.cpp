@@ -360,6 +360,8 @@ QMenu *TitleBarMenuButton::createMenu() {
                  StylesheetManager::StylesheetKey::SourcererPurple);
   addThemeAction(tr("Sourcerer Blue"),
                  StylesheetManager::StylesheetKey::SourcererBlue);
+  addThemeAction(tr("Sourcerer Monokai"),
+                 StylesheetManager::StylesheetKey::SourcererMonokai);
 
   menu->addSeparator();
   menu->addAction(_terminalAction);

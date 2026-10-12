@@ -81,6 +81,8 @@ TerminalThemeColors terminalThemeColors() {
     return TerminalThemeColors{QColor(216, 213, 224), QColor(0x1F, 0x1C, 0x27)};
   case StylesheetManager::StylesheetKey::SourcererBlue:
     return TerminalThemeColors{QColor(200, 214, 229), QColor(0x0F, 0x1C, 0x2E)};
+  case StylesheetManager::StylesheetKey::SourcererMonokai:
+    return TerminalThemeColors{QColor(248, 248, 242), QColor(0x27, 0x28, 0x22)};
   default:
     return TerminalThemeColors{QColor(187, 187, 187), QColor(0x23, 0x26, 0x29)};
   }
