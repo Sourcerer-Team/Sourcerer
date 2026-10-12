@@ -25,6 +25,7 @@ const TSLanguage *tree_sitter_xml(void);
 const TSLanguage *tree_sitter_fsharp(void);
 const TSLanguage *tree_sitter_lua(void);
 const TSLanguage *tree_sitter_scala(void);
+const TSLanguage *tree_sitter_make(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -405,6 +406,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("scala"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_scala();
   }
+  if (language.compare(QStringLiteral("makefile"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_make();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -462,7 +466,9 @@ enum class Token {
   HideCommand,
   ExternalCommand,
   // XML: CDATA sections.
-  CData
+  CData,
+  // Makefiles: rule targets and prerequisites.
+  Target
 };
 
 enum class StyledLanguage {
@@ -484,6 +490,7 @@ enum class StyledLanguage {
   FSharp,
   Lua,
   Scala,
+  Makefile,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -507,7 +514,9 @@ enum class StyleSet {
   // QsciLexerXML ids.
   Xml,
   // QsciLexerLua ids.
-  Lua
+  Lua,
+  // QsciLexerMakefile ids.
+  Makefile
 };
 
 StyledLanguage styledLanguageFor(const TSLanguage *language) {
@@ -571,6 +580,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_scala()) {
     return StyledLanguage::Scala;
   }
+  if (language == tree_sitter_make()) {
+    return StyledLanguage::Makefile;
+  }
   return StyledLanguage::None;
 }
 
@@ -597,6 +609,8 @@ StyleSet styleSetFor(StyledLanguage language) {
     return StyleSet::Xml;
   case StyledLanguage::Lua:
     return StyleSet::Lua;
+  case StyledLanguage::Makefile:
+    return StyleSet::Makefile;
   case StyledLanguage::None:
   case StyledLanguage::CFamily:
   case StyledLanguage::Dart:
@@ -1670,6 +1684,89 @@ Token scalaTokenForNode(const NodeContext &context, const QByteArray &source,
   return Token::None;
 }
 
+// Directive and built-in function names of GNU make, which the grammar
+// produces as anonymous nodes.
+bool isMakefileDirectiveOrFunction(const char *type) {
+  static const QSet<QString> names = {
+      // Directives.
+      QStringLiteral("ifeq"), QStringLiteral("ifneq"), QStringLiteral("ifdef"),
+      QStringLiteral("ifndef"), QStringLiteral("else"), QStringLiteral("endif"),
+      QStringLiteral("include"), QStringLiteral("-include"),
+      QStringLiteral("sinclude"), QStringLiteral("define"),
+      QStringLiteral("endef"), QStringLiteral("export"),
+      QStringLiteral("unexport"), QStringLiteral("override"),
+      QStringLiteral("private"), QStringLiteral("undefine"),
+      QStringLiteral("vpath"), QStringLiteral("VPATH"),
+      QStringLiteral(".RECIPEPREFIX"),
+      // Built-in functions.
+      QStringLiteral("abspath"), QStringLiteral("addprefix"),
+      QStringLiteral("addsuffix"), QStringLiteral("and"),
+      QStringLiteral("basename"), QStringLiteral("call"), QStringLiteral("dir"),
+      QStringLiteral("error"), QStringLiteral("eval"), QStringLiteral("file"),
+      QStringLiteral("filter"), QStringLiteral("filter-out"),
+      QStringLiteral("findstring"), QStringLiteral("firstword"),
+      QStringLiteral("flavor"), QStringLiteral("foreach"), QStringLiteral("if"),
+      QStringLiteral("info"), QStringLiteral("join"),
+      QStringLiteral("lastword"), QStringLiteral("notdir"),
+      QStringLiteral("or"), QStringLiteral("origin"),
+      QStringLiteral("patsubst"), QStringLiteral("realpath"),
+      QStringLiteral("shell"), QStringLiteral("sort"), QStringLiteral("strip"),
+      QStringLiteral("subst"), QStringLiteral("suffix"),
+      QStringLiteral("value"), QStringLiteral("warning"),
+      QStringLiteral("wildcard"), QStringLiteral("word"),
+      QStringLiteral("wordlist"), QStringLiteral("words")};
+  return names.contains(QString::fromLatin1(type));
+}
+
+// Classifies a makefile node. Targets and prerequisites, variable names and
+// references, directives and function names have their own colors; recipe
+// text keeps the default color.
+Token makefileTokenForNode(const NodeContext &context, const QByteArray &source,
+                           bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isMakefileDirectiveOrFunction(type)) {
+      return Token::Preprocessor;
+    }
+    if (typeEquals(type, "$")) {
+      return Token::Variable;
+    }
+    if (typeIn(type, {":", "::", ":=", "::=", "?=", "+=", "!=", "=", "|",
+                      "&:", "@", "-", "+", ";", "(", ")", "{", "}", ","})) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeEquals(type, "comment")) {
+    descend = false;
+    return Token::Comment;
+  }
+  if (typeEquals(type, "automatic_variable")) {
+    descend = false;
+    return Token::Variable;
+  }
+  if (typeEquals(type, "word")) {
+    const char *parent = context.parent;
+    if (typeIn(parent, {"variable_reference", "define_directive", "list"})) {
+      return Token::Variable;
+    }
+    if (typeEquals(parent, "variable_assignment") &&
+        typeEquals(context.field, "name")) {
+      return Token::Variable;
+    }
+    if (typeIn(parent, {"targets", "prerequisites"})) {
+      return Token::Target;
+    }
+    return Token::None;
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -1693,6 +1790,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return luaTokenForNode(context, source, descend);
   case StyledLanguage::Scala:
     return scalaTokenForNode(context, source, descend);
+  case StyledLanguage::Makefile:
+    return makefileTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
@@ -2351,6 +2450,28 @@ int luaStyleFor(Token token) {
   }
 }
 
+// Makefile style ids: the theme colors all of them.
+int makefileStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerMakefile::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerMakefile::Comment;
+  case Token::Preprocessor:
+    return QsciLexerMakefile::Preprocessor;
+  case Token::Variable:
+    return QsciLexerMakefile::Variable;
+  case Token::Operator:
+    return QsciLexerMakefile::Operator;
+  case Token::Target:
+    return QsciLexerMakefile::Target;
+  default:
+    return -1;
+  }
+}
+
 int htmlScriptStyleFor(Token token) {
   switch (token) {
   case Token::Default:
@@ -2402,6 +2523,8 @@ int styleFor(StyleSet styleSet, Token token) {
     return xmlStyleFor(token);
   case StyleSet::Lua:
     return luaStyleFor(token);
+  case StyleSet::Makefile:
+    return makefileStyleFor(token);
   }
   return -1;
 }
@@ -2509,6 +2632,10 @@ QTextCharFormat formatForToken(const QsciLexer *lexer, StyleSet styleSet,
     break;
   case Token::CData:
     fallbackColor = QColor(152, 195, 121);
+    break;
+  case Token::Target:
+    fallbackColor = QColor(97, 175, 239);
+    fallbackBold = true;
     break;
   }
 
