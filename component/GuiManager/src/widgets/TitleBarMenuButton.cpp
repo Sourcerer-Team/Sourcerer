@@ -352,23 +352,23 @@ QMenu *TitleBarMenuButton::createMenu() {
         });
       };
 
-  addThemeAction(tr("Sourcerer Light"),
+  addThemeAction(tr("Light"),
                  StylesheetManager::StylesheetKey::SourcererLight);
-  addThemeAction(tr("Sourcerer Dark"),
+  addThemeAction(tr("Dark"),
                  StylesheetManager::StylesheetKey::SourcererDark);
-  addThemeAction(tr("Sourcerer Purple"),
+  addThemeAction(tr("Purple"),
                  StylesheetManager::StylesheetKey::SourcererPurple);
-  addThemeAction(tr("Sourcerer Blue"),
+  addThemeAction(tr("Blue"),
                  StylesheetManager::StylesheetKey::SourcererBlue);
-  addThemeAction(tr("Sourcerer Monokai"),
+  addThemeAction(tr("Monokai"),
                  StylesheetManager::StylesheetKey::SourcererMonokai);
-  addThemeAction(tr("Sourcerer Gruvbox"),
+  addThemeAction(tr("Gruvbox"),
                  StylesheetManager::StylesheetKey::SourcererGruvbox);
-  addThemeAction(tr("Sourcerer Solarized"),
+  addThemeAction(tr("Solarized"),
                  StylesheetManager::StylesheetKey::SourcererSolarized);
-  addThemeAction(tr("Sourcerer Dracula"),
+  addThemeAction(tr("Dracula"),
                  StylesheetManager::StylesheetKey::SourcererDracula);
-  addThemeAction(tr("Sourcerer Ayu"),
+  addThemeAction(tr("Ayu"),
                  StylesheetManager::StylesheetKey::SourcererAyu);
 
   menu->addSeparator();
