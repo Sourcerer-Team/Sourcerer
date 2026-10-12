@@ -95,6 +95,7 @@ private:
   QsciLexer *createPerlLexer(QObject *parent) const;
   QsciLexer *createRubyLexer(QObject *parent) const;
   QsciLexer *createGoLexer(QObject *parent) const;
+  QsciLexer *createZigLexer(QObject *parent) const;
   QsciLexer *createFortranLexer(QObject *parent) const;
   QsciLexer *createFortran77Lexer(QObject *parent) const;
   QsciLexer *createIdlLexer(QObject *parent) const;
