@@ -307,6 +307,23 @@ void DarkThemeLexersHighlighter::initializeColorSchemes() {
   dracula.identifier = QColor(248, 248, 242);
   dracula.phpDefault = QColor(248, 248, 242);
   _colorSchemes["dracula"] = dracula;
+
+  DarkThemeColors ayu = DEFAULT_DARK_COLORS;
+  ayu.background = QColor(15, 20, 25);
+  ayu.foreground = QColor(230, 225, 207);
+  ayu.selection = QColor(230, 225, 207);
+  ayu.selectionBackground = QColor(37, 51, 64);
+  ayu.currentLine = QColor(20, 25, 31);
+  ayu.lineNumbers = QColor(62, 75, 89);
+  ayu.lineNumbersBackground = QColor(13, 16, 22);
+  ayu.foldMargin = QColor(13, 16, 22);
+  ayu.foldMarginBackground = QColor(13, 16, 22);
+  ayu.indentationGuides = QColor(30, 40, 50);
+  ayu.caretLine = QColor(20, 25, 31);
+  ayu.caretForeground = QColor(230, 225, 207);
+  ayu.identifier = QColor(230, 225, 207);
+  ayu.phpDefault = QColor(230, 225, 207);
+  _colorSchemes["ayu"] = ayu;
 }
 
 void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
@@ -336,6 +353,9 @@ void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
     break;
   case StylesheetManager::StylesheetKey::SourcererDracula:
     _currentScheme = QStringLiteral("dracula");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererAyu:
+    _currentScheme = QStringLiteral("ayu");
     break;
   default:
     _currentScheme = QStringLiteral("default");

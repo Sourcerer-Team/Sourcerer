@@ -85,6 +85,8 @@ public:
       return QColor::fromString("#073642");
     case StylesheetManager::StylesheetKey::SourcererDracula:
       return QColor::fromString("#44475A");
+    case StylesheetManager::StylesheetKey::SourcererAyu:
+      return QColor::fromString("#253340");
     default:
       return QColor::fromString("#384D59");
     }
