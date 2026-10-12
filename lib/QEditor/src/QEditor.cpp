@@ -27,6 +27,7 @@ const TSLanguage *tree_sitter_lua(void);
 const TSLanguage *tree_sitter_scala(void);
 const TSLanguage *tree_sitter_make(void);
 const TSLanguage *tree_sitter_ruby(void);
+const TSLanguage *tree_sitter_go(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -173,6 +174,7 @@ QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerHaskell, QsciLexerCPP, "haskell")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerPowerShell, QsciLexerCPP, "powershell")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerFSharp, QsciLexerCPP, "fsharp")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerScala, QsciLexerCPP, "scala")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerGo, QsciLexerCPP, "go")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTypeScript, QsciLexerJavaScript,
                              "typescript")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTSX, QsciLexerJavaScript, "tsx")
@@ -413,6 +415,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("ruby"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_ruby();
   }
+  if (language.compare(QStringLiteral("go"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_go();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -500,6 +505,7 @@ enum class StyledLanguage {
   Scala,
   Makefile,
   Ruby,
+  Go,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -596,6 +602,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_ruby()) {
     return StyledLanguage::Ruby;
   }
+  if (language == tree_sitter_go()) {
+    return StyledLanguage::Go;
+  }
   return StyledLanguage::None;
 }
 
@@ -637,6 +646,7 @@ StyleSet styleSetFor(StyledLanguage language) {
   case StyledLanguage::PowerShell:
   case StyledLanguage::FSharp:
   case StyledLanguage::Scala:
+  case StyledLanguage::Go:
     break;
   }
   return StyleSet::Cpp;
@@ -1925,6 +1935,142 @@ Token rubyTokenForNode(const NodeContext &context, const QByteArray &source,
   return Token::None;
 }
 
+// Keywords of Go, as the anonymous nodes the grammar produces for them.
+bool isGoKeyword(const char *type) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("break"),       QStringLiteral("case"),
+      QStringLiteral("chan"),        QStringLiteral("const"),
+      QStringLiteral("continue"),    QStringLiteral("default"),
+      QStringLiteral("defer"),       QStringLiteral("else"),
+      QStringLiteral("fallthrough"), QStringLiteral("for"),
+      QStringLiteral("func"),        QStringLiteral("go"),
+      QStringLiteral("goto"),        QStringLiteral("if"),
+      QStringLiteral("import"),      QStringLiteral("interface"),
+      QStringLiteral("map"),         QStringLiteral("package"),
+      QStringLiteral("range"),       QStringLiteral("return"),
+      QStringLiteral("select"),      QStringLiteral("struct"),
+      QStringLiteral("switch"),      QStringLiteral("type"),
+      QStringLiteral("var")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Operator tokens of Go, listed exactly.
+bool isGoOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),  QStringLiteral("!="),  QStringLiteral("%"),
+      QStringLiteral("%="), QStringLiteral("&"),   QStringLiteral("&&"),
+      QStringLiteral("&="), QStringLiteral("&^"),  QStringLiteral("&^="),
+      QStringLiteral("*"),  QStringLiteral("*="),  QStringLiteral("+"),
+      QStringLiteral("++"), QStringLiteral("+="),  QStringLiteral("-"),
+      QStringLiteral("--"), QStringLiteral("-="),  QStringLiteral("/"),
+      QStringLiteral("/="), QStringLiteral("<"),   QStringLiteral("<-"),
+      QStringLiteral("<<"), QStringLiteral("<<="), QStringLiteral("<="),
+      QStringLiteral("="),  QStringLiteral("=="),  QStringLiteral(">"),
+      QStringLiteral(">="), QStringLiteral(">>"),  QStringLiteral(">>="),
+      QStringLiteral("^"),  QStringLiteral("^="),  QStringLiteral("|"),
+      QStringLiteral("|="), QStringLiteral("||"),  QStringLiteral(":="),
+      QStringLiteral("~"),  QStringLiteral("...")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Built-in functions of Go, colored like built-in types.
+bool isGoBuiltin(const QString &name) {
+  static const QSet<QString> builtins = {
+      QStringLiteral("append"),  QStringLiteral("cap"),
+      QStringLiteral("clear"),   QStringLiteral("close"),
+      QStringLiteral("complex"), QStringLiteral("copy"),
+      QStringLiteral("delete"),  QStringLiteral("imag"),
+      QStringLiteral("len"),     QStringLiteral("make"),
+      QStringLiteral("max"),     QStringLiteral("min"),
+      QStringLiteral("new"),     QStringLiteral("panic"),
+      QStringLiteral("print"),   QStringLiteral("println"),
+      QStringLiteral("real"),    QStringLiteral("recover")};
+  return builtins.contains(name);
+}
+
+// Classifies a Go node. Functions and methods are colored where they are
+// declared and called, struct fields and selectors are properties.
+Token goTokenForNode(const NodeContext &context, const QByteArray &source,
+                     bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isGoKeyword(type)) {
+      return Token::Keyword;
+    }
+    if (isGoOperator(type)) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  const uint32_t start = ts_node_start_byte(context.node);
+  const uint32_t end = ts_node_end_byte(context.node);
+  if (typeEquals(type, "comment")) {
+    descend = false;
+    if (byteAt(source, start + 1) == '*') {
+      return Token::Comment;
+    }
+    // Directives such as //go:generate and //export.
+    const QByteArray text = source.mid(static_cast<int>(start), 5);
+    return text == "//go:" ? Token::Preprocessor : Token::CommentLine;
+  }
+  if (typeEquals(type, "interpreted_string_literal")) {
+    descend = false;
+    return Token::String;
+  }
+  if (typeEquals(type, "raw_string_literal")) {
+    descend = false;
+    return Token::RawString;
+  }
+  if (typeEquals(type, "rune_literal")) {
+    descend = false;
+    return Token::SingleQuotedString;
+  }
+  if (typeIn(type, {"int_literal", "float_literal", "imaginary_literal"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"true", "false", "nil"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeEquals(type, "iota")) {
+    descend = false;
+    return Token::BuiltinType;
+  }
+  if (typeEquals(type, "type_identifier")) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeEquals(type, "field_identifier")) {
+    descend = false;
+    const char *parent = context.parent;
+    if (typeIn(parent, {"method_declaration", "method_elem"}) ||
+        (typeEquals(parent, "selector_expression") &&
+         typeEquals(context.grandparent, "call_expression"))) {
+      return Token::FunctionName;
+    }
+    return Token::Property;
+  }
+  if (typeEquals(type, "identifier")) {
+    descend = false;
+    if (typeEquals(context.parent, "function_declaration") &&
+        typeEquals(context.field, "name")) {
+      return Token::FunctionName;
+    }
+    if (typeEquals(context.parent, "call_expression") &&
+        typeEquals(context.field, "function")) {
+      const QString name = QString::fromUtf8(
+          source.mid(static_cast<int>(start), static_cast<int>(end - start)));
+      return isGoBuiltin(name) ? Token::BuiltinType : Token::FunctionName;
+    }
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -1952,6 +2098,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return makefileTokenForNode(context, source, descend);
   case StyledLanguage::Ruby:
     return rubyTokenForNode(context, source, descend);
+  case StyledLanguage::Go:
+    return goTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);

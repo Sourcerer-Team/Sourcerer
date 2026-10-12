@@ -43,6 +43,7 @@
 #include <Qsci/qscilexerpov.h>
 #include <Qsci/qscilexerproperties.h>
 #include <Qsci/qscilexerpython.h>
+#include <Qsci/qscilexergo.h>
 #include <Qsci/qscilexerruby.h>
 #include <Qsci/qscilexerspice.h>
 #include <Qsci/qscilexersql.h>
@@ -189,6 +190,7 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("mak"), &createLexer<QsciLexerMakefile>},
       {QStringLiteral("rb"), &createLexer<QsciLexerRuby>},
       {QStringLiteral("rbw"), &createLexer<QsciLexerRuby>},
+      {QStringLiteral("go"), &createLexer<QsciLexerGo>},
       {QStringLiteral("ruby"), &createLexer<QsciLexerRuby>},
       {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
       {QStringLiteral("jsonc"), &createLexer<QsciLexerJSON>}};
@@ -421,6 +423,10 @@ QsciLexer *QScintillaLexerFactory::createPerlLexer(QObject *parent) const {
   return new QsciLexerPerl(parent);
 }
 
+QsciLexer *QScintillaLexerFactory::createGoLexer(QObject *parent) const {
+  return new QsciLexerGo(parent);
+}
+
 QsciLexer *QScintillaLexerFactory::createRubyLexer(QObject *parent) const {
   return new QsciLexerRuby(parent);
 }
@@ -552,6 +558,8 @@ QsciLexer *QScintillaLexerFactory::createLexerByType(const QString &lexerName,
     return createPerlLexer(parent);
   if (lexerName == "Ruby")
     return createRubyLexer(parent);
+  if (lexerName == "Go")
+    return createGoLexer(parent);
   if (lexerName == "Fortran")
     return createFortranLexer(parent);
   if (lexerName == "Fortran77")
@@ -716,6 +724,7 @@ void QScintillaLexerFactory::initializeExtensionMappings() {
   _extensionToLexer["rb"] = "Ruby";
   _extensionToLexer["ruby"] = "Ruby";
   _extensionToLexer["rbw"] = "Ruby";
+  _extensionToLexer["go"] = "Go";
   _extensionToLexer["lua"] = "Lua";
   _extensionToLexer["tcl"] = "TCL";
   _extensionToLexer["tk"] = "TCL";
@@ -847,6 +856,7 @@ void QScintillaLexerFactory::initializeLexerDescriptions() {
   _lexerDescriptions["Octave"] = "GNU Octave Programming Language";
   _lexerDescriptions["Perl"] = "Perl Programming Language";
   _lexerDescriptions["Ruby"] = "Ruby Programming Language";
+  _lexerDescriptions["Go"] = "Go Programming Language";
   _lexerDescriptions["Fortran"] = "Fortran 90+ Programming Language";
   _lexerDescriptions["Fortran77"] = "Fortran 77 Programming Language";
   _lexerDescriptions["IDL"] = "Interactive Data Language";
