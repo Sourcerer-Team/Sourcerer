@@ -180,6 +180,7 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("fs"), &createLexer<QsciLexerFSharp>},
       {QStringLiteral("fsi"), &createLexer<QsciLexerFSharp>},
       {QStringLiteral("fsx"), &createLexer<QsciLexerFSharp>},
+      {QStringLiteral("lua"), &createLexer<QsciLexerLua>},
       {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
       {QStringLiteral("jsonc"), &createLexer<QsciLexerJSON>}};
 
