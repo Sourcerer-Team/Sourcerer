@@ -356,6 +356,8 @@ QMenu *TitleBarMenuButton::createMenu() {
                  StylesheetManager::StylesheetKey::SourcererLight);
   addThemeAction(tr("Sourcerer Dark"),
                  StylesheetManager::StylesheetKey::SourcererDark);
+  addThemeAction(tr("Sourcerer Purple"),
+                 StylesheetManager::StylesheetKey::SourcererPurple);
 
   menu->addSeparator();
   menu->addAction(_terminalAction);

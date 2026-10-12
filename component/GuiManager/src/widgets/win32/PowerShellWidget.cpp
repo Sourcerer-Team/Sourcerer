@@ -74,14 +74,14 @@ struct TerminalThemeColors {
 };
 
 TerminalThemeColors terminalThemeColors() {
-  const bool lightTheme =
-      StylesheetManager::StylesheetManager::currentStylesheet() ==
-      StylesheetManager::StylesheetKey::SourcererLight;
-
-  return lightTheme
-             ? TerminalThemeColors{QColor(48, 48, 48), QColor(245, 238, 228)}
-             : TerminalThemeColors{QColor(187, 187, 187),
-                                   QColor(0x23, 0x26, 0x29)};
+  switch (StylesheetManager::StylesheetManager::currentStylesheet()) {
+  case StylesheetManager::StylesheetKey::SourcererLight:
+    return TerminalThemeColors{QColor(48, 48, 48), QColor(245, 238, 228)};
+  case StylesheetManager::StylesheetKey::SourcererPurple:
+    return TerminalThemeColors{QColor(214, 204, 235), QColor(0x1E, 0x16, 0x2E)};
+  default:
+    return TerminalThemeColors{QColor(187, 187, 187), QColor(0x23, 0x26, 0x29)};
+  }
 }
 
 TerminalGeometry calculateTerminalGeometry(QVTerminal *terminal) {

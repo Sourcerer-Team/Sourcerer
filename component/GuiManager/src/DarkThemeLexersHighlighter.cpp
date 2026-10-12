@@ -204,6 +204,24 @@ DarkThemeLexersHighlighter::~DarkThemeLexersHighlighter() {}
 void DarkThemeLexersHighlighter::initializeColorSchemes() {
   _colorSchemes["default"] = DEFAULT_DARK_COLORS;
   _colorSchemes["light"] = DEFAULT_LIGHT_COLORS;
+
+  // Purple keeps the dark syntax colors and only tints the editor chrome.
+  DarkThemeColors purple = DEFAULT_DARK_COLORS;
+  purple.background = QColor(36, 28, 52);
+  purple.foreground = QColor(214, 204, 235);
+  purple.selection = QColor(177, 140, 255);
+  purple.selectionBackground = QColor(138, 92, 230, 70);
+  purple.currentLine = QColor(46, 36, 66);
+  purple.lineNumbers = QColor(150, 134, 180);
+  purple.lineNumbersBackground = QColor(30, 23, 44);
+  purple.foldMargin = QColor(30, 23, 44);
+  purple.foldMarginBackground = QColor(30, 23, 44);
+  purple.indentationGuides = QColor(66, 54, 90);
+  purple.caretLine = QColor(46, 36, 66);
+  purple.caretForeground = QColor(214, 204, 235);
+  purple.identifier = QColor(214, 204, 235);
+  purple.phpDefault = QColor(214, 204, 235);
+  _colorSchemes["purple"] = purple;
 }
 
 void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
@@ -212,10 +230,17 @@ void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
     return;
   }
 
-  _currentScheme = StylesheetManager::StylesheetManager::currentStylesheet() ==
-                           StylesheetManager::StylesheetKey::SourcererLight
-                       ? QStringLiteral("light")
-                       : QStringLiteral("default");
+  switch (StylesheetManager::StylesheetManager::currentStylesheet()) {
+  case StylesheetManager::StylesheetKey::SourcererLight:
+    _currentScheme = QStringLiteral("light");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererPurple:
+    _currentScheme = QStringLiteral("purple");
+    break;
+  default:
+    _currentScheme = QStringLiteral("default");
+    break;
+  }
 
   applyEditorColors(editor);
 

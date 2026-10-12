@@ -70,10 +70,14 @@ public:
   }
 
   static QColor overlayBackgroundColor() {
-    return StylesheetManager::StylesheetManager::currentStylesheet() ==
-                   StylesheetManager::StylesheetKey::SourcererLight
-               ? QColor(255, 244, 224)
-               : QColor::fromString("#384D59");
+    switch (StylesheetManager::StylesheetManager::currentStylesheet()) {
+    case StylesheetManager::StylesheetKey::SourcererLight:
+      return QColor(255, 244, 224);
+    case StylesheetManager::StylesheetKey::SourcererPurple:
+      return QColor::fromString("#4B3670");
+    default:
+      return QColor::fromString("#384D59");
+    }
   }
 
   static QPixmap overlayButtonIcon(const QString &iconPath) {
