@@ -352,14 +352,11 @@ QMenu *TitleBarMenuButton::createMenu() {
         });
       };
 
-  addThemeAction(tr("Light"),
-                 StylesheetManager::StylesheetKey::SourcererLight);
-  addThemeAction(tr("Dark"),
-                 StylesheetManager::StylesheetKey::SourcererDark);
+  addThemeAction(tr("Light"), StylesheetManager::StylesheetKey::SourcererLight);
+  addThemeAction(tr("Dark"), StylesheetManager::StylesheetKey::SourcererDark);
   addThemeAction(tr("Purple"),
                  StylesheetManager::StylesheetKey::SourcererPurple);
-  addThemeAction(tr("Blue"),
-                 StylesheetManager::StylesheetKey::SourcererBlue);
+  addThemeAction(tr("Blue"), StylesheetManager::StylesheetKey::SourcererBlue);
   addThemeAction(tr("Monokai"),
                  StylesheetManager::StylesheetKey::SourcererMonokai);
   addThemeAction(tr("Gruvbox"),
@@ -368,8 +365,7 @@ QMenu *TitleBarMenuButton::createMenu() {
                  StylesheetManager::StylesheetKey::SourcererSolarized);
   addThemeAction(tr("Dracula"),
                  StylesheetManager::StylesheetKey::SourcererDracula);
-  addThemeAction(tr("Ayu"),
-                 StylesheetManager::StylesheetKey::SourcererAyu);
+  addThemeAction(tr("Ayu"), StylesheetManager::StylesheetKey::SourcererAyu);
 
   menu->addSeparator();
   menu->addAction(_terminalAction);

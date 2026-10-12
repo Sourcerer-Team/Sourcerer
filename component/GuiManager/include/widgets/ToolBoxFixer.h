@@ -159,7 +159,8 @@ private:
   }
 
   void setColorsBasedOnTheme() {
-    const auto theme = StylesheetManager::StylesheetManager::currentStylesheet();
+    const auto theme =
+        StylesheetManager::StylesheetManager::currentStylesheet();
     if (theme == StylesheetManager::StylesheetKey::SourcererAyu) {
       m_normalBg = QColor("#0F1419");
       m_hoverBg = QColor("#0F1419");
