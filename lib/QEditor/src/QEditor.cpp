@@ -33,6 +33,7 @@ const TSLanguage *tree_sitter_typescript(void);
 #include <QPlainTextEdit>
 #include <QResizeEvent>
 #include <QScopedValueRollback>
+#include <QSet>
 #include <QSyntaxHighlighter>
 #include <QTimer>
 #include <QToolTip>
@@ -437,7 +438,11 @@ enum class Token {
   PseudoElement,
   Value,
   Important,
-  AtRule
+  AtRule,
+  // Batch files: labels, the @ prefix and external commands.
+  Label,
+  HideCommand,
+  ExternalCommand
 };
 
 enum class StyledLanguage {
@@ -472,7 +477,9 @@ enum class StyleSet {
   // QsciLexerHTML ids for markup and embedded CSS.
   Html,
   // QsciLexerHTML ids for embedded JavaScript.
-  HtmlScript
+  HtmlScript,
+  // QsciLexerBatch ids.
+  Batch
 };
 
 StyledLanguage styledLanguageFor(const TSLanguage *language) {
@@ -1425,6 +1432,265 @@ int bashStyleFor(Token token) {
   }
 }
 
+int batchStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerBatch::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerBatch::Comment;
+  case Token::Keyword:
+    return QsciLexerBatch::Keyword;
+  case Token::Label:
+    return QsciLexerBatch::Label;
+  case Token::HideCommand:
+    return QsciLexerBatch::HideCommandChar;
+  case Token::ExternalCommand:
+    return QsciLexerBatch::ExternalCommand;
+  case Token::Variable:
+    return QsciLexerBatch::Variable;
+  case Token::Operator:
+    return QsciLexerBatch::Operator;
+  default:
+    return -1;
+  }
+}
+
+// A run of characters of one line, as classified for the batch lexer.
+struct BatchSpan {
+  int start;
+  int length;
+  Token token;
+};
+
+// Built-in commands, recognized in command position.
+bool isBatchInternalCommand(const QString &word) {
+  static const QSet<QString> commands = {
+      QStringLiteral("assoc"),  QStringLiteral("break"),
+      QStringLiteral("cd"),     QStringLiteral("chdir"),
+      QStringLiteral("cls"),    QStringLiteral("color"),
+      QStringLiteral("copy"),   QStringLiteral("date"),
+      QStringLiteral("del"),    QStringLiteral("dir"),
+      QStringLiteral("echo"),   QStringLiteral("endlocal"),
+      QStringLiteral("erase"),  QStringLiteral("exit"),
+      QStringLiteral("ftype"),  QStringLiteral("md"),
+      QStringLiteral("mkdir"),  QStringLiteral("mklink"),
+      QStringLiteral("move"),   QStringLiteral("path"),
+      QStringLiteral("pause"),  QStringLiteral("popd"),
+      QStringLiteral("prompt"), QStringLiteral("pushd"),
+      QStringLiteral("rd"),     QStringLiteral("ren"),
+      QStringLiteral("rename"), QStringLiteral("rmdir"),
+      QStringLiteral("set"),    QStringLiteral("setlocal"),
+      QStringLiteral("shift"),  QStringLiteral("start"),
+      QStringLiteral("time"),   QStringLiteral("title"),
+      QStringLiteral("type"),   QStringLiteral("ver"),
+      QStringLiteral("verify"), QStringLiteral("vol")};
+  return commands.contains(word.toLower());
+}
+
+// Words with a meaning of their own wherever they appear in a line.
+bool isBatchControlKeyword(const QString &word) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("call"),  QStringLiteral("defined"),
+      QStringLiteral("do"),    QStringLiteral("else"),
+      QStringLiteral("equ"),   QStringLiteral("errorlevel"),
+      QStringLiteral("exist"), QStringLiteral("for"),
+      QStringLiteral("geq"),   QStringLiteral("goto"),
+      QStringLiteral("gtr"),   QStringLiteral("if"),
+      QStringLiteral("in"),    QStringLiteral("leq"),
+      QStringLiteral("lss"),   QStringLiteral("neq"),
+      QStringLiteral("not")};
+  return keywords.contains(word.toLower());
+}
+
+// The end of the percent expansion (%VAR%, %1, %~dp0, %%i) starting at start.
+int batchPercentEnd(const QString &line, int start) {
+  const int length = line.size();
+  if (start + 1 >= length) {
+    return length;
+  }
+
+  const QChar next = line.at(start + 1);
+  // Loop variable of a for in a batch file: %%i.
+  if (next == QChar('%')) {
+    return std::min(start + 3, length);
+  }
+  // Positional parameter: %1.
+  if (next.isDigit()) {
+    return start + 2;
+  }
+  // Parameter modifiers: %~dp0, %~$PATH:1.
+  if (next == QChar('~')) {
+    int end = start + 2;
+    while (end < length &&
+           QStringLiteral("fdpnxsatzFDPNXSATZ").contains(line.at(end))) {
+      ++end;
+    }
+    if (end < length && line.at(end) == QChar('$')) {
+      const int colon = line.indexOf(QChar(':'), end);
+      end = colon < 0 ? end + 1 : colon + 1;
+    }
+    if (end < length && line.at(end).isDigit()) {
+      ++end;
+    }
+    return end;
+  }
+
+  const int close = line.indexOf(QChar('%'), start + 1);
+  return close < 0 ? start + 1 : close + 1;
+}
+
+// Classifies the parts of one batch line. Diff and other embedding callers
+// pass the text without any prefix.
+std::vector<BatchSpan> classifyBatchLine(const QString &line) {
+  std::vector<BatchSpan> spans;
+  const int length = line.size();
+  const QString delimiters = QStringLiteral("\"%!&|<>()");
+  int i = 0;
+
+  const auto skipBlanks = [&]() {
+    while (i < length && line.at(i).isSpace()) {
+      ++i;
+    }
+  };
+
+  skipBlanks();
+  if (line.mid(i, 2) == QStringLiteral("::")) {
+    spans.push_back({i, length - i, Token::Comment});
+    return spans;
+  }
+  if (i < length && line.at(i) == QChar(':')) {
+    spans.push_back({i, length - i, Token::Label});
+    return spans;
+  }
+
+  bool commandPosition = true;
+  bool labelExpected = false;
+  // Between the parentheses of a for: the words are a file set, not commands.
+  bool inForSet = false;
+  if (i < length && line.at(i) == QChar('@')) {
+    spans.push_back({i, 1, Token::HideCommand});
+    ++i;
+    skipBlanks();
+  }
+
+  while (i < length) {
+    const QChar c = line.at(i);
+    if (c.isSpace()) {
+      ++i;
+      continue;
+    }
+
+    // Quoted text is not classified; it may contain any of the delimiters.
+    if (c == QChar('"')) {
+      const int close = line.indexOf(QChar('"'), i + 1);
+      i = close < 0 ? length : close + 1;
+      commandPosition = false;
+      labelExpected = false;
+      continue;
+    }
+
+    if (c == QChar('%')) {
+      const int end = batchPercentEnd(line, i);
+      // A lone percent sign is plain text.
+      if (end - i > 1) {
+        spans.push_back({i, end - i, Token::Variable});
+      }
+      i = end;
+      commandPosition = false;
+      labelExpected = false;
+      continue;
+    }
+
+    // Delayed expansion: !VAR!.
+    if (c == QChar('!')) {
+      const int close = line.indexOf(QChar('!'), i + 1);
+      if (close < 0) {
+        ++i;
+        continue;
+      }
+      spans.push_back({i, close + 1 - i, Token::Variable});
+      i = close + 1;
+      commandPosition = false;
+      labelExpected = false;
+      continue;
+    }
+
+    if (QStringLiteral("&|<>()").contains(c)) {
+      int operatorLength = 1;
+      if ((c == QChar('&') || c == QChar('|') || c == QChar('>')) &&
+          i + 1 < length && line.at(i + 1) == c) {
+        operatorLength = 2;
+      }
+      spans.push_back({i, operatorLength, Token::Operator});
+      // A command follows a command separator or an opening parenthesis.
+      if (c == QChar(')')) {
+        inForSet = false;
+      }
+      commandPosition =
+          c == QChar('&') || c == QChar('|') || (c == QChar('(') && !inForSet);
+      labelExpected = false;
+      i += operatorLength;
+      continue;
+    }
+
+    const int start = i;
+    while (i < length && !line.at(i).isSpace() &&
+           !delimiters.contains(line.at(i))) {
+      ++i;
+    }
+    if (i == start) {
+      ++i;
+      continue;
+    }
+
+    const QString word = line.mid(start, i - start);
+    const bool isCommand = commandPosition;
+    commandPosition = false;
+
+    // Target of goto and call.
+    if (labelExpected && word.startsWith(QChar(':'))) {
+      spans.push_back({start, i - start, Token::Label});
+      labelExpected = false;
+      continue;
+    }
+    labelExpected = false;
+
+    if (isCommand && word.startsWith(QStringLiteral("::"))) {
+      spans.push_back({start, length - start, Token::Comment});
+      break;
+    }
+    if (isCommand &&
+        word.compare(QStringLiteral("rem"), Qt::CaseInsensitive) == 0) {
+      spans.push_back({start, length - start, Token::Comment});
+      break;
+    }
+
+    if (isCommand) {
+      const bool keyword =
+          isBatchInternalCommand(word) || isBatchControlKeyword(word);
+      spans.push_back({start, i - start,
+                       keyword ? Token::Keyword : Token::ExternalCommand});
+    } else if (isBatchControlKeyword(word)) {
+      spans.push_back({start, i - start, Token::Keyword});
+    }
+
+    // do and else are followed by a command, goto and call by a label.
+    const QString lower = word.toLower();
+    if (lower == QStringLiteral("in")) {
+      inForSet = true;
+    }
+    if (lower == QStringLiteral("do") || lower == QStringLiteral("else")) {
+      commandPosition = true;
+    }
+    labelExpected =
+        lower == QStringLiteral("goto") || lower == QStringLiteral("call");
+  }
+
+  return spans;
+}
+
 int jsonStyleFor(Token token) {
   switch (token) {
   case Token::Default:
@@ -1580,6 +1846,8 @@ int styleFor(StyleSet styleSet, Token token) {
     return htmlStyleFor(token);
   case StyleSet::HtmlScript:
     return htmlScriptStyleFor(token);
+  case StyleSet::Batch:
+    return batchStyleFor(token);
   }
   return -1;
 }
@@ -1674,6 +1942,16 @@ QTextCharFormat formatForToken(const QsciLexer *lexer, StyleSet styleSet,
     break;
   case Token::Variable:
     fallbackColor = QColor(224, 108, 117);
+    break;
+  case Token::Label:
+    fallbackColor = QColor(229, 192, 123);
+    fallbackBold = true;
+    break;
+  case Token::HideCommand:
+    fallbackColor = QColor(86, 182, 194);
+    break;
+  case Token::ExternalCommand:
+    fallbackColor = QColor(97, 175, 239);
     break;
   }
 
@@ -1780,7 +2058,10 @@ void QsciScintilla::updateTreeSitterHighlighting() {
     return;
   }
 
-  if (!_parser || !_treeSitterLanguage) {
+  // Batch files have no tree-sitter grammar and are classified line by line.
+  const bool batchLexer = dynamic_cast<QsciLexerBatch *>(_lexer) != nullptr;
+
+  if (!batchLexer && (!_parser || !_treeSitterLanguage)) {
     if (_highlighter) {
       _highlighter->clearBlockFormats();
       _highlighter->rehighlight();
@@ -1818,6 +2099,52 @@ void QsciScintilla::updateTreeSitterHighlighting() {
     }
     return it.value();
   };
+
+  if (batchLexer) {
+    bool inHunk = false;
+    for (QTextBlock textBlock = document()->begin(); textBlock.isValid();
+         textBlock = textBlock.next()) {
+      const QString blockText = textBlock.text();
+      const int block = textBlock.blockNumber();
+
+      // Diff lines are classified without their origin prefix, headers are
+      // skipped.
+      int column = 0;
+      if (_unifiedDiffHighlighting) {
+        if (blockText.startsWith(QStringLiteral("diff "))) {
+          inHunk = false;
+          continue;
+        }
+        if (blockText.startsWith(QStringLiteral("@@"))) {
+          inHunk = true;
+          continue;
+        }
+        const QChar origin = blockText.isEmpty() ? QChar(' ') : blockText.at(0);
+        if (!inHunk || (origin != QChar(' ') && origin != QChar('-') &&
+                        origin != QChar('+'))) {
+          continue;
+        }
+        column = 1;
+      }
+
+      const QString source = column == 0 ? blockText : blockText.mid(column);
+      for (const BatchSpan &span : classifyBatchLine(source)) {
+        const QTextCharFormat format = formatFor(StyleSet::Batch, span.token);
+        if (format.hasProperty(QTextFormat::ForegroundBrush) &&
+            format.foreground().color().isValid()) {
+          QTextLayout::FormatRange range;
+          range.start = span.start + column;
+          range.length = span.length;
+          range.format = format;
+          blockFormats[block].append(range);
+        }
+      }
+    }
+
+    _highlighter->setBlockFormats(std::move(blockFormats));
+    _highlighter->rehighlight();
+    return;
+  }
 
   // A line of the parsed source: where it starts in the source (UTF-16) and
   // the block and column it is shown at in the document.

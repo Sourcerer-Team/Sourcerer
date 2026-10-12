@@ -168,6 +168,8 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("sh"), &createLexer<QsciLexerBash>},
       {QStringLiteral("bash"), &createLexer<QsciLexerBash>},
       {QStringLiteral("zsh"), &createLexer<QsciLexerBash>},
+      {QStringLiteral("bat"), &createLexer<QsciLexerBatch>},
+      {QStringLiteral("cmd"), &createLexer<QsciLexerBatch>},
       {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
       {QStringLiteral("jsonc"), &createLexer<QsciLexerJSON>}};
 
