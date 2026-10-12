@@ -159,10 +159,16 @@ private:
   }
 
   void setColorsBasedOnTheme() {
-    const bool darkTheme =
-        StylesheetManager::StylesheetManager::currentStylesheet() ==
-        StylesheetManager::StylesheetKey::SourcererDark;
-    if (darkTheme) {
+    const auto theme = StylesheetManager::StylesheetManager::currentStylesheet();
+    if (theme == StylesheetManager::StylesheetKey::SourcererPurple) {
+      m_normalBg = QColor("#2B2140");
+      m_hoverBg = QColor("#2B2140");
+      m_selectedBg = QColor("#4B3670");
+      m_borderColor = QColor("#6E5C8C");
+      m_selectedBorderColor = QColor("#6E5C8C");
+      m_textColor = QColor("#F3EEFF");
+      m_selectedTextColor = QColor("#FFFFFF");
+    } else if (theme != StylesheetManager::StylesheetKey::SourcererLight) {
       m_normalBg = QColor("#353535");
       m_hoverBg = QColor("#353535");
       m_selectedBg = QColor("#384D59");

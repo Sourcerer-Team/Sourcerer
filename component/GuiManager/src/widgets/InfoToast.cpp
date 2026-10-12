@@ -37,11 +37,11 @@ InfoToast::InfoToast(const QString &message, const QString &title,
 
   layout()->addWidget(widget);
 
-  const bool lightTheme =
-      StylesheetManager::StylesheetManager::currentStylesheet() ==
-      StylesheetManager::StylesheetKey::SourcererLight;
-  if (lightTheme) {
+  const auto theme = StylesheetManager::StylesheetManager::currentStylesheet();
+  if (theme == StylesheetManager::StylesheetKey::SourcererLight) {
     applyToastColors(QColor("#FFF4E2"), QColor("#E3AE5A"), QColor("#2E2418"));
+  } else if (theme == StylesheetManager::StylesheetKey::SourcererPurple) {
+    applyToastColors(QColor("#43365C"), QColor("#B8860B"), QColor("#FFFFFF"));
   } else {
     applyToastColors(QColor("#505050"), QColor("#B8860B"), QColor("#FFFFFF"));
   }

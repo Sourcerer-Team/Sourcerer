@@ -6,9 +6,10 @@ enum class StylesheetKey {
   Unknown = 0,
   SourcererLight,
   SourcererDark,
-  Default = SourcererDark,
+  SourcererPurple,
 
-  last
+  last,
+  Default = SourcererDark
 };
 
 }

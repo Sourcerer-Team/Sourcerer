@@ -33,15 +33,17 @@ struct ConsoleThemeColors {
 };
 
 ConsoleThemeColors consoleThemeColors() {
-  const bool lightTheme =
-      StylesheetManager::StylesheetManager::currentStylesheet() ==
-      StylesheetManager::StylesheetKey::SourcererLight;
-
-  return lightTheme
-             ? ConsoleThemeColors{QColor(245, 235, 220), QColor(32, 32, 32),
-                                  QColor(230, 218, 198), QColor(214, 198, 176)}
-             : ConsoleThemeColors{QColor(45, 45, 48), QColor(255, 255, 255),
-                                  QColor(62, 62, 66), QColor(0, 122, 204)};
+  switch (StylesheetManager::StylesheetManager::currentStylesheet()) {
+  case StylesheetManager::StylesheetKey::SourcererLight:
+    return ConsoleThemeColors{QColor(245, 235, 220), QColor(32, 32, 32),
+                              QColor(230, 218, 198), QColor(214, 198, 176)};
+  case StylesheetManager::StylesheetKey::SourcererPurple:
+    return ConsoleThemeColors{QColor(48, 37, 70), QColor(243, 238, 255),
+                              QColor(67, 54, 92), QColor(138, 92, 230)};
+  default:
+    return ConsoleThemeColors{QColor(45, 45, 48), QColor(255, 255, 255),
+                              QColor(62, 62, 66), QColor(0, 122, 204)};
+  }
 }
 
 QColor consoleCloseButtonIconColor(const ConsoleThemeColors &colors) {

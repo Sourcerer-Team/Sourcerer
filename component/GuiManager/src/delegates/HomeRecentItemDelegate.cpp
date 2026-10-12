@@ -29,10 +29,12 @@ void HomeRecentItemDelegate::paint(QPainter *painter,
 
   if (_indexHovered.isValid() && _indexHovered.model() == index.model() &&
       _indexHovered.row() == index.row() && index.column() == 0) {
+    const auto theme = StylesheetManager::StylesheetManager::currentStylesheet();
     const QColor hoverBackground =
-        StylesheetManager::StylesheetManager::currentStylesheet() ==
-                StylesheetManager::StylesheetKey::SourcererLight
+        theme == StylesheetManager::StylesheetKey::SourcererLight
             ? QColor(255, 241, 201)
+        : theme == StylesheetManager::StylesheetKey::SourcererPurple
+            ? QColor(67, 54, 92)
             : QColor(66, 66, 66);
     const auto *view = qobject_cast<const QAbstractItemView *>(option.widget);
     const int rowWidth =
