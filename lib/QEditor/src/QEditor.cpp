@@ -32,6 +32,7 @@ const TSLanguage *tree_sitter_zig(void);
 const TSLanguage *tree_sitter_kotlin(void);
 const TSLanguage *tree_sitter_asm(void);
 const TSLanguage *tree_sitter_objc(void);
+const TSLanguage *tree_sitter_swift(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -182,6 +183,7 @@ QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerGo, QsciLexerCPP, "go")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerZig, QsciLexerCPP, "zig")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerKotlin, QsciLexerCPP, "kotlin")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerObjectiveC, QsciLexerCPP, "objc")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerSwift, QsciLexerCPP, "swift")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTypeScript, QsciLexerJavaScript,
                              "typescript")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTSX, QsciLexerJavaScript, "tsx")
@@ -437,6 +439,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("objc"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_objc();
   }
+  if (language.compare(QStringLiteral("swift"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_swift();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -529,6 +534,7 @@ enum class StyledLanguage {
   Kotlin,
   Asm,
   ObjectiveC,
+  Swift,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -642,6 +648,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_objc()) {
     return StyledLanguage::ObjectiveC;
   }
+  if (language == tree_sitter_swift()) {
+    return StyledLanguage::Swift;
+  }
   return StyledLanguage::None;
 }
 
@@ -687,6 +696,7 @@ StyleSet styleSetFor(StyledLanguage language) {
   case StyledLanguage::Zig:
   case StyledLanguage::Kotlin:
   case StyledLanguage::ObjectiveC:
+  case StyledLanguage::Swift:
     break;
   case StyledLanguage::Asm:
     return StyleSet::Asm;
@@ -2528,6 +2538,200 @@ Token objcTokenForNode(const NodeContext &context, const QByteArray &source,
   return cFamilyTokenForNode(context, source, descend);
 }
 
+// Keywords of Swift, as the anonymous nodes the grammar produces for them.
+// Soft keywords such as get, set and willSet only appear in accessors.
+bool isSwiftKeyword(const char *type) {
+  static const QSet<QString> keywords = {QStringLiteral("actor"),
+                                         QStringLiteral("any"),
+                                         QStringLiteral("as"),
+                                         QStringLiteral("associatedtype"),
+                                         QStringLiteral("async"),
+                                         QStringLiteral("await"),
+                                         QStringLiteral("break"),
+                                         QStringLiteral("case"),
+                                         QStringLiteral("catch"),
+                                         QStringLiteral("class"),
+                                         QStringLiteral("continue"),
+                                         QStringLiteral("convenience"),
+                                         QStringLiteral("default"),
+                                         QStringLiteral("defer"),
+                                         QStringLiteral("deinit"),
+                                         QStringLiteral("didSet"),
+                                         QStringLiteral("do"),
+                                         QStringLiteral("dynamic"),
+                                         QStringLiteral("else"),
+                                         QStringLiteral("enum"),
+                                         QStringLiteral("extension"),
+                                         QStringLiteral("fallthrough"),
+                                         QStringLiteral("false"),
+                                         QStringLiteral("fileprivate"),
+                                         QStringLiteral("final"),
+                                         QStringLiteral("for"),
+                                         QStringLiteral("func"),
+                                         QStringLiteral("get"),
+                                         QStringLiteral("guard"),
+                                         QStringLiteral("if"),
+                                         QStringLiteral("import"),
+                                         QStringLiteral("in"),
+                                         QStringLiteral("indirect"),
+                                         QStringLiteral("infix"),
+                                         QStringLiteral("init"),
+                                         QStringLiteral("inout"),
+                                         QStringLiteral("internal"),
+                                         QStringLiteral("is"),
+                                         QStringLiteral("lazy"),
+                                         QStringLiteral("let"),
+                                         QStringLiteral("mutating"),
+                                         QStringLiteral("nil"),
+                                         QStringLiteral("nonisolated"),
+                                         QStringLiteral("nonmutating"),
+                                         QStringLiteral("open"),
+                                         QStringLiteral("operator"),
+                                         QStringLiteral("optional"),
+                                         QStringLiteral("override"),
+                                         QStringLiteral("package"),
+                                         QStringLiteral("postfix"),
+                                         QStringLiteral("precedencegroup"),
+                                         QStringLiteral("prefix"),
+                                         QStringLiteral("private"),
+                                         QStringLiteral("protocol"),
+                                         QStringLiteral("public"),
+                                         QStringLiteral("repeat"),
+                                         QStringLiteral("required"),
+                                         QStringLiteral("return"),
+                                         QStringLiteral("set"),
+                                         QStringLiteral("some"),
+                                         QStringLiteral("static"),
+                                         QStringLiteral("struct"),
+                                         QStringLiteral("subscript"),
+                                         QStringLiteral("switch"),
+                                         QStringLiteral("throw"),
+                                         QStringLiteral("throws"),
+                                         QStringLiteral("true"),
+                                         QStringLiteral("try"),
+                                         QStringLiteral("typealias"),
+                                         QStringLiteral("unowned"),
+                                         QStringLiteral("var"),
+                                         QStringLiteral("weak"),
+                                         QStringLiteral("where"),
+                                         QStringLiteral("while"),
+                                         QStringLiteral("willSet"),
+                                         QStringLiteral("borrowing"),
+                                         QStringLiteral("consuming"),
+                                         QStringLiteral("macro")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Operator tokens of Swift, listed exactly.
+bool isSwiftOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),  QStringLiteral("!="),  QStringLiteral("!=="),
+      QStringLiteral("%"),  QStringLiteral("%="),  QStringLiteral("&"),
+      QStringLiteral("&&"), QStringLiteral("*"),   QStringLiteral("*="),
+      QStringLiteral("+"),  QStringLiteral("++"),  QStringLiteral("+="),
+      QStringLiteral("-"),  QStringLiteral("--"),  QStringLiteral("-="),
+      QStringLiteral("->"), QStringLiteral("..<"), QStringLiteral("..."),
+      QStringLiteral("/"),  QStringLiteral("/="),  QStringLiteral("<"),
+      QStringLiteral("<<"), QStringLiteral("<="),  QStringLiteral("="),
+      QStringLiteral("=="), QStringLiteral("==="), QStringLiteral(">"),
+      QStringLiteral(">="), QStringLiteral(">>"),  QStringLiteral("?"),
+      QStringLiteral("??"), QStringLiteral("^"),   QStringLiteral("|"),
+      QStringLiteral("||"), QStringLiteral("~")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Classifies a Swift node. Types, functions and calls are colored where they
+// are declared and used, members that are called are functions and other
+// members are properties.
+Token swiftTokenForNode(const NodeContext &context, const QByteArray &source,
+                        bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isSwiftKeyword(type)) {
+      return Token::Keyword;
+    }
+    if (isSwiftOperator(type)) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeEquals(type, "comment") || typeEquals(type, "multiline_comment")) {
+    descend = false;
+    return Token::CommentLine;
+  }
+  if (typeEquals(type, "shebang_line")) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeIn(type, {"line_string_literal", "multi_line_string_literal",
+                    "raw_string_literal"})) {
+    // Interpolated code keeps its own colors inside the string.
+    return Token::String;
+  }
+  if (typeEquals(type, "str_escaped_char")) {
+    descend = false;
+    return Token::Escape;
+  }
+  if (typeEquals(type, "interpolated_expression")) {
+    return Token::Default;
+  }
+  if (typeEquals(type, "regex_literal")) {
+    descend = false;
+    return Token::Regex;
+  }
+  if (typeIn(type, {"integer_literal", "real_literal", "hex_literal",
+                    "oct_literal", "bin_literal"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"boolean_literal", "self_expression", "super_expression",
+                    "special_literal"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeIn(type, {"attribute", "directive", "availability_condition"})) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "type_identifier")) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeEquals(type, "simple_identifier")) {
+    descend = false;
+    const char *parent = context.parent;
+    if (typeEquals(context.field, "name") &&
+        typeIn(parent,
+               {"function_declaration", "protocol_function_declaration"})) {
+      return Token::FunctionName;
+    }
+    if (typeEquals(context.field, "name") && typeEquals(parent, "enum_entry")) {
+      return Token::Type;
+    }
+    // The callee of a call is the first child: Point(...).
+    if (typeEquals(parent, "call_expression") &&
+        ts_node_is_null(ts_node_prev_named_sibling(context.node))) {
+      return Token::FunctionName;
+    }
+    // A member is a call when its navigation is the callee: a.b(...).
+    if (typeEquals(parent, "navigation_suffix")) {
+      const TSNode suffix = ts_node_parent(context.node);
+      const TSNode navigation = ts_node_parent(suffix);
+      const TSNode callee = ts_node_parent(navigation);
+      return typeEquals(ts_node_type(callee), "call_expression")
+                 ? Token::FunctionName
+                 : Token::Property;
+    }
+    return Token::None;
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -2565,6 +2769,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return asmTokenForNode(context, source, descend);
   case StyledLanguage::ObjectiveC:
     return objcTokenForNode(context, source, descend);
+  case StyledLanguage::Swift:
+    return swiftTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
