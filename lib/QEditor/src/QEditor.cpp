@@ -28,6 +28,7 @@ const TSLanguage *tree_sitter_scala(void);
 const TSLanguage *tree_sitter_make(void);
 const TSLanguage *tree_sitter_ruby(void);
 const TSLanguage *tree_sitter_go(void);
+const TSLanguage *tree_sitter_zig(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -175,6 +176,7 @@ QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerPowerShell, QsciLexerCPP, "powershell")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerFSharp, QsciLexerCPP, "fsharp")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerScala, QsciLexerCPP, "scala")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerGo, QsciLexerCPP, "go")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerZig, QsciLexerCPP, "zig")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTypeScript, QsciLexerJavaScript,
                              "typescript")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTSX, QsciLexerJavaScript, "tsx")
@@ -418,6 +420,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("go"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_go();
   }
+  if (language.compare(QStringLiteral("zig"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_zig();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -506,6 +511,7 @@ enum class StyledLanguage {
   Makefile,
   Ruby,
   Go,
+  Zig,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -605,6 +611,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_go()) {
     return StyledLanguage::Go;
   }
+  if (language == tree_sitter_zig()) {
+    return StyledLanguage::Zig;
+  }
   return StyledLanguage::None;
 }
 
@@ -647,6 +656,7 @@ StyleSet styleSetFor(StyledLanguage language) {
   case StyledLanguage::FSharp:
   case StyledLanguage::Scala:
   case StyledLanguage::Go:
+  case StyledLanguage::Zig:
     break;
   }
   return StyleSet::Cpp;
@@ -2071,6 +2081,145 @@ Token goTokenForNode(const NodeContext &context, const QByteArray &source,
   return Token::None;
 }
 
+// Keywords of Zig, as the anonymous nodes the grammar produces for them.
+bool isZigKeyword(const char *type) {
+  static const QSet<QString> keywords = {QStringLiteral("align"),
+                                         QStringLiteral("allowzero"),
+                                         QStringLiteral("and"),
+                                         QStringLiteral("async"),
+                                         QStringLiteral("await"),
+                                         QStringLiteral("break"),
+                                         QStringLiteral("catch"),
+                                         QStringLiteral("comptime"),
+                                         QStringLiteral("const"),
+                                         QStringLiteral("continue"),
+                                         QStringLiteral("defer"),
+                                         QStringLiteral("else"),
+                                         QStringLiteral("enum"),
+                                         QStringLiteral("errdefer"),
+                                         QStringLiteral("error"),
+                                         QStringLiteral("export"),
+                                         QStringLiteral("extern"),
+                                         QStringLiteral("fn"),
+                                         QStringLiteral("for"),
+                                         QStringLiteral("if"),
+                                         QStringLiteral("inline"),
+                                         QStringLiteral("noreturn"),
+                                         QStringLiteral("nosuspend"),
+                                         QStringLiteral("opaque"),
+                                         QStringLiteral("or"),
+                                         QStringLiteral("orelse"),
+                                         QStringLiteral("packed"),
+                                         QStringLiteral("pub"),
+                                         QStringLiteral("resume"),
+                                         QStringLiteral("return"),
+                                         QStringLiteral("struct"),
+                                         QStringLiteral("suspend"),
+                                         QStringLiteral("switch"),
+                                         QStringLiteral("test"),
+                                         QStringLiteral("threadlocal"),
+                                         QStringLiteral("try"),
+                                         QStringLiteral("union"),
+                                         QStringLiteral("unreachable"),
+                                         QStringLiteral("usingnamespace"),
+                                         QStringLiteral("var"),
+                                         QStringLiteral("volatile"),
+                                         QStringLiteral("while")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Operator tokens of Zig, listed exactly.
+bool isZigOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),   QStringLiteral("!="),  QStringLiteral("%"),
+      QStringLiteral("%="),  QStringLiteral("&"),   QStringLiteral("&="),
+      QStringLiteral("*"),   QStringLiteral("*%"),  QStringLiteral("*%="),
+      QStringLiteral("**"),  QStringLiteral("*="),  QStringLiteral("+"),
+      QStringLiteral("+%"),  QStringLiteral("+%="), QStringLiteral("++"),
+      QStringLiteral("+="),  QStringLiteral("-"),   QStringLiteral("-%"),
+      QStringLiteral("-%="), QStringLiteral("-="),  QStringLiteral(".*"),
+      QStringLiteral(".?"),  QStringLiteral(".."),  QStringLiteral("..."),
+      QStringLiteral("/"),   QStringLiteral("/="),  QStringLiteral("<"),
+      QStringLiteral("<<"),  QStringLiteral("<<="), QStringLiteral("<="),
+      QStringLiteral("="),   QStringLiteral("=="),  QStringLiteral("=>"),
+      QStringLiteral(">"),   QStringLiteral(">="),  QStringLiteral(">>"),
+      QStringLiteral(">>="), QStringLiteral("?"),   QStringLiteral("^"),
+      QStringLiteral("^="),  QStringLiteral("|"),   QStringLiteral("|="),
+      QStringLiteral("||"),  QStringLiteral("~")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Classifies a Zig node. Functions are colored where they are declared and
+// called, built-ins (@import, @sqrt) like built-in functions, and field and
+// enum names as properties.
+Token zigTokenForNode(const NodeContext &context, const QByteArray &source,
+                      bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isZigKeyword(type)) {
+      return Token::Keyword;
+    }
+    if (isZigOperator(type)) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeEquals(type, "line_comment")) {
+    descend = false;
+    return Token::CommentLine;
+  }
+  if (typeEquals(type, "doc_comment")) {
+    descend = false;
+    return Token::CommentDoc;
+  }
+  if (typeIn(type, {"string_literal", "multiline_string_literal"})) {
+    return Token::String;
+  }
+  if (typeEquals(type, "escape_sequence")) {
+    descend = false;
+    return Token::Escape;
+  }
+  if (typeEquals(type, "char_literal")) {
+    descend = false;
+    return Token::SingleQuotedString;
+  }
+  if (typeIn(type, {"integer_literal", "float_literal"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"boolean_literal", "null_literal", "undefined_literal"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeIn(type, {"primitive_type", "type_identifier"})) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeEquals(type, "field_identifier")) {
+    descend = false;
+    return Token::Property;
+  }
+  if (typeEquals(type, "identifier")) {
+    if (typeEquals(context.parent, "function_declaration") &&
+        typeEquals(context.field, "name")) {
+      return Token::FunctionName;
+    }
+    if (typeEquals(context.parent, "call_expression") &&
+        typeEquals(context.field, "function")) {
+      return Token::FunctionName;
+    }
+    if (typeEquals(context.parent, "build_in_call_expr")) {
+      return Token::BuiltinType;
+    }
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -2100,6 +2249,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return rubyTokenForNode(context, source, descend);
   case StyledLanguage::Go:
     return goTokenForNode(context, source, descend);
+  case StyledLanguage::Zig:
+    return zigTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
