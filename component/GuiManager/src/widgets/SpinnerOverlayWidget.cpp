@@ -57,7 +57,29 @@ SpinnerOverlayWidget::SpinnerOverlayWidget(QWidget *parent)
   _labelStatus->setPalette(palette);
   _labelStatus->setVisible(false);
 
-  _spinner->setColor(lightTheme ? QColor(44, 84, 150) : QColor(100, 200, 255));
+  const auto theme = StylesheetManager::StylesheetManager::currentStylesheet();
+  const bool purpleTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererPurple;
+  const bool blueTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererBlue;
+  const bool monokaiTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererMonokai;
+  const bool gruvboxTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererGruvbox;
+  const bool solarizedTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererSolarized;
+  const bool draculaTheme =
+      theme == StylesheetManager::StylesheetKey::SourcererDracula;
+  const bool ayuTheme = theme == StylesheetManager::StylesheetKey::SourcererAyu;
+  _spinner->setColor(lightTheme       ? QColor(44, 84, 150)
+                     : purpleTheme    ? QColor(143, 180, 224)
+                     : blueTheme      ? QColor(81, 186, 229)
+                     : monokaiTheme   ? QColor(166, 226, 46)
+                     : gruvboxTheme   ? QColor(250, 189, 47)
+                     : solarizedTheme ? QColor(38, 139, 210)
+                     : draculaTheme   ? QColor(189, 147, 249)
+                     : ayuTheme       ? QColor(255, 180, 84)
+                                      : QColor(100, 200, 255));
   _spinner->setInnerRadius(20);
   _spinner->setLineLength(lightTheme ? 10 : 6);
   _spinner->setLineWidth(lightTheme ? 6 : 4);

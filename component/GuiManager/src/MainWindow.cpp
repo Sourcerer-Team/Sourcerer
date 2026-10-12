@@ -45,9 +45,12 @@
 #include <functional>
 
 #ifdef Q_OS_WIN
-#include <dwmapi.h>
 #include <windows.h>
+
+#include <dwmapi.h>
+#include <shellapi.h>
 #pragma comment(lib, "Dwmapi.lib")
+#pragma comment(lib, "Shell32.lib")
 #endif
 
 #define THREAD_ID "MainWindow"
@@ -415,6 +418,47 @@ bool MainWindow::nativeEvent(const QByteArray &eventType, void *message,
     // Returning TRUE (1) with an empty rect removes the standard title bar
     // while keeping the native OS frame, borders, and window snapping active.
     if (msg->wParam == TRUE) {
+      // When maximized, Windows positions the window so that its resize frame
+      // hangs off the monitor edges. Since the whole window is client area,
+      // clamp it to the monitor work area so nothing is cut off.
+      if (IsZoomed(msg->hwnd)) {
+        auto *params = reinterpret_cast<NCCALCSIZE_PARAMS *>(msg->lParam);
+        HMONITOR monitor =
+            MonitorFromWindow(msg->hwnd, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO monitorInfo{};
+        monitorInfo.cbSize = sizeof(monitorInfo);
+        if (monitor && GetMonitorInfo(monitor, &monitorInfo)) {
+          RECT clientRect = monitorInfo.rcWork;
+
+          // An auto-hide taskbar is only revealed when the mouse reaches its
+          // monitor edge, which a window covering that edge prevents. Leave
+          // a 1px gap on the taskbar's edge so it can still be revealed.
+          APPBARDATA appBarState{};
+          appBarState.cbSize = sizeof(appBarState);
+          if (SHAppBarMessage(ABM_GETSTATE, &appBarState) & ABS_AUTOHIDE) {
+            const auto hasAutoHideBar = [&monitorInfo](UINT edge) {
+              APPBARDATA appBarData{};
+              appBarData.cbSize = sizeof(appBarData);
+              appBarData.uEdge = edge;
+              appBarData.rc = monitorInfo.rcMonitor;
+              return SHAppBarMessage(ABM_GETAUTOHIDEBAREX, &appBarData) != 0;
+            };
+
+            if (hasAutoHideBar(ABE_BOTTOM)) {
+              clientRect.bottom -= 1;
+            } else if (hasAutoHideBar(ABE_TOP)) {
+              clientRect.top += 1;
+            } else if (hasAutoHideBar(ABE_LEFT)) {
+              clientRect.left += 1;
+            } else if (hasAutoHideBar(ABE_RIGHT)) {
+              clientRect.right -= 1;
+            }
+          }
+
+          params->rgrc[0] = clientRect;
+        }
+      }
+
       *result = 0;
       return true;
     }

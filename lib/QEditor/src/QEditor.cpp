@@ -21,6 +21,22 @@ const TSLanguage *tree_sitter_powershell(void);
 const TSLanguage *tree_sitter_python(void);
 const TSLanguage *tree_sitter_rust(void);
 const TSLanguage *tree_sitter_tsx(void);
+const TSLanguage *tree_sitter_xml(void);
+const TSLanguage *tree_sitter_fsharp(void);
+const TSLanguage *tree_sitter_lua(void);
+const TSLanguage *tree_sitter_scala(void);
+const TSLanguage *tree_sitter_make(void);
+const TSLanguage *tree_sitter_ruby(void);
+const TSLanguage *tree_sitter_go(void);
+const TSLanguage *tree_sitter_zig(void);
+const TSLanguage *tree_sitter_kotlin(void);
+const TSLanguage *tree_sitter_asm(void);
+const TSLanguage *tree_sitter_objc(void);
+const TSLanguage *tree_sitter_swift(void);
+const TSLanguage *tree_sitter_sql(void);
+const TSLanguage *tree_sitter_hcl(void);
+const TSLanguage *tree_sitter_dockerfile(void);
+const TSLanguage *tree_sitter_cmake(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -33,6 +49,7 @@ const TSLanguage *tree_sitter_typescript(void);
 #include <QPlainTextEdit>
 #include <QResizeEvent>
 #include <QScopedValueRollback>
+#include <QSet>
 #include <QSyntaxHighlighter>
 #include <QTimer>
 #include <QToolTip>
@@ -164,6 +181,15 @@ QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerOCamlInterface, QsciLexerCPP,
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerOCamlType, QsciLexerCPP, "ocaml_type")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerHaskell, QsciLexerCPP, "haskell")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerPowerShell, QsciLexerCPP, "powershell")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerFSharp, QsciLexerCPP, "fsharp")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerScala, QsciLexerCPP, "scala")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerGo, QsciLexerCPP, "go")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerZig, QsciLexerCPP, "zig")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerKotlin, QsciLexerCPP, "kotlin")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerObjectiveC, QsciLexerCPP, "objc")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerSwift, QsciLexerCPP, "swift")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerHCL, QsciLexerCPP, "hcl")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerDockerfile, QsciLexerCPP, "dockerfile")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTypeScript, QsciLexerJavaScript,
                              "typescript")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTSX, QsciLexerJavaScript, "tsx")
@@ -386,6 +412,55 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
       0) {
     return tree_sitter_powershell();
   }
+  if (language.compare(QStringLiteral("xml"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_xml();
+  }
+  if (language.compare(QStringLiteral("fsharp"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_fsharp();
+  }
+  if (language.compare(QStringLiteral("lua"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_lua();
+  }
+  if (language.compare(QStringLiteral("scala"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_scala();
+  }
+  if (language.compare(QStringLiteral("makefile"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_make();
+  }
+  if (language.compare(QStringLiteral("ruby"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_ruby();
+  }
+  if (language.compare(QStringLiteral("go"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_go();
+  }
+  if (language.compare(QStringLiteral("zig"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_zig();
+  }
+  if (language.compare(QStringLiteral("kotlin"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_kotlin();
+  }
+  if (language.compare(QStringLiteral("asm"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_asm();
+  }
+  if (language.compare(QStringLiteral("objc"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_objc();
+  }
+  if (language.compare(QStringLiteral("swift"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_swift();
+  }
+  if (language.compare(QStringLiteral("sql"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_sql();
+  }
+  if (language.compare(QStringLiteral("hcl"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_hcl();
+  }
+  if (language.compare(QStringLiteral("dockerfile"), Qt::CaseInsensitive) ==
+      0) {
+    return tree_sitter_dockerfile();
+  }
+  if (language.compare(QStringLiteral("cmake"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_cmake();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -437,7 +512,19 @@ enum class Token {
   PseudoElement,
   Value,
   Important,
-  AtRule
+  AtRule,
+  // Batch files: labels, the @ prefix and external commands.
+  Label,
+  HideCommand,
+  ExternalCommand,
+  // XML: CDATA sections.
+  CData,
+  // Makefiles: rule targets and prerequisites.
+  Target,
+  // Ruby: symbols and class and global variables.
+  Symbol,
+  ClassVariable,
+  GlobalVariable
 };
 
 enum class StyledLanguage {
@@ -456,6 +543,22 @@ enum class StyledLanguage {
   OCaml,
   Haskell,
   PowerShell,
+  FSharp,
+  Lua,
+  Scala,
+  Makefile,
+  Ruby,
+  Go,
+  Zig,
+  Kotlin,
+  Asm,
+  ObjectiveC,
+  Swift,
+  Sql,
+  Hcl,
+  Dockerfile,
+  CMake,
+  Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
   EmbeddedCss
@@ -472,7 +575,22 @@ enum class StyleSet {
   // QsciLexerHTML ids for markup and embedded CSS.
   Html,
   // QsciLexerHTML ids for embedded JavaScript.
-  HtmlScript
+  HtmlScript,
+  // QsciLexerBatch ids.
+  Batch,
+  // QsciLexerXML ids.
+  Xml,
+  // QsciLexerLua ids.
+  Lua,
+  // QsciLexerMakefile ids.
+  Makefile,
+  Ruby,
+  // QsciLexerAsm ids.
+  Asm,
+  // QsciLexerSQL ids.
+  Sql,
+  // QsciLexerCMake ids.
+  CMake
 };
 
 StyledLanguage styledLanguageFor(const TSLanguage *language) {
@@ -524,6 +642,54 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_powershell()) {
     return StyledLanguage::PowerShell;
   }
+  if (language == tree_sitter_xml()) {
+    return StyledLanguage::Xml;
+  }
+  if (language == tree_sitter_fsharp()) {
+    return StyledLanguage::FSharp;
+  }
+  if (language == tree_sitter_lua()) {
+    return StyledLanguage::Lua;
+  }
+  if (language == tree_sitter_scala()) {
+    return StyledLanguage::Scala;
+  }
+  if (language == tree_sitter_make()) {
+    return StyledLanguage::Makefile;
+  }
+  if (language == tree_sitter_ruby()) {
+    return StyledLanguage::Ruby;
+  }
+  if (language == tree_sitter_go()) {
+    return StyledLanguage::Go;
+  }
+  if (language == tree_sitter_zig()) {
+    return StyledLanguage::Zig;
+  }
+  if (language == tree_sitter_kotlin()) {
+    return StyledLanguage::Kotlin;
+  }
+  if (language == tree_sitter_asm()) {
+    return StyledLanguage::Asm;
+  }
+  if (language == tree_sitter_objc()) {
+    return StyledLanguage::ObjectiveC;
+  }
+  if (language == tree_sitter_swift()) {
+    return StyledLanguage::Swift;
+  }
+  if (language == tree_sitter_sql()) {
+    return StyledLanguage::Sql;
+  }
+  if (language == tree_sitter_hcl()) {
+    return StyledLanguage::Hcl;
+  }
+  if (language == tree_sitter_dockerfile()) {
+    return StyledLanguage::Dockerfile;
+  }
+  if (language == tree_sitter_cmake()) {
+    return StyledLanguage::CMake;
+  }
   return StyledLanguage::None;
 }
 
@@ -546,6 +712,14 @@ StyleSet styleSetFor(StyledLanguage language) {
     return StyleSet::Html;
   case StyledLanguage::EmbeddedJavaScript:
     return StyleSet::HtmlScript;
+  case StyledLanguage::Xml:
+    return StyleSet::Xml;
+  case StyledLanguage::Lua:
+    return StyleSet::Lua;
+  case StyledLanguage::Makefile:
+    return StyleSet::Makefile;
+  case StyledLanguage::Ruby:
+    return StyleSet::Ruby;
   case StyledLanguage::None:
   case StyledLanguage::CFamily:
   case StyledLanguage::Dart:
@@ -555,7 +729,22 @@ StyleSet styleSetFor(StyledLanguage language) {
   case StyledLanguage::OCaml:
   case StyledLanguage::Haskell:
   case StyledLanguage::PowerShell:
+  case StyledLanguage::FSharp:
+  case StyledLanguage::Scala:
+  case StyledLanguage::Go:
+  case StyledLanguage::Zig:
+  case StyledLanguage::Kotlin:
+  case StyledLanguage::ObjectiveC:
+  case StyledLanguage::Swift:
+  case StyledLanguage::Hcl:
+  case StyledLanguage::Dockerfile:
     break;
+  case StyledLanguage::CMake:
+    return StyleSet::CMake;
+  case StyledLanguage::Sql:
+    return StyleSet::Sql;
+  case StyledLanguage::Asm:
+    return StyleSet::Asm;
   }
   return StyleSet::Cpp;
 }
@@ -1192,6 +1381,1728 @@ Token genericTokenForNode(StyledLanguage language, const NodeContext &context,
   return Token::None;
 }
 
+// Classifies an XML node. Tag delimiters share the tag color, as in HTML.
+Token xmlTokenForNode(const NodeContext &context, const QByteArray &source,
+                      bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (context.named) {
+    descend = false;
+    if (typeEquals(type, "comment")) {
+      return Token::Comment;
+    }
+    if (typeEquals(type, "cdata_section")) {
+      return Token::CData;
+    }
+    if (typeIn(type, {"doctype", "declaration_start"})) {
+      return Token::Preprocessor;
+    }
+    if (typeEquals(type, "name")) {
+      if (typeEquals(context.parent, "processing_instruction")) {
+        return Token::Preprocessor;
+      }
+      // Attribute names are the name of an attribute, element names are not.
+      return typeEquals(context.field, "name") ? Token::Attribute : Token::Tag;
+    }
+    if (typeEquals(type, "attribute_value")) {
+      return startsWithSingleQuote(context.node, source)
+                 ? Token::SingleQuotedString
+                 : Token::String;
+    }
+    if (typeEquals(type, "entity_reference")) {
+      return Token::Entity;
+    }
+
+    descend = true;
+    return Token::None;
+  }
+
+  if (typeIn(type, {"<", ">", "</", "/>"})) {
+    return Token::Tag;
+  }
+  if (typeIn(type, {"<?", "?>"})) {
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "=")) {
+    return Token::Operator;
+  }
+
+  return Token::None;
+}
+
+// Keywords of F#, as the anonymous nodes the grammar produces for them.
+bool isFSharpKeyword(const char *type) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("abstract"),  QStringLiteral("and"),
+      QStringLiteral("and!"),      QStringLiteral("as"),
+      QStringLiteral("assert"),    QStringLiteral("begin"),
+      QStringLiteral("class"),     QStringLiteral("default"),
+      QStringLiteral("delegate"),  QStringLiteral("do"),
+      QStringLiteral("do!"),       QStringLiteral("done"),
+      QStringLiteral("downcast"),  QStringLiteral("downto"),
+      QStringLiteral("elif"),      QStringLiteral("else"),
+      QStringLiteral("end"),       QStringLiteral("enum"),
+      QStringLiteral("exception"), QStringLiteral("extern"),
+      QStringLiteral("false"),     QStringLiteral("finally"),
+      QStringLiteral("fixed"),     QStringLiteral("for"),
+      QStringLiteral("fun"),       QStringLiteral("function"),
+      QStringLiteral("get"),       QStringLiteral("global"),
+      QStringLiteral("if"),        QStringLiteral("in"),
+      QStringLiteral("inherit"),   QStringLiteral("inline"),
+      QStringLiteral("interface"), QStringLiteral("internal"),
+      QStringLiteral("lazy"),      QStringLiteral("let"),
+      QStringLiteral("let!"),      QStringLiteral("match"),
+      QStringLiteral("match!"),    QStringLiteral("member"),
+      QStringLiteral("module"),    QStringLiteral("mutable"),
+      QStringLiteral("namespace"), QStringLiteral("new"),
+      QStringLiteral("not"),       QStringLiteral("null"),
+      QStringLiteral("of"),        QStringLiteral("open"),
+      QStringLiteral("or"),        QStringLiteral("override"),
+      QStringLiteral("private"),   QStringLiteral("public"),
+      QStringLiteral("rec"),       QStringLiteral("return"),
+      QStringLiteral("return!"),   QStringLiteral("set"),
+      QStringLiteral("static"),    QStringLiteral("struct"),
+      QStringLiteral("then"),      QStringLiteral("to"),
+      QStringLiteral("true"),      QStringLiteral("try"),
+      QStringLiteral("type"),      QStringLiteral("upcast"),
+      QStringLiteral("use"),       QStringLiteral("use!"),
+      QStringLiteral("val"),       QStringLiteral("when"),
+      QStringLiteral("while"),     QStringLiteral("while!"),
+      QStringLiteral("with"),      QStringLiteral("yield"),
+      QStringLiteral("yield!")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Classifies an F# node. Names of functions, types, modules, record fields
+// and union cases are colored where they are declared.
+Token fsharpTokenForNode(const NodeContext &context, const QByteArray &source,
+                         bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isFSharpKeyword(type)) {
+      return Token::Keyword;
+    }
+    if (typeIn(type, {"[<", ">]"})) {
+      return Token::Preprocessor;
+    }
+    // Compiler directives such as #if, #r and #load.
+    if (type[0] == '#' && type[1] != '\0') {
+      return Token::Preprocessor;
+    }
+    // Symbolic operators, not brackets or separators.
+    const char first = type[0];
+    if ((first != '\0' && std::strchr("+-*/%=<>!&|^~?", first) != nullptr) ||
+        (first == ':' && type[1] != '\0')) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeIn(type, {"line_comment", "block_comment"})) {
+    descend = false;
+    return Token::Comment;
+  }
+  if (typeEquals(type, "xml_doc")) {
+    descend = false;
+    return Token::CommentDoc;
+  }
+  if (typeIn(type, {"string", "triple_quoted_string", "verbatim_string",
+                    "verbatim_bytearray", "format_string",
+                    "format_triple_quoted_string"})) {
+    descend = false;
+    return Token::String;
+  }
+  if (typeEquals(type, "char")) {
+    descend = false;
+    return Token::SingleQuotedString;
+  }
+  if (typeIn(type,
+             {"xint", "int", "int16", "int32", "int64", "uint16", "uint32",
+              "uint64", "nativeint", "unativeint", "byte", "sbyte", "bytearray",
+              "ieee32", "ieee64", "float", "decimal", "bignum"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeEquals(type, "bool")) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeIn(type, {"compiler_directive_decl", "preproc_line"})) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "preproc_inactive")) {
+    // Code in an inactive #if branch is shown like a comment.
+    descend = false;
+    return Token::Comment;
+  }
+  if (typeIn(type, {"simple_type", "atomic_type", "type_argument",
+                    "generic_type", "type_name", "measure_atom"})) {
+    return Token::Type;
+  }
+  if (typeEquals(type, "identifier")) {
+    const char *parent = context.parent;
+    const char *grandparent = context.grandparent;
+    if (typeEquals(parent, "function_declaration_left") &&
+        ts_node_is_null(ts_node_prev_named_sibling(context.node))) {
+      return Token::FunctionName;
+    }
+    if (typeIn(parent, {"record_field", "field_initializer"}) ||
+        (typeEquals(parent, "long_identifier") &&
+         typeEquals(grandparent, "field_initializer"))) {
+      return Token::Property;
+    }
+    if (typeIn(parent, {"union_type_case", "enum_type_case", "type_name"})) {
+      return Token::Type;
+    }
+    if (typeEquals(parent, "long_identifier") &&
+        typeIn(grandparent, {"named_module", "namespace", "module_defn"})) {
+      return Token::Type;
+    }
+    if (typeEquals(context.field, "method")) {
+      return Token::FunctionName;
+    }
+    return Token::None;
+  }
+
+  return Token::None;
+}
+
+// Keywords of Lua.
+bool isLuaKeyword(const char *type) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("and"),    QStringLiteral("break"),
+      QStringLiteral("do"),     QStringLiteral("else"),
+      QStringLiteral("elseif"), QStringLiteral("end"),
+      QStringLiteral("for"),    QStringLiteral("function"),
+      QStringLiteral("goto"),   QStringLiteral("if"),
+      QStringLiteral("in"),     QStringLiteral("local"),
+      QStringLiteral("not"),    QStringLiteral("or"),
+      QStringLiteral("repeat"), QStringLiteral("return"),
+      QStringLiteral("then"),   QStringLiteral("until"),
+      QStringLiteral("while")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Block comments are --[[ ... ]] and --[==[ ... ]==], any level of '='.
+bool isLuaBlockComment(const QByteArray &source, uint32_t start) {
+  const auto size = static_cast<uint32_t>(source.size());
+  uint32_t i = start + 2;
+  if (i >= size || byteAt(source, i) != '[') {
+    return false;
+  }
+  for (++i; i < size && byteAt(source, i) == '='; ++i) {
+  }
+  return i < size && byteAt(source, i) == '[';
+}
+
+// Classifies a Lua node. Function names are the names of the functions
+// defined or called, Label is the name of a goto target or label.
+Token luaTokenForNode(const NodeContext &context, const QByteArray &source,
+                      bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isLuaKeyword(type)) {
+      return Token::Keyword;
+    }
+    const char first = type[0];
+    if ((first != '\0' && std::strchr("#%&*+-/<=>^|~", first) != nullptr) ||
+        typeIn(type, {"..", "...", ":"})) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  const uint32_t start = ts_node_start_byte(context.node);
+  if (typeEquals(type, "comment")) {
+    descend = false;
+    return isLuaBlockComment(source, start) ? Token::Comment
+                                            : Token::CommentLine;
+  }
+  if (typeEquals(type, "shebang")) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "string")) {
+    descend = false;
+    const char quote = byteAt(source, start);
+    if (quote == '\'') {
+      return Token::SingleQuotedString;
+    }
+    return quote == '[' ? Token::RawString : Token::String;
+  }
+  if (typeEquals(type, "number")) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"true", "false", "nil"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeEquals(type, "identifier")) {
+    const char *parent = context.parent;
+    const char *grandparent = context.grandparent;
+    const char *field = context.field;
+
+    if (typeEquals(field, "key") && typeEquals(parent, "field")) {
+      return Token::Property;
+    }
+    if (typeIn(parent, {"label_statement", "goto_statement"})) {
+      return Token::Label;
+    }
+    if (typeEquals(parent, "attribute")) {
+      return Token::Preprocessor;
+    }
+    if (typeEquals(parent, "local_function_definition_statement") &&
+        typeEquals(field, "name")) {
+      return Token::FunctionName;
+    }
+    // Method calls: obj:method(...).
+    if (typeEquals(field, "method")) {
+      return Token::FunctionName;
+    }
+    // The last part of a function name or of a called expression:
+    // function M.add(...), print(...), M.add(...). The table of a called
+    // expression (M in M.add) is not a function.
+    if (typeEquals(parent, "variable") && typeIn(field, {"name", "field"}) &&
+        typeIn(grandparent, {"function_definition_statement", "call"})) {
+      return Token::FunctionName;
+    }
+    return Token::None;
+  }
+
+  return Token::None;
+}
+
+// Keywords of Scala, as the anonymous nodes the grammar produces for them.
+bool isScalaKeyword(const char *type) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("abstract"),    QStringLiteral("as"),
+      QStringLiteral("case"),        QStringLiteral("catch"),
+      QStringLiteral("class"),       QStringLiteral("def"),
+      QStringLiteral("derives"),     QStringLiteral("do"),
+      QStringLiteral("else"),        QStringLiteral("end"),
+      QStringLiteral("enum"),        QStringLiteral("export"),
+      QStringLiteral("extends"),     QStringLiteral("extension"),
+      QStringLiteral("final"),       QStringLiteral("finally"),
+      QStringLiteral("for"),         QStringLiteral("given"),
+      QStringLiteral("if"),          QStringLiteral("implicit"),
+      QStringLiteral("import"),      QStringLiteral("infix"),
+      QStringLiteral("inline"),      QStringLiteral("lazy"),
+      QStringLiteral("macro"),       QStringLiteral("match"),
+      QStringLiteral("new"),         QStringLiteral("object"),
+      QStringLiteral("opaque"),      QStringLiteral("open"),
+      QStringLiteral("override"),    QStringLiteral("package"),
+      QStringLiteral("private"),     QStringLiteral("protected"),
+      QStringLiteral("return"),      QStringLiteral("sealed"),
+      QStringLiteral("then"),        QStringLiteral("this"),
+      QStringLiteral("throw"),       QStringLiteral("trait"),
+      QStringLiteral("transparent"), QStringLiteral("try"),
+      QStringLiteral("type"),        QStringLiteral("using"),
+      QStringLiteral("val"),         QStringLiteral("var"),
+      QStringLiteral("while"),       QStringLiteral("with"),
+      QStringLiteral("yield")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Classifies a Scala node. Type names are the declared types and the types
+// used in annotations, function names are the names of defined and called
+// functions.
+Token scalaTokenForNode(const NodeContext &context, const QByteArray &source,
+                        bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isScalaKeyword(type)) {
+      return Token::Keyword;
+    }
+    // Annotations and the # of the shebang line.
+    if (typeIn(type, {"@", "#!"})) {
+      return Token::Preprocessor;
+    }
+    const char first = type[0];
+    // Quotes are the delimiters of strings and are not operators.
+    if (first != '\0' && first != '"' && first != '\'' && first != '$' &&
+        std::strchr("!%&*+-/<=>?^|~\\", first) != nullptr) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  const uint32_t start = ts_node_start_byte(context.node);
+  if (typeEquals(type, "comment")) {
+    descend = false;
+    return Token::CommentLine;
+  }
+  if (typeEquals(type, "block_comment")) {
+    descend = false;
+    // Scaladoc comments start with /**.
+    const bool doc =
+        byteAt(source, start + 2) == '*' && byteAt(source, start + 3) != '/';
+    return doc ? Token::CommentDoc : Token::Comment;
+  }
+  if (typeEquals(type, "string")) {
+    descend = false;
+    const bool triple = byteAt(source, start) == '"' &&
+                        byteAt(source, start + 1) == '"' &&
+                        byteAt(source, start + 2) == '"';
+    return triple ? Token::TripleQuotedString : Token::String;
+  }
+  if (typeIn(type, {"interpolated_string", "escape_sequence"})) {
+    descend = false;
+    return Token::String;
+  }
+  if (typeEquals(type, "character_literal")) {
+    descend = false;
+    return Token::SingleQuotedString;
+  }
+  if (typeIn(type, {"integer_literal", "floating_point_literal"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"boolean_literal", "null_literal"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeEquals(type, "annotation")) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeIn(type, {"type_identifier", "operator_identifier"})) {
+    descend = false;
+    return typeEquals(type, "type_identifier") ? Token::Type : Token::Operator;
+  }
+  if (typeEquals(type, "identifier")) {
+    const char *parent = context.parent;
+    const char *grandparent = context.grandparent;
+    const char *field = context.field;
+
+    if (typeEquals(field, "name") &&
+        typeIn(parent, {"class_definition", "trait_definition",
+                        "object_definition", "enum_definition"})) {
+      return Token::Type;
+    }
+    if (typeEquals(field, "name") &&
+        typeIn(parent, {"function_definition", "function_declaration"})) {
+      return Token::FunctionName;
+    }
+    if (typeEquals(field, "function")) {
+      return Token::FunctionName;
+    }
+    // Member access: obj.method(...) is a call, obj.field is a property.
+    if (typeEquals(field, "field") && typeEquals(parent, "field_expression")) {
+      return typeEquals(grandparent, "call_expression") ? Token::FunctionName
+                                                        : Token::Property;
+    }
+    return Token::None;
+  }
+
+  return Token::None;
+}
+
+// Directive and built-in function names of GNU make, which the grammar
+// produces as anonymous nodes.
+bool isMakefileDirectiveOrFunction(const char *type) {
+  static const QSet<QString> names = {
+      // Directives.
+      QStringLiteral("ifeq"), QStringLiteral("ifneq"), QStringLiteral("ifdef"),
+      QStringLiteral("ifndef"), QStringLiteral("else"), QStringLiteral("endif"),
+      QStringLiteral("include"), QStringLiteral("-include"),
+      QStringLiteral("sinclude"), QStringLiteral("define"),
+      QStringLiteral("endef"), QStringLiteral("export"),
+      QStringLiteral("unexport"), QStringLiteral("override"),
+      QStringLiteral("private"), QStringLiteral("undefine"),
+      QStringLiteral("vpath"), QStringLiteral("VPATH"),
+      QStringLiteral(".RECIPEPREFIX"),
+      // Built-in functions.
+      QStringLiteral("abspath"), QStringLiteral("addprefix"),
+      QStringLiteral("addsuffix"), QStringLiteral("and"),
+      QStringLiteral("basename"), QStringLiteral("call"), QStringLiteral("dir"),
+      QStringLiteral("error"), QStringLiteral("eval"), QStringLiteral("file"),
+      QStringLiteral("filter"), QStringLiteral("filter-out"),
+      QStringLiteral("findstring"), QStringLiteral("firstword"),
+      QStringLiteral("flavor"), QStringLiteral("foreach"), QStringLiteral("if"),
+      QStringLiteral("info"), QStringLiteral("join"),
+      QStringLiteral("lastword"), QStringLiteral("notdir"),
+      QStringLiteral("or"), QStringLiteral("origin"),
+      QStringLiteral("patsubst"), QStringLiteral("realpath"),
+      QStringLiteral("shell"), QStringLiteral("sort"), QStringLiteral("strip"),
+      QStringLiteral("subst"), QStringLiteral("suffix"),
+      QStringLiteral("value"), QStringLiteral("warning"),
+      QStringLiteral("wildcard"), QStringLiteral("word"),
+      QStringLiteral("wordlist"), QStringLiteral("words")};
+  return names.contains(QString::fromLatin1(type));
+}
+
+// Classifies a makefile node. Targets and prerequisites, variable names and
+// references, directives and function names have their own colors; recipe
+// text keeps the default color.
+Token makefileTokenForNode(const NodeContext &context, const QByteArray &source,
+                           bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isMakefileDirectiveOrFunction(type)) {
+      return Token::Preprocessor;
+    }
+    if (typeEquals(type, "$")) {
+      return Token::Variable;
+    }
+    if (typeIn(type, {":", "::", ":=", "::=", "?=", "+=", "!=", "=", "|",
+                      "&:", "@", "-", "+", ";", "(", ")", "{", "}", ","})) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeEquals(type, "comment")) {
+    descend = false;
+    return Token::Comment;
+  }
+  if (typeEquals(type, "automatic_variable")) {
+    descend = false;
+    return Token::Variable;
+  }
+  if (typeEquals(type, "word")) {
+    const char *parent = context.parent;
+    if (typeIn(parent, {"variable_reference", "define_directive", "list"})) {
+      return Token::Variable;
+    }
+    if (typeEquals(parent, "variable_assignment") &&
+        typeEquals(context.field, "name")) {
+      return Token::Variable;
+    }
+    if (typeIn(parent, {"targets", "prerequisites"})) {
+      return Token::Target;
+    }
+    return Token::None;
+  }
+
+  return Token::None;
+}
+
+// Keywords of Ruby, as the anonymous nodes the grammar produces for them.
+bool isRubyKeyword(const char *type) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("BEGIN"),        QStringLiteral("END"),
+      QStringLiteral("alias"),        QStringLiteral("and"),
+      QStringLiteral("begin"),        QStringLiteral("break"),
+      QStringLiteral("case"),         QStringLiteral("class"),
+      QStringLiteral("def"),          QStringLiteral("defined?"),
+      QStringLiteral("do"),           QStringLiteral("else"),
+      QStringLiteral("elsif"),        QStringLiteral("end"),
+      QStringLiteral("ensure"),       QStringLiteral("for"),
+      QStringLiteral("if"),           QStringLiteral("in"),
+      QStringLiteral("module"),       QStringLiteral("next"),
+      QStringLiteral("not"),          QStringLiteral("or"),
+      QStringLiteral("redo"),         QStringLiteral("rescue"),
+      QStringLiteral("retry"),        QStringLiteral("return"),
+      QStringLiteral("super"),        QStringLiteral("then"),
+      QStringLiteral("undef"),        QStringLiteral("unless"),
+      QStringLiteral("until"),        QStringLiteral("when"),
+      QStringLiteral("while"),        QStringLiteral("yield"),
+      QStringLiteral("__ENCODING__"), QStringLiteral("__FILE__"),
+      QStringLiteral("__LINE__")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Operator tokens of Ruby. Listed exactly, since symbol characters also
+// start delimiters such as %w[ and regular expressions.
+bool isRubyOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),   QStringLiteral("!="),  QStringLiteral("!~"),
+      QStringLiteral("%"),   QStringLiteral("%="),  QStringLiteral("&"),
+      QStringLiteral("&&"),  QStringLiteral("&&="), QStringLiteral("&."),
+      QStringLiteral("&="),  QStringLiteral("*"),   QStringLiteral("**"),
+      QStringLiteral("**="), QStringLiteral("*="),  QStringLiteral("+"),
+      QStringLiteral("+="),  QStringLiteral("+@"),  QStringLiteral("-"),
+      QStringLiteral("-="),  QStringLiteral("-@"),  QStringLiteral("->"),
+      QStringLiteral("/"),   QStringLiteral("/="),  QStringLiteral("<"),
+      QStringLiteral("<<"),  QStringLiteral("<<="), QStringLiteral("<="),
+      QStringLiteral("<=>"), QStringLiteral("="),   QStringLiteral("=="),
+      QStringLiteral("==="), QStringLiteral("=>"),  QStringLiteral("=~"),
+      QStringLiteral(">"),   QStringLiteral(">="),  QStringLiteral(">>"),
+      QStringLiteral(">>="), QStringLiteral("?"),   QStringLiteral(".."),
+      QStringLiteral("..."), QStringLiteral("^"),   QStringLiteral("^="),
+      QStringLiteral("|"),   QStringLiteral("|="),  QStringLiteral("||"),
+      QStringLiteral("||="), QStringLiteral("~"),   QStringLiteral("~@"),
+      QStringLiteral("::")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Classifies a Ruby node. Method names and called methods are colored as
+// functions, constants as classes, and strings keep their colors around
+// interpolated code, which is colored like code.
+Token rubyTokenForNode(const NodeContext &context, const QByteArray &source,
+                       bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isRubyKeyword(type)) {
+      return Token::Keyword;
+    }
+    if (isRubyOperator(type)) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeIn(type, {"comment", "uninterpreted"})) {
+    descend = false;
+    return Token::Comment;
+  }
+  if (typeIn(type, {"string", "chained_string", "bare_string", "character",
+                    "string_array", "symbol_array", "heredoc_body"})) {
+    return Token::String;
+  }
+  if (typeEquals(type, "heredoc_content")) {
+    descend = false;
+    return Token::String;
+  }
+  if (typeIn(type, {"heredoc_beginning", "heredoc_end"})) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "subshell")) {
+    return Token::RawString;
+  }
+  if (typeEquals(type, "regex")) {
+    descend = false;
+    return Token::Regex;
+  }
+  // Code in #{...} is colored by its own nodes, the rest is plain text.
+  if (typeEquals(type, "interpolation")) {
+    return Token::Default;
+  }
+  if (typeIn(type, {"simple_symbol", "delimited_symbol", "hash_key_symbol",
+                    "bare_symbol"})) {
+    descend = false;
+    return Token::Symbol;
+  }
+  if (typeIn(type, {"integer", "float", "complex", "rational"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"true", "false", "nil", "self"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeEquals(type, "constant")) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeEquals(type, "instance_variable")) {
+    descend = false;
+    return Token::Variable;
+  }
+  if (typeEquals(type, "class_variable")) {
+    descend = false;
+    return Token::ClassVariable;
+  }
+  if (typeEquals(type, "global_variable")) {
+    descend = false;
+    return Token::GlobalVariable;
+  }
+  if (typeEquals(type, "operator") &&
+      typeIn(context.parent, {"method", "singleton_method"})) {
+    descend = false;
+    return Token::FunctionName;
+  }
+  if (typeEquals(type, "identifier")) {
+    if (typeEquals(context.field, "name") &&
+        typeIn(context.parent, {"method", "singleton_method"})) {
+      return Token::FunctionName;
+    }
+    if (typeEquals(context.field, "method") &&
+        typeEquals(context.parent, "call")) {
+      return Token::FunctionName;
+    }
+  }
+
+  return Token::None;
+}
+
+// Keywords of Go, as the anonymous nodes the grammar produces for them.
+bool isGoKeyword(const char *type) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("break"),       QStringLiteral("case"),
+      QStringLiteral("chan"),        QStringLiteral("const"),
+      QStringLiteral("continue"),    QStringLiteral("default"),
+      QStringLiteral("defer"),       QStringLiteral("else"),
+      QStringLiteral("fallthrough"), QStringLiteral("for"),
+      QStringLiteral("func"),        QStringLiteral("go"),
+      QStringLiteral("goto"),        QStringLiteral("if"),
+      QStringLiteral("import"),      QStringLiteral("interface"),
+      QStringLiteral("map"),         QStringLiteral("package"),
+      QStringLiteral("range"),       QStringLiteral("return"),
+      QStringLiteral("select"),      QStringLiteral("struct"),
+      QStringLiteral("switch"),      QStringLiteral("type"),
+      QStringLiteral("var")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Operator tokens of Go, listed exactly.
+bool isGoOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),  QStringLiteral("!="),  QStringLiteral("%"),
+      QStringLiteral("%="), QStringLiteral("&"),   QStringLiteral("&&"),
+      QStringLiteral("&="), QStringLiteral("&^"),  QStringLiteral("&^="),
+      QStringLiteral("*"),  QStringLiteral("*="),  QStringLiteral("+"),
+      QStringLiteral("++"), QStringLiteral("+="),  QStringLiteral("-"),
+      QStringLiteral("--"), QStringLiteral("-="),  QStringLiteral("/"),
+      QStringLiteral("/="), QStringLiteral("<"),   QStringLiteral("<-"),
+      QStringLiteral("<<"), QStringLiteral("<<="), QStringLiteral("<="),
+      QStringLiteral("="),  QStringLiteral("=="),  QStringLiteral(">"),
+      QStringLiteral(">="), QStringLiteral(">>"),  QStringLiteral(">>="),
+      QStringLiteral("^"),  QStringLiteral("^="),  QStringLiteral("|"),
+      QStringLiteral("|="), QStringLiteral("||"),  QStringLiteral(":="),
+      QStringLiteral("~"),  QStringLiteral("...")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Built-in functions of Go, colored like built-in types.
+bool isGoBuiltin(const QString &name) {
+  static const QSet<QString> builtins = {
+      QStringLiteral("append"),  QStringLiteral("cap"),
+      QStringLiteral("clear"),   QStringLiteral("close"),
+      QStringLiteral("complex"), QStringLiteral("copy"),
+      QStringLiteral("delete"),  QStringLiteral("imag"),
+      QStringLiteral("len"),     QStringLiteral("make"),
+      QStringLiteral("max"),     QStringLiteral("min"),
+      QStringLiteral("new"),     QStringLiteral("panic"),
+      QStringLiteral("print"),   QStringLiteral("println"),
+      QStringLiteral("real"),    QStringLiteral("recover")};
+  return builtins.contains(name);
+}
+
+// Classifies a Go node. Functions and methods are colored where they are
+// declared and called, struct fields and selectors are properties.
+Token goTokenForNode(const NodeContext &context, const QByteArray &source,
+                     bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isGoKeyword(type)) {
+      return Token::Keyword;
+    }
+    if (isGoOperator(type)) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  const uint32_t start = ts_node_start_byte(context.node);
+  const uint32_t end = ts_node_end_byte(context.node);
+  if (typeEquals(type, "comment")) {
+    descend = false;
+    if (byteAt(source, start + 1) == '*') {
+      return Token::Comment;
+    }
+    // Directives such as //go:generate and //export.
+    const QByteArray text = source.mid(static_cast<int>(start), 5);
+    return text == "//go:" ? Token::Preprocessor : Token::CommentLine;
+  }
+  if (typeEquals(type, "interpreted_string_literal")) {
+    descend = false;
+    return Token::String;
+  }
+  if (typeEquals(type, "raw_string_literal")) {
+    descend = false;
+    return Token::RawString;
+  }
+  if (typeEquals(type, "rune_literal")) {
+    descend = false;
+    return Token::SingleQuotedString;
+  }
+  if (typeIn(type, {"int_literal", "float_literal", "imaginary_literal"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"true", "false", "nil"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeEquals(type, "iota")) {
+    descend = false;
+    return Token::BuiltinType;
+  }
+  if (typeEquals(type, "type_identifier")) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeEquals(type, "field_identifier")) {
+    descend = false;
+    const char *parent = context.parent;
+    if (typeIn(parent, {"method_declaration", "method_elem"}) ||
+        (typeEquals(parent, "selector_expression") &&
+         typeEquals(context.grandparent, "call_expression"))) {
+      return Token::FunctionName;
+    }
+    return Token::Property;
+  }
+  if (typeEquals(type, "identifier")) {
+    descend = false;
+    if (typeEquals(context.parent, "function_declaration") &&
+        typeEquals(context.field, "name")) {
+      return Token::FunctionName;
+    }
+    if (typeEquals(context.parent, "call_expression") &&
+        typeEquals(context.field, "function")) {
+      const QString name = QString::fromUtf8(
+          source.mid(static_cast<int>(start), static_cast<int>(end - start)));
+      return isGoBuiltin(name) ? Token::BuiltinType : Token::FunctionName;
+    }
+  }
+
+  return Token::None;
+}
+
+// Keywords of Zig, as the anonymous nodes the grammar produces for them.
+bool isZigKeyword(const char *type) {
+  static const QSet<QString> keywords = {QStringLiteral("align"),
+                                         QStringLiteral("allowzero"),
+                                         QStringLiteral("and"),
+                                         QStringLiteral("async"),
+                                         QStringLiteral("await"),
+                                         QStringLiteral("break"),
+                                         QStringLiteral("catch"),
+                                         QStringLiteral("comptime"),
+                                         QStringLiteral("const"),
+                                         QStringLiteral("continue"),
+                                         QStringLiteral("defer"),
+                                         QStringLiteral("else"),
+                                         QStringLiteral("enum"),
+                                         QStringLiteral("errdefer"),
+                                         QStringLiteral("error"),
+                                         QStringLiteral("export"),
+                                         QStringLiteral("extern"),
+                                         QStringLiteral("fn"),
+                                         QStringLiteral("for"),
+                                         QStringLiteral("if"),
+                                         QStringLiteral("inline"),
+                                         QStringLiteral("noreturn"),
+                                         QStringLiteral("nosuspend"),
+                                         QStringLiteral("opaque"),
+                                         QStringLiteral("or"),
+                                         QStringLiteral("orelse"),
+                                         QStringLiteral("packed"),
+                                         QStringLiteral("pub"),
+                                         QStringLiteral("resume"),
+                                         QStringLiteral("return"),
+                                         QStringLiteral("struct"),
+                                         QStringLiteral("suspend"),
+                                         QStringLiteral("switch"),
+                                         QStringLiteral("test"),
+                                         QStringLiteral("threadlocal"),
+                                         QStringLiteral("try"),
+                                         QStringLiteral("union"),
+                                         QStringLiteral("unreachable"),
+                                         QStringLiteral("usingnamespace"),
+                                         QStringLiteral("var"),
+                                         QStringLiteral("volatile"),
+                                         QStringLiteral("while")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Operator tokens of Zig, listed exactly.
+bool isZigOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),   QStringLiteral("!="),  QStringLiteral("%"),
+      QStringLiteral("%="),  QStringLiteral("&"),   QStringLiteral("&="),
+      QStringLiteral("*"),   QStringLiteral("*%"),  QStringLiteral("*%="),
+      QStringLiteral("**"),  QStringLiteral("*="),  QStringLiteral("+"),
+      QStringLiteral("+%"),  QStringLiteral("+%="), QStringLiteral("++"),
+      QStringLiteral("+="),  QStringLiteral("-"),   QStringLiteral("-%"),
+      QStringLiteral("-%="), QStringLiteral("-="),  QStringLiteral(".*"),
+      QStringLiteral(".?"),  QStringLiteral(".."),  QStringLiteral("..."),
+      QStringLiteral("/"),   QStringLiteral("/="),  QStringLiteral("<"),
+      QStringLiteral("<<"),  QStringLiteral("<<="), QStringLiteral("<="),
+      QStringLiteral("="),   QStringLiteral("=="),  QStringLiteral("=>"),
+      QStringLiteral(">"),   QStringLiteral(">="),  QStringLiteral(">>"),
+      QStringLiteral(">>="), QStringLiteral("?"),   QStringLiteral("^"),
+      QStringLiteral("^="),  QStringLiteral("|"),   QStringLiteral("|="),
+      QStringLiteral("||"),  QStringLiteral("~")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Classifies a Zig node. Functions are colored where they are declared and
+// called, built-ins (@import, @sqrt) like built-in functions, and field and
+// enum names as properties.
+Token zigTokenForNode(const NodeContext &context, const QByteArray &source,
+                      bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isZigKeyword(type)) {
+      return Token::Keyword;
+    }
+    if (isZigOperator(type)) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeEquals(type, "line_comment")) {
+    descend = false;
+    return Token::CommentLine;
+  }
+  if (typeEquals(type, "doc_comment")) {
+    descend = false;
+    return Token::CommentDoc;
+  }
+  if (typeIn(type, {"string_literal", "multiline_string_literal"})) {
+    return Token::String;
+  }
+  if (typeEquals(type, "escape_sequence")) {
+    descend = false;
+    return Token::Escape;
+  }
+  if (typeEquals(type, "char_literal")) {
+    descend = false;
+    return Token::SingleQuotedString;
+  }
+  if (typeIn(type, {"integer_literal", "float_literal"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"boolean_literal", "null_literal", "undefined_literal"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeIn(type, {"primitive_type", "type_identifier"})) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeEquals(type, "field_identifier")) {
+    descend = false;
+    return Token::Property;
+  }
+  if (typeEquals(type, "identifier")) {
+    if (typeEquals(context.parent, "function_declaration") &&
+        typeEquals(context.field, "name")) {
+      return Token::FunctionName;
+    }
+    if (typeEquals(context.parent, "call_expression") &&
+        typeEquals(context.field, "function")) {
+      return Token::FunctionName;
+    }
+    if (typeEquals(context.parent, "build_in_call_expr")) {
+      return Token::BuiltinType;
+    }
+  }
+
+  return Token::None;
+}
+
+// Keywords of Kotlin, as the anonymous nodes the grammar produces for them.
+// Soft keywords such as get, set and value only appear in modifier and
+// declaration positions, so they are not identifiers there.
+bool isKotlinKeyword(const char *type) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("abstract"),    QStringLiteral("actual"),
+      QStringLiteral("annotation"),  QStringLiteral("as"),
+      QStringLiteral("break"),       QStringLiteral("by"),
+      QStringLiteral("catch"),       QStringLiteral("class"),
+      QStringLiteral("companion"),   QStringLiteral("const"),
+      QStringLiteral("constructor"), QStringLiteral("continue"),
+      QStringLiteral("crossinline"), QStringLiteral("data"),
+      QStringLiteral("delegate"),    QStringLiteral("do"),
+      QStringLiteral("dynamic"),     QStringLiteral("else"),
+      QStringLiteral("enum"),        QStringLiteral("expect"),
+      QStringLiteral("external"),    QStringLiteral("final"),
+      QStringLiteral("finally"),     QStringLiteral("for"),
+      QStringLiteral("fun"),         QStringLiteral("get"),
+      QStringLiteral("if"),          QStringLiteral("import"),
+      QStringLiteral("in"),          QStringLiteral("infix"),
+      QStringLiteral("init"),        QStringLiteral("inline"),
+      QStringLiteral("inner"),       QStringLiteral("interface"),
+      QStringLiteral("internal"),    QStringLiteral("is"),
+      QStringLiteral("lateinit"),    QStringLiteral("noinline"),
+      QStringLiteral("object"),      QStringLiteral("open"),
+      QStringLiteral("operator"),    QStringLiteral("out"),
+      QStringLiteral("override"),    QStringLiteral("package"),
+      QStringLiteral("private"),     QStringLiteral("protected"),
+      QStringLiteral("public"),      QStringLiteral("reified"),
+      QStringLiteral("return"),      QStringLiteral("sealed"),
+      QStringLiteral("set"),         QStringLiteral("super"),
+      QStringLiteral("suspend"),     QStringLiteral("tailrec"),
+      QStringLiteral("this"),        QStringLiteral("throw"),
+      QStringLiteral("try"),         QStringLiteral("typealias"),
+      QStringLiteral("val"),         QStringLiteral("var"),
+      QStringLiteral("vararg"),      QStringLiteral("when"),
+      QStringLiteral("where"),       QStringLiteral("while")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Operator tokens of Kotlin, listed exactly.
+bool isKotlinOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),   QStringLiteral("!!"), QStringLiteral("!="),
+      QStringLiteral("!=="), QStringLiteral("%"),  QStringLiteral("%="),
+      QStringLiteral("&&"),  QStringLiteral("*"),  QStringLiteral("*="),
+      QStringLiteral("+"),   QStringLiteral("++"), QStringLiteral("+="),
+      QStringLiteral("-"),   QStringLiteral("--"), QStringLiteral("-="),
+      QStringLiteral("->"),  QStringLiteral(".."), QStringLiteral("..<"),
+      QStringLiteral("/"),   QStringLiteral("/="), QStringLiteral("<"),
+      QStringLiteral("<="),  QStringLiteral("="),  QStringLiteral("=="),
+      QStringLiteral("==="), QStringLiteral(">"),  QStringLiteral(">="),
+      QStringLiteral("?"),   QStringLiteral("?:"), QStringLiteral("||"),
+      QStringLiteral("as?"), QStringLiteral("!in")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Classifies a Kotlin node. Class and function names are colored where they
+// are declared, types where they are used, and called functions and members.
+Token kotlinTokenForNode(const NodeContext &context, const QByteArray &source,
+                         bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isKotlinKeyword(type)) {
+      return Token::Keyword;
+    }
+    if (isKotlinOperator(type)) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeIn(type, {"line_comment", "block_comment", "shebang"})) {
+    descend = false;
+    return Token::CommentLine;
+  }
+  if (typeEquals(type, "annotation")) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeIn(type, {"string_literal", "multiline_string_literal"})) {
+    return Token::String;
+  }
+  // Code in ${...} is colored by its own nodes, the rest is plain text.
+  if (typeEquals(type, "interpolation")) {
+    return Token::Default;
+  }
+  if (typeEquals(type, "escape_sequence")) {
+    descend = false;
+    return Token::Escape;
+  }
+  if (typeEquals(type, "character_literal")) {
+    descend = false;
+    return Token::SingleQuotedString;
+  }
+  if (typeIn(type, {"number_literal", "float_literal"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeEquals(type, "identifier")) {
+    const char *parent = context.parent;
+    if (typeEquals(context.field, "name")) {
+      if (typeIn(parent, {"class_declaration", "object_declaration"})) {
+        return Token::Type;
+      }
+      if (typeEquals(parent, "function_declaration")) {
+        return Token::FunctionName;
+      }
+    }
+    if (typeEquals(parent, "user_type")) {
+      return Token::Type;
+    }
+    // The callee of a call is the first child: foo(...).
+    if (typeEquals(parent, "call_expression") &&
+        ts_node_is_null(ts_node_prev_named_sibling(context.node))) {
+      return Token::FunctionName;
+    }
+    // The member of a navigation: a.b is a property, a.b(...) a call.
+    if (typeEquals(parent, "navigation_expression") &&
+        !ts_node_is_null(ts_node_prev_named_sibling(context.node))) {
+      return typeEquals(context.grandparent, "call_expression")
+                 ? Token::FunctionName
+                 : Token::Property;
+    }
+  }
+
+  return Token::None;
+}
+
+// Classifies an assembly node (GNU syntax). Mnemonics are keywords, registers
+// are types, directives and labels are colored by their role, and the size
+// and addressing keywords (byte, qword, ptr, rel) are built-in types.
+Token asmTokenForNode(const NodeContext &context, const QByteArray &source,
+                      bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (typeIn(type, {"byte", "word", "dword", "qword", "ptr", "rel"})) {
+      return Token::BuiltinType;
+    }
+    if (typeIn(type, {"const", "label"})) {
+      return Token::Preprocessor;
+    }
+    if (typeIn(type, {"+", "-", "*", "/", "(", ")", "[", "]", "{", "}", "!",
+                      "&", "|", "^", "~", "#"})) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeIn(type, {"line_comment", "block_comment"})) {
+    descend = false;
+    return Token::Comment;
+  }
+  if (typeIn(type, {"int", "float"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeEquals(type, "string")) {
+    descend = false;
+    return Token::String;
+  }
+  if (typeEquals(type, "reg")) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeEquals(type, "meta_ident")) {
+    descend = false;
+    return typeEquals(context.parent, "label") ? Token::Label
+                                               : Token::Preprocessor;
+  }
+  if (typeEquals(type, "ident")) {
+    descend = false;
+    return Token::Label;
+  }
+  if (typeEquals(type, "word") && typeEquals(context.parent, "instruction") &&
+      typeEquals(context.field, "kind")) {
+    descend = false;
+    return Token::Keyword;
+  }
+
+  return Token::None;
+}
+
+// Objective-C directives and literals, as the anonymous nodes the grammar
+// produces for them.
+bool isObjcKeyword(const char *type) {
+  static const QSet<QString> keywords = {QStringLiteral("@"),
+                                         QStringLiteral("@autoreleasepool"),
+                                         QStringLiteral("@available"),
+                                         QStringLiteral("@class"),
+                                         QStringLiteral("@compatibility_alias"),
+                                         QStringLiteral("@catch"),
+                                         QStringLiteral("@defs"),
+                                         QStringLiteral("@dynamic"),
+                                         QStringLiteral("@encode"),
+                                         QStringLiteral("@end"),
+                                         QStringLiteral("@finally"),
+                                         QStringLiteral("@implementation"),
+                                         QStringLiteral("@import"),
+                                         QStringLiteral("@interface"),
+                                         QStringLiteral("@optional"),
+                                         QStringLiteral("@package"),
+                                         QStringLiteral("@private"),
+                                         QStringLiteral("@property"),
+                                         QStringLiteral("@protected"),
+                                         QStringLiteral("@protocol"),
+                                         QStringLiteral("@public"),
+                                         QStringLiteral("@required"),
+                                         QStringLiteral("@selector"),
+                                         QStringLiteral("@synchronized"),
+                                         QStringLiteral("@synthesize"),
+                                         QStringLiteral("@throw"),
+                                         QStringLiteral("@try")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Classifies an Objective-C node. Classes and protocols are types, method
+// selectors and called methods are functions, and self and super are
+// keywords. Everything else is classified like C.
+Token objcTokenForNode(const NodeContext &context, const QByteArray &source,
+                       bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isObjcKeyword(type)) {
+      return Token::Keyword;
+    }
+    // The sign of a method declaration: - and +.
+    if (typeIn(type, {"-", "+"}) &&
+        typeIn(context.parent, {"method_declaration", "method_definition"})) {
+      return Token::Operator;
+    }
+    return cFamilyTokenForNode(context, source, descend);
+  }
+
+  if (typeEquals(type, "identifier")) {
+    const uint32_t start = ts_node_start_byte(context.node);
+    const uint32_t end = ts_node_end_byte(context.node);
+    const QByteArray name =
+        source.mid(static_cast<int>(start), static_cast<int>(end - start));
+    if (name == "self" || name == "super") {
+      descend = false;
+      return Token::Keyword;
+    }
+    const char *parent = context.parent;
+    if (typeIn(parent, {"class_interface", "class_implementation",
+                        "protocol_declaration", "protocol_reference_list"})) {
+      descend = false;
+      return Token::Type;
+    }
+    if (typeIn(parent, {"method_declaration", "method_definition",
+                        "keyword_declarator"})) {
+      descend = false;
+      return Token::FunctionName;
+    }
+    if (typeEquals(parent, "message_expression") &&
+        typeEquals(context.field, "method")) {
+      descend = false;
+      return Token::FunctionName;
+    }
+    if (typeEquals(parent, "property_attribute")) {
+      descend = false;
+      return Token::Keyword;
+    }
+  }
+
+  return cFamilyTokenForNode(context, source, descend);
+}
+
+// Keywords of Swift, as the anonymous nodes the grammar produces for them.
+// Soft keywords such as get, set and willSet only appear in accessors.
+bool isSwiftKeyword(const char *type) {
+  static const QSet<QString> keywords = {QStringLiteral("actor"),
+                                         QStringLiteral("any"),
+                                         QStringLiteral("as"),
+                                         QStringLiteral("associatedtype"),
+                                         QStringLiteral("async"),
+                                         QStringLiteral("await"),
+                                         QStringLiteral("break"),
+                                         QStringLiteral("case"),
+                                         QStringLiteral("catch"),
+                                         QStringLiteral("class"),
+                                         QStringLiteral("continue"),
+                                         QStringLiteral("convenience"),
+                                         QStringLiteral("default"),
+                                         QStringLiteral("defer"),
+                                         QStringLiteral("deinit"),
+                                         QStringLiteral("didSet"),
+                                         QStringLiteral("do"),
+                                         QStringLiteral("dynamic"),
+                                         QStringLiteral("else"),
+                                         QStringLiteral("enum"),
+                                         QStringLiteral("extension"),
+                                         QStringLiteral("fallthrough"),
+                                         QStringLiteral("false"),
+                                         QStringLiteral("fileprivate"),
+                                         QStringLiteral("final"),
+                                         QStringLiteral("for"),
+                                         QStringLiteral("func"),
+                                         QStringLiteral("get"),
+                                         QStringLiteral("guard"),
+                                         QStringLiteral("if"),
+                                         QStringLiteral("import"),
+                                         QStringLiteral("in"),
+                                         QStringLiteral("indirect"),
+                                         QStringLiteral("infix"),
+                                         QStringLiteral("init"),
+                                         QStringLiteral("inout"),
+                                         QStringLiteral("internal"),
+                                         QStringLiteral("is"),
+                                         QStringLiteral("lazy"),
+                                         QStringLiteral("let"),
+                                         QStringLiteral("mutating"),
+                                         QStringLiteral("nil"),
+                                         QStringLiteral("nonisolated"),
+                                         QStringLiteral("nonmutating"),
+                                         QStringLiteral("open"),
+                                         QStringLiteral("operator"),
+                                         QStringLiteral("optional"),
+                                         QStringLiteral("override"),
+                                         QStringLiteral("package"),
+                                         QStringLiteral("postfix"),
+                                         QStringLiteral("precedencegroup"),
+                                         QStringLiteral("prefix"),
+                                         QStringLiteral("private"),
+                                         QStringLiteral("protocol"),
+                                         QStringLiteral("public"),
+                                         QStringLiteral("repeat"),
+                                         QStringLiteral("required"),
+                                         QStringLiteral("return"),
+                                         QStringLiteral("set"),
+                                         QStringLiteral("some"),
+                                         QStringLiteral("static"),
+                                         QStringLiteral("struct"),
+                                         QStringLiteral("subscript"),
+                                         QStringLiteral("switch"),
+                                         QStringLiteral("throw"),
+                                         QStringLiteral("throws"),
+                                         QStringLiteral("true"),
+                                         QStringLiteral("try"),
+                                         QStringLiteral("typealias"),
+                                         QStringLiteral("unowned"),
+                                         QStringLiteral("var"),
+                                         QStringLiteral("weak"),
+                                         QStringLiteral("where"),
+                                         QStringLiteral("while"),
+                                         QStringLiteral("willSet"),
+                                         QStringLiteral("borrowing"),
+                                         QStringLiteral("consuming"),
+                                         QStringLiteral("macro")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Operator tokens of Swift, listed exactly.
+bool isSwiftOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),  QStringLiteral("!="),  QStringLiteral("!=="),
+      QStringLiteral("%"),  QStringLiteral("%="),  QStringLiteral("&"),
+      QStringLiteral("&&"), QStringLiteral("*"),   QStringLiteral("*="),
+      QStringLiteral("+"),  QStringLiteral("++"),  QStringLiteral("+="),
+      QStringLiteral("-"),  QStringLiteral("--"),  QStringLiteral("-="),
+      QStringLiteral("->"), QStringLiteral("..<"), QStringLiteral("..."),
+      QStringLiteral("/"),  QStringLiteral("/="),  QStringLiteral("<"),
+      QStringLiteral("<<"), QStringLiteral("<="),  QStringLiteral("="),
+      QStringLiteral("=="), QStringLiteral("==="), QStringLiteral(">"),
+      QStringLiteral(">="), QStringLiteral(">>"),  QStringLiteral("?"),
+      QStringLiteral("??"), QStringLiteral("^"),   QStringLiteral("|"),
+      QStringLiteral("||"), QStringLiteral("~")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Classifies a Swift node. Types, functions and calls are colored where they
+// are declared and used, members that are called are functions and other
+// members are properties.
+Token swiftTokenForNode(const NodeContext &context, const QByteArray &source,
+                        bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isSwiftKeyword(type)) {
+      return Token::Keyword;
+    }
+    if (isSwiftOperator(type)) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeEquals(type, "comment") || typeEquals(type, "multiline_comment")) {
+    descend = false;
+    return Token::CommentLine;
+  }
+  if (typeEquals(type, "shebang_line")) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeIn(type, {"line_string_literal", "multi_line_string_literal",
+                    "raw_string_literal"})) {
+    // Interpolated code keeps its own colors inside the string.
+    return Token::String;
+  }
+  if (typeEquals(type, "str_escaped_char")) {
+    descend = false;
+    return Token::Escape;
+  }
+  if (typeEquals(type, "interpolated_expression")) {
+    return Token::Default;
+  }
+  if (typeEquals(type, "regex_literal")) {
+    descend = false;
+    return Token::Regex;
+  }
+  if (typeIn(type, {"integer_literal", "real_literal", "hex_literal",
+                    "oct_literal", "bin_literal"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"boolean_literal", "self_expression", "super_expression",
+                    "special_literal"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeIn(type, {"attribute", "directive", "availability_condition"})) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "type_identifier")) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeEquals(type, "simple_identifier")) {
+    descend = false;
+    const char *parent = context.parent;
+    if (typeEquals(context.field, "name") &&
+        typeIn(parent,
+               {"function_declaration", "protocol_function_declaration"})) {
+      return Token::FunctionName;
+    }
+    if (typeEquals(context.field, "name") && typeEquals(parent, "enum_entry")) {
+      return Token::Type;
+    }
+    // The callee of a call is the first child: Point(...).
+    if (typeEquals(parent, "call_expression") &&
+        ts_node_is_null(ts_node_prev_named_sibling(context.node))) {
+      return Token::FunctionName;
+    }
+    // A member is a call when its navigation is the callee: a.b(...).
+    if (typeEquals(parent, "navigation_suffix")) {
+      const TSNode suffix = ts_node_parent(context.node);
+      const TSNode navigation = ts_node_parent(suffix);
+      const TSNode callee = ts_node_parent(navigation);
+      return typeEquals(ts_node_type(callee), "call_expression")
+                 ? Token::FunctionName
+                 : Token::Property;
+    }
+    return Token::None;
+  }
+
+  return Token::None;
+}
+
+// Operator tokens of SQL, listed exactly.
+bool isSqlOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),  QStringLiteral("!="), QStringLiteral("%"),
+      QStringLiteral("*"),  QStringLiteral("+"),  QStringLiteral("-"),
+      QStringLiteral("/"),  QStringLiteral("<"),  QStringLiteral("<="),
+      QStringLiteral("<>"), QStringLiteral("="),  QStringLiteral(">"),
+      QStringLiteral(">="), QStringLiteral("||"), QStringLiteral("::"),
+      QStringLiteral("~")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Classifies an SQL node. Keywords are the keyword_* nodes, literals are
+// strings or numbers by their first character, and table and function names
+// are types and functions.
+Token sqlTokenForNode(const NodeContext &context, const QByteArray &source,
+                      bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    return isSqlOperator(type) ? Token::Operator : Token::None;
+  }
+
+  const uint32_t start = ts_node_start_byte(context.node);
+  if (typeIn(type, {"comment", "marginalia"})) {
+    descend = false;
+    // Line comments start with --, block comments with /*.
+    return byteAt(source, start + 1) == '*' ? Token::Comment
+                                            : Token::CommentLine;
+  }
+  if (typeEquals(type, "dollar_quote")) {
+    descend = false;
+    return Token::String;
+  }
+  if (typeEquals(type, "literal")) {
+    const char first = byteAt(source, start);
+    if (first == '\'') {
+      descend = false;
+      return Token::SingleQuotedString;
+    }
+    if (isAsciiDigit(first) || first == '.' || first == '-') {
+      descend = false;
+      return Token::Number;
+    }
+    // NULL and other keyword literals are classified by their keyword node.
+    return Token::None;
+  }
+  // The data type of a column: the type field of a column definition.
+  if (typeEquals(context.field, "type") &&
+      typeEquals(context.parent, "column_definition")) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeEquals(type, "identifier") &&
+      typeEquals(context.parent, "object_reference")) {
+    descend = false;
+    return typeEquals(context.grandparent, "invocation") ? Token::FunctionName
+                                                         : Token::Type;
+  }
+  if (QString::fromLatin1(type).startsWith(QStringLiteral("keyword_"))) {
+    descend = false;
+    return Token::Keyword;
+  }
+
+  return Token::None;
+}
+
+// SQL style ids. The lexer has no type or function styles, so those use the
+// identifier color.
+int sqlStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerSQL::Default;
+  case Token::Comment:
+  case Token::CommentDoc:
+    return QsciLexerSQL::CommentDoc;
+  case Token::CommentLine:
+    return QsciLexerSQL::CommentLine;
+  case Token::Number:
+    return QsciLexerSQL::Number;
+  case Token::Keyword:
+    return QsciLexerSQL::Keyword;
+  case Token::String:
+    return QsciLexerSQL::DoubleQuotedString;
+  case Token::SingleQuotedString:
+    return QsciLexerSQL::SingleQuotedString;
+  case Token::Operator:
+    return QsciLexerSQL::Operator;
+  case Token::Type:
+  case Token::FunctionName:
+  case Token::Label:
+  case Token::Variable:
+    return QsciLexerSQL::Identifier;
+  default:
+    return -1;
+  }
+}
+
+// Operator tokens of HCL and Terraform, listed exactly.
+bool isHclOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),  QStringLiteral("!="), QStringLiteral("%"),
+      QStringLiteral("&&"), QStringLiteral("*"),  QStringLiteral("+"),
+      QStringLiteral("-"),  QStringLiteral("/"),  QStringLiteral("<"),
+      QStringLiteral("<="), QStringLiteral("="),  QStringLiteral("=="),
+      QStringLiteral("=>"), QStringLiteral(">"),  QStringLiteral(">="),
+      QStringLiteral("?"),  QStringLiteral("||"), QStringLiteral("..."),
+      QStringLiteral("[*]")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Classifies an HCL or Terraform node. The first identifier of a block is its
+// type (resource, variable, module...), attribute names and selected members
+// are properties, variable references are variables.
+Token hclTokenForNode(const NodeContext &context, const QByteArray &source,
+                      bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (typeIn(type, {"for", "in", "if", "else", "endfor", "endif", "true",
+                      "false", "null"})) {
+      return Token::Keyword;
+    }
+    return isHclOperator(type) ? Token::Operator : Token::None;
+  }
+
+  const uint32_t start = ts_node_start_byte(context.node);
+  if (typeEquals(type, "comment")) {
+    descend = false;
+    return byteAt(source, start + 1) == '*' ? Token::Comment
+                                            : Token::CommentLine;
+  }
+  if (typeEquals(type, "string_lit")) {
+    return Token::String;
+  }
+  // Code in ${...} and %{...} is colored by its own nodes, the rest is text.
+  if (typeIn(type, {"template_interpolation", "template_directive"})) {
+    return Token::Default;
+  }
+  if (typeEquals(type, "heredoc_template")) {
+    return Token::String;
+  }
+  if (typeIn(type, {"heredoc_start", "heredoc_identifier"})) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "numeric_lit")) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"bool_lit", "null_lit"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeEquals(type, "identifier")) {
+    descend = false;
+    const char *parent = context.parent;
+    const bool first =
+        ts_node_is_null(ts_node_prev_named_sibling(context.node));
+    if (typeEquals(parent, "block") && first) {
+      return Token::Keyword;
+    }
+    if (typeEquals(parent, "attribute") && first) {
+      return Token::Property;
+    }
+    if (typeEquals(parent, "get_attr")) {
+      return Token::Property;
+    }
+    if (typeEquals(parent, "variable_expr")) {
+      return Token::Variable;
+    }
+    if (typeEquals(parent, "function_call")) {
+      return Token::FunctionName;
+    }
+    descend = true;
+  }
+
+  return Token::None;
+}
+
+// Classifies a Dockerfile node. Instructions are keywords, variables are
+// variables, flags are directives and the image and port of a line are types
+// and numbers.
+Token dockerfileTokenForNode(const NodeContext &context,
+                             const QByteArray &source, bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    // The instruction keywords (FROM, RUN, AS...) are literal tokens of their
+    // instruction.
+    if (isAsciiLetter(type[0]) &&
+        typeEndsWith(context.parent, "_instruction")) {
+      return Token::Keyword;
+    }
+    if (typeIn(type, {"=", "@"})) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeEquals(type, "comment")) {
+    descend = false;
+    return Token::CommentLine;
+  }
+  if (typeEquals(type, "variable")) {
+    descend = false;
+    return Token::Variable;
+  }
+  if (typeEquals(type, "expansion")) {
+    return Token::Variable;
+  }
+  if (typeIn(type, {"double_quoted_string", "single_quoted_string",
+                    "json_string", "heredoc_block", "heredoc_line"})) {
+    return Token::String;
+  }
+  if (typeIn(type, {"heredoc_marker", "heredoc_end"})) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "escape_sequence")) {
+    descend = false;
+    return Token::Escape;
+  }
+  if (typeIn(type, {"param", "mount_param", "mount_param_param"})) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeIn(type, {"image_name", "image_alias"})) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeIn(type, {"image_tag", "image_digest"})) {
+    descend = false;
+    return Token::Variable;
+  }
+  if (typeEquals(type, "expose_port")) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeEquals(type, "line_continuation")) {
+    descend = false;
+    return Token::Operator;
+  }
+  // The names of ARG, ENV and LABEL pairs.
+  if (typeEquals(type, "unquoted_string") &&
+      typeIn(context.field, {"name", "key"})) {
+    descend = false;
+    return Token::Variable;
+  }
+
+  return Token::None;
+}
+
+// Keywords that CMake takes as arguments of commands, such as PUBLIC or
+// VERSION. They are not reserved, so they are only colored in arguments.
+bool isCMakeArgumentKeyword(const QString &word) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("ALIAS"),      QStringLiteral("COMMAND"),
+      QStringLiteral("COMPONENTS"), QStringLiteral("DESTINATION"),
+      QStringLiteral("FALSE"),      QStringLiteral("FORCE"),
+      QStringLiteral("INTERFACE"),  QStringLiteral("LANGUAGES"),
+      QStringLiteral("MODULE"),     QStringLiteral("OFF"),
+      QStringLiteral("ON"),         QStringLiteral("PARENT_SCOPE"),
+      QStringLiteral("PRIVATE"),    QStringLiteral("PROPERTIES"),
+      QStringLiteral("PUBLIC"),     QStringLiteral("REQUIRED"),
+      QStringLiteral("SHARED"),     QStringLiteral("STATIC"),
+      QStringLiteral("TARGETS"),    QStringLiteral("TRUE"),
+      QStringLiteral("VERSION")};
+  return keywords.contains(word.toUpper());
+}
+
+// Classifies a CMake node. Command names are functions, the block commands
+// (if, foreach, function...) are keywords, and ${...} references are
+// variables.
+Token cmakeTokenForNode(const NodeContext &context, const QByteArray &source,
+                        bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    return Token::None;
+  }
+
+  if (typeIn(type, {"line_comment", "bracket_comment"})) {
+    descend = false;
+    return Token::Comment;
+  }
+  if (typeEquals(type, "bracket_argument")) {
+    descend = false;
+    return Token::String;
+  }
+  // Quoted arguments keep their quotes, variables inside are highlighted.
+  if (typeEquals(type, "quoted_argument")) {
+    return Token::String;
+  }
+  if (typeIn(type, {"variable_ref", "normal_var", "env_var", "cache_var"})) {
+    descend = false;
+    return Token::Variable;
+  }
+  if (typeIn(type, {"if", "elseif", "else", "endif", "foreach", "endforeach",
+                    "while", "endwhile", "function", "endfunction", "macro",
+                    "endmacro", "block", "endblock"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeEquals(type, "unquoted_argument")) {
+    descend = false;
+    const uint32_t start = ts_node_start_byte(context.node);
+    const uint32_t end = ts_node_end_byte(context.node);
+    const QString word = QString::fromUtf8(
+        source.mid(static_cast<int>(start), static_cast<int>(end - start)));
+    return isCMakeArgumentKeyword(word) ? Token::BuiltinType : Token::None;
+  }
+  if (typeEquals(type, "identifier") &&
+      typeEquals(context.parent, "normal_command")) {
+    descend = false;
+    return Token::FunctionName;
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -1207,6 +3118,38 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
   case StyledLanguage::Css:
   case StyledLanguage::EmbeddedCss:
     return cssTokenForNode(context, source, descend);
+  case StyledLanguage::Xml:
+    return xmlTokenForNode(context, source, descend);
+  case StyledLanguage::FSharp:
+    return fsharpTokenForNode(context, source, descend);
+  case StyledLanguage::Lua:
+    return luaTokenForNode(context, source, descend);
+  case StyledLanguage::Scala:
+    return scalaTokenForNode(context, source, descend);
+  case StyledLanguage::Makefile:
+    return makefileTokenForNode(context, source, descend);
+  case StyledLanguage::Ruby:
+    return rubyTokenForNode(context, source, descend);
+  case StyledLanguage::Go:
+    return goTokenForNode(context, source, descend);
+  case StyledLanguage::Zig:
+    return zigTokenForNode(context, source, descend);
+  case StyledLanguage::Kotlin:
+    return kotlinTokenForNode(context, source, descend);
+  case StyledLanguage::Asm:
+    return asmTokenForNode(context, source, descend);
+  case StyledLanguage::ObjectiveC:
+    return objcTokenForNode(context, source, descend);
+  case StyledLanguage::Swift:
+    return swiftTokenForNode(context, source, descend);
+  case StyledLanguage::Sql:
+    return sqlTokenForNode(context, source, descend);
+  case StyledLanguage::Hcl:
+    return hclTokenForNode(context, source, descend);
+  case StyledLanguage::Dockerfile:
+    return dockerfileTokenForNode(context, source, descend);
+  case StyledLanguage::CMake:
+    return cmakeTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
@@ -1425,6 +3368,265 @@ int bashStyleFor(Token token) {
   }
 }
 
+int batchStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerBatch::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerBatch::Comment;
+  case Token::Keyword:
+    return QsciLexerBatch::Keyword;
+  case Token::Label:
+    return QsciLexerBatch::Label;
+  case Token::HideCommand:
+    return QsciLexerBatch::HideCommandChar;
+  case Token::ExternalCommand:
+    return QsciLexerBatch::ExternalCommand;
+  case Token::Variable:
+    return QsciLexerBatch::Variable;
+  case Token::Operator:
+    return QsciLexerBatch::Operator;
+  default:
+    return -1;
+  }
+}
+
+// A run of characters of one line, as classified for the batch lexer.
+struct BatchSpan {
+  int start;
+  int length;
+  Token token;
+};
+
+// Built-in commands, recognized in command position.
+bool isBatchInternalCommand(const QString &word) {
+  static const QSet<QString> commands = {
+      QStringLiteral("assoc"),  QStringLiteral("break"),
+      QStringLiteral("cd"),     QStringLiteral("chdir"),
+      QStringLiteral("cls"),    QStringLiteral("color"),
+      QStringLiteral("copy"),   QStringLiteral("date"),
+      QStringLiteral("del"),    QStringLiteral("dir"),
+      QStringLiteral("echo"),   QStringLiteral("endlocal"),
+      QStringLiteral("erase"),  QStringLiteral("exit"),
+      QStringLiteral("ftype"),  QStringLiteral("md"),
+      QStringLiteral("mkdir"),  QStringLiteral("mklink"),
+      QStringLiteral("move"),   QStringLiteral("path"),
+      QStringLiteral("pause"),  QStringLiteral("popd"),
+      QStringLiteral("prompt"), QStringLiteral("pushd"),
+      QStringLiteral("rd"),     QStringLiteral("ren"),
+      QStringLiteral("rename"), QStringLiteral("rmdir"),
+      QStringLiteral("set"),    QStringLiteral("setlocal"),
+      QStringLiteral("shift"),  QStringLiteral("start"),
+      QStringLiteral("time"),   QStringLiteral("title"),
+      QStringLiteral("type"),   QStringLiteral("ver"),
+      QStringLiteral("verify"), QStringLiteral("vol")};
+  return commands.contains(word.toLower());
+}
+
+// Words with a meaning of their own wherever they appear in a line.
+bool isBatchControlKeyword(const QString &word) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("call"),  QStringLiteral("defined"),
+      QStringLiteral("do"),    QStringLiteral("else"),
+      QStringLiteral("equ"),   QStringLiteral("errorlevel"),
+      QStringLiteral("exist"), QStringLiteral("for"),
+      QStringLiteral("geq"),   QStringLiteral("goto"),
+      QStringLiteral("gtr"),   QStringLiteral("if"),
+      QStringLiteral("in"),    QStringLiteral("leq"),
+      QStringLiteral("lss"),   QStringLiteral("neq"),
+      QStringLiteral("not")};
+  return keywords.contains(word.toLower());
+}
+
+// The end of the percent expansion (%VAR%, %1, %~dp0, %%i) starting at start.
+int batchPercentEnd(const QString &line, int start) {
+  const int length = line.size();
+  if (start + 1 >= length) {
+    return length;
+  }
+
+  const QChar next = line.at(start + 1);
+  // Loop variable of a for in a batch file: %%i.
+  if (next == QChar('%')) {
+    return std::min(start + 3, length);
+  }
+  // Positional parameter: %1.
+  if (next.isDigit()) {
+    return start + 2;
+  }
+  // Parameter modifiers: %~dp0, %~$PATH:1.
+  if (next == QChar('~')) {
+    int end = start + 2;
+    while (end < length &&
+           QStringLiteral("fdpnxsatzFDPNXSATZ").contains(line.at(end))) {
+      ++end;
+    }
+    if (end < length && line.at(end) == QChar('$')) {
+      const int colon = line.indexOf(QChar(':'), end);
+      end = colon < 0 ? end + 1 : colon + 1;
+    }
+    if (end < length && line.at(end).isDigit()) {
+      ++end;
+    }
+    return end;
+  }
+
+  const int close = line.indexOf(QChar('%'), start + 1);
+  return close < 0 ? start + 1 : close + 1;
+}
+
+// Classifies the parts of one batch line. Diff and other embedding callers
+// pass the text without any prefix.
+std::vector<BatchSpan> classifyBatchLine(const QString &line) {
+  std::vector<BatchSpan> spans;
+  const int length = line.size();
+  const QString delimiters = QStringLiteral("\"%!&|<>()");
+  int i = 0;
+
+  const auto skipBlanks = [&]() {
+    while (i < length && line.at(i).isSpace()) {
+      ++i;
+    }
+  };
+
+  skipBlanks();
+  if (line.mid(i, 2) == QStringLiteral("::")) {
+    spans.push_back({i, length - i, Token::Comment});
+    return spans;
+  }
+  if (i < length && line.at(i) == QChar(':')) {
+    spans.push_back({i, length - i, Token::Label});
+    return spans;
+  }
+
+  bool commandPosition = true;
+  bool labelExpected = false;
+  // Between the parentheses of a for: the words are a file set, not commands.
+  bool inForSet = false;
+  if (i < length && line.at(i) == QChar('@')) {
+    spans.push_back({i, 1, Token::HideCommand});
+    ++i;
+    skipBlanks();
+  }
+
+  while (i < length) {
+    const QChar c = line.at(i);
+    if (c.isSpace()) {
+      ++i;
+      continue;
+    }
+
+    // Quoted text is not classified; it may contain any of the delimiters.
+    if (c == QChar('"')) {
+      const int close = line.indexOf(QChar('"'), i + 1);
+      i = close < 0 ? length : close + 1;
+      commandPosition = false;
+      labelExpected = false;
+      continue;
+    }
+
+    if (c == QChar('%')) {
+      const int end = batchPercentEnd(line, i);
+      // A lone percent sign is plain text.
+      if (end - i > 1) {
+        spans.push_back({i, end - i, Token::Variable});
+      }
+      i = end;
+      commandPosition = false;
+      labelExpected = false;
+      continue;
+    }
+
+    // Delayed expansion: !VAR!.
+    if (c == QChar('!')) {
+      const int close = line.indexOf(QChar('!'), i + 1);
+      if (close < 0) {
+        ++i;
+        continue;
+      }
+      spans.push_back({i, close + 1 - i, Token::Variable});
+      i = close + 1;
+      commandPosition = false;
+      labelExpected = false;
+      continue;
+    }
+
+    if (QStringLiteral("&|<>()").contains(c)) {
+      int operatorLength = 1;
+      if ((c == QChar('&') || c == QChar('|') || c == QChar('>')) &&
+          i + 1 < length && line.at(i + 1) == c) {
+        operatorLength = 2;
+      }
+      spans.push_back({i, operatorLength, Token::Operator});
+      // A command follows a command separator or an opening parenthesis.
+      if (c == QChar(')')) {
+        inForSet = false;
+      }
+      commandPosition =
+          c == QChar('&') || c == QChar('|') || (c == QChar('(') && !inForSet);
+      labelExpected = false;
+      i += operatorLength;
+      continue;
+    }
+
+    const int start = i;
+    while (i < length && !line.at(i).isSpace() &&
+           !delimiters.contains(line.at(i))) {
+      ++i;
+    }
+    if (i == start) {
+      ++i;
+      continue;
+    }
+
+    const QString word = line.mid(start, i - start);
+    const bool isCommand = commandPosition;
+    commandPosition = false;
+
+    // Target of goto and call.
+    if (labelExpected && word.startsWith(QChar(':'))) {
+      spans.push_back({start, i - start, Token::Label});
+      labelExpected = false;
+      continue;
+    }
+    labelExpected = false;
+
+    if (isCommand && word.startsWith(QStringLiteral("::"))) {
+      spans.push_back({start, length - start, Token::Comment});
+      break;
+    }
+    if (isCommand &&
+        word.compare(QStringLiteral("rem"), Qt::CaseInsensitive) == 0) {
+      spans.push_back({start, length - start, Token::Comment});
+      break;
+    }
+
+    if (isCommand) {
+      const bool keyword =
+          isBatchInternalCommand(word) || isBatchControlKeyword(word);
+      spans.push_back({start, i - start,
+                       keyword ? Token::Keyword : Token::ExternalCommand});
+    } else if (isBatchControlKeyword(word)) {
+      spans.push_back({start, i - start, Token::Keyword});
+    }
+
+    // do and else are followed by a command, goto and call by a label.
+    const QString lower = word.toLower();
+    if (lower == QStringLiteral("in")) {
+      inForSet = true;
+    }
+    if (lower == QStringLiteral("do") || lower == QStringLiteral("else")) {
+      commandPosition = true;
+    }
+    labelExpected =
+        lower == QStringLiteral("goto") || lower == QStringLiteral("call");
+  }
+
+  return spans;
+}
+
 int jsonStyleFor(Token token) {
   switch (token) {
   case Token::Default:
@@ -1535,6 +3737,204 @@ int htmlStyleFor(Token token) {
   }
 }
 
+int xmlStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerXML::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerXML::HTMLComment;
+  case Token::String:
+  case Token::TripleQuotedString:
+  case Token::RawString:
+    return QsciLexerXML::HTMLDoubleQuotedString;
+  case Token::SingleQuotedString:
+    return QsciLexerXML::HTMLSingleQuotedString;
+  case Token::Tag:
+    return QsciLexerXML::Tag;
+  case Token::UnknownTag:
+    return QsciLexerXML::UnknownTag;
+  case Token::Attribute:
+    return QsciLexerXML::Attribute;
+  case Token::Entity:
+    return QsciLexerXML::Entity;
+  case Token::CData:
+    return QsciLexerXML::CDATA;
+  case Token::Preprocessor:
+    return QsciLexerXML::XMLStart;
+  case Token::Operator:
+    return QsciLexerXML::OtherInTag;
+  default:
+    return -1;
+  }
+}
+
+// Lua style ids: the theme colors Comment, LineComment, Keyword, Number,
+// String, Character, LiteralString, Operator, Preprocessor, Label,
+// BasicFunctions and Identifier.
+int luaStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerLua::Default;
+  case Token::Comment:
+  case Token::CommentDoc:
+    return QsciLexerLua::Comment;
+  case Token::CommentLine:
+    return QsciLexerLua::LineComment;
+  case Token::Number:
+    return QsciLexerLua::Number;
+  case Token::Keyword:
+    return QsciLexerLua::Keyword;
+  case Token::String:
+  case Token::TripleQuotedString:
+    return QsciLexerLua::String;
+  case Token::SingleQuotedString:
+    return QsciLexerLua::Character;
+  case Token::RawString:
+    return QsciLexerLua::LiteralString;
+  case Token::Operator:
+    return QsciLexerLua::Operator;
+  case Token::Preprocessor:
+    return QsciLexerLua::Preprocessor;
+  case Token::Label:
+    return QsciLexerLua::Label;
+  case Token::FunctionName:
+    return QsciLexerLua::BasicFunctions;
+  case Token::Property:
+    return QsciLexerLua::Identifier;
+  default:
+    return -1;
+  }
+}
+
+// Makefile style ids: the theme colors all of them.
+int makefileStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerMakefile::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerMakefile::Comment;
+  case Token::Preprocessor:
+    return QsciLexerMakefile::Preprocessor;
+  case Token::Variable:
+    return QsciLexerMakefile::Variable;
+  case Token::Operator:
+    return QsciLexerMakefile::Operator;
+  case Token::Target:
+    return QsciLexerMakefile::Target;
+  default:
+    return -1;
+  }
+}
+
+// Ruby style ids.
+int rubyStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerRuby::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerRuby::Comment;
+  case Token::Number:
+    return QsciLexerRuby::Number;
+  case Token::Keyword:
+    return QsciLexerRuby::Keyword;
+  case Token::String:
+    return QsciLexerRuby::DoubleQuotedString;
+  case Token::SingleQuotedString:
+    return QsciLexerRuby::SingleQuotedString;
+  case Token::Regex:
+    return QsciLexerRuby::Regex;
+  case Token::RawString:
+    return QsciLexerRuby::Backticks;
+  case Token::Operator:
+    return QsciLexerRuby::Operator;
+  case Token::Preprocessor:
+    return QsciLexerRuby::HereDocumentDelimiter;
+  case Token::FunctionName:
+    return QsciLexerRuby::FunctionMethodName;
+  case Token::Type:
+    return QsciLexerRuby::ClassName;
+  case Token::Symbol:
+    return QsciLexerRuby::Symbol;
+  case Token::Variable:
+    return QsciLexerRuby::InstanceVariable;
+  case Token::ClassVariable:
+    return QsciLexerRuby::ClassVariable;
+  case Token::GlobalVariable:
+    return QsciLexerRuby::Global;
+  default:
+    return -1;
+  }
+}
+
+// Assembly style ids: mnemonics, registers, directives and labels each have
+// their own color in the theme.
+int asmStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerAsm::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerAsm::Comment;
+  case Token::Number:
+    return QsciLexerAsm::Number;
+  case Token::Operator:
+    return QsciLexerAsm::Operator;
+  case Token::Label:
+  case Token::Variable:
+    return QsciLexerAsm::Identifier;
+  case Token::Keyword:
+    return QsciLexerAsm::CPUInstruction;
+  case Token::Type:
+    return QsciLexerAsm::Register;
+  case Token::Preprocessor:
+    return QsciLexerAsm::Directive;
+  case Token::BuiltinType:
+    return QsciLexerAsm::DirectiveOperand;
+  case Token::String:
+    return QsciLexerAsm::DirectiveOperand;
+  default:
+    return -1;
+  }
+}
+
+// CMake style ids. Block keywords use the keyword color, argument keywords the
+// label color.
+int cmakeStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerCMake::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerCMake::Comment;
+  case Token::String:
+  case Token::TripleQuotedString:
+  case Token::RawString:
+    return QsciLexerCMake::String;
+  case Token::SingleQuotedString:
+    return QsciLexerCMake::StringLeftQuote;
+  case Token::Number:
+    return QsciLexerCMake::Number;
+  case Token::Keyword:
+    return QsciLexerCMake::KeywordSet3;
+  case Token::FunctionName:
+    return QsciLexerCMake::Function;
+  case Token::Variable:
+    return QsciLexerCMake::Variable;
+  case Token::BuiltinType:
+    return QsciLexerCMake::Label;
+  default:
+    return -1;
+  }
+}
+
 int htmlScriptStyleFor(Token token) {
   switch (token) {
   case Token::Default:
@@ -1580,6 +3980,22 @@ int styleFor(StyleSet styleSet, Token token) {
     return htmlStyleFor(token);
   case StyleSet::HtmlScript:
     return htmlScriptStyleFor(token);
+  case StyleSet::Batch:
+    return batchStyleFor(token);
+  case StyleSet::Xml:
+    return xmlStyleFor(token);
+  case StyleSet::Lua:
+    return luaStyleFor(token);
+  case StyleSet::Makefile:
+    return makefileStyleFor(token);
+  case StyleSet::Ruby:
+    return rubyStyleFor(token);
+  case StyleSet::Asm:
+    return asmStyleFor(token);
+  case StyleSet::Sql:
+    return sqlStyleFor(token);
+  case StyleSet::CMake:
+    return cmakeStyleFor(token);
   }
   return -1;
 }
@@ -1673,6 +4089,30 @@ QTextCharFormat formatForToken(const QsciLexer *lexer, StyleSet styleSet,
     fallbackBold = true;
     break;
   case Token::Variable:
+    fallbackColor = QColor(224, 108, 117);
+    break;
+  case Token::Label:
+    fallbackColor = QColor(229, 192, 123);
+    fallbackBold = true;
+    break;
+  case Token::HideCommand:
+    fallbackColor = QColor(86, 182, 194);
+    break;
+  case Token::ExternalCommand:
+    fallbackColor = QColor(97, 175, 239);
+    break;
+  case Token::CData:
+    fallbackColor = QColor(152, 195, 121);
+    break;
+  case Token::Target:
+    fallbackColor = QColor(97, 175, 239);
+    fallbackBold = true;
+    break;
+  case Token::Symbol:
+    fallbackColor = QColor(152, 195, 121);
+    break;
+  case Token::ClassVariable:
+  case Token::GlobalVariable:
     fallbackColor = QColor(224, 108, 117);
     break;
   }
@@ -1780,7 +4220,10 @@ void QsciScintilla::updateTreeSitterHighlighting() {
     return;
   }
 
-  if (!_parser || !_treeSitterLanguage) {
+  // Batch files have no tree-sitter grammar and are classified line by line.
+  const bool batchLexer = dynamic_cast<QsciLexerBatch *>(_lexer) != nullptr;
+
+  if (!batchLexer && (!_parser || !_treeSitterLanguage)) {
     if (_highlighter) {
       _highlighter->clearBlockFormats();
       _highlighter->rehighlight();
@@ -1818,6 +4261,52 @@ void QsciScintilla::updateTreeSitterHighlighting() {
     }
     return it.value();
   };
+
+  if (batchLexer) {
+    bool inHunk = false;
+    for (QTextBlock textBlock = document()->begin(); textBlock.isValid();
+         textBlock = textBlock.next()) {
+      const QString blockText = textBlock.text();
+      const int block = textBlock.blockNumber();
+
+      // Diff lines are classified without their origin prefix, headers are
+      // skipped.
+      int column = 0;
+      if (_unifiedDiffHighlighting) {
+        if (blockText.startsWith(QStringLiteral("diff "))) {
+          inHunk = false;
+          continue;
+        }
+        if (blockText.startsWith(QStringLiteral("@@"))) {
+          inHunk = true;
+          continue;
+        }
+        const QChar origin = blockText.isEmpty() ? QChar(' ') : blockText.at(0);
+        if (!inHunk || (origin != QChar(' ') && origin != QChar('-') &&
+                        origin != QChar('+'))) {
+          continue;
+        }
+        column = 1;
+      }
+
+      const QString source = column == 0 ? blockText : blockText.mid(column);
+      for (const BatchSpan &span : classifyBatchLine(source)) {
+        const QTextCharFormat format = formatFor(StyleSet::Batch, span.token);
+        if (format.hasProperty(QTextFormat::ForegroundBrush) &&
+            format.foreground().color().isValid()) {
+          QTextLayout::FormatRange range;
+          range.start = span.start + column;
+          range.length = span.length;
+          range.format = format;
+          blockFormats[block].append(range);
+        }
+      }
+    }
+
+    _highlighter->setBlockFormats(std::move(blockFormats));
+    _highlighter->rehighlight();
+    return;
+  }
 
   // A line of the parsed source: where it starts in the source (UTF-16) and
   // the block and column it is shown at in the document.

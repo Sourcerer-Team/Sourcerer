@@ -204,6 +204,126 @@ DarkThemeLexersHighlighter::~DarkThemeLexersHighlighter() {}
 void DarkThemeLexersHighlighter::initializeColorSchemes() {
   _colorSchemes["default"] = DEFAULT_DARK_COLORS;
   _colorSchemes["light"] = DEFAULT_LIGHT_COLORS;
+
+  // Purple keeps the dark syntax colors and only tints the editor chrome.
+  DarkThemeColors purple = DEFAULT_DARK_COLORS;
+  purple.background = QColor(43, 39, 53);
+  purple.foreground = QColor(224, 221, 232);
+  purple.selection = QColor(224, 221, 232);
+  purple.selectionBackground = QColor(55, 70, 89);
+  purple.currentLine = QColor(56, 51, 66);
+  purple.lineNumbers = QColor(138, 134, 150);
+  purple.lineNumbersBackground = QColor(36, 33, 46);
+  purple.foldMargin = QColor(36, 33, 46);
+  purple.foldMarginBackground = QColor(36, 33, 46);
+  purple.indentationGuides = QColor(74, 69, 86);
+  purple.caretLine = QColor(56, 51, 66);
+  purple.caretForeground = QColor(224, 221, 232);
+  purple.identifier = QColor(224, 221, 232);
+  purple.phpDefault = QColor(224, 221, 232);
+  _colorSchemes["purple"] = purple;
+
+  DarkThemeColors blue = DEFAULT_DARK_COLORS;
+  blue.background = QColor(33, 45, 67);
+  blue.foreground = QColor(213, 222, 234);
+  blue.selection = QColor(213, 222, 234);
+  blue.selectionBackground = QColor(32, 84, 114);
+  blue.currentLine = QColor(36, 50, 71);
+  blue.lineNumbers = QColor(127, 143, 166);
+  blue.lineNumbersBackground = QColor(23, 33, 49);
+  blue.foldMargin = QColor(23, 33, 49);
+  blue.foldMarginBackground = QColor(23, 33, 49);
+  blue.indentationGuides = QColor(51, 66, 96);
+  blue.caretLine = QColor(36, 50, 71);
+  blue.caretForeground = QColor(213, 222, 234);
+  blue.identifier = QColor(213, 222, 234);
+  blue.phpDefault = QColor(213, 222, 234);
+  _colorSchemes["blue"] = blue;
+
+  DarkThemeColors monokai = DEFAULT_DARK_COLORS;
+  monokai.background = QColor(39, 40, 34);
+  monokai.foreground = QColor(248, 248, 242);
+  monokai.selection = QColor(248, 248, 242);
+  monokai.selectionBackground = QColor(73, 72, 62);
+  monokai.currentLine = QColor(62, 61, 50);
+  monokai.lineNumbers = QColor(144, 144, 138);
+  monokai.lineNumbersBackground = QColor(35, 36, 30);
+  monokai.foldMargin = QColor(35, 36, 30);
+  monokai.foldMarginBackground = QColor(35, 36, 30);
+  monokai.indentationGuides = QColor(73, 72, 62);
+  monokai.caretLine = QColor(62, 61, 50);
+  monokai.caretForeground = QColor(248, 248, 242);
+  monokai.identifier = QColor(248, 248, 242);
+  monokai.phpDefault = QColor(248, 248, 242);
+  _colorSchemes["monokai"] = monokai;
+
+  DarkThemeColors gruvbox = DEFAULT_DARK_COLORS;
+  gruvbox.background = QColor(40, 40, 40);
+  gruvbox.foreground = QColor(235, 219, 178);
+  gruvbox.selection = QColor(235, 219, 178);
+  gruvbox.selectionBackground = QColor(80, 73, 69);
+  gruvbox.currentLine = QColor(60, 56, 54);
+  gruvbox.lineNumbers = QColor(146, 131, 116);
+  gruvbox.lineNumbersBackground = QColor(29, 32, 33);
+  gruvbox.foldMargin = QColor(29, 32, 33);
+  gruvbox.foldMarginBackground = QColor(29, 32, 33);
+  gruvbox.indentationGuides = QColor(80, 73, 69);
+  gruvbox.caretLine = QColor(60, 56, 54);
+  gruvbox.caretForeground = QColor(235, 219, 178);
+  gruvbox.identifier = QColor(235, 219, 178);
+  gruvbox.phpDefault = QColor(235, 219, 178);
+  _colorSchemes["gruvbox"] = gruvbox;
+
+  DarkThemeColors solarized = DEFAULT_DARK_COLORS;
+  solarized.background = QColor(0, 43, 54);
+  solarized.foreground = QColor(131, 148, 150);
+  solarized.selection = QColor(147, 161, 161);
+  solarized.selectionBackground = QColor(14, 74, 90);
+  solarized.currentLine = QColor(7, 54, 66);
+  solarized.lineNumbers = QColor(88, 110, 117);
+  solarized.lineNumbersBackground = QColor(0, 35, 44);
+  solarized.foldMargin = QColor(0, 35, 44);
+  solarized.foldMarginBackground = QColor(0, 35, 44);
+  solarized.indentationGuides = QColor(7, 54, 66);
+  solarized.caretLine = QColor(7, 54, 66);
+  solarized.caretForeground = QColor(147, 161, 161);
+  solarized.identifier = QColor(131, 148, 150);
+  solarized.phpDefault = QColor(131, 148, 150);
+  _colorSchemes["solarized"] = solarized;
+
+  DarkThemeColors dracula = DEFAULT_DARK_COLORS;
+  dracula.background = QColor(40, 42, 54);
+  dracula.foreground = QColor(248, 248, 242);
+  dracula.selection = QColor(248, 248, 242);
+  dracula.selectionBackground = QColor(68, 71, 90);
+  dracula.currentLine = QColor(50, 52, 66);
+  dracula.lineNumbers = QColor(98, 114, 164);
+  dracula.lineNumbersBackground = QColor(33, 34, 44);
+  dracula.foldMargin = QColor(33, 34, 44);
+  dracula.foldMarginBackground = QColor(33, 34, 44);
+  dracula.indentationGuides = QColor(68, 71, 90);
+  dracula.caretLine = QColor(50, 52, 66);
+  dracula.caretForeground = QColor(248, 248, 242);
+  dracula.identifier = QColor(248, 248, 242);
+  dracula.phpDefault = QColor(248, 248, 242);
+  _colorSchemes["dracula"] = dracula;
+
+  DarkThemeColors ayu = DEFAULT_DARK_COLORS;
+  ayu.background = QColor(15, 20, 25);
+  ayu.foreground = QColor(230, 225, 207);
+  ayu.selection = QColor(230, 225, 207);
+  ayu.selectionBackground = QColor(37, 51, 64);
+  ayu.currentLine = QColor(20, 25, 31);
+  ayu.lineNumbers = QColor(62, 75, 89);
+  ayu.lineNumbersBackground = QColor(13, 16, 22);
+  ayu.foldMargin = QColor(13, 16, 22);
+  ayu.foldMarginBackground = QColor(13, 16, 22);
+  ayu.indentationGuides = QColor(30, 40, 50);
+  ayu.caretLine = QColor(20, 25, 31);
+  ayu.caretForeground = QColor(230, 225, 207);
+  ayu.identifier = QColor(230, 225, 207);
+  ayu.phpDefault = QColor(230, 225, 207);
+  _colorSchemes["ayu"] = ayu;
 }
 
 void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
@@ -212,10 +332,35 @@ void DarkThemeLexersHighlighter::applyDarkTheme(QsciScintilla *editor) {
     return;
   }
 
-  _currentScheme = StylesheetManager::StylesheetManager::currentStylesheet() ==
-                           StylesheetManager::StylesheetKey::SourcererLight
-                       ? QStringLiteral("light")
-                       : QStringLiteral("default");
+  switch (StylesheetManager::StylesheetManager::currentStylesheet()) {
+  case StylesheetManager::StylesheetKey::SourcererLight:
+    _currentScheme = QStringLiteral("light");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererPurple:
+    _currentScheme = QStringLiteral("purple");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererBlue:
+    _currentScheme = QStringLiteral("blue");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererMonokai:
+    _currentScheme = QStringLiteral("monokai");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererGruvbox:
+    _currentScheme = QStringLiteral("gruvbox");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererSolarized:
+    _currentScheme = QStringLiteral("solarized");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererDracula:
+    _currentScheme = QStringLiteral("dracula");
+    break;
+  case StylesheetManager::StylesheetKey::SourcererAyu:
+    _currentScheme = QStringLiteral("ayu");
+    break;
+  default:
+    _currentScheme = QStringLiteral("default");
+    break;
+  }
 
   applyEditorColors(editor);
 

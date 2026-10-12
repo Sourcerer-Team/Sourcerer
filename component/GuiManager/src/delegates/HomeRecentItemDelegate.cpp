@@ -29,10 +29,25 @@ void HomeRecentItemDelegate::paint(QPainter *painter,
 
   if (_indexHovered.isValid() && _indexHovered.model() == index.model() &&
       _indexHovered.row() == index.row() && index.column() == 0) {
+    const auto theme =
+        StylesheetManager::StylesheetManager::currentStylesheet();
     const QColor hoverBackground =
-        StylesheetManager::StylesheetManager::currentStylesheet() ==
-                StylesheetManager::StylesheetKey::SourcererLight
+        theme == StylesheetManager::StylesheetKey::SourcererLight
             ? QColor(255, 241, 201)
+        : theme == StylesheetManager::StylesheetKey::SourcererPurple
+            ? QColor(63, 77, 99)
+        : theme == StylesheetManager::StylesheetKey::SourcererBlue
+            ? QColor(42, 58, 85)
+        : theme == StylesheetManager::StylesheetKey::SourcererMonokai
+            ? QColor(62, 61, 50)
+        : theme == StylesheetManager::StylesheetKey::SourcererGruvbox
+            ? QColor(60, 56, 54)
+        : theme == StylesheetManager::StylesheetKey::SourcererSolarized
+            ? QColor(7, 54, 66)
+        : theme == StylesheetManager::StylesheetKey::SourcererDracula
+            ? QColor(68, 71, 90)
+        : theme == StylesheetManager::StylesheetKey::SourcererAyu
+            ? QColor(37, 51, 64)
             : QColor(66, 66, 66);
     const auto *view = qobject_cast<const QAbstractItemView *>(option.widget);
     const int rowWidth =

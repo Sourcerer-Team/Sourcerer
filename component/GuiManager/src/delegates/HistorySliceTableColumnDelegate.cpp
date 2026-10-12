@@ -222,8 +222,24 @@ void HistorySliceTableColumnDelegate::paintSlices(
 
     const bool hasBottom = slice.bottom >= 0;
 
+    if (hasTop && hasBottom && ((slice.left >= 0) != (slice.right >= 0))) {
+      // A junction: a horizontal edge joins a lane passing through on its way
+      // to the parent below. Both child edges, the lane from the top and the
+      // horizontal edge, meet the parent line at the bottom midpoint.
+      drawLine(painter, laneColor(palette, slice.top), cell.topPoint(),
+               cell.bottomPoint());
+      if (slice.left >= 0) {
+        drawCorner(painter, laneColor(palette, slice.left), cell.leftPoint(),
+                   cell.bottomPoint());
+      } else {
+        drawCorner(painter, laneColor(palette, slice.right), cell.rightPoint(),
+                   cell.bottomPoint());
+      }
+      continue;
+    }
+
     if (hasTop && hasBottom) {
-      // A lane passing through; horizontal edges cross or end at it.
+      // A lane passing through; horizontal edges cross it.
       if (slice.top == slice.bottom) {
         drawLine(painter, laneColor(palette, slice.top), cell.topPoint(),
                  cell.bottomPoint());
@@ -262,10 +278,6 @@ void HistorySliceTableColumnDelegate::paintSlices(
                    vertical);
         leftDrawn = true;
         rightDrawn = true;
-
-        if (slice.left != verticalColor && slice.right != verticalColor) {
-          drawLine(painter, color, vertical, cell.centerPoint());
-        }
       } else if (slice.left == verticalColor) {
         drawCorner(painter, color, cell.leftPoint(), vertical);
         leftDrawn = true;

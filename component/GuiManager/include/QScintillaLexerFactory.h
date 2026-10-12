@@ -72,6 +72,8 @@ private:
   QsciLexer *createOCamlInterfaceLexer(QObject *parent) const;
   QsciLexer *createOCamlTypeLexer(QObject *parent) const;
   QsciLexer *createHaskellLexer(QObject *parent) const;
+  QsciLexer *createFSharpLexer(QObject *parent) const;
+  QsciLexer *createScalaLexer(QObject *parent) const;
   QsciLexer *createPowerShellLexer(QObject *parent) const;
   QsciLexer *createJavaScriptLexer(QObject *parent) const;
   QsciLexer *createHtmlLexer(QObject *parent) const;
@@ -92,6 +94,13 @@ private:
   QsciLexer *createOctaveLexer(QObject *parent) const;
   QsciLexer *createPerlLexer(QObject *parent) const;
   QsciLexer *createRubyLexer(QObject *parent) const;
+  QsciLexer *createGoLexer(QObject *parent) const;
+  QsciLexer *createZigLexer(QObject *parent) const;
+  QsciLexer *createKotlinLexer(QObject *parent) const;
+  QsciLexer *createObjectiveCLexer(QObject *parent) const;
+  QsciLexer *createSwiftLexer(QObject *parent) const;
+  QsciLexer *createHclLexer(QObject *parent) const;
+  QsciLexer *createDockerfileLexer(QObject *parent) const;
   QsciLexer *createFortranLexer(QObject *parent) const;
   QsciLexer *createFortran77Lexer(QObject *parent) const;
   QsciLexer *createIdlLexer(QObject *parent) const;
@@ -100,6 +109,7 @@ private:
   QsciLexer *createTclLexer(QObject *parent) const;
   QsciLexer *createLuaLexer(QObject *parent) const;
   QsciLexer *createPascalLexer(QObject *parent) const;
+  QsciLexer *createAsmLexer(QObject *parent) const;
   QsciLexer *createMAsmLexer(QObject *parent) const;
   QsciLexer *createNAsmLexer(QObject *parent) const;
   QsciLexer *createCMakeLexer(QObject *parent) const;

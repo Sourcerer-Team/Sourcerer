@@ -159,10 +159,65 @@ private:
   }
 
   void setColorsBasedOnTheme() {
-    const bool darkTheme =
-        StylesheetManager::StylesheetManager::currentStylesheet() ==
-        StylesheetManager::StylesheetKey::SourcererDark;
-    if (darkTheme) {
+    const auto theme =
+        StylesheetManager::StylesheetManager::currentStylesheet();
+    if (theme == StylesheetManager::StylesheetKey::SourcererAyu) {
+      m_normalBg = QColor("#0F1419");
+      m_hoverBg = QColor("#0F1419");
+      m_selectedBg = QColor("#253340");
+      m_borderColor = QColor("#2E3C4A");
+      m_selectedBorderColor = QColor("#2E3C4A");
+      m_textColor = QColor("#E6E1CF");
+      m_selectedTextColor = QColor("#FFFFFF");
+    } else if (theme == StylesheetManager::StylesheetKey::SourcererDracula) {
+      m_normalBg = QColor("#282A36");
+      m_hoverBg = QColor("#282A36");
+      m_selectedBg = QColor("#44475A");
+      m_borderColor = QColor("#44475A");
+      m_selectedBorderColor = QColor("#44475A");
+      m_textColor = QColor("#F8F8F2");
+      m_selectedTextColor = QColor("#FFFFFF");
+    } else if (theme == StylesheetManager::StylesheetKey::SourcererSolarized) {
+      m_normalBg = QColor("#002B36");
+      m_hoverBg = QColor("#002B36");
+      m_selectedBg = QColor("#0E4A5A");
+      m_borderColor = QColor("#073642");
+      m_selectedBorderColor = QColor("#073642");
+      m_textColor = QColor("#93A1A1");
+      m_selectedTextColor = QColor("#FDF6E3");
+    } else if (theme == StylesheetManager::StylesheetKey::SourcererGruvbox) {
+      m_normalBg = QColor("#282828");
+      m_hoverBg = QColor("#282828");
+      m_selectedBg = QColor("#504945");
+      m_borderColor = QColor("#3C3836");
+      m_selectedBorderColor = QColor("#3C3836");
+      m_textColor = QColor("#EBDBB2");
+      m_selectedTextColor = QColor("#FBF1C7");
+    } else if (theme == StylesheetManager::StylesheetKey::SourcererMonokai) {
+      m_normalBg = QColor("#272822");
+      m_hoverBg = QColor("#272822");
+      m_selectedBg = QColor("#49483E");
+      m_borderColor = QColor("#3E3D32");
+      m_selectedBorderColor = QColor("#3E3D32");
+      m_textColor = QColor("#F8F8F2");
+      m_selectedTextColor = QColor("#FFFFFF");
+    } else if (theme == StylesheetManager::StylesheetKey::SourcererBlue) {
+      m_normalBg = QColor("#212D43");
+      m_hoverBg = QColor("#212D43");
+      m_selectedBg = QColor("#205472");
+      m_borderColor = QColor("#3A4D68");
+      m_selectedBorderColor = QColor("#3A4D68");
+      m_textColor = QColor("#E6ECF5");
+      m_selectedTextColor = QColor("#FFFFFF");
+    } else if (theme == StylesheetManager::StylesheetKey::SourcererPurple) {
+      m_normalBg = QColor("#332F3F");
+      m_hoverBg = QColor("#332F3F");
+      m_selectedBg = QColor("#374659");
+      m_borderColor = QColor("#6E6A7A");
+      m_selectedBorderColor = QColor("#6E6A7A");
+      m_textColor = QColor("#E8E6EE");
+      m_selectedTextColor = QColor("#FFFFFF");
+    } else if (theme != StylesheetManager::StylesheetKey::SourcererLight) {
       m_normalBg = QColor("#353535");
       m_hoverBg = QColor("#353535");
       m_selectedBg = QColor("#384D59");

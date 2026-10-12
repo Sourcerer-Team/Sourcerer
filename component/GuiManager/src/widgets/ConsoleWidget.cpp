@@ -33,15 +33,35 @@ struct ConsoleThemeColors {
 };
 
 ConsoleThemeColors consoleThemeColors() {
-  const bool lightTheme =
-      StylesheetManager::StylesheetManager::currentStylesheet() ==
-      StylesheetManager::StylesheetKey::SourcererLight;
-
-  return lightTheme
-             ? ConsoleThemeColors{QColor(245, 235, 220), QColor(32, 32, 32),
-                                  QColor(230, 218, 198), QColor(214, 198, 176)}
-             : ConsoleThemeColors{QColor(45, 45, 48), QColor(255, 255, 255),
-                                  QColor(62, 62, 66), QColor(0, 122, 204)};
+  switch (StylesheetManager::StylesheetManager::currentStylesheet()) {
+  case StylesheetManager::StylesheetKey::SourcererLight:
+    return ConsoleThemeColors{QColor(245, 235, 220), QColor(32, 32, 32),
+                              QColor(230, 218, 198), QColor(214, 198, 176)};
+  case StylesheetManager::StylesheetKey::SourcererPurple:
+    return ConsoleThemeColors{QColor(43, 39, 53), QColor(232, 230, 238),
+                              QColor(62, 58, 72), QColor(55, 70, 89)};
+  case StylesheetManager::StylesheetKey::SourcererBlue:
+    return ConsoleThemeColors{QColor(26, 36, 53), QColor(230, 236, 245),
+                              QColor(42, 55, 80), QColor(32, 84, 114)};
+  case StylesheetManager::StylesheetKey::SourcererMonokai:
+    return ConsoleThemeColors{QColor(39, 40, 34), QColor(248, 248, 242),
+                              QColor(62, 61, 50), QColor(73, 72, 62)};
+  case StylesheetManager::StylesheetKey::SourcererGruvbox:
+    return ConsoleThemeColors{QColor(40, 40, 40), QColor(235, 219, 178),
+                              QColor(60, 56, 54), QColor(80, 73, 69)};
+  case StylesheetManager::StylesheetKey::SourcererSolarized:
+    return ConsoleThemeColors{QColor(0, 43, 54), QColor(131, 148, 150),
+                              QColor(7, 54, 66), QColor(14, 74, 90)};
+  case StylesheetManager::StylesheetKey::SourcererDracula:
+    return ConsoleThemeColors{QColor(40, 42, 54), QColor(248, 248, 242),
+                              QColor(50, 52, 66), QColor(68, 71, 90)};
+  case StylesheetManager::StylesheetKey::SourcererAyu:
+    return ConsoleThemeColors{QColor(15, 20, 25), QColor(230, 225, 207),
+                              QColor(20, 25, 31), QColor(37, 51, 64)};
+  default:
+    return ConsoleThemeColors{QColor(45, 45, 48), QColor(255, 255, 255),
+                              QColor(62, 62, 66), QColor(0, 122, 204)};
+  }
 }
 
 QColor consoleCloseButtonIconColor(const ConsoleThemeColors &colors) {

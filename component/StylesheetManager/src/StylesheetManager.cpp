@@ -8,10 +8,13 @@
 #include <QColor>
 #include <QIcon>
 #include <QImage>
+#include <QList>
 #include <QMap>
 #include <QMenu>
 #include <QPainter>
+#include <QPair>
 #include <QPalette>
+#include <QRegularExpression>
 #include <QSvgRenderer>
 #include <QWidget>
 
@@ -19,6 +22,13 @@
 
 #define SOURCERER_DARK_THEME_NAME "SourcererDark"
 #define SOURCERER_LIGHT_THEME_NAME "SourcererLight"
+#define SOURCERER_PURPLE_THEME_NAME "SourcererPurple"
+#define SOURCERER_BLUE_THEME_NAME "SourcererBlue"
+#define SOURCERER_MONOKAI_THEME_NAME "SourcererMonokai"
+#define SOURCERER_GRUVBOX_THEME_NAME "SourcererGruvbox"
+#define SOURCERER_SOLARIZED_THEME_NAME "SourcererSolarized"
+#define SOURCERER_DRACULA_THEME_NAME "SourcererDracula"
+#define SOURCERER_AYU_THEME_NAME "SourcererAyu"
 
 namespace StylesheetManager {
 namespace {
@@ -54,6 +64,181 @@ void applyPalette(QApplication *app, StylesheetKey key) {
     palette.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
     palette.setColor(QPalette::Disabled, QPalette::HighlightedText,
                      QColor(160, 160, 160));
+  } else if (key == StylesheetKey::SourcererPurple) {
+    palette.setColor(QPalette::Window, QColor(51, 47, 63));
+    palette.setColor(QPalette::WindowText, QColor(232, 230, 238));
+    palette.setColor(QPalette::Disabled, QPalette::WindowText,
+                     QColor(125, 120, 137));
+    palette.setColor(QPalette::Base, QColor(43, 39, 53));
+    palette.setColor(QPalette::AlternateBase, QColor(56, 51, 63));
+    palette.setColor(QPalette::ToolTipBase, QColor(63, 58, 76));
+    palette.setColor(QPalette::ToolTipText, QColor(232, 230, 238));
+    palette.setColor(QPalette::Text, QColor(232, 230, 238));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(125, 120, 137));
+    palette.setColor(QPalette::Dark, QColor(38, 34, 46));
+    palette.setColor(QPalette::Shadow, QColor(27, 24, 33));
+    palette.setColor(QPalette::Button, QColor(51, 47, 63));
+    palette.setColor(QPalette::ButtonText, QColor(232, 230, 238));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText,
+                     QColor(125, 120, 137));
+    palette.setColor(QPalette::BrightText, QColor(255, 0, 0));
+    palette.setColor(QPalette::Link, QColor(42, 130, 218));
+    palette.setColor(QPalette::Highlight, QColor(55, 70, 89));
+    palette.setColor(QPalette::Disabled, QPalette::Highlight,
+                     QColor(74, 70, 86));
+    palette.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
+    palette.setColor(QPalette::Disabled, QPalette::HighlightedText,
+                     QColor(125, 120, 137));
+  } else if (key == StylesheetKey::SourcererBlue) {
+    palette.setColor(QPalette::Window, QColor(33, 45, 67));
+    palette.setColor(QPalette::WindowText, QColor(230, 236, 245));
+    palette.setColor(QPalette::Disabled, QPalette::WindowText,
+                     QColor(120, 136, 158));
+    palette.setColor(QPalette::Base, QColor(26, 36, 53));
+    palette.setColor(QPalette::AlternateBase, QColor(38, 51, 73));
+    palette.setColor(QPalette::ToolTipBase, QColor(45, 59, 85));
+    palette.setColor(QPalette::ToolTipText, QColor(230, 236, 245));
+    palette.setColor(QPalette::Text, QColor(230, 236, 245));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(120, 136, 158));
+    palette.setColor(QPalette::Dark, QColor(24, 33, 48));
+    palette.setColor(QPalette::Shadow, QColor(15, 22, 34));
+    palette.setColor(QPalette::Button, QColor(33, 45, 67));
+    palette.setColor(QPalette::ButtonText, QColor(230, 236, 245));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText,
+                     QColor(120, 136, 158));
+    palette.setColor(QPalette::BrightText, QColor(255, 0, 0));
+    palette.setColor(QPalette::Link, QColor(81, 186, 229));
+    palette.setColor(QPalette::Highlight, QColor(32, 84, 114));
+    palette.setColor(QPalette::Disabled, QPalette::Highlight,
+                     QColor(60, 72, 90));
+    palette.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
+    palette.setColor(QPalette::Disabled, QPalette::HighlightedText,
+                     QColor(120, 136, 158));
+  } else if (key == StylesheetKey::SourcererMonokai) {
+    palette.setColor(QPalette::Window, QColor(39, 40, 34));
+    palette.setColor(QPalette::WindowText, QColor(248, 248, 242));
+    palette.setColor(QPalette::Disabled, QPalette::WindowText,
+                     QColor(117, 113, 94));
+    palette.setColor(QPalette::Base, QColor(30, 31, 26));
+    palette.setColor(QPalette::AlternateBase, QColor(45, 46, 39));
+    palette.setColor(QPalette::ToolTipBase, QColor(62, 61, 50));
+    palette.setColor(QPalette::ToolTipText, QColor(248, 248, 242));
+    palette.setColor(QPalette::Text, QColor(248, 248, 242));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(117, 113, 94));
+    palette.setColor(QPalette::Dark, QColor(30, 31, 26));
+    palette.setColor(QPalette::Shadow, QColor(20, 21, 17));
+    palette.setColor(QPalette::Button, QColor(47, 48, 41));
+    palette.setColor(QPalette::ButtonText, QColor(248, 248, 242));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText,
+                     QColor(117, 113, 94));
+    palette.setColor(QPalette::BrightText, QColor(255, 0, 0));
+    palette.setColor(QPalette::Link, QColor(102, 217, 239));
+    palette.setColor(QPalette::Highlight, QColor(73, 72, 62));
+    palette.setColor(QPalette::Disabled, QPalette::Highlight,
+                     QColor(62, 61, 50));
+    palette.setColor(QPalette::HighlightedText, QColor(255, 255, 255));
+    palette.setColor(QPalette::Disabled, QPalette::HighlightedText,
+                     QColor(117, 113, 94));
+  } else if (key == StylesheetKey::SourcererGruvbox) {
+    palette.setColor(QPalette::Window, QColor(40, 40, 40));
+    palette.setColor(QPalette::WindowText, QColor(235, 219, 178));
+    palette.setColor(QPalette::Disabled, QPalette::WindowText,
+                     QColor(146, 131, 116));
+    palette.setColor(QPalette::Base, QColor(29, 32, 33));
+    palette.setColor(QPalette::AlternateBase, QColor(50, 48, 47));
+    palette.setColor(QPalette::ToolTipBase, QColor(60, 56, 54));
+    palette.setColor(QPalette::ToolTipText, QColor(235, 219, 178));
+    palette.setColor(QPalette::Text, QColor(235, 219, 178));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(146, 131, 116));
+    palette.setColor(QPalette::Dark, QColor(29, 32, 33));
+    palette.setColor(QPalette::Shadow, QColor(20, 22, 23));
+    palette.setColor(QPalette::Button, QColor(50, 48, 47));
+    palette.setColor(QPalette::ButtonText, QColor(235, 219, 178));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText,
+                     QColor(146, 131, 116));
+    palette.setColor(QPalette::BrightText, QColor(255, 0, 0));
+    palette.setColor(QPalette::Link, QColor(131, 165, 152));
+    palette.setColor(QPalette::Highlight, QColor(80, 73, 69));
+    palette.setColor(QPalette::Disabled, QPalette::Highlight,
+                     QColor(60, 56, 54));
+    palette.setColor(QPalette::HighlightedText, QColor(251, 241, 199));
+    palette.setColor(QPalette::Disabled, QPalette::HighlightedText,
+                     QColor(146, 131, 116));
+  } else if (key == StylesheetKey::SourcererSolarized) {
+    palette.setColor(QPalette::Window, QColor(0, 43, 54));
+    palette.setColor(QPalette::WindowText, QColor(131, 148, 150));
+    palette.setColor(QPalette::Disabled, QPalette::WindowText,
+                     QColor(88, 110, 117));
+    palette.setColor(QPalette::Base, QColor(0, 35, 44));
+    palette.setColor(QPalette::AlternateBase, QColor(7, 54, 66));
+    palette.setColor(QPalette::ToolTipBase, QColor(7, 54, 66));
+    palette.setColor(QPalette::ToolTipText, QColor(147, 161, 161));
+    palette.setColor(QPalette::Text, QColor(147, 161, 161));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(88, 110, 117));
+    palette.setColor(QPalette::Dark, QColor(0, 35, 44));
+    palette.setColor(QPalette::Shadow, QColor(0, 24, 30));
+    palette.setColor(QPalette::Button, QColor(7, 54, 66));
+    palette.setColor(QPalette::ButtonText, QColor(147, 161, 161));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText,
+                     QColor(88, 110, 117));
+    palette.setColor(QPalette::BrightText, QColor(255, 0, 0));
+    palette.setColor(QPalette::Link, QColor(38, 139, 210));
+    palette.setColor(QPalette::Highlight, QColor(14, 74, 90));
+    palette.setColor(QPalette::Disabled, QPalette::Highlight,
+                     QColor(7, 54, 66));
+    palette.setColor(QPalette::HighlightedText, QColor(253, 246, 227));
+    palette.setColor(QPalette::Disabled, QPalette::HighlightedText,
+                     QColor(88, 110, 117));
+  } else if (key == StylesheetKey::SourcererDracula) {
+    palette.setColor(QPalette::Window, QColor(40, 42, 54));
+    palette.setColor(QPalette::WindowText, QColor(248, 248, 242));
+    palette.setColor(QPalette::Disabled, QPalette::WindowText,
+                     QColor(98, 114, 164));
+    palette.setColor(QPalette::Base, QColor(33, 34, 44));
+    palette.setColor(QPalette::AlternateBase, QColor(50, 52, 66));
+    palette.setColor(QPalette::ToolTipBase, QColor(68, 71, 90));
+    palette.setColor(QPalette::ToolTipText, QColor(248, 248, 242));
+    palette.setColor(QPalette::Text, QColor(248, 248, 242));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(98, 114, 164));
+    palette.setColor(QPalette::Dark, QColor(33, 34, 44));
+    palette.setColor(QPalette::Shadow, QColor(20, 21, 28));
+    palette.setColor(QPalette::Button, QColor(50, 52, 66));
+    palette.setColor(QPalette::ButtonText, QColor(248, 248, 242));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText,
+                     QColor(98, 114, 164));
+    palette.setColor(QPalette::BrightText, QColor(255, 0, 0));
+    palette.setColor(QPalette::Link, QColor(139, 233, 253));
+    palette.setColor(QPalette::Highlight, QColor(68, 71, 90));
+    palette.setColor(QPalette::Disabled, QPalette::Highlight,
+                     QColor(56, 58, 74));
+    palette.setColor(QPalette::HighlightedText, QColor(248, 248, 242));
+    palette.setColor(QPalette::Disabled, QPalette::HighlightedText,
+                     QColor(98, 114, 164));
+  } else if (key == StylesheetKey::SourcererAyu) {
+    palette.setColor(QPalette::Window, QColor(15, 20, 25));
+    palette.setColor(QPalette::WindowText, QColor(230, 225, 207));
+    palette.setColor(QPalette::Disabled, QPalette::WindowText,
+                     QColor(92, 103, 115));
+    palette.setColor(QPalette::Base, QColor(13, 16, 22));
+    palette.setColor(QPalette::AlternateBase, QColor(20, 25, 31));
+    palette.setColor(QPalette::ToolTipBase, QColor(25, 31, 38));
+    palette.setColor(QPalette::ToolTipText, QColor(230, 225, 207));
+    palette.setColor(QPalette::Text, QColor(230, 225, 207));
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor(92, 103, 115));
+    palette.setColor(QPalette::Dark, QColor(13, 16, 22));
+    palette.setColor(QPalette::Shadow, QColor(8, 10, 13));
+    palette.setColor(QPalette::Button, QColor(20, 25, 31));
+    palette.setColor(QPalette::ButtonText, QColor(230, 225, 207));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText,
+                     QColor(92, 103, 115));
+    palette.setColor(QPalette::BrightText, QColor(255, 0, 0));
+    palette.setColor(QPalette::Link, QColor(89, 194, 255));
+    palette.setColor(QPalette::Highlight, QColor(37, 51, 64));
+    palette.setColor(QPalette::Disabled, QPalette::Highlight,
+                     QColor(30, 40, 50));
+    palette.setColor(QPalette::HighlightedText, QColor(230, 225, 207));
+    palette.setColor(QPalette::Disabled, QPalette::HighlightedText,
+                     QColor(92, 103, 115));
   } else {
     palette.setColor(QPalette::Window, QColor(53, 53, 53));
     palette.setColor(QPalette::WindowText, QColor(255, 255, 255));
@@ -2272,8 +2457,296 @@ QString makeLightStylesheet() {
     )__LIGHT_23__");
 }
 
+// The purple, blue and monokai themes share the dark theme's layout rules and
+// only swap its colors, so they stay in sync when the dark stylesheet changes.
+QString
+makeDarkDerivedStylesheet(const QList<QPair<QString, QString>> &colorMap,
+                          const QString &grayColor) {
+  QString stylesheet = makeDarkStylesheet();
+  for (const auto &[from, to] : colorMap) {
+    const QRegularExpression pattern(
+        QStringLiteral("%1(?![0-9A-Fa-f])").arg(from),
+        QRegularExpression::CaseInsensitiveOption);
+    stylesheet.replace(pattern, to);
+  }
+
+  static const QRegularExpression grayPattern(QStringLiteral("\\bgr[ae]y\\b"));
+  stylesheet.replace(grayPattern, grayColor);
+
+  return stylesheet;
+}
+
+QString makePurpleStylesheet() {
+  static const QList<QPair<QString, QString>> colorMap = {
+      // Neutral surfaces: the dark theme's greys, tinted toward purple-grey
+      {QStringLiteral("#202020"), QStringLiteral("#26222E")},
+      {QStringLiteral("#282828"), QStringLiteral("#2B2735")},
+      {QStringLiteral("#2A2A2A"), QStringLiteral("#2B2735")},
+      {QStringLiteral("#30383D"), QStringLiteral("#352F40")},
+      {QStringLiteral("#353535"), QStringLiteral("#332F3F")},
+      {QStringLiteral("#3A3A3A"), QStringLiteral("#3B3646")},
+      {QStringLiteral("#3E3E42"), QStringLiteral("#3E3A48")},
+      {QStringLiteral("#424242"), QStringLiteral("#433E4D")},
+      {QStringLiteral("#4D4D4D"), QStringLiteral("#4A4556")},
+      {QStringLiteral("#5A5A5A"), QStringLiteral("#5A5566")},
+      {QStringLiteral("#5E5E5E"), QStringLiteral("#5E5970")},
+      {QStringLiteral("#686868"), QStringLiteral("#686474")},
+      {QStringLiteral("#6D6E6E"), QStringLiteral("#6E6A7A")},
+      {QStringLiteral("#9E9E9E"), QStringLiteral("#9C98A8")},
+      {QStringLiteral("#C0C0C0"), QStringLiteral("#C8C5D0")},
+      {QStringLiteral("#012456"), QStringLiteral("#1F1C27")},
+      // Slate selection and tooltip tones, as seen in the reference
+      {QStringLiteral("#384D59"), QStringLiteral("#374659")},
+      {QStringLiteral("#4A5A66"), QStringLiteral("#3F4D63")},
+      {QStringLiteral("#4A6070"), QStringLiteral("#41526A")},
+      {QStringLiteral("#4D5A61"), QStringLiteral("#4A5566")},
+      {QStringLiteral("#607481"), QStringLiteral("#5F6F85")},
+      {QStringLiteral("#718793"), QStringLiteral("#6F7F95")},
+      {QStringLiteral("#8A9AA3"), QStringLiteral("#8A97AB")},
+      {QStringLiteral("#8D999F"), QStringLiteral("#8D98AA")},
+      {QStringLiteral("#9BAAB3"), QStringLiteral("#9BA6B8")},
+      {QStringLiteral("#DCE4E8"), QStringLiteral("#DCE2EC")},
+      {QStringLiteral("#F5F7F8"), QStringLiteral("#F4F5F8")},
+  };
+  return makeDarkDerivedStylesheet(colorMap, QStringLiteral("#7D7889"));
+}
+
+QString makeBlueStylesheet() {
+  static const QList<QPair<QString, QString>> colorMap = {
+      {QStringLiteral("#202020"), QStringLiteral("#1A2435")},
+      {QStringLiteral("#282828"), QStringLiteral("#1E2A3D")},
+      {QStringLiteral("#2A2A2A"), QStringLiteral("#1F2B3E")},
+      {QStringLiteral("#30383D"), QStringLiteral("#243247")},
+      {QStringLiteral("#353535"), QStringLiteral("#212D43")},
+      {QStringLiteral("#3A3A3A"), QStringLiteral("#2A3750")},
+      {QStringLiteral("#3E3E42"), QStringLiteral("#2D3B55")},
+      {QStringLiteral("#424242"), QStringLiteral("#334260")},
+      {QStringLiteral("#4D4D4D"), QStringLiteral("#3D4D66")},
+      {QStringLiteral("#5A5A5A"), QStringLiteral("#4A5C78")},
+      {QStringLiteral("#5E5E5E"), QStringLiteral("#4F6180")},
+      {QStringLiteral("#686868"), QStringLiteral("#5A6E8C")},
+      {QStringLiteral("#6D6E6E"), QStringLiteral("#5F7594")},
+      {QStringLiteral("#9E9E9E"), QStringLiteral("#8FA3BF")},
+      {QStringLiteral("#C0C0C0"), QStringLiteral("#C5D3E6")},
+      {QStringLiteral("#012456"), QStringLiteral("#0F1C2E")},
+      {QStringLiteral("#384D59"), QStringLiteral("#205472")},
+      {QStringLiteral("#4A5A66"), QStringLiteral("#245A7A")},
+      {QStringLiteral("#4A6070"), QStringLiteral("#2A6585")},
+      {QStringLiteral("#4D5A61"), QStringLiteral("#35566E")},
+      {QStringLiteral("#607481"), QStringLiteral("#4E7593")},
+      {QStringLiteral("#718793"), QStringLiteral("#6A8AA3")},
+      {QStringLiteral("#8A9AA3"), QStringLiteral("#8AA6BA")},
+      {QStringLiteral("#8D999F"), QStringLiteral("#8FA3B5")},
+      {QStringLiteral("#9BAAB3"), QStringLiteral("#A4B9C8")},
+      {QStringLiteral("#DCE4E8"), QStringLiteral("#DCE8F0")},
+      {QStringLiteral("#F5F7F8"), QStringLiteral("#F2F7FA")},
+      {QStringLiteral("#0078D7"), QStringLiteral("#3FA9E0")},
+      {QStringLiteral("#2A82DA"), QStringLiteral("#3FA9E0")},
+      {QStringLiteral("#53A0ED"), QStringLiteral("#7CC8F0")},
+      {QStringLiteral("#2D4A66"), QStringLiteral("#1F4A66")},
+  };
+  return makeDarkDerivedStylesheet(colorMap, QStringLiteral("#5F7594"));
+}
+
+// Monokai keeps the dark theme's layout and recolors its greys and accents to
+// the Monokai palette (background #272822, comment grey #75715E).
+QString makeMonokaiStylesheet() {
+  static const QList<QPair<QString, QString>> colorMap = {
+      {QStringLiteral("#202020"), QStringLiteral("#1E1F1A")},
+      {QStringLiteral("#282828"), QStringLiteral("#272822")},
+      {QStringLiteral("#2A2A2A"), QStringLiteral("#2A2B24")},
+      {QStringLiteral("#30383D"), QStringLiteral("#2F3029")},
+      {QStringLiteral("#353535"), QStringLiteral("#31322B")},
+      {QStringLiteral("#3A3A3A"), QStringLiteral("#3A3B33")},
+      {QStringLiteral("#3E3E42"), QStringLiteral("#3E3D32")},
+      {QStringLiteral("#424242"), QStringLiteral("#49483E")},
+      {QStringLiteral("#4D4D4D"), QStringLiteral("#55564A")},
+      {QStringLiteral("#5A5A5A"), QStringLiteral("#66675A")},
+      {QStringLiteral("#5E5E5E"), QStringLiteral("#6B6C5F")},
+      {QStringLiteral("#686868"), QStringLiteral("#75715E")},
+      {QStringLiteral("#6D6E6E"), QStringLiteral("#77786B")},
+      {QStringLiteral("#9E9E9E"), QStringLiteral("#A3A497")},
+      {QStringLiteral("#C0C0C0"), QStringLiteral("#D6D6CC")},
+      {QStringLiteral("#012456"), QStringLiteral("#1E1F1A")},
+      {QStringLiteral("#384D59"), QStringLiteral("#49483E")},
+      {QStringLiteral("#4A5A66"), QStringLiteral("#4A4B40")},
+      {QStringLiteral("#4A6070"), QStringLiteral("#4B5040")},
+      {QStringLiteral("#4D5A61"), QStringLiteral("#4D5240")},
+      {QStringLiteral("#607481"), QStringLiteral("#5C6150")},
+      {QStringLiteral("#718793"), QStringLiteral("#6F7463")},
+      {QStringLiteral("#8A9AA3"), QStringLiteral("#8A8E7E")},
+      {QStringLiteral("#8D999F"), QStringLiteral("#8D9180")},
+      {QStringLiteral("#9BAAB3"), QStringLiteral("#9EA291")},
+      {QStringLiteral("#DCE4E8"), QStringLiteral("#F0F0E8")},
+      {QStringLiteral("#F5F7F8"), QStringLiteral("#F8F8F2")},
+      {QStringLiteral("#0078D7"), QStringLiteral("#A6E22E")},
+      {QStringLiteral("#2A82DA"), QStringLiteral("#A6E22E")},
+      {QStringLiteral("#53A0ED"), QStringLiteral("#B5EB4F")},
+  };
+  return makeDarkDerivedStylesheet(colorMap, QStringLiteral("#75715E"));
+}
+
+// Gruvbox (dark, medium contrast) keeps the dark theme's layout and recolors
+// its greys and accents to the Gruvbox palette (background #282828, grey
+// #928374, yellow #FABD2F).
+QString makeGruvboxStylesheet() {
+  static const QList<QPair<QString, QString>> colorMap = {
+      {QStringLiteral("#202020"), QStringLiteral("#1D2021")},
+      {QStringLiteral("#2A2A2A"), QStringLiteral("#32302F")},
+      {QStringLiteral("#30383D"), QStringLiteral("#3C3836")},
+      {QStringLiteral("#353535"), QStringLiteral("#3C3836")},
+      {QStringLiteral("#3A3A3A"), QStringLiteral("#3C3836")},
+      {QStringLiteral("#3E3E42"), QStringLiteral("#3C3836")},
+      {QStringLiteral("#424242"), QStringLiteral("#504945")},
+      {QStringLiteral("#4D4D4D"), QStringLiteral("#665C54")},
+      {QStringLiteral("#5A5A5A"), QStringLiteral("#7C6F64")},
+      {QStringLiteral("#5E5E5E"), QStringLiteral("#7C6F64")},
+      {QStringLiteral("#686868"), QStringLiteral("#928374")},
+      {QStringLiteral("#6D6E6E"), QStringLiteral("#928374")},
+      {QStringLiteral("#9E9E9E"), QStringLiteral("#A89984")},
+      {QStringLiteral("#C0C0C0"), QStringLiteral("#D5C4A1")},
+      {QStringLiteral("#012456"), QStringLiteral("#1D2021")},
+      {QStringLiteral("#384D59"), QStringLiteral("#504945")},
+      {QStringLiteral("#4A5A66"), QStringLiteral("#504945")},
+      {QStringLiteral("#4A6070"), QStringLiteral("#504945")},
+      {QStringLiteral("#4D5A61"), QStringLiteral("#504945")},
+      {QStringLiteral("#607481"), QStringLiteral("#665C54")},
+      {QStringLiteral("#718793"), QStringLiteral("#7C6F64")},
+      {QStringLiteral("#8A9AA3"), QStringLiteral("#A89984")},
+      {QStringLiteral("#8D999F"), QStringLiteral("#A89984")},
+      {QStringLiteral("#9BAAB3"), QStringLiteral("#BDAE93")},
+      {QStringLiteral("#DCE4E8"), QStringLiteral("#EBDBB2")},
+      {QStringLiteral("#F5F7F8"), QStringLiteral("#FBF1C7")},
+      {QStringLiteral("#0078D7"), QStringLiteral("#FABD2F")},
+      {QStringLiteral("#2A82DA"), QStringLiteral("#FABD2F")},
+      {QStringLiteral("#53A0ED"), QStringLiteral("#FABD2F")},
+  };
+  return makeDarkDerivedStylesheet(colorMap, QStringLiteral("#928374"));
+}
+
+// Solarized Dark keeps the dark theme's layout and recolors its greys and
+// accents to the Solarized palette (base03 background #002B36, base01 comment
+// grey #586E75, blue #268BD2).
+QString makeSolarizedStylesheet() {
+  static const QList<QPair<QString, QString>> colorMap = {
+      {QStringLiteral("#202020"), QStringLiteral("#002B36")},
+      {QStringLiteral("#2A2A2A"), QStringLiteral("#073642")},
+      {QStringLiteral("#30383D"), QStringLiteral("#073642")},
+      {QStringLiteral("#353535"), QStringLiteral("#073642")},
+      {QStringLiteral("#3A3A3A"), QStringLiteral("#073642")},
+      {QStringLiteral("#3E3E42"), QStringLiteral("#073642")},
+      {QStringLiteral("#424242"), QStringLiteral("#0E4A5A")},
+      {QStringLiteral("#4D4D4D"), QStringLiteral("#0E4A5A")},
+      {QStringLiteral("#5A5A5A"), QStringLiteral("#586E75")},
+      {QStringLiteral("#5E5E5E"), QStringLiteral("#586E75")},
+      {QStringLiteral("#686868"), QStringLiteral("#657B83")},
+      {QStringLiteral("#6D6E6E"), QStringLiteral("#657B83")},
+      {QStringLiteral("#9E9E9E"), QStringLiteral("#839496")},
+      {QStringLiteral("#C0C0C0"), QStringLiteral("#93A1A1")},
+      {QStringLiteral("#012456"), QStringLiteral("#002B36")},
+      {QStringLiteral("#384D59"), QStringLiteral("#0E4A5A")},
+      {QStringLiteral("#4A5A66"), QStringLiteral("#0E4A5A")},
+      {QStringLiteral("#4A6070"), QStringLiteral("#0E4A5A")},
+      {QStringLiteral("#4D5A61"), QStringLiteral("#0E4A5A")},
+      {QStringLiteral("#607481"), QStringLiteral("#586E75")},
+      {QStringLiteral("#718793"), QStringLiteral("#657B83")},
+      {QStringLiteral("#8A9AA3"), QStringLiteral("#839496")},
+      {QStringLiteral("#8D999F"), QStringLiteral("#839496")},
+      {QStringLiteral("#9BAAB3"), QStringLiteral("#93A1A1")},
+      {QStringLiteral("#DCE4E8"), QStringLiteral("#EEE8D5")},
+      {QStringLiteral("#F5F7F8"), QStringLiteral("#FDF6E3")},
+      {QStringLiteral("#0078D7"), QStringLiteral("#268BD2")},
+      {QStringLiteral("#2A82DA"), QStringLiteral("#268BD2")},
+      {QStringLiteral("#53A0ED"), QStringLiteral("#2AA198")},
+  };
+  return makeDarkDerivedStylesheet(colorMap, QStringLiteral("#586E75"));
+}
+
+// Dracula keeps the dark theme's layout and recolors its greys and accents to
+// the Dracula palette (background #282A36, current line #44475A, comment
+// #6272A4, purple #BD93F9).
+QString makeDraculaStylesheet() {
+  static const QList<QPair<QString, QString>> colorMap = {
+      {QStringLiteral("#202020"), QStringLiteral("#21222C")},
+      {QStringLiteral("#2A2A2A"), QStringLiteral("#282A36")},
+      {QStringLiteral("#30383D"), QStringLiteral("#323442")},
+      {QStringLiteral("#353535"), QStringLiteral("#323442")},
+      {QStringLiteral("#3A3A3A"), QStringLiteral("#323442")},
+      {QStringLiteral("#3E3E42"), QStringLiteral("#323442")},
+      {QStringLiteral("#424242"), QStringLiteral("#44475A")},
+      {QStringLiteral("#4D4D4D"), QStringLiteral("#4B4F66")},
+      {QStringLiteral("#5A5A5A"), QStringLiteral("#5C6178")},
+      {QStringLiteral("#5E5E5E"), QStringLiteral("#5C6178")},
+      {QStringLiteral("#686868"), QStringLiteral("#6272A4")},
+      {QStringLiteral("#6D6E6E"), QStringLiteral("#6272A4")},
+      {QStringLiteral("#9E9E9E"), QStringLiteral("#9AA0BC")},
+      {QStringLiteral("#C0C0C0"), QStringLiteral("#D6D6E0")},
+      {QStringLiteral("#012456"), QStringLiteral("#21222C")},
+      {QStringLiteral("#384D59"), QStringLiteral("#44475A")},
+      {QStringLiteral("#4A5A66"), QStringLiteral("#44475A")},
+      {QStringLiteral("#4A6070"), QStringLiteral("#44475A")},
+      {QStringLiteral("#4D5A61"), QStringLiteral("#44475A")},
+      {QStringLiteral("#607481"), QStringLiteral("#5C6178")},
+      {QStringLiteral("#718793"), QStringLiteral("#6272A4")},
+      {QStringLiteral("#8A9AA3"), QStringLiteral("#8A93B0")},
+      {QStringLiteral("#8D999F"), QStringLiteral("#8A93B0")},
+      {QStringLiteral("#9BAAB3"), QStringLiteral("#A6AEC6")},
+      {QStringLiteral("#DCE4E8"), QStringLiteral("#F8F8F2")},
+      {QStringLiteral("#F5F7F8"), QStringLiteral("#F8F8F2")},
+      {QStringLiteral("#0078D7"), QStringLiteral("#BD93F9")},
+      {QStringLiteral("#2A82DA"), QStringLiteral("#BD93F9")},
+      {QStringLiteral("#53A0ED"), QStringLiteral("#8BE9FD")},
+  };
+  return makeDarkDerivedStylesheet(colorMap, QStringLiteral("#6272A4"));
+}
+
+// Ayu Dark keeps the dark theme's layout and recolors its greys and accents to
+// the Ayu Dark palette (background #0F1419, comment grey #5C6773, orange
+// #FFB454).
+QString makeAyuStylesheet() {
+  static const QList<QPair<QString, QString>> colorMap = {
+      {QStringLiteral("#202020"), QStringLiteral("#0D1016")},
+      {QStringLiteral("#2A2A2A"), QStringLiteral("#0F1419")},
+      {QStringLiteral("#30383D"), QStringLiteral("#14191F")},
+      {QStringLiteral("#353535"), QStringLiteral("#14191F")},
+      {QStringLiteral("#3A3A3A"), QStringLiteral("#14191F")},
+      {QStringLiteral("#3E3E42"), QStringLiteral("#14191F")},
+      {QStringLiteral("#424242"), QStringLiteral("#253340")},
+      {QStringLiteral("#4D4D4D"), QStringLiteral("#2E3C4A")},
+      {QStringLiteral("#5A5A5A"), QStringLiteral("#3E4B59")},
+      {QStringLiteral("#5E5E5E"), QStringLiteral("#3E4B59")},
+      {QStringLiteral("#686868"), QStringLiteral("#5C6773")},
+      {QStringLiteral("#6D6E6E"), QStringLiteral("#5C6773")},
+      {QStringLiteral("#9E9E9E"), QStringLiteral("#8A9199")},
+      {QStringLiteral("#C0C0C0"), QStringLiteral("#BFBAA8")},
+      {QStringLiteral("#012456"), QStringLiteral("#0D1016")},
+      {QStringLiteral("#384D59"), QStringLiteral("#253340")},
+      {QStringLiteral("#4A5A66"), QStringLiteral("#253340")},
+      {QStringLiteral("#4A6070"), QStringLiteral("#253340")},
+      {QStringLiteral("#4D5A61"), QStringLiteral("#253340")},
+      {QStringLiteral("#607481"), QStringLiteral("#3E4B59")},
+      {QStringLiteral("#718793"), QStringLiteral("#5C6773")},
+      {QStringLiteral("#8A9AA3"), QStringLiteral("#8A9199")},
+      {QStringLiteral("#8D999F"), QStringLiteral("#8A9199")},
+      {QStringLiteral("#9BAAB3"), QStringLiteral("#9BA3AD")},
+      {QStringLiteral("#DCE4E8"), QStringLiteral("#E6E1CF")},
+      {QStringLiteral("#F5F7F8"), QStringLiteral("#F3EFE0")},
+      {QStringLiteral("#0078D7"), QStringLiteral("#FFB454")},
+      {QStringLiteral("#2A82DA"), QStringLiteral("#FFB454")},
+      {QStringLiteral("#53A0ED"), QStringLiteral("#59C2FF")},
+  };
+  return makeDarkDerivedStylesheet(colorMap, QStringLiteral("#5C6773"));
+}
+
 const QString SOURCERER_DARK_STYLESHEET = makeDarkStylesheet();
 const QString SOURCERER_LIGHT_STYLESHEET = makeLightStylesheet();
+const QString SOURCERER_PURPLE_STYLESHEET = makePurpleStylesheet();
+const QString SOURCERER_BLUE_STYLESHEET = makeBlueStylesheet();
+const QString SOURCERER_MONOKAI_STYLESHEET = makeMonokaiStylesheet();
+const QString SOURCERER_GRUVBOX_STYLESHEET = makeGruvboxStylesheet();
+const QString SOURCERER_SOLARIZED_STYLESHEET = makeSolarizedStylesheet();
+const QString SOURCERER_DRACULA_STYLESHEET = makeDraculaStylesheet();
+const QString SOURCERER_AYU_STYLESHEET = makeAyuStylesheet();
 
 const QMap<StylesheetKey, QString> &stylesheets() {
   static const QMap<StylesheetKey, QString> map = []() {
@@ -2281,6 +2754,18 @@ const QMap<StylesheetKey, QString> &stylesheets() {
     stylesheets.insert(StylesheetKey::SourcererLight,
                        SOURCERER_LIGHT_STYLESHEET);
     stylesheets.insert(StylesheetKey::SourcererDark, SOURCERER_DARK_STYLESHEET);
+    stylesheets.insert(StylesheetKey::SourcererPurple,
+                       SOURCERER_PURPLE_STYLESHEET);
+    stylesheets.insert(StylesheetKey::SourcererBlue, SOURCERER_BLUE_STYLESHEET);
+    stylesheets.insert(StylesheetKey::SourcererMonokai,
+                       SOURCERER_MONOKAI_STYLESHEET);
+    stylesheets.insert(StylesheetKey::SourcererGruvbox,
+                       SOURCERER_GRUVBOX_STYLESHEET);
+    stylesheets.insert(StylesheetKey::SourcererSolarized,
+                       SOURCERER_SOLARIZED_STYLESHEET);
+    stylesheets.insert(StylesheetKey::SourcererDracula,
+                       SOURCERER_DRACULA_STYLESHEET);
+    stylesheets.insert(StylesheetKey::SourcererAyu, SOURCERER_AYU_STYLESHEET);
     return stylesheets;
   }();
 
@@ -2343,6 +2828,20 @@ QString StylesheetManager::stylesheetKeyName(StylesheetKey key) {
     return SOURCERER_LIGHT_THEME_NAME;
   case StylesheetKey::SourcererDark:
     return SOURCERER_DARK_THEME_NAME;
+  case StylesheetKey::SourcererPurple:
+    return SOURCERER_PURPLE_THEME_NAME;
+  case StylesheetKey::SourcererBlue:
+    return SOURCERER_BLUE_THEME_NAME;
+  case StylesheetKey::SourcererMonokai:
+    return SOURCERER_MONOKAI_THEME_NAME;
+  case StylesheetKey::SourcererGruvbox:
+    return SOURCERER_GRUVBOX_THEME_NAME;
+  case StylesheetKey::SourcererSolarized:
+    return SOURCERER_SOLARIZED_THEME_NAME;
+  case StylesheetKey::SourcererDracula:
+    return SOURCERER_DRACULA_THEME_NAME;
+  case StylesheetKey::SourcererAyu:
+    return SOURCERER_AYU_THEME_NAME;
   default:
     return SOURCERER_DARK_THEME_NAME;
   }
@@ -2353,6 +2852,20 @@ StylesheetKey StylesheetManager::stylesheetKeyFromName(const QString &name) {
     return StylesheetKey::SourcererLight;
   if (name == SOURCERER_DARK_THEME_NAME)
     return StylesheetKey::SourcererDark;
+  if (name == SOURCERER_PURPLE_THEME_NAME)
+    return StylesheetKey::SourcererPurple;
+  if (name == SOURCERER_BLUE_THEME_NAME)
+    return StylesheetKey::SourcererBlue;
+  if (name == SOURCERER_MONOKAI_THEME_NAME)
+    return StylesheetKey::SourcererMonokai;
+  if (name == SOURCERER_GRUVBOX_THEME_NAME)
+    return StylesheetKey::SourcererGruvbox;
+  if (name == SOURCERER_SOLARIZED_THEME_NAME)
+    return StylesheetKey::SourcererSolarized;
+  if (name == SOURCERER_DRACULA_THEME_NAME)
+    return StylesheetKey::SourcererDracula;
+  if (name == SOURCERER_AYU_THEME_NAME)
+    return StylesheetKey::SourcererAyu;
   return StylesheetKey::SourcererDark;
 }
 
@@ -2367,6 +2880,20 @@ QColor StylesheetManager::historyBadgeFillColor() {
   switch (currentStylesheet()) {
   case StylesheetKey::SourcererLight:
     return QColor("#F5EEE4");
+  case StylesheetKey::SourcererPurple:
+    return QColor("#574A72");
+  case StylesheetKey::SourcererBlue:
+    return QColor("#2D4A66");
+  case StylesheetKey::SourcererMonokai:
+    return QColor("#49483E");
+  case StylesheetKey::SourcererGruvbox:
+    return QColor("#504945");
+  case StylesheetKey::SourcererSolarized:
+    return QColor("#0E4A5A");
+  case StylesheetKey::SourcererDracula:
+    return QColor("#44475A");
+  case StylesheetKey::SourcererAyu:
+    return QColor("#253340");
   case StylesheetKey::SourcererDark:
   default:
     return QColor("#4A5A66");
