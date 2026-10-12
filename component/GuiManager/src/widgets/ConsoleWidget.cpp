@@ -38,8 +38,8 @@ ConsoleThemeColors consoleThemeColors() {
     return ConsoleThemeColors{QColor(245, 235, 220), QColor(32, 32, 32),
                               QColor(230, 218, 198), QColor(214, 198, 176)};
   case StylesheetManager::StylesheetKey::SourcererPurple:
-    return ConsoleThemeColors{QColor(48, 37, 70), QColor(243, 238, 255),
-                              QColor(67, 54, 92), QColor(138, 92, 230)};
+    return ConsoleThemeColors{QColor(43, 39, 53), QColor(232, 230, 238),
+                              QColor(62, 58, 72), QColor(55, 70, 89)};
   default:
     return ConsoleThemeColors{QColor(45, 45, 48), QColor(255, 255, 255),
                               QColor(62, 62, 66), QColor(0, 122, 204)};

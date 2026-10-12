@@ -61,7 +61,7 @@ SpinnerOverlayWidget::SpinnerOverlayWidget(QWidget *parent)
       StylesheetManager::StylesheetManager::currentStylesheet() ==
       StylesheetManager::StylesheetKey::SourcererPurple;
   _spinner->setColor(lightTheme    ? QColor(44, 84, 150)
-                     : purpleTheme ? QColor(190, 150, 255)
+                     : purpleTheme ? QColor(143, 180, 224)
                                    : QColor(100, 200, 255));
   _spinner->setInnerRadius(20);
   _spinner->setLineLength(lightTheme ? 10 : 6);
