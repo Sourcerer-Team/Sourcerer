@@ -203,6 +203,7 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("kts"), &createLexer<QsciLexerKotlin>},
       {QStringLiteral("mm"), &createLexer<QsciLexerObjectiveC>},
       {QStringLiteral("swift"), &createLexer<QsciLexerSwift>},
+      {QStringLiteral("sql"), &createLexer<QsciLexerSQL>},
       {QStringLiteral("ruby"), &createLexer<QsciLexerRuby>},
       {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
       {QStringLiteral("jsonc"), &createLexer<QsciLexerJSON>}};
