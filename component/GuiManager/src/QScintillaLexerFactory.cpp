@@ -170,6 +170,12 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("zsh"), &createLexer<QsciLexerBash>},
       {QStringLiteral("bat"), &createLexer<QsciLexerBatch>},
       {QStringLiteral("cmd"), &createLexer<QsciLexerBatch>},
+      {QStringLiteral("xml"), &createLexer<QsciLexerXML>},
+      {QStringLiteral("xsl"), &createLexer<QsciLexerXML>},
+      {QStringLiteral("xslt"), &createLexer<QsciLexerXML>},
+      {QStringLiteral("xsd"), &createLexer<QsciLexerXML>},
+      {QStringLiteral("svg"), &createLexer<QsciLexerXML>},
+      {QStringLiteral("xaml"), &createLexer<QsciLexerXML>},
       {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
       {QStringLiteral("jsonc"), &createLexer<QsciLexerJSON>}};
 
