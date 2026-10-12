@@ -83,6 +83,8 @@ public:
       return QColor::fromString("#3C3836");
     case StylesheetManager::StylesheetKey::SourcererSolarized:
       return QColor::fromString("#073642");
+    case StylesheetManager::StylesheetKey::SourcererDracula:
+      return QColor::fromString("#44475A");
     default:
       return QColor::fromString("#384D59");
     }
