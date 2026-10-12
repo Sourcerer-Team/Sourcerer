@@ -26,6 +26,7 @@ const TSLanguage *tree_sitter_fsharp(void);
 const TSLanguage *tree_sitter_lua(void);
 const TSLanguage *tree_sitter_scala(void);
 const TSLanguage *tree_sitter_make(void);
+const TSLanguage *tree_sitter_ruby(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -409,6 +410,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("makefile"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_make();
   }
+  if (language.compare(QStringLiteral("ruby"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_ruby();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -468,7 +472,11 @@ enum class Token {
   // XML: CDATA sections.
   CData,
   // Makefiles: rule targets and prerequisites.
-  Target
+  Target,
+  // Ruby: symbols and class and global variables.
+  Symbol,
+  ClassVariable,
+  GlobalVariable
 };
 
 enum class StyledLanguage {
@@ -491,6 +499,7 @@ enum class StyledLanguage {
   Lua,
   Scala,
   Makefile,
+  Ruby,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -516,7 +525,8 @@ enum class StyleSet {
   // QsciLexerLua ids.
   Lua,
   // QsciLexerMakefile ids.
-  Makefile
+  Makefile,
+  Ruby
 };
 
 StyledLanguage styledLanguageFor(const TSLanguage *language) {
@@ -583,6 +593,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_make()) {
     return StyledLanguage::Makefile;
   }
+  if (language == tree_sitter_ruby()) {
+    return StyledLanguage::Ruby;
+  }
   return StyledLanguage::None;
 }
 
@@ -611,6 +624,8 @@ StyleSet styleSetFor(StyledLanguage language) {
     return StyleSet::Lua;
   case StyledLanguage::Makefile:
     return StyleSet::Makefile;
+  case StyledLanguage::Ruby:
+    return StyleSet::Ruby;
   case StyledLanguage::None:
   case StyledLanguage::CFamily:
   case StyledLanguage::Dart:
@@ -1767,6 +1782,149 @@ Token makefileTokenForNode(const NodeContext &context, const QByteArray &source,
   return Token::None;
 }
 
+// Keywords of Ruby, as the anonymous nodes the grammar produces for them.
+bool isRubyKeyword(const char *type) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("BEGIN"),        QStringLiteral("END"),
+      QStringLiteral("alias"),        QStringLiteral("and"),
+      QStringLiteral("begin"),        QStringLiteral("break"),
+      QStringLiteral("case"),         QStringLiteral("class"),
+      QStringLiteral("def"),          QStringLiteral("defined?"),
+      QStringLiteral("do"),           QStringLiteral("else"),
+      QStringLiteral("elsif"),        QStringLiteral("end"),
+      QStringLiteral("ensure"),       QStringLiteral("for"),
+      QStringLiteral("if"),           QStringLiteral("in"),
+      QStringLiteral("module"),       QStringLiteral("next"),
+      QStringLiteral("not"),          QStringLiteral("or"),
+      QStringLiteral("redo"),         QStringLiteral("rescue"),
+      QStringLiteral("retry"),        QStringLiteral("return"),
+      QStringLiteral("super"),        QStringLiteral("then"),
+      QStringLiteral("undef"),        QStringLiteral("unless"),
+      QStringLiteral("until"),        QStringLiteral("when"),
+      QStringLiteral("while"),        QStringLiteral("yield"),
+      QStringLiteral("__ENCODING__"), QStringLiteral("__FILE__"),
+      QStringLiteral("__LINE__")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Operator tokens of Ruby. Listed exactly, since symbol characters also
+// start delimiters such as %w[ and regular expressions.
+bool isRubyOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),   QStringLiteral("!="),  QStringLiteral("!~"),
+      QStringLiteral("%"),   QStringLiteral("%="),  QStringLiteral("&"),
+      QStringLiteral("&&"),  QStringLiteral("&&="), QStringLiteral("&."),
+      QStringLiteral("&="),  QStringLiteral("*"),   QStringLiteral("**"),
+      QStringLiteral("**="), QStringLiteral("*="),  QStringLiteral("+"),
+      QStringLiteral("+="),  QStringLiteral("+@"),  QStringLiteral("-"),
+      QStringLiteral("-="),  QStringLiteral("-@"),  QStringLiteral("->"),
+      QStringLiteral("/"),   QStringLiteral("/="),  QStringLiteral("<"),
+      QStringLiteral("<<"),  QStringLiteral("<<="), QStringLiteral("<="),
+      QStringLiteral("<=>"), QStringLiteral("="),   QStringLiteral("=="),
+      QStringLiteral("==="), QStringLiteral("=>"),  QStringLiteral("=~"),
+      QStringLiteral(">"),   QStringLiteral(">="),  QStringLiteral(">>"),
+      QStringLiteral(">>="), QStringLiteral("?"),   QStringLiteral(".."),
+      QStringLiteral("..."), QStringLiteral("^"),   QStringLiteral("^="),
+      QStringLiteral("|"),   QStringLiteral("|="),  QStringLiteral("||"),
+      QStringLiteral("||="), QStringLiteral("~"),   QStringLiteral("~@"),
+      QStringLiteral("::")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Classifies a Ruby node. Method names and called methods are colored as
+// functions, constants as classes, and strings keep their colors around
+// interpolated code, which is colored like code.
+Token rubyTokenForNode(const NodeContext &context, const QByteArray &source,
+                       bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isRubyKeyword(type)) {
+      return Token::Keyword;
+    }
+    if (isRubyOperator(type)) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeIn(type, {"comment", "uninterpreted"})) {
+    descend = false;
+    return Token::Comment;
+  }
+  if (typeIn(type, {"string", "chained_string", "bare_string", "character",
+                    "string_array", "symbol_array", "heredoc_body"})) {
+    return Token::String;
+  }
+  if (typeEquals(type, "heredoc_content")) {
+    descend = false;
+    return Token::String;
+  }
+  if (typeIn(type, {"heredoc_beginning", "heredoc_end"})) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeEquals(type, "subshell")) {
+    return Token::RawString;
+  }
+  if (typeEquals(type, "regex")) {
+    descend = false;
+    return Token::Regex;
+  }
+  // Code in #{...} is colored by its own nodes, the rest is plain text.
+  if (typeEquals(type, "interpolation")) {
+    return Token::Default;
+  }
+  if (typeIn(type, {"simple_symbol", "delimited_symbol", "hash_key_symbol",
+                    "bare_symbol"})) {
+    descend = false;
+    return Token::Symbol;
+  }
+  if (typeIn(type, {"integer", "float", "complex", "rational"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeIn(type, {"true", "false", "nil", "self"})) {
+    descend = false;
+    return Token::Keyword;
+  }
+  if (typeEquals(type, "constant")) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeEquals(type, "instance_variable")) {
+    descend = false;
+    return Token::Variable;
+  }
+  if (typeEquals(type, "class_variable")) {
+    descend = false;
+    return Token::ClassVariable;
+  }
+  if (typeEquals(type, "global_variable")) {
+    descend = false;
+    return Token::GlobalVariable;
+  }
+  if (typeEquals(type, "operator") &&
+      typeIn(context.parent, {"method", "singleton_method"})) {
+    descend = false;
+    return Token::FunctionName;
+  }
+  if (typeEquals(type, "identifier")) {
+    if (typeEquals(context.field, "name") &&
+        typeIn(context.parent, {"method", "singleton_method"})) {
+      return Token::FunctionName;
+    }
+    if (typeEquals(context.field, "method") &&
+        typeEquals(context.parent, "call")) {
+      return Token::FunctionName;
+    }
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -1792,6 +1950,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return scalaTokenForNode(context, source, descend);
   case StyledLanguage::Makefile:
     return makefileTokenForNode(context, source, descend);
+  case StyledLanguage::Ruby:
+    return rubyTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
@@ -2472,6 +2632,48 @@ int makefileStyleFor(Token token) {
   }
 }
 
+// Ruby style ids.
+int rubyStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerRuby::Default;
+  case Token::Comment:
+  case Token::CommentLine:
+  case Token::CommentDoc:
+    return QsciLexerRuby::Comment;
+  case Token::Number:
+    return QsciLexerRuby::Number;
+  case Token::Keyword:
+    return QsciLexerRuby::Keyword;
+  case Token::String:
+    return QsciLexerRuby::DoubleQuotedString;
+  case Token::SingleQuotedString:
+    return QsciLexerRuby::SingleQuotedString;
+  case Token::Regex:
+    return QsciLexerRuby::Regex;
+  case Token::RawString:
+    return QsciLexerRuby::Backticks;
+  case Token::Operator:
+    return QsciLexerRuby::Operator;
+  case Token::Preprocessor:
+    return QsciLexerRuby::HereDocumentDelimiter;
+  case Token::FunctionName:
+    return QsciLexerRuby::FunctionMethodName;
+  case Token::Type:
+    return QsciLexerRuby::ClassName;
+  case Token::Symbol:
+    return QsciLexerRuby::Symbol;
+  case Token::Variable:
+    return QsciLexerRuby::InstanceVariable;
+  case Token::ClassVariable:
+    return QsciLexerRuby::ClassVariable;
+  case Token::GlobalVariable:
+    return QsciLexerRuby::Global;
+  default:
+    return -1;
+  }
+}
+
 int htmlScriptStyleFor(Token token) {
   switch (token) {
   case Token::Default:
@@ -2525,6 +2727,8 @@ int styleFor(StyleSet styleSet, Token token) {
     return luaStyleFor(token);
   case StyleSet::Makefile:
     return makefileStyleFor(token);
+  case StyleSet::Ruby:
+    return rubyStyleFor(token);
   }
   return -1;
 }
@@ -2636,6 +2840,13 @@ QTextCharFormat formatForToken(const QsciLexer *lexer, StyleSet styleSet,
   case Token::Target:
     fallbackColor = QColor(97, 175, 239);
     fallbackBold = true;
+    break;
+  case Token::Symbol:
+    fallbackColor = QColor(152, 195, 121);
+    break;
+  case Token::ClassVariable:
+  case Token::GlobalVariable:
+    fallbackColor = QColor(224, 108, 117);
     break;
   }
 

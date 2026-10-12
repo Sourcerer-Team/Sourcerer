@@ -181,19 +181,27 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("fs"), &createLexer<QsciLexerFSharp>},
       {QStringLiteral("fsi"), &createLexer<QsciLexerFSharp>},
       {QStringLiteral("fsx"), &createLexer<QsciLexerFSharp>},
+      {QStringLiteral("fsscript"), &createLexer<QsciLexerFSharp>},
       {QStringLiteral("lua"), &createLexer<QsciLexerLua>},
       {QStringLiteral("scala"), &createLexer<QsciLexerScala>},
       {QStringLiteral("sc"), &createLexer<QsciLexerScala>},
       {QStringLiteral("mk"), &createLexer<QsciLexerMakefile>},
       {QStringLiteral("mak"), &createLexer<QsciLexerMakefile>},
+      {QStringLiteral("rb"), &createLexer<QsciLexerRuby>},
+      {QStringLiteral("rbw"), &createLexer<QsciLexerRuby>},
+      {QStringLiteral("ruby"), &createLexer<QsciLexerRuby>},
       {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
       {QStringLiteral("jsonc"), &createLexer<QsciLexerJSON>}};
 
-  // Makefiles are usually named without an extension.
+  // Some files are known by their name, without an extension.
   const QString fileName = normalizeFileName(QFileInfo(filePath).fileName());
   if (fileName == QStringLiteral("makefile") ||
       fileName == QStringLiteral("gnumakefile")) {
     return createLexer<QsciLexerMakefile>(parent);
+  }
+  if (fileName == QStringLiteral("gemfile") ||
+      fileName == QStringLiteral("rakefile")) {
+    return createLexer<QsciLexerRuby>(parent);
   }
 
   const Creator creator = creators.value(extractExtension(filePath), nullptr);
