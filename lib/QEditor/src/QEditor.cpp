@@ -33,6 +33,7 @@ const TSLanguage *tree_sitter_kotlin(void);
 const TSLanguage *tree_sitter_asm(void);
 const TSLanguage *tree_sitter_objc(void);
 const TSLanguage *tree_sitter_swift(void);
+const TSLanguage *tree_sitter_sql(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -442,6 +443,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("swift"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_swift();
   }
+  if (language.compare(QStringLiteral("sql"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_sql();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -535,6 +539,7 @@ enum class StyledLanguage {
   Asm,
   ObjectiveC,
   Swift,
+  Sql,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -563,7 +568,9 @@ enum class StyleSet {
   Makefile,
   Ruby,
   // QsciLexerAsm ids.
-  Asm
+  Asm,
+  // QsciLexerSQL ids.
+  Sql
 };
 
 StyledLanguage styledLanguageFor(const TSLanguage *language) {
@@ -651,6 +658,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_swift()) {
     return StyledLanguage::Swift;
   }
+  if (language == tree_sitter_sql()) {
+    return StyledLanguage::Sql;
+  }
   return StyledLanguage::None;
 }
 
@@ -698,6 +708,8 @@ StyleSet styleSetFor(StyledLanguage language) {
   case StyledLanguage::ObjectiveC:
   case StyledLanguage::Swift:
     break;
+  case StyledLanguage::Sql:
+    return StyleSet::Sql;
   case StyledLanguage::Asm:
     return StyleSet::Asm;
   }
@@ -2732,6 +2744,105 @@ Token swiftTokenForNode(const NodeContext &context, const QByteArray &source,
   return Token::None;
 }
 
+// Operator tokens of SQL, listed exactly.
+bool isSqlOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),  QStringLiteral("!="), QStringLiteral("%"),
+      QStringLiteral("*"),  QStringLiteral("+"),  QStringLiteral("-"),
+      QStringLiteral("/"),  QStringLiteral("<"),  QStringLiteral("<="),
+      QStringLiteral("<>"), QStringLiteral("="),  QStringLiteral(">"),
+      QStringLiteral(">="), QStringLiteral("||"), QStringLiteral("::"),
+      QStringLiteral("~")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Classifies an SQL node. Keywords are the keyword_* nodes, literals are
+// strings or numbers by their first character, and table and function names
+// are types and functions.
+Token sqlTokenForNode(const NodeContext &context, const QByteArray &source,
+                      bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    return isSqlOperator(type) ? Token::Operator : Token::None;
+  }
+
+  const uint32_t start = ts_node_start_byte(context.node);
+  if (typeIn(type, {"comment", "marginalia"})) {
+    descend = false;
+    // Line comments start with --, block comments with /*.
+    return byteAt(source, start + 1) == '*' ? Token::Comment
+                                            : Token::CommentLine;
+  }
+  if (typeEquals(type, "dollar_quote")) {
+    descend = false;
+    return Token::String;
+  }
+  if (typeEquals(type, "literal")) {
+    const char first = byteAt(source, start);
+    if (first == '\'') {
+      descend = false;
+      return Token::SingleQuotedString;
+    }
+    if (isAsciiDigit(first) || first == '.' || first == '-') {
+      descend = false;
+      return Token::Number;
+    }
+    // NULL and other keyword literals are classified by their keyword node.
+    return Token::None;
+  }
+  // The data type of a column: the type field of a column definition.
+  if (typeEquals(context.field, "type") &&
+      typeEquals(context.parent, "column_definition")) {
+    descend = false;
+    return Token::Type;
+  }
+  if (typeEquals(type, "identifier") &&
+      typeEquals(context.parent, "object_reference")) {
+    descend = false;
+    return typeEquals(context.grandparent, "invocation") ? Token::FunctionName
+                                                         : Token::Type;
+  }
+  if (QString::fromLatin1(type).startsWith(QStringLiteral("keyword_"))) {
+    descend = false;
+    return Token::Keyword;
+  }
+
+  return Token::None;
+}
+
+// SQL style ids. The lexer has no type or function styles, so those use the
+// identifier color.
+int sqlStyleFor(Token token) {
+  switch (token) {
+  case Token::Default:
+    return QsciLexerSQL::Default;
+  case Token::Comment:
+  case Token::CommentDoc:
+    return QsciLexerSQL::CommentDoc;
+  case Token::CommentLine:
+    return QsciLexerSQL::CommentLine;
+  case Token::Number:
+    return QsciLexerSQL::Number;
+  case Token::Keyword:
+    return QsciLexerSQL::Keyword;
+  case Token::String:
+    return QsciLexerSQL::DoubleQuotedString;
+  case Token::SingleQuotedString:
+    return QsciLexerSQL::SingleQuotedString;
+  case Token::Operator:
+    return QsciLexerSQL::Operator;
+  case Token::Type:
+  case Token::FunctionName:
+  case Token::Label:
+  case Token::Variable:
+    return QsciLexerSQL::Identifier;
+  default:
+    return -1;
+  }
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -2771,6 +2882,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return objcTokenForNode(context, source, descend);
   case StyledLanguage::Swift:
     return swiftTokenForNode(context, source, descend);
+  case StyledLanguage::Sql:
+    return sqlTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
@@ -3582,6 +3695,8 @@ int styleFor(StyleSet styleSet, Token token) {
     return rubyStyleFor(token);
   case StyleSet::Asm:
     return asmStyleFor(token);
+  case StyleSet::Sql:
+    return sqlStyleFor(token);
   }
   return -1;
 }
