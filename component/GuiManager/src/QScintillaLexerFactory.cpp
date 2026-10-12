@@ -44,6 +44,7 @@
 #include <Qsci/qscilexerproperties.h>
 #include <Qsci/qscilexerpython.h>
 #include <Qsci/qscilexergo.h>
+#include <Qsci/qscilexerkotlin.h>
 #include <Qsci/qscilexerzig.h>
 #include <Qsci/qscilexerruby.h>
 #include <Qsci/qscilexerspice.h>
@@ -193,6 +194,8 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("rbw"), &createLexer<QsciLexerRuby>},
       {QStringLiteral("go"), &createLexer<QsciLexerGo>},
       {QStringLiteral("zig"), &createLexer<QsciLexerZig>},
+      {QStringLiteral("kt"), &createLexer<QsciLexerKotlin>},
+      {QStringLiteral("kts"), &createLexer<QsciLexerKotlin>},
       {QStringLiteral("ruby"), &createLexer<QsciLexerRuby>},
       {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
       {QStringLiteral("jsonc"), &createLexer<QsciLexerJSON>}};
@@ -433,6 +436,10 @@ QsciLexer *QScintillaLexerFactory::createZigLexer(QObject *parent) const {
   return new QsciLexerZig(parent);
 }
 
+QsciLexer *QScintillaLexerFactory::createKotlinLexer(QObject *parent) const {
+  return new QsciLexerKotlin(parent);
+}
+
 QsciLexer *QScintillaLexerFactory::createRubyLexer(QObject *parent) const {
   return new QsciLexerRuby(parent);
 }
@@ -568,6 +575,8 @@ QsciLexer *QScintillaLexerFactory::createLexerByType(const QString &lexerName,
     return createGoLexer(parent);
   if (lexerName == "Zig")
     return createZigLexer(parent);
+  if (lexerName == "Kotlin")
+    return createKotlinLexer(parent);
   if (lexerName == "Fortran")
     return createFortranLexer(parent);
   if (lexerName == "Fortran77")
@@ -734,6 +743,8 @@ void QScintillaLexerFactory::initializeExtensionMappings() {
   _extensionToLexer["rbw"] = "Ruby";
   _extensionToLexer["go"] = "Go";
   _extensionToLexer["zig"] = "Zig";
+  _extensionToLexer["kt"] = "Kotlin";
+  _extensionToLexer["kts"] = "Kotlin";
   _extensionToLexer["lua"] = "Lua";
   _extensionToLexer["tcl"] = "TCL";
   _extensionToLexer["tk"] = "TCL";
@@ -867,6 +878,7 @@ void QScintillaLexerFactory::initializeLexerDescriptions() {
   _lexerDescriptions["Ruby"] = "Ruby Programming Language";
   _lexerDescriptions["Go"] = "Go Programming Language";
   _lexerDescriptions["Zig"] = "Zig Programming Language";
+  _lexerDescriptions["Kotlin"] = "Kotlin Programming Language";
   _lexerDescriptions["Fortran"] = "Fortran 90+ Programming Language";
   _lexerDescriptions["Fortran77"] = "Fortran 77 Programming Language";
   _lexerDescriptions["IDL"] = "Interactive Data Language";

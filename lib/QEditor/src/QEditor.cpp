@@ -29,6 +29,7 @@ const TSLanguage *tree_sitter_make(void);
 const TSLanguage *tree_sitter_ruby(void);
 const TSLanguage *tree_sitter_go(void);
 const TSLanguage *tree_sitter_zig(void);
+const TSLanguage *tree_sitter_kotlin(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -177,6 +178,7 @@ QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerFSharp, QsciLexerCPP, "fsharp")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerScala, QsciLexerCPP, "scala")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerGo, QsciLexerCPP, "go")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerZig, QsciLexerCPP, "zig")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerKotlin, QsciLexerCPP, "kotlin")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTypeScript, QsciLexerJavaScript,
                              "typescript")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTSX, QsciLexerJavaScript, "tsx")
@@ -423,6 +425,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("zig"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_zig();
   }
+  if (language.compare(QStringLiteral("kotlin"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_kotlin();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -512,6 +517,7 @@ enum class StyledLanguage {
   Ruby,
   Go,
   Zig,
+  Kotlin,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -614,6 +620,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_zig()) {
     return StyledLanguage::Zig;
   }
+  if (language == tree_sitter_kotlin()) {
+    return StyledLanguage::Kotlin;
+  }
   return StyledLanguage::None;
 }
 
@@ -657,6 +666,7 @@ StyleSet styleSetFor(StyledLanguage language) {
   case StyledLanguage::Scala:
   case StyledLanguage::Go:
   case StyledLanguage::Zig:
+  case StyledLanguage::Kotlin:
     break;
   }
   return StyleSet::Cpp;
@@ -2220,6 +2230,138 @@ Token zigTokenForNode(const NodeContext &context, const QByteArray &source,
   return Token::None;
 }
 
+// Keywords of Kotlin, as the anonymous nodes the grammar produces for them.
+// Soft keywords such as get, set and value only appear in modifier and
+// declaration positions, so they are not identifiers there.
+bool isKotlinKeyword(const char *type) {
+  static const QSet<QString> keywords = {
+      QStringLiteral("abstract"),    QStringLiteral("actual"),
+      QStringLiteral("annotation"),  QStringLiteral("as"),
+      QStringLiteral("break"),       QStringLiteral("by"),
+      QStringLiteral("catch"),       QStringLiteral("class"),
+      QStringLiteral("companion"),   QStringLiteral("const"),
+      QStringLiteral("constructor"), QStringLiteral("continue"),
+      QStringLiteral("crossinline"), QStringLiteral("data"),
+      QStringLiteral("delegate"),    QStringLiteral("do"),
+      QStringLiteral("dynamic"),     QStringLiteral("else"),
+      QStringLiteral("enum"),        QStringLiteral("expect"),
+      QStringLiteral("external"),    QStringLiteral("final"),
+      QStringLiteral("finally"),     QStringLiteral("for"),
+      QStringLiteral("fun"),         QStringLiteral("get"),
+      QStringLiteral("if"),          QStringLiteral("import"),
+      QStringLiteral("in"),          QStringLiteral("infix"),
+      QStringLiteral("init"),        QStringLiteral("inline"),
+      QStringLiteral("inner"),       QStringLiteral("interface"),
+      QStringLiteral("internal"),    QStringLiteral("is"),
+      QStringLiteral("lateinit"),    QStringLiteral("noinline"),
+      QStringLiteral("object"),      QStringLiteral("open"),
+      QStringLiteral("operator"),    QStringLiteral("out"),
+      QStringLiteral("override"),    QStringLiteral("package"),
+      QStringLiteral("private"),     QStringLiteral("protected"),
+      QStringLiteral("public"),      QStringLiteral("reified"),
+      QStringLiteral("return"),      QStringLiteral("sealed"),
+      QStringLiteral("set"),         QStringLiteral("super"),
+      QStringLiteral("suspend"),     QStringLiteral("tailrec"),
+      QStringLiteral("this"),        QStringLiteral("throw"),
+      QStringLiteral("try"),         QStringLiteral("typealias"),
+      QStringLiteral("val"),         QStringLiteral("var"),
+      QStringLiteral("vararg"),      QStringLiteral("when"),
+      QStringLiteral("where"),       QStringLiteral("while")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Operator tokens of Kotlin, listed exactly.
+bool isKotlinOperator(const char *type) {
+  static const QSet<QString> operators = {
+      QStringLiteral("!"),   QStringLiteral("!!"), QStringLiteral("!="),
+      QStringLiteral("!=="), QStringLiteral("%"),  QStringLiteral("%="),
+      QStringLiteral("&&"),  QStringLiteral("*"),  QStringLiteral("*="),
+      QStringLiteral("+"),   QStringLiteral("++"), QStringLiteral("+="),
+      QStringLiteral("-"),   QStringLiteral("--"), QStringLiteral("-="),
+      QStringLiteral("->"),  QStringLiteral(".."), QStringLiteral("..<"),
+      QStringLiteral("/"),   QStringLiteral("/="), QStringLiteral("<"),
+      QStringLiteral("<="),  QStringLiteral("="),  QStringLiteral("=="),
+      QStringLiteral("==="), QStringLiteral(">"),  QStringLiteral(">="),
+      QStringLiteral("?"),   QStringLiteral("?:"), QStringLiteral("||"),
+      QStringLiteral("as?"), QStringLiteral("!in")};
+  return operators.contains(QString::fromLatin1(type));
+}
+
+// Classifies a Kotlin node. Class and function names are colored where they
+// are declared, types where they are used, and called functions and members.
+Token kotlinTokenForNode(const NodeContext &context, const QByteArray &source,
+                         bool &descend) {
+  Q_UNUSED(source);
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isKotlinKeyword(type)) {
+      return Token::Keyword;
+    }
+    if (isKotlinOperator(type)) {
+      return Token::Operator;
+    }
+    return Token::None;
+  }
+
+  if (typeIn(type, {"line_comment", "block_comment", "shebang"})) {
+    descend = false;
+    return Token::CommentLine;
+  }
+  if (typeEquals(type, "annotation")) {
+    descend = false;
+    return Token::Preprocessor;
+  }
+  if (typeIn(type, {"string_literal", "multiline_string_literal"})) {
+    return Token::String;
+  }
+  // Code in ${...} is colored by its own nodes, the rest is plain text.
+  if (typeEquals(type, "interpolation")) {
+    return Token::Default;
+  }
+  if (typeEquals(type, "escape_sequence")) {
+    descend = false;
+    return Token::Escape;
+  }
+  if (typeEquals(type, "character_literal")) {
+    descend = false;
+    return Token::SingleQuotedString;
+  }
+  if (typeIn(type, {"number_literal", "float_literal"})) {
+    descend = false;
+    return Token::Number;
+  }
+  if (typeEquals(type, "identifier")) {
+    const char *parent = context.parent;
+    if (typeEquals(context.field, "name")) {
+      if (typeIn(parent, {"class_declaration", "object_declaration"})) {
+        return Token::Type;
+      }
+      if (typeEquals(parent, "function_declaration")) {
+        return Token::FunctionName;
+      }
+    }
+    if (typeEquals(parent, "user_type")) {
+      return Token::Type;
+    }
+    // The callee of a call is the first child: foo(...).
+    if (typeEquals(parent, "call_expression") &&
+        ts_node_is_null(ts_node_prev_named_sibling(context.node))) {
+      return Token::FunctionName;
+    }
+    // The member of a navigation: a.b is a property, a.b(...) a call.
+    if (typeEquals(parent, "navigation_expression") &&
+        !ts_node_is_null(ts_node_prev_named_sibling(context.node))) {
+      return typeEquals(context.grandparent, "call_expression")
+                 ? Token::FunctionName
+                 : Token::Property;
+    }
+  }
+
+  return Token::None;
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -2251,6 +2393,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return goTokenForNode(context, source, descend);
   case StyledLanguage::Zig:
     return zigTokenForNode(context, source, descend);
+  case StyledLanguage::Kotlin:
+    return kotlinTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
