@@ -184,8 +184,17 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("lua"), &createLexer<QsciLexerLua>},
       {QStringLiteral("scala"), &createLexer<QsciLexerScala>},
       {QStringLiteral("sc"), &createLexer<QsciLexerScala>},
+      {QStringLiteral("mk"), &createLexer<QsciLexerMakefile>},
+      {QStringLiteral("mak"), &createLexer<QsciLexerMakefile>},
       {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
       {QStringLiteral("jsonc"), &createLexer<QsciLexerJSON>}};
+
+  // Makefiles are usually named without an extension.
+  const QString fileName = normalizeFileName(QFileInfo(filePath).fileName());
+  if (fileName == QStringLiteral("makefile") ||
+      fileName == QStringLiteral("gnumakefile")) {
+    return createLexer<QsciLexerMakefile>(parent);
+  }
 
   const Creator creator = creators.value(extractExtension(filePath), nullptr);
   return creator ? creator(parent) : nullptr;
