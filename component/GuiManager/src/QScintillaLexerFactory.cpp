@@ -46,6 +46,7 @@
 #include <Qsci/qscilexerpython.h>
 #include <Qsci/qscilexergo.h>
 #include <Qsci/qscilexerkotlin.h>
+#include <Qsci/qscilexerobjectivec.h>
 #include <Qsci/qscilexerzig.h>
 #include <Qsci/qscilexerruby.h>
 #include <Qsci/qscilexerspice.h>
@@ -199,6 +200,7 @@ QScintillaLexerFactory::createDiffViewerLexerForFile(const QString &filePath,
       {QStringLiteral("s"), &createLexer<QsciLexerAsm>},
       {QStringLiteral("kt"), &createLexer<QsciLexerKotlin>},
       {QStringLiteral("kts"), &createLexer<QsciLexerKotlin>},
+      {QStringLiteral("mm"), &createLexer<QsciLexerObjectiveC>},
       {QStringLiteral("ruby"), &createLexer<QsciLexerRuby>},
       {QStringLiteral("json"), &createLexer<QsciLexerJSON>},
       {QStringLiteral("jsonc"), &createLexer<QsciLexerJSON>}};
@@ -439,6 +441,10 @@ QsciLexer *QScintillaLexerFactory::createZigLexer(QObject *parent) const {
   return new QsciLexerZig(parent);
 }
 
+QsciLexer *QScintillaLexerFactory::createObjectiveCLexer(QObject *parent) const {
+  return new QsciLexerObjectiveC(parent);
+}
+
 QsciLexer *QScintillaLexerFactory::createKotlinLexer(QObject *parent) const {
   return new QsciLexerKotlin(parent);
 }
@@ -584,6 +590,8 @@ QsciLexer *QScintillaLexerFactory::createLexerByType(const QString &lexerName,
     return createZigLexer(parent);
   if (lexerName == "Kotlin")
     return createKotlinLexer(parent);
+  if (lexerName == "ObjectiveC")
+    return createObjectiveCLexer(parent);
   if (lexerName == "Fortran")
     return createFortranLexer(parent);
   if (lexerName == "Fortran77")
@@ -754,6 +762,7 @@ void QScintillaLexerFactory::initializeExtensionMappings() {
   _extensionToLexer["zig"] = "Zig";
   _extensionToLexer["kt"] = "Kotlin";
   _extensionToLexer["kts"] = "Kotlin";
+  _extensionToLexer["mm"] = "ObjectiveC";
   _extensionToLexer["lua"] = "Lua";
   _extensionToLexer["tcl"] = "TCL";
   _extensionToLexer["tk"] = "TCL";
@@ -888,6 +897,7 @@ void QScintillaLexerFactory::initializeLexerDescriptions() {
   _lexerDescriptions["Go"] = "Go Programming Language";
   _lexerDescriptions["Zig"] = "Zig Programming Language";
   _lexerDescriptions["Kotlin"] = "Kotlin Programming Language";
+  _lexerDescriptions["ObjectiveC"] = "Objective-C Programming Language";
   _lexerDescriptions["Fortran"] = "Fortran 90+ Programming Language";
   _lexerDescriptions["Fortran77"] = "Fortran 77 Programming Language";
   _lexerDescriptions["IDL"] = "Interactive Data Language";

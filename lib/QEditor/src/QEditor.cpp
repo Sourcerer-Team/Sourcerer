@@ -31,6 +31,7 @@ const TSLanguage *tree_sitter_go(void);
 const TSLanguage *tree_sitter_zig(void);
 const TSLanguage *tree_sitter_kotlin(void);
 const TSLanguage *tree_sitter_asm(void);
+const TSLanguage *tree_sitter_objc(void);
 const TSLanguage *tree_sitter_typescript(void);
 }
 
@@ -180,6 +181,7 @@ QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerScala, QsciLexerCPP, "scala")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerGo, QsciLexerCPP, "go")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerZig, QsciLexerCPP, "zig")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerKotlin, QsciLexerCPP, "kotlin")
+QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerObjectiveC, QsciLexerCPP, "objc")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTypeScript, QsciLexerJavaScript,
                              "typescript")
 QEDITOR_DEFINE_DERIVED_LEXER(QsciLexerTSX, QsciLexerJavaScript, "tsx")
@@ -432,6 +434,9 @@ const TSLanguage *treeSitterLanguageForLexer(const QsciLexer *lexer) {
   if (language.compare(QStringLiteral("asm"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_asm();
   }
+  if (language.compare(QStringLiteral("objc"), Qt::CaseInsensitive) == 0) {
+    return tree_sitter_objc();
+  }
   if (language.compare(QStringLiteral("python"), Qt::CaseInsensitive) == 0) {
     return tree_sitter_python();
   }
@@ -523,6 +528,7 @@ enum class StyledLanguage {
   Zig,
   Kotlin,
   Asm,
+  ObjectiveC,
   Xml,
   // Only reached through <script>/<style> injections in HTML documents.
   EmbeddedJavaScript,
@@ -633,6 +639,9 @@ StyledLanguage styledLanguageFor(const TSLanguage *language) {
   if (language == tree_sitter_asm()) {
     return StyledLanguage::Asm;
   }
+  if (language == tree_sitter_objc()) {
+    return StyledLanguage::ObjectiveC;
+  }
   return StyledLanguage::None;
 }
 
@@ -677,6 +686,7 @@ StyleSet styleSetFor(StyledLanguage language) {
   case StyledLanguage::Go:
   case StyledLanguage::Zig:
   case StyledLanguage::Kotlin:
+  case StyledLanguage::ObjectiveC:
     break;
   case StyledLanguage::Asm:
     return StyleSet::Asm;
@@ -2431,6 +2441,93 @@ Token asmTokenForNode(const NodeContext &context, const QByteArray &source,
   return Token::None;
 }
 
+// Objective-C directives and literals, as the anonymous nodes the grammar
+// produces for them.
+bool isObjcKeyword(const char *type) {
+  static const QSet<QString> keywords = {QStringLiteral("@"),
+                                         QStringLiteral("@autoreleasepool"),
+                                         QStringLiteral("@available"),
+                                         QStringLiteral("@class"),
+                                         QStringLiteral("@compatibility_alias"),
+                                         QStringLiteral("@catch"),
+                                         QStringLiteral("@defs"),
+                                         QStringLiteral("@dynamic"),
+                                         QStringLiteral("@encode"),
+                                         QStringLiteral("@end"),
+                                         QStringLiteral("@finally"),
+                                         QStringLiteral("@implementation"),
+                                         QStringLiteral("@import"),
+                                         QStringLiteral("@interface"),
+                                         QStringLiteral("@optional"),
+                                         QStringLiteral("@package"),
+                                         QStringLiteral("@private"),
+                                         QStringLiteral("@property"),
+                                         QStringLiteral("@protected"),
+                                         QStringLiteral("@protocol"),
+                                         QStringLiteral("@public"),
+                                         QStringLiteral("@required"),
+                                         QStringLiteral("@selector"),
+                                         QStringLiteral("@synchronized"),
+                                         QStringLiteral("@synthesize"),
+                                         QStringLiteral("@throw"),
+                                         QStringLiteral("@try")};
+  return keywords.contains(QString::fromLatin1(type));
+}
+
+// Classifies an Objective-C node. Classes and protocols are types, method
+// selectors and called methods are functions, and self and super are
+// keywords. Everything else is classified like C.
+Token objcTokenForNode(const NodeContext &context, const QByteArray &source,
+                       bool &descend) {
+  descend = true;
+  const char *type = context.type;
+
+  if (!context.named) {
+    if (isObjcKeyword(type)) {
+      return Token::Keyword;
+    }
+    // The sign of a method declaration: - and +.
+    if (typeIn(type, {"-", "+"}) &&
+        typeIn(context.parent, {"method_declaration", "method_definition"})) {
+      return Token::Operator;
+    }
+    return cFamilyTokenForNode(context, source, descend);
+  }
+
+  if (typeEquals(type, "identifier")) {
+    const uint32_t start = ts_node_start_byte(context.node);
+    const uint32_t end = ts_node_end_byte(context.node);
+    const QByteArray name =
+        source.mid(static_cast<int>(start), static_cast<int>(end - start));
+    if (name == "self" || name == "super") {
+      descend = false;
+      return Token::Keyword;
+    }
+    const char *parent = context.parent;
+    if (typeIn(parent, {"class_interface", "class_implementation",
+                        "protocol_declaration", "protocol_reference_list"})) {
+      descend = false;
+      return Token::Type;
+    }
+    if (typeIn(parent, {"method_declaration", "method_definition",
+                        "keyword_declarator"})) {
+      descend = false;
+      return Token::FunctionName;
+    }
+    if (typeEquals(parent, "message_expression") &&
+        typeEquals(context.field, "method")) {
+      descend = false;
+      return Token::FunctionName;
+    }
+    if (typeEquals(parent, "property_attribute")) {
+      descend = false;
+      return Token::Keyword;
+    }
+  }
+
+  return cFamilyTokenForNode(context, source, descend);
+}
+
 Token tokenForNode(StyledLanguage language, const NodeContext &context,
                    const QByteArray &source, bool &descend) {
   switch (language) {
@@ -2466,6 +2563,8 @@ Token tokenForNode(StyledLanguage language, const NodeContext &context,
     return kotlinTokenForNode(context, source, descend);
   case StyledLanguage::Asm:
     return asmTokenForNode(context, source, descend);
+  case StyledLanguage::ObjectiveC:
+    return objcTokenForNode(context, source, descend);
   case StyledLanguage::EmbeddedJavaScript:
     return genericTokenForNode(StyledLanguage::JavaScript, context, source,
                                descend);
