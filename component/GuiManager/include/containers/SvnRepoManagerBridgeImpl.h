@@ -1,14 +1,16 @@
 #pragma once
 
-#include "GitRepoManagerBridge.h"
+#include "RepoManagerBridge.h"
 
 namespace GuiManager::Containers {
 
 class RepoContainer;
 
-class SvnRepoManagerBridgeImpl final : public GitRepoManagerBridge {
+class SvnRepoManagerBridgeImpl final : public RepoManagerBridge {
 public:
   explicit SvnRepoManagerBridgeImpl(RepoContainer &container);
+
+  RepoFeatures features() const override;
 
   void blame(const QWeakPointer<RepoContainer> &guard,
              const QStringList &files) override;

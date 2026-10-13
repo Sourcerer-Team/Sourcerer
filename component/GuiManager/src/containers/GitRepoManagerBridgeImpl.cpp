@@ -184,6 +184,12 @@ showUnifiedDiff(QsciScintilla *editor, const QString &diff,
 GitRepoManagerBridgeImpl::GitRepoManagerBridgeImpl(RepoContainer &container)
     : _container(container) {}
 
+RepoFeatures GitRepoManagerBridgeImpl::features() const {
+  return RepoFeatures::GitFlow | RepoFeatures::Remotes |
+         RepoFeatures::Worktrees | RepoFeatures::CommitInfoSha |
+         RepoFeatures::CommitInfoEmail;
+}
+
 void GitRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,
                                      const QStringList &files) {
   LOG_PERF(0, "Enter");

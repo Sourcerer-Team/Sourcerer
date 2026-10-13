@@ -1,19 +1,19 @@
+#include "containers/RepoContainer.h"
 #include "CustomWorkflowStore.h"
 #include "DarkThemeLexersHighlighter.h"
 #include "MainWindow.h"
 #include "MousePositionCorrection.h"
 #include "QScintillaLexerFactory.h"
 #include "containers/GitRepoManagerBridgeImpl.h"
-#include "containers/RepoContainer.h"
 #include "containers/SvnRepoManagerBridgeImpl.h"
 #include "containers/ui_RepoContainer.h"
 #include "delegates/ElidePartialColorDelegate.h"
-#include "models/RecentlyOpenedReposModel.h"
 #include "delegates/HistorySliceTableColumnDelegate.h"
 #include "delegates/HistorySummaryTableColumnDelegate.h"
 #include "models/GitCommitListModel.h"
 #include "models/GitCommitTreeModel.h"
 #include "models/GitHistoryModel.h"
+#include "models/RecentlyOpenedReposModel.h"
 #include "widgets/AddRemoteOverlayWidget.h"
 #include "widgets/AddSubmoduleOverlayWidget.h"
 #include "widgets/AddTargetOverlayWidget.h"
@@ -471,7 +471,7 @@ static const char *repoAdminSubdir(const QString &path) {
                                                               : GIT_SUBDIR;
 }
 
-static std::unique_ptr<GitRepoManagerBridge>
+static std::unique_ptr<RepoManagerBridge>
 createRepoBridge(RepoContainer &container, RepositoryType type) {
   if (type == RepositoryType::Subversion) {
     return std::make_unique<SvnRepoManagerBridgeImpl>(container);
@@ -540,6 +540,20 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   ui->labelPageDisplayEmailValue->hide();
   _authorEmailValueLabel->show();
 
+  // Repositories without commit emails (e.g. Subversion) hide the email row.
+  const bool hasCommitEmail =
+      hasFeature(_bridge->features(), RepoFeatures::CommitInfoEmail);
+  ui->labelPageDisplayEmailLabel->setVisible(hasCommitEmail);
+  _authorEmailValueLabel->setVisible(hasCommitEmail);
+
+  // Subversion commits are identified by revision instead of a SHA.
+  const RepoFeatures commitInfoFeatures = _bridge->features();
+  if (hasFeature(commitInfoFeatures, RepoFeatures::CommitInfoSha)) {
+    ui->labelPageDisplayShaLabel->setText(tr("sha:"));
+  } else if (hasFeature(commitInfoFeatures, RepoFeatures::CommitInfoRevision)) {
+    ui->labelPageDisplayShaLabel->setText(tr("revision:"));
+  }
+
   ui->horizontalLayoutPageDisplayGroupBoxInfoAuthorDetails->setStretch(0, 1);
   ui->horizontalLayoutPageDisplayGroupBoxInfoAuthorDetails->setStretch(1, 0);
 
@@ -572,14 +586,42 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   setToolBoxItemText(ui->localPage, tr("Local Branches"));
   setToolBoxItemText(ui->remotePage, tr("Remote Branches"));
   setToolBoxItemText(ui->tagsPage, tr("Tags"));
-  setToolBoxItemText(ui->submodulesPage, tr("Submodules"));
-  setToolBoxItemText(ui->stashesPage, tr("Stashes"));
+  // Subversion externals take the place of Git submodules in this panel.
+  const bool hasExternals =
+      hasFeature(_bridge->features(), RepoFeatures::Externals);
+  setToolBoxItemText(ui->submodulesPage,
+                     hasExternals ? tr("Externals") : tr("Submodules"));
+
+  // Subversion shelves take the place of Git stashes in this panel.
+  const bool hasShelves =
+      hasFeature(_bridge->features(), RepoFeatures::Shelves);
+  setToolBoxItemText(ui->stashesPage,
+                     hasShelves ? tr("Shelves") : tr("Stashes"));
   setToolBoxItemText(ui->remotesPage, tr("Remotes"));
   setToolBoxItemText(ui->worktreesPage, tr("Worktrees"));
 
   ui->toolBox->setAttribute(Qt::WA_StyledBackground, true);
 
   applyToolBoxIcons();
+
+  // Pages the bridge does not support are removed from the toolbox. They are
+  // kept alive, since other code still reads from them.
+  const auto hideToolBoxPage = [this](QWidget *page) {
+    const int index = ui->toolBox->indexOf(page);
+    if (index != -1) {
+      ui->toolBox->removeItem(index);
+    }
+    page->setParent(ui->toolBox);
+    page->hide();
+  };
+
+  const RepoFeatures features = _bridge->features();
+  if (!hasFeature(features, RepoFeatures::Remotes)) {
+    hideToolBoxPage(ui->remotesPage);
+  }
+  if (!hasFeature(features, RepoFeatures::Worktrees)) {
+    hideToolBoxPage(ui->worktreesPage);
+  }
 
   ui->splitter->setStretchFactor(0, 2);
   ui->splitter->setStretchFactor(1, 6);
@@ -1415,13 +1457,11 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   _shortcutsWidget->addShortcutWidget(pushButtonStash);
   _shortcutsWidget->addShortcutWidget(pushButtonPop);
 
-  gitFlowDropdown->show();
+  // The Git Flow button is shown only for bridges that support it.
+  gitFlowDropdown->setVisible(
+      hasFeature(_bridge->features(), RepoFeatures::GitFlow));
   pushButtonStash->show();
   pushButtonPop->show();
-
-  // Git Flow is not supported for Subversion repositories, the button stays
-  // visible but disabled.
-  gitFlowDropdown->setEnabled(gitType);
 
   ui->leftVerticalLayout->insertWidget(0, _shortcutsWidget);
 
@@ -7772,8 +7812,7 @@ void RepoContainer::saveRepoInRecentList() const {
   QStringList recentReposList = recentRepos.split(";", Qt::SkipEmptyParts);
   const QString repoPath = QDir::fromNativeSeparators(_path);
   for (const QString &entry : recentReposList) {
-    if (Models::RecentlyOpenedReposModel::recentEntryPath(entry) ==
-        repoPath) {
+    if (Models::RecentlyOpenedReposModel::recentEntryPath(entry) == repoPath) {
       LOG_PERF(0, "Exit");
       return;
     }

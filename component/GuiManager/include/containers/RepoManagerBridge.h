@@ -14,9 +14,35 @@ namespace GuiManager::Containers {
 
 class RepoContainer;
 
-class GitRepoManagerBridge {
+// Features supported by a repository bridge implementation, combine them with
+// operator|.
+enum class RepoFeatures : unsigned {
+  None = 0,
+  GitFlow = 1 << 0,
+  Shelves = 1 << 1,
+  Externals = 1 << 2,
+  Remotes = 1 << 3,
+  Worktrees = 1 << 4,
+  CommitInfoSha = 1 << 5,
+  CommitInfoEmail = 1 << 6,
+  CommitInfoRevision = 1 << 7,
+};
+
+inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {
+  return static_cast<RepoFeatures>(static_cast<unsigned>(lhs) |
+                                   static_cast<unsigned>(rhs));
+}
+
+inline bool hasFeature(RepoFeatures features, RepoFeatures feature) {
+  return (static_cast<unsigned>(features) & static_cast<unsigned>(feature)) !=
+         0;
+}
+
+class RepoManagerBridge {
 public:
-  virtual ~GitRepoManagerBridge() = default;
+  virtual ~RepoManagerBridge() = default;
+
+  virtual RepoFeatures features() const = 0;
 
   virtual void blame(const QWeakPointer<RepoContainer> &guard,
                      const QStringList &files) = 0;

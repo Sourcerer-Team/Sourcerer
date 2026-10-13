@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GitRepoManagerBridge.h"
+#include "RepoManagerBridge.h"
 
 namespace GitRepoManager::Structs {
 struct GitRepoGitFlowCommand;
@@ -10,9 +10,11 @@ namespace GuiManager::Containers {
 
 class RepoContainer;
 
-class GitRepoManagerBridgeImpl final : public GitRepoManagerBridge {
+class GitRepoManagerBridgeImpl final : public RepoManagerBridge {
 public:
   explicit GitRepoManagerBridgeImpl(RepoContainer &container);
+
+  RepoFeatures features() const override;
 
   void blame(const QWeakPointer<RepoContainer> &guard,
              const QStringList &files) override;

@@ -68,7 +68,7 @@ class GitHistoryModel;
 
 namespace GuiManager::Containers {
 
-class GitRepoManagerBridge;
+class RepoManagerBridge;
 class GitRepoManagerBridgeImpl;
 
 class RepoContainer final : public Widgets::ContainerWidget,
@@ -525,7 +525,7 @@ private:
   GitRepo::BranchType _activeBranchType;
   ConfigManager::ConfigManager &_configManager;
   EventManager::EventManager &_eventManager;
-  std::unique_ptr<GitRepoManagerBridge> _bridge;
+  std::unique_ptr<RepoManagerBridge> _bridge;
   Common::UserProfileManager &_userProfileManager;
   Widgets::ToastHostWidget &_toastHost;
   QSharedPointer<Models::GitHistoryModel> _historyModel;

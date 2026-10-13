@@ -86,8 +86,11 @@ QSize FlowLayout::sizeHint() const {
 
 QSize FlowLayout::minimumSize() const {
   QSize size;
-  for (const QLayoutItem *item : std::as_const(_itemList))
+  for (const QLayoutItem *item : std::as_const(_itemList)) {
+    if (item->isEmpty())
+      continue;
     size = size.expandedTo(item->minimumSize());
+  }
 
   const QMargins margins = contentsMargins();
   size +=
@@ -104,6 +107,10 @@ int FlowLayout::doLayoutHorizontalFirst(const QRect &rect,
 
   for (int i = 0; i < _itemList.size(); ++i) {
     QLayoutItem *item = _itemList.at(i);
+    // Hidden widgets take no space, so they must not reserve a slot either.
+    if (item->isEmpty())
+      continue;
+
     QSize itemSize = item->sizeHint();
 
     int spaceX = horizontalSpacing();
@@ -151,7 +158,8 @@ int FlowLayout::doLayoutVerticalFirst(const QRect &rect, bool testOnly) const {
 
   for (int i = 0; i < _itemList.size(); ++i) {
     QLayoutItem *item = _itemList.at(i);
-    QWidget *widget = item->widget();
+    if (item->isEmpty())
+      continue;
 
     QSize itemSize = item->sizeHint();
     int spaceX = horizontalSpacing();

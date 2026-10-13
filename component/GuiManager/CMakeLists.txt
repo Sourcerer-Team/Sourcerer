@@ -74,7 +74,7 @@ set(GUIMANAGER_SOURCE_FILES
         include/containers/GitCredentialsContainer.h
         include/containers/GitKeysContainer.h
         include/containers/RepoContainer.h
-        include/containers/GitRepoManagerBridge.h
+        include/containers/RepoManagerBridge.h
         include/containers/GitRepoManagerBridgeImpl.h
         include/containers/SvnRepoManagerBridgeImpl.h
         include/containers/HomeContainer.h

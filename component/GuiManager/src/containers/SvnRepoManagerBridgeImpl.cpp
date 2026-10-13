@@ -124,6 +124,11 @@ commitSummaryFromHistoryModel(const Models::GitHistoryModel *historyModel,
 SvnRepoManagerBridgeImpl::SvnRepoManagerBridgeImpl(RepoContainer &container)
     : _container(container) {}
 
+RepoFeatures SvnRepoManagerBridgeImpl::features() const {
+  return RepoFeatures::Shelves | RepoFeatures::Externals |
+         RepoFeatures::CommitInfoRevision;
+}
+
 void SvnRepoManagerBridgeImpl::setUpstream(
     const QWeakPointer<RepoContainer> &guard, const QString &branchName,
     const QString &remoteName, const QString &remoteBranchName,
