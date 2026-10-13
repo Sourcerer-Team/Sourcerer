@@ -161,6 +161,10 @@ struct CommitStatus {
   QString author;
   QString message;
   qint64 timeStamp = -1;
+  // Files of the working copy changed by the revision, relative to its root.
+  QStringList newFiles;
+  QStringList modifiedFiles;
+  QStringList deletedFiles;
 };
 
 struct SvnErrorContext {

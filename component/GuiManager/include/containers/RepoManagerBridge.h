@@ -28,6 +28,10 @@ enum class RepoFeatures : unsigned {
   CommitInfoRevision = 1 << 7,
   HistoryColumnSha = 1 << 8,
   HistoryColumnRevision = 1 << 9,
+  HistoryContextMenuCopyToClipboard = 1 << 10,
+  HistoryContextMenuReset = 1 << 11,
+  CheckoutCommitCreatesBranch = 1 << 12,
+  HistoryColumnEmail = 1 << 13,
 };
 
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {

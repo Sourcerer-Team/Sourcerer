@@ -2982,6 +2982,15 @@ void RepoContainer::onCheckoutCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Checkout commit requested: '{}'", commit.toStdString());
 
+  // Some repositories cannot check out a commit on its own. There a new branch
+  // is created from the commit and checked out instead.
+  if (hasFeature(_bridge->features(),
+                 RepoFeatures::CheckoutCommitCreatesBranch)) {
+    onCreateBranchFromCommit(commit);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
 
@@ -3906,11 +3915,19 @@ void RepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   }
 
   if (!commit.isEmpty()) {
+    // Not every repository type offers these, e.g. Subversion has no SHA.
+    const RepoFeatures historyMenuFeatures = _bridge->features();
     menu.addAction(&actionCheckoutCommit);
-    menu.addAction(&actionCopyShaToClipboard);
+    if (hasFeature(historyMenuFeatures,
+                   RepoFeatures::HistoryContextMenuCopyToClipboard)) {
+      menu.addAction(&actionCopyShaToClipboard);
+    }
     menu.addSeparator();
     menu.addAction(&actionCreateBranchFromCommit);
-    menu.addMenu(&resetMenu);
+    if (hasFeature(historyMenuFeatures,
+                   RepoFeatures::HistoryContextMenuReset)) {
+      menu.addMenu(&resetMenu);
+    }
     menu.addAction(&actionRevertCommit);
     menu.addAction(&actionCherryPickCommit);
     menu.addSeparator();
@@ -7649,14 +7666,24 @@ void RepoContainer::restorePreviousSectionWidth() {
   LOG_PERF(0, "Exit");
 }
 
+bool RepoContainer::historyColumnAvailable(const int column) const {
+  if (column == COLUMN_AUTHOR_EMAIL) {
+    return hasFeature(_bridge->features(), RepoFeatures::HistoryColumnEmail);
+  }
+
+  return true;
+}
+
 void RepoContainer::persistHistoryColumnVisibility() {
   LOG_PERF(0, "Enter");
 
+  // Unavailable columns are not saved, the column visibility setting is shared
+  // by all repositories.
   const QHeaderView *header = ui->historyView->horizontalHeader();
   QStringList hiddenColumns;
   hiddenColumns.reserve(header->count());
   for (int column = 0; column < header->count(); ++column) {
-    if (header->isSectionHidden(column)) {
+    if (header->isSectionHidden(column) && historyColumnAvailable(column)) {
       hiddenColumns << QString::number(column);
     }
   }
@@ -7704,7 +7731,8 @@ void RepoContainer::applyHistoryColumnVisibility() {
   QHeaderView *header = ui->historyView->horizontalHeader();
   QSignalBlocker blocker(header);
   for (int column = 0; column < header->count(); ++column) {
-    header->setSectionHidden(column, hiddenColumns.contains(column));
+    header->setSectionHidden(column, hiddenColumns.contains(column) ||
+                                         !historyColumnAvailable(column));
   }
   updateHistoryFilterButtonGeometry();
 
@@ -7777,6 +7805,10 @@ void RepoContainer::onHistoryHeaderContextMenuRequested(const QPoint &pos) {
   const int historyColumnCount = header->count();
 
   for (int column = 0; column < historyColumnCount; ++column) {
+    if (!historyColumnAvailable(column)) {
+      continue;
+    }
+
     const QString columnName =
         header->model()
             ? header->model()
@@ -7802,7 +7834,9 @@ void RepoContainer::onHistoryHeaderContextMenuRequested(const QPoint &pos) {
     QSignalBlocker headerBlocker(ui->historyView->horizontalHeader());
     QHeaderView *header = ui->historyView->horizontalHeader();
     for (int column = 0; column < header->count(); ++column) {
-      header->setSectionHidden(column, false);
+      if (historyColumnAvailable(column)) {
+        header->setSectionHidden(column, false);
+      }
     }
     persistHistoryColumnVisibility();
   });

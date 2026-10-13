@@ -297,8 +297,7 @@ FilesDiff diffFilesFromCommit(const QString &path, const QStringList &files,
           const QString relativePath = QFileInfo(file).isAbsolute()
                                            ? relativeFilePath(wcPath, file)
                                            : QDir::fromNativeSeparators(file);
-          const QString fileUrl =
-              trimmedUrl(info.url) + QStringLiteral("/") + relativePath;
+          const QString fileUrl = urlOfRelativePath(info.url, relativePath);
 
           QByteArray oldContent;
           svn_error_t *error = readFileAtRevision(
@@ -414,8 +413,7 @@ qint64 getFileSizeFromCommit(const QString &path, const QString &filePath,
                                          ? relativeFilePath(wcPath, filePath)
                                          : QDir::fromNativeSeparators(filePath);
         const QByteArray fileUrl =
-            (trimmedUrl(info.url) + QStringLiteral("/") + relativePath)
-                .toUtf8();
+            urlOfRelativePath(info.url, relativePath).toUtf8();
         const svn_opt_revision_t peg = revisionNumber(revision);
         return reportError(SvnError::InfoFailed,
                            svn_client_list4(fileUrl.constData(), &peg, &peg,

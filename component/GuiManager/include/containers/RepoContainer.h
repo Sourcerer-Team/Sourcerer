@@ -347,6 +347,9 @@ private:
   void applyDisplayFilesModels();
   void resizeSectionToViewport(int section);
   void restorePreviousSectionWidth();
+  // False for columns the repository type does not provide, e.g. the email
+  // column of Subversion history.
+  bool historyColumnAvailable(int column) const;
   void applyHistoryColumnVisibility();
   void updateAllBranchesActions();
   void persistHistoryColumnVisibility();

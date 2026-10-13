@@ -81,6 +81,10 @@ bool parseRevision(const QString &commit, svn_revnum_t *revision);
 struct WorkingCopyInfo {
   QString url;
   QString reposRootUrl;
+  // Directory holding the trunk/branches/tags layout. It is the repository
+  // root for a standard repository, but a project directory inside a larger
+  // repository (e.g. .../asf/subversion) is the layout root for its branches.
+  QString layoutRootUrl;
   QString reposUuid;
   QString wcRoot;
   svn_revnum_t revision = SVN_INVALID_REVNUM;
@@ -95,6 +99,12 @@ svn_error_t *readInfo(WorkingCopyInfo *info, const QString &pathOrUrl,
 bool readInfo(WorkingCopyInfo *info, const QString &path);
 
 QString trimmedUrl(QString url);
+// Directory of url that holds the trunk/branches/tags layout, see
+// WorkingCopyInfo::layoutRootUrl.
+QString layoutRootUrlFor(const QString &url, const QString &reposRootUrl);
+// URL of relativePath below rootUrl. The path is percent-encoded, as
+// Subversion requires, so names with spaces become e.g. "New%20Bitmap.bmp".
+QString urlOfRelativePath(const QString &rootUrl, const QString &relativePath);
 
 // URL of a branch, tag or trunk below the repository root. "trunk" names
 // the trunk for every branch type but Tag.

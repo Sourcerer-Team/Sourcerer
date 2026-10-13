@@ -31,6 +31,7 @@
 #include <QRegularExpression>
 #include <QString>
 #include <QStringList>
+#include <QUrl>
 #include <QVector>
 #include <QtGlobal>
 
@@ -57,9 +58,12 @@ static void sendCloneProgressSignal(EventManager::EventType type,
   EventManager::EventManager::getInstance().send(event);
 }
 
+// Checkout notifications between two progress events. Sending one event per
+// file floods the event queue for large repositories.
+constexpr size_t kCheckoutProgressStep = 100;
+
 struct CheckoutProgressBaton {
   GitRepo::CloneProgress progress;
-  size_t countedEntries = 0;
   size_t completedNotifications = 0;
 };
 
@@ -82,42 +86,6 @@ static void emitCheckoutProgress(CheckoutProgressBaton &baton,
   sendCloneProgressSignal(
       EventManager::EventType::SvnRepoManagerCloneRepoProgress,
       baton.progress.uuid, baton.progress);
-}
-
-static svn_error_t *countCheckoutEntry(void *baton, const char *,
-                                       const svn_dirent_t *, const svn_lock_t *,
-                                       const char *, const char *, const char *,
-                                       apr_pool_t *) {
-  if (!baton) {
-    return SVN_NO_ERROR;
-  }
-
-  auto *progress = static_cast<CheckoutProgressBaton *>(baton);
-  ++progress->countedEntries;
-  progress->progress.completedSteps = progress->countedEntries;
-  progress->progress.totalSteps = progress->countedEntries + 1;
-  progress->progress.lastStepPercentage =
-      static_cast<int>((100.0 * progress->progress.completedSteps) /
-                       progress->progress.totalSteps);
-  emitCheckoutProgress(*progress, GitRepo::CloneProgressStageType::Fetch);
-  return SVN_NO_ERROR;
-}
-
-static size_t countCheckoutEntries(svn_client_ctx_t *ctx, apr_pool_t *pool,
-                                   const QByteArray &urlBytes,
-                                   svn_opt_revision_t *pegRev,
-                                   svn_opt_revision_t *rev,
-                                   CheckoutProgressBaton &progressBaton) {
-  svn_error_t *error =
-      svn_client_list4(urlBytes.constData(), pegRev, rev, nullptr,
-                       svn_depth_infinity, SVN_DIRENT_KIND, FALSE, FALSE,
-                       countCheckoutEntry, &progressBaton, ctx, pool);
-  if (error) {
-    svn_error_clear(error);
-    return 0;
-  }
-
-  return progressBaton.countedEntries;
 }
 
 static void checkoutNotifyCallback(void *baton, const svn_wc_notify_t *notify,
@@ -145,6 +113,10 @@ static void checkoutNotifyCallback(void *baton, const svn_wc_notify_t *notify,
   case svn_wc_notify_update_delete:
   case svn_wc_notify_update_completed:
     ++progress->completedNotifications;
+    if (notify->action != svn_wc_notify_update_completed &&
+        progress->completedNotifications % kCheckoutProgressStep != 0) {
+      break;
+    }
     progress->progress.completedSteps = progress->completedNotifications;
     if (progress->progress.totalSteps > 0 &&
         progress->progress.completedSteps > progress->progress.totalSteps) {
@@ -605,6 +577,8 @@ static svn_error_t *infoCallback(void *baton, const char *,
   result->reposRootUrl = info->repos_root_URL
                              ? QString::fromUtf8(info->repos_root_URL)
                              : QString();
+  result->layoutRootUrl =
+      Private::layoutRootUrlFor(result->url, result->reposRootUrl);
   result->reposUuid =
       info->repos_UUID ? QString::fromUtf8(info->repos_UUID) : QString();
   result->revision = info->rev;
@@ -843,6 +817,38 @@ QString trimmedUrl(QString url) {
   return url;
 }
 
+QString layoutRootUrlFor(const QString &url, const QString &reposRootUrl) {
+  const QString root = trimmedUrl(reposRootUrl);
+  const QString normalizedUrl = trimmedUrl(url);
+  if (root.isEmpty() || !normalizedUrl.startsWith(root)) {
+    return normalizedUrl;
+  }
+
+  const QStringList parts =
+      normalizedUrl.mid(root.size()).split('/', Qt::SkipEmptyParts);
+  for (qsizetype i = 0; i < parts.size(); ++i) {
+    if (parts[i] == QStringLiteral("trunk") ||
+        parts[i] == QStringLiteral("branches") ||
+        parts[i] == QStringLiteral("tags")) {
+      QString layoutRoot = root;
+      for (qsizetype j = 0; j < i; ++j) {
+        layoutRoot += QLatin1Char('/') + parts[j];
+      }
+      return layoutRoot;
+    }
+  }
+
+  // No trunk/branches/tags in the path: the url itself holds the layout.
+  return normalizedUrl;
+}
+
+QString urlOfRelativePath(const QString &rootUrl, const QString &relativePath) {
+  const QByteArray encodedPath =
+      QUrl::toPercentEncoding(relativePath, QByteArrayLiteral("/"));
+  return trimmedUrl(rootUrl) + QStringLiteral("/") +
+         QString::fromLatin1(encodedPath);
+}
+
 QString branchUrl(const QString &reposRootUrl, const QString &name,
                   BranchType type) {
   const QString root = trimmedUrl(reposRootUrl);
@@ -891,7 +897,9 @@ QString branchNameFromUrl(const QString &url, const QString &reposRootUrl,
     return type == BranchType::Tag ? parts[1] : QString();
   }
 
-  return parts.last();
+  // Not in the trunk/branches/tags layout, e.g. a project directory that holds
+  // the layout. It is not a branch, so the name stays empty.
+  return {};
 }
 
 svn_error_t *listDirectories(QStringList *names, const QString &url,
@@ -1256,11 +1264,11 @@ bool cloneRepository(const QString &url, const QString &destinationDir,
     const QByteArray urlBytes = url.toUtf8();
     const QByteArray destBytes = normalizedPath(destinationDir).toUtf8();
 
-    const size_t entryCount =
-        countCheckoutEntries(ctx, pool, urlBytes, &pegRev, &rev, progressBaton);
-    progressBaton.progress.totalSteps = entryCount > 0 ? entryCount : 1;
+    // The entries are not counted up front, listing a large repository takes
+    // as long as checking it out. Without a total the progress is busy.
+    progressBaton.progress.totalSteps = 0;
     progressBaton.progress.completedSteps = 0;
-    progressBaton.progress.lastStepPercentage = 0;
+    progressBaton.progress.lastStepPercentage = -1;
     progressBaton.progress.stage = GitRepo::CloneProgressStageType::Checkout;
     emitCheckoutProgress(progressBaton,
                          GitRepo::CloneProgressStageType::Checkout);

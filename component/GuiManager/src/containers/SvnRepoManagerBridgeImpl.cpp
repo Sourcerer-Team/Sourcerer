@@ -126,7 +126,9 @@ SvnRepoManagerBridgeImpl::SvnRepoManagerBridgeImpl(RepoContainer &container)
 
 RepoFeatures SvnRepoManagerBridgeImpl::features() const {
   return RepoFeatures::Shelves | RepoFeatures::Externals |
-         RepoFeatures::CommitInfoRevision | RepoFeatures::HistoryColumnRevision;
+         RepoFeatures::CommitInfoRevision |
+         RepoFeatures::HistoryColumnRevision |
+         RepoFeatures::CheckoutCommitCreatesBranch;
 }
 
 void SvnRepoManagerBridgeImpl::setUpstream(
@@ -2932,6 +2934,18 @@ convertSvnHistoryToGitHistory(const SvnRepo::SvnHistory &history) {
   return gitHistory;
 }
 
+static GitRepo::GitCommitStatus
+convertSvnCommitStatusToGitCommitStatus(const SvnRepo::CommitStatus &status) {
+  GitRepo::GitCommitStatus gitCommitStatus;
+  gitCommitStatus.commit = status.commit;
+  gitCommitStatus.authorName = status.author;
+  gitCommitStatus.newFiles = status.newFiles;
+  gitCommitStatus.modifiedFiles = status.modifiedFiles;
+  gitCommitStatus.deletedFiles = status.deletedFiles;
+
+  return gitCommitStatus;
+}
+
 bool SvnRepoManagerBridgeImpl::getBranchHistory(
     const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
@@ -3207,8 +3221,8 @@ GitRepo::GitCommitStatus SvnRepoManagerBridgeImpl::getCommitStatus(
   }
 
   const auto commandResult = event.data<SvnRepoResult>();
-  const auto commitStatus =
-      commandResult.value.value<GitRepo::GitCommitStatus>();
+  const auto commitStatus = convertSvnCommitStatusToGitCommitStatus(
+      commandResult.value.value<SvnRepo::CommitStatus>());
 
   LOG_PERF(0, "Exit");
 

@@ -27,6 +27,9 @@ struct LogEntry {
   qint64 timeStamp = -1;
   // Changed path to the revision it was copied from, -1 if not copied.
   QVector<QPair<QString, svn_revnum_t>> changedPaths;
+  // Action of each changed path: 'A' added, 'D' deleted, 'M' modified or
+  // 'R' replaced.
+  QHash<QString, char> changeActions;
 };
 
 struct LogBaton {
@@ -79,10 +82,13 @@ static svn_error_t *logCallback(void *baton, svn_log_entry_t *logEntry,
       void *value = nullptr;
       apr_hash_this(index, &key, nullptr, &value);
       const auto *changedPath = static_cast<svn_log_changed_path2_t *>(value);
-      entry.changedPaths.append(
-          {QString::fromUtf8(static_cast<const char *>(key)),
-           changedPath && changedPath->copyfrom_path ? changedPath->copyfrom_rev
-                                                     : SVN_INVALID_REVNUM});
+      const QString path = QString::fromUtf8(static_cast<const char *>(key));
+      entry.changedPaths.append({path, changedPath && changedPath->copyfrom_path
+                                           ? changedPath->copyfrom_rev
+                                           : SVN_INVALID_REVNUM});
+      if (changedPath) {
+        entry.changeActions.insert(path, changedPath->action);
+      }
     }
   }
 
@@ -128,8 +134,11 @@ static svn_error_t *readLog(QVector<LogEntry> *entries, const QString &url,
                          logCallback, &baton, ctx, pool);
 }
 
+// reposRootUrl turns the repository paths of the changed files into URLs,
+// layoutRootUrl is the root the branch names are taken from.
 static SvnCommitInfo commitInfoFromLogEntry(const LogEntry &entry,
-                                            const QString &reposRootUrl) {
+                                            const QString &reposRootUrl,
+                                            const QString &layoutRootUrl) {
   SvnCommitInfo info;
   info.revision = entry.revision;
   info.authorName = entry.author;
@@ -141,7 +150,7 @@ static SvnCommitInfo commitInfoFromLogEntry(const LogEntry &entry,
   for (const auto &[changedPath, copyFromRevision] : entry.changedPaths) {
     Q_UNUSED(copyFromRevision);
     const QString branch =
-        branchNameFromUrl(trimmedUrl(reposRootUrl) + changedPath, reposRootUrl,
+        branchNameFromUrl(trimmedUrl(reposRootUrl) + changedPath, layoutRootUrl,
                           BranchType::Local);
     if (!branch.isEmpty() && !branches.contains(branch)) {
       branches.append(branch);
@@ -161,7 +170,7 @@ static QString historyUrl(const WorkingCopyInfo &info,
     return info.url;
   }
 
-  return branchUrl(info.reposRootUrl, branchName, type);
+  return branchUrl(info.layoutRootUrl, branchName, type);
 }
 
 } // namespace
@@ -220,8 +229,8 @@ SvnHistory getBranchHistory(const QString &path, const QString &branchName,
   history.hasMore = page >= 0 && entries.size() > lastIndex;
 
   for (int i = firstIndex; i < lastIndex; ++i) {
-    SvnCommitInfo commitInfo =
-        commitInfoFromLogEntry(entries[i], info.reposRootUrl);
+    SvnCommitInfo commitInfo = commitInfoFromLogEntry(
+        entries[i], info.reposRootUrl, info.layoutRootUrl);
 
     // A Subversion branch has a linear history.
     if (i + 1 < entries.size()) {
@@ -268,19 +277,19 @@ CommitStatus getCommitStatus(const QString &path, const QString &commitOid) {
   }
 
   const QString wcPath = normalizedPath(path);
+  WorkingCopyInfo info;
   QVector<LogEntry> entries;
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
-        WorkingCopyInfo info;
         if (!reportError(
                 SvnError::InfoFailed,
                 readInfo(&info, wcPath, revisionUnspecified(), ctx, pool))) {
           return false;
         }
 
-        return reportError(SvnError::HistoryFailed,
-                           readLog(&entries, info.reposRootUrl, revision, 1,
-                                   false, ctx, pool));
+        return reportError(
+            SvnError::HistoryFailed,
+            readLog(&entries, info.reposRootUrl, revision, 1, true, ctx, pool));
       },
       wcPath);
 
@@ -289,11 +298,36 @@ CommitStatus getCommitStatus(const QString &path, const QString &commitOid) {
     return {};
   }
 
+  const LogEntry &entry = entries.first();
   CommitStatus status;
-  status.commit = QString::number(entries.first().revision);
-  status.author = entries.first().author;
-  status.message = entries.first().message;
-  status.timeStamp = entries.first().timeStamp;
+  status.commit = QString::number(entry.revision);
+  status.author = entry.author;
+  status.message = entry.message;
+  status.timeStamp = entry.timeStamp;
+
+  // Changed paths are repository paths such as "/trunk/src/main.cpp". The
+  // ones inside the working copy are reported relative to its root.
+  const QString wcRepoPath =
+      info.url.mid(trimmedUrl(info.reposRootUrl).length());
+  for (const auto &[changedPath, copyFromRevision] : entry.changedPaths) {
+    Q_UNUSED(copyFromRevision);
+    if (!changedPath.startsWith(wcRepoPath + QLatin1Char('/'))) {
+      continue;
+    }
+
+    const QString file = changedPath.mid(wcRepoPath.length() + 1);
+    switch (entry.changeActions.value(changedPath)) {
+    case 'A':
+      status.newFiles.append(file);
+      break;
+    case 'D':
+      status.deletedFiles.append(file);
+      break;
+    default:
+      status.modifiedFiles.append(file);
+      break;
+    }
+  }
 
   LOG_PERF(0, "Exit");
   return status;
@@ -334,8 +368,8 @@ QStringList getCommitBranches(const QString &path, const QString &commitOid,
     return {};
   }
 
-  const SvnCommitInfo commitInfo =
-      commitInfoFromLogEntry(entries.first(), info.reposRootUrl);
+  const SvnCommitInfo commitInfo = commitInfoFromLogEntry(
+      entries.first(), info.reposRootUrl, info.layoutRootUrl);
 
   LOG_PERF(0, "Exit");
   return QStringList(commitInfo.branches.begin(), commitInfo.branches.end());
@@ -366,7 +400,7 @@ QStringList getCommitTags(const QString &path, const QString &commitOid,
         }
 
         svn_error_t *error = readLog(
-            &entries, trimmedUrl(info.reposRootUrl) + QStringLiteral("/tags"),
+            &entries, trimmedUrl(info.layoutRootUrl) + QStringLiteral("/tags"),
             SVN_INVALID_REVNUM, 0, true, ctx, pool);
         if (error && (error->apr_err == SVN_ERR_FS_NOT_FOUND ||
                       error->apr_err == SVN_ERR_CLIENT_UNRELATED_RESOURCES)) {
@@ -454,7 +488,7 @@ QStringList getCommitHeads(const QString &path, const QString &commitOid,
         HeadsBaton baton;
         baton.heads = &heads;
 
-        const QString root = trimmedUrl(info.reposRootUrl);
+        const QString root = trimmedUrl(info.layoutRootUrl);
         WorkingCopyInfo trunk;
         svn_error_t *error =
             readInfo(&trunk, root + QStringLiteral("/trunk"), head, ctx, pool);

@@ -6,533 +6,533 @@
 
 namespace EventManager {
 
+// Every event type with its name. The EventType enum and the names used in
+// logs are both generated from this list, so adding an event here is enough.
+#define EVENT_TYPE_LIST(X)                                                     \
+  X(Null)                                                                      \
+  X(Quit)                                                                      \
+  /* Error and response handling */                                            \
+  X(Error)                                                                     \
+  X(Success)                                                                   \
+  /* ComponentMonitor */                                                       \
+  X(ComponentStarted)                                                          \
+  X(ComponentStopped)                                                          \
+  /* NewsTracker */                                                            \
+  X(NewsTrackerNews)                                                           \
+  /* UpdateManager */                                                          \
+  X(ApplicationUpdated)                                                        \
+  /* GitRepoManager */                                                         \
+  X(GitRepoManagerAbortMerge)                                                  \
+  X(GitRepoManagerAbortMergeResult)                                            \
+  X(GitRepoManagerAbortMergeError)                                             \
+  X(GitRepoManagerAbortRebase)                                                 \
+  X(GitRepoManagerAbortRebaseResult)                                           \
+  X(GitRepoManagerAbortRebaseError)                                            \
+  X(GitRepoManagerAddRemote)                                                   \
+  X(GitRepoManagerAddRemoteResult)                                             \
+  X(GitRepoManagerAddRemoteError)                                              \
+  X(GitRepoManagerAddSubmodule)                                                \
+  X(GitRepoManagerAddSubmoduleResult)                                          \
+  X(GitRepoManagerAddSubmoduleError)                                           \
+  X(GitRepoManagerAddTarget)                                                   \
+  X(GitRepoManagerAddTargetResult)                                             \
+  X(GitRepoManagerAddTargetError)                                              \
+  X(GitRepoManagerAddWorktree)                                                 \
+  X(GitRepoManagerAddWorktreeResult)                                           \
+  X(GitRepoManagerAddWorktreeError)                                            \
+  X(GitRepoManagerEditTarget)                                                  \
+  X(GitRepoManagerEditTargetResult)                                            \
+  X(GitRepoManagerEditTargetError)                                             \
+  X(GitRepoManagerDeleteTarget)                                                \
+  X(GitRepoManagerDeleteTargetResult)                                          \
+  X(GitRepoManagerDeleteTargetError)                                           \
+  X(GitRepoManagerSetDefaultTarget)                                            \
+  X(GitRepoManagerSetDefaultTargetResult)                                      \
+  X(GitRepoManagerSetDefaultTargetError)                                       \
+  X(GitRepoManagerAmend)                                                       \
+  X(GitRepoManagerAmendResult)                                                 \
+  X(GitRepoManagerAmendError)                                                  \
+  X(GitRepoManagerBlame)                                                       \
+  X(GitRepoManagerBlameResult)                                                 \
+  X(GitRepoManagerBlameError)                                                  \
+  X(GitRepoManagerApplyPatch)                                                  \
+  X(GitRepoManagerApplyPatchResult)                                            \
+  X(GitRepoManagerApplyPatchError)                                             \
+  X(GitRepoManagerApplyStash)                                                  \
+  X(GitRepoManagerApplyStashResult)                                            \
+  X(GitRepoManagerApplyStashError)                                             \
+  X(GitRepoManagerCheckoutBranch)                                              \
+  X(GitRepoManagerCheckoutBranchResult)                                        \
+  X(GitRepoManagerCheckoutBranchError)                                         \
+  X(GitRepoManagerCheckoutCommit)                                              \
+  X(GitRepoManagerCheckoutCommitResult)                                        \
+  X(GitRepoManagerCheckoutCommitError)                                         \
+  X(GitRepoManagerCherryPick)                                                  \
+  X(GitRepoManagerCherryPickResult)                                            \
+  X(GitRepoManagerCherryPickError)                                             \
+  X(GitRepoManagerCloneRepo)                                                   \
+  X(GitRepoManagerCloneRepoResult)                                             \
+  X(GitRepoManagerCloneRepoError)                                              \
+  X(GitRepoManagerCloneRepoProgress)                                           \
+  X(GitRepoManagerCloseRepo)                                                   \
+  X(GitRepoManagerCloseRepoResult)                                             \
+  X(GitRepoManagerCloseRepoError)                                              \
+  X(GitRepoManagerCommitStaged)                                                \
+  X(GitRepoManagerCommitStagedResult)                                          \
+  X(GitRepoManagerCommitStagedError)                                           \
+  X(GitRepoManagerCommitRebase)                                                \
+  X(GitRepoManagerCommitRebaseResult)                                          \
+  X(GitRepoManagerCommitRebaseError)                                           \
+  X(GitRepoManagerCreateBranchFromCommit)                                      \
+  X(GitRepoManagerCreateBranchFromCommitResult)                                \
+  X(GitRepoManagerCreateBranchFromCommitError)                                 \
+  X(GitRepoManagerCreatePatchFromCommit)                                       \
+  X(GitRepoManagerCreatePatchFromCommitResult)                                 \
+  X(GitRepoManagerCreatePatchFromCommitError)                                  \
+  X(GitRepoManagerCreateTagFromCommit)                                         \
+  X(GitRepoManagerCreateTagFromCommitResult)                                   \
+  X(GitRepoManagerCreateTagFromCommitError)                                    \
+  X(GitRepoManagerDeleteBranch)                                                \
+  X(GitRepoManagerDeleteBranchResult)                                          \
+  X(GitRepoManagerDeleteBranchError)                                           \
+  X(GitRepoManagerDeleteRemoteBranch)                                          \
+  X(GitRepoManagerDeleteRemoteBranchResult)                                    \
+  X(GitRepoManagerDeleteRemoteBranchError)                                     \
+  X(GitRepoManagerDeleteStash)                                                 \
+  X(GitRepoManagerDeleteStashResult)                                           \
+  X(GitRepoManagerDeleteStashError)                                            \
+  X(GitRepoManagerDeleteAllStashes)                                            \
+  X(GitRepoManagerDeleteAllStashesResult)                                      \
+  X(GitRepoManagerDeleteAllStashesError)                                       \
+  X(GitRepoManagerDeleteSubmodule)                                             \
+  X(GitRepoManagerDeleteSubmoduleResult)                                       \
+  X(GitRepoManagerDeleteSubmoduleError)                                        \
+  X(GitRepoManagerDeleteTag)                                                   \
+  X(GitRepoManagerDeleteTagResult)                                             \
+  X(GitRepoManagerDeleteTagError)                                              \
+  X(GitRepoManagerDeleteRemoteTag)                                             \
+  X(GitRepoManagerDeleteRemoteTagResult)                                       \
+  X(GitRepoManagerDeleteRemoteTagError)                                        \
+  X(GitRepoManagerDiffFiles)                                                   \
+  X(GitRepoManagerDiffFilesResult)                                             \
+  X(GitRepoManagerDiffFilesError)                                              \
+  X(GitRepoManagerDiffFilesFromCommit)                                         \
+  X(GitRepoManagerDiffFilesFromCommitResult)                                   \
+  X(GitRepoManagerDiffFilesFromCommitError)                                    \
+  X(GitRepoManagerDiscardFiles)                                                \
+  X(GitRepoManagerDiscardFilesResult)                                          \
+  X(GitRepoManagerDiscardFilesError)                                           \
+  X(GitRepoManagerGetFileSizeFromCommit)                                       \
+  X(GitRepoManagerGetFileSizeFromCommitResult)                                 \
+  X(GitRepoManagerGetFileSizeFromCommitError)                                  \
+  X(GitRepoManagerGetActiveBranch)                                             \
+  X(GitRepoManagerGetActiveBranchResult)                                       \
+  X(GitRepoManagerGetActiveBranchError)                                        \
+  X(GitRepoManagerGetBranchHistory)                                            \
+  X(GitRepoManagerGetBranchHistoryResult)                                      \
+  X(GitRepoManagerGetBranchHistoryError)                                       \
+  X(GitRepoManagerGetCommitBranches)                                           \
+  X(GitRepoManagerGetCommitBranchesResult)                                     \
+  X(GitRepoManagerGetCommitBranchesError)                                      \
+  X(GitRepoManagerGetCommitTags)                                               \
+  X(GitRepoManagerGetCommitTagsResult)                                         \
+  X(GitRepoManagerGetCommitTagsError)                                          \
+  X(GitRepoManagerGetCommitHeads)                                              \
+  X(GitRepoManagerGetCommitHeadsResult)                                        \
+  X(GitRepoManagerGetCommitHeadsError)                                         \
+  X(GitRepoManagerGetCommitIsHead)                                             \
+  X(GitRepoManagerGetCommitIsHeadResult)                                       \
+  X(GitRepoManagerGetCommitIsHeadError)                                        \
+  X(GitRepoManagerGetIsMergeInProgress)                                        \
+  X(GitRepoManagerGetIsMergeInProgressResult)                                  \
+  X(GitRepoManagerGetIsMergeInProgressError)                                   \
+  X(GitRepoManagerGetIsRebaseInProgress)                                       \
+  X(GitRepoManagerGetIsRebaseInProgressResult)                                 \
+  X(GitRepoManagerGetIsRebaseInProgressError)                                  \
+  X(GitRepoManagerGetCommitStatus)                                             \
+  X(GitRepoManagerGetCommitStatusResult)                                       \
+  X(GitRepoManagerGetCommitStatusError)                                        \
+  X(GitRepoManagerGetLfsStorageStatus)                                         \
+  X(GitRepoManagerGetLfsStorageStatusResult)                                   \
+  X(GitRepoManagerGetLfsStorageStatusError)                                    \
+  X(GitRepoManagerGetStashStatus)                                              \
+  X(GitRepoManagerGetStashStatusResult)                                        \
+  X(GitRepoManagerGetStashStatusError)                                         \
+  X(GitRepoManagerGetSubmodulePath)                                            \
+  X(GitRepoManagerGetSubmodulePathResult)                                      \
+  X(GitRepoManagerGetSubmodulePathError)                                       \
+  X(GitRepoManagerGetCredentials)                                              \
+  X(GitRepoManagerGetCredentialsInvalid)                                       \
+  X(GitRepoManagerGetCredentialsFinished)                                      \
+  X(GitRepoManagerGetCredentialsSubmit)                                        \
+  X(GitRepoManagerGetCredentialsCancel)                                        \
+  X(GitRepoManagerGetUpstream)                                                 \
+  X(GitRepoManagerGetUpstreamResult)                                           \
+  X(GitRepoManagerGetUpstreamError)                                            \
+  X(GitRepoManagerInitRepo)                                                    \
+  X(GitRepoManagerInitRepoResult)                                              \
+  X(GitRepoManagerInitRepoError)                                               \
+  X(GitRepoManagerListConflicts)                                               \
+  X(GitRepoManagerListConflictsResult)                                         \
+  X(GitRepoManagerListConflictsError)                                          \
+  X(GitRepoManagerListLocalBranches)                                           \
+  X(GitRepoManagerListLocalBranchesResult)                                     \
+  X(GitRepoManagerListLocalBranchesError)                                      \
+  X(GitRepoManagerListRemoteBranches)                                          \
+  X(GitRepoManagerListRemoteBranchesResult)                                    \
+  X(GitRepoManagerListRemoteBranchesError)                                     \
+  X(GitRepoManagerListRemoteBranchesWithStatus)                                \
+  X(GitRepoManagerListRemoteBranchesWithStatusResult)                          \
+  X(GitRepoManagerListRemoteBranchesWithStatusError)                           \
+  X(GitRepoManagerListRemotes)                                                 \
+  X(GitRepoManagerListRemotesResult)                                           \
+  X(GitRepoManagerListRemotesError)                                            \
+  X(GitRepoManagerListStashes)                                                 \
+  X(GitRepoManagerListStashesResult)                                           \
+  X(GitRepoManagerListStashesError)                                            \
+  X(GitRepoManagerListSubmodules)                                              \
+  X(GitRepoManagerListSubmodulesResult)                                        \
+  X(GitRepoManagerListSubmodulesError)                                         \
+  X(GitRepoManagerListSubmodulesWithStatus)                                    \
+  X(GitRepoManagerListSubmodulesWithStatusResult)                              \
+  X(GitRepoManagerListSubmodulesWithStatusError)                               \
+  X(GitRepoManagerListTags)                                                    \
+  X(GitRepoManagerListTagsResult)                                              \
+  X(GitRepoManagerListTagsError)                                               \
+  X(GitRepoManagerListWorktrees)                                               \
+  X(GitRepoManagerListWorktreesResult)                                         \
+  X(GitRepoManagerListWorktreesError)                                          \
+  X(GitRepoManagerLockWorktree)                                                \
+  X(GitRepoManagerLockWorktreeResult)                                          \
+  X(GitRepoManagerLockWorktreeError)                                           \
+  X(GitRepoManagerMerge)                                                       \
+  X(GitRepoManagerMergeResult)                                                 \
+  X(GitRepoManagerMergeError)                                                  \
+  X(GitRepoManagerOpenRepo)                                                    \
+  X(GitRepoManagerOpenRepoResult)                                              \
+  X(GitRepoManagerOpenRepoError)                                               \
+  X(GitRepoManagerPull)                                                        \
+  X(GitRepoManagerPullResult)                                                  \
+  X(GitRepoManagerPullError)                                                   \
+  X(GitRepoManagerPush)                                                        \
+  X(GitRepoManagerPushResult)                                                  \
+  X(GitRepoManagerPushError)                                                   \
+  X(GitRepoManagerPushTag)                                                     \
+  X(GitRepoManagerPushTagResult)                                               \
+  X(GitRepoManagerPushTagError)                                                \
+  X(GitRepoManagerPushAllTags)                                                 \
+  X(GitRepoManagerPushAllTagsResult)                                           \
+  X(GitRepoManagerPushAllTagsError)                                            \
+  X(GitRepoManagerFetchAll)                                                    \
+  X(GitRepoManagerFetchAllResult)                                              \
+  X(GitRepoManagerFetchAllError)                                               \
+  X(GitRepoManagerFetchRemote)                                                 \
+  X(GitRepoManagerFetchRemoteResult)                                           \
+  X(GitRepoManagerFetchRemoteError)                                            \
+  X(GitRepoManagerRebase)                                                      \
+  X(GitRepoManagerRebaseResult)                                                \
+  X(GitRepoManagerRebaseError)                                                 \
+  X(GitRepoManagerSquash)                                                      \
+  X(GitRepoManagerSquashResult)                                                \
+  X(GitRepoManagerSquashError)                                                 \
+  X(GitRepoManagerBisect)                                                      \
+  X(GitRepoManagerBisectResult)                                                \
+  X(GitRepoManagerBisectError)                                                 \
+  X(GitRepoManagerGitFlow)                                                     \
+  X(GitRepoManagerGitFlowResult)                                               \
+  X(GitRepoManagerGitFlowError)                                                \
+  X(GitRepoManagerRemoveRemote)                                                \
+  X(GitRepoManagerRemoveRemoteResult)                                          \
+  X(GitRepoManagerRemoveRemoteError)                                           \
+  X(GitRepoManagerRemoveWorktree)                                              \
+  X(GitRepoManagerRemoveWorktreeResult)                                        \
+  X(GitRepoManagerRemoveWorktreeError)                                         \
+  X(GitRepoManagerUnlockWorktree)                                              \
+  X(GitRepoManagerUnlockWorktreeResult)                                        \
+  X(GitRepoManagerUnlockWorktreeError)                                         \
+  X(GitRepoManagerRenameBranch)                                                \
+  X(GitRepoManagerRenameBranchResult)                                          \
+  X(GitRepoManagerRenameBranchError)                                           \
+  X(GitRepoManagerRenameTag)                                                   \
+  X(GitRepoManagerRenameTagResult)                                             \
+  X(GitRepoManagerRenameTagError)                                              \
+  X(GitRepoManagerReset)                                                       \
+  X(GitRepoManagerResetResult)                                                 \
+  X(GitRepoManagerResetError)                                                  \
+  X(GitRepoManagerRevert)                                                      \
+  X(GitRepoManagerRevertResult)                                                \
+  X(GitRepoManagerRevertError)                                                 \
+  X(GitRepoManagerSetDefaultRemote)                                            \
+  X(GitRepoManagerSetDefaultRemoteResult)                                      \
+  X(GitRepoManagerSetDefaultRemoteError)                                       \
+  X(GitRepoManagerWorkflow)                                                    \
+  X(GitRepoManagerWorkflowResult)                                              \
+  X(GitRepoManagerWorkflowError)                                               \
+  X(GitRepoManagerSetUpstream)                                                 \
+  X(GitRepoManagerSetUpstreamResult)                                           \
+  X(GitRepoManagerSetUpstreamError)                                            \
+  X(GitRepoManagerStageFiles)                                                  \
+  X(GitRepoManagerStageFilesResult)                                            \
+  X(GitRepoManagerStageFilesError)                                             \
+  X(GitRepoManagerStash)                                                       \
+  X(GitRepoManagerStashResult)                                                 \
+  X(GitRepoManagerStashError)                                                  \
+  X(GitRepoManagerStatus)                                                      \
+  X(GitRepoManagerStatusResult)                                                \
+  X(GitRepoManagerStatusError)                                                 \
+  X(GitRepoManagerSubmoduleUpdate)                                             \
+  X(GitRepoManagerSubmoduleUpdateResult)                                       \
+  X(GitRepoManagerSubmoduleUpdateError)                                        \
+  X(GitRepoManagerUnstageFiles)                                                \
+  X(GitRepoManagerUnstageFilesResult)                                          \
+  X(GitRepoManagerUnstageFilesError)                                           \
+  X(GitRepoManagerUpdateRemote)                                                \
+  X(GitRepoManagerUpdateRemoteResult)                                          \
+  X(GitRepoManagerUpdateRemoteError)                                           \
+  X(GitRepoManagerQuit)                                                        \
+  X(GitRepoManagerQuitResult)                                                  \
+  X(GitRepoManagerQuitError)                                                   \
+  /* SvnRepoManager */                                                         \
+  X(SvnRepoManagerAbortMerge)                                                  \
+  X(SvnRepoManagerAbortMergeResult)                                            \
+  X(SvnRepoManagerAbortMergeError)                                             \
+  X(SvnRepoManagerBlame)                                                       \
+  X(SvnRepoManagerBlameResult)                                                 \
+  X(SvnRepoManagerBlameError)                                                  \
+  X(SvnRepoManagerAddRemote)                                                   \
+  X(SvnRepoManagerAddRemoteResult)                                             \
+  X(SvnRepoManagerAddRemoteError)                                              \
+  X(SvnRepoManagerAddSubmodule)                                                \
+  X(SvnRepoManagerAddSubmoduleResult)                                          \
+  X(SvnRepoManagerAddSubmoduleError)                                           \
+  X(SvnRepoManagerAddTarget)                                                   \
+  X(SvnRepoManagerAddTargetResult)                                             \
+  X(SvnRepoManagerAddTargetError)                                              \
+  X(SvnRepoManagerEditTarget)                                                  \
+  X(SvnRepoManagerEditTargetResult)                                            \
+  X(SvnRepoManagerEditTargetError)                                             \
+  X(SvnRepoManagerDeleteTarget)                                                \
+  X(SvnRepoManagerDeleteTargetResult)                                          \
+  X(SvnRepoManagerDeleteTargetError)                                           \
+  X(SvnRepoManagerSetDefaultTarget)                                            \
+  X(SvnRepoManagerSetDefaultTargetResult)                                      \
+  X(SvnRepoManagerSetDefaultTargetError)                                       \
+  X(SvnRepoManagerAmend)                                                       \
+  X(SvnRepoManagerAmendResult)                                                 \
+  X(SvnRepoManagerAmendError)                                                  \
+  X(SvnRepoManagerApplyPatch)                                                  \
+  X(SvnRepoManagerApplyPatchResult)                                            \
+  X(SvnRepoManagerApplyPatchError)                                             \
+  X(SvnRepoManagerApplyStash)                                                  \
+  X(SvnRepoManagerApplyStashResult)                                            \
+  X(SvnRepoManagerApplyStashError)                                             \
+  X(SvnRepoManagerCheckoutBranch)                                              \
+  X(SvnRepoManagerCheckoutBranchResult)                                        \
+  X(SvnRepoManagerCheckoutBranchError)                                         \
+  X(SvnRepoManagerCheckoutCommit)                                              \
+  X(SvnRepoManagerCheckoutCommitResult)                                        \
+  X(SvnRepoManagerCheckoutCommitError)                                         \
+  X(SvnRepoManagerCherryPick)                                                  \
+  X(SvnRepoManagerCherryPickResult)                                            \
+  X(SvnRepoManagerCherryPickError)                                             \
+  X(SvnRepoManagerCloneRepo)                                                   \
+  X(SvnRepoManagerCloneRepoResult)                                             \
+  X(SvnRepoManagerCloneRepoError)                                              \
+  X(SvnRepoManagerCloneRepoProgress)                                           \
+  X(SvnRepoManagerCloseRepo)                                                   \
+  X(SvnRepoManagerCloseRepoResult)                                             \
+  X(SvnRepoManagerCloseRepoError)                                              \
+  X(SvnRepoManagerCommitStaged)                                                \
+  X(SvnRepoManagerCommitStagedResult)                                          \
+  X(SvnRepoManagerCommitStagedError)                                           \
+  X(SvnRepoManagerCreateBranchFromCommit)                                      \
+  X(SvnRepoManagerCreateBranchFromCommitResult)                                \
+  X(SvnRepoManagerCreateBranchFromCommitError)                                 \
+  X(SvnRepoManagerCreatePatchFromCommit)                                       \
+  X(SvnRepoManagerCreatePatchFromCommitResult)                                 \
+  X(SvnRepoManagerCreatePatchFromCommitError)                                  \
+  X(SvnRepoManagerCreateTagFromCommit)                                         \
+  X(SvnRepoManagerCreateTagFromCommitResult)                                   \
+  X(SvnRepoManagerCreateTagFromCommitError)                                    \
+  X(SvnRepoManagerDeleteBranch)                                                \
+  X(SvnRepoManagerDeleteBranchResult)                                          \
+  X(SvnRepoManagerDeleteBranchError)                                           \
+  X(SvnRepoManagerDeleteRemoteBranch)                                          \
+  X(SvnRepoManagerDeleteRemoteBranchResult)                                    \
+  X(SvnRepoManagerDeleteRemoteBranchError)                                     \
+  X(SvnRepoManagerDeleteStash)                                                 \
+  X(SvnRepoManagerDeleteStashResult)                                           \
+  X(SvnRepoManagerDeleteStashError)                                            \
+  X(SvnRepoManagerDeleteAllStashes)                                            \
+  X(SvnRepoManagerDeleteAllStashesResult)                                      \
+  X(SvnRepoManagerDeleteAllStashesError)                                       \
+  X(SvnRepoManagerDeleteSubmodule)                                             \
+  X(SvnRepoManagerDeleteSubmoduleResult)                                       \
+  X(SvnRepoManagerDeleteSubmoduleError)                                        \
+  X(SvnRepoManagerDeleteTag)                                                   \
+  X(SvnRepoManagerDeleteTagResult)                                             \
+  X(SvnRepoManagerDeleteTagError)                                              \
+  X(SvnRepoManagerDeleteRemoteTag)                                             \
+  X(SvnRepoManagerDeleteRemoteTagResult)                                       \
+  X(SvnRepoManagerDeleteRemoteTagError)                                        \
+  X(SvnRepoManagerDiffFiles)                                                   \
+  X(SvnRepoManagerDiffFilesResult)                                             \
+  X(SvnRepoManagerDiffFilesError)                                              \
+  X(SvnRepoManagerDiffFilesFromCommit)                                         \
+  X(SvnRepoManagerDiffFilesFromCommitResult)                                   \
+  X(SvnRepoManagerDiffFilesFromCommitError)                                    \
+  X(SvnRepoManagerDiscardFiles)                                                \
+  X(SvnRepoManagerDiscardFilesResult)                                          \
+  X(SvnRepoManagerDiscardFilesError)                                           \
+  X(SvnRepoManagerGetFileSizeFromCommit)                                       \
+  X(SvnRepoManagerGetFileSizeFromCommitResult)                                 \
+  X(SvnRepoManagerGetFileSizeFromCommitError)                                  \
+  X(SvnRepoManagerGetActiveBranch)                                             \
+  X(SvnRepoManagerGetActiveBranchResult)                                       \
+  X(SvnRepoManagerGetActiveBranchError)                                        \
+  X(SvnRepoManagerGetBranchHistory)                                            \
+  X(SvnRepoManagerGetBranchHistoryResult)                                      \
+  X(SvnRepoManagerGetBranchHistoryError)                                       \
+  X(SvnRepoManagerGetCommitBranches)                                           \
+  X(SvnRepoManagerGetCommitBranchesResult)                                     \
+  X(SvnRepoManagerGetCommitBranchesError)                                      \
+  X(SvnRepoManagerGetCommitTags)                                               \
+  X(SvnRepoManagerGetCommitTagsResult)                                         \
+  X(SvnRepoManagerGetCommitTagsError)                                          \
+  X(SvnRepoManagerGetCommitHeads)                                              \
+  X(SvnRepoManagerGetCommitHeadsResult)                                        \
+  X(SvnRepoManagerGetCommitHeadsError)                                         \
+  X(SvnRepoManagerGetCommitIsHead)                                             \
+  X(SvnRepoManagerGetCommitIsHeadResult)                                       \
+  X(SvnRepoManagerGetCommitIsHeadError)                                        \
+  X(SvnRepoManagerGetIsMergeInProgress)                                        \
+  X(SvnRepoManagerGetIsMergeInProgressResult)                                  \
+  X(SvnRepoManagerGetIsMergeInProgressError)                                   \
+  X(SvnRepoManagerGetCommitStatus)                                             \
+  X(SvnRepoManagerGetCommitStatusResult)                                       \
+  X(SvnRepoManagerGetCommitStatusError)                                        \
+  X(SvnRepoManagerGetStashStatus)                                              \
+  X(SvnRepoManagerGetStashStatusResult)                                        \
+  X(SvnRepoManagerGetStashStatusError)                                         \
+  X(SvnRepoManagerGetSubmodulePath)                                            \
+  X(SvnRepoManagerGetSubmodulePathResult)                                      \
+  X(SvnRepoManagerGetSubmodulePathError)                                       \
+  X(SvnRepoManagerGetCredentials)                                              \
+  X(SvnRepoManagerGetCredentialsInvalid)                                       \
+  X(SvnRepoManagerGetCredentialsFinished)                                      \
+  X(SvnRepoManagerGetCredentialsSubmit)                                        \
+  X(SvnRepoManagerGetCredentialsCancel)                                        \
+  X(SvnRepoManagerGetUpstream)                                                 \
+  X(SvnRepoManagerGetUpstreamResult)                                           \
+  X(SvnRepoManagerGetUpstreamError)                                            \
+  X(SvnRepoManagerInitRepo)                                                    \
+  X(SvnRepoManagerInitRepoResult)                                              \
+  X(SvnRepoManagerInitRepoError)                                               \
+  X(SvnRepoManagerListConflicts)                                               \
+  X(SvnRepoManagerListConflictsResult)                                         \
+  X(SvnRepoManagerListConflictsError)                                          \
+  X(SvnRepoManagerListLocalBranches)                                           \
+  X(SvnRepoManagerListLocalBranchesResult)                                     \
+  X(SvnRepoManagerListLocalBranchesError)                                      \
+  X(SvnRepoManagerListRemoteBranches)                                          \
+  X(SvnRepoManagerListRemoteBranchesResult)                                    \
+  X(SvnRepoManagerListRemoteBranchesError)                                     \
+  X(SvnRepoManagerListRemoteBranchesWithStatus)                                \
+  X(SvnRepoManagerListRemoteBranchesWithStatusResult)                          \
+  X(SvnRepoManagerListRemoteBranchesWithStatusError)                           \
+  X(SvnRepoManagerListRemotes)                                                 \
+  X(SvnRepoManagerListRemotesResult)                                           \
+  X(SvnRepoManagerListRemotesError)                                            \
+  X(SvnRepoManagerListStashes)                                                 \
+  X(SvnRepoManagerListStashesResult)                                           \
+  X(SvnRepoManagerListStashesError)                                            \
+  X(SvnRepoManagerListSubmodules)                                              \
+  X(SvnRepoManagerListSubmodulesResult)                                        \
+  X(SvnRepoManagerListSubmodulesError)                                         \
+  X(SvnRepoManagerListSubmodulesWithStatus)                                    \
+  X(SvnRepoManagerListSubmodulesWithStatusResult)                              \
+  X(SvnRepoManagerListSubmodulesWithStatusError)                               \
+  X(SvnRepoManagerListTags)                                                    \
+  X(SvnRepoManagerListTagsResult)                                              \
+  X(SvnRepoManagerListTagsError)                                               \
+  X(SvnRepoManagerListRemoteTags)                                              \
+  X(SvnRepoManagerListRemoteTagsResult)                                        \
+  X(SvnRepoManagerListRemoteTagsError)                                         \
+  X(SvnRepoManagerMerge)                                                       \
+  X(SvnRepoManagerMergeResult)                                                 \
+  X(SvnRepoManagerMergeError)                                                  \
+  X(SvnRepoManagerOpenRepo)                                                    \
+  X(SvnRepoManagerOpenRepoResult)                                              \
+  X(SvnRepoManagerOpenRepoError)                                               \
+  X(SvnRepoManagerPull)                                                        \
+  X(SvnRepoManagerPullResult)                                                  \
+  X(SvnRepoManagerPullError)                                                   \
+  X(SvnRepoManagerPush)                                                        \
+  X(SvnRepoManagerPushResult)                                                  \
+  X(SvnRepoManagerPushError)                                                   \
+  X(SvnRepoManagerPushTag)                                                     \
+  X(SvnRepoManagerPushTagResult)                                               \
+  X(SvnRepoManagerPushTagError)                                                \
+  X(SvnRepoManagerPushAllTags)                                                 \
+  X(SvnRepoManagerPushAllTagsResult)                                           \
+  X(SvnRepoManagerPushAllTagsError)                                            \
+  X(SvnRepoManagerFetchAll)                                                    \
+  X(SvnRepoManagerFetchAllResult)                                              \
+  X(SvnRepoManagerFetchAllError)                                               \
+  X(SvnRepoManagerFetchRemote)                                                 \
+  X(SvnRepoManagerFetchRemoteResult)                                           \
+  X(SvnRepoManagerFetchRemoteError)                                            \
+  X(SvnRepoManagerRebase)                                                      \
+  X(SvnRepoManagerRebaseResult)                                                \
+  X(SvnRepoManagerRebaseError)                                                 \
+  X(SvnRepoManagerRemoveRemote)                                                \
+  X(SvnRepoManagerRemoveRemoteResult)                                          \
+  X(SvnRepoManagerRemoveRemoteError)                                           \
+  X(SvnRepoManagerRenameBranch)                                                \
+  X(SvnRepoManagerRenameBranchResult)                                          \
+  X(SvnRepoManagerRenameBranchError)                                           \
+  X(SvnRepoManagerRenameTag)                                                   \
+  X(SvnRepoManagerRenameTagResult)                                             \
+  X(SvnRepoManagerRenameTagError)                                              \
+  X(SvnRepoManagerReset)                                                       \
+  X(SvnRepoManagerResetResult)                                                 \
+  X(SvnRepoManagerResetError)                                                  \
+  X(SvnRepoManagerRevert)                                                      \
+  X(SvnRepoManagerRevertResult)                                                \
+  X(SvnRepoManagerRevertError)                                                 \
+  X(SvnRepoManagerSetDefaultRemote)                                            \
+  X(SvnRepoManagerSetDefaultRemoteResult)                                      \
+  X(SvnRepoManagerSetDefaultRemoteError)                                       \
+  X(SvnRepoManagerSetUpstream)                                                 \
+  X(SvnRepoManagerSetUpstreamResult)                                           \
+  X(SvnRepoManagerSetUpstreamError)                                            \
+  X(SvnRepoManagerStageFiles)                                                  \
+  X(SvnRepoManagerStageFilesResult)                                            \
+  X(SvnRepoManagerStageFilesError)                                             \
+  X(SvnRepoManagerStash)                                                       \
+  X(SvnRepoManagerStashResult)                                                 \
+  X(SvnRepoManagerStashError)                                                  \
+  X(SvnRepoManagerStatus)                                                      \
+  X(SvnRepoManagerStatusResult)                                                \
+  X(SvnRepoManagerStatusError)                                                 \
+  X(SvnRepoManagerSubmoduleUpdate)                                             \
+  X(SvnRepoManagerSubmoduleUpdateResult)                                       \
+  X(SvnRepoManagerSubmoduleUpdateError)                                        \
+  X(SvnRepoManagerUnstageFiles)                                                \
+  X(SvnRepoManagerUnstageFilesResult)                                          \
+  X(SvnRepoManagerUnstageFilesError)                                           \
+  X(SvnRepoManagerUpdateRemote)                                                \
+  X(SvnRepoManagerUpdateRemoteResult)                                          \
+  X(SvnRepoManagerUpdateRemoteError)                                           \
+  X(SvnRepoManagerQuit)                                                        \
+  X(SvnRepoManagerQuitResult)                                                  \
+  X(SvnRepoManagerQuitError)                                                   \
+  X(last)
+
 enum EventType {
-  Null = 0,
-  Quit,
-
-  // Error and response handling
-  Error,
-  Success,
-
-  // ComponentMonitor
-  ComponentStarted,
-  ComponentStopped,
-
-  // NewsTracker
-  NewsTrackerNews,
-
-  // UpdateManager
-  ApplicationUpdated,
-
-  // GitRepoManager
-  GitRepoManagerAbortMerge,
-  GitRepoManagerAbortMergeResult,
-  GitRepoManagerAbortMergeError,
-  GitRepoManagerAbortRebase,
-  GitRepoManagerAbortRebaseResult,
-  GitRepoManagerAbortRebaseError,
-  GitRepoManagerAddRemote,
-  GitRepoManagerAddRemoteResult,
-  GitRepoManagerAddRemoteError,
-  GitRepoManagerAddSubmodule,
-  GitRepoManagerAddSubmoduleResult,
-  GitRepoManagerAddSubmoduleError,
-  GitRepoManagerAddTarget,
-  GitRepoManagerAddTargetResult,
-  GitRepoManagerAddTargetError,
-  GitRepoManagerAddWorktree,
-  GitRepoManagerAddWorktreeResult,
-  GitRepoManagerAddWorktreeError,
-  GitRepoManagerEditTarget,
-  GitRepoManagerEditTargetResult,
-  GitRepoManagerEditTargetError,
-  GitRepoManagerDeleteTarget,
-  GitRepoManagerDeleteTargetResult,
-  GitRepoManagerDeleteTargetError,
-  GitRepoManagerSetDefaultTarget,
-  GitRepoManagerSetDefaultTargetResult,
-  GitRepoManagerSetDefaultTargetError,
-  GitRepoManagerAmend,
-  GitRepoManagerAmendResult,
-  GitRepoManagerAmendError,
-  GitRepoManagerBlame,
-  GitRepoManagerBlameResult,
-  GitRepoManagerBlameError,
-  GitRepoManagerApplyPatch,
-  GitRepoManagerApplyPatchResult,
-  GitRepoManagerApplyPatchError,
-  GitRepoManagerApplyStash,
-  GitRepoManagerApplyStashResult,
-  GitRepoManagerApplyStashError,
-  GitRepoManagerCheckoutBranch,
-  GitRepoManagerCheckoutBranchResult,
-  GitRepoManagerCheckoutBranchError,
-  GitRepoManagerCheckoutCommit,
-  GitRepoManagerCheckoutCommitResult,
-  GitRepoManagerCheckoutCommitError,
-  GitRepoManagerCherryPick,
-  GitRepoManagerCherryPickResult,
-  GitRepoManagerCherryPickError,
-  GitRepoManagerCloneRepo,
-  GitRepoManagerCloneRepoResult,
-  GitRepoManagerCloneRepoError,
-  GitRepoManagerCloneRepoProgress,
-  GitRepoManagerCloseRepo,
-  GitRepoManagerCloseRepoResult,
-  GitRepoManagerCloseRepoError,
-  GitRepoManagerCommitStaged,
-  GitRepoManagerCommitStagedResult,
-  GitRepoManagerCommitStagedError,
-  GitRepoManagerCommitRebase,
-  GitRepoManagerCommitRebaseResult,
-  GitRepoManagerCommitRebaseError,
-  GitRepoManagerCreateBranchFromCommit,
-  GitRepoManagerCreateBranchFromCommitResult,
-  GitRepoManagerCreateBranchFromCommitError,
-  GitRepoManagerCreatePatchFromCommit,
-  GitRepoManagerCreatePatchFromCommitResult,
-  GitRepoManagerCreatePatchFromCommitError,
-  GitRepoManagerCreateTagFromCommit,
-  GitRepoManagerCreateTagFromCommitResult,
-  GitRepoManagerCreateTagFromCommitError,
-  GitRepoManagerDeleteBranch,
-  GitRepoManagerDeleteBranchResult,
-  GitRepoManagerDeleteBranchError,
-  GitRepoManagerDeleteRemoteBranch,
-  GitRepoManagerDeleteRemoteBranchResult,
-  GitRepoManagerDeleteRemoteBranchError,
-  GitRepoManagerDeleteStash,
-  GitRepoManagerDeleteStashResult,
-  GitRepoManagerDeleteStashError,
-  GitRepoManagerDeleteAllStashes,
-  GitRepoManagerDeleteAllStashesResult,
-  GitRepoManagerDeleteAllStashesError,
-  GitRepoManagerDeleteSubmodule,
-  GitRepoManagerDeleteSubmoduleResult,
-  GitRepoManagerDeleteSubmoduleError,
-  GitRepoManagerDeleteTag,
-  GitRepoManagerDeleteTagResult,
-  GitRepoManagerDeleteTagError,
-  GitRepoManagerDeleteRemoteTag,
-  GitRepoManagerDeleteRemoteTagResult,
-  GitRepoManagerDeleteRemoteTagError,
-  GitRepoManagerDiffFiles,
-  GitRepoManagerDiffFilesResult,
-  GitRepoManagerDiffFilesError,
-  GitRepoManagerDiffFilesFromCommit,
-  GitRepoManagerDiffFilesFromCommitResult,
-  GitRepoManagerDiffFilesFromCommitError,
-  GitRepoManagerDiscardFiles,
-  GitRepoManagerDiscardFilesResult,
-  GitRepoManagerDiscardFilesError,
-  GitRepoManagerGetFileSizeFromCommit,
-  GitRepoManagerGetFileSizeFromCommitResult,
-  GitRepoManagerGetFileSizeFromCommitError,
-  GitRepoManagerGetActiveBranch,
-  GitRepoManagerGetActiveBranchResult,
-  GitRepoManagerGetActiveBranchError,
-  GitRepoManagerGetBranchHistory,
-  GitRepoManagerGetBranchHistoryResult,
-  GitRepoManagerGetBranchHistoryError,
-  GitRepoManagerGetCommitBranches,
-  GitRepoManagerGetCommitBranchesResult,
-  GitRepoManagerGetCommitBranchesError,
-  GitRepoManagerGetCommitTags,
-  GitRepoManagerGetCommitTagsResult,
-  GitRepoManagerGetCommitTagsError,
-  GitRepoManagerGetCommitHeads,
-  GitRepoManagerGetCommitHeadsResult,
-  GitRepoManagerGetCommitHeadsError,
-  GitRepoManagerGetCommitIsHead,
-  GitRepoManagerGetCommitIsHeadResult,
-  GitRepoManagerGetCommitIsHeadError,
-  GitRepoManagerGetIsMergeInProgress,
-  GitRepoManagerGetIsMergeInProgressResult,
-  GitRepoManagerGetIsMergeInProgressError,
-  GitRepoManagerGetIsRebaseInProgress,
-  GitRepoManagerGetIsRebaseInProgressResult,
-  GitRepoManagerGetIsRebaseInProgressError,
-  GitRepoManagerGetCommitStatus,
-  GitRepoManagerGetCommitStatusResult,
-  GitRepoManagerGetCommitStatusError,
-  GitRepoManagerGetLfsStorageStatus,
-  GitRepoManagerGetLfsStorageStatusResult,
-  GitRepoManagerGetLfsStorageStatusError,
-  GitRepoManagerGetStashStatus,
-  GitRepoManagerGetStashStatusResult,
-  GitRepoManagerGetStashStatusError,
-  GitRepoManagerGetSubmodulePath,
-  GitRepoManagerGetSubmodulePathResult,
-  GitRepoManagerGetSubmodulePathError,
-  GitRepoManagerGetCredentials,
-  GitRepoManagerGetCredentialsInvalid,
-  GitRepoManagerGetCredentialsFinished,
-  GitRepoManagerGetCredentialsSubmit,
-  GitRepoManagerGetCredentialsCancel,
-  GitRepoManagerGetUpstream,
-  GitRepoManagerGetUpstreamResult,
-  GitRepoManagerGetUpstreamError,
-  GitRepoManagerInitRepo,
-  GitRepoManagerInitRepoResult,
-  GitRepoManagerInitRepoError,
-  GitRepoManagerListConflicts,
-  GitRepoManagerListConflictsResult,
-  GitRepoManagerListConflictsError,
-  GitRepoManagerListLocalBranches,
-  GitRepoManagerListLocalBranchesResult,
-  GitRepoManagerListLocalBranchesError,
-  GitRepoManagerListRemoteBranches,
-  GitRepoManagerListRemoteBranchesResult,
-  GitRepoManagerListRemoteBranchesError,
-  GitRepoManagerListRemoteBranchesWithStatus,
-  GitRepoManagerListRemoteBranchesWithStatusResult,
-  GitRepoManagerListRemoteBranchesWithStatusError,
-  GitRepoManagerListRemotes,
-  GitRepoManagerListRemotesResult,
-  GitRepoManagerListRemotesError,
-  GitRepoManagerListStashes,
-  GitRepoManagerListStashesResult,
-  GitRepoManagerListStashesError,
-  GitRepoManagerListSubmodules,
-  GitRepoManagerListSubmodulesResult,
-  GitRepoManagerListSubmodulesError,
-  GitRepoManagerListSubmodulesWithStatus,
-  GitRepoManagerListSubmodulesWithStatusResult,
-  GitRepoManagerListSubmodulesWithStatusError,
-  GitRepoManagerListTags,
-  GitRepoManagerListTagsResult,
-  GitRepoManagerListTagsError,
-  GitRepoManagerListWorktrees,
-  GitRepoManagerListWorktreesResult,
-  GitRepoManagerListWorktreesError,
-  GitRepoManagerLockWorktree,
-  GitRepoManagerLockWorktreeResult,
-  GitRepoManagerLockWorktreeError,
-  GitRepoManagerMerge,
-  GitRepoManagerMergeResult,
-  GitRepoManagerMergeError,
-  GitRepoManagerOpenRepo,
-  GitRepoManagerOpenRepoResult,
-  GitRepoManagerOpenRepoError,
-  GitRepoManagerPull,
-  GitRepoManagerPullResult,
-  GitRepoManagerPullError,
-  GitRepoManagerPush,
-  GitRepoManagerPushResult,
-  GitRepoManagerPushError,
-  GitRepoManagerPushTag,
-  GitRepoManagerPushTagResult,
-  GitRepoManagerPushTagError,
-  GitRepoManagerPushAllTags,
-  GitRepoManagerPushAllTagsResult,
-  GitRepoManagerPushAllTagsError,
-  GitRepoManagerFetchAll,
-  GitRepoManagerFetchAllResult,
-  GitRepoManagerFetchAllError,
-  GitRepoManagerFetchRemote,
-  GitRepoManagerFetchRemoteResult,
-  GitRepoManagerFetchRemoteError,
-  GitRepoManagerRebase,
-  GitRepoManagerRebaseResult,
-  GitRepoManagerRebaseError,
-  GitRepoManagerSquash,
-  GitRepoManagerSquashResult,
-  GitRepoManagerSquashError,
-  GitRepoManagerBisect,
-  GitRepoManagerBisectResult,
-  GitRepoManagerBisectError,
-  GitRepoManagerGitFlow,
-  GitRepoManagerGitFlowResult,
-  GitRepoManagerGitFlowError,
-  GitRepoManagerRemoveRemote,
-  GitRepoManagerRemoveRemoteResult,
-  GitRepoManagerRemoveRemoteError,
-  GitRepoManagerRemoveWorktree,
-  GitRepoManagerRemoveWorktreeResult,
-  GitRepoManagerRemoveWorktreeError,
-  GitRepoManagerUnlockWorktree,
-  GitRepoManagerUnlockWorktreeResult,
-  GitRepoManagerUnlockWorktreeError,
-  GitRepoManagerRenameBranch,
-  GitRepoManagerRenameBranchResult,
-  GitRepoManagerRenameBranchError,
-  GitRepoManagerRenameTag,
-  GitRepoManagerRenameTagResult,
-  GitRepoManagerRenameTagError,
-  GitRepoManagerReset,
-  GitRepoManagerResetResult,
-  GitRepoManagerResetError,
-  GitRepoManagerRevert,
-  GitRepoManagerRevertResult,
-  GitRepoManagerRevertError,
-  GitRepoManagerSetDefaultRemote,
-  GitRepoManagerSetDefaultRemoteResult,
-  GitRepoManagerSetDefaultRemoteError,
-  GitRepoManagerWorkflow,
-  GitRepoManagerWorkflowResult,
-  GitRepoManagerWorkflowError,
-  GitRepoManagerSetUpstream,
-  GitRepoManagerSetUpstreamResult,
-  GitRepoManagerSetUpstreamError,
-  GitRepoManagerStageFiles,
-  GitRepoManagerStageFilesResult,
-  GitRepoManagerStageFilesError,
-  GitRepoManagerStash,
-  GitRepoManagerStashResult,
-  GitRepoManagerStashError,
-  GitRepoManagerStatus,
-  GitRepoManagerStatusResult,
-  GitRepoManagerStatusError,
-  GitRepoManagerSubmoduleUpdate,
-  GitRepoManagerSubmoduleUpdateResult,
-  GitRepoManagerSubmoduleUpdateError,
-  GitRepoManagerUnstageFiles,
-  GitRepoManagerUnstageFilesResult,
-  GitRepoManagerUnstageFilesError,
-  GitRepoManagerUpdateRemote,
-  GitRepoManagerUpdateRemoteResult,
-  GitRepoManagerUpdateRemoteError,
-  GitRepoManagerQuit,
-  GitRepoManagerQuitResult,
-  GitRepoManagerQuitError,
-
-  // SvnRepoManager
-  SvnRepoManagerAbortMerge,
-  SvnRepoManagerAbortMergeResult,
-  SvnRepoManagerAbortMergeError,
-  SvnRepoManagerBlame,
-  SvnRepoManagerBlameResult,
-  SvnRepoManagerBlameError,
-  SvnRepoManagerAddRemote,
-  SvnRepoManagerAddRemoteResult,
-  SvnRepoManagerAddRemoteError,
-  SvnRepoManagerAddSubmodule,
-  SvnRepoManagerAddSubmoduleResult,
-  SvnRepoManagerAddSubmoduleError,
-  SvnRepoManagerAddTarget,
-  SvnRepoManagerAddTargetResult,
-  SvnRepoManagerAddTargetError,
-  SvnRepoManagerEditTarget,
-  SvnRepoManagerEditTargetResult,
-  SvnRepoManagerEditTargetError,
-  SvnRepoManagerDeleteTarget,
-  SvnRepoManagerDeleteTargetResult,
-  SvnRepoManagerDeleteTargetError,
-  SvnRepoManagerSetDefaultTarget,
-  SvnRepoManagerSetDefaultTargetResult,
-  SvnRepoManagerSetDefaultTargetError,
-  SvnRepoManagerAmend,
-  SvnRepoManagerAmendResult,
-  SvnRepoManagerAmendError,
-  SvnRepoManagerApplyPatch,
-  SvnRepoManagerApplyPatchResult,
-  SvnRepoManagerApplyPatchError,
-  SvnRepoManagerApplyStash,
-  SvnRepoManagerApplyStashResult,
-  SvnRepoManagerApplyStashError,
-  SvnRepoManagerCheckoutBranch,
-  SvnRepoManagerCheckoutBranchResult,
-  SvnRepoManagerCheckoutBranchError,
-  SvnRepoManagerCheckoutCommit,
-  SvnRepoManagerCheckoutCommitResult,
-  SvnRepoManagerCheckoutCommitError,
-  SvnRepoManagerCherryPick,
-  SvnRepoManagerCherryPickResult,
-  SvnRepoManagerCherryPickError,
-  SvnRepoManagerCloneRepo,
-  SvnRepoManagerCloneRepoResult,
-  SvnRepoManagerCloneRepoError,
-  SvnRepoManagerCloneRepoProgress,
-  SvnRepoManagerCloseRepo,
-  SvnRepoManagerCloseRepoResult,
-  SvnRepoManagerCloseRepoError,
-  SvnRepoManagerCommitStaged,
-  SvnRepoManagerCommitStagedResult,
-  SvnRepoManagerCommitStagedError,
-  SvnRepoManagerCreateBranchFromCommit,
-  SvnRepoManagerCreateBranchFromCommitResult,
-  SvnRepoManagerCreateBranchFromCommitError,
-  SvnRepoManagerCreatePatchFromCommit,
-  SvnRepoManagerCreatePatchFromCommitResult,
-  SvnRepoManagerCreatePatchFromCommitError,
-  SvnRepoManagerCreateTagFromCommit,
-  SvnRepoManagerCreateTagFromCommitResult,
-  SvnRepoManagerCreateTagFromCommitError,
-  SvnRepoManagerDeleteBranch,
-  SvnRepoManagerDeleteBranchResult,
-  SvnRepoManagerDeleteBranchError,
-  SvnRepoManagerDeleteRemoteBranch,
-  SvnRepoManagerDeleteRemoteBranchResult,
-  SvnRepoManagerDeleteRemoteBranchError,
-  SvnRepoManagerDeleteStash,
-  SvnRepoManagerDeleteStashResult,
-  SvnRepoManagerDeleteStashError,
-  SvnRepoManagerDeleteAllStashes,
-  SvnRepoManagerDeleteAllStashesResult,
-  SvnRepoManagerDeleteAllStashesError,
-  SvnRepoManagerDeleteSubmodule,
-  SvnRepoManagerDeleteSubmoduleResult,
-  SvnRepoManagerDeleteSubmoduleError,
-  SvnRepoManagerDeleteTag,
-  SvnRepoManagerDeleteTagResult,
-  SvnRepoManagerDeleteTagError,
-  SvnRepoManagerDeleteRemoteTag,
-  SvnRepoManagerDeleteRemoteTagResult,
-  SvnRepoManagerDeleteRemoteTagError,
-  SvnRepoManagerDiffFiles,
-  SvnRepoManagerDiffFilesResult,
-  SvnRepoManagerDiffFilesError,
-  SvnRepoManagerDiffFilesFromCommit,
-  SvnRepoManagerDiffFilesFromCommitResult,
-  SvnRepoManagerDiffFilesFromCommitError,
-  SvnRepoManagerDiscardFiles,
-  SvnRepoManagerDiscardFilesResult,
-  SvnRepoManagerDiscardFilesError,
-  SvnRepoManagerGetFileSizeFromCommit,
-  SvnRepoManagerGetFileSizeFromCommitResult,
-  SvnRepoManagerGetFileSizeFromCommitError,
-  SvnRepoManagerGetActiveBranch,
-  SvnRepoManagerGetActiveBranchResult,
-  SvnRepoManagerGetActiveBranchError,
-  SvnRepoManagerGetBranchHistory,
-  SvnRepoManagerGetBranchHistoryResult,
-  SvnRepoManagerGetBranchHistoryError,
-  SvnRepoManagerGetCommitBranches,
-  SvnRepoManagerGetCommitBranchesResult,
-  SvnRepoManagerGetCommitBranchesError,
-  SvnRepoManagerGetCommitTags,
-  SvnRepoManagerGetCommitTagsResult,
-  SvnRepoManagerGetCommitTagsError,
-  SvnRepoManagerGetCommitHeads,
-  SvnRepoManagerGetCommitHeadsResult,
-  SvnRepoManagerGetCommitHeadsError,
-  SvnRepoManagerGetCommitIsHead,
-  SvnRepoManagerGetCommitIsHeadResult,
-  SvnRepoManagerGetCommitIsHeadError,
-  SvnRepoManagerGetIsMergeInProgress,
-  SvnRepoManagerGetIsMergeInProgressResult,
-  SvnRepoManagerGetIsMergeInProgressError,
-  SvnRepoManagerGetCommitStatus,
-  SvnRepoManagerGetCommitStatusResult,
-  SvnRepoManagerGetCommitStatusError,
-  SvnRepoManagerGetStashStatus,
-  SvnRepoManagerGetStashStatusResult,
-  SvnRepoManagerGetStashStatusError,
-  SvnRepoManagerGetSubmodulePath,
-  SvnRepoManagerGetSubmodulePathResult,
-  SvnRepoManagerGetSubmodulePathError,
-  SvnRepoManagerGetCredentials,
-  SvnRepoManagerGetCredentialsInvalid,
-  SvnRepoManagerGetCredentialsFinished,
-  SvnRepoManagerGetCredentialsSubmit,
-  SvnRepoManagerGetCredentialsCancel,
-  SvnRepoManagerGetUpstream,
-  SvnRepoManagerGetUpstreamResult,
-  SvnRepoManagerGetUpstreamError,
-  SvnRepoManagerInitRepo,
-  SvnRepoManagerInitRepoResult,
-  SvnRepoManagerInitRepoError,
-  SvnRepoManagerListConflicts,
-  SvnRepoManagerListConflictsResult,
-  SvnRepoManagerListConflictsError,
-  SvnRepoManagerListLocalBranches,
-  SvnRepoManagerListLocalBranchesResult,
-  SvnRepoManagerListLocalBranchesError,
-  SvnRepoManagerListRemoteBranches,
-  SvnRepoManagerListRemoteBranchesResult,
-  SvnRepoManagerListRemoteBranchesError,
-  SvnRepoManagerListRemoteBranchesWithStatus,
-  SvnRepoManagerListRemoteBranchesWithStatusResult,
-  SvnRepoManagerListRemoteBranchesWithStatusError,
-  SvnRepoManagerListRemotes,
-  SvnRepoManagerListRemotesResult,
-  SvnRepoManagerListRemotesError,
-  SvnRepoManagerListStashes,
-  SvnRepoManagerListStashesResult,
-  SvnRepoManagerListStashesError,
-  SvnRepoManagerListSubmodules,
-  SvnRepoManagerListSubmodulesResult,
-  SvnRepoManagerListSubmodulesError,
-  SvnRepoManagerListSubmodulesWithStatus,
-  SvnRepoManagerListSubmodulesWithStatusResult,
-  SvnRepoManagerListSubmodulesWithStatusError,
-  SvnRepoManagerListTags,
-  SvnRepoManagerListTagsResult,
-  SvnRepoManagerListTagsError,
-  SvnRepoManagerListRemoteTags,
-  SvnRepoManagerListRemoteTagsResult,
-  SvnRepoManagerListRemoteTagsError,
-  SvnRepoManagerMerge,
-  SvnRepoManagerMergeResult,
-  SvnRepoManagerMergeError,
-  SvnRepoManagerOpenRepo,
-  SvnRepoManagerOpenRepoResult,
-  SvnRepoManagerOpenRepoError,
-  SvnRepoManagerPull,
-  SvnRepoManagerPullResult,
-  SvnRepoManagerPullError,
-  SvnRepoManagerPush,
-  SvnRepoManagerPushResult,
-  SvnRepoManagerPushError,
-  SvnRepoManagerPushTag,
-  SvnRepoManagerPushTagResult,
-  SvnRepoManagerPushTagError,
-  SvnRepoManagerPushAllTags,
-  SvnRepoManagerPushAllTagsResult,
-  SvnRepoManagerPushAllTagsError,
-  SvnRepoManagerFetchAll,
-  SvnRepoManagerFetchAllResult,
-  SvnRepoManagerFetchAllError,
-  SvnRepoManagerFetchRemote,
-  SvnRepoManagerFetchRemoteResult,
-  SvnRepoManagerFetchRemoteError,
-  SvnRepoManagerRebase,
-  SvnRepoManagerRebaseResult,
-  SvnRepoManagerRebaseError,
-  SvnRepoManagerRemoveRemote,
-  SvnRepoManagerRemoveRemoteResult,
-  SvnRepoManagerRemoveRemoteError,
-  SvnRepoManagerRenameBranch,
-  SvnRepoManagerRenameBranchResult,
-  SvnRepoManagerRenameBranchError,
-  SvnRepoManagerRenameTag,
-  SvnRepoManagerRenameTagResult,
-  SvnRepoManagerRenameTagError,
-  SvnRepoManagerReset,
-  SvnRepoManagerResetResult,
-  SvnRepoManagerResetError,
-  SvnRepoManagerRevert,
-  SvnRepoManagerRevertResult,
-  SvnRepoManagerRevertError,
-  SvnRepoManagerSetDefaultRemote,
-  SvnRepoManagerSetDefaultRemoteResult,
-  SvnRepoManagerSetDefaultRemoteError,
-  SvnRepoManagerSetUpstream,
-  SvnRepoManagerSetUpstreamResult,
-  SvnRepoManagerSetUpstreamError,
-  SvnRepoManagerStageFiles,
-  SvnRepoManagerStageFilesResult,
-  SvnRepoManagerStageFilesError,
-  SvnRepoManagerStash,
-  SvnRepoManagerStashResult,
-  SvnRepoManagerStashError,
-  SvnRepoManagerStatus,
-  SvnRepoManagerStatusResult,
-  SvnRepoManagerStatusError,
-  SvnRepoManagerSubmoduleUpdate,
-  SvnRepoManagerSubmoduleUpdateResult,
-  SvnRepoManagerSubmoduleUpdateError,
-  SvnRepoManagerUnstageFiles,
-  SvnRepoManagerUnstageFilesResult,
-  SvnRepoManagerUnstageFilesError,
-  SvnRepoManagerUpdateRemote,
-  SvnRepoManagerUpdateRemoteResult,
-  SvnRepoManagerUpdateRemoteError,
-  SvnRepoManagerQuit,
-  SvnRepoManagerQuitResult,
-  SvnRepoManagerQuitError,
-
-  last
+#define EVENT_TYPE_ENUM(name) name,
+  EVENT_TYPE_LIST(EVENT_TYPE_ENUM)
+#undef EVENT_TYPE_ENUM
 };
 
 class Event {

@@ -16,7 +16,7 @@ static bool readRootEntries(const WorkingCopyInfo &info, QStringList *entries,
                             svn_client_ctx_t *ctx, apr_pool_t *pool) {
   return reportError(
       SvnError::ErrorWhileOpening,
-      listDirectories(entries, trimmedUrl(info.reposRootUrl), ctx, pool));
+      listDirectories(entries, trimmedUrl(info.layoutRootUrl), ctx, pool));
 }
 
 // Names of the directories below <root>/<directory>, empty if it does not
@@ -25,7 +25,7 @@ static bool readChildren(const WorkingCopyInfo &info, const QString &directory,
                          QStringList *names, svn_client_ctx_t *ctx,
                          apr_pool_t *pool) {
   svn_error_t *error = listDirectories(
-      names, trimmedUrl(info.reposRootUrl) + QStringLiteral("/") + directory,
+      names, trimmedUrl(info.layoutRootUrl) + QStringLiteral("/") + directory,
       ctx, pool);
   if (error && error->apr_err != SVN_ERR_CANCELLED) {
     svn_error_clear(error);
@@ -184,7 +184,7 @@ QString getActiveBranch(const QString &path, BranchType type,
   }
 
   const QString activeBranch =
-      branchNameFromUrl(info.url, info.reposRootUrl, type);
+      branchNameFromUrl(info.url, info.layoutRootUrl, type);
 
   LOG_PERF(0, "Exit");
   return activeBranch;
@@ -364,7 +364,7 @@ QVector<BranchInfo> listRemoteBranchesWithStatus(const QString &path,
         }
 
         activeBranch =
-            branchNameFromUrl(info.url, info.reposRootUrl, BranchType::Local);
+            branchNameFromUrl(info.url, info.layoutRootUrl, BranchType::Local);
         return reportError(SvnError::HistoryFailed,
                            countRevisionsBehind(&behind, info, ctx, pool));
       },
@@ -404,7 +404,7 @@ bool checkoutBranch(const QString &path, const QString &branchOrTagName,
         return reportError(
             SvnError::SwitchFailed,
             switchWorkingCopy(wcPath,
-                              branchUrl(info.reposRootUrl, branchOrTagName,
+                              branchUrl(info.layoutRootUrl, branchOrTagName,
                                         type == BranchType::Tag
                                             ? BranchType::Tag
                                             : BranchType::Local),
@@ -442,7 +442,7 @@ bool createBranchFromCommit(const QString &path, const QString &commit,
             info.url,
             SVN_IS_VALID_REVNUM(revision) ? revisionNumber(revision)
                                           : revisionHead(),
-            branchUrl(info.reposRootUrl, branchName, BranchType::Local), ctx,
+            branchUrl(info.layoutRootUrl, branchName, BranchType::Local), ctx,
             pool);
       },
       SvnError::CopyFailed);
@@ -471,7 +471,7 @@ bool deleteBranch(const QString &path, const QString &branchName) {
           const WorkingCopyInfo &info) {
         const PathArray urls = makePathArray(
             pool,
-            {branchUrl(info.reposRootUrl, branchName, BranchType::Local)});
+            {branchUrl(info.layoutRootUrl, branchName, BranchType::Local)});
         return svn_client_delete4(urls.array, FALSE, FALSE, nullptr, nullptr,
                                   nullptr, ctx, pool);
       },
@@ -503,9 +503,9 @@ bool renameBranch(const QString &path, const QString &oldBranchName,
           const WorkingCopyInfo &info) -> svn_error_t * {
         const PathArray sources = makePathArray(
             pool,
-            {branchUrl(info.reposRootUrl, oldBranchName, BranchType::Local)});
+            {branchUrl(info.layoutRootUrl, oldBranchName, BranchType::Local)});
         const QString destination =
-            branchUrl(info.reposRootUrl, newBranchName, BranchType::Local);
+            branchUrl(info.layoutRootUrl, newBranchName, BranchType::Local);
         const QByteArray destinationBytes = destination.toUtf8();
         SVN_ERR(svn_client_move7(sources.array, destinationBytes.constData(),
                                  FALSE, TRUE, FALSE, FALSE, nullptr, nullptr,
@@ -575,7 +575,7 @@ bool createTagFromCommit(const QString &path, const QString &commit,
         return copyUrl(info.url,
                        SVN_IS_VALID_REVNUM(revision) ? revisionNumber(revision)
                                                      : revisionHead(),
-                       branchUrl(info.reposRootUrl, tagName, BranchType::Tag),
+                       branchUrl(info.layoutRootUrl, tagName, BranchType::Tag),
                        ctx, pool);
       },
       SvnError::CopyFailed);
@@ -592,7 +592,7 @@ bool deleteTag(const QString &path, const QString &tagName) {
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool,
           const WorkingCopyInfo &info) {
         const PathArray urls = makePathArray(
-            pool, {branchUrl(info.reposRootUrl, tagName, BranchType::Tag)});
+            pool, {branchUrl(info.layoutRootUrl, tagName, BranchType::Tag)});
         return svn_client_delete4(urls.array, FALSE, FALSE, nullptr, nullptr,
                                   nullptr, ctx, pool);
       },
@@ -616,9 +616,9 @@ bool renameTag(const QString &path, const QString &oldTagName,
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool,
           const WorkingCopyInfo &info) {
         const PathArray sources = makePathArray(
-            pool, {branchUrl(info.reposRootUrl, oldTagName, BranchType::Tag)});
+            pool, {branchUrl(info.layoutRootUrl, oldTagName, BranchType::Tag)});
         const QByteArray destination =
-            branchUrl(info.reposRootUrl, newTagName, BranchType::Tag).toUtf8();
+            branchUrl(info.layoutRootUrl, newTagName, BranchType::Tag).toUtf8();
         return svn_client_move7(sources.array, destination.constData(), FALSE,
                                 TRUE, FALSE, FALSE, nullptr, nullptr, nullptr,
                                 ctx, pool);
@@ -671,7 +671,7 @@ bool merge(const QString &path, const QString &sourceBranch,
             SvnError::MergeFailed,
             mergeIntoWorkingCopy(
                 wcPath,
-                branchUrl(info.reposRootUrl, sourceBranch, BranchType::Local),
+                branchUrl(info.layoutRootUrl, sourceBranch, BranchType::Local),
                 revisionHead(), nullptr, nullptr, ctx, pool));
       },
       wcPath);
@@ -722,9 +722,9 @@ bool cherryPickCommit(const QString &path, const QString &commit,
         }
 
         const QString sourceUrl =
-            sourceBranch.isEmpty()
-                ? info.url
-                : branchUrl(info.reposRootUrl, sourceBranch, BranchType::Local);
+            sourceBranch.isEmpty() ? info.url
+                                   : branchUrl(info.layoutRootUrl, sourceBranch,
+                                               BranchType::Local);
         const svn_opt_revision_t peg = revisionNumber(revision);
         const svn_opt_revision_t start = revisionNumber(revision - 1);
         return reportError(SvnError::MergeFailed,
@@ -787,9 +787,9 @@ bool revertCommit(const QString &path, const QString &commit,
 
         // A reverse merge of the revision.
         const QString sourceUrl =
-            sourceBranch.isEmpty()
-                ? info.url
-                : branchUrl(info.reposRootUrl, sourceBranch, BranchType::Local);
+            sourceBranch.isEmpty() ? info.url
+                                   : branchUrl(info.layoutRootUrl, sourceBranch,
+                                               BranchType::Local);
         const svn_opt_revision_t peg = revisionNumber(revision);
         const svn_opt_revision_t end = revisionNumber(revision - 1);
         return reportError(SvnError::MergeFailed,
