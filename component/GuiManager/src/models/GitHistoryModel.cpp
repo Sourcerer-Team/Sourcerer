@@ -45,16 +45,16 @@ static StatusFieldsMap createStatusFieldsMap(const GitRepo::GitStatus &status) {
   return statusMap;
 }
 
-static QStringList headerTitles() {
+static QStringList headerTitles(const QString &shaTitle) {
   return {QObject::tr("Graph"), QObject::tr("Summary"), QObject::tr("Author"),
-          QObject::tr("Email"), QObject::tr("Date"),    QObject::tr("SHA")};
+          QObject::tr("Email"), QObject::tr("Date"),    shaTitle};
 }
 
 // Minimal column widths: wide enough for the header titles.
-static QVector<int> headerColumnWidths() {
+static QVector<int> headerColumnWidths(const QString &shaTitle) {
   QVector<int> widths(COLUMN_LAST + 1, 1);
   const QFontMetrics metrics(QGuiApplication::font());
-  const QStringList headers = headerTitles();
+  const QStringList headers = headerTitles(shaTitle);
   const qsizetype one0 = metrics.horizontalAdvance("0");
   for (int column = COLUMN_FIRST; column <= COLUMN_LAST; ++column) {
     widths[column] = std::max(qsizetype(1),
@@ -71,7 +71,8 @@ GitHistoryModel::GitHistoryModel(QObject *parent)
       _nextPage(1) {
   LOG_PERF(0, "Enter");
 
-  _columnWidths = headerColumnWidths();
+  _shaColumnTitle = QObject::tr("SHA");
+  _columnWidths = headerColumnWidths(_shaColumnTitle);
 
   LOG_PERF(0, "Exit");
 }
@@ -380,7 +381,7 @@ void GitHistoryModel::updateHistoryAndStatus(
 
   _graphRows.clear();
   _graphBuilder.reset();
-  _columnWidths = headerColumnWidths();
+  _columnWidths = headerColumnWidths(_shaColumnTitle);
   appendGraphAndWidths(0);
 
   rebuildVisibleRows();
@@ -650,6 +651,13 @@ QVariant GitHistoryModel::data(const QModelIndex &index, const int role) const {
   return result;
 }
 
+void GitHistoryModel::setShaColumnTitle(const QString &title) {
+  _shaColumnTitle = title;
+  _columnWidths = headerColumnWidths(_shaColumnTitle);
+  emit headerDataChanged(Qt::Horizontal, COLUMN_COMMIT_SHORT_SHA,
+                         COLUMN_COMMIT_SHORT_SHA);
+}
+
 QVariant GitHistoryModel::headerData(const int section,
                                      const Qt::Orientation orientation,
                                      const int role) const {
@@ -679,7 +687,7 @@ QVariant GitHistoryModel::headerData(const int section,
         break;
       }
       case COLUMN_COMMIT_SHORT_SHA: {
-        result = tr("SHA");
+        result = _shaColumnTitle;
         break;
       }
       default: {

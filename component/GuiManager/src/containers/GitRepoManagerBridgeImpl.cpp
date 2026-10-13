@@ -187,7 +187,7 @@ GitRepoManagerBridgeImpl::GitRepoManagerBridgeImpl(RepoContainer &container)
 RepoFeatures GitRepoManagerBridgeImpl::features() const {
   return RepoFeatures::GitFlow | RepoFeatures::Remotes |
          RepoFeatures::Worktrees | RepoFeatures::CommitInfoSha |
-         RepoFeatures::CommitInfoEmail;
+         RepoFeatures::CommitInfoEmail | RepoFeatures::HistoryColumnSha;
 }
 
 void GitRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,

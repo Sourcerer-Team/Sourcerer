@@ -126,7 +126,7 @@ SvnRepoManagerBridgeImpl::SvnRepoManagerBridgeImpl(RepoContainer &container)
 
 RepoFeatures SvnRepoManagerBridgeImpl::features() const {
   return RepoFeatures::Shelves | RepoFeatures::Externals |
-         RepoFeatures::CommitInfoRevision;
+         RepoFeatures::CommitInfoRevision | RepoFeatures::HistoryColumnRevision;
 }
 
 void SvnRepoManagerBridgeImpl::setUpstream(

@@ -124,6 +124,8 @@ public:
   void updateStatus(const GitRepo::GitStatus &status);
   void setDateRange(const QDate &fromDate, const QDate &toDate);
   void setFilter(int column, const QString &filter);
+  // Sets the title of the SHA column, e.g. "Revision" for Subversion.
+  void setShaColumnTitle(const QString &title);
 
   /// Shows page 0 of a history (and drops everything loaded before).
   void updateHistoryAndStatus(
@@ -217,6 +219,7 @@ private:
   QHash<QString, QStringList> _refLabels;
   QString _headCommit;
   QVector<int> _columnWidths;
+  QString _shaColumnTitle;
   QHash<QString, int> _bisectMarks;
   QHash<int, QString> _filters;
   QDate _fromDate;

@@ -26,6 +26,8 @@ enum class RepoFeatures : unsigned {
   CommitInfoSha = 1 << 5,
   CommitInfoEmail = 1 << 6,
   CommitInfoRevision = 1 << 7,
+  HistoryColumnSha = 1 << 8,
+  HistoryColumnRevision = 1 << 9,
 };
 
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {

@@ -546,6 +546,15 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
   ui->labelPageDisplayEmailLabel->setVisible(hasCommitEmail);
   _authorEmailValueLabel->setVisible(hasCommitEmail);
 
+  // Subversion history columns show revisions instead of SHAs, both in the
+  // column header and in the header context menu, which reads the same title.
+  const RepoFeatures historyFeatures = _bridge->features();
+  if (hasFeature(historyFeatures, RepoFeatures::HistoryColumnSha)) {
+    _historyModel->setShaColumnTitle(tr("SHA"));
+  } else if (hasFeature(historyFeatures, RepoFeatures::HistoryColumnRevision)) {
+    _historyModel->setShaColumnTitle(tr("Revision"));
+  }
+
   // Subversion commits are identified by revision instead of a SHA.
   const RepoFeatures commitInfoFeatures = _bridge->features();
   if (hasFeature(commitInfoFeatures, RepoFeatures::CommitInfoSha)) {
