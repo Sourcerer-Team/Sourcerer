@@ -34,6 +34,8 @@ enum class RepoFeatures : unsigned {
   HistoryColumnEmail = 1 << 13,
   SearchBarSha = 1 << 14,
   SearchBarRevision = 1 << 15,
+  HistoryContextMenuCopyToClipboardSHA = 1 << 16,
+  HistoryContextMenuCopyToClipboardRevision = 1 << 17,
 };
 
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {

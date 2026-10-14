@@ -3853,6 +3853,7 @@ void RepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   QAction actionCheckoutCommit(tr("Checkout commit"), this);
   QAction actionCreateBranchFromCommit(tr("Create branch from commit"), this);
   QAction actionCopyShaToClipboard(tr("Copy SHA to clipboard"), this);
+  QAction actionCopyRevisionToClipboard(tr("Copy revision to clipboard"), this);
   QAction actionSoftResetToCommit(tr("Soft reset"), this);
   QAction actionMixedResetToCommit(tr("Mixed reset"), this);
   QAction actionHardResetToCommit(tr("Hard reset"), this);
@@ -3877,6 +3878,10 @@ void RepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   connect(&actionCopyShaToClipboard, &QAction::triggered, this, [=]() {
     QGuiApplication::clipboard()->setText(commit);
     showToast(tr("Commit SHA copied to clipboard."), tr("Info"));
+  });
+  connect(&actionCopyRevisionToClipboard, &QAction::triggered, this, [=]() {
+    QGuiApplication::clipboard()->setText(commit);
+    showToast(tr("Revision copied to clipboard."), tr("Info"));
   });
   connect(&actionSoftResetToCommit, &QAction::triggered, this,
           [=]() { onSoftResetToCommit(commit); });
@@ -3938,6 +3943,14 @@ void RepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
     if (hasFeature(historyMenuFeatures,
                    RepoFeatures::HistoryContextMenuCopyToClipboard)) {
       menu.addAction(&actionCopyShaToClipboard);
+    }
+    if (hasFeature(historyMenuFeatures,
+                   RepoFeatures::HistoryContextMenuCopyToClipboardSHA)) {
+      menu.addAction(&actionCopyShaToClipboard);
+    }
+    if (hasFeature(historyMenuFeatures,
+                   RepoFeatures::HistoryContextMenuCopyToClipboardRevision)) {
+      menu.addAction(&actionCopyRevisionToClipboard);
     }
     menu.addSeparator();
     menu.addAction(&actionCreateBranchFromCommit);

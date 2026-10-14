@@ -189,6 +189,7 @@ RepoFeatures GitRepoManagerBridgeImpl::features() const {
          RepoFeatures::Worktrees | RepoFeatures::CommitInfoSha |
          RepoFeatures::CommitInfoEmail | RepoFeatures::HistoryColumnSha |
          RepoFeatures::HistoryContextMenuCopyToClipboard |
+         RepoFeatures::HistoryContextMenuCopyToClipboardSHA |
          RepoFeatures::HistoryContextMenuReset |
          RepoFeatures::HistoryColumnEmail | RepoFeatures::SearchBarSha;
 }
