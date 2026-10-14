@@ -3988,8 +3988,11 @@ void RepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
     menu.addAction(&actionRevertCommit);
     menu.addAction(&actionCherryPickCommit);
     menu.addSeparator();
-    menu.addMenu(&bisectMenu);
-    menu.addSeparator();
+    if (hasFeature(historyMenuFeatures,
+                   RepoFeatures::HistoryViewContextMenuBisect)) {
+      menu.addMenu(&bisectMenu);
+      menu.addSeparator();
+    }
   }
 
   menu.addAction(&actionApplyPatch);

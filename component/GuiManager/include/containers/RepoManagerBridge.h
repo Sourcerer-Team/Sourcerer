@@ -43,6 +43,7 @@ enum class RepoFeatures : unsigned {
   StashInfoSHA = 1 << 22,
   StashInfoTitleStash = 1 << 23,
   StashInfoTitleShelf = 1 << 24,
+  HistoryViewContextMenuBisect = 1 << 25,
 };
 
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {
