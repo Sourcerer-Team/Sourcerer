@@ -350,6 +350,11 @@ private:
   // False for columns the repository type does not provide, e.g. the email
   // column of Subversion history.
   bool historyColumnAvailable(int column) const;
+  // Layout settings are stored per repository type, the Subversion keys are
+  // used for Subversion containers and the Git keys for everything else.
+  ConfigManager::ConfigKey
+  layoutConfigKey(ConfigManager::ConfigKey gitKey,
+                  ConfigManager::ConfigKey svnKey) const;
   void applyHistoryColumnVisibility();
   void updateAllBranchesActions();
   void persistHistoryColumnVisibility();

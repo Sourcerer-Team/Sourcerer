@@ -1700,14 +1700,19 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
 
   showMainSpinnerPage(false);
 
-  const QByteArray splitterState = QByteArray::fromHex(
-      _configManager.getString(ConfigManager::ConfigKey::GitRepoSplitterPos)
-          .toUtf8());
+  const QByteArray splitterState =
+      QByteArray::fromHex(_configManager
+                              .getString(layoutConfigKey(
+                                  ConfigManager::ConfigKey::GitRepoSplitterPos,
+                                  ConfigManager::ConfigKey::SvnRepoSplitterPos))
+                              .toUtf8());
   ui->splitter->restoreState(splitterState);
 
   const QByteArray stashSplitterState = QByteArray::fromHex(
       _configManager
-          .getString(ConfigManager::ConfigKey::GitRepoStashSplitterPos)
+          .getString(layoutConfigKey(
+              ConfigManager::ConfigKey::GitRepoStashSplitterPos,
+              ConfigManager::ConfigKey::SvnRepoStashSplitterPos))
           .toUtf8());
   ui->splitterStashContent->restoreState(stashSplitterState);
 
@@ -2929,8 +2934,10 @@ void RepoContainer::onSplitterMoved(const int pos, const int index) {
   LOG_DEBUG("pos = {}, index = {}", pos, index);
 
   const QString splitterState = ui->splitter->saveState().toHex();
-  _configManager.setString(ConfigManager::ConfigKey::GitRepoSplitterPos,
-                           splitterState);
+  _configManager.setString(
+      layoutConfigKey(ConfigManager::ConfigKey::GitRepoSplitterPos,
+                      ConfigManager::ConfigKey::SvnRepoSplitterPos),
+      splitterState);
   _configManager.save();
 
   stretchBranchHistoryTableColumns();
@@ -2943,8 +2950,10 @@ void RepoContainer::onStashSplitterMoved(const int pos, const int index) {
   LOG_DEBUG("pos = {}, index = {}", pos, index);
 
   const QString splitterState = ui->splitterStashContent->saveState().toHex();
-  _configManager.setString(ConfigManager::ConfigKey::GitRepoStashSplitterPos,
-                           splitterState);
+  _configManager.setString(
+      layoutConfigKey(ConfigManager::ConfigKey::GitRepoStashSplitterPos,
+                      ConfigManager::ConfigKey::SvnRepoStashSplitterPos),
+      splitterState);
   _configManager.save();
 
   LOG_PERF(0, "Exit");
@@ -2971,7 +2980,8 @@ void RepoContainer::onHistoryHeaderSectionResized(const int logicalIndex,
   }
 
   _configManager.setString(
-      ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths,
+      layoutConfigKey(ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths,
+                      ConfigManager::ConfigKey::SvnRepoHistoryViewColumnWidths),
       widths.join(','));
   _configManager.save();
 
@@ -7674,6 +7684,12 @@ bool RepoContainer::historyColumnAvailable(const int column) const {
   return true;
 }
 
+ConfigManager::ConfigKey
+RepoContainer::layoutConfigKey(const ConfigManager::ConfigKey gitKey,
+                               const ConfigManager::ConfigKey svnKey) const {
+  return type() == Widgets::ContainerType::SvnRepo ? svnKey : gitKey;
+}
+
 void RepoContainer::persistHistoryColumnVisibility() {
   LOG_PERF(0, "Enter");
 
@@ -7689,7 +7705,9 @@ void RepoContainer::persistHistoryColumnVisibility() {
   }
 
   _configManager.setString(
-      ConfigManager::ConfigKey::GitRepoHistoryViewHiddenColumns,
+      layoutConfigKey(
+          ConfigManager::ConfigKey::GitRepoHistoryViewHiddenColumns,
+          ConfigManager::ConfigKey::SvnRepoHistoryViewHiddenColumns),
       hiddenColumns.join(','));
   _configManager.save();
 
@@ -7715,8 +7733,9 @@ void RepoContainer::updateAllBranchesActions() {
 void RepoContainer::applyHistoryColumnVisibility() {
   LOG_PERF(0, "Enter");
 
-  const QString savedHiddenColumns = _configManager.getString(
-      ConfigManager::ConfigKey::GitRepoHistoryViewHiddenColumns);
+  const QString savedHiddenColumns = _configManager.getString(layoutConfigKey(
+      ConfigManager::ConfigKey::GitRepoHistoryViewHiddenColumns,
+      ConfigManager::ConfigKey::SvnRepoHistoryViewHiddenColumns));
 
   QSet<int> hiddenColumns;
   for (const QString &value :
@@ -10516,8 +10535,9 @@ void RepoContainer::stretchBranchHistoryTableColumns() {
     return;
   }
 
-  const QString savedWidths = _configManager.getString(
-      ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths);
+  const QString savedWidths = _configManager.getString(layoutConfigKey(
+      ConfigManager::ConfigKey::GitRepoHistoryViewColumnWidths,
+      ConfigManager::ConfigKey::SvnRepoHistoryViewColumnWidths));
   const QStringList widthValues = savedWidths.split(',', Qt::SkipEmptyParts);
 
   if (widthValues.size() == columnCount) {
