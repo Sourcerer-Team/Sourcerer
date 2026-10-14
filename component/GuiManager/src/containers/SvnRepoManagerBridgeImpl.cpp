@@ -132,7 +132,6 @@ RepoFeatures SvnRepoManagerBridgeImpl::features() const {
          RepoFeatures::CommitInfoRevision |
          RepoFeatures::HistoryColumnRevision |
          RepoFeatures::HistoryContextMenuCopyToClipboardRevision |
-         RepoFeatures::CheckoutCommitCreatesBranch |
          RepoFeatures::SearchBarRevision | RepoFeatures::StashInfoTitleShelf;
 }
 

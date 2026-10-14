@@ -30,7 +30,6 @@ enum class RepoFeatures : unsigned {
   HistoryColumnRevision = 1 << 9,
   HistoryContextMenuCopyToClipboard = 1 << 10,
   HistoryContextMenuReset = 1 << 11,
-  CheckoutCommitCreatesBranch = 1 << 12,
   HistoryColumnEmail = 1 << 13,
   SearchBarSha = 1 << 14,
   SearchBarRevision = 1 << 15,
@@ -44,6 +43,7 @@ enum class RepoFeatures : unsigned {
   StashInfoTitleStash = 1 << 23,
   StashInfoTitleShelf = 1 << 24,
   HistoryViewContextMenuBisect = 1 << 25,
+  HistoryViewContextMenuCheckoutCommit = 1 << 26,
 };
 
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {

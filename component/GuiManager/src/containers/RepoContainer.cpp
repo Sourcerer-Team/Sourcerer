@@ -3026,15 +3026,6 @@ void RepoContainer::onCheckoutCommit(const QString &commit) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Checkout commit requested: '{}'", commit.toStdString());
 
-  // Some repositories cannot check out a commit on its own. There a new branch
-  // is created from the commit and checked out instead.
-  if (hasFeature(_bridge->features(),
-                 RepoFeatures::CheckoutCommitCreatesBranch)) {
-    onCreateBranchFromCommit(commit);
-    LOG_PERF(0, "Exit");
-    return;
-  }
-
   startOverlayTimer();
   LOG_DEBUG("Spinner overlay timer started");
 
@@ -3951,7 +3942,9 @@ void RepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
 
   QMenu menu(this);
   menu.addAction(&actionPull);
-  menu.addAction(&actionPush);
+  if (hasFeature(_bridge->features(), RepoFeatures::PushAvailable)) {
+    menu.addAction(&actionPush);
+  }
   menu.addSeparator();
 
   // These work on a single branch, which is not the case while the history of
@@ -3967,6 +3960,10 @@ void RepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
     // Not every repository type offers these, e.g. Subversion has no SHA.
     const RepoFeatures historyMenuFeatures = _bridge->features();
     menu.addAction(&actionCheckoutCommit);
+    if (hasFeature(historyMenuFeatures,
+                   RepoFeatures::HistoryViewContextMenuCheckoutCommit)) {
+      menu.addAction(&actionCheckoutCommit);
+    }
     if (hasFeature(historyMenuFeatures,
                    RepoFeatures::HistoryContextMenuCopyToClipboard)) {
       menu.addAction(&actionCopyShaToClipboard);

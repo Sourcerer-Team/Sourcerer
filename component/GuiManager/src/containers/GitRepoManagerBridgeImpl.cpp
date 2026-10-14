@@ -195,7 +195,8 @@ RepoFeatures GitRepoManagerBridgeImpl::features() const {
          RepoFeatures::PushAvailable | RepoFeatures::StashInfoAuthor |
          RepoFeatures::StashInfoEmail | RepoFeatures::StashInfoParent |
          RepoFeatures::StashInfoSHA | RepoFeatures::StashInfoTitleStash |
-         RepoFeatures::HistoryViewContextMenuBisect;
+         RepoFeatures::HistoryViewContextMenuBisect |
+         RepoFeatures::HistoryViewContextMenuCheckoutCommit;
 }
 
 void GitRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,
