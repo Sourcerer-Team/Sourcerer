@@ -44,6 +44,8 @@ enum class RepoFeatures : unsigned {
   StashInfoTitleShelf = 1 << 24,
   HistoryViewContextMenuBisect = 1 << 25,
   HistoryViewContextMenuCheckoutCommit = 1 << 26,
+  LocalBranchesDragAndDropRebase = 1 << 27,
+  LocalBranchesDragAndDropSquash = 1 << 28,
 };
 
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {

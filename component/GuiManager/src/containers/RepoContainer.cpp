@@ -4369,9 +4369,16 @@ void RepoContainer::onLocalBranchMoved(const QString &sourceBranch,
     QAction actionRebase(tr("Rebase abd merge"), this);
     QAction actionSquash(tr("Squash and merge"), this);
 
+    const RepoFeatures dragDropFeatures = _bridge->features();
     menu.addAction(&actionMerge);
-    menu.addAction(&actionRebase);
-    menu.addAction(&actionSquash);
+    if (hasFeature(dragDropFeatures,
+                   RepoFeatures::LocalBranchesDragAndDropRebase)) {
+      menu.addAction(&actionRebase);
+    }
+    if (hasFeature(dragDropFeatures,
+                   RepoFeatures::LocalBranchesDragAndDropSquash)) {
+      menu.addAction(&actionSquash);
+    }
 
     const QAction *selectedAction = menu.exec(QCursor::pos());
     if (!selectedAction) {
