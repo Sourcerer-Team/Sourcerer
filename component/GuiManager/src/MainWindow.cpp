@@ -1633,6 +1633,42 @@ void MainWindow::eventCallback(EventManager::Event event) {
     });
     break;
   }
+  case EventManager::EventType::SvnRepoManagerGetCredentials: {
+    const auto request = event.data<GitCredentialsRequest>();
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      Q_ASSERT(_current != -1);
+      QWidget *parent =
+          _current != -1 ? qobject_cast<QWidget *>(_containers[_current].get())
+                         : qobject_cast<QWidget *>(this);
+      Q_ASSERT(parent != nullptr);
+      if (!parent) {
+        LOG_WARN("Parent widget is null.");
+        return;
+      }
+      GitCredentialsOverlayWidget *overlayWidget = nullptr;
+      if (_credentialsWidgets.contains(request.id)) {
+        overlayWidget = _credentialsWidgets[request.id];
+      } else {
+        overlayWidget = new GitCredentialsOverlayWidget(request.id, parent);
+        overlayWidget->setIsSvn(true);
+        _credentialsWidgets[request.id] = overlayWidget;
+        connect(overlayWidget, &GitCredentialsOverlayWidget::error, this,
+                [=]() {
+                  hideCredentialsOverlay(overlayWidget);
+                  _credentialsWidgets.remove(request.id);
+                  delete overlayWidget;
+                });
+        connect(overlayWidget, &GitCredentialsOverlayWidget::finished, this,
+                [=]() {
+                  hideCredentialsOverlay(overlayWidget);
+                  _credentialsWidgets.remove(request.id);
+                  delete overlayWidget;
+                });
+      }
+      showCredentialsOverlay(request, overlayWidget);
+    });
+    break;
+  }
   case EventManager::EventType::GitRepoManagerCloneRepoError: {
     Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
       showErrorToast(tr("Unable to clone Git repository"), tr("Error"));

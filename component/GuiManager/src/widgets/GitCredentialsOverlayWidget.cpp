@@ -27,7 +27,7 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(size_t id,
       _passwordLineEdit(new PersistentPlaceholderLineEdit(
           QColor::fromString("#969696"), this)),
       _storeCredentialsCheckBox(new QCheckBox(this)),
-      _passwordVisibilityAction(nullptr), _showing(false),
+      _passwordVisibilityAction(nullptr), _showing(false), _isSvn(false),
       _holder(QSharedPointer<bool>::create(false)), _id(id) {
   LOG_PERF(0, "Enter");
 
@@ -168,6 +168,12 @@ GitCredentialsOverlayWidget::GitCredentialsOverlayWidget(size_t id,
       callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerGetCredentialsInvalid,
+      callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerGetCredentialsFinished,
+      callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -186,6 +192,12 @@ GitCredentialsOverlayWidget::~GitCredentialsOverlayWidget() {
       callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerGetCredentialsInvalid,
+      callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerGetCredentialsFinished,
+      callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -247,6 +259,14 @@ void GitCredentialsOverlayWidget::setRepoPath(const QString &repoPath) {
   LOG_PERF(0, "Exit");
 }
 
+void GitCredentialsOverlayWidget::setIsSvn(bool isSvn) {
+  LOG_PERF(0, "Enter");
+
+  _isSvn = isSvn;
+
+  LOG_PERF(0, "Exit");
+}
+
 void GitCredentialsOverlayWidget::start() {
   LOG_PERF(0, "Enter");
 
@@ -270,8 +290,9 @@ void GitCredentialsOverlayWidget::onCancelClicked() {
   GitRepo::GitCredentialsErrorResponse response;
   response.id = _request.id;
 
-  EventManager::Event cancelEvent(
-      EventManager::EventType::GitRepoManagerGetCredentialsCancel);
+  EventManager::Event cancelEvent(_isSvn
+      ? EventManager::EventType::SvnRepoManagerGetCredentialsCancel
+      : EventManager::EventType::GitRepoManagerGetCredentialsCancel);
   cancelEvent.addData(response);
 
   _eventManager.send(cancelEvent);
@@ -295,8 +316,9 @@ void GitCredentialsOverlayWidget::onSubmitClicked() const {
   response.password = _passwordLineEdit->text();
   response.rememberCredentials = _storeCredentialsCheckBox->isChecked();
 
-  EventManager::Event submitEvent(
-      EventManager::EventType::GitRepoManagerGetCredentialsSubmit);
+  EventManager::Event submitEvent(_isSvn
+      ? EventManager::EventType::SvnRepoManagerGetCredentialsSubmit
+      : EventManager::EventType::GitRepoManagerGetCredentialsSubmit);
   submitEvent.addData(response);
 
   _eventManager.send(submitEvent);
@@ -314,7 +336,8 @@ void GitCredentialsOverlayWidget::eventCallback(EventManager::Event event) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() { emit error(); });
     break;
   }
-  case EventManager::EventType::GitRepoManagerGetCredentialsFinished: {
+  case EventManager::EventType::GitRepoManagerGetCredentialsFinished:
+  case EventManager::EventType::SvnRepoManagerGetCredentialsFinished: {
     if (const size_t id = event.data<size_t>(); id != _id) {
       break;
     }
@@ -323,7 +346,8 @@ void GitCredentialsOverlayWidget::eventCallback(EventManager::Event event) {
     Util::Dispatcher::dispatchToMainThread(guard, [=]() { emit finished(); });
     break;
   }
-  case EventManager::EventType::GitRepoManagerGetCredentialsInvalid: {
+  case EventManager::EventType::GitRepoManagerGetCredentialsInvalid:
+  case EventManager::EventType::SvnRepoManagerGetCredentialsInvalid: {
     if (const size_t id = event.data<size_t>(); id != _id) {
       break;
     }
