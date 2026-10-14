@@ -22,28 +22,36 @@ check_symbol_exists("getpagesize" "unistd.h" HAVE_GETPAGESIZE)
 check_symbol_exists("mmap" "sys/mman.h" HAVE_MMAP)
 check_symbol_exists("getrandom" "sys/random.h" HAVE_GETRANDOM)
 
-check_c_source_compiles("
-    #if ! defined(_DEFAULT_SOURCE)
-    # define _DEFAULT_SOURCE 1 /* for glibc */
-    #endif
-    #include <stdlib.h>
-    int main(void) {
-      char dummy[123];
-      arc4random_buf(dummy, 0U);
-      return 0;
-    }"
-    HAVE_ARC4RANDOM_BUF)
+if(WIN32)
+    # Windows has no arc4random functions. A probe result that says otherwise
+    # (e.g. from a stale cache) would compile random_arc4random_buf.c and fail
+    # to link, so the probes are skipped and the functions are forced off.
+    set(HAVE_ARC4RANDOM_BUF FALSE CACHE INTERNAL "" FORCE)
+    set(HAVE_ARC4RANDOM FALSE CACHE INTERNAL "" FORCE)
+else()
+    check_c_source_compiles("
+        #if ! defined(_DEFAULT_SOURCE)
+        # define _DEFAULT_SOURCE 1 /* for glibc */
+        #endif
+        #include <stdlib.h>
+        int main(void) {
+          char dummy[123];
+          arc4random_buf(dummy, 0U);
+          return 0;
+        }"
+        HAVE_ARC4RANDOM_BUF)
 
-check_c_source_compiles("
-    #if ! defined(_DEFAULT_SOURCE)
-    # define _DEFAULT_SOURCE 1 /* for glibc */
-    #endif
-    #include <stdlib.h>
-    int main(void) {
-        arc4random();
-        return 0;
-    }"
-    HAVE_ARC4RANDOM)
+    check_c_source_compiles("
+        #if ! defined(_DEFAULT_SOURCE)
+        # define _DEFAULT_SOURCE 1 /* for glibc */
+        #endif
+        #include <stdlib.h>
+        int main(void) {
+            arc4random();
+            return 0;
+        }"
+        HAVE_ARC4RANDOM)
+endif()
 
 set(CMAKE_REQUIRED_LIBRARIES)
 
