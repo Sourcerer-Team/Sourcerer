@@ -2592,7 +2592,7 @@ void SvnRepoManagerBridgeImpl::diffFromCommit(
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
       _container.showSpinnerOverlay(false);
       _container.showToast(
-          _container.tr("No difference compared to the HEAD commit."),
+          _container.tr("No difference compared to the previous revision."),
           _container.tr("Info"));
     });
 
