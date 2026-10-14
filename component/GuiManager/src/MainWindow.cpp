@@ -271,6 +271,8 @@ MainWindow::MainWindow(QWidget *parent)
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoResult, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerCloneRepoProgress, callbackFunc));
@@ -298,6 +300,8 @@ MainWindow::~MainWindow() {
       EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoResult, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -512,6 +516,24 @@ void MainWindow::openRepositoryByType(const QString &path,
     LOG_WARN("{} does not look like a Git or Subversion repository: {}",
              sourceLabel, path);
     break;
+  }
+}
+
+void MainWindow::promptOpenClonedRepository(const QString &path,
+                                            const bool isSvn) {
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Repository cloned"),
+      tr("The repository was cloned successfully. Do you want to open it?\n%1")
+          .arg(QDir::toNativeSeparators(path)),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+  if (reply != QMessageBox::Yes) {
+    return;
+  }
+
+  if (isSvn) {
+    addSvnRepoContainer(path);
+  } else {
+    addGitRepoContainer(path);
   }
 }
 
@@ -1679,8 +1701,18 @@ void MainWindow::eventCallback(EventManager::Event event) {
     const auto commandResult =
         event.data<GitRepoManager::Structs::GitRepoResult>();
     const QString repoPath = commandResult.value.toString();
-    Util::Dispatcher::dispatchToMainThread(
-        getSelf().toWeakRef(), [=]() { addGitRepoContainer(repoPath); });
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      promptOpenClonedRepository(repoPath, false);
+    });
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerCloneRepoResult: {
+    const auto commandResult =
+        event.data<SvnRepoManager::Structs::SvnRepoResult>();
+    const QString repoPath = commandResult.value.toString();
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      promptOpenClonedRepository(repoPath, true);
+    });
     break;
   }
   case EventManager::EventType::GitRepoManagerCloneRepoProgress:

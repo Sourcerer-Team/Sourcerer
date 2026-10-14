@@ -116,6 +116,7 @@ private:
   void addGitRepoContainer(const QString &path);
   void addSvnRepoContainer(const QString &path);
   void openRepositoryByType(const QString &path, const QString &sourceLabel);
+  void promptOpenClonedRepository(const QString &path, bool isSvn);
   void addGitCredentialsContainer();
   void addIssueTrackerContainer(const QString &serviceType,
                                 const QString &repositoryName,
