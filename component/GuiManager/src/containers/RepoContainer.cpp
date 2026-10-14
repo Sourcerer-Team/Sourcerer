@@ -152,12 +152,27 @@ QLabel *createStashContentAvatarLabel(QWidget *parent) {
 }
 
 QWidget *createStashContentInfoPanel(
-    QWidget *parent, QLabel **authorAvatarLabel, QLabel **authorNameValueLabel,
+    QWidget *parent,
+    const GuiManager::Containers::RepoFeatures stashInfoFeatures,
+    QLabel **authorAvatarLabel, QLabel **authorNameValueLabel,
     QLabel **authorEmailValueLabel, QLabel **committerDateValueLabel,
     QLabel **shaValueLabel, QLabel **parentShaValueLabel,
     QLabel **summaryValueLabel) {
+  using GuiManager::Containers::hasFeature;
+  using GuiManager::Containers::RepoFeatures;
+  const bool hasAuthor =
+      hasFeature(stashInfoFeatures, RepoFeatures::StashInfoAuthor);
+  const bool hasEmail =
+      hasFeature(stashInfoFeatures, RepoFeatures::StashInfoEmail);
+  const bool hasParent =
+      hasFeature(stashInfoFeatures, RepoFeatures::StashInfoParent);
+  const bool hasSha = hasFeature(stashInfoFeatures, RepoFeatures::StashInfoSHA);
+
   auto *panel = new QGroupBox(parent);
-  panel->setTitle(QCoreApplication::translate("RepoContainer", "Stash"));
+  panel->setTitle(
+      hasFeature(stashInfoFeatures, RepoFeatures::StashInfoTitleShelf)
+          ? QCoreApplication::translate("RepoContainer", "Shelf")
+          : QCoreApplication::translate("RepoContainer", "Stash"));
   panel->setObjectName("stashContentInfoPanel");
   panel->setMinimumWidth(280);
   panel->setMaximumWidth(420);
@@ -182,15 +197,18 @@ QWidget *createStashContentInfoPanel(
   auto *summaryValue = createStashContentValueLabel(panel);
   summaryValue->setWordWrap(true);
 
-  layout->addWidget(
-      createStashContentTitleLabel(
-          QCoreApplication::translate("RepoContainer", "author:"), panel),
-      0, 0, Qt::AlignLeft | Qt::AlignTop);
+  auto *authorTitle = createStashContentTitleLabel(
+      QCoreApplication::translate("RepoContainer", "author:"), panel);
+  auto *emailTitle = createStashContentTitleLabel(
+      QCoreApplication::translate("RepoContainer", "email:"), panel);
+  auto *parentTitle = createStashContentTitleLabel(
+      QCoreApplication::translate("RepoContainer", "parents:"), panel);
+  auto *shaTitle = createStashContentTitleLabel(
+      QCoreApplication::translate("RepoContainer", "sha:"), panel);
+
+  layout->addWidget(authorTitle, 0, 0, Qt::AlignLeft | Qt::AlignTop);
   layout->addWidget(authorNameValue, 0, 1);
-  layout->addWidget(
-      createStashContentTitleLabel(
-          QCoreApplication::translate("RepoContainer", "email:"), panel),
-      1, 0, Qt::AlignLeft | Qt::AlignTop);
+  layout->addWidget(emailTitle, 1, 0, Qt::AlignLeft | Qt::AlignTop);
   layout->addWidget(authorEmailValue, 1, 1);
   layout->addWidget(avatarLabel, 0, 2, 2, 1, Qt::AlignTop | Qt::AlignRight);
   layout->addWidget(
@@ -198,21 +216,25 @@ QWidget *createStashContentInfoPanel(
           QCoreApplication::translate("RepoContainer", "date:"), panel),
       2, 0, Qt::AlignLeft | Qt::AlignTop);
   layout->addWidget(committerDateValue, 2, 1, 1, 2);
-  layout->addWidget(
-      createStashContentTitleLabel(
-          QCoreApplication::translate("RepoContainer", "sha:"), panel),
-      3, 0, Qt::AlignLeft | Qt::AlignTop);
+  layout->addWidget(shaTitle, 3, 0, Qt::AlignLeft | Qt::AlignTop);
   layout->addWidget(shaValue, 3, 1);
-  layout->addWidget(
-      createStashContentTitleLabel(
-          QCoreApplication::translate("RepoContainer", "parents:"), panel),
-      4, 0, Qt::AlignLeft | Qt::AlignTop);
+  layout->addWidget(parentTitle, 4, 0, Qt::AlignLeft | Qt::AlignTop);
   layout->addWidget(parentShaValue, 4, 1);
   layout->addWidget(
       createStashContentTitleLabel(
           QCoreApplication::translate("RepoContainer", "summary:"), panel),
       5, 0, Qt::AlignLeft | Qt::AlignTop);
   layout->addWidget(summaryValue, 5, 1, 1, 2);
+
+  authorTitle->setVisible(hasAuthor);
+  authorNameValue->setVisible(hasAuthor);
+  avatarLabel->setVisible(hasAuthor);
+  emailTitle->setVisible(hasEmail);
+  authorEmailValue->setVisible(hasEmail);
+  parentTitle->setVisible(hasParent);
+  parentShaValue->setVisible(hasParent);
+  shaTitle->setVisible(hasSha);
+  shaValue->setVisible(hasSha);
 
   if (authorAvatarLabel) {
     *authorAvatarLabel = avatarLabel;
@@ -981,9 +1003,10 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
       QLabel *parentShaValueLabel = nullptr;
       QLabel *summaryValueLabel = nullptr;
       QWidget *infoPanel = createStashContentInfoPanel(
-          flatTab, &authorAvatarLabel, &authorNameValueLabel,
-          &authorEmailValueLabel, &committerDateValueLabel, &shaValueLabel,
-          &parentShaValueLabel, &summaryValueLabel);
+          flatTab, _bridge->features(), &authorAvatarLabel,
+          &authorNameValueLabel, &authorEmailValueLabel,
+          &committerDateValueLabel, &shaValueLabel, &parentShaValueLabel,
+          &summaryValueLabel);
       layout->addWidget(infoPanel);
       layout->setStretch(0, 1);
       layout->setStretch(1, 0);
@@ -1008,9 +1031,10 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
       QLabel *parentShaValueLabel = nullptr;
       QLabel *summaryValueLabel = nullptr;
       QWidget *infoPanel = createStashContentInfoPanel(
-          treeTab, &authorAvatarLabel, &authorNameValueLabel,
-          &authorEmailValueLabel, &committerDateValueLabel, &shaValueLabel,
-          &parentShaValueLabel, &summaryValueLabel);
+          treeTab, _bridge->features(), &authorAvatarLabel,
+          &authorNameValueLabel, &authorEmailValueLabel,
+          &committerDateValueLabel, &shaValueLabel, &parentShaValueLabel,
+          &summaryValueLabel);
       layout->addWidget(infoPanel);
       layout->setStretch(0, 1);
       layout->setStretch(1, 0);
@@ -1467,7 +1491,10 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
 
   // Explicitly show buttons to ensure they're interactive
   pullFetchDropdown->show();
-  pushButtonPush->show();
+
+  // The Push button is shown only for bridges that support pushing.
+  pushButtonPush->setVisible(
+      hasFeature(_bridge->features(), RepoFeatures::PushAvailable));
 
   _shortcutsWidget->addShortcutWidget(gitFlowDropdown);
   _shortcutsWidget->addShortcutWidget(pushButtonStash);
@@ -10851,9 +10878,11 @@ void RepoContainer::updateStashContentInfo(
           ? QCoreApplication::translate("RepoContainer", "No summary available")
           : stashStatus.summary.trimmed();
 
-  updateAuthorAvatar(_stashContentAuthorAvatarLabels, stashStatus.authorName,
-                     stashStatus.authorEmail, _currentStashAuthorAvatarKey,
-                     _stashAuthorAvatarRequestSerial);
+  if (hasFeature(_bridge->features(), RepoFeatures::StashInfoAuthor)) {
+    updateAuthorAvatar(_stashContentAuthorAvatarLabels, stashStatus.authorName,
+                       stashStatus.authorEmail, _currentStashAuthorAvatarKey,
+                       _stashAuthorAvatarRequestSerial);
+  }
 
   for (QLabel *label : _stashContentAuthorNameValueLabels) {
     if (!label) {
@@ -10862,7 +10891,6 @@ void RepoContainer::updateStashContentInfo(
 
     label->setText(authorName);
     label->setToolTip(authorName);
-    label->setVisible(true);
   }
 
   for (QLabel *label : _stashContentAuthorEmailValueLabels) {
@@ -10872,7 +10900,6 @@ void RepoContainer::updateStashContentInfo(
 
     label->setText(authorEmail);
     label->setToolTip(authorEmail);
-    label->setVisible(true);
   }
 
   for (QLabel *label : _stashContentCommitterDateValueLabels) {
@@ -10892,7 +10919,6 @@ void RepoContainer::updateStashContentInfo(
 
     label->setText(sha.left(7));
     label->setToolTip(sha);
-    label->setVisible(true);
   }
 
   for (QLabel *label : _stashContentParentShaValueLabels) {
@@ -10902,7 +10928,6 @@ void RepoContainer::updateStashContentInfo(
 
     label->setText(parentSha.left(7));
     label->setToolTip(parentSha);
-    label->setVisible(true);
   }
 
   for (QLabel *label : _stashContentSummaryValueLabels) {

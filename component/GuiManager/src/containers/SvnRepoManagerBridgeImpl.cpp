@@ -40,7 +40,9 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QCursor>
+#include <QDateTime>
 #include <QDirIterator>
+#include <QLocale>
 #include <QEvent>
 #include <QFile>
 #include <QFileDialog>
@@ -90,8 +92,9 @@ enum class MainViewPanes {
 
   History = 0,
   Diff = 1,
-  ThreeWayDiff = 2,
-  StashContent = 3,
+  Blame = 2,
+  ThreeWayDiff = 3,
+  StashContent = 4,
 
   last
 };
@@ -130,7 +133,7 @@ RepoFeatures SvnRepoManagerBridgeImpl::features() const {
          RepoFeatures::HistoryColumnRevision |
          RepoFeatures::HistoryContextMenuCopyToClipboardRevision |
          RepoFeatures::CheckoutCommitCreatesBranch |
-         RepoFeatures::SearchBarRevision;
+         RepoFeatures::SearchBarRevision | RepoFeatures::StashInfoTitleShelf;
 }
 
 void SvnRepoManagerBridgeImpl::setUpstream(
@@ -1938,6 +1941,9 @@ void SvnRepoManagerBridgeImpl::openSubmodule(
   LOG_PERF(0, "Exit");
 }
 
+static GitRepo::GitCommitStatus
+convertSvnCommitStatusToGitCommitStatus(const SvnRepo::CommitStatus &status);
+
 void SvnRepoManagerBridgeImpl::showStashContent(
     const QWeakPointer<RepoContainer> &guard, int stashIndex) {
   LOG_PERF(0, "Enter");
@@ -1989,13 +1995,16 @@ void SvnRepoManagerBridgeImpl::showStashContent(
   }
 
   const auto result = event.data<SvnRepoResult>();
-  const auto stashStatus = result.value.value<GitRepo::GitCommitStatus>();
+  const auto stashStatus = convertSvnCommitStatusToGitCommitStatus(
+      result.value.value<SvnRepo::CommitStatus>());
 
   // Store the stash index for later use (for apply/pop buttons)
   _container._currentStashIndex = stashIndex;
   _container._lastStashCommit = stashStatus.commit;
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.updateStashContentInfo(stashIndex, stashStatus);
+
     // Update flat list view
     _container._stashFilesModel.reset(
         Models::GitCommitListModel::from(stashStatus));
@@ -2956,6 +2965,12 @@ convertSvnCommitStatusToGitCommitStatus(const SvnRepo::CommitStatus &status) {
   GitRepo::GitCommitStatus gitCommitStatus;
   gitCommitStatus.commit = status.commit;
   gitCommitStatus.authorName = status.author;
+  gitCommitStatus.summary = status.message.section('\n', 0, 0).trimmed();
+  if (status.timeStamp >= 0) {
+    gitCommitStatus.committerDate =
+        QLocale().toString(QDateTime::fromMSecsSinceEpoch(status.timeStamp),
+                           QLocale::ShortFormat);
+  }
   gitCommitStatus.newFiles = status.newFiles;
   gitCommitStatus.modifiedFiles = status.modifiedFiles;
   gitCommitStatus.deletedFiles = status.deletedFiles;

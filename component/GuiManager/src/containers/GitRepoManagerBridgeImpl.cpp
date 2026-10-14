@@ -191,7 +191,10 @@ RepoFeatures GitRepoManagerBridgeImpl::features() const {
          RepoFeatures::HistoryContextMenuCopyToClipboard |
          RepoFeatures::HistoryContextMenuCopyToClipboardSHA |
          RepoFeatures::HistoryContextMenuReset |
-         RepoFeatures::HistoryColumnEmail | RepoFeatures::SearchBarSha;
+         RepoFeatures::HistoryColumnEmail | RepoFeatures::SearchBarSha |
+         RepoFeatures::PushAvailable | RepoFeatures::StashInfoAuthor |
+         RepoFeatures::StashInfoEmail | RepoFeatures::StashInfoParent |
+         RepoFeatures::StashInfoSHA | RepoFeatures::StashInfoTitleStash;
 }
 
 void GitRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,

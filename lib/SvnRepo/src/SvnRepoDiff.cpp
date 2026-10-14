@@ -1,6 +1,7 @@
 #include "SvnRepo.h"
 #include "SvnRepoPrivate.h"
 
+#include <private/svn_client_shelf2.h>
 #include <svn_diff.h>
 #include <svn_hash.h>
 #include <svn_io.h>
@@ -12,6 +13,7 @@
 #include <Log.h>
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 
 #define THREAD_ID "SvnRepo"
@@ -48,6 +50,151 @@ runDiff(QString *diff, const QString &pathOrUrl, const svn_opt_revision_t &peg,
 
   *diff = QString::fromUtf8(outBuffer->data, static_cast<int>(outBuffer->len));
   return SVN_NO_ERROR;
+}
+
+static QString diffText(const QVector<FilesDiffDelta> &deltas);
+static QString contentWithinLimit(const QByteArray &content);
+
+// Stashes are shelves, which are not revisions. Each shelved file keeps its
+// base copy as "<relpath>.base" and its work copy as "<relpath>.work".
+static svn_error_t *shelfFilesDir(QString *filesDir, const QString &name,
+                                  const QString &wcPath,
+                                  svn_client_ctx_t *ctx, apr_pool_t *pool) {
+  const QByteArray nameBytes = name.toUtf8();
+  const QByteArray wcBytes = wcPath.toUtf8();
+  svn_client__shelf2_t *shelf = nullptr;
+  SVN_ERR(svn_client__shelf2_open_existing(&shelf, nameBytes.constData(),
+                                           wcBytes.constData(), ctx, pool));
+
+  svn_client__shelf2_version_t *version = nullptr;
+  SVN_ERR(svn_client__shelf2_get_newest_version(&version, shelf, pool, pool));
+  if (version) {
+    *filesDir = QString::fromUtf8(version->files_dir_abspath);
+  }
+  return svn_client__shelf2_close(shelf, pool);
+}
+
+static QString shelfCopyPath(const QString &filesDir, const QString &relativePath,
+                             const char *suffix) {
+  return QDir(filesDir).filePath(relativePath + QString::fromLatin1(suffix));
+}
+
+// Content of a shelved copy, empty when the copy does not exist.
+static QByteArray readShelfCopy(const QString &path) {
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    return {};
+  }
+  return file.readAll();
+}
+
+static QString unifiedDiffOfContents(const QByteArray &before,
+                                     const QByteArray &after,
+                                     const QString &file, apr_pool_t *pool) {
+  const svn_string_t *original =
+      svn_string_ncreate(before.constData(), before.size(), pool);
+  const svn_string_t *modified =
+      svn_string_ncreate(after.constData(), after.size(), pool);
+
+  svn_diff_t *diff = nullptr;
+  svn_diff_file_options_t *options = svn_diff_file_options_create(pool);
+  if (svn_diff_mem_string_diff(&diff, original, modified, options, pool)) {
+    return QString();
+  }
+
+  svn_stringbuf_t *outBuffer = svn_stringbuf_create_empty(pool);
+  svn_stream_t *outStream = svn_stream_from_stringbuf(outBuffer, pool);
+  const QByteArray header = file.toUtf8();
+  if (svn_diff_mem_string_output_unified3(
+          outStream, diff, TRUE, "@@", header.constData(), header.constData(),
+          "UTF-8", original, modified, 3, nullptr, nullptr, pool)) {
+    return QString();
+  }
+  if (svn_stream_close(outStream)) {
+    return QString();
+  }
+
+  // parseUnifiedDiff starts a new file only on an "Index:" line.
+  return QStringLiteral("Index: %1\n").arg(file) +
+         QString::fromUtf8(outBuffer->data, static_cast<int>(outBuffer->len));
+}
+
+static QString shelfRelativePath(const QString &wcPath, const QString &file) {
+  return QFileInfo(file).isAbsolute() ? relativeFilePath(wcPath, file)
+                                      : QDir::fromNativeSeparators(file);
+}
+
+static FilesDiff diffFilesFromShelf(const QString &path,
+                                    const QStringList &files,
+                                    const QString &shelfName) {
+  const QString wcPath = normalizedPath(path);
+  FilesDiff result;
+
+  const bool success = runWithClientContext(
+      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        QString filesDir;
+        if (!reportError(SvnError::DiffFailed,
+                         shelfFilesDir(&filesDir, shelfName, wcPath, ctx,
+                                       pool))) {
+          return false;
+        }
+
+        for (const QString &file : files) {
+          const QString relativePath = shelfRelativePath(wcPath, file);
+          const QByteArray oldContent = readShelfCopy(
+              shelfCopyPath(filesDir, relativePath, ".base"));
+          const QByteArray newContent = readShelfCopy(
+              shelfCopyPath(filesDir, relativePath, ".work"));
+
+          result.repoContent.insert(file, contentWithinLimit(oldContent));
+          result.filesContent.insert(file, contentWithinLimit(newContent));
+
+          const QVector<FilesDiffDelta> deltas = parseUnifiedDiff(
+              unifiedDiffOfContents(oldContent, newContent, file, pool));
+          for (FilesDiffDelta delta : deltas) {
+            delta.oldFilePath = file;
+            delta.newFilePath = file;
+            result.deltas.append(delta);
+          }
+        }
+
+        return true;
+      },
+      wcPath);
+
+  if (!success) {
+    return {};
+  }
+
+  result.diff = diffText(result.deltas);
+  result.valid = true;
+  return result;
+}
+
+static qint64 fileSizeFromShelf(const QString &path, const QString &filePath,
+                                const QString &shelfName) {
+  const QString wcPath = normalizedPath(path);
+  qint64 size = -1;
+
+  const bool success = runWithClientContext(
+      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        QString filesDir;
+        if (!reportError(SvnError::InfoFailed,
+                         shelfFilesDir(&filesDir, shelfName, wcPath, ctx,
+                                       pool))) {
+          return false;
+        }
+
+        const QFileInfo info(shelfCopyPath(
+            filesDir, shelfRelativePath(wcPath, filePath), ".work"));
+        if (info.exists()) {
+          size = info.size();
+        }
+        return true;
+      },
+      wcPath);
+
+  return success ? size : -1;
 }
 
 // Delta adding every line of content, for unversioned files.
@@ -274,7 +421,7 @@ FilesDiff diffFilesFromCommit(const QString &path, const QStringList &files,
   svn_revnum_t revision = SVN_INVALID_REVNUM;
   if (!parseRevision(commit, &revision)) {
     LOG_PERF(0, "Exit");
-    return {};
+    return diffFilesFromShelf(path, files, commit);
   }
 
   const QString wcPath = normalizedPath(path);
@@ -394,7 +541,7 @@ qint64 getFileSizeFromCommit(const QString &path, const QString &filePath,
   svn_revnum_t revision = SVN_INVALID_REVNUM;
   if (!parseRevision(commit, &revision)) {
     LOG_PERF(0, "Exit");
-    return -1;
+    return fileSizeFromShelf(path, filePath, commit);
   }
 
   const QString wcPath = normalizedPath(path);

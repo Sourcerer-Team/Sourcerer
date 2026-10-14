@@ -36,6 +36,13 @@ enum class RepoFeatures : unsigned {
   SearchBarRevision = 1 << 15,
   HistoryContextMenuCopyToClipboardSHA = 1 << 16,
   HistoryContextMenuCopyToClipboardRevision = 1 << 17,
+  PushAvailable = 1 << 18,
+  StashInfoAuthor = 1 << 19,
+  StashInfoEmail = 1 << 20,
+  StashInfoParent = 1 << 21,
+  StashInfoSHA = 1 << 22,
+  StashInfoTitleStash = 1 << 23,
+  StashInfoTitleShelf = 1 << 24,
 };
 
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {

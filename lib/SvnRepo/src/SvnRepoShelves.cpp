@@ -8,6 +8,7 @@
 #include <Log.h>
 
 #include <QDateTime>
+#include <QDir>
 
 #include <algorithm>
 
@@ -77,6 +78,56 @@ static svn_error_t *readLogMessage(QString *message, const QString &name,
   char *logMessage = nullptr;
   SVN_ERR(svn_client__shelf2_get_log_message(&logMessage, shelf, pool));
   *message = logMessage ? QString::fromUtf8(logMessage) : name;
+
+  return svn_client__shelf2_close(shelf, pool);
+}
+
+struct StashFilesBaton {
+  CommitStatus *status = nullptr;
+  QString wcPath;
+};
+
+static svn_error_t *collectStashFile(void *baton, const char *abspath,
+                                     const svn_wc_status3_t *status,
+                                     apr_pool_t *scratch_pool) {
+  auto *files = static_cast<StashFilesBaton *>(baton);
+  const QString file = QDir(files->wcPath)
+                           .relativeFilePath(QString::fromUtf8(abspath));
+
+  switch (status->node_status) {
+  case svn_wc_status_added:
+  case svn_wc_status_replaced:
+    files->status->newFiles.append(file);
+    break;
+  case svn_wc_status_deleted:
+    files->status->deletedFiles.append(file);
+    break;
+  case svn_wc_status_modified:
+    files->status->modifiedFiles.append(file);
+    break;
+  default:
+    break;
+  }
+  return SVN_NO_ERROR;
+}
+
+// Fills the changed files of a shelf, relative to the working copy root.
+static svn_error_t *readStashFiles(CommitStatus *status, const QString &name,
+                                   const QString &wcPath,
+                                   svn_client_ctx_t *ctx, apr_pool_t *pool) {
+  const QByteArray nameBytes = name.toUtf8();
+  const QByteArray wcBytes = wcPath.toUtf8();
+  svn_client__shelf2_t *shelf = nullptr;
+  SVN_ERR(svn_client__shelf2_open_existing(&shelf, nameBytes.constData(),
+                                           wcBytes.constData(), ctx, pool));
+
+  svn_client__shelf2_version_t *version = nullptr;
+  SVN_ERR(svn_client__shelf2_get_newest_version(&version, shelf, pool, pool));
+  if (version) {
+    StashFilesBaton baton{status, wcPath};
+    SVN_ERR(svn_client__shelf2_version_status_walk(
+        version, "", collectStashFile, &baton, pool));
+  }
 
   return svn_client__shelf2_close(shelf, pool);
 }
@@ -292,9 +343,15 @@ CommitStatus getStashStatus(const QString &path, int stashIndex) {
 
         status.commit = shelf.name;
         status.timeStamp = static_cast<qint64>(shelf.mtime / 1000);
-        return reportError(
-            SvnError::ShelveFailed,
-            readLogMessage(&status.message, shelf.name, wcPath, ctx, pool));
+        if (!reportError(SvnError::ShelveFailed,
+                         readLogMessage(&status.message, shelf.name, wcPath,
+                                        ctx, pool))) {
+          return false;
+        }
+
+        return reportError(SvnError::ShelveFailed,
+                           readStashFiles(&status, shelf.name, wcPath, ctx,
+                                          pool));
       },
       wcPath);
 
