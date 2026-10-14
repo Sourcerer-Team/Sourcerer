@@ -32,6 +32,8 @@ enum class RepoFeatures : unsigned {
   HistoryContextMenuReset = 1 << 11,
   CheckoutCommitCreatesBranch = 1 << 12,
   HistoryColumnEmail = 1 << 13,
+  SearchBarSha = 1 << 14,
+  SearchBarRevision = 1 << 15,
 };
 
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {

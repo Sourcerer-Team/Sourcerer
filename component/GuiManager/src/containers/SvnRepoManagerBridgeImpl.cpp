@@ -128,7 +128,8 @@ RepoFeatures SvnRepoManagerBridgeImpl::features() const {
   return RepoFeatures::Shelves | RepoFeatures::Externals |
          RepoFeatures::CommitInfoRevision |
          RepoFeatures::HistoryColumnRevision |
-         RepoFeatures::CheckoutCommitCreatesBranch;
+         RepoFeatures::CheckoutCommitCreatesBranch |
+         RepoFeatures::SearchBarRevision;
 }
 
 void SvnRepoManagerBridgeImpl::setUpstream(

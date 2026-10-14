@@ -555,6 +555,13 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
     _historyModel->setShaColumnTitle(tr("Revision"));
   }
 
+  // The history search bar filters by SHA or by revision, depending on the
+  // repository type.
+  if (hasFeature(historyFeatures, RepoFeatures::SearchBarRevision)) {
+    ui->labelHistoryShaFilter->setText(tr("Revision"));
+    ui->lineEditHistoryShaFilter->setPlaceholderText(tr("Search revision"));
+  }
+
   // Subversion commits are identified by revision instead of a SHA.
   const RepoFeatures commitInfoFeatures = _bridge->features();
   if (hasFeature(commitInfoFeatures, RepoFeatures::CommitInfoSha)) {

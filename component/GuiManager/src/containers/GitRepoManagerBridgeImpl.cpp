@@ -190,7 +190,7 @@ RepoFeatures GitRepoManagerBridgeImpl::features() const {
          RepoFeatures::CommitInfoEmail | RepoFeatures::HistoryColumnSha |
          RepoFeatures::HistoryContextMenuCopyToClipboard |
          RepoFeatures::HistoryContextMenuReset |
-         RepoFeatures::HistoryColumnEmail;
+         RepoFeatures::HistoryColumnEmail | RepoFeatures::SearchBarSha;
 }
 
 void GitRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,
