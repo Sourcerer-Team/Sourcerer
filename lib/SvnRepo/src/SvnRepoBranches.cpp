@@ -400,6 +400,20 @@ bool checkoutBranch(const QString &path, const QString &branchOrTagName,
           return false;
         }
 
+        // A working copy checked out at the project root holds trunk, branches
+        // and tags side by side. Subversion can only switch to URLs that share
+        // history with the working copy URL, and branches/X does not share
+        // history with the project root, so the switch would fail.
+        if (trimmedUrl(info.url) == trimmedUrl(info.layoutRootUrl)) {
+          setLastError(
+              SvnError::SwitchFailed, -1,
+              QStringLiteral("The working copy is at the project root '%1'. "
+                             "Check out trunk or a branch to switch between "
+                             "branches.")
+                  .arg(info.url));
+          return false;
+        }
+
         // Local changes are carried over to the switched working copy.
         return reportError(
             SvnError::SwitchFailed,

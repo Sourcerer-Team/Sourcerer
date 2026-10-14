@@ -791,6 +791,11 @@ void SvnRepoManagerBridgeImpl::checkoutBranch(
           guard, result.branchName,
           static_cast<GitRepo::BranchType>(result.branchType));
       _container.showSpinnerOverlay(false);
+
+      // The history reads the active branch, so it is loaded only after
+      // updateModelActiveBranch has set it. Otherwise the previous branch's
+      // history is shown after every checkout.
+      _container._dispatcher.dispatch([=]() { getBranchHistory(guard); });
     });
 
     if (branchType == static_cast<int>(GitRepo::BranchType::Tag)) {
@@ -2817,6 +2822,16 @@ void SvnRepoManagerBridgeImpl::discardFiles(
 bool SvnRepoManagerBridgeImpl::getActiveBranchOrTag(
     const QWeakPointer<RepoContainer> &guard, const int branchType) {
   LOG_PERF(0, "Enter");
+
+  if (branchType == static_cast<int>(GitRepo::BranchType::Remote)) {
+    // Subversion has no remote tracking branches. The checked out branch is
+    // only selected in the local list, so it is not reported as remote, which
+    // would clear the local selection.
+    _container.releaseHistoryRefreshSemaphore();
+
+    LOG_PERF(0, "Exit")
+    return true;
+  }
 
   const QString eventUuid = Uuid::createUuid();
 
