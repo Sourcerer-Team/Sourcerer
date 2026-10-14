@@ -58,8 +58,8 @@ static QString contentWithinLimit(const QByteArray &content);
 // Stashes are shelves, which are not revisions. Each shelved file keeps its
 // base copy as "<relpath>.base" and its work copy as "<relpath>.work".
 static svn_error_t *shelfFilesDir(QString *filesDir, const QString &name,
-                                  const QString &wcPath,
-                                  svn_client_ctx_t *ctx, apr_pool_t *pool) {
+                                  const QString &wcPath, svn_client_ctx_t *ctx,
+                                  apr_pool_t *pool) {
   const QByteArray nameBytes = name.toUtf8();
   const QByteArray wcBytes = wcPath.toUtf8();
   svn_client__shelf2_t *shelf = nullptr;
@@ -74,8 +74,8 @@ static svn_error_t *shelfFilesDir(QString *filesDir, const QString &name,
   return svn_client__shelf2_close(shelf, pool);
 }
 
-static QString shelfCopyPath(const QString &filesDir, const QString &relativePath,
-                             const char *suffix) {
+static QString shelfCopyPath(const QString &filesDir,
+                             const QString &relativePath, const char *suffix) {
   return QDir(filesDir).filePath(relativePath + QString::fromLatin1(suffix));
 }
 
@@ -133,18 +133,18 @@ static FilesDiff diffFilesFromShelf(const QString &path,
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
         QString filesDir;
-        if (!reportError(SvnError::DiffFailed,
-                         shelfFilesDir(&filesDir, shelfName, wcPath, ctx,
-                                       pool))) {
+        if (!reportError(
+                SvnError::DiffFailed,
+                shelfFilesDir(&filesDir, shelfName, wcPath, ctx, pool))) {
           return false;
         }
 
         for (const QString &file : files) {
           const QString relativePath = shelfRelativePath(wcPath, file);
-          const QByteArray oldContent = readShelfCopy(
-              shelfCopyPath(filesDir, relativePath, ".base"));
-          const QByteArray newContent = readShelfCopy(
-              shelfCopyPath(filesDir, relativePath, ".work"));
+          const QByteArray oldContent =
+              readShelfCopy(shelfCopyPath(filesDir, relativePath, ".base"));
+          const QByteArray newContent =
+              readShelfCopy(shelfCopyPath(filesDir, relativePath, ".work"));
 
           result.repoContent.insert(file, contentWithinLimit(oldContent));
           result.filesContent.insert(file, contentWithinLimit(newContent));
@@ -179,9 +179,9 @@ static qint64 fileSizeFromShelf(const QString &path, const QString &filePath,
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
         QString filesDir;
-        if (!reportError(SvnError::InfoFailed,
-                         shelfFilesDir(&filesDir, shelfName, wcPath, ctx,
-                                       pool))) {
+        if (!reportError(
+                SvnError::InfoFailed,
+                shelfFilesDir(&filesDir, shelfName, wcPath, ctx, pool))) {
           return false;
         }
 

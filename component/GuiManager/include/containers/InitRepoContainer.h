@@ -26,7 +26,7 @@ class InitRepoContainer final
 
 public:
   explicit InitRepoContainer(QWidget *parent = nullptr,
-                                InitType initType = InitType::Git);
+                             InitType initType = InitType::Git);
   ~InitRepoContainer() override;
 
   SharedPtr getSelf() { return sharedFromThis(); }

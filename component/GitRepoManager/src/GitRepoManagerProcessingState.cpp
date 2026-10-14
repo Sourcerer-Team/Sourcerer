@@ -751,7 +751,8 @@ void GitRepoManagerProcessingState::amendWorker(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoManagerProcessingState::blameWorker(const Structs::GitRepoBlameCommand &command) {
+void GitRepoManagerProcessingState::blameWorker(
+    const Structs::GitRepoBlameCommand &command) {
   LOG_PERF(0, "Enter");
 
   const GitRepoContext *ctx = context(command.uuid);
@@ -3540,7 +3541,8 @@ void GitRepoManagerProcessingState::unlockWorktreeWorker(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoManagerProcessingState::mergeWorker(const Structs::GitRepoMergeCommand &command) {
+void GitRepoManagerProcessingState::mergeWorker(
+    const Structs::GitRepoMergeCommand &command) {
   LOG_PERF(0, "Enter");
 
   const GitRepoContext *ctx = context(command.uuid);

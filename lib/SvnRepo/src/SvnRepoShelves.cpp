@@ -91,8 +91,8 @@ static svn_error_t *collectStashFile(void *baton, const char *abspath,
                                      const svn_wc_status3_t *status,
                                      apr_pool_t *scratch_pool) {
   auto *files = static_cast<StashFilesBaton *>(baton);
-  const QString file = QDir(files->wcPath)
-                           .relativeFilePath(QString::fromUtf8(abspath));
+  const QString file =
+      QDir(files->wcPath).relativeFilePath(QString::fromUtf8(abspath));
 
   switch (status->node_status) {
   case svn_wc_status_added:
@@ -113,8 +113,8 @@ static svn_error_t *collectStashFile(void *baton, const char *abspath,
 
 // Fills the changed files of a shelf, relative to the working copy root.
 static svn_error_t *readStashFiles(CommitStatus *status, const QString &name,
-                                   const QString &wcPath,
-                                   svn_client_ctx_t *ctx, apr_pool_t *pool) {
+                                   const QString &wcPath, svn_client_ctx_t *ctx,
+                                   apr_pool_t *pool) {
   const QByteArray nameBytes = name.toUtf8();
   const QByteArray wcBytes = wcPath.toUtf8();
   svn_client__shelf2_t *shelf = nullptr;
@@ -349,9 +349,9 @@ CommitStatus getStashStatus(const QString &path, int stashIndex) {
           return false;
         }
 
-        return reportError(SvnError::ShelveFailed,
-                           readStashFiles(&status, shelf.name, wcPath, ctx,
-                                          pool));
+        return reportError(
+            SvnError::ShelveFailed,
+            readStashFiles(&status, shelf.name, wcPath, ctx, pool));
       },
       wcPath);
 

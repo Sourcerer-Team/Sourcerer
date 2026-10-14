@@ -2,8 +2,8 @@
 #include <GitRepoManager.h>
 #include <GuiManager.h>
 #include <NewsTracker.h>
-#include <SvnRepoManager.h>
 #include <SingleInstanceGuard.h>
+#include <SvnRepoManager.h>
 #include <UpdateManager.h>
 #include <UpdateStaging.h>
 

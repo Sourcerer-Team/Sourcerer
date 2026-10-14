@@ -42,13 +42,13 @@
 #include <QCursor>
 #include <QDateTime>
 #include <QDirIterator>
-#include <QLocale>
 #include <QEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QLocale>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -2966,9 +2966,8 @@ convertSvnCommitStatusToGitCommitStatus(const SvnRepo::CommitStatus &status) {
   gitCommitStatus.authorName = status.author;
   gitCommitStatus.summary = status.message.section('\n', 0, 0).trimmed();
   if (status.timeStamp >= 0) {
-    gitCommitStatus.committerDate =
-        QLocale().toString(QDateTime::fromMSecsSinceEpoch(status.timeStamp),
-                           QLocale::ShortFormat);
+    gitCommitStatus.committerDate = QLocale().toString(
+        QDateTime::fromMSecsSinceEpoch(status.timeStamp), QLocale::ShortFormat);
   }
   gitCommitStatus.newFiles = status.newFiles;
   gitCommitStatus.modifiedFiles = status.modifiedFiles;

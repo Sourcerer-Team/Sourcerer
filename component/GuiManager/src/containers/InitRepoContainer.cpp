@@ -29,8 +29,7 @@ InitRepoContainer::InitRepoContainer(QWidget *parent, InitType initType)
       ui(new Ui::InitRepoContainer),
       _toastHost(Widgets::ToastHostWidget::getInstance()),
       _eventManager(EventManager::EventManager::getInstance()),
-      _initType(initType),
-      _uuid(Uuid::createUuid()) {
+      _initType(initType), _uuid(Uuid::createUuid()) {
 
   LOG_PERF(0, "Enter");
   ui->setupUi(this);
@@ -51,8 +50,8 @@ InitRepoContainer::InitRepoContainer(QWidget *parent, InitType initType)
   connect(ui->pushButtonInit, &QPushButton::clicked, this,
           &InitRepoContainer::onInitClicked);
 
-  const auto callbackFunc = std::bind(&InitRepoContainer::eventCallback,
-                                      this, std::placeholders::_1);
+  const auto callbackFunc =
+      std::bind(&InitRepoContainer::eventCallback, this, std::placeholders::_1);
 
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoError, callbackFunc));
@@ -69,8 +68,8 @@ InitRepoContainer::InitRepoContainer(QWidget *parent, InitType initType)
 InitRepoContainer::~InitRepoContainer() {
   LOG_PERF(0, "Enter");
 
-  const auto callbackFunc = std::bind(&InitRepoContainer::eventCallback,
-                                      this, std::placeholders::_1);
+  const auto callbackFunc =
+      std::bind(&InitRepoContainer::eventCallback, this, std::placeholders::_1);
 
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoError, callbackFunc));
@@ -214,7 +213,7 @@ void InitRepoContainer::eventCallback(EventManager::Event event) {
 }
 
 void InitRepoContainer::showToast(const QString &message,
-                                     const QString &title) {
+                                  const QString &title) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 
@@ -226,7 +225,7 @@ void InitRepoContainer::showToast(const QString &message,
 }
 
 void InitRepoContainer::showErrorToast(const QString &message,
-                                          const QString &title) {
+                                       const QString &title) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing a toast with the message '{}'.", message);
 

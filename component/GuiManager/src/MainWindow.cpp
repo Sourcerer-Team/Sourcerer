@@ -1323,8 +1323,7 @@ void MainWindow::addInitRepoContainer(Containers::InitType type) {
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  const auto container =
-      QSharedPointer<InitRepoContainer>::create(this, type);
+  const auto container = QSharedPointer<InitRepoContainer>::create(this, type);
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
   container->init();
   container->selected();
@@ -1338,8 +1337,7 @@ void MainWindow::addInitRepoContainer(Containers::InitType type) {
   const auto handlerFunc =
       std::bind(&MainWindow::onInitFinished, this, container.get());
 
-  connect(container.get(), &InitRepoContainer::initialized, this,
-          handlerFunc);
+  connect(container.get(), &InitRepoContainer::initialized, this, handlerFunc);
 
   LOG_PERF(0, "Exit");
 }

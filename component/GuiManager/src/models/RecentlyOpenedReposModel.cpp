@@ -80,7 +80,7 @@ void RecentlyOpenedReposModel::reload() {
 }
 
 QString RecentlyOpenedReposModel::makeRecentEntry(const QString &path,
-                                                 const RepositoryType type) {
+                                                  const RepositoryType type) {
   return QDir::fromNativeSeparators(path) + QStringLiteral("|") +
          repositoryTypeKey(type);
 }
@@ -135,8 +135,7 @@ void RecentlyOpenedReposModel::load() {
   Util::TokenString tokenizer(recents, ';');
 
   while (tokenizer.hasNext()) {
-    const RecentlyOpenedRepo repo =
-        parseRecentEntry(tokenizer.getNextToken());
+    const RecentlyOpenedRepo repo = parseRecentEntry(tokenizer.getNextToken());
     if (repo.path.length() < 1) {
       continue;
     }

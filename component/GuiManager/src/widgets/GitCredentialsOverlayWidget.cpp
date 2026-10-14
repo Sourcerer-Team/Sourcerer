@@ -290,9 +290,9 @@ void GitCredentialsOverlayWidget::onCancelClicked() {
   GitRepo::GitCredentialsErrorResponse response;
   response.id = _request.id;
 
-  EventManager::Event cancelEvent(_isSvn
-      ? EventManager::EventType::SvnRepoManagerGetCredentialsCancel
-      : EventManager::EventType::GitRepoManagerGetCredentialsCancel);
+  EventManager::Event cancelEvent(
+      _isSvn ? EventManager::EventType::SvnRepoManagerGetCredentialsCancel
+             : EventManager::EventType::GitRepoManagerGetCredentialsCancel);
   cancelEvent.addData(response);
 
   _eventManager.send(cancelEvent);
@@ -316,9 +316,9 @@ void GitCredentialsOverlayWidget::onSubmitClicked() const {
   response.password = _passwordLineEdit->text();
   response.rememberCredentials = _storeCredentialsCheckBox->isChecked();
 
-  EventManager::Event submitEvent(_isSvn
-      ? EventManager::EventType::SvnRepoManagerGetCredentialsSubmit
-      : EventManager::EventType::GitRepoManagerGetCredentialsSubmit);
+  EventManager::Event submitEvent(
+      _isSvn ? EventManager::EventType::SvnRepoManagerGetCredentialsSubmit
+             : EventManager::EventType::GitRepoManagerGetCredentialsSubmit);
   submitEvent.addData(response);
 
   _eventManager.send(submitEvent);

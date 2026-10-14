@@ -124,8 +124,8 @@ private:
                                 const QString &title = QString());
   void addGitKeysContainer();
   void addHomeContainer();
-  void addInitRepoContainer(
-      Containers::InitType type = Containers::InitType::Git);
+  void
+  addInitRepoContainer(Containers::InitType type = Containers::InitType::Git);
   void addSettingsContainer();
   void addBugReportContainer();
   void addReleaseNotesContainer(const QString &title, const QString &markdown);
