@@ -185,6 +185,9 @@ static void sendCredentialsSignal(EventManager::EventType type, size_t id) {
   EventManager::EventManager::getInstance().send(event);
 }
 
+static void finishCredentialPrompt(SvnCredentialPayload &payload,
+                                   const bool success);
+
 static bool acquireCredentials(SvnCredentialPayload &payload,
                                const QString &username,
                                GitRepo::GitCredentialsResponse &response) {
@@ -262,6 +265,10 @@ static bool acquireCredentials(SvnCredentialPayload &payload,
   }
 
   response = event.data<GitRepo::GitCredentialsResponse>();
+
+  // The checkout runs long after authentication, so close the prompt now
+  // instead of waiting for svn_client_checkout3 to return.
+  finishCredentialPrompt(payload, true);
 
   if (response.rememberCredentials) {
     credStorage.storeCredentials(normalizedRepoPath, response.username,

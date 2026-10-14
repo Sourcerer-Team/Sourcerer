@@ -412,20 +412,20 @@ HomeContainer::HomeContainer(QWidget *parent)
   ui->connectToButton->setMenu(connectToMenu);
 
   auto *cloneMenu = new QMenu(ui->cloneButton);
-  auto *cloneGitAction = cloneMenu->addAction(tr("Clone Git"));
+  auto *cloneGitAction = cloneMenu->addAction(tr("Git clone"));
   connect(cloneGitAction, &QAction::triggered, this,
           &HomeContainer::onCloneClicked);
-  auto *cloneSubversionAction = cloneMenu->addAction(tr("Checkout Subversion"));
+  auto *cloneSubversionAction = cloneMenu->addAction(tr("Subversion checkout"));
   connect(cloneSubversionAction, &QAction::triggered, this,
           &HomeContainer::onCloneSubversionClicked);
 
   ui->cloneButton->setMenu(cloneMenu);
 
   auto *initMenu = new QMenu(ui->initButton);
-  auto *initGitAction = initMenu->addAction(tr("Git Init"));
+  auto *initGitAction = initMenu->addAction(tr("Git init"));
   connect(initGitAction, &QAction::triggered, this,
           &HomeContainer::onInitClicked);
-  auto *initSubversionAction = initMenu->addAction(tr("Subversion Init"));
+  auto *initSubversionAction = initMenu->addAction(tr("Subversion create"));
   connect(initSubversionAction, &QAction::triggered, this,
           &HomeContainer::onInitSubversionClicked);
 
