@@ -4119,7 +4119,7 @@ void SvnRepoManagerBridgeImpl::pull(const QWeakPointer<RepoContainer> &guard,
     _container.showSpinnerOverlay(false);
     _container.showToast(
         rebase ? _container.tr("Pull with rebase completed successfully.")
-               : _container.tr("Git repository is up to-date."),
+               : _container.tr("Subversion repository is up to-date."),
         _container.tr("Info"));
   });
 
