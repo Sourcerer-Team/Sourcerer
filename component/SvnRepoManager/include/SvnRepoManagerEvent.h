@@ -79,6 +79,7 @@ enum class EventType : int {
   SetDefaultRemote,
   SetDefaultTarget,
   Setup,
+  IgnoreFiles,
   SetUpstream,
   StageFiles,
   Stash,

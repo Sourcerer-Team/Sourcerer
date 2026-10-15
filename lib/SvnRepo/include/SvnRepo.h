@@ -174,9 +174,9 @@ struct SvnErrorContext {
   QString errorMessage;
 };
 
-// Subversion has no staging area. Versioned local changes, which are what a
-// commit sends, are reported in the *Staged* lists; unversioned files are
-// reported in untrackedFiles and newFiles.
+// Subversion has no index. The staging area is the changelist
+// kStagingChangelist: stageFiles adds the selected files to it and only those
+// files are committed by commitStaged. Changes outside it are unstaged.
 struct SvnStatus {
   QString path;
   QStringList newFiles;
@@ -284,6 +284,9 @@ SvnStatus getStatus(const QString &path, const bool &quitFlag);
 bool hasConflicts(const QString &path);
 bool stageFiles(const QString &path, const QStringList &files);
 bool unstageFiles(const QString &path, const QStringList &files);
+// Ignores files with svn:ignore on their parent directory. With recursive,
+// svn:global-ignores on the parent directory ignores everything below it.
+bool ignoreFiles(const QString &path, const QStringList &files, bool recursive);
 bool discardFiles(const QString &path, const QStringList &files);
 bool commitStaged(const QString &path, const QString &summary,
                   const QString &message, const QString &author,

@@ -168,6 +168,8 @@ SvnRepoManager::SvnRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerSetUpstream, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerIgnoreFiles, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerStageFiles, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerStash, callbackFunc));
@@ -335,6 +337,8 @@ SvnRepoManager::~SvnRepoManager() {
       EventManager::EventType::SvnRepoManagerSetDefaultRemote, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerSetUpstream, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerIgnoreFiles, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerStageFiles, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -918,6 +922,13 @@ void SvnRepoManager::eventCallback(const EventManager::Event &event) {
     SvnRepoManagerEvent setUpstreamEvent(EventType::SetUpstream);
     setUpstreamEvent.addParam(QVariant::fromValue(setUpstreamCommand));
     _fsm.send(setUpstreamEvent);
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerIgnoreFiles: {
+    const auto ignoreFilesCommand = event.data<SvnRepoIgnoreFilesCommand>();
+    SvnRepoManagerEvent ignoreFilesRepoEvent(EventType::IgnoreFiles);
+    ignoreFilesRepoEvent.addParam(QVariant::fromValue(ignoreFilesCommand));
+    _fsm.send(ignoreFilesRepoEvent);
     break;
   }
   case EventManager::EventType::SvnRepoManagerStageFiles: {

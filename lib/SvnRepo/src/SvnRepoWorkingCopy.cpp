@@ -10,7 +10,9 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QMap>
 #include <QRegularExpression>
+#include <QSet>
 #include <QTemporaryFile>
 
 #define THREAD_ID "SvnRepo"
@@ -199,11 +201,13 @@ bool hasConflicts(const QString &path) {
 bool stageFiles(const QString &path, const QStringList &files) {
   LOG_PERF(0, "Enter");
 
-  // There is no staging area: unversioned files are scheduled for addition
-  // and missing files for deletion. Modified files are always committed.
+  // The staging area is a changelist. New files are scheduled for addition
+  // and missing files for deletion, then every selected file is added to the
+  // changelist, so commitStaged commits only these files.
   const QString wcPath = normalizedPath(path);
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        QStringList targets;
         for (const QString &file : files) {
           const QString absolutePath = absoluteFilePath(wcPath, file);
 
@@ -222,17 +226,29 @@ bool stageFiles(const QString &path, const QStringList &files) {
               return false;
             }
           } else if (node.status == svn_wc_status_missing) {
-            const PathArray targets = makePathArray(pool, {absolutePath});
+            const PathArray deletion = makePathArray(pool, {absolutePath});
             if (!reportError(SvnError::DeleteFailed,
-                             svn_client_delete4(targets.array, TRUE, FALSE,
+                             svn_client_delete4(deletion.array, TRUE, FALSE,
                                                 nullptr, nullptr, nullptr, ctx,
                                                 pool))) {
               return false;
             }
+          } else if (node.status == svn_wc_status_ignored) {
+            continue;
           }
+          targets.append(absolutePath);
         }
 
-        return true;
+        if (targets.isEmpty()) {
+          return true;
+        }
+
+        const PathArray array = makePathArray(pool, targets);
+        return reportError(
+            SvnError::AddFailed,
+            svn_client_add_to_changelist(array.array, kStagingChangelist,
+                                         svn_depth_infinity, nullptr, ctx,
+                                         pool));
       },
       wcPath);
 
@@ -243,49 +259,171 @@ bool stageFiles(const QString &path, const QStringList &files) {
 bool unstageFiles(const QString &path, const QStringList &files) {
   LOG_PERF(0, "Enter");
 
-  // Undoes scheduled additions and deletions and keeps the files on disk.
+  // Only removes the selection. The changes stay in the working copy and are
+  // reported as unstaged.
   const QString wcPath = normalizedPath(path);
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
         QStringList targets;
         for (const QString &file : files) {
-          const QString absolutePath = absoluteFilePath(wcPath, file);
-
-          NodeStatusBaton node;
-          if (!reportError(SvnError::StatusFailed,
-                           readNodeStatus(&node, absolutePath, ctx, pool))) {
-            return false;
-          }
-
-          switch (node.status) {
-          case svn_wc_status_added:
-          case svn_wc_status_deleted:
-          case svn_wc_status_replaced:
-            targets.append(absolutePath);
-            break;
-          case svn_wc_status_modified:
-          case svn_wc_status_merged:
-          case svn_wc_status_conflicted:
-            setLastError(SvnError::RevertFailed, -1,
-                         QStringLiteral("Subversion has no staging area, "
-                                        "modifications of '%1' are always "
-                                        "committed. Discard them instead.")
-                             .arg(file));
-            return false;
-          default:
-            break;
-          }
+          targets.append(absoluteFilePath(wcPath, file));
         }
-
         if (targets.isEmpty()) {
           return true;
         }
 
         const PathArray array = makePathArray(pool, targets);
-        return reportError(SvnError::RevertFailed,
-                           svn_client_revert4(array.array, svn_depth_infinity,
-                                              nullptr, FALSE, TRUE, TRUE, ctx,
-                                              pool));
+        apr_array_header_t *changelists =
+            apr_array_make(pool, 1, sizeof(const char *));
+        APR_ARRAY_PUSH(changelists, const char *) = kStagingChangelist;
+        return reportError(
+            SvnError::RevertFailed,
+            svn_client_remove_from_changelists(array.array, svn_depth_infinity,
+                                               changelists, ctx, pool));
+      },
+      wcPath);
+
+  LOG_PERF(0, "Exit");
+  return success;
+}
+
+// Appends lines to a multi-line ignore property of a directory, keeping the
+// lines already there. Nothing is written when every line is present.
+static svn_error_t *addIgnorePropertyLines(const QString &wcPath,
+                                           const QString &directory,
+                                           const char *propertyName,
+                                           const QStringList &lines,
+                                           svn_client_ctx_t *ctx,
+                                           apr_pool_t *pool) {
+  const QString directoryPath = absoluteFilePath(wcPath, directory);
+  const QByteArray targetBytes = directoryPath.toUtf8();
+  const svn_opt_revision_t peg = revisionUnspecified();
+  const svn_opt_revision_t revision = revisionWorking();
+  apr_hash_t *properties = nullptr;
+  SVN_ERR(svn_client_propget5(&properties, nullptr, propertyName,
+                              targetBytes.constData(), &peg, &revision, nullptr,
+                              svn_depth_empty, nullptr, ctx, pool, pool));
+
+  QStringList current;
+  for (apr_hash_index_t *index = apr_hash_first(pool, properties); index;
+       index = apr_hash_next(index)) {
+    const void *key = nullptr;
+    void *value = nullptr;
+    apr_hash_this(index, &key, nullptr, &value);
+    const auto *propertyValue = static_cast<const svn_string_t *>(value);
+    current = QString::fromUtf8(propertyValue->data,
+                                static_cast<int>(propertyValue->len))
+                  .split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+  }
+
+  QStringList updated = current;
+  for (const QString &line : lines) {
+    if (!updated.contains(line)) {
+      updated.append(line);
+    }
+  }
+
+  if (updated.size() == current.size()) {
+    return SVN_NO_ERROR;
+  }
+
+  const QByteArray value = updated.join(QLatin1Char('\n')).toUtf8();
+  const svn_string_t *propertyValue = svn_string_ncreate(
+      value.constData(), static_cast<apr_size_t>(value.size()), pool);
+  const PathArray targets = makePathArray(pool, {directoryPath});
+  return svn_client_propset_local(propertyName, propertyValue, targets.array,
+                                  svn_depth_empty, FALSE, nullptr, ctx, pool);
+}
+
+// Subversion cannot set properties on unversioned paths.
+static bool isVersionedPath(const QString &wcPath, const QString &path,
+                            svn_client_ctx_t *ctx, apr_pool_t *pool) {
+  WorkingCopyInfo info;
+  svn_error_t *error = readInfo(&info, absoluteFilePath(wcPath, path),
+                                revisionUnspecified(), ctx, pool);
+  if (error) {
+    svn_error_clear(error);
+    return false;
+  }
+  return true;
+}
+
+bool ignoreFiles(const QString &path, const QStringList &files, bool recursive) {
+  LOG_PERF(0, "Enter");
+
+  const QString wcPath = normalizedPath(path);
+  QMap<QString, QStringList> names;
+  QSet<QString> recursiveDirectories;
+  for (const QString &file : files) {
+    const QFileInfo info(file);
+    QString directory = info.path();
+    if (directory == QLatin1String(".")) {
+      directory.clear();
+    }
+
+    if (!recursive) {
+      names[directory].append(info.fileName());
+    } else if (QFileInfo(absoluteFilePath(wcPath, file)).isDir()) {
+      recursiveDirectories.insert(QDir::cleanPath(file));
+    } else if (!directory.isEmpty()) {
+      recursiveDirectories.insert(directory);
+    }
+  }
+
+  const bool success = runWithClientContext(
+      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        for (auto it = names.cbegin(); it != names.cend(); ++it) {
+          if (!it.key().isEmpty() &&
+              !isVersionedPath(wcPath, it.key(), ctx, pool)) {
+            setLastError(
+                SvnError::PropertyFailed, -1,
+                QStringLiteral("Cannot ignore \"%1\" alone because its folder "
+                               "\"%2\" is not under version control. Use "
+                               "\"Ignore all files recursively\" instead.")
+                    .arg(it.value().first(), it.key()));
+            return false;
+          }
+        }
+
+        for (auto it = names.cbegin(); it != names.cend(); ++it) {
+          if (!reportError(SvnError::PropertyFailed,
+                           addIgnorePropertyLines(wcPath, it.key(),
+                                                  SVN_PROP_IGNORE, it.value(),
+                                                  ctx, pool))) {
+            return false;
+          }
+        }
+
+        for (const QString &directory : recursiveDirectories) {
+          // Untracked folders cannot hold properties, so the topmost untracked
+          // folder is ignored by name in its nearest versioned parent.
+          QString versionedDirectory = directory;
+          QString untracked;
+          while (!versionedDirectory.isEmpty() &&
+                 !isVersionedPath(wcPath, versionedDirectory, ctx, pool)) {
+            untracked = QFileInfo(versionedDirectory).fileName();
+            versionedDirectory = QFileInfo(versionedDirectory).path();
+            if (versionedDirectory == QLatin1String(".")) {
+              versionedDirectory.clear();
+            }
+          }
+
+          svn_error_t *error = nullptr;
+          if (untracked.isEmpty()) {
+            error = addIgnorePropertyLines(wcPath, versionedDirectory,
+                                           SVN_PROP_INHERITABLE_IGNORES,
+                                           {QStringLiteral("*")}, ctx, pool);
+          } else {
+            error = addIgnorePropertyLines(wcPath, versionedDirectory,
+                                           SVN_PROP_IGNORE, {untracked}, ctx,
+                                           pool);
+          }
+          if (!reportError(SvnError::PropertyFailed, error)) {
+            return false;
+          }
+        }
+
+        return true;
       },
       wcPath);
 
@@ -327,10 +465,11 @@ bool discardFiles(const QString &path, const QStringList &files) {
         }
 
         // Added files are removed from disk, like a discarded new file in Git.
+        // Discarded files also leave the staging area.
         const PathArray array = makePathArray(pool, versioned);
         return reportError(SvnError::RevertFailed,
                            svn_client_revert4(array.array, svn_depth_infinity,
-                                              nullptr, FALSE, FALSE, FALSE, ctx,
+                                              nullptr, TRUE, FALSE, FALSE, ctx,
                                               pool));
       },
       wcPath);
@@ -359,10 +498,28 @@ bool commitStaged(const QString &path, const QString &summary,
   }
 
   const QString wcPath = normalizedPath(path);
+  const SvnStatus current = readStatus(wcPath, nullptr);
+  const bool nothingStaged =
+      current.newStagedFiles.isEmpty() &&
+      current.modifiedStagedFiles.isEmpty() &&
+      current.deletedStagedFiles.isEmpty() &&
+      current.typeChangedStagedFiles.isEmpty() &&
+      current.renamedStagedFiles.isEmpty();
+  if (nothingStaged) {
+    setLastError(SvnError::CommitFailed, -1,
+                 QStringLiteral("Nothing is staged to commit."));
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
-        return reportError(SvnError::CommitFailed,
-                           commitWorkingCopy(wcPath, logMessage, ctx, pool));
+        apr_array_header_t *changelists =
+            apr_array_make(pool, 1, sizeof(const char *));
+        APR_ARRAY_PUSH(changelists, const char *) = kStagingChangelist;
+        return reportError(
+            SvnError::CommitFailed,
+            commitWorkingCopy(wcPath, logMessage, changelists, ctx, pool));
       },
       wcPath);
 

@@ -809,8 +809,8 @@ void SvnRepoManagerBridgeImpl::checkoutBranch(
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
         _container.showToast(
             _container
-                .tr("You are now in detached HEAD state after checking out "
-                    "tag '%1'.")
+                .tr("Tag '%1' is checked out. Tags are meant to be read-only "
+                    "snapshots, so create a branch from it to make changes.")
                 .arg(result.branchName),
             _container.tr("Warning"));
       });
@@ -5771,6 +5771,73 @@ void SvnRepoManagerBridgeImpl::stageFiles(
   });
 
   LOG_PERF(0, "Enter");
+}
+
+bool SvnRepoManagerBridgeImpl::ignoreFilesByProperty(
+    const QWeakPointer<RepoContainer> &guard, const QStringList &files,
+    bool recursive) {
+  LOG_PERF(0, "Enter");
+
+  if (files.isEmpty()) {
+    LOG_PERF(0, "Exit")
+    return true;
+  }
+
+  const QString eventUuid = Uuid::createUuid();
+
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoIgnoreFilesCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.files = files;
+  command.recursive = recursive;
+
+  EventManager::Event ignoreFilesEvent(
+      EventManager::EventType::SvnRepoManagerIgnoreFiles, eventUuid);
+  ignoreFilesEvent.addData(command);
+  _container._eventManager.send(ignoreFilesEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerIgnoreFilesError,
+      EventManager::EventType::SvnRepoManagerIgnoreFilesResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success) {
+    closeRepo();
+    Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorPage();
+      _container.showErrorToast(_container.tr("Failed to ignore files."),
+                                _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return true;
+  }
+
+  if (event.type() != EventManager::EventType::SvnRepoManagerIgnoreFilesResult) {
+    const auto error = event.data<SvnRepoError>();
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(error.message, _container.tr("Error"));
+    });
+
+    LOG_PERF(0, "Exit")
+    return true;
+  }
+
+  refreshStatus(guard);
+
+  Util::Dispatcher::dispatchToMainThread(guard, [&]() {
+    _container.showSpinnerOverlay(false);
+    _container.simulateClickOnFirstHistoryRow();
+  });
+
+  LOG_PERF(0, "Exit");
+  return true;
 }
 
 void SvnRepoManagerBridgeImpl::unstageFiles(

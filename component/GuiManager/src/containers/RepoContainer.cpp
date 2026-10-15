@@ -8126,7 +8126,8 @@ void RepoContainer::onWorkingTreeFlatListViewContextMenuRequested(
     contextMenu.addAction(ui->actionWorkingTreeFlatDiscard);
   }
 
-  if (clickedItemIsFile && !files.isEmpty()) {
+  if (clickedItemIsFile && !files.isEmpty() &&
+      hasFeature(_bridge->features(), RepoFeatures::GitLFS)) {
     QMenu *lfsMenu = contextMenu.addMenu(tr("LFS"));
     QAction *addToLfsAction = lfsMenu->addAction(tr("Add"));
     connect(addToLfsAction, &QAction::triggered, this, [=]() {
@@ -8436,7 +8437,8 @@ void RepoContainer::onWorkingTreeTreeTreeViewContextMenuRequested(
     contextMenu.addAction(ui->actionWorkingTreeTreeDiscard);
   }
 
-  if (clickedItemIsFile && !files.isEmpty()) {
+  if (clickedItemIsFile && !files.isEmpty() &&
+      hasFeature(_bridge->features(), RepoFeatures::GitLFS)) {
     QMenu *lfsMenu = contextMenu.addMenu(tr("LFS"));
     QAction *addToLfsAction = lfsMenu->addAction(tr("Add"));
     connect(addToLfsAction, &QAction::triggered, this, [=]() {
@@ -8722,7 +8724,8 @@ void RepoContainer::onIndexFlatListViewContextMenuRequested(const QPoint &pos) {
   contextMenu.addAction(ui->actionIndexFlatUnstage);
   contextMenu.addAction(ui->actionIndexFlatDiscard);
 
-  if (clickedItemIsFile && !files.isEmpty()) {
+  if (clickedItemIsFile && !files.isEmpty() &&
+      hasFeature(_bridge->features(), RepoFeatures::GitLFS)) {
     QMenu *lfsMenu = contextMenu.addMenu(tr("LFS"));
     QAction *addToLfsAction = lfsMenu->addAction(tr("Add"));
     connect(addToLfsAction, &QAction::triggered, this, [=]() {
@@ -9012,7 +9015,8 @@ void RepoContainer::onIndexTreeTreeViewContextMenuRequested(const QPoint &pos) {
   contextMenu.addAction(ui->actionIndexTreeUnstage);
   contextMenu.addAction(ui->actionIndexTreeDiscard);
 
-  if (clickedItemIsFile && !files.isEmpty()) {
+  if (clickedItemIsFile && !files.isEmpty() &&
+      hasFeature(_bridge->features(), RepoFeatures::GitLFS)) {
     QMenu *lfsMenu = contextMenu.addMenu(tr("LFS"));
     QAction *addToLfsAction = lfsMenu->addAction(tr("Add"));
     connect(addToLfsAction, &QAction::triggered, this, [=]() {
@@ -9316,6 +9320,27 @@ void RepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
 
   contextMenu.addSeparator();
 
+  if (!files.isEmpty() &&
+      hasFeature(_bridge->features(), RepoFeatures::GitLFS)) {
+    QMenu *lfsMenu = contextMenu.addMenu(tr("LFS"));
+    QAction *addToLfsAction = lfsMenu->addAction(tr("Add"));
+    connect(addToLfsAction, &QAction::triggered, this, [=]() {
+      closeDiffViewerIfOpen();
+      startOverlayTimer();
+      const WeakPtr &guard = getSelf().toWeakRef();
+      _dispatcher.dispatch([=]() { addFilesToLfs(guard, files); });
+    });
+
+    QAction *removeFromLfsAction = lfsMenu->addAction(tr("Remove"));
+    connect(removeFromLfsAction, &QAction::triggered, this, [=]() {
+      closeDiffViewerIfOpen();
+      startOverlayTimer();
+      const WeakPtr &guard = getSelf().toWeakRef();
+      _dispatcher.dispatch([=]() { removeFilesFromLfs(guard, files); });
+    });
+    contextMenu.addSeparator();
+  }
+
   QAction *blameAction = contextMenu.addAction(tr("Blame"));
   connect(blameAction, &QAction::triggered, this, [=]() { blame(files); });
 
@@ -9385,6 +9410,26 @@ void RepoContainer::onPageDisplayFilesTreeViewContextMenuRequested(
         contextMenu.addAction(tr("Show in File manager"));
     connect(showInFileManagerAction, &QAction::triggered, this,
             [=]() { FileManager::revealInFileManager(itemsThatExist); });
+  }
+
+  if (!files.isEmpty() &&
+      hasFeature(_bridge->features(), RepoFeatures::GitLFS)) {
+    QMenu *lfsMenu = contextMenu.addMenu(tr("LFS"));
+    QAction *addToLfsAction = lfsMenu->addAction(tr("Add"));
+    connect(addToLfsAction, &QAction::triggered, this, [=]() {
+      closeDiffViewerIfOpen();
+      startOverlayTimer();
+      const WeakPtr &guard = getSelf().toWeakRef();
+      _dispatcher.dispatch([=]() { addFilesToLfs(guard, files); });
+    });
+
+    QAction *removeFromLfsAction = lfsMenu->addAction(tr("Remove"));
+    connect(removeFromLfsAction, &QAction::triggered, this, [=]() {
+      closeDiffViewerIfOpen();
+      startOverlayTimer();
+      const WeakPtr &guard = getSelf().toWeakRef();
+      _dispatcher.dispatch([=]() { removeFilesFromLfs(guard, files); });
+    });
   }
 
   contextMenu.exec(ui->treeViewPageDisplayFilesTree->mapToGlobal(pos));
@@ -10143,6 +10188,11 @@ void RepoContainer::ignoreFiles(const WeakPtr &guard,
                                 const QStringList &files) {
   LOG_PERF(0, "Enter");
 
+  if (_bridge->ignoreFilesByProperty(guard, files, false)) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
   const QString ignoreFilePath =
       QDir::toNativeSeparators(_path + QDir::separator() + GIT_IGNORE_FILENAME);
 
@@ -10187,6 +10237,11 @@ void RepoContainer::ignoreFiles(const WeakPtr &guard,
 void RepoContainer::ignoreFilesRecursive(const WeakPtr &guard,
                                          const QStringList &files) {
   LOG_PERF(0, "Enter");
+
+  if (_bridge->ignoreFilesByProperty(guard, files, true)) {
+    LOG_PERF(0, "Exit");
+    return;
+  }
 
   const QString ignoreFilePath =
       QDir::toNativeSeparators(_path + QDir::separator() + GIT_IGNORE_FILENAME);

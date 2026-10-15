@@ -145,7 +145,7 @@ static bool commitMergeResult(const QString &wcPath, const QString &message) {
   return runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
         return reportError(SvnError::CommitFailed,
-                           commitWorkingCopy(wcPath, message, ctx, pool));
+                           commitWorkingCopy(wcPath, message, nullptr, ctx, pool));
       },
       wcPath);
 }

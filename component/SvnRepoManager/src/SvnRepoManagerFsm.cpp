@@ -187,6 +187,8 @@ QString SvnRepoManagerFsm::eventName(int event) const {
     return "Setup";
   case EventType::SetUpstream:
     return "SetUpstream";
+  case EventType::IgnoreFiles:
+    return "IgnoreFiles";
   case EventType::StageFiles:
     return "StageFiles";
   case EventType::Stash:

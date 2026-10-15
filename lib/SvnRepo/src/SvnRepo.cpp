@@ -1,6 +1,8 @@
 #include "SvnRepo.h"
 #include "SvnRepoPrivate.h"
 
+#include <cstring>
+
 #include <svn_auth.h>
 #include <svn_config.h>
 #include <svn_dirent_uri.h>
@@ -480,26 +482,34 @@ struct StatusBaton {
 
 static void addStatusPath(SvnStatus *status, const QString &path,
                           const svn_client_status_t *entry) {
+  // Only the files the user selected are staged. Everything else that has
+  // changes is reported as unstaged, and only staged files are committed.
+  const bool staged =
+      entry->changelist &&
+      std::strcmp(entry->changelist, Private::kStagingChangelist) == 0;
   switch (entry->node_status) {
   case svn_wc_status_added:
-    if (entry->copied) {
+    if (!staged) {
+      status->newFiles.append(path);
+    } else if (entry->copied) {
       status->renamedStagedFiles.append(path);
     } else {
       status->newStagedFiles.append(path);
     }
     break;
   case svn_wc_status_deleted:
-    status->deletedStagedFiles.append(path);
+    (staged ? status->deletedStagedFiles : status->deletedFiles).append(path);
     break;
   case svn_wc_status_missing:
     status->deletedFiles.append(path);
     break;
   case svn_wc_status_replaced:
-    status->typeChangedStagedFiles.append(path);
+    (staged ? status->typeChangedStagedFiles : status->typeChangedFiles)
+        .append(path);
     break;
   case svn_wc_status_modified:
   case svn_wc_status_merged:
-    status->modifiedStagedFiles.append(path);
+    (staged ? status->modifiedStagedFiles : status->modifiedFiles).append(path);
     break;
   case svn_wc_status_obstructed:
     status->typeChangedFiles.append(path);
@@ -972,11 +982,12 @@ LogMessageScope::~LogMessageScope() {
 }
 
 svn_error_t *commitWorkingCopy(const QString &wcPath, const QString &message,
+                               const apr_array_header_t *changelists,
                                svn_client_ctx_t *ctx, apr_pool_t *pool) {
   const PathArray targets = makePathArray(pool, {normalizedPath(wcPath)});
   const LogMessageScope logMessage(ctx, message);
   return svn_client_commit6(targets.array, svn_depth_infinity, FALSE, FALSE,
-                            TRUE, FALSE, FALSE, nullptr, nullptr, nullptr,
+                            TRUE, FALSE, FALSE, changelists, nullptr, nullptr,
                             nullptr, ctx, pool);
 }
 

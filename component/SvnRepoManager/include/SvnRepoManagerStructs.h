@@ -80,6 +80,7 @@ enum class SvnRepoCommandType : int {
   EditTarget,
   DeleteTarget,
   SetDefaultTarget,
+  IgnoreFiles,
   SetUpstream,
   StageFiles,
   Stash,
@@ -794,6 +795,16 @@ struct SvnRepoSetUpstreamCommand final : SvnRepoCommand {
   QString remoteName;
   QString remoteBranchName;
   QString localBranchName;
+};
+
+struct SvnRepoIgnoreFilesCommand final : SvnRepoCommand {
+  SvnRepoIgnoreFilesCommand()
+      : SvnRepoCommand(SvnRepoCommandType::IgnoreFiles) {}
+
+  ~SvnRepoIgnoreFilesCommand() override = default;
+
+  QStringList files;
+  bool recursive = false;
 };
 
 struct SvnRepoStageFilesCommand final : SvnRepoCommand {

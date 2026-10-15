@@ -475,6 +475,11 @@ bool SvnRepoManagerProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForSetUpstream(setUpstreamCommand);
     break;
   }
+  case EventType::IgnoreFiles: {
+    const auto ignoreFilesCommand = event.nextParam<SvnRepoIgnoreFilesCommand>();
+    scheduleWorkerForIgnoreFiles(ignoreFilesCommand);
+    break;
+  }
   case EventType::StageFiles: {
     const auto stageFilesCommand = event.nextParam<SvnRepoStageFilesCommand>();
     scheduleWorkerForStageFiles(stageFilesCommand);
@@ -3170,6 +3175,25 @@ void SvnRepoManagerProcessingState::scheduleWorkerForSetUpstream(
   LOG_PERF(0, "Exit");
 }
 
+void SvnRepoManagerProcessingState::scheduleWorkerForIgnoreFiles(
+    const Structs::SvnRepoIgnoreFilesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(EventManager::EventType::SvnRepoManagerIgnoreFilesError,
+                tr("Subversion repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new SvnRepoIgnoreFilesCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void SvnRepoManagerProcessingState::scheduleWorkerForStageFiles(
     const Structs::SvnRepoStageFilesCommand &command) {
   LOG_PERF(0, "Enter");
@@ -3913,6 +3937,47 @@ void SvnRepoManagerProcessingState::setUpstreamWorker(
   } else {
     EventManager::Event resultEvent(
         EventManager::EventType::SvnRepoManagerSetUpstreamResult,
+        command.syncUuid);
+    resultEvent.addData(SvnRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerProcessingState::ignoreFilesWorker(
+    const Structs::SvnRepoIgnoreFilesCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const SvnRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::SvnRepoManagerIgnoreFilesError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  QString repo;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->SvnRepo;
+  }
+
+  const bool success =
+      SvnRepo::ignoreFiles(repo, command.files, command.recursive);
+  if (!success) {
+    const auto lastError = SvnRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::SvnRepoManagerIgnoreFilesError,
+        command.syncUuid);
+    errorEvent.addData(SvnRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::SvnRepoManagerIgnoreFilesResult,
         command.syncUuid);
     resultEvent.addData(SvnRepoResult{command.uuid, command.type,
                                       QVariant::fromValue(success)});
@@ -5882,6 +5947,14 @@ void SvnRepoManagerProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const SvnRepoSetUpstreamCommand *>(command);
       if (setUpstreamCommand) {
         setUpstreamWorker(*setUpstreamCommand);
+      }
+      break;
+    }
+    case SvnRepoCommandType::IgnoreFiles: {
+      const auto *ignoreFilesCommand =
+          dynamic_cast<const SvnRepoIgnoreFilesCommand *>(command);
+      if (ignoreFilesCommand) {
+        ignoreFilesWorker(*ignoreFilesCommand);
       }
       break;
     }

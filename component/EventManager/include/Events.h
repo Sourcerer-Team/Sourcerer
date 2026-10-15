@@ -509,6 +509,9 @@ namespace EventManager {
   X(SvnRepoManagerSetUpstream)                                                 \
   X(SvnRepoManagerSetUpstreamResult)                                           \
   X(SvnRepoManagerSetUpstreamError)                                            \
+  X(SvnRepoManagerIgnoreFiles)                                                 \
+  X(SvnRepoManagerIgnoreFilesResult)                                           \
+  X(SvnRepoManagerIgnoreFilesError)                                            \
   X(SvnRepoManagerStageFiles)                                                  \
   X(SvnRepoManagerStageFilesResult)                                            \
   X(SvnRepoManagerStageFilesError)                                             \

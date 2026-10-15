@@ -48,6 +48,7 @@ enum class RepoFeatures : unsigned {
   LocalBranchesDragAndDropSquash = 1 << 28,
   CherryPickDialogSHA = 1 << 29,
   CherryPickDialogRevision = 1 << 30,
+  GitLFS = 1u << 31,
 };
 
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {
@@ -281,6 +282,15 @@ public:
                           const QStringList &files) = 0;
   virtual void unstageFiles(const QWeakPointer<RepoContainer> &guard,
                             const QStringList &files) = 0;
+  // Returns false when the backend does not ignore files by properties and
+  // the caller should use its own ignore mechanism (for example .gitignore).
+  virtual bool ignoreFilesByProperty(const QWeakPointer<RepoContainer> &guard,
+                                     const QStringList &files, bool recursive) {
+    Q_UNUSED(guard);
+    Q_UNUSED(files);
+    Q_UNUSED(recursive);
+    return false;
+  }
   virtual void updateSubmodule(const QWeakPointer<RepoContainer> &guard,
                                const QString &submoduleName) = 0;
   virtual qint64 getFileSizeFromCommit(const QString &filePath,

@@ -139,8 +139,14 @@ private:
   QByteArray _message;
 };
 
-// Commits the local modifications below the working copy root.
+// Changelist that holds the staged files. Subversion has no index, so the
+// selection made by the user is kept as a changelist in the working copy.
+inline constexpr const char *kStagingChangelist = "sourcerer-staged";
+
+// Commits the local modifications below the working copy root. When
+// changelists is not null, only the items in those changelists are committed.
 svn_error_t *commitWorkingCopy(const QString &wcPath, const QString &message,
+                               const apr_array_header_t *changelists,
                                svn_client_ctx_t *ctx, apr_pool_t *pool);
 
 // Status of the working copy, paths relative to its root.

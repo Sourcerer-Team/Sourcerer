@@ -210,6 +210,8 @@ public:
                   const QStringList &files) override;
   void unstageFiles(const QWeakPointer<RepoContainer> &guard,
                     const QStringList &files) override;
+  bool ignoreFilesByProperty(const QWeakPointer<RepoContainer> &guard,
+                             const QStringList &files, bool recursive) override;
   void updateSubmodule(const QWeakPointer<RepoContainer> &guard,
                        const QString &submoduleName) override;
   qint64 getFileSizeFromCommit(const QString &filePath,

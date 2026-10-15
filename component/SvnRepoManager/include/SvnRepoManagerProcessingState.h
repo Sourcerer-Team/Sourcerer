@@ -122,6 +122,7 @@ private:
   void
   scheduleWorkerForCherryPick(const Structs::SvnRepoCherryPickCommand &command);
   void setUpstreamWorker(const Structs::SvnRepoSetUpstreamCommand &command);
+  void ignoreFilesWorker(const Structs::SvnRepoIgnoreFilesCommand &command);
   void stageFilesWorker(const Structs::SvnRepoStageFilesCommand &command);
   void stashWorker(const Structs::SvnRepoStashCommand &command);
   void statusWorker(const Structs::SvnRepoStatusCommand &command);
@@ -250,6 +251,8 @@ private:
   void scheduleWorkerForRevert(const Structs::SvnRepoRevertCommand &command);
   void scheduleWorkerForSetUpstream(
       const Structs::SvnRepoSetUpstreamCommand &command);
+  void scheduleWorkerForIgnoreFiles(
+      const Structs::SvnRepoIgnoreFilesCommand &command);
   void
   scheduleWorkerForStageFiles(const Structs::SvnRepoStageFilesCommand &command);
   void scheduleWorkerForStash(const Structs::SvnRepoStashCommand &command);
