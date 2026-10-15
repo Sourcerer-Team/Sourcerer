@@ -1,3 +1,30 @@
+## 1.1.0
+
+### Summary
+
+Release version 1.1.0 introduces Subversion support, Qt library updates, various bug fixes, and improvements to build stability across Linux and Windows platforms.
+
+### New
+
+* Implemented Subversion support
+
+### Improved
+
+* Updated Qt library to version 6.10.3
+* Blame page is shown by default
+* AWS and Bitbucket secrets are shown in settings
+* macOS porting updates
+
+### Fixes
+
+* Fixed compilation errors on Linux and Windows builds
+* Fixed xdg-open linkage error with AppImage
+* Fixed GitFlow icons not showing
+* Fixed issues with highlighting and missing function definitions
+* Fixed GitHub actions triggers and build permissions
+* Fixed Docker and CPU-related problems on GitHub builds
+
+
 ## 1.0.43
 
 ### Summary
