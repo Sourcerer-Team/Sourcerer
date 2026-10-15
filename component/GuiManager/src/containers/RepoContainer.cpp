@@ -4542,7 +4542,12 @@ void RepoContainer::onLocalBranchRightClicked(const QString &branchName,
   QMenu menu;
   menu.addAction(&actionCheckoutBranch);
   menu.addAction(&actionRanameBranch);
-  menu.addAction(&actionSetUpstream);
+  // Subversion has no upstream tracking, so the item is shown only when the
+  // bridge supports it.
+  if (hasFeature(_bridge->features(),
+                 RepoFeatures::LocalBranchesContextMenuUpstream)) {
+    menu.addAction(&actionSetUpstream);
+  }
   menu.addSeparator();
   menu.addAction(&actionDeleteBranch);
   addGraphiteBranchActions(menu, branchName);

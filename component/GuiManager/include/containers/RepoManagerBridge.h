@@ -16,7 +16,7 @@ class RepoContainer;
 
 // Features supported by a repository bridge implementation, combine them with
 // operator|.
-enum class RepoFeatures : unsigned {
+enum class RepoFeatures : unsigned long long {
   None = 0,
   GitFlow = 1 << 0,
   Shelves = 1 << 1,
@@ -49,16 +49,18 @@ enum class RepoFeatures : unsigned {
   CherryPickDialogSHA = 1 << 29,
   CherryPickDialogRevision = 1 << 30,
   GitLFS = 1u << 31,
+  LocalBranchesContextMenuUpstream = 1ULL << 32,
 };
 
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {
-  return static_cast<RepoFeatures>(static_cast<unsigned>(lhs) |
-                                   static_cast<unsigned>(rhs));
+  return static_cast<RepoFeatures>(
+      static_cast<unsigned long long>(lhs) |
+      static_cast<unsigned long long>(rhs));
 }
 
 inline bool hasFeature(RepoFeatures features, RepoFeatures feature) {
-  return (static_cast<unsigned>(features) & static_cast<unsigned>(feature)) !=
-         0;
+  return (static_cast<unsigned long long>(features) &
+          static_cast<unsigned long long>(feature)) != 0;
 }
 
 class RepoManagerBridge {

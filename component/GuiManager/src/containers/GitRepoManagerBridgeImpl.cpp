@@ -199,7 +199,8 @@ RepoFeatures GitRepoManagerBridgeImpl::features() const {
          RepoFeatures::HistoryViewContextMenuCheckoutCommit |
          RepoFeatures::LocalBranchesDragAndDropRebase |
          RepoFeatures::LocalBranchesDragAndDropSquash |
-         RepoFeatures::CherryPickDialogSHA | RepoFeatures::GitLFS;
+         RepoFeatures::CherryPickDialogSHA | RepoFeatures::GitLFS |
+         RepoFeatures::LocalBranchesContextMenuUpstream;
 }
 
 void GitRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,
