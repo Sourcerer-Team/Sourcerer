@@ -1805,11 +1805,29 @@ RepoContainer::RepoContainer(Widgets::ContainerType type, QString path,
           &RepoContainer::onSetDefaultTarget);
 
   connect(ui->submodulesPage, &GitSubmodulesPage::rightClicked, this,
-          &RepoContainer::onSubmodulePanelRightClicked);
+          [this](const QPoint &pos) {
+            if (hasFeature(_bridge->features(), RepoFeatures::Externals)) {
+              onExternalsPanelRightClicked(pos);
+            } else {
+              onSubmodulePanelRightClicked(pos);
+            }
+          });
   connect(ui->submodulesPage, &GitSubmodulesPage::submoduleSelected, this,
-          &RepoContainer::onSubmoduleSelected);
+          [this](const QString &name) {
+            if (hasFeature(_bridge->features(), RepoFeatures::Externals)) {
+              onExternalSelected(name);
+            } else {
+              onSubmoduleSelected(name);
+            }
+          });
   connect(ui->submodulesPage, &GitSubmodulesPage::submoduleRightClicked, this,
-          &RepoContainer::onSubmoduleRightClicked);
+          [this](const QString &name, const QPoint &pos) {
+            if (hasFeature(_bridge->features(), RepoFeatures::Externals)) {
+              onExternalRightClicked(name, pos);
+            } else {
+              onSubmoduleRightClicked(name, pos);
+            }
+          });
 
   connect(ui->worktreesPage, &GitWorktreesPage::rightClicked, this,
           &RepoContainer::onWorktreePanelRightClicked);
@@ -2336,6 +2354,11 @@ void RepoContainer::onAddSubmodule() {
   const WeakPtr guard = getSelf().toWeakRef();
 
   const auto overlayWidget = new AddSubmoduleOverlayWidget(this);
+
+  if (hasFeature(_bridge->features(),
+                 RepoFeatures::ExternalsAddDialogPlaceholderSubmoduleName)) {
+    overlayWidget->setNamePlaceholderText(tr("Enter submodule name"));
+  }
 
   connect(overlayWidget, &AddSubmoduleOverlayWidget::canceled, this, [=]() {
     LOG_DEBUG("Add submodule dialog cancelled");
@@ -7002,6 +7025,149 @@ void RepoContainer::onSubmodulePanelRightClicked(const QPoint &pos) {
   menu.exec(pos);
 
   LOG_DEBUG("Submodule panel context menu closed");
+  LOG_PERF(0, "Exit");
+}
+
+void RepoContainer::onExternalRightClicked(const QString &externalName,
+                                           const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("External right-clicked: '{}' in repository '{}'",
+            externalName.toStdString(), _path.toStdString());
+
+  QAction actionOpenExternal(tr("Open"), this);
+  QAction actionUpdateExternal(tr("Update"), this);
+  QAction actionDeleteExternal(tr("Delete"), this);
+
+  connect(&actionOpenExternal, &QAction::triggered, this, [=]() {
+    LOG_DEBUG("Open external action triggered");
+    startOverlayTimer();
+
+    const WeakPtr guard = getSelf().toWeakRef();
+
+    _dispatcher.dispatch(
+        [=]() { _bridge->openExternal(guard, externalName); });
+  });
+
+  connect(&actionUpdateExternal, &QAction::triggered, this, [=]() {
+    LOG_DEBUG("Update external action triggered");
+    startOverlayTimer();
+
+    const WeakPtr guard = getSelf().toWeakRef();
+
+    _dispatcher.dispatch(
+        [=]() { _bridge->updateExternal(guard, externalName); });
+  });
+
+  connect(&actionDeleteExternal, &QAction::triggered, this,
+          [=]() { onDeleteExternal(externalName); });
+
+  QMenu menu;
+  menu.addAction(&actionOpenExternal);
+  menu.addAction(&actionUpdateExternal);
+  menu.addSeparator();
+  menu.addAction(&actionDeleteExternal);
+
+  menu.exec(pos);
+
+  LOG_DEBUG("External context menu closed");
+  LOG_PERF(0, "Exit");
+}
+
+void RepoContainer::onExternalsPanelRightClicked(const QPoint &pos) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Externals panel right-clicked for repository: '{}'",
+            _path.toStdString());
+
+  QAction actionAddExternal(tr("Add"), this);
+
+  connect(&actionAddExternal, &QAction::triggered, this,
+          &RepoContainer::onAddExternal);
+
+  QMenu menu;
+  menu.addAction(&actionAddExternal);
+
+  menu.exec(pos);
+
+  LOG_DEBUG("Externals panel context menu closed");
+  LOG_PERF(0, "Exit");
+}
+
+void RepoContainer::onExternalSelected(const QString &externalName) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("External selected: '{}' in repository '{}'",
+            externalName.toStdString(), _path.toStdString());
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch([=]() { _bridge->openExternal(guard, externalName); });
+
+  LOG_PERF(0, "Exit");
+}
+
+void RepoContainer::onAddExternal() {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Add external dialog requested for repository: '{}'",
+            _path.toStdString());
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  const auto overlayWidget = new AddSubmoduleOverlayWidget(this);
+
+  if (hasFeature(_bridge->features(),
+                 RepoFeatures::ExternalsAddDialogPlaceholderExternalName)) {
+    overlayWidget->setNamePlaceholderText(tr("Enter external name"));
+  }
+
+  connect(overlayWidget, &AddSubmoduleOverlayWidget::canceled, this, [=]() {
+    LOG_DEBUG("Add external dialog cancelled");
+    overlayWidget->hide();
+    delete overlayWidget;
+  });
+
+  connect(overlayWidget, &AddSubmoduleOverlayWidget::submitted, this,
+          [=](const QString &url, const QString &name, const QString &branch) {
+            LOG_DEBUG("Adding external - URL: '{}', Name: '{}', Branch: '{}'",
+                      url.toStdString(), name.toStdString(),
+                      branch.toStdString());
+            overlayWidget->hide();
+            delete overlayWidget;
+
+            _dispatcher.dispatch(
+                [=]() { _bridge->addExternal(guard, url, name, branch); });
+          });
+
+  overlayWidget->show();
+  overlayWidget->raise();
+
+  LOG_PERF(0, "Exit");
+}
+
+void RepoContainer::onDeleteExternal(const QString &externalName) {
+  LOG_PERF(0, "Enter");
+  LOG_DEBUG("Delete external requested: '{}' in repository '{}'",
+            externalName.toStdString(), _path.toStdString());
+
+  const QString question =
+      QString("Are you sure that you want to delete external '%1'?")
+          .arg(externalName);
+
+  const auto reply = QMessageBox::question(this, tr("Confirm action"), question,
+                                           QMessageBox::Yes, QMessageBox::No);
+  if (reply == QMessageBox::No) {
+    LOG_DEBUG("Delete external cancelled by user");
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  startOverlayTimer();
+
+  const WeakPtr guard = getSelf().toWeakRef();
+
+  _dispatcher.dispatch(
+      [=]() { _bridge->deleteExternal(guard, externalName); });
+
   LOG_PERF(0, "Exit");
 }
 

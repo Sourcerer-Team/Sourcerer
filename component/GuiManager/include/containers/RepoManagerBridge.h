@@ -52,6 +52,8 @@ enum class RepoFeatures : unsigned long long {
   LocalBranchesContextMenuUpstream = 1ULL << 32,
   TagsContextMenuPushToRemote = 1ULL << 33,
   TagsContextMenuDeleteFromRemote = 1ULL << 34,
+  ExternalsAddDialogPlaceholderSubmoduleName = 1ULL << 35,
+  ExternalsAddDialogPlaceholderExternalName = 1ULL << 36,
 };
 
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {
@@ -161,6 +163,15 @@ public:
   virtual void onStashFileSelected(const QModelIndex &index) = 0;
   virtual void deleteSubmodule(const QWeakPointer<RepoContainer> &guard,
                                const QString &submoduleName) = 0;
+  virtual void addExternal(const QWeakPointer<RepoContainer> &guard,
+                           const QString &url, const QString &name,
+                           const QString &branch) = 0;
+  virtual void openExternal(const QWeakPointer<RepoContainer> &guard,
+                            const QString &externalName) = 0;
+  virtual void updateExternal(const QWeakPointer<RepoContainer> &guard,
+                              const QString &externalName) = 0;
+  virtual void deleteExternal(const QWeakPointer<RepoContainer> &guard,
+                              const QString &externalName) = 0;
   virtual void diff(const QWeakPointer<RepoContainer> &guard,
                     const QString &filePath) = 0;
   virtual void diffThreeWay(const QWeakPointer<RepoContainer> &guard,

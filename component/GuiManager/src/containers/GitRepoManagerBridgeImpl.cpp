@@ -202,7 +202,8 @@ RepoFeatures GitRepoManagerBridgeImpl::features() const {
          RepoFeatures::CherryPickDialogSHA | RepoFeatures::GitLFS |
          RepoFeatures::LocalBranchesContextMenuUpstream |
          RepoFeatures::TagsContextMenuPushToRemote |
-         RepoFeatures::TagsContextMenuDeleteFromRemote;
+         RepoFeatures::TagsContextMenuDeleteFromRemote |
+         RepoFeatures::ExternalsAddDialogPlaceholderSubmoduleName;
 }
 
 void GitRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,

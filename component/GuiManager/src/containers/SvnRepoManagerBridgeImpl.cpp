@@ -135,7 +135,8 @@ RepoFeatures SvnRepoManagerBridgeImpl::features() const {
          RepoFeatures::HistoryColumnRevision |
          RepoFeatures::HistoryContextMenuCopyToClipboardRevision |
          RepoFeatures::SearchBarRevision | RepoFeatures::StashInfoTitleShelf |
-         RepoFeatures::CherryPickDialogRevision;
+         RepoFeatures::CherryPickDialogRevision |
+         RepoFeatures::ExternalsAddDialogPlaceholderExternalName;
 }
 
 void SvnRepoManagerBridgeImpl::setUpstream(
@@ -5992,10 +5993,14 @@ void SvnRepoManagerBridgeImpl::updateSubmodule(
 
   _container.refreshHistory(guard);
 
+  const QString successMessage =
+      GuiManager::Containers::hasFeature(features(), RepoFeatures::Externals)
+          ? _container.tr("External updated successfully.")
+          : _container.tr("Submodule updated successfully.");
+
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
     _container.showSpinnerOverlay(false);
-    _container.showToast(_container.tr("Submodule updated successfully."),
-                         _container.tr("Info"));
+    _container.showToast(successMessage, _container.tr("Info"));
   });
 
   LOG_PERF(0, "Exit")

@@ -249,6 +249,11 @@ private slots:
   void onSubmoduleRightClicked(const QString &submoduleName, const QPoint &pos);
   void onSubmodulePanelRightClicked(const QPoint &pos);
   void onSubmoduleSelected(const QString &submoduleName);
+  void onExternalRightClicked(const QString &externalName, const QPoint &pos);
+  void onExternalsPanelRightClicked(const QPoint &pos);
+  void onExternalSelected(const QString &externalName);
+  void onAddExternal();
+  void onDeleteExternal(const QString &externalName);
   void onTagRightClicked(const QString &tagName, const QPoint &pos);
   void onTagsEmptyAreaRightClicked(const QPoint &pos);
   void onTagSelected(const QString &tagName);

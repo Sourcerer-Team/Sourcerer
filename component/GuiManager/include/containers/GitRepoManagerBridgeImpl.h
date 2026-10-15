@@ -107,6 +107,23 @@ public:
   void onStashFileSelected(const QModelIndex &index) override;
   void deleteSubmodule(const QWeakPointer<RepoContainer> &guard,
                        const QString &submoduleName) override;
+  void addExternal(const QWeakPointer<RepoContainer> &guard,
+                   const QString &url, const QString &name,
+                   const QString &branch) override {
+    addSubmodule(guard, url, name, branch);
+  }
+  void openExternal(const QWeakPointer<RepoContainer> &guard,
+                    const QString &externalName) override {
+    openSubmodule(guard, externalName);
+  }
+  void updateExternal(const QWeakPointer<RepoContainer> &guard,
+                      const QString &externalName) override {
+    updateSubmodule(guard, externalName);
+  }
+  void deleteExternal(const QWeakPointer<RepoContainer> &guard,
+                      const QString &externalName) override {
+    deleteSubmodule(guard, externalName);
+  }
   void diff(const QWeakPointer<RepoContainer> &guard,
             const QString &filePath) override;
   void diffThreeWay(const QWeakPointer<RepoContainer> &guard,
