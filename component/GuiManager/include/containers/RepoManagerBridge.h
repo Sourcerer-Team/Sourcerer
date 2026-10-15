@@ -50,6 +50,8 @@ enum class RepoFeatures : unsigned long long {
   CherryPickDialogRevision = 1 << 30,
   GitLFS = 1u << 31,
   LocalBranchesContextMenuUpstream = 1ULL << 32,
+  TagsContextMenuPushToRemote = 1ULL << 33,
+  TagsContextMenuDeleteFromRemote = 1ULL << 34,
 };
 
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {

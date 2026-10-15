@@ -3959,7 +3959,6 @@ void RepoContainer::onHistoryViewRightClicked(const QModelIndex &index,
   if (!commit.isEmpty()) {
     // Not every repository type offers these, e.g. Subversion has no SHA.
     const RepoFeatures historyMenuFeatures = _bridge->features();
-    menu.addAction(&actionCheckoutCommit);
     if (hasFeature(historyMenuFeatures,
                    RepoFeatures::HistoryViewContextMenuCheckoutCommit)) {
       menu.addAction(&actionCheckoutCommit);
@@ -7067,8 +7066,14 @@ void RepoContainer::onTagRightClicked(const QString &tagName,
   QMenu menu;
   menu.addAction(&actionCheckoutTag);
   menu.addAction(&actionRanameTag);
-  menu.addAction(&actionPushTag);
-  menu.addAction(&actionDeleteRemoteTag);
+  const RepoFeatures tagMenuFeatures = _bridge->features();
+  if (hasFeature(tagMenuFeatures, RepoFeatures::TagsContextMenuPushToRemote)) {
+    menu.addAction(&actionPushTag);
+  }
+  if (hasFeature(tagMenuFeatures,
+                 RepoFeatures::TagsContextMenuDeleteFromRemote)) {
+    menu.addAction(&actionDeleteRemoteTag);
+  }
   menu.addSeparator();
   menu.addAction(&actionDeleteTag);
 
