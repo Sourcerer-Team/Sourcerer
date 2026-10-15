@@ -7350,7 +7350,11 @@ void RepoContainer::onCherryPickCommit() {
   }
 
   const auto inputOverlay = new TextInputOverlayWidget(this);
-  inputOverlay->setPlaceholderText(tr("Commit SHA to cherry-pick"));
+  if (hasFeature(_bridge->features(), RepoFeatures::CherryPickDialogRevision)) {
+    inputOverlay->setPlaceholderText(tr("Commit revision to cherry-pick"));
+  } else {
+    inputOverlay->setPlaceholderText(tr("Commit SHA to cherry-pick"));
+  }
 
   connect(inputOverlay, &TextInputOverlayWidget::canceled, this, [=]() {
     LOG_DEBUG("Cherry-pick dialog cancelled");

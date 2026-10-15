@@ -74,6 +74,7 @@ enum class EventType : int {
   RenameTag,
   Reset,
   Revert,
+  ResolveTreeConflict,
   CherryPick,
   SetDefaultRemote,
   SetDefaultTarget,

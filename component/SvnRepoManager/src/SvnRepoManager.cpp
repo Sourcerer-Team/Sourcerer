@@ -22,6 +22,8 @@ SvnRepoManager::SvnRepoManager()
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerAbortMerge, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerResolveTreeConflict, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerAddRemote, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerAddSubmodule, callbackFunc));
@@ -189,6 +191,8 @@ SvnRepoManager::~SvnRepoManager() {
 
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerAbortMerge, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerResolveTreeConflict, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::SvnRepoManagerAddRemote, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -383,6 +387,14 @@ void SvnRepoManager::eventCallback(const EventManager::Event &event) {
     SvnRepoManagerEvent abortMergeEvent(EventType::AbortMerge);
     abortMergeEvent.addParam(QVariant::fromValue(abortMergeCommand));
     _fsm.send(abortMergeEvent);
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerResolveTreeConflict: {
+    const auto resolveCommand =
+        event.data<SvnRepoResolveTreeConflictCommand>();
+    SvnRepoManagerEvent resolveEvent(EventType::ResolveTreeConflict);
+    resolveEvent.addParam(QVariant::fromValue(resolveCommand));
+    _fsm.send(resolveEvent);
     break;
   }
   case EventManager::EventType::SvnRepoManagerAddRemote: {

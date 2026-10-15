@@ -220,6 +220,10 @@ private:
   // repositories.
   void reportUnsupportedOperation(const QString &operation) const;
 
+  // Asks the user how to resolve a tree conflict and applies the choice.
+  void resolveTreeConflictInteractively(const QWeakPointer<RepoContainer> &guard,
+                                        const QString &filePath);
+
   RepoContainer &_container;
 };
 

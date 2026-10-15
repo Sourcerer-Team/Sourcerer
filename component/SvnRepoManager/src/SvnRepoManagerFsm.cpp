@@ -51,6 +51,8 @@ QString SvnRepoManagerFsm::eventName(int event) const {
     return "ChangeState";
   case EventType::AbortMerge:
     return "AbortMerge";
+  case EventType::ResolveTreeConflict:
+    return "ResolveTreeConflict";
   case EventType::AddRemote:
     return "AddRemote";
   case EventType::AddSubmodule:

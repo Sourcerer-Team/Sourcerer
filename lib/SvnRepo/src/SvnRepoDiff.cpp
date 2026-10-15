@@ -509,6 +509,7 @@ QString createPatchFromCommit(const QString &path, const QString &commit) {
 
   const QString wcPath = normalizedPath(path);
   QString patch;
+  QString checkoutPrefix;
 
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
@@ -518,6 +519,17 @@ QString createPatchFromCommit(const QString &path, const QString &commit) {
                 readInfo(&info, wcPath, revisionUnspecified(), ctx, pool))) {
           return false;
         }
+
+        // Subversion writes headers relative to the parent of the checkout
+        // folder (e.g. "branches/file.txt" for a checkout of
+        // "branches/test1"), so remember that parent to strip it below.
+        const QString reposRoot = Private::trimmedUrl(info.reposRootUrl);
+        QString checkoutRepoPath = info.url.mid(reposRoot.length());
+        if (checkoutRepoPath.startsWith(QLatin1Char('/')))
+          checkoutRepoPath.remove(0, 1);
+        const int slash = checkoutRepoPath.lastIndexOf(QLatin1Char('/'));
+        if (slash > 0)
+          checkoutPrefix = checkoutRepoPath.left(slash + 1);
 
         // Git format, so the patch can be applied to Git repositories too.
         const svn_opt_revision_t peg = revisionNumber(revision);
@@ -530,8 +542,35 @@ QString createPatchFromCommit(const QString &path, const QString &commit) {
       },
       wcPath);
 
+  if (!success)
+    return QString();
+
+  // Make header paths relative to the checkout root, so the patch applies
+  // to any checkout of the same branch. Only "diff --git", "---" and "+++"
+  // lines carry paths; the content is untouched.
+  if (!checkoutPrefix.isEmpty()) {
+    const QString aPrefix = QLatin1String("a/") + checkoutPrefix;
+    const QString bPrefix = QLatin1String("b/") + checkoutPrefix;
+    const QStringList lines = patch.split(QLatin1Char('\n'));
+    QStringList result;
+    result.reserve(lines.size());
+    for (QString line : lines) {
+      if (line.startsWith(QLatin1String("diff --git ") + aPrefix)) {
+        line.replace(QLatin1String("diff --git ") + aPrefix,
+                     QLatin1String("diff --git a/"));
+        line.replace(QLatin1Char(' ') + bPrefix, QLatin1String(" b/"));
+      } else if (line.startsWith(QLatin1String("--- ") + aPrefix)) {
+        line.replace(QLatin1String("--- ") + aPrefix, QLatin1String("--- a/"));
+      } else if (line.startsWith(QLatin1String("+++ ") + bPrefix)) {
+        line.replace(QLatin1String("+++ ") + bPrefix, QLatin1String("+++ b/"));
+      }
+      result.append(line);
+    }
+    patch = result.join(QLatin1Char('\n'));
+  }
+
   LOG_PERF(0, "Exit");
-  return success ? patch : QString();
+  return patch;
 }
 
 qint64 getFileSizeFromCommit(const QString &path, const QString &filePath,

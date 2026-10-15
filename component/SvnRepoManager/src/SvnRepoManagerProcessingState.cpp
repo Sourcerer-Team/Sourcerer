@@ -85,6 +85,12 @@ bool SvnRepoManagerProcessingState::process(Fsm::FsmEvent event) {
     scheduleWorkerForAbortMerge(abortMergeCommand);
     break;
   }
+  case EventType::ResolveTreeConflict: {
+    const auto resolveCommand =
+        event.nextParam<SvnRepoResolveTreeConflictCommand>();
+    scheduleWorkerForResolveTreeConflict(resolveCommand);
+    break;
+  }
   case EventType::AddSubmodule: {
     const auto addSubmoduleCommand =
         event.nextParam<SvnRepoAddSubmoduleCommand>();
@@ -515,6 +521,47 @@ void SvnRepoManagerProcessingState::exit() {
   LOG_PERF(0, "Enter");
 
   destroyContextsMap();
+
+  LOG_PERF(0, "Exit");
+}
+
+void SvnRepoManagerProcessingState::resolveTreeConflictWorker(
+    const Structs::SvnRepoResolveTreeConflictCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  const SvnRepoContext *ctx = context(command.uuid);
+  if (!ctx) {
+    reportError(EventManager::EventType::SvnRepoManagerResolveTreeConflictError,
+                tr("Internal error. Context not initialized."), command);
+    LOG_ERROR(Log::ErrorId::Gui, "Internal error. Context not initialized.");
+    return;
+  }
+
+  QString repo;
+
+  {
+    LOCKGUARD(_contextsMutex);
+    repo = ctx->SvnRepo;
+  }
+
+  const bool success =
+      SvnRepo::resolveTreeConflict(repo, command.filePath, command.keepLocal);
+  if (!success) {
+    const auto lastError = SvnRepo::getLastError();
+    EventManager::Event errorEvent(
+        EventManager::EventType::SvnRepoManagerResolveTreeConflictError,
+        command.syncUuid);
+    errorEvent.addData(SvnRepoError{command.uuid, lastError.errorMessage,
+                                    lastError.errorCode, lastError.error});
+    _eventManager.send(errorEvent);
+  } else {
+    EventManager::Event resultEvent(
+        EventManager::EventType::SvnRepoManagerResolveTreeConflictResult,
+        command.syncUuid);
+    resultEvent.addData(SvnRepoResult{command.uuid, command.type,
+                                      QVariant::fromValue(success)});
+    _eventManager.send(resultEvent);
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -2560,6 +2607,7 @@ void SvnRepoManagerProcessingState::listConflictsWorker(
 
   SvnRepoListConflictsCommandResult result;
   result.fileContentWithMarkers = fileContentWithMarkers;
+  result.treeConflict = SvnRepo::isTreeConflict(repo, command.filePath);
 
   EventManager::Event resultEvent(
       EventManager::EventType::SvnRepoManagerListConflictsResult,
@@ -4281,6 +4329,26 @@ void SvnRepoManagerProcessingState::reportError(
   LOG_PERF(0, "Exit");
 }
 
+void SvnRepoManagerProcessingState::scheduleWorkerForResolveTreeConflict(
+    const Structs::SvnRepoResolveTreeConflictCommand &command) {
+  LOG_PERF(0, "Enter");
+
+  LOCKGUARD(_contextsMutex);
+
+  const auto it = _contexts.constFind(command.uuid);
+  if (it == _contexts.constEnd()) {
+    reportError(
+        EventManager::EventType::SvnRepoManagerResolveTreeConflictError,
+        tr("Subversion repository has not been opened."), command);
+    LOG_PERF(0, "Exit");
+    return;
+  }
+
+  (*it)->commandsQueue.push(new SvnRepoResolveTreeConflictCommand(command));
+
+  LOG_PERF(0, "Exit");
+}
+
 void SvnRepoManagerProcessingState::scheduleWorkerForAbortMerge(
     const Structs::SvnRepoAbortMergeCommand &command) {
   LOG_PERF(0, "Enter");
@@ -5261,6 +5329,14 @@ void SvnRepoManagerProcessingState::workersThreadFunc(const QString &uuid) {
           dynamic_cast<const SvnRepoAbortMergeCommand *>(command);
       if (abortMergeCommand) {
         abortMergeWorker(*abortMergeCommand);
+      }
+      break;
+    }
+    case SvnRepoCommandType::ResolveTreeConflict: {
+      const auto resolveCommand =
+          dynamic_cast<const SvnRepoResolveTreeConflictCommand *>(command);
+      if (resolveCommand) {
+        resolveTreeConflictWorker(*resolveCommand);
       }
       break;
     }

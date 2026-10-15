@@ -10,6 +10,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
 #include <QTemporaryFile>
 
 #define THREAD_ID "SvnRepo"
@@ -24,22 +25,116 @@ struct PatchBaton {
   QStringList rejectedFiles;
 };
 
-static svn_error_t *patchCallback(void *baton, svn_boolean_t *filtered,
-                                  const char *canonPathFromPatchfile,
-                                  const char *, const char *rejectAbspath,
-                                  apr_pool_t *) {
-  if (filtered) {
-    *filtered = FALSE;
+// Subversion calls the patch callback for every file in the patch, whether or
+// not it has rejected hunks, so it can't tell rejections apart. A hunk
+// notification is sent only after the file's rejects are known.
+static void patchNotifyCallback(void *baton, const svn_wc_notify_t *notify,
+                                apr_pool_t *) {
+  auto *payload = static_cast<PatchBaton *>(baton);
+  if (!payload || !notify || !notify->path ||
+      notify->action != svn_wc_notify_patch_rejected_hunk) {
+    return;
   }
 
-  // The reject file holds the hunks that could not be applied.
-  auto *payload = static_cast<PatchBaton *>(baton);
-  if (payload && rejectAbspath &&
-      QFileInfo(QString::fromUtf8(rejectAbspath)).size() > 0) {
-    payload->rejectedFiles.append(QString::fromUtf8(
-        canonPathFromPatchfile ? canonPathFromPatchfile : ""));
+  const QString path = QString::fromUtf8(notify->path);
+  if (!payload->rejectedFiles.contains(path)) {
+    payload->rejectedFiles.append(path);
   }
-  return SVN_NO_ERROR;
+}
+
+static bool usesCrLf(const QString &absolutePath) {
+  QFile file(absolutePath);
+  if (!file.open(QIODevice::ReadOnly)) {
+    return false;
+  }
+  return file.read(65536).contains("\r\n");
+}
+
+static QString stripPathComponents(QString path, const int count) {
+  for (int i = 0; i < count; ++i) {
+    const int slash = path.indexOf(QLatin1Char('/'));
+    if (slash < 0) {
+      break;
+    }
+    path = path.mid(slash + 1);
+  }
+  return path;
+}
+
+// Subversion rejects Git style headers that end with "(revision N)", so the
+// suffix is removed from the file headers. Hunk lines get a CR when the
+// target uses CRLF, because Subversion matches hunk lines byte for byte.
+static QString normalizePatch(const QString &patch, const QString &wcPath,
+                              const int stripCount) {
+  static const QRegularExpression hunkHeader(
+      QStringLiteral("^@@ -\\d+(?:,(\\d+))? \\+\\d+(?:,(\\d+))? @@"));
+  static const QRegularExpression revisionSuffix(
+      QStringLiteral("\\s+\\(revision\\s.*$"));
+
+  const QStringList lines = patch.split(QLatin1Char('\n'));
+  QStringList result;
+  result.reserve(lines.size());
+
+  const QDir wcDir(wcPath);
+  QString target;
+  bool gitStyle = false;
+  bool crlf = false;
+  int oldLeft = 0;
+  int newLeft = 0;
+
+  for (const QString &line : lines) {
+    if (oldLeft > 0 || newLeft > 0) {
+      const QChar first = line.isEmpty() ? QLatin1Char(' ') : line.at(0);
+      if (first == QLatin1Char(' ')) {
+        --oldLeft;
+        --newLeft;
+      } else if (first == QLatin1Char('-')) {
+        --oldLeft;
+      } else if (first == QLatin1Char('+')) {
+        --newLeft;
+      }
+
+      const bool needsCr = crlf && !line.endsWith(QLatin1Char('\r')) &&
+                           first != QLatin1Char('\\');
+      result.append(needsCr ? line + QLatin1Char('\r') : line);
+      continue;
+    }
+
+    QString text = line;
+    if (text.startsWith(QStringLiteral("--- ")) ||
+        text.startsWith(QStringLiteral("+++ "))) {
+      text.remove(revisionSuffix);
+    }
+
+    if (text.startsWith(QStringLiteral("diff --git "))) {
+      const QString rest = text.mid(11);
+      const int split = rest.indexOf(QStringLiteral(" b/"));
+      QString first = split >= 0 ? rest.left(split) : rest;
+      target = first.startsWith(QStringLiteral("a/")) ? first.mid(2) : first;
+      gitStyle = true;
+      crlf = !target.isEmpty() && usesCrLf(wcDir.filePath(target));
+    } else if (text.startsWith(QStringLiteral("Index: "))) {
+      gitStyle = false;
+    } else if (!gitStyle && text.startsWith(QStringLiteral("+++ "))) {
+      QString header = text.mid(4);
+      const int tab = header.indexOf(QLatin1Char('\t'));
+      if (tab >= 0) {
+        header = header.left(tab);
+      }
+      target = stripPathComponents(header.trimmed(), stripCount);
+      crlf = !target.isEmpty() && usesCrLf(wcDir.filePath(target));
+    } else {
+      const QRegularExpressionMatch match = hunkHeader.match(line);
+      if (match.hasMatch()) {
+        oldLeft = match.captured(1).isEmpty() ? 1 : match.captured(1).toInt();
+        newLeft = match.captured(2).isEmpty() ? 1 : match.captured(2).toInt();
+      }
+    }
+
+    result.append(text);
+  }
+
+  return result.join(QLatin1Char('\n'));
 }
 
 struct NodeStatusBaton {
@@ -341,15 +436,6 @@ bool amend(const QString &path, const QString &summary, const QString &message,
 bool applyPatch(const QString &path, const QString &patchContent) {
   LOG_PERF(0, "Enter");
 
-  QTemporaryFile patchFile;
-  if (!patchFile.open() || patchFile.write(patchContent.toUtf8()) < 0) {
-    setLastError(SvnError::PatchFailed, -1,
-                 QStringLiteral("Failed to write the patch file."));
-    LOG_PERF(0, "Exit");
-    return false;
-  }
-  patchFile.close();
-
   // Unified diffs made by Git prefix the paths with a/ and b/. Subversion
   // removes them itself from Git style diffs ("diff --git a/... b/...").
   const bool gitHeaders = patchContent.contains(QStringLiteral("diff --git "));
@@ -360,24 +446,41 @@ bool applyPatch(const QString &path, const QString &patchContent) {
           : 0;
 
   const QString wcPath = normalizedPath(path);
+  const QString patchText = normalizePatch(patchContent, wcPath, stripCount);
+
+  QTemporaryFile patchFile;
+  if (!patchFile.open() || patchFile.write(patchText.toUtf8()) < 0) {
+    setLastError(SvnError::PatchFailed, -1,
+                 QStringLiteral("Failed to write the patch file."));
+    LOG_PERF(0, "Exit");
+    return false;
+  }
+  patchFile.close();
+
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
         const QByteArray patchPath =
             normalizedPath(patchFile.fileName()).toUtf8();
         const QByteArray wcBytes = wcPath.toUtf8();
         PatchBaton baton;
-        if (!reportError(SvnError::PatchFailed,
-                         svn_client_patch(patchPath.constData(),
-                                          wcBytes.constData(), FALSE,
-                                          stripCount, FALSE, FALSE, TRUE,
-                                          patchCallback, &baton, ctx, pool))) {
+        ctx->notify_func2 = patchNotifyCallback;
+        ctx->notify_baton2 = &baton;
+        const auto error = svn_client_patch(
+            patchPath.constData(), wcBytes.constData(), FALSE, stripCount,
+            FALSE, FALSE, TRUE, nullptr, nullptr, ctx, pool);
+        if (!reportError(SvnError::PatchFailed, error)) {
           return false;
         }
 
         if (!baton.rejectedFiles.isEmpty()) {
+          QStringList relativePaths;
+          const QDir wcDir(wcPath);
+          for (const QString &file : baton.rejectedFiles) {
+            relativePaths.append(wcDir.relativeFilePath(file));
+          }
           setLastError(SvnError::PatchFailed, -1,
                        QStringLiteral("The patch could not be applied to: %1")
-                           .arg(baton.rejectedFiles.join(", ")));
+                           .arg(relativePaths.join(", ")));
           return false;
         }
 
@@ -473,6 +576,99 @@ bool abortMerge(const QString &path) {
                                               pool));
       },
       wcPath);
+
+  LOG_PERF(0, "Exit");
+  return success;
+}
+
+bool isTreeConflict(const QString &path, const QString &filePath) {
+  const QString absolutePath = absoluteFilePath(normalizedPath(path), filePath);
+  bool treeConflicted = false;
+
+  runWithClientContext(
+      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        svn_boolean_t textConflicted = FALSE;
+        svn_boolean_t propConflicted = FALSE;
+        svn_boolean_t conflicted = FALSE;
+        svn_error_t *err = svn_wc_conflicted_p3(
+            &textConflicted, &propConflicted, &conflicted, ctx->wc_ctx,
+            absolutePath.toUtf8().constData(), pool);
+        if (err) {
+          svn_error_clear(err);
+          return true;
+        }
+
+        treeConflicted = conflicted;
+        return true;
+      },
+      normalizedPath(path));
+
+  return treeConflicted;
+}
+
+bool resolveTreeConflict(const QString &path, const QString &filePath,
+                         bool keepLocal) {
+  LOG_PERF(0, "Enter");
+
+  const QString wcPath = normalizedPath(path);
+  const QString absolutePath = absoluteFilePath(wcPath, filePath);
+
+  // Take incoming: the local file blocks the incoming add, so it is moved
+  // aside, the conflict is cleared and the file is restored from the
+  // repository. The local copy is kept next to it as "<name>.local".
+  QString backupPath;
+  if (!keepLocal && QFileInfo::exists(absolutePath)) {
+    backupPath = absolutePath + QStringLiteral(".local");
+    for (int index = 1; QFileInfo::exists(backupPath); ++index) {
+      backupPath =
+          absolutePath + QStringLiteral(".local") + QString::number(index);
+    }
+
+    if (!QFile::rename(absolutePath, backupPath)) {
+      setLastError(SvnError::ResolveFailed, -1,
+                   QStringLiteral("Unable to move the local file aside."));
+      LOG_PERF(0, "Exit");
+      return false;
+    }
+  }
+
+  const auto restoreBackup = [&]() {
+    if (!backupPath.isEmpty() && QFileInfo::exists(backupPath)) {
+      QFile::remove(absolutePath);
+      QFile::rename(backupPath, absolutePath);
+    }
+  };
+
+  const bool success = runWithClientContext(
+      [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
+        const PathArray paths = makePathArray(pool, {absolutePath});
+        // svn_wc_conflict_choose_merged keeps the working file as it is and
+        // only clears the conflict, which is what the CLI "working" option does.
+        if (!reportError(SvnError::ResolveFailed,
+                         svn_client_resolve(absolutePath.toUtf8().constData(),
+                                            svn_depth_empty,
+                                            svn_wc_conflict_choose_merged, ctx,
+                                            pool))) {
+          return false;
+        }
+
+        if (keepLocal) {
+          return true;
+        }
+
+        const svn_opt_revision_t revision = revisionHead();
+        apr_array_header_t *resultRevs = nullptr;
+        return reportError(SvnError::UpdateFailed,
+                           svn_client_update4(&resultRevs, paths.array,
+                                              &revision, svn_depth_empty, FALSE,
+                                              FALSE, TRUE, TRUE, FALSE, ctx,
+                                              pool));
+      },
+      wcPath);
+
+  if (!success) {
+    restoreBackup();
+  }
 
   LOG_PERF(0, "Exit");
   return success;

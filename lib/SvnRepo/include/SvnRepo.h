@@ -71,6 +71,7 @@ enum class SvnError : int {
   InvalidRevision,
   InvalidArgument,
   Cancelled,
+  ResolveFailed,
   Last
 };
 
@@ -297,6 +298,9 @@ bool resetToCommit(const QString &path, const QString &commit, ResetType type);
 QString listConflictsForAFile(const QString &path, const QString &filePath);
 bool getIsMergeInProgress(const QString &path);
 bool abortMerge(const QString &path);
+bool isTreeConflict(const QString &path, const QString &filePath);
+bool resolveTreeConflict(const QString &path, const QString &filePath,
+                         bool keepLocal);
 
 // Diffs and blame.
 FilesDiff diffFiles(const QString &path, const QStringList &files);

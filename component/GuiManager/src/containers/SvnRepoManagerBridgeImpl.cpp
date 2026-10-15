@@ -55,11 +55,13 @@
 #include <QMovie>
 #include <QPainter>
 #include <QPixmap>
+#include <QPushButton>
 #include <QScrollBar>
 #include <QSignalBlocker>
 #include <QStyleOptionViewItem>
 #include <QSvgRenderer>
 #include <QTextStream>
+#include <QThread>
 #include <QThreadPool>
 #include <QTimer>
 #include <QToolButton>
@@ -132,7 +134,8 @@ RepoFeatures SvnRepoManagerBridgeImpl::features() const {
          RepoFeatures::CommitInfoRevision |
          RepoFeatures::HistoryColumnRevision |
          RepoFeatures::HistoryContextMenuCopyToClipboardRevision |
-         RepoFeatures::SearchBarRevision | RepoFeatures::StashInfoTitleShelf;
+         RepoFeatures::SearchBarRevision | RepoFeatures::StashInfoTitleShelf |
+         RepoFeatures::CherryPickDialogRevision;
 }
 
 void SvnRepoManagerBridgeImpl::setUpstream(
@@ -2418,6 +2421,99 @@ void SvnRepoManagerBridgeImpl::diff(const QWeakPointer<RepoContainer> &guard,
   LOG_PERF(0, "Exit")
 }
 
+void SvnRepoManagerBridgeImpl::resolveTreeConflictInteractively(
+    const QWeakPointer<RepoContainer> &guard, const QString &filePath) {
+  LOG_PERF(0, "Enter");
+
+  enum class TreeConflictChoice { Cancel, KeepLocal, TakeIncoming };
+  TreeConflictChoice choice = TreeConflictChoice::Cancel;
+
+  const auto showChoiceDialog = [&]() {
+    QMessageBox box(_container.window());
+    box.setWindowTitle(_container.tr("Tree conflict"));
+    box.setIcon(QMessageBox::Warning);
+    box.setText(_container.tr(
+        "\"%1\" cannot be merged automatically because an unversioned local "
+        "file blocks the incoming change.")
+                    .arg(filePath));
+    box.setInformativeText(_container.tr(
+        "Keep local keeps your file. Take incoming replaces it with the "
+        "repository version and renames your file to \"%1.local\".")
+                               .arg(QFileInfo(filePath).fileName()));
+    QPushButton *keepButton =
+        box.addButton(_container.tr("Keep local"), QMessageBox::AcceptRole);
+    QPushButton *incomingButton =
+        box.addButton(_container.tr("Take incoming"), QMessageBox::AcceptRole);
+    box.addButton(QMessageBox::Cancel);
+    box.exec();
+
+    if (box.clickedButton() == keepButton) {
+      choice = TreeConflictChoice::KeepLocal;
+    } else if (box.clickedButton() == incomingButton) {
+      choice = TreeConflictChoice::TakeIncoming;
+    }
+  };
+
+  if (QThread::currentThread() == qApp->thread()) {
+    showChoiceDialog();
+  } else {
+    QMetaObject::invokeMethod(qApp, showChoiceDialog,
+                              Qt::BlockingQueuedConnection);
+  }
+
+  if (choice == TreeConflictChoice::Cancel) {
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  const QString eventUuid = Uuid::createUuid();
+  const int token = _container._eventManager.startWait();
+
+  SvnRepoResolveTreeConflictCommand command;
+  command.uuid = _container._uuid;
+  command.syncUuid = eventUuid;
+  command.filePath = filePath;
+  command.keepLocal = choice == TreeConflictChoice::KeepLocal;
+
+  EventManager::Event resolveEvent(
+      EventManager::EventType::SvnRepoManagerResolveTreeConflict, eventUuid);
+  resolveEvent.addData(command);
+  _container._eventManager.send(resolveEvent);
+
+  static std::set types = {
+      EventManager::EventType::SvnRepoManagerResolveTreeConflictError,
+      EventManager::EventType::SvnRepoManagerResolveTreeConflictResult};
+
+  const auto &[success, event] =
+      _container._eventManager.waitForAnswer(token, eventUuid, types);
+
+  if (!success ||
+      event.type() !=
+          EventManager::EventType::SvnRepoManagerResolveTreeConflictResult) {
+    const QString message = success ? event.data<SvnRepoError>().message
+                                    : _container.tr("Failed to resolve tree conflict.");
+    Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+      _container.showSpinnerOverlay(false);
+      _container.showErrorToast(message, _container.tr("Error"));
+    });
+    LOG_PERF(0, "Exit")
+    return;
+  }
+
+  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
+    _container.showSpinnerOverlay(false);
+    _container.showToast(_container.tr("Tree conflict resolved."),
+                         _container.tr("Info"));
+  });
+
+  refreshStatus(guard);
+
+  LOG_PERF(0, "Exit")
+}
+
 void SvnRepoManagerBridgeImpl::diffThreeWay(
     const QWeakPointer<RepoContainer> &guard, const QString &filePath) {
   LOG_PERF(0, "Enter");
@@ -2486,6 +2582,12 @@ void SvnRepoManagerBridgeImpl::diffThreeWay(
   const auto commandResult = event.data<SvnRepoResult>();
   const auto listConflictsResult =
       commandResult.value.value<SvnRepoListConflictsCommandResult>();
+
+  if (listConflictsResult.treeConflict) {
+    resolveTreeConflictInteractively(guard, filePath);
+    LOG_PERF(0, "Exit")
+    return;
+  }
 
   if (listConflictsResult.fileContentWithMarkers.isEmpty()) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {

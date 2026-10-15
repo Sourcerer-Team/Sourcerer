@@ -73,6 +73,7 @@ enum class SvnRepoCommandType : int {
   RenameTag,
   Reset,
   Revert,
+  ResolveTreeConflict,
   CherryPick,
   SetDefaultRemote,
   AddTarget,
@@ -547,6 +548,17 @@ struct SvnRepoListConflictsCommand final : SvnRepoCommand {
 
 struct SvnRepoListConflictsCommandResult {
   QString fileContentWithMarkers;
+  bool treeConflict = false;
+};
+
+struct SvnRepoResolveTreeConflictCommand final : SvnRepoCommand {
+  SvnRepoResolveTreeConflictCommand()
+      : SvnRepoCommand(SvnRepoCommandType::ResolveTreeConflict) {}
+
+  ~SvnRepoResolveTreeConflictCommand() override = default;
+
+  QString filePath;
+  bool keepLocal = false;
 };
 
 struct SvnRepoListLocalBranchesCommand final : SvnRepoCommand {

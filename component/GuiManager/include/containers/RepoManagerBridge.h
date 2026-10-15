@@ -46,6 +46,8 @@ enum class RepoFeatures : unsigned {
   HistoryViewContextMenuCheckoutCommit = 1 << 26,
   LocalBranchesDragAndDropRebase = 1 << 27,
   LocalBranchesDragAndDropSquash = 1 << 28,
+  CherryPickDialogSHA = 1 << 29,
+  CherryPickDialogRevision = 1 << 30,
 };
 
 inline RepoFeatures operator|(RepoFeatures lhs, RepoFeatures rhs) {

@@ -296,6 +296,9 @@ namespace EventManager {
   X(SvnRepoManagerAbortMerge)                                                  \
   X(SvnRepoManagerAbortMergeResult)                                            \
   X(SvnRepoManagerAbortMergeError)                                             \
+  X(SvnRepoManagerResolveTreeConflict)                                         \
+  X(SvnRepoManagerResolveTreeConflictResult)                                   \
+  X(SvnRepoManagerResolveTreeConflictError)                                    \
   X(SvnRepoManagerBlame)                                                       \
   X(SvnRepoManagerBlameResult)                                                 \
   X(SvnRepoManagerBlameError)                                                  \
