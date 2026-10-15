@@ -3,8 +3,8 @@
 #include "MainWindow.h"
 #include "MousePositionCorrection.h"
 #include "QScintillaLexerFactory.h"
-#include "containers/GitRepoContainer.h"
-#include "containers/ui_GitRepoContainer.h"
+#include "containers/RepoContainer.h"
+#include "containers/ui_RepoContainer.h"
 #include "delegates/ElidePartialColorDelegate.h"
 #include "delegates/HistorySliceTableColumnDelegate.h"
 #include "delegates/HistorySummaryTableColumnDelegate.h"
@@ -69,7 +69,7 @@
 #include <set>
 #include <utility>
 
-#define THREAD_ID "GitRepoContainer"
+#define THREAD_ID "RepoContainer"
 
 #define HEAD "HEAD"
 
@@ -168,12 +168,12 @@ showUnifiedDiff(QsciScintilla *editor, const QString &diff,
       inHunk = false;
     } else if (lineText.startsWith("@@")) {
       inHunk = true;
-      editor->markerAdd(line, GitRepoContainer::UnifiedDiffHunkMarker);
+      editor->markerAdd(line, RepoContainer::UnifiedDiffHunkMarker);
     } else if (inHunk && lineText.startsWith('-')) {
-      editor->markerAdd(line, GitRepoContainer::UnifiedDiffDeletedMarker);
+      editor->markerAdd(line, RepoContainer::UnifiedDiffDeletedMarker);
       deletedLines.append(line);
     } else if (inHunk && lineText.startsWith('+')) {
-      editor->markerAdd(line, GitRepoContainer::UnifiedDiffAddedMarker);
+      editor->markerAdd(line, RepoContainer::UnifiedDiffAddedMarker);
       addedLines.append(line);
     }
   }
@@ -181,11 +181,33 @@ showUnifiedDiff(QsciScintilla *editor, const QString &diff,
   return {deletedLines, addedLines};
 }
 
-GitRepoManagerBridgeImpl::GitRepoManagerBridgeImpl(GitRepoContainer &container)
+GitRepoManagerBridgeImpl::GitRepoManagerBridgeImpl(RepoContainer &container)
     : _container(container) {}
 
-void GitRepoManagerBridgeImpl::blame(
-    const QWeakPointer<GitRepoContainer> &guard, const QStringList &files) {
+RepoFeatures GitRepoManagerBridgeImpl::features() const {
+  return RepoFeatures::GitFlow | RepoFeatures::Remotes |
+         RepoFeatures::Worktrees | RepoFeatures::CommitInfoSha |
+         RepoFeatures::CommitInfoEmail | RepoFeatures::HistoryColumnSha |
+         RepoFeatures::HistoryContextMenuCopyToClipboard |
+         RepoFeatures::HistoryContextMenuCopyToClipboardSHA |
+         RepoFeatures::HistoryContextMenuReset |
+         RepoFeatures::HistoryColumnEmail | RepoFeatures::SearchBarSha |
+         RepoFeatures::PushAvailable | RepoFeatures::StashInfoAuthor |
+         RepoFeatures::StashInfoEmail | RepoFeatures::StashInfoParent |
+         RepoFeatures::StashInfoSHA | RepoFeatures::StashInfoTitleStash |
+         RepoFeatures::HistoryViewContextMenuBisect |
+         RepoFeatures::HistoryViewContextMenuCheckoutCommit |
+         RepoFeatures::LocalBranchesDragAndDropRebase |
+         RepoFeatures::LocalBranchesDragAndDropSquash |
+         RepoFeatures::CherryPickDialogSHA | RepoFeatures::GitLFS |
+         RepoFeatures::LocalBranchesContextMenuUpstream |
+         RepoFeatures::TagsContextMenuPushToRemote |
+         RepoFeatures::TagsContextMenuDeleteFromRemote |
+         RepoFeatures::ExternalsAddDialogPlaceholderSubmoduleName;
+}
+
+void GitRepoManagerBridgeImpl::blame(const QWeakPointer<RepoContainer> &guard,
+                                     const QStringList &files) {
   LOG_PERF(0, "Enter");
 
   if (files.isEmpty()) {
@@ -240,6 +262,16 @@ void GitRepoManagerBridgeImpl::blame(
   const auto blameResult =
       commandResult.value.value<GitRepoBlameCommandResult>();
 
+  showBlameReport(_container, guard, blameResult.report);
+
+  LOG_PERF(0, "Exit");
+}
+
+void GitRepoManagerBridgeImpl::showBlameReport(
+    RepoContainer &container, const QWeakPointer<RepoContainer> &guard,
+    const GitRepo::BlameReport &report) {
+  LOG_PERF(0, "Enter");
+
   QStringList blameLines;
   QStringList blameLineNumbers;
   QStringList blameAuthors;
@@ -263,7 +295,7 @@ void GitRepoManagerBridgeImpl::blame(
     }
   };
 
-  for (const auto &fileInfo : blameResult.report.fileInfos) {
+  for (const auto &fileInfo : report.fileInfos) {
     appendSeparator();
     appendPlainLine(QStringLiteral("File: %1").arg(fileInfo.filePath));
 
@@ -293,11 +325,11 @@ void GitRepoManagerBridgeImpl::blame(
       blameAuthors += author;
       blameCommits += committed ? lineInfo.commit : QString();
       blameCommitToolTips +=
-          committed ? _container
+          committed ? container
                           .tr("%1\n%2\n\nClick to show the commit in the "
                               "history.")
                           .arg(lineInfo.commit, lineInfo.summary)
-                    : _container.tr("Not committed yet");
+                    : container.tr("Not committed yet");
 
       if (author.size() > widestAuthor.size()) {
         widestAuthor = author;
@@ -315,8 +347,8 @@ void GitRepoManagerBridgeImpl::blame(
   const int lineWidth = maxLineNumberDigits;
   const QString lineNumberMask = QString(lineWidth, QChar('9'));
 
-  Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    auto *editor = _container.ui->scintillaBlameEditor;
+  Util::Dispatcher::dispatchToMainThread(guard, [=, &container]() {
+    auto *editor = container.ui->scintillaBlameEditor;
 
     QsciLexer *previousLexer = editor->lexer();
     editor->setLexer(nullptr);
@@ -337,11 +369,11 @@ void GitRepoManagerBridgeImpl::blame(
 
     editor->setTreeSitterHighlightingEnabled(true);
 
-    constexpr int commitMargin = GitRepoContainer::BlameCommitMargin;
-    constexpr int authorMargin = GitRepoContainer::BlameAuthorMargin;
-    constexpr int shortShaLength = GitRepoContainer::BlameShortShaLength;
+    constexpr int commitMargin = RepoContainer::BlameCommitMargin;
+    constexpr int authorMargin = RepoContainer::BlameAuthorMargin;
+    constexpr int shortShaLength = RepoContainer::BlameShortShaLength;
 
-    _container._blameCommits = blameCommits;
+    container._blameCommits = blameCommits;
 
     editor->setMarginWidth(0, lineNumberMask);
     editor->setMarginWidth(commitMargin,
@@ -358,7 +390,7 @@ void GitRepoManagerBridgeImpl::blame(
       editor->setMarginText(row, authorMargin, blameAuthors.at(row));
     }
 
-    _container.ui->stackedWidgetMiddle->setCurrentIndex(
+    container.ui->stackedWidgetMiddle->setCurrentIndex(
         static_cast<int>(MainViewPanes::Blame));
   });
 
@@ -366,10 +398,9 @@ void GitRepoManagerBridgeImpl::blame(
 }
 
 void GitRepoManagerBridgeImpl::setUpstream(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &branchName,
+    const QWeakPointer<RepoContainer> &guard, const QString &branchName,
     const QString &remoteName, const QString &remoteBranchName,
-    const std::function<void(const QWeakPointer<GitRepoContainer> &)>
-        &onSuccess) {
+    const std::function<void(const QWeakPointer<RepoContainer> &)> &onSuccess) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -452,8 +483,8 @@ void GitRepoManagerBridgeImpl::setUpstream(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoManagerBridgeImpl::stash(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &note) {
+void GitRepoManagerBridgeImpl::stash(const QWeakPointer<RepoContainer> &guard,
+                                     const QString &note) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -518,7 +549,7 @@ void GitRepoManagerBridgeImpl::stash(
 }
 
 void GitRepoManagerBridgeImpl::abortMerge(
-    const QWeakPointer<GitRepoContainer> &guard) {
+    const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -587,7 +618,7 @@ void GitRepoManagerBridgeImpl::abortMerge(
 }
 
 void GitRepoManagerBridgeImpl::abortRebase(
-    const QWeakPointer<GitRepoContainer> &guard) {
+    const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -657,7 +688,7 @@ void GitRepoManagerBridgeImpl::abortRebase(
 }
 
 void GitRepoManagerBridgeImpl::addSubmodule(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &url,
+    const QWeakPointer<RepoContainer> &guard, const QString &url,
     const QString &name, const QString &branch) {
   LOG_PERF(0, "Enter");
 
@@ -731,7 +762,7 @@ void GitRepoManagerBridgeImpl::addSubmodule(
 }
 
 void GitRepoManagerBridgeImpl::addWorktree(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &path,
+    const QWeakPointer<RepoContainer> &guard, const QString &path,
     const QString &branch, const bool createBranch, const QString &baseBranch) {
   LOG_PERF(0, "Enter");
 
@@ -795,7 +826,7 @@ void GitRepoManagerBridgeImpl::addWorktree(
 }
 
 void GitRepoManagerBridgeImpl::removeWorktree(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &name,
+    const QWeakPointer<RepoContainer> &guard, const QString &name,
     const bool force) {
   LOG_PERF(0, "Enter");
 
@@ -850,7 +881,7 @@ void GitRepoManagerBridgeImpl::removeWorktree(
 }
 
 void GitRepoManagerBridgeImpl::lockWorktree(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &name,
+    const QWeakPointer<RepoContainer> &guard, const QString &name,
     const QString &reason) {
   LOG_PERF(0, "Enter");
 
@@ -905,7 +936,7 @@ void GitRepoManagerBridgeImpl::lockWorktree(
 }
 
 void GitRepoManagerBridgeImpl::unlockWorktree(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &name) {
+    const QWeakPointer<RepoContainer> &guard, const QString &name) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -957,10 +988,12 @@ void GitRepoManagerBridgeImpl::unlockWorktree(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoManagerBridgeImpl::amend(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &summary,
-    const QString &description, const QString &author, const QString &email,
-    bool signoff, bool signCommit) {
+void GitRepoManagerBridgeImpl::amend(const QWeakPointer<RepoContainer> &guard,
+                                     const QString &summary,
+                                     const QString &description,
+                                     const QString &author,
+                                     const QString &email, bool signoff,
+                                     bool signCommit) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -1039,7 +1072,7 @@ void GitRepoManagerBridgeImpl::amend(
 }
 
 void GitRepoManagerBridgeImpl::applyPatch(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &filePath) {
+    const QWeakPointer<RepoContainer> &guard, const QString &filePath) {
   QFile file(filePath);
   if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
     Util::Dispatcher::dispatchToMainThread(guard, [&]() {
@@ -1119,8 +1152,8 @@ void GitRepoManagerBridgeImpl::applyPatch(
 }
 
 void GitRepoManagerBridgeImpl::applyStash(
-    const QWeakPointer<GitRepoContainer> &guard, const int stashIndex,
-    const std::function<void(const QWeakPointer<GitRepoContainer> &, int)>
+    const QWeakPointer<RepoContainer> &guard, const int stashIndex,
+    const std::function<void(const QWeakPointer<RepoContainer> &, int)>
         &onSuccess) {
   LOG_PERF(0, "Enter");
 
@@ -1207,10 +1240,9 @@ void GitRepoManagerBridgeImpl::applyStash(
 }
 
 void GitRepoManagerBridgeImpl::checkoutBranch(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &branchName,
-    const GitRepo::BranchType branchType,
-    const std::function<void(const QWeakPointer<GitRepoContainer> &)>
-        &onSuccess) {
+    const QWeakPointer<RepoContainer> &guard, const QString &branchName,
+    const int branchType,
+    const std::function<void(const QWeakPointer<RepoContainer> &)> &onSuccess) {
   LOG_PERF(0, "Enter");
 
   if (branchName == ALL_BRANCHES) {
@@ -1237,7 +1269,7 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
     command.uuid = _container._uuid;
     command.syncUuid = eventUuid;
     command.branchName = branchName;
-    command.branchType = branchType;
+    command.branchType = static_cast<GitRepo::BranchType>(branchType);
 
     EventManager::Event checkoutBranchEvent(
         EventManager::EventType::GitRepoManagerCheckoutBranch, eventUuid);
@@ -1304,7 +1336,7 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
       _container._dispatcher.dispatch([=]() { getBranchHistory(guard); });
     });
 
-    if (branchType == GitRepo::BranchType::Tag) {
+    if (branchType == static_cast<int>(GitRepo::BranchType::Tag)) {
       Util::Dispatcher::dispatchToMainThread(guard, [=]() {
         _container.showToast(
             _container
@@ -1326,7 +1358,7 @@ void GitRepoManagerBridgeImpl::checkoutBranch(
 }
 
 void GitRepoManagerBridgeImpl::checkoutCommit(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
+    const QWeakPointer<RepoContainer> &guard, const QString &commit) {
   LOG_PERF(0, "Enter");
 
   _container.stopWatcher(guard);
@@ -1430,10 +1462,12 @@ void GitRepoManagerBridgeImpl::closeRepo() const {
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoManagerBridgeImpl::commit(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &summary,
-    const QString &description, const QString &author, const QString &email,
-    bool cleanup, bool signoff, bool signCommit) {
+void GitRepoManagerBridgeImpl::commit(const QWeakPointer<RepoContainer> &guard,
+                                      const QString &summary,
+                                      const QString &description,
+                                      const QString &author,
+                                      const QString &email, bool cleanup,
+                                      bool signoff, bool signCommit) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -1517,7 +1551,7 @@ void GitRepoManagerBridgeImpl::commit(
 }
 
 void GitRepoManagerBridgeImpl::commitRebase(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &summary,
+    const QWeakPointer<RepoContainer> &guard, const QString &summary,
     const QString &description, const QString &author, const QString &email,
     bool cleanup, bool signoff, bool signCommit) {
   LOG_PERF(0, "Enter");
@@ -1603,9 +1637,9 @@ void GitRepoManagerBridgeImpl::commitRebase(
 }
 
 void GitRepoManagerBridgeImpl::createBranchFromCommit(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &commit,
+    const QWeakPointer<RepoContainer> &guard, const QString &commit,
     const QString &branchName,
-    const std::function<void(const QWeakPointer<GitRepoContainer> &,
+    const std::function<void(const QWeakPointer<RepoContainer> &,
                              const QString &)> &onSuccess) {
   LOG_PERF(0, "Enter");
 
@@ -1668,7 +1702,7 @@ void GitRepoManagerBridgeImpl::createBranchFromCommit(
 }
 
 void GitRepoManagerBridgeImpl::createPatchFromCommit(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
+    const QWeakPointer<RepoContainer> &guard, const QString &commit) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -1754,7 +1788,7 @@ void GitRepoManagerBridgeImpl::createPatchFromCommit(
 }
 
 void GitRepoManagerBridgeImpl::createTagFromCommit(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &commit,
+    const QWeakPointer<RepoContainer> &guard, const QString &commit,
     const QString &tagName, const QString &message, bool isAnnotated) {
   LOG_PERF(0, "Enter");
 
@@ -1821,7 +1855,7 @@ void GitRepoManagerBridgeImpl::createTagFromCommit(
 }
 
 void GitRepoManagerBridgeImpl::deleteBranch(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &branchName) {
+    const QWeakPointer<RepoContainer> &guard, const QString &branchName) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -1889,7 +1923,7 @@ void GitRepoManagerBridgeImpl::deleteBranch(
 }
 
 void GitRepoManagerBridgeImpl::deleteRemoteBranch(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &branchName) {
+    const QWeakPointer<RepoContainer> &guard, const QString &branchName) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -1964,8 +1998,8 @@ void GitRepoManagerBridgeImpl::deleteRemoteBranch(
 }
 
 void GitRepoManagerBridgeImpl::deleteStash(
-    const QWeakPointer<GitRepoContainer> &guard, int stashIndex,
-    const std::function<void(const QWeakPointer<GitRepoContainer> &, int)>
+    const QWeakPointer<RepoContainer> &guard, int stashIndex,
+    const std::function<void(const QWeakPointer<RepoContainer> &, int)>
         &onSuccess) {
   LOG_PERF(0, "Enter");
 
@@ -2039,9 +2073,8 @@ void GitRepoManagerBridgeImpl::deleteStash(
 }
 
 void GitRepoManagerBridgeImpl::deleteAllStashes(
-    const QWeakPointer<GitRepoContainer> &guard,
-    const std::function<void(const QWeakPointer<GitRepoContainer> &)>
-        &onSuccess) {
+    const QWeakPointer<RepoContainer> &guard,
+    const std::function<void(const QWeakPointer<RepoContainer> &)> &onSuccess) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -2118,7 +2151,7 @@ void GitRepoManagerBridgeImpl::deleteAllStashes(
 }
 
 void GitRepoManagerBridgeImpl::deleteTag(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &tagName) {
+    const QWeakPointer<RepoContainer> &guard, const QString &tagName) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -2183,8 +2216,8 @@ void GitRepoManagerBridgeImpl::deleteTag(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoManagerBridgeImpl::pushTag(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &tagName) {
+void GitRepoManagerBridgeImpl::pushTag(const QWeakPointer<RepoContainer> &guard,
+                                       const QString &tagName) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -2251,7 +2284,7 @@ void GitRepoManagerBridgeImpl::pushTag(
 }
 
 void GitRepoManagerBridgeImpl::pushAllTags(
-    const QWeakPointer<GitRepoContainer> &guard) {
+    const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -2320,7 +2353,7 @@ void GitRepoManagerBridgeImpl::pushAllTags(
 }
 
 void GitRepoManagerBridgeImpl::deleteRemoteTag(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &tagName) {
+    const QWeakPointer<RepoContainer> &guard, const QString &tagName) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -2393,7 +2426,7 @@ void GitRepoManagerBridgeImpl::deleteRemoteTag(
 }
 
 void GitRepoManagerBridgeImpl::openSubmodule(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &submoduleName) {
+    const QWeakPointer<RepoContainer> &guard, const QString &submoduleName) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -2466,7 +2499,7 @@ void GitRepoManagerBridgeImpl::openSubmodule(
 }
 
 void GitRepoManagerBridgeImpl::showStashContent(
-    const QWeakPointer<GitRepoContainer> &guard, int stashIndex) {
+    const QWeakPointer<RepoContainer> &guard, int stashIndex) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Showing stash content for index: {}", stashIndex);
 
@@ -2603,7 +2636,7 @@ void GitRepoManagerBridgeImpl::onStashFileSelected(const QModelIndex &index) {
 
   filePath = QDir::fromNativeSeparators(filePath);
 
-  const QWeakPointer<GitRepoContainer> guard = _container.getSelf().toWeakRef();
+  const QWeakPointer<RepoContainer> guard = _container.getSelf().toWeakRef();
 
   _container._dispatcher.dispatch([=]() {
     // Check file size from commit before generating diff
@@ -2707,7 +2740,7 @@ void GitRepoManagerBridgeImpl::onStashFileSelected(const QModelIndex &index) {
 }
 
 void GitRepoManagerBridgeImpl::deleteSubmodule(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &submoduleName) {
+    const QWeakPointer<RepoContainer> &guard, const QString &submoduleName) {
   LOG_PERF(0, "Enter");
 
   // Stop watcher to release file handles before deletion
@@ -2786,7 +2819,7 @@ void GitRepoManagerBridgeImpl::deleteSubmodule(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoManagerBridgeImpl::diff(const QWeakPointer<GitRepoContainer> &guard,
+void GitRepoManagerBridgeImpl::diff(const QWeakPointer<RepoContainer> &guard,
                                     const QString &filePath) {
   LOG_PERF(0, "Enter");
 
@@ -2880,7 +2913,7 @@ void GitRepoManagerBridgeImpl::diff(const QWeakPointer<GitRepoContainer> &guard,
 }
 
 void GitRepoManagerBridgeImpl::diffThreeWay(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &filePath) {
+    const QWeakPointer<RepoContainer> &guard, const QString &filePath) {
   LOG_PERF(0, "Enter");
 
   _container._lastDiffedFilePath = filePath;
@@ -2961,7 +2994,7 @@ void GitRepoManagerBridgeImpl::diffThreeWay(
 }
 
 void GitRepoManagerBridgeImpl::diffFromCommit(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &filePath,
+    const QWeakPointer<RepoContainer> &guard, const QString &filePath,
     const QString &commit) {
   LOG_PERF(0, "Enter");
 
@@ -3077,7 +3110,7 @@ void GitRepoManagerBridgeImpl::diffFromCommit(
 }
 
 void GitRepoManagerBridgeImpl::diffFiles(
-    const QWeakPointer<GitRepoContainer> &guard, const QStringList &files) {
+    const QWeakPointer<RepoContainer> &guard, const QStringList &files) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -3164,7 +3197,7 @@ void GitRepoManagerBridgeImpl::diffFiles(
 }
 
 void GitRepoManagerBridgeImpl::discardFiles(
-    const QWeakPointer<GitRepoContainer> &guard, const QStringList &files) {
+    const QWeakPointer<RepoContainer> &guard, const QStringList &files) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -3237,8 +3270,7 @@ void GitRepoManagerBridgeImpl::discardFiles(
 }
 
 bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
-    const QWeakPointer<GitRepoContainer> &guard,
-    const GitRepo::BranchType branchType) {
+    const QWeakPointer<RepoContainer> &guard, const int branchType) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -3248,7 +3280,7 @@ bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
   GitRepoGetActiveBranchCommand command;
   command.uuid = _container._uuid;
   command.syncUuid = eventUuid;
-  command.branchType = branchType;
+  command.branchType = static_cast<GitRepo::BranchType>(branchType);
 
   EventManager::Event getActiveBranchEvent(
       EventManager::EventType::GitRepoManagerGetActiveBranch, eventUuid);
@@ -3297,7 +3329,8 @@ bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
       commandResult.value.value<GitRepoGetActiveBranchCommandResult>();
 
   Util::Dispatcher::dispatchToMainThread(guard, [=]() {
-    _container.updateModelActiveBranch(guard, result.branchName, branchType);
+    _container.updateModelActiveBranch(
+        guard, result.branchName, static_cast<GitRepo::BranchType>(branchType));
     _container.releaseHistoryRefreshSemaphore();
   });
 
@@ -3307,7 +3340,7 @@ bool GitRepoManagerBridgeImpl::getActiveBranchOrTag(
 }
 
 bool GitRepoManagerBridgeImpl::getBranchHistory(
-    const QWeakPointer<GitRepoContainer> &guard) {
+    const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
 
   const QString historyEventUuid = Uuid::createUuid();
@@ -3445,7 +3478,7 @@ bool GitRepoManagerBridgeImpl::getBranchHistory(
 }
 
 void GitRepoManagerBridgeImpl::getBranchHistoryPage(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &branchName,
+    const QWeakPointer<RepoContainer> &guard, const QString &branchName,
     const GitRepo::BranchType branchType, const int page,
     const quint64 generation, const bool lowPriority) {
   LOG_PERF(0, "Enter");
@@ -3525,7 +3558,7 @@ void GitRepoManagerBridgeImpl::getBranchHistoryPage(
 }
 
 QStringList GitRepoManagerBridgeImpl::getCommitBranches(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) const {
+    const QWeakPointer<RepoContainer> &guard, const QString &commit) const {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -3572,7 +3605,7 @@ QStringList GitRepoManagerBridgeImpl::getCommitBranches(
 }
 
 QStringList GitRepoManagerBridgeImpl::getCommitTags(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) const {
+    const QWeakPointer<RepoContainer> &guard, const QString &commit) const {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -3618,7 +3651,7 @@ QStringList GitRepoManagerBridgeImpl::getCommitTags(
 }
 
 GitRepo::GitCommitStatus GitRepoManagerBridgeImpl::getCommitStatus(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) const {
+    const QWeakPointer<RepoContainer> &guard, const QString &commit) const {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -3689,7 +3722,7 @@ bool GitRepoManagerBridgeImpl::getLocalBranches() {
   const auto &[success, event] =
       _container._eventManager.waitForAnswer(token, eventUuid, types);
 
-  const QWeakPointer<GitRepoContainer> guard = _container.getSelf().toWeakRef();
+  const QWeakPointer<RepoContainer> guard = _container.getSelf().toWeakRef();
 
   if (!success) {
     _container.releaseHistoryRefreshSemaphore();
@@ -3735,7 +3768,7 @@ bool GitRepoManagerBridgeImpl::getLocalBranches() {
 bool GitRepoManagerBridgeImpl::getRemoteBranches() {
   LOG_PERF(0, "Enter");
 
-  const QWeakPointer<GitRepoContainer> guard = _container.getSelf().toWeakRef();
+  const QWeakPointer<RepoContainer> guard = _container.getSelf().toWeakRef();
 
   const QString eventUuid = Uuid::createUuid();
 
@@ -3802,7 +3835,7 @@ bool GitRepoManagerBridgeImpl::getRemoteBranches() {
 }
 
 bool GitRepoManagerBridgeImpl::getStashes(
-    const QWeakPointer<GitRepoContainer> &guard) {
+    const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -3867,7 +3900,7 @@ bool GitRepoManagerBridgeImpl::getStashes(
 }
 
 bool GitRepoManagerBridgeImpl::getRemotes(
-    const QWeakPointer<GitRepoContainer> &guard) {
+    const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -3969,7 +4002,7 @@ bool GitRepoManagerBridgeImpl::getSubmodules() {
   const auto &[success, event] =
       _container._eventManager.waitForAnswer(token, eventUuid, types);
 
-  const QWeakPointer<GitRepoContainer> guard = _container.getSelf().toWeakRef();
+  const QWeakPointer<RepoContainer> guard = _container.getSelf().toWeakRef();
 
   if (!success) {
     _container.releaseHistoryRefreshSemaphore();
@@ -4014,7 +4047,7 @@ bool GitRepoManagerBridgeImpl::getSubmodules() {
 }
 
 bool GitRepoManagerBridgeImpl::getWorktrees(
-    const QWeakPointer<GitRepoContainer> &guard) {
+    const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -4102,7 +4135,7 @@ bool GitRepoManagerBridgeImpl::getTags() {
   const auto &[success, event] =
       _container._eventManager.waitForAnswer(token, eventUuid, types);
 
-  const QWeakPointer<GitRepoContainer> guard = _container.getSelf().toWeakRef();
+  const QWeakPointer<RepoContainer> guard = _container.getSelf().toWeakRef();
 
   if (!success) {
     _container.releaseHistoryRefreshSemaphore();
@@ -4145,7 +4178,7 @@ bool GitRepoManagerBridgeImpl::getTags() {
 }
 
 QPair<QString, QString> GitRepoManagerBridgeImpl::getUpstream(
-    const QWeakPointer<GitRepoContainer> &guard) {
+    const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -4203,7 +4236,7 @@ QPair<QString, QString> GitRepoManagerBridgeImpl::getUpstream(
 }
 
 QPair<QString, QString> GitRepoManagerBridgeImpl::getUpstreamForBranch(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &branchName) {
+    const QWeakPointer<RepoContainer> &guard, const QString &branchName) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -4247,9 +4280,9 @@ QPair<QString, QString> GitRepoManagerBridgeImpl::getUpstreamForBranch(
   return qMakePair(remoteName, remoteBranchName);
 }
 
-void GitRepoManagerBridgeImpl::merge(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &sourceBranch,
-    const QString &destBranch) {
+void GitRepoManagerBridgeImpl::merge(const QWeakPointer<RepoContainer> &guard,
+                                     const QString &sourceBranch,
+                                     const QString &destBranch) {
   LOG_PERF(0, "Enter");
 
   const QString author = _container._userProfileManager.currentProfile().author;
@@ -4319,9 +4352,10 @@ void GitRepoManagerBridgeImpl::merge(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoManagerBridgeImpl::rebase(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &sourceBranch,
-    const QString &destBranch, bool signCommit) {
+void GitRepoManagerBridgeImpl::rebase(const QWeakPointer<RepoContainer> &guard,
+                                      const QString &sourceBranch,
+                                      const QString &destBranch,
+                                      bool signCommit) {
   LOG_PERF(0, "Enter");
 
   const QString author = _container._userProfileManager.currentProfile().author;
@@ -4392,9 +4426,10 @@ void GitRepoManagerBridgeImpl::rebase(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoManagerBridgeImpl::squash(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &sourceBranch,
-    const QString &destBranch, bool signCommit) {
+void GitRepoManagerBridgeImpl::squash(const QWeakPointer<RepoContainer> &guard,
+                                      const QString &sourceBranch,
+                                      const QString &destBranch,
+                                      bool signCommit) {
   LOG_PERF(0, "Enter");
 
   const QString author = _container._userProfileManager.currentProfile().author;
@@ -4454,9 +4489,9 @@ void GitRepoManagerBridgeImpl::squash(
   LOG_PERF(0, "Exit");
 }
 
-void GitRepoManagerBridgeImpl::bisect(
-    const QWeakPointer<GitRepoContainer> &guard, GitRepo::BisectAction action,
-    const QString &commit) {
+void GitRepoManagerBridgeImpl::bisect(const QWeakPointer<RepoContainer> &guard,
+                                      GitRepo::BisectAction action,
+                                      const QString &commit) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -4551,7 +4586,7 @@ void GitRepoManagerBridgeImpl::bisect(
 }
 
 void GitRepoManagerBridgeImpl::sendGitFlowCommand(
-    const QWeakPointer<GitRepoContainer> &guard,
+    const QWeakPointer<RepoContainer> &guard,
     const GitRepoGitFlowCommand &gitFlowCommand, const QString &failureMessage,
     const QString &successMessage, const QString &conflictMessage) {
   LOG_PERF(0, "Enter");
@@ -4617,7 +4652,7 @@ void GitRepoManagerBridgeImpl::sendGitFlowCommand(
 }
 
 void GitRepoManagerBridgeImpl::startGitFlowBranch(
-    const QWeakPointer<GitRepoContainer> &guard,
+    const QWeakPointer<RepoContainer> &guard,
     const GitRepo::GitFlowBranchType branchType, const QString &branchName) {
   LOG_PERF(0, "Enter");
 
@@ -4639,7 +4674,7 @@ void GitRepoManagerBridgeImpl::startGitFlowBranch(
 }
 
 void GitRepoManagerBridgeImpl::finishGitFlowBranch(
-    const QWeakPointer<GitRepoContainer> &guard,
+    const QWeakPointer<RepoContainer> &guard,
     const GitRepo::GitFlowBranchType branchType, const QString &branchName) {
   LOG_PERF(0, "Enter");
 
@@ -4663,7 +4698,7 @@ void GitRepoManagerBridgeImpl::finishGitFlowBranch(
 }
 
 void GitRepoManagerBridgeImpl::runGitLabFlowAction(
-    const QWeakPointer<GitRepoContainer> &guard,
+    const QWeakPointer<RepoContainer> &guard,
     const GitRepo::GitLabFlowAction action, const QString &branchName,
     const QString &commit) {
   LOG_PERF(0, "Enter");
@@ -4731,7 +4766,7 @@ void GitRepoManagerBridgeImpl::runGitLabFlowAction(
 }
 
 void GitRepoManagerBridgeImpl::runGitHubFlowAction(
-    const QWeakPointer<GitRepoContainer> &guard,
+    const QWeakPointer<RepoContainer> &guard,
     const GitRepo::GitHubFlowAction action, const QString &branchName) {
   LOG_PERF(0, "Enter");
 
@@ -4774,7 +4809,7 @@ void GitRepoManagerBridgeImpl::runGitHubFlowAction(
 }
 
 void GitRepoManagerBridgeImpl::runGitFlowNextAction(
-    const QWeakPointer<GitRepoContainer> &guard,
+    const QWeakPointer<RepoContainer> &guard,
     const GitRepo::GitFlowNextAction action, const QString &name,
     const QString &argument) {
   LOG_PERF(0, "Enter");
@@ -4829,7 +4864,7 @@ void GitRepoManagerBridgeImpl::runGitFlowNextAction(
 }
 
 void GitRepoManagerBridgeImpl::applyGitFlowNextWorkflow(
-    const QWeakPointer<GitRepoContainer> &guard,
+    const QWeakPointer<RepoContainer> &guard,
     const GitRepo::GitFlowNextWorkflow &workflow) {
   LOG_PERF(0, "Enter");
 
@@ -4850,7 +4885,7 @@ void GitRepoManagerBridgeImpl::applyGitFlowNextWorkflow(
 }
 
 void GitRepoManagerBridgeImpl::getWorkflowType(
-    const QWeakPointer<GitRepoContainer> &guard) {
+    const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -4891,7 +4926,7 @@ void GitRepoManagerBridgeImpl::getWorkflowType(
 }
 
 void GitRepoManagerBridgeImpl::setWorkflowType(
-    const QWeakPointer<GitRepoContainer> &guard,
+    const QWeakPointer<RepoContainer> &guard,
     const GitRepo::WorkflowType workflow) {
   LOG_PERF(0, "Enter");
 
@@ -4941,7 +4976,7 @@ void GitRepoManagerBridgeImpl::setWorkflowType(
 }
 
 bool GitRepoManagerBridgeImpl::openRepo(
-    const QWeakPointer<GitRepoContainer> &guard) {
+    const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
 
   const Common::UserProfile profile =
@@ -4998,7 +5033,7 @@ bool GitRepoManagerBridgeImpl::openRepo(
   return refreshHistorySuccess;
 }
 
-void GitRepoManagerBridgeImpl::pull(const QWeakPointer<GitRepoContainer> &guard,
+void GitRepoManagerBridgeImpl::pull(const QWeakPointer<RepoContainer> &guard,
                                     bool rebase) {
   LOG_PERF(0, "Enter");
 
@@ -5068,7 +5103,7 @@ void GitRepoManagerBridgeImpl::pull(const QWeakPointer<GitRepoContainer> &guard,
 }
 
 void GitRepoManagerBridgeImpl::fetchAll(
-    const QWeakPointer<GitRepoContainer> &guard) {
+    const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -5134,7 +5169,7 @@ void GitRepoManagerBridgeImpl::fetchAll(
 }
 
 void GitRepoManagerBridgeImpl::fetchRemote(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &remoteName) {
+    const QWeakPointer<RepoContainer> &guard, const QString &remoteName) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -5201,7 +5236,7 @@ void GitRepoManagerBridgeImpl::fetchRemote(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoManagerBridgeImpl::push(const QWeakPointer<GitRepoContainer> &guard,
+void GitRepoManagerBridgeImpl::push(const QWeakPointer<RepoContainer> &guard,
                                     bool force) {
   LOG_PERF(0, "Enter");
 
@@ -5271,7 +5306,7 @@ void GitRepoManagerBridgeImpl::push(const QWeakPointer<GitRepoContainer> &guard,
 }
 
 void GitRepoManagerBridgeImpl::addRemote(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &remoteName,
+    const QWeakPointer<RepoContainer> &guard, const QString &remoteName,
     const QString &fetchUrl, const QString &pushUrl) {
   LOG_PERF(0, "Enter");
   LOG_DEBUG("Adding remote '{}' with fetch URL '{}'", remoteName.toStdString(),
@@ -5331,7 +5366,7 @@ void GitRepoManagerBridgeImpl::addRemote(
 }
 
 void GitRepoManagerBridgeImpl::editRemote(
-    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex,
+    const QWeakPointer<RepoContainer> &guard, int remoteIndex,
     const QString &remoteName, const QString &fetchUrl,
     const QString &pushUrl) {
   LOG_PERF(0, "Enter");
@@ -5407,7 +5442,7 @@ void GitRepoManagerBridgeImpl::editRemote(
 }
 
 void GitRepoManagerBridgeImpl::deleteRemote(
-    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex) {
+    const QWeakPointer<RepoContainer> &guard, int remoteIndex) {
   LOG_PERF(0, "Enter");
 
   if (remoteIndex < 0 ||
@@ -5477,7 +5512,7 @@ void GitRepoManagerBridgeImpl::deleteRemote(
 }
 
 void GitRepoManagerBridgeImpl::setDefaultRemote(
-    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex) {
+    const QWeakPointer<RepoContainer> &guard, int remoteIndex) {
   LOG_PERF(0, "Enter");
 
   if (remoteIndex < 0 ||
@@ -5547,7 +5582,7 @@ void GitRepoManagerBridgeImpl::setDefaultRemote(
 }
 
 void GitRepoManagerBridgeImpl::addTarget(
-    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex,
+    const QWeakPointer<RepoContainer> &guard, int remoteIndex,
     const QString &targetName, const QString &fetchUrl,
     const QString &pushUrl) {
   LOG_PERF(0, "Enter");
@@ -5623,8 +5658,8 @@ void GitRepoManagerBridgeImpl::addTarget(
 }
 
 void GitRepoManagerBridgeImpl::editTarget(
-    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex,
-    int targetIndex, const QString &newFetchUrl, const QString &newPushUrl) {
+    const QWeakPointer<RepoContainer> &guard, int remoteIndex, int targetIndex,
+    const QString &newFetchUrl, const QString &newPushUrl) {
   LOG_PERF(0, "Enter");
 
   if (remoteIndex < 0 ||
@@ -5708,7 +5743,7 @@ void GitRepoManagerBridgeImpl::editTarget(
 }
 
 void GitRepoManagerBridgeImpl::deleteTarget(
-    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex,
+    const QWeakPointer<RepoContainer> &guard, int remoteIndex,
     int targetIndex) {
   LOG_PERF(0, "Enter");
 
@@ -5792,7 +5827,7 @@ void GitRepoManagerBridgeImpl::deleteTarget(
 }
 
 void GitRepoManagerBridgeImpl::setDefaultTarget(
-    const QWeakPointer<GitRepoContainer> &guard, int remoteIndex,
+    const QWeakPointer<RepoContainer> &guard, int remoteIndex,
     int targetIndex) {
   LOG_PERF(0, "Enter");
 
@@ -5876,7 +5911,7 @@ void GitRepoManagerBridgeImpl::setDefaultTarget(
 }
 
 void GitRepoManagerBridgeImpl::renameBranch(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &oldName,
+    const QWeakPointer<RepoContainer> &guard, const QString &oldName,
     const QString &newName) {
   LOG_PERF(0, "Enter");
 
@@ -5946,7 +5981,7 @@ void GitRepoManagerBridgeImpl::renameBranch(
 }
 
 void GitRepoManagerBridgeImpl::renameTag(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &oldName,
+    const QWeakPointer<RepoContainer> &guard, const QString &oldName,
     const QString &newName) {
   LOG_PERF(0, "Enter");
 
@@ -6014,9 +6049,8 @@ void GitRepoManagerBridgeImpl::renameTag(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoManagerBridgeImpl::reset(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &commit,
-    GitRepo::ResetType type) {
+void GitRepoManagerBridgeImpl::reset(const QWeakPointer<RepoContainer> &guard,
+                                     const QString &commit, const int type) {
   LOG_PERF(0, "Enter");
 
   const QString eventUuid = Uuid::createUuid();
@@ -6027,7 +6061,7 @@ void GitRepoManagerBridgeImpl::reset(
   command.uuid = _container._uuid;
   command.syncUuid = eventUuid;
   command.commit = commit;
-  command.resetType = type;
+  command.resetType = static_cast<GitRepo::ResetType>(type);
 
   EventManager::Event resetEvent(EventManager::EventType::GitRepoManagerReset,
                                  eventUuid);
@@ -6081,8 +6115,8 @@ void GitRepoManagerBridgeImpl::reset(
   LOG_PERF(0, "Exit")
 }
 
-void GitRepoManagerBridgeImpl::revert(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
+void GitRepoManagerBridgeImpl::revert(const QWeakPointer<RepoContainer> &guard,
+                                      const QString &commit) {
   LOG_PERF(0, "Enter");
 
   const QString summaryToRevert =
@@ -6156,7 +6190,7 @@ void GitRepoManagerBridgeImpl::revert(
 }
 
 void GitRepoManagerBridgeImpl::cherryPick(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &commit) {
+    const QWeakPointer<RepoContainer> &guard, const QString &commit) {
   LOG_PERF(0, "Enter");
 
   QString summaryCherryPick;
@@ -6244,7 +6278,7 @@ void GitRepoManagerBridgeImpl::cherryPick(
 }
 
 void GitRepoManagerBridgeImpl::refreshStatus(
-    const QWeakPointer<GitRepoContainer> &guard) {
+    const QWeakPointer<RepoContainer> &guard) {
   LOG_PERF(0, "Enter");
 
   const QString statusEventUuid = Uuid::createUuid();
@@ -6322,7 +6356,7 @@ void GitRepoManagerBridgeImpl::refreshStatus(
 }
 
 void GitRepoManagerBridgeImpl::showCommitAndMerge(
-    QWeakPointer<GitRepoContainer> guard) {
+    QWeakPointer<RepoContainer> guard) {
   LOG_PERF(0, "Enter");
 
   QString eventUuid = Uuid::createUuid();
@@ -6507,7 +6541,7 @@ void GitRepoManagerBridgeImpl::showCommitAndMerge(
 }
 
 void GitRepoManagerBridgeImpl::stageFiles(
-    const QWeakPointer<GitRepoContainer> &guard, const QStringList &files) {
+    const QWeakPointer<RepoContainer> &guard, const QStringList &files) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(!files.isEmpty());
@@ -6584,7 +6618,7 @@ void GitRepoManagerBridgeImpl::stageFiles(
 }
 
 void GitRepoManagerBridgeImpl::unstageFiles(
-    const QWeakPointer<GitRepoContainer> &guard, const QStringList &files) {
+    const QWeakPointer<RepoContainer> &guard, const QStringList &files) {
   LOG_PERF(0, "Enter");
 
   Q_ASSERT(!files.isEmpty());
@@ -6662,7 +6696,7 @@ void GitRepoManagerBridgeImpl::unstageFiles(
 }
 
 void GitRepoManagerBridgeImpl::updateSubmodule(
-    const QWeakPointer<GitRepoContainer> &guard, const QString &submoduleName) {
+    const QWeakPointer<RepoContainer> &guard, const QString &submoduleName) {
   LOG_PERF(0, "Enter");
 
   LOG_PERF(0, "Enter");

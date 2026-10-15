@@ -11,6 +11,10 @@
 #include "widgets/ToastHostWidget.h"
 #include "widgets/TopBarWidget.h"
 
+#include "containers/CloneRepoContainer.h"
+#include "containers/InitRepoContainer.h"
+#include "containers/RepoContainer.h"
+
 #include <ConfigManager.h>
 #include <EventManager.h>
 #include <GitRepo.h>
@@ -69,8 +73,10 @@ signals:
 private slots:
   void onOpen();
   void onClone();
+  void onCloneSubversion();
   void onCloneFinished(ContainerWidget *sender);
   void onInit();
+  void onInitSubversion();
   void onInitFinished(ContainerWidget *sender);
   void onOpenRepo(const QString &path);
   void onRecentClicked(const QString &path);
@@ -105,8 +111,12 @@ private slots:
   void onProfile(int middleX);
 
 private:
-  void addCloneContainer();
+  void
+  addCloneContainer(Containers::CloneType type = Containers::CloneType::Git);
   void addGitRepoContainer(const QString &path);
+  void addSvnRepoContainer(const QString &path);
+  void openRepositoryByType(const QString &path, const QString &sourceLabel);
+  void promptOpenClonedRepository(const QString &path, bool isSvn);
   void addGitCredentialsContainer();
   void addIssueTrackerContainer(const QString &serviceType,
                                 const QString &repositoryName,
@@ -114,7 +124,8 @@ private:
                                 const QString &title = QString());
   void addGitKeysContainer();
   void addHomeContainer();
-  void addInitGitRepoContainer();
+  void
+  addInitRepoContainer(Containers::InitType type = Containers::InitType::Git);
   void addSettingsContainer();
   void addBugReportContainer();
   void addReleaseNotesContainer(const QString &title, const QString &markdown);
@@ -129,7 +140,8 @@ private:
   static void hidePassphraseOverlay(SshPassphraseOverlayWidget *widget);
   static void showPassphraseOverlay(const GitCredentialsRequest &request,
                                     SshPassphraseOverlayWidget *widget);
-  void showCloneProgressToast(const CloneProgress &data);
+  void showCloneProgressToast(const CloneProgress &data,
+                              const QString &title = QString());
   void showToast(const QString &text, const QString &title);
   void showErrorToast(const QString &text, const QString &title);
 

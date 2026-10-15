@@ -19,7 +19,7 @@ function(includeComponent linkTo componentName)
 
       message(STATUS "Setting ${linkTo} include path ${${componentName}_INCLUDE_PATH}")
 
-      target_include_directories(${linkTo} PRIVATE ${${componentName}_INCLUDE_PATH})
+      target_include_directories(${linkTo} PUBLIC ${${componentName}_INCLUDE_PATH})
       target_link_libraries(${linkTo} PUBLIC ${componentName})
       include_directories(${${componentName}_INCLUDE_PATH})
 
@@ -44,7 +44,7 @@ function(includeLib linkTo libraryName)
 
       message(STATUS "Setting ${linkTo} include path ${${libraryName}_INCLUDE_PATH}")
 
-      target_include_directories(${linkTo} PRIVATE ${${libraryName}_INCLUDE_PATH})
+      target_include_directories(${linkTo} PUBLIC ${${libraryName}_INCLUDE_PATH})
       target_link_libraries(${linkTo} PUBLIC ${libraryName})
       include_directories(${${libraryName}_INCLUDE_PATH})
 
@@ -69,7 +69,7 @@ function(includeModule linkTo moduleName)
 
       message(STATUS "Setting ${linkTo} include path ${${moduleName}_INCLUDE_PATH}")
 
-      target_include_directories(${linkTo} PRIVATE ${${moduleName}_INCLUDE_PATH})
+      target_include_directories(${linkTo} PUBLIC ${${moduleName}_INCLUDE_PATH})
       target_link_libraries(${linkTo} PUBLIC ${moduleName})
       include_directories(${${moduleName}_INCLUDE_PATH})
 
@@ -90,7 +90,7 @@ function(includeLibFiles linkTo libraryName)
 
       message(STATUS "Setting ${linkTo} include path ${${libraryName}_INCLUDE_PATH}")
 
-      target_include_directories(${linkTo} PRIVATE ${${libraryName}_INCLUDE_PATH})
+      target_include_directories(${linkTo} PUBLIC ${${libraryName}_INCLUDE_PATH})
 
       if (DEFINED ${libraryName}_INCLUDE_LIB)
         target_link_libraries(${linkTo} PUBLIC ${${libraryName}_INCLUDE_LIB})

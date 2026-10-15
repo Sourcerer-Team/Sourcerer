@@ -115,6 +115,10 @@ AddSubmoduleOverlayWidget::~AddSubmoduleOverlayWidget() {
   LOG_PERF(0, "Exit");
 }
 
+void AddSubmoduleOverlayWidget::setNamePlaceholderText(const QString &text) {
+  _lineEditName->setPlaceholderText(text);
+}
+
 bool AddSubmoduleOverlayWidget::eventFilter(QObject *obj, QEvent *event) {
   if (event->type() == QEvent::KeyPress) {
     if (const auto *keyEvent = dynamic_cast<QKeyEvent *>(event);

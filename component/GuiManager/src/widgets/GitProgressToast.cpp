@@ -60,7 +60,11 @@ GitProgressToast::GitProgressToast(const CloneProgress &data,
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoError, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoProgress, callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -74,7 +78,11 @@ GitProgressToast::~GitProgressToast() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoError, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoProgress, callbackFunc));
 
   LOG_PERF(0, "Exit");
 }
@@ -95,12 +103,14 @@ void GitProgressToast::eventCallback(EventManager::Event event) {
   LOG_DEBUG("Processing event of type {}.", (int)eventType);
 
   switch (eventType) {
-  case EventManager::EventType::GitRepoManagerCloneRepoError: {
+  case EventManager::EventType::GitRepoManagerCloneRepoError:
+  case EventManager::EventType::SvnRepoManagerCloneRepoError: {
     Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(),
                                            [=]() { emit finished(); });
     break;
   }
-  case EventManager::EventType::GitRepoManagerCloneRepoProgress: {
+  case EventManager::EventType::GitRepoManagerCloneRepoProgress:
+  case EventManager::EventType::SvnRepoManagerCloneRepoProgress: {
     const GitRepoManager::Structs::GitRepoResult commandResult =
         event.data<GitRepoManager::Structs::GitRepoResult>();
     if (commandResult.uuid != _data.uuid) {
@@ -125,8 +135,12 @@ void GitProgressToast::eventCallback(EventManager::Event event) {
       emit finished();
     } else {
       Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
-        _progressBar->setRange(0, static_cast<int>(data.totalSteps) - 1);
-        _progressBar->setValue(static_cast<int>(data.completedSteps));
+        if (data.totalSteps == 0) {
+          _progressBar->setRange(0, 0);
+        } else {
+          _progressBar->setRange(0, static_cast<int>(data.totalSteps) - 1);
+          _progressBar->setValue(static_cast<int>(data.completedSteps));
+        }
         _messageLabel->setText(data.stage == CloneProgressStageType::Checkout
                                    ? tr(CHECKOUT_STR)
                                    : tr(FETCHING_STR));

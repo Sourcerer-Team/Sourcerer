@@ -73,6 +73,8 @@
         <file>icons/repo-open.svg</file>
         <file>icons/repo-clone.svg</file>
         <file>icons/repo-init.svg</file>
+        <file>icons/repo-type-git.svg</file>
+        <file>icons/repo-type-svn.svg</file>
         <file>icons/terminal.svg</file>
         <file>icons/settings.png</file>
         <file>release_notes/RELEASE_NOTES.md</file>

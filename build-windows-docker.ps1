@@ -103,7 +103,7 @@ if ($env:GITHUB_ACTIONS -eq 'true') {
 Write-Host "CPUS set to: $env:CPUS"
 
 # Run the complete build process in Docker container (build project + create installer)
-docker run --cpus $CPUS --memory 16g --rm `
+docker run --isolation=hyperv --cpus $CPUS --memory 16g --rm `
     --name $ContainerName `
     -v "${ProjectRoot}:C:\workspace" `
     -w "C:\workspace" `

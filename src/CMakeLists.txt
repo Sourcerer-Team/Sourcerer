@@ -11,7 +11,7 @@ if(APPLE AND SOURCERER_MACOS_UNIVERSAL AND NOT CMAKE_OSX_ARCHITECTURES)
       "Build architectures for macOS" FORCE)
 endif()
 
-project(Sourcerer VERSION 1.0.13 LANGUAGES CXX)
+project(Sourcerer VERSION 1.0.15 LANGUAGES CXX)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -32,6 +32,18 @@ find_package(zlib REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Svg Core5Compat
              LinguistTools OPTIONAL_COMPONENTS WebEngineWidgets)
 
+if(WIN32)
+  include_directories(SYSTEM
+      C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/include
+      "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt"
+      "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/shared"
+      "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/um")
+  link_directories(
+      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64"
+      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/ucrt/x64"
+      "C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/lib/x64")
+endif()
+
 set(PROJECT_SOURCES
         main.cpp
 )
@@ -46,6 +58,10 @@ endif()
 
 if(WIN32)
   set(APP_ICON_RES "${CMAKE_CURRENT_SOURCE_DIR}/../component/GuiManager/resources/icons/app_icon.res")
+  link_directories(
+      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64"
+      "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/ucrt/x64"
+      "C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/lib/x64")
 endif()
 
 qt_add_executable(Sourcerer
@@ -64,15 +80,22 @@ includeComponent(Sourcerer ComponentManager)
 includeComponent(Sourcerer ConfigManager)
 includeComponent(Sourcerer EventManager)
 includeComponent(Sourcerer GitRepoManager)
+includeComponent(Sourcerer SvnRepoManager)
 includeComponent(Sourcerer NewsTracker)
 includeComponent(Sourcerer UpdateManager)
 includeComponent(Sourcerer GuiManager)
 includeComponent(Sourcerer StylesheetManager)
 
+includeLib(Sourcerer Common)
+includeLib(Sourcerer GitRepo)
+includeLib(Sourcerer QtWaitingSpinner)
+includeLib(Sourcerer QVTerminal)
 includeLib(Sourcerer Fsm)
 includeLib(Sourcerer IssueTrackers)
-includeLib(Sourcerer Log)
 includeLib(Sourcerer RecyclerView)
+includeLib(Sourcerer SvnRepo)
+includeLib(Sourcerer OpenSSLHelper)
+includeLib(Sourcerer Log)
 includeLib(Sourcerer Util)
 
 includeComponent(SourcererLauncher ConfigManager)
@@ -89,6 +112,12 @@ else ()
   set(ADDITIONAL_LIBRARIES)
 endif ()
 
+option(SOURCERER_BUILD_SVNREPO_TESTS "Build the SvnRepo tests" OFF)
+if (SOURCERER_BUILD_SVNREPO_TESTS)
+  enable_testing()
+  add_subdirectory(../tests/svnrepo ${CMAKE_BINARY_DIR}/tests/svnrepo)
+endif ()
+
 target_link_libraries(Sourcerer PRIVATE
         Qt6::Widgets
         libssh2
@@ -98,6 +127,22 @@ target_link_libraries(Sourcerer PRIVATE
         reftable
         util
         xdiff
+        cyrus-sasl
+        serf
+        apr-1
+        aprutil-1
+        sqlite3
+        utf8proc
+        libsvnxx
+        libsvn_client
+        libsvn_wc
+        libsvn_repos
+        libsvn_ra
+        libsvn_delta
+        libsvn_diff
+        libsvn_fs
+        libsvn_subr
+        expat::expat
         libzip::zip
         ZLIB::ZLIB
         ${ADDITIONAL_LIBRARIES}
@@ -193,17 +238,12 @@ install(TARGETS Sourcerer SourcererLauncher
 
 
 if (WIN32)
-  set(_windeployqt_args
-      --release
-      --no-translations)
-  if(DEFINED ENV{OPENSSL_ROOT_DIR} AND NOT "$ENV{OPENSSL_ROOT_DIR}" STREQUAL "")
-    list(APPEND _windeployqt_args --openssl-root "$ENV{OPENSSL_ROOT_DIR}")
-  endif()
-
   add_custom_command(TARGET Sourcerer POST_BUILD
-            COMMAND "${Qt6_DIR}/../../../bin/windeployqt.exe"
-            ${_windeployqt_args}
-            "$<TARGET_FILE:Sourcerer>"
+            COMMAND ${CMAKE_COMMAND}
+                    -D WINDEPLOYQT="${Qt6_DIR}/../../../bin/windeployqt.exe"
+                    -D TARGET_FILE="$<TARGET_FILE:Sourcerer>"
+                    -D OPENSSL_ROOT="$ENV{OPENSSL_ROOT_DIR}"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/../cmake/RunWinDeployQt.cmake"
             COMMENT "Deploying Qt runtime dependencies"
     )
 endif ()

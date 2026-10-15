@@ -24,6 +24,8 @@ public:
   void clearCached();
   void updateActiveBranch(const QString &branchName);
   void updateModel(const QStringList &localBranches);
+  // Shows the item that selects the history of all branches as the first item.
+  void setShowAllBranchesItem(bool show);
 
   // Shows the branches as Graphite stacks until clearGraphiteStacks().
   void setGraphiteStacks(const GitRepo::GraphiteStacks &stacks);
@@ -49,6 +51,7 @@ private:
   QStringList _localBranches;
   QString _activeBranch;
   GitRepo::GraphiteStacks _graphiteStacks;
+  bool _showAllBranchesItem{true};
   QAbstractItemDelegate *_defaultDelegate{nullptr};
   QAbstractItemDelegate *_graphiteDelegate{nullptr};
 };
