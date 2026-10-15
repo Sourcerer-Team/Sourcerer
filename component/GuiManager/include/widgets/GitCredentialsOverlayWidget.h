@@ -34,6 +34,7 @@ public:
   bool showing() const override { return _showing; }
   void setRequest(const GitRepo::GitCredentialsRequest &request);
   void setRepoPath(const QString &repoPath);
+  void setIsSvn(bool isSvn);
   void start();
   void stop();
 
@@ -64,6 +65,7 @@ private:
   GitRepo::GitCredentialsRequest _request;
   QString _repoPath;
   bool _showing;
+  bool _isSvn;
   QSharedPointer<bool> _holder;
   size_t _id;
 };

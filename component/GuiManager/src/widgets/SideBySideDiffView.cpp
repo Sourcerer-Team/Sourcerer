@@ -252,6 +252,95 @@ createContent(const QString &leftContent,
   return content;
 }
 
+static SideBySideDiffContent
+createContent(const QString &leftContent,
+              const SvnRepo::FilesDiffDelta &rightDelta) {
+  LOG_PERF(0, "Enter");
+
+  QStringList leftLines =
+      QString(leftContent).replace("\r\n", "\n").split('\n');
+
+  QStringList alignedLeft;
+  QStringList alignedRight;
+
+  QVector<int> changedLeft0;
+  QVector<int> changedLeft1;
+  QVector<int> changedRight0;
+  QVector<int> changedRight1;
+
+  int currentLeftIndex = 0; // track position in original file
+
+  for (const auto &hunk : rightDelta.hunks) {
+    int hunkStart = hunk.oldStart - 1;
+
+    // --- Copy unchanged lines before hunk ---
+    while (currentLeftIndex < hunkStart &&
+           currentLeftIndex < leftLines.size()) {
+      alignedLeft.append(leftLines[currentLeftIndex]);
+      alignedRight.append(leftLines[currentLeftIndex]);
+      currentLeftIndex++;
+    }
+
+    // --- Apply hunk ---
+    int leftIndex = hunk.oldStart > 0 ? hunk.oldStart - 1 : 0;
+    int rightIndex = hunk.newStart > 0 ? hunk.newStart - 1 : 0;
+
+    for (const auto &line : hunk.lines) {
+      if (line.origin == QChar('-')) {
+        // Removed from left
+        if (leftIndex < leftLines.size()) {
+          alignedLeft.append(leftLines[leftIndex]);
+        } else {
+          alignedLeft.append(""); // safety
+        }
+        changedLeft0.append(alignedLeft.length() - 1);
+        alignedRight.append(""); // mark deletion on right
+        changedRight1.append(alignedLeft.length() - 1);
+        leftIndex++;
+        // rightIndex++;
+        currentLeftIndex++;
+      } else if (line.origin == QChar('+')) {
+        // Added to right
+        alignedLeft.append(""); // placeholder empty line on left
+        changedLeft1.append(alignedLeft.length() - 1);
+        alignedRight.append(line.content);
+        changedRight0.append(alignedRight.length() - 1);
+        // leftIndex++;
+        rightIndex++;
+        // currentLeftIndex++;
+      } else {
+        // Context line
+        if (leftIndex < leftLines.size()) {
+          alignedLeft.append(leftLines[leftIndex]);
+          alignedRight.append(leftLines[leftIndex]);
+        }
+        leftIndex++;
+        rightIndex++;
+        currentLeftIndex++;
+      }
+    }
+  }
+
+  // --- Copy remaining lines after last hunk ---
+  while (currentLeftIndex < leftLines.size()) {
+    alignedLeft.append(leftLines[currentLeftIndex]);
+    alignedRight.append(leftLines[currentLeftIndex]);
+    currentLeftIndex++;
+  }
+
+  SideBySideDiffContent content;
+  content.left = alignedLeft.join('\n');
+  content.right = alignedRight.join('\n');
+  content.leftMarks0 = changedLeft0;
+  content.leftMarks1 = changedLeft1;
+  content.rightMarks0 = changedRight0;
+  content.rightMarks1 = changedRight1;
+
+  LOG_PERF(0, "Exit");
+
+  return content;
+}
+
 void SideBySideDiffView::changeEvent(QEvent *event) {
   QWidget::changeEvent(event);
 
@@ -310,6 +399,81 @@ void SideBySideDiffView::clearContent() {
 
 void SideBySideDiffView::loadAndHighlight(
     const QString &leftContent, const GitRepo::FilesDiffDelta &rightDelta,
+    const QString &filePath) {
+  LOG_PERF(0, "Enter");
+
+  clearContent();
+
+  _leftEditor->setTreeSitterHighlightingEnabled(false);
+  _rightEditor->setTreeSitterHighlightingEnabled(false);
+
+  const SideBySideDiffContent content = createContent(leftContent, rightDelta);
+
+  const QStringList leftRaw =
+      QString(content.left).replace("\r\n", "\n").split('\n');
+  const QStringList rightRaw =
+      QString(content.right).replace("\r\n", "\n").split('\n');
+
+  const int leftLineCount = content.left.length() + 1;
+  const int rightLineCount = content.right.length() + 1;
+  const int leftWidth = QString::number(leftLineCount).length();
+  const int rightWidth = QString::number(rightLineCount).length();
+  const QString leftMask =
+      QString::number(0).rightJustified(leftWidth + 1, '0');
+  const QString rightMask =
+      QString::number(0).rightJustified(rightWidth + 1, '0');
+
+  _leftEditor->setMarginWidth(0, leftMask);
+  _rightEditor->setMarginWidth(0, rightMask);
+
+  _leftEditor->setText(content.left);
+  _rightEditor->setText(content.right);
+
+  // Highlight differing lines
+  _leftEditor->markerDefine(QsciScintilla::Background, 1);
+  _leftEditor->markerDefine(QsciScintilla::Background, 2);
+  _rightEditor->markerDefine(QsciScintilla::Background, 1);
+  _rightEditor->markerDefine(QsciScintilla::Background, 2);
+
+  // refreshScintillaTheme();
+
+  for (const int line : content.leftMarks0) {
+    _leftEditor->markerAdd(line, 1);
+  }
+
+  for (const int line : content.leftMarks1) {
+    _leftEditor->markerAdd(line, 2);
+  }
+
+  for (const int line : content.rightMarks0) {
+    _rightEditor->markerAdd(line, 1);
+  }
+
+  for (const int line : content.rightMarks1) {
+    _rightEditor->markerAdd(line, 2);
+  }
+
+  // Update scrollbar marks
+  // leftMarks0 = deleted lines (red) on left editor
+  // leftMarks1 = added lines (green) on left editor
+  // rightMarks0 = added lines (green) on right editor
+  // rightMarks1 = deleted lines (red) on right editor
+  _leftMarks->setMarks(content.leftMarks0, content.leftMarks1);
+  _rightMarks->setMarks(content.rightMarks1, content.rightMarks0);
+
+  setupEditors(filePath);
+
+  _leftEditor->setTreeSitterHighlightingEnabled(true);
+  _rightEditor->setTreeSitterHighlightingEnabled(true);
+
+  _leftEditor->verticalScrollBar()->triggerAction(
+      QAbstractSlider::SliderToMinimum);
+
+  LOG_PERF(0, "Exit");
+}
+
+void SideBySideDiffView::loadAndHighlight(
+    const QString &leftContent, const SvnRepo::FilesDiffDelta &rightDelta,
     const QString &filePath) {
   LOG_PERF(0, "Enter");
 

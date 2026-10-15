@@ -598,8 +598,8 @@ void MergeDiffView::goToNextConflict() {
     return;
   }
 
-  scrollToConflict(std::min(_currentConflictIndex + 1,
-                            int(_content.rangesTop.length()) - 1));
+  scrollToConflict((std::min)(_currentConflictIndex + 1,
+                              int(_content.rangesTop.length()) - 1));
 
   LOG_PERF(0, "Exit");
 }
@@ -612,7 +612,7 @@ void MergeDiffView::goToPreviousConflict() {
     return;
   }
 
-  scrollToConflict(std::max(_currentConflictIndex - 1, 0));
+  scrollToConflict((std::max)(_currentConflictIndex - 1, 0));
 
   LOG_PERF(0, "Exit");
 }
@@ -631,9 +631,9 @@ void MergeDiffView::scrollToConflict(int rangeIndex) {
   setCurrentConflictIndex(rangeIndex);
 
   const int topLine =
-      std::max(0, _content.rangesTop[rangeIndex].leftStart - contextLines);
-  const int bottomLine =
-      std::max(0, _content.rangesBottom[rangeIndex].blockStart - contextLines);
+      (std::max)(0, _content.rangesTop[rangeIndex].leftStart - contextLines);
+  const int bottomLine = (std::max)(
+      0, _content.rangesBottom[rangeIndex].blockStart - contextLines);
 
   // The top editors are kept in sync and drag the bottom editor along, so
   // the bottom editor, whose lines differ, is positioned last.

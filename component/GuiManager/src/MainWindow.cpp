@@ -3,16 +3,17 @@
 #include "Constants.h"
 #include "GitRepoManagerStructs.h"
 #include "ReleaseNotes.h"
+#include "SvnRepoManagerStructs.h"
 #include "WindowResize.h"
 #include "containers/BugReportContainer.h"
-#include "containers/CloneGitRepoContainer.h"
+#include "containers/CloneRepoContainer.h"
 #include "containers/GitCredentialsContainer.h"
 #include "containers/GitKeysContainer.h"
-#include "containers/GitRepoContainer.h"
 #include "containers/IssueTrackerContainer.h"
+#include "containers/RepoContainer.h"
 
 #include "containers/HomeContainer.h"
-#include "containers/InitGitRepoContainer.h"
+#include "containers/InitRepoContainer.h"
 #include "containers/ReleaseNotesContainer.h"
 #include "containers/SettingsContainer.h"
 #include "dialogs/AboutDialog.h"
@@ -56,6 +57,23 @@
 #define THREAD_ID "MainWindow"
 
 namespace {
+
+enum class OpenedRepositoryType {
+  Unknown = 0,
+  Git,
+  Subversion,
+};
+
+OpenedRepositoryType detectRepositoryType(const QString &path) {
+  const QDir repoDir(path);
+  if (repoDir.exists(QStringLiteral(".git"))) {
+    return OpenedRepositoryType::Git;
+  }
+  if (repoDir.exists(QStringLiteral(".svn"))) {
+    return OpenedRepositoryType::Subversion;
+  }
+  return OpenedRepositoryType::Unknown;
+}
 
 class BottomResizeGripWidget final : public QWidget {
 public:
@@ -245,13 +263,19 @@ MainWindow::MainWindow(QWidget *parent)
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerGetCredentials, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc));
   _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoResult, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.subscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoProgress, callbackFunc));
   _eventManager.subscribe(
       CAPTURE_CALLBACK(EventManager::EventType::NewsTrackerNews, callbackFunc));
 
@@ -271,11 +295,17 @@ MainWindow::~MainWindow() {
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoProgress, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoProgress, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoError, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerCloneRepoResult, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerCloneRepoResult, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
       EventManager::EventType::GitRepoManagerInitRepoResult, callbackFunc));
+  _eventManager.unsubscribe(CAPTURE_CALLBACK(
+      EventManager::EventType::SvnRepoManagerInitRepoResult, callbackFunc));
   _eventManager.unsubscribe(
       CAPTURE_CALLBACK(EventManager::EventType::NewsTrackerNews, callbackFunc));
   _eventManager.unsubscribe(CAPTURE_CALLBACK(
@@ -472,6 +502,41 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
   return _hitDetector->eventFilter(watched, event);
 }
 
+void MainWindow::openRepositoryByType(const QString &path,
+                                      const QString &sourceLabel) {
+  const OpenedRepositoryType type = detectRepositoryType(path);
+  switch (type) {
+  case OpenedRepositoryType::Git:
+    addGitRepoContainer(path);
+    break;
+  case OpenedRepositoryType::Subversion:
+    addSvnRepoContainer(path);
+    break;
+  default:
+    LOG_WARN("{} does not look like a Git or Subversion repository: {}",
+             sourceLabel, path);
+    break;
+  }
+}
+
+void MainWindow::promptOpenClonedRepository(const QString &path,
+                                            const bool isSvn) {
+  const QMessageBox::StandardButton reply = QMessageBox::question(
+      this, tr("Repository cloned"),
+      tr("The repository was cloned successfully. Do you want to open it?\n%1")
+          .arg(QDir::toNativeSeparators(path)),
+      QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+  if (reply != QMessageBox::Yes) {
+    return;
+  }
+
+  if (isSvn) {
+    addSvnRepoContainer(path);
+  } else {
+    addGitRepoContainer(path);
+  }
+}
+
 void MainWindow::onOpen() {
   LOG_PERF(0, "Enter");
 
@@ -483,9 +548,10 @@ void MainWindow::onOpen() {
   }
 
   const QString path = QFileDialog::getExistingDirectory(
-      this, tr("Open Git repository"), documentsPaths[0]);
-  if (!path.isEmpty())
-    addGitRepoContainer(path);
+      this, tr("Open repository"), documentsPaths[0]);
+  if (!path.isEmpty()) {
+    openRepositoryByType(path, QStringLiteral("Selected path"));
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -493,7 +559,15 @@ void MainWindow::onOpen() {
 void MainWindow::onClone() {
   LOG_PERF(0, "Enter");
 
-  addCloneContainer();
+  addCloneContainer(Containers::CloneType::Git);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onCloneSubversion() {
+  LOG_PERF(0, "Enter");
+
+  addCloneContainer(Containers::CloneType::Subversion);
 
   LOG_PERF(0, "Exit");
 }
@@ -509,7 +583,15 @@ void MainWindow::onCloneFinished(ContainerWidget *sender) {
 void MainWindow::onInit() {
   LOG_PERF(0, "Enter");
 
-  addInitGitRepoContainer();
+  addInitRepoContainer();
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::onInitSubversion() {
+  LOG_PERF(0, "Enter");
+
+  addInitRepoContainer(Containers::InitType::Subversion);
 
   LOG_PERF(0, "Exit");
 }
@@ -533,8 +615,9 @@ void MainWindow::onOpenRepo(const QString &path) {
 void MainWindow::onRecentClicked(const QString &path) {
   LOG_PERF(0, "Enter");
 
-  if (!path.isEmpty())
-    addGitRepoContainer(path);
+  if (!path.isEmpty()) {
+    openRepositoryByType(path, QStringLiteral("Selected recent path"));
+  }
 
   LOG_PERF(0, "Exit");
 }
@@ -1101,25 +1184,27 @@ void MainWindow::onProfile(int middleX) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::addCloneContainer() {
+void MainWindow::addCloneContainer(CloneType type) {
   LOG_PERF(0, "Enter");
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  const auto container = QSharedPointer<CloneGitRepoContainer>::create(this);
+  const auto container = QSharedPointer<CloneRepoContainer>::create(this, type);
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
   container->init();
   container->selected();
   container->setupShortcuts();
   _containers += container;
-  _topBarWidget->titleBarWidget()->addTab(tr("Clone"));
+  _topBarWidget->titleBarWidget()->addTab(type == Containers::CloneType::Git
+                                              ? tr("Clone Git")
+                                              : tr("Checkout Subversion"));
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   const auto handlerFunc =
       std::bind(&MainWindow::onCloneFinished, this, container.get());
 
-  connect(container.get(), &CloneGitRepoContainer::finished, this, handlerFunc);
+  connect(container.get(), &CloneRepoContainer::finished, this, handlerFunc);
 
   LOG_PERF(0, "Exit");
 }
@@ -1129,20 +1214,56 @@ void MainWindow::addGitRepoContainer(const QString &path) {
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  const auto container = QSharedPointer<GitRepoContainer>::create(path, this);
+  const auto container = QSharedPointer<RepoContainer>::create(
+      Widgets::ContainerType::GitRepo, path, this);
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
   container->init();
   container->selected();
   container->setupShortcuts();
 
-  connect(container.get(), &GitRepoContainer::openRepoRequested, this,
+  connect(container.get(), &RepoContainer::openRepoRequested, this,
           &MainWindow::onOpenRepo);
-  connect(container.get(), &GitRepoContainer::openPullRequestRequested, this,
+  connect(container.get(), &RepoContainer::openPullRequestRequested, this,
           [this](const QString &repositoryName, const QUrl &url,
                  const QString &title) {
             addIssueTrackerContainer(QStringLiteral("github"), repositoryName,
                                      url, title);
           });
+
+  _containers += container;
+
+  const QStringList parts =
+      QDir::fromNativeSeparators(path).split('/', Qt::SkipEmptyParts);
+
+  QString repoName;
+  if (!parts.empty()) {
+    repoName = parts.last();
+  } else {
+    repoName = path;
+  }
+
+  _topBarWidget->titleBarWidget()->addTab(repoName,
+                                          QDir::toNativeSeparators(path));
+  _topBarWidget->titleBarWidget()->selectTab(
+      _topBarWidget->titleBarWidget()->tabsCount() - 1);
+
+  LOG_PERF(0, "Exit");
+}
+
+void MainWindow::addSvnRepoContainer(const QString &path) {
+  LOG_PERF(0, "Enter");
+
+  const qlonglong titleBarHeight =
+      _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
+  const auto container = QSharedPointer<RepoContainer>::create(
+      Widgets::ContainerType::SvnRepo, path, this);
+  container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
+  container->init();
+  container->selected();
+  container->setupShortcuts();
+
+  connect(container.get(), &RepoContainer::openRepoRequested, this,
+          &MainWindow::onOpenRepo);
 
   _containers += container;
 
@@ -1181,7 +1302,11 @@ void MainWindow::addHomeContainer() {
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   connect(container.get(), &HomeContainer::clone, this, &MainWindow::onClone);
+  connect(container.get(), &HomeContainer::cloneSubversion, this,
+          &MainWindow::onCloneSubversion);
   connect(container.get(), &HomeContainer::init, this, &MainWindow::onInit);
+  connect(container.get(), &HomeContainer::initSubversion, this,
+          &MainWindow::onInitSubversion);
   connect(container.get(), &HomeContainer::open, this, &MainWindow::onOpen);
   connect(container.get(), &HomeContainer::issueTrackerClicked, this,
           &MainWindow::onIssueTrackerClicked);
@@ -1193,26 +1318,26 @@ void MainWindow::addHomeContainer() {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::addInitGitRepoContainer() {
+void MainWindow::addInitRepoContainer(Containers::InitType type) {
   LOG_PERF(0, "Enter");
 
   const qlonglong titleBarHeight =
       _configManager.getLong(ConfigManager::ConfigKey::TitleBarHeight);
-  const auto container = QSharedPointer<InitGitRepoContainer>::create(this);
+  const auto container = QSharedPointer<InitRepoContainer>::create(this, type);
   container->setContentsMargins(0, titleBarHeight - (-TOP_MARGIN_OFFSET), 0, 0);
   container->init();
   container->selected();
   container->setupShortcuts();
   _containers += container;
-  _topBarWidget->titleBarWidget()->addTab(tr("Init"));
+  _topBarWidget->titleBarWidget()->addTab(
+      type == Containers::InitType::Git ? tr("Init") : tr("Init Subversion"));
   _topBarWidget->titleBarWidget()->selectTab(
       _topBarWidget->titleBarWidget()->tabsCount() - 1);
 
   const auto handlerFunc =
       std::bind(&MainWindow::onInitFinished, this, container.get());
 
-  connect(container.get(), &InitGitRepoContainer::initialized, this,
-          handlerFunc);
+  connect(container.get(), &InitRepoContainer::initialized, this, handlerFunc);
 
   LOG_PERF(0, "Exit");
 }
@@ -1528,6 +1653,42 @@ void MainWindow::eventCallback(EventManager::Event event) {
     });
     break;
   }
+  case EventManager::EventType::SvnRepoManagerGetCredentials: {
+    const auto request = event.data<GitCredentialsRequest>();
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      Q_ASSERT(_current != -1);
+      QWidget *parent =
+          _current != -1 ? qobject_cast<QWidget *>(_containers[_current].get())
+                         : qobject_cast<QWidget *>(this);
+      Q_ASSERT(parent != nullptr);
+      if (!parent) {
+        LOG_WARN("Parent widget is null.");
+        return;
+      }
+      GitCredentialsOverlayWidget *overlayWidget = nullptr;
+      if (_credentialsWidgets.contains(request.id)) {
+        overlayWidget = _credentialsWidgets[request.id];
+      } else {
+        overlayWidget = new GitCredentialsOverlayWidget(request.id, parent);
+        overlayWidget->setIsSvn(true);
+        _credentialsWidgets[request.id] = overlayWidget;
+        connect(overlayWidget, &GitCredentialsOverlayWidget::error, this,
+                [=]() {
+                  hideCredentialsOverlay(overlayWidget);
+                  _credentialsWidgets.remove(request.id);
+                  delete overlayWidget;
+                });
+        connect(overlayWidget, &GitCredentialsOverlayWidget::finished, this,
+                [=]() {
+                  hideCredentialsOverlay(overlayWidget);
+                  _credentialsWidgets.remove(request.id);
+                  delete overlayWidget;
+                });
+      }
+      showCredentialsOverlay(request, overlayWidget);
+    });
+    break;
+  }
   case EventManager::EventType::GitRepoManagerCloneRepoError: {
     Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
       showErrorToast(tr("Unable to clone Git repository"), tr("Error"));
@@ -1538,20 +1699,44 @@ void MainWindow::eventCallback(EventManager::Event event) {
     const auto commandResult =
         event.data<GitRepoManager::Structs::GitRepoResult>();
     const QString repoPath = commandResult.value.toString();
-    Util::Dispatcher::dispatchToMainThread(
-        getSelf().toWeakRef(), [=]() { addGitRepoContainer(repoPath); });
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      promptOpenClonedRepository(repoPath, false);
+    });
     break;
   }
-  case EventManager::EventType::GitRepoManagerCloneRepoProgress: {
+  case EventManager::EventType::SvnRepoManagerCloneRepoResult: {
     const auto commandResult =
-        event.data<GitRepoManager::Structs::GitRepoResult>();
-    if (const CloneProgress data = commandResult.value.value<CloneProgress>();
-        !data.error && !data.finished && !_progressing.contains(data.uuid)) {
+        event.data<SvnRepoManager::Structs::SvnRepoResult>();
+    const QString repoPath = commandResult.value.toString();
+    Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+      promptOpenClonedRepository(repoPath, true);
+    });
+    break;
+  }
+  case EventManager::EventType::GitRepoManagerCloneRepoProgress:
+  case EventManager::EventType::SvnRepoManagerCloneRepoProgress: {
+    CloneProgress data;
+    QString title;
+    if (eventType == EventManager::EventType::GitRepoManagerCloneRepoProgress) {
+      const auto commandResult =
+          event.data<GitRepoManager::Structs::GitRepoResult>();
+      data = commandResult.value.value<CloneProgress>();
+      title = data.cloning ? tr("Clone") : tr("Fetch");
+    } else {
+      const auto commandResult =
+          event.data<GitRepoManager::Structs::GitRepoResult>();
+      data = commandResult.value.value<CloneProgress>();
+      title = tr("Checkout");
+    }
+
+    if (!data.error && !data.finished && !_progressing.contains(data.uuid)) {
       _progressing += data.uuid;
-      Util::Dispatcher::dispatchToMainThread(
-          getSelf().toWeakRef(), [=]() { showCloneProgressToast(data); });
-    } else if (data.finished)
+      Util::Dispatcher::dispatchToMainThread(getSelf().toWeakRef(), [=]() {
+        showCloneProgressToast(data, title);
+      });
+    } else if (data.finished) {
       _progressing.remove(data.uuid);
+    }
 
     break;
   }
@@ -1561,6 +1746,14 @@ void MainWindow::eventCallback(EventManager::Event event) {
     const auto repoPath = commandResult.value.toString();
     Util::Dispatcher::dispatchToMainThread(
         getSelf().toWeakRef(), [=]() { addGitRepoContainer(repoPath); });
+    break;
+  }
+  case EventManager::EventType::SvnRepoManagerInitRepoResult: {
+    const auto commandResult =
+        event.data<SvnRepoManager::Structs::SvnRepoResult>();
+    const auto repoPath = commandResult.value.toString();
+    Util::Dispatcher::dispatchToMainThread(
+        getSelf().toWeakRef(), [=]() { addSvnRepoContainer(repoPath); });
     break;
   }
   case EventManager::EventType::NewsTrackerNews: {
@@ -1718,11 +1911,13 @@ void MainWindow::hideCredentialsOverlay(GitCredentialsOverlayWidget *widget) {
   LOG_PERF(0, "Exit");
 }
 
-void MainWindow::showCloneProgressToast(const CloneProgress &data) {
+void MainWindow::showCloneProgressToast(const CloneProgress &data,
+                                        const QString &title) {
   LOG_PERF(0, "Enter");
 
   const auto toast = QSharedPointer<GitProgressToast>::create(
-      data, data.cloning ? tr("Clone") : tr("Fetch"));
+      data,
+      title.isEmpty() ? (data.cloning ? tr("Clone") : tr("Fetch")) : title);
 
   Dispatcher::dispatchToMainThread(getSelf().toWeakRef(),
                                    [=]() { _toastHost.addToast(toast); });

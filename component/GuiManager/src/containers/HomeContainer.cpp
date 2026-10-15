@@ -16,6 +16,7 @@
 #include <StylesheetManager.h>
 #include <TokensStorage.h>
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
 #include <QByteArray>
@@ -358,7 +359,8 @@ HomeContainer::HomeContainer(QWidget *parent)
   ui->tableViewIssueTrackerConnections->setColumnWidth(0, 24);
   ui->tableViewIssueTrackerConnections->setIconSize(QSize(16, 16));
 
-  const auto setupButtonIcon = [](QPushButton *button, const QString &path) {
+  const auto setupButtonIcon = [](QAbstractButton *button,
+                                  const QString &path) {
     button->setProperty("iconSource", path);
     button->setIcon(
         QIcon(StylesheetManager::StylesheetManager::renderSvgToPixmap(
@@ -409,6 +411,26 @@ HomeContainer::HomeContainer(QWidget *parent)
 
   ui->connectToButton->setMenu(connectToMenu);
 
+  auto *cloneMenu = new QMenu(ui->cloneButton);
+  auto *cloneGitAction = cloneMenu->addAction(tr("Git clone"));
+  connect(cloneGitAction, &QAction::triggered, this,
+          &HomeContainer::onCloneClicked);
+  auto *cloneSubversionAction = cloneMenu->addAction(tr("Subversion checkout"));
+  connect(cloneSubversionAction, &QAction::triggered, this,
+          &HomeContainer::onCloneSubversionClicked);
+
+  ui->cloneButton->setMenu(cloneMenu);
+
+  auto *initMenu = new QMenu(ui->initButton);
+  auto *initGitAction = initMenu->addAction(tr("Git init"));
+  connect(initGitAction, &QAction::triggered, this,
+          &HomeContainer::onInitClicked);
+  auto *initSubversionAction = initMenu->addAction(tr("Subversion create"));
+  connect(initSubversionAction, &QAction::triggered, this,
+          &HomeContainer::onInitSubversionClicked);
+
+  ui->initButton->setMenu(initMenu);
+
   connect(ui->tableViewIssueTrackerConnections,
           &IssueTrackersTableView::hoverEnter, this,
           &HomeContainer::hoverEnter);
@@ -425,10 +447,6 @@ HomeContainer::HomeContainer(QWidget *parent)
           &HomeContainer::hoverLeave);
   connect(ui->openButton, &QPushButton::clicked, this,
           &HomeContainer::onOpenClicked);
-  connect(ui->cloneButton, &QPushButton::clicked, this,
-          &HomeContainer::onCloneClicked);
-  connect(ui->initButton, &QPushButton::clicked, this,
-          &HomeContainer::onInitClicked);
   connect(this, &HomeContainer::issueTrackerRightClicked, this,
           &HomeContainer::onIssueTrackerRightClicked);
   connect(this, &HomeContainer::recentRightClicked, this,
@@ -669,6 +687,14 @@ void HomeContainer::onCloneClicked() {
   LOG_PERF(0, "Enter");
 
   emit clone();
+
+  LOG_PERF(0, "Exit");
+}
+
+void HomeContainer::onCloneSubversionClicked() {
+  LOG_PERF(0, "Enter");
+
+  emit cloneSubversion();
 
   LOG_PERF(0, "Exit");
 }
@@ -1750,6 +1776,14 @@ void HomeContainer::onInitClicked() {
   LOG_PERF(0, "Exit");
 }
 
+void HomeContainer::onInitSubversionClicked() {
+  LOG_PERF(0, "Enter");
+
+  emit initSubversion();
+
+  LOG_PERF(0, "Exit");
+}
+
 void HomeContainer::onOpenClicked(bool checked) {
   LOG_PERF(0, "Enter");
 
@@ -1787,7 +1821,10 @@ void HomeContainer::onRecentRightClicked(const QString &path,
         _configManager.getString(ConfigManager::ConfigKey::RecentlyOpenedRepos);
     QStringList pathsList = recentPaths.split(";", Qt::SkipEmptyParts);
 
-    pathsList.removeAll(QDir::fromNativeSeparators(path));
+    const QString repoPath = QDir::fromNativeSeparators(path);
+    pathsList.removeIf([&repoPath](const QString &entry) {
+      return RecentlyOpenedReposModel::recentEntryPath(entry) == repoPath;
+    });
     recentPaths = pathsList.join(";");
 
     _configManager.setString(ConfigManager::ConfigKey::RecentlyOpenedRepos,

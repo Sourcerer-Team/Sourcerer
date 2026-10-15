@@ -18,15 +18,15 @@ set(GITREPOMANAGER_SOURCE_FILES
     include/GitRepoManagerFsm.h
     include/GitRepoManagerState.h
     include/GitRepoManagerStructs.h
-    include/InitializationState.h
-    include/ProcessingState.h
+    include/GitRepoManagerInitializationState.h
+    include/GitRepoManagerProcessingState.h
     src/GitRepoManager.cpp
     src/GitRepoManagerEvent.cpp
     src/GitRepoManagerFsm.cpp
     src/GitRepoManagerState.cpp
     src/GitRepoManagerStructs.cpp
-    src/InitializationState.cpp
-    src/ProcessingState.cpp
+    src/GitRepoManagerInitializationState.cpp
+    src/GitRepoManagerProcessingState.cpp
 )
 
 add_library(GitRepoManager STATIC ${GITREPOMANAGER_SOURCE_FILES})

@@ -9,6 +9,10 @@ RUN apt-get update && apt-get install -y \
     cmake \
     ninja-build \
     pkg-config \
+    libtool \
+    libtool-bin \
+    autoconf \
+    automake \
     git \
     wget \
     curl \
@@ -70,6 +74,7 @@ RUN apt-get update && apt-get install -y \
     libxcb-glx0-dev \
     libsecret-1-dev \
     p7zip-full \
+    python3 \
     && rm -rf /var/lib/apt/lists/*
 
 ENV QT_DIR=/opt/Qt

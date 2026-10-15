@@ -37,6 +37,12 @@ enum class ConfigKey {
   GitRepoCommitSignOff,
   GitRepoCommitSign,
 
+  // SvnRepo container, kept apart from GitRepo since its layout differs
+  SvnRepoSplitterPos,
+  SvnRepoStashSplitterPos,
+  SvnRepoHistoryViewColumnWidths,
+  SvnRepoHistoryViewHiddenColumns,
+
   // GitRepo library
   GitRepoGitCredentialsExpirationTime,
   GitRepoServerConnectTimeout,

@@ -91,6 +91,17 @@ void LocalGitBranchesPage::updateModel(const QStringList &localBranches) {
   LOG_PERF(0, "Exit");
 }
 
+void LocalGitBranchesPage::setShowAllBranchesItem(bool show) {
+  LOG_PERF(0, "Enter");
+
+  if (_showAllBranchesItem != show) {
+    _showAllBranchesItem = show;
+    rebuild();
+  }
+
+  LOG_PERF(0, "Exit");
+}
+
 void LocalGitBranchesPage::setGraphiteStacks(
     const GitRepo::GraphiteStacks &stacks) {
   LOG_PERF(0, "Enter");
@@ -129,7 +140,7 @@ void LocalGitBranchesPage::rebuild() {
 
   // The first item shows the history of all branches.
   QStringList branches;
-  if (!_localBranches.isEmpty()) {
+  if (_showAllBranchesItem && !_localBranches.isEmpty()) {
     branches += QString(ALL_BRANCHES);
   }
 

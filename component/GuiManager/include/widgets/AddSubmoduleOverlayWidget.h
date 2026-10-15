@@ -13,6 +13,8 @@ public:
   explicit AddSubmoduleOverlayWidget(QWidget *parent);
   ~AddSubmoduleOverlayWidget() override;
 
+  void setNamePlaceholderText(const QString &text);
+
   [[nodiscard]] bool showing() const override { return true; }
 
 signals:

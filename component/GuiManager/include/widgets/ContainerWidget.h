@@ -13,11 +13,12 @@ enum class ContainerType {
   GitRepo,
   GitSigning,
   Home,
-  InitGitRepo,
+  InitRepo,
   PleaseWait,
   Settings,
   IssueTracker,
   ReleaseNotes,
+  SvnRepo,
   last
 };
 

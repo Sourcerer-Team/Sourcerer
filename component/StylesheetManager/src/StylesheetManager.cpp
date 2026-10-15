@@ -642,27 +642,27 @@ QString makeDarkStylesheet() {
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#openButton{
+      QToolButton#cloneButton{
         background-color: #384D59;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#openButton:hover{
+      QToolButton#cloneButton:hover{
         background-color: #4a6070;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
         text-decoration: none;
       }
-      QPushButton#cloneButton{
+      QToolButton#cloneButton{
      )__DARK_6__") +
          QStringLiteral(R"__DARK_7__(   background-color: #384D59;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#cloneButton:hover{
+      QToolButton#cloneButton:hover{
         background-color: #4a6070;
         border: 1px solid gray;
         border-radius: 5px;
@@ -682,13 +682,13 @@ QString makeDarkStylesheet() {
         padding: 5px;
         text-decoration: none;
       }
-      QPushButton#initButton{
+      QPushButton#openButton, QToolButton#cloneButton, QToolButton#connectToButton, QToolButton#initButton{
         background-color: #384D59;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#initButton:hover{
+      QPushButton#openButton:hover, QToolButton#cloneButton:hover, QToolButton#connectToButton:hover, QToolButton#initButton:hover{
         background-color: #4a6070;
         border: 1px solid gray;
         border-radius: 5px;
@@ -1189,7 +1189,7 @@ QString makeDarkStylesheet() {
       GuiManager--Widgets--TitlebarWidget,GuiManager--Widgets--TitlebarWidget * {
         font-size:14px;
       }
-      GuiManager--Containers--GitRepoContainer{
+      GuiManager--Containers--RepoContainer{
         font-size:14px;
         background-color:#353535;
       }
@@ -1761,26 +1761,27 @@ QString makeLightStylesheet() {
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#openButton{
+
+      QToolButton#cloneButton{
         background-color: #E7EEF4;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#openButton:hover{
+      QToolButton#cloneButton:hover{
         background-color: #4a6070;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
         text-decoration: none;
       }
-      QPushButton#cloneButton{
+      QToolButton#initButton{
         background-color: #E7EEF4;
         border: 1px solid gray;
         border-radius: 5px;
         padding: 5px;
       }
-      QPushButton#cloneButton:hover{
+      QToolButton#initButton:hover{
         background-color: #4a6070;
         border: 1px solid gray;
         border-radius: 5px;
@@ -1801,19 +1802,7 @@ QString makeLightStylesheet() {
         padding: 5px;
         text-decoration: none;
       }
-      QPushButton#initButton{
-        background-color: #E7EEF4;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-      }
-      QPushButton#initButton:hover{
-        background-color: #4a6070;
-        border: 1px solid gray;
-        border-radius: 5px;
-        padding: 5px;
-        text-decoration: none;
-      }
+
       QPushButton#pushButtonBrowse{
         background-color: #E7EEF4;
         border: 1px solid gray;
@@ -2326,7 +2315,7 @@ QString makeLightStylesheet() {
       GuiManager--Widgets--TitlebarWidget,GuiManager--Widgets--TitlebarWidget * {
         font-size:14px;
       }
-      GuiManager--Containers--GitRepoContainer{
+      GuiManager--Containers--RepoContainer{
         font-size:14px;
         background-color:#E7EEF4;
       }

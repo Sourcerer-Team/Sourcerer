@@ -3,6 +3,7 @@
 #include <GuiManager.h>
 #include <NewsTracker.h>
 #include <SingleInstanceGuard.h>
+#include <SvnRepoManager.h>
 #include <UpdateManager.h>
 #include <UpdateStaging.h>
 
@@ -181,6 +182,7 @@ int main(int argc, char *argv[]) {
   ComponentManager::ComponentManager componentManager;
   componentManager.addThread<GitRepoManager::GitRepoManager>();
   componentManager.addThread<NewsTracker::NewsTracker>();
+  componentManager.addThread<SvnRepoManager::SvnRepoManager>();
   componentManager.addThread<UpdateManager::UpdateManager>();
   componentManager.startProcess<GuiManager::GuiManager>();
   componentManager.stopAll();
