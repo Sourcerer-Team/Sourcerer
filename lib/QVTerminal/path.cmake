@@ -1,0 +1,1 @@
+set(QVTerminal_INCLUDE_PATH ${CMAKE_CURRENT_LIST_DIR}/src)

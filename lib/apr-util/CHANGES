@@ -1,0 +1,186 @@
+                                                     -*- coding: utf-8 -*-
+Changes with APR-util 1.6.5
+
+  *) Fix oracle DBD compilation errors introduced in 1.6.4. PR 70170.
+
+Changes with APR-util 1.6.4
+
+  *) SECURITY: CVE-2026-34502: Heap buffer overflow in APR memcached
+     client (cve.mitre.org)
+     Heap-based Buffer Overflow vulnerability in Apache Portable
+     Runtime Utility memcached client
+     This issue affects Apache Portable Runtime Utility: from 1.3.0
+     through 1.6.3.
+     Credits: Elhanan Haenel
+
+  *) SECURITY: CVE-2026-34501: Apache Portable Runtime Utility: Heap
+     buffer overflow in APR redis client (cve.mitre.org)
+     Heap-based Buffer Overflow vulnerability in Apache Portable
+     Runtime Utility redis client.
+     This issue affects Apache Portable Runtime Utility: from 1.6.0
+     through 1.6.3.
+     Users are recommended to upgrade to version 1.6.4, which fixes
+     the issue.
+     Credits: Elhanan Haenel
+
+  *) SECURITY: CVE-2026-34191: Apache Portable Runtime Utility: SQL
+     Injection in apr_dbd_oracle (cve.mitre.org)
+     Improper Neutralization of Special Elements used in an SQL
+     Command ('SQL Injection') vulnerability in Apache Portable
+     Runtime Utility via apr_dbd_oracle provider.
+     This issue affects Apache Portable Runtime Utility: from 1.6.0
+     through 1.6.3.
+     Users are recommended to upgrade to version 1.6.4, which fixes
+     the issue.
+     Credits: Elhanan Haenel
+
+  *) SECURITY: CVE-2026-32327: Apache Portable Runtime Utility:
+     apr-util XML stack recursion crash (cve.mitre.org)
+     A bug in APR-util version 1.6.3 (and earlier) allows a stack
+     recursion attack against any library consumer which parses XML
+     from untrusted sources and uses the apr_xml_quote_elem()
+     function.
+     Users are recommended to upgrade to version 1.6.4, which fixes
+     this issue.
+     Credits: Younghyo Cho @ CISLab, SeoulTech
+
+  *) SECURITY: CVE-2025-49506: apr_password_validate() vulnerable to
+     timing attack (cve.mitre.org)
+     APR-util versions 1.6.3 (and earlier) function
+     apr_password_validate() was not constant-time with regards to
+     hashes or passwords comparisons, potentially leaking their
+     content via a side channel timing attack particularly on
+     platforms without crypt() such as  Windows, BeOS, NetWare, or
+     Android.
+     Users are recommended to upgrade to version 1.6.4, which fixes
+     this issue.
+     Credits: Michael Rowley <michael csirt.global>
+
+  *) apr_brigade: Don't split the final LF in apr_brigade_split_line() to
+     avoid producing an empty bucket.  PR 64273
+     [Barnim Dzwillo <dzwillo strato.de>, Joe Orton]
+
+  *) apr_brigade: Metadata buckets are now ignored in
+     apr_brigade_split_line, apr_brigade_flatten and
+     apr_brigade_to_iovec, fixing possible undefined behaviour.  PR 68278
+     [Ben Kallus <benjamin.p.kallus.gr dartmouth.edu>, Joe Orton]
+
+  *) apr_crypto_openssl: Compatibility with OpenSSL 3.  [Yann Ylavic]
+
+  *) apr_crypto_openssl: use OPENSSL_init_crypto() to initialise OpenSSL
+     on versions 1.1+. [Graham Leggett]
+
+  *) apr_memcache: Fix name lookup to allow IPv6 as well as IPv4.
+     [Lubos Uhliarik <luhliari redhat.com>]
+
+  *) configure: Fix Berkeley DB detection with compilers enforcing
+     strict C99 compliance.  PR 66396.
+     [Florian Weimer <fweimer redhat.com>]
+
+Changes with APR-util 1.6.3
+
+  *) Correct a packaging issue in 1.6.2. The contents of the release were
+     correct, but the top level directory was misnamed.
+
+Changes with APR-util 1.6.2
+
+  *) SECURITY: CVE-2022-25147 (cve.mitre.org)
+     Integer Overflow or Wraparound vulnerability in apr_base64 functions 
+     of Apache Portable Runtime Utility (APR-util) allows an attacker to 
+     write beyond bounds of a buffer.
+     
+  *) Teach configure how to find and build against MariaDB 10.2. PR 61517
+     [Kris Karas <bugs-a17 moonlit-rail.com>]
+
+  *) apr_crypto_commoncrypto: Remove stray reference to -lcrypto that
+     prevented commoncrypto being enabled. [Graham Leggett]
+
+  *) Add --tag=CC to libtool invocations. PR 62640. [Michael Osipov]
+
+  *) apr_dbm_gdbm: Fix handling of error codes. This makes gdbm 1.14 work.
+     apr_dbm_gdbm will now also return error codes starting with
+     APR_OS_START_USEERR, as apr_dbm_berkleydb does, instead of always
+     returning APR_EGENERAL. [Stefan Fritsch]
+
+Changes with APR-util 1.6.1
+
+  *) Win32: Add function exports from new apr_crypto API's missing in 1.6.0.
+
+  *) Win32: Introduce XML_PARSER build-time variable to select the expat
+     library name to be linked to libaprutil-1.dll. See Makefile.win
+
+  *) Win32: Removed lingering xml/xml.dsp project forked from the expat
+     Project in the 1.9x era. Use expat's maintained build schema instead,
+     prior to building apr-util.
+
+  *) apr_crypto: Fix compatibility with LibreSSL.  PR 61596.
+     [Bernard Spil <brnrd freebsd.org>, Yann Ylavic]
+
+  *) sdbm: better database/page validation to fail cleanly when corrupted.
+     [Yann Ylavic]
+
+Changes with APR-util 1.6.0
+
+  *) The expat dependency of apr-util is no longer built with apr-util.
+     Install expat (including development headers and libraries) first
+     before building apr-util. [https://libexpat.github.io/]
+
+  *) Mark apr_dbd_freetds as unsupported, and remove it from all builds
+     [Nick Kew]
+
+  *) Update MySQL build to stop using libmysqlclient_r.
+     [Petr Sumbera <petr.sumbera oracle.com>]
+
+  *) apr_buckets: Add apr_bucket_file_set_buf_size() which allows to configure
+     the size of the buffer used to read files.  [Yann Ylavic]
+
+  *) apr_crypto: avoid excessive iteration in bcrypt hash.
+     [Hanno Böck <hanno hboeck.de>]
+
+  *) apr_siphash: Implement keyed hash function SipHash.  [Yann Ylavic]
+
+  *) apr_crypto: Add apr_crypto_key() function which supports keys
+     generated from a passphrase or a raw secret provided by the caller.
+     Deprecate apr_crypto_passphrase(). [Graham Leggett]
+
+  *) apr_crypto_nss: Ensure the SECItem returned by PK11_ParamFromIV
+     is properly freed. [Graham Leggett]
+
+  *) apr_crypto: Don't cache the driver if initialisation fails. This
+     stops the second and subsequent attempt to use the API from failing
+     claiming the library is not initialised. [Graham Leggett]
+
+  *) apr_crypto: Add a native CommonCrypto implementation for iOS and OSX
+     where OpenSSL has been deprecated. [Graham Leggett]
+
+  *) apr_xml_to_text: Add style APR_XML_X2T_PARSED to maintain a
+     consistent namespace prefix. [Jari Urpalainen
+     <jari.urpalainen nokia.com>]
+
+Changes with APR-util 1.5.x and later:
+
+  *) http://svn.apache.org/viewvc/apr/apr-util/branches/1.5.x/CHANGES?view=markup
+
+Changes with APR-util 1.4.x and later:
+
+  *) http://svn.apache.org/viewvc/apr/apr-util/branches/1.4.x/CHANGES?view=markup
+
+Changes for APR-util 1.3.x and later:
+
+  *) http://svn.apache.org/viewvc/apr/apr-util/branches/1.3.x/CHANGES?view=markup
+
+Changes for APR-util 1.2.x and later:
+
+  *) http://svn.apache.org/viewvc/apr/apr-util/branches/1.2.x/CHANGES?view=markup
+
+Changes for APR-util 1.1.x and later:
+
+  *) http://svn.apache.org/viewvc/apr/apr-util/branches/1.1.x/CHANGES?view=markup
+
+Changes for APR-util 1.0.x and later:
+
+  *) http://svn.apache.org/viewvc/apr/apr-util/branches/1.0.x/CHANGES?view=markup
+
+Changes for APR-util 0.9.x and later/earlier:
+
+  *) http://svn.apache.org/viewvc/apr/apr-util/branches/0.9.x/CHANGES?view=markup

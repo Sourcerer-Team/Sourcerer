@@ -1,0 +1,126 @@
+# Windows Server Core 2022 with Qt 6.10.3, MSVC 2022, and WiX Toolset for Sourcerer build
+# Requires Windows containers mode in Docker Desktop
+
+# Use Windows Server Core 2022 as base
+FROM mcr.microsoft.com/windows/servercore:ltsc2022
+
+USER ContainerAdministrator
+
+# Set up environment
+SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue';"]
+
+# Install Chocolatey package manager
+RUN Set-ExecutionPolicy Bypass -Scope Process -Force; \
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; \
+    iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# Install build tools
+RUN choco install -y cmake --installargs 'ADD_CMAKE_TO_PATH=System'
+RUN choco install -y git
+RUN choco install -y 7zip
+RUN choco install -y python3
+RUN choco install -y ninja
+RUN choco install -y dotnet-sdk
+
+# Install Visual Studio 2022 C++ Build Tools
+
+RUN $ErrorActionPreference = 'Continue'
+
+RUN choco install -y visualstudio2022buildtools --no-progress --package-parameters \
+    '--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22000 --add Microsoft.VisualStudio.Component.VC.CoreBuildTools --add Microsoft.VisualStudio.Component.Windows10SDK --add Microsoft.VisualStudio.Component.UCRT.Sdk --add Microsoft.VisualStudio.Component.VC.Redist.14.Latest --add Microsoft.VisualStudio.Component.Win11SDK.BuildTools --add Microsoft.VisualStudio.Component.Windows10SDK.19041'; \
+    $exitCode = $LASTEXITCODE; \
+    if ($exitCode -ne 0 -and $exitCode -ne 3010) { \
+        Write-Error "Chocolatey install failed with exit code $exitCode"; \
+        exit $exitCode; \
+    }; \
+    Write-Host "Terminating background Visual Studio installer processes..."; \
+    Get-Process -Name 'setup', 'vs_setup_bootstrapper', 'vs_installer', 'vs_buildtools', 'vs_installerservice' -ErrorAction SilentlyContinue | Stop-Process -Force; \
+    Write-Host "Stopping services..."; \
+    Write-Host "Cleaning up..."; \
+    Remove-Item -Recurse -Force $env:TEMP\* -ErrorAction SilentlyContinue; \
+    exit 0
+
+RUN $ErrorActionPreference = 'Stop'
+
+RUN dotnet tool install --global wix --version 7.0.0
+RUN wix eula accept wix7
+#RUN wix extension add -g WixToolset.Bal.wixext
+RUN wix extension add -g WixToolset.BootstrapperApplications.wixext
+RUN wix extension add -g WixToolset.Util.wixext
+RUN wix extension add -g WixToolset.Netfx.wixext
+RUN wix extension add -g WixToolset.UI.wixext
+
+# Install Qt using aqtinstall
+RUN python -m pip install --upgrade pip; \
+    pip install aqtinstall
+
+# Create Qt installation directory
+RUN New-Item -ItemType Directory -Force -Path C:\Qt | Out-Null
+
+# Qt installation parameters
+ENV QT_VERSION=6.10.3
+ENV QT_DIR=C:\Qt
+
+# Install Qt for MSVC 2022
+RUN $qtRoot = ('C:\Qt\' + $env:QT_VERSION + '\msvc2022_64'); \
+    Write-Host "Installing Qt $env:QT_VERSION using aqtinstall..."; \
+    python -m aqt install-qt windows desktop $env:QT_VERSION win64_msvc2022_64 -m qtscxml qtnetworkauth qt5compat qtwebengine qtwebchannel qtpositioning --outputdir C:\Qt; \
+    python -m aqt install-tool windows desktop tools_opensslv3_x64 --outputdir C:\Qt; \
+    if ($LASTEXITCODE -ne 0 -and -not (Test-Path (Join-Path $qtRoot 'bin\qmake.exe'))) { \
+        Write-Host 'Qt installation failed.'; \
+        exit $LASTEXITCODE; \
+    }; \
+    if (-not (Test-Path (Join-Path $qtRoot 'bin\qmake.exe'))) { \
+        Write-Host 'Qt installation did not produce qmake.exe.'; \
+        exit 1; \
+    }; \
+    Write-Host 'Qt installation completed. Checking installed files...'; \
+    Get-ChildItem -Path C:\Qt -Directory | ForEach-Object { Write-Host $_.Name }; \
+    Get-ChildItem -Path C:\Qt\Tools -Directory -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  Tools/$($_.Name)" }; \
+    exit 0
+
+# Set up Qt and OpenSSL environment variables (development headers, import libs, and runtime DLLs)
+RUN $qtRoot = ('C:\Qt\' + $env:QT_VERSION + '\msvc2022_64'); \
+    $qtBinPath = $qtRoot + '\bin'; \
+    $qt6Dir = $qtRoot + '\lib\cmake\Qt6'; \
+    $opensslRoot = @( \
+        'C:\Qt\Tools\OpenSSLv3\Win_x64' \
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1; \
+    if (-not $opensslRoot) { \
+        $opensslRoot = (Get-ChildItem 'C:\Program Files' -Directory -Filter 'OpenSSL*' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName; \
+    }; \
+    if (-not $opensslRoot) { throw 'OpenSSL development installation not found' }; \
+    $opensslBin = Join-Path $opensslRoot 'bin'; \
+    $wixPath = 'C:\Program Files (x86)\WiX Toolset v3.14\bin'; \
+    $path = [Environment]::GetEnvironmentVariable('PATH', 'Machine'); \
+    $path = $qtBinPath + ';' + $opensslBin + ';' + $wixPath + ';' + $path; \
+    [Environment]::SetEnvironmentVariable('QT_DIR', 'C:\Qt', 'Machine'); \
+    [Environment]::SetEnvironmentVariable('Qt6_DIR', $qt6Dir, 'Machine'); \
+    [Environment]::SetEnvironmentVariable('OPENSSL_ROOT_DIR', $opensslRoot, 'Machine'); \
+    [Environment]::SetEnvironmentVariable('PATH', $path, 'Machine')
+
+# Verify installations
+RUN Write-Host 'Verifying installations...'; \
+    Write-Host 'System CMake:'; \
+    cmake --version; \
+    git --version; \
+    $vsDevCmd = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat'; \
+    if (Test-Path $vsDevCmd) { \
+        Write-Host 'Visual Studio 2022 Build Tools found at' $vsDevCmd; \
+    } else { \
+        throw 'Visual Studio 2022 Build Tools not found'; \
+    }; \
+    $qmakePath = ('C:\Qt\' + $env:QT_VERSION + '\msvc2022_64\bin\qmake.exe'); \
+    $windeployqtPath = ('C:\Qt\' + $env:QT_VERSION + '\msvc2022_64\bin\windeployqt.exe'); \
+    $candlePath = 'C:\Program Files (x86)\WiX Toolset v3.14\bin\candle.exe'; \
+    $lightPath = 'C:\Program Files (x86)\WiX Toolset v3.14\bin\light.exe'; \
+    if (Test-Path $qmakePath) { & $qmakePath --version } else { Write-Host 'WARNING: qmake not found at' $qmakePath }; \
+    if (Test-Path $windeployqtPath) { Write-Host 'Qt deployment tool found at' $windeployqtPath } else { Write-Host 'WARNING: windeployqt not found' }; \
+    if (Test-Path $candlePath) { Write-Host 'WiX Candle found at' $candlePath } else { Write-Host 'WARNING: candle.exe not found' }; \
+    if (Test-Path $lightPath) { Write-Host 'WiX Light found at' $lightPath } else { Write-Host 'WARNING: light.exe not found' }
+
+# Set working directory
+WORKDIR C:/workspace
+
+# Default command
+CMD ["powershell.exe"]
