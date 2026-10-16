@@ -120,6 +120,7 @@ struct SvnRepoBlameCommand final : SvnRepoCommand {
   ~SvnRepoBlameCommand() override = default;
 
   QStringList files;
+  QString commit;
 };
 
 struct SvnRepoBlameCommandResult {

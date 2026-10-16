@@ -671,7 +671,7 @@ void SvnRepoManagerProcessingState::blameWorker(
     repo = ctx->SvnRepo;
   }
 
-  const SvnRepo::BlameReport blameReport = SvnRepo::blame(repo, command.files);
+  const SvnRepo::BlameReport blameReport = SvnRepo::blame(repo, command.files, command.commit);
   if (!blameReport.valid) {
     const auto lastError = SvnRepo::getLastError();
     EventManager::Event errorEvent(

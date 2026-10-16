@@ -9518,7 +9518,8 @@ void RepoContainer::onPageDisplayFilesFlatListViewContextMenuRequested(
   }
 
   QAction *blameAction = contextMenu.addAction(tr("Blame"));
-  connect(blameAction, &QAction::triggered, this, [=]() { blame(files); });
+  connect(blameAction, &QAction::triggered, this,
+          [=]() { blame(files, selectedHistoryCommit()); });
 
   contextMenu.exec(ui->listViewPageDisplayFilesFlat->mapToGlobal(pos));
 
@@ -9814,12 +9815,12 @@ void RepoContainer::applyToolBoxIcons() {
   LOG_PERF(0, "Exit");
 }
 
-void RepoContainer::blame(const QStringList &files) {
+void RepoContainer::blame(const QStringList &files, const QString &commit) {
   LOG_PERF(0, "Enter");
 
   const auto guard = getSelf().toWeakRef();
 
-  _bridge->blame(guard, files);
+  _bridge->blame(guard, files, commit);
 
   LOG_PERF(0, "Exit");
 }

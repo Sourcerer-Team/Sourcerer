@@ -74,7 +74,7 @@ public:
   virtual RepoFeatures features() const = 0;
 
   virtual void blame(const QWeakPointer<RepoContainer> &guard,
-                     const QStringList &files) = 0;
+                     const QStringList &files, const QString &commit) = 0;
 
   virtual void
   setUpstream(const QWeakPointer<RepoContainer> &guard,

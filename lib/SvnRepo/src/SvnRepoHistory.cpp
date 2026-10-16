@@ -306,16 +306,17 @@ CommitStatus getCommitStatus(const QString &path, const QString &commitOid) {
   status.timeStamp = entry.timeStamp;
 
   // Changed paths are repository paths such as "/trunk/src/main.cpp". The
-  // ones inside the working copy are reported relative to its root.
+  // ones inside the working copy are reported relative to its root. Others
+  // (e.g. from a parent branch) keep the repository path with the leading
+  // slash, which marks them as repository-root relative.
   const QString wcRepoPath =
       info.url.mid(trimmedUrl(info.reposRootUrl).length());
   for (const auto &[changedPath, copyFromRevision] : entry.changedPaths) {
     Q_UNUSED(copyFromRevision);
-    if (!changedPath.startsWith(wcRepoPath + QLatin1Char('/'))) {
-      continue;
-    }
-
-    const QString file = changedPath.mid(wcRepoPath.length() + 1);
+    const QString file =
+        changedPath.startsWith(wcRepoPath + QLatin1Char('/'))
+            ? changedPath.mid(wcRepoPath.length() + 1)
+            : changedPath;
     switch (entry.changeActions.value(changedPath)) {
     case 'A':
       status.newFiles.append(file);
