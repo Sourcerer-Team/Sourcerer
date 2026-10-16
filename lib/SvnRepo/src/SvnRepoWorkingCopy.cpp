@@ -15,6 +15,8 @@
 #include <QSet>
 #include <QTemporaryFile>
 
+#include <algorithm>
+
 #define THREAD_ID "SvnRepo"
 
 namespace SvnRepo {
@@ -164,9 +166,21 @@ static svn_error_t *readNodeStatus(NodeStatusBaton *result,
   const QByteArray pathBytes = absolutePath.toUtf8();
   const svn_opt_revision_t revision = revisionWorking();
   svn_revnum_t youngest = SVN_INVALID_REVNUM;
-  return svn_client_status6(&youngest, ctx, pathBytes.constData(), &revision,
-                            svn_depth_empty, TRUE, FALSE, TRUE, TRUE, TRUE,
-                            FALSE, nullptr, nodeStatusCallback, result, pool);
+  svn_error_t *error = svn_client_status6(
+      &youngest, ctx, pathBytes.constData(), &revision, svn_depth_empty, TRUE,
+      FALSE, TRUE, TRUE, TRUE, FALSE, nullptr, nodeStatusCallback, result, pool);
+
+  // Subversion does not know the paths below an unversioned directory.
+  if (error && error->apr_err == SVN_ERR_WC_PATH_NOT_FOUND) {
+    svn_error_clear(error);
+    const QFileInfo info(absolutePath);
+    if (info.exists() || info.isSymLink()) {
+      result->status = svn_wc_status_unversioned;
+      result->kind = info.isDir() ? svn_node_dir : svn_node_file;
+    }
+    return SVN_NO_ERROR;
+  }
+  return error;
 }
 
 static bool removeFromDisk(const QString &absolutePath) {
@@ -514,12 +528,60 @@ bool commitStaged(const QString &path, const QString &summary,
 
   const bool success = runWithClientContext(
       [&](svn_client_ctx_t *ctx, apr_pool_t *pool) {
-        apr_array_header_t *changelists =
-            apr_array_make(pool, 1, sizeof(const char *));
-        APR_ARRAY_PUSH(changelists, const char *) = kStagingChangelist;
-        return reportError(
-            SvnError::CommitFailed,
-            commitWorkingCopy(wcPath, logMessage, changelists, ctx, pool));
+        // Changelists only hold files, so the added or deleted directories
+        // above the staged files are committed with them, as Subversion
+        // requires the parents of an added file to be part of the commit.
+        QSet<QString> targets;
+        QStringList deletedDirectories;
+        for (const QStringList *list :
+             {&current.newStagedFiles, &current.modifiedStagedFiles,
+              &current.deletedStagedFiles, &current.typeChangedStagedFiles,
+              &current.renamedStagedFiles}) {
+          for (const QString &file : *list) {
+            targets.insert(absoluteFilePath(wcPath, file));
+
+            for (QString parent = QFileInfo(file).path();
+                 parent != QLatin1String("."); parent = QFileInfo(parent).path()) {
+              const QString absoluteParent = absoluteFilePath(wcPath, parent);
+              if (targets.contains(absoluteParent)) {
+                break;
+              }
+
+              NodeStatusBaton node;
+              if (!reportError(SvnError::StatusFailed,
+                               readNodeStatus(&node, absoluteParent, ctx,
+                                              pool))) {
+                return false;
+              }
+              if (node.status != svn_wc_status_added &&
+                  node.status != svn_wc_status_replaced &&
+                  node.status != svn_wc_status_deleted) {
+                break;
+              }
+
+              targets.insert(absoluteParent);
+              if (node.status == svn_wc_status_deleted) {
+                deletedDirectories.append(absoluteParent + QLatin1Char('/'));
+              }
+            }
+          }
+        }
+
+        // A deleted directory is committed with everything below it.
+        QStringList paths;
+        for (const QString &target : targets) {
+          const bool belowDeleted = std::any_of(
+              deletedDirectories.cbegin(), deletedDirectories.cend(),
+              [&](const QString &directory) {
+                return target.startsWith(directory);
+              });
+          if (!belowDeleted) {
+            paths.append(target);
+          }
+        }
+
+        return reportError(SvnError::CommitFailed,
+                           commitPaths(paths, logMessage, ctx, pool));
       },
       wcPath);
 

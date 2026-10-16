@@ -95,7 +95,15 @@ add_subdirectory(../../lib/libzip "libzip")
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Disable shared libraries" FORCE)
 set(BUILD_TESTS OFF CACHE BOOL "Disable test suite" FORCE)
 set(BUILD_CLI OFF CACHE BOOL "Disable CLI" FORCE)
-set(USE_THREADS ON CACHE BOOL "Enable threads" FORCE)
+if(WIN32)
+  # Force Win32 threads and skip librt: with CMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
+  # library checks never link, so FindThreads/check_library_exists falsely detect
+  # pthreads and rt on MSVC.
+  set(USE_THREADS "win32" CACHE STRING "Threads backend" FORCE)
+  set(NEED_LIBRT OFF CACHE INTERNAL "librt is not used on Windows" FORCE)
+else()
+  set(USE_THREADS ON CACHE BOOL "Enable threads" FORCE)
+endif()
 set(USE_SSH ON CACHE BOOL "Enable SSH" FORCE)
 set(USE_HTTP ON CACHE BOOL "Enable HTTP" FORCE)
 set(USE_HTTPS OpenSSL CACHE BOOL "Enable HTTPS" FORCE)

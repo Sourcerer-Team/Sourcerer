@@ -86,7 +86,9 @@ set_target_properties(cyrus-sasl PROPERTIES
 add_dependencies(cyrus-sasl cyrus-sasl-build)
 add_dependencies(SvnRepo cyrus-sasl-build)
 
-if(MSVC)
+# Host-specific toolchain paths; only needed when not running inside a VS developer
+# environment (VsDevCmd/vcvars set INCLUDE/LIB for the active toolset).
+if(MSVC AND NOT DEFINED ENV{VCToolsInstallDir})
   include_directories(SYSTEM
       C:/PROGRA~1/MIB055~1/18/COMMUN~1/VC/Tools/MSVC/1451~1.362/include
       "C:/Program Files (x86)/Windows Kits/10/Include/10.0.26100.0/ucrt"
