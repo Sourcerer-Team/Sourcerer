@@ -164,6 +164,8 @@ add_library(apr-1 STATIC IMPORTED GLOBAL)
 set_target_properties(apr-1 PROPERTIES
     IMPORTED_LOCATION ${APR_LIBRARY}
     INTERFACE_INCLUDE_DIRECTORIES ${APR_INSTALL_DIR}/include/apr-1
+    # Matches EXTRA_LIBS detected by APR's configure (see apr-build/build/apr_rules.mk)
+    INTERFACE_LINK_LIBRARIES "uuid;crypt;pthread;${CMAKE_DL_LIBS}"
 )
 if(UNIX AND NOT WIN32)
   set_target_properties(apr-1 PROPERTIES

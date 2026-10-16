@@ -27,7 +27,7 @@
 #define APR_WANT_MEMFUNC /**< For no good reason? */
 #include "apr_want.h"
 
-#ifndef __attribute__
+#if !defined(__GNUC__) && !defined(__attribute__)
 #define __attribute__(__x)
 #endif
 
