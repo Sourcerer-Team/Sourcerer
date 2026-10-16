@@ -11,14 +11,16 @@ mkdir -p "$install_dir/lib"
 mkdir -p "$install_dir/bin"
 mkdir -p "$install_dir/build-1"
 
-trap 'rm -f "$build_dir/buildconf.clean"' EXIT
+work_dir="$build_dir/src"
+rm -rf "$work_dir"
+mkdir -p "$work_dir"
+cp -R "$src_dir/." "$work_dir/"
+find "$work_dir" -type f \( -name buildconf -o -name 'configure.*' -o -name '*.in' -o -name '*.am' -o -name '*.m4' -o -name '*.inc' -o -name '*.mk' -o -name '*.sh' -o -name '*.hw' -o -name '*.hwc' -o -name config.layout \) -exec sed -i 's/\r$//' {} +
 
-tmp_buildconf="$build_dir/buildconf.clean"
-cd "$src_dir"
-tr -d '\r' < buildconf > "$tmp_buildconf"
-sh "$tmp_buildconf" --with-apr="$src_dir"
+cd "$work_dir"
+sh ./buildconf --with-apr="$work_dir"
 cd "$build_dir"
-sh "$src_dir/configure" --disable-shared --enable-static --prefix="$install_dir"
+CFLAGS="-g -O2 -D_FORTIFY_SOURCE=0" sh "$work_dir/configure" --disable-shared --enable-static --prefix="$install_dir"
 
 cat > "$build_dir/libtool" <<'EOF'
 #!/bin/sh
@@ -153,7 +155,7 @@ make install
 
 cp "$build_dir/build/apr_rules.mk" "$install_dir/build-1/apr_rules.mk"
 cp "$build_dir/apr-1-config" "$install_dir/bin/apr-1-config"
-for generated in "$install_dir/bin/apr-1-config" "$install_dir/build-1/apr_rules.mk" "$install_dir/lib/libapr-1.la" "$install_dir/lib/libapr-1.a" "$install_dir/lib/libapr-1.so"; do
+for generated in "$install_dir/bin/apr-1-config" "$install_dir/build-1/apr_rules.mk" "$install_dir/lib/libapr-1.la"; do
     if [ -f "$generated" ]; then
         perl -0pi -e 's/\r\n/\n/g; s/\r/\n/g' "$generated"
     fi

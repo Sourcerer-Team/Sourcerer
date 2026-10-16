@@ -15,18 +15,26 @@ mkdir -p "$install_dir/lib"
 mkdir -p "$install_dir/bin"
 mkdir -p "$install_dir/build"
 
-trap 'rm -f "$build_dir/buildconf.clean"' EXIT
+work_dir="$build_dir/src"
+rm -rf "$work_dir"
+mkdir -p "$work_dir"
+cp -R "$src_dir/." "$work_dir/"
+find "$work_dir" -type f \( -name buildconf -o -name 'configure.*' -o -name '*.in' -o -name '*.am' -o -name '*.m4' -o -name '*.inc' -o -name '*.mk' -o -name '*.sh' -o -name '*.hw' -o -name '*.hwc' -o -name config.layout \) -exec sed -i 's/\r$//' {} +
 
-tmp_buildconf="$build_dir/buildconf.clean"
-cd "$src_dir"
-tr -d '\r' < buildconf > "$tmp_buildconf"
-sh "$tmp_buildconf" --with-apr="$apr_src_dir"
+apr_build_copy="$build_dir/apr-src"
+rm -rf "$apr_build_copy"
+mkdir -p "$apr_build_copy"
+cp -R "$apr_src_dir/build" "$apr_build_copy/"
+find "$apr_build_copy/build" -type f -exec sed -i 's/\r$//' {} +
+
+cd "$work_dir"
+sh ./buildconf --with-apr="$apr_build_copy"
 cd "$build_dir"
 CPPFLAGS="${CPPFLAGS} -I${expat_src_dir}/lib"
 LDFLAGS="${LDFLAGS} -L${expat_build_dir}"
 export CPPFLAGS
 export LDFLAGS
-sh "$src_dir/configure" --disable-shared --enable-static --prefix="$install_dir" --with-apr="$apr_install_dir"
+sh "$work_dir/configure" --disable-shared --enable-static --prefix="$install_dir" --with-apr="$apr_install_dir"
 sed -i "s|^INCLUDES = |INCLUDES = -I${expat_src_dir}/lib |" "$build_dir/Makefile"
 sed -i "s|^APRUTIL_EXPORT_INCLUDES=\"\"|APRUTIL_EXPORT_INCLUDES=\"-I${expat_src_dir}/lib\"|" "$build_dir/export_vars.sh"
 
@@ -161,14 +169,14 @@ done
 
 make install
 
-perl -0pe 's/@apu_have_sqlite3_10@/1/g; s/@apu_have_crypto_10@/0/g; s/@apu_have_apr_iconv_10@/0/g' "$src_dir/include/apu.hwc" > "$install_dir/include/apu.h"
-perl -0pe 's/@apr_has_ldap_10@/0/g' "$src_dir/include/apr_ldap.hwc" > "$install_dir/include/apr_ldap.h"
-cp "$src_dir/include/apu_want.hw" "$install_dir/include/apu_want.h"
-cp "$src_dir/include/private/apu_config.hw" "$install_dir/include/apu_config.h"
-cp "$src_dir/include/private/apu_select_dbm.hw" "$install_dir/include/apu_select_dbm.h"
+perl -0pe 's/@apu_have_sqlite3_10@/1/g; s/@apu_have_crypto_10@/0/g; s/@apu_have_apr_iconv_10@/0/g' "$work_dir/include/apu.hwc" > "$install_dir/include/apu.h"
+perl -0pe 's/@apr_has_ldap_10@/0/g' "$work_dir/include/apr_ldap.hwc" > "$install_dir/include/apr_ldap.h"
+cp "$work_dir/include/apu_want.hw" "$install_dir/include/apu_want.h"
+cp "$work_dir/include/private/apu_config.hw" "$install_dir/include/apu_config.h"
+cp "$work_dir/include/private/apu_select_dbm.hw" "$install_dir/include/apu_select_dbm.h"
 
 cp "$build_dir/build/rules.mk" "$install_dir/build/rules.mk"
-for generated in "$install_dir/bin/apu-1-config" "$install_dir/build/rules.mk" "$install_dir/lib/libaprutil-1.la" "$install_dir/lib/libaprutil-1.a" "$install_dir/lib/libaprutil-1.so"; do
+for generated in "$install_dir/bin/apu-1-config" "$install_dir/build/rules.mk" "$install_dir/lib/libaprutil-1.la"; do
     if [ -f "$generated" ]; then
         perl -0pi -e 's/\r\n/\n/g; s/\r/\n/g' "$generated"
     fi

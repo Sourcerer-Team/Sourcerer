@@ -22961,31 +22961,20 @@ printf "%s\n" "#define HAVE_PTHREAD_MUTEX_RECURSIVE 1" >>confdefs.h
 
 fi
 
-        ac_fn_c_check_func "$LINENO" "pthread_key_delete" "ac_cv_func_pthread_key_delete"
-if test "x$ac_cv_func_pthread_key_delete" = xyes
-then :
-  printf "%s\n" "#define HAVE_PTHREAD_KEY_DELETE 1" >>confdefs.h
 
-fi
-ac_fn_c_check_func "$LINENO" "pthread_rwlock_init" "ac_cv_func_pthread_rwlock_init"
-if test "x$ac_cv_func_pthread_rwlock_init" = xyes
+  for ac_func in pthread_key_delete pthread_rwlock_init \ pthread_attr_setguardsize pthread_yield
+do :
+  as_ac_var=`printf "%s\n" "ac_cv_func_$ac_func" | $as_tr_sh`
+ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
+if eval test \"x\$"$as_ac_var"\" = x"yes"
 then :
-  printf "%s\n" "#define HAVE_PTHREAD_RWLOCK_INIT 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "pthread_attr_setguardsize" "ac_cv_func_pthread_attr_setguardsize"
-if test "x$ac_cv_func_pthread_attr_setguardsize" = xyes
-then :
-  printf "%s\n" "#define HAVE_PTHREAD_ATTR_SETGUARDSIZE 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "pthread_yield" "ac_cv_func_pthread_yield"
-if test "x$ac_cv_func_pthread_yield" = xyes
-then :
-  printf "%s\n" "#define HAVE_PTHREAD_YIELD 1" >>confdefs.h
+  cat >>confdefs.h <<_ACEOF
+#define `printf "%s\n" "HAVE_$ac_func" | $as_tr_cpp` 1
+_ACEOF
 
 fi
 
+done
 
         if test "$ac_cv_func_pthread_rwlock_init" = "yes"; then
                         { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for pthread_rwlock_t" >&5
@@ -24156,67 +24145,19 @@ case $host in
 #endif";;
 esac
 
-ac_fn_c_check_header_compile "$LINENO" "sys/types.h" "ac_cv_header_sys_types_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_types_h" = xyes
+       for ac_header in sys/types.h sys/mman.h sys/ipc.h sys/mutex.h \ sys/shm.h sys/file.h sys/socket.h kernel/OS.h os2.h windows.h
+do :
+  as_ac_Header=`printf "%s\n" "ac_cv_header_$ac_header" | $as_tr_sh`
+ac_fn_c_check_header_compile "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
+if eval test \"x\$"$as_ac_Header"\" = x"yes"
 then :
-  printf "%s\n" "#define HAVE_SYS_TYPES_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/mman.h" "ac_cv_header_sys_mman_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_mman_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_MMAN_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/ipc.h" "ac_cv_header_sys_ipc_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_ipc_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_IPC_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/mutex.h" "ac_cv_header_sys_mutex_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_mutex_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_MUTEX_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/shm.h" "ac_cv_header_sys_shm_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_shm_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_SHM_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/file.h" "ac_cv_header_sys_file_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_file_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_FILE_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/socket.h" "ac_cv_header_sys_socket_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_socket_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_SOCKET_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "kernel/OS.h" "ac_cv_header_kernel_OS_h" "$ac_includes_default"
-if test "x$ac_cv_header_kernel_OS_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_KERNEL_OS_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "os2.h" "ac_cv_header_os2_h" "$ac_includes_default"
-if test "x$ac_cv_header_os2_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_OS2_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "windows.h" "ac_cv_header_windows_h" "$ac_includes_default"
-if test "x$ac_cv_header_windows_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_WINDOWS_H 1" >>confdefs.h
+  cat >>confdefs.h <<_ACEOF
+#define `printf "%s\n" "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
 
 fi
 
+done
 ac_fn_c_check_header_compile "$LINENO" "net/if.h" "ac_cv_header_net_if_h" "
 #ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
@@ -24230,67 +24171,20 @@ then :
 
 fi
 
-ac_fn_c_check_func "$LINENO" "mmap" "ac_cv_func_mmap"
-if test "x$ac_cv_func_mmap" = xyes
-then :
-  printf "%s\n" "#define HAVE_MMAP 1" >>confdefs.h
 
-fi
-ac_fn_c_check_func "$LINENO" "munmap" "ac_cv_func_munmap"
-if test "x$ac_cv_func_munmap" = xyes
+  for ac_func in mmap munmap shm_open shm_unlink shmget shmat shmdt shmctl \ create_area mprotect
+do :
+  as_ac_var=`printf "%s\n" "ac_cv_func_$ac_func" | $as_tr_sh`
+ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
+if eval test \"x\$"$as_ac_var"\" = x"yes"
 then :
-  printf "%s\n" "#define HAVE_MUNMAP 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "shm_open" "ac_cv_func_shm_open"
-if test "x$ac_cv_func_shm_open" = xyes
-then :
-  printf "%s\n" "#define HAVE_SHM_OPEN 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "shm_unlink" "ac_cv_func_shm_unlink"
-if test "x$ac_cv_func_shm_unlink" = xyes
-then :
-  printf "%s\n" "#define HAVE_SHM_UNLINK 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "shmget" "ac_cv_func_shmget"
-if test "x$ac_cv_func_shmget" = xyes
-then :
-  printf "%s\n" "#define HAVE_SHMGET 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "shmat" "ac_cv_func_shmat"
-if test "x$ac_cv_func_shmat" = xyes
-then :
-  printf "%s\n" "#define HAVE_SHMAT 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "shmdt" "ac_cv_func_shmdt"
-if test "x$ac_cv_func_shmdt" = xyes
-then :
-  printf "%s\n" "#define HAVE_SHMDT 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "shmctl" "ac_cv_func_shmctl"
-if test "x$ac_cv_func_shmctl" = xyes
-then :
-  printf "%s\n" "#define HAVE_SHMCTL 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "create_area" "ac_cv_func_create_area"
-if test "x$ac_cv_func_create_area" = xyes
-then :
-  printf "%s\n" "#define HAVE_CREATE_AREA 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "mprotect" "ac_cv_func_mprotect"
-if test "x$ac_cv_func_mprotect" = xyes
-then :
-  printf "%s\n" "#define HAVE_MPROTECT 1" >>confdefs.h
+  cat >>confdefs.h <<_ACEOF
+#define `printf "%s\n" "HAVE_$ac_func" | $as_tr_cpp` 1
+_ACEOF
 
 fi
 
+done
 
 
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for MAP_ANON in sys/mman.h" >&5
@@ -25241,79 +25135,20 @@ printf "%s\n" "#define STACK_DIRECTION $ac_cv_c_stack_direction" >>confdefs.h
 fi
 
 
-ac_fn_c_check_func "$LINENO" "calloc" "ac_cv_func_calloc"
-if test "x$ac_cv_func_calloc" = xyes
-then :
-  printf "%s\n" "#define HAVE_CALLOC 1" >>confdefs.h
 
-fi
-ac_fn_c_check_func "$LINENO" "setsid" "ac_cv_func_setsid"
-if test "x$ac_cv_func_setsid" = xyes
+  for ac_func in calloc setsid isinf isnan \ getenv putenv setenv unsetenv \ writev getifaddrs utime utimes
+do :
+  as_ac_var=`printf "%s\n" "ac_cv_func_$ac_func" | $as_tr_sh`
+ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
+if eval test \"x\$"$as_ac_var"\" = x"yes"
 then :
-  printf "%s\n" "#define HAVE_SETSID 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "isinf" "ac_cv_func_isinf"
-if test "x$ac_cv_func_isinf" = xyes
-then :
-  printf "%s\n" "#define HAVE_ISINF 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "isnan" "ac_cv_func_isnan"
-if test "x$ac_cv_func_isnan" = xyes
-then :
-  printf "%s\n" "#define HAVE_ISNAN 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "getenv" "ac_cv_func_getenv"
-if test "x$ac_cv_func_getenv" = xyes
-then :
-  printf "%s\n" "#define HAVE_GETENV 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "putenv" "ac_cv_func_putenv"
-if test "x$ac_cv_func_putenv" = xyes
-then :
-  printf "%s\n" "#define HAVE_PUTENV 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "setenv" "ac_cv_func_setenv"
-if test "x$ac_cv_func_setenv" = xyes
-then :
-  printf "%s\n" "#define HAVE_SETENV 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "unsetenv" "ac_cv_func_unsetenv"
-if test "x$ac_cv_func_unsetenv" = xyes
-then :
-  printf "%s\n" "#define HAVE_UNSETENV 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "writev" "ac_cv_func_writev"
-if test "x$ac_cv_func_writev" = xyes
-then :
-  printf "%s\n" "#define HAVE_WRITEV 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "getifaddrs" "ac_cv_func_getifaddrs"
-if test "x$ac_cv_func_getifaddrs" = xyes
-then :
-  printf "%s\n" "#define HAVE_GETIFADDRS 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "utime" "ac_cv_func_utime"
-if test "x$ac_cv_func_utime" = xyes
-then :
-  printf "%s\n" "#define HAVE_UTIME 1" >>confdefs.h
-
-fi
-ac_fn_c_check_func "$LINENO" "utimes" "ac_cv_func_utimes"
-if test "x$ac_cv_func_utimes" = xyes
-then :
-  printf "%s\n" "#define HAVE_UTIMES 1" >>confdefs.h
+  cat >>confdefs.h <<_ACEOF
+#define `printf "%s\n" "HAVE_$ac_func" | $as_tr_cpp` 1
+_ACEOF
 
 fi
 
+done
 
   for ac_func in setrlimit
 do :
@@ -25888,403 +25723,19 @@ printf "%s\n" "$ac_cv_path_EGREP" >&6; }
 
 
 
-ac_fn_c_check_header_compile "$LINENO" "ByteOrder.h" "ac_cv_header_ByteOrder_h" "$ac_includes_default"
-if test "x$ac_cv_header_ByteOrder_h" = xyes
+       for ac_header in ByteOrder.h \ conio.h \ crypt.h \ ctype.h \ dir.h \ dirent.h \ dl.h \ dlfcn.h \ errno.h \ fcntl.h \ grp.h \ inttypes.h \ io.h \ limits.h \ mach-o/dyld.h \ malloc.h \ memory.h \ netdb.h \ osreldate.h \ poll.h \ process.h \ pwd.h \ semaphore.h \ signal.h \ stdarg.h \ stddef.h \ stdio.h \ stdlib.h \ string.h \ strings.h \ sysapi.h \ sysgtime.h \ termios.h \ time.h \ tpfeq.h \ tpfio.h \ unistd.h \ unix.h \ windows.h \ winsock2.h \ arpa/inet.h \ kernel/OS.h \ net/errno.h \ netinet/in.h \ netinet/sctp.h \ netinet/sctp_uio.h \ sys/file.h \ sys/ioctl.h \ sys/mman.h \ sys/param.h \ sys/poll.h \ sys/resource.h \ sys/select.h \ sys/sem.h \ sys/sendfile.h \ sys/signal.h \ sys/socket.h \ sys/sockio.h \ sys/stat.h \ sys/sysctl.h \ sys/syslimits.h \ sys/time.h \ sys/types.h \ sys/uio.h \ sys/un.h \ sys/wait.h
+do :
+  as_ac_Header=`printf "%s\n" "ac_cv_header_$ac_header" | $as_tr_sh`
+ac_fn_c_check_header_compile "$LINENO" "$ac_header" "$as_ac_Header" "$ac_includes_default"
+if eval test \"x\$"$as_ac_Header"\" = x"yes"
 then :
-  printf "%s\n" "#define HAVE_BYTEORDER_H 1" >>confdefs.h
+  cat >>confdefs.h <<_ACEOF
+#define `printf "%s\n" "HAVE_$ac_header" | $as_tr_cpp` 1
+_ACEOF
 
 fi
-ac_fn_c_check_header_compile "$LINENO" "conio.h" "ac_cv_header_conio_h" "$ac_includes_default"
-if test "x$ac_cv_header_conio_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_CONIO_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "crypt.h" "ac_cv_header_crypt_h" "$ac_includes_default"
-if test "x$ac_cv_header_crypt_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_CRYPT_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "ctype.h" "ac_cv_header_ctype_h" "$ac_includes_default"
-if test "x$ac_cv_header_ctype_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_CTYPE_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "dir.h" "ac_cv_header_dir_h" "$ac_includes_default"
-if test "x$ac_cv_header_dir_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_DIR_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "dirent.h" "ac_cv_header_dirent_h" "$ac_includes_default"
-if test "x$ac_cv_header_dirent_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_DIRENT_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "dl.h" "ac_cv_header_dl_h" "$ac_includes_default"
-if test "x$ac_cv_header_dl_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_DL_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "dlfcn.h" "ac_cv_header_dlfcn_h" "$ac_includes_default"
-if test "x$ac_cv_header_dlfcn_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_DLFCN_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "errno.h" "ac_cv_header_errno_h" "$ac_includes_default"
-if test "x$ac_cv_header_errno_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_ERRNO_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "fcntl.h" "ac_cv_header_fcntl_h" "$ac_includes_default"
-if test "x$ac_cv_header_fcntl_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_FCNTL_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "grp.h" "ac_cv_header_grp_h" "$ac_includes_default"
-if test "x$ac_cv_header_grp_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_GRP_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "inttypes.h" "ac_cv_header_inttypes_h" "$ac_includes_default"
-if test "x$ac_cv_header_inttypes_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_INTTYPES_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "io.h" "ac_cv_header_io_h" "$ac_includes_default"
-if test "x$ac_cv_header_io_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_IO_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "limits.h" "ac_cv_header_limits_h" "$ac_includes_default"
-if test "x$ac_cv_header_limits_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_LIMITS_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "mach-o/dyld.h" "ac_cv_header_mach_o_dyld_h" "$ac_includes_default"
-if test "x$ac_cv_header_mach_o_dyld_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_MACH_O_DYLD_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "malloc.h" "ac_cv_header_malloc_h" "$ac_includes_default"
-if test "x$ac_cv_header_malloc_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_MALLOC_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "memory.h" "ac_cv_header_memory_h" "$ac_includes_default"
-if test "x$ac_cv_header_memory_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_MEMORY_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "netdb.h" "ac_cv_header_netdb_h" "$ac_includes_default"
-if test "x$ac_cv_header_netdb_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_NETDB_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "osreldate.h" "ac_cv_header_osreldate_h" "$ac_includes_default"
-if test "x$ac_cv_header_osreldate_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_OSRELDATE_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "poll.h" "ac_cv_header_poll_h" "$ac_includes_default"
-if test "x$ac_cv_header_poll_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_POLL_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "process.h" "ac_cv_header_process_h" "$ac_includes_default"
-if test "x$ac_cv_header_process_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_PROCESS_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "pwd.h" "ac_cv_header_pwd_h" "$ac_includes_default"
-if test "x$ac_cv_header_pwd_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_PWD_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "semaphore.h" "ac_cv_header_semaphore_h" "$ac_includes_default"
-if test "x$ac_cv_header_semaphore_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SEMAPHORE_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "signal.h" "ac_cv_header_signal_h" "$ac_includes_default"
-if test "x$ac_cv_header_signal_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SIGNAL_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "stdarg.h" "ac_cv_header_stdarg_h" "$ac_includes_default"
-if test "x$ac_cv_header_stdarg_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_STDARG_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "stddef.h" "ac_cv_header_stddef_h" "$ac_includes_default"
-if test "x$ac_cv_header_stddef_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_STDDEF_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "stdio.h" "ac_cv_header_stdio_h" "$ac_includes_default"
-if test "x$ac_cv_header_stdio_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_STDIO_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "stdlib.h" "ac_cv_header_stdlib_h" "$ac_includes_default"
-if test "x$ac_cv_header_stdlib_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_STDLIB_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "string.h" "ac_cv_header_string_h" "$ac_includes_default"
-if test "x$ac_cv_header_string_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_STRING_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "strings.h" "ac_cv_header_strings_h" "$ac_includes_default"
-if test "x$ac_cv_header_strings_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_STRINGS_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sysapi.h" "ac_cv_header_sysapi_h" "$ac_includes_default"
-if test "x$ac_cv_header_sysapi_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYSAPI_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sysgtime.h" "ac_cv_header_sysgtime_h" "$ac_includes_default"
-if test "x$ac_cv_header_sysgtime_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYSGTIME_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "termios.h" "ac_cv_header_termios_h" "$ac_includes_default"
-if test "x$ac_cv_header_termios_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_TERMIOS_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "time.h" "ac_cv_header_time_h" "$ac_includes_default"
-if test "x$ac_cv_header_time_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_TIME_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "tpfeq.h" "ac_cv_header_tpfeq_h" "$ac_includes_default"
-if test "x$ac_cv_header_tpfeq_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_TPFEQ_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "tpfio.h" "ac_cv_header_tpfio_h" "$ac_includes_default"
-if test "x$ac_cv_header_tpfio_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_TPFIO_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "unistd.h" "ac_cv_header_unistd_h" "$ac_includes_default"
-if test "x$ac_cv_header_unistd_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_UNISTD_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "unix.h" "ac_cv_header_unix_h" "$ac_includes_default"
-if test "x$ac_cv_header_unix_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_UNIX_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "windows.h" "ac_cv_header_windows_h" "$ac_includes_default"
-if test "x$ac_cv_header_windows_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_WINDOWS_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "winsock2.h" "ac_cv_header_winsock2_h" "$ac_includes_default"
-if test "x$ac_cv_header_winsock2_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_WINSOCK2_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "arpa/inet.h" "ac_cv_header_arpa_inet_h" "$ac_includes_default"
-if test "x$ac_cv_header_arpa_inet_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_ARPA_INET_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "kernel/OS.h" "ac_cv_header_kernel_OS_h" "$ac_includes_default"
-if test "x$ac_cv_header_kernel_OS_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_KERNEL_OS_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "net/errno.h" "ac_cv_header_net_errno_h" "$ac_includes_default"
-if test "x$ac_cv_header_net_errno_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_NET_ERRNO_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "netinet/in.h" "ac_cv_header_netinet_in_h" "$ac_includes_default"
-if test "x$ac_cv_header_netinet_in_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_NETINET_IN_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "netinet/sctp.h" "ac_cv_header_netinet_sctp_h" "$ac_includes_default"
-if test "x$ac_cv_header_netinet_sctp_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_NETINET_SCTP_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "netinet/sctp_uio.h" "ac_cv_header_netinet_sctp_uio_h" "$ac_includes_default"
-if test "x$ac_cv_header_netinet_sctp_uio_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_NETINET_SCTP_UIO_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/file.h" "ac_cv_header_sys_file_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_file_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_FILE_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/ioctl.h" "ac_cv_header_sys_ioctl_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_ioctl_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_IOCTL_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/mman.h" "ac_cv_header_sys_mman_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_mman_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_MMAN_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/param.h" "ac_cv_header_sys_param_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_param_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_PARAM_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/poll.h" "ac_cv_header_sys_poll_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_poll_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_POLL_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/resource.h" "ac_cv_header_sys_resource_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_resource_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_RESOURCE_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/select.h" "ac_cv_header_sys_select_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_select_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_SELECT_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/sem.h" "ac_cv_header_sys_sem_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_sem_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_SEM_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/sendfile.h" "ac_cv_header_sys_sendfile_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_sendfile_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_SENDFILE_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/signal.h" "ac_cv_header_sys_signal_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_signal_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_SIGNAL_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/socket.h" "ac_cv_header_sys_socket_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_socket_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_SOCKET_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/sockio.h" "ac_cv_header_sys_sockio_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_sockio_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_SOCKIO_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/stat.h" "ac_cv_header_sys_stat_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_stat_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_STAT_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/sysctl.h" "ac_cv_header_sys_sysctl_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_sysctl_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_SYSCTL_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/syslimits.h" "ac_cv_header_sys_syslimits_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_syslimits_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_SYSLIMITS_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/time.h" "ac_cv_header_sys_time_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_time_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_TIME_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/types.h" "ac_cv_header_sys_types_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_types_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_TYPES_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/uio.h" "ac_cv_header_sys_uio_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_uio_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_UIO_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/un.h" "ac_cv_header_sys_un_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_un_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_UN_H 1" >>confdefs.h
-
-fi
-ac_fn_c_check_header_compile "$LINENO" "sys/wait.h" "ac_cv_header_sys_wait_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_wait_h" = xyes
-then :
-  printf "%s\n" "#define HAVE_SYS_WAIT_H 1" >>confdefs.h
-
-fi
 
+done
 for aprt_i in ByteOrder.h		\
     conio.h		\
     crypt.h		\
@@ -33637,7 +33088,7 @@ esac
 
 
 
-ac_config_files="$ac_config_files Makefile include/apr.h build/apr_rules.mk build/pkg/pkginfo apr-$APR_MAJOR_VERSION-config:apr-config.in apr.pc"
+ac_config_files="$ac_config_files Makefile include/apr.h build/apr_rules.mk build/pkg/pkginfo apr-$APR_MAJOR_VERSION-config:apr-config.in apr.pc"
 
 
 if test -d $srcdir/test; then
@@ -34646,11 +34097,11 @@ do
   case $ac_config_target in
     "include/arch/unix/apr_private.h") CONFIG_HEADERS="$CONFIG_HEADERS include/arch/unix/apr_private.h" ;;
     "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
-    "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
-    "include/apr.h") CONFIG_FILES="$CONFIG_FILES include/apr.h" ;;
-    "build/apr_rules.mk") CONFIG_FILES="$CONFIG_FILES build/apr_rules.mk" ;;
-    "build/pkg/pkginfo") CONFIG_FILES="$CONFIG_FILES build/pkg/pkginfo" ;;
-    "apr-$APR_MAJOR_VERSION-config") CONFIG_FILES="$CONFIG_FILES apr-$APR_MAJOR_VERSION-config:apr-config.in" ;;
+    "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
+    "include/apr.h") CONFIG_FILES="$CONFIG_FILES include/apr.h" ;;
+    "build/apr_rules.mk") CONFIG_FILES="$CONFIG_FILES build/apr_rules.mk" ;;
+    "build/pkg/pkginfo") CONFIG_FILES="$CONFIG_FILES build/pkg/pkginfo" ;;
+    "apr-$APR_MAJOR_VERSION-config") CONFIG_FILES="$CONFIG_FILES apr-$APR_MAJOR_VERSION-config:apr-config.in" ;;
     "apr.pc") CONFIG_FILES="$CONFIG_FILES apr.pc" ;;
     "test/Makefile") CONFIG_FILES="$CONFIG_FILES test/Makefile" ;;
     "test/internal/Makefile") CONFIG_FILES="$CONFIG_FILES test/internal/Makefile" ;;
